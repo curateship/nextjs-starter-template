@@ -66,6 +66,11 @@ import { roundToTick } from "@/lib/protocols/tick"
 import { fetchHyperliquidAccount } from "@/server/protocols/hyperliquid/account"
 import { verifyHyperliquidAgentKey } from "@/server/protocols/hyperliquid/agent"
 import {
+  hyperliquidApprovedBuilderFee,
+  submitHyperliquidBuilderFeeApproval,
+  type BuilderFeeApproval,
+} from "@/server/protocols/hyperliquid/builder-fee"
+import {
   candleIntervalMs,
   fetchHyperliquidCandleHistory,
   fetchHyperliquidCandles,
@@ -868,6 +873,20 @@ export type ProtocolEntry = {
       address: string,
       credential: () => string | null
     ): boolean
+    /**
+     * An app's own fee on an order, which the account's main wallet approves
+     * once up to a highest rate (Hyperliquid's builder fee). Present only
+     * where the exchange has one; copying with real money needs it.
+     */
+    builderFee?: {
+      /** Hands on the approval the member's browser wallet signed. */
+      submitApproval(
+        network: NetworkId,
+        approval: BuilderFeeApproval
+      ): Promise<void>
+      /** The highest fee the account allows this builder, tenths of a basis point. */
+      approved(network: NetworkId, user: string, builder: string): Promise<number>
+    }
   }
 }
 
@@ -983,6 +1002,10 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       orderInfo: fetchHyperliquidOrderInfo,
       watchFills: watchHyperliquidFills,
       fillsNeedRecovery: hyperliquidFillsNeedRecovery,
+      builderFee: {
+        submitApproval: submitHyperliquidBuilderFeeApproval,
+        approved: hyperliquidApprovedBuilderFee,
+      },
     },
   },
   /**

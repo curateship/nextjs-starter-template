@@ -73,6 +73,7 @@ import {
   flowLadderOrderIds,
   rememberFlowRunOrders,
 } from "@/server/trade/flow-run-orders"
+import { rememberCopyOrders } from "@/server/trade/copy-ledger"
 import { getProtocol, ordersOf } from "@/server/protocols/registry"
 import { marketBaseInForce } from "@/server/trade/base-level"
 import {
@@ -1865,6 +1866,7 @@ export async function reconcileLiveLaddersOnce(
                   entry.kind === "watch"
                     ? entry.plan.clientOrderId
                     : undefined,
+                copied: entry.kind === "watch" && Boolean(entry.plan.copyId),
               })
               recordSmartOrderSendSuccess(entry.plan)
               // An immediate limit fill, or a venue-reported post-only fill, is
@@ -1896,6 +1898,15 @@ export async function reconcileLiveLaddersOnce(
                     marketKey: pending.input.marketKey,
                     orderIds: [outcome.orderId],
                   })
+                  if (entry.kind === "watch" && entry.plan.copyId) {
+                    await rememberCopyOrders({
+                      userId,
+                      wallet,
+                      copyId: entry.plan.copyId,
+                      marketKey: pending.input.marketKey,
+                      orderIds: [outcome.orderId],
+                    })
+                  }
                 }
                 continue
               }
@@ -1919,6 +1930,17 @@ export async function reconcileLiveLaddersOnce(
                 marketKey: pending.input.marketKey,
                 orderIds: [outcome.orderId],
               })
+              // A copy's order, written down the same way and for the same
+              // reason: its fill arrives later with nothing but this id.
+              if (entry.kind === "watch" && entry.plan.copyId) {
+                await rememberCopyOrders({
+                  userId,
+                  wallet,
+                  copyId: entry.plan.copyId,
+                  marketKey: pending.input.marketKey,
+                  orderIds: [outcome.orderId],
+                })
+              }
             }
             for (const input of pendingFills) {
               if (entry.plan.paused) {

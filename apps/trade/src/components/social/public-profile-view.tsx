@@ -39,7 +39,14 @@ function day(at: number): string {
  * Wrapped in `ShowPublicFigures`, so the Hide P&L switch, which is about a
  * member's own screen, never blurs a page that was published on purpose.
  */
-export function PublicProfileContent({ view }: { view: PublicProfileView }) {
+export function PublicProfileContent({
+  view,
+  actions,
+}: {
+  view: PublicProfileView
+  /** Follow and Copy, for the page at `/t/<handle>`. */
+  actions?: React.ReactNode
+}) {
   const [reporting, setReporting] = React.useState(false)
   const [month, setMonth] = React.useState(() => currentMonth(view.readAt))
   const since = view.recordStart ?? view.readAt
@@ -79,6 +86,7 @@ export function PublicProfileContent({ view }: { view: PublicProfileView }) {
               Report
             </Button>
           </div>
+          {actions}
           {view.bio ? (
             <p className="text-sm whitespace-pre-line">{view.bio}</p>
           ) : null}
@@ -169,6 +177,8 @@ export function PublicProfileContent({ view }: { view: PublicProfileView }) {
         </Card>
       </div>
 
+      <CopyingCard view={view} />
+
       <Card>
         <CardHeader>
           <CardTitle>Wallets on this profile</CardTitle>
@@ -214,6 +224,64 @@ export function PublicProfileContent({ view }: { view: PublicProfileView }) {
         onClose={() => setReporting(false)}
       />
     </ShowPublicFigures>
+  )
+}
+
+/**
+ * What copying this trader has meant for the people doing it. The dollars
+ * come from copiers' real wallets only, so a trader who sells into the people
+ * copying them shows here as copiers losing.
+ */
+function CopyingCard({ view }: { view: PublicProfileView }) {
+  const copying = view.copying
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Copying @{view.handle}</CardTitle>
+        <CardDescription>
+          {copying.copyable
+            ? "Anyone with a wallet on the same exchange can copy these trades."
+            : "Copying is not open for this profile right now."}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <dl className="grid gap-3 text-sm">
+          <Row label="Following">
+            {copying.followers.toLocaleString("en-US")}{" "}
+            {copying.followers === 1 ? "person" : "people"}
+          </Row>
+          <Row label="Copying">
+            {copying.copiers.toLocaleString("en-US")}{" "}
+            {copying.copiers === 1 ? "person" : "people"}
+          </Row>
+          <Row label={`People copying @${view.handle} made or lost`}>
+            {copying.copiedTrades30d === 0 ? (
+              "No real-money copies in the last 30 days"
+            ) : (
+              <>
+                <PnlAmount
+                  className={cn(
+                    "font-semibold tabular-nums",
+                    moneyTone(Math.round(copying.copiersMade30d))
+                  )}
+                >
+                  {signedWholeUsd(copying.copiersMade30d)}
+                </PnlAmount>
+                <span className="text-muted-foreground">
+                  {" "}
+                  in the last 30 days, from real wallets only, after every fee
+                </span>
+              </>
+            )}
+          </Row>
+          <Row label="Sold soon after copiers bought">
+            {copying.copiedTrades30d === 0
+              ? "Nothing to compare yet: nobody copied with real money in the last 30 days"
+              : `${copying.soldIntoCopiers30d} of ${copying.sales30d} ${copying.sales30d === 1 ? "sale" : "sales"} in the last 30 days came within five minutes of copiers buying the same coin`}
+          </Row>
+        </dl>
+      </CardContent>
+    </Card>
   )
 }
 

@@ -62,6 +62,7 @@ import {
   tradeWallets,
 } from "@/server/trade/schema"
 import { recordEngineError } from "@/server/trade/engine-errors"
+import { copyBuilderFee } from "@/server/trade/copy-ledger"
 
 /**
  * Real orders, app side. The protocol adapter signs; this file owns
@@ -343,6 +344,11 @@ export async function placeLiveOrder(
     overrode?: readonly string[]
     /** An id the exchange can use to recover this exact order after a lost reply. */
     clientOrderId?: string | null
+    /**
+     * A copy of another trader sent this, so it carries Trade's fee where the
+     * exchange has one. Never set for an order somebody placed by hand.
+     */
+    copied?: boolean
   }
 ): Promise<PlaceOrderOutcome> {
   // The stopwatch every real placement reports — one line per order saying
@@ -484,6 +490,7 @@ export async function placeLiveOrder(
       slPx: input.slPx,
       slippage: slippageFraction(quickPrefs?.slippagePct),
       clientOrderId: input.clientOrderId,
+      builder: input.copied ? await copyBuilderFee() : null,
     })
     dropEngineExchangeReads(row)
     console.log(

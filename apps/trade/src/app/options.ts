@@ -70,6 +70,11 @@ export const appOptions: AppOptions = {
         id: "public-profile",
         component: () => import("@/components/social/public-profile-setting"),
       },
+      {
+        /** The page of traders the member follows or copies. Everybody's own. */
+        id: "following",
+        component: () => import("@/components/social/following-setting"),
+      },
     ],
   },
   settings: {

@@ -2,7 +2,9 @@ import { createFileRoute, notFound } from "@tanstack/react-router"
 
 import { PublicPageFrame } from "@/components/shell/public-page-frame"
 import { visitorRouteErrorComponent } from "@/components/shell/route-error"
+import { ProfileFollowCopy } from "@/components/social/profile-follow-copy"
 import { PublicProfileContent } from "@/components/social/public-profile-view"
+import { readViewerRelation } from "@/lib/api/trade/copy-trading"
 import { requirePageVisible } from "@/lib/api/content/pages"
 import {
   getPublicProfileErrorMessage,
@@ -30,7 +32,11 @@ export const Route = createFileRoute("/t/$handle")({
       readPublicProfile(params.handle),
     ])
     if (!page) throw notFound()
-    return page
+    // Who is looking, for the Follow and Copy buttons. Null for a visitor who
+    // is not signed in, and read apart from the page, which is shared by
+    // everybody and kept for a minute.
+    const relation = await readViewerRelation(page.view.handle)
+    return { ...page, relation }
   },
   head: ({ loaderData }) => {
     if (!loaderData) return {}
@@ -64,11 +70,16 @@ export const Route = createFileRoute("/t/$handle")({
 })
 
 function PublicProfileRoute() {
-  const { view } = Route.useLoaderData()
+  const { view, relation } = Route.useLoaderData()
   return (
     <PublicPageFrame className="place-items-start justify-items-center [&>*]:w-full [&>*]:min-w-0">
       <div className="mx-auto flex w-full max-w-4xl min-w-0 flex-col gap-2 text-left md:gap-3">
-        <PublicProfileContent view={view} />
+        <PublicProfileContent
+          view={view}
+          actions={
+            <ProfileFollowCopy handle={view.handle} relation={relation} />
+          }
+        />
       </div>
     </PublicPageFrame>
   )

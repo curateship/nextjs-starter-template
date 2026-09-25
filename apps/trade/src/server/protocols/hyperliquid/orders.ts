@@ -438,6 +438,16 @@ export async function placeHyperliquidOrder(
     const response = await client.order({
       orders,
       grouping: protectionLegs.length > 0 ? "normalTpsl" : "na",
+      // Trade's fee on a copied order. Hyperliquid refuses the whole order
+      // when the account's main wallet has not approved at least this much.
+      ...(params.builder
+        ? {
+            builder: {
+              b: params.builder.address as `0x${string}`,
+              f: params.builder.tenthsBps,
+            },
+          }
+        : {}),
     })
     statuses = response.response.data.statuses as OrderStatus[]
   } catch (error) {

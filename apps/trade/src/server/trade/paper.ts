@@ -41,6 +41,10 @@ import {
 import { userMarketRules } from "@/server/trade/leverage-ceilings"
 import { marketRules } from "@/server/trade/market-rules"
 import {
+  recordCopiedFills,
+  stampCopiedTrades,
+} from "@/server/trade/copy-ledger"
+import {
   tradePaperJournal,
   tradePaperOrders,
   tradePaperPositions,
@@ -399,6 +403,24 @@ export async function saveBook(
         reason: entry.reason,
         fillTime: new Date(entry.fillTime),
         orderId: entry.orderId,
+      }))
+    )
+    // A fill a copy's order made gets its fee row in the same write, so the
+    // Journal never shows a copied trade the fee record does not know about.
+    await recordCopiedFills(
+      database,
+      userId,
+      book.wallet,
+      book.fills.map((entry) => ({
+        fillId: entry.id,
+        orderId: entry.orderId,
+        marketKey: entry.marketKey,
+        side: entry.side,
+        px: entry.px,
+        sz: entry.sz,
+        closedPnl: entry.closedPnl,
+        fee: entry.fee,
+        at: entry.fillTime,
       }))
     )
     const realized = book.fills.reduce(
@@ -833,6 +855,7 @@ export async function loadPaperHistory(
   // their own level made, exactly as a real one's do. See `stampGridFills`.
   const fills = await stampGridFills(userId, walletIds, rows.map(toTradeFill))
   const trades = buildLiveTrades(fills, NO_TRIGGERS)
+  await stampCopiedTrades(userId, walletIds, trades)
   return {
     fills: fillsOutsideTrades(fills, trades),
     trades,

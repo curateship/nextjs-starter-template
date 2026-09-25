@@ -98,6 +98,10 @@ screen: anything not written there has not been agreed yet.
   permanent record binning and deleting cannot touch, the ownership check
   and what "checked by Trade" means, how far back each exchange goes, the
   figures and the leaderboard minimums.
+- `copy-a-trader.md` — following and copying a trader: who can be copied, how
+  a trade is heard and copied, every skip and pause rule, the 0.1% fee and the
+  trader's half, the fee on each exchange with its source, the fee record and
+  how traders are paid.
 
 ## charts/ — the chart itself
 

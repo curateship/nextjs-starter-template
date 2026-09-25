@@ -636,3 +636,84 @@ describe("whose stop it is", () => {
     ).toBe(false)
   })
 })
+
+describe("a copy's opening order", () => {
+  /** A copy of a trader's buy of 1 BTC at $100, allowed $1 in every $100 of room. */
+  const copyBuy = {
+    phase: "taking" as const,
+    triggerPx: 100,
+    maker: true,
+    reduceOnly: false,
+    chaseGiveUp: 0.01,
+    copyId: "copy-1",
+  }
+
+  it("rests just under the price instead of taking it, and waits with nothing held", async () => {
+    await watchAt(copyBuy)
+    await settle()
+
+    const [order] = await orders()
+    expect(order).toMatchObject({ side: "buy", sz: 1, reduceOnly: false })
+    expect(order.px).toBeLessThan(100)
+    // Nothing is held yet, and unlike a close that is no reason to stop.
+    expect((await row()).plan.orderId).toBe(order.id)
+  })
+
+  it("buys exactly its size once, counting the position as it grows", async () => {
+    await watchAt(copyBuy)
+    await settle()
+    await priceTo(99.5)
+    vi.advanceTimersByTime(CHASE_EVERY_MS)
+    await settle()
+
+    expect(await positions()).toEqual([
+      expect.objectContaining({ marketKey: BTC, szi: 1 }),
+    ])
+    await expectFinished()
+    expect(await orders()).toEqual([])
+  })
+
+  it("stops instead of buying back coins the copier sold while it chased", async () => {
+    // The copier already held 1 BTC and the copy adds 1 more. Before the copy
+    // fills, the copier sells everything by hand. Counting from the 1 BTC it
+    // started at, the copy would read that sale as 2 coins still to buy.
+    await database.insert(tradePaperPositions).values({
+      userId,
+      id: "held",
+      walletId: "w1",
+      marketKey: BTC,
+      szi: 1,
+      entryPx: 100,
+      leverage: 1,
+      maxLeverage: 50,
+      targets: [],
+      tpPx: null,
+      tpSz: null,
+      slPx: null,
+      feesPaid: 0,
+      updatedAt: new Date(),
+    })
+    await watchAt({ ...copyBuy, heldAtStart: 1 })
+    await settle()
+    expect(await orders()).toHaveLength(1)
+
+    await database
+      .delete(tradePaperPositions)
+      .where(eq(tradePaperPositions.userId, userId))
+    await settle()
+
+    await expectFinished()
+    expect(await orders()).toEqual([])
+    expect(await positions()).toEqual([])
+  })
+
+  it("gives up once the price runs past the copier's allowance", async () => {
+    await watchAt(copyBuy)
+    await settle()
+    await priceTo(101.5)
+
+    await expectFinished()
+    expect(await orders()).toEqual([])
+    expect(await positions()).toEqual([])
+  })
+})

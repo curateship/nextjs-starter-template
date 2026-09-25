@@ -126,6 +126,8 @@ export async function openPartClose(
     how: CloseHow
     /** Already read by the caller — see `HeldPosition`. */
     held?: HeldPosition
+    /** The copy following its trader out, so the sale gets its label and fee row. */
+    copyId?: string
   }
 ): Promise<PartCloseOutcome> {
   if (!hasWalletPlanWrite(userId, wallet.id)) {
@@ -317,6 +319,7 @@ export async function openPartClose(
     chasedAt: 0,
     chases: 0,
     startedAt: now.getTime(),
+    copyId: input.copyId ?? null,
   }
 
   await db.transaction(async (tx) => {

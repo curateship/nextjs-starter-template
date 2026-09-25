@@ -33,6 +33,8 @@ export const appOpenEndpoints: Record<string, string> = {
     "A public trader profile is a page for visitors with no account. It answers only for a profile its member switched on and no admin hid, and it carries no coin, price, key or email, only the figures the member chose to publish.",
   "trade/public-profiles.ts:readLeaderboardFn":
     "The leaderboard is a public page. It lists only switched-on profiles that are not hidden and pass the 30-day and 20-trade minimums, with the same figures their own public pages already show.",
+  "trade/copy-trading.ts:readViewerRelationFn":
+    "The Follow and Copy buttons on a public profile ask who is looking. A visitor who is not signed in gets null and nothing else; a signed-in member gets only their own follow, their own copy and their own wallets.",
   "trade/public-profiles.ts:reportPublicProfileFn":
     "Anybody may report a public profile, which is the feature. It still checks the request came from this app's own pages, takes five reports an hour from one address, and writes a row only an admin can read.",
 }

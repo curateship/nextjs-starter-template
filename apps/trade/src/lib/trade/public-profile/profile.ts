@@ -1,5 +1,6 @@
 import type { ProtocolId } from "@/lib/protocols/contracts"
 import type { DayResult } from "@/lib/trade/pnl/day-buckets"
+import type { PublicCopyFigures } from "@/lib/trade/copy/copy-rules"
 import type { PublicFigures } from "@/lib/trade/public-profile/figures"
 
 /**
@@ -178,6 +179,8 @@ export type PublicProfileView = {
   onLeaderboard: boolean
   /** "Let search engines list me". Off also asks search engines not to index. */
   searchable: boolean
+  /** Followers, copiers, and what real-money copiers made. */
+  copying: PublicCopyFigures
   readAt: number
 }
 

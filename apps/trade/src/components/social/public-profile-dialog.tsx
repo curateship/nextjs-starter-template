@@ -2,6 +2,7 @@ import * as React from "react"
 import { ExternalLinkIcon, Loader2Icon, RotateCcwIcon } from "lucide-react"
 import { toast } from "sonner"
 
+import { CopiersCard } from "@/components/social/copiers-card"
 import { ImageUpload } from "@/components/shared/image-upload"
 import { Button } from "@/components/ui/button"
 import {
@@ -520,6 +521,8 @@ export function PublicProfileDialog({
                     </Button>
                   </CardContent>
                 </Card>
+
+                {data.profile ? <CopiersCard /> : null}
               </DialogBody>
               <DialogFooter>
                 <Button

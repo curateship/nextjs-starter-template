@@ -16,6 +16,8 @@ import {
 } from "@/lib/trade/watch-order"
 import { getProtocol } from "@/server/protocols/registry"
 import { rememberEngineTimestamp } from "./engine-memory"
+import { formatPrice } from "@/lib/trade/format"
+import { writeCopyNote } from "@/server/trade/copy-ledger"
 import type {
   LadderAdvanceInput,
   LadderEngineDeps,
@@ -109,8 +111,39 @@ export async function advanceWatch(
   const live = liveOrderIds(book)
   const position = book.positions.get(row.marketKey) ?? null
   const positionSize = Math.abs(position?.szi ?? 0)
-  const partCloseRemaining =
-    plan.sz - Math.max(0, plan.heldAtStart - positionSize)
+  // What a maker order still has to trade, with the position as the count: a
+  // close counts how far the holding has come down, and a copy's opening
+  // order how far it has come up. See `heldAtStart`.
+  const makerRemaining =
+    plan.sz -
+    Math.max(
+      0,
+      plan.reduceOnly
+        ? plan.heldAtStart - positionSize
+        : positionSize - plan.heldAtStart
+    )
+
+  // **A copy's opening order only ever watches its position grow.** If the
+  // position shrinks instead, something else decided about this coin: the
+  // copier's own stop fired, or they sold by hand. Counting the position from
+  // `heldAtStart` would then read the sale as coins still to buy and buy them
+  // back, more than the copy asked for. So it stops, keeping what it bought.
+  // A position read that lags a fill can only look smaller, which stops the
+  // copy early: it buys less, never more.
+  if (plan.maker && !plan.reduceOnly && plan.phase === "taking") {
+    const peak = Math.max(plan.peakHeld ?? plan.heldAtStart, positionSize)
+    if (positionSize + 1e-9 < peak) {
+      if (plan.orderId) deps.dropOrder(book, plan.orderId)
+      plan.orderId = null
+      plan.orderPx = null
+      await deps.saveLadder(row, "done", now)
+      return
+    }
+    if (peak !== plan.peakHeld) {
+      plan.peakHeld = peak
+      changed = true
+    }
+  }
 
   // ----- Is the order we placed still out there? -------------------------
   //
@@ -126,7 +159,7 @@ export async function advanceWatch(
       // of the same order live, so only the whole requested piece proves the
       // order has finished.
       accountShowsItDone: plan.maker
-        ? partCloseRemaining <= 1e-9
+        ? makerRemaining <= 1e-9
         : Math.abs((position?.szi ?? 0) - plan.heldWhenPlaced) > 1e-9,
       missingSince: plan.missingSince,
       now,
@@ -251,6 +284,14 @@ export async function advanceWatch(
     // Price left before it could be filled. Nothing was bought — a part fill
     // still leaves the rest of this order chasing, which is what the size
     // below reads — so the watch is over rather than following it forever.
+    // A copy says so in its copier's Journal, since nobody pressed anything.
+    if (plan.copyId) {
+      void writeCopyNote({
+        copyId: plan.copyId,
+        marketKey: row.marketKey,
+        note: `The price ran past ${formatPrice(ceiling ?? plan.triggerPx)} before the copy could fill, so it stopped following. Anything it had already bought is kept.`,
+      })
+    }
     if (plan.orderId) deps.dropOrder(book, plan.orderId)
     plan.orderId = null
     plan.orderPx = null
@@ -274,7 +315,7 @@ export async function advanceWatch(
   if (
     plan.orderId === null &&
     plan.sent &&
-    (!plan.maker || floorSize(partCloseRemaining, plan.sizeDecimals) > 0)
+    (!plan.maker || floorSize(makerRemaining, plan.sizeDecimals) > 0)
   ) {
     if (changed) await deps.saveLadder(row, "active", now)
     return
@@ -295,10 +336,11 @@ export async function advanceWatch(
    * and the leftover 0.0000000000000036 SOL went to Hyperliquid as an order
    * for $0.00 five times over until the safety paused the close.
    */
-  const stillToDo = plan.maker ? partCloseRemaining : plan.sz
+  const stillToDo = plan.maker ? makerRemaining : plan.sz
   if (
     plan.maker &&
-    (position === null || floorSize(stillToDo, plan.sizeDecimals) <= 0)
+    ((plan.reduceOnly && position === null) ||
+      floorSize(stillToDo, plan.sizeDecimals) <= 0)
   ) {
     if (plan.orderId) deps.dropOrder(book, plan.orderId)
     plan.orderId = null

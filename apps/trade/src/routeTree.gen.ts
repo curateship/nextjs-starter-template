@@ -33,6 +33,7 @@ import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedBacktestsRouteImport } from './routes/_authenticated/backtests'
 import { Route as AuthenticatedChangelogRouteImport } from './routes/_authenticated/changelog'
 import { Route as AuthenticatedFlowRunsRouteImport } from './routes/_authenticated/flow-runs'
+import { Route as AuthenticatedFollowingRouteImport } from './routes/_authenticated/following'
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
 import { Route as AuthenticatedPnlRouteImport } from './routes/_authenticated/pnl'
 import { Route as AuthenticatedTradeRouteImport } from './routes/_authenticated/trade'
@@ -47,6 +48,7 @@ import { Route as AuthenticatedAdminAsterRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAdminAutomationsRouteImport } from './routes/_authenticated/admin/automations'
 import { Route as AuthenticatedAdminBnbRouteImport } from './routes/_authenticated/admin/bnb'
 import { Route as AuthenticatedAdminContactsRouteImport } from './routes/_authenticated/admin/contacts'
+import { Route as AuthenticatedAdminCopyTradingRouteImport } from './routes/_authenticated/admin/copy-trading'
 import { Route as AuthenticatedAdminDashboardRouteImport } from './routes/_authenticated/admin/dashboard'
 import { Route as AuthenticatedAdminDevOutboxRouteImport } from './routes/_authenticated/admin/dev-outbox'
 import { Route as AuthenticatedAdminFeedbackRouteImport } from './routes/_authenticated/admin/feedback'
@@ -227,6 +229,11 @@ const AuthenticatedFlowRunsRoute = AuthenticatedFlowRunsRouteImport.update({
   path: '/flow-runs',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedFollowingRoute = AuthenticatedFollowingRouteImport.update({
+  id: '/following',
+  path: '/following',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedHomeRoute = AuthenticatedHomeRouteImport.update({
   id: '/home',
   path: '/home',
@@ -299,6 +306,12 @@ const AuthenticatedAdminContactsRoute =
   AuthenticatedAdminContactsRouteImport.update({
     id: '/contacts',
     path: '/contacts',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminCopyTradingRoute =
+  AuthenticatedAdminCopyTradingRouteImport.update({
+    id: '/copy-trading',
+    path: '/copy-trading',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminDashboardRoute =
@@ -675,6 +688,7 @@ export interface FileRoutesByFullPath {
   '/backtests': typeof AuthenticatedBacktestsRoute
   '/changelog': typeof AuthenticatedChangelogRouteWithChildren
   '/flow-runs': typeof AuthenticatedFlowRunsRoute
+  '/following': typeof AuthenticatedFollowingRoute
   '/home': typeof AuthenticatedHomeRoute
   '/pnl': typeof AuthenticatedPnlRoute
   '/trade': typeof AuthenticatedTradeRoute
@@ -688,6 +702,7 @@ export interface FileRoutesByFullPath {
   '/admin/automations': typeof AuthenticatedAdminAutomationsRoute
   '/admin/bnb': typeof AuthenticatedAdminBnbRoute
   '/admin/contacts': typeof AuthenticatedAdminContactsRoute
+  '/admin/copy-trading': typeof AuthenticatedAdminCopyTradingRoute
   '/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
   '/admin/dev-outbox': typeof AuthenticatedAdminDevOutboxRoute
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
@@ -772,6 +787,7 @@ export interface FileRoutesByTo {
   '/account': typeof AuthenticatedAccountRouteWithChildren
   '/backtests': typeof AuthenticatedBacktestsRoute
   '/flow-runs': typeof AuthenticatedFlowRunsRoute
+  '/following': typeof AuthenticatedFollowingRoute
   '/home': typeof AuthenticatedHomeRoute
   '/pnl': typeof AuthenticatedPnlRoute
   '/trade': typeof AuthenticatedTradeRoute
@@ -785,6 +801,7 @@ export interface FileRoutesByTo {
   '/admin/automations': typeof AuthenticatedAdminAutomationsRoute
   '/admin/bnb': typeof AuthenticatedAdminBnbRoute
   '/admin/contacts': typeof AuthenticatedAdminContactsRoute
+  '/admin/copy-trading': typeof AuthenticatedAdminCopyTradingRoute
   '/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
   '/admin/dev-outbox': typeof AuthenticatedAdminDevOutboxRoute
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
@@ -873,6 +890,7 @@ export interface FileRoutesById {
   '/_authenticated/backtests': typeof AuthenticatedBacktestsRoute
   '/_authenticated/changelog': typeof AuthenticatedChangelogRouteWithChildren
   '/_authenticated/flow-runs': typeof AuthenticatedFlowRunsRoute
+  '/_authenticated/following': typeof AuthenticatedFollowingRoute
   '/_authenticated/home': typeof AuthenticatedHomeRoute
   '/_authenticated/pnl': typeof AuthenticatedPnlRoute
   '/_authenticated/trade': typeof AuthenticatedTradeRoute
@@ -886,6 +904,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/automations': typeof AuthenticatedAdminAutomationsRoute
   '/_authenticated/admin/bnb': typeof AuthenticatedAdminBnbRoute
   '/_authenticated/admin/contacts': typeof AuthenticatedAdminContactsRoute
+  '/_authenticated/admin/copy-trading': typeof AuthenticatedAdminCopyTradingRoute
   '/_authenticated/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
   '/_authenticated/admin/dev-outbox': typeof AuthenticatedAdminDevOutboxRoute
   '/_authenticated/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
@@ -974,6 +993,7 @@ export interface FileRouteTypes {
     | '/backtests'
     | '/changelog'
     | '/flow-runs'
+    | '/following'
     | '/home'
     | '/pnl'
     | '/trade'
@@ -987,6 +1007,7 @@ export interface FileRouteTypes {
     | '/admin/automations'
     | '/admin/bnb'
     | '/admin/contacts'
+    | '/admin/copy-trading'
     | '/admin/dashboard'
     | '/admin/dev-outbox'
     | '/admin/feedback'
@@ -1071,6 +1092,7 @@ export interface FileRouteTypes {
     | '/account'
     | '/backtests'
     | '/flow-runs'
+    | '/following'
     | '/home'
     | '/pnl'
     | '/trade'
@@ -1084,6 +1106,7 @@ export interface FileRouteTypes {
     | '/admin/automations'
     | '/admin/bnb'
     | '/admin/contacts'
+    | '/admin/copy-trading'
     | '/admin/dashboard'
     | '/admin/dev-outbox'
     | '/admin/feedback'
@@ -1171,6 +1194,7 @@ export interface FileRouteTypes {
     | '/_authenticated/backtests'
     | '/_authenticated/changelog'
     | '/_authenticated/flow-runs'
+    | '/_authenticated/following'
     | '/_authenticated/home'
     | '/_authenticated/pnl'
     | '/_authenticated/trade'
@@ -1184,6 +1208,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/automations'
     | '/_authenticated/admin/bnb'
     | '/_authenticated/admin/contacts'
+    | '/_authenticated/admin/copy-trading'
     | '/_authenticated/admin/dashboard'
     | '/_authenticated/admin/dev-outbox'
     | '/_authenticated/admin/feedback'
@@ -1449,6 +1474,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedFlowRunsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/following': {
+      id: '/_authenticated/following'
+      path: '/following'
+      fullPath: '/following'
+      preLoaderRoute: typeof AuthenticatedFollowingRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/home': {
       id: '/_authenticated/home'
       path: '/home'
@@ -1545,6 +1577,13 @@ declare module '@tanstack/react-router' {
       path: '/contacts'
       fullPath: '/admin/contacts'
       preLoaderRoute: typeof AuthenticatedAdminContactsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/copy-trading': {
+      id: '/_authenticated/admin/copy-trading'
+      path: '/copy-trading'
+      fullPath: '/admin/copy-trading'
+      preLoaderRoute: typeof AuthenticatedAdminCopyTradingRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/dashboard': {
@@ -2004,6 +2043,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminAutomationsRoute: typeof AuthenticatedAdminAutomationsRoute
   AuthenticatedAdminBnbRoute: typeof AuthenticatedAdminBnbRoute
   AuthenticatedAdminContactsRoute: typeof AuthenticatedAdminContactsRoute
+  AuthenticatedAdminCopyTradingRoute: typeof AuthenticatedAdminCopyTradingRoute
   AuthenticatedAdminDashboardRoute: typeof AuthenticatedAdminDashboardRoute
   AuthenticatedAdminDevOutboxRoute: typeof AuthenticatedAdminDevOutboxRoute
   AuthenticatedAdminFeedbackRoute: typeof AuthenticatedAdminFeedbackRoute
@@ -2050,6 +2090,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminAutomationsRoute: AuthenticatedAdminAutomationsRoute,
   AuthenticatedAdminBnbRoute: AuthenticatedAdminBnbRoute,
   AuthenticatedAdminContactsRoute: AuthenticatedAdminContactsRoute,
+  AuthenticatedAdminCopyTradingRoute: AuthenticatedAdminCopyTradingRoute,
   AuthenticatedAdminDashboardRoute: AuthenticatedAdminDashboardRoute,
   AuthenticatedAdminDevOutboxRoute: AuthenticatedAdminDevOutboxRoute,
   AuthenticatedAdminFeedbackRoute: AuthenticatedAdminFeedbackRoute,
@@ -2124,6 +2165,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedBacktestsRoute: typeof AuthenticatedBacktestsRoute
   AuthenticatedChangelogRoute: typeof AuthenticatedChangelogRouteWithChildren
   AuthenticatedFlowRunsRoute: typeof AuthenticatedFlowRunsRoute
+  AuthenticatedFollowingRoute: typeof AuthenticatedFollowingRoute
   AuthenticatedHomeRoute: typeof AuthenticatedHomeRoute
   AuthenticatedPnlRoute: typeof AuthenticatedPnlRoute
   AuthenticatedTradeRoute: typeof AuthenticatedTradeRoute
@@ -2149,6 +2191,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedBacktestsRoute: AuthenticatedBacktestsRoute,
   AuthenticatedChangelogRoute: AuthenticatedChangelogRouteWithChildren,
   AuthenticatedFlowRunsRoute: AuthenticatedFlowRunsRoute,
+  AuthenticatedFollowingRoute: AuthenticatedFollowingRoute,
   AuthenticatedHomeRoute: AuthenticatedHomeRoute,
   AuthenticatedPnlRoute: AuthenticatedPnlRoute,
   AuthenticatedTradeRoute: AuthenticatedTradeRoute,

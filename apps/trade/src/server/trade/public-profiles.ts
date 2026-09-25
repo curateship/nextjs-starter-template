@@ -22,6 +22,7 @@ import {
   tradePublicProfiles,
   tradePublicReports,
 } from "@/server/trade/schema"
+import { loadPublicCopyFigures } from "@/server/trade/copy-figures"
 import {
   checkRecordWallets,
   loadPricedRecord,
@@ -215,6 +216,12 @@ export async function switchMyPublicProfile(
     .set({ enabled: on, updatedAt: new Date() })
     .where(eq(tradePublicProfiles.userId, userId))
   forgetViews()
+  // A private profile cannot be copied. Its copies pause and say why, and
+  // every copied position stays open. Loaded on use: copying reads this file.
+  if (!on) {
+    const { pauseCopiesOfTrader } = await import("@/server/trade/copy-engine")
+    await pauseCopiesOfTrader(userId, "trader-private")
+  }
   return checks
 }
 
@@ -264,6 +271,13 @@ async function buildView(
     openPositions: record.openPositions,
     onLeaderboard: qualifiesForLeaderboard(record, now),
     searchable: row.searchable,
+    copying: await loadPublicCopyFigures(
+      row.userId,
+      qualifiesForLeaderboard(record, now) &&
+        row.allowCopying &&
+        row.copyBlockedAt === null,
+      now
+    ),
     readAt: now,
   }
 }
@@ -462,5 +476,14 @@ export async function setProfileHidden(
     .where(eq(tradePublicProfiles.userId, userId))
     .returning({ userId: tradePublicProfiles.userId })
   if (updated.length === 0) throw new Error("PROFILE_NOT_FOUND")
+  forgetViews()
+  if (text !== null) {
+    const { pauseCopiesOfTrader } = await import("@/server/trade/copy-engine")
+    await pauseCopiesOfTrader(userId, "trader-private")
+  }
+}
+
+/** Empties the worked-out pages, for a copying change that shows on them. */
+export function forgetPublicProfileViews(): void {
   forgetViews()
 }

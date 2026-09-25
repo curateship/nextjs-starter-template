@@ -693,6 +693,13 @@ export type PlaceOrderParams = {
   slippage?: number | null
   /** A venue-specific id chosen before an order leaves Trade. */
   clientOrderId?: string | null
+  /**
+   * Trade's own fee on a copied order: Hyperliquid's builder fee, in tenths of
+   * a basis point, paid to Trade's address. Only a copy's order carries one;
+   * an order a member places by hand never does. Venues without a builder
+   * fee ignore it.
+   */
+  builder?: { address: string; tenthsBps: number } | null
 }
 
 /**
