@@ -111,8 +111,9 @@ export function AiChoiceField({
             const usable = canUseChoice(option, keys)
             return (
               <SelectItem key={option.id} value={option.id} disabled={!usable}>
-                {option.label} —{" "}
-                {usable ? option.note : missingKeyNote(option.provider)}
+                {usable
+                  ? option.label
+                  : `${option.label} — ${missingKeyNote(option.provider)}`}
               </SelectItem>
             )
           })}
