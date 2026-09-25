@@ -37,6 +37,8 @@ export const appOpenEndpoints: Record<string, string> = {
     "The Follow and Copy buttons on a public profile ask who is looking. A visitor who is not signed in gets null and nothing else; a signed-in member gets only their own follow, their own copy and their own wallets.",
   "trade/public-profiles.ts:reportPublicProfileFn":
     "Anybody may report a public profile, which is the feature. It still checks the request came from this app's own pages, takes five reports an hour from one address, and writes a row only an admin can read.",
+  "trade/price-converter.ts:readConverterPricesFn":
+    "The price converter is a public page. It takes no input and returns only Hyperliquid's public coin names and prices, read from the socket the server already holds and the market list it keeps for a minute, so no visitor gets an exchange request of their own.",
 }
 
 /**

@@ -8,16 +8,23 @@ import { enforceRateLimit } from "@/server/auth/rate-limit"
 import { requirePomodoroPerk } from "@/server/pomodoro/entitlements"
 import {
   applyHostRoomAction,
+  banRoomMember,
   createRoomWithHost,
+  deleteRoomMessage,
   findActiveRoomId,
   joinRoomBySlug,
   leaveRoom,
   listPublicRooms,
   lookupRoomBySlug,
   notifyRoom,
+  postRoomMessage,
+  removeRoomMember,
+  reportRoomMessage,
   roomSnapshot,
+  toggleRoomReaction,
   type RoomHostAction,
 } from "@/server/pomodoro/rooms"
+import { ROOM_REACTION_EMOJIS } from "@/lib/pomodoro/room-reactions"
 
 /**
  * The rooms endpoints, ported from the old app. No delayed-job queue here:
@@ -28,6 +35,11 @@ import {
  * The public list and the invite lookup show member counts, never names —
  * the old privacy rule after a real leak — and the lookup works signed out
  * so the invite page can prompt guests to sign in.
+ *
+ * Chat, reactions, reports and the host's moderation all sit behind the same
+ * userPost guard. Each one re-checks membership or host rights in
+ * src/server/pomodoro/rooms.ts before it touches a rate limit, so a stranger
+ * holding a slug cannot spend a member's budget.
  */
 
 const createRoomSchema = z.object({
@@ -42,6 +54,17 @@ const slugSchema = z.object({ slug: z.string().min(12).max(80) })
 const actionSchema = slugSchema.extend({
   action: z.enum(["start_focus", "start_break", "next_phase", "close"]),
 })
+const messageSchema = slugSchema.extend({
+  body: z.string().trim().min(1).max(500),
+})
+const messageIdSchema = slugSchema.extend({ messageId: z.string().uuid() })
+const reactionSchema = messageIdSchema.extend({
+  emoji: z.enum(ROOM_REACTION_EMOJIS),
+})
+const reportSchema = messageIdSchema.extend({
+  reason: z.string().trim().min(3).max(300),
+})
+const memberSchema = slugSchema.extend({ membershipId: z.string().uuid() })
 
 const listRoomsFn = createServerFn({ method: "GET" })
   .middleware([userGet])
@@ -123,6 +146,83 @@ const roomActionFn = createServerFn({ method: "POST" })
     return roomSnapshot(room.id, context.user.id)
   })
 
+const sendMessageFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(messageSchema)
+  .handler(async ({ data, context }) => {
+    const { roomId } = await postRoomMessage(
+      data.slug,
+      context.user.id,
+      data.body
+    )
+    await notifyRoom(roomId, "message")
+    return { sent: true }
+  })
+
+// Toggling a reaction flips one row; the refreshed counts reach everyone
+// through the same SSE snapshot the rest of the room already relies on.
+const toggleReactionFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(reactionSchema)
+  .handler(async ({ data, context }) => {
+    const { room, added } = await toggleRoomReaction(
+      data.slug,
+      context.user.id,
+      data.messageId,
+      data.emoji
+    )
+    await notifyRoom(room.id, "reaction")
+    return { added }
+  })
+
+// Reports never notify the room: they are private to the reporter and the
+// operators, so nothing changes in anyone else's snapshot.
+const reportMessageFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(reportSchema)
+  .handler(async ({ data, context }) =>
+    reportRoomMessage(data.slug, context.user.id, data.messageId, data.reason)
+  )
+
+const deleteMessageFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(messageIdSchema)
+  .handler(async ({ data, context }) => {
+    const { room } = await deleteRoomMessage(
+      data.slug,
+      context.user.id,
+      data.messageId
+    )
+    await notifyRoom(room.id, "message")
+    return roomSnapshot(room.id, context.user.id)
+  })
+
+const removeMemberFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(memberSchema)
+  .handler(async ({ data, context }) => {
+    const { room } = await removeRoomMember(
+      data.slug,
+      context.user.id,
+      data.membershipId
+    )
+    await notifyRoom(room.id, "membership")
+    return roomSnapshot(room.id, context.user.id)
+  })
+
+const banMemberFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(memberSchema)
+  .handler(async ({ data, context }) => {
+    const { room } = await banRoomMember(
+      data.slug,
+      context.user.id,
+      data.membershipId
+    )
+    await notifyRoom(room.id, "membership")
+    return roomSnapshot(room.id, context.user.id)
+  })
+
 export const listRooms = () => listRoomsFn()
 export const getCurrentRoom = () => currentRoomFn()
 export const lookupRoom = (slug: string) => lookupRoomFn({ data: { slug } })
@@ -133,3 +233,31 @@ export const leaveActiveRoom = (slug: string) =>
   leaveRoomFn({ data: { slug } })
 export const applyRoomAction = (slug: string, action: RoomHostAction) =>
   roomActionFn({ data: { slug, action } })
+export const sendRoomMessage = (slug: string, body: string) =>
+  sendMessageFn({ data: { slug, body } })
+// Callers pass a raw string (from the palette, or from a message's own
+// reaction summary); the schema re-checks it against the five allowed emoji,
+// so the cast is a boundary detail, not a trusted claim.
+export const toggleReaction = (
+  slug: string,
+  messageId: string,
+  emoji: string
+) =>
+  toggleReactionFn({
+    data: {
+      slug,
+      messageId,
+      emoji: emoji as (typeof ROOM_REACTION_EMOJIS)[number],
+    },
+  })
+export const reportMessage = (
+  slug: string,
+  messageId: string,
+  reason: string
+) => reportMessageFn({ data: { slug, messageId, reason } })
+export const deleteMessage = (slug: string, messageId: string) =>
+  deleteMessageFn({ data: { slug, messageId } })
+export const removeMember = (slug: string, membershipId: string) =>
+  removeMemberFn({ data: { slug, membershipId } })
+export const banMember = (slug: string, membershipId: string) =>
+  banMemberFn({ data: { slug, membershipId } })

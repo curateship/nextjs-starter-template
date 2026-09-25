@@ -11,6 +11,7 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart"
 import { cn } from "@/lib/utils"
+import { InitialsAvatar } from "@/components/pomodoro/initials-avatar"
 import { loadProductivity } from "@/lib/api/pomodoro/productivity"
 import { loadLeaderboard } from "@/lib/api/pomodoro/leaderboard"
 import { useProductAuth } from "@/lib/pomodoro/auth-state"
@@ -20,27 +21,6 @@ import { usePomodoro } from "@/lib/pomodoro/use-pomodoro"
 
 type Leaderboard = Awaited<ReturnType<typeof loadLeaderboard>>
 type Productivity = Awaited<ReturnType<typeof loadProductivity>>
-
-/** Coloured initials seeded from the display name — no stock faces. */
-function InitialsAvatar({ name }: { name: string }) {
-  const initials = name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? "")
-    .join("")
-  let hash = 0
-  for (const char of name) hash = (hash * 31 + char.charCodeAt(0)) % 360
-  return (
-    <span
-      aria-hidden="true"
-      className="grid size-8 shrink-0 place-items-center rounded-full text-xs font-bold text-white"
-      style={{ backgroundColor: `hsl(${hash} 55% 45%)` }}
-    >
-      {initials || "?"}
-    </span>
-  )
-}
 
 const chartConfig = {
   sessions: { label: "Sessions", color: "var(--p-accent)" },
