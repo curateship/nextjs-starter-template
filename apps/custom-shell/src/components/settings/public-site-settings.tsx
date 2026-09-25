@@ -15,6 +15,7 @@ import {
 } from "lucide-react"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
+import { PublicUserPanelSettings } from "@/components/settings/public-user-panel-settings"
 import {
   DRAG_HANDLE_CLASS,
   createShellId,
@@ -58,6 +59,7 @@ import {
 } from "@/lib/pages/public-device"
 import { InlineError } from "@/components/ui/inline-error"
 import { Input } from "@/components/ui/input"
+import { NumberField } from "@/components/ui/number-field"
 import {
   Select,
   SelectContent,
@@ -73,9 +75,14 @@ import {
   type PublicBreadcrumbs,
 } from "@/lib/pages/public-breadcrumbs"
 import {
+  MAX_PUBLIC_HEADER_WIDTH,
+  MIN_PUBLIC_HEADER_WIDTH,
+  PUBLIC_HEADER_BLUR_LABELS,
+  PUBLIC_HEADER_BLURS,
   PUBLIC_HEADER_LOGO_SIZES,
   PUBLIC_HEADER_MENU_ALIGNMENTS,
   type PublicHeader,
+  type PublicHeaderBlur,
   type PublicHeaderLogoSize,
   type PublicHeaderMenuAlignment,
 } from "@/lib/pages/public-header"
@@ -91,6 +98,7 @@ import {
   type PublicNavigationItem,
   type PublicNavigationLink,
 } from "@/lib/pages/public-navigation"
+import type { PublicUserPanel } from "@/lib/pages/public-user-panel"
 import { isSafeWrittenPageLink } from "@/lib/pages/written-page-body"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
@@ -100,11 +108,15 @@ type PublicSiteSettingsProps = {
   footer: PublicNavigationLink[]
   footerCopyright: string
   publicHeader: PublicHeader
+  /** Styling's page width, which the header follows until it has its own. */
+  pageWidth: number
+  publicUserPanel: PublicUserPanel
   publicBreadcrumbs: PublicBreadcrumbs
   onNavigationChange: (items: PublicNavigationItem[]) => void
   onFooterChange: (links: PublicNavigationLink[]) => void
   onFooterCopyrightChange: (copyright: string) => void
   onPublicHeaderChange: (header: PublicHeader) => void
+  onPublicUserPanelChange: (panel: PublicUserPanel) => void
   onPublicBreadcrumbsChange: (breadcrumbs: PublicBreadcrumbs) => void
   onSaveConfig: () => Promise<boolean>
 }
@@ -117,11 +129,14 @@ export function PublicSiteSettings({
   footer,
   footerCopyright,
   publicHeader,
+  pageWidth,
+  publicUserPanel,
   publicBreadcrumbs,
   onNavigationChange,
   onFooterChange,
   onFooterCopyrightChange,
   onPublicHeaderChange,
+  onPublicUserPanelChange,
   onPublicBreadcrumbsChange,
   onSaveConfig,
 }: PublicSiteSettingsProps) {
@@ -138,7 +153,12 @@ export function PublicSiteSettings({
       />
       <PublicHeaderSettings
         header={publicHeader}
+        pageWidth={pageWidth}
         onChange={onPublicHeaderChange}
+      />
+      <PublicUserPanelSettings
+        panel={publicUserPanel}
+        onChange={onPublicUserPanelChange}
       />
       <PublicBreadcrumbSettings
         breadcrumbs={publicBreadcrumbs}
@@ -217,9 +237,11 @@ function PublicBreadcrumbSettings({
 
 function PublicHeaderSettings({
   header,
+  pageWidth,
   onChange,
 }: {
   header: PublicHeader
+  pageWidth: number
   onChange: (header: PublicHeader) => void
 }) {
   const update = (patch: Partial<PublicHeader>) =>
@@ -304,6 +326,57 @@ function PublicHeaderSettings({
                   : size === "large"
                     ? "Large"
                     : "Standard"}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="flex items-center justify-between gap-4">
+        <FieldLabel
+          htmlFor="public-header-full-width"
+          hint="Spreads the logo, menu and buttons across the whole window instead of stopping at a set width."
+        >
+          Full width
+        </FieldLabel>
+        <Switch
+          id="public-header-full-width"
+          checked={header.fullWidth}
+          onCheckedChange={(fullWidth) => update({ fullWidth })}
+        />
+      </div>
+
+      {header.fullWidth ? null : (
+        <NumberField
+          id="public-header-width"
+          label="Navigation width"
+          hint={`The widest the logo, menu and buttons spread, in pixels, from ${MIN_PUBLIC_HEADER_WIDTH} to ${MAX_PUBLIC_HEADER_WIDTH}. It follows the page width in Styling until you type a number here.`}
+          value={header.width ?? pageWidth}
+          min={MIN_PUBLIC_HEADER_WIDTH}
+          max={MAX_PUBLIC_HEADER_WIDTH}
+          inputClassName="w-full sm:w-32"
+          onChange={(width) => update({ width })}
+        />
+      )}
+
+      <div className="grid gap-2">
+        <FieldLabel
+          htmlFor="public-header-blur"
+          hint="How much the page behind the header is blurred as it scrolls under a sticky header. A solid header colour from Styling covers it."
+        >
+          Glass blur effect
+        </FieldLabel>
+        <Select
+          value={header.blur}
+          onValueChange={(blur) => update({ blur: blur as PublicHeaderBlur })}
+        >
+          <SelectTrigger id="public-header-blur" className="w-full sm:w-fit">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {PUBLIC_HEADER_BLURS.map((blur) => (
+              <SelectItem key={blur} value={blur}>
+                {PUBLIC_HEADER_BLUR_LABELS[blur]}
               </SelectItem>
             ))}
           </SelectContent>

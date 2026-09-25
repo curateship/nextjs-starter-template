@@ -138,6 +138,9 @@ in `src/lib/custom-shell.tsx` and are applied by
   tab.
 - The list may fill available width, but triggers stay content-width.
 - Do not add underline or plain-text tabs to a new or modified group.
+- Tabs in a dashboard card header are these same pills, with words only and no
+  icons. Tyler asked for this on 25 Sep 2026, and the underline tabs were
+  deleted.
 
 ## Tables
 

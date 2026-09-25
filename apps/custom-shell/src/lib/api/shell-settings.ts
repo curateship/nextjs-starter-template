@@ -58,10 +58,14 @@ import {
   MAX_PUBLIC_NAVIGATION_LABEL_LENGTH,
 } from "@/lib/pages/public-navigation"
 import {
+  MAX_PUBLIC_HEADER_WIDTH,
+  MIN_PUBLIC_HEADER_WIDTH,
+  PUBLIC_HEADER_BLURS,
   PUBLIC_HEADER_LOGO_SIZES,
   PUBLIC_HEADER_MENU_ALIGNMENTS,
 } from "@/lib/pages/public-header"
 import { normalizePublicBreadcrumbs } from "@/lib/pages/public-breadcrumbs"
+import { normalizePublicUserPanel } from "@/lib/pages/public-user-panel"
 import { PUBLIC_DEVICES } from "@/lib/pages/public-device"
 import { NOTIFICATION_TYPES } from "@/lib/notification-types"
 import {
@@ -509,11 +513,24 @@ const shellConfigSchema = z.object({
     sticky: z.boolean(),
     menuAlignment: z.enum(PUBLIC_HEADER_MENU_ALIGNMENTS),
     logoSize: z.enum(PUBLIC_HEADER_LOGO_SIZES),
+    // Defaulted so a settings tab opened before these three existed still
+    // saves, and saves the header as it already looked.
+    fullWidth: z.boolean().default(false),
+    width: z
+      .number()
+      .int()
+      .min(MIN_PUBLIC_HEADER_WIDTH)
+      .max(MAX_PUBLIC_HEADER_WIDTH)
+      .nullable()
+      .default(null),
+    blur: z.enum(PUBLIC_HEADER_BLURS).default("medium"),
   }),
   // Checked by the same function the reader uses, so an unknown or missing
   // value saves as "every kind off" rather than refusing the whole settings
   // save — which is what a tab left open across this change would send.
   publicBreadcrumbs: z.unknown().transform(normalizePublicBreadcrumbs),
+  // Same reason. The reader drops unsafe addresses, so the save can use it too.
+  publicUserPanel: z.unknown().transform(normalizePublicUserPanel),
   publicFont: publicFontAssetSchema,
   publicTheme: publicThemeSchema,
   publicThemePresets: publicThemePresetsSchema,

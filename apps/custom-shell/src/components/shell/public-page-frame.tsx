@@ -14,6 +14,7 @@ import {
   usePublicFooter,
   usePublicFooterCopyright,
   usePublicHeader,
+  usePublicUserPanel,
   usePublicNavigation,
   usePublicSearchEnabled,
   usePublicTheme,
@@ -72,6 +73,7 @@ export function PublicPageFrame({
   const footer = usePublicFooter()
   const footerCopyright = usePublicFooterCopyright()
   const publicHeader = usePublicHeader()
+  const userPanel = usePublicUserPanel()
   const brandedPublicSearchEnabled = usePublicSearchEnabled()
   const publicSearchEnabled =
     publicSearchEnabledOverride ?? brandedPublicSearchEnabled
@@ -110,6 +112,13 @@ export function PublicPageFrame({
     theme.pageWidth === DEFAULT_PUBLIC_PAGE_WIDTH
       ? undefined
       : { maxWidth: theme.pageWidth }
+  // The header follows the page width unless Header layout gives it its own,
+  // or spreads it across the window.
+  const headerWidthStyle = publicHeader.fullWidth
+    ? { maxWidth: "none" as const }
+    : publicHeader.width !== null
+      ? { maxWidth: publicHeader.width }
+      : pageWidthStyle
   const mainSpacingStyle =
     theme.mainSpacing === DEFAULT_PUBLIC_MAIN_SPACING
       ? undefined
@@ -193,7 +202,9 @@ export function PublicPageFrame({
         sticky={publicHeader.sticky}
         menuAlignment={publicHeader.menuAlignment}
         headerBorder={theme.headerBorder}
-        pageWidthStyle={pageWidthStyle}
+        widthStyle={headerWidthStyle}
+        blur={publicHeader.blur}
+        userPanel={userPanel}
         chromeBackground={chromeBackground}
         showThemeToggle={visitorCanChooseTheme}
       />

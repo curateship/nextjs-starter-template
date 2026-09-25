@@ -157,6 +157,28 @@ existing menu button. Small, standard, and large set the logo to 32px, 48px, or
 still shows the logo, site name, search, and colour-mode choice before any menu
 or footer links have been added.
 
+The same card sets how wide the header spreads and how much it blurs. Full
+width spreads the logo, menu and buttons across the whole window. Otherwise
+Navigation width caps them at a number of pixels from 320 to 2560. Until a
+number is typed there, the header follows the page width in Public Styling, so a
+header saved before this setting existed stays where it was. A number outside
+the range is marked and refused, and the last good width stays in use. Glass
+blur effect is None, Light, Medium or Heavy. Medium is the blur the header
+always had. The blur only shows where the page scrolls under a see-through
+header, so it needs Sticky on, and a solid header colour from Styling covers it.
+
+Public Navigation also has a User panel card, copied from the directory app's
+User Panel. Edit user panel opens one window with three cards. Sign in and
+Register each have an icon, a name, an address, a button style (Primary,
+Outline or Ghost) and a Show on phones switch. Leaving a button's address empty
+hides that button everywhere, which is how a site with closed sign-ups drops
+Register. Signed-in menu links is a draggable list of up to 20 links, each with
+an icon, a label and an address. Save refuses a nameless button, a link with no
+label or address, and any address that is not a site path or a safe web
+address, and names the problem in a toast. The defaults are Sign in to /login
+and Create an account to /register, both shown on phones, with no extra links,
+which is exactly what the header showed before the card existed.
+
 Public Navigation also has a Breadcrumbs card, one switch per kind of page:
 written pages, Search, and Pricing. Every switch starts off, so nothing on the
 public site changes until one is turned on. The trail itself is described in
