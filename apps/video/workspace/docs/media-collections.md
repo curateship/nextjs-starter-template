@@ -33,13 +33,14 @@ Everything is in the editor's Media panel, under the All / Video / Image /
 Sound tabs. The shell's Admin > Media page is not touched, because it belongs
 to Custom Shell and the Video app may not edit it.
 
-- **Making the first one:** a **New collection** button sits under the tabs
-  while you have none.
+- **Making one:** press the **+** at the top of the panel and pick **New
+  collection**. The same menu holds **Upload media**; the + no longer opens
+  the file picker straight away.
 - **The chips:** once one exists, the chips read All, Uncollected, then each
   collection by name. Uncollected shows the files that are in no collection.
-- **Rename and delete:** pick a collection's chip, then press the cog at the
-  end of the chips. The menu names the collection and its file count, and
-  offers Rename and Delete. The same menu has New collection.
+  With no collections there are no chips at all.
+- **Rename and delete:** right-click a collection's chip. All and Uncollected
+  are views, not collections, so right-clicking them does nothing.
 - **Putting many files in at once:** press **Select** beside the "Clips" count,
   tick files (or press **Select all**), then **Add to collection** and pick
   one. That is one request and one message, such as "Added 10 files to

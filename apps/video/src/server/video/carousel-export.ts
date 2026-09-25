@@ -1,6 +1,5 @@
 import { createRequire } from "node:module"
-import path from "node:path"
-import { fileURLToPath } from "node:url"
+import { eq } from "drizzle-orm"
 
 import {
   CAROUSEL_NOT_FOUND_MESSAGE,
@@ -12,9 +11,13 @@ import {
   type CarouselTextItem,
 } from "@/lib/video/carousel-schema"
 import { requireTextFont } from "@/lib/video/text-fonts"
-import { getOwnedMedia, IMAGE_TYPES } from "@/server/media/library"
+import { db, type CustomShellDb } from "@/server/db"
+import { IMAGE_TYPES } from "@/server/media/library"
 import { getFromR2 } from "@/server/media/storage"
+import { customShellMedia } from "@/server/schema"
 import { getOwnedCarouselDetail } from "@/server/video/carousels"
+import { findBrandLogoMedia } from "@/server/video/settings"
+import { requireTextFontFiles } from "@/server/video/text-font-files"
 
 export const CAROUSEL_SLIDE_NOT_FOUND_MESSAGE = "Carousel slide not found."
 export const CAROUSEL_MEDIA_MISSING_MESSAGE =
@@ -35,8 +38,6 @@ const FORMAT_SIZES: Record<CarouselFormat, { width: number; height: number }> =
     "9:16": { width: 1080, height: 1920 },
   }
 
-const ASSET_DIR = fileURLToPath(new URL("../assets", import.meta.url))
-const FONT_FILE = path.join(ASSET_DIR, "Inter-SemiBold.ttf")
 const requireNative = createRequire(import.meta.url)
 
 function loadResvg() {
@@ -59,10 +60,8 @@ export async function renderOwnedCarouselSlide(
   for (const item of slide.items) {
     if (item.type !== "image" || media.has(item.mediaId)) continue
     try {
-      const row = await getOwnedMedia(userId, item.mediaId)
-      if (!IMAGE_TYPES.has(row.mimeType)) {
-        throw new Error(CAROUSEL_MEDIA_MISSING_MESSAGE)
-      }
+      const row = await findSlidePicture(userId, item.mediaId)
+      if (!row) throw new Error(CAROUSEL_MEDIA_MISSING_MESSAGE)
       const object = await getFromR2(row.storagePath)
       const bytes = await object.Body?.transformToByteArray()
       if (!bytes?.byteLength) throw new Error(CAROUSEL_MEDIA_MISSING_MESSAGE)
@@ -70,13 +69,7 @@ export async function renderOwnedCarouselSlide(
         item.mediaId,
         `data:${row.mimeType};base64,${Buffer.from(bytes).toString("base64")}`
       )
-    } catch (error) {
-      if (
-        error instanceof Error &&
-        error.message === CAROUSEL_MEDIA_MISSING_MESSAGE
-      ) {
-        throw error
-      }
+    } catch {
       throw new Error(CAROUSEL_MEDIA_MISSING_MESSAGE)
     }
   }
@@ -89,6 +82,28 @@ export async function renderOwnedCarouselSlide(
   }
 }
 
+/**
+ * A picture a slide may show: one of this person's own, or the brand kit's
+ * logo whoever uploaded it, since the kit belongs to the whole install. The
+ * logo stops counting the moment the kit's logo changes, so an old logo on
+ * somebody else's slide then fails like any missing picture.
+ */
+export async function findSlidePicture(
+  userId: string,
+  mediaId: string,
+  database: CustomShellDb = db
+) {
+  const [row] = await database
+    .select()
+    .from(customShellMedia)
+    .where(eq(customShellMedia.id, mediaId))
+    .limit(1)
+  if (!row || !IMAGE_TYPES.has(row.mimeType)) return null
+  if (row.userId === userId) return row
+  const logo = await findBrandLogoMedia(database)
+  return logo?.id === row.id ? row : null
+}
+
 export function renderCarouselSlidePng(
   slide: CarouselSlide,
   format: CarouselFormat,
@@ -98,7 +113,7 @@ export function renderCarouselSlidePng(
   const svg = carouselSlideSvg(slide, format, media)
   return new Uint8Array(
     new Resvg(svg, {
-      font: { fontFiles: [FONT_FILE], loadSystemFonts: false },
+      font: { fontFiles: requireTextFontFiles(), loadSystemFonts: false },
     })
       .render()
       .asPng()
@@ -152,7 +167,8 @@ function textLayer(
   definitions.push(
     `<clipPath id="${clipId}"><rect x="${box.x}" y="${box.y}" width="${box.width}" height="${box.height}"/></clipPath>`
   )
-  const lines = wrapText(item.text, box.width, item.fontSize)
+  const font = requireTextFont(item.fontId)
+  const lines = wrapText(item.text, box.width, item.fontSize, font.widthRatio)
   const anchor =
     item.align === "left" ? "start" : item.align === "right" ? "end" : "middle"
   const x =
@@ -168,11 +184,15 @@ function textLayer(
         `<tspan x="${x}" y="${box.y + item.fontSize + lineIndex * lineHeight}">${escapeXml(line)}</tspan>`
     )
     .join("")
-  return `<text clip-path="url(#${clipId})" fill="${item.color}" font-family="Inter" font-size="${item.fontSize}" font-weight="600" text-anchor="${anchor}">${spans}</text>`
+  return `<text clip-path="url(#${clipId})" fill="${item.color}" font-family="${font.svgFamily}" font-size="${item.fontSize}" font-weight="${font.weight}" text-anchor="${anchor}">${spans}</text>`
 }
 
-function wrapText(text: string, width: number, fontSize: number) {
-  const widthRatio = requireTextFont("inter").widthRatio
+function wrapText(
+  text: string,
+  width: number,
+  fontSize: number,
+  widthRatio: number
+) {
   const maxCharacters = Math.max(1, Math.floor(width / (fontSize * widthRatio)))
   const lines: string[] = []
   for (const paragraph of text.split("\n")) {

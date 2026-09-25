@@ -60,6 +60,7 @@ import {
 import { normalizePageOverrides } from "@/lib/pages/page-visibility"
 import { normalizePublicHeader } from "@/lib/pages/public-header"
 import { normalizePublicBreadcrumbs } from "@/lib/pages/public-breadcrumbs"
+import { normalizePublicUserPanel } from "@/lib/pages/public-user-panel"
 import {
   normalizePublicSeo,
   normalizePublicSystemCopy,
@@ -783,6 +784,7 @@ function normalizeConfig(
       settings.publicFooterCopyright ?? fallback.publicFooterCopyright,
     publicHeader: normalizePublicHeader(settings.publicHeader),
     publicBreadcrumbs: normalizePublicBreadcrumbs(settings.publicBreadcrumbs),
+    publicUserPanel: normalizePublicUserPanel(settings.publicUserPanel),
     publicFont: normalizePublicFontAsset(settings.publicFont),
     publicTheme: normalizePublicTheme(settings.publicTheme),
     publicThemePresets: normalizePublicThemePresets(

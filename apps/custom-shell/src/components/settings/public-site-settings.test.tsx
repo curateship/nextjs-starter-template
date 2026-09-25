@@ -14,6 +14,7 @@ import { PublicSiteSettings } from "@/components/settings/public-site-settings"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { createDefaultPublicHeader } from "@/lib/pages/public-header"
 import { createDefaultPublicBreadcrumbs } from "@/lib/pages/public-breadcrumbs"
+import { createDefaultPublicUserPanel } from "@/lib/pages/public-user-panel"
 
 function buttonNamed(name: string) {
   const button = Array.from(document.querySelectorAll("button")).find(
@@ -50,11 +51,14 @@ describe("PublicSiteSettings dropdown group validation", () => {
             footer={[]}
             footerCopyright=""
             publicHeader={createDefaultPublicHeader()}
+            pageWidth={1152}
+            publicUserPanel={createDefaultPublicUserPanel()}
             publicBreadcrumbs={createDefaultPublicBreadcrumbs()}
             onNavigationChange={onNavigationChange}
             onFooterChange={vi.fn()}
             onFooterCopyrightChange={vi.fn()}
             onPublicHeaderChange={vi.fn()}
+            onPublicUserPanelChange={vi.fn()}
             onPublicBreadcrumbsChange={vi.fn()}
             onSaveConfig={vi.fn(async () => true)}
           />

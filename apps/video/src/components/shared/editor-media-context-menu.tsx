@@ -13,11 +13,14 @@ import {
 } from "@/lib/api/video/media"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
-const ITEM_CLASS =
+export const CONTEXT_MENU_ITEM_CLASS =
   "relative flex cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-1 text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50 data-[state=open]:bg-accent [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0"
 
-const CONTENT_CLASS =
+export const CONTEXT_MENU_CONTENT_CLASS =
   "z-50 min-w-36 rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95"
+
+export const CONTEXT_MENU_DESTRUCTIVE_ITEM_CLASS =
+  "relative flex cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-1 text-sm text-destructive outline-hidden select-none focus:bg-destructive/10 focus:text-destructive dark:focus:bg-destructive/20 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0"
 
 /**
  * Which of the person's collections one file is in. Passed only where the
@@ -95,23 +98,23 @@ export function EditorMediaContextMenu({
           {children}
         </ContextMenuPrimitive.Trigger>
         <ContextMenuPrimitive.Portal>
-          <ContextMenuPrimitive.Content className={CONTENT_CLASS}>
+          <ContextMenuPrimitive.Content className={CONTEXT_MENU_CONTENT_CLASS}>
             {collections ? (
               <ContextMenuPrimitive.Sub>
-                <ContextMenuPrimitive.SubTrigger className={ITEM_CLASS}>
+                <ContextMenuPrimitive.SubTrigger className={CONTEXT_MENU_ITEM_CLASS}>
                   <FolderIcon />
                   Collections
                   <ChevronRightIcon className="ml-auto" />
                 </ContextMenuPrimitive.SubTrigger>
                 <ContextMenuPrimitive.Portal>
                   <ContextMenuPrimitive.SubContent
-                    className={`${CONTENT_CLASS} max-w-64`}
+                    className={`${CONTEXT_MENU_CONTENT_CLASS} max-w-64`}
                   >
                     {collections.all.length ? (
                       collections.all.map((collection) => (
                         <ContextMenuPrimitive.CheckboxItem
                           key={collection.id}
-                          className={`${ITEM_CLASS} pr-8`}
+                          className={`${CONTEXT_MENU_ITEM_CLASS} pr-8`}
                           checked={collections.memberOf.includes(collection.id)}
                           disabled={savingCollections}
                           // Stays open, so several can be ticked in one visit.
@@ -128,7 +131,7 @@ export function EditorMediaContextMenu({
                       ))
                     ) : (
                       <ContextMenuPrimitive.Item
-                        className={ITEM_CLASS}
+                        className={CONTEXT_MENU_ITEM_CLASS}
                         disabled
                       >
                         No collections yet
@@ -142,7 +145,7 @@ export function EditorMediaContextMenu({
               <ContextMenuPrimitive.Separator className="-mx-1 my-1 h-px bg-border" />
             ) : null}
             <ContextMenuPrimitive.Item
-              className="relative flex cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-1 text-sm text-destructive outline-hidden select-none focus:bg-destructive/10 focus:text-destructive dark:focus:bg-destructive/20 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0"
+              className={CONTEXT_MENU_DESTRUCTIVE_ITEM_CLASS}
               onSelect={() => setConfirming(true)}
             >
               <Trash2Icon />

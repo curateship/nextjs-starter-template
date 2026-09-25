@@ -117,6 +117,7 @@ export async function searchYoutubeShorts(
       return [
         {
           id,
+          url: `https://www.youtube.com/shorts/${encodeURIComponent(id)}`,
           title: stringAt(item, ["snippet", "title"]) ?? "Untitled",
           channelId,
           channelTitle: stringAt(item, ["snippet", "channelTitle"]) ?? "",

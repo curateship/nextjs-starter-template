@@ -77,13 +77,14 @@ describe("choosing who rewrites words", () => {
     expect(claude?.getAttribute("aria-disabled")).toBe("true")
   })
 
-  it("offers Claude as a real choice once the key is saved", () => {
+  it("offers Claude by name alone once the key is saved", () => {
     render(availability({ anthropic: true }))
 
     const claude = openDropdown().find((option) =>
       option.textContent?.includes("Claude Opus 5")
     )
-    expect(claude?.textContent).toContain("Reads most like a person wrote it")
+    // Just the name: the descriptions were removed from the dropdown.
+    expect(claude?.textContent).toBe("Claude Opus 5")
     expect(claude?.getAttribute("aria-disabled")).toBeNull()
   })
 

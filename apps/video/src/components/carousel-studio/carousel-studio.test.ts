@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  brandLogoBox,
   builderReducer,
   type BuilderAction,
   type BuilderState,
@@ -195,5 +196,44 @@ describe("carousel studio history", () => {
         item: { ...text, id: "text-51" },
       })
     ).toBe(state)
+  })
+})
+
+describe("placing the brand logo", () => {
+  const watermark = {
+    enabled: false,
+    position: "bottom-right" as const,
+    widthPercent: 16,
+    opacity: 80,
+  }
+
+  it("lands in the watermark's corner at its width, keeping the logo's shape", () => {
+    // A 200 x 100 logo on a 1080 x 1350 slide: 16 out of 100 of the width is
+    // about 173 pixels wide, so 86 pixels tall, which is 0.064 of 1350.
+    const box = brandLogoBox({ width: 200, height: 100 }, "4:5", watermark)
+    expect(box.width).toBeCloseTo(0.16)
+    expect(box.height).toBeCloseTo(0.064)
+    // The gap is 4 out of every 100 pixels of the width, 43 pixels, on both
+    // edges: 0.04 of the width across and 0.032 of the height down.
+    expect(box.x).toBeCloseTo(1 - 0.16 - 0.04)
+    expect(box.y).toBeCloseTo(1 - 0.064 - 0.032)
+  })
+
+  it("gives a thin wordmark the smallest box a layer may have", () => {
+    const box = brandLogoBox({ width: 1000, height: 50 }, "1:1", {
+      ...watermark,
+      position: "top-left",
+      widthPercent: 4,
+    })
+    expect(box).toEqual({ x: 0.04, y: 0.04, width: 0.06, height: 0.06 })
+  })
+
+  it("keeps a very tall logo inside the slide", () => {
+    const box = brandLogoBox({ width: 10, height: 1000 }, "4:5", {
+      ...watermark,
+      widthPercent: 50,
+    })
+    expect(box.height).toBe(1)
+    expect(box.y).toBe(0)
   })
 })

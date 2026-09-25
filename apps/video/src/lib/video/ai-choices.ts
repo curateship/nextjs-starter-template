@@ -23,14 +23,12 @@ export const TRANSCRIBERS = [
   {
     id: "openai",
     label: "Whisper",
-    note: "Lines every word up against the sound. Needs an OpenAI key.",
     provider: "openai",
     model: "whisper-1",
   },
   {
     id: "gemini",
     label: "Gemini",
-    note: "Quicker and cheaper, but the word times are estimates.",
     provider: "gemini",
     model: "gemini-2.5-flash",
   },
@@ -43,21 +41,18 @@ export const WRITERS = [
   {
     id: "gemini",
     label: "Gemini Flash",
-    note: "Quick and cheap.",
     provider: "gemini",
     model: "gemini-2.5-flash",
   },
   {
     id: "openai",
     label: "GPT-5 mini",
-    note: "A second opinion, in a different voice.",
     provider: "openai",
     model: "gpt-5-mini",
   },
   {
     id: "anthropic",
     label: "Claude Opus 5",
-    note: "Reads most like a person wrote it. The dearest of the three.",
     provider: "anthropic",
     model: "claude-opus-5",
   },
@@ -91,7 +86,6 @@ export type AiKeysSaved = {
 export type AiChoice = {
   id: string
   label: string
-  note: string
   provider: keyof AiKeysSaved
 }
 

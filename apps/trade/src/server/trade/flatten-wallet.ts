@@ -95,9 +95,9 @@ export async function flattenWallet(
     try {
       await openPartClose(userId, wallet, {
         marketKey,
-        // The whole position, chased. Not the held size in coins, which the
-        // remainder rule would turn back into a market close.
+        // The whole position, chased.
         size: { unit: "all" },
+        how: "limit",
         held,
       })
       selling.push(marketKey)

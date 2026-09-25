@@ -27,7 +27,7 @@ function VideoCarouselStudioRoute() {
     <CarouselBuilderPage
       key={carousel.id}
       document={carousel}
-      brandColors={brandKit.colors.map((color) => color.value)}
+      brandKit={brandKit}
     />
   )
 }

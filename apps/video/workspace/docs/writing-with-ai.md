@@ -24,11 +24,15 @@ Opus 5. Each one needs its own provider's key in Settings → AI.
 
 ## The three writers
 
-| Writer | Model | Needs | Note shown in the dropdown |
-| --- | --- | --- | --- |
-| Gemini Flash | `gemini-2.5-flash` | a Google Gemini key | Quick and cheap. |
-| GPT-5 mini | `gpt-5-mini` | an OpenAI key | A second opinion, in a different voice. |
-| Claude Opus 5 | `claude-opus-5` | an Anthropic key | Reads most like a person wrote it. The dearest of the three. |
+| Writer | Model | Needs |
+| --- | --- | --- |
+| Gemini Flash | `gemini-2.5-flash` | a Google Gemini key |
+| GPT-5 mini | `gpt-5-mini` | an OpenAI key |
+| Claude Opus 5 | `claude-opus-5` | an Anthropic key |
+
+The dropdown shows each writer's name and nothing else. A writer whose key is
+missing is the one exception: it stays greyed out with a line saying which key
+to add.
 
 - **Claude is Opus 5** because that is the Anthropic default in
   `src/lib/ai/ai-models.ts`. Haiku 4.5 would be about a fifth of the price.
