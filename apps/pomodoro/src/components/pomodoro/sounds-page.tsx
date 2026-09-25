@@ -13,6 +13,7 @@ import {
   sameSoundReference,
 } from "@/lib/pomodoro/sound-catalog"
 import { useSoundPlayer } from "@/lib/pomodoro/use-sound-player"
+import { MediaUploadsSection } from "@/components/pomodoro/media-uploads-section"
 
 /**
  * The sounds page: the eight curated loops as cards. Four are free, four
@@ -121,6 +122,31 @@ export function SoundsPage() {
             )
           })}
         </div>
+
+        <MediaUploadsSection
+          purpose="sound"
+          title="Your own"
+          description="A loop of your own. It plays and pauses with the timer like the rest."
+          isSelected={(upload) =>
+            sameSoundReference(state.selected, {
+              type: "media",
+              mediaId: upload.mediaId,
+            })
+          }
+          onPick={(upload) =>
+            player.selectSound(
+              {
+                type: "media",
+                mediaId: upload.mediaId,
+                mediaUrl: upload.url,
+              },
+              upload.name
+            )
+          }
+          // A sound has no picture of its own, so the card keeps the muted
+          // square the icon sits in rather than inventing artwork.
+          renderThumbnail={() => null}
+        />
       </div>
     </>
   )

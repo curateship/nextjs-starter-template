@@ -24,7 +24,6 @@ import { cn } from "@/lib/utils"
 import { logout } from "@/lib/api/auth/auth"
 import type { BackgroundReference } from "@/lib/pomodoro/background-catalog"
 import { useBackgroundSelection } from "@/lib/pomodoro/background-store"
-import { soundSourceUrl as mediaFileUrl } from "@/lib/pomodoro/sound-catalog"
 
 // The whole Pomoder look rides in with the product shell: the tokens
 // stylesheet and the two fonts. Nothing of it is imported from the shell's
@@ -328,7 +327,7 @@ function SceneBackdrop({
         <video
           key={background.mediaId}
           className="absolute inset-0 size-full object-cover"
-          src={mediaFileUrl({ type: "media", mediaId: background.mediaId })}
+          src={background.mediaUrl}
           autoPlay
           muted
           loop
@@ -339,7 +338,7 @@ function SceneBackdrop({
         <img
           key={background.mediaId}
           className="absolute inset-0 size-full object-cover"
-          src={mediaFileUrl({ type: "media", mediaId: background.mediaId })}
+          src={background.mediaUrl}
           alt=""
           onError={onMediaError}
         />

@@ -6,6 +6,10 @@ import { db } from "@/server/db"
 import { userGet, userPost } from "@/server/guards"
 import { loadPomodoroEntitlements } from "@/server/pomodoro/entitlements"
 import { loadOrCreatePreferences } from "@/server/pomodoro/productivity"
+import {
+  assertUploadUsable,
+  resolveUploadUrl,
+} from "@/server/pomodoro/media-uploads"
 import { userPreferences } from "@/server/pomodoro/schema"
 import {
   curatedBackgrounds,
@@ -13,9 +17,9 @@ import {
 } from "@/lib/pomodoro/background-catalog"
 
 /**
- * The chosen background scene. Saving a Pro scene on a free account is
- * refused (UPGRADE_REQUIRED:premiumMedia); uploaded-media backgrounds join
- * with the own-media task.
+ * The chosen background: one of the eight scenes, or one of this person's own
+ * uploads. Saving a Pro scene on a free account is refused
+ * (UPGRADE_REQUIRED:premiumMedia), and an upload has to be theirs and ready.
  */
 
 const loadBackgroundFn = createServerFn({ method: "GET" })
@@ -25,9 +29,21 @@ const loadBackgroundFn = createServerFn({ method: "GET" })
       loadOrCreatePreferences(context.user.id),
       loadPomodoroEntitlements(context.user.id),
     ])
+    // An upload is served from the bucket, so the address is resolved here
+    // rather than built in the browser. A selection that is not theirs any
+    // more, or not finished, comes back with no address and the backdrop falls
+    // back to the default scene.
+    const reference = parseBackgroundReference(preferences.selectedBackground)
+    const upload =
+      reference?.type === "media"
+        ? await resolveUploadUrl(context.user.id, reference.mediaId)
+        : null
+
     return {
       selectedBackground: preferences.selectedBackground,
       canUsePremiumMedia: entitlements.canUsePremiumMedia,
+      selectedUploadUrl: upload?.url ?? null,
+      selectedUploadKind: upload?.kind ?? null,
     }
   })
 
@@ -50,6 +66,13 @@ const saveBackgroundFn = createServerFn({ method: "POST" })
         if (!entitlements.canUsePremiumMedia)
           throw new Error("UPGRADE_REQUIRED:premiumMedia")
       }
+    }
+    // An upload has to be this person's own and finished being prepared.
+    // Without this check the address bar could put somebody else's media id in
+    // the preference — the file itself would still refuse to load, but the row
+    // would be holding an id that is not theirs.
+    if (reference?.type === "media") {
+      await assertUploadUsable(context.user.id, reference.mediaId, "background")
     }
     await loadOrCreatePreferences(context.user.id)
     const [updated] = await db

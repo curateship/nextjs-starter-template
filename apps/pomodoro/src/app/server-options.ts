@@ -1,6 +1,7 @@
 import type { AppServerOptions } from "@/server/app-options"
 
 import { advanceDueRooms } from "@/server/pomodoro/rooms"
+import { processNextMediaUpload } from "@/server/pomodoro/media-worker"
 
 /**
  * What this app changes about the shell, on the server side.
@@ -34,6 +35,15 @@ export const appServerOptions: AppServerOptions = {
         tick: async () => {
           await advanceDueRooms()
         },
+      },
+      {
+        // Members' own backgrounds and sound loops, re-encoded with FFmpeg —
+        // video to 720p without sound, audio loudness-normalised. One upload
+        // per pass, because FFmpeg is the most expensive thing this app does
+        // and a queue of videos must not hold the room clock behind it.
+        // Overlapping passes are harmless: the claim is the update itself.
+        name: "pomodoro-media-uploads",
+        tick: processNextMediaUpload,
       },
     ],
   },

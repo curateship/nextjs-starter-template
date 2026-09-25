@@ -11,7 +11,8 @@ screen's content with a canvas-tinted shade so text stays readable.
   like the sound engine: the page picks, every `PomodoroScreen` draws, no
   provider around the shell's tree, saves debounced. It lives on
   `user_preferences.selected_background` (migration 0087), serialized as
-  `scene:<key>` — later `media:<uuid>` for own uploads.
+  `scene:<key>`, or `media:<uuid>` for one of your own uploads (see
+  [Your own backgrounds and sounds](own-media-uploads.md)).
 - **The product shell renders the backdrop** under its content column
   (`SceneBackdrop` in `pomodoro-shell.tsx`), so it appears behind every
   frontend page and no shell file changes. The lofi scene is the one real
