@@ -117,6 +117,9 @@ screen: anything not written there has not been agreed yet.
 - `fee-comparison.md` — `/tools/fee-comparison`: where each exchange's fee
   rate comes from, the 90-day warning, the monthly sum, and how to refresh the
   rates.
+- `what-if-i-had-bought.md` — `/tools/what-if`: which coins are offered, how
+  far back, the nightly fill, how missing days and stock splits are named, and
+  why the stocks are switched off.
 
 ## charts/ — the chart itself
 

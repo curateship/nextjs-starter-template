@@ -13,21 +13,40 @@ import {
 } from "@/lib/free-tools/compound-growth"
 import { formatAxisMoney, formatToolMoney } from "@/lib/free-tools/money"
 
-const config = {
-  balance: { label: "Balance", color: "var(--foreground)" },
-} satisfies ChartConfig
+type ChartPoint = { day: number; balance: number; putIn?: number }
 
 /**
- * The balance over time, drawn the way the P&L graph draws money
- * (`src/components/trade/pnl-graph-widget.tsx`): one foreground line, a faint
- * fill, grid lines across only. The bottom axis counts days, months or years,
- * whichever keeps its labels short.
+ * Money over time for the free tools, drawn the way the P&L graph draws
+ * money (`src/components/trade/pnl-graph-widget.tsx`): one foreground line, a
+ * faint fill, grid lines across only.
+ *
+ * By default the bottom axis counts days, months or years from day 0,
+ * whichever keeps its labels short. A tool whose days are dates passes
+ * `dayLabel`. Points that carry `putIn` add a dashed line for the money put
+ * in so far, named in a legend under the chart.
  */
-export function GrowthChart({ points }: { points: GrowthPoint[] }) {
+export function GrowthChart({
+  points,
+  valueLabel = "Balance",
+  dayLabel,
+}: {
+  points: readonly (GrowthPoint | ChartPoint)[]
+  valueLabel?: string
+  dayLabel?: (day: number) => string
+}) {
+  const firstDay = points[0]?.day ?? 0
   const lastDay = points.at(-1)?.day ?? 0
-  const ticks = [0, 1, 2, 3, 4].map((step) => Math.round((lastDay * step) / 4))
+  const ticks = [0, 1, 2, 3, 4].map((step) =>
+    Math.round(firstDay + ((lastDay - firstDay) * step) / 4)
+  )
+  const label = dayLabel ?? ((day: number) => timeLabel(day, lastDay))
+  const showPutIn = points.some((point) => "putIn" in point)
+  const config = {
+    balance: { label: valueLabel, color: "var(--foreground)" },
+    putIn: { label: "Put in", color: "var(--muted-foreground)" },
+  } satisfies ChartConfig
 
-  return (
+  const chart = (
     <ChartContainer config={config} className="aspect-auto h-64 w-full">
       <AreaChart
         data={points}
@@ -51,7 +70,7 @@ export function GrowthChart({ points }: { points: GrowthPoint[] }) {
         <XAxis
           dataKey="day"
           type="number"
-          domain={[0, lastDay]}
+          domain={[firstDay, lastDay]}
           ticks={ticks}
           tick={({ x, y, index, payload, width }) =>
             // A narrow chart keeps the first, middle and last labels so
@@ -74,7 +93,7 @@ export function GrowthChart({ points }: { points: GrowthPoint[] }) {
                       : "middle"
                 }
               >
-                {timeLabel(Number(payload.value), lastDay)}
+                {label(Number(payload.value))}
               </text>
             )
           }
@@ -93,11 +112,13 @@ export function GrowthChart({ points }: { points: GrowthPoint[] }) {
           content={
             <ChartTooltipContent
               labelFormatter={(_, payload) =>
-                timeLabel(Number(payload?.[0]?.payload?.day ?? 0), lastDay)
+                label(Number(payload?.[0]?.payload?.day ?? 0))
               }
-              formatter={(value) => (
+              formatter={(value, name) => (
                 <div className="flex w-full items-center justify-between gap-3">
-                  <span className="text-muted-foreground">Balance</span>
+                  <span className="text-muted-foreground">
+                    {name === "putIn" ? "Put in" : valueLabel}
+                  </span>
                   <span className="font-mono font-medium tabular-nums">
                     {formatToolMoney(Number(value))}
                   </span>
@@ -120,8 +141,39 @@ export function GrowthChart({ points }: { points: GrowthPoint[] }) {
             strokeWidth: 2,
           }}
         />
+        {showPutIn ? (
+          <Area
+            type="stepAfter"
+            dataKey="putIn"
+            isAnimationActive={false}
+            stroke="var(--color-putIn)"
+            strokeWidth={1.25}
+            strokeDasharray="4 4"
+            fill="none"
+            activeDot={false}
+          />
+        ) : null}
       </AreaChart>
     </ChartContainer>
+  )
+  if (!showPutIn) return chart
+  return (
+    <div className="grid gap-2">
+      {chart}
+      <ul className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+        <li className="flex items-center gap-2">
+          <span aria-hidden="true" className="w-4 border-t-2 border-foreground" />
+          {valueLabel}
+        </li>
+        <li className="flex items-center gap-2">
+          <span
+            aria-hidden="true"
+            className="w-4 border-t-2 border-dashed border-muted-foreground"
+          />
+          Put in
+        </li>
+      </ul>
+    </div>
   )
 }
 

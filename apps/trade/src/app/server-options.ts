@@ -3,6 +3,7 @@ import { pageForPath } from "@/lib/pages/page-registry"
 import type { AppServerOptions } from "@/server/app-options"
 import { readWorkspacePageOverrides } from "@/server/content/pages"
 import { listConverterPagePaths } from "@/server/free-tools/price-converter"
+import { fillWhatIfHistory } from "@/server/free-tools/what-if"
 import { backtestTick } from "@/server/trade/backtest/worker"
 import { refreshCandleStore } from "@/server/trade/candle-refresh"
 import { monitorTradingEngine } from "@/server/trade/engine-health"
@@ -76,6 +77,15 @@ export const appServerOptions: AppServerOptions = {
         tick: async () => {
           await refreshCandleStore()
         },
+      },
+      {
+        name: "what-if-daily-history",
+        /**
+         * Once a UTC day, fills daily closes for any market "What if I had
+         * bought" could offer that has none yet. One market at a time, never
+         * waited on, so a slow download cannot hold up this loop.
+         */
+        tick: () => fillWhatIfHistory(),
       },
       {
         name: "trading-engine-health",

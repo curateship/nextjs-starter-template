@@ -283,7 +283,8 @@ function applySplits(
   })
 }
 
-async function knownSplits(
+/** Every split on record for a market, oldest first. */
+export async function knownSplits(
   marketKey: MarketKey,
   database: CustomShellDb
 ): Promise<CandleSplit[]> {
