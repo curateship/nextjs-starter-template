@@ -386,6 +386,13 @@ describe("the app's own Settings tabs", () => {
     ).toThrow(/both call themselves/)
   })
 
+  it("lets an app take over a public settings row", () => {
+    const tabs = [{ id: "public-styling", label: "Look", panel }]
+    expect(
+      appSettingsTabs({ settings: { tabs } }, ["general", "public-styling"])
+    ).toBe(tabs)
+  })
+
   it("lets an app take over the member navigation row", () => {
     const tabs = [{ id: "member-navigation", label: "Screens", panel }]
     expect(

@@ -702,17 +702,33 @@ export function appOffersMemberTest(
 /**
  * The shell ids an app is allowed to claim for itself.
  *
- * A tab with one of these ids replaces the shell's screen in that same place
- * rather than being refused. `member-navigation` is on the list because the
- * shell's member sidebar editor is only right for an app whose members see the
- * shell's own sidebar. Pomodoro draws its own, from its own list, and has no
- * use for a screen that edits settings none of its pages read.
+ * These are exactly the rows in the App settings card, and they are all about
+ * somebody other than the admin: the members who sign in, and the visitors who
+ * do not. The shell can scaffold both and cannot be right about either for
+ * every app. Pomodoro draws its own member sidebar from its own list, so the
+ * shell's member Navigation screen there edits settings no page of its reads.
+ * CMS gives each site its own domain, which is a different question about
+ * public navigation than a one-site app has.
  *
- * Nothing else is claimable. An app with a different idea of what General
- * settings or Payments should be is not an app on this shell.
+ * A tab with one of these ids replaces the shell's screen in that same place
+ * rather than being refused, and keeps the row's position.
+ *
+ * **Claiming a row does not move the data.** `ShellConfig` still holds
+ * `publicTheme`, `publicNavigation`, `memberSections` and the rest, and the
+ * shell's `PublicPageFrame` and sidebar are still what draw from them. A
+ * replacement screen has to write those same fields; one that writes somewhere
+ * of its own is a settings screen that changes nothing.
+ *
+ * Nothing on Platform settings is claimable. An app with a different idea of
+ * what General settings or Payments should be is not an app on this shell.
  */
 export const REPLACEABLE_SETTINGS_TAB_IDS: readonly string[] = [
   "member-navigation",
+  "public-navigation",
+  "public-styling",
+  "public-pages",
+  "public-seo",
+  "public-social",
 ]
 
 /**
