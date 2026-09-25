@@ -11,6 +11,7 @@ import {
 } from "@/lib/directory/listing-details"
 import { wallClockAt } from "@/lib/events/event-time"
 import type { DealDays } from "@/lib/promotions/deal-days"
+import { readClaimLimit } from "@/lib/promotions/claim-fields"
 import type { DealTimes } from "@/lib/promotions/deal-times"
 import {
   builtHeadline,
@@ -73,9 +74,17 @@ export type SitePromotion = DealDays & {
   headline: string
   /** The weekdays and hours it runs. Every day off means all day, every day. */
   times: DealTimes
+  /** Visitors claim it with a name and email, each getting their own code. */
+  takesClaims: boolean
+  /** How many can claim it, or null for no limit. */
+  claimLimit: number | null
   status: PromotionStatus
   publishedAt: Date | null
   createdByUserId: string | null
+  /** The listing owner who sent it, or null for an admin's own deal. */
+  ownerUserId: string | null
+  /** Set by "End now" or an admin; the deal is over from then. */
+  endedAt: Date | null
   createdAt: Date
   updatedAt: Date
 }
@@ -110,6 +119,9 @@ export type PromotionInput = DealDays & {
   headline: string
   /** Checked by `cleanDealTimes`, which says what is wrong in words. Left out means all day. */
   times?: unknown
+  takesClaims?: boolean
+  /** As typed. Read only while claims are on. */
+  claimLimit?: string
   status: PromotionStatus
 }
 
@@ -131,9 +143,13 @@ function toPromotion(row: PromotionRow): SitePromotion {
     amount: row.amount,
     headline: row.headline,
     times: cleanListingHours(row.times),
+    takesClaims: row.takesClaims,
+    claimLimit: row.claimLimit,
     status: row.status === "published" ? "published" : "draft",
     publishedAt: row.publishedAt,
     createdByUserId: row.createdByUserId,
+    ownerUserId: row.ownerUserId,
+    endedAt: row.endedAt,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }
@@ -253,34 +269,66 @@ async function slugIsTaken(
   return Boolean(row)
 }
 
+/** A deal's own words, headline, days and times, as the window sends them. */
+export type DealContentInput = {
+  title: string
+  description: string
+  coverImage: string
+  code: string
+  smallPrint: string
+  dealType: string
+  amount: string
+  headline: string
+  startDate: string
+  endDate?: string | null
+  times?: unknown
+  takesClaims?: boolean
+  /** As typed. Read only while claims are on. */
+  claimLimit?: string
+}
+
 /**
- * The columns every save writes, checked. The listing must be one of this
- * site's, so a deal can never point at another site's place.
+ * A deal's content as stored, or the first refusal in the order the window
+ * shows the boxes: title, headline, days, times. The admin's save and an
+ * owner's request both go through this, so both are held to the same rules.
+ */
+export function cleanDealContent(input: DealContentInput) {
+  const title = cleanTitle(input.title)
+  const headline = cleanDealHeadline(input)
+  const days = cleanDealDays(input)
+  return {
+    title,
+    description: input.description.trim().slice(0, MAX_PROMOTION_DESCRIPTION),
+    coverImage: input.coverImage.trim().slice(0, 600),
+    code: input.code.trim().slice(0, MAX_PROMOTION_CODE),
+    smallPrint: input.smallPrint.trim().slice(0, MAX_PROMOTION_SMALL_PRINT),
+    ...headline,
+    ...days,
+    times: cleanDealTimes(input.times),
+    takesClaims: Boolean(input.takesClaims),
+    // Only while claims are on: a leftover typo in a hidden box never stops a save.
+    claimLimit: input.takesClaims ? readClaimLimit(input.claimLimit ?? "") : null,
+  }
+}
+
+/**
+ * The columns every admin save writes, checked. The listing must be one of
+ * this site's, so a deal can never point at another site's place. The title
+ * is refused before the listing, the way the window shows them.
  */
 async function cleanValues(
   workspaceId: string,
   input: PromotionInput,
   database: CustomShellDb
 ) {
-  // Checked in the order the window shows them, title first.
-  const title = cleanTitle(input.title)
+  cleanTitle(input.title)
   if (!input.listingId) throw new Error("Pick the listing the deal is at.")
   const listing = await listingChoice(workspaceId, input.listingId, database)
   if (!listing) throw new Error("That listing is not on this site any more.")
   return {
-    title,
+    ...cleanDealContent(input),
     listingId: listing.id,
-    description: input.description
-      .trim()
-      .slice(0, MAX_PROMOTION_DESCRIPTION),
-    coverImage: input.coverImage.trim().slice(0, 600),
-    code: input.code.trim().slice(0, MAX_PROMOTION_CODE),
-    smallPrint: input.smallPrint.trim().slice(0, MAX_PROMOTION_SMALL_PRINT),
-    ...cleanDealHeadline(input),
     status: input.status,
-    // Refused in the order the window shows them: days, then times.
-    ...cleanDealDays(input),
-    times: cleanDealTimes(input.times),
   }
 }
 
@@ -556,4 +604,27 @@ export async function listingHoursForDeal(
     )
     .limit(1)
   return row ? cleanListingHours(row.hours) : null
+}
+
+/**
+ * Undoes "End now": the deal is back on its own days and times. Only an admin
+ * can, from the deal's window.
+ */
+export async function reopenPromotion(
+  workspaceId: string,
+  id: string,
+  database: CustomShellDb = db
+): Promise<void> {
+  const [row] = await database
+    .update(sitePromotions)
+    .set({ endedAt: null, updatedAt: now() })
+    .where(
+      and(
+        eq(sitePromotions.id, id),
+        eq(sitePromotions.workspaceId, workspaceId)
+      )
+    )
+    .returning({ id: sitePromotions.id })
+  if (!row) throw new Error("That deal no longer exists.")
+  clearPublicDirectoryCache(workspaceId)
 }

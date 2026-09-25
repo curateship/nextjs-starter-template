@@ -293,21 +293,27 @@ export function FrontPageSectionDialog({
               </CardContent>
             </Card>
 
-            {kind === "events" ? (
+            {kind === "events" || kind === "deals" ? (
               <Card size="sm">
                 <CardHeader>
-                  <CardTitle>Which events</CardTitle>
+                  <CardTitle>
+                    {kind === "events" ? "Which events" : "Which deals"}
+                  </CardTitle>
                   <CardDescription>
-                    Published, public events that are not over yet, soonest
-                    first. The row is left off the page while nothing is coming
-                    up.
+                    {kind === "events"
+                      ? "Published, public events that are not over yet, soonest first. The row is left off the page while nothing is coming up."
+                      : "Published deals that are not over yet, newest first, from Admin → Promotions. The row is left off the page while there are none."}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-4">
                   <div className="grid gap-2">
                     <FieldLabel
                       htmlFor="front-page-section-event-category"
-                      hint="Only events filed under this category, not its subcategories."
+                      hint={
+                        kind === "events"
+                          ? "Only events filed under this category, not its subcategories."
+                          : "Only deals at listings filed under this category, not its subcategories."
+                      }
                     >
                       Category
                     </FieldLabel>
@@ -324,7 +330,7 @@ export function FrontPageSectionDialog({
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value={EVERY_CATEGORY}>
-                          Every event
+                          {kind === "events" ? "Every event" : "Every deal"}
                         </SelectItem>
                         {categories.map((category) => (
                           <SelectItem key={category.id} value={category.id}>
@@ -337,7 +343,7 @@ export function FrontPageSectionDialog({
                   <div className="grid max-w-40 gap-2">
                     <FieldLabel
                       htmlFor="front-page-section-count"
-                      hint={`At most this many events, between ${DIRECTORY_FRONT_PAGE_COUNT_MIN} and ${DIRECTORY_FRONT_PAGE_COUNT_MAX}.`}
+                      hint={`At most this many ${kind === "events" ? "events" : "deals"}, between ${DIRECTORY_FRONT_PAGE_COUNT_MIN} and ${DIRECTORY_FRONT_PAGE_COUNT_MAX}.`}
                     >
                       How many
                     </FieldLabel>

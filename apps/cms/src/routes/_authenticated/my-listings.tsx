@@ -7,6 +7,7 @@ import {
   loadMyListings,
 } from "@/lib/api/directory/claims"
 import { loadMyListingEvents } from "@/lib/api/events/submissions"
+import { loadMyListingDeals } from "@/lib/api/promotions/owner"
 
 /**
  * The listings a signed-in account looks after.
@@ -39,22 +40,24 @@ export const Route = createFileRoute("/_authenticated/my-listings")({
     featured_checkout: search.featured_checkout === "cancelled" ? "cancelled" : undefined,
   }),
   loader: async () => {
-    const [listings, ownerEvents] = await Promise.all([
+    const [listings, ownerEvents, ownerDeals] = await Promise.all([
       loadMyListings(),
       loadMyListingEvents(),
+      loadMyListingDeals(),
     ])
-    return { listings, ownerEvents }
+    return { listings, ownerEvents, ownerDeals }
   },
   component: MyListingsRoute,
   errorComponent: routeErrorComponent(getClaimErrorMessage),
 })
 
 function MyListingsRoute() {
-  const { listings, ownerEvents } = Route.useLoaderData()
+  const { listings, ownerEvents, ownerDeals } = Route.useLoaderData()
   return (
     <MyListings
       listings={listings}
       ownerEvents={ownerEvents}
+      ownerDeals={ownerDeals}
       checkout={Route.useSearch()}
     />
   )

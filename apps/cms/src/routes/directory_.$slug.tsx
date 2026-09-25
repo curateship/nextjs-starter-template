@@ -9,6 +9,7 @@ import { DirectoryFrame } from "@/components/directory/public/directory-frame"
 import { JsonLd } from "@/components/directory/public/json-ld"
 import { ListingCustomSections } from "@/components/directory/public/listing-custom-sections"
 import { ListingEventsBox } from "@/components/directory/public/listing-events"
+import { ListingDealsBox } from "@/components/promotions/public/listing-deals"
 import { ListingSidebar } from "@/components/directory/public/listing-sidebar"
 import { RelatedListings } from "@/components/directory/public/related-listings"
 import {
@@ -93,6 +94,7 @@ function ListingRoute() {
     related,
     claim,
     whatsOn,
+    dealsHere,
   } = Route.useLoaderData()
   const search = Route.useSearch()
 
@@ -120,6 +122,7 @@ function ListingRoute() {
     listing.gallery.length > 0 ||
     listing.customSections.length > 0 ||
     Boolean(whatsOn?.events.length) ||
+    Boolean(dealsHere?.length) ||
     related.length > 0
 
   // A listing with none of it — no write-up, no tags, no photos, nothing else
@@ -161,6 +164,7 @@ function ListingRoute() {
           sections never arrive here — the server leaves them out. */}
       <ListingCustomSections sections={listing.customSections} />
 
+      <ListingDealsBox deals={dealsHere} />
       <ListingEventsBox whatsOn={whatsOn} listingSlug={listing.slug} />
 
       <RelatedListings listings={related} />

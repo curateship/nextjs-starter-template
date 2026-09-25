@@ -1,6 +1,12 @@
 import * as React from "react"
-import { useNavigate, useRouter } from "@tanstack/react-router"
-import { PlusIcon, SettingsIcon, TagIcon, Trash2Icon } from "lucide-react"
+import { Link, useNavigate, useRouter } from "@tanstack/react-router"
+import {
+  InboxIcon,
+  PlusIcon,
+  SettingsIcon,
+  TagIcon,
+  Trash2Icon,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import { PromotionDialog } from "@/components/promotions/promotion-dialog"
@@ -220,6 +226,15 @@ export function PromotionsDashboard({
                 ))}
               </SelectContent>
             </Select>
+            <DashboardToolbarButton asChild variant="outline">
+              <Link to="/admin/promotion-requests">
+                <InboxIcon className="size-4" />
+                From owners
+                {data.waiting ? (
+                  <span className="text-muted-foreground">{data.waiting}</span>
+                ) : null}
+              </Link>
+            </DashboardToolbarButton>
             <DashboardToolbarButton
               type="button"
               onClick={() => setCreating(true)}
@@ -398,6 +413,9 @@ function StatusBadges({
         <Badge variant="outline">Draft</Badge>
       )}
       {ended ? <Badge variant="outline">Ended</Badge> : null}
+      {promotion.ownerUserId ? (
+        <Badge variant="outline">From the owner</Badge>
+      ) : null}
       {promotion.listingStatus === "draft" ? (
         <Badge variant="outline">Listing is a draft</Badge>
       ) : null}

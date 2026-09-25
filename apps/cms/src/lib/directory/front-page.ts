@@ -3,7 +3,7 @@
  *
  * A row is a heading, an optional line under it, and then listings — a
  * category, an order, how many, how they draw — or a card per category, or the
- * soonest upcoming events.
+ * soonest upcoming events, or the newest live deals.
  * Everything that decides what is allowed lives here, so the admin form, the
  * endpoint and the server all refuse the same things rather than three slightly
  * different lists.
@@ -15,6 +15,7 @@ import type {
 } from "@/lib/directory/category-cards"
 import type { DirectorySort } from "@/lib/directory/public-search"
 import type { EventWhen } from "@/lib/events/event-time"
+import type { DealCardView } from "@/lib/promotions/deal-content"
 
 /**
  * The kinds of row a home page is built from. The first one is the default,
@@ -24,6 +25,7 @@ export const DIRECTORY_FRONT_PAGE_KINDS = [
   "listings",
   "categories",
   "events",
+  "deals",
 ] as const
 
 export type DirectoryFrontPageKind = (typeof DIRECTORY_FRONT_PAGE_KINDS)[number]
@@ -35,6 +37,7 @@ export const DIRECTORY_FRONT_PAGE_KIND_LABELS: Record<
   listings: "Listings",
   categories: "Category cards",
   events: "Upcoming events",
+  deals: "Current deals",
 }
 
 export const DIRECTORY_FRONT_PAGE_KIND_HINTS: Record<
@@ -46,6 +49,8 @@ export const DIRECTORY_FRONT_PAGE_KIND_HINTS: Record<
     "A card per category, with its photo and how many listings are under it.",
   events:
     "The soonest events that are not over yet, one under the other. Left off the page while nothing is coming up.",
+  deals:
+    "The newest deals that are not over yet, as cards with their headlines. Left off the page while there are none.",
 }
 
 export function isDirectoryFrontPageKind(
@@ -217,6 +222,20 @@ export type DirectoryFrontPageRow =
       events: DirectoryFrontPageEvent[]
       /** "Eastern Time", the zone the times are in. Filled with the events. */
       zone: string
+    }
+  | {
+      kind: "deals"
+      id: string
+      heading: string
+      intro: string
+      /** How many to show, the row's own count. */
+      count: number
+      /** Only deals at listings filed under this category, or null for all. */
+      categoryId: string | null
+      /** That category's address, for "See all deals" to carry. */
+      categorySlug: string | null
+      /** Filled after the page's cache, by the site's clock, newest first. */
+      deals: DealCardView[]
     }
 
 /**

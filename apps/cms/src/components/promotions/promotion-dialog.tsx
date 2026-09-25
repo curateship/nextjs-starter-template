@@ -3,9 +3,15 @@ import { Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { ListingPicker } from "@/components/directory/listing-picker"
-import { CharacterCount } from "@/components/shared/character-count"
+import {
+  DealClaimsCard,
+  DealDaysCard,
+  DealHeadlineCard,
+  DealTimesCard,
+  DealWordsCard,
+} from "@/components/promotions/deal-fields"
+import { WhoClaimedList } from "@/components/promotions/who-claimed"
 import { ImageUpload } from "@/components/shared/image-upload"
-import { WeekdayHoursFields } from "@/components/shared/weekday-hours-fields"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -15,8 +21,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { DatePicker } from "@/components/ui/date-picker"
-import { DisabledReason } from "@/components/ui/disabled-reason"
 import {
   DialogBody,
   DialogContent,
@@ -35,173 +39,47 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Textarea } from "@/components/ui/textarea"
 import type { ListingChoice } from "@/lib/api/posts/posts"
+import { removeDealClaim, type DealClaim } from "@/lib/api/promotions/claims"
 import {
   getPromotionErrorMessage,
   loadListingHoursForDeal,
   loadPromotionForEdit,
+  reopenEndedPromotion,
   savePromotion,
   saveNewPromotion,
-  type PromotionForEdit,
+  type PromotionWindowData,
 } from "@/lib/api/promotions/promotions"
-import {
-  blankListingHours,
-  type ListingHours,
-} from "@/lib/directory/listing-details"
 import { slugFromTitle } from "@/lib/directory/slugs"
-import { dayForPicker, dayFromPicker } from "@/lib/events/picker-day"
+import { hasDealTimes } from "@/lib/promotions/deal-times"
 import {
-  builtHeadline,
-  DEAL_TYPE_LABELS,
-  DEAL_TYPES,
-  headlineIsBuilt,
-  isDealType,
-  MAX_DEAL_HEADLINE,
-  readDealAmount,
-  shownHeadline,
-  type DealType,
-} from "@/lib/promotions/deal-headline"
-import { dealTimesLines, hasDealTimes } from "@/lib/promotions/deal-times"
+  blankDealContent,
+  dealContentFrom,
+  dealContentInput,
+  type DealContentFields,
+} from "@/lib/promotions/deal-content"
 import { formatDate } from "@/lib/format/format-time"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
-/** Longest words a deal may hold, matching the columns. */
-const DESCRIPTION_MAX = 2000
-const CODE_MAX = 40
-const SMALL_PRINT_MAX = 1000
-
-type PromotionFields = {
-  title: string
+type PromotionFields = DealContentFields & {
   slug: string
   /** Empty while no listing is picked. */
   listingId: string
-  description: string
-  coverImage: string
-  /** "2026-10-03", or empty while none is picked. */
-  startDate: string
-  /** Empty for a deal with no end. */
-  endDate: string
-  code: string
-  smallPrint: string
-  /** Empty on a new deal, and on an old deal made before types existed. */
-  dealType: DealType | ""
-  /** As typed, for money off and percent off. */
-  amount: string
-  /** As typed, for the types whose headline is typed. */
-  headline: string
-  /** Every day off means all day, every day. */
-  times: ListingHours
   status: "draft" | "published"
 }
 
 function blankFields(): PromotionFields {
-  return {
-    title: "",
-    slug: "",
-    listingId: "",
-    description: "",
-    coverImage: "",
-    startDate: "",
-    endDate: "",
-    code: "",
-    smallPrint: "",
-    dealType: "",
-    amount: "",
-    headline: "",
-    times: blankListingHours(),
-    status: "draft",
-  }
+  return { ...blankDealContent(), slug: "", listingId: "", status: "draft" }
 }
 
-function fieldsFrom(data: PromotionForEdit): PromotionFields {
+function fieldsFrom(data: PromotionWindowData): PromotionFields {
   const { promotion } = data
   return {
-    title: promotion.title,
+    ...dealContentFrom(promotion),
     slug: promotion.slug,
     listingId: promotion.listingId,
-    description: promotion.description,
-    coverImage: promotion.coverImage,
-    startDate: promotion.startDate,
-    endDate: promotion.endDate ?? "",
-    code: promotion.code,
-    smallPrint: promotion.smallPrint,
-    dealType: promotion.dealType ?? "",
-    amount: promotion.amount === null ? "" : String(promotion.amount),
-    // A built headline is made again from the number, so its box starts empty.
-    headline:
-      promotion.dealType && headlineIsBuilt(promotion.dealType)
-        ? ""
-        : promotion.headline,
-    times: promotion.times,
     status: promotion.status,
   }
-}
-
-/** An example headline for each type whose headline is typed, shown in its empty box. */
-const HEADLINE_EXAMPLES: Record<
-  Exclude<DealType, "money_off" | "percent_off">,
-  string
-> = {
-  two_for_one: "2 for 1",
-  free_item: "Free dessert",
-  other: "Happy hour",
-}
-
-/**
- * What a card will show for these fields, before saving: "20% off" once a
- * number is readable, the typed words, or null while there is nothing to show.
- */
-function headlinePreview(fields: PromotionFields): string | null {
-  const type = fields.dealType
-  if (!type) return null
-  if (type === "money_off" || type === "percent_off") {
-    try {
-      return builtHeadline(type, readDealAmount(type, fields.amount))
-    } catch {
-      return null
-    }
-  }
-  return fields.headline.trim() || null
-}
-
-/**
- * The line under the headline's boxes, saying what a card will show before
- * anything is saved. A deal made before types existed shows "Deal" until it
- * is given one.
- */
-function HeadlinePreview({
-  fields,
-  oldDeal,
-}: {
-  fields: PromotionFields
-  oldDeal: boolean
-}) {
-  const shown = headlinePreview(fields)
-  return (
-    <p className="min-w-0 text-sm text-muted-foreground" role="status">
-      {shown ? (
-        <>
-          Cards show{" "}
-          <span className="font-semibold wrap-anywhere text-foreground">
-            {shown}
-          </span>
-        </>
-      ) : fields.dealType ? (
-        "Cards show the headline once it is filled in."
-      ) : oldDeal ? (
-        <>
-          Cards show{" "}
-          <span className="font-semibold text-foreground">
-            {shownHeadline("")}
-          </span>{" "}
-          until a type is picked and saved.
-        </>
-      ) : (
-        "Pick a type to see what cards show."
-      )}
-    </p>
-  )
 }
 
 /**
@@ -227,7 +105,7 @@ export function PromotionDialog({
 }) {
   const [loaded, setLoaded] = React.useState<{
     forId: string
-    data: PromotionForEdit
+    data: PromotionWindowData
   } | null>(null)
   /** Once the address is typed directly, the title stops writing it. */
   const [slugEdited, setSlugEdited] = React.useState(false)
@@ -238,6 +116,10 @@ export function PromotionDialog({
   const [picked, setPicked] = React.useState<ListingChoice | null>(null)
   const [saving, setSaving] = React.useState(false)
   const [copyingHours, setCopyingHours] = React.useState(false)
+  const [reopening, setReopening] = React.useState(false)
+  /** Who claimed. Taking one away changes it without a save. */
+  const [claims, setClaims] = React.useState<DealClaim[]>([])
+  const [removingClaim, setRemovingClaim] = React.useState<string | null>(null)
 
   const creating = promotionId === null
   const ready = creating || loaded?.forId === promotionId
@@ -296,6 +178,7 @@ export function PromotionDialog({
     } else if (loaded && seedKey === loaded.forId) {
       setFields(fieldsFrom(loaded.data))
       setPicked(loaded.data.listing)
+      setClaims(loaded.data.claims)
     }
   }
 
@@ -316,6 +199,11 @@ export function PromotionDialog({
   const update = <Key extends keyof PromotionFields>(
     key: Key,
     value: PromotionFields[Key]
+  ) => setFields((current) => ({ ...current, [key]: value }))
+  /** The same, for the shared content cards, which know only their own boxes. */
+  const updateContent = <Key extends keyof DealContentFields>(
+    key: Key,
+    value: DealContentFields[Key]
   ) => setFields((current) => ({ ...current, [key]: value }))
 
   /** Fills every day from the listing's opening hours. */
@@ -338,14 +226,49 @@ export function PromotionDialog({
     }
   }
 
+  /** Takes one claim away at once, without waiting for a save. */
+  async function takeClaimAway(claimId: string) {
+    if (!promotionId) return
+    dismissErrorToast()
+    setRemovingClaim(claimId)
+    try {
+      setClaims(await removeDealClaim({ promotionId, claimId }))
+      toast.success("The claim is taken away. Its place is free again.")
+    } catch (error) {
+      showErrorToast(getPromotionErrorMessage(error))
+    } finally {
+      setRemovingClaim(null)
+    }
+  }
+
+  /** Undoes "End now" at once, without waiting for a save. */
+  async function reopen() {
+    if (!promotionId || !loaded) return
+    dismissErrorToast()
+    setReopening(true)
+    try {
+      await reopenEndedPromotion(promotionId)
+      setLoaded({
+        ...loaded,
+        data: {
+          ...loaded.data,
+          promotion: { ...loaded.data.promotion, endedAt: null },
+        },
+      })
+      onSaved()
+      toast.success("The deal is back on its own days and times.")
+    } catch (error) {
+      showErrorToast(getPromotionErrorMessage(error))
+    } finally {
+      setReopening(false)
+    }
+  }
+
   async function save() {
     dismissErrorToast()
     setSaving(true)
     try {
-      const input = {
-        ...fields,
-        endDate: fields.endDate || null,
-      }
+      const input = { ...fields, ...dealContentInput(fields) }
       if (promotionId) {
         await savePromotion({ id: promotionId, ...input })
       } else {
@@ -533,286 +456,96 @@ export function PromotionDialog({
                   </CardContent>
                 </Card>
 
-                <Card size="sm">
-                  <CardHeader>
-                    <CardTitle>Headline</CardTitle>
-                    <CardDescription>
-                      The few words a card shows in big type, like 20% off or
-                      Free dessert.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="grid gap-4">
-                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-                      <div className="grid gap-2">
-                        <FieldLabel htmlFor="promotion-type">Type</FieldLabel>
-                        <Select
-                          value={fields.dealType}
-                          disabled={saving}
-                          onValueChange={(value) => {
-                            if (isDealType(value)) update("dealType", value)
-                          }}
-                        >
-                          <SelectTrigger
-                            id="promotion-type"
-                            className="w-full sm:w-fit"
-                            aria-invalid={tried && !fields.dealType}
-                          >
-                            <SelectValue placeholder="Pick a type" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {DEAL_TYPES.map((type) => (
-                              <SelectItem key={type} value={type}>
-                                {DEAL_TYPE_LABELS[type]}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      {fields.dealType === "money_off" ||
-                      fields.dealType === "percent_off" ? (
-                        <div className="grid gap-2 sm:flex-1">
-                          <FieldLabel
-                            htmlFor="promotion-amount"
-                            hint={
-                              fields.dealType === "money_off"
-                                ? "Dollars and cents, like 5 or 5.50. The headline is written from it."
-                                : "A whole number from 1 to 100. The headline is written from it."
-                            }
-                          >
-                            {fields.dealType === "money_off"
-                              ? "Dollars off"
-                              : "Percent off"}
-                          </FieldLabel>
-                          <Input
-                            id="promotion-amount"
-                            inputMode={
-                              fields.dealType === "money_off"
-                                ? "decimal"
-                                : "numeric"
-                            }
-                            value={fields.amount}
-                            maxLength={12}
-                            placeholder={
-                              fields.dealType === "money_off" ? "5" : "20"
-                            }
-                            disabled={saving}
-                            aria-invalid={
-                              tried && headlinePreview(fields) === null
-                            }
-                            onChange={(event) =>
-                              update("amount", event.target.value)
-                            }
-                          />
-                        </div>
-                      ) : fields.dealType ? (
-                        <div className="grid gap-2 sm:flex-1">
-                          <div className="flex items-center justify-between gap-2">
-                            <FieldLabel htmlFor="promotion-headline">
-                              Headline
-                            </FieldLabel>
-                            <CharacterCount
-                              value={fields.headline}
-                              max={MAX_DEAL_HEADLINE}
-                            />
-                          </div>
-                          <Input
-                            id="promotion-headline"
-                            value={fields.headline}
-                            maxLength={MAX_DEAL_HEADLINE}
-                            placeholder={HEADLINE_EXAMPLES[fields.dealType]}
-                            disabled={saving}
-                            aria-invalid={tried && !fields.headline.trim()}
-                            onChange={(event) =>
-                              update("headline", event.target.value)
-                            }
-                          />
-                        </div>
-                      ) : null}
-                    </div>
-                    <HeadlinePreview
-                      fields={fields}
-                      oldDeal={!creating && !loaded?.data.promotion.dealType}
-                    />
-                  </CardContent>
-                </Card>
-
-                <Card size="sm">
-                  <CardHeader>
-                    <CardTitle>Days</CardTitle>
-                    <CardDescription>
-                      Days on the site's calendar, in the time zone set in
-                      Settings → Directory. The deal leaves the Deals page the
-                      morning after its end day.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-start">
-                    <div className="grid gap-2 sm:flex-1">
-                      <FieldLabel htmlFor="promotion-start">Start day</FieldLabel>
-                      <DatePicker
-                        id="promotion-start"
-                        value={dayForPicker(fields.startDate)}
-                        disabled={saving}
-                        onChange={(date) =>
-                          update("startDate", dayFromPicker(date))
-                        }
-                      />
-                    </div>
-                    <div className="grid gap-2 sm:flex-1">
-                      <FieldLabel
-                        htmlFor="promotion-end"
-                        hint="The last day the deal is on. Leave it empty for a deal that runs until you end it."
+                {loaded?.data.promotion.endedAt ? (
+                  <Card size="sm">
+                    <CardHeader>
+                      <CardTitle>Ended early</CardTitle>
+                      <CardDescription>
+                        {loaded.data.promotion.ownerUserId
+                          ? "The owner"
+                          : "Somebody"}{" "}
+                        pressed End now on{" "}
+                        {formatDate(loaded.data.promotion.endedAt)}. It is off
+                        every public list, and its page says it has ended.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={saving || reopening}
+                        onClick={() => void reopen()}
                       >
-                        End day
-                      </FieldLabel>
-                      <div className="flex gap-2">
-                        <DatePicker
-                          id="promotion-end"
-                          value={dayForPicker(fields.endDate)}
-                          placeholder="No end date"
-                          // Shares the row with Clear, so it gives way on a phone.
-                          className="min-w-0 flex-1"
-                          disabled={saving}
-                          onChange={(date) =>
-                            update("endDate", dayFromPicker(date))
-                          }
-                        />
-                        {fields.endDate ? (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            className="shrink-0"
-                            disabled={saving}
-                            onClick={() => update("endDate", "")}
-                          >
-                            Clear
-                          </Button>
+                        {reopening ? (
+                          <Loader2Icon className="size-4 animate-spin" />
                         ) : null}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card size="sm">
-                  <CardHeader>
-                    <CardTitle>Times</CardTitle>
-                    <CardDescription>
-                      The weekdays and hours it runs, on the site's clock.
-                      Leave every day off for a deal that runs all day, every
-                      day. An end earlier than the start runs past midnight
-                      and counts as the night it started.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="grid gap-4">
-                    <WeekdayHoursFields
-                      idPrefix="promotion-times"
-                      words={{ start: "Starts", end: "Ends" }}
-                      newDay={{ open: "16:00", close: "18:00" }}
-                      hours={fields.times}
-                      disabled={saving}
-                      onChange={(times) => update("times", times)}
-                    />
-                    <div className="flex flex-wrap gap-2">
-                      <DisabledReason
-                        disabled={!fields.listingId}
-                        reason="Pick the listing first, then its hours can be copied."
-                      >
-                        <Button
-                          type="button"
-                          variant="outline"
-                          disabled={saving || copyingHours || !fields.listingId}
-                          onClick={() => void copyListingHours()}
-                        >
-                          {copyingHours ? (
-                            <Loader2Icon className="size-4 animate-spin" />
-                          ) : null}
-                          Same as the listing's hours
-                        </Button>
-                      </DisabledReason>
-                      {hasDealTimes(fields.times) ? (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          disabled={saving}
-                          onClick={() => update("times", blankListingHours())}
-                        >
-                          All day, every day
-                        </Button>
-                      ) : null}
-                    </div>
-                    <p className="text-sm text-muted-foreground" role="status">
-                      {hasDealTimes(fields.times)
-                        ? `The page says: ${dealTimesLines(fields.times).join(" · ")}`
-                        : "Runs all day, every day of its days."}
-                    </p>
-                  </CardContent>
-                </Card>
-
-                <Card size="sm">
-                  <CardHeader>
-                    <CardTitle>What the page says</CardTitle>
-                  </CardHeader>
-                  <CardContent className="grid gap-4">
-                    <div className="grid gap-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <FieldLabel htmlFor="promotion-description">
-                          Description
-                        </FieldLabel>
-                        <CharacterCount
-                          value={fields.description}
-                          max={DESCRIPTION_MAX}
-                        />
-                      </div>
-                      <Textarea
-                        id="promotion-description"
-                        rows={1}
-                        maxLength={DESCRIPTION_MAX}
-                        value={fields.description}
-                        disabled={saving}
-                        onChange={(event) =>
-                          update("description", event.target.value)
-                        }
+                        Start it again
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ) : null}
+                <DealHeadlineCard
+                  idPrefix="promotion"
+                  fields={fields}
+                  update={updateContent}
+                  disabled={saving}
+                  tried={tried}
+                  oldDeal={!creating && !loaded?.data.promotion.dealType}
+                />
+                <DealDaysCard
+                  idPrefix="promotion"
+                  fields={fields}
+                  update={updateContent}
+                  disabled={saving}
+                />
+                <DealTimesCard
+                  idPrefix="promotion"
+                  fields={fields}
+                  update={updateContent}
+                  disabled={saving}
+                  copyBlockedBy={
+                    fields.listingId
+                      ? null
+                      : "Pick the listing first, then its hours can be copied."
+                  }
+                  copying={copyingHours}
+                  onCopyHours={() => void copyListingHours()}
+                />
+                <DealClaimsCard
+                  idPrefix="promotion"
+                  fields={fields}
+                  update={updateContent}
+                  disabled={saving}
+                  tried={tried}
+                />
+                {loaded?.data.promotion.takesClaims ? (
+                  <Card size="sm">
+                    <CardHeader>
+                      <CardTitle>Who claimed</CardTitle>
+                      <CardDescription>
+                        {claims.length} claimed
+                        {loaded.data.promotion.claimLimit
+                          ? ` of ${loaded.data.promotion.claimLimit}`
+                          : ""}
+                        . Taking a claim away frees the place, and the same
+                        email can claim again.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <WhoClaimedList
+                        claims={claims}
+                        removingId={removingClaim}
+                        onRemove={(claim) => void takeClaimAway(claim.id)}
                       />
-                    </div>
-                    <div className="grid gap-2">
-                      <FieldLabel
-                        htmlFor="promotion-code"
-                        hint="Optional. What a visitor says or types to get the deal. The page hides it once the deal has ended."
-                      >
-                        Code
-                      </FieldLabel>
-                      <Input
-                        id="promotion-code"
-                        value={fields.code}
-                        maxLength={CODE_MAX}
-                        placeholder="PASTA2FOR1"
-                        disabled={saving}
-                        onChange={(event) => update("code", event.target.value)}
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <FieldLabel htmlFor="promotion-small-print">
-                          Small print
-                        </FieldLabel>
-                        <CharacterCount
-                          value={fields.smallPrint}
-                          max={SMALL_PRINT_MAX}
-                        />
-                      </div>
-                      <Textarea
-                        id="promotion-small-print"
-                        rows={1}
-                        maxLength={SMALL_PRINT_MAX}
-                        value={fields.smallPrint}
-                        placeholder="Dine-in only. Not with other offers."
-                        disabled={saving}
-                        onChange={(event) =>
-                          update("smallPrint", event.target.value)
-                        }
-                      />
-                    </div>
-                  </CardContent>
-                </Card>
+                    </CardContent>
+                  </Card>
+                ) : null}
+                <DealWordsCard
+                  idPrefix="promotion"
+                  fields={fields}
+                  update={updateContent}
+                  disabled={saving}
+                />
               </>
             )}
           </DialogBody>
