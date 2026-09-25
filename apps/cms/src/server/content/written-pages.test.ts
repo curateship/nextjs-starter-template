@@ -17,6 +17,7 @@ import {
   createWrittenPage,
   deleteWrittenPage,
   findWrittenPage,
+  listWrittenPageSitemapEntries,
   listWrittenPages,
   normalizeWrittenPagePath,
   updateWrittenPage,
@@ -299,5 +300,128 @@ describe("a written page is an ordinary page", () => {
     // Nothing is there to hide any more, and the route answers not-found on
     // its own because no page was found.
     expect(await readPageVisibility(site, "/about", database)).toBe("everyone")
+  })
+})
+
+/**
+ * The two search-engine controls. Hiding a page from search is not hiding it
+ * from people, so the only thing that may change is what a search engine is
+ * told: the `noindex` tag, which the route draws, and the sitemap, which is
+ * here.
+ */
+describe("keeping a page out of search", () => {
+  it("starts switched off, with no canonical address", async () => {
+    const page = await createWrittenPage(
+      site,
+      { path: "/about", title: "About", body: body("Hi") },
+      database
+    )
+
+    expect(page.hiddenFromSearch).toBe(false)
+    expect(page.canonicalUrl).toBe("")
+    expect(await listWrittenPageSitemapEntries(site, database)).toEqual([
+      { path: "/about", updatedAt: expect.any(Date) },
+    ])
+  })
+
+  it("drops a hidden page from the sitemap and leaves it readable", async () => {
+    const page = await createWrittenPage(
+      site,
+      { path: "/thank-you", title: "Thank you", body: body("Thanks.") },
+      database
+    )
+    await createWrittenPage(
+      site,
+      { path: "/about", title: "About", body: body("Hi") },
+      database
+    )
+
+    await updateWrittenPage(site, page.id, { hiddenFromSearch: true }, database)
+
+    const entries = await listWrittenPageSitemapEntries(site, database)
+    expect(entries.map((entry) => entry.path)).toEqual(["/about"])
+
+    // The switch is about search engines only. Anybody with the link still
+    // gets the page, which is the whole point of a thank-you page.
+    const view = await readWrittenPageForViewer(site, "/thank-you", false, database)
+    expect(view.status).toBe("ok")
+  })
+
+  it("puts a hidden page back in the sitemap when the switch goes off", async () => {
+    const page = await createWrittenPage(
+      site,
+      {
+        path: "/thank-you",
+        title: "Thank you",
+        body: body("Thanks."),
+        hiddenFromSearch: true,
+      },
+      database
+    )
+    expect(await listWrittenPageSitemapEntries(site, database)).toEqual([])
+
+    await updateWrittenPage(site, page.id, { hiddenFromSearch: false }, database)
+    expect(
+      (await listWrittenPageSitemapEntries(site, database)).map((e) => e.path)
+    ).toEqual(["/thank-you"])
+  })
+})
+
+describe("naming the address that counts", () => {
+  it("stores an address on this site and a full one alike", async () => {
+    const page = await createWrittenPage(
+      site,
+      {
+        path: "/about-us",
+        title: "About us",
+        body: body("Hi"),
+        canonicalUrl: "/about/",
+      },
+      database
+    )
+    expect(page.canonicalUrl).toBe("/about")
+
+    const changed = await updateWrittenPage(
+      site,
+      page.id,
+      { canonicalUrl: "https://example.com/about" },
+      database
+    )
+    expect(changed.canonicalUrl).toBe("https://example.com/about")
+  })
+
+  it("stores nothing at all rather than half an address", async () => {
+    const page = await createWrittenPage(
+      site,
+      {
+        path: "/about-us",
+        title: "About us",
+        body: body("Hi"),
+        canonicalUrl: "javascript:alert(1)",
+      },
+      database
+    )
+    expect(page.canonicalUrl).toBe("")
+  })
+
+  it("clears the address when the field is emptied", async () => {
+    const page = await createWrittenPage(
+      site,
+      {
+        path: "/about-us",
+        title: "About us",
+        body: body("Hi"),
+        canonicalUrl: "/about",
+      },
+      database
+    )
+
+    const changed = await updateWrittenPage(
+      site,
+      page.id,
+      { canonicalUrl: "" },
+      database
+    )
+    expect(changed.canonicalUrl).toBe("")
   })
 })

@@ -24,6 +24,7 @@ import {
   listNotificationPage,
   markAllNotificationsRead,
   markNotificationRead,
+  markNotificationsSeen,
   type NotificationItem,
 } from "@/lib/api/notification"
 import { notificationAction } from "@/lib/notification-action"
@@ -58,8 +59,12 @@ function EmptyNotifications({ hasAny }: { hasAny: boolean }) {
 }
 
 type NotificationCenterProps = {
-  /** Server count, so the dot is right before the tray has ever been opened. */
-  initialUnreadCount: number
+  /**
+   * How many notices have arrived since this person last opened the bell,
+   * counted on the server, so the number is right before the tray has ever
+   * been opened. Not the unread count — see the two pieces of state below.
+   */
+  initialUnseenCount: number
   /**
    * The app-wide switch for the live connection. Off, the bell still updates —
    * on the slow check inside useNotificationStream instead.
@@ -69,7 +74,7 @@ type NotificationCenterProps = {
 }
 
 export function NotificationCenter({
-  initialUnreadCount,
+  initialUnseenCount,
   live = true,
   onOpenFeedback,
 }: NotificationCenterProps) {
@@ -79,21 +84,36 @@ export function NotificationCenter({
   const [notifications, setNotifications] = React.useState<NotificationItem[]>(
     []
   )
-  const [unreadCount, setUnreadCount] = React.useState(initialUnreadCount)
+  // Two numbers, because they answer two questions. `unreadCount` is the
+  // Unread tab and the Mark all as read button: notices nobody has clicked.
+  // `unseenCount` is the red badge: notices that have arrived since the bell
+  // was last opened. Opening the bell zeroes the second and leaves the first
+  // alone (Tyler, 22 Sep 2026).
+  //
+  // Both start on the same figure because the shell sends only one. Unseen is
+  // a subset of unread, so it is the honest floor for the tab, and the real
+  // figure arrives with the first page — which is fetched the moment the tray
+  // opens, and the tab is not on screen before that.
+  const [unreadCount, setUnreadCount] = React.useState(initialUnseenCount)
+  const [unseenCount, setUnseenCount] = React.useState(initialUnseenCount)
   // Follow the shell's count when it reloads, so a notice that arrived while
   // the page was open still shows up. Adjusted during render rather than in an
   // effect so the bell never paints the stale number first.
-  const [lastInitialUnread, setLastInitialUnread] =
-    React.useState(initialUnreadCount)
+  const [lastInitialUnseen, setLastInitialUnseen] =
+    React.useState(initialUnseenCount)
 
-  if (lastInitialUnread !== initialUnreadCount) {
-    setLastInitialUnread(initialUnreadCount)
-    setUnreadCount(initialUnreadCount)
+  if (lastInitialUnseen !== initialUnseenCount) {
+    setLastInitialUnseen(initialUnseenCount)
+    setUnseenCount(initialUnseenCount)
   }
   const [nextCursor, setNextCursor] = React.useState<string | null>(null)
   const [firstPageLoaded, setFirstPageLoaded] = React.useState(false)
   const [loadingMore, setLoadingMore] = React.useState(false)
   const [markingAll, setMarkingAll] = React.useState(false)
+  // Read by `clearBell`, which opening the tray calls from an effect that must
+  // not be rebuilt on every count change.
+  const unseenCountRef = React.useRef(initialUnseenCount)
+  const seeingRef = React.useRef(false)
   const [error, setError] = React.useState<string | null>(null)
   const scrollAreaRootRef = React.useRef<HTMLDivElement>(null)
   const requestInFlightRef = React.useRef(false)
@@ -139,6 +159,7 @@ export function NotificationCenter({
       })
       setNotifications(data.notifications)
       setUnreadCount(data.unread_count)
+      setUnseenCount(data.unseen_count)
       setNextCursor(data.next_cursor)
       setError(null)
       pendingReadIdsRef.current.clear()
@@ -163,6 +184,7 @@ export function NotificationCenter({
       })
       setNotifications((current) => [...current, ...data.notifications])
       setUnreadCount(data.unread_count)
+      setUnseenCount(data.unseen_count)
       setNextCursor(data.next_cursor)
       pendingReadIdsRef.current.clear()
     } catch (loadError) {
@@ -173,13 +195,51 @@ export function NotificationCenter({
     }
   }, [])
 
+  /**
+   * Clearing the bell's red number, which is what opening the tray means.
+   *
+   * Tyler, 22 Sep 2026: opening the bell clears the number and nothing else.
+   * Having seen the tray is having been told, so every waiting notice is
+   * stamped as shown — but it stays unread, stays bold, and stays in the
+   * Unread tab until it is clicked or Mark all as read is pressed.
+   *
+   * **It finishes before the first page is asked for.** Both run on the same
+   * click, and a page fetched beside the write answers with the count as it
+   * was a moment earlier. That put the red number straight back on a bell
+   * that had just cleared.
+   *
+   * A failure here says nothing out loud. The number on the bell is still the
+   * last one that was true, and the next check will say so again.
+   */
+  const clearBell = React.useCallback(async () => {
+    // One write at a time. Two things ask for it on the same click — the open
+    // effect below and the effect that keeps an open tray at zero — and the
+    // count they both read only goes to zero on the next render.
+    if (unseenCountRef.current === 0 || seeingRef.current) return
+    seeingRef.current = true
+    try {
+      await markNotificationsSeen()
+      setUnseenCount(0)
+    } catch {
+      // Left as it was on purpose.
+    } finally {
+      seeingRef.current = false
+    }
+  }, [])
+
+  React.useEffect(() => {
+    unseenCountRef.current = unseenCount
+  })
+
   React.useEffect(() => {
     if (!open || requestInFlightRef.current) return
     requestInFlightRef.current = true
-    void listNotificationPage({ limit: NOTIFICATION_PAGE_SIZE })
+    void clearBell()
+      .then(() => listNotificationPage({ limit: NOTIFICATION_PAGE_SIZE }))
       .then((data) => {
         setNotifications(data.notifications)
         setUnreadCount(data.unread_count)
+        setUnseenCount(data.unseen_count)
         setNextCursor(data.next_cursor)
         setError(null)
         pendingReadIdsRef.current.clear()
@@ -191,7 +251,7 @@ export function NotificationCenter({
         requestInFlightRef.current = false
         setFirstPageLoaded(true)
       })
-  }, [open])
+  }, [clearBell, open])
 
   /**
    * What the live connection (and its slow fallback check) asks for.
@@ -210,8 +270,9 @@ export function NotificationCenter({
     }
 
     try {
-      const { unread_count } = await countUnreadNotifications()
-      setUnreadCount(unread_count)
+      const counts = await countUnreadNotifications()
+      setUnreadCount(counts.unread_count)
+      setUnseenCount(counts.unseen_count)
     } catch {
       // A failed check says nothing. The number on screen is the last one that
       // was true, the next check is a minute away, and putting a banner on the
@@ -223,6 +284,14 @@ export function NotificationCenter({
     live,
     onSync: () => void syncNotifications(),
   })
+
+  // A notice that lands while the tray is open has been shown too — it is on
+  // screen. Without this the badge would appear over an open tray, and the
+  // next page load would bring the number back.
+  React.useEffect(() => {
+    if (!open || unseenCount === 0) return
+    void clearBell()
+  }, [clearBell, open, unseenCount])
 
   const loading = open && !firstPageLoaded
   const loadMoreFromElement = React.useCallback(
@@ -378,13 +447,13 @@ export function NotificationCenter({
           className="relative"
           data-nav-shape="icon"
           aria-label={
-            unreadCount > 0
-              ? `Open notifications, ${unreadCount} unread`
+            unseenCount > 0
+              ? `Open notifications, ${unseenCount} new`
               : "Open notifications"
           }
         >
           <BellIcon className="size-4" />
-          {unreadCount > 0 ? (
+          {unseenCount > 0 ? (
             // A circle at one digit that stretches into a pill at two or three,
             // capped at 99+ so a big number can never widen past the button.
             // The count is in the button's own label, so this is decoration to
@@ -396,7 +465,7 @@ export function NotificationCenter({
               aria-hidden
               className="pointer-events-none absolute -top-1 -right-1 min-w-5 border-2 border-background px-1 text-[0.625rem] leading-none font-semibold tabular-nums"
             >
-              {unreadCount > 99 ? "99+" : unreadCount}
+              {unseenCount > 99 ? "99+" : unseenCount}
             </Badge>
           ) : null}
         </Button>

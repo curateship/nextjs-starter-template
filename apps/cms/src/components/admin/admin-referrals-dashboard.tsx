@@ -1,6 +1,6 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
-import { GiftIcon, Loader2Icon } from "lucide-react"
+import { GiftIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { CardTop, EmptyRow, FeedCard } from "@/components/shared/feed-card"
@@ -10,6 +10,7 @@ import {
 } from "@/components/shared/dashboard/stat-strip"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   getReferralErrorMessage,
   grantReferralReward,
@@ -17,7 +18,7 @@ import {
   type AdminReferralSummary,
 } from "@/lib/api/billing/referrals"
 import { formatDate } from "@/lib/format/format-time"
-import { formatMoney } from "@/lib/format/money"
+import { formatMoney, formatStripeMoney } from "@/lib/format/money"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { pageGutter } from "@/lib/layout/shell-gutter"
 import { showErrorToast } from "@/lib/toast/error-toast"
@@ -29,11 +30,18 @@ export function AdminReferralsDashboard({
   initialData: AdminReferralSummary
 }) {
   const [data, setData] = React.useState(initialData)
-  const [grantingId, setGrantingId] = React.useState<string | null>(null)
+  // The referral whose free month is waiting on "Add free month?" to be answered.
+  const [confirming, setConfirming] = React.useState<AdminReferralItem | null>(
+    null
+  )
+  const [granting, setGranting] = React.useState(false)
+  // State alone lets a fast double-click through before the re-render.
+  const grantingRef = React.useRef(false)
 
   async function grantReward(referral: AdminReferralItem) {
-    if (grantingId) return
-    setGrantingId(referral.id)
+    if (grantingRef.current) return
+    grantingRef.current = true
+    setGranting(true)
     try {
       const granted = await grantReferralReward(referral.id)
       setData((current) => ({
@@ -51,13 +59,15 @@ export function AdminReferralsDashboard({
             : item
         ),
       }))
+      setConfirming(null)
       toast.success(
-        "One free month was added to the referrer's next Stripe bill."
+        `A free month (${formatStripeMoney(granted.amountCents, granted.currency)}) was added to ${referrerLabel(referral)}'s next Stripe bill.`
       )
     } catch (error) {
       showErrorToast(getReferralErrorMessage(error))
     } finally {
-      setGrantingId(null)
+      grantingRef.current = false
+      setGranting(false)
     }
   }
 
@@ -134,17 +144,9 @@ export function AdminReferralsDashboard({
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={() => void grantReward(referral)}
-                      disabled={grantingId !== null}
+                      onClick={() => setConfirming(referral)}
                     >
-                      {grantingId === referral.id ? (
-                        <>
-                          <Loader2Icon className="animate-spin" />
-                          Adding month...
-                        </>
-                      ) : (
-                        "Add free month"
-                      )}
+                      Add free month
                     </Button>
                   ) : null}
                 </div>
@@ -160,8 +162,47 @@ export function AdminReferralsDashboard({
           </div>
         ) : null}
       </FeedCard>
+      <ConfirmDialog
+        open={Boolean(confirming)}
+        onOpenChange={(open) => {
+          if (!open) setConfirming(null)
+        }}
+        title={confirming ? freeMonthQuestion(confirming) : null}
+        description={confirming ? freeMonthConsequence(confirming) : null}
+        confirmLabel="Add free month"
+        // A credit on somebody's bill, not something removed.
+        destructive={false}
+        loading={granting}
+        onConfirm={() => {
+          if (confirming) void grantReward(confirming)
+        }}
+      />
     </div>
   )
+}
+
+function referrerLabel(referral: AdminReferralItem) {
+  return referral.referrerName || referral.referrerEmail
+}
+
+/** "Add a free month ($20) to Sam's next bill?" — the amount only once known. */
+function freeMonthQuestion(referral: AdminReferralItem) {
+  const amount = referral.freeMonth
+    ? ` (${formatStripeMoney(referral.freeMonth.amountCents, referral.freeMonth.currency)})`
+    : ""
+  return `Add a free month${amount} to ${referrerLabel(referral)}'s next bill?`
+}
+
+function freeMonthConsequence(referral: AdminReferralItem) {
+  const name = referrerLabel(referral)
+  if (!referral.freeMonth) {
+    return `${name} had no paid Stripe plan when this page loaded, so there may be no bill to take a month off. If that is still true, Stripe adds nothing and the reward keeps waiting.`
+  }
+  const amount = formatStripeMoney(
+    referral.freeMonth.amountCents,
+    referral.freeMonth.currency
+  )
+  return `Stripe takes ${amount} off ${name}'s next bill, one month of the plan they pay for. It cannot be undone from this screen.`
 }
 
 function referralTimeline(referral: AdminReferralItem) {

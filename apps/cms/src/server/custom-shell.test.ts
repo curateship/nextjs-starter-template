@@ -44,6 +44,7 @@ import {
   shouldNotifyFeedbackAuthor,
 } from "@/lib/api/feedback"
 import { DEFAULT_SIDEBAR_WIDTH } from "@/lib/layout/sidebar-width"
+import { createDefaultPublicTheme } from "@/lib/public-theme"
 import { loadMemberHome } from "@/server/people/member-home"
 import {
   createAnnouncement,
@@ -1209,9 +1210,11 @@ describe("custom shell workspaces", () => {
       ])
       expect(singleSiteConfig.publicFooterCopyright).toBe("App copyright")
       expect(singleSiteConfig.publicTheme).toEqual({
+        ...createDefaultPublicTheme(),
         brandColor: "#dc2626",
         brandOverrides: { darkColor: "#f87171" },
-        canvasColor: "#f1f5f9",
+        // Saved as a plain hex before the canvas gained its mode picker.
+        canvasColor: { mode: "custom", strength: 60, color: "#f1f5f9" },
         pageWidth: 960,
         mainSpacing: 24,
         contentAlignment: "right",
@@ -1242,9 +1245,10 @@ describe("custom shell workspaces", () => {
       ])
       expect(multiSiteConfig.publicFooterCopyright).toBe("Workspace copyright")
       expect(multiSiteConfig.publicTheme).toEqual({
+        ...createDefaultPublicTheme(),
         brandColor: "#3b82f6",
         brandOverrides: { hoverColor: "#1d4ed8" },
-        canvasColor: "#f1f5f9",
+        canvasColor: { mode: "custom", strength: 60, color: "#f1f5f9" },
         pageWidth: 960,
         mainSpacing: 24,
         contentAlignment: "right",
@@ -1714,9 +1718,9 @@ describe("custom shell workspaces", () => {
     const branding = await readBranding(database as unknown as CustomShellDb)
 
     expect(branding.publicTheme).toEqual({
+      ...createDefaultPublicTheme(),
       brandColor: "",
       brandOverrides: {},
-      canvasColor: "",
       pageWidth: 1152,
       mainSpacing: 40,
       contentAlignment: "center",
@@ -2072,6 +2076,40 @@ describe("membership section", () => {
     expect(
       summary.planMembership.reduce((total, row) => total + row.people, 0)
     ).toBe(summary.revenue.totalUsers)
+  })
+
+  it("draws the last 30 days of joining, and the running total", async () => {
+    const DAY_MS = 24 * 60 * 60 * 1000
+    // Two today, one ten days back, and one from before the line starts.
+    const joinedDaysAgo = [0, 0, 10, 45]
+    for (const [index, daysAgo] of joinedDaysAgo.entries()) {
+      const createdAt = new Date(Date.now() - daysAgo * DAY_MS)
+      await database.insert(customShellUsers).values({
+        id: uuid(),
+        email: `line-${index}@internal.dev`,
+        name: `line ${index}`,
+        role: "member",
+        passwordHash: "hash",
+        createdAt,
+        updatedAt: createdAt,
+      })
+    }
+
+    const { last30Days, revenue } = await loadMembershipSummary(
+      database as unknown as CustomShellDb
+    )
+
+    expect(last30Days).toHaveLength(30)
+    expect(last30Days.at(-1)).toMatchObject({
+      joined: 2,
+      people: revenue.totalUsers,
+    })
+    expect(last30Days[29 - 10]).toMatchObject({
+      joined: 1,
+      people: revenue.totalUsers - 2,
+    })
+    // Before the ten-day-old account, only the one from before the line.
+    expect(last30Days[0].people).toBe(revenue.totalUsers - 3)
   })
 })
 
@@ -4444,6 +4482,11 @@ describe("feeds section", () => {
       // One of the two has been replied to.
       noReply: 1,
     })
+    // The line: 30 days ending today, one today and one eight days back.
+    expect(summary.feedback.last30Days).toHaveLength(30)
+    expect(summary.feedback.last30Days.at(-1)).toBe(1)
+    expect(summary.feedback.last30Days[29 - 8]).toBe(1)
+    expect(summary.feedback.last30Days.reduce((a, b) => a + b, 0)).toBe(2)
   })
 })
 
@@ -5828,6 +5871,58 @@ describe("custom shell feedback notifications", () => {
     expect(secondPage.notifications.map((item) => item.id)).toEqual([
       olderOwnerNotificationId,
     ])
+  })
+
+  /**
+   * Tyler, 22 Sep 2026: opening the bell clears its red number and leaves the
+   * notices unread. So the two counts have to be able to disagree.
+   */
+  it("separates the bell's number from the unread count", async () => {
+    const createdAt = now()
+    const ownerId = uuid()
+    const seenId = uuid()
+
+    await database.insert(customShellUsers).values({
+      id: ownerId,
+      email: "notification-seen@internal.dev",
+      name: "Notification seen",
+      role: "member",
+      passwordHash: "hash",
+      createdAt,
+      updatedAt: createdAt,
+    })
+    await database.insert(customShellNotifications).values([
+      { id: seenId, recipientUserId: ownerId, type: "announcement", createdAt },
+      {
+        id: uuid(),
+        recipientUserId: ownerId,
+        type: "announcement",
+        createdAt: new Date(createdAt.getTime() + 1000),
+      },
+    ])
+
+    const before = await getNotificationPage({
+      currentUser: { id: ownerId },
+      database,
+    })
+    expect(before.unread_count).toBe(2)
+    expect(before.unseen_count).toBe(2)
+
+    // What opening the bell writes, without the session the server fn needs.
+    await database
+      .update(customShellNotifications)
+      .set({ seenAt: createdAt })
+      .where(eq(customShellNotifications.id, seenId))
+
+    const after = await getNotificationPage({
+      currentUser: { id: ownerId },
+      database,
+    })
+    expect(after.unread_count).toBe(2)
+    expect(after.unseen_count).toBe(1)
+    expect(
+      after.notifications.find((item) => item.id === seenId)?.read_at
+    ).toBeNull()
   })
 
   it("hides switched-off notification types from the list and unread count", async () => {

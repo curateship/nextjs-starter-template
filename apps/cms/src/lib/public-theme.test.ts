@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   DEFAULT_PUBLIC_BACKGROUND_PATTERN_OPACITY,
+  DEFAULT_PUBLIC_GUTTER,
   DEFAULT_PUBLIC_MAIN_SPACING,
   DEFAULT_PUBLIC_PAGE_WIDTH,
   MAX_PUBLIC_BACKGROUND_PATTERN_OPACITY,
@@ -21,6 +22,7 @@ import {
   normalizePublicTheme,
   publicThemeForAppWideSave,
   publicThemeForSite,
+  publicShellStyling,
   publicThemeOverrides,
   publicThemeStyle,
 } from "@/lib/public-theme"
@@ -69,7 +71,7 @@ describe("public theme", () => {
       })
     ).toMatchObject({
       pageWidth: 1600,
-      canvasColor: "#aabbcc",
+      canvasColor: { mode: "custom", strength: 60, color: "#aabbcc" },
       headerBorder: false,
       footerBorder: true,
       mainSpacing: 0,
@@ -78,7 +80,7 @@ describe("public theme", () => {
 
     expect(createDefaultPublicTheme()).toMatchObject({
       pageWidth: DEFAULT_PUBLIC_PAGE_WIDTH,
-      canvasColor: "",
+      canvasColor: { mode: "default", strength: 60, color: "#ffffff" },
       headerBorder: true,
       footerBorder: true,
       mainSpacing: DEFAULT_PUBLIC_MAIN_SPACING,
@@ -161,9 +163,133 @@ describe("public theme", () => {
     expect(
       isPublicThemeInputValid({
         ...createDefaultPublicTheme(),
-        canvasColor: "blue",
+        canvasColor: { mode: "custom", strength: 60, color: "blue" },
       })
     ).toBe(false)
+  })
+
+  it("reads a canvas colour saved before the mode picker existed", () => {
+    expect(normalizePublicTheme({ canvasColor: "#F1F5F9" }).canvasColor).toEqual(
+      { mode: "custom", strength: 60, color: "#f1f5f9" }
+    )
+    expect(normalizePublicTheme({ canvasColor: "" }).canvasColor).toEqual({
+      mode: "default",
+      strength: 60,
+      color: "#ffffff",
+    })
+    expect(
+      normalizePublicTheme({ canvasColor: "not a colour" }).canvasColor.mode
+    ).toBe("default")
+  })
+
+  it("keeps a public colour to the one hex shape the save schema allows", () => {
+    const theme = normalizePublicTheme({
+      chrome: { mode: "custom", strength: 50, color: "red; background:url(x)" },
+      dividerColor: { mode: "custom", strength: 50, color: "#AABBCC" },
+    })
+
+    expect(theme.chrome.color).toBe(
+      createDefaultPublicTheme().chrome.color
+    )
+    expect(theme.dividerColor.color).toBe("#aabbcc")
+  })
+
+  it("keeps the public spacing and border defaults a site already draws", () => {
+    const theme = createDefaultPublicTheme()
+
+    expect(theme.gutter).toBe(DEFAULT_PUBLIC_GUTTER)
+    expect(theme.cardBorderWidth).toBe(1)
+    expect(theme.cardBorderColor.mode).toBe("default")
+    expect(theme.dividerColor.mode).toBe("default")
+    expect(theme.chrome.mode).toBe("default")
+    expect(theme.modal.padding).toBe(24)
+    expect(theme.modal.overlayOpacity).toBe(10)
+    expect(hasCustomPublicTheme(theme)).toBe(false)
+    expect(publicThemeOverrides(theme, createDefaultPublicTheme())).toEqual({})
+  })
+
+  it("saves a changed spacing, border or modal value and nothing else", () => {
+    const theme = createDefaultPublicTheme()
+
+    expect(
+      publicThemeOverrides({ ...theme, gutter: 0 }, createDefaultPublicTheme())
+    ).toEqual({ gutter: 0 })
+    expect(hasCustomPublicTheme({ ...theme, gutter: 0 })).toBe(true)
+
+    const recoloured = {
+      ...theme,
+      dividerColor: { mode: "custom" as const, strength: 10, color: "#445566" },
+    }
+    expect(
+      publicThemeOverrides(recoloured, createDefaultPublicTheme())
+    ).toEqual({
+      dividerColor: { mode: "custom", strength: 10, color: "#445566" },
+    })
+    expect(hasCustomPublicTheme(recoloured)).toBe(true)
+
+    const dimmer = {
+      ...theme,
+      modal: { ...theme.modal, overlayOpacity: 40 },
+    }
+    expect(publicThemeOverrides(dimmer, createDefaultPublicTheme())).toEqual({
+      modal: dimmer.modal,
+    })
+    expect(hasCustomPublicTheme(dimmer)).toBe(true)
+  })
+
+  it("ignores a strength parked behind a colour on theme default", () => {
+    const theme = createDefaultPublicTheme()
+    const parked = {
+      ...theme,
+      chrome: { ...theme.chrome, strength: 3, color: "#010203" },
+    }
+
+    expect(publicThemeOverrides(parked, createDefaultPublicTheme())).toEqual({})
+    expect(hasCustomPublicTheme(parked)).toBe(false)
+  })
+
+  it("blocks a half-typed colour anywhere on the public tab", () => {
+    const theme = createDefaultPublicTheme()
+
+    expect(
+      isPublicThemeInputValid({
+        ...theme,
+        chrome: { mode: "custom", strength: 27, color: "#ab" },
+      })
+    ).toBe(false)
+    expect(
+      isPublicThemeInputValid({
+        ...theme,
+        modal: {
+          ...theme.modal,
+          cardBorderColor: { mode: "custom", strength: 6, color: "#abc" },
+        },
+      })
+    ).toBe(false)
+    expect(
+      isPublicThemeInputValid({
+        ...theme,
+        chrome: { mode: "custom", strength: 27, color: "#abcdef" },
+      })
+    ).toBe(true)
+  })
+
+  it("reads the public theme as the styling shape the frame applies", () => {
+    const theme = {
+      ...createDefaultPublicTheme(),
+      gutter: 20,
+      canvasColor: { mode: "custom" as const, strength: 60, color: "#f1f5f9" },
+    }
+
+    expect(publicShellStyling(theme)).toEqual({
+      gutter: 20,
+      cardBorderWidth: theme.cardBorderWidth,
+      cardBorderColor: theme.cardBorderColor,
+      dividerColor: theme.dividerColor,
+      content: theme.canvasColor,
+      chrome: theme.chrome,
+      modal: theme.modal,
+    })
   })
 
   it("normalizes font and corner values", () => {
@@ -174,9 +300,9 @@ describe("public theme", () => {
         radius: 99,
       })
     ).toEqual({
+      ...createDefaultPublicTheme(),
       brandColor: "",
       brandOverrides: {},
-      canvasColor: "",
       pageWidth: DEFAULT_PUBLIC_PAGE_WIDTH,
       mainSpacing: DEFAULT_PUBLIC_MAIN_SPACING,
       backgroundPattern: "none",
@@ -199,7 +325,7 @@ describe("public theme", () => {
       ...createDefaultPublicTheme(),
       brandColor: "#123456",
       brandOverrides: { darkColor: "#abcdef" },
-      canvasColor: "#f5f5f5",
+      canvasColor: { mode: "custom" as const, strength: 60, color: "#f5f5f5" },
       colorScheme: "dark" as const,
       font: "serif" as const,
       radius: 4,
@@ -346,7 +472,7 @@ describe("public theme", () => {
       ...createDefaultPublicTheme(),
       brandColor: "#3b82f6",
       brandOverrides: { hoverColor: "#112233" },
-      canvasColor: "#f5f5f5",
+      canvasColor: { mode: "custom", strength: 60, color: "#f5f5f5" },
       pageWidth: 960,
       mainSpacing: 24,
       contentAlignment: "right",

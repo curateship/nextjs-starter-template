@@ -49,7 +49,7 @@ function AuthenticatedLayout() {
     settings,
     workspaces,
     plan,
-    unreadNotifications,
+    unseenNotifications,
     announcements,
     viewedBy,
   } = Route.useLoaderData()
@@ -59,7 +59,7 @@ function AuthenticatedLayout() {
       settings={settings}
       workspaces={workspaces}
       plan={plan}
-      unreadNotifications={unreadNotifications}
+      unseenNotifications={unseenNotifications}
       announcements={announcements}
       viewedBy={viewedBy}
     />

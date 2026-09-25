@@ -43,10 +43,19 @@ CMS also inherits the shell's Storage settings, generated brand images,
 plan-change confirmations and header quick settings. CMS keeps its own site
 identity panel and directory settings. Sidebar width belongs to each person.
 
+CMS also inherits the shell's public header, footer and breadcrumbs, public
+styling presets, resized public pictures, the page loading bar, per-page search
+engine controls and the bell that clears its number without marking notices
+read.
+
 The current shell includes database migrations through
-`0079_custom_shell_storage_settings.sql`. The new migrations allow app activity
-notices, move sidebar widths to each person's settings and add the storage
-settings table. Apply pending migrations
+`0081_custom_shell_per_page_index_controls.sql`. CMS numbers its own migrations
+past the shell's, so a shell migration takes the next free CMS number and keeps
+its name: the shell's `0080` and `0081` are CMS's
+`0102_custom_shell_notifications_seen.sql` and
+`0103_custom_shell_per_page_index_controls.sql`. The first adds the bell's
+`seen_at` column, and the second adds `hidden_from_search` and `canonical_url`
+to written pages. Apply pending migrations
 with `npm run db:migrate` against the intended CMS database before running the
 updated app. Supply `CUSTOM_SHELL_DATABASE_URL` explicitly; the migration
 command does not load a local environment file. The background worker has its own build and start commands,

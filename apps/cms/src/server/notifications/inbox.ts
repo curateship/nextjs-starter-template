@@ -49,6 +49,8 @@ type NotificationListResponse = {
   notifications: NotificationItem[]
   next_cursor: string | null
   unread_count: number
+  /** The bell's own number. See `countUnseenNotifications`. */
+  unseen_count: number
 }
 
 export type AdminNotificationQuery = {
@@ -269,6 +271,70 @@ export async function countUnreadNotifications(
   return row?.count ?? 0
 }
 
+/**
+ * The red number on the bell: notices this person has not read AND has not
+ * been shown yet.
+ *
+ * Seen and read are two different things. Opening the bell means you have been
+ * told something arrived, so the number goes; the notices themselves stay
+ * unread in the tray until one is clicked or "Mark all as read" is pressed
+ * (Tyler, 22 Sep 2026). Without the second column the bell could only clear by
+ * marking everything read, which emptied the Unread tab in the same instant.
+ */
+export async function countUnseenNotifications(
+  userId: string,
+  database: CustomShellDb = db,
+  notificationTypes: NotificationTypeVisibility = createDefaultNotificationTypeVisibility()
+): Promise<number> {
+  const shownTypes = visibleNotificationTypes(notificationTypes)
+  const [row] = await database
+    .select({ count: sql<number>`count(*)::int` })
+    .from(customShellNotifications)
+    .where(
+      and(
+        eq(customShellNotifications.recipientUserId, userId),
+        isNull(customShellNotifications.readAt),
+        isNull(customShellNotifications.seenAt),
+        shownTypes.length
+          ? inArray(customShellNotifications.type, shownTypes)
+          : sql`false`
+      )
+    )
+
+  return row?.count ?? 0
+}
+
+/**
+ * Stamp everything waiting as shown, which is what opening the bell means.
+ *
+ * It touches `seenAt` and nothing else, so every row it stamps is still
+ * unread and still sits in the Unread tab afterwards. A hidden notice type is
+ * stamped too: it is not in the number either way, and leaving it unstamped
+ * would put the number back the day that type is switched on again.
+ */
+export async function markCurrentUserNotificationsSeen() {
+  requireAppOrigin()
+  const user = await requireNotificationUser()
+  const seenAt = now()
+
+  const rows = await db
+    .update(customShellNotifications)
+    .set({ seenAt })
+    .where(
+      and(
+        eq(customShellNotifications.recipientUserId, user.id),
+        isNull(customShellNotifications.seenAt)
+      )
+    )
+    .returning({ id: customShellNotifications.id })
+
+  // The bell is one number about one person, so this person's other tabs clear
+  // theirs too.
+  if (rows.length) await publishNotificationCreated(user.id)
+
+  return { seenCount: rows.length, seenAt: seenAt.toISOString() }
+}
+
 export async function markCurrentUserNotificationRead(notificationId: string) {
   requireAppOrigin()
   const user = await requireNotificationUser()
@@ -427,17 +493,23 @@ export async function getNotificationPage({
   const pageRows = rows.slice(0, pageSize)
   const lastRow = pageRows.at(-1)
 
+  // The three go together rather than one after another. The tray waits on
+  // this, and two counts asked in turn are two round trips for numbers that do
+  // not depend on each other.
+  const [notifications, unread_count, unseen_count] = await Promise.all([
+    serializeNotificationRows(pageRows, database),
+    countUnreadNotifications(currentUser.id, database, notificationTypes),
+    countUnseenNotifications(currentUser.id, database, notificationTypes),
+  ])
+
   return {
-    notifications: await serializeNotificationRows(pageRows, database),
+    notifications,
     next_cursor:
       rows.length > pageSize && lastRow
         ? `${lastRow.createdAt.toISOString()}${CURSOR_SEPARATOR}${lastRow.id}`
         : null,
-    unread_count: await countUnreadNotifications(
-      currentUser.id,
-      database,
-      notificationTypes
-    ),
+    unread_count,
+    unseen_count,
   }
 }
 

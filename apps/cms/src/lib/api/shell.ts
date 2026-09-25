@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start"
 import { findWorkspaceIdForRequest } from "@/server/workspaces/for-request"
 import { loadUserAnnouncements } from "@/server/content/announcements"
 import { loadEntitlements } from "@/server/billing/entitlements"
-import { countUnreadNotifications } from "@/server/notifications/inbox"
+import { countUnseenNotifications } from "@/server/notifications/inbox"
 import { findSessionContext } from "@/server/auth/security"
 import { readBranding, readShellSettings } from "@/server/shell-settings"
 import {
@@ -23,6 +23,14 @@ import {
   createDefaultPublicHeader,
   type PublicHeader,
 } from "@/lib/pages/public-header"
+import {
+  createDefaultPublicBreadcrumbs,
+  type PublicBreadcrumbs,
+} from "@/lib/pages/public-breadcrumbs"
+import {
+  createDefaultPublicUserPanel,
+  type PublicUserPanel,
+} from "@/lib/pages/public-user-panel"
 import type { PublicTheme } from "@/lib/public-theme"
 import {
   createDefaultPublicSeo,
@@ -42,8 +50,12 @@ export type ShellBootstrap = {
   settings: ShellConfig | null
   workspaces: WorkspaceListResponse
   plan: PlanSummary
-  /** Unread notices, so the bell carries its dot before the tray is opened. */
-  unreadNotifications: number
+  /**
+   * Notices that arrived since the bell was last opened, so it carries its
+   * number before the tray is opened. Not the same as unread: opening the bell
+   * clears this and leaves every notice unread.
+   */
+  unseenNotifications: number
   /** Live admin broadcasts this person has not closed yet. */
   announcements: UserAnnouncement[]
   /**
@@ -69,7 +81,7 @@ const loadShellBootstrapFn = createServerFn({ method: "GET" }).handler(
         settings: null,
         workspaces: { workspaces: [], copyChoices: [], baseDomain: "" },
         plan: { planSlug: "free", planName: "Free", isPaid: false },
-        unreadNotifications: 0,
+        unseenNotifications: 0,
         announcements: [],
         viewedBy: null,
       }
@@ -84,7 +96,7 @@ const loadShellBootstrapFn = createServerFn({ method: "GET" }).handler(
     // Read once and handed down: the banners belong to the site this person is
     // in, and asking again inside the list below would run the lookup twice.
     const workspaceId = await findWorkspaceIdForRequest(user.id)
-    const [settings, workspaces, { entitlements }, unreadCount, announcements] =
+    const [settings, workspaces, { entitlements }, unseenCount, announcements] =
       await Promise.all([
         settingsPromise,
         // **The same list the workspaces dashboard shows**, which means an
@@ -106,11 +118,7 @@ const loadShellBootstrapFn = createServerFn({ method: "GET" }).handler(
         }),
         loadEntitlements(user.id),
         settingsPromise.then((value) =>
-          countUnreadNotifications(
-            user.id,
-            undefined,
-            value.notificationTypes
-          )
+          countUnseenNotifications(user.id, undefined, value.notificationTypes)
         ),
         workspaceId
           ? loadUserAnnouncements(workspaceId, user.id)
@@ -120,15 +128,15 @@ const loadShellBootstrapFn = createServerFn({ method: "GET" }).handler(
     // The announcement read is the one call here that can write: it drops in the
     // tray notice for an announcement that has just gone live. That write races
     // the count above, so on the rare load that actually creates one, ask again
-    // — otherwise the bell would sit there with no dot over a tray that has an
-    // unread notice in it. Every other load pays nothing for this.
-    const unreadNotifications = announcements.noticesCreated
-      ? await countUnreadNotifications(
+    // — otherwise the bell would sit there with no number over a tray holding
+    // an announcement nobody has been shown. Every other load pays nothing.
+    const unseenNotifications = announcements.noticesCreated
+      ? await countUnseenNotifications(
           user.id,
           undefined,
           settings.notificationTypes
         )
-      : unreadCount
+      : unseenCount
 
     return {
       user: serializeUser(user),
@@ -139,7 +147,7 @@ const loadShellBootstrapFn = createServerFn({ method: "GET" }).handler(
         planName: entitlements.planName,
         isPaid: entitlements.isPaid,
       },
-      unreadNotifications,
+      unseenNotifications,
       announcements: announcements.banners,
       viewedBy: viewedBy
         ? { id: viewedBy.id, name: viewedBy.name, email: viewedBy.email }
@@ -186,6 +194,8 @@ const loadBrandingFn = createServerFn({ method: "GET" }).handler(
     publicSystemCopy: PublicSystemCopy
     frontPageRows: FrontPageRow[]
     publicHeader: PublicHeader
+    publicBreadcrumbs: PublicBreadcrumbs
+    publicUserPanel: PublicUserPanel
     publicNavigation: ShellConfig["publicNavigation"]
     publicFooter: ShellConfig["publicFooter"]
     publicFooterCopyright: string
@@ -218,6 +228,8 @@ const loadBrandingFn = createServerFn({ method: "GET" }).handler(
         publicSystemCopy: createDefaultPublicSystemCopy(),
         frontPageRows: [],
         publicHeader: createDefaultPublicHeader(),
+        publicBreadcrumbs: createDefaultPublicBreadcrumbs(),
+        publicUserPanel: createDefaultPublicUserPanel(),
         publicNavigation: createDefaultPublicNavigation(),
         publicFooter: [],
         publicFooterCopyright: "",

@@ -1,7 +1,10 @@
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
-import { resolveBackground, type ShellStyling } from "@/lib/custom-shell"
+import {
+  resolveBackground,
+  type ShellStyling,
+} from "@/lib/layout/styling-values"
 import { DASHBOARD_CARD_HEADER_HEIGHT_PX } from "@/lib/layout/dashboard-card-header"
 import { pageGutter } from "@/lib/layout/shell-gutter"
 

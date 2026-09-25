@@ -36,6 +36,14 @@ import {
   type PublicHeader,
 } from "@/lib/pages/public-header"
 import {
+  normalizePublicBreadcrumbs,
+  type PublicBreadcrumbs,
+} from "@/lib/pages/public-breadcrumbs"
+import {
+  normalizePublicUserPanel,
+  type PublicUserPanel,
+} from "@/lib/pages/public-user-panel"
+import {
   normalizeFaviconMode,
   normalizePublicFaviconSet,
   type FaviconMode,
@@ -48,12 +56,14 @@ import {
   publicThemeOverrides,
   type PublicTheme,
 } from "@/lib/public-theme"
+import { normalizePublicThemePresets } from "@/lib/public-theme-presets"
 import {
   normalizePublicFontAsset,
   type PublicFontAsset,
 } from "@/lib/public-font"
 import {
   normalizeFrontPageRows,
+  visibleFrontPageRows,
   type FrontPageRow,
 } from "@/lib/pages/front-page"
 import { clampToastSeconds } from "@/lib/toast/toast-seconds"
@@ -140,6 +150,8 @@ export async function readBranding(
   publicSystemCopy: PublicSystemCopy
   frontPageRows: FrontPageRow[]
   publicHeader: PublicHeader
+  publicBreadcrumbs: PublicBreadcrumbs
+  publicUserPanel: PublicUserPanel
   publicNavigation: ReturnType<
     typeof parseWorkspaceSettings
   >["publicNavigation"]
@@ -185,8 +197,10 @@ export async function readBranding(
       publicOrigin: currentPublicOrigin(),
       publicSeo: globals.publicSeo,
       publicSystemCopy: globals.publicSystemCopy,
-      frontPageRows: globals.frontPageRows,
+      frontPageRows: visibleFrontPageRows(globals.frontPageRows),
       publicHeader: globals.publicHeader,
+      publicBreadcrumbs: globals.publicBreadcrumbs,
+      publicUserPanel: globals.publicUserPanel,
       publicNavigation: workspaceDomainsEnabled
         ? []
         : globals.publicNavigation,
@@ -230,8 +244,10 @@ export async function readBranding(
     publicOrigin: currentPublicOrigin(),
     publicSeo: globals.publicSeo,
     publicSystemCopy: globals.publicSystemCopy,
-    frontPageRows: globals.frontPageRows,
+    frontPageRows: visibleFrontPageRows(globals.frontPageRows),
     publicHeader: globals.publicHeader,
+    publicBreadcrumbs: globals.publicBreadcrumbs,
+    publicUserPanel: globals.publicUserPanel,
     publicNavigation: workspaceSettings.publicNavigation,
     publicFooter: workspaceSettings.publicFooter,
     publicFooterCopyright: workspaceSettings.publicFooterCopyright,
@@ -405,10 +421,15 @@ export function parseShellGlobals(value: unknown) {
       settings.publicFooterCopyright
     ),
     publicHeader: normalizePublicHeader(settings.publicHeader),
+    publicBreadcrumbs: normalizePublicBreadcrumbs(settings.publicBreadcrumbs),
+    publicUserPanel: normalizePublicUserPanel(settings.publicUserPanel),
     publicFont: normalizePublicFontAsset(settings.publicFont),
     publicTheme: normalizePublicTheme(
       settings.publicTheme,
       fallback.publicTheme
+    ),
+    publicThemePresets: normalizePublicThemePresets(
+      settings.publicThemePresets
     ),
     dashboardRowsPerPage:
       typeof settings.dashboardRowsPerPage === "number" &&
@@ -494,8 +515,11 @@ export function pickShellGlobals(
     | "publicFooter"
     | "publicFooterCopyright"
     | "publicHeader"
+    | "publicBreadcrumbs"
+    | "publicUserPanel"
     | "publicFont"
     | "publicTheme"
+    | "publicThemePresets"
     | "dashboardRowsPerPage"
     | "toastSeconds"
     | "topLeftNavLimit"
@@ -532,8 +556,13 @@ export function pickShellGlobals(
       settings.publicFooterCopyright
     ),
     publicHeader: normalizePublicHeader(settings.publicHeader),
+    publicBreadcrumbs: normalizePublicBreadcrumbs(settings.publicBreadcrumbs),
+    publicUserPanel: normalizePublicUserPanel(settings.publicUserPanel),
     publicFont: normalizePublicFontAsset(settings.publicFont),
     publicTheme: normalizePublicTheme(settings.publicTheme),
+    publicThemePresets: normalizePublicThemePresets(
+      settings.publicThemePresets
+    ),
     dashboardRowsPerPage: settings.dashboardRowsPerPage,
     toastSeconds: settings.toastSeconds,
     topLeftNavLimit: settings.topLeftNavLimit,

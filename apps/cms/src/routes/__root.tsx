@@ -12,6 +12,7 @@ import {
 
 import "@/styles.css"
 import { BrandLogo } from "@/components/shell/brand-logo"
+import { PageLoadingBar } from "@/components/shell/page-loading-bar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Toaster } from "@/components/ui/sonner"
@@ -34,6 +35,7 @@ import {
   publicThemeStyle,
   type PublicTheme,
 } from "@/lib/public-theme"
+import { resolveBackground } from "@/lib/layout/styling-values"
 import { useDismissErrorToastOnNavigate } from "@/lib/toast/error-toast"
 import { noFlashCollapseScript } from "@/lib/remembered-choice"
 import { routePageTitle } from "@/lib/nav/route-title"
@@ -48,6 +50,8 @@ import {
   publicStructuredDataText,
   type PublicStructuredDataInput,
 } from "@/lib/pages/public-structured-data"
+import { usePublicBreadcrumbTrail } from "@/lib/hooks/use-public-breadcrumb-trail"
+import type { PublicBreadcrumbItem } from "@/lib/pages/public-breadcrumbs"
 import { useTrafficBeacon } from "@/lib/traffic-beacon"
 import { cn } from "@/lib/utils"
 import { ThemeProvider } from "@/components/shell/sticky-header/light-dark-switcher"
@@ -135,8 +139,11 @@ function RootErrorComponent({ error: _error }: ErrorComponentProps) {
   const branding = Route.useLoaderData()
   const appName = resolveAppName(branding?.appName)
   const publicTheme = branding?.publicTheme ?? null
-  const canvasStyle = publicTheme?.canvasColor
-    ? { backgroundColor: publicTheme.canvasColor }
+  const canvasBackground = publicTheme
+    ? resolveBackground(publicTheme.canvasColor)
+    : undefined
+  const chromeBackground = publicTheme
+    ? resolveBackground(publicTheme.chrome, { opaque: true })
     : undefined
 
   return (
@@ -158,14 +165,23 @@ function RootErrorComponent({ error: _error }: ErrorComponentProps) {
       >
         <div
           data-public-canvas=""
-          className="flex min-h-screen flex-col bg-muted/60"
-          style={canvasStyle}
+          className={cn(
+            "flex min-h-screen flex-col",
+            canvasBackground ? undefined : "bg-muted/60"
+          )}
+          style={
+            canvasBackground ? { backgroundColor: canvasBackground } : undefined
+          }
         >
           <header
-            className={
-              publicTheme?.headerBorder
-                ? "border-b bg-background"
-                : "bg-background"
+            className={cn(
+              chromeBackground ? undefined : "bg-background",
+              publicTheme?.headerBorder && "border-b"
+            )}
+            style={
+              chromeBackground
+                ? { backgroundColor: chromeBackground }
+                : undefined
             }
           >
             <div className="mx-auto flex w-full max-w-6xl items-center px-3 py-2 md:px-4">
@@ -240,6 +256,9 @@ function RootComponent() {
     publicOrigin,
     hostIsUnknown,
   } = Route.useLoaderData()
+  // Built by the same function `PublicPageFrame` draws from, so the trail a
+  // visitor reads and the trail a search engine reads cannot drift apart.
+  const breadcrumbTrail = usePublicBreadcrumbTrail()
 
   return (
     <RootDocument
@@ -258,6 +277,7 @@ function RootComponent() {
                 url: publicOrigin,
               },
               pageOrigin: publicOrigin,
+              breadcrumbs: breadcrumbTrail,
             }
       }
     >
@@ -274,6 +294,7 @@ function RootComponent() {
             {hostIsUnknown ? <UnknownHost /> : <Outlet />}
           </div>
           <Toaster />
+          <PageLoadingBar />
         </TooltipProvider>
       </ThemeProvider>
     </RootDocument>
@@ -325,6 +346,7 @@ function RootDocument({
   structuredData?: {
     organization: PublicStructuredDataInput["organization"]
     pageOrigin: string
+    breadcrumbs: readonly PublicBreadcrumbItem[]
   } | null
 }>) {
   const signedInPage = useSignedInPage()
@@ -425,6 +447,7 @@ function usePublicStructuredDataText(
   input: {
     organization: PublicStructuredDataInput["organization"]
     pageOrigin: string
+    breadcrumbs: readonly PublicBreadcrumbItem[]
   } | null
 ) {
   return useRouterState({
@@ -446,6 +469,13 @@ function usePublicStructuredDataText(
           ...resolvedPublicPageMetadata(state.matches),
           url: publicPageUrl(input.pageOrigin, state.location.pathname),
         },
+        // A step with no address is the page itself, and `BreadcrumbList`
+        // accepts that, so an empty href stays empty rather than pointing at
+        // the site root.
+        breadcrumbs: input.breadcrumbs.map((step) => ({
+          name: step.label,
+          url: step.href ? publicPageUrl(input.pageOrigin, step.href) : "",
+        })),
       })
     },
   })

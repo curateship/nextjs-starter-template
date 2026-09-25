@@ -39,7 +39,10 @@ vi.mock("@/components/shell/public-page-frame", () => ({
   PublicPageFrame: ({ children }: { children: React.ReactNode }) => (
     <main>{children}</main>
   ),
-  PublicLink: ({ link }: { link: { label: string; href: string } }) => (
+}))
+
+vi.mock("@/components/shell/public-navigation", () => ({
+  PublicMenuLink: ({ link }: { link: { label: string; href: string } }) => (
     <a href={link.href}>{link.label}</a>
   ),
 }))
