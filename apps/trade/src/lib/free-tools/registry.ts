@@ -75,7 +75,7 @@ export const FREE_TOOLS: readonly FreeTool[] = [
     summary: "What your trading costs in fees on each exchange, side by side.",
     group: "calculators",
     path: "/tools/fee-comparison",
-    shipped: false,
+    shipped: true,
   },
   {
     id: "funding-fee",

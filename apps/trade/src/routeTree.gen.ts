@@ -43,6 +43,7 @@ import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as THandleRouteImport } from './routes/t.$handle'
 import { Route as ToolsCompoundGrowthRouteImport } from './routes/tools_.compound-growth'
 import { Route as ToolsConvertRouteImport } from './routes/tools_.convert'
+import { Route as ToolsFeeComparisonRouteImport } from './routes/tools_.fee-comparison'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedAdminAiRouteImport } from './routes/_authenticated/admin/ai'
 import { Route as AuthenticatedAdminAiUsageRouteImport } from './routes/_authenticated/admin/ai-usage'
@@ -281,6 +282,11 @@ const ToolsCompoundGrowthRoute = ToolsCompoundGrowthRouteImport.update({
 const ToolsConvertRoute = ToolsConvertRouteImport.update({
   id: '/tools_/convert',
   path: '/tools/convert',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ToolsFeeComparisonRoute = ToolsFeeComparisonRouteImport.update({
+  id: '/tools_/fee-comparison',
+  path: '/tools/fee-comparison',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
@@ -722,6 +728,7 @@ export interface FileRoutesByFullPath {
   '/t/$handle': typeof THandleRoute
   '/tools/compound-growth': typeof ToolsCompoundGrowthRoute
   '/tools/convert': typeof ToolsConvertRoute
+  '/tools/fee-comparison': typeof ToolsFeeComparisonRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
@@ -825,6 +832,7 @@ export interface FileRoutesByTo {
   '/t/$handle': typeof THandleRoute
   '/tools/compound-growth': typeof ToolsCompoundGrowthRoute
   '/tools/convert': typeof ToolsConvertRoute
+  '/tools/fee-comparison': typeof ToolsFeeComparisonRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
@@ -932,6 +940,7 @@ export interface FileRoutesById {
   '/t/$handle': typeof THandleRoute
   '/tools_/compound-growth': typeof ToolsCompoundGrowthRoute
   '/tools_/convert': typeof ToolsConvertRoute
+  '/tools_/fee-comparison': typeof ToolsFeeComparisonRoute
   '/_authenticated/admin/ai': typeof AuthenticatedAdminAiRoute
   '/_authenticated/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
   '/_authenticated/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
@@ -1039,6 +1048,7 @@ export interface FileRouteTypes {
     | '/t/$handle'
     | '/tools/compound-growth'
     | '/tools/convert'
+    | '/tools/fee-comparison'
     | '/admin/ai'
     | '/admin/ai-usage'
     | '/admin/announcements'
@@ -1142,6 +1152,7 @@ export interface FileRouteTypes {
     | '/t/$handle'
     | '/tools/compound-growth'
     | '/tools/convert'
+    | '/tools/fee-comparison'
     | '/admin/ai'
     | '/admin/ai-usage'
     | '/admin/announcements'
@@ -1248,6 +1259,7 @@ export interface FileRouteTypes {
     | '/t/$handle'
     | '/tools_/compound-growth'
     | '/tools_/convert'
+    | '/tools_/fee-comparison'
     | '/_authenticated/admin/ai'
     | '/_authenticated/admin/ai-usage'
     | '/_authenticated/admin/announcements'
@@ -1345,6 +1357,7 @@ export interface RootRouteChildren {
   THandleRoute: typeof THandleRoute
   ToolsCompoundGrowthRoute: typeof ToolsCompoundGrowthRoute
   ToolsConvertRoute: typeof ToolsConvertRoute
+  ToolsFeeComparisonRoute: typeof ToolsFeeComparisonRoute
   ApiAuthGoogleRoute: typeof ApiAuthGoogleRoute
   ApiWebhooksResendRoute: typeof ApiWebhooksResendRoute
   ApiWebhooksStripeRoute: typeof ApiWebhooksStripeRoute
@@ -1594,6 +1607,13 @@ declare module '@tanstack/react-router' {
       path: '/tools/convert'
       fullPath: '/tools/convert'
       preLoaderRoute: typeof ToolsConvertRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tools_/fee-comparison': {
+      id: '/tools_/fee-comparison'
+      path: '/tools/fee-comparison'
+      fullPath: '/tools/fee-comparison'
+      preLoaderRoute: typeof ToolsFeeComparisonRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin/': {
@@ -2321,6 +2341,7 @@ const rootRouteChildren: RootRouteChildren = {
   THandleRoute: THandleRoute,
   ToolsCompoundGrowthRoute: ToolsCompoundGrowthRoute,
   ToolsConvertRoute: ToolsConvertRoute,
+  ToolsFeeComparisonRoute: ToolsFeeComparisonRoute,
   ApiAuthGoogleRoute: ApiAuthGoogleRoute,
   ApiWebhooksResendRoute: ApiWebhooksResendRoute,
   ApiWebhooksStripeRoute: ApiWebhooksStripeRoute,
