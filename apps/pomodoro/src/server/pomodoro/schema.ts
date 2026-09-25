@@ -273,6 +273,38 @@ export const dailyFocusStats = pgTable(
   ]
 )
 
+/**
+ * One row per badge a person has earned, and the moment they earned it.
+ *
+ * Only the earning is stored. What the badges are and what each one takes
+ * lives in code (`@/lib/pomodoro/achievements`), because a badge is a promise
+ * the app made rather than data an account owns.
+ *
+ * The unique index is what makes "awarded exactly once" true. The award check
+ * inserts every badge the counters satisfy and lets the index throw the
+ * repeats away, so a hundredth session finishing twice, or two tabs finishing
+ * one each, still leaves one row with the first date on it.
+ */
+export const pomodoroAchievements = pgTable(
+  "pomodoro_achievements",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    badgeId: varchar("badge_id", { length: 40 }).notNull(),
+    earnedAt: timestamp("earned_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("pomodoro_achievements_user_badge_unique").on(
+      table.userId,
+      table.badgeId
+    ),
+  ]
+)
+
 export const pomodoroProfiles = pgTable("pomodoro_profiles", {
   userId: varchar("user_id", { length: 36 })
     .primaryKey()
@@ -330,6 +362,7 @@ export type PomodoroProject = typeof pomodoroProjects.$inferSelect
 export type PomodoroTaskRepeat = typeof pomodoroTaskRepeats.$inferSelect
 export type UserTimerPreset = typeof userTimerPresets.$inferSelect
 export type PomodoroProfile = typeof pomodoroProfiles.$inferSelect
+export type PomodoroAchievement = typeof pomodoroAchievements.$inferSelect
 
 export const rooms = pgTable(
   "rooms",
