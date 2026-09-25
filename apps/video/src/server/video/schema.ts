@@ -486,6 +486,9 @@ export const videoSettings = pgTable(
     // Which AI writes down speech, and which one rewrites words. Empty until
     // somebody chooses, at which point the choice sticks.
     aiDefaults: jsonb("ai_defaults").notNull().default({}),
+    // The YouTube Data API key for the Viral page, scrambled the same way the
+    // shell scrambles AI keys. NULL falls back to VIDEO_YOUTUBE_API_KEY.
+    youtubeApiKey: text("youtube_api_key"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
