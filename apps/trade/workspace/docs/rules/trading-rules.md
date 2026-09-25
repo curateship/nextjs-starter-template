@@ -161,14 +161,19 @@ add up to.
   the unsold part. In the chart's target window, a percentage applies to the
   position not already assigned to an earlier target. 100% always means all of
   what is left.
-- **A part close chases as a maker and never leaves the rest unprotected.**
-  Selling some of a position rests a reduce-only post-only limit off the price
-  and follows it until it fills, never taking the market. It does not give up,
-  because being half out is worse than any price the rest would have got. A
-  target list is shortened to what will be left before the close is placed.
-  The nearest targets stay first, and the last kept target is brought down when
-  needed. Closing the WHOLE position keeps its own behaviour and is still a
-  market order. See `orders/part-close.md`.
+- **Every close offers market or limit.** Tyler, 24 Sep 2026: **"When closing
+  trade. GIve me an option to choose market close or limit close"**. The close
+  window's Order type picks one for any amount. Limit means the order that
+  follows the price, not a price typed in. All of it starts on Market and a part
+  starts on Limit until the person picks one.
+- **A limit close chases as a maker and never leaves the rest unprotected.**
+  It rests a reduce-only post-only limit off the price and follows it until it
+  fills, never taking the market. It does not give up, because being half out
+  is worse than any price the rest would have got. A market close of part of a
+  position sells it with one reduce-only market order. Either way, a target
+  list is shortened to what will be left before the close is placed. The
+  nearest targets stay first, and the last kept target is brought down when
+  needed. See `orders/part-close.md`.
 - **A remainder too small to be an order is not a remainder.** An amount that
   would leave less than the exchange's smallest order sells the whole position
   instead, because a scrap under the floor can never be closed again.

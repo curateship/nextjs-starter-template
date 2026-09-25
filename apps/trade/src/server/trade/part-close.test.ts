@@ -178,6 +178,7 @@ describe("selling part of a position", () => {
     const answer = await openPartClose(userId, wallet, {
       marketKey: BTC,
       size: { unit: "coins", amount: 4 },
+      how: "limit",
     })
     expect(answer).toEqual({ kind: "chasing", sz: 4, px: 100 })
 
@@ -204,6 +205,7 @@ describe("selling part of a position", () => {
     const answer = await openPartClose(userId, wallet, {
       marketKey: BTC,
       size: { unit: "usd", amount: 250 },
+      how: "limit",
     })
     expect(answer).toEqual({ kind: "chasing", sz: 2, px: 125 })
   })
@@ -213,6 +215,7 @@ describe("selling part of a position", () => {
     await openPartClose(userId, wallet, {
       marketKey: BTC,
       size: { unit: "coins", amount: 4 },
+      how: "limit",
     })
 
     // The price runs a long way UP, which for an ordinary watch is the case
@@ -234,6 +237,7 @@ describe("selling part of a position", () => {
     await openPartClose(userId, wallet, {
       marketKey: BTC,
       size: { unit: "coins", amount: 4 },
+      how: "limit",
     })
     await priceTo(140)
     // The market comes back up through the resting sell and it fills.
@@ -251,6 +255,7 @@ describe("selling part of a position", () => {
     await openPartClose(userId, wallet, {
       marketKey: BTC,
       size: { unit: "coins", amount: 4 },
+      how: "limit",
     })
     await priceTo(140)
 
@@ -280,6 +285,7 @@ describe("selling part of a position", () => {
     await openPartClose(userId, wallet, {
       marketKey: BTC,
       size: { unit: "coins", amount: 4 },
+      how: "limit",
     })
     await priceTo(140)
 
@@ -307,6 +313,7 @@ describe("selling part of a position", () => {
     await openPartClose(userId, wallet, {
       marketKey: BTC,
       size: { unit: "coins", amount: 5 },
+      how: "limit",
     })
     await priceTo(140)
 
@@ -333,6 +340,7 @@ describe("selling part of a position", () => {
     await openPartClose(userId, wallet, {
       marketKey: BTC,
       size: { unit: "coins", amount: 4 },
+      how: "limit",
     })
     await priceTo(140)
     await database
@@ -359,6 +367,7 @@ describe("selling part of a position", () => {
       await openPartClose(userId, wallet, {
         marketKey: BTC,
         size: { unit: "coins", amount: 10 },
+        how: "market",
       })
     ).toEqual({ kind: "whole" })
     // Nothing written: the caller closes it the ordinary way instead.
@@ -380,6 +389,7 @@ describe("selling part of a position", () => {
       await openPartClose(userId, wallet, {
         marketKey: BTC,
         size: { unit: "usd", amount: 1_000 },
+        how: "market",
       })
     ).toEqual({ kind: "whole" })
   })
@@ -393,8 +403,61 @@ describe("selling part of a position", () => {
       await openPartClose(userId, wallet, {
         marketKey: BTC,
         size: { unit: "coins", amount: 9.95 },
+        how: "market",
       })
     ).toEqual({ kind: "whole" })
+  })
+
+  it("chases the whole position when a limit amount covers it", async () => {
+    // Limit was asked for, so all of it is chased rather than handed back to
+    // the market-order close.
+    await openTen()
+    expect(
+      await openPartClose(userId, wallet, {
+        marketKey: BTC,
+        size: { unit: "coins", amount: 9.95 },
+        how: "limit",
+      })
+    ).toEqual({ kind: "chasing", sz: 10, px: 100 })
+    const row = await watchRow()
+    expect(row.plan.sz).toBeCloseTo(10, 6)
+    expect(row.plan.maker).toBe(true)
+  })
+
+  it("sells a market part at once and writes no chase", async () => {
+    await openTen()
+    expect(
+      await openPartClose(userId, wallet, {
+        marketKey: BTC,
+        size: { unit: "coins", amount: 4 },
+        how: "market",
+      })
+    ).toEqual({ kind: "sold", sz: 4, px: 100 })
+    expect((await held())[0].szi).toBeCloseTo(6, 6)
+    expect(
+      await database
+        .select()
+        .from(tradeSmartLadders)
+        .where(eq(tradeSmartLadders.userId, userId))
+    ).toHaveLength(0)
+  })
+
+  it("brings a fixed-size target down before a market part sells", async () => {
+    await openTen()
+    await database
+      .update(tradePaperPositions)
+      .set({ tpPx: 150, tpSz: 8, slPx: 90 })
+      .where(eq(tradePaperPositions.userId, userId))
+
+    await openPartClose(userId, wallet, {
+      marketKey: BTC,
+      size: { unit: "coins", amount: 4 },
+      how: "market",
+    })
+    const after = (await held())[0]
+    expect(after.szi).toBeCloseTo(6, 6)
+    expect(after.tpSz).toBeCloseTo(6, 6)
+    expect(after.slPx).toBeCloseTo(90, 6)
   })
 
   it("refuses a piece too small to be an order", async () => {
@@ -403,6 +466,7 @@ describe("selling part of a position", () => {
       openPartClose(userId, wallet, {
         marketKey: BTC,
         size: { unit: "coins", amount: 0.0001 },
+        how: "limit",
       })
     ).rejects.toThrow(/PART_CLOSE_TOO_SMALL/)
   })
@@ -412,6 +476,7 @@ describe("selling part of a position", () => {
       openPartClose(userId, wallet, {
         marketKey: BTC,
         size: { unit: "coins", amount: 1 },
+        how: "limit",
       })
     ).rejects.toThrow("PART_CLOSE_POSITION_GONE")
   })
@@ -428,6 +493,7 @@ describe("selling part of a position", () => {
     await openPartClose(userId, wallet, {
       marketKey: BTC,
       size: { unit: "coins", amount: 4 },
+      how: "limit",
     })
     const after = (await held())[0]
     expect(after.tpSz).toBeCloseTo(6, 6)
@@ -445,6 +511,7 @@ describe("selling part of a position", () => {
     await openPartClose(userId, wallet, {
       marketKey: BTC,
       size: { unit: "coins", amount: 4 },
+      how: "limit",
     })
     expect((await held())[0].tpSz).toBeNull()
   })
@@ -468,6 +535,7 @@ describe("selling part of a position", () => {
     await openPartClose(userId, wallet, {
       marketKey: BTC,
       size: { unit: "coins", amount: 4 },
+      how: "limit",
     })
     const after = (await held())[0]
     expect(after.targets).toEqual([

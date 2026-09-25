@@ -22,13 +22,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import type { CloseHow, PartCloseSize } from "@/lib/api/trade/smart-orders"
 import { marketSymbol } from "@/lib/protocols/contracts"
 import { formatPrice, formatSize, formatUsd } from "@/lib/trade/format"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import type { TradePosition } from "@/lib/trade/paper"
 
 /**
- * How much of a position to sell, and what happens to the rest.
+ * How much of a position to sell, how it sells, and what happens to the rest.
  *
  * **Selling some of a winner is the most ordinary thing anybody does with
  * one**, and until this window the only button sold all of it — so the choice
@@ -36,15 +37,16 @@ import type { TradePosition } from "@/lib/trade/paper"
  * button did before and nobody should have to fill anything in to get the old
  * behaviour.
  *
- * **All of it and part of it are sold differently, and the difference is not
- * cosmetic.** All of it is a market order: it pays the spread to be out right
- * now, which is what "close everything" is asking for. A part is a reduce-only
- * post-only limit that follows the price, which is what `trading-rules.md`
- * says a close should be — the trade is going your way, there is no hurry, and
- * the spread is money. The window says which one the press will do.
+ * **Market or limit is the person's choice for any amount** (Tyler, 24 Sep
+ * 2026). Market pays the spread to be out right now. Limit is a reduce-only
+ * post-only order that follows the price until it fills, so it never pays the
+ * spread. Until the choice is touched it follows the amount: all of it starts
+ * on market and a part starts on limit, which is what the window did before
+ * it offered the choice. The window says which one the press will do.
  */
 
-export type PartCloseAsk = { unit: "coins" | "usd"; amount: number }
+/** Everything except all of it at market, which is the ordinary close. */
+export type PartCloseAsk = { size: PartCloseSize; how: CloseHow }
 
 export function ClosePositionDialog({
   position,
@@ -123,6 +125,8 @@ function CloseForm({
   // while this window is open, and a stored dollar value would become more
   // than the holding as soon as the price fell.
   const [allPreset, setAllPreset] = React.useState(true)
+  // Null until the person picks one, so the default can follow the amount.
+  const [chosenHow, setChosenHow] = React.useState<CloseHow | null>(null)
   const [amount, setAmount] = React.useState(() => String(round(heldUsd, 2)))
   const [showValidation, setShowValidation] = React.useState(false)
 
@@ -150,6 +154,7 @@ function CloseForm({
   // said the amount was refused.
   const all = allPreset || (!tooBig && askedCoin >= heldCoin - slack)
   const leftCoin = all ? 0 : heldCoin - askedCoin
+  const how: CloseHow = chosenHow ?? (all ? "market" : "limit")
 
   const refusal = !ok
     ? `How much to sell has to be a number above zero. All of it is ${unit === "usd" ? formatUsd(heldUsd) : `${formatSize(heldCoin)} ${symbol}`}.`
@@ -174,8 +179,13 @@ function CloseForm({
       showErrorToast(refusal)
       return
     }
-    if (all) onCloseAll(position)
-    else onClosePart(position, { unit, amount: typed })
+    if (all && how === "market") onCloseAll(position)
+    else {
+      onClosePart(position, {
+        size: all ? { unit: "all" } : { unit, amount: typed },
+        how,
+      })
+    }
     onDismiss()
   }
 
@@ -200,7 +210,7 @@ function CloseForm({
             <div className="grid gap-2">
               <FieldLabel
                 htmlFor="close-amount"
-                hint="How much of the position to sell. All of it is sold at whatever the market costs right now; a part is sold with a limit that follows the price."
+                hint="How much of the position to sell."
               >
                 Sell
               </FieldLabel>
@@ -268,6 +278,28 @@ function CloseForm({
               </div>
             </div>
 
+            <div className="grid gap-2">
+              <FieldLabel
+                htmlFor="close-how"
+                hint="Market sells now and pays the spread. Limit waits just off the price and follows it until it fills, so it never pays the spread."
+              >
+                Order type
+              </FieldLabel>
+              <Select
+                value={how}
+                disabled={busy}
+                onValueChange={(next) => setChosenHow(next as CloseHow)}
+              >
+                <SelectTrigger id="close-how" className="w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="market">Market</SelectItem>
+                  <SelectItem value="limit">Limit</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             <p className="text-xs text-muted-foreground">{outcome()}</p>
           </CardContent>
         </Card>
@@ -314,8 +346,12 @@ function CloseForm({
   /** What the press does, in dollars, before it is pressed. */
   function outcome(): string {
     if (refusal) return "Fix the amount above and this will say what happens."
+    const chase =
+      "It is sold with a limit that follows the price and never pays the spread, so it fills when the market comes to it rather than straight away. It does not give up, because being half out is worse than any price the rest would have got."
     if (all) {
-      return `All ${formatSize(heldCoin)} ${symbol} is sold at whatever the market costs right now, and everything it has made or lost is banked. This cannot be undone.`
+      return how === "market"
+        ? `All ${formatSize(heldCoin)} ${symbol} is sold at whatever the market costs right now, and everything it has made or lost is banked. This cannot be undone.`
+        : `All ${formatSize(heldCoin)} ${symbol}, about ${formatUsd(heldUsd)} at ${formatPrice(mark)}. The stop stays on until it has sold. ${chase}`
     }
     const soldUsd = askedCoin * mark
     const leftUsd = leftCoin * mark
@@ -323,7 +359,11 @@ function CloseForm({
       position.slPx !== null
         ? `${formatUsd(leftUsd)} keeps running with its stop at ${formatPrice(position.slPx)}.`
         : `${formatUsd(leftUsd)} keeps running, with no stop under it.`
-    return `${formatUsd(soldUsd)} of the ${formatUsd(heldUsd)} position, about ${formatSize(askedCoin)} ${symbol} at ${formatPrice(mark)}. ${rest} It is sold with a limit that follows the price and never pays the spread, so it fills when the market comes to it rather than straight away — and it does not give up, because being half out is worse than any price the rest would have got.`
+    const sale =
+      how === "market"
+        ? "It is sold at whatever the market costs right now."
+        : chase
+    return `${formatUsd(soldUsd)} of the ${formatUsd(heldUsd)} position, about ${formatSize(askedCoin)} ${symbol} at ${formatPrice(mark)}. ${rest} ${sale}`
   }
 }
 
