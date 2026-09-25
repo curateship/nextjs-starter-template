@@ -3,10 +3,10 @@ import { ImageUpload } from "@/components/shared/image-upload"
 import { AiSettings } from "@/components/settings/ai-settings"
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { NotificationSettings } from "@/components/settings/notification-settings"
+import { SettingsSwitchRow } from "@/components/settings/settings-switch-row"
 import { SecuritySettings } from "@/components/settings/security-settings"
 import { StorageSettings } from "@/components/settings/storage-settings"
 import { CardGroup } from "@/components/ui/card"
-import { Checkbox } from "@/components/ui/checkbox"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Input } from "@/components/ui/input"
 import { FieldLabel } from "@/components/ui/field-label"
@@ -282,23 +282,19 @@ function MaintenanceSettingsCard({
       description="Close the app to everyone but admins while you work on it."
       contentClassName="space-y-6"
     >
-      <div className="flex items-center gap-2">
-        <Checkbox
-          id="maintenance-enabled"
-          checked={maintenance.enabled}
-          disabled={maintenanceBusy}
-          onCheckedChange={(value) => {
-            if (value === true) {
-              setConfirmOpen(true)
-              return
-            }
-            void onMaintenanceChange({ ...maintenance, enabled: false })
-          }}
-        />
-        <Label htmlFor="maintenance-enabled" className="font-normal">
-          Close the app to members
-        </Label>
-      </div>
+      <SettingsSwitchRow
+        id="maintenance-enabled"
+        checked={maintenance.enabled}
+        disabled={maintenanceBusy}
+        onCheckedChange={(on) => {
+          if (on) {
+            setConfirmOpen(true)
+            return
+          }
+          void onMaintenanceChange({ ...maintenance, enabled: false })
+        }}
+        label="Close the app to members"
+      />
 
       <ConfirmDialog
         open={confirmOpen}

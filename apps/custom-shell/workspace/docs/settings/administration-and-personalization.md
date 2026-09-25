@@ -88,6 +88,30 @@ shell's `PublicPageFrame` and sidebar are still what draw from them. A
 replacement screen has to write those same fields. One that writes somewhere of
 its own is a settings screen that changes nothing.
 
+## Every setting that is on or off is a switch
+
+One shape, everywhere in Settings: **the switch on the left, what it does to its
+right.** `SettingsSwitchRow` in `src/components/settings/settings-switch-row.tsx`
+is the only way to draw one, and longer guidance goes behind its info icon
+rather than under the row.
+
+Tyler asked for this on 25 Sep 2026. Until then a toggle was one of two shapes.
+Most were tick boxes with their words beside them. A few — the breadcrumb
+switches, Show on phones, Sticky header, Full width — were a label on the left
+with the switch pushed to the far right of the card by `justify-between`, which
+on a wide card put the control an inch from the words explaining it. Neither
+lined up with the other. With one shape a column of settings reads down its
+left edge.
+
+It is a switch and not a tick box because every one of these takes effect the
+moment it is flipped rather than when a form is submitted, which is the rule
+written on `Switch` itself.
+
+**The one thing still drawn as a tick box** is the small square that shows or
+hides a single link inside the sidebar, top right menu and public menu editors.
+That is a control in a row of controls next to a drag handle and a bin, not a
+setting with a sentence beside it, and a switch there would make every row taller.
+
 ## Saving
 
 Settings saving follows these rules:
@@ -219,16 +243,28 @@ the current site when the app gives
 workspaces their own public domains. An app without public workspace domains
 uses one app-wide brand colour instead.
 
-Public Navigation has one app-wide Header layout card. Sticky keeps the full
-header at the top while a visitor scrolls. Menu position keeps desktop links
-in the normal header flow or centres them on the page, while phones keep the
-existing menu button. Small, standard, and large set the logo to 32px, 48px, or
-64px high. Standard, scrolling, and left are the defaults. The public header
-still shows the logo, site name, search, and colour-mode choice before any menu
-or footer links have been added.
+**Public Navigation is three cards, one per part of a public page**: Header
+layout, Breadcrumbs, and Public footer. It was six until 25 Sep 2026, when
+Tyler asked for the menu and the user panel to sit with the header and the
+copyright line with the footer. The header and the menu in it are one thing to
+an admin, so they are one card.
 
-The same card sets how wide the header spreads and how much it blurs. Full
-width spreads the logo, menu and buttons across the whole window. Otherwise
+Header layout holds its own fields first, then a **Public menu** section for
+the links beside the site name, then a **User panel** section for the Sign in
+and Register buttons and the signed-in menu. Public footer holds its links and
+then a **Copyright** section. Each section carries a heading and a line above
+it, drawn by `SettingsCardSection`.
+
+Its fields read in the order the header is built: Sticky keeps the full header
+at the top while a visitor scrolls, then Full width and Navigation width decide
+how far it spreads, then Menu position keeps desktop links in the normal header
+flow or centres them on the page, while phones keep the existing menu button.
+Small, standard, and large set the logo to 32px, 48px, or 64px high. Standard,
+scrolling, and left are the defaults. The public header still shows the logo,
+site name, search, and colour-mode choice before any menu or footer links have
+been added.
+
+Full width spreads the logo, menu and buttons across the whole window. Otherwise
 Navigation width caps them at a number of pixels from 320 to 2560. Until a
 number is typed there, the header follows the page width in Public Styling, so a
 header saved before this setting existed stays where it was. A number outside
@@ -237,7 +273,7 @@ blur effect is None, Light, Medium or Heavy. Medium is the blur the header
 always had. The blur only shows where the page scrolls under a see-through
 header, so it needs Sticky on, and a solid header colour from Styling covers it.
 
-Public Navigation also has a User panel card, copied from the directory app's
+The User panel section is copied from the directory app's
 User Panel. Edit user panel opens one window with three cards. Sign in and
 Register each have an icon, a name, an address, a button style (Primary,
 Outline or Ghost) and a Show on phones switch. Leaving a button's address empty
@@ -249,12 +285,12 @@ address, and names the problem in a toast. The defaults are Sign in to /login
 and Create an account to /register, both shown on phones, with no extra links,
 which is exactly what the header showed before the card existed.
 
-Public Navigation also has a Breadcrumbs card, one switch per kind of page:
+Breadcrumbs is its own card, one switch per kind of page:
 written pages, Search, and Pricing. Every switch starts off, so nothing on the
 public site changes until one is turned on. The trail itself is described in
 [Public pages, search, and SEO](../content/public-pages-search-and-seo.md).
 
-The Public menu card treats Search as a built-in draggable item. Its position
+The Public menu section treats Search as a built-in draggable item. Its position
 among the link chips is the order visitors see in the desktop header. The phone
 menu puts a Search entry in the same order and opens the full search page.
 The Visible checkbox hides Search from both headers but leaves its chip in the
