@@ -1,9 +1,7 @@
 import type { StatFigure } from "@/components/shared/dashboard/stat-strip"
 import type { MembershipSummary } from "@/lib/api/admin-overview"
-import { formatSharePercent } from "@/lib/format/format-number"
 import { formatMoney } from "@/lib/format/money"
 import { percentChange } from "@/lib/format/percent-change"
-import { plural } from "@/lib/format/plural"
 
 /**
  * Said where a change would be on the two money figures, because there is no
@@ -36,7 +34,14 @@ export function joinedChange(
   return percentChange(sameDaysLastMonth, summary.newThisMonth)
 }
 
-/** The four member-and-money figures the Overview's stat strip opens with. */
+/**
+ * The four member-and-money figures the Overview's stat strip opens with.
+ *
+ * Each is its name, the number and how far it moved, and nothing else. The
+ * small facts under a dashed line — the member and admin split, the share of
+ * accounts paying, the average each — came off on 25 Sep 2026 at Tyler's ask.
+ * The other dashboards that use `StatStrip` keep theirs.
+ */
 export function buildMembershipFigures(
   summary: MembershipSummary
 ): StatFigure[] {
@@ -54,7 +59,6 @@ export function buildMembershipFigures(
       changeCaption: "vs last month",
       changeNote: "None last month",
       trend: summary.last30Days.map((day) => day.people),
-      footer: peopleFooter(summary),
     },
     {
       key: "joined",
@@ -65,7 +69,6 @@ export function buildMembershipFigures(
       changeCaption: JOINED_CHANGE_CAPTION,
       changeNote: "None in the same days last month",
       trend: summary.last30Days.map((day) => day.joined),
-      footer: `${summary.newThisMonth.toLocaleString()} of ${revenue.totalUsers.toLocaleString()} ${plural(revenue.totalUsers, "person", "people")}`,
     },
     {
       key: "paying",
@@ -75,11 +78,6 @@ export function buildMembershipFigures(
       label: "Paying",
       value: revenue.paidSubscribers.toLocaleString(),
       changeNote: NO_HISTORY,
-      footer: [
-        `${formatSharePercent(revenue.paidSubscribers, revenue.totalUsers)} of accounts`,
-        `${revenue.trialing} on trial`,
-        `${revenue.cancelling} ending`,
-      ],
     },
     {
       key: "revenue",
@@ -87,24 +85,7 @@ export function buildMembershipFigures(
       label: "Revenue a month",
       value: formatMoney(revenue.monthlyRecurringCents, revenue.currency),
       changeNote: NO_HISTORY,
-      footer: [
-        // Averaging what nobody pays over nobody is not a figure, it is a zero
-        // pretending to be one.
-        revenue.paidSubscribers
-          ? `${formatMoney(summary.arpuCents, revenue.currency)} each`
-          : null,
-        `${summary.paidPlans} of ${summary.livePlans} plans paid`,
-      ],
     },
   ]
 }
 
-/** "12 members, 2 admins, 1 suspended" — the suspended only while there are any. */
-function peopleFooter(summary: MembershipSummary) {
-  const parts = [
-    `${summary.members} ${plural(summary.members, "member")}`,
-    `${summary.admins} ${plural(summary.admins, "admin")}`,
-  ]
-  if (summary.suspended > 0) parts.push(`${summary.suspended} suspended`)
-  return parts
-}
