@@ -120,7 +120,10 @@ every session for that user.
 both requiring the current password.
 
 **Profile photo.** Account → Profile carries the shared `ImageUpload`, so a photo
-is picked or uploaded through the ordinary media library and R2 pipeline. Its
+is picked or uploaded through the ordinary media library and R2 pipeline.
+Clicking the photo opens the media picker in its own window over the account
+window. Drawn inside the Profile card instead, the picker stretched the 80px
+photo across the card and squeezed the Name field to a sliver. Its
 public URL is stored on `users.avatar_url` and drawn in the sidebar user button
 and its dropdown; with none, both fall back to the account's initials. Saving
 refuses any URL that is not one of this account's own *images*

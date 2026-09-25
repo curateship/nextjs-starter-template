@@ -420,7 +420,7 @@ export function PublicThemeSettings({
           step={16}
           valueLabel={`${theme.pageWidth}px`}
           onChange={(pageWidth) => update({ pageWidth })}
-          help="The widest the public header, page content, and footer can become."
+          help="The widest the public header, page content, and footer can become. Header layout can give the header its own width."
         />
 
         <SettingsSliderRow
