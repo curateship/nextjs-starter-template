@@ -4,6 +4,8 @@ import { Card, CardContent } from "@/components/ui/card"
 import type { PublicPostCard } from "@/lib/api/posts/public"
 import { formatUtcDate } from "@/lib/format/format-time"
 import { focusRing } from "@/lib/layout/focus-ring"
+import { publicCardHover } from "@/lib/layout/card-hover"
+import { pageGutter } from "@/lib/layout/shell-gutter"
 
 /**
  * The card grid for posts: the Posts page and the posts under a category.
@@ -31,10 +33,13 @@ export function PostGrid({
   }
 
   return (
-    <ul className="grid gap-2 sm:grid-cols-2 md:gap-3 lg:grid-cols-3">
+    <ul
+      className="grid sm:grid-cols-2 lg:grid-cols-3"
+      style={{ gap: pageGutter }}
+    >
       {posts.map((post) => (
         <li key={post.id} className="flex">
-          <Card className="group/card relative w-full transition-colors hover:bg-accent/40">
+          <Card className={`group/card relative w-full ${publicCardHover}`}>
             {post.coverImage ? (
               <img
                 src={post.coverImage}

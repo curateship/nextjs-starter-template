@@ -5,6 +5,8 @@ import type { DealCardView } from "@/lib/promotions/deal-content"
 import { formatDirectoryDistance } from "@/lib/directory/public-search"
 import { shownHeadline } from "@/lib/promotions/deal-headline"
 import { focusRing } from "@/lib/layout/focus-ring"
+import { publicCardHover } from "@/lib/layout/card-hover"
+import { pageGutter } from "@/lib/layout/shell-gutter"
 
 /**
  * One group of cards on the Deals page. Each card shows the deal's cover, or
@@ -19,12 +21,15 @@ import { focusRing } from "@/lib/layout/focus-ring"
  */
 export function DealGrid({ deals }: { deals: DealCardView[] }) {
   return (
-    <ul className="grid gap-2 sm:grid-cols-2 md:gap-3 lg:grid-cols-3">
+    <ul
+      className="grid sm:grid-cols-2 lg:grid-cols-3"
+      style={{ gap: pageGutter }}
+    >
       {deals.map((deal) => {
         const photo = deal.coverImage || deal.listingImage
         return (
           <li key={deal.id} className="flex">
-            <Card className="group/card relative w-full transition-colors hover:bg-accent/40">
+            <Card className={`group/card relative w-full ${publicCardHover}`}>
               {photo ? (
                 <img
                   src={photo}

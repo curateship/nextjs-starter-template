@@ -58,6 +58,13 @@ inventing names. Drop `--dry-run` to write. `--dropped <file>` points it at a
   the old template with their real labels. A field CMS has no home for — a
   written-text field, a repeating one — is named in the report instead.
 - **Coordinates** are not loaded. There are none: the old site had zero.
+- **HTML entities are decoded on the way in.** The old app stored plain fields
+  encoded, so a description reading "burritos & quesadillas" came out of it
+  spelling the ampersand out, and landed on a listing card exactly like that.
+  The importer now turns the six codes the old app used back into the
+  characters they stand for, before the 300-character cut, so the limit counts
+  real characters. 1,383 of the 3,335 listings were affected. Rows imported
+  before this change keep their codes until the import is run again.
 - Run it twice. The second report shows `listingsChanged: 0`, because nothing
   is written unless it differs from what is already stored.
 

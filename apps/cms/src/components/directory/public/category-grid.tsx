@@ -4,6 +4,8 @@ import { Card, CardContent } from "@/components/ui/card"
 import type { DirectoryCategoryCard } from "@/lib/directory/category-cards"
 import { plural } from "@/lib/format/plural"
 import { focusRing } from "@/lib/layout/focus-ring"
+import { publicCardHover } from "@/lib/layout/card-hover"
+import { pageGutter } from "@/lib/layout/shell-gutter"
 
 /**
  * The card grid every row of categories uses: underneath a parent category, on a
@@ -28,7 +30,10 @@ export function CategoryGrid({
   if (categories.length === 0) return null
 
   return (
-    <ul className="grid gap-2 sm:grid-cols-2 md:gap-3 lg:grid-cols-3">
+    <ul
+      className="grid sm:grid-cols-2 lg:grid-cols-3"
+      style={{ gap: pageGutter }}
+    >
       {categories.map((category) => (
         <li key={category.id} className="flex">
           <CategoryCard category={category} />
@@ -45,7 +50,7 @@ function CategoryCard({
   category: DirectoryCategoryCard
 }) {
   return (
-    <Card className="group/card relative w-full transition-colors hover:bg-accent/40">
+    <Card className={`group/card relative w-full ${publicCardHover}`}>
       {category.featuredImage ? (
         <div className="overflow-hidden">
           <img

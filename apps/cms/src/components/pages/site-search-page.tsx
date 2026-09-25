@@ -12,6 +12,7 @@ import { focusRing } from "@/lib/layout/focus-ring"
 import { plural } from "@/lib/format/plural"
 import { toLinkProps } from "@/lib/nav/nav-href"
 import type { SiteSearchResult } from "@/lib/pages/site-search"
+import { publicCardHover } from "@/lib/layout/card-hover"
 
 export function SiteSearchPage({ query, results }: { query: string; results: SiteSearchResult[] }) {
   return (
@@ -71,7 +72,7 @@ function SearchResults({ query, results }: { query: string; results: SiteSearchR
       <ul className="grid gap-2 md:gap-3">
         {results.map((result) => (
           <li key={`${result.type}:${result.path}`}>
-            <Card size="sm" className="transition-colors hover:bg-accent/40">
+            <Card size="sm" className={publicCardHover}>
               <CardContent className="grid gap-1">
                 <p className="text-xs font-medium text-muted-foreground">{result.type}</p>
                 <h2 className="text-base font-medium">
