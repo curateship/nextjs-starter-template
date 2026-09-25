@@ -1,7 +1,11 @@
 import { lazy } from "react"
+import { redirect } from "@tanstack/react-router"
 
 import { defineCatchAllPage, type AppOptions } from "@/lib/app-options"
-import type { DirectoryFrontPageData } from "@/lib/directory/front-page"
+import type {
+  DirectoryFrontPageAnswer,
+  DirectoryFrontPageData,
+} from "@/lib/directory/front-page"
 import { draftEventsNode } from "@/lib/events/draft-events-step"
 
 const DirectoryFrontPageComponent = lazy(() =>
@@ -10,16 +14,49 @@ const DirectoryFrontPageComponent = lazy(() =>
   }))
 )
 
+/**
+ * The front page, which is two different pages depending on who is being asked.
+ *
+ * **A site's address gets that site's home page**, or nothing when it has none
+ * and the shell's own front page should draw instead. That fall-through is the
+ * reason the answer names the host rather than the page alone: a site with no
+ * home page, and one whose rows all came back empty, both answer "no page", and
+ * neither of them is the platform.
+ *
+ * **The deployment's own address is the admin's front door and nothing else.**
+ * It used to draw the shell's marketing page, which is the right answer for an
+ * app that sells itself and the wrong one here: every site CMS serves has its
+ * own address, so nobody reaches the platform's root except the person who runs
+ * it. Tyler's call on 25 Sep 2026. It forwards rather than drawing a form of
+ * its own, because `/login` already knows how to carry a `?redirect=` and how
+ * to send a signed-in reader onward.
+ *
+ * `/home` rather than `/admin` on purpose: it is the signpost that reads the
+ * Admin home route setting, so changing that setting still decides where this
+ * lands. It also sends a member to the member home rather than to an admin page
+ * they cannot open.
+ *
+ * `load` is a parameter only so the tests can drive it. The dynamic import is
+ * the rule for this file, written at the top of `appOptions` below: reaching an
+ * endpoint module while this one is still being read catches the server's
+ * guards half-built.
+ */
 export async function loadDirectoryFrontPageOverride(
   path: string,
-  load: () => Promise<DirectoryFrontPageData | null> = async () => {
+  load: () => Promise<DirectoryFrontPageAnswer> = async () => {
     const { loadDirectoryFrontPage } =
       await import("@/lib/api/directory/public")
     return loadDirectoryFrontPage()
   }
 ) {
   if (path !== "/") return null
-  return load()
+
+  const answer = await load()
+  if (answer.host === "site") return answer.page
+
+  // Replace, never push. This address only forwards now, so leaving it in the
+  // history turns Back into a bounce straight back out of it.
+  throw redirect({ to: answer.signedIn ? "/home" : "/login", replace: true })
 }
 
 const directoryFrontPage = defineCatchAllPage<DirectoryFrontPageData>({

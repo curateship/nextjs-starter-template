@@ -48,6 +48,8 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   listing owners adding events from My listings, the Draft events
   automation step that reads a page and drafts the events on it, and
   reporting a problem on an event.
+- `the-root-address.md` — what `/` is on a site's address and on the
+  deployment's own, and why "no page" never means "send them to sign in".
 - `record-windows.md` — what the listing, event, post and deal windows share:
   the link to the public page, the categories combobox, the square cover image,
   and why a weekday's opening hours are one stretch and no longer two.

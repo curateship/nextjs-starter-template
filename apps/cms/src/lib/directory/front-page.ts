@@ -18,6 +18,29 @@ import type { EventWhen } from "@/lib/events/event-time"
 import type { DealCardView } from "@/lib/promotions/deal-content"
 
 /**
+ * What the address `/` is, which depends entirely on the host that asked.
+ *
+ * Two answers, and the difference is the whole point. **A site's own address**
+ * gets that site's home page, or null when it has none and the shell's front
+ * page should draw instead. **The deployment's own address** is not a site at
+ * all, and the root there belongs to whoever runs the platform.
+ *
+ * A host that resolves to no workspace counts as `"site"` deliberately, so an
+ * address nobody has taken keeps behaving exactly as it did rather than
+ * becoming a sign-in page.
+ *
+ * `signedIn` rides along because the platform's root forwards on it, and asking
+ * again from the browser would be a second round trip to answer one question.
+ *
+ * It lives in this module rather than beside the endpoint that fills it because
+ * `src/app/options.ts` names it, and that file may not reach `@/lib/api/*` even
+ * for a type.
+ */
+export type DirectoryFrontPageAnswer =
+  | { host: "site"; page: DirectoryFrontPageData | null }
+  | { host: "platform"; signedIn: boolean }
+
+/**
  * The kinds of row a home page is built from. The first one is the default,
  * and it is what every row that existed before the others were added.
  */

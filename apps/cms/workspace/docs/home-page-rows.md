@@ -31,7 +31,9 @@ category or "every one of them", and how many, 1 to 12.
 
 - **A row with nothing in it is dropped**, never drawn as a heading over an
   empty space. A home page whose rows all come back empty is not drawn at all,
-  and the platform's own front page is shown instead.
+  and the shell's own front page is shown instead. That fall-through is only
+  ever for a site. The deployment's own address is a different question, and
+  `the-root-address.md` answers it.
 - **A row follows the page it leads to.** A row of events is left off for a
   visitor who may not see the Events page, and the same goes for deals and
   posts. Every card on those rows leads to that page, so a row that survived
