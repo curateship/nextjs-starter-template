@@ -61,7 +61,11 @@ import {
   livePlaceLongitude,
   livePlaceName,
 } from "@/server/events/place"
-import { siteEvents, EVENT_CONTENT_TYPE } from "@/server/events/schema"
+import {
+  eventSignUps,
+  siteEvents,
+  EVENT_CONTENT_TYPE,
+} from "@/server/events/schema"
 
 /**
  * What a visitor may read of a site's events. Every read takes the site from
@@ -103,6 +107,20 @@ export type PublicEventCard = EventWhen & {
    * reads, because a featured event is marked there and nowhere else.
    */
   featured?: boolean
+  /** Whether the card offers an RSVP button. */
+  takesSignUps: boolean
+  /**
+   * How many people have said they are going: confirmed sign-ups only, a
+   * cancelled one being a record rather than a seat. Zero for an event that
+   * takes no sign-ups, and up to two minutes behind, which is the public
+   * cache's window.
+   */
+  going: number
+  /**
+   * The category the card names, the event's primary one if it has one and
+   * otherwise the first by name. Null when the event is in none.
+   */
+  category: PublicCategoryLink | null
 }
 
 const eventCardColumns = {
@@ -116,6 +134,7 @@ const eventCardColumns = {
   startTime: siteEvents.startTime,
   endDate: siteEvents.endDate,
   endTime: siteEvents.endTime,
+  takesSignUps: siteEvents.takesSignUps,
 }
 
 function toEventCard(row: {
@@ -129,6 +148,7 @@ function toEventCard(row: {
   startTime: string
   endDate: string | null
   endTime: string | null
+  takesSignUps: boolean
   distanceKm?: number | null
   featured?: boolean
 }): PublicEventCard {
@@ -137,9 +157,83 @@ function toEventCard(row: {
     ...event,
     startTime: toClock(row.startTime),
     endTime: row.endTime ? toClock(row.endTime) : null,
+    // Filled in by `withCategoriesAndGoing`, which every list of cards runs
+    // before handing them out.
+    going: 0,
+    category: null,
     ...(distanceKm == null ? {} : { distanceKm }),
     ...(featured === undefined ? {} : { featured }),
   }
+}
+
+/**
+ * The category name and the number going, added to a whole page of cards in
+ * two queries rather than two per card. `signUpBoxFor` counts one event at a
+ * time, which is right for an event's own page and wrong for a list of twelve.
+ */
+async function withCategoriesAndGoing(
+  siteId: string,
+  cards: PublicEventCard[],
+  database: CustomShellDb
+): Promise<PublicEventCard[]> {
+  if (cards.length === 0) return cards
+  const ids = cards.map((card) => card.id)
+  const signUpIds = cards
+    .filter((card) => card.takesSignUps)
+    .map((card) => card.id)
+
+  const [categoryRows, goingRows] = await Promise.all([
+    database
+      .select({
+        contentId: categoryRelationships.contentId,
+        name: categories.name,
+        slug: categories.slug,
+      })
+      .from(categoryRelationships)
+      .innerJoin(
+        categories,
+        eq(categories.id, categoryRelationships.categoryId)
+      )
+      .where(
+        and(
+          eq(categoryRelationships.workspaceId, siteId),
+          eq(categoryRelationships.contentType, EVENT_CONTENT_TYPE),
+          inArray(categoryRelationships.contentId, ids)
+        )
+      )
+      // Primary first, so the first row for an event is the one it is shown
+      // under and the rest are its other categories.
+      .orderBy(desc(categoryRelationships.isPrimary), asc(categories.name)),
+    signUpIds.length === 0
+      ? []
+      : database
+          .select({
+            eventId: eventSignUps.eventId,
+            going: sql<number>`count(*)::int`,
+          })
+          .from(eventSignUps)
+          .where(
+            and(
+              inArray(eventSignUps.eventId, signUpIds),
+              eq(eventSignUps.status, "confirmed")
+            )
+          )
+          .groupBy(eventSignUps.eventId),
+  ])
+
+  const category = new Map<string, PublicCategoryLink>()
+  for (const row of categoryRows) {
+    if (!category.has(row.contentId)) {
+      category.set(row.contentId, { name: row.name, slug: row.slug })
+    }
+  }
+  const going = new Map(goingRows.map((row) => [row.eventId, row.going]))
+
+  return cards.map((card) => ({
+    ...card,
+    category: category.get(card.id) ?? null,
+    going: going.get(card.id) ?? 0,
+  }))
 }
 
 /** Soonest first, with the id breaking ties so pages never overlap. */
@@ -520,7 +614,11 @@ export function readUpcomingEvents(
       ])
       return {
         site: { name: site.name, url: site.url },
-        events: rows.map(toEventCard),
+        events: await withCategoriesAndGoing(
+          site.id,
+          rows.map(toEventCard),
+          database
+        ),
         total: countRow?.total ?? 0,
         page,
         pageSize: EVENTS_PAGE_SIZE,
@@ -710,7 +808,14 @@ export function readEventsBetween(
         .orderBy(...soonestFirst)
         // A month is six weeks at most; a day's list is never paged.
         .limit(from === to ? MAX_EVENTS_ON_A_DAY : 42 * MAX_EVENTS_ON_A_DAY)
-      return rows.map(toEventCard)
+      const cards = rows.map(toEventCard)
+      // One day is drawn as cards and needs both; a month is drawn as chips in
+      // day cells, which show a title and nothing else. A month can hold 4,200
+      // events, so looking up a category and a head count for every one of them
+      // would be two large queries for two fields nothing draws.
+      return from === to
+        ? withCategoriesAndGoing(site.id, cards, database)
+        : cards
     }
   )
 }

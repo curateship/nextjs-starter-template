@@ -616,7 +616,6 @@ export function ListingDialog({
                         onChange={(url) => setFeaturedImage(url)}
                         aspect="square"
                         fit="cover"
-                        inlinePicker
                         className="max-w-24"
                       />
                     </div>

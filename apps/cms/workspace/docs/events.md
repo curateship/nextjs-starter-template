@@ -348,7 +348,7 @@ Category cards, in Settings → Directory → Front page.
 
 - **Its settings:** a heading, an introduction, a category or "Every event",
   and how many, 1 to 12. Order and arrangement do not apply: it is always the
-  soonest first, one under the other, the same rows as the Events page.
+  soonest first, the same cards as the Events page.
 - **On the page:** the row's heading, its introduction, "All times are Eastern
   Time.", the events and a "See all events" button to the Events page. A row
   with a category opens the Events page narrowed to it.
@@ -466,9 +466,10 @@ the month. The view, the month, a chosen day and the filters all live in the
 address, so a shared link opens the same view.
 
 - **Private events** are in none of these views.
-- **The list:** events that are not over yet, soonest first, 12 to a page. An
-  event that ended an hour ago is gone. One still running, or with no end time
-  on today, stays until it is over. A festival stays until its last day ends.
+- **The list:** events that are not over yet, soonest first, 12 to a page, as
+  a grid of cards. An event that ended an hour ago is gone. One still running,
+  or with no end time on today, stays until it is over. A festival stays until
+  its last day ends.
 - **Previous and Next** under the list move a page without reloading the
   site. They are the same buttons as the Directory, a category and Posts, in
   `src/components/directory/public/directory-pagination.tsx`. Each is still a
@@ -605,6 +606,38 @@ location" gives tonight's events within 10 km.
   `src/server/events/public.ts`, and the live pin in `livePlaceLatitude` and
   `livePlaceLongitude` in `src/server/events/place.ts`, which the event page's
   map reads too.
+
+## The event card
+
+Every public list of events draws the same card, from
+`src/components/events/public/event-card.tsx`: the Events page, a single day,
+a category page and a home page row. One component, so the four cannot drift
+apart.
+
+- **Over the photo:** the month over the day in a block on the left, and the
+  category in a pill on the right. Both sit 16px in, which is the card's own
+  content padding, so the date lines up with the title under it.
+- **Under the photo:** the title, two lines of the summary, the times beside a
+  clock, and the place beside a pin. A list narrowed to a distance adds "2.3 km
+  away" after the place.
+- **The times leave the day out** when an event is on one day, because the day
+  is already in the block over the photo. An event over several days keeps its
+  whole span, or a card would say a festival runs 12:00 PM to 8:00 PM and not
+  say it runs for three of them.
+- **The bottom strip is only for an event taking sign-ups:** how many are going
+  on the left and an RSVP button on the right, which opens the event's page
+  where the sign-up form is. An event that takes no sign-ups has no strip and no
+  dividing line.
+- **How many are going** counts confirmed sign-ups only, a cancelled one being
+  a record rather than a seat. It is left off entirely until somebody has
+  signed up, because "0 going" argues against itself. It is read for a whole
+  page of cards in one query, not one query per card, and it can be up to two
+  minutes behind, which is the public cache's window.
+- **A card with no photo** keeps its date block and its category in the row
+  above the title, rather than losing both.
+- **"What's on here" on a listing page is not this card.** It stays a short
+  list of rows, because it sits in a column beside the write-up where a grid of
+  cards would not fit.
 
 ## Featured events
 
