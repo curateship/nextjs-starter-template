@@ -1,16 +1,15 @@
 import * as React from "react"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
+import { SettingsSwitchRow } from "@/components/settings/settings-switch-row"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { CardGroup } from "@/components/ui/card"
-import { Checkbox } from "@/components/ui/checkbox"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { ErrorRow } from "@/components/ui/error-row"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { LoadingRow } from "@/components/ui/loading-row"
 import {
   getStripeSettingsErrorMessage,
@@ -372,21 +371,15 @@ export function StripeSettings() {
           />
         ) : (
           <>
-            <div className="flex items-center gap-3">
-              <Checkbox
-                id="stripe-use-sandbox"
-                checked={status.useSandbox}
-                disabled={saving === "sandbox"}
-                onCheckedChange={(checked) =>
-                  void runSave("sandbox", () =>
-                    saveStripeUseSandbox(checked === true)
-                  )
-                }
-              />
-              <Label htmlFor="stripe-use-sandbox" className="font-normal">
-                Use sandbox keys — test payments that move no real money
-              </Label>
-            </div>
+            <SettingsSwitchRow
+              id="stripe-use-sandbox"
+              checked={status.useSandbox}
+              disabled={saving === "sandbox"}
+              onCheckedChange={(checked) =>
+                void runSave("sandbox", () => saveStripeUseSandbox(checked))
+              }
+              label="Use sandbox keys — test payments that move no real money"
+            />
 
             {SECTIONS.map((section) => (
               <div key={section.title} className="space-y-4">

@@ -5,6 +5,10 @@ import { z } from "zod"
 import { db } from "@/server/db"
 import { userGet, userPost } from "@/server/guards"
 import {
+  awardAchievements,
+  loadLifetimeTotals,
+} from "@/server/pomodoro/achievements"
+import {
   completeProductivitySession,
   loadFocusSummary,
   loadOrCreatePreferences,
@@ -373,16 +377,44 @@ const completeSessionFn = createServerFn({ method: "POST" })
     )
     if (!completion) return null
     const preferences = await loadOrCreatePreferences(context.user.id)
+    const summary = await loadFocusSummary(
+      context.user.id,
+      today,
+      preferences.dailyGoalSessions
+    )
     return {
       ...completion,
       today,
-      summary: await loadFocusSummary(
+      summary,
+      // A finished focus is the moment the session, hours and streak counters
+      // move, so the badges are checked here rather than by a job that scans
+      // accounts. The streak comes from the summary above instead of being
+      // counted a second time.
+      newAchievements: await awardForCompletedSession(
         context.user.id,
-        today,
-        preferences.dailyGoalSessions
+        summary.bestStreak
       ),
     }
   })
+
+/**
+ * Badges earned by the focus that just finished, or an empty list.
+ *
+ * A failure here is swallowed on purpose. The session is already recorded and
+ * committed by this point, so letting the award throw would tell the member
+ * their session failed to sync and lose the counts the answer carries, to
+ * save a badge that the next finished session will award anyway.
+ */
+async function awardForCompletedSession(userId: string, bestStreak: number) {
+  try {
+    return await awardAchievements(userId, {
+      ...(await loadLifetimeTotals(userId)),
+      bestStreak,
+    })
+  } catch {
+    return []
+  }
+}
 
 /**
  * The first sign-in copies a guest's browser state to the account, exactly

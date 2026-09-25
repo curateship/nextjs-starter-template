@@ -8,6 +8,7 @@ import {
 import { toast } from "sonner"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
+import { SettingsSwitchRow } from "@/components/settings/settings-switch-row"
 import { SettingsSliderRow } from "@/components/settings/settings-slider-row"
 import { PublicThemePresetsCard } from "@/components/settings/public-theme-presets-card"
 import {
@@ -24,12 +25,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { Checkbox } from "@/components/ui/checkbox"
 import { ColorSwatch } from "@/components/ui/color-swatch"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -451,30 +450,18 @@ export function PublicThemeSettings({
         </FieldGroup>
 
         <div className="grid gap-4">
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="public-theme-header-border"
-              checked={theme.headerBorder}
-              onCheckedChange={(checked) =>
-                update({ headerBorder: checked === true })
-              }
-            />
-            <Label htmlFor="public-theme-header-border" className="font-normal">
-              Show the line below the public header
-            </Label>
-          </div>
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="public-theme-footer-border"
-              checked={theme.footerBorder}
-              onCheckedChange={(checked) =>
-                update({ footerBorder: checked === true })
-              }
-            />
-            <Label htmlFor="public-theme-footer-border" className="font-normal">
-              Show the line above the public footer
-            </Label>
-          </div>
+          <SettingsSwitchRow
+            id="public-theme-header-border"
+            checked={theme.headerBorder}
+            onCheckedChange={(headerBorder) => update({ headerBorder })}
+            label="Show the line below the public header"
+          />
+          <SettingsSwitchRow
+            id="public-theme-footer-border"
+            checked={theme.footerBorder}
+            onCheckedChange={(footerBorder) => update({ footerBorder })}
+            label="Show the line above the public footer"
+          />
         </div>
       </CollapsibleSettingsCard>
 

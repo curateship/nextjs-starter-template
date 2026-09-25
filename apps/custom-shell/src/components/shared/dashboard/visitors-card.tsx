@@ -81,16 +81,7 @@ export function VisitorsCard({
 
   return (
     <FeedCard className={cn("flex flex-col", className)}>
-      <CardHeaderRow
-        icon={LineChartIcon}
-        title={title}
-        meta={
-          summary
-            ? `daily totals, ${TRAFFIC_RANGE_LABELS[range].toLowerCase()}`
-            : undefined
-        }
-        metaClassName="hidden 2xl:flex"
-      >
+      <CardHeaderRow icon={LineChartIcon} title={title}>
         <Tabs
           value={String(range)}
           onValueChange={(value) => setRange(Number(value) as TrafficRange)}

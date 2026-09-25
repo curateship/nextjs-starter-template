@@ -7,7 +7,7 @@ import {
 } from "@dnd-kit/sortable"
 import { GripVertical, PlusIcon, SettingsIcon, Trash2Icon } from "lucide-react"
 
-import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
+import { SettingsCardSection } from "@/components/settings/settings-card-section"
 import {
   DRAG_HANDLE_CLASS,
   createShellId,
@@ -43,7 +43,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
+import { SettingsSwitchRow } from "@/components/settings/settings-switch-row"
 import {
   MAX_PUBLIC_USER_PANEL_HREF_LENGTH,
   MAX_PUBLIC_USER_PANEL_LABEL_LENGTH,
@@ -81,15 +81,9 @@ export function PublicUserPanelSettings({
   const [editing, setEditing] = React.useState(false)
   const linkCount = panel.links.length
 
-  return (
-    <>
-      <CollapsibleSettingsCard
-        storageId="public-user-panel"
-        title="User panel"
-        description="The Sign in and Register buttons at the right of the public header, and the links a signed-in visitor sees under their photo."
-        contentClassName="flex flex-wrap items-center justify-between gap-4"
-      >
-        <ul className="grid gap-1 text-sm text-muted-foreground">
+  const summary = (
+    <div className="flex flex-wrap items-center justify-between gap-4">
+      <ul className="grid gap-1 text-sm text-muted-foreground">
           {PUBLIC_USER_PANEL_BUTTON_KEYS.map((key) => (
             <li key={key}>
               <span className="font-medium text-foreground">
@@ -104,11 +98,22 @@ export function PublicUserPanelSettings({
               : "No extra links in the signed-in menu"}
           </li>
         </ul>
-        <Button type="button" variant="outline" onClick={() => setEditing(true)}>
-          <SettingsIcon />
-          Edit user panel
-        </Button>
-      </CollapsibleSettingsCard>
+      <Button type="button" variant="outline" onClick={() => setEditing(true)}>
+        <SettingsIcon />
+        Edit user panel
+      </Button>
+    </div>
+  )
+
+  const title = "User panel"
+  const description =
+    "The Sign in and Register buttons at the right of the public header, and the links a signed-in visitor sees under their photo."
+
+  return (
+    <>
+      <SettingsCardSection title={title} description={description}>
+        {summary}
+      </SettingsCardSection>
 
       {editing ? (
         <PublicUserPanelDialog
@@ -407,14 +412,12 @@ function UserPanelButtonCard({
             </Select>
           </div>
         </div>
-        <div className="flex items-center justify-between gap-4">
-          <FieldLabel htmlFor={`${id}-phone`}>Show on phones</FieldLabel>
-          <Switch
-            id={`${id}-phone`}
-            checked={button.showOnPhone}
-            onCheckedChange={(showOnPhone) => onChange({ showOnPhone })}
-          />
-        </div>
+        <SettingsSwitchRow
+          id={`${id}-phone`}
+          checked={button.showOnPhone}
+          onCheckedChange={(showOnPhone) => onChange({ showOnPhone })}
+          label="Show on phones"
+        />
       </CardContent>
     </Card>
   )

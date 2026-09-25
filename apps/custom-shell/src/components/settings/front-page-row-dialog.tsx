@@ -2,7 +2,7 @@ import * as React from "react"
 
 import { FrontPageRowContentEditor } from "@/components/settings/front-page-row-content-editor"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
+import { SettingsSwitchRow } from "@/components/settings/settings-switch-row"
 import {
   Card,
   CardContent,
@@ -21,7 +21,6 @@ import {
 import { FieldLabel } from "@/components/ui/field-label"
 import { FormDialog } from "@/components/ui/form-dialog"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -302,16 +301,12 @@ export function FrontPageRowDialog({
                   </Select>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="front-page-row-hidden"
-                    checked={hidden}
-                    onCheckedChange={(checked) => setHidden(checked === true)}
-                  />
-                  <Label htmlFor="front-page-row-hidden" className="font-normal">
-                    Hide this row from visitors
-                  </Label>
-                </div>
+                <SettingsSwitchRow
+                  id="front-page-row-hidden"
+                  checked={hidden}
+                  onCheckedChange={setHidden}
+                  label="Hide this row from visitors"
+                />
               </CardContent>
             </Card>
 

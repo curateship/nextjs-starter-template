@@ -5,6 +5,10 @@ import { z } from "zod"
 import { userGet, userPost } from "@/server/guards"
 import { findCurrentUser } from "@/server/auth/security"
 import { enforceRateLimit } from "@/server/auth/rate-limit"
+import {
+  awardAchievements,
+  loadLifetimeTotals,
+} from "@/server/pomodoro/achievements"
 import { requirePomodoroPerk } from "@/server/pomodoro/entitlements"
 import {
   applyHostRoomAction,
@@ -100,8 +104,27 @@ const createRoomFn = createServerFn({ method: "POST" })
     )
     for (const closedRoomId of closedRoomIds)
       await notifyRoom(closedRoomId, "phase")
+    // Opening a room is the other moment a badge counter moves. The room is
+    // already committed, so a failed award must not take the room down with
+    // it; the next finished focus checks the same badges again.
+    await awardRoomsHosted(context.user.id)
     return roomSnapshot(room.id, context.user.id)
   })
+
+async function awardRoomsHosted(userId: string) {
+  try {
+    const totals = await loadLifetimeTotals(userId)
+    await awardAchievements(userId, {
+      ...totals,
+      // Hosting moves no streak, so the cheapest safe value is the one that
+      // earns no streak badge. A streak badge is awarded on the path that
+      // actually changes a streak, which is a focus finishing.
+      bestStreak: 0,
+    })
+  } catch {
+    // A badge is never worth failing the action that earned it.
+  }
+}
 
 const joinRoomFn = createServerFn({ method: "POST" })
   .middleware([userPost])
