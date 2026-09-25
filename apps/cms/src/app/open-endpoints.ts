@@ -51,6 +51,10 @@ export const appOpenEndpoints: Record<string, string> = {
     "The Events page is a public page, so its list and month of published events have to be readable without an account. It answers for the visited site only, and returns nothing while the site has the Events page switched off or kept for members and the reader is signed out.",
   "events/public.ts:readEventFn":
     "An event's own page is public. It answers with a published event on the visited site only, so a draft is missing rather than hidden, and it follows the Events page's on/off switch before reading anything.",
+  "promotions/public.ts:readDealsPageFn":
+    "The Deals page is a public page, so its list of published deals has to be readable without an account. It answers for the visited site only, leaves out drafts and deals at draft listings, and returns nothing while the site has the Deals page switched off or kept for members and the reader is signed out.",
+  "promotions/public.ts:readDealFn":
+    "A deal's own page is public. It answers with a published deal at a published listing on the visited site only, so a draft is missing rather than hidden, follows the Deals page's on/off switch before reading anything, and leaves the code out once the deal has ended.",
   "directory/public-profile.ts:readPublicSavedProfileFn":
     "A person can share the saved lists they explicitly made public, and this returns only those lists and published listings on the visited site.",
   "directory/submissions.ts:readSubmissionFormFn":
