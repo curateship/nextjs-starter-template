@@ -91,6 +91,14 @@ screen: anything not written there has not been agreed yet.
 - `browser-tab-titles.md` — how each Trade screen names its browser tab, and
   how chart tabs include their market and exchange.
 
+## social/ — what other people see
+
+- `public-profiles.md` — the public trader page at `/t/<handle>` and the
+  `/traders` leaderboard: every real wallet counts and none can leave, the
+  permanent record binning and deleting cannot touch, the ownership check
+  and what "checked by Trade" means, how far back each exchange goes, the
+  figures and the leaderboard minimums.
+
 ## charts/ — the chart itself
 
 - `drawing.md` — levels, trendlines and TradingView-style fib retracements, by mouse and by touch.

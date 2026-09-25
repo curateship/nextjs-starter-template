@@ -407,6 +407,12 @@ export type ProtocolEntry = {
   networks: readonly NetworkId[]
   /** Which network a screen should show when nothing has chosen one. */
   defaultNetwork: NetworkId
+  /**
+   * Where anybody can read a mainnet wallet's whole history without trusting
+   * this app. Present only on venues whose trades are public on a chain; an
+   * exchange account (KuCoin, Phemex) has no public address to link to.
+   */
+  explorer?: (address: string) => string
   capabilities: ProtocolCapabilities
   markets: {
     fetch(network: NetworkId): Promise<MarketCatalog>
@@ -922,6 +928,8 @@ import {
 const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
   hyperliquid: {
     ...protocolCore("hyperliquid"),
+    explorer: (address) =>
+      `https://app.hyperliquid.xyz/explorer/address/${encodeURIComponent(address)}`,
     markets: {
       fetch: fetchHyperliquidMarkets,
       candles: fetchHyperliquidCandles,
@@ -1491,6 +1499,8 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
    */
   solana: {
     ...protocolCore("solana"),
+    explorer: (address) =>
+      `https://solscan.io/account/${encodeURIComponent(address)}`,
     markets: {
       fetch: fetchSolanaMarkets,
       // Neither Jupiter nor the chain publishes candles, so Solana answers
@@ -1537,6 +1547,8 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
   },
   bnb: {
     ...protocolCore("bnb"),
+    explorer: (address) =>
+      `https://bscscan.com/address/${encodeURIComponent(address)}`,
     markets: {
       fetch: fetchBnbMarkets,
       candles: fetchBnbCandles,
@@ -1592,6 +1604,8 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
    */
   robinhood: {
     ...protocolCore("robinhood"),
+    explorer: (address) =>
+      `https://robinhoodchain.blockscout.com/address/${encodeURIComponent(address)}`,
     markets: {
       fetch: fetchRobinhoodMarkets,
       candles: fetchRobinhoodCandles,

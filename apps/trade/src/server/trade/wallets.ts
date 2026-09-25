@@ -43,6 +43,10 @@ import {
   tradeWallets,
 } from "@/server/trade/schema"
 import { recordEngineError } from "@/server/trade/engine-errors"
+import {
+  freezeWalletRecord,
+  markRecordWalletProved,
+} from "@/server/trade/trade-record"
 
 /**
  * The wallet store. Two rules run through every function here:
@@ -476,13 +480,27 @@ export async function updateWallet(
     .where(and(eq(tradeWallets.userId, userId), eq(tradeWallets.id, input.id)))
   if (set.keyPermission)
     await journalKeyPermission(userId, row.id, set.keyPermission)
+  // The replacement was just proved against this address, which clears a
+  // failed ownership check on the public profile.
+  if (replacingKey) await markRecordWalletProved(userId, row.id)
   return toWallet({ ...row, ...set } as WalletRow)
 }
 
+/**
+ * Deletes a wallet. A real one leaves its trades in the permanent record
+ * (`trade-record.ts`), with what each made fixed first, so a public profile
+ * reads the same afterwards.
+ */
 export async function deleteWallet(userId: string, id: string): Promise<void> {
-  await db
-    .delete(tradeWallets)
-    .where(and(eq(tradeWallets.userId, userId), eq(tradeWallets.id, id)))
+  const wallet = await findWallet(userId, id)
+  if (!wallet) return
+  const freeze = await freezeWalletRecord(userId, wallet)
+  await db.transaction(async (tx) => {
+    await freeze(tx)
+    await tx
+      .delete(tradeWallets)
+      .where(and(eq(tradeWallets.userId, userId), eq(tradeWallets.id, id)))
+  })
 }
 
 /**

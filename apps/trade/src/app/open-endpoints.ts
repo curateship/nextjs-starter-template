@@ -28,7 +28,14 @@
  * Reachable without being signed in, on purpose. The reason says why the thing
  * behind the door is safe for anyone to read.
  */
-export const appOpenEndpoints: Record<string, string> = {}
+export const appOpenEndpoints: Record<string, string> = {
+  "trade/public-profiles.ts:readPublicProfileFn":
+    "A public trader profile is a page for visitors with no account. It answers only for a profile its member switched on and no admin hid, and it carries no coin, price, key or email, only the figures the member chose to publish.",
+  "trade/public-profiles.ts:readLeaderboardFn":
+    "The leaderboard is a public page. It lists only switched-on profiles that are not hidden and pass the 30-day and 20-trade minimums, with the same figures their own public pages already show.",
+  "trade/public-profiles.ts:reportPublicProfileFn":
+    "Anybody may report a public profile, which is the feature. It still checks the request came from this app's own pages, takes five reports an hour from one address, and writes a row only an admin can read.",
+}
 
 /**
  * The handler does no checking because the thing it calls does it instead. The
