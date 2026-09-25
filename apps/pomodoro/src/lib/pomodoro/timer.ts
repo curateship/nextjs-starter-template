@@ -15,6 +15,13 @@ export type PomodoroTimer = {
   targetTimestamp: number | null
 }
 
+/** What the member-facing screens call each phase. */
+export const MODE_LABELS: Record<TimerMode, string> = {
+  focus: "Focus",
+  short: "Short break",
+  long: "Long break",
+}
+
 export const DEFAULT_DURATIONS: Record<TimerMode, number> = {
   focus: 25,
   short: 5,

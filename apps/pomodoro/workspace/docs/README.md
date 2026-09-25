@@ -11,6 +11,8 @@ cover this one.
   that switches them on.
 - [The timer](timer.md) — the ring at `/timer`, the 4-focus cycle, auto-start,
   and the session rows and daily stats every run writes.
+- [Zen mode](zen-mode.md) — the fullscreen timer: the ring, the phase and
+  the task name, how you get in and out, and why the countdown never notices.
 - [Tasks](tasks.md) — today's plan: create, inline edit, drag to reorder,
   complete and abandon, the focus task the timer counts on, and the repeat
   rule that brings a task back each morning.
