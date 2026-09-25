@@ -16,6 +16,8 @@ cover this one.
   rule that brings a task back each morning.
 - [Projects](projects.md) — grouping tasks at the level people bill at, what
   archiving does, and the per-project split in History.
+- [Session notes](session-notes.md) — the one line you jot after a focus
+  finishes, why it never interrupts the break, and where it shows up.
 - [Timer settings and rhythm presets](timer-settings.md) — the Settings →
   Timer tab: durations, daily goal, auto-start, and built-in plus custom
   rhythms.

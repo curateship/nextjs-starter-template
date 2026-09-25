@@ -9,6 +9,7 @@ import {
   pauseFocusSession,
   reorderTasks,
   resumeFocusSession,
+  saveFocusSessionNote,
   setTaskRepeatRule,
   startFocusSession,
   togglePersistentTask,
@@ -21,6 +22,7 @@ import {
   setProjectArchived as setProjectArchivedRequest,
 } from "@/lib/api/pomodoro/projects"
 import { productAuth, subscribeProductAuth } from "@/lib/pomodoro/auth-state"
+import { normalizeSessionNote } from "@/lib/pomodoro/session-notes"
 import {
   completionAlertMessage,
   fireCompletionAlert,
@@ -94,6 +96,13 @@ type PomodoroState = {
   bestStreak: number
   durations: Record<TimerMode, number>
   serverSessionId: string | null
+  /**
+   * The focus that just finished, waiting for its one-line note. Set when a
+   * focus completes and cleared when the next focus starts, so the prompt is
+   * there for the whole break and gone once the work resumes. Never set for a
+   * guest, who has no session row to write it on.
+   */
+  noteSession: { id: string; note: string } | null
   syncError: string
 }
 
@@ -112,6 +121,7 @@ const initialState: PomodoroState = {
   bestStreak: 0,
   durations: DEFAULT_DURATIONS,
   serverSessionId: null,
+  noteSession: null,
   syncError: "",
 }
 
@@ -181,6 +191,10 @@ function beginServerSession(
   taskId: string | null
 ) {
   if (!isAuthed()) return
+  // A new focus is the moment the last one stops being the thing you are
+  // writing about, so the note prompt goes then — not when the break starts,
+  // which with auto-start would be the same instant the prompt appeared.
+  if (mode === "focus" && state.noteSession) setState({ noteSession: null })
   void startFocusSession({
     mode,
     plannedSeconds,
@@ -432,6 +446,13 @@ function handleCompletion() {
         if (!result) return
         const updatedTask = result.task
         setState({
+          // Offered only once the server has agreed the session is complete,
+          // because that is the state the note can be written on. Asking
+          // sooner would show a prompt whose first save would be refused.
+          noteSession:
+            result.session.mode === "focus"
+              ? { id: result.session.id, note: result.session.note ?? "" }
+              : state.noteSession,
           tasks: updatedTask
             ? state.tasks.map((task) =>
                 task.id === updatedTask.id
@@ -877,6 +898,35 @@ export function reorderActiveTasks(orderedTaskIds: string[]) {
   })
 }
 
+/**
+ * Writes the line about the focus that just finished. Nothing here touches
+ * the timer, so saving or skipping never interrupts the break that is already
+ * running. An empty line clears a note written by mistake.
+ */
+export function saveSessionNote(note: string) {
+  const target = state.noteSession
+  if (!target || !isAuthed()) return Promise.resolve(false)
+  const line = normalizeSessionNote(note)
+  const previous = target.note
+  setState({ noteSession: { ...target, note: line } })
+  return saveFocusSessionNote(target.id, line).then(
+    () => true,
+    () => {
+      // Only roll back when the prompt is still showing the same session; a
+      // slow save must not overwrite the next focus's prompt.
+      if (state.noteSession?.id === target.id)
+        setState({ noteSession: { ...target, note: previous } })
+      setSyncError("Your note could not be saved.")
+      return false
+    }
+  )
+}
+
+/** Puts the prompt away without writing anything. The line already saved stays. */
+export function dismissSessionNote() {
+  if (state.noteSession) setState({ noteSession: null })
+}
+
 export function selectTask(taskId: string | null) {
   if (!timerIsIdle()) return
   setState({
@@ -936,6 +986,8 @@ export function usePomodoro() {
     toggleTask,
     removeTask,
     updateTaskDetails,
+    saveSessionNote,
+    dismissSessionNote,
     setTaskRepeat,
     createProject,
     renameProject,

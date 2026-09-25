@@ -209,6 +209,12 @@ export const focusSessions = pgTable(
     }),
     mode: varchar("mode", { length: 20 }).notNull(),
     status: varchar("status", { length: 20 }).notNull().default("running"),
+    /**
+     * One line about what the focus was for, written after it finishes.
+     * Private to the account: only the owner's own History reads it, and the
+     * admin sessions dashboard names its columns and leaves this one out.
+     */
+    note: varchar("note", { length: 120 }),
     plannedSeconds: integer("planned_seconds").notNull(),
     accumulatedSeconds: integer("accumulated_seconds").notNull().default(0),
     targetEndsAt: timestamp("target_ends_at", { withTimezone: true }),

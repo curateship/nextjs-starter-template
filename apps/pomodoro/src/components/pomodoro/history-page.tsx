@@ -414,6 +414,7 @@ function SessionsCard({
                 <TableHead>Task</TableHead>
                 <TableHead>Planned</TableHead>
                 <TableHead>Focused</TableHead>
+                <TableHead>Note</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -439,6 +440,23 @@ function SessionsCard({
                   </TableCell>
                   <TableCell>
                     {formatFocusDuration(session.accumulatedSeconds)}
+                  </TableCell>
+                  {/* An unnoted session shows an em dash rather than words,
+                      so a column of notes reads as notes and the gaps stay
+                      quiet. The line is capped at 120 characters when it is
+                      written, and clamped here so one long note cannot set
+                      the width of every row. The clamp is tighter on a phone
+                      because this table already scrolls sideways there, and
+                      the full line is still on the row's tooltip. */}
+                  <TableCell
+                    className={
+                      session.note
+                        ? "max-w-[11rem] truncate sm:max-w-[22rem]"
+                        : "text-muted-foreground"
+                    }
+                    title={session.note ?? undefined}
+                  >
+                    {session.note ?? "—"}
                   </TableCell>
                 </TableRow>
               ))}

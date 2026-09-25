@@ -1,5 +1,6 @@
 import { and, eq, gt, sql } from "drizzle-orm"
 
+import { normalizeSessionNote } from "@/lib/pomodoro/session-notes"
 import { db } from "@/server/db"
 import {
   dailyFocusStats,
@@ -135,6 +136,38 @@ export async function completeProductivitySession(
     }
     return { session, task: updatedTask }
   })
+}
+
+/**
+ * Writes the line about what a finished focus was for.
+ *
+ * Only the person's own completed focus sessions can take one: a break has
+ * nothing to describe, and a session still running has not happened yet. An
+ * empty note clears the line, so a note typed by mistake can be taken back.
+ *
+ * Refusing with SESSION_NOT_FOUND rather than saying which of those it was
+ * keeps one account from learning anything about another's session ids.
+ */
+export async function saveSessionNote(
+  userId: string,
+  sessionId: string,
+  note: string
+) {
+  const line = normalizeSessionNote(note)
+  const [updated] = await db
+    .update(focusSessions)
+    .set({ note: line || null, updatedAt: new Date() })
+    .where(
+      and(
+        eq(focusSessions.id, sessionId),
+        eq(focusSessions.userId, userId),
+        eq(focusSessions.mode, "focus"),
+        eq(focusSessions.status, "completed")
+      )
+    )
+    .returning({ id: focusSessions.id, note: focusSessions.note })
+  if (!updated) throw new Error("SESSION_NOT_FOUND")
+  return updated
 }
 
 export async function loadOrCreatePreferences(userId: string) {

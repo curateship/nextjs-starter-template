@@ -9,6 +9,7 @@ import {
   loadFocusSummary,
   loadOrCreatePreferences,
   localDateFor,
+  saveSessionNote,
   startProductivitySession,
 } from "@/server/pomodoro/productivity"
 import { loadOrCreateProfile, userToday } from "@/server/pomodoro/profile"
@@ -22,6 +23,7 @@ import {
   toggleTaskStatus,
   updateTaskPlan,
 } from "@/server/pomodoro/tasks"
+import { SESSION_NOTE_MAX_LENGTH } from "@/lib/pomodoro/session-notes"
 import { EVERY_DAY } from "@/lib/pomodoro/task-repeats"
 import {
   dailyFocusStats,
@@ -112,6 +114,12 @@ const sessionProgressSchema = z.object({
   sessionId: z.string().uuid(),
   accumulatedSeconds: z.number().int().min(0).max(5_400),
   timezone: timezoneSchema,
+})
+// An empty note is allowed and means "clear it", so a line typed by mistake
+// can be taken back through the same field that wrote it.
+const sessionNoteSchema = z.object({
+  sessionId: z.string().uuid(),
+  note: z.string().max(SESSION_NOTE_MAX_LENGTH),
 })
 const resumeSessionSchema = z.object({
   sessionId: z.string().uuid(),
@@ -328,6 +336,13 @@ const resumeSessionFn = createServerFn({ method: "POST" })
     return updated
   })
 
+const saveSessionNoteFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(sessionNoteSchema)
+  .handler(async ({ data, context }) =>
+    saveSessionNote(context.user.id, data.sessionId, data.note)
+  )
+
 const cancelSessionFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(z.object({ sessionId: z.string().uuid() }))
@@ -459,6 +474,8 @@ export const resumeFocusSession = (data: z.infer<typeof resumeSessionSchema>) =>
   resumeSessionFn({ data })
 export const cancelFocusSession = (sessionId: string) =>
   cancelSessionFn({ data: { sessionId } })
+export const saveFocusSessionNote = (sessionId: string, note: string) =>
+  saveSessionNoteFn({ data: { sessionId, note } })
 export const completeFocusSession = (
   data: z.infer<typeof sessionProgressSchema>
 ) => completeSessionFn({ data })

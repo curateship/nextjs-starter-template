@@ -6,7 +6,8 @@ tasks done), a calendar heatmap, a focus-time trend chart (the shell's
 chart component, monthly bars on the long ranges), the top 8 tasks by
 focus time beside the same time split by project, a completed-sessions table
 paged 20 at a time, and CSV export. The per-project card is described in
-[Projects](projects.md).
+[Projects](projects.md), and the sessions table's Note column in
+[Session notes](session-notes.md).
 
 ## The rules it keeps
 
