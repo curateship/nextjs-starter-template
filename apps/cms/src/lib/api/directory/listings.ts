@@ -17,6 +17,7 @@ import {
   prepareFeaturedListingsForDeletion,
 } from "@/server/directory/featured"
 import { saveImpactForListings } from "@/server/directory/saves"
+import { dealImpactForListings } from "@/server/promotions/promotions"
 import {
   categoriesForListing,
   createListing,
@@ -259,15 +260,23 @@ const listingDeleteImpactFn = createServerFn({ method: "GET" })
     // function lives beside `updateListing`, which the claims module already
     // calls, and having it call back into claims would make the two modules
     // import each other.
-    const [listings, claims, saves, featured, pendingFeatured] =
+    const [listings, claims, saves, featured, pendingFeatured, deals] =
       await Promise.all([
         listingDeleteImpact(site, data.ids),
         claimImpactForListings(site, data.ids),
         saveImpactForListings(site, data.ids),
         featuredImpactForListings(site, data.ids),
         pendingFeaturedImpactForListings(site, data.ids),
+        dealImpactForListings(site, data.ids),
       ])
-    return { ...listings, ...claims, ...saves, ...featured, ...pendingFeatured }
+    return {
+      ...listings,
+      ...claims,
+      ...saves,
+      ...featured,
+      ...pendingFeatured,
+      ...deals,
+    }
   })
 
 /** What deleting these would take with it, for the confirmation to say. */

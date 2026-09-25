@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import type { FirstFrameItem } from "@/lib/api/video/first-frames"
+import { aiUnitCostCents } from "@/lib/ai/ai-models"
 import {
   createGeneration,
   deleteGenerations,
@@ -21,14 +22,40 @@ import {
   insertGeneration,
   listGenerations,
   retryGeneration,
-  VIDEO_DURATIONS,
+  SHOT_LENGTHS,
   type GenerationItem,
 } from "@/lib/api/video/generations"
 import type { ProjectItem } from "@/lib/api/video/projects"
+import { formatMoney } from "@/lib/format/money"
 import { showErrorToast } from "@/lib/toast/error-toast"
-import type { VideoDurationSeconds } from "@/lib/video/asset-factories"
+import { shotPieces, VEO_MODEL, type ShotLengthSeconds } from "@/lib/video/asset-factories"
 
 const ACTIVE = new Set(["queued", "processing"])
+
+/**
+ * What the shot will cost, worked out the way each piece is charged when it
+ * arrives, so the sum matches the rows in /admin/ai to the cent.
+ */
+function shotCostCents(length: ShotLengthSeconds) {
+  const pieces = shotPieces(length)
+  return pieces.count * aiUnitCostCents(VEO_MODEL, pieces.seconds)
+}
+
+function shotProgress(item: GenerationItem) {
+  const current = item.pieces.findIndex((piece) => piece.status !== "ready") + 1
+  const of = `piece ${current} of ${item.pieces.length}`
+  if (item.status === "error") return `Stopped at ${of}. The pieces before it are kept, and Retry carries on from there.`
+  return `Making ${of}.`
+}
+
+/**
+ * Plays a shot's pieces one after another, as they will sit on the timeline,
+ * and goes back to the first piece after the last one ends.
+ */
+function ShotPreview({ item, urls }: { item: GenerationItem; urls: string[] }) {
+  const [index, setIndex] = React.useState(0)
+  return <video key={index} src={urls[index]} poster={index === 0 ? item.first_frame_image_url ?? undefined : undefined} autoPlay={index > 0} controls preload="metadata" onEnded={() => setIndex(index < urls.length - 1 ? index + 1 : 0)} className="aspect-video w-full bg-muted object-cover" />
+}
 
 export function GenerationsDashboard({
   initial,
@@ -45,8 +72,10 @@ export function GenerationsDashboard({
   const [creating, setCreating] = React.useState(false)
   const [projectId, setProjectId] = React.useState(projects[0]?.id ?? "")
   const [firstFrameId, setFirstFrameId] = React.useState(frames[0]?.id ?? "")
-  const [prompt, setPrompt] = React.useState("")
-  const [duration, setDuration] = React.useState<VideoDurationSeconds>(4)
+  const [prompts, setPrompts] = React.useState<string[]>([])
+  const [length, setLength] = React.useState<ShotLengthSeconds>(4)
+  const pieces = shotPieces(length)
+  const directions = Array.from({ length: pieces.count }, (_, index) => prompts[index] ?? "")
   const [busy, setBusy] = React.useState(false)
   const [retryingId, setRetryingId] = React.useState<string | null>(null)
   const [deleting, setDeleting] = React.useState<GenerationItem | null>(null)
@@ -73,23 +102,23 @@ export function GenerationsDashboard({
   }, [hasActive, refresh])
 
   const visible = items.filter((item) =>
-    `${item.prompt} ${item.project_name} ${item.status}`
+    `${item.pieces.map((piece) => piece.prompt).join(" ")} ${item.project_name} ${item.status}`
       .toLowerCase()
       .includes(search.trim().toLowerCase())
   )
 
   async function submit() {
-    if (!projectId || !firstFrameId || !prompt.trim()) {
-      showErrorToast("Project, first frame, and direction are required.")
+    if (!projectId || !firstFrameId || directions.some((direction) => !direction.trim())) {
+      showErrorToast(pieces.count > 1 ? "Project, first frame, and a direction for every piece are required." : "Project, first frame, and direction are required.")
       return
     }
     setBusy(true)
     try {
-      await createGeneration({ projectId, firstFrameId, prompt, durationSeconds: duration })
+      await createGeneration({ projectId, firstFrameId, prompts: directions, lengthSeconds: length })
       const refreshed = await listGenerations()
       setItems(refreshed.generations)
       setCreating(false)
-      setPrompt("")
+      setPrompts([])
       toast.success("Video queued. You can leave this page while it runs.")
     } catch (error) {
       showErrorToast(getGenerationErrorMessage(error))
@@ -118,7 +147,7 @@ export function GenerationsDashboard({
       await deleteGenerations([deleting.id])
       setItems((current) => current.filter((item) => item.id !== deleting.id))
       setDeleting(null)
-      toast.success("Generation removed. Its finished clip remains in Media.")
+      toast.success("Generation removed. Its finished clips remain in Media.")
     } catch (error) {
       showErrorToast(getGenerationErrorMessage(error))
     } finally {
@@ -132,7 +161,7 @@ export function GenerationsDashboard({
     try {
       const result = await insertGeneration(inserting.id, insertProjectId)
       setInserting(null)
-      toast.success(`AI clip added to ${result.project_name}.`)
+      toast.success(`AI video added to ${result.project_name}.`)
     } catch (error) {
       showErrorToast(getGenerationErrorMessage(error))
     } finally {
@@ -152,10 +181,11 @@ export function GenerationsDashboard({
           <div className="grid grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] gap-3 p-4">
             {visible.map((item) => (
               <Card key={item.id} size="sm" className="overflow-hidden">
-                {item.output_url ? <video src={item.output_url} poster={item.first_frame_image_url ?? undefined} controls preload="metadata" className="aspect-video w-full bg-muted object-cover" /> : item.first_frame_image_url ? <div className="relative"><img src={item.first_frame_image_url} alt="Generation first frame" className="aspect-video w-full bg-muted object-cover" />{ACTIVE.has(item.status) ? <div className="absolute inset-0 grid place-items-center bg-background/60"><Loader2Icon className="size-7 animate-spin" /><span className="sr-only">Generating video</span></div> : null}</div> : <div className="grid aspect-video place-items-center bg-muted"><FilmIcon className="size-8 text-muted-foreground" /></div>}
-                <CardHeader><div className="flex items-start justify-between gap-2"><CardTitle className="line-clamp-2">{item.prompt}</CardTitle><Badge variant={item.status === "error" ? "destructive" : "secondary"}>{item.status === "processing" ? "Generating" : item.status}</Badge></div></CardHeader>
+                {item.status === "ready" ? <ShotPreview item={item} urls={item.pieces.flatMap((piece) => piece.output_url ? [piece.output_url] : [])} /> : item.first_frame_image_url ? <div className="relative"><img src={item.first_frame_image_url} alt="Generation first frame" className="aspect-video w-full bg-muted object-cover" />{ACTIVE.has(item.status) ? <div className="absolute inset-0 grid place-items-center bg-background/60"><Loader2Icon className="size-7 animate-spin" /><span className="sr-only">Generating video</span></div> : null}</div> : <div className="grid aspect-video place-items-center bg-muted"><FilmIcon className="size-8 text-muted-foreground" /></div>}
+                <CardHeader><div className="flex items-start justify-between gap-2"><CardTitle className="line-clamp-2">{item.pieces[0].prompt}</CardTitle><Badge variant={item.status === "error" ? "destructive" : "secondary"}>{item.status === "processing" ? "Generating" : item.status}</Badge></div></CardHeader>
                 <CardContent className="grid gap-3">
-                  <p className="text-sm text-muted-foreground">{item.project_name} · {item.duration_seconds}s · {item.aspect_ratio}</p>
+                  <p className="text-sm text-muted-foreground">{item.project_name} · {item.duration_seconds}s · {item.aspect_ratio}{item.pieces.length > 1 ? ` · ${item.pieces.length} pieces` : ""}</p>
+                  {item.pieces.length > 1 && item.status !== "ready" ? <p className="text-sm text-muted-foreground">{shotProgress(item)}</p> : null}
                   {item.error_message ? <p role="alert" className="text-sm text-destructive">{item.error_message}</p> : null}
                   <div className="flex flex-wrap gap-2">
                     {item.status === "ready" ? <Button size="sm" onClick={() => setInserting(item)}><PlusIcon /> Add to project</Button> : null}
@@ -170,8 +200,8 @@ export function GenerationsDashboard({
         footer={{ type: "summary", count: visible.length, label: "generations" }}
       />
 
-      <FormDialog open={creating} dirty={Boolean(prompt)} busy={busy} onClose={() => setCreating(false)}>
-        {(requestClose) => <DialogContent variant="admin"><DialogHeader><DialogTitle>Generate AI video</DialogTitle></DialogHeader><DialogBody><Card size="sm"><CardHeader><CardTitle>Video</CardTitle></CardHeader><CardContent className="grid gap-4"><div className="grid gap-2"><Label htmlFor="generation-project">Project</Label><Select value={projectId} onValueChange={setProjectId}><SelectTrigger id="generation-project"><SelectValue placeholder="Choose a project" /></SelectTrigger><SelectContent>{projects.map((project) => <SelectItem key={project.id} value={project.id}>{project.name}</SelectItem>)}</SelectContent></Select></div><div className="grid gap-2"><Label htmlFor="generation-frame">First frame</Label><Select value={firstFrameId} onValueChange={setFirstFrameId}><SelectTrigger id="generation-frame"><SelectValue placeholder="Choose a first frame" /></SelectTrigger><SelectContent>{frames.filter((frame) => ["9:16", "16:9"].includes(frame.aspect_ratio)).map((frame) => <SelectItem key={frame.id} value={frame.id}>{frame.name} · {frame.aspect_ratio}</SelectItem>)}</SelectContent></Select></div><div className="grid gap-2"><Label htmlFor="generation-direction">Movement and scene direction</Label><Textarea id="generation-direction" value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="Slow push in as the actor turns toward camera…" aria-invalid={!prompt.trim() || undefined} /></div><div className="grid gap-2"><Label htmlFor="generation-duration">Length</Label><Select value={String(duration)} onValueChange={(value) => setDuration(Number(value) as VideoDurationSeconds)}><SelectTrigger id="generation-duration"><SelectValue /></SelectTrigger><SelectContent>{VIDEO_DURATIONS.map((seconds) => <SelectItem key={seconds} value={String(seconds)}>{seconds} seconds</SelectItem>)}</SelectContent></Select></div></CardContent></Card></DialogBody><DialogFooter><Button variant="outline" disabled={busy} onClick={requestClose}>Cancel</Button><Button disabled={busy} onClick={() => void submit()}>{busy ? <Loader2Icon className="animate-spin" /> : <SparklesIcon />} Generate video</Button></DialogFooter></DialogContent>}
+      <FormDialog open={creating} dirty={directions.some(Boolean)} busy={busy} onClose={() => setCreating(false)}>
+        {(requestClose) => <DialogContent variant="admin"><DialogHeader><DialogTitle>Generate AI video</DialogTitle></DialogHeader><DialogBody><Card size="sm"><CardHeader><CardTitle>Video</CardTitle></CardHeader><CardContent className="grid gap-4"><div className="grid gap-2"><Label htmlFor="generation-project">Project</Label><Select value={projectId} onValueChange={setProjectId}><SelectTrigger id="generation-project"><SelectValue placeholder="Choose a project" /></SelectTrigger><SelectContent>{projects.map((project) => <SelectItem key={project.id} value={project.id}>{project.name}</SelectItem>)}</SelectContent></Select></div><div className="grid gap-2"><Label htmlFor="generation-frame">First frame</Label><Select value={firstFrameId} onValueChange={setFirstFrameId}><SelectTrigger id="generation-frame"><SelectValue placeholder="Choose a first frame" /></SelectTrigger><SelectContent>{frames.filter((frame) => ["9:16", "16:9"].includes(frame.aspect_ratio)).map((frame) => <SelectItem key={frame.id} value={frame.id}>{frame.name} · {frame.aspect_ratio}</SelectItem>)}</SelectContent></Select></div><div className="grid gap-2"><Label htmlFor="generation-duration">Length</Label><Select value={String(length)} onValueChange={(value) => setLength(Number(value) as ShotLengthSeconds)}><SelectTrigger id="generation-duration"><SelectValue /></SelectTrigger><SelectContent>{SHOT_LENGTHS.map((seconds) => <SelectItem key={seconds} value={String(seconds)}>{seconds} seconds{seconds > 8 ? ` · ${shotPieces(seconds).count} pieces` : ""}</SelectItem>)}</SelectContent></Select></div>{directions.map((direction, index) => <div key={index} className="grid gap-2"><Label htmlFor={`generation-direction-${index}`}>{pieces.count > 1 ? `Direction for seconds ${index * pieces.seconds} to ${(index + 1) * pieces.seconds}` : "Movement and scene direction"}</Label><Textarea id={`generation-direction-${index}`} value={direction} onChange={(event) => { const value = event.target.value; setPrompts(directions.map((current, at) => at === index ? value : current)) }} placeholder={index === 0 ? "Slow push in as the actor turns toward camera…" : "What happens next, carrying on from the last frame…"} aria-invalid={!direction.trim() || undefined} /></div>)}<p className="text-sm text-muted-foreground">Costs {formatMoney(shotCostCents(length))}: {length} seconds at {formatMoney(aiUnitCostCents(VEO_MODEL, 1))} a second, charged for each piece when it arrives.{pieces.count > 1 ? " Each piece starts from the last frame of the one before." : ""}</p></CardContent></Card></DialogBody><DialogFooter><Button variant="outline" disabled={busy} onClick={requestClose}>Cancel</Button><Button disabled={busy} onClick={() => void submit()}>{busy ? <Loader2Icon className="animate-spin" /> : <SparklesIcon />} Generate video</Button></DialogFooter></DialogContent>}
       </FormDialog>
 
       <Dialog open={inserting !== null} onOpenChange={(open) => { if (!open && !insertBusy) setInserting(null) }}><DialogContent variant="admin"><DialogHeader><DialogTitle>Add AI clip to project</DialogTitle></DialogHeader><DialogBody><Card size="sm"><CardContent className="grid gap-2"><Label htmlFor="generation-target">Project</Label><Select value={insertProjectId} onValueChange={setInsertProjectId}><SelectTrigger id="generation-target"><SelectValue /></SelectTrigger><SelectContent>{projects.map((project) => <SelectItem key={project.id} value={project.id}>{project.name}</SelectItem>)}</SelectContent></Select></CardContent></Card></DialogBody><DialogFooter><Button variant="outline" disabled={insertBusy} onClick={() => setInserting(null)}>Cancel</Button><Button disabled={insertBusy || !insertProjectId} onClick={() => void confirmInsert()}>{insertBusy ? <Loader2Icon className="animate-spin" /> : <PlusIcon />} Add to project</Button></DialogFooter></DialogContent></Dialog>

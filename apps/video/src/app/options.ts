@@ -1,4 +1,5 @@
 import type { AppOptions } from "@/lib/app-options"
+import { defineSettingsTab } from "@/lib/settings-tab"
 
 /**
  * What this app changes about the shell.
@@ -23,5 +24,19 @@ export const appOptions: AppOptions = {
      * reads what this app is, and a default can change under you.
      */
     whoMayHave: "off",
+  },
+  settings: {
+    tabs: [
+      /**
+       * The YouTube API key the Viral page searches with. The shell's AI key
+       * list is shell-owned and YouTube is not an AI provider, so the key
+       * lives on the app's own tab instead.
+       */
+      defineSettingsTab({
+        id: "youtube",
+        label: "YouTube",
+        panel: () => import("@/components/video-viral/youtube-settings"),
+      }),
+    ],
   },
 }

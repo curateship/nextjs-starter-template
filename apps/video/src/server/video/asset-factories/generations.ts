@@ -1,11 +1,16 @@
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import path from "node:path"
 import { and, asc, desc, eq, inArray, isNull, lt, or } from "drizzle-orm"
 import { alias } from "drizzle-orm/pg-core"
 
 import {
   assetPrompt,
   providerMessage,
+  shotPieces,
   VEO_MODEL,
   type AssetAspectRatio,
+  type ShotLengthSeconds,
   type VideoDurationSeconds,
 } from "@/lib/video/asset-factories"
 import { requireCanonicalTimeline } from "@/lib/video/timeline-schema"
@@ -21,6 +26,7 @@ import { db } from "@/server/db"
 import { getFromR2 } from "@/server/media/storage"
 import { serializeMedia } from "@/server/media/library"
 import { customShellMedia } from "@/server/schema"
+import { runFfmpeg } from "@/server/video/ffmpeg"
 import { writeProjectTimeline } from "@/server/video/projects"
 import {
   videoAiGenerations,
@@ -40,25 +46,29 @@ const VIDEO_DOWNLOAD_TIMEOUT_MS = 4 * 60 * 1000
 
 type ClaimedGeneration = VideoAiGenerationRow & { leaseToken: string }
 
-export type GenerationStatus = "queued" | "processing" | "ready" | "error"
+/** A piece after the first is "waiting" until the piece before it is ready. */
+export type PieceStatus = "waiting" | "queued" | "processing" | "ready" | "error"
+export type GenerationStatus = Exclude<PieceStatus, "waiting">
 
-export type GenerationItem = {
+export type GenerationPiece = {
   id: string
-  project_id: string
-  project_name: string
-  first_frame_id: string
-  first_frame_image_url: string | null
   prompt: string
-  model: string
-  aspect_ratio: AssetAspectRatio
   duration_seconds: VideoDurationSeconds
-  status: GenerationStatus
-  output_media_id: string | null
+  status: PieceStatus
   output_url: string | null
   error_message: string | null
-  attempts: number
-  created_at: string
-  updated_at: string
+}
+
+/** One shot: a single clip, or up to four pieces that play back to back. */
+export type GenerationItem = {
+  id: string
+  project_name: string
+  first_frame_image_url: string | null
+  aspect_ratio: AssetAspectRatio
+  duration_seconds: number
+  status: GenerationStatus
+  error_message: string | null
+  pieces: GenerationPiece[]
 }
 
 type VeoOperation = {
@@ -80,30 +90,49 @@ type GenerationJoin = {
   firstFrame: typeof customShellMedia.$inferSelect | null
 }
 
-async function serializeGeneration(row: GenerationJoin): Promise<GenerationItem> {
+async function serializePiece(row: GenerationJoin): Promise<GenerationPiece> {
   return {
     id: row.generation.id,
-    project_id: row.generation.projectId,
-    project_name: row.projectName,
-    first_frame_id: row.generation.firstFrameId,
-    first_frame_image_url: row.firstFrame
-      ? (await serializeMedia(row.firstFrame)).url
-      : null,
     prompt: row.generation.prompt,
-    model: row.generation.model,
-    aspect_ratio: row.generation.aspectRatio as AssetAspectRatio,
     duration_seconds: row.generation.durationSeconds as VideoDurationSeconds,
-    status: row.generation.status as GenerationStatus,
-    output_media_id: row.generation.outputMediaId,
+    status: row.generation.status as PieceStatus,
     output_url: row.output ? (await serializeMedia(row.output)).url : null,
     error_message: row.generation.errorMessage,
-    attempts: row.generation.attempts,
-    created_at: row.generation.createdAt.toISOString(),
-    updated_at: row.generation.updatedAt.toISOString(),
   }
 }
 
-function generationRows(userId: string, generationId?: string) {
+/**
+ * A shot is ready when every piece is and failed when any piece failed. Once
+ * one piece has been made it counts as generating until then, even in the
+ * moment its next piece is queued. `rows` is one shot's pieces in order.
+ */
+async function serializeShot(rows: GenerationJoin[]): Promise<GenerationItem> {
+  const [first] = rows
+  const pieces = await Promise.all(rows.map(serializePiece))
+  const failed = pieces.find((piece) => piece.status === "error")
+  const status: GenerationStatus = failed
+    ? "error"
+    : pieces.length === first.generation.shotPieces &&
+        pieces.every((piece) => piece.status === "ready")
+      ? "ready"
+      : pieces.some((piece) => piece.status === "processing" || piece.status === "ready")
+        ? "processing"
+        : "queued"
+  return {
+    id: first.generation.shotId,
+    project_name: first.projectName,
+    first_frame_image_url: first.firstFrame
+      ? (await serializeMedia(first.firstFrame)).url
+      : null,
+    aspect_ratio: first.generation.aspectRatio as AssetAspectRatio,
+    duration_seconds: pieces.reduce((sum, piece) => sum + piece.duration_seconds, 0),
+    status,
+    error_message: failed?.error_message ?? null,
+    pieces,
+  }
+}
+
+function generationRows(userId: string, shotId?: string) {
   return db
     .select({
       generation: videoAiGenerations,
@@ -136,22 +165,37 @@ function generationRows(userId: string, generationId?: string) {
     .where(
       and(
         eq(videoAiGenerations.userId, userId),
-        generationId ? eq(videoAiGenerations.id, generationId) : undefined
+        shotId ? eq(videoAiGenerations.shotId, shotId) : undefined
       )
     )
 }
 
-export async function listGenerations(userId: string) {
-  const rows = await generationRows(userId).orderBy(
-    desc(videoAiGenerations.createdAt)
-  )
-  return { generations: await Promise.all(rows.map(serializeGeneration)) }
+function groupShots(rows: GenerationJoin[]) {
+  const shots = new Map<string, GenerationJoin[]>()
+  for (const row of rows) {
+    const shot = shots.get(row.generation.shotId)
+    if (shot) shot.push(row)
+    else shots.set(row.generation.shotId, [row])
+  }
+  return [...shots.values()]
 }
 
-async function getGeneration(userId: string, generationId: string) {
-  const [row] = await generationRows(userId, generationId).limit(1)
-  if (!row) throw new Error("AI video generation not found")
-  return row
+/** Newest shot first, each shot's pieces in the order they play. */
+export async function listGenerations(userId: string) {
+  const rows = await generationRows(userId).orderBy(
+    desc(videoAiGenerations.createdAt),
+    asc(videoAiGenerations.shotId),
+    asc(videoAiGenerations.shotIndex)
+  )
+  return { generations: await Promise.all(groupShots(rows).map(serializeShot)) }
+}
+
+async function getShot(userId: string, shotId: string) {
+  const rows = await generationRows(userId, shotId).orderBy(
+    asc(videoAiGenerations.shotIndex)
+  )
+  if (!rows.length) throw new Error("AI video generation not found")
+  return rows
 }
 
 export async function createGeneration(
@@ -159,10 +203,15 @@ export async function createGeneration(
   payload: {
     projectId: string
     firstFrameId: string
-    prompt: string
-    durationSeconds: VideoDurationSeconds
+    prompts: string[]
+    lengthSeconds: ShotLengthSeconds
   }
 ) {
+  const pieces = shotPieces(payload.lengthSeconds)
+  if (payload.prompts.length !== pieces.count) {
+    throw new Error("Write one direction for each piece of the shot")
+  }
+  const prompts = payload.prompts.map(assetPrompt)
   const [project] = await db
     .select({ id: videoProjects.id, name: videoProjects.name })
     .from(videoProjects)
@@ -202,40 +251,80 @@ export async function createGeneration(
     .where(
       and(
         eq(videoAiGenerations.projectId, payload.projectId),
-        inArray(videoAiGenerations.status, ["queued", "processing"])
+        // A shot stopped by a failed piece still has pieces waiting behind
+        // it, and a second shot would take the project's one running slot
+        // that its Retry needs.
+        inArray(videoAiGenerations.status, ["waiting", "queued", "processing"])
       )
     )
     .limit(1)
   if (active.length) throw new Error("This project already has a video generating")
 
   const at = now()
-  const [created] = await db
+  const shotId = uuid()
+  // Every piece is written now, so the directions are kept. Only the first
+  // has a starting picture; each later one gets the last frame of the piece
+  // before it once that piece is ready.
+  const created = await db
     .insert(videoAiGenerations)
-    .values({
-      id: uuid(),
-      userId,
-      projectId: payload.projectId,
-      firstFrameId: frame.frame.id,
-      firstFrameMediaId: frame.media.id,
-      prompt: assetPrompt(payload.prompt),
-      model: VEO_MODEL,
-      aspectRatio: frame.frame.aspectRatio,
-      durationSeconds: payload.durationSeconds,
-      status: "queued",
-      attempts: 0,
-      createdAt: at,
-      updatedAt: at,
-    })
+    .values(
+      prompts.map((prompt, index) => ({
+        id: index === 0 ? shotId : uuid(),
+        userId,
+        projectId: payload.projectId,
+        firstFrameId: frame.frame.id,
+        firstFrameMediaId: index === 0 ? frame.media.id : null,
+        prompt,
+        model: VEO_MODEL,
+        aspectRatio: frame.frame.aspectRatio,
+        durationSeconds: pieces.seconds,
+        shotId,
+        shotIndex: index + 1,
+        shotPieces: pieces.count,
+        status: index === 0 ? "queued" : "waiting",
+        attempts: 0,
+        createdAt: at,
+        updatedAt: at,
+      }))
+    )
     .returning()
-  return await serializeGeneration({
-    generation: created,
-    projectName: project.name,
-    output: null,
-    firstFrame: frame.media,
-  })
+  return await serializeShot(
+    created.map((generation) => ({
+      generation,
+      projectName: project.name,
+      output: null,
+      firstFrame: generation.shotIndex === 1 ? frame.media : null,
+    }))
+  )
 }
 
-export async function retryGeneration(userId: string, generationId: string) {
+/** Runs a shot's failed piece again. The pieces after it carry on from there. */
+export async function retryGeneration(userId: string, shotId: string) {
+  const failed = and(
+    eq(videoAiGenerations.shotId, shotId),
+    eq(videoAiGenerations.userId, userId),
+    eq(videoAiGenerations.status, "error")
+  )
+  const [piece] = await db
+    .select({ projectId: videoAiGenerations.projectId })
+    .from(videoAiGenerations)
+    .where(failed)
+    .limit(1)
+  if (!piece) throw new Error("Only failed generations can be retried")
+  // A shot whose last piece failed has nothing waiting behind it, so another
+  // video may have started on the project since. The project runs one at a
+  // time.
+  const [active] = await db
+    .select({ id: videoAiGenerations.id })
+    .from(videoAiGenerations)
+    .where(
+      and(
+        eq(videoAiGenerations.projectId, piece.projectId),
+        inArray(videoAiGenerations.status, ["queued", "processing"])
+      )
+    )
+    .limit(1)
+  if (active) throw new Error("This project already has a video generating")
   const [updated] = await db
     .update(videoAiGenerations)
     .set({
@@ -249,20 +338,15 @@ export async function retryGeneration(userId: string, generationId: string) {
       finishedAt: null,
       updatedAt: now(),
     })
-    .where(
-      and(
-        eq(videoAiGenerations.id, generationId),
-        eq(videoAiGenerations.userId, userId),
-        eq(videoAiGenerations.status, "error")
-      )
-    )
+    .where(failed)
     .returning({ id: videoAiGenerations.id })
   if (!updated) throw new Error("Only failed generations can be retried")
-  return await serializeGeneration(await getGeneration(userId, generationId))
+  return await serializeShot(await getShot(userId, shotId))
 }
 
-export async function deleteGenerations(userId: string, generationIds: string[]) {
-  const ids = [...new Set(generationIds)]
+/** Deletes whole shots, every piece of each. */
+export async function deleteGenerations(userId: string, shotIds: string[]) {
+  const ids = [...new Set(shotIds)]
   if (!ids.length) return { deleted_ids: [] as string[] }
   const active = await db
     .select({ id: videoAiGenerations.id })
@@ -270,7 +354,7 @@ export async function deleteGenerations(userId: string, generationIds: string[])
     .where(
       and(
         eq(videoAiGenerations.userId, userId),
-        inArray(videoAiGenerations.id, ids),
+        inArray(videoAiGenerations.shotId, ids),
         inArray(videoAiGenerations.status, ["queued", "processing"])
       )
     )
@@ -283,21 +367,28 @@ export async function deleteGenerations(userId: string, generationIds: string[])
     .where(
       and(
         eq(videoAiGenerations.userId, userId),
-        inArray(videoAiGenerations.id, ids),
-        inArray(videoAiGenerations.status, ["ready", "error"])
+        inArray(videoAiGenerations.shotId, ids),
+        inArray(videoAiGenerations.status, ["waiting", "ready", "error"])
       )
     )
-    .returning({ id: videoAiGenerations.id })
-  return { deleted_ids: rows.map((row) => row.id) }
+    .returning({ shotId: videoAiGenerations.shotId })
+  return { deleted_ids: [...new Set(rows.map((row) => row.shotId))] }
 }
 
+/**
+ * Lays a finished shot on a new track of the project, every piece straight
+ * after the one before, from the start of the timeline.
+ */
 export async function insertGeneration(
   userId: string,
-  generationId: string,
+  shotId: string,
   projectId: string
 ) {
-  const joined = await getGeneration(userId, generationId)
-  if (joined.generation.status !== "ready" || !joined.output) {
+  const shot = await getShot(userId, shotId)
+  const outputs = shot.flatMap((row) =>
+    row.generation.status === "ready" && row.output ? [row.output] : []
+  )
+  if (outputs.length !== shot[0].generation.shotPieces) {
     throw new Error("Only ready generations can be inserted")
   }
   const [project] = await db
@@ -308,30 +399,26 @@ export async function insertGeneration(
   if (!project) throw new Error("Project not found")
   const timeline = requireCanonicalTimeline(project.timeline)
   if (timeline.tracks.length >= 50) throw new Error("Project timeline is full")
-  const media = await serializeMedia(joined.output)
-  const durationMs = joined.generation.durationSeconds * 1_000
+  const durationMs = shot[0].generation.durationSeconds * 1_000
+  const clips = await Promise.all(
+    outputs.map(async (output, index) => {
+      const media = await serializeMedia(output)
+      return {
+        id: uuid(),
+        kind: "video" as const,
+        name: media.original_name,
+        startMs: index * durationMs,
+        durationMs,
+        trimStartMs: 0,
+        sourceDurationMs: durationMs,
+        mediaId: media.id,
+        url: media.url,
+      }
+    })
+  )
   const next = requireCanonicalTimeline({
     ...timeline,
-    tracks: [
-      ...timeline.tracks,
-      {
-        id: uuid(),
-        muted: false,
-        clips: [
-          {
-            id: uuid(),
-            kind: "video",
-            name: media.original_name,
-            startMs: 0,
-            durationMs,
-            trimStartMs: 0,
-            sourceDurationMs: durationMs,
-            mediaId: media.id,
-            url: media.url,
-          },
-        ],
-      },
-    ],
+    tracks: [...timeline.tracks, { id: uuid(), muted: false, clips }],
   })
   await writeProjectTimeline(userId, project.id, next, project.version)
   return { project_id: project.id, project_name: project.name }
@@ -484,6 +571,27 @@ function videoUri(operation: VeoOperation) {
   )
 }
 
+/**
+ * The very last frame of a finished piece, as a PNG, for the next piece to
+ * start from. `-sseof -1` reads only the final second, and `-update 1` keeps
+ * overwriting one picture, so the frame left behind is the last one.
+ */
+async function lastFrame(video: Uint8Array) {
+  const dir = await mkdtemp(path.join(tmpdir(), "video-shot-frame-"))
+  try {
+    const source = path.join(dir, "piece.mp4")
+    const frame = path.join(dir, "last.png")
+    await writeFile(source, video)
+    await runFfmpeg(
+      ["-sseof", "-1", "-i", source, "-update", "1", frame],
+      "The last frame of the clip could not be read, so the next piece cannot start. Retry it."
+    )
+    return new Uint8Array(await readFile(frame))
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+}
+
 async function releaseJob(job: ClaimedGeneration) {
   await db
     .update(videoAiGenerations)
@@ -499,6 +607,7 @@ async function releaseJob(job: ClaimedGeneration) {
 
 async function pollJob(job: ClaimedGeneration) {
   let generatedMedia: Awaited<ReturnType<typeof saveGeneratedAsset>> | null = null
+  let nextFrame: Awaited<ReturnType<typeof saveGeneratedAsset>> | null = null
   try {
     if (!job.operationName) {
       if (
@@ -551,50 +660,88 @@ async function pollJob(job: ClaimedGeneration) {
     if (!download.ok) {
       throw new Error(`Google could not download the video: ${providerMessage(await download.text())}`)
     }
+    const video = await readBytes(download)
+    const hasNext = job.shotIndex < job.shotPieces
+    // Taken before anything is saved, so a frame that cannot be read fails
+    // this piece, whose Retry makes it again, rather than leaving a ready
+    // piece with nothing for the next one to start from.
+    const frameBytes = hasNext ? await lastFrame(video) : null
     generatedMedia = await saveGeneratedAsset({
       userId: job.userId,
-      bytes: await readBytes(download),
+      bytes: video,
       mimeType: "video/mp4",
       fileType: "video",
       name: "AI video",
     })
-    const finished = now()
-    const [finishedJob] = await db
-      .update(videoAiGenerations)
-      .set({
-        status: "ready",
-        leaseToken: null,
-        leaseExpiresAt: null,
-        outputMediaId: generatedMedia.id,
-        errorMessage: null,
-        updatedAt: finished,
-        finishedAt: finished,
+    if (frameBytes) {
+      nextFrame = await saveGeneratedAsset({
+        userId: job.userId,
+        bytes: frameBytes,
+        mimeType: "image/png",
+        fileType: "image",
+        name: `AI shot frame ${job.shotIndex}`,
       })
-      .where(
-        and(
-          eq(videoAiGenerations.id, job.id),
-          eq(videoAiGenerations.status, "processing"),
-          eq(videoAiGenerations.leaseToken, job.leaseToken)
+    }
+    const finished = now()
+    const outputId = generatedMedia.id
+    const nextFrameId = nextFrame?.id ?? null
+    const finishedJob = await db.transaction(async (tx) => {
+      const [done] = await tx
+        .update(videoAiGenerations)
+        .set({
+          status: "ready",
+          leaseToken: null,
+          leaseExpiresAt: null,
+          outputMediaId: outputId,
+          errorMessage: null,
+          updatedAt: finished,
+          finishedAt: finished,
+        })
+        .where(
+          and(
+            eq(videoAiGenerations.id, job.id),
+            eq(videoAiGenerations.status, "processing"),
+            eq(videoAiGenerations.leaseToken, job.leaseToken)
+          )
         )
-      )
-      .returning({ id: videoAiGenerations.id })
+        .returning({ id: videoAiGenerations.id })
+      // In the same step as the piece before turning ready, so a shot is
+      // never left with a ready piece and nothing queued after it. This
+      // runs second because a project holds one queued or running row.
+      if (done && nextFrameId) {
+        await tx
+          .update(videoAiGenerations)
+          .set({ status: "queued", firstFrameMediaId: nextFrameId, updatedAt: finished })
+          .where(
+            and(
+              eq(videoAiGenerations.shotId, job.shotId),
+              eq(videoAiGenerations.shotIndex, job.shotIndex + 1),
+              eq(videoAiGenerations.status, "waiting")
+            )
+          )
+      }
+      return done
+    })
     if (!finishedJob) {
       await discardGeneratedAsset(generatedMedia)
+      if (nextFrame) await discardGeneratedAsset(nextFrame)
       return
     }
     generatedMedia = null
+    nextFrame = null
     await recordDeferredAiSuccess(
       {
         userId: job.userId,
         provider: "gemini",
         model: VEO_MODEL,
         feature: "video-generation",
-        metadata: { generationId: job.id },
+        metadata: { generationId: job.id, shotId: job.shotId },
       },
       { inputTokens: 0, outputTokens: 0, units: job.durationSeconds }
     )
   } catch (error) {
     if (generatedMedia) await discardGeneratedAsset(generatedMedia)
+    if (nextFrame) await discardGeneratedAsset(nextFrame)
     await failJob(job, error)
   }
 }

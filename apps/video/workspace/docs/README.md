@@ -94,8 +94,13 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   warning the second window shows, what read-only stops, and the
   "(unsaved edits)" project that keeps the work of whichever window saves
   second.
+- [longer-ai-clips.md](longer-ai-clips.md) — why one AI clip stops at eight
+  seconds, what Google's Veo 3.1 offers for a longer shot, and what it costs.
 - [media-addresses.md](media-addresses.md) — where the address of a picture or a
   clip comes from, and why every call that asks for one waits for the answer.
+- [viral-search.md](viral-search.md) — the Viral page's YouTube keyword search:
+  where the API key goes, what one search costs out of the free 10,000 daily
+  units, and why Shorts means 3 minutes or less.
 
 The AI tools, the credit ledger and the rest of the export and render path were
 built before this folder existed, and none of them is written up.
