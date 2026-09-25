@@ -34,12 +34,20 @@ import {
 import { cn } from "@/lib/utils"
 import {
   applyRoomAction,
+  banMember,
   createRoom,
+  deleteMessage,
   getCurrentRoom,
   joinRoom,
   leaveActiveRoom,
   listRooms,
+  removeMember,
+  toggleReaction,
 } from "@/lib/api/pomodoro/rooms"
+import {
+  RoomChatPanel,
+  RoomMemberList,
+} from "@/components/pomodoro/room-chat"
 import { useProductAuth } from "@/lib/pomodoro/auth-state"
 import { PRO_PERKS } from "@/lib/pomodoro/pro"
 
@@ -477,13 +485,17 @@ function ActiveRoomPanel({
   onLeft: (message: string) => void
   onActionError: (message: string) => void
 }) {
-  const { room, you, members } = snapshot
+  const { room, you, members, messages } = snapshot
   const isHost = you.role === "host"
   const countdown = useRoomCountdown(room.phaseEndsAt)
   const [pending, setPending] = React.useState("")
   const [copied, setCopied] = React.useState(false)
   const [copyFailed, setCopyFailed] = React.useState(false)
   const [confirm, setConfirm] = React.useState<ConfirmRequest | null>(null)
+  const [panelNotice, setPanelNotice] = React.useState("")
+  const [reactionPending, setReactionPending] = React.useState<
+    ReadonlySet<string>
+  >(() => new Set())
   const inviteUrl = `${window.location.origin}/rooms/${room.slug}`
   const sessionLabel = `Session ${Math.min(room.cycleFocusCount + 1, 4)} of 4`
 
@@ -531,6 +543,104 @@ function ActiveRoomPanel({
     }
   }
 
+  // Every moderation action answers with a fresh snapshot, so the panel
+  // redraws from the server rather than guessing what changed.
+  const moderate = async (
+    key: string,
+    action: () => Promise<RoomSnapshotClient>,
+    successNotice: string,
+    failureNotice: string
+  ) => {
+    onActionError("")
+    setPanelNotice("")
+    setPending(key)
+    try {
+      onSnapshot(await action())
+      setPanelNotice(successNotice)
+    } catch (cause) {
+      const text = cause instanceof Error ? cause.message : ""
+      onActionError(
+        text.includes("RATE_LIMITED")
+          ? "Too many moderation actions at once. Wait a moment and try again."
+          : text.includes("ROOM_HOST_REQUIRED")
+            ? "Only the host can do that."
+            : failureNotice
+      )
+    } finally {
+      setPending("")
+    }
+  }
+
+  // Reaction counts reach everyone through the SSE snapshot, so the only
+  // guard needed is against firing the same toggle twice while one is
+  // in flight.
+  const toggleMessageReaction = async (messageId: string, emoji: string) => {
+    const key = `${messageId}:${emoji}`
+    if (reactionPending.has(key)) return
+    onActionError("")
+    setReactionPending((current) => new Set(current).add(key))
+    try {
+      await toggleReaction(room.slug, messageId, emoji)
+    } catch (cause) {
+      const text = cause instanceof Error ? cause.message : ""
+      onActionError(
+        text.includes("RATE_LIMITED")
+          ? "You're reacting a little fast. Wait a moment and try again."
+          : "Your reaction didn't go through. Try again."
+      )
+    } finally {
+      setReactionPending((current) => {
+        const next = new Set(current)
+        next.delete(key)
+        return next
+      })
+    }
+  }
+
+  const confirmDeleteMessage = (message: { id: string }) =>
+    setConfirm({
+      title: "Delete message?",
+      description:
+        "The message disappears for everyone and members see that it was removed.",
+      confirmLabel: "Delete message",
+      onConfirm: () =>
+        void moderate(
+          `delete-message:${message.id}`,
+          () => deleteMessage(room.slug, message.id),
+          "The message was deleted.",
+          "The message could not be deleted."
+        ),
+    })
+
+  const confirmRemoveMember = (member: { id: string; name: string }) =>
+    setConfirm({
+      title: `Remove ${member.name}?`,
+      description: "They leave this room immediately but can join again later.",
+      confirmLabel: "Remove member",
+      onConfirm: () =>
+        void moderate(
+          `remove-member:${member.id}`,
+          () => removeMember(room.slug, member.id),
+          `${member.name} was removed from the room.`,
+          "The member could not be removed."
+        ),
+    })
+
+  const confirmBanMember = (member: { id: string; name: string }) =>
+    setConfirm({
+      title: `Ban ${member.name}?`,
+      description:
+        "They are removed immediately and cannot rejoin this room. The ban ends when the room does.",
+      confirmLabel: "Ban member",
+      onConfirm: () =>
+        void moderate(
+          `ban-member:${member.id}`,
+          () => banMember(room.slug, member.id),
+          `${member.name} was banned from the room.`,
+          "The member could not be banned."
+        ),
+    })
+
   return (
     <Card className="border-[rgba(255,90,60,0.35)]">
       <CardContent className="flex flex-col gap-4 py-5">
@@ -539,6 +649,10 @@ function ActiveRoomPanel({
           <strong className="text-lg">{room.name}</strong>
           <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
             {phaseLabels[room.phase] ?? room.phase} · {sessionLabel}
+          </span>
+          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+            <UsersIcon className="size-3.5" aria-hidden="true" />
+            {members.length} {members.length === 1 ? "person" : "people"}
           </span>
           {reconnecting ? (
             <span
@@ -640,24 +754,33 @@ function ActiveRoomPanel({
           </p>
         ) : null}
 
-        <div className="flex flex-wrap items-center gap-2">
-          <UsersIcon
-            className="size-4 text-muted-foreground"
-            aria-hidden="true"
+        {panelNotice ? (
+          <p role="status" className="text-xs text-muted-foreground">
+            {panelNotice}
+          </p>
+        ) : null}
+
+        <div className="grid gap-4 md:grid-cols-[240px_minmax(0,1fr)]">
+          <RoomMemberList
+            members={members}
+            isHost={isHost}
+            busy={pending !== ""}
+            onRemove={confirmRemoveMember}
+            onBan={confirmBanMember}
           />
-          {members.map((member) => (
-            <span
-              key={member.id}
-              className={cn(
-                "rounded-full border px-2.5 py-0.5 text-xs",
-                member.role === "host" &&
-                  "border-[rgba(255,90,60,0.4)] text-[var(--p-accent-2)]"
-              )}
-            >
-              {member.name}
-              {member.role === "host" ? " · host" : ""}
-            </span>
-          ))}
+          <RoomChatPanel
+            slug={room.slug}
+            messages={messages}
+            isHost={isHost}
+            busy={pending !== ""}
+            reactionPending={reactionPending}
+            onToggleReaction={(messageId, emoji) =>
+              void toggleMessageReaction(messageId, emoji)
+            }
+            onDeleteMessage={confirmDeleteMessage}
+            onError={onActionError}
+            onNotice={setPanelNotice}
+          />
         </div>
         {confirm ? (
           <ConfirmDialog

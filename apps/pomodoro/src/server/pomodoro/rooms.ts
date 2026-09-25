@@ -3,6 +3,7 @@ import { and, desc, eq, inArray, lte, sql } from "drizzle-orm"
 import { db, type CustomShellDb } from "@/server/db"
 import { enforceRateLimit } from "@/server/auth/rate-limit"
 import {
+  pomodoroAuditLogs,
   pomodoroProfiles,
   roomBans,
   roomMemberships,
@@ -336,6 +337,9 @@ export async function assertNotBanned(roomId: string, userId: string, database: 
   if (banned.length) throw new Error("ROOM_BANNED")
 }
 
+// Twenty messages a minute per person, per room: fast enough for a burst of
+// encouragement, slow enough that one person cannot bury the room.
+const CHAT_LIMIT = { maxAttempts: 20, windowSeconds: 60 }
 const REPORT_USER_LIMIT = { maxAttempts: 5, windowSeconds: 600 }
 const REPORT_ROOM_LIMIT = { maxAttempts: 30, windowSeconds: 600 }
 const MODERATE_USER_LIMIT = { maxAttempts: 20, windowSeconds: 60 }
@@ -348,6 +352,21 @@ const REACTION_LIMIT = { maxAttempts: 20, windowSeconds: 60 }
 async function requireActiveMembership(roomId: string, userId: string, database: PomoderDb | PomoderTransaction) {
   const [membership] = await database.select({ id: roomMemberships.id }).from(roomMemberships).where(and(eq(roomMemberships.roomId, roomId), eq(roomMemberships.userId, userId), sql`${roomMemberships.leftAt} is null`)).limit(1)
   if (!membership) throw new Error("ROOM_MEMBERSHIP_REQUIRED")
+}
+
+// Chat is for people who are actually in the room. Membership is checked
+// before the rate limit so an outsider with a slug cannot burn a member's
+// budget, and closing a room ends every membership, so a closed room refuses
+// chat by the same check.
+export async function postRoomMessage(slug: string, userId: string, body: string, database: PomoderDb = db) {
+  const [room] = await database.select({ id: rooms.id }).from(rooms).where(eq(rooms.slug, slug)).limit(1)
+  if (!room) throw new Error("ROOM_NOT_FOUND")
+  await requireActiveMembership(room.id, userId, database)
+  await enforceRateLimit(`room-chat:${room.id}:${userId}`, CHAT_LIMIT, database)
+  await database.insert(roomMessages).values({ roomId: room.id, userId, body })
+  // The room's own snapshot carries the message back to everyone, the sender
+  // included, so there is nothing to return here.
+  return { roomId: room.id }
 }
 
 // Members may report another member's message with a bounded reason. A repeat
@@ -457,11 +476,11 @@ async function findRoomMembership(tx: PomoderTransaction, roomId: string, member
   return membership
 }
 
-// Host moderation is privileged. The old app wrote the admin audit table;
-// that table is the shell's here, so the app logs the act instead — enough
-// to reconstruct who did what without writing into shell-owned rows.
-async function writeModerationAudit(_tx: PomoderTransaction, actorId: string, action: string, recordIds: string[]) {
-  console.info(`[pomodoro rooms] ${action} by ${actorId}: ${recordIds.join(", ")}`)
+// Host moderation is privileged, so it lands in the app's audit table inside
+// the same transaction as the act: either both rows commit or neither does,
+// so the log can never disagree with what happened.
+async function writeModerationAudit(tx: PomoderTransaction, actorId: string, action: string, recordIds: string[]) {
+  await tx.insert(pomodoroAuditLogs).values({ actorUserId: actorId, action, resource: "rooms", recordIds })
 }
 
 export function roomChannel(roomId: string) { return `pomodoro_room_${roomId.replaceAll("-", "")}` }

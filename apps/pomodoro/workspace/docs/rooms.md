@@ -38,9 +38,10 @@ the phases, and the server is the only clock.
   membership ends gets `room_gone`.
 - **A host leaving closes the room for everyone**; a member leaving only
   ends their own membership.
+- **Chat, reactions and moderation** sit inside the room panel and have
+  their own doc: [Room chat and moderation](room-chat-and-moderation.md).
 
 Server logic: `src/server/pomodoro/rooms.ts` (ported nearly whole from the
-old app, chat and moderation included — their screens land with the chat
-task). Endpoints: `src/lib/api/pomodoro/rooms.ts`. Tables (rooms,
+old app). Endpoints: `src/lib/api/pomodoro/rooms.ts`. Tables (rooms,
 memberships, messages, reactions, bans, reports and the session room
 link): migration `0089_pomodoro_rooms.sql`.

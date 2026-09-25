@@ -5,6 +5,7 @@ import {
   date,
   index,
   integer,
+  jsonb,
   pgTable,
   timestamp,
   unique,
@@ -417,6 +418,40 @@ export const roomReports = pgTable(
       table.messageId
     ),
     index("room_reports_status_created_idx").on(table.status, table.createdAt),
+  ]
+)
+
+/**
+ * Who did what, for every privileged act in the app: a host deleting a
+ * message, removing or banning a member, and (with the admin sections) an
+ * operator moving a report along. The old app wrote the shell's
+ * `admin_audit_logs`; this shell has no such table, so the app owns one
+ * rather than writing into shell-owned rows.
+ *
+ * `actorUserId` carries no foreign key on purpose: deleting an account must
+ * not delete the record of what that account did.
+ */
+export const pomodoroAuditLogs = pgTable(
+  "pomodoro_audit_logs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    actorUserId: varchar("actor_user_id", { length: 36 }).notNull(),
+    action: varchar("action", { length: 40 }).notNull(),
+    resource: varchar("resource", { length: 30 }).notNull(),
+    recordIds: jsonb("record_ids").$type<string[]>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("pomodoro_audit_logs_actor_created_idx").on(
+      table.actorUserId,
+      table.createdAt
+    ),
+    index("pomodoro_audit_logs_resource_created_idx").on(
+      table.resource,
+      table.createdAt
+    ),
   ]
 )
 

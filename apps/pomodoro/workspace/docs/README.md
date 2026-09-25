@@ -34,3 +34,6 @@ cover this one.
   stat cards.
 - [Focus rooms](rooms.md) — shared timers with a host, the fifteen-second
   server clock, SSE snapshots and invite links.
+- [Room chat and moderation](room-chat-and-moderation.md) — talking in a
+  room, the five reactions, reporting a message, and the host's delete,
+  remove and ban.
