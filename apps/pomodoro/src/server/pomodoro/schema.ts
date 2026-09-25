@@ -69,6 +69,74 @@ export const userPreferences = pgTable(
   ]
 )
 
+/**
+ * A project groups tasks at the level people bill and think at. Archiving is
+ * a timestamp rather than a delete, because History keeps showing the hours a
+ * finished project earned after it leaves the picker.
+ */
+export const pomodoroProjects = pgTable(
+  "pomodoro_projects",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 60 }).notNull(),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [index("pomodoro_projects_user_idx").on(table.userId)]
+)
+
+/**
+ * A task's repeat rule, held apart from the task because a task belongs to
+ * one calendar day and a rule outlives every day it makes. `weekdays` is a
+ * seven-bit set, bit 0 Sunday through bit 6 Saturday; every day is all seven
+ * bits rather than a separate kind. "No repeat" is the absence of a row.
+ */
+export const pomodoroTaskRepeats = pgTable(
+  "pomodoro_task_repeats",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    title: varchar("title", { length: 160 }).notNull(),
+    priority: varchar("priority", { length: 10 }).notNull().default("normal"),
+    estimatedPomodoros: integer("estimated_pomodoros"),
+    projectId: uuid("project_id").references(() => pomodoroProjects.id, {
+      onDelete: "set null",
+    }),
+    weekdays: integer("weekdays").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      "pomodoro_task_repeats_priority_check",
+      sql`${table.priority} in ('low', 'normal', 'high')`
+    ),
+    check(
+      "pomodoro_task_repeats_estimate_check",
+      sql`${table.estimatedPomodoros} is null or ${table.estimatedPomodoros} between 1 and 20`
+    ),
+    check(
+      "pomodoro_task_repeats_weekdays_check",
+      sql`${table.weekdays} between 1 and 127`
+    ),
+    index("pomodoro_task_repeats_user_idx").on(table.userId),
+  ]
+)
+
 export const tasks = pgTable(
   "tasks",
   {
@@ -83,6 +151,13 @@ export const tasks = pgTable(
     priority: varchar("priority", { length: 10 }).notNull().default("normal"),
     estimatedPomodoros: integer("estimated_pomodoros"),
     sortOrder: integer("sort_order").notNull().default(0),
+    projectId: uuid("project_id").references(() => pomodoroProjects.id, {
+      onDelete: "set null",
+    }),
+    /** The rule that makes this task each morning, when there is one. */
+    repeatId: uuid("repeat_id").references(() => pomodoroTaskRepeats.id, {
+      onDelete: "set null",
+    }),
     /** Set when the rollover copies an unfinished task to a new day. */
     carriedToTaskId: uuid("carried_to_task_id"),
     completedAt: timestamp("completed_at", { withTimezone: true }),
@@ -108,6 +183,12 @@ export const tasks = pgTable(
     ),
     check("tasks_sort_order_check", sql`${table.sortOrder} >= 0`),
     index("tasks_user_date_idx").on(table.userId, table.plannedDate),
+    index("tasks_project_idx").on(table.projectId),
+    // One task per rule per day, enforced here rather than in the rollover's
+    // own check, because two tabs can load the day at the same moment.
+    uniqueIndex("tasks_repeat_day_unique")
+      .on(table.repeatId, table.plannedDate)
+      .where(sql`${table.repeatId} is not null`),
   ]
 )
 
@@ -239,6 +320,8 @@ export type UserPreferences = typeof userPreferences.$inferSelect
 export type FocusSession = typeof focusSessions.$inferSelect
 export type DailyFocusStat = typeof dailyFocusStats.$inferSelect
 export type Task = typeof tasks.$inferSelect
+export type PomodoroProject = typeof pomodoroProjects.$inferSelect
+export type PomodoroTaskRepeat = typeof pomodoroTaskRepeats.$inferSelect
 export type UserTimerPreset = typeof userTimerPresets.$inferSelect
 export type PomodoroProfile = typeof pomodoroProfiles.$inferSelect
 

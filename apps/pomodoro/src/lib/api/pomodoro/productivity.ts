@@ -12,13 +12,17 @@ import {
   startProductivitySession,
 } from "@/server/pomodoro/productivity"
 import { loadOrCreateProfile, userToday } from "@/server/pomodoro/profile"
+import { listProjects } from "@/server/pomodoro/projects"
 import { pomodoroProfiles } from "@/server/pomodoro/schema"
 import {
+  listTasksForDay,
   reorderTodayTasks,
   rollOverTasks,
+  setTaskRepeat,
   toggleTaskStatus,
   updateTaskPlan,
 } from "@/server/pomodoro/tasks"
+import { EVERY_DAY } from "@/lib/pomodoro/task-repeats"
 import {
   dailyFocusStats,
   focusSessions,
@@ -60,14 +64,23 @@ const updateTaskSchema = z
     title: z.string().trim().min(1).max(160).optional(),
     priority: z.enum(["low", "normal", "high"]).optional(),
     estimatedPomodoros: z.number().int().min(1).max(20).nullable().optional(),
+    projectId: z.string().uuid().nullable().optional(),
   })
   .refine(
     (data) =>
       data.title !== undefined ||
       data.priority !== undefined ||
-      data.estimatedPomodoros !== undefined,
+      data.estimatedPomodoros !== undefined ||
+      data.projectId !== undefined,
     { message: "EMPTY_UPDATE" }
   )
+// null is "no repeat": the rule row is deleted, which stops future copies and
+// leaves every task it already made in place.
+const setTaskRepeatSchema = z.object({
+  taskId: z.string().uuid(),
+  timezone: timezoneSchema,
+  weekdays: z.number().int().min(1).max(EVERY_DAY).nullable(),
+})
 const reorderTasksSchema = z.object({
   taskIds: z.array(z.string().uuid()).min(1).max(100),
   timezone: timezoneSchema,
@@ -112,45 +125,48 @@ const loadProductivityFn = createServerFn({ method: "GET" })
     const today = await userToday(context.user.id, data.timezone)
     await rollOverTasks(context.user.id, today)
     const preferences = await loadOrCreatePreferences(context.user.id)
-    const [summary, todayTasks, archivedTasks, recentStats] = await Promise.all([
-      loadFocusSummary(context.user.id, today, preferences.dailyGoalSessions),
-      db
-        .select()
-        .from(tasks)
-        .where(
-          and(eq(tasks.userId, context.user.id), eq(tasks.plannedDate, today))
-        )
-        .orderBy(tasks.sortOrder, tasks.createdAt),
-      db
-        .select()
-        .from(tasks)
-        .where(
-          and(
-            eq(tasks.userId, context.user.id),
-            sql`${tasks.plannedDate} < ${today}`
+    const [summary, todayTasks, archivedTasks, recentStats, projects] =
+      await Promise.all([
+        loadFocusSummary(context.user.id, today, preferences.dailyGoalSessions),
+        listTasksForDay(context.user.id, today),
+        db
+          .select()
+          .from(tasks)
+          .where(
+            and(
+              eq(tasks.userId, context.user.id),
+              sql`${tasks.plannedDate} < ${today}`
+            )
           )
-        )
-        .orderBy(desc(tasks.plannedDate), desc(tasks.createdAt))
-        .limit(50),
-      db
-        .select({
-          localDate: dailyFocusStats.localDate,
-          focusSeconds: dailyFocusStats.focusSeconds,
-          focusSessions: dailyFocusStats.focusSessions,
-          tasksCompleted: dailyFocusStats.tasksCompleted,
-        })
-        .from(dailyFocusStats)
-        .where(eq(dailyFocusStats.userId, context.user.id))
-        .orderBy(desc(dailyFocusStats.localDate))
-        .limit(14),
-    ])
+          .orderBy(desc(tasks.plannedDate), desc(tasks.createdAt))
+          .limit(50),
+        db
+          .select({
+            localDate: dailyFocusStats.localDate,
+            focusSeconds: dailyFocusStats.focusSeconds,
+            focusSessions: dailyFocusStats.focusSessions,
+            tasksCompleted: dailyFocusStats.tasksCompleted,
+          })
+          .from(dailyFocusStats)
+          .where(eq(dailyFocusStats.userId, context.user.id))
+          .orderBy(desc(dailyFocusStats.localDate))
+          .limit(14),
+        listProjects(context.user.id),
+      ])
     return {
       preferences,
       today,
       summary,
-      tasks: todayTasks,
+      // The joined rows are flattened here so the screen keeps reading a task
+      // as one object, with the rule's days and the project's name on it.
+      tasks: todayTasks.map((row) => ({
+        ...row.task,
+        repeatWeekdays: row.repeatWeekdays,
+        projectName: row.projectName,
+      })),
       archivedTasks,
       recentStats,
+      projects,
     }
   })
 
@@ -183,6 +199,18 @@ const updateTaskFn = createServerFn({ method: "POST" })
       changes
     )
   })
+
+const setTaskRepeatFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(setTaskRepeatSchema)
+  .handler(async ({ data, context }) =>
+    setTaskRepeat(
+      context.user.id,
+      data.taskId,
+      await userToday(context.user.id, data.timezone),
+      data.weekdays
+    )
+  )
 
 const reorderTasksFn = createServerFn({ method: "POST" })
   .middleware([userPost])
@@ -408,6 +436,9 @@ export const createTask = (title: string, timezone: string) =>
   createTaskFn({ data: { title, timezone } })
 export const updateTask = (data: z.infer<typeof updateTaskSchema>) =>
   updateTaskFn({ data })
+export const setTaskRepeatRule = (
+  data: z.infer<typeof setTaskRepeatSchema>
+) => setTaskRepeatFn({ data })
 export const reorderTasks = (taskIds: string[], timezone: string) =>
   reorderTasksFn({ data: { taskIds, timezone } })
 export const togglePersistentTask = (taskId: string, timezone: string) =>

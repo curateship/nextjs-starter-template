@@ -15,6 +15,10 @@ export type TaskItem = {
   pomodoros: number
   priority: TaskPriority
   estimatedPomodoros: number | null
+  /** The repeat rule's picked days as a seven-bit set, or null for no repeat. */
+  repeatWeekdays: number | null
+  projectId: string | null
+  projectName: string | null
 }
 
 export function normalizeTaskPriority(value: unknown): TaskPriority {
