@@ -58,6 +58,7 @@ import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAdminVideoCarouselsRouteImport } from './routes/_authenticated/admin/video-carousels'
 import { Route as AuthenticatedAdminVideoEditorRouteImport } from './routes/_authenticated/admin/video-editor'
 import { Route as AuthenticatedAdminVideoExportsRouteImport } from './routes/_authenticated/admin/video-exports'
+import { Route as AuthenticatedAdminVideoViralRouteImport } from './routes/_authenticated/admin/video-viral'
 import { Route as AuthenticatedChangelogIndexRouteImport } from './routes/_authenticated/changelog/index'
 import { Route as AuthenticatedChangelogWhatsNewRouteImport } from './routes/_authenticated/changelog/whats-new'
 import { Route as ApiAuthGoogleRouteImport } from './routes/api/auth/google'
@@ -351,6 +352,12 @@ const AuthenticatedAdminVideoExportsRoute =
     path: '/video-exports',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminVideoViralRoute =
+  AuthenticatedAdminVideoViralRouteImport.update({
+    id: '/video-viral',
+    path: '/video-viral',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedChangelogIndexRoute =
   AuthenticatedChangelogIndexRouteImport.update({
     id: '/',
@@ -574,6 +581,7 @@ export interface FileRoutesByFullPath {
   '/admin/video-carousels': typeof AuthenticatedAdminVideoCarouselsRouteWithChildren
   '/admin/video-editor': typeof AuthenticatedAdminVideoEditorRouteWithChildren
   '/admin/video-exports': typeof AuthenticatedAdminVideoExportsRoute
+  '/admin/video-viral': typeof AuthenticatedAdminVideoViralRoute
   '/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
@@ -650,6 +658,7 @@ export interface FileRoutesByTo {
   '/admin/traffic': typeof AuthenticatedAdminTrafficRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/admin/video-exports': typeof AuthenticatedAdminVideoExportsRoute
+  '/admin/video-viral': typeof AuthenticatedAdminVideoViralRoute
   '/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
@@ -732,6 +741,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/video-carousels': typeof AuthenticatedAdminVideoCarouselsRouteWithChildren
   '/_authenticated/admin/video-editor': typeof AuthenticatedAdminVideoEditorRouteWithChildren
   '/_authenticated/admin/video-exports': typeof AuthenticatedAdminVideoExportsRoute
+  '/_authenticated/admin/video-viral': typeof AuthenticatedAdminVideoViralRoute
   '/_authenticated/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
@@ -814,6 +824,7 @@ export interface FileRouteTypes {
     | '/admin/video-carousels'
     | '/admin/video-editor'
     | '/admin/video-exports'
+    | '/admin/video-viral'
     | '/changelog/whats-new'
     | '/api/auth/google'
     | '/api/webhooks/resend'
@@ -890,6 +901,7 @@ export interface FileRouteTypes {
     | '/admin/traffic'
     | '/admin/users'
     | '/admin/video-exports'
+    | '/admin/video-viral'
     | '/changelog/whats-new'
     | '/api/auth/google'
     | '/api/webhooks/resend'
@@ -971,6 +983,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/video-carousels'
     | '/_authenticated/admin/video-editor'
     | '/_authenticated/admin/video-exports'
+    | '/_authenticated/admin/video-viral'
     | '/_authenticated/changelog/whats-new'
     | '/api/auth/google'
     | '/api/webhooks/resend'
@@ -1386,6 +1399,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminVideoExportsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/video-viral': {
+      id: '/_authenticated/admin/video-viral'
+      path: '/video-viral'
+      fullPath: '/admin/video-viral'
+      preLoaderRoute: typeof AuthenticatedAdminVideoViralRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/changelog/': {
       id: '/_authenticated/changelog/'
       path: '/'
@@ -1688,6 +1708,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminVideoCarouselsRoute: typeof AuthenticatedAdminVideoCarouselsRouteWithChildren
   AuthenticatedAdminVideoEditorRoute: typeof AuthenticatedAdminVideoEditorRouteWithChildren
   AuthenticatedAdminVideoExportsRoute: typeof AuthenticatedAdminVideoExportsRoute
+  AuthenticatedAdminVideoViralRoute: typeof AuthenticatedAdminVideoViralRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
   AuthenticatedAdminAutomationsAutomationIdRoute: typeof AuthenticatedAdminAutomationsAutomationIdRoute
   AuthenticatedAdminAutomationsTemplatesRoute: typeof AuthenticatedAdminAutomationsTemplatesRoute
@@ -1724,6 +1745,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminVideoEditorRoute:
     AuthenticatedAdminVideoEditorRouteWithChildren,
   AuthenticatedAdminVideoExportsRoute: AuthenticatedAdminVideoExportsRoute,
+  AuthenticatedAdminVideoViralRoute: AuthenticatedAdminVideoViralRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
   AuthenticatedAdminAutomationsAutomationIdRoute:
     AuthenticatedAdminAutomationsAutomationIdRoute,
