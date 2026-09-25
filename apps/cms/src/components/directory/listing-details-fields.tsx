@@ -117,7 +117,6 @@ function GalleryFields({
             value={url}
             disabled={disabled}
             onChange={(next) => replace(index, next)}
-            inlinePicker
           />
           <div className="flex gap-2">
             <Button
@@ -151,7 +150,6 @@ function GalleryFields({
           onChange={(url) => {
             if (url) onChange([...gallery, url])
           }}
-          inlinePicker
         />
       ) : null}
     </CollapsibleSettingsCard>
