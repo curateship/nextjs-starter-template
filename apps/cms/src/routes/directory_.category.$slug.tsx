@@ -4,6 +4,7 @@ import {
   DirectoryBreadcrumbs,
   type Crumb,
 } from "@/components/directory/public/directory-breadcrumbs"
+import { DirectoryFilterRail } from "@/components/directory/public/directory-filter-rail"
 import { DirectoryRouteError } from "@/components/directory/public/directory-error"
 import { DirectoryFrame } from "@/components/directory/public/directory-frame"
 import { DirectoryPagination } from "@/components/directory/public/directory-pagination"
@@ -22,6 +23,12 @@ import {
   directoryTitle,
 } from "@/lib/directory/public-seo"
 import { focusRing } from "@/lib/layout/focus-ring"
+import {
+  formatDirectoryCategories,
+  readDirectoryCategories,
+  readDirectoryMinRating,
+  toggleDirectoryCategory,
+} from "@/lib/directory/public-search"
 import { readPage } from "@/lib/nav/list-search"
 
 /**
@@ -35,19 +42,31 @@ import { readPage } from "@/lib/nav/list-search"
  * a visitor can walk down to them.
  */
 export const Route = createFileRoute("/directory_/category/$slug")({
-  // Only the page number. A category page has no search box and no order
-  // control — it is one shelf, in the order an admin arranged it — so there is
-  // nothing else for the address to carry. Optional, so a link to a category
-  // does not have to say which page it means.
-  validateSearch: (search: Record<string, unknown>): { page?: number } => ({
+  // The page number, and the rail's filters. No search box and no order
+  // control — a category page is one shelf, in the order an admin arranged it
+  // — but the boxes down the left narrow it the same way they narrow the
+  // browse page. Every value is optional, so a plain link to a category does
+  // not have to spell any of them out.
+  validateSearch: (
+    search: Record<string, unknown>
+  ): { page?: number; category?: string; minRating?: number } => ({
     page: readPage(search.page),
+    category: formatDirectoryCategories(
+      readDirectoryCategories(search.category)
+    ),
+    minRating: readDirectoryMinRating(search.minRating),
   }),
   loaderDeps: ({ search }) => search,
   loader: async ({ params, deps }) => {
     // Follows the directory's own switch, like a listing page does.
     const [, page] = await Promise.all([
       requirePageVisible("/directory"),
-      loadDirectoryCategory({ slug: params.slug, page: deps.page }),
+      loadDirectoryCategory({
+        slug: params.slug,
+        page: deps.page,
+        category: deps.category,
+        minRating: deps.minRating,
+      }),
     ])
 
     if (!page) throw notFound()
@@ -74,6 +93,7 @@ function CategoryRoute() {
   const {
     site,
     category,
+    filterGroups,
     ancestors,
     children,
     listings,
@@ -86,6 +106,19 @@ function CategoryRoute() {
     categoryDeals,
   } = Route.useLoaderData()
   const events = upcomingEvents?.events ?? []
+  const current = Route.useSearch()
+  const navigate = Route.useNavigate()
+  const ticked = readDirectoryCategories(current.category)
+  const setListSearch = (patch: {
+    category?: string
+    minRating?: number
+    page?: number
+  }) => {
+    void navigate({
+      search: (previous) => ({ ...previous, ...patch }),
+      replace: true,
+    })
+  }
 
   const crumbs: Crumb[] = [
     { label: site.name, home: true },
@@ -164,27 +197,61 @@ function CategoryRoute() {
         </section>
       ) : null}
 
-      {/* A category holding only posts or events skips the "nothing here"
-          card, which would be untrue with them right below it. */}
-      {listings.length || (!posts.length && !events.length) ? (
-        <ListingGrid
-          listings={listings}
-          emptyMessage={
-            children.length
-              ? "Choose a subcategory above to see its listings."
-              : `There is nothing in ${category.name} yet.`
+      {/*
+       * The same rail as the browse page, minus this category's own group:
+       * every listing here is already in this category, so a box for it could
+       * only narrow the page to itself or empty it.
+       */}
+      <div className="grid items-start gap-4 lg:grid-cols-[16rem_minmax(0,1fr)] lg:gap-8">
+        <DirectoryFilterRail
+          groups={filterGroups}
+          selected={ticked}
+          minRating={current.minRating}
+          onToggleCategory={(slug) =>
+            setListSearch({
+              category: toggleDirectoryCategory(current.category, slug),
+              page: undefined,
+            })
+          }
+          onMinRatingChange={(minRating) =>
+            setListSearch({ minRating, page: undefined })
+          }
+          onClearAll={
+            ticked.length || current.minRating
+              ? () =>
+                  setListSearch({
+                    category: undefined,
+                    minRating: undefined,
+                    page: undefined,
+                  })
+              : undefined
           }
         />
-      ) : null}
 
-      <DirectoryPagination
-        page={page}
-        pageSize={pageSize}
-        total={total}
-        hrefForPage={(next) =>
-          `/directory/category/${encodeURIComponent(category.slug)}${next > 1 ? `?page=${next}` : ""}`
-        }
-      />
+        <div className="flex min-w-0 flex-col gap-2 md:gap-3">
+          {/* A category holding only posts or events skips the "nothing here"
+              card, which would be untrue with them right below it. */}
+          {listings.length || (!posts.length && !events.length) ? (
+            <ListingGrid
+              listings={listings}
+              emptyMessage={
+                ticked.length || current.minRating
+                  ? "Nothing here matches those filters. Try fewer of them."
+                  : children.length
+                    ? "Choose a subcategory above to see its listings."
+                    : `There is nothing in ${category.name} yet.`
+              }
+            />
+          ) : null}
+
+          <DirectoryPagination
+            page={page}
+            pageSize={pageSize}
+            total={total}
+            hrefForPage={(next) => categoryPageHref(category.slug, current, next)}
+          />
+        </div>
+      </div>
 
       {upcomingEvents && events.length ? (
         <section className="grid gap-2 md:gap-3" aria-labelledby="events">
@@ -223,4 +290,22 @@ function CategoryRoute() {
       ) : null}
     </DirectoryFrame>
   )
+}
+
+/**
+ * A page link that keeps the boxes ticked. A pager that dropped them would
+ * send a visitor from page 2 of a narrowed list to page 2 of the whole
+ * category, which is not the list they were reading.
+ */
+function categoryPageHref(
+  slug: string,
+  search: { category?: string; minRating?: number },
+  page: number
+) {
+  const parameters = new URLSearchParams()
+  if (search.category) parameters.set("category", search.category)
+  if (search.minRating) parameters.set("minRating", String(search.minRating))
+  if (page > 1) parameters.set("page", String(page))
+  const query = parameters.toString()
+  return `/directory/category/${encodeURIComponent(slug)}${query ? `?${query}` : ""}`
 }

@@ -11,11 +11,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { findDirectoryPlace } from "@/lib/api/directory/public"
-import {
-  DIRECTORY_NEAR_RADII_KM,
-  formatDirectoryNearPoint,
-} from "@/lib/directory/public-search"
+import { useNearPlace } from "@/components/directory/public/use-near-place"
+import { DIRECTORY_NEAR_RADII_KM } from "@/lib/directory/public-search"
 
 /**
  * Near a place and Within a distance: a typed town or postcode, the browser's
@@ -50,67 +47,10 @@ export function NearPicker({
   /** Buttons that end the row, after "Clear location". */
   children?: React.ReactNode
 }) {
-  const [place, setPlace] = React.useState("")
-  const [locationMessage, setLocationMessage] = React.useState("")
-  const [searchingPlace, setSearchingPlace] = React.useState(false)
-  const [locating, setLocating] = React.useState(false)
+  const picker = useNearPlace({ radius, onNearChange })
   const nearActive = Boolean(near)
   const placeId = `${idPrefix}-place`
   const radiusId = `${idPrefix}-radius`
-
-  const useMyLocation = () => {
-    if (!navigator.geolocation) {
-      setLocationMessage(
-        "This browser cannot share your location. Enter a town, city, or postcode instead."
-      )
-      return
-    }
-    setLocationMessage("")
-    setLocating(true)
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setLocating(false)
-        onNearChange(
-          formatDirectoryNearPoint(position.coords),
-          "your location",
-          radius
-        )
-      },
-      (error) => {
-        setLocating(false)
-        setLocationMessage(
-          error.code === error.PERMISSION_DENIED
-            ? "Location sharing is off. Turn it on in your browser settings, or enter a town, city, or postcode instead."
-            : "Your location is unavailable. Enter a town, city, or postcode instead."
-        )
-      },
-      { timeout: 10_000, maximumAge: 300_000 }
-    )
-  }
-
-  const searchPlace = async () => {
-    setLocationMessage("")
-    setSearchingPlace(true)
-    try {
-      const result = await findDirectoryPlace(place)
-      if (!result.place) {
-        setLocationMessage(
-          result.error ?? "We could not look up that place. Try again."
-        )
-        return
-      }
-      setPlace("")
-      onNearChange(
-        formatDirectoryNearPoint(result.place),
-        result.place.label,
-        radius
-      )
-    } catch {
-      setLocationMessage("We could not look up that place. Try again.")
-    } finally {
-      setSearchingPlace(false)
-    }
-  }
 
   return (
     <>
@@ -119,7 +59,7 @@ export function NearPicker({
           className="flex flex-col gap-2 sm:flex-row sm:items-end"
           onSubmit={(event) => {
             event.preventDefault()
-            void searchPlace()
+            void picker.searchPlace()
           }}
         >
           <div className="grid gap-1">
@@ -128,23 +68,23 @@ export function NearPicker({
             </label>
             <Input
               id={placeId}
-              value={place}
-              onChange={(event) => setPlace(event.target.value)}
+              value={picker.place}
+              onChange={(event) => picker.setPlace(event.target.value)}
               placeholder="Town, city, or postcode"
               className="sm:w-56"
             />
           </div>
-          <Button type="submit" variant="outline" disabled={searchingPlace}>
+          <Button type="submit" variant="outline" disabled={picker.searching}>
             Search place
           </Button>
         </form>
         <Button
           type="button"
           variant="outline"
-          onClick={useMyLocation}
-          disabled={locating}
+          onClick={picker.useMyLocation}
+          disabled={picker.locating}
         >
-          {locating ? <Loader2Icon className="animate-spin" /> : null}
+          {picker.locating ? <Loader2Icon className="animate-spin" /> : null}
           Use my location
         </Button>
         <div className="grid gap-1">
@@ -180,9 +120,9 @@ export function NearPicker({
         ) : null}
         {children}
       </div>
-      {locationMessage ? (
+      {picker.message ? (
         <p role="alert" className="text-sm text-muted-foreground">
-          {locationMessage}
+          {picker.message}
         </p>
       ) : null}
     </>

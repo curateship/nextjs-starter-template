@@ -58,6 +58,14 @@ export const DIRECTORY_SORT_LABELS: Record<DirectorySort, string> = {
  */
 export type DirectoryBrowseSearch = {
   q?: string
+  /**
+   * The ticked categories, comma separated: `?category=italian,portuguese`.
+   *
+   * One key holding a list rather than a repeated key, so every link written
+   * before the rail existed still means what it meant — one slug is a valid
+   * list of one. `readDirectoryCategories` turns it into slugs and
+   * `formatDirectoryCategories` turns them back.
+   */
   category?: string
   sort?: DirectorySort
   page?: number
@@ -66,11 +74,68 @@ export type DirectoryBrowseSearch = {
   /** A human-readable place name, when the visitor typed one. */
   place?: string
   radius?: number
+  /** Stars and up, from `DIRECTORY_MIN_RATINGS`. Absent means any rating. */
+  minRating?: number
   /**
    * Grid or map. In the address rather than in memory so a map somebody sends
    * opens as a map, which is the whole reason for having the switch.
    */
   view?: DirectoryView
+}
+
+/**
+ * The lowest ratings a visitor may ask for. Two rungs rather than five,
+ * because a directory where everything is between 4 and 5 gains nothing from
+ * a 2.0 rung, and "Any" is the absence of the value rather than a third
+ * choice in this list.
+ */
+export const DIRECTORY_MIN_RATINGS = [4, 4.5] as const
+
+/** As many slugs as the rail can sensibly hold, and a stop on a pasted address. */
+const MAX_DIRECTORY_CATEGORY_SLUGS = 12
+const MAX_DIRECTORY_CATEGORY_SLUG_LENGTH = 160
+
+/**
+ * The ticked categories, read out of the address.
+ *
+ * Nothing here checks that a slug names a real category — the server does that
+ * when it looks them up, and drops the ones it cannot find. A stale link
+ * should still show the directory rather than an error, which is what the
+ * single-category address has always done.
+ */
+export function readDirectoryCategories(value: unknown): string[] {
+  if (typeof value !== "string") return []
+  const seen = new Set<string>()
+  for (const part of value.split(",")) {
+    const slug = part.trim().slice(0, MAX_DIRECTORY_CATEGORY_SLUG_LENGTH)
+    if (slug) seen.add(slug)
+    if (seen.size >= MAX_DIRECTORY_CATEGORY_SLUGS) break
+  }
+  return [...seen]
+}
+
+/** Slugs back into one address value, or nothing when none are ticked. */
+export function formatDirectoryCategories(slugs: readonly string[]) {
+  return slugs.length ? slugs.join(",") : undefined
+}
+
+/** The address value after one box is clicked: the slug added, or taken out. */
+export function toggleDirectoryCategory(value: unknown, slug: string) {
+  const current = readDirectoryCategories(value)
+  const next = current.includes(slug)
+    ? current.filter((row) => row !== slug)
+    : [...current, slug]
+  return formatDirectoryCategories(next)
+}
+
+/** One of the rungs, or nothing. A hand-typed 9 is any rating, not no results. */
+export function readDirectoryMinRating(value: unknown) {
+  const rating = typeof value === "number" ? value : Number(value)
+  return DIRECTORY_MIN_RATINGS.includes(
+    rating as (typeof DIRECTORY_MIN_RATINGS)[number]
+  )
+    ? rating
+    : undefined
 }
 
 export const DIRECTORY_NEAR_RADII_KM = [5, 10, 25, 50] as const

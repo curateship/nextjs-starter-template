@@ -7,30 +7,36 @@ vi.mock("@/lib/api/directory/public", () => ({
   findDirectoryPlace: vi.fn(),
   loadDirectorySuggestions: vi.fn(),
 }))
+// The band reads the site's page spacing to pull itself under the header, and
+// that comes from the router's root loader, which there is none of here.
+vi.mock("@/lib/branding", () => ({
+  usePublicTheme: () => ({ mainSpacing: 40 }),
+}))
 import { findDirectoryPlace } from "@/lib/api/directory/public"
-import { DirectoryToolbar } from "@/components/directory/public/directory-toolbar"
+import { DirectoryHero } from "@/components/directory/public/directory-hero"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import type { DirectoryBrowseSearch } from "@/lib/directory/public-search"
+import {
+  DEFAULT_DIRECTORY_NEAR_RADIUS_KM,
+  type DirectoryBrowseSearch,
+} from "@/lib/directory/public-search"
 
 let host: HTMLDivElement
 let root: ReturnType<typeof createRoot>
 const onRadiusChange = vi.fn()
 
-function Toolbar({ initial = {} }: { initial?: DirectoryBrowseSearch }) {
+function Hero({ initial = {} }: { initial?: DirectoryBrowseSearch }) {
   const [current, setCurrent] = useState(initial)
   return (
     <TooltipProvider>
-      <DirectoryToolbar
+      <DirectoryHero
+        title="Directory"
+        intro=""
         current={current}
-        sort="order"
-        categories={[]}
-        mapAvailable={false}
+        radius={current.radius ?? DEFAULT_DIRECTORY_NEAR_RADIUS_KM}
         onSearchChange={vi.fn()}
-        onSortChange={vi.fn()}
         onNearChange={(near, place, radius) => setCurrent({ near, place, radius })}
         onRadiusChange={onRadiusChange}
         onNearClear={() => setCurrent({})}
-        onClearAll={() => setCurrent({})}
       />
     </TooltipProvider>
   )
@@ -68,12 +74,12 @@ async function searchPlace() {
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "Toronto")
     input.dispatchEvent(new Event("input", { bubbles: true }))
   })
-  await act(async () => button("Search place").click())
+  await act(async () => button("Search").click())
 }
 
 describe("directory radius", () => {
   it("disables radius without a place and explains why to keyboard users", async () => {
-    await act(async () => root.render(<Toolbar />))
+    await act(async () => root.render(<Hero />))
     expect(radius().disabled).toBe(true)
     await act(async () => radius().click())
     expect(onRadiusChange).not.toHaveBeenCalled()
@@ -86,7 +92,7 @@ describe("directory radius", () => {
   })
 
   it("allows radius changes for an existing place and disables again after clearing", async () => {
-    await act(async () => root.render(<Toolbar initial={{ near: "43.653,-79.383", place: "Toronto" }} />))
+    await act(async () => root.render(<Hero initial={{ near: "43.653,-79.383", place: "Toronto" }} />))
     expect(radius().disabled).toBe(false)
     await act(async () => radius().dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true })))
     const option = Array.from(document.querySelectorAll('[role="option"]')).find(item => item.textContent === "50 km")!
@@ -99,17 +105,17 @@ describe("directory radius", () => {
 
   it("enables immediately after a successful place search", async () => {
     vi.mocked(findDirectoryPlace).mockResolvedValue({ place: { latitude: 43.653, longitude: -79.383, label: "Toronto" }, error: null })
-    await act(async () => root.render(<Toolbar />))
+    await act(async () => root.render(<Hero />))
     expect(radius().disabled).toBe(true)
     await searchPlace()
     expect(findDirectoryPlace).toHaveBeenCalledWith("Toronto")
     expect(radius().disabled).toBe(false)
-    expect(host.textContent).toContain("within 10 km of Toronto")
+    expect(host.textContent).toContain("Within 10 km of Toronto")
   })
 
   it("stays disabled after a failed place search", async () => {
     vi.mocked(findDirectoryPlace).mockRejectedValue(new Error("unavailable"))
-    await act(async () => root.render(<Toolbar />))
+    await act(async () => root.render(<Hero />))
     await searchPlace()
     expect(radius().disabled).toBe(true)
     expect(host.querySelector('[role="alert"]')?.textContent).toContain("We could not look up that place")
@@ -123,8 +129,10 @@ describe("directory radius", () => {
         getCurrentPosition: vi.fn((success: PositionCallback) => { found = success }),
       } },
     }))
-    await act(async () => root.render(<Toolbar />))
-    await act(async () => button("Use my location").click())
+    await act(async () => root.render(<Hero />))
+    await act(async () =>
+      host.querySelector<HTMLButtonElement>('[aria-label="Use my location"]')!.click()
+    )
     expect(radius().disabled).toBe(true)
     await act(async () => found({ coords: { latitude: 43.653, longitude: -79.383 } } as GeolocationPosition))
     expect(radius().disabled).toBe(false)

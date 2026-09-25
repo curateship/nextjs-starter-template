@@ -3,6 +3,7 @@ import {
   asc,
   desc,
   eq,
+  gte,
   ilike,
   inArray,
   isNotNull,
@@ -25,6 +26,12 @@ import {
   customSectionsForDisplay,
   type CustomSectionView,
 } from "@/lib/directory/custom-fields"
+import {
+  directoryFilterGroups,
+  groupCategorySlugs,
+  type CategoryPlacement,
+  type DirectoryFilterGroup,
+} from "@/lib/directory/filter-groups"
 import {
   RELATED_LISTING_COUNT,
   DEFAULT_DIRECTORY_NEAR_RADIUS_KM,
@@ -264,6 +271,12 @@ export type PublicBrowse = {
   page: number
   pageSize: number
   categories: PublicCategory[]
+  /**
+   * The tick boxes down the left, one group per parent category. Empty on a
+   * site whose categories are a flat list, which leaves the rail holding the
+   * rating rung alone.
+   */
+  filterGroups: DirectoryFilterGroup[]
   browseTitle: string
   browseIntro: string
   sort: DirectorySort
@@ -340,6 +353,8 @@ export type PublicListingPage = {
 export type PublicCategoryPage = {
   site: PublicSite
   category: PublicCategory
+  /** The rail's groups, without the one this category itself belongs to. */
+  filterGroups: DirectoryFilterGroup[]
   /** Home → … → this one, for the breadcrumb. Ends with the category itself. */
   ancestors: PublicCategoryLink[]
   children: PublicCategory[]
@@ -717,35 +732,48 @@ export async function publicCategories(
 }
 
 /**
- * One category's id from its address, or nothing.
+ * Where each of these slugs sits: its id and the parent it hangs under.
  *
  * Deliberately not `publicCategories`, which counts the published listings in
  * every category on the site — a join and a group-by over the whole table for a
- * page that only wants to know what one slug means.
+ * page that only wants to know what some slugs mean. A slug nobody has comes
+ * back missing rather than as an error.
  */
-async function categoryIdForSlug(
+async function categoriesForSlugs(
   siteId: string,
-  slug: string,
+  slugs: readonly string[],
   database: CustomShellDb
-): Promise<string | undefined> {
-  const [row] = await database
-    .select({ id: categories.id })
+): Promise<CategoryPlacement[]> {
+  if (!slugs.length) return []
+  return database
+    .select({
+      id: categories.id,
+      slug: categories.slug,
+      parentId: categories.parentId,
+    })
     .from(categories)
-    .where(and(eq(categories.workspaceId, siteId), eq(categories.slug, slug)))
-    .limit(1)
-  return row?.id
+    .where(
+      and(
+        eq(categories.workspaceId, siteId),
+        inArray(categories.slug, [...slugs])
+      )
+    )
 }
 
 /**
- * The ids of the listings in one category.
+ * The ids of the listings in any of these categories.
  *
- * **This category only, never its children.** That is what the directory app
- * does, and rolling children up would mean a listing appearing on a page it
- * was never put on.
+ * **These categories only, never their children.** That is what the directory
+ * app does, and rolling children up would mean a listing appearing on a page
+ * it was never put on.
+ *
+ * Any of them rather than all of them, because two boxes ticked in one group
+ * means "Italian or Portuguese". Two groups are two of these subqueries, and
+ * `and` between them is what makes ticking across groups mean "and".
  */
-function listingIdsInCategory(
+function listingIdsInCategories(
   siteId: string,
-  categoryId: string,
+  categoryIds: readonly string[],
   database: CustomShellDb
 ) {
   return database
@@ -755,7 +783,7 @@ function listingIdsInCategory(
       and(
         eq(categoryRelationships.workspaceId, siteId),
         eq(categoryRelationships.contentType, LISTING_CONTENT_TYPE),
-        eq(categoryRelationships.categoryId, categoryId)
+        inArray(categoryRelationships.categoryId, [...categoryIds])
       )
     )
 }
@@ -770,7 +798,14 @@ function listingIdsInCategory(
  */
 type BrowseQuery = {
   search?: string
-  categoryId?: string
+  /**
+   * The ticked categories, already grouped by the parent they hang under.
+   * Either within a group, and across groups: `[[italian, portuguese],
+   * [annex]]` is an Italian or Portuguese place in the Annex.
+   */
+  categoryGroups?: string[][]
+  /** Stars and up. A listing with no rating at all is out. */
+  minRating?: number
   sort: DirectorySort
   featuredFirst: boolean
   near?: DirectoryNearPoint
@@ -796,16 +831,25 @@ function browseQuery(
     if (searchFilter) filters.push(searchFilter)
   }
 
-  if (options.categoryId) {
+  for (const group of options.categoryGroups ?? []) {
+    if (!group.length) continue
     filters.push(
       inArray(
         directoryListings.id,
         // Written as a subquery rather than two round trips: an empty category
         // then matches nothing on its own, with no "did I get an empty list"
         // branch to get wrong.
-        listingIdsInCategory(siteId, options.categoryId, database)
+        listingIdsInCategories(siteId, group, database)
       )
     )
+  }
+
+  // A place with no rating is not a place rated 4 and over, so it goes. The
+  // column is null for a listing nobody has scored, and `>=` already refuses
+  // null, but the intent is worth saying out loud because the opposite
+  // reading — "show me everything that isn't bad" — is the plausible one.
+  if (options.minRating !== undefined) {
+    filters.push(gte(directoryListings.rating, options.minRating))
   }
 
   const where = and(...filters)
@@ -897,7 +941,9 @@ async function readPublicBrowseUncached(
   site: VisitorSite,
   options: {
     search?: string
-    category?: string
+    /** The ticked category slugs. Absent is none ticked, never "all". */
+    categories?: string[]
+    minRating?: number
     sort?: DirectorySort
     page: number
     near?: DirectoryNearPoint
@@ -909,9 +955,6 @@ async function readPublicBrowseUncached(
     publicCategories(site.id, database),
     directorySettingsFor(site.id, database),
   ])
-  const chosen = options.category
-    ? allCategories.find((category) => category.slug === options.category)
-    : undefined
   const resolvedSort =
     options.sort ?? (options.near ? "distance" : settings.defaultSort)
 
@@ -920,14 +963,19 @@ async function readPublicBrowseUncached(
   const { listings, total, page } = await listingPage(
     site.id,
     {
-      ...options,
+      search: options.search,
+      page: options.page,
+      near: options.near,
+      radius: options.radius,
+      minRating: options.minRating,
       sort: resolvedSort,
-      categoryId: chosen?.id,
+      categoryGroups: groupCategorySlugs(
+        allCategories,
+        options.categories ?? []
+      ),
       pageSize: settings.pageSize,
       featuredFirst: settings.featuredFirst,
       neighbourhoodCategoryId: settings.neighbourhoodCategoryId,
-      near: options.near,
-      radius: options.radius,
     },
     database
   )
@@ -939,6 +987,7 @@ async function readPublicBrowseUncached(
     page,
     pageSize: settings.pageSize,
     categories: allCategories.filter((category) => category.listingCount > 0),
+    filterGroups: directoryFilterGroups(allCategories),
     browseTitle: settings.browseTitle,
     browseIntro: settings.browseIntro,
     sort: resolvedSort,
@@ -964,7 +1013,9 @@ export function readPublicBrowse(
   site: VisitorSite,
   options: {
     search?: string
-    category?: string
+    /** The ticked category slugs. Absent is none ticked, never "all". */
+    categories?: string[]
+    minRating?: number
     sort?: DirectorySort
     page: number
     near?: DirectoryNearPoint
@@ -984,7 +1035,12 @@ export function readPublicBrowse(
     {
       site: { name: site.name, url: site.url },
       search: resolvedOptions.search ?? "",
-      category: resolvedOptions.category ?? "",
+      // Every filter the answer depends on is in the key. A ticked box left
+      // out of it would hand the second visitor the first one's results.
+      // Sorted, so two addresses listing the same boxes in a different order
+      // are one entry rather than two.
+      categories: [...(resolvedOptions.categories ?? [])].sort().join(","),
+      minRating: resolvedOptions.minRating ?? null,
       sort: resolvedOptions.sort ?? "",
       page: resolvedOptions.page,
       near: resolvedOptions.near ?? null,
@@ -1008,7 +1064,9 @@ async function readDirectoryMapUncached(
   site: VisitorSite,
   options: {
     search?: string
-    category?: string
+    /** The ticked category slugs. Absent is none ticked, never "all". */
+    categories?: string[]
+    minRating?: number
     sort?: DirectorySort
     near?: DirectoryNearPoint
     radius?: number
@@ -1023,15 +1081,18 @@ async function readDirectoryMapUncached(
 
   // A category address nobody has is no filter rather than an error, the same
   // as the grid: a stale link should still show the map.
-  const categoryId = options.category
-    ? await categoryIdForSlug(site.id, options.category, database)
-    : undefined
+  const placements = await categoriesForSlugs(
+    site.id,
+    options.categories ?? [],
+    database
+  )
 
   const { where, ordered } = browseQuery(
     site.id,
     {
       search: options.search,
-      categoryId,
+      categoryGroups: groupCategorySlugs(placements, options.categories ?? []),
+      minRating: options.minRating,
       sort: options.sort ?? (options.near ? "distance" : settings.defaultSort),
       featuredFirst: settings.featuredFirst,
       near: options.near,
@@ -1083,7 +1144,9 @@ export async function readDirectoryMap(
   site: VisitorSite,
   options: {
     search?: string
-    category?: string
+    /** The ticked category slugs. Absent is none ticked, never "all". */
+    categories?: string[]
+    minRating?: number
     sort?: DirectorySort
     near?: DirectoryNearPoint
     radius?: number
@@ -1101,7 +1164,8 @@ export async function readDirectoryMap(
     "map",
     {
       search: resolvedOptions.search ?? "",
-      category: resolvedOptions.category ?? "",
+      categories: [...(resolvedOptions.categories ?? [])].sort().join(","),
+      minRating: resolvedOptions.minRating ?? null,
       sort: resolvedOptions.sort ?? "",
       near: resolvedOptions.near ?? null,
       radius: resolvedOptions.radius ?? null,
@@ -1334,7 +1398,7 @@ function ancestorsOf(
 async function readPublicCategoryUncached(
   site: VisitorSite,
   slug: string,
-  options: { page: number },
+  options: { page: number; categories?: string[]; minRating?: number },
   database: CustomShellDb = db
 ): Promise<PublicCategoryPage | null> {
   const [all, settings] = await Promise.all([
@@ -1349,7 +1413,14 @@ async function readPublicCategoryUncached(
     listingPage(
       site.id,
       {
-        categoryId: category.id,
+        // The page's own category is a group of one, so the rail's groups sit
+        // beside it under the same "and" the browse page uses. Ticking the
+        // Annex on the Italian page means Italian and in the Annex.
+        categoryGroups: [
+          [category.id],
+          ...groupCategorySlugs(all, options.categories ?? []),
+        ],
+        minRating: options.minRating,
         sort: settings.defaultSort,
         page: options.page,
         pageSize: settings.pageSize,
@@ -1378,6 +1449,12 @@ async function readPublicCategoryUncached(
   return {
     site: { name: site.name, url: site.url },
     category,
+    // Its own group is left out: every listing on this page is already in
+    // this category, so drawing "Italian" here would offer a box that can
+    // only narrow the page to itself or empty it.
+    filterGroups: directoryFilterGroups(all).filter(
+      (group) => group.id !== category.parentId
+    ),
     ancestors: ancestorsOf(category, all),
     children: children.map((row) => ({
       ...row,
@@ -1395,13 +1472,19 @@ async function readPublicCategoryUncached(
 export function readPublicCategory(
   site: VisitorSite,
   slug: string,
-  options: { page: number },
+  options: { page: number; categories?: string[]; minRating?: number },
   database: CustomShellDb = db
 ): Promise<PublicCategoryPage | null> {
   return cachedPublicDirectoryRead(
     site.id,
     "category",
-    { site: { name: site.name, url: site.url }, slug, page: options.page },
+    {
+      site: { name: site.name, url: site.url },
+      slug,
+      page: options.page,
+      categories: [...(options.categories ?? [])].sort().join(","),
+      minRating: options.minRating ?? null,
+    },
     () => readPublicCategoryUncached(site, slug, options, database)
   )
 }

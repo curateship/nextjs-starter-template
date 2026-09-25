@@ -2,9 +2,12 @@ import { focusRing } from "@/lib/layout/focus-ring"
 import { cn } from "@/lib/utils"
 
 /**
- * The look of one filter chip: the directory's category chips and the Events
- * page's category and date chips. Each is a link, so a filtered page can be
- * sent to somebody and opened in a new tab.
+ * The look of one filter chip: the Events page's category and date chips and
+ * the Deals page's. Each is a link, so a filtered page can be sent to
+ * somebody and opened in a new tab.
+ *
+ * The directory's own browse page used these until the filter rail replaced
+ * them, because a chip can only ever say one thing at a time.
  */
 export function filterChipClass(active: boolean) {
   return cn(

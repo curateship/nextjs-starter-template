@@ -6,6 +6,8 @@ import {
   type DirectorySort,
   type DirectorySuggestions,
   parseDirectoryNearPoint,
+  readDirectoryCategories,
+  readDirectoryMinRating,
   readDirectoryNearRadius,
 } from "@/lib/directory/public-search"
 import { findCurrentUser } from "@/server/auth/security"
@@ -88,6 +90,13 @@ export const getPublicDirectoryErrorMessage = createErrorMessage(
 )
 
 const sortInput = z.enum(DIRECTORY_SORTS).optional()
+/**
+ * The ticked categories as one comma-separated value. Long enough for the
+ * twelve slugs the address reader keeps, and no longer — a validator is the
+ * cheapest place to stop somebody pasting a megabyte.
+ */
+const categoriesInput = z.string().max(2_000).optional()
+const minRatingInput = z.number().optional()
 const pageInput = z.number().int().min(1).max(10_000).optional()
 const slugInput = z.string().min(1).max(160)
 
@@ -95,7 +104,8 @@ const readDirectoryBrowseFn = createServerFn({ method: "GET" })
   .inputValidator(
     z.object({
       search: z.string().max(120).optional(),
-      category: z.string().max(160).optional(),
+      category: categoriesInput,
+      minRating: minRatingInput,
       sort: sortInput,
       page: pageInput,
       near: z.string().max(40).optional(),
@@ -109,7 +119,10 @@ const readDirectoryBrowseFn = createServerFn({ method: "GET" })
 
     const browse = await readPublicBrowse(site, {
       search: data.search,
-      category: data.category,
+      // Read again on the server rather than trusted from the address: this
+      // endpoint is a door of its own and anybody may knock on it.
+      categories: readDirectoryCategories(data.category),
+      minRating: readDirectoryMinRating(data.minRating),
       sort: data.sort,
       page: data.page ?? 1,
       near: parseDirectoryNearPoint(data.near) ?? undefined,
@@ -122,7 +135,9 @@ const readDirectoryBrowseFn = createServerFn({ method: "GET" })
 /** One page of a site's published listings, with the filters above them. */
 export function loadDirectoryBrowse(input: {
   search?: string
+  /** The ticked categories, comma separated, straight from the address. */
   category?: string
+  minRating?: number
   sort?: DirectorySort
   page?: number
   near?: string
@@ -136,7 +151,8 @@ const readDirectoryMapFn = createServerFn({ method: "GET" })
   .inputValidator(
     z.object({
       search: z.string().max(120).optional(),
-      category: z.string().max(160).optional(),
+      category: categoriesInput,
+      minRating: minRatingInput,
       sort: sortInput,
       near: z.string().max(40).optional(),
       radius: z.number().int().optional(),
@@ -148,7 +164,8 @@ const readDirectoryMapFn = createServerFn({ method: "GET" })
 
     return readDirectoryMap(site, {
       search: data.search,
-      category: data.category,
+      categories: readDirectoryCategories(data.category),
+      minRating: readDirectoryMinRating(data.minRating),
       sort: data.sort,
       near: parseDirectoryNearPoint(data.near) ?? undefined,
       radius: readDirectoryNearRadius(data.radius),
@@ -162,6 +179,7 @@ const readDirectoryMapFn = createServerFn({ method: "GET" })
 export function loadDirectoryMap(input: {
   search?: string
   category?: string
+  minRating?: number
   sort?: DirectorySort
   near?: string
   radius?: number
@@ -352,7 +370,14 @@ const DEALS_ON_A_CATEGORY = 6
 const EVENTS_ON_A_CATEGORY = 6
 
 const readDirectoryCategoryFn = createServerFn({ method: "GET" })
-  .inputValidator(z.object({ slug: slugInput, page: pageInput }))
+  .inputValidator(
+    z.object({
+      slug: slugInput,
+      page: pageInput,
+      category: categoriesInput,
+      minRating: minRatingInput,
+    })
+  )
   .handler(async ({
     data,
   }): Promise<
@@ -368,6 +393,8 @@ const readDirectoryCategoryFn = createServerFn({ method: "GET" })
 
     const cached = await readPublicCategory(site, data.slug, {
       page: data.page ?? 1,
+      categories: readDirectoryCategories(data.category),
+      minRating: readDirectoryMinRating(data.minRating),
     })
     if (!cached) return null
     const isSignedIn = async () =>
@@ -412,7 +439,12 @@ const readDirectoryCategoryFn = createServerFn({ method: "GET" })
   })
 
 /** One category, its subcategories and one page of its listings. */
-export function loadDirectoryCategory(input: { slug: string; page?: number }) {
+export function loadDirectoryCategory(input: {
+  slug: string
+  page?: number
+  category?: string
+  minRating?: number
+}) {
   return readDirectoryCategoryFn({ data: input })
 }
 

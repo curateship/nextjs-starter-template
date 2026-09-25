@@ -80,7 +80,75 @@ its row under another listing.
 - Only one label is ever drawn. A card carrying six of a listing's categories
   tells a visitor nothing.
 
-## The browse page and the category pages
+## The browse page
+
+The page is a band, then two columns. The band holds the directory's name and
+one bar carrying the search box, the town box, the "use my location" button,
+the distance and the Search button. Under it the filters run down the left at
+16rem and the listings fill the rest, with the count on the left of the line
+above them and the order on the right.
+
+- **The band runs the whole width of the window** and starts where the header
+  ends, with a dotted pattern over it. It is drawn inside the page's 1152px
+  column like everything else, so it climbs back out by centring itself on
+  that column: a child wider than its column spills the same amount either
+  side, and the column is centred in the window. An offset would land wrong on
+  a site that centres its public text; centring lands right either way.
+- **Its width is the window's, measured in the browser**, because `100vw`
+  counts the scrollbar on Windows and a band that wide would add a sideways
+  scroll. The server draws `100vw` and the exact number replaces it on
+  arrival. On a Mac the two are the same.
+- **The frame's grid column is `minmax(0, 1fr)`.** Without it the band drags
+  the whole page wider than the window and every page under it shifts.
+- **The lift under the header is the site's own top spacing** from Settings →
+  Styling, not a number written into the band.
+- **The dots are a twentieth of the text colour**, so the pattern follows a
+  site into dark mode rather than being a grey nobody chose.
+- **The band reads from the left**, like every other directory page, even on a
+  site whose Styling settings centre its public text. It sits outside the
+  page's column, so it says so itself rather than inheriting it.
+- **The line under the title is the site's browse intro** from Settings →
+  Directory. A site that never wrote one gets the title alone rather than a
+  gap where a line should be.
+- **The search bar carries a soft shadow** and sits a size above the controls
+  inside it, so it reads as the thing the page is for. The controls in it are
+  the app's standard 32px; the bar's own padding gives it its height.
+- **Below 1024px the filters become a Filters button** that opens the same
+  controls in a sheet, with the number that are on written on the button. A
+  column of tick boxes above the results would otherwise be most of the first
+  screen on a phone.
+- **A group of filters is a parent category.** "Cuisine" and "Neighbourhood"
+  are not settings anybody fills in. Any category that has children becomes a
+  group and its children are the boxes, in the order an admin arranged them.
+  A site whose categories are a flat list gets no groups, only the rating.
+- **A child with nothing published in it is left out**, and a parent left with
+  no children after that is dropped whole. A box that can only ever return an
+  empty page is a dead end.
+- **The count beside a box is the whole site's**, not what is left after the
+  other boxes. Toronto's Etobicoke says 197 while the list above says 8,
+  because the number answers "how much is there" rather than "how much is
+  left", and recounting every box on every keystroke would be a query per box.
+- **Eight boxes, then "Show all N +"**, which expands the group where it
+  stands. A group with more than eight also gets a search box that filters its
+  own options, never the listings. A ticked box stays in view even when it
+  does not match what is typed there, or unticking it would mean clearing the
+  search first to find it again.
+- **Ticking two boxes in one group means either of them. Ticking across two
+  groups means both.** Italian or Portuguese, in the Annex. The address is one
+  key holding a comma-separated list, `?category=italian,portuguese`, so every
+  link written when only one category could be picked still means what it
+  meant, and the server decides which group each slug belongs to.
+- **Rating is Any, 4.0+ or 4.5+.** A listing nobody has scored is out when a
+  minimum is asked for: a place with no rating is not a place rated 4 and over.
+- **A category page carries the same filters, without its own group.** Every
+  listing on the Italian page is already Italian, so a Cuisine box there could
+  only narrow the page to itself or empty it. The Neighbourhood boxes still
+  work, and the page number keeps them.
+- **Every filter is in the address**, so a narrowed list can be sent to
+  somebody, survives a refresh, and comes back with Back. The pager carries
+  them too: page 2 of a narrowed list is still narrowed.
+
+## The listing cards on both pages
 
 - **A listing card is read in three parts.** Over the photo sit the category,
   in a pill on the left, and the rating, in a chip on the right. Under the

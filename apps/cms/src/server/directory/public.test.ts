@@ -572,16 +572,18 @@ describe("the browse list", () => {
     // The directory app this is ported from does exactly this. Rolling a child
     // up would put the listing on a page nobody assigned it to.
     expect(
-      (await browse(alpha, { category: "italian" })).listings
+      (await browse(alpha, { categories: ["italian"] })).listings
     ).toHaveLength(1)
-    expect((await browse(alpha, { category: "food" })).listings).toEqual([])
+    expect((await browse(alpha, { categories: ["food"] })).listings).toEqual([])
   })
 
   it("treats a category address nobody has as no filter at all", async () => {
     await publish(alpha, { title: "Corner cafe", slug: "cafe" })
 
     // A stale link should still show the directory rather than an empty page.
-    expect((await browse(alpha, { category: "gone" })).listings).toHaveLength(1)
+    expect(
+      (await browse(alpha, { categories: ["gone"] })).listings
+    ).toHaveLength(1)
   })
 
   it("orders by the hand-set order, then newest, and pages without skipping", async () => {
@@ -1229,5 +1231,184 @@ describe("search suggestions", () => {
     expect(
       (await readDirectorySuggestions(alpha.id, "%%", database)).listings
     ).toEqual([])
+  })
+})
+
+/**
+ * The rail's filters, which is the one part of the browse query where a wrong
+ * answer is invisible: a visitor cannot tell a place that was filtered out
+ * from a place that was never there.
+ */
+describe("browsing with several boxes ticked", () => {
+  let italian: { id: string }
+  let portuguese: { id: string }
+  let annex: { id: string }
+
+  async function setUpCategories() {
+    const cuisine = await createCategory(
+      alpha.id,
+      { name: "Cuisine", slug: "cuisine" },
+      database
+    )
+    const area = await createCategory(
+      alpha.id,
+      { name: "Neighbourhood", slug: "area" },
+      database
+    )
+    italian = await createCategory(
+      alpha.id,
+      { name: "Italian", slug: "italian", parentId: cuisine.id },
+      database
+    )
+    portuguese = await createCategory(
+      alpha.id,
+      { name: "Portuguese", slug: "portuguese", parentId: cuisine.id },
+      database
+    )
+    annex = await createCategory(
+      alpha.id,
+      { name: "Annex", slug: "annex", parentId: area.id },
+      database
+    )
+  }
+
+  async function place(
+    title: string,
+    slug: string,
+    categoryIds: string[],
+    rating?: number
+  ) {
+    const listing = await publish(alpha, { title, slug })
+    await setListingCategories(
+      alpha.id,
+      listing.id,
+      categoryIds,
+      categoryIds[0]!,
+      database
+    )
+    if (rating !== undefined) {
+      await updateListing(alpha.id, listing.id, { rating }, database)
+    }
+    return listing
+  }
+
+  it("means either inside a group and both across two", async () => {
+    await setUpCategories()
+    await place("Pasta", "pasta", [italian.id, annex.id], 4.8)
+    await place("Grill", "grill", [portuguese.id, annex.id], 3.5)
+    await place("Elsewhere", "elsewhere", [italian.id])
+
+    const cuisines = await browse(alpha, {
+      categories: ["italian", "portuguese"],
+    })
+    expect(cuisines.listings.map((row) => row.slug).sort()).toEqual([
+      "elsewhere",
+      "grill",
+      "pasta",
+    ])
+
+    // The Annex group narrows the cuisines rather than adding to them.
+    const inTheAnnex = await browse(alpha, {
+      categories: ["italian", "portuguese", "annex"],
+    })
+    expect(inTheAnnex.listings.map((row) => row.slug).sort()).toEqual([
+      "grill",
+      "pasta",
+    ])
+  })
+
+  it("counts a listing in two ticked categories once", async () => {
+    await setUpCategories()
+    // A place filed under both cuisines is one place, and a join written
+    // without care would draw it twice and count it twice.
+    await place("Both", "both", [italian.id, portuguese.id])
+
+    const answer = await browse(alpha, {
+      categories: ["italian", "portuguese"],
+    })
+    expect(answer.listings.map((row) => row.slug)).toEqual(["both"])
+    expect(answer.total).toBe(1)
+  })
+
+  it("keeps the filters on page two", async () => {
+    await setUpCategories()
+    // Six is the smallest page a site may choose, so seven Italian places are
+    // what it takes to have a second page of them.
+    await saveDirectoryBrowseSettings(
+      alpha.id,
+      {
+        pageSize: 6,
+        defaultSort: "title",
+        browseTitle: "Alpha places",
+        browseIntro: "",
+        featuredFirst: false,
+      },
+      database
+    )
+    for (const index of [1, 2, 3, 4, 5, 6, 7]) {
+      await place(`Italian ${index}`, `italian-${index}`, [italian.id])
+    }
+    await place("Portuguese one", "portuguese-one", [portuguese.id])
+
+    const second = await readPublicBrowse(
+      alpha,
+      { sort: "title", page: 2, categories: ["italian"] },
+      database
+    )
+    // Page 2 of the whole directory would carry the Portuguese place. It is
+    // the total that proves the filter survived the page: eight listings on
+    // the site, seven of them Italian.
+    expect(second.listings.map((row) => row.slug)).toEqual(["italian-7"])
+    expect(second.total).toBe(7)
+  })
+
+  it("leaves out an unrated place when a rating is asked for", async () => {
+    await setUpCategories()
+    await place("Good", "good", [italian.id], 4.5)
+    await place("Fair", "fair", [italian.id], 3.5)
+    await place("Unrated", "unrated", [italian.id])
+
+    expect(
+      (await browse(alpha, { minRating: 4 })).listings.map((row) => row.slug)
+    ).toEqual(["good"])
+    expect(
+      (await browse(alpha, { minRating: 4.5 })).listings.map((row) => row.slug)
+    ).toEqual(["good"])
+  })
+
+  it("offers one group per parent, with the empty children left out", async () => {
+    await setUpCategories()
+    await place("Pasta", "pasta", [italian.id, annex.id])
+
+    expect((await browse(alpha)).filterGroups).toEqual([
+      {
+        id: expect.any(String),
+        name: "Cuisine",
+        options: [{ slug: "italian", name: "Italian", count: 1 }],
+      },
+      {
+        id: expect.any(String),
+        name: "Neighbourhood",
+        options: [{ slug: "annex", name: "Annex", count: 1 }],
+      },
+    ])
+  })
+
+  it("narrows a category page without offering its own group", async () => {
+    await setUpCategories()
+    await place("Pasta", "pasta", [italian.id, annex.id])
+    await place("Trattoria", "trattoria", [italian.id])
+
+    const page = await readPublicCategory(
+      alpha,
+      "italian",
+      { page: 1, categories: ["annex"] },
+      database
+    )
+    expect(page?.listings.map((row) => row.slug)).toEqual(["pasta"])
+    // Cuisine holds this page's own category, so it is not drawn again.
+    expect(page?.filterGroups.map((group) => group.name)).toEqual([
+      "Neighbourhood",
+    ])
   })
 })

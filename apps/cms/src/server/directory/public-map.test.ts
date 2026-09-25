@@ -214,7 +214,7 @@ describe("the pins are the same results as the grid", () => {
 
     const byCategory = await readDirectoryMap(
       alpha,
-      { category: "cafes" },
+      { categories: ["cafes"] },
       database
     )
     expect(byCategory?.pins.map((pin) => pin.slug)).toEqual(["corner-cup"])

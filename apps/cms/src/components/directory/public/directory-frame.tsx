@@ -20,9 +20,34 @@ import { PublicPageFrame } from "@/components/shell/public-page-frame"
  * `className`, which is the shell's supported way to say this. Nothing is
  * forked.
  */
-export function DirectoryFrame({ children }: { children: React.ReactNode }) {
+export function DirectoryFrame({
+  children,
+  hero,
+}: {
+  children: React.ReactNode
+  /**
+   * The band above the page's column, drawn across the whole content area
+   * rather than inside the 1152px column. Only the browse page has one.
+   *
+   * It is a child of the frame rather than of the column below it, because a
+   * band that stopped where the listings stop would read as a card and not as
+   * the top of the page.
+   */
+  hero?: React.ReactNode
+}) {
   return (
-    <PublicPageFrame className="place-items-start justify-items-center">
+    <PublicPageFrame
+      /*
+       * `grid-cols-1` is load-bearing, not tidying. The frame's grid sizes its
+       * one column to its widest child, and the browse page's band is wider
+       * than the page on purpose — without this the band drags the column out
+       * with it and the whole page ends up offset and scrolling sideways on a
+       * phone. `grid-cols-1` is `minmax(0, 1fr)`, so the column is the width
+       * of the page and the band overflows it quietly.
+       */
+      className="grid-cols-1 place-items-start justify-items-center"
+    >
+      {hero}
       {/*
        * 1152px: the width the old Eat Drink Toronto pages are drawn at, and
        * the width a listing's two columns need before the narrow one stops
