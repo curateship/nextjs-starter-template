@@ -15,6 +15,8 @@ import {
 } from "lucide-react"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
+import { SettingsCardSection } from "@/components/settings/settings-card-section"
+import { SettingsSwitchRow } from "@/components/settings/settings-switch-row"
 import { PublicUserPanelSettings } from "@/components/settings/public-user-panel-settings"
 import {
   DRAG_HANDLE_CLASS,
@@ -67,7 +69,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
 import {
   PUBLIC_BREADCRUMB_HINTS,
   PUBLIC_BREADCRUMB_KINDS,
@@ -141,25 +142,30 @@ export function PublicSiteSettings({
   onSaveConfig,
 }: PublicSiteSettingsProps) {
   return (
+    // Three cards, one per part of a public page: the header, the trail under
+    // it, and the footer. They were six until 25 Sep 2026; the menu and the
+    // user panel are the header, and the copyright line is the footer.
     <CardGroup>
-      <PublicLinkEditor
-        id="public-menu"
-        title="Public menu"
-        description="Drag search, links, and dropdown groups into the order they should appear beside the site name."
-        links={navigation}
-        onLinksChange={onNavigationChange}
-        onSaveConfig={onSaveConfig}
-        allowGroups
-      />
       <PublicHeaderSettings
         header={publicHeader}
         pageWidth={pageWidth}
         onChange={onPublicHeaderChange}
-      />
-      <PublicUserPanelSettings
-        panel={publicUserPanel}
-        onChange={onPublicUserPanelChange}
-      />
+      >
+        <PublicLinkEditor
+          id="public-menu"
+          title="Public menu"
+          description="Drag search, links, and dropdown groups into the order they should appear beside the site name."
+          links={navigation}
+          onLinksChange={onNavigationChange}
+          onSaveConfig={onSaveConfig}
+          allowGroups
+          asSection
+        />
+        <PublicUserPanelSettings
+          panel={publicUserPanel}
+          onChange={onPublicUserPanelChange}
+        />
+      </PublicHeaderSettings>
       <PublicBreadcrumbSettings
         breadcrumbs={publicBreadcrumbs}
         onChange={onPublicBreadcrumbsChange}
@@ -171,25 +177,25 @@ export function PublicSiteSettings({
         links={footer}
         onLinksChange={onFooterChange}
         onSaveConfig={onSaveConfig}
-      />
-      <CollapsibleSettingsCard
-        storageId="public-footer-copyright"
-        title="Copyright"
-        description="One short copyright line shown beneath the footer links. Leave it empty to show nothing."
       >
-        <div className="grid gap-2">
-          <FieldLabel htmlFor="public-footer-copyright-input">
-            Copyright
-          </FieldLabel>
-          <Input
-            id="public-footer-copyright-input"
-            value={footerCopyright}
-            maxLength={MAX_PUBLIC_FOOTER_COPYRIGHT_LENGTH}
-            placeholder="© Your site name"
-            onChange={(event) => onFooterCopyrightChange(event.target.value)}
-          />
-        </div>
-      </CollapsibleSettingsCard>
+        <SettingsCardSection
+          title="Copyright"
+          description="One short copyright line shown beneath the footer links. Leave it empty to show nothing."
+        >
+          <div className="grid gap-2">
+            <FieldLabel htmlFor="public-footer-copyright-input">
+              Copyright
+            </FieldLabel>
+            <Input
+              id="public-footer-copyright-input"
+              value={footerCopyright}
+              maxLength={MAX_PUBLIC_FOOTER_COPYRIGHT_LENGTH}
+              placeholder="© Your site name"
+              onChange={(event) => onFooterCopyrightChange(event.target.value)}
+            />
+          </div>
+        </SettingsCardSection>
+      </PublicLinkEditor>
     </CardGroup>
   )
 }
@@ -215,21 +221,16 @@ function PublicBreadcrumbSettings({
       contentClassName="grid gap-4"
     >
       {PUBLIC_BREADCRUMB_KINDS.map((kind) => (
-        <div key={kind} className="flex items-center justify-between gap-4">
-          <FieldLabel
-            htmlFor={`public-breadcrumbs-${kind}`}
-            hint={PUBLIC_BREADCRUMB_HINTS[kind]}
-          >
-            {PUBLIC_BREADCRUMB_LABELS[kind]}
-          </FieldLabel>
-          <Switch
-            id={`public-breadcrumbs-${kind}`}
-            checked={breadcrumbs[kind]}
-            onCheckedChange={(checked) =>
-              onChange({ ...breadcrumbs, [kind]: checked })
-            }
-          />
-        </div>
+        <SettingsSwitchRow
+          key={kind}
+          id={`public-breadcrumbs-${kind}`}
+          checked={breadcrumbs[kind]}
+          onCheckedChange={(checked) =>
+            onChange({ ...breadcrumbs, [kind]: checked })
+          }
+          label={PUBLIC_BREADCRUMB_LABELS[kind]}
+          hint={PUBLIC_BREADCRUMB_HINTS[kind]}
+        />
       ))}
     </CollapsibleSettingsCard>
   )
@@ -239,10 +240,13 @@ function PublicHeaderSettings({
   header,
   pageWidth,
   onChange,
+  children,
 }: {
   header: PublicHeader
   pageWidth: number
   onChange: (header: PublicHeader) => void
+  /** The menu and the user panel, drawn as sections under the layout fields. */
+  children?: React.ReactNode
 }) {
   const update = (patch: Partial<PublicHeader>) =>
     onChange({ ...header, ...patch })
@@ -254,19 +258,34 @@ function PublicHeaderSettings({
       description="Choose how the full public header behaves on every public page."
       contentClassName="grid gap-4"
     >
-      <div className="flex items-center justify-between gap-4">
-        <FieldLabel
-          htmlFor="public-header-sticky"
-          hint="Keeps the header at the top while a visitor scrolls."
-        >
-          Sticky header
-        </FieldLabel>
-        <Switch
-          id="public-header-sticky"
-          checked={header.sticky}
-          onCheckedChange={(sticky) => update({ sticky })}
+      <SettingsSwitchRow
+        id="public-header-sticky"
+        checked={header.sticky}
+        onCheckedChange={(sticky) => update({ sticky })}
+        label="Sticky header"
+        hint="Keeps the header at the top while a visitor scrolls."
+      />
+
+      <SettingsSwitchRow
+        id="public-header-full-width"
+        checked={header.fullWidth}
+        onCheckedChange={(fullWidth) => update({ fullWidth })}
+        label="Full width"
+        hint="Spreads the logo, menu and buttons across the whole window instead of stopping at a set width."
+      />
+
+      {header.fullWidth ? null : (
+        <NumberField
+          id="public-header-width"
+          label="Navigation width"
+          hint={`The widest the logo, menu and buttons spread, in pixels, from ${MIN_PUBLIC_HEADER_WIDTH} to ${MAX_PUBLIC_HEADER_WIDTH}. It follows the page width in Styling until you type a number here.`}
+          value={header.width ?? pageWidth}
+          min={MIN_PUBLIC_HEADER_WIDTH}
+          max={MAX_PUBLIC_HEADER_WIDTH}
+          inputClassName="w-full sm:w-32"
+          onChange={(width) => update({ width })}
         />
-      </div>
+      )}
 
       <div className="grid gap-2">
         <FieldLabel
@@ -332,32 +351,6 @@ function PublicHeaderSettings({
         </Select>
       </div>
 
-      <div className="flex items-center justify-between gap-4">
-        <FieldLabel
-          htmlFor="public-header-full-width"
-          hint="Spreads the logo, menu and buttons across the whole window instead of stopping at a set width."
-        >
-          Full width
-        </FieldLabel>
-        <Switch
-          id="public-header-full-width"
-          checked={header.fullWidth}
-          onCheckedChange={(fullWidth) => update({ fullWidth })}
-        />
-      </div>
-
-      {header.fullWidth ? null : (
-        <NumberField
-          id="public-header-width"
-          label="Navigation width"
-          hint={`The widest the logo, menu and buttons spread, in pixels, from ${MIN_PUBLIC_HEADER_WIDTH} to ${MAX_PUBLIC_HEADER_WIDTH}. It follows the page width in Styling until you type a number here.`}
-          value={header.width ?? pageWidth}
-          min={MIN_PUBLIC_HEADER_WIDTH}
-          max={MAX_PUBLIC_HEADER_WIDTH}
-          inputClassName="w-full sm:w-32"
-          onChange={(width) => update({ width })}
-        />
-      )}
 
       <div className="grid gap-2">
         <FieldLabel
@@ -382,6 +375,8 @@ function PublicHeaderSettings({
           </SelectContent>
         </Select>
       </div>
+
+      {children}
     </CollapsibleSettingsCard>
   )
 }
@@ -394,6 +389,8 @@ function PublicLinkEditor<T extends PublicNavigationItem>({
   onLinksChange,
   onSaveConfig,
   allowGroups = false,
+  asSection = false,
+  children,
 }: {
   id: string
   title: string
@@ -402,6 +399,10 @@ function PublicLinkEditor<T extends PublicNavigationItem>({
   onLinksChange: (links: T[]) => void
   onSaveConfig: () => Promise<boolean>
   allowGroups?: boolean
+  /** Drawn inside another card rather than as a card of its own. */
+  asSection?: boolean
+  /** Further sections inside this editor's card, under its links. */
+  children?: React.ReactNode
 }) {
   const [openIndex, setOpenIndex] = React.useState<number | null>(null)
   const [creatingGroup, setCreatingGroup] = React.useState(false)
@@ -471,108 +472,120 @@ function PublicLinkEditor<T extends PublicNavigationItem>({
       ? pendingDeleteItem
       : null
 
+  const editor = (
+    <DndContext
+      id={`custom-shell-${id}`}
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragEnd={handleDragEnd}
+    >
+      <SortableContext
+        items={itemIds}
+        strategy={horizontalListSortingStrategy}
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          {links.map((item, index) =>
+            isPublicNavigationSearchItem(item) ? (
+              <PublicSearchChip
+                key={itemIds[index]}
+                id={itemIds[index]}
+                visible={item.visible}
+                onVisibleChange={(visible) =>
+                  changeSearchVisibility(index, visible)
+                }
+              />
+            ) : isPublicNavigationGroup(item) ? (
+              <PublicGroupChip
+                key={itemIds[index]}
+                id={itemIds[index]}
+                group={item}
+                dialogOpen={openIndex === index}
+                onDialogOpenChange={(open) =>
+                  setOpenIndex(open ? index : null)
+                }
+                onChange={(group) => changeGroup(index, group)}
+                onDelete={() => setPendingDeleteIndex(index)}
+              />
+            ) : (
+              <PublicLinkChip
+                key={itemIds[index]}
+                id={itemIds[index]}
+                link={item}
+                linkNoun={linkNoun}
+                // The header menu is the one editor that allows groups
+                // and the one that chooses screens. Two facts, one flag,
+                // because only the header has either.
+                perDevice={allowGroups}
+                dialogOpen={openIndex === index}
+                onDialogOpenChange={(open) =>
+                  setOpenIndex(open ? index : null)
+                }
+                onChange={(patch) => changeLink(index, patch)}
+                onDelete={() => setPendingDeleteIndex(index)}
+                onSaveConfig={onSaveConfig}
+              />
+            )
+          )}
+          {allowGroups ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="flex size-13 shrink-0 items-center justify-center rounded-lg border bg-background transition-colors hover:border-muted-foreground/50 hover:bg-accent"
+                  aria-label="Add item to public menu"
+                  title="Add menu item"
+                >
+                  <PlusIcon className="h-4 w-4" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="min-w-44">
+                <DropdownMenuItem onSelect={addLink}>
+                  Add link
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setCreatingGroup(true)}>
+                  Add dropdown group
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <DisabledReason
+              disabled={footerAtLimit}
+              reason={`A ${title.toLowerCase()} can have up to ${MAX_PUBLIC_FOOTER_LINKS} links.`}
+            >
+              <button
+                type="button"
+                disabled={footerAtLimit}
+                onClick={addLink}
+                className="flex size-13 shrink-0 items-center justify-center rounded-lg border bg-background transition-colors hover:border-muted-foreground/50 hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+                aria-label={`Add link to ${title.toLowerCase()}`}
+                title="Add link"
+              >
+                <PlusIcon className="h-4 w-4" />
+              </button>
+            </DisabledReason>
+          )}
+        </div>
+      </SortableContext>
+    </DndContext>
+  )
+
   return (
     <>
-      <CollapsibleSettingsCard
-        storageId={id}
-        title={title}
-        description={description}
-      >
-        <DndContext
-          id={`custom-shell-${id}`}
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleDragEnd}
+      {asSection ? (
+        <SettingsCardSection title={title} description={description}>
+          {editor}
+        </SettingsCardSection>
+      ) : (
+        <CollapsibleSettingsCard
+          storageId={id}
+          title={title}
+          description={description}
+          contentClassName="space-y-4"
         >
-          <SortableContext
-            items={itemIds}
-            strategy={horizontalListSortingStrategy}
-          >
-            <div className="flex flex-wrap items-center gap-2">
-              {links.map((item, index) =>
-                isPublicNavigationSearchItem(item) ? (
-                  <PublicSearchChip
-                    key={itemIds[index]}
-                    id={itemIds[index]}
-                    visible={item.visible}
-                    onVisibleChange={(visible) =>
-                      changeSearchVisibility(index, visible)
-                    }
-                  />
-                ) : isPublicNavigationGroup(item) ? (
-                  <PublicGroupChip
-                    key={itemIds[index]}
-                    id={itemIds[index]}
-                    group={item}
-                    dialogOpen={openIndex === index}
-                    onDialogOpenChange={(open) =>
-                      setOpenIndex(open ? index : null)
-                    }
-                    onChange={(group) => changeGroup(index, group)}
-                    onDelete={() => setPendingDeleteIndex(index)}
-                  />
-                ) : (
-                  <PublicLinkChip
-                    key={itemIds[index]}
-                    id={itemIds[index]}
-                    link={item}
-                    linkNoun={linkNoun}
-                    // The header menu is the one editor that allows groups
-                    // and the one that chooses screens. Two facts, one flag,
-                    // because only the header has either.
-                    perDevice={allowGroups}
-                    dialogOpen={openIndex === index}
-                    onDialogOpenChange={(open) =>
-                      setOpenIndex(open ? index : null)
-                    }
-                    onChange={(patch) => changeLink(index, patch)}
-                    onDelete={() => setPendingDeleteIndex(index)}
-                    onSaveConfig={onSaveConfig}
-                  />
-                )
-              )}
-              {allowGroups ? (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      type="button"
-                      className="flex size-13 shrink-0 items-center justify-center rounded-lg border bg-background transition-colors hover:border-muted-foreground/50 hover:bg-accent"
-                      aria-label="Add item to public menu"
-                      title="Add menu item"
-                    >
-                      <PlusIcon className="h-4 w-4" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="min-w-44">
-                    <DropdownMenuItem onSelect={addLink}>
-                      Add link
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => setCreatingGroup(true)}>
-                      Add dropdown group
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              ) : (
-                <DisabledReason
-                  disabled={footerAtLimit}
-                  reason={`A ${title.toLowerCase()} can have up to ${MAX_PUBLIC_FOOTER_LINKS} links.`}
-                >
-                  <button
-                    type="button"
-                    disabled={footerAtLimit}
-                    onClick={addLink}
-                    className="flex size-13 shrink-0 items-center justify-center rounded-lg border bg-background transition-colors hover:border-muted-foreground/50 hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
-                    aria-label={`Add link to ${title.toLowerCase()}`}
-                    title="Add link"
-                  >
-                    <PlusIcon className="h-4 w-4" />
-                  </button>
-                </DisabledReason>
-              )}
-            </div>
-          </SortableContext>
-        </DndContext>
-      </CollapsibleSettingsCard>
+          {editor}
+          {children}
+        </CollapsibleSettingsCard>
+      )}
 
       <ConfirmDialog
         open={Boolean(pendingDeleteEntry)}

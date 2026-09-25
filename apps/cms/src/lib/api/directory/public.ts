@@ -30,7 +30,7 @@ import {
   fillFrontPagePosts,
   readDirectoryFrontPage,
 } from "@/server/directory/front-page"
-import type { DirectoryFrontPageData } from "@/lib/directory/front-page"
+import type { DirectoryFrontPageAnswer } from "@/lib/directory/front-page"
 import { answerForRequest } from "@/server/workspaces/host"
 import { geocodeDirectoryPlace } from "@/server/directory/geocode"
 import { requireAppOrigin, requestIp } from "@/server/auth/origin"
@@ -449,25 +449,34 @@ export function loadDirectoryCategory(input: {
 }
 
 const readDirectoryFrontPageFn = createServerFn({ method: "GET" }).handler(
-  async (): Promise<DirectoryFrontPageData | null> => {
+  async (): Promise<DirectoryFrontPageAnswer> => {
     const answer = await answerForRequest()
-    if (answer.kind !== "workspace") return null
+    // The platform's own address is not a site, and its root belongs to
+    // whoever runs it. Every other host falls through as "site", an address
+    // nobody has taken included, so it keeps behaving exactly as it did.
+    if (answer.kind === "platform") {
+      return {
+        host: "platform",
+        signedIn: Boolean(await findCurrentUser().catch(() => null)),
+      }
+    }
+    if (answer.kind !== "workspace") return { host: "site", page: null }
 
     const page = await readDirectoryFrontPage({
       id: answer.workspace.id,
       name: answer.workspace.name,
     })
-    if (!page) return null
+    if (!page) return { host: "site", page: null }
     const hasEvents = page.rows.some((row) => row.kind === "events")
     const hasDeals = page.rows.some((row) => row.kind === "deals")
     const hasPosts = page.rows.some((row) => row.kind === "posts")
-    if (!hasEvents && !hasDeals && !hasPosts) return page
+    if (!hasEvents && !hasDeals && !hasPosts) return { host: "site", page }
 
     // A row of events follows the Events page's own switch, a row of deals the
     // Deals page's, and a row of posts the Posts page's, for this visitor.
     // Every card on each of them leads to that page.
     const site = await visitorSite()
-    if (!site) return null
+    if (!site) return { host: "site", page: null }
     const isSignedIn = async () =>
       Boolean(await findCurrentUser().catch(() => null))
     const withEvents = hasEvents
@@ -477,7 +486,7 @@ const readDirectoryFrontPageFn = createServerFn({ method: "GET" }).handler(
           (await eventsAccessFor(site.id, isSignedIn)) !== null
         )
       : page
-    if (!withEvents) return null
+    if (!withEvents) return { host: "site", page: null }
     const withDeals = hasDeals
       ? await fillFrontPageDeals(
           site,
@@ -485,16 +494,24 @@ const readDirectoryFrontPageFn = createServerFn({ method: "GET" }).handler(
           (await dealsAccessFor(site.id, isSignedIn)) !== null
         )
       : withEvents
-    if (!withDeals || !hasPosts) return withDeals
-    return fillFrontPagePosts(
-      site,
-      withDeals,
-      (await postsAccessFor(site.id, isSignedIn)) !== null
-    )
+    if (!withDeals || !hasPosts) {
+      return { host: "site", page: withDeals ?? null }
+    }
+    return {
+      host: "site",
+      page: await fillFrontPagePosts(
+        site,
+        withDeals,
+        (await postsAccessFor(site.id, isSignedIn)) !== null
+      ),
+    }
   }
 )
 
-/** The visited site's optional listings home page, never the platform's. */
+/**
+ * What `/` is for the host that asked: the visited site's home page, or the
+ * word that this is the platform's own address and who is reading it.
+ */
 export function loadDirectoryFrontPage() {
   return readDirectoryFrontPageFn()
 }
@@ -504,6 +521,7 @@ export function loadDirectoryFrontPage() {
  * inferred from its loader, so re-exporting the rest would be a list to keep in
  * step with nothing reading it.
  */
+export type { DirectoryFrontPageAnswer } from "@/lib/directory/front-page"
 export type {
   PublicCategory,
   PublicClaimState,
