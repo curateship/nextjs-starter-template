@@ -218,7 +218,7 @@ function CategoryRoute() {
           <h2 id="posts" className="text-lg font-semibold">
             Posts about {category.name}
           </h2>
-          <PostGrid posts={posts} emptyMessage="" />
+          <PostGrid posts={posts} siteName={site.name} emptyMessage="" />
         </section>
       ) : null}
     </DirectoryFrame>

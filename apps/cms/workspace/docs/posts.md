@@ -88,6 +88,43 @@ A published post appears in all of these and a draft in none of them.
   alongside the category pages.
 - **Whole-site search:** matches the title, summary and body words, labelled
   "Post".
+- **A home page row:** "Latest posts" in Admin → Directory settings → Front
+  page, beside Listings, Category cards, Upcoming events and Current deals. It
+  takes a heading, an introduction, a category or "Every post", and how many,
+  1 to 12. The newest come first, and the row carries a "See all posts" button.
+  It is left off the page while there are no posts, and while this visitor may
+  not see the Posts page, because every card on it leads there.
+
+## The post card
+
+The same card draws on the Posts page, under a category and in a home page row.
+
+- **The photo fills the card** and the title sits in white over the bottom of
+  it, above a hairline with the site's name on the left and the published date
+  on the right. The category is a pill at the top left and the read time a chip
+  at the top right. A shade rises from the bottom of the picture, because a
+  pale photo would otherwise swallow the white words.
+- **The site's name is where a byline would be.** Posts have no author, and
+  Tyler chose the site's name over leaving the line empty on 25 Sep 2026.
+- **A post with no photo** keeps both chips above the title, then its summary,
+  then the same name and date under a hairline. Nothing is lost, it is just not
+  drawn on a picture.
+- **The photo is offered in three widths**, so a phone downloads the 400-pixel
+  copy rather than the full-size upload.
+
+## How long a post takes to read
+
+- **"4 min read" is the body's words at 200 a minute**, rounded to the nearest
+  minute and never below one, because "0 min read" says nothing and a post with
+  three words still has to be opened. Listing cards inside a post are not
+  counted.
+- **It is worked out when the post is saved** and kept in `read_minutes` on
+  `posts`, so drawing a page of cards never fetches twelve article bodies to
+  print twelve small numbers. The rule is in `src/lib/posts/read-time.ts`.
+- **Posts written before 25 Sep 2026 all say "1 min read"** until they are next
+  saved. The column started at 1 for every existing post rather than counting
+  words in SQL, which would not have agreed with the helper that counts them
+  everywhere else. Opening a post and saving it fixes its figure.
 
 ## The Posts page's on/off switch
 

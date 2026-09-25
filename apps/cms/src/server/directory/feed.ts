@@ -101,7 +101,7 @@ async function readDirectoryFeedUncached(
       title: post.title,
       path: `/posts/${post.slug}`,
       publishedAt: post.publishedAt,
-      category: post.category,
+      category: post.category?.name ?? null,
       description:
         post.summary.trim() || firstSentence(postBodyText(post.body)),
     })),

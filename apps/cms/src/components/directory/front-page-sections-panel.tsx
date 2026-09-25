@@ -35,6 +35,13 @@ import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { plural } from "@/lib/format/plural"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
+/** What a row filtered to no category says it shows, one word per kind. */
+const EVERY_LABELS = {
+  events: "Every event",
+  deals: "Every deal",
+  posts: "Every post",
+} as const
+
 /**
  * The rows a site's home page is made of, in the order they are drawn.
  *
@@ -139,29 +146,28 @@ export function FrontPageSectionsPanel({
                     {section.heading}
                   </button>
                   <p className="text-xs text-muted-foreground">
-                    {(section.kind === "events" || section.kind === "deals"
+                    {(section.kind === "events" ||
+                    section.kind === "deals" ||
+                    section.kind === "posts"
                       ? [
                           DIRECTORY_FRONT_PAGE_KIND_LABELS[section.kind],
-                          section.categoryName ??
-                            (section.kind === "events"
-                              ? "Every event"
-                              : "Every deal"),
+                          section.categoryName ?? EVERY_LABELS[section.kind],
                           `up to ${section.listingCount}`,
                         ]
                       : section.kind === "categories"
-                      ? [
-                          DIRECTORY_FRONT_PAGE_KIND_LABELS[section.kind],
-                          DIRECTORY_CATEGORY_SOURCE_LABELS[
-                            section.categorySource
-                          ],
-                          `up to ${section.listingCount}`,
-                        ]
-                      : [
-                          section.categoryName ?? "Every category",
-                          DIRECTORY_FRONT_PAGE_SORT_LABELS[section.sort],
-                          `${section.listingCount} ${plural(section.listingCount, "listing", "listings")}`,
-                          DIRECTORY_FRONT_PAGE_LAYOUT_LABELS[section.layout],
-                        ]
+                        ? [
+                            DIRECTORY_FRONT_PAGE_KIND_LABELS[section.kind],
+                            DIRECTORY_CATEGORY_SOURCE_LABELS[
+                              section.categorySource
+                            ],
+                            `up to ${section.listingCount}`,
+                          ]
+                        : [
+                            section.categoryName ?? "Every category",
+                            DIRECTORY_FRONT_PAGE_SORT_LABELS[section.sort],
+                            `${section.listingCount} ${plural(section.listingCount, "listing", "listings")}`,
+                            DIRECTORY_FRONT_PAGE_LAYOUT_LABELS[section.layout],
+                          ]
                     ).join(" · ")}
                   </p>
                 </div>

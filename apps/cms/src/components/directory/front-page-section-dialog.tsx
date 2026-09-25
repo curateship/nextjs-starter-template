@@ -76,6 +76,41 @@ import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 /** Every category is the empty filter, and a select cannot hold an empty value. */
 const EVERY_CATEGORY = "all"
 
+/**
+ * The wording for the three kinds of row that are a category and a count:
+ * events, deals and posts. One table rather than a ternary per sentence, which
+ * is what two kinds already cost and three would have made unreadable.
+ */
+const PICKED_ROW_WORDS = {
+  events: {
+    title: "Which events",
+    description:
+      "Published, public events that are not over yet, soonest first. The row is left off the page while nothing is coming up.",
+    categoryHint:
+      "Only events filed under this category, not its subcategories.",
+    everyLabel: "Every event",
+    plural: "events",
+  },
+  deals: {
+    title: "Which deals",
+    description:
+      "Published deals that are not over yet, newest first, from Admin → Promotions. The row is left off the page while there are none.",
+    categoryHint:
+      "Only deals at listings filed under this category, not its subcategories.",
+    everyLabel: "Every deal",
+    plural: "deals",
+  },
+  posts: {
+    title: "Which posts",
+    description:
+      "Published posts, newest first, from Admin → Posts. The row is left off the page while there are none, and while the Posts page is shut.",
+    categoryHint:
+      "Only posts filed under this category, not its subcategories.",
+    everyLabel: "Every post",
+    plural: "posts",
+  },
+} as const
+
 export function FrontPageSectionDialog({
   open,
   section,
@@ -125,6 +160,14 @@ export function FrontPageSectionDialog({
     )
     setLayout(section?.layout ?? "grid")
   }
+
+  // Null for the two kinds that are not a category and a count: a row of
+  // listings has its own sort and layout, and a row of category cards picks
+  // its categories rather than filtering by one.
+  const pickedWords =
+    kind === "events" || kind === "deals" || kind === "posts"
+      ? PICKED_ROW_WORDS[kind]
+      : null
 
   const countNumber = Number(count)
   const countInvalid =
@@ -218,8 +261,8 @@ export function FrontPageSectionDialog({
             </DialogTitle>
             <DialogDescription>
               A row on this site&apos;s home page: listings, a card per
-              category with its photo and how many listings are under it, or
-              the soonest upcoming events.
+              category, the soonest events, the deals that are on, or the newest
+              posts.
             </DialogDescription>
           </DialogHeader>
 
@@ -293,27 +336,17 @@ export function FrontPageSectionDialog({
               </CardContent>
             </Card>
 
-            {kind === "events" || kind === "deals" ? (
+            {pickedWords ? (
               <Card size="sm">
                 <CardHeader>
-                  <CardTitle>
-                    {kind === "events" ? "Which events" : "Which deals"}
-                  </CardTitle>
-                  <CardDescription>
-                    {kind === "events"
-                      ? "Published, public events that are not over yet, soonest first. The row is left off the page while nothing is coming up."
-                      : "Published deals that are not over yet, newest first, from Admin → Promotions. The row is left off the page while there are none."}
-                  </CardDescription>
+                  <CardTitle>{pickedWords.title}</CardTitle>
+                  <CardDescription>{pickedWords.description}</CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-4">
                   <div className="grid gap-2">
                     <FieldLabel
                       htmlFor="front-page-section-event-category"
-                      hint={
-                        kind === "events"
-                          ? "Only events filed under this category, not its subcategories."
-                          : "Only deals at listings filed under this category, not its subcategories."
-                      }
+                      hint={pickedWords.categoryHint}
                     >
                       Category
                     </FieldLabel>
@@ -330,7 +363,7 @@ export function FrontPageSectionDialog({
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value={EVERY_CATEGORY}>
-                          {kind === "events" ? "Every event" : "Every deal"}
+                          {pickedWords.everyLabel}
                         </SelectItem>
                         {categories.map((category) => (
                           <SelectItem key={category.id} value={category.id}>
@@ -343,7 +376,7 @@ export function FrontPageSectionDialog({
                   <div className="grid max-w-40 gap-2">
                     <FieldLabel
                       htmlFor="front-page-section-count"
-                      hint={`At most this many ${kind === "events" ? "events" : "deals"}, between ${DIRECTORY_FRONT_PAGE_COUNT_MIN} and ${DIRECTORY_FRONT_PAGE_COUNT_MAX}.`}
+                      hint={`At most this many ${pickedWords.plural}, between ${DIRECTORY_FRONT_PAGE_COUNT_MIN} and ${DIRECTORY_FRONT_PAGE_COUNT_MAX}.`}
                     >
                       How many
                     </FieldLabel>
@@ -402,134 +435,133 @@ export function FrontPageSectionDialog({
               </Card>
             ) : (
               <>
-            <Card size="sm">
-              <CardHeader>
-                <CardTitle>Which listings</CardTitle>
-                <CardDescription>
-                  {DIRECTORY_FRONT_PAGE_SORT_HINTS[sort]}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="grid gap-4">
-                <div className="grid gap-2">
-                  <FieldLabel
-                    htmlFor="front-page-section-category"
-                    hint="A row whose category has nothing published in it is left off the page entirely."
-                  >
-                    Category
-                  </FieldLabel>
-                  <Select
-                    value={categoryId}
-                    disabled={saving}
-                    onValueChange={setCategoryId}
-                  >
-                    <SelectTrigger
-                      id="front-page-section-category"
-                      className="w-full sm:w-fit"
-                    >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={EVERY_CATEGORY}>
-                        Every category
-                      </SelectItem>
-                      {categories.map((category) => (
-                        <SelectItem key={category.id} value={category.id}>
-                          {category.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                <Card size="sm">
+                  <CardHeader>
+                    <CardTitle>Which listings</CardTitle>
+                    <CardDescription>
+                      {DIRECTORY_FRONT_PAGE_SORT_HINTS[sort]}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="grid gap-4">
+                    <div className="grid gap-2">
+                      <FieldLabel
+                        htmlFor="front-page-section-category"
+                        hint="A row whose category has nothing published in it is left off the page entirely."
+                      >
+                        Category
+                      </FieldLabel>
+                      <Select
+                        value={categoryId}
+                        disabled={saving}
+                        onValueChange={setCategoryId}
+                      >
+                        <SelectTrigger
+                          id="front-page-section-category"
+                          className="w-full sm:w-fit"
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={EVERY_CATEGORY}>
+                            Every category
+                          </SelectItem>
+                          {categories.map((category) => (
+                            <SelectItem key={category.id} value={category.id}>
+                              {category.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-                <div className="grid gap-2">
-                  <FieldLabel htmlFor="front-page-section-sort">
-                    Order
-                  </FieldLabel>
-                  <Select
-                    value={sort}
-                    disabled={saving}
-                    onValueChange={(value) =>
-                      setSort(value as DirectoryFrontPageSort)
-                    }
-                  >
-                    <SelectTrigger
-                      id="front-page-section-sort"
-                      className="w-full sm:w-fit"
-                    >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {DIRECTORY_FRONT_PAGE_SORTS.map((value) => (
-                        <SelectItem key={value} value={value}>
-                          {DIRECTORY_FRONT_PAGE_SORT_LABELS[value]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                    <div className="grid gap-2">
+                      <FieldLabel htmlFor="front-page-section-sort">
+                        Order
+                      </FieldLabel>
+                      <Select
+                        value={sort}
+                        disabled={saving}
+                        onValueChange={(value) =>
+                          setSort(value as DirectoryFrontPageSort)
+                        }
+                      >
+                        <SelectTrigger
+                          id="front-page-section-sort"
+                          className="w-full sm:w-fit"
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {DIRECTORY_FRONT_PAGE_SORTS.map((value) => (
+                            <SelectItem key={value} value={value}>
+                              {DIRECTORY_FRONT_PAGE_SORT_LABELS[value]}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-                <div className="grid max-w-40 gap-2">
-                  <FieldLabel
-                    htmlFor="front-page-section-count"
-                    hint={`Between ${DIRECTORY_FRONT_PAGE_COUNT_MIN} and ${DIRECTORY_FRONT_PAGE_COUNT_MAX}.`}
-                  >
-                    How many
-                  </FieldLabel>
-                  <Input
-                    id="front-page-section-count"
-                    type="number"
-                    min={DIRECTORY_FRONT_PAGE_COUNT_MIN}
-                    max={DIRECTORY_FRONT_PAGE_COUNT_MAX}
-                    value={count}
-                    disabled={saving}
-                    aria-invalid={countInvalid || undefined}
-                    onChange={(event) => setCount(event.target.value)}
-                  />
-                </div>
-              </CardContent>
-            </Card>
+                    <div className="grid max-w-40 gap-2">
+                      <FieldLabel
+                        htmlFor="front-page-section-count"
+                        hint={`Between ${DIRECTORY_FRONT_PAGE_COUNT_MIN} and ${DIRECTORY_FRONT_PAGE_COUNT_MAX}.`}
+                      >
+                        How many
+                      </FieldLabel>
+                      <Input
+                        id="front-page-section-count"
+                        type="number"
+                        min={DIRECTORY_FRONT_PAGE_COUNT_MIN}
+                        max={DIRECTORY_FRONT_PAGE_COUNT_MAX}
+                        value={count}
+                        disabled={saving}
+                        aria-invalid={countInvalid || undefined}
+                        onChange={(event) => setCount(event.target.value)}
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
 
-            <Card size="sm">
-              <CardHeader>
-                <CardTitle>How it draws</CardTitle>
-                <CardDescription>
-                  {mapAvailable
-                    ? "A map only plots listings that have a location."
-                    : "The map choice appears once this site has the map switched on and a map key saved, under Map view above."}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="grid gap-4">
-                <div className="grid gap-2">
-                  <FieldLabel htmlFor="front-page-section-layout">
-                    Arrangement
-                  </FieldLabel>
-                  <Select
-                    value={layout}
-                    disabled={saving}
-                    onValueChange={(value) =>
-                      setLayout(value as DirectoryFrontPageLayout)
-                    }
-                  >
-                    <SelectTrigger
-                      id="front-page-section-layout"
-                      className="w-full sm:w-fit"
-                    >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {layouts.map((value) => (
-                        <SelectItem key={value} value={value}>
-                          {DIRECTORY_FRONT_PAGE_LAYOUT_LABELS[value]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </CardContent>
-            </Card>
+                <Card size="sm">
+                  <CardHeader>
+                    <CardTitle>How it draws</CardTitle>
+                    <CardDescription>
+                      {mapAvailable
+                        ? "A map only plots listings that have a location."
+                        : "The map choice appears once this site has the map switched on and a map key saved, under Map view above."}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="grid gap-4">
+                    <div className="grid gap-2">
+                      <FieldLabel htmlFor="front-page-section-layout">
+                        Arrangement
+                      </FieldLabel>
+                      <Select
+                        value={layout}
+                        disabled={saving}
+                        onValueChange={(value) =>
+                          setLayout(value as DirectoryFrontPageLayout)
+                        }
+                      >
+                        <SelectTrigger
+                          id="front-page-section-layout"
+                          className="w-full sm:w-fit"
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {layouts.map((value) => (
+                            <SelectItem key={value} value={value}>
+                              {DIRECTORY_FRONT_PAGE_LAYOUT_LABELS[value]}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </CardContent>
+                </Card>
               </>
             )}
-
           </DialogBody>
 
           <DialogFooter>
