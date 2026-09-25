@@ -25,6 +25,10 @@ import {
   type PublicBreadcrumbs,
 } from "@/lib/pages/public-breadcrumbs"
 import {
+  createDefaultPublicUserPanel,
+  type PublicUserPanel,
+} from "@/lib/pages/public-user-panel"
+import {
   createDefaultPublicSeo,
   createDefaultPublicSystemCopy,
   DEFAULT_SOCIAL_CARD_TYPE,
@@ -494,6 +498,8 @@ export type ShellConfig = {
   publicHeader: PublicHeader
   /** Which kinds of public page show the "Home / Page" trail. */
   publicBreadcrumbs: PublicBreadcrumbs
+  /** The public header's Sign in and Register buttons and signed-in links. */
+  publicUserPanel: PublicUserPanel
   /** Public font and corners, plus the active public site's brand colour. */
   publicTheme: PublicTheme
   /** The admin's own saved public looks, applied from the Styling tab. */
@@ -757,6 +763,7 @@ export function createDefaultShellConfig(): ShellConfig {
     publicFooterCopyright: "",
     publicHeader: createDefaultPublicHeader(),
     publicBreadcrumbs: createDefaultPublicBreadcrumbs(),
+    publicUserPanel: createDefaultPublicUserPanel(),
     publicTheme: createDefaultPublicTheme(),
     publicThemePresets: [],
     publicFont: null,

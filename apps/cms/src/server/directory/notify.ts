@@ -149,3 +149,40 @@ export async function tellAdminsAboutEventSubmission(
     // The suggestion is in the queue either way.
   }
 }
+
+/**
+ * A deal or a change to one that a listing's owner sent from My listings.
+ * Wrapped whole for the same reason as an event suggestion: the request is
+ * already saved, and a failed admin lookup must not answer the owner with a
+ * failure.
+ */
+export async function tellAdminsAboutDealRequest(
+  workspaceId: string,
+  dealTitle: string,
+  listingTitle: string,
+  kind: "new" | "change",
+  database: CustomShellDb = db
+) {
+  try {
+    await notifyAdmins(
+      {
+        workspaceId,
+        subject:
+          kind === "new"
+            ? `New deal from the owner of ${listingTitle}: ${dealTitle}`
+            : `A change to ${dealTitle} from the owner of ${listingTitle}`,
+        lines: [
+          kind === "new"
+            ? `The owner of ${listingTitle} sent ${dealTitle} from My listings. Approving it publishes it.`
+            : `The owner of ${listingTitle} sent new wording for ${dealTitle}. The live deal stays as it is until you approve it.`,
+          "It is waiting in the deals from owners queue.",
+        ],
+        url: appUrlFor("/admin/promotion-requests"),
+      },
+      await adminEmails(database),
+      database
+    )
+  } catch {
+    // The request is in the queue either way.
+  }
+}

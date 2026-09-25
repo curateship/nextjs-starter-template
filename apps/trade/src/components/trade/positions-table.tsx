@@ -74,6 +74,7 @@ import {
   type TradePosition,
 } from "@/lib/trade/paper"
 import type { SmartOrder } from "@/lib/trade/smart-plan"
+import type { CopyNote } from "@/lib/trade/copy/copy-rules"
 import { cn } from "@/lib/utils"
 import { panelSectionBarClassName, stickyPanelSectionBarClassName } from "@/lib/layout/panel-section-bar"
 
@@ -217,6 +218,72 @@ const TRADE_COLUMNS: ColumnSpec<TradeColumn>[] = [
   { key: "pnl", label: "Made / lost" },
   { key: "ending", label: "How it ended" },
 ]
+
+/**
+ * A copy of another trader that did not happen, in the copier's Journal: the
+ * coin, the wallet, when, and the reason in plain words. Not a trade, so the
+ * figures are blank and it cannot be ticked; the bin takes the row away.
+ */
+function CopyNoteRow({
+  note,
+  market,
+  wallet,
+  readOnly,
+  busy,
+  onSelectMarket,
+  onRemove,
+}: {
+  note: CopyNote
+  market: MarketRow | null
+  wallet: string
+  readOnly: boolean
+  busy: boolean
+  onSelectMarket?: (marketKey: string) => void
+  onRemove?: (note: CopyNote) => void
+}) {
+  return (
+    <TableRow className="border-t">
+      {readOnly ? null : <td data-column="select" className="w-8 px-3 py-2" />}
+      <MarketCell
+        marketKey={note.marketKey}
+        market={market}
+        onSelect={onSelectMarket ? () => onSelectMarket(note.marketKey) : undefined}
+      />
+      <WalletCell wallet={wallet} />
+      <Cell className="text-muted-foreground">&mdash;</Cell>
+      <Cell className="text-muted-foreground">
+        {formatDateTime(new Date(note.at))}
+      </Cell>
+      <Cell>&mdash;</Cell>
+      <Cell>&mdash;</Cell>
+      <Cell>&mdash;</Cell>
+      <Cell>&mdash;</Cell>
+      <Cell>&mdash;</Cell>
+      <Cell>
+        <TradeBadge tone="alarm">
+          {note.traderHandle ? `Copy of @${note.traderHandle} skipped` : "Copy skipped"}
+        </TradeBadge>
+        <span className="mt-1 block max-w-96 text-xs whitespace-normal text-muted-foreground">
+          {note.note}
+        </span>
+      </Cell>
+      {readOnly ? null : (
+        <td data-column="actions" className="px-3 py-2 text-left whitespace-nowrap">
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            disabled={busy}
+            aria-label={`Remove the skipped ${marketSymbol(note.marketKey)} copy from the Journal`}
+            onClick={() => onRemove?.(note)}
+          >
+            <Trash2Icon className="size-4" />
+          </Button>
+        </td>
+      )}
+    </TableRow>
+  )
+}
 
 /** Orders one list of rows by one of its columns, smallest or largest first. */
 function sortRows<Row>(
@@ -1216,10 +1283,15 @@ export function TradesTable({
   onTickVisible,
   tickAllState,
   readOnly = false,
+  copyNotes = [],
+  onRemoveCopyNote,
 }: {
   trades: readonly LiveTrade[]
   /** Saved fills that cannot be paired into a finished trade. */
   unmatchedHistory?: readonly UnmatchedTradeHistory[]
+  /** Copies of another trader that did not happen, each with its reason. */
+  copyNotes?: readonly CopyNote[]
+  onRemoveCopyNote?: (note: CopyNote) => void
   markets: ReadonlyMap<string, MarketRow>
   walletName: (walletId: string) => string
   /** The trade drawn on the chart right now, or null. */
@@ -1265,6 +1337,7 @@ export function TradesTable({
     const journalRows: Array<
       | { kind: "finished"; id: string; trade: LiveTrade }
       | { kind: "unmatched"; id: string; history: UnmatchedTradeHistory }
+      | { kind: "copyNote"; id: string; note: CopyNote }
     > = [
       ...trades.map((trade) => ({
         kind: "finished" as const,
@@ -1276,8 +1349,34 @@ export function TradesTable({
         id: history.id,
         history,
       })),
+      ...copyNotes.map((note) => ({
+        kind: "copyNote" as const,
+        id: `copy-note:${note.id}`,
+        note,
+      })),
     ]
     return sortRows(journalRows, direction, (row) => {
+      // A skipped copy has a coin, a wallet and a moment, and nothing else.
+      if (row.kind === "copyNote") {
+        switch (sort) {
+          case "market":
+            return marketSymbol(row.note.marketKey)
+          case "wallet":
+            return walletName(row.note.walletId)
+          case "side":
+            return ""
+          case "ending":
+            return "Copy skipped"
+          case "held":
+          case "entry":
+          case "exit":
+          case "size":
+          case "pnl":
+            return 0
+          default:
+            return row.note.at
+        }
+      }
       const trade = row.kind === "finished" ? row.trade : null
       const history = row.kind === "unmatched" ? row.history : null
       const marketKey = trade?.marketKey ?? history!.marketKey
@@ -1317,10 +1416,12 @@ export function TradesTable({
           return trade?.openedAt ?? history!.firstAt
       }
     })
-  }, [trades, unmatchedHistory, direction, sort, walletName])
+  }, [trades, unmatchedHistory, copyNotes, direction, sort, walletName])
 
   const listedIds = rows.flatMap((row) =>
-    row.kind === "finished" || !row.history.open ? [row.id] : []
+    row.kind === "finished" || (row.kind === "unmatched" && !row.history.open)
+      ? [row.id]
+      : []
   )
 
   return (
@@ -1431,6 +1532,11 @@ export function TradesTable({
                   {overrodeNote(row.trade.overrode)}
                 </span>
               ) : null}
+              {row.trade.copiedFrom ? (
+                <span className="mt-1 block text-xs whitespace-nowrap text-muted-foreground">
+                  Copied from @{row.trade.copiedFrom}
+                </span>
+              ) : null}
             </Cell>
             {/* Marked as the actions column so a press on the bin — or on the
                 blank around a greyed-out one — never also fires the row and
@@ -1453,6 +1559,17 @@ export function TradesTable({
               </td>
             )}
           </TableRow>
+        ) : row.kind === "copyNote" ? (
+          <CopyNoteRow
+            key={row.id}
+            note={row.note}
+            market={markets.get(row.note.marketKey) ?? null}
+            wallet={walletName(row.note.walletId)}
+            readOnly={readOnly}
+            busy={busy}
+            onSelectMarket={onSelectMarket}
+            onRemove={onRemoveCopyNote}
+          />
         ) : (
           <TableRow key={row.id} className="border-t">
             {readOnly ? null : (

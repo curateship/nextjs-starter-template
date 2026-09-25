@@ -158,6 +158,14 @@ vi.mock("@/server/trade/price-alerts", () => ({
 }))
 
 vi.mock("@/server/trade/drawing-alerts", () => ({ checkDrawingAlerts: async () => { closeOnlyWork.alerts += 1 } }))
+// Hearing copied traders has its own suite. Here it is only counted, so the
+// pass is not loading and querying the copy code against a pretend database.
+const heardTraders = vi.hoisted(() => ({ passes: 0 }))
+vi.mock("@/server/trade/copy-engine", () => ({
+  hearCopiedTraders: async () => {
+    heardTraders.passes += 1
+  },
+}))
 
 const leader = vi.hoisted(() => ({ asked: 0 }))
 vi.mock("@/server/trade/leadership", () => ({
@@ -268,6 +276,16 @@ describe("the server's ladder job", () => {
 
     expect(alertWork.checks).toBe(1)
     expect(settled.count).toBe(0)
+  })
+
+  it("keeps copied traders heard on a pass with no wallet work", async () => {
+    walletRows.value = []
+    flowRows.value = []
+    heardTraders.passes = 0
+
+    await advanceWorkingLadders()
+
+    expect(heardTraders.passes).toBe(1)
   })
 
   it("reads twenty wallets in one batch", async () => {

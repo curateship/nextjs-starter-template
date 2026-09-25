@@ -5,6 +5,7 @@ import { DirectoryFrame } from "@/components/directory/public/directory-frame"
 import { ListingGrid } from "@/components/directory/public/listing-grid"
 import { ListingMap } from "@/components/directory/public/listing-map"
 import { EventList } from "@/components/events/public/event-list"
+import { DealGrid } from "@/components/promotions/public/deal-grid"
 import { Button } from "@/components/ui/button"
 import type {
   DirectoryFrontPageData,
@@ -99,6 +100,22 @@ function FrontPageRow({
                 preload="intent"
               >
                 See all events
+              </Link>
+            </Button>
+          </div>
+        </>
+      ) : row.kind === "deals" ? (
+        <>
+          {/* Never empty: a row with no live deal is dropped on the server. */}
+          <DealGrid deals={row.deals} />
+          <div>
+            <Button asChild variant="outline">
+              <Link
+                to="/deals"
+                search={row.categorySlug ? { category: row.categorySlug } : {}}
+                preload="intent"
+              >
+                See all deals
               </Link>
             </Button>
           </div>

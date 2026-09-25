@@ -1,7 +1,11 @@
+import { pageVisibility } from "@/lib/pages/page-visibility"
+import { pageForPath } from "@/lib/pages/page-registry"
 import type { AppServerOptions } from "@/server/app-options"
+import { readWorkspacePageOverrides } from "@/server/content/pages"
 import { backtestTick } from "@/server/trade/backtest/worker"
 import { refreshCandleStore } from "@/server/trade/candle-refresh"
 import { monitorTradingEngine } from "@/server/trade/engine-health"
+import { listSearchableProfilePaths } from "@/server/trade/public-profiles"
 import {
   ensureLadderLoop,
   LADDER_WORKER_NAME,
@@ -28,6 +32,21 @@ import {
  * door nobody is told about.
  */
 export const appServerOptions: AppServerOptions = {
+  sitemap: {
+    /**
+     * Public trader profiles whose member ticked "Let search engines list
+     * me". A profile follows the Traders page's switch, the same way it is
+     * served, so switching that page off takes them out of the sitemap too.
+     */
+    extraEntries: async (workspaceId) => {
+      const traders = pageForPath("/traders")
+      const overrides = await readWorkspacePageOverrides(workspaceId)
+      if (!traders || pageVisibility(overrides, traders) !== "everyone") {
+        return []
+      }
+      return listSearchableProfilePaths()
+    },
+  },
   background: {
     workers: [
       {

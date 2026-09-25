@@ -51,6 +51,10 @@ export const appOpenEndpoints: Record<string, string> = {
     "The Events page is a public page, so its list and month of published events have to be readable without an account. It answers for the visited site only, and returns nothing while the site has the Events page switched off or kept for members and the reader is signed out.",
   "events/public.ts:readEventFn":
     "An event's own page is public. It answers with a published event on the visited site only, so a draft is missing rather than hidden, and it follows the Events page's on/off switch before reading anything.",
+  "promotions/public.ts:readDealsPageFn":
+    "The Deals page is a public page, so its list of published deals has to be readable without an account. It answers for the visited site only, leaves out drafts and deals at draft listings, and returns nothing while the site has the Deals page switched off or kept for members and the reader is signed out.",
+  "promotions/public.ts:readDealFn":
+    "A deal's own page is public. It answers with a published deal at a published listing on the visited site only, so a draft is missing rather than hidden, follows the Deals page's on/off switch before reading anything, and leaves the code out once the deal has ended.",
   "directory/public-profile.ts:readPublicSavedProfileFn":
     "A person can share the saved lists they explicitly made public, and this returns only those lists and published listings on the visited site.",
   "directory/submissions.ts:readSubmissionFormFn":
@@ -67,6 +71,10 @@ export const appOpenEndpoints: Record<string, string> = {
     "Anybody may say an event is wrong, which is the whole feature: the visitor who turned up to find nothing happening has no account. It still checks the request came from this app's own pages and that the Events page is open to them, shares the listing reports' limits per page, per address and per site, writes a row no visitor can ever read back, and changes nothing on the event it is about.",
   "events/sign-ups.ts:signUpFn":
     "Anybody may sign up for a free event with a name and an email, which is the whole feature: the visitor has no account. It still checks the request came from this app's own pages and that the Events page is open to them, takes eight sign-ups an hour from one address per site, and only ever answers with words, never with who else is on the list.",
+  "promotions/reports.ts:reportDealProblemFn":
+    "Anybody may say a deal is wrong, which is the whole feature: the visitor told at the counter that the deal ended last week has no account. It still checks the request came from this app's own pages and that the Deals page is open to them, shares the listing and event reports' limits per page, per address and per site, writes a row no visitor can ever read back, and changes nothing on the deal it is about.",
+  "promotions/claims.ts:claimFn":
+    "Anybody may claim a deal with a name and an email, which is the whole feature: the visitor has no account. It still checks the request came from this app's own pages and that the Deals page is open to them, takes eight claims an hour from one address per site, counts places under a row lock, and never shows a code for an email that has already claimed, so typing someone else's email gets nobody their code.",
   "directory/reports.ts:reportListingProblemFn":
     "Anybody may say a listing is wrong, which is the whole feature — the visitor who found the shop shut has no account. It still checks the request came from this app's own pages, is rate limited per listing, per address and per site, writes a row no visitor can ever read back, and changes nothing on the listing it is about.",
 }

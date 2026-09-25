@@ -40,6 +40,12 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - [stickers.md](stickers.md) — the Text panel's stickers: each person's own
   emoji and pictures, where the list is stored, where a sticker lands, and
   what happens to a project whose picture sticker's file is deleted.
+- [text-fonts.md](text-fonts.md) — the four faces video text and carousel
+  slides can be drawn in, their licences, how the preview and the export stay
+  in step, and what the extra files cost to download.
+- [carousel-brand-kit.md](carousel-brand-kit.md) — what the carousel studio
+  takes from the brand kit: the Brand panel, the kit's colours in every colour
+  picker, placing the logo, and what a slide still sets for itself.
 - [caption-look.md](caption-look.md) — the caption look saved in the brand
   kit, which captions start from it, and why captions already on a project
   never change.
@@ -80,6 +86,9 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - [saved-frames.md](saved-frames.md) — keeping one frame of an export or of
   the editor as a picture: where the two buttons are, what size the picture
   is, where it lands, and when the editor picture and the preview differ.
+- [media-panel.md](media-panel.md) — the editor's Media panel: the + menu
+  that uploads files or makes a collection, and why only dragging, never a
+  click, puts a file on the timeline.
 - [media-collections.md](media-collections.md) — named groups of your own
   files in the editor's Media panel: whose they are, how to fill them many at
   a time, why deleting one never deletes a file, and when another tab sees a
@@ -98,6 +107,10 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   seconds, what Google's Veo 3.1 offers for a longer shot, and what it costs.
 - [media-addresses.md](media-addresses.md) — where the address of a picture or a
   clip comes from, and why every call that asks for one waits for the answer.
+- [viral-search.md](viral-search.md) — the Viral page's YouTube keyword search:
+  where the API key goes, what one search costs out of the free 10,000 daily
+  units, why Shorts means 3 minutes or less, and how every search is kept so
+  reopening it is free.
 
 The AI tools, the credit ledger and the rest of the export and render path were
 built before this folder existed, and none of them is written up.

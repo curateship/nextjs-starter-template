@@ -61,6 +61,20 @@ export const appOptions: AppOptions = {
         id: "hide-pnl",
         component: () => import("@/components/trade/hide-pnl-setting"),
       },
+      {
+        /**
+         * The member's public trader profile: the page at `/t/<handle>` that
+         * shows what their real wallets made. Everybody's own, so a member
+         * gets it as well as an admin.
+         */
+        id: "public-profile",
+        component: () => import("@/components/social/public-profile-setting"),
+      },
+      {
+        /** The page of traders the member follows or copies. Everybody's own. */
+        id: "following",
+        component: () => import("@/components/social/following-setting"),
+      },
     ],
   },
   settings: {

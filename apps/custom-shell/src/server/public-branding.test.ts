@@ -133,7 +133,7 @@ describe("public site branding", () => {
   })
 
 
-  it("carries the app-wide public header layout into public branding", async () => {
+  it("carries the app-wide public header layout and user panel into public branding", async () => {
     const timestamp = now()
     await database.insert(customShellSettings).values({
       key: DEFAULT_SETTINGS_KEY,
@@ -142,6 +142,10 @@ describe("public site branding", () => {
           sticky: true,
           menuAlignment: "center",
           logoSize: "small",
+        },
+        publicUserPanel: {
+          login: { label: "Log in", href: "/login", style: "ghost" },
+          links: [{ id: "profile", label: "Profile", href: "/account" }],
         },
       },
       createdAt: timestamp,
@@ -154,7 +158,18 @@ describe("public site branding", () => {
       sticky: true,
       menuAlignment: "center",
       logoSize: "small",
+      fullWidth: false,
+      width: null,
+      blur: "medium",
     })
+    expect(branding.publicUserPanel.login).toMatchObject({
+      label: "Log in",
+      style: "ghost",
+    })
+    expect(branding.publicUserPanel.register.label).toBe("Create an account")
+    expect(branding.publicUserPanel.links).toEqual([
+      { id: "profile", label: "Profile", href: "/account", icon: "" },
+    ])
     expect(
       shellGlobalsForWrite({
         publicHeader: {
@@ -167,6 +182,9 @@ describe("public site branding", () => {
       sticky: true,
       menuAlignment: "center",
       logoSize: "large",
+      fullWidth: false,
+      width: null,
+      blur: "medium",
     })
   })
 

@@ -91,6 +91,24 @@ screen: anything not written there has not been agreed yet.
 - `browser-tab-titles.md` — how each Trade screen names its browser tab, and
   how chart tabs include their market and exchange.
 
+## social/ — what other people see
+
+- `public-profiles.md` — the public trader page at `/t/<handle>` and the
+  `/traders` leaderboard: every real wallet counts and none can leave, the
+  permanent record binning and deleting cannot touch, the ownership check
+  and what "checked by Trade" means, how far back each exchange goes, the
+  figures and the leaderboard minimums.
+- `copy-a-trader.md` — following and copying a trader: who can be copied, how
+  a trade is heard and copied, every skip and pause rule, the 0.1% fee and the
+  trader's half, the fee on each exchange with its source, the fee record and
+  how traders are paid.
+
+## free-tools/ — the free public tools
+
+- `tools-page.md` — the `/tools` page, the one list of tools in
+  `src/lib/free-tools/registry.ts`, what the shipped flag hides, how a new tool
+  gets onto the page, and where an admin adds the Free tools menu link.
+
 ## charts/ — the chart itself
 
 - `drawing.md` — levels, trendlines and TradingView-style fib retracements, by mouse and by touch.
@@ -161,8 +179,8 @@ screen: anything not written there has not been agreed yet.
   entry avoids a stale missing-position answer.
 - `take-profit-levels.md` — up to three Exit targets per position, including
   exits at a loss, their messages, and safe replacement, readback and fills.
-- `part-close.md` — selling some of a position instead of all of it: why a part
-  is chased as a maker where all of it is not, safe retries after a refused
+- `part-close.md` — closing all or part of a position at market or with a
+  limit that follows the price, the default for each, safe retries after a refused
   waiting price, progress notices, and what happens to the stop on the rest.
 - `stopping-flow-ladders.md` — how Stop finds every ladder a flow owns, cancels
   real exchange orders, blocks a coin hunt already in flight, and reports a

@@ -4,6 +4,19 @@ import { useHiddenPnlClass } from "@/lib/trade/hide-pnl"
 import { cn } from "@/lib/utils"
 
 /**
+ * True inside a public page. The Hide P&L switch is about somebody's own
+ * screen, and a public profile's figures are published on purpose, so they
+ * are never blurred there, even for a signed-in visitor with the switch on.
+ */
+const PublicFigures = React.createContext(false)
+
+export function ShowPublicFigures({ children }: { children: React.ReactNode }) {
+  return (
+    <PublicFigures.Provider value={true}>{children}</PublicFigures.Provider>
+  )
+}
+
+/**
  * A figure that says what was made or lost, behind frosted glass when the
  * header's Hide profit and loss switch is on.
  *
@@ -18,8 +31,13 @@ export function PnlAmount({
   children,
   ...props
 }: React.ComponentProps<"span">) {
+  const hiddenClass = useHiddenPnlClass()
+  const published = React.useContext(PublicFigures)
   return (
-    <span className={cn(className, useHiddenPnlClass())} {...props}>
+    <span
+      className={cn(className, published ? undefined : hiddenClass)}
+      {...props}
+    >
       {children}
     </span>
   )

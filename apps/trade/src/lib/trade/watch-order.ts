@@ -87,9 +87,11 @@ const watchPlanSchema = z.object({
    * Part closes size each replacement from what remains held and follow the
    * price post-only. Ordinary watched Long and Short orders use fixed limits.
    *
-   * It pairs with `chaseGiveUp` at zero, which means it never gives up. That
-   * is deliberate and it is the app's existing rule: being half out of a
-   * position is worse than any price the rest would have got.
+   * A close pairs it with `chaseGiveUp` at zero, which means it never gives
+   * up. That is deliberate and it is the app's existing rule: being half out
+   * of a position is worse than any price the rest would have got. A copy's
+   * opening order is the one maker order that is not reduce-only, and it
+   * gives up once the price has run past the copier's allowance.
    *
    * Defaults false, so every watch written before this existed behaves exactly
    * as it did.
@@ -111,7 +113,11 @@ const watchPlanSchema = z.object({
    * stop firing, or a ladder exit on the same coin. The close then thinks its
    * order filled and stops early, which sells less than asked and never more.
    *
-   * Meaningless without `maker`, and zero on every plan that is not a close.
+   * A copy's opening order counts the other way: what is left to buy is the
+   * size asked for, less how far the holding has come UP from here.
+   *
+   * Meaningless without `maker`, and zero on every plan that is not a close
+   * or a copy.
    */
   heldAtStart: z.number().default(0),
   /**
@@ -213,6 +219,18 @@ const watchPlanSchema = z.object({
   chasedAt: z.number().default(0),
   chases: z.number().int().min(0).default(0),
   startedAt: z.number().default(0),
+  /**
+   * The copy that placed this, when a copy of another trader did. Every order
+   * it sends is written down against the copy, so its fills read "Copied from
+   * @sam" and get a fee row. Absent on everything placed by hand.
+   */
+  copyId: z.string().max(36).nullish(),
+  /**
+   * The most a copy's opening order has seen held while it chased. The
+   * position dropping below it means something else sold, and the copy stops
+   * rather than buying that back. Absent on every other watch.
+   */
+  peakHeld: z.number().optional(),
 })
 
 export type WatchPlan = z.infer<typeof watchPlanSchema>

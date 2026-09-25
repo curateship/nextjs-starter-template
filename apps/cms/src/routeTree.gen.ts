@@ -15,6 +15,7 @@ import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AddEventRouteImport } from './routes/add-event'
 import { Route as AddListingRouteImport } from './routes/add-listing'
 import { Route as ChangeEmailRouteImport } from './routes/change-email'
+import { Route as DealsRouteImport } from './routes/deals'
 import { Route as DirectoryRouteImport } from './routes/directory'
 import { Route as EventsRouteImport } from './routes/events'
 import { Route as EventsDoticsRouteImport } from './routes/events[.]ics'
@@ -44,6 +45,7 @@ import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authentic
 import { Route as ApiDirectoryOutreachUnsubscribeRouteImport } from './routes/api/directory-outreach-unsubscribe'
 import { Route as ApiDirectoryVerifyRouteImport } from './routes/api/directory-verify'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
+import { Route as DealsSlugRouteImport } from './routes/deals_.$slug'
 import { Route as DirectorySitemapsChunkRouteImport } from './routes/directory-sitemaps.$chunk'
 import { Route as DirectorySlugRouteImport } from './routes/directory_.$slug'
 import { Route as EventsSlugRouteImport } from './routes/events_.$slug'
@@ -76,6 +78,8 @@ import { Route as AuthenticatedAdminNotificationsRouteImport } from './routes/_a
 import { Route as AuthenticatedAdminPagesRouteImport } from './routes/_authenticated/admin/pages'
 import { Route as AuthenticatedAdminPlansRouteImport } from './routes/_authenticated/admin/plans'
 import { Route as AuthenticatedAdminPostsRouteImport } from './routes/_authenticated/admin/posts'
+import { Route as AuthenticatedAdminPromotionRequestsRouteImport } from './routes/_authenticated/admin/promotion-requests'
+import { Route as AuthenticatedAdminPromotionsRouteImport } from './routes/_authenticated/admin/promotions'
 import { Route as AuthenticatedAdminReferralsRouteImport } from './routes/_authenticated/admin/referrals'
 import { Route as AuthenticatedAdminSegmentsRouteImport } from './routes/_authenticated/admin/segments'
 import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin/settings'
@@ -131,6 +135,11 @@ const AddListingRoute = AddListingRouteImport.update({
 const ChangeEmailRoute = ChangeEmailRouteImport.update({
   id: '/change-email',
   path: '/change-email',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DealsRoute = DealsRouteImport.update({
+  id: '/deals',
+  path: '/deals',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DirectoryRoute = DirectoryRouteImport.update({
@@ -278,6 +287,11 @@ const ApiDirectoryVerifyRoute = ApiDirectoryVerifyRouteImport.update({
 const ApiHealthRoute = ApiHealthRouteImport.update({
   id: '/api/health',
   path: '/api/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DealsSlugRoute = DealsSlugRouteImport.update({
+  id: '/deals_/$slug',
+  path: '/deals/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DirectorySitemapsChunkRoute = DirectorySitemapsChunkRouteImport.update({
@@ -461,6 +475,18 @@ const AuthenticatedAdminPostsRoute = AuthenticatedAdminPostsRouteImport.update({
   path: '/posts',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
+const AuthenticatedAdminPromotionRequestsRoute =
+  AuthenticatedAdminPromotionRequestsRouteImport.update({
+    id: '/promotion-requests',
+    path: '/promotion-requests',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminPromotionsRoute =
+  AuthenticatedAdminPromotionsRouteImport.update({
+    id: '/promotions',
+    path: '/promotions',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminReferralsRoute =
   AuthenticatedAdminReferralsRouteImport.update({
     id: '/referrals',
@@ -619,6 +645,7 @@ export interface FileRoutesByFullPath {
   '/add-event': typeof AddEventRoute
   '/add-listing': typeof AddListingRoute
   '/change-email': typeof ChangeEmailRoute
+  '/deals': typeof DealsRoute
   '/directory': typeof DirectoryRoute
   '/events': typeof EventsRoute
   '/events.ics': typeof EventsDoticsRoute
@@ -648,6 +675,7 @@ export interface FileRoutesByFullPath {
   '/api/directory-outreach-unsubscribe': typeof ApiDirectoryOutreachUnsubscribeRoute
   '/api/directory-verify': typeof ApiDirectoryVerifyRoute
   '/api/health': typeof ApiHealthRoute
+  '/deals/$slug': typeof DealsSlugRoute
   '/directory-sitemaps/$chunk': typeof DirectorySitemapsChunkRoute
   '/directory/$slug': typeof DirectorySlugRoute
   '/events/$slug': typeof EventsSlugRouteWithChildren
@@ -679,6 +707,8 @@ export interface FileRoutesByFullPath {
   '/admin/pages': typeof AuthenticatedAdminPagesRoute
   '/admin/plans': typeof AuthenticatedAdminPlansRoute
   '/admin/posts': typeof AuthenticatedAdminPostsRoute
+  '/admin/promotion-requests': typeof AuthenticatedAdminPromotionRequestsRoute
+  '/admin/promotions': typeof AuthenticatedAdminPromotionsRoute
   '/admin/referrals': typeof AuthenticatedAdminReferralsRoute
   '/admin/segments': typeof AuthenticatedAdminSegmentsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
@@ -714,6 +744,7 @@ export interface FileRoutesByTo {
   '/add-event': typeof AddEventRoute
   '/add-listing': typeof AddListingRoute
   '/change-email': typeof ChangeEmailRoute
+  '/deals': typeof DealsRoute
   '/directory': typeof DirectoryRoute
   '/events': typeof EventsRoute
   '/events.ics': typeof EventsDoticsRoute
@@ -741,6 +772,7 @@ export interface FileRoutesByTo {
   '/api/directory-outreach-unsubscribe': typeof ApiDirectoryOutreachUnsubscribeRoute
   '/api/directory-verify': typeof ApiDirectoryVerifyRoute
   '/api/health': typeof ApiHealthRoute
+  '/deals/$slug': typeof DealsSlugRoute
   '/directory-sitemaps/$chunk': typeof DirectorySitemapsChunkRoute
   '/directory/$slug': typeof DirectorySlugRoute
   '/events/$slug': typeof EventsSlugRouteWithChildren
@@ -772,6 +804,8 @@ export interface FileRoutesByTo {
   '/admin/pages': typeof AuthenticatedAdminPagesRoute
   '/admin/plans': typeof AuthenticatedAdminPlansRoute
   '/admin/posts': typeof AuthenticatedAdminPostsRoute
+  '/admin/promotion-requests': typeof AuthenticatedAdminPromotionRequestsRoute
+  '/admin/promotions': typeof AuthenticatedAdminPromotionsRoute
   '/admin/referrals': typeof AuthenticatedAdminReferralsRoute
   '/admin/segments': typeof AuthenticatedAdminSegmentsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
@@ -809,6 +843,7 @@ export interface FileRoutesById {
   '/add-event': typeof AddEventRoute
   '/add-listing': typeof AddListingRoute
   '/change-email': typeof ChangeEmailRoute
+  '/deals': typeof DealsRoute
   '/directory': typeof DirectoryRoute
   '/events': typeof EventsRoute
   '/events.ics': typeof EventsDoticsRoute
@@ -838,6 +873,7 @@ export interface FileRoutesById {
   '/api/directory-outreach-unsubscribe': typeof ApiDirectoryOutreachUnsubscribeRoute
   '/api/directory-verify': typeof ApiDirectoryVerifyRoute
   '/api/health': typeof ApiHealthRoute
+  '/deals_/$slug': typeof DealsSlugRoute
   '/directory-sitemaps/$chunk': typeof DirectorySitemapsChunkRoute
   '/directory_/$slug': typeof DirectorySlugRoute
   '/events_/$slug': typeof EventsSlugRouteWithChildren
@@ -869,6 +905,8 @@ export interface FileRoutesById {
   '/_authenticated/admin/pages': typeof AuthenticatedAdminPagesRoute
   '/_authenticated/admin/plans': typeof AuthenticatedAdminPlansRoute
   '/_authenticated/admin/posts': typeof AuthenticatedAdminPostsRoute
+  '/_authenticated/admin/promotion-requests': typeof AuthenticatedAdminPromotionRequestsRoute
+  '/_authenticated/admin/promotions': typeof AuthenticatedAdminPromotionsRoute
   '/_authenticated/admin/referrals': typeof AuthenticatedAdminReferralsRoute
   '/_authenticated/admin/segments': typeof AuthenticatedAdminSegmentsRoute
   '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
@@ -906,6 +944,7 @@ export interface FileRouteTypes {
     | '/add-event'
     | '/add-listing'
     | '/change-email'
+    | '/deals'
     | '/directory'
     | '/events'
     | '/events.ics'
@@ -935,6 +974,7 @@ export interface FileRouteTypes {
     | '/api/directory-outreach-unsubscribe'
     | '/api/directory-verify'
     | '/api/health'
+    | '/deals/$slug'
     | '/directory-sitemaps/$chunk'
     | '/directory/$slug'
     | '/events/$slug'
@@ -966,6 +1006,8 @@ export interface FileRouteTypes {
     | '/admin/pages'
     | '/admin/plans'
     | '/admin/posts'
+    | '/admin/promotion-requests'
+    | '/admin/promotions'
     | '/admin/referrals'
     | '/admin/segments'
     | '/admin/settings'
@@ -1001,6 +1043,7 @@ export interface FileRouteTypes {
     | '/add-event'
     | '/add-listing'
     | '/change-email'
+    | '/deals'
     | '/directory'
     | '/events'
     | '/events.ics'
@@ -1028,6 +1071,7 @@ export interface FileRouteTypes {
     | '/api/directory-outreach-unsubscribe'
     | '/api/directory-verify'
     | '/api/health'
+    | '/deals/$slug'
     | '/directory-sitemaps/$chunk'
     | '/directory/$slug'
     | '/events/$slug'
@@ -1059,6 +1103,8 @@ export interface FileRouteTypes {
     | '/admin/pages'
     | '/admin/plans'
     | '/admin/posts'
+    | '/admin/promotion-requests'
+    | '/admin/promotions'
     | '/admin/referrals'
     | '/admin/segments'
     | '/admin/settings'
@@ -1095,6 +1141,7 @@ export interface FileRouteTypes {
     | '/add-event'
     | '/add-listing'
     | '/change-email'
+    | '/deals'
     | '/directory'
     | '/events'
     | '/events.ics'
@@ -1124,6 +1171,7 @@ export interface FileRouteTypes {
     | '/api/directory-outreach-unsubscribe'
     | '/api/directory-verify'
     | '/api/health'
+    | '/deals_/$slug'
     | '/directory-sitemaps/$chunk'
     | '/directory_/$slug'
     | '/events_/$slug'
@@ -1155,6 +1203,8 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/pages'
     | '/_authenticated/admin/plans'
     | '/_authenticated/admin/posts'
+    | '/_authenticated/admin/promotion-requests'
+    | '/_authenticated/admin/promotions'
     | '/_authenticated/admin/referrals'
     | '/_authenticated/admin/segments'
     | '/_authenticated/admin/settings'
@@ -1192,6 +1242,7 @@ export interface RootRouteChildren {
   AddEventRoute: typeof AddEventRoute
   AddListingRoute: typeof AddListingRoute
   ChangeEmailRoute: typeof ChangeEmailRoute
+  DealsRoute: typeof DealsRoute
   DirectoryRoute: typeof DirectoryRoute
   EventsRoute: typeof EventsRoute
   EventsDoticsRoute: typeof EventsDoticsRoute
@@ -1214,6 +1265,7 @@ export interface RootRouteChildren {
   ApiDirectoryOutreachUnsubscribeRoute: typeof ApiDirectoryOutreachUnsubscribeRoute
   ApiDirectoryVerifyRoute: typeof ApiDirectoryVerifyRoute
   ApiHealthRoute: typeof ApiHealthRoute
+  DealsSlugRoute: typeof DealsSlugRoute
   DirectorySitemapsChunkRoute: typeof DirectorySitemapsChunkRoute
   DirectorySlugRoute: typeof DirectorySlugRoute
   EventsSlugRoute: typeof EventsSlugRouteWithChildren
@@ -1274,6 +1326,13 @@ declare module '@tanstack/react-router' {
       path: '/change-email'
       fullPath: '/change-email'
       preLoaderRoute: typeof ChangeEmailRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/deals': {
+      id: '/deals'
+      path: '/deals'
+      fullPath: '/deals'
+      preLoaderRoute: typeof DealsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/directory': {
@@ -1477,6 +1536,13 @@ declare module '@tanstack/react-router' {
       path: '/api/health'
       fullPath: '/api/health'
       preLoaderRoute: typeof ApiHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/deals_/$slug': {
+      id: '/deals_/$slug'
+      path: '/deals/$slug'
+      fullPath: '/deals/$slug'
+      preLoaderRoute: typeof DealsSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/directory-sitemaps/$chunk': {
@@ -1701,6 +1767,20 @@ declare module '@tanstack/react-router' {
       path: '/posts'
       fullPath: '/admin/posts'
       preLoaderRoute: typeof AuthenticatedAdminPostsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/promotion-requests': {
+      id: '/_authenticated/admin/promotion-requests'
+      path: '/promotion-requests'
+      fullPath: '/admin/promotion-requests'
+      preLoaderRoute: typeof AuthenticatedAdminPromotionRequestsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/promotions': {
+      id: '/_authenticated/admin/promotions'
+      path: '/promotions'
+      fullPath: '/admin/promotions'
+      preLoaderRoute: typeof AuthenticatedAdminPromotionsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/referrals': {
@@ -1948,6 +2028,8 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminPagesRoute: typeof AuthenticatedAdminPagesRoute
   AuthenticatedAdminPlansRoute: typeof AuthenticatedAdminPlansRoute
   AuthenticatedAdminPostsRoute: typeof AuthenticatedAdminPostsRoute
+  AuthenticatedAdminPromotionRequestsRoute: typeof AuthenticatedAdminPromotionRequestsRoute
+  AuthenticatedAdminPromotionsRoute: typeof AuthenticatedAdminPromotionsRoute
   AuthenticatedAdminReferralsRoute: typeof AuthenticatedAdminReferralsRoute
   AuthenticatedAdminSegmentsRoute: typeof AuthenticatedAdminSegmentsRoute
   AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRouteWithChildren
@@ -1993,6 +2075,9 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminPagesRoute: AuthenticatedAdminPagesRoute,
   AuthenticatedAdminPlansRoute: AuthenticatedAdminPlansRoute,
   AuthenticatedAdminPostsRoute: AuthenticatedAdminPostsRoute,
+  AuthenticatedAdminPromotionRequestsRoute:
+    AuthenticatedAdminPromotionRequestsRoute,
+  AuthenticatedAdminPromotionsRoute: AuthenticatedAdminPromotionsRoute,
   AuthenticatedAdminReferralsRoute: AuthenticatedAdminReferralsRoute,
   AuthenticatedAdminSegmentsRoute: AuthenticatedAdminSegmentsRoute,
   AuthenticatedAdminSettingsRoute: AuthenticatedAdminSettingsRouteWithChildren,
@@ -2074,6 +2159,7 @@ const rootRouteChildren: RootRouteChildren = {
   AddEventRoute: AddEventRoute,
   AddListingRoute: AddListingRoute,
   ChangeEmailRoute: ChangeEmailRoute,
+  DealsRoute: DealsRoute,
   DirectoryRoute: DirectoryRoute,
   EventsRoute: EventsRoute,
   EventsDoticsRoute: EventsDoticsRoute,
@@ -2096,6 +2182,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiDirectoryOutreachUnsubscribeRoute: ApiDirectoryOutreachUnsubscribeRoute,
   ApiDirectoryVerifyRoute: ApiDirectoryVerifyRoute,
   ApiHealthRoute: ApiHealthRoute,
+  DealsSlugRoute: DealsSlugRoute,
   DirectorySitemapsChunkRoute: DirectorySitemapsChunkRoute,
   DirectorySlugRoute: DirectorySlugRoute,
   EventsSlugRoute: EventsSlugRouteWithChildren,

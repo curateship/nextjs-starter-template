@@ -33,6 +33,22 @@ export function eventSubmissionDecisionMessage(
   )
 }
 
+/**
+ * The same wording for an owner's deal or change. Approving a deal publishes
+ * it, and approving a change puts the new wording live.
+ */
+export function dealRequestDecisionMessage(
+  decision: "approve" | "reject",
+  emailed: boolean,
+  kind: "new" | "change"
+): string {
+  return decisionMessage(
+    kind === "new" ? "The deal is live" : "The change is live",
+    decision,
+    emailed
+  )
+}
+
 function decisionMessage(
   made: string,
   decision: "approve" | "reject",

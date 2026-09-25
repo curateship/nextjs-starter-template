@@ -486,6 +486,9 @@ export const videoSettings = pgTable(
     // Which AI writes down speech, and which one rewrites words. Empty until
     // somebody chooses, at which point the choice sticks.
     aiDefaults: jsonb("ai_defaults").notNull().default({}),
+    // The YouTube Data API key for the Viral page, scrambled the same way the
+    // shell scrambles AI keys. NULL falls back to VIDEO_YOUTUBE_API_KEY.
+    youtubeApiKey: text("youtube_api_key"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -786,3 +789,74 @@ export type VideoRenderJobRow = typeof videoRenderJobs.$inferSelect
 export type VideoActorRow = typeof videoActors.$inferSelect
 export type VideoFirstFrameRow = typeof videoFirstFrames.$inferSelect
 export type VideoAiGenerationRow = typeof videoAiGenerations.$inferSelect
+
+/**
+ * One saved Viral search: a keyword somebody searched, on which platform,
+ * with which filters, and what it cost. Searching the same keyword again on
+ * the same platform updates this row rather than piling up copies — the
+ * keyword is matched ignoring case, because YouTube searches that way too.
+ * The results live in `videoViralResults` and are replaced with the row.
+ */
+export const videoViralSearches = pgTable(
+  "video_viral_searches",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    ownerId: varchar("owner_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    keyword: varchar("keyword", { length: 100 }).notNull(),
+    platform: varchar("platform", { length: 20 }).notNull(),
+    // The filters the search ran with: the posted-within window and the
+    // minimum view count, so Run again repeats exactly what was asked.
+    days: integer("days").notNull(),
+    minViews: bigint("min_views", { mode: "number" }).notNull(),
+    ranAt: timestamp("ran_at", { withTimezone: true }).notNull(),
+    unitsSpent: integer("units_spent").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("ix_video_viral_searches_owner").on(table.ownerId),
+    uniqueIndex("ux_video_viral_searches_owner_platform_keyword").on(
+      table.ownerId,
+      table.platform,
+      sql`lower(${table.keyword})`
+    ),
+  ]
+)
+
+/**
+ * One video a saved search found, kept so looking at yesterday's results
+ * spends nothing. Deleting the search deletes these rows with it. Counts a
+ * channel hides are NULL, never zero.
+ */
+export const videoViralResults = pgTable(
+  "video_viral_results",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    searchId: varchar("search_id", { length: 36 })
+      .notNull()
+      .references(() => videoViralSearches.id, { onDelete: "cascade" }),
+    platform: varchar("platform", { length: 20 }).notNull(),
+    platformVideoId: varchar("platform_video_id", { length: 100 }).notNull(),
+    url: text("url").notNull(),
+    title: text("title").notNull(),
+    channelId: varchar("channel_id", { length: 100 }).notNull(),
+    channelName: text("channel_name").notNull(),
+    subscribers: bigint("subscribers", { mode: "number" }),
+    views: bigint("views", { mode: "number" }).notNull(),
+    likes: bigint("likes", { mode: "number" }),
+    comments: bigint("comments", { mode: "number" }),
+    postedAt: timestamp("posted_at", { withTimezone: true }),
+    durationSeconds: integer("duration_seconds").notNull(),
+    thumbnailUrl: text("thumbnail_url"),
+  },
+  (table) => [
+    uniqueIndex("ux_video_viral_results_search_video").on(
+      table.searchId,
+      table.platformVideoId
+    ),
+  ]
+)
+
+export type VideoViralSearchRow = typeof videoViralSearches.$inferSelect
+export type VideoViralResultRow = typeof videoViralResults.$inferSelect

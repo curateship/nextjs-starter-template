@@ -31,6 +31,9 @@ const protocolMocks = vi.hoisted(() => ({
 }))
 
 vi.mock("@/server/trade/notices", () => ({ writeTradeNotice: vi.fn() }))
+// Copying has its own suite. Here it is only a door that fresh fills pass
+// through, so the counts of this file's own reads stay this file's.
+vi.mock("@/server/trade/copy-engine", () => ({ copyFreshLiveFills: vi.fn() }))
 vi.mock("@/server/trade/engine-errors", () => ({ recordEngineError: vi.fn() }))
 // Only the two order-facing doors are replaced. The rest of the registry
 // comes through as itself, because `pricesEverySale` is asked here for what
@@ -279,6 +282,53 @@ describe("how often a wallet's history is read", () => {
 })
 
 describe("live fill storage", () => {
+  it("hands copying the new fills once, and nothing when the same fills come again", async () => {
+    const { copyFreshLiveFills } = await import("@/server/trade/copy-engine")
+    vi.mocked(copyFreshLiveFills).mockClear()
+    const user = await insertUser(database)
+    const wallet: TradeWallet = {
+      id: crypto.randomUUID(),
+      label: "Main",
+      kind: "live",
+      status: "active",
+      protocol: "hyperliquid",
+      network: "mainnet",
+      startingBalance: 0,
+      address: "test-account",
+      hasKey: true,
+      keyValidUntil: null,
+    }
+    await database.insert(tradeWallets).values({
+      userId: user.id,
+      id: wallet.id,
+      label: wallet.label,
+      kind: wallet.kind,
+      status: wallet.status,
+      protocol: wallet.protocol,
+      network: wallet.network,
+      startingBalance: 0,
+      address: wallet.address,
+    })
+    const fill = {
+      fillId: "copy-fill",
+      orderId: "copy-order",
+      marketId: "ETH",
+      side: "buy" as const,
+      px: 100,
+      sz: 1,
+      at: Date.now(),
+      closedPnl: 0,
+      fee: 0,
+      dir: "Open Long",
+      liquidation: false,
+    }
+    await recordLiveFills(user.id, wallet, [fill])
+    await recordLiveFills(user.id, wallet, [fill])
+
+    expect(copyFreshLiveFills).toHaveBeenCalledTimes(1)
+    expect(copyFreshLiveFills).toHaveBeenCalledWith(user.id, wallet, [fill])
+  })
+
   it("continues announcing other orders when one notice fails", async () => {
     const user = await insertUser(database)
     const wallet: TradeWallet = {

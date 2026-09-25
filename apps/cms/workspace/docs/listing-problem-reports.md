@@ -4,9 +4,10 @@ A visitor who spots something wrong on a listing can tell the site. They pick
 what is wrong, add a line about it, and it lands in an admin queue. The listing
 does not change, and nothing the visitor wrote is ever shown to the public.
 
-Events have the same link, feeding the same queue. "Reporting a problem on an
-event" in `events.md` covers what is different about them: their reasons, the
-Events page's switch, and the queue's Kind filter.
+Events and deals have the same link, feeding the same queue. "Reporting a
+problem on an event" in `events.md` and "Report a problem on a deal" in
+`promotions.md` cover what is different about them: their reasons, their
+page's switch, and the queue's Kind filter.
 
 ## What a visitor sees
 
@@ -43,9 +44,9 @@ trusting the page that called it.
   signed-in POST runs.
 - **One report per listing per hour, per visitor.** Sending a second one right
   away is refused with a plain sentence, not an error.
-- **Ten reports an hour per visitor** across all listings and events, so one
+- **Ten reports an hour per visitor** across all listings, events and deals, so one
   person cannot report fifty pages.
-- **Fifty reports an hour for the whole site**, listings and events together,
+- **Fifty reports an hour for the whole site**, listings, events and deals together,
   because every report puts one email in an admin's inbox.
 
 Each of the three says something different when it refuses, because they mean
@@ -90,8 +91,8 @@ asks for the history. The filter, the search box and the page all live in the
 address, so a filtered view can be reloaded or handed to somebody else.
 
 Each row shows the listing or event, the first line of the note, whether it is
-a listing or an event, the reason, the status and the date. The Kind filter
-narrows the list to listings or to events. Opening a row shows the whole note,
+a listing, an event or a deal, the reason, the status and the date. The Kind
+filter narrows the list to listings, events or deals (`?kind=promotion`). Opening a row shows the whole note,
 the reporter's email if they left one, a button to edit the listing or event
 and a button to see the public page.
 

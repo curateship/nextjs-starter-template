@@ -184,6 +184,8 @@ export function SettingsPage({
             footer={config.publicFooter}
             footerCopyright={config.publicFooterCopyright}
             publicHeader={config.publicHeader}
+            pageWidth={config.publicTheme.pageWidth}
+            publicUserPanel={config.publicUserPanel}
             publicBreadcrumbs={config.publicBreadcrumbs}
             onNavigationChange={(publicNavigation) =>
               onConfigChange({ ...config, publicNavigation })
@@ -196,6 +198,9 @@ export function SettingsPage({
             }
             onPublicHeaderChange={(publicHeader) =>
               onConfigChange({ ...config, publicHeader })
+            }
+            onPublicUserPanelChange={(publicUserPanel) =>
+              onConfigChange({ ...config, publicUserPanel })
             }
             onPublicBreadcrumbsChange={(publicBreadcrumbs) =>
               onConfigChange({ ...config, publicBreadcrumbs })

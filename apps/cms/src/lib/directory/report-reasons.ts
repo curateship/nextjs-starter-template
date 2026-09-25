@@ -55,22 +55,53 @@ export const EVENT_REPORT_REASON_LABELS: Record<EventReportReason, string> = {
   other: "Something else",
 }
 
-/** What a report is about. The queue shows both kinds in one list. */
-export const REPORT_KINDS = ["listing", "event"] as const
+/**
+ * A deal has its own list too: what goes wrong with a deal is at the counter,
+ * not in the opening hours. "other" is on every list.
+ */
+export const PROMOTION_REPORT_REASONS = [
+  "not_honoured",
+  "ended",
+  "wrong_details",
+  "other",
+] as const
+
+export type PromotionReportReason = (typeof PROMOTION_REPORT_REASONS)[number]
+
+export const PROMOTION_REPORT_REASON_LABELS: Record<
+  PromotionReportReason,
+  string
+> = {
+  not_honoured: "The deal wasn't honoured",
+  ended: "It has ended",
+  wrong_details: "Wrong details",
+  other: "Something else",
+}
+
+/**
+ * What a report is about. The queue shows every kind in one list. A deal is
+ * stored as "promotion", its name in Admin; visitors and the queue say "Deal".
+ */
+export const REPORT_KINDS = ["listing", "event", "promotion"] as const
 
 export type ReportKind = (typeof REPORT_KINDS)[number]
 
 export const REPORT_KIND_LABELS: Record<ReportKind, string> = {
   listing: "Listing",
   event: "Event",
+  promotion: "Deal",
 }
 
-export type ReportReason = ListingReportReason | EventReportReason
+export type ReportReason =
+  | ListingReportReason
+  | EventReportReason
+  | PromotionReportReason
 
-/** Any stored reason's label, for the queue that shows both kinds. */
+/** Any stored reason's label, for the queue that shows every kind. */
 export const REPORT_REASON_LABELS: Record<ReportReason, string> = {
   ...LISTING_REPORT_REASON_LABELS,
   ...EVENT_REPORT_REASON_LABELS,
+  ...PROMOTION_REPORT_REASON_LABELS,
 }
 
 export const LISTING_REPORT_STATUSES = ["open", "fixed", "dismissed"] as const

@@ -1,6 +1,7 @@
 import * as React from "react"
 import {
   FilmIcon,
+  FolderPlusIcon,
   LayoutGrid,
   Loader2,
   PauseIcon,
@@ -10,9 +11,16 @@ import {
   Type,
   Upload,
 } from "lucide-react"
+import { toast } from "sonner"
 
 import { uploadMedia } from "@/lib/api/media/media"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
@@ -48,6 +56,7 @@ import { buildMediaClip } from "@/components/video-editor/media-clip"
 import { StickerShelf } from "@/components/video-editor/studio-stickers"
 import {
   CollectionChips,
+  CollectionNameDialog,
   MediaSelectionBar,
   SelectTileOverlay,
 } from "@/components/video-editor/studio-media-collections"
@@ -141,7 +150,7 @@ const MEDIA_FILTERS: {
 ]
 
 function MediaPanel() {
-  const { dispatch, clock, store, projectId } = useEditorRuntime()
+  const { dispatch, store, projectId } = useEditorRuntime()
   const [filter, setFilter] = React.useState<
     "all" | "video" | "image" | "audio"
   >("all")
@@ -176,6 +185,7 @@ function MediaPanel() {
     (snapshot) => snapshot.mediaShelfVersion
   )
   const [uploading, setUploading] = React.useState(false)
+  const [creatingCollection, setCreatingCollection] = React.useState(false)
   const fileRef = React.useRef<HTMLInputElement>(null)
 
   React.useEffect(() => {
@@ -328,9 +338,9 @@ function MediaPanel() {
   }
 
   // --- Dragging a file onto a lane ----------------------------------------
-  // A short press adds the clip at the playhead; a drag drops it where it is
-  // let go. The lane under the pointer is found by asking the page what is
-  // there, which keeps the panel and the timeline from having to know about
+  // Dragging is the only way a file reaches the timeline: the clip lands where
+  // it is let go. The lane under the pointer is found by asking the page what
+  // is there, which keeps the panel and the timeline from having to know about
   // each other.
   const [ghost, setGhost] = React.useState<{
     item: VideoMediaItem
@@ -380,10 +390,9 @@ function MediaPanel() {
     } catch {
       /* noop */
     }
-    if (!drag.moved) {
-      void addItem(drag.item, clock.getTime())
-      return
-    }
+    // A plain click does nothing: adding to the timeline is dragging onto a
+    // track, so a look at a tile never lands a clip by accident.
+    if (!drag.moved) return
     // The pointer is captured by the tile, so the lane has to be looked up.
     const target = document
       .elementsFromPoint(event.clientX, event.clientY)
@@ -445,17 +454,30 @@ function MediaPanel() {
                 </>
               ) : null}
             </div>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              disabled={uploading}
-              aria-label="Upload media"
-              title="Upload media"
-              onClick={() => fileRef.current?.click()}
-            >
-              {uploading ? <Loader2 className="animate-spin" /> : <Plus />}
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  disabled={uploading}
+                  aria-label="Add media or collection"
+                  title="Add"
+                >
+                  {uploading ? <Loader2 className="animate-spin" /> : <Plus />}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44">
+                <DropdownMenuItem onSelect={() => fileRef.current?.click()}>
+                  <Upload />
+                  Upload media
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setCreatingCollection(true)}>
+                  <FolderPlusIcon />
+                  New collection
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <input
               ref={fileRef}
               type="file"
@@ -625,7 +647,6 @@ function MediaPanel() {
                         item={item}
                         active={previewingAudioId === item.id}
                         onActiveChange={setPreviewingAudioId}
-                        onAdd={() => void addItem(item, clock.getTime())}
                         onPointerDown={(event) => tileDown(event, item)}
                         onPointerMove={tileMove}
                         onPointerUp={tileUp}
@@ -639,7 +660,7 @@ function MediaPanel() {
                         onPointerMove={tileMove}
                         onPointerUp={tileUp}
                         onPointerCancel={tileCancel}
-                        title={`${item.original_name} — click to add, drag onto a track, or right-click for collections and delete`}
+                        title={`${item.original_name} — drag onto a track, or right-click for collections and delete`}
                         style={{
                           position: "relative",
                           display: "block",
@@ -723,6 +744,18 @@ function MediaPanel() {
           onCancel={stopSelecting}
         />
       ) : null}
+
+      {/* The header's + menu makes an empty collection; filling it is the
+          grid's Select flow. */}
+      <CollectionNameDialog
+        open={creatingCollection}
+        onOpenChange={setCreatingCollection}
+        collection={null}
+        onSaved={(created) => {
+          toast.success(`Created “${created.name}”.`)
+          reloadCollections()
+        }}
+      />
 
       {ghost ? (
         <div
@@ -810,13 +843,11 @@ function AudioMediaCard({
   item,
   active,
   onActiveChange,
-  onAdd,
   ...pointerProps
 }: {
   item: VideoMediaItem
   active: boolean
   onActiveChange: (mediaId: string | null) => void
-  onAdd: () => void
 } & Pick<
   React.ComponentProps<typeof Card>,
   "onPointerDown" | "onPointerMove" | "onPointerUp" | "onPointerCancel"
@@ -859,7 +890,7 @@ function AudioMediaCard({
   return (
     <Card
       size="sm"
-      title={`${item.original_name} — click to add, drag onto a track, or right-click for collections and delete`}
+      title={`${item.original_name} — drag onto a track, or right-click for collections and delete`}
       className="st-hovlift cursor-grab gap-3"
       style={{ touchAction: "none" }}
       {...pointerProps}
@@ -915,16 +946,7 @@ function AudioMediaCard({
           </div>
         </div>
 
-        <button
-          type="button"
-          className="min-w-0 text-left outline-none focus-visible:underline"
-          aria-label={`Add ${item.original_name} at the playhead`}
-          onPointerDown={(event) => event.stopPropagation()}
-          onClick={(event) => {
-            event.stopPropagation()
-            onAdd()
-          }}
-        >
+        <div className="min-w-0 text-left">
           <span
             className="line-clamp-2 text-xs leading-4 font-medium"
             title={item.original_name}
@@ -935,7 +957,7 @@ function AudioMediaCard({
             {durationMs ? formatClock(durationMs) : "—"} ·{" "}
             {formatFileSize(item.file_size)}
           </span>
-        </button>
+        </div>
       </CardContent>
 
       <audio

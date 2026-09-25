@@ -1051,3 +1051,53 @@ describe("the protection on a real position", () => {
     expect(exchangeOrder).not.toHaveBeenCalled()
   })
 })
+
+describe("Trade's fee on a copied order", () => {
+  const AUTH = {
+    agentKey: TEST_KEY,
+    allocateNonce: async () => Date.now(),
+  }
+  const ORDER = {
+    marketId: "BTC",
+    side: "buy" as const,
+    kind: "postOnly" as const,
+    px: 99_000,
+    sz: 0.002,
+    reduceOnly: false,
+    leverage: null,
+    tpPx: null,
+    slPx: null,
+  }
+
+  beforeEach(() => {
+    exchangeOrder.mockReset()
+    perpDexs.mockReset()
+    allPerpMetas.mockReset()
+    perpDexs.mockResolvedValue([null])
+    allPerpMetas.mockResolvedValue([
+      { universe: [{ name: "BTC", szDecimals: 5 }] },
+    ])
+    exchangeOrder.mockResolvedValue({
+      response: { data: { statuses: [{ resting: { oid: 41 } }] } },
+    })
+  })
+
+  it("carries Trade's builder address and fee on a copied order", async () => {
+    await placeHyperliquidOrder("testnet", AUTH, {
+      ...ORDER,
+      builder: {
+        address: "0x9999999999999999999999999999999999999999",
+        tenthsBps: 100,
+      },
+    })
+    expect(exchangeOrder.mock.calls[0][0].builder).toEqual({
+      b: "0x9999999999999999999999999999999999999999",
+      f: 100,
+    })
+  })
+
+  it("carries no fee on an order placed by hand", async () => {
+    await placeHyperliquidOrder("testnet", AUTH, ORDER)
+    expect(exchangeOrder.mock.calls[0][0]).not.toHaveProperty("builder")
+  })
+})

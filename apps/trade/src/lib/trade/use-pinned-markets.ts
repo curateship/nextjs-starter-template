@@ -47,10 +47,6 @@ function createStore() {
         listeners.delete(notify)
       }
     },
-    clearPrices: () => {
-      version += 1
-      publish({ ...state, quotes: withoutPrices(state.quotes) })
-    },
     /**
      * A refresh LEAVES THE FIGURES ON SCREEN while it waits.
      *

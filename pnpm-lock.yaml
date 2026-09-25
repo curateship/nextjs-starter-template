@@ -2329,6 +2329,9 @@ importers:
       '@nktkas/hyperliquid':
         specifier: 0.33.1
         version: 0.33.1(typescript@5.9.3)
+      '@resvg/resvg-js':
+        specifier: ^2.6.2
+        version: 2.6.2
       '@simplewebauthn/browser':
         specifier: ^13.3.0
         version: 13.3.0

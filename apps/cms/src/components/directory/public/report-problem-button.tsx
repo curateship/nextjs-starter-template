@@ -36,13 +36,16 @@ import {
   reportListingProblem,
 } from "@/lib/api/directory/reports"
 import { reportEventProblem } from "@/lib/api/events/reports"
+import { reportDealProblem } from "@/lib/api/promotions/reports"
 import { LISTING_REPORT_NOTE_MAX } from "@/lib/directory/field-lengths"
 import {
   EVENT_REPORT_REASONS,
   LISTING_REPORT_REASONS,
+  PROMOTION_REPORT_REASONS,
   REPORT_REASON_LABELS,
   type EventReportReason,
   type ListingReportReason,
+  type PromotionReportReason,
   type ReportKind,
   type ReportReason,
 } from "@/lib/directory/report-reasons"
@@ -73,10 +76,16 @@ const FORM_FOR: Record<
     first: "wrong_time",
     example: "It moved to Saturday the 3rd.",
   },
+  promotion: {
+    reasons: PROMOTION_REPORT_REASONS,
+    first: "not_honoured",
+    example: "They said the offer ended last week.",
+  },
 }
 
 /**
- * "Report a problem" under a listing's details or at the foot of an event, and
+ * "Report a problem" under a listing's details or at the foot of an event or
+ * a deal, and
  * the window behind it.
  *
  * Deliberately the quietest control on the page: a small link, not a button.
@@ -99,7 +108,7 @@ export function ReportProblemButton({
   asRow = false,
 }: {
   kind: ReportKind
-  /** The listing's id or the event's id. */
+  /** The listing's, the event's or the deal's id. */
   subjectId: string
   title: string
   /** Drawn as a line of the listing's card rather than as a small link. */
@@ -196,7 +205,14 @@ function ReportProblemDialog({
     dismissErrorToast()
     setSending(true)
     try {
-      if (kind === "event") {
+      if (kind === "promotion") {
+        await reportDealProblem({
+          promotionId: subjectId,
+          reason: reason as PromotionReportReason,
+          note,
+          reporterEmail: email,
+        })
+      } else if (kind === "event") {
         await reportEventProblem({
           eventId: subjectId,
           reason: reason as EventReportReason,

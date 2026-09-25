@@ -316,6 +316,8 @@ let lastStuckWalletError: string | null = null
 let flowScanning = false
 let cleaningFlows = false
 let checkingPriceAlerts = false
+/** A copied-trader hearing pass is still going. See `hearCopiedTraders`. */
+let hearingTraders = false
 let flowScanStartedAt = 0
 let lastFlowScanAt = 0
 
@@ -383,6 +385,7 @@ export function resetLadderPassState(): void {
   flowScanning = false
   cleaningFlows = false
   checkingPriceAlerts = false
+  hearingTraders = false
   flowScanStartedAt = 0
   lastFlowScanAt = 0
 }
@@ -647,6 +650,23 @@ export async function advanceWorkingLadders(): Promise<void> {
         ]).finally(() => {
           checkingPriceAlerts = false
         })
+      )
+    }
+
+    // Copied and followed traders' trades are heard while their own app is
+    // closed. Set going, not waited for, and it paces itself: see
+    // `hearCopiedTraders`.
+    if (!hearingTraders) {
+      hearingTraders = true
+      started.push(
+        import("@/server/trade/copy-engine")
+          .then(({ hearCopiedTraders }) => hearCopiedTraders())
+          .catch((error) =>
+            recordEngineError("ladder-worker", "Copy trader pass failed", error)
+          )
+          .finally(() => {
+            hearingTraders = false
+          })
       )
     }
 

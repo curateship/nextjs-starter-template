@@ -39,6 +39,7 @@ import {
 import { slippedPx } from "@/lib/trade/paper"
 import { db, type CustomShellDb } from "@/server/trade/db"
 import { recordFlowRunOrders } from "@/server/trade/flow-run-orders"
+import { recordCopyOrders } from "@/server/trade/copy-ledger"
 import { getProtocol } from "@/server/protocols/registry"
 import { tradePaperOrders, tradeSmartLadders } from "@/server/trade/schema"
 import { paperAccountFigures } from "@/lib/trade/paper"
@@ -292,6 +293,8 @@ export async function advanceLadders(
         insertLadderOrder(input.tx, input.userId, input.book, order, {
           flowRunId: raw.flowRunId,
           ladderId: raw.id,
+          copyId:
+            kind === "watch" ? ((plan as WatchPlan).copyId ?? null) : null,
         }),
       saveLadder: (row, status, now) =>
         saveLadderRow(input.tx, input.userId, row, status, now),
@@ -1720,7 +1723,7 @@ async function insertLadderOrder(
   userId: string,
   book: WalletBook,
   input: LadderOrderInput,
-  owner: { flowRunId: string | null; ladderId: string }
+  owner: { flowRunId: string | null; ladderId: string; copyId: string | null }
 ): Promise<string> {
   const id = randomUUID()
   await tx.insert(tradePaperOrders).values({
@@ -1750,6 +1753,15 @@ async function insertLadderOrder(
     marketKey: input.marketKey,
     orderIds: [id],
   })
+  if (owner.copyId) {
+    await recordCopyOrders(tx, {
+      userId,
+      wallet: book.wallet,
+      copyId: owner.copyId,
+      marketKey: input.marketKey,
+      orderIds: [id],
+    })
+  }
   return id
 }
 

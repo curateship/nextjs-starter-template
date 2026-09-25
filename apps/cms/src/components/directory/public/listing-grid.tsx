@@ -1,10 +1,11 @@
 import { Link } from "@tanstack/react-router"
-import { MapPinIcon } from "lucide-react"
+import { MapPinIcon, TagIcon } from "lucide-react"
 
 import { ClaimedBadge } from "@/components/directory/public/claimed-badge"
 import { FeaturedBadge } from "@/components/directory/public/featured-badge"
 import { SaveDropdown } from "@/components/directory/public/save-dropdown"
 import { ListingRating } from "@/components/directory/listing-rating"
+import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import type { PublicListingCard } from "@/lib/api/directory/public"
 import { focusRing } from "@/lib/layout/focus-ring"
@@ -87,7 +88,18 @@ export function ListingCard({ listing }: { listing: PublicListingCard }) {
         />
       )}
       <CardContent className="grid gap-1">
-        {listing.featured ? <FeaturedBadge /> : null}
+        {listing.featured || listing.dealHeadline ? (
+          <div className="flex flex-wrap items-center gap-1">
+            {listing.featured ? <FeaturedBadge /> : null}
+            {listing.dealHeadline ? (
+              <Badge variant="secondary" className="max-w-full">
+                <TagIcon aria-hidden="true" />
+                <span className="sr-only">Deal: </span>
+                <span className="truncate">{listing.dealHeadline}</span>
+              </Badge>
+            ) : null}
+          </div>
+        ) : null}
         <h2 className="text-base leading-snug font-medium">
           {/*
            * The whole card is the link rather than the title alone: a card

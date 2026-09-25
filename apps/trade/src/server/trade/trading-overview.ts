@@ -18,7 +18,7 @@ import {
   walletProfitWindowStart,
   type TradeWallet,
 } from "@/lib/trade/wallets"
-import { gridRoundTrips } from "@/lib/trade/live-trades"
+import { gridRoundTrips, type LiveFill } from "@/lib/trade/live-trades"
 import type { TradeSide } from "@/lib/trade/paper"
 import { db } from "@/server/db"
 import { stampGridFills } from "@/server/trade/grid-fills"
@@ -206,9 +206,9 @@ export async function loadOverviewFills(
           .orderBy(desc(tradeLiveFills.at))
 
   const walletById = new Map(wallets.map((wallet) => [wallet.id, wallet]))
-  const stamped = await stampGridFills(
+  const money = await priceFills(
     userId,
-    walletIds,
+    wallets,
     [...rows, ...earlier].map((row) => ({
       fillId: row.fillId,
       orderId: row.orderId,
@@ -224,7 +224,6 @@ export async function loadOverviewFills(
       liquidation: row.liquidation,
     }))
   )
-  const rungs = gridRoundTrips(stamped)
   return rows.flatMap((row) => {
     const wallet = walletById.get(row.walletId)
     if (!wallet) return []
@@ -242,17 +241,49 @@ export async function loadOverviewFills(
         sz: row.sz,
         at: Number(row.at),
         fee: row.fee,
-        money:
-          rungs.get(row.fillId)?.money ??
-          moneyForWalletFill({
-            profitPerSale: pricesEverySale(protocol),
-            side: row.side,
-            closedPnl: row.closedPnl,
-            fee: row.fee,
-          }),
+        money: money.get(row.fillId) ?? null,
       },
     ]
   })
+}
+
+/**
+ * What each fill made after fees, keyed by fill id: a grid's sale priced on
+ * its own rung, everything else at the exchange's figure, and a zero the
+ * exchange has not spoken for as null. The P&L page, the overview, the daily
+ * goal and the public profile all price through here, so none of them can
+ * count a fill differently. Hand it the buys behind the sales too.
+ */
+export async function priceFills(
+  userId: string,
+  wallets: readonly Pick<TradeWallet, "id" | "protocol">[],
+  fills: LiveFill[]
+): Promise<Map<string, number | null>> {
+  const walletById = new Map(wallets.map((wallet) => [wallet.id, wallet]))
+  const stamped = await stampGridFills(
+    userId,
+    wallets.map((wallet) => wallet.id),
+    fills
+  )
+  const rungs = gridRoundTrips(stamped)
+  const money = new Map<string, number | null>()
+  for (const fill of fills) {
+    const protocol =
+      parseMarketKey(fill.marketKey)?.protocol ??
+      walletById.get(fill.walletId)?.protocol
+    if (!protocol) continue
+    money.set(
+      fill.fillId,
+      rungs.get(fill.fillId)?.money ??
+        moneyForWalletFill({
+          profitPerSale: pricesEverySale(protocol),
+          side: fill.side,
+          closedPnl: fill.closedPnl,
+          fee: fill.fee,
+        })
+    )
+  }
+  return money
 }
 
 /** The small account-wide answer used by the active-trades header menu. */

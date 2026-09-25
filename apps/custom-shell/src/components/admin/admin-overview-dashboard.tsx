@@ -22,6 +22,7 @@ import {
   DashboardPanels,
   type DashboardBlock,
 } from "@/components/shared/dashboard/dashboard-panels"
+import { dashboardCardTabClassName } from "@/components/shared/dashboard-card-header"
 import { CardHeaderRow, CardTop, EmptyRow, FeedCard } from "@/components/shared/feed-card"
 import { ActivityCard } from "@/components/shared/dashboard/activity-card"
 import { SampleValue } from "@/components/shared/dashboard/sample-figure"
@@ -46,8 +47,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Tabs, TabsContent } from "@/components/ui/tabs"
-import { UnderlineTab, UnderlineTabsList } from "@/components/ui/underline-tabs"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 import {
   AUTOMATION_RUNS_CAPTION,
@@ -309,17 +309,17 @@ function PeopleCard({
               : `${everyone.toLocaleString()} ${plural(everyone, "account")} in all`
           }
         >
-          {/* `-mb-px` so the line under the chosen tab lands on the card's own
-              hairline rather than a pixel above it. */}
-          <UnderlineTabsList className="-mb-px">
+          <TabsList>
             {PEOPLE_TABS.map((entry) => (
-              <UnderlineTab
+              <TabsTrigger
                 key={entry.value}
                 value={entry.value}
-                label={entry.tab}
-              />
+                className={dashboardCardTabClassName}
+              >
+                {entry.tab}
+              </TabsTrigger>
             ))}
-          </UnderlineTabsList>
+          </TabsList>
         </CardHeaderRow>
 
         <TabsContent value="joining" className="flex min-h-0 flex-col">

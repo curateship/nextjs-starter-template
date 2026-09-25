@@ -25,6 +25,7 @@ import {
 } from "@/lib/api/directory/reports"
 import {
   LISTING_REPORT_STATUS_LABELS,
+  REPORT_KIND_LABELS,
   REPORT_REASON_LABELS,
   type ReportKind,
 } from "@/lib/directory/report-reasons"
@@ -83,7 +84,7 @@ export function ListingReportDialog({
             <DialogDescription>
               {done
                 ? `Already marked ${report ? LISTING_REPORT_STATUS_LABELS[report.status].toLowerCase() : "dealt with"}.`
-                : `A visitor sent this. Nothing on the ${report?.kind ?? "page"} has changed.`}
+                : `A visitor sent this. Nothing on the ${report ? REPORT_KIND_LABELS[report.kind].toLowerCase() : "page"} has changed.`}
             </DialogDescription>
           </DialogHeader>
 
@@ -168,6 +169,27 @@ export function ListingReportDialog({
  * saw. Each kind has its own two addresses.
  */
 function ReportLinks({ report }: { report: ProblemReportSummary }) {
+  if (report.kind === "promotion") {
+    return (
+      <div className="flex flex-wrap gap-2">
+        <Button asChild variant="outline">
+          <Link to="/admin/promotions" search={{ open: report.subjectId }}>
+            Edit the deal
+          </Link>
+        </Button>
+        <Button asChild variant="ghost">
+          <Link
+            to="/deals/$slug"
+            params={{ slug: report.subjectSlug }}
+            target="_blank"
+            rel="noreferrer"
+          >
+            See the page
+          </Link>
+        </Button>
+      </div>
+    )
+  }
   if (report.kind === "event") {
     return (
       <div className="flex flex-wrap gap-2">

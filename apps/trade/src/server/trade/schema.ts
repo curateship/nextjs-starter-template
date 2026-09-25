@@ -1765,3 +1765,404 @@ export const tradeRobinhoodTransactions = pgTable(
     ),
   ]
 )
+
+/**
+ * A member's public trader profile. One per account, off until they switch it
+ * on. The figures it shows are never stored here: they are worked out from
+ * `trade_record_fills` each time. See `workspace/docs/social/public-profiles.md`.
+ */
+export const tradePublicProfiles = pgTable(
+  "trade_public_profiles",
+  {
+    userId: varchar("user_id", { length: 36 })
+      .primaryKey()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    handle: varchar("handle", { length: 20 }).notNull(),
+    displayName: varchar("display_name", { length: 60 }).notNull(),
+    picture: text("picture"),
+    bio: varchar("bio", { length: 280 }).notNull().default(""),
+    links: jsonb("links").$type<string[]>().notNull().default([]),
+    enabled: boolean("enabled").notNull().default(false),
+    /** "Let search engines list me": the page is in the sitemap. */
+    searchable: boolean("searchable").notNull().default(false),
+    /** An admin hid the profile from the public. The record is untouched. */
+    hiddenAt: timestamp("hidden_at", { withTimezone: true }),
+    hiddenReason: text("hidden_reason"),
+    /** "Allow copying": others may copy this member's trades. */
+    allowCopying: boolean("allow_copying").notNull().default(false),
+    /** An admin stopped new copies of this member. Nothing already open closes. */
+    copyBlockedAt: timestamp("copy_blocked_at", { withTimezone: true }),
+    /** Where the member's share of copy fees is paid. */
+    payoutAddress: varchar("payout_address", { length: 64 }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("trade_public_profiles_handle_idx").on(table.handle),
+    check(
+      "trade_public_profiles_handle_check",
+      sql`${table.handle} ~ '^[a-z][a-z0-9_]{2,19}$'`
+    ),
+  ]
+)
+
+/** A handle somebody gave up, held from everybody else for 90 days. */
+export const tradePublicHandleHolds = pgTable("trade_public_handle_holds", {
+  handle: varchar("handle", { length: 20 }).primaryKey(),
+  userId: varchar("user_id", { length: 36 }).notNull(),
+  releasedAt: timestamp("released_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+})
+
+/** What a visitor said is wrong with a profile. Only admins read these. */
+export const tradePublicReports = pgTable(
+  "trade_public_reports",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    reason: varchar("reason", { length: 500 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("trade_public_reports_user_idx").on(table.userId, table.createdAt),
+  ]
+)
+
+/**
+ * Every real-money wallet on a real network a member has ever saved, kept
+ * after the wallet is deleted. Written by the database's own triggers on
+ * `trade_wallets` (migration 0186), never by app code, so no path that saves
+ * or deletes a wallet can skip it.
+ */
+export const tradeRecordWallets = pgTable(
+  "trade_record_wallets",
+  {
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    walletId: varchar("wallet_id", { length: 36 }).notNull(),
+    protocol: varchar("protocol", { length: 20 }).$type<ProtocolId>().notNull(),
+    address: varchar("address", { length: 64 }),
+    label: varchar("label", { length: 40 }).notNull(),
+    addedAt: timestamp("added_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    removedAt: timestamp("removed_at", { withTimezone: true }),
+    /** The last ownership check. Null until one has run. */
+    proof: varchar("proof", { length: 8 }).$type<"proved" | "failed">(),
+    proofNote: text("proof_note"),
+    proofCheckedAt: timestamp("proof_checked_at", { withTimezone: true }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.walletId] }),
+    check(
+      "trade_record_wallets_proof_check",
+      sql`${table.proof} IS NULL OR ${table.proof} IN ('proved', 'failed')`
+    ),
+  ]
+)
+
+/**
+ * A copy of every `trade_live_fills` row of a recorded wallet, binned rows
+ * included, written by the database on every insert and correction there.
+ * No member action deletes one; only deleting the whole account does.
+ */
+export const tradeRecordFills = pgTable(
+  "trade_record_fills",
+  {
+    userId: varchar("user_id", { length: 36 }).notNull(),
+    walletId: varchar("wallet_id", { length: 36 }).notNull(),
+    fillId: varchar("fill_id", { length: 128 }).notNull(),
+    orderId: varchar("order_id", { length: 128 }).notNull(),
+    marketKey: varchar("market_key", { length: 120 }).notNull(),
+    side: varchar("side", { length: 4 }).$type<TradeSide>().notNull(),
+    px: doublePrecision("px").notNull(),
+    sz: doublePrecision("sz").notNull(),
+    at: bigint("at", { mode: "number" }).notNull(),
+    closedPnl: doublePrecision("closed_pnl").notNull().default(0),
+    fee: doublePrecision("fee").notNull().default(0),
+    dir: varchar("dir", { length: 24 }).notNull().default(""),
+    liquidation: boolean("liquidation").notNull().default(false),
+    /**
+     * The wallet was removed and `money` was worked out at that moment, while
+     * its grids still existed to price a grid's sale. Never changes again.
+     */
+    frozen: boolean("frozen").notNull().default(false),
+    /** Frozen rows only: what the P&L page said the fill made. Null is unpriced. */
+    money: doublePrecision("money"),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.walletId, table.fillId] }),
+    index("trade_record_fills_time_idx").on(table.userId, table.at),
+    index("trade_record_fills_fill_idx").on(table.userId, table.fillId),
+    foreignKey({
+      columns: [table.userId, table.walletId],
+      foreignColumns: [tradeRecordWallets.userId, tradeRecordWallets.walletId],
+    }).onDelete("cascade"),
+  ]
+)
+
+/** One member following another. Free, and it never places an order. */
+export const tradeFollows = pgTable(
+  "trade_follows",
+  {
+    followerUserId: varchar("follower_user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    traderUserId: varchar("trader_user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.followerUserId, table.traderUserId] }),
+    index("trade_follows_trader_idx").on(table.traderUserId),
+  ]
+)
+
+/**
+ * The fee on copied trades and the switch for real-money copying. One row,
+ * `id = 'default'`, written by Admin → Copy trading.
+ */
+export const tradeCopyConfig = pgTable("trade_copy_config", {
+  id: varchar("id", { length: 16 }).primaryKey(),
+  feeRate: doublePrecision("fee_rate").notNull(),
+  traderShare: doublePrecision("trader_share").notNull(),
+  realMoney: boolean("real_money").notNull().default(false),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+})
+
+/**
+ * One member copying one trader's wallet into one of their own. A stopped
+ * copy keeps its row, so what it made stays on the copier's Following page.
+ */
+export const tradeCopies = pgTable(
+  "trade_copies",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    copierUserId: varchar("copier_user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    copierWalletId: varchar("copier_wallet_id", { length: 36 }).notNull(),
+    traderUserId: varchar("trader_user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    traderWalletId: varchar("trader_wallet_id", { length: 36 }).notNull(),
+    protocol: varchar("protocol", { length: 20 }).$type<ProtocolId>().notNull(),
+    dollarsPerTrade: doublePrecision("dollars_per_trade").notNull(),
+    maxOpenUsd: doublePrecision("max_open_usd").notNull(),
+    maxLeverage: doublePrecision("max_leverage").notNull(),
+    /** Market ids to copy, or null for every coin. */
+    coins: jsonb("coins").$type<string[] | null>(),
+    priceAllowance: doublePrecision("price_allowance").notNull(),
+    lossLimitUsd: doublePrecision("loss_limit_usd"),
+    status: varchar("status", { length: 8 })
+      .$type<import("@/lib/trade/copy/copy-rules").CopyStatus>()
+      .notNull(),
+    pausedReason: varchar("paused_reason", { length: 32 }).$type<
+      import("@/lib/trade/copy/copy-rules").CopyPauseReason
+    >(),
+    pausedAt: timestamp("paused_at", { withTimezone: true }),
+    stoppedAt: timestamp("stopped_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("trade_copies_trader_wallet_idx").on(
+      table.traderWalletId,
+      table.status
+    ),
+    index("trade_copies_copier_idx").on(table.copierUserId),
+    // One running or paused copy of a trader per member.
+    uniqueIndex("trade_copies_one_live_idx")
+      .on(table.copierUserId, table.traderUserId)
+      .where(sql`${table.status} <> 'stopped'`),
+    check(
+      "trade_copies_status_check",
+      sql`${table.status} IN ('active', 'paused', 'stopped')`
+    ),
+    foreignKey({
+      columns: [table.copierUserId, table.copierWalletId],
+      foreignColumns: [tradeWallets.userId, tradeWallets.id],
+    }).onDelete("cascade"),
+  ]
+)
+
+/**
+ * How much of a coin the trader held the last time a copy acted on it, for a
+ * position the trader opened while the copy was running. Signed coins.
+ */
+export const tradeCopyLegs = pgTable(
+  "trade_copy_legs",
+  {
+    copyId: varchar("copy_id", { length: 36 })
+      .notNull()
+      .references(() => tradeCopies.id, { onDelete: "cascade" }),
+    marketKey: varchar("market_key", { length: 120 }).notNull(),
+    traderSz: doublePrecision("trader_sz").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.copyId, table.marketKey] })]
+)
+
+/**
+ * Which order a copy sent, written the moment the order has an id. A fill
+ * arrives carrying its order id and nothing else, so this is how a copied fill
+ * is told from the copier's own.
+ */
+export const tradeCopyOrders = pgTable(
+  "trade_copy_orders",
+  {
+    ...paperOwner(),
+    orderId: varchar("order_id", { length: 128 }).notNull(),
+    copyId: varchar("copy_id", { length: 36 }).notNull(),
+    marketKey: varchar("market_key", { length: 120 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.walletId, table.orderId] }),
+    foreignKey({
+      columns: [table.userId, table.walletId],
+      foreignColumns: [tradeWallets.userId, tradeWallets.id],
+    }).onDelete("cascade"),
+  ]
+)
+
+/**
+ * The fee record: one row per copied fill. The trader's earnings, what they
+ * are owed and the admin's payout list all add these rows up, and nothing
+ * else. No foreign key to the copy or the wallet: the rows are money owed and
+ * outlive both.
+ */
+export const tradeCopyFills = pgTable(
+  "trade_copy_fills",
+  {
+    copierUserId: varchar("copier_user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    walletId: varchar("wallet_id", { length: 36 }).notNull(),
+    fillId: varchar("fill_id", { length: 128 }).notNull(),
+    copyId: varchar("copy_id", { length: 36 }).notNull(),
+    traderUserId: varchar("trader_user_id", { length: 36 }).notNull(),
+    protocol: varchar("protocol", { length: 20 }).$type<ProtocolId>().notNull(),
+    /** A real-money wallet. Practice copies are free and never count as earnings. */
+    real: boolean("real").notNull(),
+    marketKey: varchar("market_key", { length: 120 }).notNull(),
+    side: varchar("side", { length: 4 }).$type<TradeSide>().notNull(),
+    notionalUsd: doublePrecision("notional_usd").notNull(),
+    /** What the fill banked, the exchange's figure. Zero on a fill that opened. */
+    closedPnl: doublePrecision("closed_pnl").notNull().default(0),
+    exchangeFee: doublePrecision("exchange_fee").notNull().default(0),
+    feeUsd: doublePrecision("fee_usd").notNull().default(0),
+    traderShareUsd: doublePrecision("trader_share_usd").notNull().default(0),
+    at: bigint("at", { mode: "number" }).notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.copierUserId, table.walletId, table.fillId],
+    }),
+    index("trade_copy_fills_trader_idx").on(table.traderUserId, table.at),
+    index("trade_copy_fills_copy_idx").on(table.copyId),
+    index("trade_copy_fills_market_idx").on(table.marketKey, table.at),
+  ]
+)
+
+/** A copy that did not happen, and why, for the copier's Journal. */
+export const tradeCopyNotes = pgTable(
+  "trade_copy_notes",
+  {
+    ...paperOwner(),
+    id: varchar("id", { length: 36 }).notNull(),
+    copyId: varchar("copy_id", { length: 36 }).notNull(),
+    marketKey: varchar("market_key", { length: 120 }).notNull(),
+    traderHandle: varchar("trader_handle", { length: 20 }).notNull(),
+    note: text("note").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.id] }),
+    index("trade_copy_notes_wallet_idx").on(
+      table.userId,
+      table.walletId,
+      table.createdAt
+    ),
+    foreignKey({
+      columns: [table.userId, table.walletId],
+      foreignColumns: [tradeWallets.userId, tradeWallets.id],
+    }).onDelete("cascade"),
+  ]
+)
+
+/** A payment of a trader's share, marked sent by an admin. */
+export const tradeCopyPayouts = pgTable(
+  "trade_copy_payouts",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    traderUserId: varchar("trader_user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    amountUsd: doublePrecision("amount_usd").notNull(),
+    txLink: text("tx_link").notNull(),
+    createdBy: varchar("created_by", { length: 36 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [index("trade_copy_payouts_trader_idx").on(table.traderUserId)]
+)
+
+/** The member accepted the one-time "this is not advice" screen. */
+export const tradeCopyConsents = pgTable("trade_copy_consents", {
+  userId: varchar("user_id", { length: 36 })
+    .primaryKey()
+    .references(() => customShellUsers.id, { onDelete: "cascade" }),
+  acceptedAt: timestamp("accepted_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+})
+
+/**
+ * A real Hyperliquid wallet's main wallet approved Trade's builder fee, up to
+ * `fee_rate`. Hyperliquid refuses a copied order carrying a fee above it.
+ */
+export const tradeCopyFeeApprovals = pgTable(
+  "trade_copy_fee_approvals",
+  {
+    ...paperOwner(),
+    builder: varchar("builder", { length: 42 }).notNull(),
+    feeRate: doublePrecision("fee_rate").notNull(),
+    approvedAt: timestamp("approved_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.walletId] }),
+    foreignKey({
+      columns: [table.userId, table.walletId],
+      foreignColumns: [tradeWallets.userId, tradeWallets.id],
+    }).onDelete("cascade"),
+  ]
+)

@@ -44,6 +44,7 @@ import type { TradeWallet } from "@/lib/trade/wallets"
 import { writeTradeNotice } from "@/server/trade/notices"
 import { scrubSecrets } from "@/server/protocols/scrub"
 import { OVERRODE_PREFIX, overrodeNames } from "@/lib/trade/trading-rules"
+import { stampCopiedTrades } from "@/server/trade/copy-ledger"
 import {
   db,
   lockWalletForPlan,
@@ -233,6 +234,31 @@ export async function sweepLiveFills(
 ): Promise<void> {
   try {
     await recordTriggers(userId, wallet, portfolio)
+    await hearWalletFills(userId, wallet, credential, watched, force)
+  } catch (error) {
+    // Loud, because a silent gap here is a Journal that quietly stops growing.
+    recordEngineError("live-fills", "trade_live_fills sweep failed", error)
+  }
+}
+
+/**
+ * One live wallet's new fills, without the protection read the sweep above
+ * starts with.
+ *
+ * The sweep's own second half, and what the engine calls for a trader being
+ * copied: somebody copying a trader needs that trader's trades heard while
+ * the trader's own app is closed, and needs nothing about their stops. On an
+ * exchange that pushes fills this keeps the push open and asks for nothing;
+ * on one that has to be asked, it asks on the same clock the sweep does.
+ */
+export async function hearWalletFills(
+  userId: string,
+  wallet: TradeWallet,
+  credential: () => string | null,
+  watched = true,
+  force = false
+): Promise<void> {
+  try {
     if (!wallet.address) return
 
     const orders = ordersOf(getProtocol(wallet.protocol))
@@ -296,7 +322,6 @@ export async function sweepLiveFills(
     )
     await recordLiveFills(userId, wallet, fills)
   } catch (error) {
-    // Loud, because a silent gap here is a Journal that quietly stops growing.
     recordEngineError("live-fills", "trade_live_fills sweep failed", error)
   }
 }
@@ -400,11 +425,17 @@ export async function recordLiveFills(
       return rows
     })
     const insertedIds = new Set(inserted.map((row) => row.fillId))
-    await announceFills(
-      userId,
-      wallet,
-      fills.filter((fill) => insertedIds.has(fill.fillId))
-    )
+    const fresh = fills.filter((fill) => insertedIds.has(fill.fillId))
+    await announceFills(userId, wallet, fresh)
+    // Copying hears the same fresh fills: a copier's fill gets its fee row,
+    // and a trader's fill is copied and told to followers. Only the process
+    // whose insert went in gets here, so a fill pushed to both the website
+    // and the engine is copied once. Loaded on use, because copying places
+    // orders and the order code already reads this file.
+    if (fresh.length > 0) {
+      const { copyFreshLiveFills } = await import("@/server/trade/copy-engine")
+      await copyFreshLiveFills(userId, wallet, fresh)
+    }
   } catch (error) {
     recordEngineError("live-fills", "trade_live_fills write failed", error)
   }
@@ -1377,6 +1408,7 @@ export async function loadLiveHistory(
   const allTrades = buildLiveTrades(fills, triggers)
   await attachOverrides(userId, walletIds, allTrades)
   const trades = allTrades.slice(0, MAX_TRADES)
+  await stampCopiedTrades(userId, walletIds, trades)
   const cappedBefore =
     allTrades.length > trades.length ? journalTradePageCursor(trades) : null
   return {

@@ -142,6 +142,11 @@ export type LiveTrade = {
    * met its rules.
    */
   overrode?: string[]
+  /**
+   * The trader's handle when a copy placed any part of this trade: "Copied
+   * from @sam". Read off the fee record, so it survives the copy ending.
+   */
+  copiedFrom?: string
 }
 
 /** The fields needed to remove a finished or otherwise stale fill history. */

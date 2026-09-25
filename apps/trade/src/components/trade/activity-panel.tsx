@@ -16,6 +16,7 @@ import {
   PositionsTable,
   TradesTable,
 } from "@/components/trade/positions-table"
+import { useCopyNotes } from "@/components/social/use-copy-notes"
 import type { Trading } from "@/components/trade/use-trading"
 import {
   DashboardCardTab,
@@ -208,6 +209,14 @@ export function ActivityPanel({
       return next.size === current.size ? current : next
     })
   }, [removableHistory, setJournalTicks])
+
+  // Copies of another trader that did not happen, listed in the Journal with
+  // their reasons.
+  const copyNotes = useCopyNotes(
+    React.useMemo(() => wallets.map((wallet) => wallet.id), [wallets]),
+    tab === "journal",
+    trading.trades
+  )
 
   /** Each row says which wallet it is in; the panel shows several at once. */
   const walletNames = trading.walletNames
@@ -498,6 +507,8 @@ export function ActivityPanel({
           <TradesTable
             trades={trading.trades}
             unmatchedHistory={unmatchedHistory}
+            copyNotes={copyNotes.notes}
+            onRemoveCopyNote={copyNotes.remove}
             markets={markets}
             walletName={walletName}
             selectedId={shownTrade?.id ?? null}

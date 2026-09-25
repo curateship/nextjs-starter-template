@@ -20,6 +20,7 @@ import { moneyTone } from "@/lib/trade/money-tone"
 import { usePinnedMarkets } from "@/lib/trade/use-pinned-markets"
 import { useHidePnlSync } from "@/lib/trade/use-hide-pnl-sync"
 import { PageLoadingBar } from "@/components/trade/page-loading-bar"
+import { PublicProfileDialogHost } from "@/components/social/public-profile-setting"
 
 export default function PinnedMarketsHeader({
   fallback,
@@ -39,17 +40,16 @@ export default function PinnedMarketsHeader({
         running = false
       })
     }
-    const visibility = () => {
-      store.clearPrices()
-      if (document.visibilityState === "visible") refresh()
-    }
+    // Coming back to the tab reads again at once, and the old figure stays
+    // until the new one replaces it. Blanking here made every chip lose its
+    // figure for a second or more each time the tab came back (Tyler, 25 Sep
+    // 2026: "New price should update in place of the old price").
     refresh()
     const timer = window.setInterval(refresh, 15_000)
-    document.addEventListener("visibilitychange", visibility)
+    document.addEventListener("visibilitychange", refresh)
     return () => {
       window.clearInterval(timer)
-      document.removeEventListener("visibilitychange", visibility)
-      store.clearPrices()
+      document.removeEventListener("visibilitychange", refresh)
     }
   }, [store])
 
@@ -78,6 +78,9 @@ export default function PinnedMarketsHeader({
       {/* Also not about pinned markets: it is here for the same reason as
           `useHidePnlSync` above, since every signed-in page draws this. */}
       <PageLoadingBar />
+      {/* The settings cog's Public profile window, drawn here because the
+          cog's panel closes as the window opens. See the component. */}
+      <PublicProfileDialogHost />
       {fallback}
       {pins.length ? (
         <ScrollArea className="mr-2 ml-auto max-w-full min-w-0">
