@@ -1,5 +1,7 @@
 import * as React from "react"
+import { toast } from "sonner"
 
+import { findAchievement } from "@/lib/pomodoro/achievements"
 import {
   abandonTask,
   cancelFocusSession,
@@ -408,6 +410,31 @@ export function reloadPomodoroData() {
     })
 }
 
+/**
+ * A toast for the badges the finished focus just earned. The server answers
+ * with the badges it actually recorded, never with the ones already on the
+ * account, so a hundredth session that is reported twice congratulates you
+ * once.
+ *
+ * Earning one at a time is the normal case and gets its own toast. Several at
+ * once is not: it happens when an account has been imported, or when a new
+ * badge ships and an account already passed its rule. A stack of six toasts
+ * would bury the screen, so more than two become one line that sends you to
+ * the panel.
+ */
+function announceAchievements(badgeIds: readonly string[]) {
+  const badges = badgeIds
+    .map(findAchievement)
+    .filter((badge): badge is NonNullable<typeof badge> => badge !== null)
+  if (!badges.length) return
+  if (badges.length > 2) {
+    toast.success(`${badges.length} achievements earned. See History.`)
+    return
+  }
+  for (const badge of badges)
+    toast.success(`Achievement earned: ${badge.name}`)
+}
+
 function handleCompletion() {
   if (completing) return
   completing = true
@@ -444,6 +471,7 @@ function handleCompletion() {
     })
       .then((result) => {
         if (!result) return
+        announceAchievements(result.newAchievements)
         const updatedTask = result.task
         setState({
           // Offered only once the server has agreed the session is complete,

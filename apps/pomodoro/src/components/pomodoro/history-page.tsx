@@ -7,6 +7,7 @@ import {
 } from "lucide-react"
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
 
+import { AchievementsCard } from "@/components/pomodoro/achievements-card"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -623,6 +624,11 @@ export function HistoryPage() {
           <h2 className="text-2xl font-bold tracking-tight">Focus history</h2>
           <p className="text-sm text-muted-foreground">{rangeSummary}</p>
         </header>
+
+        {/* Milestones on the numbers below, so they sit above them. The panel
+            reads lifetime totals and ignores the range tabs, which is why it
+            is outside the block the range redraws. */}
+        <AchievementsCard />
 
         <div className="flex flex-wrap items-center gap-3">
           <Tabs
