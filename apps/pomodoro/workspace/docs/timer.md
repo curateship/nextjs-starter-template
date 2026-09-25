@@ -28,6 +28,10 @@ orange selection bar).
   the user's own timezone (`calculateFocusStreaks`, unit-tested in
   `src/server/pomodoro/productivity.test.ts`); yesterday's streak stays
   current until today ends without a focus.
+- **When a focus finishes, a one-line note field appears** under the focus
+  task pill, for what that session was for. It never takes keyboard focus and
+  never touches the countdown, so a running break keeps running while it is on
+  screen. See [Session notes](session-notes.md).
 
 ## What the server records
 

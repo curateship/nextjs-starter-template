@@ -17,10 +17,17 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { CheckIcon, GripVerticalIcon, SettingsIcon, XIcon } from "lucide-react"
+import {
+  CheckIcon,
+  GripVerticalIcon,
+  RepeatIcon,
+  SettingsIcon,
+  XIcon,
+} from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { DisabledReason } from "@/components/ui/disabled-reason"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -29,7 +36,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { useProductAuth } from "@/lib/pomodoro/auth-state"
 import type { usePomodoro } from "@/lib/pomodoro/use-pomodoro"
 import {
   taskPriorities,
@@ -37,6 +46,15 @@ import {
   type TaskItem,
   type TaskPriority,
 } from "@/lib/pomodoro/tasks"
+import {
+  describeWeekdaySet,
+  EVERY_DAY,
+  toggleWeekdayInSet,
+  weekdayInitials,
+  weekdayNames,
+  weekdaySetHas,
+  WEEKDAYS_MON_TO_FRI,
+} from "@/lib/pomodoro/task-repeats"
 
 type PomodoroApi = ReturnType<typeof usePomodoro>
 
@@ -45,6 +63,30 @@ const priorityLabels: Record<TaskPriority, string> = {
   normal: "Normal",
   high: "High",
 }
+
+const NO_PROJECT = "none"
+const repeatChoices = ["never", "daily", "weekdays", "custom"] as const
+type RepeatChoice = (typeof repeatChoices)[number]
+
+const repeatChoiceLabels: Record<RepeatChoice, string> = {
+  never: "No repeat",
+  daily: "Every day",
+  weekdays: "Mon to Fri",
+  custom: "Chosen days",
+}
+
+/** Which of the four options a stored weekday set is showing as. */
+function repeatChoiceOf(weekdays: number | null): RepeatChoice {
+  if (weekdays === null) return "never"
+  if (weekdays === EVERY_DAY) return "daily"
+  if (weekdays === WEEKDAYS_MON_TO_FRI) return "weekdays"
+  return "custom"
+}
+
+const GUEST_REPEAT_REASON =
+  "Repeating a task needs an account, because the copy is made on the server each morning."
+const GUEST_PROJECT_REASON =
+  "Projects need an account, because they are saved with your focus history."
 
 /**
  * Today's tasks, ported from the old app's task-plan-list: drag to reorder
@@ -195,9 +237,18 @@ function SortableTaskRow({
       {editing ? (
         <TaskEditForm
           task={task}
+          projects={pomodoro.liveProjects}
           onCancel={() => onEditingChange(false)}
-          onSave={(changes) => {
-            pomodoro.updateTaskDetails(task.id, changes)
+          onSave={({ repeatWeekdays, ...changes }) => {
+            // The repeat is its own rule row, so it is its own request, and it
+            // runs after the task update because the rule copies its title,
+            // priority, estimate and project from the task row. A save that
+            // failed writes no rule, or the rule would hold a title the task
+            // never got.
+            void pomodoro.updateTaskDetails(task.id, changes).then((saved) => {
+              if (saved && repeatWeekdays !== task.repeatWeekdays)
+                pomodoro.setTaskRepeat(task.id, repeatWeekdays)
+            })
             onEditingChange(false)
           }}
         />
@@ -224,6 +275,24 @@ function SortableTaskRow({
             onClick={() => pomodoro.selectTask(task.id)}
           >
             <span className="truncate text-sm">{task.title}</span>
+            {task.repeatWeekdays !== null ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <RepeatIcon
+                    className="size-3 shrink-0 text-muted-foreground"
+                    aria-label={`Repeats ${describeWeekdaySet(task.repeatWeekdays)}`}
+                  />
+                </TooltipTrigger>
+                <TooltipContent>
+                  Repeats {describeWeekdaySet(task.repeatWeekdays)}
+                </TooltipContent>
+              </Tooltip>
+            ) : null}
+            {task.projectName ? (
+              <b className="max-w-28 truncate text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                {task.projectName}
+              </b>
+            ) : null}
             {task.priority !== "normal" ? (
               <b
                 className={cn(
@@ -264,21 +333,35 @@ function SortableTaskRow({
 
 function TaskEditForm({
   task,
+  projects,
   onSave,
   onCancel,
 }: {
   task: TaskItem
+  projects: PomodoroApi["liveProjects"]
   onSave: (changes: {
     title: string
     priority: TaskPriority
     estimatedPomodoros: number | null
+    projectId: string | null
+    repeatWeekdays: number | null
   }) => void
   onCancel: () => void
 }) {
+  const { authenticated } = useProductAuth()
   const [title, setTitle] = React.useState(task.title)
   const [priority, setPriority] = React.useState<TaskPriority>(task.priority)
+  const [projectId, setProjectId] = React.useState(task.projectId)
   const [estimate, setEstimate] = React.useState(
     task.estimatedPomodoros === null ? "" : String(task.estimatedPomodoros)
+  )
+  const [repeatChoice, setRepeatChoice] = React.useState<RepeatChoice>(
+    repeatChoiceOf(task.repeatWeekdays)
+  )
+  // Kept apart from the choice so ticking days off down to none, then picking
+  // Mon to Fri, does not lose what was there. The choice decides what is sent.
+  const [pickedDays, setPickedDays] = React.useState(
+    task.repeatWeekdays ?? WEEKDAYS_MON_TO_FRI
   )
   const parsedEstimate = estimate.trim() === "" ? null : Number(estimate)
   const estimateValid =
@@ -287,77 +370,180 @@ function TaskEditForm({
       parsedEstimate >= 1 &&
       parsedEstimate <= 20)
   const titleValid = Boolean(title.trim())
+  // A rule with no day picked would repeat on no day, which the database
+  // refuses. Save stays reachable; the day row carries the explanation.
+  const daysValid = repeatChoice !== "custom" || pickedDays > 0
+  const repeatWeekdays =
+    repeatChoice === "never"
+      ? null
+      : repeatChoice === "daily"
+        ? EVERY_DAY
+        : repeatChoice === "weekdays"
+          ? WEEKDAYS_MON_TO_FRI
+          : pickedDays
+  const projectsAvailable = authenticated && projects.length > 0
 
   return (
     <form
-      className="flex flex-1 items-center gap-2 py-1.5"
+      className="flex flex-1 flex-col gap-2 py-1.5"
       onSubmit={(event) => {
         event.preventDefault()
-        if (!titleValid || !estimateValid) return
+        if (!titleValid || !estimateValid || !daysValid) return
         onSave({
           title: title.trim(),
           priority,
           estimatedPomodoros: parsedEstimate,
+          projectId,
+          repeatWeekdays,
         })
       }}
       onKeyDown={(event) => {
         if (event.key === "Escape") onCancel()
       }}
     >
-      <Input
-        required
-        maxLength={160}
-        value={title}
-        onChange={(event) => setTitle(event.target.value)}
-        aria-label={`Title for ${task.title}`}
-        autoFocus
-        className="flex-1"
-      />
-      <Select
-        value={priority}
-        onValueChange={(value) => setPriority(value as TaskPriority)}
-      >
-        <SelectTrigger className="text-xs" aria-label={`Priority for ${task.title}`}>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {taskPriorities.map((value) => (
-            <SelectItem key={value} value={value}>
-              {priorityLabels[value]}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <Input
-        type="number"
-        min={1}
-        max={20}
-        step={1}
-        value={estimate}
-        placeholder="Est."
-        onChange={(event) => setEstimate(event.target.value)}
-        aria-label={`Estimated pomodoros for ${task.title}`}
-        aria-invalid={!estimateValid}
-        className="w-16"
-      />
-      <Button
-        type="submit"
-        variant="ghost"
-        size="icon-sm"
-        disabled={!titleValid || !estimateValid}
-        aria-label={`Save changes to ${task.title}`}
-      >
-        <CheckIcon aria-hidden="true" />
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        onClick={onCancel}
-        aria-label={`Cancel editing ${task.title}`}
-      >
-        <XIcon aria-hidden="true" />
-      </Button>
+      <div className="flex items-center gap-2">
+        <Input
+          required
+          maxLength={160}
+          value={title}
+          onChange={(event) => setTitle(event.target.value)}
+          aria-label={`Title for ${task.title}`}
+          autoFocus
+          className="flex-1"
+        />
+        <Select
+          value={priority}
+          onValueChange={(value) => setPriority(value as TaskPriority)}
+        >
+          <SelectTrigger className="text-xs" aria-label={`Priority for ${task.title}`}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {taskPriorities.map((value) => (
+              <SelectItem key={value} value={value}>
+                {priorityLabels[value]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Input
+          type="number"
+          min={1}
+          max={20}
+          step={1}
+          value={estimate}
+          placeholder="Est."
+          onChange={(event) => setEstimate(event.target.value)}
+          aria-label={`Estimated pomodoros for ${task.title}`}
+          aria-invalid={!estimateValid}
+          className="w-16"
+        />
+        <Button
+          type="submit"
+          variant="ghost"
+          size="icon-sm"
+          disabled={!titleValid || !estimateValid || !daysValid}
+          aria-label={`Save changes to ${task.title}`}
+        >
+          <CheckIcon aria-hidden="true" />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          onClick={onCancel}
+          aria-label={`Cancel editing ${task.title}`}
+        >
+          <XIcon aria-hidden="true" />
+        </Button>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <DisabledReason reason={GUEST_REPEAT_REASON} disabled={!authenticated}>
+          <Select
+            value={repeatChoice}
+            disabled={!authenticated}
+            onValueChange={(value) => setRepeatChoice(value as RepeatChoice)}
+          >
+            <SelectTrigger
+              className="text-xs"
+              aria-label={`Repeat for ${task.title}`}
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {repeatChoices.map((value) => (
+                <SelectItem key={value} value={value}>
+                  {repeatChoiceLabels[value]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </DisabledReason>
+        <DisabledReason
+          reason={
+            authenticated
+              ? "Add a project below before a task can go in one."
+              : GUEST_PROJECT_REASON
+          }
+          disabled={!projectsAvailable}
+        >
+          <Select
+            value={projectId ?? NO_PROJECT}
+            disabled={!projectsAvailable}
+            onValueChange={(value) =>
+              setProjectId(value === NO_PROJECT ? null : value)
+            }
+          >
+            <SelectTrigger
+              className="text-xs"
+              aria-label={`Project for ${task.title}`}
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NO_PROJECT}>No project</SelectItem>
+              {projects.map((project) => (
+                <SelectItem key={project.id} value={project.id}>
+                  {project.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </DisabledReason>
+        {repeatChoice === "custom" ? (
+          <div
+            role="group"
+            aria-label={`Days ${task.title} repeats on`}
+            className="flex items-center gap-1"
+          >
+            {weekdayInitials.map((initial, weekday) => {
+              const picked = weekdaySetHas(pickedDays, weekday)
+              return (
+                <Button
+                  key={weekdayNames[weekday]}
+                  type="button"
+                  size="icon-sm"
+                  variant={picked ? "default" : "outline"}
+                  aria-pressed={picked}
+                  aria-label={weekdayNames[weekday]}
+                  onClick={() =>
+                    setPickedDays(toggleWeekdayInSet(pickedDays, weekday))
+                  }
+                >
+                  <span aria-hidden="true" className="text-[10px]">
+                    {initial}
+                  </span>
+                </Button>
+              )
+            })}
+          </div>
+        ) : null}
+        {!daysValid ? (
+          <small role="alert" className="text-xs text-destructive">
+            Pick at least one day.
+          </small>
+        ) : null}
+      </div>
     </form>
   )
 }

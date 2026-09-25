@@ -9,12 +9,20 @@ import {
   pauseFocusSession,
   reorderTasks,
   resumeFocusSession,
+  saveFocusSessionNote,
+  setTaskRepeatRule,
   startFocusSession,
   togglePersistentTask,
   updatePreferences,
   updateTask,
 } from "@/lib/api/pomodoro/productivity"
+import {
+  createProject as createProjectRequest,
+  renameProject as renameProjectRequest,
+  setProjectArchived as setProjectArchivedRequest,
+} from "@/lib/api/pomodoro/projects"
 import { productAuth, subscribeProductAuth } from "@/lib/pomodoro/auth-state"
+import { normalizeSessionNote } from "@/lib/pomodoro/session-notes"
 import {
   completionAlertMessage,
   fireCompletionAlert,
@@ -69,11 +77,16 @@ export type ArchivedTask = Awaited<
   ReturnType<typeof loadProductivity>
 >["archivedTasks"][number]
 
+export type ProjectRow = Awaited<
+  ReturnType<typeof loadProductivity>
+>["projects"][number]
+
 type PomodoroState = {
   timer: PomodoroTimer
   remainingSeconds: number
   tasks: TaskItem[]
   archive: ArchivedTask[]
+  projects: ProjectRow[]
   selectedTaskId: string | null
   autoStart: boolean
   cycleFocusSessions: number
@@ -83,6 +96,13 @@ type PomodoroState = {
   bestStreak: number
   durations: Record<TimerMode, number>
   serverSessionId: string | null
+  /**
+   * The focus that just finished, waiting for its one-line note. Set when a
+   * focus completes and cleared when the next focus starts, so the prompt is
+   * there for the whole break and gone once the work resumes. Never set for a
+   * guest, who has no session row to write it on.
+   */
+  noteSession: { id: string; note: string } | null
   syncError: string
 }
 
@@ -91,6 +111,7 @@ const initialState: PomodoroState = {
   remainingSeconds: DEFAULT_DURATIONS.focus * 60,
   tasks: [],
   archive: [],
+  projects: [],
   selectedTaskId: null,
   autoStart: false,
   cycleFocusSessions: 0,
@@ -100,6 +121,7 @@ const initialState: PomodoroState = {
   bestStreak: 0,
   durations: DEFAULT_DURATIONS,
   serverSessionId: null,
+  noteSession: null,
   syncError: "",
 }
 
@@ -169,6 +191,10 @@ function beginServerSession(
   taskId: string | null
 ) {
   if (!isAuthed()) return
+  // A new focus is the moment the last one stops being the thing you are
+  // writing about, so the note prompt goes then — not when the break starts,
+  // which with auto-start would be the same instant the prompt appeared.
+  if (mode === "focus" && state.noteSession) setState({ noteSession: null })
   void startFocusSession({
     mode,
     plannedSeconds,
@@ -258,6 +284,12 @@ function hydrateGuest() {
             estimatedPomodoros: normalizeEstimatedPomodoros(
               task.estimatedPomodoros
             ),
+            // Repeats and projects are account features: a guest has no
+            // rollover to make tomorrow's copy and no project list to pick
+            // from, so a guest task always carries neither.
+            repeatWeekdays: null,
+            projectId: null,
+            projectName: null,
           }))
       : []
   )
@@ -286,6 +318,7 @@ function hydrateGuest() {
     remainingSeconds: getRemainingSeconds(timer),
     tasks,
     archive: [],
+    projects: [],
     selectedTaskId: resolveSelectedTaskId(tasks, saved?.selectedTaskId),
     autoStart: saved?.autoStart === true,
     cycleFocusSessions: storedCount(saved?.cycleFocusSessions, 4),
@@ -342,6 +375,9 @@ export function reloadPomodoroData() {
             estimatedPomodoros: normalizeEstimatedPomodoros(
               task.estimatedPomodoros
             ),
+            repeatWeekdays: task.repeatWeekdays,
+            projectId: task.projectId,
+            projectName: task.projectName,
           }))
       )
       const idle = timerIsIdle()
@@ -357,6 +393,7 @@ export function reloadPomodoroData() {
         autoStart: data.preferences.autoStart,
         tasks,
         archive: data.archivedTasks,
+        projects: data.projects,
         selectedTaskId: resolveSelectedTaskId(tasks, state.selectedTaskId),
         cycleFocusSessions: data.summary.todayCompletedSessions % 4,
         todayFocusSessions: data.summary.todayCompletedSessions,
@@ -409,6 +446,13 @@ function handleCompletion() {
         if (!result) return
         const updatedTask = result.task
         setState({
+          // Offered only once the server has agreed the session is complete,
+          // because that is the state the note can be written on. Asking
+          // sooner would show a prompt whose first save would be refused.
+          noteSession:
+            result.session.mode === "focus"
+              ? { id: result.session.id, note: result.session.note ?? "" }
+              : state.noteSession,
           tasks: updatedTask
             ? state.tasks.map((task) =>
                 task.id === updatedTask.id
@@ -589,6 +633,9 @@ export function addTask(title: string) {
         pomodoros: 0,
         priority: "normal",
         estimatedPomodoros: null,
+        repeatWeekdays: null,
+        projectId: null,
+        projectName: null,
       },
     ]),
   })
@@ -680,32 +727,157 @@ export function updateTaskDetails(
     title?: string
     priority?: TaskPriority
     estimatedPomodoros?: number | null
+    projectId?: string | null
   }
 ) {
   const cleanTitle = changes.title?.trim().slice(0, 160)
-  if (changes.title !== undefined && !cleanTitle) return
+  if (changes.title !== undefined && !cleanTitle) return Promise.resolve(false)
   const applied =
     changes.title !== undefined ? { ...changes, title: cleanTitle } : changes
   const target = state.tasks.find((task) => task.id === taskId)
-  if (!target || target.completed) return
+  if (!target || target.completed) return Promise.resolve(false)
+  // The project's name is shown on the row, so the optimistic update has to
+  // carry it too; the id alone would leave the old name on screen.
+  const projectName =
+    applied.projectId === undefined
+      ? undefined
+      : (state.projects.find((project) => project.id === applied.projectId)
+          ?.name ?? null)
   // The pre-change snapshot for rollback, captured before the optimistic
   // update is queued.
   const previousTasks = state.tasks
   setState({
     tasks: state.tasks.map((task) =>
-      task.id === taskId && !task.completed ? { ...task, ...applied } : task
+      task.id === taskId && !task.completed
+        ? {
+            ...task,
+            ...applied,
+            ...(projectName === undefined ? {} : { projectName }),
+          }
+        : task
     ),
   })
   if (!isAuthed()) {
     persistGuest()
-    return
+    return Promise.resolve(true)
   }
-  void updateTask({ taskId, timezone: browserTimezone(), ...applied }).catch(
+  // Returned, not fired and forgotten, because the repeat rule copies its
+  // template from the task row: setting a repeat in the same save has to wait
+  // for the new title to be there. The answer says whether it landed, so a
+  // failed save does not go on to write a rule from a title nobody saved.
+  return updateTask({ taskId, timezone: browserTimezone(), ...applied }).then(
+    () => true,
     () => {
       setState({ tasks: previousTasks })
       setSyncError("The task could not be updated.")
+      return false
     }
   )
+}
+
+/**
+ * Switches a task's repeat on, changes its picked days, or switches it off
+ * with null. Switching off deletes the rule, which stops future copies and
+ * leaves every day it already made alone.
+ */
+export function setTaskRepeat(taskId: string, weekdays: number | null) {
+  const target = state.tasks.find((task) => task.id === taskId)
+  if (!target || target.completed || !isAuthed()) return
+  const previousTasks = state.tasks
+  setState({
+    tasks: state.tasks.map((task) =>
+      task.id === taskId ? { ...task, repeatWeekdays: weekdays } : task
+    ),
+  })
+  void setTaskRepeatRule({
+    taskId,
+    timezone: browserTimezone(),
+    weekdays,
+  }).catch(() => {
+    setState({ tasks: previousTasks })
+    setSyncError("The repeat could not be saved.")
+  })
+}
+
+/**
+ * The order `listProjects` returns: live projects first, each group by name.
+ * Applied to every local change as well, so a project created or renamed here
+ * sits where it will still be sitting after the next load.
+ */
+function orderProjects(projects: ProjectRow[]) {
+  return [...projects].sort(
+    (left, right) =>
+      Number(Boolean(left.archivedAt)) - Number(Boolean(right.archivedAt)) ||
+      left.name.localeCompare(right.name, undefined, { sensitivity: "base" })
+  )
+}
+
+export function createProject(name: string) {
+  const cleanName = name.trim().slice(0, 60)
+  if (!cleanName || !isAuthed()) return Promise.resolve()
+  return createProjectRequest(cleanName)
+    .then((created) =>
+      setState({ projects: orderProjects([...state.projects, created]) })
+    )
+    .catch((error: unknown) =>
+      setSyncError(
+        String(error).includes("PROJECT_NAME_TAKEN")
+          ? `You already have a project called "${cleanName}".`
+          : "The project could not be created."
+      )
+    )
+}
+
+export function renameProject(projectId: string, name: string) {
+  const cleanName = name.trim().slice(0, 60)
+  if (!cleanName || !isAuthed()) return Promise.resolve()
+  return renameProjectRequest(projectId, cleanName)
+    .then((updated) =>
+      setState({
+        projects: orderProjects(
+          state.projects.map((project) =>
+            project.id === projectId ? updated : project
+          )
+        ),
+        tasks: state.tasks.map((task) =>
+          task.projectId === projectId
+            ? { ...task, projectName: updated.name }
+            : task
+        ),
+      })
+    )
+    .catch((error: unknown) =>
+      setSyncError(
+        String(error).includes("PROJECT_NAME_TAKEN")
+          ? `You already have a project called "${cleanName}".`
+          : "The project could not be renamed."
+      )
+    )
+}
+
+/**
+ * Archiving takes a project out of the picker but changes no task: a task
+ * already in it keeps its project, and History keeps its hours.
+ */
+export function setProjectArchived(projectId: string, archived: boolean) {
+  if (!isAuthed()) return Promise.resolve()
+  return setProjectArchivedRequest(projectId, archived)
+    .then((updated) =>
+      setState({
+        projects: orderProjects(
+          state.projects.map((project) =>
+            project.id === projectId ? updated : project
+          )
+        ),
+      })
+    )
+    .catch((error: unknown) =>
+      setSyncError(
+        String(error).includes("PROJECT_NAME_TAKEN")
+          ? "Another project has taken that name. Rename it first."
+          : "The project could not be updated."
+      )
+    )
 }
 
 export function reorderActiveTasks(orderedTaskIds: string[]) {
@@ -724,6 +896,35 @@ export function reorderActiveTasks(orderedTaskIds: string[]) {
     setSyncError("The new task order could not be saved.")
     void reloadPomodoroData()
   })
+}
+
+/**
+ * Writes the line about the focus that just finished. Nothing here touches
+ * the timer, so saving or skipping never interrupts the break that is already
+ * running. An empty line clears a note written by mistake.
+ */
+export function saveSessionNote(note: string) {
+  const target = state.noteSession
+  if (!target || !isAuthed()) return Promise.resolve(false)
+  const line = normalizeSessionNote(note)
+  const previous = target.note
+  setState({ noteSession: { ...target, note: line } })
+  return saveFocusSessionNote(target.id, line).then(
+    () => true,
+    () => {
+      // Only roll back when the prompt is still showing the same session; a
+      // slow save must not overwrite the next focus's prompt.
+      if (state.noteSession?.id === target.id)
+        setState({ noteSession: { ...target, note: previous } })
+      setSyncError("Your note could not be saved.")
+      return false
+    }
+  )
+}
+
+/** Puts the prompt away without writing anything. The line already saved stays. */
+export function dismissSessionNote() {
+  if (state.noteSession) setState({ noteSession: null })
 }
 
 export function selectTask(taskId: string | null) {
@@ -785,6 +986,13 @@ export function usePomodoro() {
     toggleTask,
     removeTask,
     updateTaskDetails,
+    saveSessionNote,
+    dismissSessionNote,
+    setTaskRepeat,
+    createProject,
+    renameProject,
+    setProjectArchived,
+    liveProjects: snapshot.projects.filter((project) => !project.archivedAt),
     reorderActiveTasks,
     selectTask,
   }

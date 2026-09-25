@@ -20,11 +20,15 @@ export type FocusHistoryCsvRow = {
   localDate: string
   localTime: string
   taskTitle: string | null
+  note: string | null
   plannedSeconds: number
   accumulatedSeconds: number
 }
 
-export const FOCUS_HISTORY_CSV_HEADER = ["Date", "Completed at", "Task", "Planned minutes", "Focused minutes"] as const
+// Note goes last so the five columns people already script against keep their
+// positions, and an unnoted session exports an empty cell rather than the word
+// "No note", which a spreadsheet would count and chart.
+export const FOCUS_HISTORY_CSV_HEADER = ["Date", "Completed at", "Task", "Planned minutes", "Focused minutes", "Note"] as const
 
 function csvMinutes(seconds: number) {
   return Math.round(seconds / 6) / 10
@@ -33,7 +37,7 @@ function csvMinutes(seconds: number) {
 export function buildFocusHistoryCsv(rows: readonly FocusHistoryCsvRow[]): string {
   return buildCsv([
     FOCUS_HISTORY_CSV_HEADER,
-    ...rows.map((row) => [row.localDate, row.localTime, row.taskTitle ?? "No task", csvMinutes(row.plannedSeconds), csvMinutes(row.accumulatedSeconds)]),
+    ...rows.map((row) => [row.localDate, row.localTime, row.taskTitle ?? "No task", csvMinutes(row.plannedSeconds), csvMinutes(row.accumulatedSeconds), row.note ?? ""]),
   ])
 }
 

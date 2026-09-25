@@ -3,7 +3,12 @@ import { and, desc, eq, gte, lt, lte, sql } from "drizzle-orm"
 import { db } from "@/server/db"
 import { resolveReportRange, shiftLocalDate, type ReportRange } from "@/lib/pomodoro/focus-history"
 import { localDateFor } from "@/server/pomodoro/productivity"
-import { dailyFocusStats, focusSessions, tasks } from "@/server/pomodoro/schema"
+import {
+  dailyFocusStats,
+  focusSessions,
+  pomodoroProjects,
+  tasks,
+} from "@/server/pomodoro/schema"
 
 export const REPORT_SESSION_PAGE_SIZE = 20
 export const REPORT_EXPORT_ROW_LIMIT = 20_000
@@ -60,7 +65,7 @@ export async function loadFocusReport(userId: string, range: ReportRange, todayL
   const filter = completedFocusWithin(userId, startsAt, endsBefore)
   const offset = Math.max(0, page) * REPORT_SESSION_PAGE_SIZE
 
-  const [days, topTasks, sessionRows, [sessionCount]] = await Promise.all([
+  const [days, topTasks, topProjects, sessionRows, [sessionCount]] = await Promise.all([
     db
       .select({ localDate: dailyFocusStats.localDate, focusSeconds: dailyFocusStats.focusSeconds, focusSessions: dailyFocusStats.focusSessions, tasksCompleted: dailyFocusStats.tasksCompleted })
       .from(dailyFocusStats)
@@ -76,8 +81,21 @@ export async function loadFocusReport(userId: string, range: ReportRange, todayL
       .groupBy(focusSessions.taskId)
       .orderBy(desc(sql`sum(${focusSessions.accumulatedSeconds})`))
       .limit(8),
+    // The same rows grouped one level up. A session reaches a project through
+    // its task, so a session on no task, or on a task in no project, lands in
+    // one neutral bucket (null id) rather than being dropped. An archived
+    // project still answers here: leaving the picker never erases its hours.
     db
-      .select({ id: focusSessions.id, completedAt: focusSessions.completedAt, plannedSeconds: focusSessions.plannedSeconds, accumulatedSeconds: focusSessions.accumulatedSeconds, taskTitle: tasks.title })
+      .select({ projectId: tasks.projectId, name: sql<string | null>`max(${pomodoroProjects.name})`, sessions: sql<number>`count(*)::int`, focusSeconds: sql<number>`coalesce(sum(${focusSessions.accumulatedSeconds}), 0)::int` })
+      .from(focusSessions)
+      .leftJoin(tasks, eq(tasks.id, focusSessions.taskId))
+      .leftJoin(pomodoroProjects, eq(pomodoroProjects.id, tasks.projectId))
+      .where(filter)
+      .groupBy(tasks.projectId)
+      .orderBy(desc(sql`sum(${focusSessions.accumulatedSeconds})`))
+      .limit(8),
+    db
+      .select({ id: focusSessions.id, completedAt: focusSessions.completedAt, plannedSeconds: focusSessions.plannedSeconds, accumulatedSeconds: focusSessions.accumulatedSeconds, taskTitle: tasks.title, note: focusSessions.note })
       .from(focusSessions)
       .leftJoin(tasks, eq(tasks.id, focusSessions.taskId))
       .where(filter)
@@ -102,10 +120,11 @@ export async function loadFocusReport(userId: string, range: ReportRange, todayL
     days,
     totals,
     topTasks,
+    topProjects,
     sessions: {
       rows: sessionRows.map((row) => {
         const completedAt = row.completedAt ?? new Date(0)
-        return { id: row.id, taskTitle: row.taskTitle, plannedSeconds: row.plannedSeconds, accumulatedSeconds: row.accumulatedSeconds, localDate: localDateFor(timezone, completedAt), localTime: localTimeFor(timezone, completedAt) }
+        return { id: row.id, taskTitle: row.taskTitle, note: row.note, plannedSeconds: row.plannedSeconds, accumulatedSeconds: row.accumulatedSeconds, localDate: localDateFor(timezone, completedAt), localTime: localTimeFor(timezone, completedAt) }
       }),
       page,
       pageSize: REPORT_SESSION_PAGE_SIZE,
@@ -119,7 +138,7 @@ export async function loadFocusReport(userId: string, range: ReportRange, todayL
 export async function loadFocusReportSessions(userId: string, range: ReportRange, todayLocalDate: string, timezone: string) {
   const { startDate, endDate, startsAt, endsBefore } = reportWindow(range, todayLocalDate, timezone)
   const rows = await db
-    .select({ completedAt: focusSessions.completedAt, plannedSeconds: focusSessions.plannedSeconds, accumulatedSeconds: focusSessions.accumulatedSeconds, taskTitle: tasks.title })
+    .select({ completedAt: focusSessions.completedAt, plannedSeconds: focusSessions.plannedSeconds, accumulatedSeconds: focusSessions.accumulatedSeconds, taskTitle: tasks.title, note: focusSessions.note })
     .from(focusSessions)
     .leftJoin(tasks, eq(tasks.id, focusSessions.taskId))
     .where(completedFocusWithin(userId, startsAt, endsBefore))
@@ -130,7 +149,7 @@ export async function loadFocusReportSessions(userId: string, range: ReportRange
     endDate,
     rows: rows.map((row) => {
       const completedAt = row.completedAt ?? new Date(0)
-      return { localDate: localDateFor(timezone, completedAt), localTime: localTimeFor(timezone, completedAt), taskTitle: row.taskTitle, plannedSeconds: row.plannedSeconds, accumulatedSeconds: row.accumulatedSeconds }
+      return { localDate: localDateFor(timezone, completedAt), localTime: localTimeFor(timezone, completedAt), taskTitle: row.taskTitle, note: row.note, plannedSeconds: row.plannedSeconds, accumulatedSeconds: row.accumulatedSeconds }
     }),
   }
 }

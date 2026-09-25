@@ -4,7 +4,10 @@ The report page at `/history`, over four ranges — 7 days, 30 days, 12
 months, this year. Four stat cards (focus time, sessions, active days,
 tasks done), a calendar heatmap, a focus-time trend chart (the shell's
 chart component, monthly bars on the long ranges), the top 8 tasks by
-focus time, a completed-sessions table paged 20 at a time, and CSV export.
+focus time beside the same time split by project, a completed-sessions table
+paged 20 at a time, and CSV export. The per-project card is described in
+[Projects](projects.md), and the sessions table's Note column in
+[Session notes](session-notes.md).
 
 ## The rules it keeps
 

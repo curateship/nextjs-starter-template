@@ -2,6 +2,7 @@ import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import { CheckIcon, PlusIcon, RotateCcwIcon, XIcon } from "lucide-react"
 
+import { SessionNotePrompt } from "@/components/pomodoro/session-note-prompt"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/utils"
@@ -152,6 +153,8 @@ export function TimerDashboard() {
             </Link>
           )}
         </div>
+
+        <SessionNotePrompt pomodoro={pomodoro} />
 
         <p className="max-w-[380px] text-center text-[15.5px] leading-[1.55] text-[rgba(var(--p-text-rgb),0.65)]">
           {modeHints[pomodoro.timer.mode]}

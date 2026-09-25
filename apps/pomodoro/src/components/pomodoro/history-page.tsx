@@ -322,6 +322,70 @@ function TopTasksCard({
   )
 }
 
+/**
+ * The same focus time one level up: by project rather than by task. Sessions
+ * on a task in no project, and sessions on no task at all, share the "No
+ * project" row instead of being dropped, so the bars always add up to the
+ * range's total. An archived project still appears — leaving the picker never
+ * erases the hours it earned.
+ */
+function TopProjectsCard({
+  topProjects,
+}: {
+  topProjects: FocusHistoryResult["topProjects"]
+}) {
+  const maxSeconds = Math.max(
+    1,
+    ...topProjects.map((project) => project.focusSeconds)
+  )
+  return (
+    <Card>
+      <CardHeader className="flex-row items-baseline justify-between">
+        <CardTitle>By project</CardTitle>
+        <span className="text-xs text-muted-foreground">by focus time</span>
+      </CardHeader>
+      <CardContent>
+        {topProjects.length ? (
+          <ul className="flex flex-col gap-3">
+            {topProjects.map((project) => (
+              <li
+                key={project.projectId ?? "no-project"}
+                className="flex flex-col gap-1"
+              >
+                <span
+                  className={cn("text-sm", !project.name && "text-muted-foreground")}
+                >
+                  {project.name ?? "No project"}
+                </span>
+                <i
+                  aria-hidden="true"
+                  className="block h-1.5 overflow-hidden rounded-full bg-[rgba(var(--p-fg-rgb),0.08)]"
+                >
+                  <b
+                    className="block h-full rounded-full bg-[var(--p-accent)]"
+                    style={{
+                      width: `${Math.max(4, Math.round((project.focusSeconds / maxSeconds) * 100))}%`,
+                    }}
+                  />
+                </i>
+                <small className="font-mono text-[10px] text-muted-foreground">
+                  {formatFocusDuration(project.focusSeconds)} ·{" "}
+                  {project.sessions}{" "}
+                  {project.sessions === 1 ? "session" : "sessions"}
+                </small>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Put a task in a project on the Tasks page and its hours land here.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 function SessionsCard({
   sessions,
   page,
@@ -350,6 +414,7 @@ function SessionsCard({
                 <TableHead>Task</TableHead>
                 <TableHead>Planned</TableHead>
                 <TableHead>Focused</TableHead>
+                <TableHead>Note</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -375,6 +440,23 @@ function SessionsCard({
                   </TableCell>
                   <TableCell>
                     {formatFocusDuration(session.accumulatedSeconds)}
+                  </TableCell>
+                  {/* An unnoted session shows an em dash rather than words,
+                      so a column of notes reads as notes and the gaps stay
+                      quiet. The line is capped at 120 characters when it is
+                      written, and clamped here so one long note cannot set
+                      the width of every row. The clamp is tighter on a phone
+                      because this table already scrolls sideways there, and
+                      the full line is still on the row's tooltip. */}
+                  <TableCell
+                    className={
+                      session.note
+                        ? "max-w-[11rem] truncate sm:max-w-[22rem]"
+                        : "text-muted-foreground"
+                    }
+                    title={session.note ?? undefined}
+                  >
+                    {session.note ?? "—"}
                   </TableCell>
                 </TableRow>
               ))}
@@ -451,7 +533,10 @@ export function HistoryPage() {
       .finally(() => {
         if (requestRef.current === requestId) setLoading(false)
       })
-  }, [range, page, rangeLocked, reloadKey])
+    // `authenticated` belongs here. It starts false on a direct load of this
+    // address, because the layout sets it a tick later; without it in the list
+    // the effect never runs again and the page sits on "Loading…" for good.
+  }, [authenticated, range, page, rangeLocked, reloadKey])
 
   const changeRange = (next: ReportRange) => {
     if (next === range) return
@@ -686,7 +771,12 @@ export function HistoryPage() {
               <>
                 <HeatmapCard days={days} today={today} />
                 <TrendCard range={report.range} days={days} />
-                <TopTasksCard topTasks={report.topTasks} />
+                {/* Side by side on desktop: the same focus time by task and
+                    by project, so one glance compares them. */}
+                <section className="grid gap-3 lg:grid-cols-2">
+                  <TopTasksCard topTasks={report.topTasks} />
+                  <TopProjectsCard topProjects={report.topProjects} />
+                </section>
                 <SessionsCard sessions={report.sessions} page={page} onPage={setPage} />
               </>
             )}

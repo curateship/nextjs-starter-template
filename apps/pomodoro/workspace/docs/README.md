@@ -12,7 +12,12 @@ cover this one.
 - [The timer](timer.md) — the ring at `/timer`, the 4-focus cycle, auto-start,
   and the session rows and daily stats every run writes.
 - [Tasks](tasks.md) — today's plan: create, inline edit, drag to reorder,
-  complete and abandon, and the focus task the timer counts on.
+  complete and abandon, the focus task the timer counts on, and the repeat
+  rule that brings a task back each morning.
+- [Projects](projects.md) — grouping tasks at the level people bill at, what
+  archiving does, and the per-project split in History.
+- [Session notes](session-notes.md) — the one line you jot after a focus
+  finishes, why it never interrupts the break, and where it shows up.
 - [Timer settings and rhythm presets](timer-settings.md) — the Settings →
   Timer tab: durations, daily goal, auto-start, and built-in plus custom
   rhythms.
