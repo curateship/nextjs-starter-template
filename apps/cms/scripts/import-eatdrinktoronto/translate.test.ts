@@ -81,6 +81,26 @@ describe("eatdrinktoronto import translation", () => {
     expect(links.socialLinks).toHaveLength(1)
   })
 
+  it("decodes the entities the old app stored in plain text", () => {
+    const listing = translateListing(
+      {
+        title: "Bar",
+        slug: "bar",
+        displayOrder: 1,
+        metaDescription: "Burritos &amp; quesadillas, Ben&#39;s way.",
+      },
+      {
+        core: { type: "directory-core", content: { name: "Bar" } },
+        body: {
+          type: "directory-rich-text",
+          content: { body: "<p>Beer.</p>" },
+        },
+      }
+    )
+
+    expect(listing.metaDescription).toBe("Burritos & quesadillas, Ben's way.")
+  })
+
   it("maps a listing and reports unsupported values", () => {
     const blocks = {
       core: {

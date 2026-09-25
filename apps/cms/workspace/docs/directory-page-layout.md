@@ -82,10 +82,47 @@ its row under another listing.
 
 ## The browse page and the category pages
 
-- **A listing card** shows the photo, the name, the stars, the address, the
-  category, the claimed mark, the description, and the neighbourhood label.
-  The same card is used on the browse page, on category pages, in a home page
-  row and behind a map pin, so the four cannot drift apart.
+- **A listing card is read in three parts.** Over the photo sit the category,
+  in a pill on the left, and the rating, in a chip on the right. Under the
+  photo come the name, the stars and two lines of the description. Below a
+  dividing line come the address and the neighbourhood label. A visitor
+  scanning the page learns what a place is and how good it is from the photo
+  alone, without reading a word.
+- **The same card is used everywhere a listing is drawn.** The browse page,
+  category pages, a home page row and behind a map pin all draw it, so the four
+  cannot drift apart.
+- **A listing with no photo keeps its category** in the row of tags above the
+  name, and shows no rating chip. The stars under the name are the rating in
+  that case, and they are the rating everywhere: the chip over the photo is
+  decoration and a screen reader is never told it twice.
+- **Saving a listing is the bookmark at the bottom right of the photo.** It
+  moved there because the rating chip owns the top right. It appears on hover
+  on a desktop and is always there on a phone.
+- **The photo is offered in three widths.** A phone downloads the 400-pixel
+  copy rather than the full-size upload, through the same resizing route the
+  media library uses.
+- **A card is as tall as what is in it.** Cards in one row are not stretched to
+  match the tallest of them, because that puts a band of empty white between
+  the description and the dividing line. The bottoms sit where they fall.
+- **The line above the address is a divider, not a shaded strip.** The shared
+  card footer draws a grey band at the bottom of a dashboard card. On a listing
+  card that background is cleared, so only the hairline is left.
+- **The photo fades into the card at its bottom edge**, over the last 64
+  pixels, so there is no hard line between the picture and the name. The fade
+  is the card's own colour, so it works in dark mode too.
+- **Hovering a card lifts it.** The card rises 2px and casts a wide soft
+  shadow, 24px of blur at 12% black. The photo is not touched and the card's
+  colour does not change. Somebody who has asked their computer for less
+  movement gets the shadow without the lift. The same hover is on the category,
+  deal, post and search cards, through `src/lib/layout/card-hover.ts`.
+- **The shadow is a filter, not a box shadow.** `theme.css` sets the box shadow
+  of every card from the Divider lines setting, and that rule beats a utility
+  class, so a hover shadow written as a box shadow would never appear.
+- **The two chips line up with the words under them.** Both sit 16px in from
+  the card's edge, which is the card's own content padding, so the category
+  pill starts where the name starts and the rating ends where the address ends.
+- **The space between cards is the site's gutter** from Settings → Styling, the
+  same value stacked cards use. It is not a fixed 8 or 12 pixels.
 - **The browse page keeps its search box, its sort and its near-me row.** The
   old site had none of them; they are worth more than matching it exactly.
 - **A category's picture sits beside its name**, at 40% of the width, and

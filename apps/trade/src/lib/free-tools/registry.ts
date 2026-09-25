@@ -101,7 +101,7 @@ export const FREE_TOOLS: readonly FreeTool[] = [
       "What money put into a coin or stock on a past date is worth today.",
     group: "calculators",
     path: "/tools/what-if",
-    shipped: false,
+    shipped: true,
   },
   {
     id: "compare",

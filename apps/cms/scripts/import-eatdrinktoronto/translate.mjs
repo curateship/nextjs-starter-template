@@ -85,8 +85,18 @@ export function htmlToWrittenBody(html) {
   return { type: "doc", content }
 }
 
+/**
+ * The old app stored plain fields HTML-encoded, so a description that reads
+ * "burritos & quesadillas" comes out of it as "burritos &amp; quesadillas" and
+ * lands on a card exactly like that. Decoding happens before the cut so the
+ * limit counts real characters rather than the five that spell an ampersand.
+ */
 function cleanText(value, maximum = 2_000) {
-  return typeof value === "string" ? value.trim().slice(0, maximum) : ""
+  if (typeof value !== "string") return ""
+  return value
+    .replace(ENTITY, (entity) => ENTITIES[entity] ?? " ")
+    .trim()
+    .slice(0, maximum)
 }
 
 function menuLink(type, value, index, label = "") {
