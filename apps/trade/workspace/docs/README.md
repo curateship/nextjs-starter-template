@@ -111,6 +111,9 @@ screen: anything not written there has not been agreed yet.
 - `compound-growth-calculator.md` — `/tools/compound-growth`: the forwards and
   backwards formulas, money added each month, how losing days are spread, and
   what the page refuses.
+- `price-converter.md` — `/tools/convert` and one page per coin: where the
+  Hyperliquid price comes from, how old it can be, and which coin pages are in
+  the sitemap.
 
 ## charts/ — the chart itself
 

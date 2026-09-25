@@ -42,6 +42,7 @@ import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authentic
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as THandleRouteImport } from './routes/t.$handle'
 import { Route as ToolsCompoundGrowthRouteImport } from './routes/tools_.compound-growth'
+import { Route as ToolsConvertRouteImport } from './routes/tools_.convert'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedAdminAiRouteImport } from './routes/_authenticated/admin/ai'
 import { Route as AuthenticatedAdminAiUsageRouteImport } from './routes/_authenticated/admin/ai-usage'
@@ -94,6 +95,7 @@ import { Route as ApiAuthGoogleRouteImport } from './routes/api/auth/google'
 import { Route as ApiWebhooksResendRouteImport } from './routes/api/webhooks/resend'
 import { Route as ApiWebhooksStripeRouteImport } from './routes/api/webhooks/stripe'
 import { Route as TShareImageHandleRouteImport } from './routes/t.share-image.$handle'
+import { Route as ToolsConvertPairRouteImport } from './routes/tools_.convert_.$pair'
 import { Route as AuthenticatedAccountBillingSuccessRouteImport } from './routes/_authenticated/account/billing_.success'
 import { Route as AuthenticatedAdminAutomationsAutomationIdRouteImport } from './routes/_authenticated/admin/automations_.$automationId'
 import { Route as AuthenticatedAdminAutomationsTemplatesRouteImport } from './routes/_authenticated/admin/automations_.templates'
@@ -274,6 +276,11 @@ const THandleRoute = THandleRouteImport.update({
 const ToolsCompoundGrowthRoute = ToolsCompoundGrowthRouteImport.update({
   id: '/tools_/compound-growth',
   path: '/tools/compound-growth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ToolsConvertRoute = ToolsConvertRouteImport.update({
+  id: '/tools_/convert',
+  path: '/tools/convert',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
@@ -576,6 +583,11 @@ const TShareImageHandleRoute = TShareImageHandleRouteImport.update({
   path: '/t/share-image/$handle',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ToolsConvertPairRoute = ToolsConvertPairRouteImport.update({
+  id: '/tools_/convert_/$pair',
+  path: '/tools/convert/$pair',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedAccountBillingSuccessRoute =
   AuthenticatedAccountBillingSuccessRouteImport.update({
     id: '/billing_/success',
@@ -709,6 +721,7 @@ export interface FileRoutesByFullPath {
   '/api/health': typeof ApiHealthRoute
   '/t/$handle': typeof THandleRoute
   '/tools/compound-growth': typeof ToolsCompoundGrowthRoute
+  '/tools/convert': typeof ToolsConvertRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
@@ -759,6 +772,7 @@ export interface FileRoutesByFullPath {
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/t/share-image/$handle': typeof TShareImageHandleRoute
+  '/tools/convert/$pair': typeof ToolsConvertPairRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/changelog/': typeof AuthenticatedChangelogIndexRoute
   '/account/billing/success': typeof AuthenticatedAccountBillingSuccessRoute
@@ -810,6 +824,7 @@ export interface FileRoutesByTo {
   '/api/health': typeof ApiHealthRoute
   '/t/$handle': typeof THandleRoute
   '/tools/compound-growth': typeof ToolsCompoundGrowthRoute
+  '/tools/convert': typeof ToolsConvertRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
@@ -860,6 +875,7 @@ export interface FileRoutesByTo {
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/t/share-image/$handle': typeof TShareImageHandleRoute
+  '/tools/convert/$pair': typeof ToolsConvertPairRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/changelog': typeof AuthenticatedChangelogIndexRoute
   '/account/billing/success': typeof AuthenticatedAccountBillingSuccessRoute
@@ -915,6 +931,7 @@ export interface FileRoutesById {
   '/api/health': typeof ApiHealthRoute
   '/t/$handle': typeof THandleRoute
   '/tools_/compound-growth': typeof ToolsCompoundGrowthRoute
+  '/tools_/convert': typeof ToolsConvertRoute
   '/_authenticated/admin/ai': typeof AuthenticatedAdminAiRoute
   '/_authenticated/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
   '/_authenticated/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
@@ -965,6 +982,7 @@ export interface FileRoutesById {
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/t/share-image/$handle': typeof TShareImageHandleRoute
+  '/tools_/convert_/$pair': typeof ToolsConvertPairRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/changelog/': typeof AuthenticatedChangelogIndexRoute
   '/_authenticated/account/billing_/success': typeof AuthenticatedAccountBillingSuccessRoute
@@ -1020,6 +1038,7 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/t/$handle'
     | '/tools/compound-growth'
+    | '/tools/convert'
     | '/admin/ai'
     | '/admin/ai-usage'
     | '/admin/announcements'
@@ -1070,6 +1089,7 @@ export interface FileRouteTypes {
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
     | '/t/share-image/$handle'
+    | '/tools/convert/$pair'
     | '/admin/'
     | '/changelog/'
     | '/account/billing/success'
@@ -1121,6 +1141,7 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/t/$handle'
     | '/tools/compound-growth'
+    | '/tools/convert'
     | '/admin/ai'
     | '/admin/ai-usage'
     | '/admin/announcements'
@@ -1171,6 +1192,7 @@ export interface FileRouteTypes {
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
     | '/t/share-image/$handle'
+    | '/tools/convert/$pair'
     | '/admin'
     | '/changelog'
     | '/account/billing/success'
@@ -1225,6 +1247,7 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/t/$handle'
     | '/tools_/compound-growth'
+    | '/tools_/convert'
     | '/_authenticated/admin/ai'
     | '/_authenticated/admin/ai-usage'
     | '/_authenticated/admin/announcements'
@@ -1275,6 +1298,7 @@ export interface FileRouteTypes {
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
     | '/t/share-image/$handle'
+    | '/tools_/convert_/$pair'
     | '/_authenticated/admin/'
     | '/_authenticated/changelog/'
     | '/_authenticated/account/billing_/success'
@@ -1320,10 +1344,12 @@ export interface RootRouteChildren {
   ApiHealthRoute: typeof ApiHealthRoute
   THandleRoute: typeof THandleRoute
   ToolsCompoundGrowthRoute: typeof ToolsCompoundGrowthRoute
+  ToolsConvertRoute: typeof ToolsConvertRoute
   ApiAuthGoogleRoute: typeof ApiAuthGoogleRoute
   ApiWebhooksResendRoute: typeof ApiWebhooksResendRoute
   ApiWebhooksStripeRoute: typeof ApiWebhooksStripeRoute
   TShareImageHandleRoute: typeof TShareImageHandleRoute
+  ToolsConvertPairRoute: typeof ToolsConvertPairRoute
   ApiAuthGoogleCallbackRoute: typeof ApiAuthGoogleCallbackRoute
   ApiV1NotificationsStreamRoute: typeof ApiV1NotificationsStreamRoute
   ApiV1TrafficViewRoute: typeof ApiV1TrafficViewRoute
@@ -1561,6 +1587,13 @@ declare module '@tanstack/react-router' {
       path: '/tools/compound-growth'
       fullPath: '/tools/compound-growth'
       preLoaderRoute: typeof ToolsCompoundGrowthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tools_/convert': {
+      id: '/tools_/convert'
+      path: '/tools/convert'
+      fullPath: '/tools/convert'
+      preLoaderRoute: typeof ToolsConvertRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin/': {
@@ -1927,6 +1960,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TShareImageHandleRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/tools_/convert_/$pair': {
+      id: '/tools_/convert_/$pair'
+      path: '/tools/convert/$pair'
+      fullPath: '/tools/convert/$pair'
+      preLoaderRoute: typeof ToolsConvertPairRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/account/billing_/success': {
       id: '/_authenticated/account/billing_/success'
       path: '/billing/success'
@@ -2280,10 +2320,12 @@ const rootRouteChildren: RootRouteChildren = {
   ApiHealthRoute: ApiHealthRoute,
   THandleRoute: THandleRoute,
   ToolsCompoundGrowthRoute: ToolsCompoundGrowthRoute,
+  ToolsConvertRoute: ToolsConvertRoute,
   ApiAuthGoogleRoute: ApiAuthGoogleRoute,
   ApiWebhooksResendRoute: ApiWebhooksResendRoute,
   ApiWebhooksStripeRoute: ApiWebhooksStripeRoute,
   TShareImageHandleRoute: TShareImageHandleRoute,
+  ToolsConvertPairRoute: ToolsConvertPairRoute,
   ApiAuthGoogleCallbackRoute: ApiAuthGoogleCallbackRoute,
   ApiV1NotificationsStreamRoute: ApiV1NotificationsStreamRoute,
   ApiV1TrafficViewRoute: ApiV1TrafficViewRoute,

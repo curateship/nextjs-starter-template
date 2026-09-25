@@ -2,6 +2,7 @@ import { pageVisibility } from "@/lib/pages/page-visibility"
 import { pageForPath } from "@/lib/pages/page-registry"
 import type { AppServerOptions } from "@/server/app-options"
 import { readWorkspacePageOverrides } from "@/server/content/pages"
+import { listConverterPagePaths } from "@/server/free-tools/price-converter"
 import { backtestTick } from "@/server/trade/backtest/worker"
 import { refreshCandleStore } from "@/server/trade/candle-refresh"
 import { monitorTradingEngine } from "@/server/trade/engine-health"
@@ -35,16 +36,22 @@ export const appServerOptions: AppServerOptions = {
   sitemap: {
     /**
      * Public trader profiles whose member ticked "Let search engines list
-     * me". A profile follows the Traders page's switch, the same way it is
-     * served, so switching that page off takes them out of the sitemap too.
+     * me", and the price converter's page for each busy coin. Each set
+     * follows the switch of the page it hangs off (Traders, Price
+     * converter), the same way it is served, so switching that page off
+     * takes its rows out of the sitemap too.
      */
     extraEntries: async (workspaceId) => {
-      const traders = pageForPath("/traders")
       const overrides = await readWorkspacePageOverrides(workspaceId)
-      if (!traders || pageVisibility(overrides, traders) !== "everyone") {
-        return []
+      const open = (path: string) => {
+        const page = pageForPath(path)
+        return page ? pageVisibility(overrides, page) === "everyone" : false
       }
-      return listSearchableProfilePaths()
+      const [profiles, coins] = await Promise.all([
+        open("/traders") ? listSearchableProfilePaths() : [],
+        open("/tools/convert") ? listConverterPagePaths() : [],
+      ])
+      return [...profiles, ...coins]
     },
   },
   background: {

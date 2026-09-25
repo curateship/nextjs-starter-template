@@ -70,6 +70,13 @@ export function DecimalField({
           value={draft}
           aria-invalid={!valid || undefined}
           className={cn("tabular-nums", before ? "pl-7" : "pr-9")}
+          // A coin name after the number ("kPEPE") is wider than "%", so the
+          // typed number stops short of it rather than running underneath.
+          style={
+            !before && unit.length > 2
+              ? { paddingRight: `calc(${unit.length}ch + 1.25rem)` }
+              : undefined
+          }
           onChange={(event) => {
             setDraft(event.target.value)
             const next = readDecimal(event.target.value)

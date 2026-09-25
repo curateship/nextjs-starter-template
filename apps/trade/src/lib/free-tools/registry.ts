@@ -67,7 +67,7 @@ export const FREE_TOOLS: readonly FreeTool[] = [
     summary: "Coins into dollars and dollars into coins at the live price.",
     group: "calculators",
     path: "/tools/convert",
-    shipped: false,
+    shipped: true,
   },
   {
     id: "fee-comparison",

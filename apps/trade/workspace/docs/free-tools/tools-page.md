@@ -73,6 +73,10 @@ Nothing else is needed for the sitemap or the share preview:
   `src/app/server-options.ts` would list it twice, so don't. The tasks point at
   `appSitemapChunkFiles`, which is for splitting a very large sitemap into
   numbered files and has nothing to do with this.
+- **Pages under a tool.** A tool with one page per thing, like the converter's
+  page per coin, declares only its main page. The pages under it go in through
+  `extraEntries` in `src/app/server-options.ts`, behind the main page's switch.
+  `price-converter.md` is the example.
 - **Sign-up link.** `FreeToolSignUpCard` in
   `src/components/free-tools/sign-up-card.tsx` is the one every tool page ends
   with, shown only to a visitor who is not signed in.

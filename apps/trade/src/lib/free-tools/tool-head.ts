@@ -17,6 +17,18 @@ type RootBranding = {
 }
 
 /**
+ * What one page under a tool says about itself, where the tool has a page per
+ * thing (the converter's page per coin) and the declaration's words are too
+ * general.
+ */
+type ToolPageHead = {
+  name: string
+  summary: string
+  /** False asks search engines not to list the page. */
+  listed?: boolean
+}
+
+/**
  * A free tool's `<title>` and share preview, from its `*.page.ts` declaration
  * and the site's saved social settings.
  *
@@ -30,13 +42,17 @@ type RootBranding = {
  * missing when the server draws the page, and the server and the browser then
  * disagree on the title.
  */
-export function freeToolHead(path: string, branding: unknown) {
+export function freeToolHead(
+  path: string,
+  branding: unknown,
+  own?: ToolPageHead
+) {
   const page = pageForPath(path)
   const saved = (branding ?? {}) as RootBranding
   const appName = resolveAppName(saved.appName)
   const metadata = resolvePublicSeoMetadata({
-    title: `${page?.name ?? "Free tools"} · ${appName}`,
-    description: page?.summary ?? "",
+    title: `${own?.name ?? page?.name ?? "Free tools"} · ${appName}`,
+    description: own?.summary ?? page?.summary ?? "",
     appName,
     home: false,
     seo: saved.publicSeo,
@@ -51,6 +67,8 @@ export function freeToolHead(path: string, branding: unknown) {
         cardType: saved.socialCardType ?? "summary",
         handle: saved.socialHandle ?? "",
       }),
+      // A page search engines should skip, such as a quiet coin's converter.
+      ...(own?.listed === false ? [{ name: "robots", content: "noindex" }] : []),
     ],
   }
 }
