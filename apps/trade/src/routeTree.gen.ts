@@ -25,6 +25,7 @@ import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as SignInLinkRouteImport } from './routes/sign-in-link'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
+import { Route as ToolsRouteImport } from './routes/tools'
 import { Route as TradersRouteImport } from './routes/traders'
 import { Route as UnsubscribeRouteImport } from './routes/unsubscribe'
 import { Route as VerifyEmailRouteImport } from './routes/verify-email'
@@ -187,6 +188,11 @@ const SignInLinkRoute = SignInLinkRouteImport.update({
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   id: '/sitemap.xml',
   path: '/sitemap.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ToolsRoute = ToolsRouteImport.update({
+  id: '/tools',
+  path: '/tools',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TradersRoute = TradersRouteImport.update({
@@ -680,6 +686,7 @@ export interface FileRoutesByFullPath {
   '/search': typeof SearchRoute
   '/sign-in-link': typeof SignInLinkRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/tools': typeof ToolsRoute
   '/traders': typeof TradersRoute
   '/unsubscribe': typeof UnsubscribeRoute
   '/verify-email': typeof VerifyEmailRoute
@@ -781,6 +788,7 @@ export interface FileRoutesByTo {
   '/search': typeof SearchRoute
   '/sign-in-link': typeof SignInLinkRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/tools': typeof ToolsRoute
   '/traders': typeof TradersRoute
   '/unsubscribe': typeof UnsubscribeRoute
   '/verify-email': typeof VerifyEmailRoute
@@ -882,6 +890,7 @@ export interface FileRoutesById {
   '/search': typeof SearchRoute
   '/sign-in-link': typeof SignInLinkRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/tools': typeof ToolsRoute
   '/traders': typeof TradersRoute
   '/unsubscribe': typeof UnsubscribeRoute
   '/verify-email': typeof VerifyEmailRoute
@@ -985,6 +994,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/sign-in-link'
     | '/sitemap.xml'
+    | '/tools'
     | '/traders'
     | '/unsubscribe'
     | '/verify-email'
@@ -1086,6 +1096,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/sign-in-link'
     | '/sitemap.xml'
+    | '/tools'
     | '/traders'
     | '/unsubscribe'
     | '/verify-email'
@@ -1186,6 +1197,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/sign-in-link'
     | '/sitemap.xml'
+    | '/tools'
     | '/traders'
     | '/unsubscribe'
     | '/verify-email'
@@ -1289,6 +1301,7 @@ export interface RootRouteChildren {
   SearchRoute: typeof SearchRoute
   SignInLinkRoute: typeof SignInLinkRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
+  ToolsRoute: typeof ToolsRoute
   TradersRoute: typeof TradersRoute
   UnsubscribeRoute: typeof UnsubscribeRoute
   VerifyEmailRoute: typeof VerifyEmailRoute
@@ -1416,6 +1429,13 @@ declare module '@tanstack/react-router' {
       path: '/sitemap.xml'
       fullPath: '/sitemap.xml'
       preLoaderRoute: typeof SitemapDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tools': {
+      id: '/tools'
+      path: '/tools'
+      fullPath: '/tools'
+      preLoaderRoute: typeof ToolsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/traders': {
@@ -2233,6 +2253,7 @@ const rootRouteChildren: RootRouteChildren = {
   SearchRoute: SearchRoute,
   SignInLinkRoute: SignInLinkRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
+  ToolsRoute: ToolsRoute,
   TradersRoute: TradersRoute,
   UnsubscribeRoute: UnsubscribeRoute,
   VerifyEmailRoute: VerifyEmailRoute,

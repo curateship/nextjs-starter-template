@@ -103,6 +103,12 @@ screen: anything not written there has not been agreed yet.
   trader's half, the fee on each exchange with its source, the fee record and
   how traders are paid.
 
+## free-tools/ — the free public tools
+
+- `tools-page.md` — the `/tools` page, the one list of tools in
+  `src/lib/free-tools/registry.ts`, what the shipped flag hides, how a new tool
+  gets onto the page, and where an admin adds the Free tools menu link.
+
 ## charts/ — the chart itself
 
 - `drawing.md` — levels, trendlines and TradingView-style fib retracements, by mouse and by touch.
