@@ -1,0 +1,180 @@
+/*
+ * The Pomoder look, ported from apps/pomoder/src/styles.css — the tokens only,
+ * never that file's .pomoder-* classes. This file is app-owned; the shell's
+ * theme.css is never edited.
+ *
+ * The look belongs to the frontend only: the member-facing screens, which
+ * render the PomodoroScreen wrapper and its data-pomodoro-screen marker
+ * (the stage for the old app's product UI — dark canvas, orange ring, its own
+ * sidebar). The admin and shell screens never render the marker and keep the
+ * standard shell look, exactly as the old app's admin did.
+ *
+ * The old app kept its --p-* tokens on :root so that layers portaled to
+ * <body> (dialogs, dropdowns, selects) still resolve them. The :has() gate
+ * keeps that property: the tokens live on the page root and switch on only
+ * while a member screen is on the page. The old app's default was dark with a
+ * .light override; the shell's convention is the other way around (:root
+ * light, .dark dark), so the same two palettes are mapped onto the shell's
+ * classes.
+ *
+ * Selectors are html:root:has(...) on purpose: the shell's theme.css declares
+ * the same variables on :root and .dark, and CSS import order is not
+ * guaranteed, so these win by specificity instead. Every variable overridden
+ * in one block is overridden in both, or the light block would beat the
+ * shell's .dark block for that variable.
+ *
+ * Imported by pomodoro-screen.tsx, so this sheet arrives with the first
+ * member screen and never loads on the admin or shell screens. The fonts load
+ * through the FontFace API in fonts.ts rather than @font-face here — a
+ * bundler that ever pulls this sheet server-side (the worker's esbuild has no
+ * .woff2 loader) would fail on a font url(), so this file keeps none.
+ */
+
+html:root:has([data-pomodoro-screen]) {
+  color-scheme: light;
+
+  /* Pomoder product tokens, light (.light in the old app). The -rgb channel
+     copies exist for overlays: rgba(var(--p-canvas-rgb), .58) and friends. */
+  --p-canvas: #f3efe8;
+  --p-canvas-rgb: 243, 239, 232;
+  --p-surface: #fffdf9;
+  --p-surface-2: #ece7de;
+  --p-popover: #fffdf9;
+  --p-popover-rgb: 255, 253, 249;
+  --p-text: #29241f;
+  --p-text-rgb: 41, 36, 31;
+  --p-text-muted: #5f584f;
+  --p-text-subtle: #746c62;
+  --p-text-faint: #8c8177;
+  --p-fg-rgb: 47, 38, 28;
+  --p-shadow-rgb: 60, 45, 30;
+  --p-accent: #f2502d;
+  --p-accent-2: #cc4225;
+  --p-on-accent: #2a1a12;
+  --p-success: #12a150;
+  --p-danger: #c23b32;
+  --p-track: #d7cfc3;
+
+  /* The shadcn variables the shell's components draw with, mapped onto the
+     product tokens the way the old app's token block did. The on-accent text
+     stays dark in both themes. */
+  --background: var(--p-canvas);
+  --foreground: var(--p-text);
+  --card: var(--p-surface);
+  --card-foreground: var(--p-text);
+  --popover: var(--p-popover);
+  --popover-foreground: var(--p-text);
+  --primary: var(--p-accent);
+  --primary-foreground: var(--p-on-accent);
+  --secondary: #e8e2d8;
+  --secondary-foreground: var(--p-text);
+  --muted: #ebe5db;
+  --muted-foreground: var(--p-text-subtle);
+  --accent: #e2dbcf;
+  --accent-foreground: var(--p-text);
+  --destructive: #dc2626;
+  --border: rgba(var(--p-fg-rgb), 0.1);
+  --input: rgba(var(--p-fg-rgb), 0.12);
+  --ring: var(--p-accent-2);
+  --radius: 0.8rem;
+
+  /* The shell reads these through --primary/--ring indirections and shows
+     --shell-theme-border in the Styling settings' "Theme default" previews. */
+  --shell-primary: var(--p-accent);
+  --shell-primary-foreground: var(--p-on-accent);
+  --shell-ring: var(--p-accent-2);
+  --shell-theme-border: rgba(var(--p-fg-rgb), 0.1);
+
+  /* Sidebar tokens, for the member screens' own sidebar: canvas colour with
+     the accent-tinted active row, like the old app's. */
+  --sidebar: var(--p-canvas);
+  --sidebar-foreground: var(--p-text);
+  --sidebar-primary: var(--p-accent);
+  --sidebar-primary-foreground: var(--p-on-accent);
+  --sidebar-accent: rgba(242, 80, 45, 0.14);
+  --sidebar-accent-foreground: var(--p-accent-2);
+  --sidebar-border: rgba(var(--p-fg-rgb), 0.1);
+  --sidebar-ring: var(--p-accent-2);
+  --shell-sidebar-primary: var(--p-accent);
+  --shell-sidebar-primary-foreground: var(--p-on-accent);
+  --shell-sidebar-accent: rgba(242, 80, 45, 0.14);
+  --shell-sidebar-accent-foreground: var(--p-accent-2);
+  --shell-sidebar-ring: var(--p-accent-2);
+
+  /* The `font-sans`/`font-mono` utilities inline their stacks at build time,
+     so the fonts are set here directly as well as through the variables. */
+  --font-sans: "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-sans);
+}
+
+/* The shell switches signed-in pages to Inter through body.app-font, which
+   beats a font set on <html>. Same fonts on every member screen. */
+html:root:has([data-pomodoro-screen]) body.app-font {
+  --app-font-sans: "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--app-font-sans);
+}
+
+html:root.dark:has([data-pomodoro-screen]) {
+  color-scheme: dark;
+
+  /* Pomoder product tokens, dark (the old app's default set). */
+  --p-canvas: #0b0b0e;
+  --p-canvas-rgb: 11, 11, 14;
+  --p-surface: #131318;
+  --p-surface-2: #0e0e12;
+  --p-popover: #17171d;
+  --p-popover-rgb: 17, 17, 22;
+  --p-text: #edeae6;
+  --p-text-rgb: 237, 234, 230;
+  --p-text-muted: #a7a5ab;
+  --p-text-subtle: #8a8894;
+  --p-text-faint: #67656c;
+  --p-fg-rgb: 255, 255, 255;
+  --p-shadow-rgb: 0, 0, 0;
+  --p-accent: #ff5a3c;
+  --p-accent-2: #ff7a5c;
+  --p-on-accent: #0b0b0e;
+  --p-success: #4ade80;
+  --p-danger: #fca5a5;
+  --p-track: #303037;
+
+  --background: var(--p-canvas);
+  --foreground: var(--p-text);
+  --card: var(--p-surface);
+  --card-foreground: var(--p-text);
+  --popover: var(--p-popover);
+  --popover-foreground: var(--p-text);
+  --primary: var(--p-accent);
+  --primary-foreground: var(--p-on-accent);
+  --secondary: #222228;
+  --secondary-foreground: var(--p-text);
+  --muted: #202025;
+  --muted-foreground: var(--p-text-subtle);
+  --accent: #292930;
+  --accent-foreground: var(--p-text);
+  --destructive: #ef4444;
+  --border: rgba(var(--p-fg-rgb), 0.1);
+  --input: rgba(var(--p-fg-rgb), 0.12);
+  --ring: var(--p-accent-2);
+  --radius: 0.8rem;
+
+  --shell-primary: var(--p-accent);
+  --shell-primary-foreground: var(--p-on-accent);
+  --shell-ring: var(--p-accent-2);
+  --shell-theme-border: rgba(var(--p-fg-rgb), 0.1);
+
+  --sidebar: var(--p-canvas);
+  --sidebar-foreground: var(--p-text);
+  --sidebar-primary: var(--p-accent);
+  --sidebar-primary-foreground: var(--p-on-accent);
+  --sidebar-accent: rgba(255, 90, 60, 0.14);
+  --sidebar-accent-foreground: var(--p-accent-2);
+  --sidebar-border: rgba(var(--p-fg-rgb), 0.1);
+  --sidebar-ring: var(--p-accent-2);
+  --shell-sidebar-primary: var(--p-accent);
+  --shell-sidebar-primary-foreground: var(--p-on-accent);
+  --shell-sidebar-accent: rgba(255, 90, 60, 0.14);
+  --shell-sidebar-accent-foreground: var(--p-accent-2);
+  --shell-sidebar-ring: var(--p-accent-2);
+}

@@ -12,6 +12,12 @@ import {
 import { wallClockAt } from "@/lib/events/event-time"
 import type { DealDays } from "@/lib/promotions/deal-days"
 import { readClaimLimit } from "@/lib/promotions/claim-fields"
+import {
+  MAX_PROMOTION_CODE,
+  MAX_PROMOTION_DESCRIPTION,
+  MAX_PROMOTION_SMALL_PRINT,
+  MAX_PROMOTION_TITLE,
+} from "@/lib/promotions/deal-limits"
 import type { DealTimes } from "@/lib/promotions/deal-times"
 import {
   builtHeadline,
@@ -49,11 +55,6 @@ import { customShellUsers } from "@/server/schema"
  * Saving or deleting a published deal clears the public page cache, because
  * the Deals page and each deal's page are cached.
  */
-
-export const MAX_PROMOTION_TITLE = 200
-export const MAX_PROMOTION_DESCRIPTION = 2000
-export const MAX_PROMOTION_CODE = 40
-export const MAX_PROMOTION_SMALL_PRINT = 1000
 
 export type PromotionStatus = "draft" | "published"
 

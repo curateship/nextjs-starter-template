@@ -1,5 +1,7 @@
 import type { AppServerOptions } from "@/server/app-options"
 
+import { advanceDueRooms } from "@/server/pomodoro/rooms"
+
 /**
  * What this app changes about the shell, on the server side.
  *
@@ -20,4 +22,19 @@ import type { AppServerOptions } from "@/server/app-options"
  * only walks that folder, so an endpoint declared here would be an unguarded
  * door nobody is told about.
  */
-export const appServerOptions: AppServerOptions = {}
+export const appServerOptions: AppServerOptions = {
+  background: {
+    workers: [
+      {
+        // The focus rooms' clock. Each pass claims every room whose timed
+        // phase has expired and advances it, sequence-guarded, so phases
+        // move with every browser tab closed. Overlapping passes are
+        // harmless: the second claim sees a bumped sequence and no-ops.
+        name: "pomodoro-room-clock",
+        tick: async () => {
+          await advanceDueRooms()
+        },
+      },
+    ],
+  },
+}

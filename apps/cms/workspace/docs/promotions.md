@@ -349,6 +349,12 @@ listing, the address part and the status.
   when a file other than those three reads the table.
 - `src/lib/api/promotions/` holds the doors. The two public ones are listed in
   `src/app/open-endpoints.ts` with the reason they need no sign-in.
+- **The longest each text box may be lives in
+  `src/lib/promotions/deal-limits.ts`**, not in the server's files. The doors
+  check input against those numbers outside the handler, and that part runs in
+  the browser. A door that imports anything from `src/server/promotions/` for
+  use outside a handler pulls the password library into the page, and every
+  page of the site stops working.
 - `src/routes/deals.tsx` and `src/routes/deals_.$slug.tsx` are the public
   pages; `src/routes/_authenticated/admin/promotions.tsx` is the admin screen.
 
