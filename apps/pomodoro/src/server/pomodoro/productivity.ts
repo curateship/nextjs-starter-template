@@ -295,12 +295,9 @@ export function buildFocusSummary(
   }
 }
 
-export async function loadFocusSummary(
-  userId: string,
-  todayLocalDate: string,
-  dailyGoalSessions: number
-) {
-  const dailyStats = await db
+/** The days with at least one finished focus, oldest first. */
+async function loadActiveDays(userId: string) {
+  return db
     .select({
       localDate: dailyFocusStats.localDate,
       focusSessions: dailyFocusStats.focusSessions,
@@ -313,5 +310,32 @@ export async function loadFocusSummary(
       )
     )
     .orderBy(dailyFocusStats.localDate)
-  return buildFocusSummary(dailyStats, todayLocalDate, dailyGoalSessions)
+}
+
+/**
+ * Current and best streak on their own, for the callers that want the streak
+ * without a goal to measure it against: the badges panel and the public
+ * streak badge.
+ */
+export async function loadFocusStreaks(
+  userId: string,
+  todayLocalDate: string
+) {
+  const days = await loadActiveDays(userId)
+  return calculateFocusStreaks(
+    days.map((day) => day.localDate),
+    todayLocalDate
+  )
+}
+
+export async function loadFocusSummary(
+  userId: string,
+  todayLocalDate: string,
+  dailyGoalSessions: number
+) {
+  return buildFocusSummary(
+    await loadActiveDays(userId),
+    todayLocalDate,
+    dailyGoalSessions
+  )
 }

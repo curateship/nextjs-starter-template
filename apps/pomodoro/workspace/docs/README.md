@@ -27,6 +27,8 @@ cover this one.
   that answers every can-do question.
 - [Profile](profile.md) — public display name, the day-boundary timezone and
   the leaderboard opt-in.
+- [Streak badge](streak-badge.md) — the opt-in image you can embed on a blog,
+  the secret address that serves it, and what revoking does.
 - [Sounds](sounds.md) — the eight ambient loops, the header player that
   survives navigation, the sleep timer and the completion chime.
 - [Backgrounds](backgrounds.md) — the eight scenes and the backdrop every
