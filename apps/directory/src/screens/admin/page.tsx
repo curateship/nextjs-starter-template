@@ -1,4 +1,4 @@
-import { getCachedAdminSettings } from "@/lib/actions/admin-settings/admin-settings-actions"
+import { getCachedAdminSettings } from "@/lib/actions/admin-settings/admin-settings-actions.server"
 import { configuredRouteTarget } from "@/lib/home-route"
 import { redirect } from "@/lib/navigation-server"
 

@@ -1,5 +1,10 @@
 import { boundedString, finiteNumber, isRecord, requiredString } from './parse-utils'
-import { getNodeDescriptor, isAutomationNodeKind, nodeOutputPorts } from './node-registry'
+import {
+  getNodeDescriptor,
+  isAutomationNodeKind,
+  nodeOutputPorts,
+  terminalActionNodeNames,
+} from './node-registry'
 import type {
   AutomationEdge,
   AutomationGraph,
@@ -10,6 +15,8 @@ import type {
 
 const MAX_NODES = 100
 const MAX_EDGES = 200
+// Every output port name except the AI Router's per-route `route:<id>` ports.
+const FIXED_SOURCE_PORTS = new Set<string>(['then', 'documents', 'article', 'approved', 'else'])
 
 export function parseAutomationGraph(value: unknown): AutomationGraph {
   if (!isRecord(value) || !Array.isArray(value.nodes) || !Array.isArray(value.edges) || !isRecord(value.viewport)) {
@@ -32,6 +39,7 @@ export function validateAutomationGraph(graph: AutomationGraph): AutomationValid
   const errors: AutomationValidationError[] = []
   const nodeById = new Map<string, AutomationNode>()
   const edgeIds = new Set<string>()
+  const actionNames = terminalActionNodeNames()
 
   for (const node of graph.nodes) {
     if (nodeById.has(node.id)) errors.push(error('duplicate-node', 'Node IDs must be unique.', node.id))
@@ -41,7 +49,7 @@ export function validateAutomationGraph(graph: AutomationGraph): AutomationValid
 
   const timeNodes = graph.nodes.filter((node) => node.kind === 'time')
   if (timeNodes.length !== 1) errors.push(error('time-count', 'Add exactly one Time node.'))
-  if (!graph.nodes.some(isTerminalActionNode)) errors.push(error('post-required', 'Add at least one Post or Listing node.'))
+  if (!graph.nodes.some(isTerminalActionNode)) errors.push(error('post-required', `Add at least one ${actionNames} node.`))
 
   const incoming = new Map<string, AutomationEdge[]>()
   const outgoing = new Map<string, AutomationEdge[]>()
@@ -101,7 +109,7 @@ export function validateAutomationGraph(graph: AutomationGraph): AutomationValid
     for (const id of walkGraph(action.id, reverse, (edge) => edge.from)) reachesAction.add(id)
   }
   for (const node of graph.nodes) {
-    if (!reachesAction.has(node.id)) errors.push(error('no-post-path', `${node.name} does not lead to a Post or Listing node.`, node.id))
+    if (!reachesAction.has(node.id)) errors.push(error('no-post-path', `${node.name} does not lead to a ${actionNames} node.`, node.id))
   }
 
   return dedupeErrors(errors)
@@ -126,6 +134,18 @@ export function topologicalAutomationNodes(graph: AutomationGraph): AutomationNo
     }
   }
   return result
+}
+
+/**
+ * Every node reachable from `nodeId` by following connections forwards, excluding
+ * `nodeId` itself. Used to resume or close the branch after an Approval gate.
+ */
+export function downstreamAutomationNodeIds(graph: AutomationGraph, nodeId: string): Set<string> {
+  const outgoing = new Map<string, AutomationEdge[]>()
+  for (const edge of graph.edges) outgoing.set(edge.from, [...(outgoing.get(edge.from) ?? []), edge])
+  const reachable = walkGraph(nodeId, outgoing, (edge) => edge.to)
+  reachable.delete(nodeId)
+  return reachable
 }
 
 function isTerminalActionNode(node: AutomationNode) {
@@ -182,7 +202,7 @@ function parseNode(value: unknown): AutomationNode {
 function parseEdge(value: unknown): AutomationEdge {
   if (!isRecord(value)) throw new Error('Automation connection is invalid')
   const sourcePort = requiredString(value.sourcePort, 'Connection output', 80)
-  if (sourcePort !== 'then' && sourcePort !== 'documents' && sourcePort !== 'article' && sourcePort !== 'else' && !sourcePort.startsWith('route:')) {
+  if (!FIXED_SOURCE_PORTS.has(sourcePort) && !sourcePort.startsWith('route:')) {
     throw new Error('Automation connection output is invalid')
   }
   return {

@@ -1,0 +1,177 @@
+# The bottom panel's one table
+
+Positions, Open orders and the Journal use one table frame. Each tab supplies
+its own columns, rows, words and row actions. The frame owns the pinned heading
+row and the loading, failed and empty row beneath it.
+
+Positions shows Type after Market, with Long for a positive position size and
+Short for a negative size. Type replaces the Wallet column and sorts alphabetically.
+Type uses the green Long or red Short badge with leverage, such as Long 1×.
+The badge appears only in Type, not beside Market. Owned coins keep their
+Owned amount badge in Type. Wallet names remain
+in action confirmations, Open orders and the Journal.
+
+Active Trades, Running bots and the Trades dashboard card use the same frame
+in their own card wrapper. Their columns and row contents stay different, but
+sorting, scrolling and the state row come from `trade-table.tsx`. The pinned
+heading uses one opaque theme-token mix in light and dark mode, so values moving
+under it cannot show through the labels.
+
+The shared frame keeps three safety rules in one place. A first read that has
+not landed cannot claim the account is empty. A failed read stays different
+from an empty result and keeps its retry button. Closing the last row leaves the
+headings in place, so the panel does not jump.
+
+The practice and real-wallet reads finish separately. A refusal still counts
+as a finished read. Once the other half finishes, the failed row replaces the
+spinner instead of leaving the panel saying it is reading forever.
+
+The rows still belong to their tabs. Mainnet rows never carry a "Real" chip.
+Testnet rows keep their Testnet mark, and practice Journal rows keep their
+Practice mark. Positions keep their close actions. Open orders keep the cancel
+action for the exact order shown. The Journal alone keeps selection and removal
+because finished trades do not disappear while a person is choosing them.
+
+The Journal starts in order of when each trade ended, newest first, so a grid
+run closed just now is the top row even when it opened days ago. The Opened
+column still shows its start. An incomplete row is placed by its last saved
+fill. Clicking a heading sorts by that column instead; there is no Ended column,
+so a reload brings the starting order back. Tyler's rule, 24 Sep 2026.
+
+The Journal never drops saved fills because they do not make a complete trade.
+It groups those fills by wallet and market and shows History incomplete in the
+same table, along with the number of saved fills in the group. The row leaves
+figures it cannot know blank instead of inventing an entry, exit, size, or
+result. The Opened column says Unknown and gives the first saved fill time
+separately. When the exchange still holds that wallet and market, the row says
+Open, history incomplete, shows the exchange's side, entry, and size, and cannot
+be selected or removed. Old incomplete history may be removed only with the
+same explicit confirmation as a finished trade.
+
+## What the row buttons say
+
+Every icon button in a position row and an open-order row names itself on
+hover and on keyboard focus (`positions-table.tsx`). A position row reads, left
+to right, Flip trade, Add to position, Leverage and margin, Stop and target and
+Close position. An owned coin's last button says Sell all. An open order's
+button says Cancel order.
+
+Close is an X, not a bin. Closing a position ends the trade, and a bin
+reads as deleting a record. The bin stays on Cancel order and on the Journal's
+Remove, where a row really is thrown away.
+
+The Leverage and margin tooltip used to say "Add margin". The window behind it
+changes leverage too, so the short name now matches what it opens.
+
+While the row waits on the exchange, the whole group of buttons says "Waiting
+on the exchange." instead of the button's own name.
+
+## Where a height belongs on the shared frame
+
+A panel bounded by its own layout passes no height at all. A card sitting in a
+page that scrolls, such as the Errors card on Settings → Trading engine, passes
+its ceiling through `viewportClassName` and never through the class name on the
+frame outside. The scrolling box is what overflows. A `max-height` on the frame
+trims the frame and leaves the box at its full height inside it, so the oldest
+rows are clipped with nothing to scroll. Measured on 5 September 2026: 33 rows
+in a card capped the wrong way gave a 1429px box inside a 416px frame and no
+scrollbar at all.
+
+## What each position loses if its stop hits
+
+The Positions table has an "If stopped" column, after Projected P / L. It says
+in dollars what firing the stop right now would do to the money. The sum is
+the size held times the distance from today's price to the stop. A long with
+two coins at $100 and a stop at $90 reads "-$20.00". Nothing else is taken
+off. Fees are their own column, and a stop's loss from the entry price is the
+red half of Projected P / L.
+
+The figure is measured from today's price, not the entry, because the
+question it answers is "what do I lose from here" when deciding whether the
+open risk across every trade is too much. A stop that has been moved past the
+price, above it on a long or below it on a short, shows a gain with a plus
+sign in the same column, because that is what the stop would bank.
+
+The stop comes from the same place the "No position stop" badge reads: the
+position's own stop, or the stop held by its running grid plan. The whole size held is
+used even when a grid's stop is part-size. A position with no stop shows a
+dash, never a zero, and the column stays blank until both halves of the read
+have landed.
+
+Sorting by the column puts the biggest loss first. Rows with no stop sort to
+the end, the way a missing liquidation price already does.
+
+## Positions without a stop
+
+Once the practice and real-wallet reads have both finished, a position with no
+stop has a red "No position stop" badge beside its market. Hovering the badge
+or reaching it with the keyboard says, "This position has no stop." The words remain visible
+without relying on the badge's color.
+
+The Positions tab does not mention missing stops. The tab keeps its ordinary
+position count, while the protection warning stays beside the affected market.
+
+An ordinary position gets its stop from the latest position read. A running
+grid also counts as protected when its matching grid plan holds the stop. That
+exception covers a Lighter stop watched inside Trade and a paired grid's own
+part-size stop. The warning reports the missing stop; it never places one.
+
+Open orders names a missing stop on a watched entry "No watched stop". The
+warning appears once the reads finish and only when that entry has no saved
+stop. Reduce-only exits and ordinary exchange orders do not get the watched
+warning. Its tooltip says the stop is missing for when the watched order fills.
+A saved watched stop never clears the open position's warning.
+
+The heading draws the single one-pixel line above the rows. The first row does
+not add a second edge beneath it, while every later row keeps its normal divider.
+
+## Distance to a waiting price
+
+Open orders shows Distance after Price for real, practice and watched orders.
+The green pill is shared with the Watched panel. It shows the absolute gap
+divided by the waiting price, formatted to two decimal places. With the market
+at $100 and an order at $95, both show `5.26% away`. Tyler chose the existing
+percentage wording instead of dollars or an out-of-100 sentence.
+
+Click Distance for nearest first; click again for farthest first. Missing or
+invalid prices leave the cell blank and sort after priced orders both ways.
+The table subscribes to the existing live-mark store and falls back to the
+market catalogue price. Rendering and sorting use the same snapshot.
+
+Watched levels already touched in their saved direction say `reached`, just as
+they do in Watched. Exchange-held orders use the gap to their own price; a sell
+stop below the market is not assumed reached merely because its side is sell.
+
+Watched lists only the nearest level for each coin. Open orders lists every
+order, so their row counts can differ. No new alerts or trading actions are
+introduced.
+
+## Totals under positions and open orders
+
+Positions totals Value, Margin, Projected P&L, If stopped, Fees and Unrealized P&L. Open orders
+totals Value using each waiting price times its order size. The footer uses
+the existing shared table footer slot and opaque sticky-row background. It
+stays visible at the bottom while the table scrolls, with each sum under its
+own column. A short table keeps its total immediately below the last row.
+
+Totals use only the rows passed to the table, so narrowing the wallet filter
+narrows the sums. Positions use the same price snapshot and stop lookup as
+their rows. Profit and stop totals keep the sign of each contribution.
+
+A missing value makes that column's complete total unavailable, shown as a
+dash. This includes an unpriced owned coin, unknown entry cost for profit,
+while optional targets and stops are summed only where available. Owned coins do not use margin;
+they contribute no margin to a mixed table, and an owned-only table shows a
+dash for margin. Projected P&L keeps two separate sums, target profit / stop
+profit, measured from entry. If stopped measures the change from the current
+price. Positions without a target or stop are excluded from the corresponding projection
+and If stopped total. These totals show a dash only when no rows have a value.
+Fees use the same precision as the rows and include negative maker rebates.
+Missing or incomplete live fill history makes the fee total unavailable;
+practice fees come from the engine.
+
+No totals row appears for empty, loading or failed reads, even when earlier
+rows are still visible. When visible rows mix practice and live wallets, the
+label says "Total · practice included". Wallet membership supplies that label,
+because a live watched order does not carry the exchange-order `live` flag.
+The Journal and wallet cards keep their existing behavior.

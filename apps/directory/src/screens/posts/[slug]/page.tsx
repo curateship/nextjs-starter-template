@@ -4,7 +4,7 @@ import { db } from "@/lib/db"
 import { sql } from "drizzle-orm"
 import { unstable_cache } from "@/lib/cache"
 import { notFound } from "@/lib/navigation-server"
-import { getRelatedPostsData } from "@/lib/actions/posts/related-posts-actions"
+import { getRelatedPostsDataImpl } from "@/lib/actions/posts/related-posts-actions.server"
 import { mergePostTemplateBlocks } from "@/lib/actions/posts/post-template-inheritance"
 import { toSnakeCase } from "@/lib/db/to-snake-case"
 import { buildSeoMetadata } from "@/lib/utils/seo-helpers"
@@ -13,7 +13,7 @@ import {
   getContentBreadcrumbItems,
   shouldShowFrontendBreadcrumbs,
 } from "@/lib/actions/categories/frontend-breadcrumb-actions"
-import { getActiveSponsorsByIdsAction } from "@/lib/actions/sponsors/sponsor-actions"
+import { getActiveSponsorsByIdsActionImpl } from "@/lib/actions/sponsors/sponsor-actions.server"
 import { extractSponsorIdsFromHtml } from "@/lib/utils/sponsor-embeds"
 import { convertContentBlocksToArray } from "@/lib/utils/block-utils"
 
@@ -150,7 +150,7 @@ export default async function PostPage({ params }: PostPageProps) {
   const relatedPostsBlock = blocks.find((b: any) => b.type === 'related-posts')
   if (relatedPostsBlock) {
     const rpContent = relatedPostsBlock.content || {}
-    const result = await getRelatedPostsData({
+    const result = await getRelatedPostsDataImpl({
       siteId: site.id,
       excludePostId: post.id,
       sortBy: rpContent.sortBy || 'date',
@@ -172,7 +172,7 @@ export default async function PostPage({ params }: PostPageProps) {
   const sponsorIds = blocks.flatMap((block: any) =>
     block?.type === 'core' ? extractSponsorIdsFromHtml(block.content?.body || block.content?.text || '') : []
   )
-  const sponsorsById = await getActiveSponsorsByIdsAction(site.id, sponsorIds)
+  const sponsorsById = await getActiveSponsorsByIdsActionImpl(site.id, sponsorIds)
 
   return (
     <>

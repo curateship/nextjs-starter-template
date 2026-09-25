@@ -128,7 +128,7 @@ export function SortableFooterLinkItem({
       onEdit={() => onEdit(index)}
       onDelete={() => onDelete(index)}
     >
-      <span className="truncate">{link.text || "Link"}</span>
+      <span className="truncate" title={link.text || "Link"}>{link.text || "Link"}</span>
     </SortableActionRow>
   )
 }
@@ -152,7 +152,7 @@ export function StaticFooterLinkItem({
       onEdit={() => onEdit(index)}
       onDelete={() => onDelete(index)}
     >
-      <span className="truncate">{link.text || "Link"}</span>
+      <span className="truncate" title={link.text || "Link"}>{link.text || "Link"}</span>
     </ActionRow>
   )
 }

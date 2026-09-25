@@ -46,9 +46,9 @@ export default function EmailHealthPage() {
   }
 
   const dnsStatusBadge = (status: string) => {
-    if (status === "pass") return <Badge className="bg-green-100 text-green-800">Pass</Badge>
+    if (status === "pass") return <Badge className="bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300">Pass</Badge>
     if (status === "fail") return <Badge variant="destructive">Fail</Badge>
-    return <Badge className="bg-yellow-100 text-yellow-800">Missing</Badge>
+    return <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-950/50 dark:text-yellow-300">Missing</Badge>
   }
 
   return (

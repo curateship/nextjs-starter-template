@@ -301,7 +301,7 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
 
           <AdminTableShell
             title={categoryTitle}
-            icon={<Tag className="size-4 text-muted-foreground sm:size-[18px]" />}
+            icon={<Tag className="text-muted-foreground" />}
             count={filteredCategories.length}
             selectedCount={categorySelection.selectedCount}
             onClearSelection={categorySelection.clearSelection}

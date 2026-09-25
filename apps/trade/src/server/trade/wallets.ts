@@ -1,0 +1,854 @@
+import { randomUUID } from "node:crypto"
+
+import { and, asc, eq, gte, inArray, isNull, or, sql } from "drizzle-orm"
+
+import type {
+  NetworkId,
+  ProtocolId,
+  WalletAccountFigures,
+} from "@/lib/protocols/contracts"
+import {
+  MAX_WALLETS,
+  moneyForWalletFill,
+  summarizeWallet,
+  walletProfitWindowStart,
+  type TradeWallet,
+  type WalletAccountSummary,
+  type WalletKind,
+} from "@/lib/trade/wallets"
+import { gridRoundTrips } from "@/lib/trade/live-trades"
+import type { TradeSide } from "@/lib/trade/paper"
+import { stampGridFills } from "@/server/trade/grid-fills"
+import {
+  liquidationWarningSchema,
+  resolveLiquidationWarning,
+  type LiquidationWarning,
+} from "@/lib/trade/liquidation-warning"
+import { loadLiquidationWarning } from "@/server/trade/prefs"
+import { db, type CustomShellDb } from "@/server/trade/db"
+import { encryptSecret } from "@/server/auth/encryption"
+import {
+  agentOf,
+  getProtocol,
+  credentialsOf,
+  pricesEverySale,
+} from "@/server/protocols/registry"
+import { scrubbedMessage } from "@/server/protocols/scrub"
+import { paperWalletFigures } from "@/server/trade/paper"
+import { credentialFor } from "@/server/trade/wallet-auth"
+import {
+  tradeLiveFills,
+  tradeLiveJournal,
+  tradePaperJournal,
+  tradeWallets,
+} from "@/server/trade/schema"
+import { recordEngineError } from "@/server/trade/engine-errors"
+import {
+  freezeWalletRecord,
+  markRecordWalletProved,
+} from "@/server/trade/trade-record"
+
+/**
+ * The wallet store. Two rules run through every function here:
+ *
+ * - Every read and write is scoped by (userId, id) — the table's key — so a
+ *   request carrying somebody else's wallet id can only ever miss.
+ * - The trading key exists in three forms: the plaintext that arrives once at
+ *   create/replace time, the ciphertext in the row, and `hasKey: true` in
+ *   every answer. The plaintext is encrypted immediately and never logged,
+ *   stored raw, or sent back.
+ *
+ * Failures are thrown as bare codes ("WALLET_LIMIT"); the API layer owns the
+ * sentences, the same split every other feature here uses.
+ */
+
+type WalletRow = typeof tradeWallets.$inferSelect
+
+/**
+ * Everything a wallet is described by — the timestamps are stored but nothing
+ * reads them, so a row on its way in describes a wallet just as well as one
+ * read back out.
+ */
+type WalletFields = Pick<
+  WalletRow,
+  | "id"
+  | "label"
+  | "kind"
+  | "status"
+  | "protocol"
+  | "network"
+  | "startingBalance"
+  | "address"
+  | "agentKeyEncrypted"
+  | "agentValidUntil"
+  | "positionMode"
+  | "keyPermission"
+  | "keyPermissionCheckedAt"
+  | "liquidationWarnUsd"
+  | "liquidationWarnPct"
+>
+
+function toWallet(row: WalletFields): TradeWallet {
+  return {
+    id: row.id,
+    label: row.label,
+    kind: row.kind,
+    status: row.status,
+    protocol: row.protocol,
+    network: row.network,
+    startingBalance: row.startingBalance,
+    address: row.address,
+    hasKey: row.agentKeyEncrypted !== null,
+    keyValidUntil: row.agentValidUntil?.getTime() ?? null,
+    positionMode: row.positionMode,
+    keyPermission: row.keyPermission,
+    keyPermissionCheckedAt: row.keyPermissionCheckedAt?.getTime() ?? null,
+    liquidationWarning: {
+      usd: row.liquidationWarnUsd,
+      pct: row.liquidationWarnPct,
+    },
+  }
+}
+
+const publicWalletSelection = {
+  userId: tradeWallets.userId,
+  id: tradeWallets.id,
+  label: tradeWallets.label,
+  kind: tradeWallets.kind,
+  status: tradeWallets.status,
+  protocol: tradeWallets.protocol,
+  network: tradeWallets.network,
+  startingBalance: tradeWallets.startingBalance,
+  address: tradeWallets.address,
+  hasKey: sql<boolean>`${tradeWallets.agentKeyEncrypted} is not null`,
+  keyValidUntil: tradeWallets.agentValidUntil,
+  positionMode: tradeWallets.positionMode,
+  keyPermission: tradeWallets.keyPermission,
+  keyPermissionCheckedAt: tradeWallets.keyPermissionCheckedAt,
+  liquidationWarnUsd: tradeWallets.liquidationWarnUsd,
+  liquidationWarnPct: tradeWallets.liquidationWarnPct,
+}
+
+function selectedWallet(row: {
+  id: string
+  label: string
+  kind: TradeWallet["kind"]
+  status: TradeWallet["status"]
+  protocol: TradeWallet["protocol"]
+  network: TradeWallet["network"]
+  startingBalance: number
+  address: string | null
+  hasKey: boolean
+  keyValidUntil: Date | null
+  positionMode: WalletRow["positionMode"]
+  keyPermission: WalletRow["keyPermission"]
+  keyPermissionCheckedAt: Date | null
+  liquidationWarnUsd: number | null
+  liquidationWarnPct: number | null
+}): TradeWallet {
+  return {
+    id: row.id,
+    label: row.label,
+    kind: row.kind,
+    status: row.status,
+    protocol: row.protocol,
+    network: row.network,
+    startingBalance: row.startingBalance,
+    address: row.address,
+    hasKey: row.hasKey,
+    keyValidUntil: row.keyValidUntil?.getTime() ?? null,
+    positionMode: row.positionMode,
+    keyPermission: row.keyPermission,
+    keyPermissionCheckedAt: row.keyPermissionCheckedAt?.getTime() ?? null,
+    liquidationWarning: {
+      usd: row.liquidationWarnUsd,
+      pct: row.liquidationWarnPct,
+    },
+  }
+}
+
+/** This person's wallets, oldest first — the order the All tab lists them. */
+export async function listWallets(userId: string): Promise<TradeWallet[]> {
+  return (await listWalletsWithCredentials(userId)).wallets
+}
+
+/**
+ * The same list, with each wallet's key kept beside it as a thunk that
+ * decrypts on demand. The live poll needs both, and reading the row once for
+ * the list and again for the keys was a round trip for nothing. The
+ * plaintext still never leaves the server: `TradeWallet` carries only
+ * `hasKey`, and the thunk is consumed by the exchange connector.
+ */
+export async function listWalletsWithCredentials(userId: string): Promise<{
+  wallets: TradeWallet[]
+  credentials: Map<string, () => string | null>
+}> {
+  const rows = await db
+    .select()
+    .from(tradeWallets)
+    .where(eq(tradeWallets.userId, userId))
+    .orderBy(asc(tradeWallets.createdAt), asc(tradeWallets.id))
+  await Promise.all(rows.map(refreshKeyPermission))
+  const credentials = new Map<string, () => string | null>()
+  for (const row of rows) credentials.set(row.id, () => credentialFor(row))
+  return { wallets: rows.map(toWallet), credentials }
+}
+
+/**
+ * One of this person's wallets, or null. The pair (person, wallet) is the
+ * whole lookup, so a request carrying somebody else's wallet id can only ever
+ * miss — which is what every trading function leans on before it does anything.
+ */
+export async function findWallet(
+  userId: string,
+  id: string,
+  database: CustomShellDb = db
+): Promise<TradeWallet | null> {
+  const rows = await database
+    .select(publicWalletSelection)
+    .from(tradeWallets)
+    .where(and(eq(tradeWallets.userId, userId), eq(tradeWallets.id, id)))
+    .limit(1)
+  return rows[0] ? selectedWallet(rows[0]) : null
+}
+
+/** The composite database key used by one engine pass's wallet map. */
+export function walletMapKey(userId: string, id: string): string {
+  return `${userId}\0${id}`
+}
+
+/**
+ * Reads all wallets needed by one engine pass in one database round trip.
+ * Empty input deliberately makes no query at all.
+ */
+export async function findWallets(
+  keys: ReadonlyArray<{ userId: string; walletId: string }>
+): Promise<ReadonlyMap<string, TradeWallet | null>> {
+  const unique = new Map(
+    keys.map((key) => [walletMapKey(key.userId, key.walletId), key])
+  )
+  if (unique.size === 0) return new Map()
+
+  const rows = await db
+    .select(publicWalletSelection)
+    .from(tradeWallets)
+    .where(
+      or(
+        ...[...unique.values()].map((key) =>
+          and(
+            eq(tradeWallets.userId, key.userId),
+            eq(tradeWallets.id, key.walletId)
+          )
+        )
+      )
+    )
+  const found = new Map<string, TradeWallet | null>(
+    [...unique.keys()].map((key) => [key, null])
+  )
+  for (const row of rows) {
+    found.set(walletMapKey(row.userId, row.id), selectedWallet(row))
+  }
+  return found
+}
+
+/** A wallet that may receive a new order. Inactive wallets remain readable. */
+export async function findTradingWallet(
+  userId: string,
+  id: string
+): Promise<TradeWallet | null> {
+  const wallet = await findWallet(userId, id)
+  if (wallet?.status === "inactive") throw new Error("WALLET_INACTIVE")
+  return wallet
+}
+
+export async function createWallet(
+  userId: string,
+  input: {
+    label: string
+    kind: WalletKind
+    protocol: ProtocolId
+    network: NetworkId
+    /** Paper only: the pretend cash it starts with. */
+    startingBalance?: number
+    /** Live only: the public identifier — a wallet address or an API key id. */
+    address?: string
+    /** Live only: the trading key, on an exchange whose credential is one. */
+    agentKey?: string
+    /** Live only: the API secret, on an API-key exchange. */
+    secret?: string
+    /** Live only: the passphrase, where the exchange demands a third value. */
+    passphrase?: string
+    /**
+     * Live only: have the exchange's module make the wallet instead of
+     * pasting one. The secret is made here and encrypted here; the browser
+     * only ever sees the address.
+     */
+    makeWallet?: boolean
+  }
+): Promise<TradeWallet> {
+  const existing = await db
+    .select({ id: tradeWallets.id })
+    .from(tradeWallets)
+    .where(eq(tradeWallets.userId, userId))
+  if (existing.length >= MAX_WALLETS) throw new Error("WALLET_LIMIT")
+
+  const entry = getProtocol(input.protocol)
+  // A network the exchange does not run must be refused at the door — a
+  // wallet saved on one would poll an endpoint that does not exist, forever.
+  if (!entry.networks.includes(input.network)) {
+    throw new Error("WALLET_NETWORK")
+  }
+
+  let startingBalance: number
+  let address: string | null = null
+  let agentKeyEncrypted: string | null = null
+  let agentValidUntil: Date | null = null
+  let keyPermission: WalletRow["keyPermission"] = null
+  let keyPermissionCheckedAt: Date | null = null
+  let positionMode: "one-way" | "two-sided" | null = null
+
+  if (input.kind === "paper") {
+    if (!input.startingBalance) throw new Error("WALLET_BALANCE_REQUIRED")
+    startingBalance = input.startingBalance
+  } else {
+    // `credentialsOf` also refuses a live wallet on an exchange that cannot
+    // hold accounts at all (Dukascopy), with the exchange's name in the error.
+    const creds = credentialsOf(entry)
+    let blob: string
+    if (input.makeWallet) {
+      // The exchange's module makes the keypair; the secret exists only on
+      // this path between being made and being encrypted a few lines down.
+      if (!creds.make) throw new Error("WALLET_MAKE_UNSUPPORTED")
+      const made = creds.make()
+      address = made.address
+      blob = creds.pack({ address, secret: made.secret })
+    } else {
+      if (!input.address) throw new Error("WALLET_CREDENTIALS_REQUIRED")
+      if (!new RegExp(creds.form.addressPattern).test(input.address.trim())) {
+        throw new Error("WALLET_ADDRESS_SHAPE")
+      }
+      address = input.address.trim()
+      // The protocol folds the pasted fields into its own blob — and refuses
+      // a missing required field with a KEY_ code before anything is stored.
+      blob = creds.pack({
+        address,
+        agentKey: input.agentKey,
+        secret: input.secret,
+        passphrase: input.passphrase,
+      })
+    }
+    // Encrypt before anything can fail after it: a wallet is only ever
+    // inserted with ciphertext, and a missing encryption key stops the whole
+    // add rather than quietly storing nothing.
+    agentKeyEncrypted = encryptSecret(blob)
+    // The credential is proved before it is kept: the exchange must accept
+    // it for this account, and an account's own master key is refused
+    // outright where the venue can tell. Codes travel up as they are — each
+    // has its own sentence in the dialog.
+    const verified = await agentOf(entry).verify(input.network, address, blob)
+    agentValidUntil =
+      verified.validUntil !== null ? new Date(verified.validUntil) : null
+    positionMode = verified.positionMode ?? null
+    keyPermission = await checkKeyPermission(
+      entry,
+      input.network,
+      address,
+      () => blob
+    )
+    keyPermissionCheckedAt = new Date()
+    if (entry.account) {
+      // Reading the account proves it is reachable and records the fixed
+      // sizing baseline used when compounding is off. An account the
+      // exchange cannot answer for is refused, not saved broken.
+      const figures = await entry.account
+        .fetch(input.network, address, () => blob)
+        .catch(() => null)
+      if (!figures) throw new Error("WALLET_UNREACHABLE")
+      startingBalance = figures.equity
+    } else {
+      // An exchange that cannot read what a wallet holds yet has no figure
+      // to save. Zero is the honest baseline; nothing sizes an order off it
+      // because such an exchange takes no orders either.
+      startingBalance = 0
+    }
+  }
+
+  const row = {
+    userId,
+    id: randomUUID(),
+    label: input.label,
+    kind: input.kind,
+    status: "active" as const,
+    protocol: input.protocol,
+    network: input.network,
+    startingBalance,
+    address,
+    agentKeyEncrypted,
+    agentValidUntil,
+    liquidationWarnUsd: null,
+    liquidationWarnPct: null,
+    positionMode,
+    keyPermission,
+    keyPermissionCheckedAt,
+  }
+  await db.insert(tradeWallets).values(row)
+  if (keyPermission) await journalKeyPermission(userId, row.id, keyPermission)
+  return toWallet(row)
+}
+
+export async function updateWallet(
+  userId: string,
+  input: {
+    id: string
+    label?: string
+    /** Paper only — a live wallet keeps the fixed sizing baseline saved at add. */
+    startingBalance?: number
+    /** Live only: a replacement credential, in the wallet's own fields. */
+    agentKey?: string
+    secret?: string
+    passphrase?: string
+    status?: TradeWallet["status"]
+    liquidationWarning?: LiquidationWarning
+  }
+): Promise<TradeWallet> {
+  const rows = await db
+    .select()
+    .from(tradeWallets)
+    .where(and(eq(tradeWallets.userId, userId), eq(tradeWallets.id, input.id)))
+    .limit(1)
+  const row = rows[0]
+  if (!row) throw new Error("WALLET_NOT_FOUND")
+
+  if (input.startingBalance !== undefined && row.kind !== "paper") {
+    throw new Error("WALLET_BALANCE_KIND")
+  }
+  const replacingKey =
+    input.agentKey !== undefined ||
+    input.secret !== undefined ||
+    input.passphrase !== undefined
+  if (replacingKey && row.kind !== "live") {
+    throw new Error("WALLET_KEY_KIND")
+  }
+
+  const set: Partial<typeof tradeWallets.$inferInsert> = {
+    updatedAt: new Date(),
+  }
+  if (input.label !== undefined) set.label = input.label
+  if (input.status !== undefined) set.status = input.status
+  if (input.liquidationWarning !== undefined) {
+    const warning = liquidationWarningSchema.parse(input.liquidationWarning)
+    set.liquidationWarnUsd = warning.usd
+    set.liquidationWarnPct = warning.pct
+  }
+  if (input.startingBalance !== undefined) {
+    set.startingBalance = input.startingBalance
+  }
+  if (replacingKey) {
+    const entry = getProtocol(row.protocol)
+    const blob = credentialsOf(entry).pack({
+      address: row.address ?? undefined,
+      agentKey: input.agentKey,
+      secret: input.secret,
+      passphrase: input.passphrase,
+    })
+    // A replacement credential is proved exactly like a first one — against
+    // the wallet's own stored address and network, so a credential for some
+    // other account can never slide in through the edit window.
+    const verified = await agentOf(entry).verify(
+      row.network,
+      row.address ?? "",
+      blob
+    )
+    set.keyPermission = await checkKeyPermission(
+      entry,
+      row.network,
+      row.address ?? "",
+      () => blob
+    )
+    set.keyPermissionCheckedAt = new Date()
+    set.agentKeyEncrypted = encryptSecret(blob)
+    set.agentValidUntil =
+      verified.validUntil !== null ? new Date(verified.validUntil) : null
+    if (verified.positionMode !== undefined) {
+      set.positionMode = verified.positionMode
+    }
+  }
+
+  await db
+    .update(tradeWallets)
+    .set(set)
+    .where(and(eq(tradeWallets.userId, userId), eq(tradeWallets.id, input.id)))
+  if (set.keyPermission)
+    await journalKeyPermission(userId, row.id, set.keyPermission)
+  // The replacement was just proved against this address, which clears a
+  // failed ownership check on the public profile.
+  if (replacingKey) await markRecordWalletProved(userId, row.id)
+  return toWallet({ ...row, ...set } as WalletRow)
+}
+
+/**
+ * Deletes a wallet. A real one leaves its trades in the permanent record
+ * (`trade-record.ts`), with what each made fixed first, so a public profile
+ * reads the same afterwards.
+ */
+export async function deleteWallet(userId: string, id: string): Promise<void> {
+  const wallet = await findWallet(userId, id)
+  if (!wallet) return
+  const freeze = await freezeWalletRecord(userId, wallet)
+  await db.transaction(async (tx) => {
+    await freeze(tx)
+    await tx
+      .delete(tradeWallets)
+      .where(and(eq(tradeWallets.userId, userId), eq(tradeWallets.id, id)))
+  })
+}
+
+/**
+ * Every wallet's figures in one sweep — what the panel polls.
+ *
+ * Live wallets are asked in parallel and each failure stays its own: one dead
+ * address answers "unreachable" while the rest answer normally. Nothing here
+ * throws for a wallet the exchange would not price; throwing is for the read
+ * of the list itself.
+ *
+ * Practice wallets are settled and folded together by the engine rather than
+ * one at a time, so the exchange is asked once for every market they are all
+ * in — see `paperWalletFigures`.
+ */
+export async function loadWalletSummaries(
+  userId: string,
+  /**
+   * Ask the exchange about this exchange's wallets only. Every dashboard
+   * belongs to one exchange, and asking every other exchange about wallets
+   * the page will never draw spent their request allowance for nothing. The
+   * wallet LIST still comes back whole.
+   */
+  protocol?: ProtocolId
+): Promise<{ wallets: TradeWallet[]; summaries: WalletAccountSummary[] }> {
+  const [rows, accountWarning] = await Promise.all([
+    db
+      .select()
+      .from(tradeWallets)
+      .where(eq(tradeWallets.userId, userId))
+      .orderBy(asc(tradeWallets.createdAt), asc(tradeWallets.id)),
+    loadLiquidationWarning(userId),
+  ])
+
+  await Promise.all(
+    rows
+      .filter((row) => protocol === undefined || row.protocol === protocol)
+      .map(refreshKeyPermission)
+  )
+  const wallets = rows.map((row) => {
+    const wallet = toWallet(row)
+    const warning = resolveLiquidationWarning(
+      wallet.liquidationWarning,
+      accountWarning
+    )
+    if (
+      warning.usd !== accountWarning.usd ||
+      warning.pct !== accountWarning.pct
+    ) {
+      wallet.liquidationWarningInUse = warning
+    }
+    return wallet
+  })
+  // The ciphertext rides along from the same read, decrypted only if the
+  // wallet's exchange needs a key to answer an account question at all.
+  const cipherById = new Map(
+    rows.map((row) => [row.id, row.agentKeyEncrypted ?? null])
+  )
+  // **Only the wallets in use are read.** Every live wallet costs three
+  // requests to the exchange on every poll, and the exchange counts every
+  // request from this machine together — so wallets switched off were
+  // spending the same allowance as the one being traded with, and running out
+  // is exactly what makes a wallet answer with nothing. A switched-off wallet
+  // says so instead, which is the truth and costs nothing.
+  const inUse = wallets.filter(
+    (wallet) =>
+      wallet.status === "active" &&
+      (protocol === undefined || wallet.protocol === protocol)
+  )
+  const liveWallets = inUse.filter((wallet) => wallet.kind === "live")
+  const paperWallets = inUse.filter((wallet) => wallet.kind === "paper")
+  const since = walletProfitWindowStart()
+  const [paper, liveMoney, paperMoney] = await Promise.all([
+    paperWalletFigures(userId, paperWallets).catch((error) => {
+      recordEngineError("wallets", "Paper wallets could not be settled", error)
+      return new Map<string, WalletAccountFigures>()
+    }),
+    liveWallets.length
+      ? db
+          .select({
+            walletId: tradeLiveFills.walletId,
+            fillId: tradeLiveFills.fillId,
+            orderId: tradeLiveFills.orderId,
+            marketKey: tradeLiveFills.marketKey,
+            side: tradeLiveFills.side,
+            px: tradeLiveFills.px,
+            sz: tradeLiveFills.sz,
+            at: tradeLiveFills.at,
+            closedPnl: tradeLiveFills.closedPnl,
+            fee: tradeLiveFills.fee,
+            dir: tradeLiveFills.dir,
+            liquidation: tradeLiveFills.liquidation,
+          })
+          .from(tradeLiveFills)
+          .where(
+            and(
+              eq(tradeLiveFills.userId, userId),
+              inArray(
+                tradeLiveFills.walletId,
+                liveWallets.map((wallet) => wallet.id)
+              ),
+              eq(tradeLiveFills.hidden, false),
+              gte(tradeLiveFills.at, since)
+            )
+          )
+      : [],
+    paperWallets.length
+      ? db
+          .select({
+            walletId: tradePaperJournal.walletId,
+            closedPnl: tradePaperJournal.closedPnl,
+            fee: tradePaperJournal.fee,
+          })
+          .from(tradePaperJournal)
+          .where(
+            and(
+              eq(tradePaperJournal.userId, userId),
+              inArray(
+                tradePaperJournal.walletId,
+                paperWallets.map((wallet) => wallet.id)
+              ),
+              gte(tradePaperJournal.fillTime, new Date(since))
+            )
+          )
+      : [],
+  ])
+  const walletById = new Map(wallets.map((wallet) => [wallet.id, wallet]))
+  const settledByWallet = new Map<string, number>()
+  const unpricedByWallet = new Map<string, number>()
+  const addSettled = (walletId: string, money: number) =>
+    settledByWallet.set(walletId, (settledByWallet.get(walletId) ?? 0) + money)
+  // A grid's sale is worth what its own rung made, never what the venue books
+  // it at against one blended average. Same rule and same arithmetic as the
+  // chart arrows and the P&L page, so a wallet's settled figure and the fills
+  // it is made of can never read as two different amounts. A sale whose buy is
+  // older than this window keeps the venue's figure.
+  const rungs = gridRoundTrips(
+    await stampGridFills(
+      userId,
+      liveWallets.map((wallet) => wallet.id),
+      liveMoney.map((fill) => ({
+        fillId: fill.fillId,
+        orderId: fill.orderId,
+        walletId: fill.walletId,
+        marketKey: fill.marketKey,
+        side: fill.side as TradeSide,
+        px: fill.px,
+        sz: fill.sz,
+        at: Number(fill.at),
+        closedPnl: fill.closedPnl,
+        fee: fill.fee,
+        dir: fill.dir,
+        liquidation: fill.liquidation,
+      }))
+    )
+  )
+  for (const fill of liveMoney) {
+    const wallet = walletById.get(fill.walletId)
+    if (!wallet) continue
+    const money =
+      rungs.get(fill.fillId)?.money ??
+      moneyForWalletFill({
+        profitPerSale: pricesEverySale(wallet.protocol),
+        ...fill,
+      })
+    if (money === null) {
+      unpricedByWallet.set(
+        fill.walletId,
+        (unpricedByWallet.get(fill.walletId) ?? 0) + 1
+      )
+    } else {
+      addSettled(fill.walletId, money)
+    }
+  }
+  for (const fill of paperMoney) {
+    addSettled(fill.walletId, fill.closedPnl - fill.fee)
+  }
+
+  const summaries = await Promise.all(
+    wallets.map(async (wallet): Promise<WalletAccountSummary> => {
+      if (wallet.status !== "active") {
+        return { walletId: wallet.id, state: "inactive" }
+      }
+      if (wallet.kind === "paper") {
+        const figures = paper.get(wallet.id)
+        // The engine could not be run — the exchange would not answer, or the
+        // settle itself failed. Saying so beats reporting a balance worked out
+        // from prices nobody could read.
+        if (!figures) return { walletId: wallet.id, state: "unreachable" }
+        return summarizeWallet(wallet, figures, {
+          settled: settledByWallet.get(wallet.id) ?? 0,
+          unpricedFills: 0,
+        })
+      }
+      const entry = getProtocol(wallet.protocol)
+      if (!entry.account) {
+        // Saved, never asked: this build cannot read what a wallet on this
+        // exchange holds. Said as its own state rather than "unreachable",
+        // because nothing failed and a retry would not change it.
+        return {
+          walletId: wallet.id,
+          state: "unread",
+          reason: `Trade cannot read what a ${entry.label} wallet holds yet, so its figures are blank. The wallet is saved and its address is ready to receive coins.`,
+        }
+      }
+      let refusal: string | null = null
+      const figures = await entry.account
+        .fetch(
+          wallet.network,
+          wallet.address ?? "",
+          () =>
+            credentialFor({
+              agentKeyEncrypted: cipherById.get(wallet.id) ?? null,
+            }),
+          { userId, walletId: wallet.id }
+        )
+        .catch((error: unknown) => {
+          const message = scrubbedMessage(error)
+          const mode = /^WALLET_POSITION_MODE:([^]+)/.exec(message)
+          refusal = mode?.[1]?.trim() || null
+          recordEngineError(
+            "wallets",
+            `Wallet "${wallet.label}" (${wallet.protocol} ${wallet.network}) could not be read`,
+            message
+          )
+          return null
+        })
+      if (!figures) {
+        return {
+          walletId: wallet.id,
+          state: "unreachable",
+          ...(refusal ? { reason: refusal } : {}),
+        }
+      }
+      return summarizeWallet(wallet, figures, {
+        settled: settledByWallet.get(wallet.id) ?? 0,
+        unpricedFills: unpricedByWallet.get(wallet.id) ?? 0,
+      })
+    })
+  )
+  return { wallets, summaries }
+}
+
+/** Permission failures never stop trading or repeat as error toasts. */
+async function checkKeyPermission(
+  entry: ReturnType<typeof getProtocol>,
+  network: NetworkId,
+  address: string,
+  credential: () => string | null
+): Promise<NonNullable<WalletRow["keyPermission"]>> {
+  try {
+    return (
+      (await entry.agent?.permissions?.(network, address, credential)) ??
+      "unknown"
+    )
+  } catch {
+    // Never persist an exchange payload or error that may echo a credential.
+    return "unknown"
+  }
+}
+
+async function journalKeyPermission(
+  userId: string,
+  walletId: string,
+  permission: NonNullable<WalletRow["keyPermission"]>
+) {
+  try {
+    await db.insert(tradeLiveJournal).values({
+      userId,
+      walletId,
+      id: randomUUID(),
+      marketKey: "",
+      action: "key-permissions",
+      note: `Key permissions: ${permission}.`,
+    })
+  } catch (error) {
+    recordEngineError("wallets", "Key permission journal write failed", error)
+  }
+}
+
+/** Refresh on wallet reads, at most once per five minutes per unchanged key. */
+const KEY_PERMISSION_REFRESH_MS = 5 * 60_000
+const permissionReads = new Map<string, Promise<void>>()
+async function refreshKeyPermission(row: WalletRow): Promise<void> {
+  if (row.kind !== "live" || !row.agentKeyEncrypted || !row.address) return
+  if (
+    row.keyPermissionCheckedAt &&
+    Date.now() - row.keyPermissionCheckedAt.getTime() <
+      KEY_PERMISSION_REFRESH_MS
+  )
+    return
+  const key = `${row.userId}:${row.id}`
+  const existing = permissionReads.get(key)
+  if (existing) {
+    await existing
+    const current = await findWallet(row.userId, row.id)
+    row.keyPermission = current?.keyPermission ?? null
+    row.keyPermissionCheckedAt = current?.keyPermissionCheckedAt
+      ? new Date(current.keyPermissionCheckedAt)
+      : null
+    return
+  }
+  const read = (async () => {
+    const answer = await checkKeyPermission(
+      getProtocol(row.protocol),
+      row.network,
+      row.address!,
+      () => credentialFor(row)
+    )
+    // A refused read cannot erase a withdrawal permission already observed.
+    const permission =
+      row.keyPermission === "can-withdraw" && answer === "unknown"
+        ? row.keyPermission
+        : answer
+    const checkedAt = new Date()
+    const changed = await db
+      .update(tradeWallets)
+      .set({ keyPermission: permission, keyPermissionCheckedAt: checkedAt })
+      .where(
+        and(
+          eq(tradeWallets.userId, row.userId),
+          eq(tradeWallets.id, row.id),
+          eq(tradeWallets.agentKeyEncrypted, row.agentKeyEncrypted!),
+          row.keyPermissionCheckedAt
+            ? eq(
+                tradeWallets.keyPermissionCheckedAt,
+                row.keyPermissionCheckedAt
+              )
+            : isNull(tradeWallets.keyPermissionCheckedAt)
+        )
+      )
+      .returning({ id: tradeWallets.id })
+    if (changed.length) {
+      row.keyPermission = permission
+      row.keyPermissionCheckedAt = checkedAt
+      await journalKeyPermission(row.userId, row.id, answer)
+    } else {
+      // A replacement or a newer check won the race. Return its status.
+      const current = await findWallet(row.userId, row.id)
+      row.keyPermission = current?.keyPermission ?? null
+      row.keyPermissionCheckedAt = current?.keyPermissionCheckedAt
+        ? new Date(current.keyPermissionCheckedAt)
+        : null
+    }
+  })()
+  permissionReads.set(key, read)
+  try {
+    await read
+  } finally {
+    if (permissionReads.get(key) === read) permissionReads.delete(key)
+  }
+}

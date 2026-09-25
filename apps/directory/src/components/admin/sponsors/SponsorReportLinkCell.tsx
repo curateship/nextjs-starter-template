@@ -30,8 +30,8 @@ interface SponsorReportLinkCellProps {
 
 const LINK_BADGES: Record<"none" | SponsorReportLinkStatus["status"], { className: string; label: string }> = {
   none: { className: "bg-muted text-muted-foreground", label: "None" },
-  active: { className: "bg-green-100 text-green-800", label: "Active" },
-  expired: { className: "bg-amber-100 text-amber-800", label: "Expired" },
+  active: { className: "bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300", label: "Active" },
+  expired: { className: "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300", label: "Expired" },
   revoked: { className: "bg-muted text-muted-foreground", label: "Revoked" },
 }
 
@@ -64,7 +64,7 @@ export function SponsorReportLinkCell({ sponsorId, link, onLinkChange }: Sponsor
     setFreshUrl(result.data.url)
     onLinkChange(sponsorId, result.data.link)
     await copyToClipboard(result.data.url)
-    showActionSuccess("Report link created and copied to clipboard")
+    showActionSuccess("Report link created and copied.")
   }
 
   const handleRevoke = async () => {
@@ -79,7 +79,7 @@ export function SponsorReportLinkCell({ sponsorId, link, onLinkChange }: Sponsor
 
     setFreshUrl(null)
     onLinkChange(sponsorId, result.data)
-    showActionSuccess("Report link revoked")
+    showActionSuccess("Report link revoked.")
   }
 
   const status = link?.status
@@ -97,7 +97,7 @@ export function SponsorReportLinkCell({ sponsorId, link, onLinkChange }: Sponsor
             disabled={pending}
             title="Report link actions"
           >
-            {copied ? <Check className="h-4 w-4 text-green-600" /> : <Link2 className="h-4 w-4" />}
+            {copied ? <Check className="h-4 w-4 text-green-600 dark:text-green-400" /> : <Link2 className="h-4 w-4" />}
             <span className="sr-only">Report link actions</span>
           </Button>
         </DropdownMenuTrigger>

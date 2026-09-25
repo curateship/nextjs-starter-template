@@ -20,7 +20,6 @@ import {
   verticalListSortingStrategy,
   useSortable,
 } from "@dnd-kit/sortable"
-import { CSS } from "@dnd-kit/utilities"
 import { Input } from "@/components/ui/input"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Button } from "@/components/ui/button"
@@ -32,6 +31,7 @@ import type {
   DirectoryCustomBlockSimpleFieldType,
 } from "@/lib/actions/directories/directory-custom-blocks/types"
 import { createDirectoryCustomFieldOption, createDirectoryCustomRepeaterField } from "@/lib/actions/directories/directory-custom-blocks/utils"
+import { useSortableRow } from "@/components/admin/layout/builder/use-sortable-row"
 
 interface DirectoryCustomBlockSettingsPanelProps {
   name: string
@@ -337,21 +337,9 @@ function SortableRepeaterFieldEditor({
   onChange: (field: DirectoryCustomBlockRepeaterField) => void
   onDelete: () => void
 }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: field.id })
+  const { attributes, listeners, setNodeRef, style, isDragging } = useSortableRow(field.id)
   const repeaterLabelId = `repeater-field-label-${field.id}`
   const repeaterPlaceholderId = `repeater-field-placeholder-${field.id}`
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  }
 
   return (
     <div

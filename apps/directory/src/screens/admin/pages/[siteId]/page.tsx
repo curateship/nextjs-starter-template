@@ -211,7 +211,6 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
           <StickybarTopRightActions
             saveStatus={builderState.saveStatus}
             isSaving={builderState.isSaving}
-            onSave={builderState.handleSaveAllBlocks}
             blockListOpen={blockListOpen}
             onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
             settingsDisabled={!currentPageData}

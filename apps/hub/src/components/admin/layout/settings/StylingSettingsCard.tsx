@@ -51,7 +51,7 @@ export function StylingSettingsCard({
           {/* Default Theme (Light/Dark Mode) */}
           {onDefaultThemeChange && (
             <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">Default Color Mode</label>
+              <label className="text-sm font-medium text-foreground">Default Color Mode</label>
               <Select value={defaultTheme} onValueChange={onDefaultThemeChange}>
                 <SelectTrigger>
                   <SelectValue />
@@ -113,7 +113,7 @@ export function StylingSettingsCard({
           {/* Layout Width */}
           {onCustomWidthChange && (
             <div className="space-y-3">
-              <label className="text-sm font-medium text-gray-700">Layout Width</label>
+              <label className="text-sm font-medium text-foreground">Layout Width</label>
 
               <div className="flex items-center gap-3">
                 {siteWidth !== "full" && (
@@ -159,7 +159,7 @@ export function StylingSettingsCard({
           {/* Favicon */}
           {onFaviconChange && (
             <div className="space-y-2">
-              <label htmlFor="favicon" className="text-sm font-medium text-gray-700">
+              <label htmlFor="favicon" className="text-sm font-medium text-foreground">
                 Site Favicon
               </label>
               <div className="relative">

@@ -82,7 +82,7 @@ export function AdminTableShell({
       <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
         <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
           {icon ? (
-            <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
+            <span className="flex size-7 shrink-0 items-center justify-center sm:size-8 [&_svg]:size-4">
               {icon}
             </span>
           ) : null}

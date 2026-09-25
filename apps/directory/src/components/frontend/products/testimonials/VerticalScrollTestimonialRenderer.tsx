@@ -1,6 +1,6 @@
 'use client'
 
-import { TestimonialsColumn, type TestimonialColumnItem } from '@/components/ui/testimonials-columns-1'
+import { TestimonialsColumn, type TestimonialColumnItem } from '@/components/frontend/blocks/testimonials-columns-1'
 
 interface TestimonialItem {
   id: string

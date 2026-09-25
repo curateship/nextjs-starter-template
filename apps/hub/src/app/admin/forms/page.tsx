@@ -321,7 +321,7 @@ function SortableStepEditor({
 
 function getStatusBadge(form: GuidedForm) {
   if (form.status === "published") {
-    return <Badge variant="default" className="bg-green-100 text-green-800">Published</Badge>
+    return <Badge variant="default" className="bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300">Published</Badge>
   }
   if (form.status === "archived") {
     return <Badge variant="outline">Archived</Badge>
@@ -891,7 +891,7 @@ export default function AdminGuidedFormsPage() {
 
         <AdminTableShell
           title="Forms"
-          icon={<ClipboardList className="size-4 text-muted-foreground sm:size-[18px]" />}
+          icon={<ClipboardList className="text-muted-foreground" />}
           count={total}
           selectedCount={formSelection.selectedCount}
           onClearSelection={formSelection.clearSelection}

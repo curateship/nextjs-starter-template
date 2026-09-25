@@ -720,6 +720,49 @@ export const tradingWalletFills = pgTable(
   ]
 )
 
+/**
+ * Our own permanent copy of every funding payment — the small hourly amount a
+ * perpetual position pays or receives for staying open. Hyperliquid serves a
+ * limited window (responses cap at 500 entries) and funding appears in no fill,
+ * so without this table it is silently missing from every profit number.
+ *
+ * Sign convention, verified against live payments: `usdc` is the signed amount
+ * credited to the wallet — positive = received, negative = paid.
+ */
+export const tradingWalletFunding = pgTable(
+  "wallet_funding",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    walletId: varchar("wallet_id", { length: 36 })
+      .notNull()
+      .references(() => tradingWallets.id, { onDelete: "cascade" }),
+    market: varchar("market", {
+      length: HYPERLIQUID_MARKET_NAME_MAX_LENGTH,
+    }).notNull(),
+    /** Signed USDC credited to the wallet: positive = received, negative = paid. */
+    usdc: numeric("usdc").notNull(),
+    /** Signed position size the payment applied to — kept to audit the sign. */
+    szi: numeric("szi"),
+    /** The funding rate the exchange applied for this tick. */
+    fundingRate: numeric("funding_rate"),
+    fundingTime: timestamp("funding_time", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    // The exchange's tx hash is all zeros for funding, so wallet + market +
+    // tick time is the row's identity; re-syncing an overlap is a no-op.
+    uniqueIndex("ux_wallet_funding_wallet_market_time").on(
+      table.walletId,
+      table.market,
+      table.fundingTime
+    ),
+    index("ix_wallet_funding_wallet_id_funding_time").on(
+      table.walletId,
+      table.fundingTime
+    ),
+  ]
+)
+
 export const tradingBotEvents = pgTable(
   "bot_events",
   {
@@ -1335,6 +1378,10 @@ export const alertRules = pgTable(
     percent: numeric("percent"),
     multiplier: numeric("multiplier"),
     window: varchar("time_window", { length: 4 }),
+    /** Drawn-line rules only: which chart's saved drawings hold the line. */
+    network: varchar("network", { length: 10 }),
+    trendlineId: varchar("trendline_id", { length: 80 }),
+    touch: varchar("touch", { length: 5 }),
     triggerMode: varchar("trigger_mode", { length: 6 }).notNull(),
     cooldown: varchar("cooldown", { length: 4 }),
     status: varchar("status", { length: 10 }).notNull(),
@@ -1346,7 +1393,7 @@ export const alertRules = pgTable(
   (table) => [
     check(
       "alert_rules_kind_check",
-      sql`${table.kind} in ('price_level', 'price_move', 'volume_spike')`
+      sql`${table.kind} in ('price_level', 'price_move', 'volume_spike', 'trendline')`
     ),
     check("alert_rules_slot_check", sql`${table.ruleSlot} between 1 and 100`),
     unique("alert_rules_user_slot_unique").on(table.userId, table.ruleSlot),
@@ -1356,7 +1403,7 @@ export const alertRules = pgTable(
     ),
     check(
       "alert_rules_condition_check",
-      sql`(${table.kind} = 'price_level' and ${table.operator} in ('crossing', 'crossing_up', 'crossing_down') and ${table.level} > 0 and ${table.direction} is null and ${table.percent} is null and ${table.multiplier} is null and ${table.window} is null) or (${table.kind} = 'price_move' and ${table.operator} is null and ${table.level} is null and ${table.direction} in ('up', 'down') and ${table.percent} > 0 and ${table.percent} <= 100 and ${table.multiplier} is null and ${table.window} in ('1m', '5m', '15m', '1h', '4h', '24h')) or (${table.kind} = 'volume_spike' and ${table.operator} is null and ${table.level} is null and ${table.direction} is null and ${table.percent} is null and ${table.multiplier} > 1 and ${table.multiplier} <= 100 and ${table.window} in ('1m', '5m', '15m', '1h', '4h', '24h'))`
+      sql`(${table.kind} = 'price_level' and ${table.operator} in ('crossing', 'crossing_up', 'crossing_down') and ${table.level} > 0 and ${table.direction} is null and ${table.percent} is null and ${table.multiplier} is null and ${table.window} is null and ${table.network} is null and ${table.trendlineId} is null and ${table.touch} is null) or (${table.kind} = 'price_move' and ${table.operator} is null and ${table.level} is null and ${table.direction} in ('up', 'down') and ${table.percent} > 0 and ${table.percent} <= 100 and ${table.multiplier} is null and ${table.window} in ('1m', '5m', '15m', '1h', '4h', '24h') and ${table.network} is null and ${table.trendlineId} is null and ${table.touch} is null) or (${table.kind} = 'volume_spike' and ${table.operator} is null and ${table.level} is null and ${table.direction} is null and ${table.percent} is null and ${table.multiplier} > 1 and ${table.multiplier} <= 100 and ${table.window} in ('1m', '5m', '15m', '1h', '4h', '24h') and ${table.network} is null and ${table.trendlineId} is null and ${table.touch} is null) or (${table.kind} = 'trendline' and ${table.operator} is null and ${table.level} is null and ${table.direction} is null and ${table.percent} is null and ${table.multiplier} is null and ${table.window} is null and ${table.network} in ('testnet', 'mainnet') and ${table.trendlineId} is not null and ${table.touch} in ('wick', 'close'))`
     ),
     check(
       "alert_rules_status_check",
@@ -1367,6 +1414,10 @@ export const alertRules = pgTable(
       table.updatedAt.desc()
     ),
     index("ix_alert_rules_coin_status").on(table.coin, table.status),
+    // One rule per drawn line — the chart's on/off toggle relies on it.
+    uniqueIndex("ux_alert_rules_trendline")
+      .on(table.userId, table.network, table.coin, table.trendlineId)
+      .where(sql`${table.kind} = 'trendline'`),
   ]
 )
 
@@ -1393,6 +1444,8 @@ export const alertEvents = pgTable(
     percent: numeric("percent"),
     multiplier: numeric("multiplier"),
     window: varchar("time_window", { length: 4 }),
+    /** Drawn-line events only: what counted as the touch. */
+    touch: varchar("touch", { length: 5 }),
     triggerMode: varchar("trigger_mode", { length: 6 }).notNull(),
     cooldown: varchar("cooldown", { length: 4 }),
     observed: numeric("observed").notNull(),
@@ -1406,7 +1459,7 @@ export const alertEvents = pgTable(
     unique("alert_events_user_event_unique").on(table.userId, table.eventKey),
     check(
       "alert_events_kind_check",
-      sql`${table.kind} in ('price_level', 'price_move', 'volume_spike')`
+      sql`${table.kind} in ('price_level', 'price_move', 'volume_spike', 'trendline')`
     ),
     check(
       "alert_events_trigger_check",
@@ -1414,7 +1467,7 @@ export const alertEvents = pgTable(
     ),
     check(
       "alert_events_condition_check",
-      sql`(${table.kind} = 'price_level' and ${table.operator} in ('crossing', 'crossing_up', 'crossing_down') and ${table.level} > 0 and ${table.direction} is null and ${table.percent} is null and ${table.multiplier} is null and ${table.window} is null) or (${table.kind} = 'price_move' and ${table.operator} is null and ${table.level} is null and ${table.direction} in ('up', 'down') and ${table.percent} > 0 and ${table.percent} <= 100 and ${table.multiplier} is null and ${table.window} in ('1m', '5m', '15m', '1h', '4h', '24h')) or (${table.kind} = 'volume_spike' and ${table.operator} is null and ${table.level} is null and ${table.direction} is null and ${table.percent} is null and ${table.multiplier} > 1 and ${table.multiplier} <= 100 and ${table.window} in ('1m', '5m', '15m', '1h', '4h', '24h'))`
+      sql`(${table.kind} = 'price_level' and ${table.operator} in ('crossing', 'crossing_up', 'crossing_down') and ${table.level} > 0 and ${table.direction} is null and ${table.percent} is null and ${table.multiplier} is null and ${table.window} is null and ${table.touch} is null) or (${table.kind} = 'price_move' and ${table.operator} is null and ${table.level} is null and ${table.direction} in ('up', 'down') and ${table.percent} > 0 and ${table.percent} <= 100 and ${table.multiplier} is null and ${table.window} in ('1m', '5m', '15m', '1h', '4h', '24h') and ${table.touch} is null) or (${table.kind} = 'volume_spike' and ${table.operator} is null and ${table.level} is null and ${table.direction} is null and ${table.percent} is null and ${table.multiplier} > 1 and ${table.multiplier} <= 100 and ${table.window} in ('1m', '5m', '15m', '1h', '4h', '24h') and ${table.touch} is null) or (${table.kind} = 'trendline' and ${table.operator} is null and ${table.level} > 0 and ${table.direction} is null and ${table.percent} is null and ${table.multiplier} is null and ${table.window} is null and ${table.touch} in ('wick', 'close'))`
     ),
     index("ix_alert_events_user_occurred").on(
       table.userId,

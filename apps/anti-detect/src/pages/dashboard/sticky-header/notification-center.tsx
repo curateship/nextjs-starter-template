@@ -63,11 +63,11 @@ function getNotificationPreview(item: NotificationItem) {
 function severityAvatarClass(severity: NotificationItem["severity"]) {
   switch (severity) {
     case "critical":
-      return "bg-red-100 text-red-800"
+      return "bg-destructive/10 text-destructive"
     case "warning":
-      return "bg-amber-100 text-amber-800"
+      return "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300"
     default:
-      return "bg-slate-100 text-slate-800"
+      return "bg-muted text-muted-foreground"
   }
 }
 
@@ -93,8 +93,8 @@ function NotificationAvatar({ item }: { item: NotificationItem }) {
       <AvatarFallback
         className={
           isVote
-            ? "bg-green-100 text-green-800"
-            : "bg-blue-100 text-blue-800"
+            ? "bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300"
+            : "bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300"
         }
       >
         {getInitial(item.actor_name ?? "?")}

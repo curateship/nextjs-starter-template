@@ -1,6 +1,6 @@
 import { notFound } from '@/lib/navigation-server'
 import { getProductBySlugForSite } from '@/lib/actions/products/product-frontend-actions'
-import { verifyPaymentIntent } from '@/lib/actions/stripe/checkout-actions'
+import { verifyPaymentIntentImpl } from '@/lib/actions/stripe/checkout-actions.server'
 import { SuccessContent } from '@/components/frontend/checkout/SuccessContent'
 import { recordPaidPurchase } from '@/lib/actions/products/paid-purchase-recording'
 import { getSiteFromHeaders } from '@/lib/utils/site-resolver'
@@ -39,7 +39,7 @@ export default async function SuccessPage({ params, searchParams }: SuccessPageP
 
   if (payment_intent) {
     // Payment Element flow
-    const verificationResult = await verifyPaymentIntent(payment_intent, siteId, product.id)
+    const verificationResult = await verifyPaymentIntentImpl(payment_intent, siteId, product.id)
     if (verificationResult.success && verificationResult.paymentIntent) {
       // Convert payment intent to session-like structure for SuccessContent
       const metadata = verificationResult.paymentIntent.metadata

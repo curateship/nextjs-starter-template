@@ -80,6 +80,7 @@ export async function confirmEventTicketRegistration(params: {
       status: eventRegistrations.status,
       name: eventRegistrations.name,
       email: eventRegistrations.email,
+      checkInCode: eventRegistrations.checkInCode,
       confirmationSentAt: eventRegistrations.confirmationSentAt,
       stripeSessionId: eventRegistrations.stripeSessionId,
       stripePaymentIntentId: eventRegistrations.stripePaymentIntentId,
@@ -181,6 +182,7 @@ export async function confirmEventTicketRegistration(params: {
         },
         attendeeName: row.name,
         attendeeEmail: row.email,
+        checkInCode: row.checkInCode,
       })
       if (email.sent) {
         await db

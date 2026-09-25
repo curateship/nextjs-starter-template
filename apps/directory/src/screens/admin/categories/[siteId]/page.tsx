@@ -25,17 +25,20 @@ import {
   TableHeader,
   TableRow
 } from "@/components/ui/table"
+import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
+import { useResetPageOnListChange } from "@/lib/use-reset-page"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { useBuilderRouteSiteSync } from "@/components/admin/layout/builder/useBuilderRouteState"
 import {
   AdminBulkDeleteButton,
-  ConfirmDestructive,
-  AdminErrorDialog,
   AdminListFooter,
+  AdminListPending,
+  AdminSortableHead,
   AdminSortButton,
-  AdminTableShell, AdminListPending,
+  AdminTableShell,
+  ConfirmDestructive,
   useAdminBulkSelection,
-  useAdminSort
+  useAdminSort,
 } from "@/components/admin/layout/list"
 import {
   getCategoriesWithCountsAction,
@@ -47,6 +50,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import ChevronRight from "lucide-react/dist/esm/icons/chevron-right.js"
 import Tag from "lucide-react/dist/esm/icons/tag.js"
 import Plus from "lucide-react/dist/esm/icons/plus.js"
+import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
 
 const CreateCategoryModal = dynamic(
   () =>
@@ -79,12 +83,20 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
   const categorySort = useAdminSort<CategorySortColumn>()
   const [massDeleting, setMassDeleting] = useState(false)
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
-  const [errorDialogOpen, setErrorDialogOpen] = useState(false)
   const [errorMessage, setErrorMessage] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
   const [total, setTotal] = useState(0)
   const pageSize = contextPageSize
   const parentSlug = searchParams.get("parent") || ""
+  // Everything that changes what the table shows, minus the page itself.
+  const listQueryKey = `${siteId}|${parentSlug}|${searchQuery}|${filterStatus}|${categorySort.sortColumn}|${categorySort.sortDirection}`
+  // Searching, filtering or re-sorting from a later page would otherwise
+  // land you past the end of the shorter result.
+  useResetPageOnListChange(setCurrentPage, listQueryKey)
+  // Ticks never survive a change to what the table is showing — the page
+  // and rows-per-page included, so a bulk action only ever means rows on
+  // screen.
+  useClearSelectionOnListChange(categorySelection, `${listQueryKey}|${currentPage}|${pageSize}`)
   const currentParent = parentPath[parentPath.length - 1] || null
   const currentParentId = currentParent?.id || null
 
@@ -96,11 +108,6 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
     queryValue: "",
     siteId,
   })
-
-  useEffect(() => {
-    setCurrentPage(1)
-    clearCategorySelection()
-  }, [clearCategorySelection, parentSlug])
 
   // Load categories and assignment counts in a single server action
   const loadedRef = useRef<string | null>(null)
@@ -163,6 +170,7 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
       setTotal((prev) => prev + 1)
     }
     setShowCreateModal(false)
+    showActionSuccess("Category created.")
     if (continueToBuilder) {
       router.push(`/admin/categories/builder/${siteId}?category=${newCategory.slug}`)
     }
@@ -192,10 +200,10 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
     setMassDeleting(true)
     try {
       const ids = Array.from(categorySelection.selectedIds)
+      const deletedCount = ids.length
       const { success, error: deleteError } = await deleteCategoriesAction({ data: { categoryIds: ids } })
       if (deleteError) {
         setErrorMessage(deleteError)
-        setErrorDialogOpen(true)
         return
       }
       if (success) {
@@ -215,10 +223,10 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
         setTotal((prev) => Math.max(0, prev - ids.length))
         categorySelection.clearSelection()
         setMassDeleteConfirmOpen(false)
+        showActionSuccess(deletedCount === 1 ? "Category deleted." : "Categories deleted.")
       }
     } catch (err) {
       setErrorMessage("Failed to delete categories")
-      setErrorDialogOpen(true)
     } finally {
       setMassDeleting(false)
     }
@@ -280,11 +288,12 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
           <span key={parent.id} className="inline-flex min-w-0 items-center gap-1.5">
             <ChevronRight className="size-3 text-muted-foreground" />
             {isLast ? (
-              <span className="truncate">{parent.title}</span>
+              <span className="truncate" title={parent.title}>{parent.title}</span>
             ) : (
               <Link
                 href={`/admin/categories/${siteId}?parent=${encodeURIComponent(parent.slug)}`}
                 className="truncate text-muted-foreground hover:text-foreground"
+                title={parent.title}
               >
                 {parent.title}
               </Link>
@@ -305,8 +314,9 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
           />
 
           <AdminTableShell
+            error={error ? { message: error, onRetry: () => setReloadNonce((nonce) => nonce + 1) } : null}
             title={categoryTitle}
-            icon={<Tag className="size-4 text-muted-foreground sm:size-[18px]" />}
+            icon={<Tag className="text-muted-foreground" />}
             count={filteredCategories.length}
             loading={loading}
             selectedCount={categorySelection.selectedCount}
@@ -329,8 +339,6 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
                   value={filterStatus}
                   onValueChange={(value) => {
                     setFilterStatus(value as "all" | "published" | "draft")
-                    categorySelection.clearSelection()
-                    setCurrentPage(1)
                   }}
                 >
                   <TableRightActionsSelectTrigger aria-label="Category status filter">
@@ -371,78 +379,35 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
                         aria-label="Select all categories"
                       />
                     </TableHead>
-                    <TableHead column="main">
-                      <AdminSortButton
-                        active={categorySort.sortColumn === "title"}
-                        direction={categorySort.sortDirection}
-                        onClick={() => categorySort.toggleSort("title")}
-                      >
-                        Category
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="content">
-                      <AdminSortButton
-                        active={categorySort.sortColumn === "parent"}
-                        direction={categorySort.sortDirection}
-                        onClick={() => categorySort.toggleSort("parent")}
-                      >
-                        Parent
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={categorySort.sortColumn === "status"}
-                        direction={categorySort.sortDirection}
-                        onClick={() => categorySort.toggleSort("status")}
-                      >
-                        Status
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={categorySort.sortColumn === "assigned"}
-                        direction={categorySort.sortDirection}
-                        onClick={() => categorySort.toggleSort("assigned")}
-                      >
-                        Assigned
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={categorySort.sortColumn === "modified"}
-                        direction={categorySort.sortDirection}
-                        onClick={() => categorySort.toggleSort("modified")}
-                      >
-                        Modified
-                      </AdminSortButton>
-                    </TableHead>
+                    <AdminSortableHead column="main" sort={categorySort} sortKey="title">Category</AdminSortableHead>
+                    <AdminSortableHead column="content" sort={categorySort} sortKey="parent">Parent</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={categorySort} sortKey="status">Status</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={categorySort} sortKey="assigned">Assigned</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={categorySort} sortKey="modified">Modified</AdminSortableHead>
                     <TableHead column="meta">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {loading && sortedCategories.length === 0 ? (
                     <AdminListPending />
-                  ) : error ? (
-                    <TableRow>
-                      <TableCell colSpan={7} className="h-32 text-center">
-                        <p className="mb-4 text-red-600">{error}</p>
-                        <Button onClick={() => setReloadNonce((nonce) => nonce + 1)} variant="outline" size="sm">
-                          Try Again
-                        </Button>
-                      </TableCell>
-                    </TableRow>
                   ) : categories.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={7} className="h-32 text-center">
                         <Tag className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
-                        <p className="mb-4 text-muted-foreground">No categories found</p>
-                        <p className="mx-auto mb-4 max-w-md text-sm text-muted-foreground">
-                          Create your first category to start organizing content. You can create nested hierarchies like
-                          Country &gt; City.
-                        </p>
-                        <Button onClick={() => setShowCreateModal(true)} variant="outline">
-                          Create First Category
-                        </Button>
+                        {searchQuery.trim() || filterStatus !== "all" ? (
+                          <p className="text-muted-foreground">No categories found matching your search.</p>
+                        ) : (
+                          <>
+                            <p className="mb-4 text-muted-foreground">No categories found</p>
+                            <p className="mx-auto mb-4 max-w-md text-sm text-muted-foreground">
+                              Create your first category to start organizing content. You can create nested hierarchies like
+                              Country &gt; City.
+                            </p>
+                            <Button onClick={() => setShowCreateModal(true)} variant="outline">
+                              Create First Category
+                            </Button>
+                          </>
+                        )}
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -455,6 +420,7 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
                       siteId={siteId}
                       onCategoryDeleted={handleCategoryDeleted}
                       onCategoryUpdated={(updated) => {
+                        showActionSuccess("Category updated.")
                         setAllCategories((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
 
                         if ((updated.parent_id || null) !== currentParentId) {
@@ -498,12 +464,6 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
               : undefined}
             onCancel={() => { setMassDeleteConfirmOpen(false); setErrorMessage("") }}
             onConfirm={confirmMassDelete}
-          />
-
-          <AdminErrorDialog
-            open={errorDialogOpen}
-            message={errorMessage}
-            onOpenChange={setErrorDialogOpen}
           />
         </div>
       </AdminLayout>

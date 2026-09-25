@@ -101,7 +101,7 @@ export function SiteHealthTab({ refreshSignal, onLoadingChange }: SiteHealthTabP
             <div className="space-y-3">
               <div className="mb-4 flex items-center gap-3">
                 <Badge variant="secondary">{jobs.length} total</Badge>
-                <Badge className="bg-green-100 text-green-800">{enabledJobs} active</Badge>
+                <Badge className="bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300">{enabledJobs} active</Badge>
                 {failedJobs > 0 && <Badge variant="destructive">{failedJobs} last failed</Badge>}
               </div>
 

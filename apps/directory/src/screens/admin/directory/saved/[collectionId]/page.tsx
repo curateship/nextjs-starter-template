@@ -1,12 +1,13 @@
 "use client"
 
-import { use, useCallback, useEffect, useState } from "react"
+import { use, useCallback, useEffect, useMemo, useState } from "react"
 import Link from "@/components/app-link"
 import Bookmark from "lucide-react/dist/esm/icons/bookmark.js"
-import ExternalLink from "lucide-react/dist/esm/icons/external-link.js"
+import Eye from "lucide-react/dist/esm/icons/eye.js"
 import FolderOpen from "lucide-react/dist/esm/icons/folder-open.js"
 import Pencil from "lucide-react/dist/esm/icons/pencil.js"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import {
@@ -15,16 +16,24 @@ import {
   TableRightActionsSearch
 } from "@/components/admin/layout/content/table-right-actions"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
+import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
+import { useResetPageOnListChange } from "@/lib/use-reset-page"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import {
-  ConfirmDestructive,
-  AdminErrorDialog,
   AdminListFooter,
-  AdminTableShell, AdminListPending,
-  formatShortDate as formatDate,
-  useAdminBulkSelection
+  AdminListPending,
+  AdminRowAction,
+  AdminRowActions,
+  AdminSortableHead,
+  AdminTableShell,
+  ConfirmDestructive,
+  RelativeDate,
+  useAdminBulkSelection,
+  useAdminSort,
 } from "@/components/admin/layout/list"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
 import {
   getDirectorySaveFolderItemsDashboardAction,
   removeDirectorySaveItemsDashboardAction,
@@ -48,6 +57,8 @@ import { Label } from "@/components/ui/label"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
+type SavedItemSortColumn = "listing" | "status" | "saved"
+
 export default function DirectorySavedFolderPage({
   params
 }: {
@@ -66,8 +77,19 @@ export default function DirectorySavedFolderPage({
   const [renameOpen, setRenameOpen] = useState(false)
   const [renameValue, setRenameValue] = useState("")
   const [savingRename, setSavingRename] = useState(false)
-  const [errorMessage, setErrorMessage] = useState("")
   const selection = useAdminBulkSelection()
+  // Newest saves first, matching the order the server pages in.
+  const itemSort = useAdminSort<SavedItemSortColumn>("saved", "desc")
+  // Everything that changes what the table shows, minus the page itself.
+  const listQueryKey = `${currentSite?.id}|${collectionId}|${query}|${itemSort.sortColumn}|${itemSort.sortDirection}`
+  // Searching, filtering or re-sorting from a later page would otherwise
+  // land you past the end of the shorter result.
+  useResetPageOnListChange(setCurrentPage, listQueryKey)
+  // Ticks never survive a change to what the table is showing — the page
+  // and rows-per-page included, so a bulk action only ever means rows on
+  // screen.
+  useClearSelectionOnListChange(selection, `${listQueryKey}|${currentPage}|${pageSize}`)
+
 
   const loadItems = useCallback(async () => {
     if (!currentSite?.id) {
@@ -92,7 +114,7 @@ export default function DirectorySavedFolderPage({
       setCollection(result.collection)
       setItems([])
       setTotal(0)
-      setErrorMessage(result.error)
+      showErrorToast(result.error)
       return
     }
 
@@ -106,11 +128,26 @@ export default function DirectorySavedFolderPage({
     void loadItems()
   }, [loadItems])
 
-  const visibleIds = items.map((item) => item.id)
+  // The server pages this list, so the sort reorders the rows on screen —
+  // the same as the saved-folders screen next door.
+  const sortedItems = useMemo(() => {
+    return [...items].sort((a, b) => {
+      if (!itemSort.sortColumn) return 0
+
+      const dir = itemSort.sortDirection === "asc" ? 1 : -1
+      if (itemSort.sortColumn === "listing") return a.directory_title.localeCompare(b.directory_title) * dir
+      if (itemSort.sortColumn === "status") return a.directory_status.localeCompare(b.directory_status) * dir
+
+      return (new Date(a.saved_at).getTime() - new Date(b.saved_at).getTime()) * dir
+    })
+  }, [items, itemSort.sortColumn, itemSort.sortDirection])
+
+  const visibleIds = sortedItems.map((item) => item.id)
 
   const saveRename = async () => {
     if (!currentSite?.id || !collection) return
 
+    dismissErrorToast()
     setSavingRename(true)
     const result = await renameDirectorySaveCollectionDashboardAction({ data: { input: {
       siteId: currentSite.id,
@@ -120,17 +157,20 @@ export default function DirectorySavedFolderPage({
     setSavingRename(false)
 
     if (result.error) {
-      setErrorMessage(result.error)
+      showErrorToast(result.error)
       return
     }
 
     setRenameOpen(false)
     await loadItems()
+    showActionSuccess("Folder renamed.")
   }
 
   const confirmRemove = async () => {
     if (!currentSite?.id || removeIds.length === 0) return
 
+    dismissErrorToast()
+    const removedCount = removeIds.length
     setRemoving(true)
     const result = await removeDirectorySaveItemsDashboardAction({ data: { input: {
       siteId: currentSite.id,
@@ -139,13 +179,14 @@ export default function DirectorySavedFolderPage({
     setRemoving(false)
 
     if (result.error) {
-      setErrorMessage(result.error)
+      showErrorToast(result.error)
       return
     }
 
     selection.clearSelection()
     setRemoveIds([])
     await loadItems()
+    showActionSuccess(removedCount === 1 ? "Saved listing removed." : "Saved listings removed.")
   }
 
   return (
@@ -163,7 +204,7 @@ export default function DirectorySavedFolderPage({
 
           <AdminTableShell
             title={collection?.name || "Saved Folder"}
-            icon={<Bookmark className="size-4 text-muted-foreground sm:size-[18px]" />}
+            icon={<Bookmark className="text-muted-foreground" />}
             count={total}
             loading={loading}
             selectedCount={selection.selectedCount}
@@ -189,7 +230,6 @@ export default function DirectorySavedFolderPage({
                   onChange={(event) => {
                     setQuery(event.target.value)
                     setCurrentPage(1)
-                    selection.clearSelection()
                   }}
                   placeholder="Search saved listings"
                 />
@@ -221,9 +261,9 @@ export default function DirectorySavedFolderPage({
                         aria-label="Select saved listings"
                       />
                     </TableHead>
-                    <TableHead column="main">Listing</TableHead>
-                    <TableHead column="meta">Status</TableHead>
-                    <TableHead column="meta">Saved</TableHead>
+                    <AdminSortableHead column="main" sort={itemSort} sortKey="listing">Listing</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={itemSort} sortKey="status">Status</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={itemSort} sortKey="saved">Saved</AdminSortableHead>
                     <TableHead column="meta">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -234,11 +274,11 @@ export default function DirectorySavedFolderPage({
                     <TableRow>
                       <TableCell colSpan={5} className="h-32 text-center">
                         <FolderOpen className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
-                        <p className="text-muted-foreground">No saved listings found.</p>
+                        <p className="text-muted-foreground">{query.trim() ? "No saved listings found matching your search." : "No saved listings found."}</p>
                       </TableCell>
                     </TableRow>
                   ) : (
-                    items.map((item) => (
+                    sortedItems.map((item) => (
                       <TableRow key={item.id} data-state={selection.selectedIds.has(item.id) ? "selected" : undefined}>
                         <TableCell column="select">
                           <Checkbox
@@ -262,34 +302,29 @@ export default function DirectorySavedFolderPage({
                               </span>
                             )}
                             <span className="min-w-0">
-                              <span className="block truncate font-medium hover:underline">{item.directory_title}</span>
-                              <span className="block truncate text-sm text-muted-foreground">/directory/{item.directory_slug}</span>
+                              <span className="block truncate font-medium hover:underline" title={item.directory_title}>{item.directory_title}</span>
+                              <span className="block truncate text-sm text-muted-foreground" title={`/directory/${item.directory_slug}`}>/directory/{item.directory_slug}</span>
                             </span>
                           </Link>
                         </TableCell>
                         <TableCell column="meta">
                           {item.directory_status === "published" ? <Badge>Published</Badge> : <Badge variant="secondary">Draft</Badge>}
                         </TableCell>
-                        <TableCell column="mutedMeta">{formatDate(item.saved_at)}</TableCell>
+                        <TableCell column="mutedMeta"><RelativeDate date={item.saved_at} /></TableCell>
                         <TableCell column="meta">
-                          <div className="flex items-center gap-1">
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" asChild>
-                              <a href={`/directory/${item.directory_slug}`} target="_blank" rel="noopener noreferrer" title="View listing">
-                                <ExternalLink className="h-4 w-4" />
-                                <span className="sr-only">View Listing</span>
-                              </a>
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 text-foreground hover:text-foreground"
+                          <AdminRowActions>
+                            <AdminRowAction
+                              icon={Eye}
+                              external
+                              href={`/directory/${item.directory_slug}`}
+                              label="Preview listing"
+                            />
+                            <AdminRowAction
+                              icon={Trash2}
+                              label="Remove saved listing"
                               onClick={() => setRemoveIds([item.id])}
-                              title="Remove saved listing"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              <span className="sr-only">Remove</span>
-                            </Button>
-                          </div>
+                            />
+                          </AdminRowActions>
                         </TableCell>
                       </TableRow>
                     ))
@@ -320,7 +355,8 @@ export default function DirectorySavedFolderPage({
           <DialogFooter>
             <Button variant="outline" onClick={() => setRenameOpen(false)} disabled={savingRename}>Cancel</Button>
             <Button onClick={saveRename} disabled={savingRename}>
-              {savingRename ? "Saving..." : "Save"}
+              {savingRename ? <Loader2 className="size-4 animate-spin" /> : null}
+              Save
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -335,12 +371,6 @@ export default function DirectorySavedFolderPage({
         confirmLabel={removing ? "Removing..." : "Remove"}
         onCancel={() => setRemoveIds([])}
         onConfirm={confirmRemove}
-      />
-
-      <AdminErrorDialog
-        open={Boolean(errorMessage)}
-        message={errorMessage}
-        onOpenChange={(open) => !open && setErrorMessage("")}
       />
     </>
   )

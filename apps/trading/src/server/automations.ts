@@ -174,12 +174,9 @@ export async function saveUserAutomation(
         )
       )
       .returning()
-    if (row && compiledConfig) {
-      // The canvas IS the bot's config — a saved change propagates to this
-      // automation's live bot(s) immediately (no-op when nothing changed).
-      const { syncAutomationBots } = await import("@/server/bots")
-      await syncAutomationBots(userId, automationId, compiledConfig, database)
-    }
+    // Saving never touches a deployed bot: runs keep trading on the settings
+    // they started with. The bot page notices the drift and the admin applies
+    // it by hand (pause → apply → resume) via applyAutomationSettings.
     return row ?? null
   } catch (error) {
     throwFriendlyUniqueNameError(error)

@@ -98,7 +98,7 @@ export default function CampaignsPage() {
         <DashboardSubheader items={[{ label: "Campaigns" }]} />
         <AdminTableShell
           title="Campaigns"
-          icon={<Megaphone className="size-4 text-muted-foreground sm:size-[18px]" />}
+          icon={<Megaphone className="text-muted-foreground" />}
           count={filtered.length}
           controls={<TableRightActions>
             <TableRightActionsSearch value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search campaigns" />

@@ -141,7 +141,7 @@ export function AlertsDashboard({ project }: { project: ProjectItem }) {
 
       <DashboardTable
         title="Alerts"
-        icon={<BellIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+        icon={<BellIcon className="text-muted-foreground" />}
         count={total}
         controls={
           <>

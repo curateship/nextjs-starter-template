@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import Check from "lucide-react/dist/esm/icons/check.js"
 import { useEffect, useCallback, useMemo, useState } from "react"
 import { InlineRichTextEditor } from "@/components/admin/layout/builder/InlineRichTextEditor"
-import { BlockEditorSection, BlockTabs } from "@/components/ui/tabs"
+import { BlockEditorSection, BlockTabs } from "@/components/admin/layout/builder/block-tabs"
 import { Card, CardContent, CardGroup } from "@/components/ui/card"
 import { HERO_STYLES } from "."
 import { TrustedByBadgeFields } from "./DefaultHeroConfig"
@@ -65,7 +65,7 @@ export function PageHeroBlock({ content, onContentChange, siteId, blockId, onBac
 
   useEffect(() => {
     let cancelled = false
-    getGuidedFormsBySite(siteId, { pageSize: 100 }).then((result) => {
+    getGuidedFormsBySite({ data: { siteId, options: { pageSize: 100 } } }).then((result) => {
       if (cancelled) return
       setForms((result.data ?? []).filter((form) => form.status === 'published'))
     })

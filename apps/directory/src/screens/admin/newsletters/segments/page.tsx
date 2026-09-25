@@ -15,13 +15,17 @@ import {
 } from "@/components/admin/layout/content/table-right-actions"
 import {
   AdminBulkDeleteButton,
-  ConfirmDestructive,
   AdminListFooter,
+  AdminListPending,
+  AdminRowAction,
+  AdminRowActions,
+  AdminSortableHead,
   AdminSortButton,
-  AdminTableShell, AdminListPending,
-  formatShortDate as formatDate,
+  AdminTableShell,
+  ConfirmDestructive,
+  RelativeDate,
   useAdminBulkSelection,
-  useAdminSort
+  useAdminSort,
 } from "@/components/admin/layout/list"
 import Plus from "lucide-react/dist/esm/icons/plus.js"
 import RefreshCw from "lucide-react/dist/esm/icons/refresh-cw.js"
@@ -30,10 +34,13 @@ import Settings from "lucide-react/dist/esm/icons/settings.js"
 import Users from "lucide-react/dist/esm/icons/users.js"
 import { getSegmentsWithCounts, deleteSegments, refreshDynamicSegmentsForSite } from "@/lib/actions/newsletters/segment-actions"
 import type { Segment } from "@/lib/actions/newsletters/segment-actions"
+import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
+import { useResetPageOnListChange } from "@/lib/use-reset-page"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { formatSegmentDynamicRule } from "@/lib/actions/newsletters/segment-rules"
 import { SegmentFormModal } from "@/components/admin/newsletter-builder/segments/SegmentFormModal"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
+import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
 import {
   Table,
   TableBody,
@@ -62,6 +69,16 @@ export default function SegmentsPage() {
 
   // Sort state
   const segmentSort = useAdminSort<SegmentSortColumn>()
+  // Everything that changes what the table shows, minus the page itself.
+  const listQueryKey = `${currentSite?.id}|${searchQuery}|${segmentSort.sortColumn}|${segmentSort.sortDirection}`
+  // Searching, filtering or re-sorting from a later page would otherwise
+  // land you past the end of the shorter result.
+  useResetPageOnListChange(setCurrentPage, listQueryKey)
+  // Ticks never survive a change to what the table is showing — the page
+  // and rows-per-page included, so a bulk action only ever means rows on
+  // screen.
+  useClearSelectionOnListChange(segmentSelection, `${listQueryKey}|${currentPage}|${pageSize}`)
+
 
   // Create/Edit modal state
   const [modalOpen, setModalOpen] = useState(false)
@@ -117,6 +134,7 @@ export default function SegmentsPage() {
 
   async function handleMassDelete() {
     setMassDeleting(true)
+    const deletedCount = segmentSelection.selectedCount
     const { error: deleteError } = await deleteSegments({ data: { ids: Array.from(segmentSelection.selectedIds) } })
     if (deleteError) {
       setError(deleteError)
@@ -124,6 +142,7 @@ export default function SegmentsPage() {
       segmentSelection.clearSelection()
       setMassDeleteConfirmOpen(false)
       await loadSegments()
+      showActionSuccess(deletedCount === 1 ? "Segment deleted." : "Segments deleted.")
     }
     setMassDeleting(false)
   }
@@ -138,6 +157,7 @@ export default function SegmentsPage() {
       setError(refreshError)
     } else {
       await loadSegments()
+      showActionSuccess("Segments refreshed.")
     }
     setRefreshing(false)
   }
@@ -175,8 +195,9 @@ export default function SegmentsPage() {
           />
 
           <AdminTableShell
+            error={error ? { message: error, onRetry: () => loadSegments() } : null}
             title="Segments"
-            icon={<Users className="size-4 text-muted-foreground sm:size-[18px]" />}
+            icon={<Users className="text-muted-foreground" />}
             count={filteredSegments.length}
             loading={loading}
             selectedCount={segmentSelection.selectedCount}
@@ -218,10 +239,7 @@ export default function SegmentsPage() {
                   currentPage={currentPage}
                   pageSize={pageSize}
                   total={total}
-                  onPageChange={(page) => {
-                    setCurrentPage(page)
-                    segmentSelection.clearSelection()
-                  }}
+                  onPageChange={setCurrentPage}
                 />
               ) : null
             }
@@ -238,58 +256,31 @@ export default function SegmentsPage() {
                         aria-label="Select all segments"
                       />
                     </TableHead>
-                    <TableHead column="main">
-                      <AdminSortButton
-                        active={segmentSort.sortColumn === "name"}
-                        direction={segmentSort.sortDirection}
-                        onClick={() => segmentSort.toggleSort("name")}
-                      >
-                        Name
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={segmentSort.sortColumn === "contacts"}
-                        direction={segmentSort.sortDirection}
-                        onClick={() => segmentSort.toggleSort("contacts")}
-                      >
-                        Contacts
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={segmentSort.sortColumn === "modified"}
-                        direction={segmentSort.sortDirection}
-                        onClick={() => segmentSort.toggleSort("modified")}
-                      >
-                        Modified
-                      </AdminSortButton>
-                    </TableHead>
+                    <AdminSortableHead column="main" sort={segmentSort} sortKey="name">Name</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={segmentSort} sortKey="contacts">Contacts</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={segmentSort} sortKey="modified">Modified</AdminSortableHead>
                     <TableHead column="meta">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {loading && sortedSegments.length === 0 ? (
                     <AdminListPending />
-                  ) : error ? (
-                    <TableRow>
-                      <TableCell colSpan={5} className="h-32 text-center">
-                        <p className="mb-4 text-red-600">{error}</p>
-                        <Button onClick={() => loadSegments()} variant="outline" size="sm">
-                          Try Again
-                        </Button>
-                      </TableCell>
-                    </TableRow>
                   ) : filteredSegments.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={5} className="h-32 text-center">
                         <Users className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
-                        <p className="mb-4 text-muted-foreground">
-                          No segments yet. Create one to save reusable audience filters.
-                        </p>
-                        <Button onClick={openCreateModal} variant="outline">
-                          Create Segment
-                        </Button>
+                        {normalizedSearchQuery ? (
+                          <p className="text-muted-foreground">No segments found matching your search.</p>
+                        ) : (
+                          <>
+                            <p className="mb-4 text-muted-foreground">
+                              No segments yet. Create one to save reusable audience filters.
+                            </p>
+                            <Button onClick={openCreateModal} variant="outline">
+                              Create Segment
+                            </Button>
+                          </>
+                        )}
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -312,18 +303,19 @@ export default function SegmentsPage() {
                             className="block min-w-0 transition-opacity hover:opacity-80"
                           >
                             <div className="flex items-center gap-2">
-                              <h4 className="truncate text-sm font-medium hover:underline sm:text-base">
-                                {segment.name}
-                              </h4>
+                              <h4 className="truncate text-sm font-medium hover:underline sm:text-base" title={segment.name}>{segment.name}</h4>
                               <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
                                 {segment.segment_type}
                               </Badge>
                             </div>
                             {segment.description && (
-                              <p className="truncate text-xs text-muted-foreground">{segment.description}</p>
+                              <p className="truncate text-xs text-muted-foreground" title={segment.description}>{segment.description}</p>
                             )}
                             {segment.segment_type === "dynamic" && segment.dynamic_rule && (
-                              <p className="truncate text-xs text-muted-foreground">
+                              <p
+                                className="truncate text-xs text-muted-foreground"
+                                title={formatSegmentDynamicRule(segment.dynamic_rule, { maxTags: 3 })}
+                              >
                                 {formatSegmentDynamicRule(segment.dynamic_rule, { maxTags: 3 })}
                               </p>
                             )}
@@ -335,33 +327,23 @@ export default function SegmentsPage() {
                             {contactCounts[segment.id] !== undefined ? contactCounts[segment.id].toLocaleString() : "—"}
                           </span>
                         </TableCell>
-                        <TableCell column="mutedMeta">{formatDate(segment.updated_at)}</TableCell>
+                        <TableCell column="mutedMeta"><RelativeDate date={segment.updated_at} /></TableCell>
                         <TableCell column="meta">
-                          <div className="flex items-center">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0"
+                          <AdminRowActions>
+                            <AdminRowAction
+                              icon={Settings}
+                              label="Segment settings"
                               onClick={() => openEditModal(segment)}
-                              title="Edit Segment"
-                            >
-                              <Settings className="h-4 w-4" />
-                              <span className="sr-only">Edit Segment</span>
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 text-foreground hover:text-foreground"
+                            />
+                            <AdminRowAction
+                              icon={Trash2}
+                              label="Delete segment"
                               onClick={() => {
                                 segmentSelection.selectOnly([segment.id])
                                 setMassDeleteConfirmOpen(true)
                               }}
-                              title="Delete Segment"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              <span className="sr-only">Delete Segment</span>
-                            </Button>
-                          </div>
+                            />
+                          </AdminRowActions>
                         </TableCell>
                       </TableRow>
                     ))
@@ -376,7 +358,6 @@ export default function SegmentsPage() {
 
       <SegmentFormModal
         open={modalOpen}
-        onError={setError}
         onOpenChange={setModalOpen}
         onSaved={loadSegments}
         segment={editingSegment}

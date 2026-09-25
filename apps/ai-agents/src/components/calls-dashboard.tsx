@@ -145,7 +145,7 @@ export function CallsDashboard() {
 
       <DashboardTable
         title="Calls"
-        icon={<PhoneIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+        icon={<PhoneIcon className="text-muted-foreground" />}
         count={filteredCalls.length}
         controls={controls}
         status={hasActive ? { tone: "success", text: "Live" } : undefined}

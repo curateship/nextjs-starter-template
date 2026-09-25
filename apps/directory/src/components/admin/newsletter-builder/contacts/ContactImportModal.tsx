@@ -7,6 +7,7 @@ import { Card, CardContent, CardGroup } from "@/components/ui/card"
 import { Dialog } from "@/components/ui/dialog"
 import { DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
 import { bulkImportContacts } from "@/lib/actions/newsletters/contact-actions"
+import { showErrorToast } from "@/lib/error-toast"
 
 type ContactImportModalProps = {
   fileInputRef: RefObject<HTMLInputElement | null>
@@ -154,8 +155,17 @@ export function ContactImportModal({
 
   const handleImport = async () => {
     if (!siteId) return
+    if (!hasEmailMapped) {
+      showErrorToast("Map one of your columns to Email before importing")
+      return
+    }
+
     const contacts = getMappedContacts()
-    if (!contacts.length) return
+    if (!contacts.length) {
+      showErrorToast("That file has no rows to import")
+      return
+    }
+
     setImporting(true)
 
     try {
@@ -197,15 +207,25 @@ export function ContactImportModal({
 
       <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) closeImportModal() }}>
         <DashboardModalContent
+          busy={importing}
           title={importResult ? "Import Complete" : "Import Contacts"}
           description="Map CSV columns to contact fields before importing."
         >
+          <form
+            noValidate
+            id="import-contacts-form"
+            className="contents"
+            onSubmit={(event) => {
+              event.preventDefault()
+              handleImport()
+            }}
+          >
           <CardGroup className="grid">
             <Card>
               <CardContent>
             {importResult ? (
               <div className="text-center space-y-4">
-                <div className="p-4 bg-green-50 text-green-800 rounded-lg">
+                <div className="p-4 bg-green-50 text-green-800 dark:bg-green-950/50 dark:text-green-300 rounded-lg">
                   <p className="font-medium">Import complete</p>
                   <p className="text-sm">{importResult.imported} contacts imported, {importResult.skipped} skipped</p>
                 </div>
@@ -238,7 +258,7 @@ export function ContactImportModal({
                         <p className="text-xs font-medium text-muted-foreground mb-1.5">{header}</p>
                         <div className="grid gap-2 sm:grid-cols-[1fr_32px_1fr] sm:items-center">
                           <div className="h-10 rounded-md border bg-muted/30 px-3 flex items-center">
-                            <span className="text-sm truncate">{sample || "-"}</span>
+                            <span className="text-sm truncate" title={sample || "-"}>{sample || "-"}</span>
                           </div>
                           <div className="flex justify-center">
                             <span className="text-muted-foreground">-&gt;</span>
@@ -278,14 +298,14 @@ export function ContactImportModal({
                 </div>
 
                 {!hasEmailMapped && (
-                  <p className="text-sm text-red-600 mt-4 text-center">Please map at least one column to Email</p>
+                  <p className="text-sm text-destructive mt-4 text-center">Please map at least one column to Email</p>
                 )}
 
                 <div className="flex items-center justify-between mt-6 pt-4">
                   <Button variant="ghost" onClick={closeImportModal}>
                     Back
                   </Button>
-                  <Button onClick={handleImport} disabled={importing || !hasEmailMapped}>
+                  <Button form="import-contacts-form" type="submit" disabled={importing}>
                     {importing ? (
                       <>
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
@@ -301,6 +321,7 @@ export function ContactImportModal({
               </CardContent>
             </Card>
           </CardGroup>
+          </form>
         </DashboardModalContent>
       </Dialog>
     </>

@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react"
 
+import { useResetPageOnListChange } from "@/lib/use-reset-page"
+
 import type { CategoryInfo } from "@/lib/actions/categories/category-relationship-actions"
 import type { AdminSortDirection } from "@/components/admin/layout/list"
 import type {
@@ -13,7 +15,6 @@ import type {
 } from "@/components/admin/layout/content/contentListTypes"
 
 interface UseContentListDataParams<TItem extends ContentListItem> {
-  clearSelection: () => void
   contextPageSize: number
   effectiveSiteId: string | undefined
   getCursorItems: ContentListPageProps<TItem>["getCursorItems"]
@@ -28,7 +29,6 @@ interface UseContentListDataParams<TItem extends ContentListItem> {
 }
 
 export function useContentListData<TItem extends ContentListItem>({
-  clearSelection,
   contextPageSize,
   effectiveSiteId,
   getCursorItems,
@@ -64,21 +64,26 @@ export function useContentListData<TItem extends ContentListItem>({
 
   useEffect(() => {
     setTablePageSize(contextPageSize)
-    setCurrentPage(1)
   }, [contextPageSize])
 
+  // Searching or filtering from a later page would otherwise land you past the
+  // end of the shorter result.
+  useResetPageOnListChange(setCurrentPage, `${effectiveSiteId}|${searchQuery}|${filterStatus}|${pageSize}`)
+
+  // A cursor points at a row, so it means nothing once the page holds a
+  // different number of rows — changing rows-per-page starts again from the top,
+  // exactly as it does on a numbered list.
   useEffect(() => {
     if (!usesCursorPagination) return
     setActiveCursor(null)
     setCursorHistory([])
-    clearSelection()
   }, [
-    clearSelection,
     effectiveSiteId,
     cursorSearch,
     cursorSortColumn,
     cursorSortDirection,
     cursorStatus,
+    pageSize,
     usesCursorPagination,
   ])
 
@@ -101,7 +106,11 @@ export function useContentListData<TItem extends ContentListItem>({
         setError(null)
 
         if (getCursorItems) {
-          const { data, error: itemError } = await getCursorItems({
+          // Destructured off `?? {}`, never off the answer itself: a server
+          // function that fails hands back an error envelope, or nothing at
+          // all, and destructuring that throws a JavaScript message straight
+          // onto the screen where the rows should be.
+          const { data, error: itemError } = (await getCursorItems({
             siteId: effectiveSiteId,
             search: searchQuery,
             status: filterStatus,
@@ -109,12 +118,12 @@ export function useContentListData<TItem extends ContentListItem>({
             sortDirection,
             cursor: activeCursor,
             limit: pageSize,
-          })
+          })) ?? {}
 
           if (cancelled) return
 
           if (itemError || !data) {
-            setError(itemError || `Failed to load ${itemLabelPlural.toLowerCase()}`)
+            setError(itemError || `${itemLabelPlural} could not be loaded.`)
             setItems([])
             setCategoriesByItemId({})
             setTotal(0)
@@ -141,28 +150,34 @@ export function useContentListData<TItem extends ContentListItem>({
           categories,
           total: itemTotal,
           error: itemError,
-        } = await getItems(effectiveSiteId, {
+        } = (await getItems(effectiveSiteId, {
           page: currentPage,
           pageSize,
-        })
+        })) ?? {}
 
         if (cancelled) return
 
-        if (itemError) {
-          setError(itemError)
+        if (itemError || !data) {
+          setError(itemError || `${itemLabelPlural} could not be loaded.`)
           setItems([])
+          setTotal(0)
           return
         }
 
-        setItems(data || [])
-        setTotal(itemTotal)
+        setItems(data)
+        setTotal(itemTotal ?? data.length)
         setRemoteStatusCounts(null)
         setNextCursor(null)
         if (categories) setCategoriesByItemId(categories)
       } catch (err) {
         if (cancelled) return
-        setError(err instanceof Error ? err.message : "An unexpected error occurred")
+        // A raw JavaScript message in place of the rows tells the reader
+        // nothing they can act on. Keep the real one in the console for
+        // whoever is debugging; the banner offers Try again.
+        console.error(`Failed to load ${itemLabelPlural.toLowerCase()}`, err)
+        setError(`${itemLabelPlural} could not be loaded. The server did not answer.`)
         setItems([])
+        setTotal(0)
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -235,21 +250,16 @@ export function useContentListData<TItem extends ContentListItem>({
 
   function handleFilterStatusChange(nextStatus: ContentStatusFilter) {
     setFilterStatus(nextStatus)
-    clearSelection()
-    setCurrentPage(1)
   }
 
   function handlePageSizeChange(nextPageSize: number) {
     setTablePageSize(nextPageSize)
-    setCurrentPage(1)
-    clearSelection()
   }
 
   function handleNextPage() {
     if (!nextCursor) return
     setCursorHistory((current) => [...current, activeCursor])
     setActiveCursor(nextCursor)
-    clearSelection()
   }
 
   function handlePreviousPage() {
@@ -259,7 +269,6 @@ export function useContentListData<TItem extends ContentListItem>({
       const nextHistory = [...current]
       const previousCursor = nextHistory.pop() ?? null
       setActiveCursor(previousCursor)
-      clearSelection()
       return nextHistory
     })
   }

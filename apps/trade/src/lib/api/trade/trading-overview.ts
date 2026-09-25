@@ -1,0 +1,93 @@
+import { createServerFn } from "@tanstack/react-start"
+import { z } from "zod"
+
+import type { TradingOverview } from "@/lib/trade/dashboard/overview"
+import {
+  tradingOverviewWidgetReads,
+  type TradingDashboardWidgetLayout,
+} from "@/lib/trade/dashboard/widgets"
+import { adminGet, adminPost } from "@/server/guards"
+import {
+  loadTradingDashboardWidgets,
+  saveTradingDashboardWidgets,
+} from "@/server/trade/prefs"
+import { loadTradingOverview } from "@/server/trade/trading-overview"
+
+import { createErrorMessage } from "../error-message"
+
+const widgetId = z.enum([
+  "equity",
+  "active-trades",
+  "running-bots",
+  "profit-calendar",
+  "trades",
+  "moving-now",
+])
+const layoutSchema = z.object({
+  top: z.array(widgetId).max(widgetId.options.length),
+  left: z.array(widgetId).max(widgetId.options.length),
+  right: z.array(widgetId).max(widgetId.options.length),
+})
+
+const loadPageFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .handler(
+    async ({
+      context,
+    }): Promise<{
+      overview: TradingOverview
+      layout: TradingDashboardWidgetLayout
+    }> => {
+      const layout = await loadTradingDashboardWidgets(context.user.id)
+      const { includeActiveTrades, includeBots } =
+        tradingOverviewWidgetReads(layout)
+      const overview = await loadTradingOverview(
+        context.user.id,
+        includeActiveTrades,
+        includeBots
+      )
+      return { overview, layout }
+    }
+  )
+
+const loadLayoutFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .handler(async ({ context }) => ({
+    layout: await loadTradingDashboardWidgets(context.user.id),
+  }))
+
+const saveLayoutFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(layoutSchema)
+  .handler(async ({ data, context }) => ({
+    layout: await saveTradingDashboardWidgets(context.user.id, data),
+  }))
+
+export function loadTradingOverviewPage() {
+  return loadPageFn()
+}
+
+export function loadTradingOverviewLayout() {
+  return loadLayoutFn()
+}
+
+export function saveTradingOverviewLayout(
+  layout: TradingDashboardWidgetLayout
+) {
+  return saveLayoutFn({ data: layout })
+}
+
+export const getTradingOverviewErrorMessage = createErrorMessage(
+  {},
+  "The trading overview could not be loaded. Try again."
+)
+
+export const getTradingOverviewLayoutErrorMessage = createErrorMessage(
+  {},
+  "The trading dashboard arrangement could not be saved. Try again."
+)
+
+export const getTradingOverviewLayoutLoadErrorMessage = createErrorMessage(
+  {},
+  "The trading dashboard arrangement could not be loaded. Try again."
+)

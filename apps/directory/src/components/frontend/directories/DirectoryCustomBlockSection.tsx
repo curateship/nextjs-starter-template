@@ -1,7 +1,14 @@
 import Link from "@/components/app-link"
 import { cn } from "@/lib/utils/tailwind"
 import { Card, CardGroup, CardContent } from "@/components/ui/card"
-import { TAG_CHIP_CLASS, TAG_CHIP_SIZE_CLASS } from "@/lib/utils/directory-tag-chips"
+import {
+  CHIP_CLASS,
+  CHIP_GROUP_LABEL_CLASS,
+  CHIP_GROUP_LABEL_SMALL_CLASS,
+  CHIP_ROW_CLASS,
+  CHIP_SIZE_CLASS,
+  CHIP_SMALL_SIZE_CLASS,
+} from "@/lib/utils/chip"
 import { sanitizeRichHtml } from "@/lib/utils/html-sanitizer"
 import { sanitizeUrl } from "@/lib/utils/url-validator"
 import Check from "lucide-react/dist/esm/icons/check.js"
@@ -229,14 +236,11 @@ function RepeaterFieldRenderer({ field, value }: { field: DirectoryCustomBlockRe
 
 function TagChips({ tags, small = false }: { tags: string[]; small?: boolean }) {
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className={CHIP_ROW_CLASS}>
       {tags.map((tag, index) => (
         <span
           key={`${tag}-${index}`}
-          className={cn(
-            TAG_CHIP_CLASS,
-            small ? "gap-1 px-2 py-0.5 text-xs" : TAG_CHIP_SIZE_CLASS
-          )}
+          className={cn(CHIP_CLASS, small ? CHIP_SMALL_SIZE_CLASS : CHIP_SIZE_CLASS)}
         >
           <Check className={small ? "size-3" : "size-3.5"} />
           {tag}
@@ -247,16 +251,7 @@ function TagChips({ tags, small = false }: { tags: string[]; small?: boolean }) 
 }
 
 function FieldLabel({ label, small = false }: { label: string; small?: boolean }) {
-  return (
-    <p
-      className={cn(
-        "font-medium tracking-wide text-muted-foreground",
-        small ? "text-[11px] uppercase" : "text-xs uppercase"
-      )}
-    >
-      {label}
-    </p>
-  )
+  return <p className={small ? CHIP_GROUP_LABEL_SMALL_CLASS : CHIP_GROUP_LABEL_CLASS}>{label}</p>
 }
 
 function hasFieldContent(field: DirectoryCustomBlockField, value: any) {

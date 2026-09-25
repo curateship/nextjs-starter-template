@@ -16,29 +16,13 @@ export const getSiteUsers = createServerFn({ method: "POST" })
   .handler(async ({ data }) => getSiteUsersImpl(data.siteId, data.options))
 
 export const createSiteUser = createServerFn({ method: "POST" })
-  .inputValidator((data: { input: {
-  siteId: string
-  email: string
-  displayName?: string
-  password: string
-  role: 'admin' | 'member'
-  status: 'active' | 'suspended'
-} }) => data)
+  .inputValidator((data: { input: Parameters<typeof createSiteUserImpl>[0] }) => data)
   .handler(async ({ data }) => createSiteUserImpl(data.input))
 
 export const updateSiteUser = createServerFn({ method: "POST" })
-  .inputValidator((data: { input: {
-  membershipId: string
-  siteId: string
-  displayName?: string
-  role: 'admin' | 'member'
-  status: 'active' | 'suspended'
-} }) => data)
+  .inputValidator((data: { input: Parameters<typeof updateSiteUserImpl>[0] }) => data)
   .handler(async ({ data }) => updateSiteUserImpl(data.input))
 
 export const deleteSiteUsers = createServerFn({ method: "POST" })
-  .inputValidator((data: { input: {
-  siteId: string
-  membershipIds: string[]
-} }) => data)
+  .inputValidator((data: { input: Parameters<typeof deleteSiteUsersImpl>[0] }) => data)
   .handler(async ({ data }) => deleteSiteUsersImpl(data.input))

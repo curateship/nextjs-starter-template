@@ -1,5 +1,6 @@
 import * as React from "react"
-import { useNavigate } from "@tanstack/react-router"
+import { signedPct } from "@/lib/format"
+import { Link, useNavigate } from "@tanstack/react-router"
 import { BellRingIcon, Trash2Icon } from "lucide-react"
 
 import { DashboardTable, pagedFooter } from "@/components/dashboard-table"
@@ -166,7 +167,7 @@ export function AlertLogDashboard({ initial }: { initial: AlertLogPage }) {
       <DashboardTable
         title="Alert Log"
         icon={
-          <BellRingIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+          <BellRingIcon className="text-muted-foreground" />
         }
         count={data.total}
         loading={loading}
@@ -211,6 +212,7 @@ export function AlertLogDashboard({ initial }: { initial: AlertLogPage }) {
                 { value: "price_level", label: "Exact price" },
                 { value: "price_move", label: "Price move" },
                 { value: "volume_spike", label: "Unusual volume" },
+                { value: "trendline", label: "Drawn line" },
               ]}
             />
             <FilterSelect
@@ -244,7 +246,30 @@ export function AlertLogDashboard({ initial }: { initial: AlertLogPage }) {
           />
         }
         isEmpty={data.items.length === 0}
-        emptyText="No alert events match these filters."
+        emptyText={
+          // "Nothing matches" and "nothing has fired yet" are different
+          // states: only narrowing (search, market, type, or read) earns the
+          // filter wording, a genuinely empty log explains the next step.
+          filters.search ||
+          filters.coin ||
+          filters.kind ||
+          filters.read !== "all" ? (
+            "No alert events match these filters."
+          ) : (
+            <span>
+              Your fired alerts will appear here. Create one by right-clicking
+              a price on the{" "}
+              <Link
+                to="/trade"
+                search={{ market: "BTC" }}
+                className="font-medium text-foreground underline underline-offset-2"
+              >
+                Trade chart
+              </Link>
+              .
+            </span>
+          )
+        }
         emptyColSpan={6}
         footer={pagedFooter(data, patchFilters)}
       >
@@ -340,13 +365,23 @@ function conditionLabel(event: AlertEventItem) {
   if (event.kind === "price_move") {
     return `${event.direction === "up" ? "Up" : "Down"} ${event.percent}% in ${event.window}`
   }
+  if (event.kind === "trendline") {
+    const base =
+      event.touch === "close"
+        ? "1m candle closed past the drawn line"
+        : "Price touched the drawn line"
+    // For drawn-line events, `level` holds where the moving line was.
+    return event.level === null ? base : `${base} (line at ${event.level})`
+  }
   return `${event.multiplier}× volume in ${event.window}`
 }
 
 function observedLabel(event: AlertEventItem) {
-  if (event.kind === "price_level") return String(event.observed)
+  if (event.kind === "price_level" || event.kind === "trendline") {
+    return String(event.observed)
+  }
   if (event.kind === "price_move") {
-    return `${event.observed > 0 ? "+" : ""}${event.observed.toFixed(2)}%`
+    return signedPct(event.observed)
   }
   return `${event.observed.toFixed(1)}×`
 }

@@ -1,0 +1,1839 @@
+// @vitest-environment jsdom
+
+import { act, useEffect } from "react"
+import { createRoot, type Root } from "react-dom/client"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+
+;(
+  globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+).IS_REACT_ACT_ENVIRONMENT = true
+
+const api = vi.hoisted(() => ({
+  loadLiveTrading: vi.fn(),
+  loadOlderLiveTrades: vi.fn(),
+  loadPaperPortfolio: vi.fn(),
+  loadOlderPaperTrades: vi.fn(),
+  placeLiveOrder: vi.fn(),
+  cancelLiveOrder: vi.fn(),
+  moveWatch: vi.fn(),
+  moveLiveOrder: vi.fn(),
+  placePaperOrder: vi.fn(),
+  closeLivePosition: vi.fn(),
+  flipLivePosition: vi.fn(),
+  closeLivePositions: vi.fn(),
+  closeAllPaperPositions: vi.fn(),
+  hideLiveTrade: vi.fn(),
+  hidePaperTrade: vi.fn(),
+  flattenWalletApi: vi.fn(),
+  cancelLadderRest: vi.fn(),
+  cancelGridRest: vi.fn(),
+  placeGridOrder: vi.fn(),
+  editWatch: vi.fn(),
+  setLiveBrackets: vi.fn(),
+  moveGridRange: vi.fn(),
+  reconcileLiveSmartOrders: vi.fn(),
+  showErrorToast: vi.fn(),
+  toastSuccess: vi.fn(),
+  toastInfo: vi.fn(),
+  toastDismiss: vi.fn(),
+}))
+
+vi.mock("sonner", () => ({
+  toast: {
+    success: api.toastSuccess,
+    info: api.toastInfo,
+    dismiss: api.toastDismiss,
+  },
+}))
+
+vi.mock("@/lib/api/trade/live", () => ({
+  cancelLiveOrder: api.cancelLiveOrder,
+  changeLiveLeverage: vi.fn(),
+  changeLiveMargin: vi.fn(),
+  closeLivePosition: api.closeLivePosition,
+  flipLivePosition: api.flipLivePosition,
+  closeLivePositions: api.closeLivePositions,
+  getLiveErrorMessage: (error: unknown) =>
+    error instanceof Error ? error.message : "Live order refused",
+  hideLiveTrade: api.hideLiveTrade,
+  loadOlderLiveTrades: api.loadOlderLiveTrades,
+  loadLiveTrading: api.loadLiveTrading,
+  moveLiveOrder: api.moveLiveOrder,
+  placeLiveOrder: api.placeLiveOrder,
+  setLiveBrackets: api.setLiveBrackets,
+}))
+
+vi.mock("@/lib/api/trade/paper", () => ({
+  cancelPaperOrder: vi.fn(),
+  closeAllPaperPositions: api.closeAllPaperPositions,
+  closePaperPosition: vi.fn(),
+  flipPaperPosition: vi.fn(),
+  getPaperErrorMessage: (error: unknown) =>
+    error instanceof Error ? error.message : "Practice order refused",
+  hidePaperTrade: api.hidePaperTrade,
+  loadOlderPaperTrades: api.loadOlderPaperTrades,
+  loadPaperPortfolio: api.loadPaperPortfolio,
+  movePaperOrder: vi.fn(),
+  placePaperOrder: api.placePaperOrder,
+  setPaperBrackets: vi.fn(),
+  updatePaperOrder: vi.fn(),
+}))
+
+vi.mock("@/lib/api/trade/smart-orders", () => ({
+  cancelAllSmartOrders: vi.fn(),
+  cancelGridLevel: vi.fn(),
+  cancelGridRest: api.cancelGridRest,
+  cancelLadderRest: api.cancelLadderRest,
+  cancelLadderRung: vi.fn(),
+  cancelWatch: vi.fn(),
+  closePartOfPosition: vi.fn(),
+  editWatch: api.editWatch,
+  flattenWalletApi: api.flattenWalletApi,
+  getSmartOrderErrorMessage: (error: unknown) =>
+    error instanceof Error && error.message === "SMART_GRID_FINISHED"
+      ? "That grid has already finished, so nothing was changed."
+      : error instanceof Error
+        ? error.message
+        : "Smart order refused",
+  moveGridExit: vi.fn(),
+  moveGridRange: api.moveGridRange,
+  moveWatch: api.moveWatch,
+  placeDcaLadder: vi.fn(),
+  placeGridOrder: api.placeGridOrder,
+  reconcileLiveSmartOrders: api.reconcileLiveSmartOrders,
+  reshapeGrid: vi.fn(),
+  resumeSmartOrder: vi.fn(),
+  setGridFollow: vi.fn(),
+  updateGridStop: vi.fn(),
+  updateLadderExits: vi.fn(),
+}))
+
+vi.mock("@/lib/toast/error-toast", () => ({
+  showErrorToast: api.showErrorToast,
+}))
+
+import { useTrading, type Trading } from "@/components/trade/use-trading"
+import { defaultGridParams } from "@/lib/trade/grid"
+import { baseStopDetection } from "@/lib/trade/dca"
+import type { SmartGrid } from "@/lib/trade/smart-plan"
+import { readWatchPlan } from "@/lib/trade/watch-order"
+import type { TradeWallet } from "@/lib/trade/wallets"
+
+const wallet: TradeWallet = {
+  id: "wallet-1",
+  label: "Main",
+  kind: "live",
+  status: "active",
+  protocol: "hyperliquid",
+  network: "mainnet",
+  startingBalance: 1_000,
+  address: "0x1",
+  hasKey: true,
+  keyValidUntil: null,
+}
+
+const emptyPaperAnswer = {
+  positions: [],
+  orders: [],
+  fills: [],
+  trades: [],
+  nextBefore: null,
+  journalUnchanged: false,
+  journalStamp: "paper-journal",
+  smartOrders: [],
+  smartOrdersStamp: "paper-smart",
+  wallets: [],
+}
+
+const emptyLiveAnswer = {
+  positions: [],
+  orders: [],
+  fills: [],
+  trades: [],
+  nextBefore: null,
+  journalUnchanged: false,
+  journalStamp: "live-journal",
+  smartOrders: [],
+  smartOrdersStamp: "live-smart",
+  wallets: [{ id: wallet.id, label: wallet.label }],
+  refusals: [],
+  unreachable: [],
+}
+
+let latest: Trading | null = null
+let root: Root
+let host: HTMLDivElement
+
+function rememberTrading(value: Trading) {
+  latest = value
+}
+
+function Harness({
+  selectedWallet = wallet,
+}: { selectedWallet?: TradeWallet } = {}) {
+  const trading = useTrading(selectedWallet, "hyperliquid")
+  useEffect(() => rememberTrading(trading), [trading])
+  return null
+}
+
+beforeEach(() => {
+  vi.useFakeTimers()
+  latest = null
+  api.loadPaperPortfolio.mockReset().mockResolvedValue(emptyPaperAnswer)
+  api.loadLiveTrading.mockReset().mockResolvedValue(emptyLiveAnswer)
+  api.loadOlderLiveTrades.mockReset()
+  api.loadOlderPaperTrades.mockReset()
+  api.placeLiveOrder.mockReset()
+  api.cancelLiveOrder.mockReset()
+  api.moveWatch.mockReset().mockResolvedValue({ moved: true })
+  api.moveLiveOrder.mockReset()
+  api.placePaperOrder.mockReset()
+  api.flipLivePosition.mockReset().mockResolvedValue({ complete: true })
+  api.closeLivePosition.mockReset().mockResolvedValue(undefined)
+  api.closeLivePositions.mockReset().mockResolvedValue({
+    closed: 0,
+    refused: [],
+  })
+  api.closeAllPaperPositions.mockReset().mockResolvedValue({ closed: 0 })
+  api.hideLiveTrade.mockReset().mockResolvedValue(undefined)
+  api.hidePaperTrade.mockReset().mockResolvedValue(undefined)
+  api.flattenWalletApi.mockReset().mockResolvedValue({
+    stood: [],
+    cancelRefused: [],
+    selling: [],
+    sellRefused: [],
+  })
+  api.cancelLadderRest.mockReset()
+  api.cancelGridRest.mockReset()
+  api.placeGridOrder.mockReset()
+  api.editWatch.mockReset().mockResolvedValue({ saved: true })
+  api.setLiveBrackets.mockReset().mockResolvedValue(undefined)
+  api.moveGridRange.mockReset()
+  api.reconcileLiveSmartOrders.mockReset().mockResolvedValue(undefined)
+  api.showErrorToast.mockReset()
+  api.toastInfo.mockReset().mockReturnValue("retry-toast")
+  api.toastDismiss.mockReset()
+  api.toastSuccess.mockReset()
+  host = document.createElement("div")
+  root = createRoot(host)
+})
+
+afterEach(async () => {
+  await act(async () => root.unmount())
+  vi.useRealTimers()
+})
+
+async function finishFirstRead() {
+  await act(async () => root.render(<Harness />))
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(0)
+    await Promise.resolve()
+  })
+}
+
+describe("the first portfolio read", () => {
+  it("ends the loading state when the live half refuses", async () => {
+    api.loadLiveTrading.mockRejectedValue(new Error("offline"))
+
+    await finishFirstRead()
+
+    expect(latest?.settled).toBe(true)
+    expect(latest?.failed).toBe(true)
+    expect(latest?.loading).toBe(false)
+  })
+})
+
+function stalePaperFill() {
+  return {
+    fillId: "old-sol-fill",
+    orderId: "old-sol-order",
+    walletId: "paper-wallet",
+    marketKey: "hyperliquid:mainnet:SOL",
+    side: "buy" as const,
+    px: 145,
+    sz: 1,
+    at: Date.now() - 18 * 24 * 60 * 60 * 1_000,
+    closedPnl: 0,
+    fee: 0,
+    dir: "",
+    liquidation: false,
+    live: false,
+  }
+}
+
+function stalePaperHistory(fill: ReturnType<typeof stalePaperFill>) {
+  return {
+    id: "unpaired:paper-wallet:SOL:old-sol-fill",
+    walletId: fill.walletId,
+    marketKey: fill.marketKey,
+    live: false,
+    fills: [fill],
+  }
+}
+
+describe("removing stale fill history", () => {
+  it("takes every arrow off the chart before the save finishes", async () => {
+    const fill = stalePaperFill()
+    api.loadPaperPortfolio.mockResolvedValue({
+      ...emptyPaperAnswer,
+      fills: [fill],
+    })
+    let finishSave!: () => void
+    api.hidePaperTrade.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          finishSave = resolve
+        })
+    )
+
+    await finishFirstRead()
+    expect(latest?.fills).toEqual([fill])
+
+    let removal!: Promise<void>
+    await act(async () => {
+      removal = latest!.hideTrades([stalePaperHistory(fill)])
+      await Promise.resolve()
+    })
+
+    expect(latest?.fills).toEqual([])
+    expect(api.hidePaperTrade).toHaveBeenCalledWith([fill.fillId])
+
+    await act(async () => {
+      finishSave()
+      await removal
+    })
+  })
+
+  it("puts the arrows back when the save is refused", async () => {
+    const fill = stalePaperFill()
+    api.loadPaperPortfolio.mockResolvedValue({
+      ...emptyPaperAnswer,
+      fills: [fill],
+    })
+    api.hidePaperTrade.mockRejectedValue(
+      new Error("History could not be saved")
+    )
+
+    await finishFirstRead()
+
+    await act(async () => {
+      await latest!.hideTrades([stalePaperHistory(fill)])
+    })
+
+    expect(latest?.fills).toEqual([fill])
+    expect(api.showErrorToast).toHaveBeenCalledWith(
+      "History could not be saved"
+    )
+  })
+})
+
+describe("loading older Journal history", () => {
+  it("keeps unmatched exchange fills visible without mixing them into current fills", async () => {
+    const fill = {
+      ...stalePaperFill(),
+      fillId: "older-live-fill",
+      walletId: wallet.id,
+      live: true,
+    }
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      nextBefore: 2_000,
+    })
+    api.loadOlderLiveTrades.mockResolvedValue({
+      fills: [fill],
+      trades: [],
+      nextBefore: null,
+    })
+
+    await finishFirstRead()
+    await act(async () => {
+      await latest!.loadOlderTrades()
+    })
+
+    expect(latest?.journalFills).toEqual([fill])
+    expect(latest?.fills).toEqual([])
+  })
+})
+
+describe("market additions", () => {
+  it.each([
+    { kind: "live" as const, result: "filled" },
+    { kind: "live" as const, result: "refused" },
+    { kind: "paper" as const, result: "filled" },
+    { kind: "paper" as const, result: "refused" },
+  ])(
+    "shows a pending $kind addition until $result and blocks duplicate presses",
+    async ({ kind, result }) => {
+      let resolve!: (value: unknown) => void
+      let reject!: (error: Error) => void
+      const placeOrder =
+        kind === "live" ? api.placeLiveOrder : api.placePaperOrder
+      placeOrder.mockImplementation(
+        () =>
+          new Promise((yes, no) => {
+            resolve = yes
+            reject = no
+          })
+      )
+      await act(async () =>
+        root.render(<Harness selectedWallet={{ ...wallet, kind }} />)
+      )
+      const input = {
+        marketKey: "hyperliquid:mainnet:ENA",
+        side: "buy" as const,
+        px: 0.1,
+        sz: 100,
+        leverage: 1,
+        reduceOnly: false,
+        tpPx: null,
+        slPx: null,
+        market: false,
+        addingToPosition: true,
+      }
+      await act(async () => {
+        latest!.place(input)
+        latest!.place(input)
+      })
+      expect(placeOrder).toHaveBeenCalledTimes(1)
+      expect(placeOrder).toHaveBeenCalledWith(
+        expect.objectContaining({ market: true, startNow: false })
+      )
+      expect(placeOrder.mock.calls[0][0]).not.toHaveProperty("addingToPosition")
+      expect(latest!.pendingAdditions).toEqual([
+        { walletId: wallet.id, marketKey: input.marketKey },
+      ])
+      await act(async () => {
+        if (result === "filled")
+          resolve({ outcome: { status: "filled", filledSz: 100, avgPx: 0.1 } })
+        else reject(new Error("Addition refused"))
+      })
+      expect(latest!.pendingAdditions).toEqual([])
+      expect(latest!.placing).toHaveLength(0)
+      // An addition must not draw a second position containing only the added size.
+      expect(latest!.positions).toHaveLength(0)
+      if (result === "refused")
+        expect(api.showErrorToast).toHaveBeenCalledWith("Addition refused")
+      await act(async () => {
+        latest!.place(input)
+      })
+      expect(placeOrder).toHaveBeenCalledTimes(2)
+      await act(async () => {
+        resolve({ outcome: { status: "filled" } })
+      })
+    }
+  )
+})
+
+describe("the line for an order being sent", () => {
+  it("disappears as soon as the exchange refuses the order", async () => {
+    let refuse!: (error: Error) => void
+    api.placeLiveOrder.mockImplementation(
+      () =>
+        new Promise((_resolve, reject) => {
+          refuse = reject
+        })
+    )
+
+    await act(async () => root.render(<Harness />))
+    await act(async () => {
+      latest?.place({
+        marketKey: "hyperliquid:mainnet:ENA",
+        side: "buy",
+        px: 0.1,
+        sz: 10,
+        leverage: 1,
+        reduceOnly: false,
+        tpPx: null,
+        slPx: null,
+      })
+    })
+
+    expect(latest?.placing).toHaveLength(1)
+
+    await act(async () => {
+      refuse(new Error("The order must be worth at least $10."))
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(api.showErrorToast).toHaveBeenCalledWith(
+      "The order must be worth at least $10."
+    )
+    expect(latest?.placing).toHaveLength(0)
+  })
+
+  it("turns into the real order the moment the answer names it", async () => {
+    api.placeLiveOrder.mockResolvedValue({
+      outcome: {
+        status: "resting",
+        orderId: "exchange-7",
+        avgPx: null,
+        filledSz: null,
+        protection: null,
+        protectionNote: null,
+      },
+    })
+
+    await act(async () => root.render(<Harness />))
+    await act(async () => {
+      latest?.place({
+        marketKey: "hyperliquid:mainnet:ENA",
+        side: "buy",
+        px: 0.1,
+        sz: 10,
+        leverage: 1,
+        reduceOnly: false,
+        tpPx: null,
+        slPx: null,
+      })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    // The row now IS the order: the exchange's own id, no "sending" label,
+    // and the live flag so a drag or a × takes the real road at once.
+    expect(latest?.placing).toHaveLength(1)
+    expect(latest?.placing[0].id).toBe("exchange-7")
+    expect(latest?.placing[0].placing).toBeUndefined()
+    expect(latest?.placing[0].live).toBe(true)
+  })
+
+  it("draws a watched level from the placement answer, with no read in between", async () => {
+    const plan = readWatchPlan({
+      triggerPx: 0.1,
+      triggerDirection: "down",
+      side: "buy",
+      sz: 10,
+      leverage: 1,
+      maxLeverage: 50,
+      sizeDecimals: 3,
+      tpPx: null,
+      slPx: null,
+      phase: "waiting",
+    })
+    if (!plan) throw new Error("expected a watched-order plan")
+    api.placeLiveOrder.mockResolvedValue({
+      outcome: {
+        status: "resting",
+        // A watched level has no exchange order to name, which is why the
+        // row itself comes back beside the outcome.
+        orderId: null,
+        avgPx: null,
+        filledSz: null,
+        protection: null,
+        protectionNote: null,
+      },
+      watch: {
+        id: "watch-new",
+        walletId: wallet.id,
+        marketKey: "hyperliquid:mainnet:ENA",
+        kind: "watch",
+        status: "active",
+        flowRunId: null,
+        createdAt: 2,
+        updatedAt: 2,
+        plan,
+      },
+    })
+    await finishFirstRead()
+    // Nothing else may land: the point is that the level shows without one.
+    api.loadLiveTrading.mockImplementation(() => new Promise(() => {}))
+
+    await act(async () => {
+      latest?.place({
+        marketKey: "hyperliquid:mainnet:ENA",
+        side: "buy",
+        px: 0.1,
+        sz: 10,
+        leverage: 1,
+        reduceOnly: false,
+        orderStyle: "watch",
+        tpPx: null,
+        slPx: null,
+      })
+      await vi.advanceTimersByTimeAsync(0)
+    })
+
+    // No "sending" row left, and the level is on the chart as a watched order.
+    expect(latest?.placing).toHaveLength(0)
+    expect(api.loadLiveTrading).toHaveBeenCalled()
+    expect(latest?.watchOrders).toHaveLength(1)
+    expect(latest?.watchOrders[0]).toMatchObject({
+      id: "watch-new",
+      px: 0.1,
+      sz: 10,
+      watched: true,
+    })
+  })
+
+  it("keeps the sending line for a watch that starts working at once", async () => {
+    const plan = readWatchPlan({
+      triggerPx: 0.1,
+      triggerDirection: "down",
+      side: "buy",
+      sz: 10,
+      leverage: 1,
+      maxLeverage: 50,
+      sizeDecimals: 3,
+      tpPx: null,
+      slPx: null,
+      // Not waiting for a level: already on its way to being an order, which
+      // the chart hides beside whatever it becomes.
+      phase: "taking",
+    })
+    if (!plan) throw new Error("expected a watched-order plan")
+    api.placeLiveOrder.mockResolvedValue({
+      outcome: {
+        status: "resting",
+        orderId: null,
+        avgPx: null,
+        filledSz: null,
+        protection: null,
+        protectionNote: null,
+      },
+      watch: {
+        id: "watch-now",
+        walletId: wallet.id,
+        marketKey: "hyperliquid:mainnet:ENA",
+        kind: "watch",
+        status: "active",
+        flowRunId: null,
+        createdAt: 2,
+        updatedAt: 2,
+        plan,
+      },
+    })
+    await finishFirstRead()
+    api.loadLiveTrading.mockImplementation(() => new Promise(() => {}))
+
+    await act(async () => {
+      latest?.place({
+        marketKey: "hyperliquid:mainnet:ENA",
+        side: "buy",
+        px: 0.1,
+        sz: 10,
+        leverage: 1,
+        reduceOnly: false,
+        orderStyle: "watch",
+        startNow: true,
+        tpPx: null,
+        slPx: null,
+      })
+      await vi.advanceTimersByTimeAsync(0)
+    })
+
+    // Handing over here would leave the chart with nothing at all, so the
+    // "sending" row waits for the read that says what it became.
+    expect(latest?.placing).toHaveLength(1)
+    expect(latest?.placing[0].placing).toBe(true)
+  })
+
+  it("restores a confirmed resting order if cancelling it fails before the next read", async () => {
+    api.placeLiveOrder.mockResolvedValue({
+      outcome: { status: "resting", orderId: "exchange-cancel" },
+    })
+    let refuse!: (error: Error) => void
+    api.cancelLiveOrder.mockImplementation(
+      () =>
+        new Promise((_resolve, reject) => {
+          refuse = reject
+        })
+    )
+    await finishFirstRead()
+    await act(async () =>
+      latest!.place({
+        marketKey: "hyperliquid:mainnet:ENA",
+        side: "buy",
+        px: 0.1,
+        sz: 100,
+        leverage: 1,
+        reduceOnly: false,
+        tpPx: null,
+        slPx: null,
+      })
+    )
+    const order = latest!.placing[0]
+    expect(order.id).toBe("exchange-cancel")
+    let cancellation!: Promise<void>
+    await act(async () => {
+      cancellation = latest!.cancel(order)
+    })
+    expect(latest!.placing).toHaveLength(0)
+    await act(async () => {
+      refuse(new Error("Cancel refused"))
+      await cancellation
+    })
+    expect(latest!.placing[0]?.id).toBe(order.id)
+    expect(api.showErrorToast).toHaveBeenCalledWith("Cancel refused")
+  })
+
+  it("hands over to a position when the order filled straight away", async () => {
+    api.placeLiveOrder.mockResolvedValue({
+      outcome: {
+        status: "filled",
+        orderId: null,
+        avgPx: 0.1,
+        filledSz: 10,
+        protection: null,
+        protectionNote: null,
+      },
+    })
+
+    await act(async () => root.render(<Harness />))
+    await act(async () => {
+      latest?.place({
+        marketKey: "hyperliquid:mainnet:ENA",
+        side: "buy",
+        px: 0.1,
+        sz: 10,
+        leverage: 1,
+        reduceOnly: false,
+        tpPx: null,
+        slPx: null,
+      })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    // The answer said "filled at 0.1 for 10", so the position is painted
+    // from it in the same render the "sending" line leaves — no gap, and no
+    // waiting on the next full read for the Entry line.
+    expect(latest?.placing).toHaveLength(0)
+    expect(latest?.positions).toHaveLength(1)
+    expect(latest?.positions[0].szi).toBe(10)
+    expect(latest?.positions[0].entryPx).toBe(0.1)
+    expect(latest?.positions[0].live).toBeDefined()
+  })
+
+  it("does not interrupt a smaller fill with a toast", async () => {
+    api.placeLiveOrder.mockResolvedValue({
+      outcome: {
+        status: "filled",
+        orderId: null,
+        avgPx: 0.1,
+        filledSz: 5,
+        protection: null,
+        protectionNote: null,
+      },
+    })
+
+    await act(async () => root.render(<Harness />))
+    await act(async () => {
+      latest?.place({
+        marketKey: "hyperliquid:mainnet:ENA",
+        side: "buy",
+        px: 0.1,
+        sz: 10,
+        leverage: 1,
+        reduceOnly: false,
+        tpPx: null,
+        slPx: null,
+      })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(api.showErrorToast).not.toHaveBeenCalled()
+    expect(latest?.positions[0].szi).toBe(5)
+  })
+
+  it("paints nothing for a reduce-only fill", async () => {
+    api.placeLiveOrder.mockResolvedValue({
+      outcome: {
+        status: "filled",
+        orderId: null,
+        avgPx: 0.1,
+        filledSz: 10,
+        protection: null,
+        protectionNote: null,
+      },
+    })
+
+    await act(async () => root.render(<Harness />))
+    await act(async () => {
+      latest?.place({
+        marketKey: "hyperliquid:mainnet:ENA",
+        side: "sell",
+        px: 0.1,
+        sz: 10,
+        leverage: 1,
+        reduceOnly: true,
+        tpPx: null,
+        slPx: null,
+      })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    // A reduce-only fill shrank a position rather than opening one.
+    expect(latest?.positions).toHaveLength(0)
+  })
+})
+
+describe("bulk safety actions", () => {
+  it("sends twenty live Close all positions in one capped request", async () => {
+    const positions = Array.from({ length: 20 }, (_, index) => ({
+      id: `position-${index}`,
+      walletId: wallet.id,
+      marketKey: `hyperliquid:mainnet:COIN${index}`,
+      szi: 1,
+      entryPx: 100,
+      leverage: 1,
+      maxLeverage: 50,
+      targets: [],
+      tpPx: null,
+      feesPaid: 0,
+      updatedAt: Date.now(),
+      live: {
+        marginUsed: 100,
+        liquidationPx: null,
+        tpOrderId: null,
+        slOrderId: null,
+      },
+    }))
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      positions,
+    })
+    api.closeLivePositions.mockResolvedValue({ closed: 20, refused: [] })
+
+    await finishFirstRead()
+    await act(async () => {
+      await latest?.closeAll()
+    })
+
+    expect(api.closeLivePositions).toHaveBeenCalledOnce()
+    expect(api.closeLivePositions).toHaveBeenCalledWith(
+      positions.map(({ walletId, marketKey }) => ({ walletId, marketKey }))
+    )
+  })
+
+  it("sends Empty wallet as one capped request", async () => {
+    await finishFirstRead()
+
+    await act(async () => {
+      await latest?.flattenWallet(wallet.id)
+    })
+
+    expect(api.flattenWalletApi).toHaveBeenCalledOnce()
+    expect(api.flattenWalletApi).toHaveBeenCalledWith({ walletId: wallet.id })
+  })
+})
+
+/**
+ * A stop refused by the exchange.
+ *
+ * **The drawn stop is let go the moment the save is refused.** Until 14 Sep
+ * 2026 the optimistic copy stood for half a minute, which made the position
+ * look protected — and the right-click Stop loss row only appears on a
+ * position with no stop, so the one way to try again went with it.
+ */
+describe("a refused stop", () => {
+  const coin = "hyperliquid:mainnet:SOL"
+
+  it("puts the position back as it was and says what was not saved", async () => {
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      positions: [{ ...livePosition(coin), slPx: null }],
+    })
+    api.setLiveBrackets.mockRejectedValue(
+      new Error("That did not go through. Try it again.")
+    )
+    await finishFirstRead()
+    const position = latest?.positions.find((one) => one.marketKey === coin)
+    expect(position?.slPx).toBe(null)
+
+    await act(async () => {
+      await latest?.dragBrackets(position!, { targets: [], slPx: 90 })
+    })
+
+    expect(latest?.positions.find((one) => one.marketKey === coin)?.slPx).toBe(
+      null
+    )
+    expect(api.showErrorToast).toHaveBeenCalledWith(
+      "The stop was not saved, so the position is as it was. That did not go through. Try it again."
+    )
+  })
+
+  it("holds the stop on screen while a save that works is still going", async () => {
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      positions: [{ ...livePosition(coin), slPx: null }],
+    })
+    await finishFirstRead()
+    const position = latest?.positions.find((one) => one.marketKey === coin)
+
+    await act(async () => {
+      await latest?.dragBrackets(position!, { targets: [], slPx: 90 })
+    })
+
+    expect(latest?.positions.find((one) => one.marketKey === coin)?.slPx).toBe(
+      90
+    )
+    expect(api.showErrorToast).not.toHaveBeenCalled()
+  })
+})
+
+/** A real position on one coin, the shape the account read hands back. */
+function livePosition(marketKey: string) {
+  return {
+    id: `position:${marketKey}`,
+    walletId: wallet.id,
+    marketKey,
+    szi: 1,
+    entryPx: 100,
+    leverage: 1,
+    maxLeverage: 50,
+    targets: [],
+    tpPx: null,
+    slPx: null,
+    feesPaid: 0,
+    updatedAt: Date.now(),
+    live: {
+      marginUsed: 100,
+      liquidationPx: null,
+      tpOrderId: null,
+      slOrderId: null,
+    },
+  }
+}
+
+/** A buying grid on one coin, holding coins on rung 1 or holding nothing. */
+function gridOn(marketKey: string, holding: boolean): SmartGrid {
+  return {
+    id: `grid:${marketKey}`,
+    walletId: wallet.id,
+    marketKey,
+    status: "active",
+    flowRunId: null,
+    createdAt: 1,
+    updatedAt: 1,
+    kind: "grid",
+    plan: {
+      handSetAt: null,
+      direction: "long",
+      topPx: 110,
+      bottomPx: 90,
+      takeProfitPx: null,
+      spacing: "even",
+      sizing: "even",
+      manualSizing: false,
+      manualRungPcts: null,
+      potPct: 20,
+      maxOrderVolPct: 0,
+      startedAt: 1,
+      sizeDecimals: 4,
+      priceTick: null,
+      minOrderValueUsd: 10,
+      leverage: 1,
+      maxLeverage: 20,
+      levels: [
+        {
+          buyPx: 100,
+          sellPx: 110,
+          sz: holding ? 1 : 0,
+          budget: 100,
+          heldSz: holding ? 1 : 0,
+          status: holding ? "holding" : "waiting",
+          armed: true,
+          dead: false,
+          cycles: 0,
+        },
+        {
+          buyPx: 90,
+          sellPx: 100,
+          sz: 0,
+          budget: 100,
+          heldSz: 0,
+          status: "waiting",
+          armed: true,
+          dead: false,
+          cycles: 0,
+        },
+      ],
+      carriedLevels: [],
+      stopLoss: { mode: "fixed", underPct: 5, px: 80, base: null },
+      baseDetection: baseStopDetection(),
+      baseWatch: null,
+      aimedSlPx: null,
+      pairedStop: null,
+      seenFillsTo: 0,
+      cycles: 0,
+      follow: false,
+      followDown: false,
+      entered: true,
+      shifts: 0,
+      downShifts: 0,
+      closedReason: null,
+      reverseWhenStopped: false,
+      reversedFrom: null,
+      reverseFailReason: null,
+    },
+  }
+}
+
+describe("closing a position a grid is holding", () => {
+  // Tyler, 4 Sep 2026: the grid sat on the chart for a few seconds after its
+  // position was closed, with its held rung and a stop that could no longer
+  // price, until the engine noticed the position was gone. It goes on the
+  // press now, the way the position's own row does.
+  const coin = "hyperliquid:mainnet:AZTEC"
+
+  it("takes the grid off the chart the moment Close is pressed", async () => {
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      positions: [livePosition(coin)],
+      smartOrders: [gridOn(coin, true)],
+    })
+    await finishFirstRead()
+    expect(latest?.grids).toHaveLength(1)
+
+    await act(async () => {
+      await latest?.close(livePosition(coin))
+    })
+    expect(api.closeLivePosition).toHaveBeenCalledWith(wallet.id, coin)
+    // The read after the close still carries the grid, the engine not having
+    // ended it yet, and the grid stays hidden all the same.
+    expect(latest?.grids).toHaveLength(0)
+  })
+
+  it("puts the grid back when the exchange refuses the close", async () => {
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      positions: [livePosition(coin)],
+      smartOrders: [gridOn(coin, true)],
+    })
+    api.closeLivePosition.mockRejectedValue(new Error("Venue busy"))
+    await finishFirstRead()
+
+    await act(async () => {
+      await latest?.close(livePosition(coin))
+    })
+    expect(api.showErrorToast).toHaveBeenCalledWith("Venue busy")
+    expect(latest?.grids).toHaveLength(1)
+  })
+
+  it("leaves a grid holding nothing where it is", async () => {
+    // Flat with levels waiting is a grid's ordinary state, and the position
+    // being closed was never its coins.
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      positions: [livePosition(coin)],
+      smartOrders: [gridOn(coin, false)],
+    })
+    await finishFirstRead()
+
+    await act(async () => {
+      await latest?.close(livePosition(coin))
+    })
+    expect(latest?.grids).toHaveLength(1)
+  })
+
+  it("takes the grids off with Close all too", async () => {
+    const other = "hyperliquid:mainnet:CRV"
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      positions: [livePosition(coin), livePosition(other)],
+      smartOrders: [gridOn(coin, true), gridOn(other, false)],
+    })
+    api.closeLivePositions.mockResolvedValue({ closed: 2, refused: [] })
+    await finishFirstRead()
+
+    await act(async () => {
+      await latest?.closeAll()
+    })
+    expect(latest?.grids.map((one) => one.marketKey)).toEqual([other])
+  })
+
+  it("puts the grids back when Close all is refused", async () => {
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      positions: [livePosition(coin)],
+      smartOrders: [gridOn(coin, true)],
+    })
+    api.closeLivePositions.mockRejectedValue(new Error("Venue busy"))
+    await finishFirstRead()
+
+    await act(async () => {
+      await latest?.closeAll()
+    })
+    expect(api.showErrorToast).toHaveBeenCalledWith("Venue busy")
+    expect(latest?.grids).toHaveLength(1)
+  })
+})
+
+describe("removing a DCA ladder", () => {
+  it("stays quiet when the ladder held no position", async () => {
+    api.cancelLadderRest.mockResolvedValue({
+      cancelled: 2,
+      hasPosition: false,
+    })
+    await finishFirstRead()
+
+    await act(async () => {
+      await latest?.cancelLadder(wallet.id, "ladder-1")
+    })
+
+    expect(api.cancelLadderRest).toHaveBeenCalledWith({
+      walletId: wallet.id,
+      ladderId: "ladder-1",
+    })
+    expect(api.toastSuccess).not.toHaveBeenCalled()
+  })
+
+  it("says the bought coins remain when a position is open", async () => {
+    api.cancelLadderRest.mockResolvedValue({
+      cancelled: 1,
+      hasPosition: true,
+    })
+    await finishFirstRead()
+
+    await act(async () => {
+      await latest?.cancelLadder(wallet.id, "ladder-1")
+    })
+
+    expect(api.toastSuccess).toHaveBeenCalledWith(
+      "Ladder stopped in Main — what's bought stays."
+    )
+  })
+})
+
+describe("what the grid's stop says when it is saved", () => {
+  // Tyler, 22 Sep 2026: the × on the stop line used to say "Stop changed",
+  // which reads as though a stop is still there.
+  it("says the stop was removed when both stops go", async () => {
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      smartOrders: [gridOn("hyperliquid:mainnet:ENA", false)],
+    })
+    await finishFirstRead()
+    const grid = latest!.grids[0]
+
+    await act(async () => {
+      await latest!.setGridStop(wallet.id, grid.id, null, false, null)
+    })
+    expect(api.toastSuccess).toHaveBeenCalledWith("Stop removed.")
+
+    api.toastSuccess.mockClear()
+    await act(async () => {
+      await latest!.setGridStop(wallet.id, grid.id, { underPct: 4, base: null })
+    })
+    expect(api.toastSuccess).toHaveBeenCalledWith("Stop changed.")
+  })
+})
+
+describe("a grid edit that finishes before it saves", () => {
+  it("restores the grid and clears busy state when Stop is refused by another writer", async () => {
+    const refusal =
+      "Another action is still updating this wallet. Your change was not made. Try again in a moment."
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      smartOrders: [gridOn("hyperliquid:mainnet:ENA", false)],
+    })
+    api.cancelGridRest.mockRejectedValue(new Error(refusal))
+    await finishFirstRead()
+    const grid = latest!.grids[0]
+    await act(async () => {
+      await latest!.cancelGrid(wallet.id, grid.id)
+    })
+    expect(api.showErrorToast).toHaveBeenCalledWith(refusal)
+    expect(api.toastSuccess).not.toHaveBeenCalled()
+    expect(latest!.grids.map((row) => row.id)).toContain(grid.id)
+    expect(latest!.busy).toBe(false)
+  })
+
+  it("shows why the range did not move", async () => {
+    api.moveGridRange.mockRejectedValue(new Error("SMART_GRID_FINISHED"))
+    await finishFirstRead()
+
+    await act(async () => {
+      await latest?.moveGridRange(wallet.id, "grid-1", {
+        end: "top",
+        px: 120,
+      })
+    })
+
+    expect(api.moveGridRange).toHaveBeenCalledWith({
+      walletId: wallet.id,
+      gridId: "grid-1",
+      end: "top",
+      px: 120,
+    })
+    expect(api.showErrorToast).toHaveBeenCalledWith(
+      "That grid has already finished, so nothing was changed."
+    )
+  })
+})
+
+describe("moving a confirmed watched order", () => {
+  it("never brings back its sending line after moving away from the original price", async () => {
+    const plan = readWatchPlan({
+      triggerPx: 95,
+      triggerDirection: "down",
+      side: "sell",
+      sz: 5,
+      leverage: 1,
+      maxLeverage: 50,
+      sizeDecimals: 3,
+      tpPx: null,
+      slPx: null,
+      phase: "waiting",
+    })!
+    const watch = {
+      id: "watch-drag",
+      walletId: wallet.id,
+      marketKey: "hyperliquid:mainnet:BTC",
+      kind: "watch",
+      status: "active",
+      flowRunId: null,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      plan,
+    }
+    api.placeLiveOrder.mockResolvedValue({
+      outcome: { status: "resting", orderId: null },
+    })
+    await finishFirstRead()
+    await act(async () =>
+      latest!.place({
+        marketKey: watch.marketKey,
+        side: "sell",
+        px: 95,
+        sz: 5,
+        leverage: 1,
+        reduceOnly: false,
+        market: false,
+        tpPx: null,
+        slPx: null,
+      })
+    )
+    expect(latest!.placing).toHaveLength(1)
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      smartOrders: [watch],
+    })
+    await act(async () => {
+      latest!.retry()
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    expect(latest!.watchOrders).toHaveLength(1)
+    expect(latest!.placing).toHaveLength(0)
+
+    for (const px of [90, 100]) {
+      api.loadLiveTrading.mockResolvedValue({
+        ...emptyLiveAnswer,
+        smartOrders: [{ ...watch, plan: { ...plan, triggerPx: px } }],
+      })
+      await act(async () => {
+        await latest!.move(wallet.id, watch.id, px)
+      })
+      expect(latest!.watchOrders[0].px).toBe(px)
+      expect(latest!.placing).toHaveLength(0)
+      expect(api.moveWatch).toHaveBeenLastCalledWith({
+        walletId: wallet.id,
+        ladderId: watch.id,
+        px,
+      })
+    }
+    expect(api.placeLiveOrder).toHaveBeenCalledTimes(1)
+    expect(api.moveLiveOrder).not.toHaveBeenCalled()
+    api.loadLiveTrading.mockResolvedValue(emptyLiveAnswer)
+    await act(async () => {
+      latest!.retry()
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    expect(latest!.watchOrders).toHaveLength(0)
+    expect(latest!.placing).toHaveLength(0)
+  })
+})
+
+describe("editing a watched order", () => {
+  it("shows the saved values when the window is reopened before the next read", async () => {
+    const plan = readWatchPlan({
+      triggerPx: 95,
+      triggerDirection: "down",
+      side: "buy",
+      sz: 1,
+      leverage: 1,
+      maxLeverage: 50,
+      sizeDecimals: 3,
+      tpPx: null,
+      slPx: 88,
+      phase: "waiting",
+    })
+    if (!plan) throw new Error("expected a watched-order plan")
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      smartOrders: [
+        {
+          id: "watch-1",
+          walletId: wallet.id,
+          marketKey: "hyperliquid:mainnet:BTC",
+          kind: "watch",
+          status: "active",
+          flowRunId: null,
+          createdAt: 1,
+          updatedAt: 1,
+          plan,
+        },
+      ],
+    })
+    await finishFirstRead()
+
+    await act(async () => {
+      await latest?.editOrder(wallet.id, "watch-1", {
+        sz: 2,
+        leverage: 3,
+        tpPx: 110,
+        slPx: 85,
+      })
+    })
+
+    expect(api.editWatch).toHaveBeenCalledWith({
+      walletId: wallet.id,
+      ladderId: "watch-1",
+      sz: 2,
+      leverage: 3,
+      tpPx: 110,
+      slPx: 85,
+    })
+    expect(latest?.watchOrders[0]).toMatchObject({
+      sz: 2,
+      leverage: 3,
+      tpPx: 110,
+      slPx: 85,
+    })
+  })
+
+  it("shows a dragged stop while the save is still in flight", async () => {
+    const plan = readWatchPlan({
+      triggerPx: 95,
+      triggerDirection: "down",
+      side: "buy",
+      sz: 1,
+      leverage: 1,
+      maxLeverage: 50,
+      sizeDecimals: 3,
+      tpPx: null,
+      slPx: 88,
+      phase: "waiting",
+    })
+    if (!plan) throw new Error("expected a watched-order plan")
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      smartOrders: [
+        {
+          id: "watch-1",
+          walletId: wallet.id,
+          marketKey: "hyperliquid:mainnet:BTC",
+          kind: "watch",
+          status: "active",
+          flowRunId: null,
+          createdAt: 1,
+          updatedAt: 1,
+          plan,
+        },
+      ],
+    })
+    await finishFirstRead()
+    expect(latest?.watchOrders[0]).toMatchObject({ slPx: 88 })
+
+    // The save is left hanging, which is the whole point: the line must be at
+    // the new stop before the server has answered, or it falls back to the old
+    // one and jumps forward when the answer lands.
+    let finish: (value: boolean) => void = () => {}
+    api.editWatch.mockReturnValue(
+      new Promise<boolean>((resolve) => {
+        finish = resolve
+      })
+    )
+
+    let saving: Promise<boolean> | undefined
+    await act(async () => {
+      saving = latest?.editOrder(wallet.id, "watch-1", {
+        sz: 1,
+        leverage: 1,
+        tpPx: null,
+        slPx: 80,
+      })
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    expect(latest?.watchOrders[0]).toMatchObject({ slPx: 80, sz: 1 })
+
+    await act(async () => {
+      finish(true)
+      await saving
+    })
+    expect(latest?.watchOrders[0]).toMatchObject({ slPx: 80 })
+  })
+})
+
+describe("post-only retry notices", () => {
+  function answer(retrying = true) {
+    return {
+      ...emptyLiveAnswer,
+      smartOrders: [
+        {
+          id: "watch-retry",
+          kind: "watch",
+          walletId: wallet.id,
+          marketKey: "hyperliquid:mainnet:BTC",
+          status: "active",
+          flowRunId: null,
+          createdAt: Date.now() - 1000,
+          updatedAt: Date.now(),
+          plan: readWatchPlan({
+            triggerPx: 95,
+            side: "buy",
+            sz: 1,
+            leverage: 1,
+            maxLeverage: 50,
+            sizeDecimals: 3,
+            tpPx: null,
+            slPx: null,
+            phase: "taking",
+          }),
+        },
+      ],
+      refusals: [
+        {
+          walletId: wallet.id,
+          marketKey: "hyperliquid:mainnet:BTC",
+          smartOrderId: "watch-retry",
+          at: Date.now(),
+          retrying,
+          note: retrying
+            ? "Trade is checking the price and trying again."
+            : "The order is paused.",
+        },
+      ],
+    }
+  }
+  it("shows progress once and dismisses it after acceptance without dismissing other errors", async () => {
+    api.loadLiveTrading.mockResolvedValue(answer())
+    await finishFirstRead()
+    expect(api.toastInfo).toHaveBeenCalledWith(
+      "BTC: Trade is checking the price and trying again.",
+      { duration: Infinity }
+    )
+    expect(api.showErrorToast).not.toHaveBeenCalled()
+    await act(async () => {
+      latest?.retry()
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    expect(api.toastInfo).toHaveBeenCalledTimes(1)
+    api.loadLiveTrading.mockResolvedValue({ ...answer(), refusals: [] })
+    await act(async () => {
+      latest?.retry()
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    expect(api.toastDismiss).toHaveBeenCalledWith("retry-toast")
+    expect(latest?.refusals.size).toBe(0)
+  })
+  it("replaces progress with an error when repeated refusals pause the order", async () => {
+    api.loadLiveTrading.mockResolvedValue(answer())
+    await finishFirstRead()
+    api.loadLiveTrading.mockResolvedValue(answer(false))
+    await act(async () => {
+      latest?.retry()
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    expect(api.toastDismiss).toHaveBeenCalledWith("retry-toast")
+    expect(api.showErrorToast).toHaveBeenCalledWith("The order is paused.")
+  })
+})
+
+describe("placing a grid during cancellation", () => {
+  it.each([
+    [
+      "hyperliquid:mainnet:BTC",
+      "SMART_LADDER_EXISTS",
+      "Another grid is being cancelled. Please wait.",
+    ],
+    ["hyperliquid:mainnet:ETH", "SMART_LADDER_EXISTS", "SMART_LADDER_EXISTS"],
+    ["hyperliquid:mainnet:BTC", "EXCHANGE_BUSY", "EXCHANGE_BUSY"],
+  ])(
+    "reports the right refusal for %s and %s",
+    async (marketKey, code, message) => {
+      const grid = gridOn("hyperliquid:mainnet:BTC", false)
+      api.loadLiveTrading.mockResolvedValue({
+        ...emptyLiveAnswer,
+        smartOrders: [grid],
+      })
+      let finishCancel!: () => void
+      api.cancelGridRest.mockImplementation(
+        () =>
+          new Promise<void>((resolve) => {
+            finishCancel = resolve
+          })
+      )
+      api.placeGridOrder.mockRejectedValue(new Error(code))
+      await finishFirstRead()
+      let cancellation!: Promise<void>
+      await act(async () => {
+        cancellation = latest!.cancelGrid(wallet.id, grid.id)
+      })
+      await act(async () => {
+        expect(
+          await latest!.placeGrid({
+            marketKey,
+            topPx: 110,
+            bottomPx: 90,
+            params: { ...defaultGridParams(), sizing: "even" },
+          })
+        ).toBe(false)
+      })
+      expect(api.showErrorToast).toHaveBeenLastCalledWith(message)
+      await act(async () => {
+        finishCancel()
+        await cancellation
+      })
+    }
+  )
+})
+
+describe("a watched level the engine has finished with", () => {
+  it("keeps an adding watch until the held amount changes, and restores a paused watch", async () => {
+    const row = rowFor("taking", "watch-adding")
+    row.plan.heldWhenPlaced = 10
+    const position = {
+      id: "existing",
+      walletId: wallet.id,
+      marketKey: row.marketKey,
+      szi: 10,
+      entryPx: 0.1,
+      leverage: 1,
+      maxLeverage: 50,
+      targets: [],
+      tpPx: null,
+      slPx: null,
+      feesPaid: 0,
+      updatedAt: 3,
+    }
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      smartOrders: [row],
+      positions: [position],
+    })
+    await finishFirstRead()
+    expect(latest?.watchOrders[0]?.taking).toBe(true)
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      smartOrders: [row],
+      positions: [{ ...position, szi: 20 }],
+    })
+    await act(async () => vi.advanceTimersByTimeAsync(4_000))
+    expect(latest?.watchOrders).toHaveLength(0)
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      smartOrders: [{ ...row, plan: { ...row.plan, paused: true } }],
+      positions: [{ ...position, szi: 20 }],
+    })
+    await act(async () => vi.advanceTimersByTimeAsync(4_000))
+    expect(latest?.watchOrders[0]?.paused).toBe(true)
+    expect(latest?.watchOrders[0]?.taking).toBeUndefined()
+  })
+
+  it("keeps all watched prices while the named exchange order has not arrived", async () => {
+    const row = rowFor("taking", "watch-taking")
+    row.plan.orderId = "not-read-yet"
+    row.plan.slPx = 0.09
+    row.plan.tpPx = 0.12
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      smartOrders: [row],
+    })
+    await finishFirstRead()
+    expect(latest?.watchOrders).toHaveLength(1)
+    expect(latest?.watchOrders[0]).toMatchObject({
+      px: 0.1,
+      slPx: 0.09,
+      tpPx: 0.12,
+      taking: true,
+    })
+    const exchangeOrder = {
+      ...latest!.watchOrders[0],
+      id: "not-read-yet",
+      watched: undefined,
+      taking: undefined,
+      live: true as const,
+      slPx: null,
+      tpPx: null,
+    }
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      smartOrders: [row],
+      orders: [exchangeOrder],
+    })
+    await act(async () => vi.advanceTimersByTimeAsync(4_000))
+    expect(latest?.watchOrders).toHaveLength(0)
+    expect(latest?.orders).toHaveLength(1)
+    expect(latest?.orders[0]).toMatchObject({
+      id: "not-read-yet",
+      slPx: 0.09,
+      tpPx: 0.12,
+    })
+  })
+
+  const planFor = (phase: "waiting" | "taking") =>
+    readWatchPlan({
+      triggerPx: 0.1,
+      triggerDirection: "down",
+      side: "buy",
+      sz: 10,
+      leverage: 1,
+      maxLeverage: 50,
+      sizeDecimals: 3,
+      tpPx: null,
+      slPx: null,
+      phase,
+    })!
+
+  const rowFor = (phase: "waiting" | "taking", id: string) => ({
+    id,
+    walletId: wallet.id,
+    marketKey: "hyperliquid:mainnet:ENA",
+    kind: "watch" as const,
+    status: "active" as const,
+    flowRunId: null,
+    createdAt: 2,
+    updatedAt: 2,
+    plan: planFor(phase),
+  })
+
+  it("labels a sent watch without an exchange id as checking", async () => {
+    const row = rowFor("taking", "watch-checking")
+    row.plan.sent = true
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      smartOrders: [row],
+    })
+
+    await finishFirstRead()
+
+    expect(latest?.watchOrders[0]?.checking).toBe(true)
+    expect(latest?.watchOrders[0]?.taking).toBeUndefined()
+  })
+
+  it("takes the level off the chart once a read stops carrying it", async () => {
+    const row = rowFor("waiting", "watch-finished")
+    api.placeLiveOrder.mockResolvedValue({
+      outcome: {
+        status: "resting",
+        orderId: null,
+        avgPx: null,
+        filledSz: null,
+        protection: null,
+        protectionNote: null,
+      },
+      watch: row,
+    })
+    await finishFirstRead()
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      smartOrders: [row],
+    })
+
+    await act(async () => {
+      latest?.place({
+        marketKey: "hyperliquid:mainnet:ENA",
+        side: "buy",
+        px: 0.1,
+        sz: 10,
+        leverage: 1,
+        reduceOnly: false,
+        orderStyle: "watch",
+        tpPx: null,
+        slPx: null,
+      })
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    await act(async () => vi.advanceTimersByTimeAsync(4_000))
+    expect(latest?.watchOrders).toHaveLength(1)
+
+    // The level was reached, the order filled, and the engine marked the row
+    // done — a read only carries rows that are still running, so it is gone.
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      positions: [
+        {
+          id: "pos-ena",
+          walletId: wallet.id,
+          marketKey: "hyperliquid:mainnet:ENA",
+          szi: 10,
+          entryPx: 0.1,
+          leverage: 1,
+          maxLeverage: 50,
+          targets: [],
+          tpPx: null,
+          tpSz: null,
+          slPx: null,
+          feesPaid: 0,
+          updatedAt: 3,
+          live: {
+            marginUsed: 1,
+            liquidationPx: null,
+            tpOrderId: null,
+            slOrderId: null,
+          },
+        },
+      ],
+    })
+    await act(async () => vi.advanceTimersByTimeAsync(4_000))
+
+    // Drawn again here, the level would sit beside the Entry line it became.
+    expect(latest?.watchOrders).toHaveLength(0)
+  })
+
+  it("refuses a second order on the same coin and side while one is being placed", async () => {
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      smartOrders: [rowFor("taking", "watch-taking")],
+    })
+    await finishFirstRead()
+
+    await act(async () => {
+      latest?.place({
+        marketKey: "hyperliquid:mainnet:ENA",
+        side: "buy",
+        px: 0.1,
+        sz: 10,
+        leverage: 1,
+        reduceOnly: false,
+        orderStyle: "watch",
+        tpPx: null,
+        slPx: null,
+      })
+      await vi.advanceTimersByTimeAsync(0)
+    })
+
+    expect(api.placeLiveOrder).not.toHaveBeenCalled()
+    expect(latest?.placing).toHaveLength(0)
+    expect(api.showErrorToast).toHaveBeenCalledWith(
+      "A buy on this coin is being placed right now. Wait for it to finish, then place the next one."
+    )
+  })
+
+  it("still lets the other side through, and still lets a close through", async () => {
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      smartOrders: [rowFor("taking", "watch-taking")],
+    })
+    api.placeLiveOrder.mockResolvedValue({
+      outcome: {
+        status: "resting",
+        orderId: "exchange-other-side",
+        avgPx: null,
+        filledSz: null,
+        protection: null,
+        protectionNote: null,
+      },
+    })
+    await finishFirstRead()
+
+    await act(async () => {
+      latest?.place({
+        marketKey: "hyperliquid:mainnet:ENA",
+        side: "sell",
+        px: 0.1,
+        sz: 10,
+        leverage: 1,
+        reduceOnly: false,
+        orderStyle: "watch",
+        tpPx: null,
+        slPx: null,
+      })
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    expect(api.placeLiveOrder).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      latest?.place({
+        marketKey: "hyperliquid:mainnet:ENA",
+        side: "buy",
+        px: 0.1,
+        sz: 10,
+        leverage: 1,
+        reduceOnly: true,
+        orderStyle: "watch",
+        tpPx: null,
+        slPx: null,
+      })
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    expect(api.placeLiveOrder).toHaveBeenCalledTimes(2)
+    expect(api.showErrorToast).not.toHaveBeenCalled()
+  })
+})
+
+describe("flipping live positions", () => {
+  const held = {
+    id: "flip-position",
+    walletId: wallet.id,
+    marketKey: "hyperliquid:mainnet:BTC",
+    szi: 2,
+    entryPx: 100,
+    leverage: 2,
+    maxLeverage: 10,
+    targets: [],
+    tpPx: null,
+    slPx: null,
+    feesPaid: 0,
+    updatedAt: 1,
+    live: {
+      marginUsed: 100,
+      liquidationPx: 50,
+      tpOrderId: null,
+      slOrderId: null,
+    },
+  }
+
+  it("uses the live endpoint and reports success only after a complete flip", async () => {
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      positions: [held],
+    })
+    await finishFirstRead()
+    await act(async () => {
+      await latest!.flip(wallet.id, held.marketKey, 2)
+    })
+    expect(api.flipLivePosition).toHaveBeenCalledExactlyOnceWith(
+      wallet.id,
+      held.marketKey,
+      2
+    )
+    expect(api.toastSuccess).toHaveBeenCalledWith("Position flipped in Main.")
+  })
+
+  it("does not turn a stale long confirmation into a short-to-long flip", async () => {
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      positions: [{ ...held, szi: -2 }],
+    })
+    await finishFirstRead()
+    await act(async () => {
+      await latest!.flip(wallet.id, held.marketKey, 2)
+    })
+    expect(api.flipLivePosition).not.toHaveBeenCalled()
+    expect(api.showErrorToast).toHaveBeenCalledWith(
+      expect.stringContaining("position changed")
+    )
+  })
+
+  it("shows an incomplete-entry warning and clears busy state without a success toast", async () => {
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      positions: [held],
+    })
+    api.flipLivePosition.mockResolvedValue({ complete: false })
+    await finishFirstRead()
+    await act(async () => {
+      await latest!.flip(wallet.id, held.marketKey, 2)
+    })
+    expect(api.showErrorToast).toHaveBeenCalledWith(
+      expect.stringContaining("full opposite entry is not confirmed")
+    )
+    expect(api.toastSuccess).not.toHaveBeenCalled()
+    expect(latest!.busy).toBe(false)
+  })
+})

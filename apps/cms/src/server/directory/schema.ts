@@ -1,0 +1,1058 @@
+import { sql } from "drizzle-orm"
+import { customShellUsers, customShellWorkspaces } from "@/server/schema"
+import {
+  boolean,
+  check,
+  index,
+  integer,
+  jsonb,
+  numeric,
+  pgTable,
+  timestamp,
+  uniqueIndex,
+  varchar,
+} from "drizzle-orm/pg-core"
+
+/**
+ * The directory content type's tables. This file belongs to the app, not the
+ * shell — the shell's own tables live in `@/server/schema`, which an app never
+ * edits, so the app's tables get a schema module of their own. The matching
+ * base SQL is `drizzle/0044_cms_directory_listings.sql`; later columns stay in
+ * their numbered migrations, including the rich listing fields in `0067`.
+ *
+ * A listing is a plain record: fixed columns, contact links and one written
+ * body. There is deliberately no template or block table — that layer of the
+ * directory app was cut on purpose, and a listing that needs more gets a
+ * column, not a block system.
+ *
+ * `directory_custom_sections` is not that layer coming back. It lets a site
+ * name extra *fields* for its listings; it decides nothing about where they
+ * are drawn, which stays fixed in the page.
+ */
+
+export const directoryListings = pgTable(
+  "directory_listings",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    /** The site this listing is on. Its address is only its own within that. */
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    title: varchar("title", { length: 200 }).notNull(),
+    /** The address part after /directory/, unique per listing on its site. */
+    slug: varchar("slug", { length: 160 }).notNull(),
+    /** What a search result shows under the title. May be empty. */
+    metaDescription: varchar("meta_description", { length: 300 })
+      .notNull()
+      .default(""),
+    /** An optional admin-set score. Null means the listing has no rating. */
+    rating: numeric("rating", { precision: 2, scale: 1, mode: "number" }),
+    /** 'draft' or 'published'. Drafts never reach a visitor. */
+    status: varchar("status", { length: 20 }).notNull().default("draft"),
+    /** Hand-set ordering for the public list. Ties fall back to newest-first. */
+    displayOrder: integer("display_order").notNull().default(0),
+    /** A media-library URL, or empty. */
+    featuredImage: varchar("featured_image", { length: 600 })
+      .notNull()
+      .default(""),
+    /** Additional media-library photos, cleaned and capped at twelve. */
+    gallery: jsonb("gallery").notNull().default([]),
+    /** One optional open/close pair per weekday; missing means closed. */
+    hours: jsonb("hours").notNull().default({}),
+    /** A map pin is a complete pair or null, never a made-up 0,0 default. */
+    latitude: numeric("latitude", { precision: 9, scale: 6, mode: "number" }),
+    longitude: numeric("longitude", {
+      precision: 10,
+      scale: 6,
+      mode: "number",
+    }),
+    /**
+     * { address, menuLinks, socialLinks } — the checked shape from
+     * `lib/directory/contact-links.ts`. Every href is sanitized before it is
+     * stored and again on the way out.
+     */
+    contactLinks: jsonb("contact_links").notNull(),
+    /**
+     * The written body as the editor's document tree, never HTML — cleaned by
+     * the same `lib/pages/written-page-body.ts` the shell's written pages use.
+     */
+    body: jsonb("body").notNull(),
+    /**
+     * Answers to the fields this site invented, as
+     * `{ [section slug]: { [field key]: value } }`. Cleaned against the site's
+     * own section definitions every way in and out, so a field the site no
+     * longer defines has no value — see `lib/directory/custom-fields.ts`.
+     */
+    customValues: jsonb("custom_values").notNull().default({}),
+    /** The one-off importer uses these to update the same old listing on reruns. */
+    sourceType: varchar("source_type", { length: 60 }),
+    sourceId: varchar("source_id", { length: 255 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    // One address, one listing — **within a site**. Two sites each having a
+    // `joes-diner` is ordinary, and refusing it is what stopped one deployment
+    // running two directories.
+    uniqueIndex("ux_directory_listings_workspace_slug").on(
+      table.workspaceId,
+      table.slug
+    ),
+    uniqueIndex("ux_directory_listings_workspace_source")
+      .on(table.workspaceId, table.sourceType, table.sourceId)
+      .where(
+        sql`${table.sourceType} IS NOT NULL AND ${table.sourceId} IS NOT NULL`
+      ),
+    index("ix_directory_listings_workspace_status").on(
+      table.workspaceId,
+      table.status
+    ),
+    index("ix_directory_listings_created_at").on(table.createdAt),
+    index("ix_directory_listings_workspace_updated").on(
+      table.workspaceId,
+      table.updatedAt
+    ),
+    index("ix_directory_listings_title").on(table.title),
+    check(
+      "directory_listings_status_check",
+      sql`${table.status} IN ('draft', 'published')`
+    ),
+    check(
+      "directory_listings_rating_check",
+      sql`${table.rating} IS NULL OR ${table.rating} BETWEEN 0 AND 5`
+    ),
+    check(
+      "directory_listings_coordinates_check",
+      sql`(${table.latitude} IS NULL AND ${table.longitude} IS NULL) OR (${table.latitude} IS NOT NULL AND ${table.longitude} IS NOT NULL AND ${table.latitude} BETWEEN -90 AND 90 AND ${table.longitude} BETWEEN -180 AND 180)`
+    ),
+    index("ix_directory_listings_workspace_coordinates")
+      .on(table.workspaceId, table.latitude, table.longitude)
+      .where(
+        sql`${table.latitude} IS NOT NULL AND ${table.longitude} IS NOT NULL`
+      ),
+  ]
+)
+
+export type DirectoryListingRow = typeof directoryListings.$inferSelect
+
+/**
+ * Extra fields a site invented for its own listings, one row per section.
+ *
+ * The fields live in the row's own jsonb rather than a table of their own:
+ * they are only ever read as a whole section, never queried across sections,
+ * and a table would buy nothing but a join. What they may contain is decided
+ * in one place, `lib/directory/custom-fields.ts`.
+ */
+export const directoryCustomSections = pgTable(
+  "directory_custom_sections",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 80 }).notNull(),
+    /**
+     * Set once, from the name, and never changed after that. Every listing's
+     * answers are stored under it, so a slug that moved would orphan them —
+     * which is exactly what renaming a section must not do.
+     */
+    slug: varchar("slug", { length: 80 }).notNull(),
+    /** 'stack', 'card' or 'two-column' — how this section's fields sit. */
+    layout: varchar("layout", { length: 20 }).notNull().default("stack"),
+    /** The section's field definitions. Cleaned on the way in and out. */
+    fields: jsonb("fields").notNull().default([]),
+    displayOrder: integer("display_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("ux_directory_custom_sections_workspace_slug").on(
+      table.workspaceId,
+      table.slug
+    ),
+    index("ix_directory_custom_sections_workspace_order").on(
+      table.workspaceId,
+      table.displayOrder
+    ),
+    check(
+      "directory_custom_sections_layout_check",
+      sql`${table.layout} IN ('stack', 'card', 'two-column')`
+    ),
+  ]
+)
+
+export type DirectoryCustomSectionRow =
+  typeof directoryCustomSections.$inferSelect
+
+/**
+ * Categories organise listings for browsing and filtering. One tree: a
+ * category may sit under another, and deleting a parent re-hangs its children
+ * on the deleted one's parent rather than orphaning them.
+ */
+export const categories = pgTable(
+  "categories",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    /** The site whose tree this category is part of. */
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 120 }).notNull(),
+    /** Unique across this site's tree, so a category page has one address. */
+    slug: varchar("slug", { length: 160 }).notNull(),
+    description: varchar("description", { length: 500 }).notNull().default(""),
+    /** The sentence search engines show under the category page's title. */
+    metaDescription: varchar("meta_description", { length: 300 })
+      .notNull()
+      .default(""),
+    /** A media-library URL, or empty. */
+    featuredImage: varchar("featured_image", { length: 600 })
+      .notNull()
+      .default(""),
+    /**
+     * Null for a top-level category. No FK delete action on purpose: the
+     * server re-parents children in the same transaction as the delete.
+     */
+    parentId: varchar("parent_id", { length: 36 }).$type<string | null>(),
+    displayOrder: integer("display_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("ux_categories_workspace_slug").on(
+      table.workspaceId,
+      table.slug
+    ),
+    index("ix_categories_workspace_parent").on(
+      table.workspaceId,
+      table.parentId
+    ),
+  ]
+)
+
+export type CategoryRow = typeof categories.$inferSelect
+
+/**
+ * Which categories a piece of content is in. Polymorphic on purpose:
+ * `contentType` is 'directory_listing' for a listing and 'post' for a
+ * post (`server/posts/schema.ts`), so every content type shares this table
+ * instead of getting a twin. Every count of a category's listings filters on
+ * the listing type, so filing posts never changes those counts. `isPrimary` marks
+ * the one category a listing's breadcrumb names; the server keeps it to at
+ * most one per piece of content.
+ */
+export const categoryRelationships = pgTable(
+  "category_relationships",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    /**
+     * The site this row is on — the same one its category is on.
+     *
+     * Not strictly needed to keep sites apart: every read reaches these rows
+     * through a listing or a category that has already named its site. It is
+     * here so a site's rows are directly selectable and directly removable,
+     * rather than only ever reachable by joining back through one of those.
+     */
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    categoryId: varchar("category_id", { length: 36 })
+      .notNull()
+      .references(() => categories.id, { onDelete: "cascade" }),
+    contentType: varchar("content_type", { length: 40 }).notNull(),
+    contentId: varchar("content_id", { length: 36 }).notNull(),
+    isPrimary: boolean("is_primary").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("category_relationships_unique_key").on(
+      table.categoryId,
+      table.contentType,
+      table.contentId
+    ),
+    index("ix_category_relationships_workspace_content").on(
+      table.workspaceId,
+      table.contentType,
+      table.contentId
+    ),
+  ]
+)
+
+/** A listing's rows in this table. Posts use `POST_CONTENT_TYPE`. */
+export const LISTING_CONTENT_TYPE = "directory_listing"
+
+/**
+ * A listing the public asked for, before an admin has agreed to it.
+ *
+ * Nothing here is a listing yet. It becomes one only when an admin approves it,
+ * and the row then remembers which listing it turned into — so approving twice
+ * cannot make two.
+ *
+ * The two-step status is the whole anti-spam design: a submission arrives as
+ * `pending_verification` and is invisible to the admin until somebody clicks
+ * the link in the email, which is what makes the address real. Only then does
+ * it become `pending_review` and appear in the queue.
+ */
+export const directorySubmissions = pgTable(
+  "directory_submissions",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    /** The site whose form this was filled in on. It can become a listing on no other. */
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    businessName: varchar("business_name", { length: 200 }).notNull(),
+    contactEmail: varchar("contact_email", { length: 255 }).notNull(),
+    address: varchar("address", { length: 300 }).notNull().default(""),
+    phone: varchar("phone", { length: 60 }).notNull().default(""),
+    /** Capped at 2000, not 300: a maps or booking address is long and truncating one breaks it silently. */
+    website: varchar("website", { length: 2000 }).notNull().default(""),
+    description: varchar("description", { length: 2000 }).notNull().default(""),
+    /** The categories the submitter picked, as ids — checked against this site's tree on approval. */
+    categoryIds: jsonb("category_ids").notNull(),
+    status: varchar("status", { length: 30 })
+      .notNull()
+      .default("pending_verification"),
+    /**
+     * The verification link's token, hashed. The plain token only ever exists
+     * in the email — a database somebody can read must not let them verify
+     * other people's submissions.
+     */
+    verifyTokenHash: varchar("verify_token_hash", { length: 128 }),
+    verifyExpiresAt: timestamp("verify_expires_at", { withTimezone: true }),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    reviewedByUserId: varchar("reviewed_by_user_id", { length: 36 }).references(
+      () => customShellUsers.id,
+      { onDelete: "set null" }
+    ),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    reviewNote: varchar("review_note", { length: 500 }).notNull().default(""),
+    /** What it became. Set once, and the reason approving twice cannot make twins. */
+    listingId: varchar("listing_id", { length: 36 }).references(
+      () => directoryListings.id,
+      { onDelete: "set null" }
+    ),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("ix_directory_submissions_workspace_status").on(
+      table.workspaceId,
+      table.status
+    ),
+    index("ix_directory_submissions_workspace_created").on(
+      table.workspaceId,
+      table.createdAt
+    ),
+    // The verification link looks a row up by this and nothing else, so it is
+    // the one column that has to be indexed on its own.
+    index("ix_directory_submissions_verify_token").on(table.verifyTokenHash),
+    check(
+      "directory_submissions_status_check",
+      sql`${table.status} IN ('pending_verification', 'pending_review', 'approved', 'rejected')`
+    ),
+  ]
+)
+
+export type DirectorySubmissionRow = typeof directorySubmissions.$inferSelect
+
+/**
+ * A business saying a listing is theirs.
+ *
+ * Claiming needs an account, so `userId` is not optional: an approved claim
+ * hands somebody the ability to change a public page, and "whoever has this
+ * email" is not a thing to hand that to. The address in `contactEmail` is the
+ * *business's* address being proved, which is often not the account's.
+ */
+export const directoryClaims = pgTable(
+  "directory_claims",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    listingId: varchar("listing_id", { length: 36 })
+      .notNull()
+      .references(() => directoryListings.id, { onDelete: "cascade" }),
+    /** The account that will own the listing. Gone with the account. */
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    contactEmail: varchar("contact_email", { length: 255 }).notNull(),
+    claimantName: varchar("claimant_name", { length: 200 }).notNull(),
+    roleTitle: varchar("role_title", { length: 120 }).notNull().default(""),
+    phone: varchar("phone", { length: 60 }).notNull().default(""),
+    message: varchar("message", { length: 1000 }).notNull().default(""),
+    proofUrl: varchar("proof_url", { length: 2000 }).notNull().default(""),
+    /**
+     * Whether the address they are proving is at the same domain as the
+     * listing's own website — worked out once, when the claim is made, so the
+     * admin reads an answer instead of comparing two strings by eye.
+     *
+     * **A mismatch is not a refusal.** Plenty of real owners use a Gmail
+     * address. It is a flag, not a gate.
+     */
+    emailDomainMatches: boolean("email_domain_matches")
+      .notNull()
+      .default(false),
+    status: varchar("status", { length: 30 })
+      .notNull()
+      .default("pending_verification"),
+    verifyTokenHash: varchar("verify_token_hash", { length: 128 }),
+    verifyExpiresAt: timestamp("verify_expires_at", { withTimezone: true }),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    reviewedByUserId: varchar("reviewed_by_user_id", { length: 36 }).references(
+      () => customShellUsers.id,
+      { onDelete: "set null" }
+    ),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    reviewNote: varchar("review_note", { length: 500 }).notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    // **One approved claim per listing, enforced by the database.** Two people
+    // both being told they own a page is not something to leave to a check the
+    // application does before writing.
+    uniqueIndex("ux_directory_claims_approved_listing")
+      .on(table.listingId)
+      .where(sql`${table.status} = 'approved'`),
+    index("ix_directory_claims_workspace_status").on(
+      table.workspaceId,
+      table.status
+    ),
+    index("ix_directory_claims_user").on(table.userId, table.status),
+    index("ix_directory_claims_verify_token").on(table.verifyTokenHash),
+    check(
+      "directory_claims_status_check",
+      sql`${table.status} IN ('pending_verification', 'pending_review', 'approved', 'rejected')`
+    ),
+  ]
+)
+
+export type DirectoryClaimRow = typeof directoryClaims.$inferSelect
+
+/**
+ * A change an owner wants made to their listing, waiting for an admin.
+ *
+ * The proposed values are held here rather than written to the listing, which
+ * is the whole point: an owner never edits the public page directly. `changes`
+ * holds only the fields they are allowed to touch, cleaned by the same cleaners
+ * the admin form uses before it is ever applied.
+ */
+export const directoryOwnerEditRequests = pgTable(
+  "directory_owner_edit_requests",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    claimId: varchar("claim_id", { length: 36 })
+      .notNull()
+      .references(() => directoryClaims.id, { onDelete: "cascade" }),
+    listingId: varchar("listing_id", { length: 36 })
+      .notNull()
+      .references(() => directoryListings.id, { onDelete: "cascade" }),
+    /** { title?, metaDescription?, featuredImage?, contactLinks?, body? } and nothing else. */
+    changes: jsonb("changes").notNull(),
+    status: varchar("status", { length: 20 }).notNull().default("pending"),
+    reviewedByUserId: varchar("reviewed_by_user_id", { length: 36 }).references(
+      () => customShellUsers.id,
+      { onDelete: "set null" }
+    ),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    reviewNote: varchar("review_note", { length: 500 }).notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("ix_directory_edit_requests_workspace_status").on(
+      table.workspaceId,
+      table.status
+    ),
+    index("ix_directory_edit_requests_listing").on(table.listingId),
+    check(
+      "directory_edit_requests_status_check",
+      sql`${table.status} IN ('pending', 'approved', 'rejected')`
+    ),
+  ]
+)
+
+export type DirectoryOwnerEditRequestRow =
+  typeof directoryOwnerEditRequests.$inferSelect
+
+/**
+ * What a site says to the public about claiming, and whether it offers it.
+ *
+ * One row per site, and a site with no row gets the defaults — which is every
+ * site until an admin saves something, so this ships changing nothing that is
+ * already written down.
+ *
+ * **It is a table of this app's own and not `WorkspaceSettings`.** That type
+ * lives in a shell file, and an app that adds a field to it has forked the
+ * shell and will conflict on every future merge.
+ */
+export const directorySettings = pgTable(
+  "directory_settings",
+  {
+    /** One row per site, so the site is the key. */
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .primaryKey()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    /** Whether a visitor is offered the claim button at all. */
+    claimsEnabled: boolean("claims_enabled").notNull().default(true),
+    /** Whether owners may publish this site's listing badge on other websites. */
+    badgesEnabled: boolean("badges_enabled").notNull().default(false),
+    /** Empty means "use the built-in wording", so a cleared box is not a blank page. */
+    claimButtonLabel: varchar("claim_button_label", { length: 80 })
+      .notNull()
+      .default(""),
+    claimPendingMessage: varchar("claim_pending_message", { length: 300 })
+      .notNull()
+      .default(""),
+    claimApprovedMessage: varchar("claim_approved_message", { length: 300 })
+      .notNull()
+      .default(""),
+    /** Null means the reader supplies the current built-in directory default. */
+    pageSize: integer("page_size"),
+    defaultSort: varchar("default_sort", { length: 20 }),
+    browseTitle: varchar("browse_title", { length: 120 }),
+    browseIntro: varchar("browse_intro", { length: 500 }),
+    featuredFirst: boolean("featured_first"),
+    geocodingApiKeyEncrypted: varchar("geocoding_api_key_encrypted", {
+      length: 700,
+    }),
+    /** Whether the browse page offers the map view at all. Off to start with. */
+    mapEnabled: boolean("map_enabled").notNull().default(false),
+    /**
+     * Whether a row of category cards sits at the top of the browse page. Off
+     * to start with, so no existing site gains one by this shipping.
+     */
+    browseCategoriesEnabled: boolean("browse_categories_enabled")
+      .notNull()
+      .default(false),
+    /** 'top-level' or 'picked' — which categories that row shows. */
+    browseCategorySource: varchar("browse_category_source", { length: 20 })
+      .notNull()
+      .default("top-level"),
+    /** The chosen categories for that row, in the admin's order. */
+    browsePickedCategoryIds: jsonb("browse_picked_category_ids")
+      .notNull()
+      .default([]),
+    /**
+     * The parent category whose children are a listing's neighbourhood label.
+     *
+     * Null for every site that has not picked one, and a site with none draws
+     * no labels. Deleting that category empties this rather than leaving a
+     * pointer to something that is gone.
+     */
+    neighbourhoodCategoryId: varchar("neighbourhood_category_id", {
+      length: 36,
+    }).references(() => categories.id, { onDelete: "set null" }),
+    /**
+     * The Google key the visitor's browser uses to draw the map. Separate from
+     * the geocoding key above on purpose: a browser key is restricted to a
+     * website address, and a key restricted that way is refused by the
+     * server-side Geocoding API, so one key would have to be left unrestricted.
+     */
+    mapDisplayKeyEncrypted: varchar("map_display_key_encrypted", {
+      length: 700,
+    }),
+    /**
+     * The zone an event's clock times are read in, like 'America/Toronto'.
+     * Events store "Saturday 6pm", and this says where that 6pm is.
+     */
+    timeZone: varchar("time_zone", { length: 64 })
+      .notNull()
+      .default("America/Toronto"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "directory_settings_browse_category_source_check",
+      sql`${table.browseCategorySource} IN ('top-level', 'picked')`
+    ),
+  ]
+)
+
+export type DirectorySettingsRow = typeof directorySettings.$inferSelect
+
+/**
+ * One row of listings on a site's home page.
+ *
+ * Several rows per site, in `displayOrder`. This replaced the pair of columns
+ * on `directorySettings` that between them said "one row, newest or featured,
+ * across every category" — so there is one place, and only one, that decides
+ * what a home page shows.
+ */
+export const directoryFrontPageSections = pgTable(
+  "directory_front_page_sections",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    displayOrder: integer("display_order").notNull().default(0),
+    heading: varchar("heading", { length: 120 }).notNull(),
+    intro: varchar("intro", { length: 500 }).notNull().default(""),
+    /**
+     * 'listings', 'categories' or 'events' — which of the three kinds of row
+     * this is. 'events' is from `drizzle/0088_cms_front_page_events_row.sql`.
+     *
+     * A listings row uses `categoryId`, `sort` and `layout` below; a categories
+     * row uses `categorySource` and `pickedCategoryIds` instead; an events row
+     * uses `categoryId` only. All three use `listingCount`, which is how many
+     * things the row shows whichever kind it is.
+     */
+    kind: varchar("kind", { length: 20 }).notNull().default("listings"),
+    /** Categories rows only: 'top-level' or 'picked'. */
+    categorySource: varchar("category_source", { length: 20 })
+      .notNull()
+      .default("top-level"),
+    /**
+     * Categories rows only: the chosen categories, in the admin's order.
+     *
+     * An array rather than a table because the order is the point and these are
+     * only ever read with their row. An id whose category has since been
+     * deleted is ignored when the cards are read, the same as an empty one.
+     */
+    pickedCategoryIds: jsonb("picked_category_ids").notNull().default([]),
+    /**
+     * Null is every category. A deleted category empties this rather than
+     * taking the row with it: deleting a category is not a request to lose a
+     * row of the home page.
+     */
+    categoryId: varchar("category_id", { length: 36 }).references(
+      () => categories.id,
+      { onDelete: "set null" }
+    ),
+    /** 'newest', 'featured', 'rating' or 'name'. */
+    sort: varchar("sort", { length: 20 }).notNull().default("newest"),
+    listingCount: integer("listing_count").notNull().default(8),
+    /** Listings rows only: 'grid', 'list' or 'map' — how this row draws. */
+    layout: varchar("layout", { length: 20 }).notNull().default("grid"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("ix_directory_front_page_sections_workspace_order").on(
+      table.workspaceId,
+      table.displayOrder
+    ),
+    check(
+      "directory_front_page_sections_sort_check",
+      sql`${table.sort} IN ('newest', 'featured', 'rating', 'name')`
+    ),
+    check(
+      "directory_front_page_sections_layout_check",
+      sql`${table.layout} IN ('grid', 'list', 'map')`
+    ),
+    check(
+      "directory_front_page_sections_count_check",
+      sql`${table.listingCount} BETWEEN 1 AND 12`
+    ),
+    check(
+      "directory_front_page_sections_kind_check",
+      sql`${table.kind} IN ('listings', 'categories', 'events', 'deals')`
+    ),
+    check(
+      "directory_front_page_sections_category_source_check",
+      sql`${table.categorySource} IN ('top-level', 'picked')`
+    ),
+  ]
+)
+
+export type DirectoryFrontPageSectionRow =
+  typeof directoryFrontPageSections.$inferSelect
+
+/** A named folder of listings saved by one account on one site. */
+export const directorySaveCollections = pgTable(
+  "directory_save_collections",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 80 }).notNull(),
+    /** Private until its owner explicitly shares this one list. */
+    isPublic: boolean("is_public").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("ux_directory_save_collections_site_user_name").on(
+      table.workspaceId,
+      table.userId,
+      sql`lower(${table.name})`
+    ),
+    index("ix_directory_save_collections_user_created").on(
+      table.userId,
+      table.createdAt
+    ),
+  ]
+)
+
+export type DirectorySaveCollectionRow =
+  typeof directorySaveCollections.$inferSelect
+
+/** One listing in one saved collection. The repeated site and user keep every read direct. */
+export const directorySaveItems = pgTable(
+  "directory_save_items",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    collectionId: varchar("collection_id", { length: 36 })
+      .notNull()
+      .references(() => directorySaveCollections.id, { onDelete: "cascade" }),
+    listingId: varchar("listing_id", { length: 36 })
+      .notNull()
+      .references(() => directoryListings.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("ux_directory_save_items_collection_listing").on(
+      table.collectionId,
+      table.listingId
+    ),
+    index("ix_directory_save_items_site_listing").on(
+      table.workspaceId,
+      table.listingId
+    ),
+    index("ix_directory_save_items_user_created").on(
+      table.userId,
+      table.createdAt
+    ),
+  ]
+)
+
+/**
+ * A site's one-time paid placement offer. Stripe receives the price from this
+ * row. `kind` says whether it sells spots on listings or on events, from
+ * `drizzle/0093_cms_featured_events.sql`. An event's spot lasts until the
+ * event ends, so an event plan has no days.
+ */
+export const directoryFeaturedPlans = pgTable(
+  "directory_featured_plans",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    /** 'listing' or 'event'. Fixed when the plan is made. */
+    kind: varchar("kind", { length: 20 }).notNull().default("listing"),
+    name: varchar("name", { length: 120 }).notNull(),
+    description: varchar("description", { length: 500 }).notNull().default(""),
+    priceCents: integer("price_cents").notNull(),
+    currency: varchar("currency", { length: 3 }).notNull().default("usd"),
+    /** A listing plan's days. Null on an event plan. */
+    durationDays: integer("duration_days"),
+    priority: integer("priority").notNull().default(0),
+    active: boolean("active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("ix_directory_featured_plans_site_active").on(
+      table.workspaceId,
+      table.active,
+      table.createdAt
+    ),
+    check("directory_featured_plans_price_check", sql`${table.priceCents} > 0`),
+    check(
+      "directory_featured_plans_duration_check",
+      sql`(${table.kind} = 'listing' AND ${table.durationDays} BETWEEN 1 AND 3650) OR (${table.kind} = 'event' AND ${table.durationDays} IS NULL)`
+    ),
+    check(
+      "directory_featured_plans_kind_check",
+      sql`${table.kind} IN ('listing', 'event')`
+    ),
+  ]
+)
+
+export type DirectoryFeaturedPlanRow =
+  typeof directoryFeaturedPlans.$inferSelect
+
+/**
+ * One Stripe Checkout reservation for a listing, or for an event since
+ * `drizzle/0093_cms_featured_events.sql`. Exactly one of `listingId` and
+ * `eventId` is set, and a check in the database holds it. The event's foreign
+ * key lives in the SQL only, because the events schema already imports this
+ * file.
+ *
+ * It is written before Stripe is called. Parallel requests therefore share
+ * one idempotency key and one session, while the snapshots keep a retry
+ * byte-for-byte stable if the first request stopped before saving Stripe's ID.
+ */
+export const directoryFeaturedCheckouts = pgTable(
+  "directory_featured_checkouts",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    listingId: varchar("listing_id", { length: 36 }).references(
+      () => directoryListings.id,
+      { onDelete: "restrict" }
+    ),
+    /** Deleting the event is refused while this row is open. */
+    eventId: varchar("event_id", { length: 36 }),
+    claimId: varchar("claim_id", { length: 36 })
+      .notNull()
+      .references(() => directoryClaims.id, { onDelete: "cascade" }),
+    buyerUserId: varchar("buyer_user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    planId: varchar("plan_id", { length: 36 })
+      .notNull()
+      .references(() => directoryFeaturedPlans.id, { onDelete: "restrict" }),
+    priceCents: integer("price_cents").notNull(),
+    currency: varchar("currency", { length: 3 }).notNull(),
+    /** Null for an event, whose spot ends when the event does. */
+    durationDays: integer("duration_days"),
+    productName: varchar("product_name", { length: 400 }).notNull(),
+    customerEmail: varchar("customer_email", { length: 255 }).notNull(),
+    successUrl: varchar("success_url", { length: 2000 }).notNull(),
+    cancelUrl: varchar("cancel_url", { length: 2000 }).notNull(),
+    stripeSessionId: varchar("stripe_session_id", { length: 255 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("ux_directory_featured_checkouts_listing").on(
+      table.workspaceId,
+      table.listingId
+    ),
+    uniqueIndex("ux_directory_featured_checkouts_event").on(
+      table.workspaceId,
+      table.eventId
+    ),
+    uniqueIndex("ux_directory_featured_checkouts_session").on(
+      table.stripeSessionId
+    ),
+    index("ix_directory_featured_checkouts_plan").on(table.planId),
+    check(
+      "directory_featured_checkouts_subject_check",
+      sql`(${table.listingId} IS NULL) <> (${table.eventId} IS NULL)`
+    ),
+  ]
+)
+
+/**
+ * A completed paid placement. Expiry is always checked against the clock when
+ * read. Exactly one of `listingId` and `eventId` is set. An event's `endsAt`
+ * is the moment the event ends, moved with it when its day or time changes.
+ */
+export const directoryFeaturedEntitlements = pgTable(
+  "directory_featured_entitlements",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    listingId: varchar("listing_id", { length: 36 }).references(
+      () => directoryListings.id,
+      { onDelete: "cascade" }
+    ),
+    /** Deleting the event deletes this row, the same as a listing's. */
+    eventId: varchar("event_id", { length: 36 }),
+    claimId: varchar("claim_id", { length: 36 })
+      .notNull()
+      .references(() => directoryClaims.id, { onDelete: "cascade" }),
+    buyerUserId: varchar("buyer_user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    planId: varchar("plan_id", { length: 36 })
+      .notNull()
+      .references(() => directoryFeaturedPlans.id, { onDelete: "restrict" }),
+    stripeSessionId: varchar("stripe_session_id", { length: 255 }).notNull(),
+    stripePaymentIntentId: varchar("stripe_payment_intent_id", { length: 255 }),
+    amountTotal: integer("amount_total").notNull(),
+    currency: varchar("currency", { length: 3 }).notNull(),
+    status: varchar("status", { length: 20 }).notNull().default("active"),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+    endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+    reminderThresholdDays: integer("reminder_threshold_days"),
+    reminderClaimedAt: timestamp("reminder_claimed_at", { withTimezone: true }),
+    revokedByUserId: varchar("revoked_by_user_id", { length: 36 }).references(
+      () => customShellUsers.id,
+      { onDelete: "set null" }
+    ),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    revokeNote: varchar("revoke_note", { length: 500 }).notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("ux_directory_featured_entitlements_session").on(
+      table.stripeSessionId
+    ),
+    uniqueIndex("ux_directory_featured_entitlements_payment_intent")
+      .on(table.stripePaymentIntentId)
+      .where(sql`${table.stripePaymentIntentId} IS NOT NULL`),
+    index("ix_directory_featured_entitlements_listing_active").on(
+      table.workspaceId,
+      table.listingId,
+      table.status,
+      table.endsAt
+    ),
+    index("ix_directory_featured_entitlements_event_active").on(
+      table.eventId,
+      table.status,
+      table.endsAt
+    ),
+    check(
+      "directory_featured_entitlements_subject_check",
+      sql`(${table.listingId} IS NULL) <> (${table.eventId} IS NULL)`
+    ),
+    check(
+      "directory_featured_entitlements_status_check",
+      sql`${table.status} IN ('active', 'revoked')`
+    ),
+  ]
+)
+
+/** One outreach attempt. The unique listing/address pair makes a second send impossible. */
+export const directoryClaimOutreach = pgTable(
+  "directory_claim_outreach",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    listingId: varchar("listing_id", { length: 36 })
+      .notNull()
+      .references(() => directoryListings.id, { onDelete: "cascade" }),
+    toEmail: varchar("to_email", { length: 255 }).notNull(),
+    status: varchar("status", { length: 20 }).notNull(),
+    error: varchar("error", { length: 500 }).notNull().default(""),
+    sentByUserId: varchar("sent_by_user_id", { length: 36 }).references(
+      () => customShellUsers.id,
+      { onDelete: "set null" }
+    ),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("ux_directory_claim_outreach_listing_email").on(
+      table.listingId,
+      table.toEmail
+    ),
+    index("ix_directory_claim_outreach_site_created").on(
+      table.workspaceId,
+      table.createdAt
+    ),
+    check(
+      "directory_claim_outreach_status_check",
+      sql`${table.status} IN ('sending', 'sent', 'failed')`
+    ),
+  ]
+)
+
+/** An address that opted out stays out across every site in this deployment. */
+export const directoryClaimOutreachOptOuts = pgTable(
+  "directory_claim_outreach_opt_outs",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    email: varchar("email", { length: 255 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("ux_directory_claim_outreach_opt_out_email").on(
+      sql`lower(${table.email})`
+    ),
+  ]
+)
+
+/**
+ * A problem a visitor spotted on a listing or an event. Exactly one of
+ * `listingId` and `eventId` is set, and a check in the database holds it.
+ *
+ * A report is a tip-off and nothing more. It is never shown to the public, it
+ * never changes the listing by itself, and it needs no account — the person
+ * who drove to a bakery the site said was open on Sunday is the one most
+ * likely to know, and they have no reason to have signed up.
+ *
+ * `reporterEmail` is optional and exists so an admin can ask a follow-up
+ * question by hand. Nothing is sent to it automatically, so a report is never
+ * a way of making the site's sender email a stranger.
+ *
+ * Every foreign key cascades. A report about a listing or event that has been
+ * deleted, or on a site that has been deleted, is a row nobody can act on.
+ */
+export const directoryListingReports = pgTable(
+  "directory_listing_reports",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    listingId: varchar("listing_id", { length: 36 }).references(
+      () => directoryListings.id,
+      { onDelete: "cascade" }
+    ),
+    /**
+     * The event, for a report about one. Its foreign key to `events` lives in
+     * migration 0092 rather than here, because the events schema imports this
+     * file and a reference back would make the two import each other.
+     */
+    eventId: varchar("event_id", { length: 36 }),
+    /**
+     * The deal, for a report about one, from migration 0100. Its foreign key
+     * to `promotions` lives in the SQL for the same reason as the event's.
+     */
+    promotionId: varchar("promotion_id", { length: 36 }),
+    /** One of the fixed reasons in `lib/directory/report-reasons.ts`. */
+    reason: varchar("reason", { length: 30 }).notNull(),
+    note: varchar("note", { length: 1000 }).notNull().default(""),
+    /** Empty unless they chose to give one, which is most of the time. */
+    reporterEmail: varchar("reporter_email", { length: 255 })
+      .notNull()
+      .default(""),
+    /** 'open', 'fixed' or 'dismissed'. */
+    status: varchar("status", { length: 20 }).notNull().default("open"),
+    closedByUserId: varchar("closed_by_user_id", { length: 36 }).references(
+      () => customShellUsers.id,
+      { onDelete: "set null" }
+    ),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("ix_directory_listing_reports_workspace_status").on(
+      table.workspaceId,
+      table.status
+    ),
+    index("ix_directory_listing_reports_workspace_created").on(
+      table.workspaceId,
+      table.createdAt
+    ),
+    index("ix_directory_listing_reports_listing").on(table.listingId),
+    index("ix_directory_listing_reports_event").on(table.eventId),
+    index("ix_directory_listing_reports_promotion").on(table.promotionId),
+    check(
+      "directory_listing_reports_subject_check",
+      sql`(${table.listingId} IS NOT NULL)::int + (${table.eventId} IS NOT NULL)::int + (${table.promotionId} IS NOT NULL)::int = 1`
+    ),
+    check(
+      "directory_listing_reports_reason_check",
+      sql`(${table.listingId} IS NOT NULL AND ${table.reason} IN ('wrong_hours', 'wrong_contact', 'closed', 'other')) OR (${table.eventId} IS NOT NULL AND ${table.reason} IN ('wrong_time', 'cancelled', 'wrong_place', 'other')) OR (${table.promotionId} IS NOT NULL AND ${table.reason} IN ('not_honoured', 'ended', 'wrong_details', 'other'))`
+    ),
+    check(
+      "directory_listing_reports_status_check",
+      sql`${table.status} IN ('open', 'fixed', 'dismissed')`
+    ),
+  ]
+)
+
+export type DirectoryListingReportRow =
+  typeof directoryListingReports.$inferSelect

@@ -1,0 +1,100 @@
+import { createFileRoute } from "@tanstack/react-router"
+
+import { ListingsDashboard } from "@/components/directory/listings-dashboard"
+import { routeErrorComponent } from "@/components/shell/route-error"
+import { loadCategories } from "@/lib/api/directory/categories"
+import { loadCustomSections } from "@/lib/api/directory/custom-sections"
+import {
+  getListingErrorMessage,
+  loadListingsPage,
+} from "@/lib/api/directory/listings"
+import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
+import {
+  LISTING_SORT_COLUMNS,
+  LISTING_STATUS_FILTERS,
+  readListingViewRange,
+  type ListingSortColumn,
+  type ListingStatusFilter,
+  type ListingViewRange,
+} from "@/lib/directory/listing-sort"
+import { readOpenSearch } from "@/lib/hooks/use-open-from-link"
+import {
+  readDirection,
+  readOneOf,
+  readPage,
+  readSearchText,
+} from "@/lib/nav/list-search"
+
+type ListingsSearch = {
+  q?: string
+  status?: ListingStatusFilter
+  sort?: ListingSortColumn
+  direction?: "asc" | "desc"
+  days?: ListingViewRange
+  page?: number
+  size?: number
+  /** Which listing's edit window is open, so a listing can be linked to. */
+  open?: string
+}
+
+/**
+ * The list's state lives in the address, so a reload keeps it and a filtered
+ * link can be handed to somebody else. Every value is checked against a fixed
+ * list or a range; a hand-edited address only ever falls back to the default.
+ */
+function readListingsSearch(search: Record<string, unknown>): ListingsSearch {
+  return {
+    q: readSearchText(search.q),
+    status: readOneOf(search.status, LISTING_STATUS_FILTERS),
+    sort: readOneOf(search.sort, LISTING_SORT_COLUMNS),
+    direction: readDirection(search.direction),
+    days: readListingViewRange(search.days),
+    page: readPage(search.page),
+    size: readOneOf(String(search.size), DASHBOARD_ROWS_PER_PAGE_OPTIONS.map(String))
+      ? Number(search.size)
+      : undefined,
+    ...readOpenSearch(search),
+  }
+}
+
+export const Route = createFileRoute("/_authenticated/admin/listings")({
+  validateSearch: readListingsSearch,
+  // Everything except `open`: the edit window loads its own record, so
+  // opening and closing it must not refetch the list underneath.
+  loaderDeps: ({ search: { open: _open, ...rest } }) => rest,
+  // The list, the category tree and the site's own invented fields together:
+  // the edit window needs all three the moment it opens, and fetching them
+  // then is what made opening feel slow. A new listing has no record to load
+  // them from at all, so this is the only place they can come from.
+  loader: async ({ deps }) => {
+    const [page, categories, customSections] = await Promise.all([
+      loadListingsPage({
+        search: deps.q,
+        status: deps.status,
+        sort: deps.sort,
+        direction: deps.direction,
+        days: deps.days,
+        page: deps.page,
+        limit: deps.size,
+      }),
+      loadCategories(),
+      loadCustomSections(),
+    ])
+    return { page, categories, customSections }
+  },
+  component: AdminListingsRoute,
+  errorComponent: routeErrorComponent(getListingErrorMessage),
+})
+
+function AdminListingsRoute() {
+  const search = Route.useSearch()
+  const { page, categories, customSections } = Route.useLoaderData()
+  return (
+    <ListingsDashboard
+      data={page}
+      categories={categories}
+      customSections={customSections}
+      search={search}
+    />
+  )
+}

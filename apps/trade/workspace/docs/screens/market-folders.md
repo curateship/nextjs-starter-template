@@ -1,0 +1,146 @@
+# Market folders
+
+Market folders are account-owned lists of coins. Each folder belongs to one
+exchange and network, so a Hyperliquid mainnet folder never appears on Phemex
+or Hyperliquid testnet.
+
+## Fav and the star
+
+Every exchange starts with an empty folder called Fav. It can be renamed and
+moved like any other folder, and it cannot be deleted. Everything that reaches
+for it finds it by its own flag rather than by the name Fav, so a renamed one
+keeps working. The star and the picker's Favorites tab keep their own wording.
+
+Pressing an empty star adds the coin to Fav. Pressing a filled star opens the
+folder list because the coin may be saved in more than one place. The list can
+add or remove the coin from any folder and can create a named folder with the
+coin already in it. A failed create keeps the typed name in place for another
+try. Each folder holds at most 500 coins (raised from 100 on 23 Aug 2026,
+because Tyler keeps whole-category folders — every stock, every liquid coin —
+and one exchange lists more than 100 of each), and one exchange can have at
+most 100 named folders plus Fav.
+
+The market picker uses the same control. Its Favorites view reads Fav only.
+
+## Opening folders
+
+The chart header's folder menu holds saved folders and All markets. The left
+column now holds Market scanner, described in `market-scanner.md`. Folder data
+is preserved. The menu's cog opens create, rename, reorder, hide and delete
+controls. The management window ends with a primary Done button.
+
+Markets inside an open folder run from the largest reported 24-hour gain to
+the largest loss. A market whose exchange did not report a 24-hour change sits
+after every known move. All markets opens in the same order.
+
+The market open on the chart keeps its gray row fill and has a border on its
+right edge. The border follows the theme's text color, so it is black in the
+light theme and white in the dark theme. The same marker appears in saved
+folders and All markets.
+
+## The cog window
+
+The Order card lists Fav, each named folder, and All markets.
+
+- Drag any row by its handle to put it where you want it. Nothing is pinned,
+  All markets included.
+- Press a row's name to rename it. Fav can be renamed; All markets cannot,
+  because it is not a folder. A name another folder on that exchange
+  already has is refused before anything is written, and the row keeps its old
+  name.
+- Press the eye to keep a row out of the folder menu. The eye gains a line through
+  it, the row's count is replaced by the word Hidden, and the row disappears
+  from the menu. Nothing is deleted: a hidden folder keeps its coins, still
+  takes coins from the star, and still runs in a flow.
+- The bin deletes, and only named folders have one.
+
+The chart header's cog remains available when folders are hidden.
+
+The Hidden markets card under Order lists every market hidden by hand from All
+markets on this exchange, with a Show button beside each. Show puts the market
+back in All markets at once and saves behind it. A market the exchange no
+longer lists still appears here under its bare market id, so it can always
+be shown again. The card says nothing about markets under the daily volume
+setting, because that is a different list that comes back on its own. With
+nothing hidden by hand the card says so and names the right-click that hides
+one. The Hide choice lives on the market row's right-click menu in All
+markets (`market-list.md`).
+
+A drag or an eye saves the whole arrangement in one go, because moving one row
+moves every row under it. The panel shows the change straight away and puts
+back what it had if the save is refused.
+
+The count on a folder is its saved total. If the daily-volume setting hides all
+of a folder's markets, the open row names that setting instead of calling the
+folder empty.
+
+Folder names, contents and positions save to the account. Browser storage only
+remembers the height of the two left panels.
+
+## Storage
+
+`trade_market_folders` holds the owner, exchange, network, name, Fav flag,
+order and the hidden flag. Names cannot repeat within one exchange when letter
+case is ignored. `trade_market_folder_items` holds one market key per folder and
+deletes its rows when the folder is deleted.
+
+Watched and All markets are not folders, so they have no row in that table.
+Where those two sit and whether each shows lives in `trade_prefs`, in
+`market_panel_rows`, keyed by exchange and network. The same entry carries
+`hiddenMarketKeys`, the markets hidden by hand from All markets, as full market
+keys. An entry saved before that list existed reads as nothing hidden. A save
+merges into the exchange's entry in the database rather than replacing it, so
+a drag keeps the hidden markets and a hide keeps the drag. A drag writes both
+places inside one transaction, so a half-saved arrangement cannot be read
+back. Hiding a market locks the preference row for its read and write, so two
+quick hides cannot drop one another.
+Migration 0144 adds both. A dashboard whose database is missing them fails its
+single server call, and a failed call is what strips the market header down to
+a plain title with no star and no buttons.
+
+Migration 0141 copies the old starred keys into a Fav folder for each exchange
+and network found in those keys. The old `trade_market_favorites` table remains
+for one deployment so the copied rows can be checked before a later migration
+removes it.
+
+## Flows and backtests
+
+A Markets step can save individual coins or a folder. Picking a folder clears
+the individual list. A trading flow saves which folder it came from and keeps
+its running coin list in step with that folder. Adding a coin puts it at the
+front of the next hunt, which the engine starts on its next one-second pass
+instead of waiting for the usual thirty-second hunt. A paused flow takes the
+new coin onto its list but does not hunt for it until the flow runs again.
+
+Removing a coin takes it out of the running list before the engine calls off
+that run's remaining ladder rungs on the next one-second pass. A rung that
+already bought stays in the wallet, along with its stop and target. The engine
+leaves hand-placed ladders and ladders from another flow alone. A live exchange
+refusal keeps the removal waiting for the next pass and sends the same critical
+notice used when a flow cannot call off a ladder.
+
+Stopping and stopped runs ignore later folder changes. A Markets step with
+individually chosen coins also keeps the list it started with.
+
+Migration 0148 gives the engine its immediate-hunt and unfinished-cancellation
+fields. A flow switched on before the matching app version has no saved folder
+link, so switch that run off and on once after the migration. Runs started by
+the matching version follow their folder without another restart.
+
+A missing or empty folder stops the next run and names the folder in the
+message. A folder from another exchange cannot run against the wallet.
+
+A backtest also reads the folder once at the start. The backtest saves the
+exact market keys it read, so the result still records the coins that produced
+it after the folder changes.
+
+## The folder dropdown
+
+The folder button beside the market name opens the same market rows as the left panel.
+
+- **Visibility:** The dropdown respects each saved folder's visibility setting, including Favorites. Watched and All markets respect their own visibility settings.
+- **Contents:** Watched uses the same waiting-order list. All markets respects the daily volume cutoff and manually hidden markets.
+- **Rows:** Market rows fill the dropdown width. Symbols, daily volume, change badges and selected states use the left panel's MarketRowLine component.
+- **Size:** The dropdown is at most 16.8rem wide, about 269 pixels at the default text size. The width is 30 percent smaller than the previous 384 pixels.
+- **Scrolling:** Expanded lists use the themed ScrollArea. The folder heading stays visible; the create form and list scroll below it.
+- **Selection:** Choosing a market keeps the dropdown open. Moving the pointer away or pressing Escape closes the dropdown.

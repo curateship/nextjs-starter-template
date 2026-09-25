@@ -21,8 +21,11 @@ import type { Newsletter } from "@/lib/actions/newsletters/newsletter-actions"
 import type { Segment } from "@/lib/actions/newsletters/segment-actions"
 import Users from "lucide-react/dist/esm/icons/users.js"
 import TestTube from "lucide-react/dist/esm/icons/test-tube.js"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import { DashboardModalContent, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import { DripSettingsFields, useDripSettings } from "./DripSettingsFields"
+import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 
 interface NewsletterSettingsModalProps {
   open: boolean
@@ -41,12 +44,20 @@ export function NewsletterSettingsModal({
 }: NewsletterSettingsModalProps) {
   const [activeTab, setActiveTab] = useState("general")
   const [subject, setSubject] = useState('')
+  const [subjectMissing, setSubjectMissing] = useState(false)
+  // Clears itself the moment there is a subject, so the ring never outlives the fault.
+  const subjectInvalid = subjectMissing && !subject.trim()
   const [filterTags, setFilterTags] = useState('')
   const [testEmail, setTestEmail] = useState('')
   const [audienceCount, setAudienceCount] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
   const [sendingTest, setSendingTest] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  // Failures report through the one shared error toast, never inside the modal
+  // body — see workspace/docs/admin-action-feedback.md.
+  const setError = (message: string | null) => {
+    if (message) showErrorToast(message)
+    else dismissErrorToast()
+  }
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
 
   // Segment picker state
@@ -132,9 +143,12 @@ export function NewsletterSettingsModal({
 
   const handleSave = async () => {
     if (!newsletter || !subject.trim()) {
+      setSubjectMissing(true)
       setError('Subject line is required')
       return
     }
+
+    setSubjectMissing(false)
     setSaving(true)
     setError(null)
     setSuccessMsg(null)
@@ -167,6 +181,7 @@ export function NewsletterSettingsModal({
     if (data) {
       onSuccess(data)
       onOpenChange(false)
+      showActionSuccess("Newsletter updated.")
     }
   }
 
@@ -194,6 +209,7 @@ export function NewsletterSettingsModal({
       <Dialog open={open} onOpenChange={onOpenChange}>
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <DashboardModalContent
+            busy={saving}
             title="Newsletter Settings"
             titleAccessory={
               <div className="flex items-center gap-4">
@@ -202,7 +218,7 @@ export function NewsletterSettingsModal({
                   <TabsTrigger value="drip-options" className="h-7 py-0">Drip Options</TabsTrigger>
                 </TabsList>
                 <div className="flex items-center space-x-2">
-                  <div className={`h-2 w-2 rounded-full ${isSent ? 'bg-green-500' : 'bg-gray-400'}`} />
+                  <div className={`h-2 w-2 rounded-full ${isSent ? 'bg-green-500 dark:bg-green-600' : 'bg-gray-400'}`} />
                   <span className="text-sm font-medium">
                     {newsletter.status === 'sent' ? 'Sent' : newsletter.status === 'sending' ? 'Sending' : newsletter.status === 'scheduled' ? 'Scheduled' : 'Draft'}
                   </span>
@@ -211,27 +227,30 @@ export function NewsletterSettingsModal({
             }
             footer={
               <>
-                <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+                <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
                   Close
                 </Button>
-                <Button onClick={handleSave} disabled={saving || isSent}>
-                  {saving ? 'Saving...' : 'Save'}
+                <Button form="newsletter-settings-form" type="submit" disabled={saving || isSent}>
+                  {saving ? <Loader2 className="size-4 animate-spin" /> : null}
+                  Save
                 </Button>
               </>
             }
           >
-            {(error || successMsg) && (
-              <div className="px-6 pb-2 space-y-2">
-                {error && (
-                  <div className="rounded-lg border border-red-200 bg-red-50 p-3">
-                    <p className="text-sm text-red-800">{error}</p>
-                  </div>
-                )}
-                {successMsg && (
-                  <div className="rounded-lg border border-green-200 bg-green-50 p-3">
-                    <p className="text-sm text-green-800">{successMsg}</p>
-                  </div>
-                )}
+            <form
+              noValidate
+              id="newsletter-settings-form"
+              className="contents"
+              onSubmit={(event) => {
+                event.preventDefault()
+                handleSave()
+              }}
+            >
+            {successMsg && (
+              <div className="px-6 pb-2">
+                <div className="rounded-lg border border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-950/50 p-3">
+                  <p className="text-sm text-green-800 dark:text-green-300">{successMsg}</p>
+                </div>
               </div>
             )}
 
@@ -246,6 +265,7 @@ export function NewsletterSettingsModal({
                       <FieldLabel htmlFor="settings-subject">Subject Line *</FieldLabel>
                       <Input
                         id="settings-subject"
+                        aria-invalid={subjectInvalid || undefined}
                         value={subject}
                         onChange={(e) => setSubject(e.target.value)}
                         placeholder="Email subject line"
@@ -339,7 +359,8 @@ export function NewsletterSettingsModal({
                           />
                           <Button variant="outline" onClick={handleSendTest} disabled={sendingTest || !testEmail}>
                             <TestTube className="h-4 w-4 mr-2" />
-                            {sendingTest ? 'Sending...' : 'Send Test'}
+                            {sendingTest ? <Loader2 className="size-4 animate-spin" /> : null}
+                            Send Test
                           </Button>
                         </div>
                       </Field>
@@ -361,6 +382,7 @@ export function NewsletterSettingsModal({
                 <DripSettingsFields form={drip} idPrefix="newsletter-settings" disabled={isSent} variant="cards" />
               </CardGroup>
             </TabsContent>
+            </form>
           </DashboardModalContent>
         </Tabs>
       </Dialog>

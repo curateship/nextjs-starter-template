@@ -147,27 +147,6 @@ export async function uploadToR2(
   return `/cdn/${fileName}`
 }
 
-export async function uploadPrivateToR2(
-  fileName: string,
-  fileBuffer: Buffer,
-  contentType: string
-): Promise<string> {
-  if (USE_LOCAL_STORAGE) {
-    await writeLocalObject(fileName, fileBuffer, LOCAL_PRIVATE_STORAGE_ROOT)
-    return fileName
-  }
-
-  const command = new PutObjectCommand({
-    Bucket: R2_BUCKET_NAME,
-    Key: fileName,
-    Body: fileBuffer,
-    ContentType: contentType,
-  })
-
-  await requireR2Client().send(command)
-  return fileName
-}
-
 /**
  * Delete a file from R2
  */
@@ -186,6 +165,22 @@ export async function deleteFromR2(fileName: string): Promise<void> {
   })
 
   await requireR2Client().send(command)
+}
+
+/**
+ * Normalize a getFromR2 Body (SDK stream or local Buffer) into a Response body
+ */
+export function toBodyInit(body: NonNullable<Awaited<ReturnType<typeof getFromR2>>['Body']>): BodyInit {
+  if (
+    typeof body === 'object'
+    && body !== null
+    && 'transformToWebStream' in body
+    && typeof body.transformToWebStream === 'function'
+  ) {
+    return body.transformToWebStream()
+  }
+
+  return body as BodyInit
 }
 
 /**

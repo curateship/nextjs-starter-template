@@ -20,8 +20,24 @@ export type EventRegistrationMode = (typeof EVENT_REGISTRATION_MODES)[number]
  */
 export const REGISTRATION_HOLD_MINUTES = 30
 
-/** How long before the start time the reminder email goes out. */
+/** How long before the start time the reminder email goes out when the owner has not chosen. */
 export const REMINDER_LEAD_HOURS = 24
+
+/** The lead times an owner can pick, in hours. */
+export const REMINDER_LEAD_HOUR_CHOICES = [1, 3, 12, 24, 48, 72, 168] as const
+
+/**
+ * Hour of the morning after the event that the follow-up goes out. Read in the
+ * event's own floating wall-clock terms, like every other event time here.
+ */
+const FOLLOW_UP_HOUR = 9
+
+/**
+ * How long after the follow-up moment the cron still sends one. Past this the
+ * event is old news and a "thanks for coming" would only confuse; it also caps
+ * what a newly deployed follow-up can reach back and email.
+ */
+export const FOLLOW_UP_WINDOW_HOURS = 48
 
 const MINUTE_MS = 60 * 1000
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -62,6 +78,47 @@ export function normalizeTicketPriceId(value: unknown): string {
   return STRIPE_PRICE_ID_REGEX.test(priceId) ? priceId : ''
 }
 
+/** The content of the event's event-content block, or null when it has none. */
+function readEventContentValues(contentBlocks: unknown): Record<string, unknown> | null {
+  if (!contentBlocks || typeof contentBlocks !== 'object') return null
+
+  const key = findEventContentBlockKey(contentBlocks)
+  if (!key) return null
+
+  const block = (contentBlocks as Record<string, unknown>)[key]
+  const content = (block && typeof block === 'object' ? (block as { content?: unknown }).content : null)
+  if (!content || typeof content !== 'object') return null
+
+  return content as Record<string, unknown>
+}
+
+/**
+ * Both reminder switches default to on, so an event that has never been near the
+ * settings still reminds its attendees and thanks them afterwards. Only an
+ * explicit `false` (the box unticked) turns one off. The SQL the cron uses reads
+ * block JSON out as text, so the string form counts too.
+ */
+export function isReminderSwitchOn(value: unknown): boolean {
+  return value !== false && value !== 'false'
+}
+
+/** One of the offered lead times, or the 24-hour default for anything else. */
+export function normalizeReminderLeadHours(value: unknown): number {
+  const parsed = typeof value === 'number' ? value : Number.parseInt(String(value ?? ''), 10)
+  return (REMINDER_LEAD_HOUR_CHOICES as readonly number[]).includes(parsed) ? parsed : REMINDER_LEAD_HOURS
+}
+
+/**
+ * A lead time in words, e.g. "1 day before". Lives here beside the choices so
+ * the picker's labels cannot drift from the values the cron accepts.
+ */
+export function formatReminderLeadTime(hours: number): string {
+  if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} before`
+  const days = Math.round(hours / 24)
+  if (days === 7) return '1 week before'
+  return `${days} day${days === 1 ? '' : 's'} before`
+}
+
 /**
  * The event's registration settings, read from its event-content block (the same
  * place the date, time and venue live).
@@ -70,16 +127,9 @@ export function normalizeTicketPriceId(value: unknown): string {
  * 'none' rather than showing a buy button that would fail at checkout.
  */
 export function readEventRegistrationSettings(contentBlocks: unknown): EventRegistrationSettings {
-  if (!contentBlocks || typeof contentBlocks !== 'object') return NO_REGISTRATION
+  const values = readEventContentValues(contentBlocks)
+  if (!values) return NO_REGISTRATION
 
-  const key = findEventContentBlockKey(contentBlocks)
-  if (!key) return NO_REGISTRATION
-
-  const block = (contentBlocks as Record<string, unknown>)[key]
-  const content = (block && typeof block === 'object' ? (block as { content?: unknown }).content : null)
-  if (!content || typeof content !== 'object') return NO_REGISTRATION
-
-  const values = content as Record<string, unknown>
   const mode = isRegistrationMode(values.registrationMode) ? values.registrationMode : 'none'
   if (mode === 'none') return NO_REGISTRATION
 
@@ -153,9 +203,44 @@ export function isEventPast(eventDate: string | null | undefined, eventTime: str
 }
 
 /** True when the event starts inside the reminder window and has not started yet. */
-export function isReminderDue(startMs: number, now: Date): boolean {
+export function isReminderDue(startMs: number, now: Date, leadHours: number = REMINDER_LEAD_HOURS): boolean {
   const diffMs = startMs - now.getTime()
-  return diffMs > 0 && diffMs <= REMINDER_LEAD_HOURS * 60 * MINUTE_MS
+  return diffMs > 0 && diffMs <= leadHours * 60 * MINUTE_MS
+}
+
+/**
+ * When the thank-you goes out: 9am on the day after the event, in the event's
+ * own wall-clock terms. An evening workshop is thanked the next morning rather
+ * than at midnight, and an all-day event (which "starts" at 23:59) lands on the
+ * same rule instead of a day later.
+ */
+export function followUpTimestamp(startMs: number): number {
+  const start = new Date(startMs)
+  return new Date(start.getFullYear(), start.getMonth(), start.getDate() + 1, FOLLOW_UP_HOUR, 0).getTime()
+}
+
+/**
+ * True once the follow-up moment has arrived and the event is still recent
+ * enough to thank people for. Past FOLLOW_UP_WINDOW_HOURS nothing is sent: an
+ * event nobody has thought about in days should not suddenly produce email.
+ */
+export function isFollowUpDue(startMs: number, now: Date): boolean {
+  const dueMs = followUpTimestamp(startMs)
+  const sinceDueMs = now.getTime() - dueMs
+  return sinceDueMs >= 0 && sinceDueMs <= FOLLOW_UP_WINDOW_HOURS * 60 * MINUTE_MS
+}
+
+/**
+ * A short key for the start time a reminder described, e.g. `2026-08-15T18:00`.
+ * Stored with the send so a rescheduled event can be spotted: when the key no
+ * longer matches, the attendee is holding a wrong time and gets one corrected
+ * reminder.
+ */
+export function reminderStartKey(eventDate?: string | null, eventTime?: string | null): string {
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(eventDate || '') ? (eventDate as string) : ''
+  if (!date) return ''
+  const time = /^([01]\d|2[0-3]):([0-5]\d)$/.test(eventTime || '') ? (eventTime as string) : ''
+  return time ? `${date}T${time}` : date
 }
 
 /**

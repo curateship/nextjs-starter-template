@@ -1,0 +1,92 @@
+name: Custom Shell CI
+
+# Two jobs on purpose, in this order: everything cheap and specific first, then
+# the two production images. A red typecheck should tell you it is a typecheck
+# in thirty seconds, not after waiting on two Docker builds. And an image that
+# builds from code that does not pass its own tests is not a useful green.
+#
+# The images are built and thrown away. Nothing here pushes, tags, or deploys —
+# releasing is a separate, deliberate act.
+
+# The two path lists are written out twice rather than shared with a YAML
+# anchor, because GitHub does not expand anchors in workflow files. Keep them
+# the same.
+on:
+  pull_request:
+    paths:
+      - "apps/custom-shell/**"
+      - "Dockerfile"
+      - ".dockerignore"
+      - "local-apps.json"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - ".github/workflows/custom-shell-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/custom-shell/**"
+      - "Dockerfile"
+      - ".dockerignore"
+      - "local-apps.json"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - ".github/workflows/custom-shell-ci.yml"
+
+concurrency:
+  group: custom-shell-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    # No Postgres service: every test builds its own in-memory database with
+    # pglite and replays `drizzle/` into it. See `src/server/test-support.ts`.
+    env:
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+      # Must precede setup-node so that cache: pnpm can find the store.
+      # Version comes from the packageManager field in package.json.
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          # The same major the production images run on.
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Lint
+        run: pnpm --filter custom-shell lint
+      - name: Typecheck
+        run: pnpm --filter custom-shell typecheck
+      - name: Tests
+        run: pnpm --filter custom-shell test
+      - name: Web build
+        run: pnpm --filter custom-shell build
+      - name: Worker build
+        run: pnpm --filter custom-shell build:worker
+
+  images:
+    needs: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Web image
+        run: docker build --target web --build-arg APP=custom-shell -t custom-shell-web:ci .
+      - name: Worker image
+        run: docker build --target worker --build-arg APP=custom-shell -t custom-shell-worker:ci .
+      # A worker image whose health check cannot even run is a container that
+      # will be marked unhealthy forever. It is expected to *fail* here — there
+      # is no database and no heartbeat — so what is checked is that it fails
+      # by saying so rather than by crashing.
+      - name: The worker's health check answers
+        run: |
+          # Not named `status`: some shells make that read-only and the
+          # assignment fails silently in a way that reads as a passing step.
+          docker run --rm custom-shell-worker:ci node worker/dist/health.mjs > health.txt 2>&1 && code=0 || code=$?
+          cat health.txt
+          test "$code" = "1"
+          grep -q "Worker unhealthy" health.txt

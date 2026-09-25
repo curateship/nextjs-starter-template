@@ -15,12 +15,7 @@ export const getDirectoryCustomBlockById = createServerFn({ method: "POST" })
   .handler(async ({ data }) => getDirectoryCustomBlockByIdImpl(data.templateId))
 
 export const createDirectoryCustomBlock = createServerFn({ method: "POST" })
-  .inputValidator((data: { input: {
-  siteId: string
-  name: string
-  layout?: DirectoryCustomBlockLayout
-  fields?: any[]
-} }) => data)
+  .inputValidator((data: { input: Parameters<typeof createDirectoryCustomBlockImpl>[0] }) => data)
   .handler(async ({ data }) => createDirectoryCustomBlockImpl(data.input))
 
 export const updateDirectoryCustomBlock = createServerFn({ method: "POST" })

@@ -1,0 +1,275 @@
+import type { DcaParams, LadderPlan } from "@/lib/trade/dca"
+import { exitLadderGapPctForPrice, ladderBaseStopOf } from "@/lib/trade/dca"
+import {
+  gridEndPx,
+  gridHeldSz,
+  gridStopBeyond,
+  gridStopPx,
+  lossEdge,
+  reachedEntry,
+  reachedExit,
+  readyWhen,
+  winEdge,
+  type GridPlan,
+  type GridStop,
+} from "@/lib/trade/grid"
+
+/** The plan changes shared by practice and live smart-order actions. */
+
+export function cancelGridLevelPlan(plan: GridPlan, levelIndex: number): void {
+  const level = plan.levels[levelIndex]
+  if (!level || level.status !== "waiting") {
+    throw new Error("SMART_GRID_LEVEL_DONE")
+  }
+  level.status = "cancelled"
+}
+
+export function cancelGridRestPlan(plan: GridPlan): number {
+  let cancelled = 0
+  for (const level of plan.levels) {
+    if (level.status !== "waiting") continue
+    level.status = "cancelled"
+    cancelled += 1
+  }
+  // **Say who ended it.** A grid with nothing waiting and nothing held is
+  // over, and the engine writes that down on its next pass. Left alone it
+  // writes "flat", which reads as the grid deciding for itself, and that is
+  // exactly what a grid stopped by hand then looked like.
+  //
+  // Only when it holds nothing. A grid still holding coins keeps working its
+  // exits, and a reason written here would close the row out from under them.
+  if (cancelled > 0 && !plan.closedReason && gridHeldSz(plan) <= 0) {
+    plan.closedReason = "cancelled"
+  }
+  return cancelled
+}
+
+export function updateGridStopPlan(
+  plan: GridPlan,
+  stopLoss: GridStop | null,
+  /** The reverse-when-stopped switch, when the window sent it. */
+  reverseWhenStopped?: boolean
+): void {
+  if (reverseWhenStopped !== undefined) {
+    plan.reverseWhenStopped = reverseWhenStopped
+  }
+  if (stopLoss === null) {
+    plan.stopLoss = null
+    plan.lineStop = null
+    plan.baseWatch = null
+    plan.reverseWhenStopped = false
+    return
+  }
+  const followsIntoLoss =
+    plan.direction === "long" ? plan.followDown : plan.follow
+  plan.stopLoss = {
+    mode: followsIntoLoss ? "fixed" : "percent",
+    underPct: stopLoss.underPct,
+    px: followsIntoLoss
+      ? gridStopBeyond(plan.direction, plan, stopLoss.underPct)
+      : null,
+    base: stopLoss.base,
+  }
+}
+
+export function setGridFollowPlan(
+  plan: GridPlan,
+  input: { follow: boolean; followDown?: boolean }
+): void {
+  const turnsIntoLossOn =
+    plan.direction === "long"
+      ? input.followDown === true && !plan.followDown
+      : input.follow && !plan.follow
+  if (turnsIntoLossOn && plan.stopLoss?.mode === "percent") {
+    plan.stopLoss = { ...plan.stopLoss, mode: "fixed", px: gridStopPx({ ...plan, lineStop: null }) }
+  }
+  plan.follow = input.follow
+  if (input.followDown !== undefined) plan.followDown = input.followDown
+
+  const turnsAwayOn =
+    plan.direction === "long" ? input.follow : input.followDown === true
+  if (turnsAwayOn) plan.entered = true
+}
+
+export function updateGridEndPlan(
+  plan: GridPlan,
+  abovePct: number | null,
+  mark: number | null,
+  roundPx: (px: number) => number
+): void {
+  if (abovePct === null) {
+    plan.takeProfitPx = null
+    plan.takeProfitPct = null
+    return
+  }
+  if (mark === null || !(mark > 0)) throw new Error("PAPER_NO_PRICE")
+  const target = roundPx(gridEndPx(plan.direction, plan, mark, abovePct))
+  if (!readyWhen(plan.direction, target, winEdge(plan.direction, plan))) {
+    throw new Error("SMART_GRID_TARGET_IN_RANGE")
+  }
+  if (reachedExit(plan.direction, mark, target)) {
+    throw new Error("SMART_GRID_TARGET_PASSED")
+  }
+  plan.takeProfitPx = target
+  plan.takeProfitPct = abovePct
+}
+
+export function moveGridExitPlan(
+  plan: GridPlan,
+  input: { which: "takeProfit" | "stopLoss"; px: number },
+  /** Today's price, or null when the venue would not give one. */
+  mark: number | null,
+  roundPx: (px: number) => number,
+  invalidPrice: string
+): { px: number; movedStop: boolean } {
+  const px = roundPx(input.px)
+  if (!(px > 0)) throw new Error(invalidPrice)
+  if (input.which === "takeProfit") {
+    if (!readyWhen(plan.direction, px, winEdge(plan.direction, plan))) {
+      throw new Error("SMART_GRID_TARGET_IN_RANGE")
+    }
+    plan.takeProfitPx = px
+    plan.takeProfitPct = undefined
+    return { px, movedStop: false }
+  }
+
+  /**
+   * **A stop may sit inside the range.** That is how a grid's stop trails:
+   * dragged up behind the price, it locks in what the cycles have made, the
+   * levels past it fade out (`reconcileDeadLevels`), and the ones still clear
+   * of it keep cycling. The engine has always understood such a stop — only
+   * this door refused it.
+   *
+   * What it may not do is sit where it would fire at once — at or past the
+   * current price on the losing side — because that closes the whole grid the
+   * moment the hand lets go, which is a mis-drop, not a stop. And when the
+   * venue would not give a price, there is no telling those apart, so only
+   * the always-safe move is taken: past the losing end of the range.
+   */
+  if (mark === null) {
+    if (!readyWhen(plan.direction, lossEdge(plan.direction, plan), px)) {
+      throw new Error("SMART_GRID_STOP_IN_RANGE")
+    }
+  } else if (reachedEntry(plan.direction, mark, px)) {
+    throw new Error("SMART_GRID_STOP_PASSED")
+  }
+  plan.stopLoss = {
+    mode: "fixed",
+    underPct: plan.stopLoss?.underPct ?? 0,
+    px,
+    base: null,
+  }
+  return { px, movedStop: true }
+}
+
+export function cancelLadderRungPlan(
+  plan: LadderPlan,
+  rungIndex: number
+): string | null {
+  const rung = plan.rungs[rungIndex]
+  if (!rung || rung.status !== "waiting") throw new Error("SMART_RUNG_DONE")
+  const orderId = rung.orderId
+  rung.status = "cancelled"
+  rung.orderId = null
+  return orderId
+}
+
+export async function cancelLadderRestPlan(
+  plan: LadderPlan,
+  cancelOrder: (orderId: string) => Promise<void>
+): Promise<{ cancelled: number }> {
+  let cancelled = 0
+  for (const [index, rung] of plan.rungs.entries()) {
+    if (rung.status !== "waiting") continue
+    if (rung.orderId) await cancelOrder(rung.orderId)
+    cancelLadderRungPlan(plan, index)
+    cancelled += 1
+  }
+  return { cancelled }
+}
+
+export async function updateLadderExitsPlan(
+  plan: LadderPlan,
+  input: {
+    takeProfit: DcaParams["takeProfit"]
+    stopLoss: DcaParams["stopLoss"]
+  },
+  cancelSell: (orderId: string) => Promise<void>
+): Promise<void> {
+  if (
+    plan.takeProfit?.mode === "prevRung" &&
+    input.takeProfit?.mode !== "prevRung"
+  ) {
+    for (const rung of plan.rungs) {
+      if (!rung.sellOrderId) continue
+      await cancelSell(rung.sellOrderId)
+      rung.sellOrderId = null
+    }
+  }
+  const wasExitLadder = plan.takeProfit?.mode === "exitLadder"
+  const staysExitLadder = input.takeProfit?.mode === "exitLadder"
+  const nextExitGapPct = input.takeProfit?.exitGapPct ?? 0
+  const exitGapChanged =
+    wasExitLadder &&
+    staysExitLadder &&
+    Math.abs((plan.takeProfit?.exitGapPct ?? 0) - nextExitGapPct) > 1e-9
+  if (exitGapChanged && plan.exitLadderVersion !== 2) {
+    throw new Error("SMART_EXIT_MIGRATING")
+  }
+  if (wasExitLadder && (!staysExitLadder || exitGapChanged)) {
+    await cancelExitLadderOrders(plan, cancelSell)
+    if (!staysExitLadder) plan.exitRungs = []
+  }
+  if (!wasExitLadder && staysExitLadder) plan.exitLadderVersion = 2
+  plan.takeProfit = input.takeProfit
+    ? {
+        mode: input.takeProfit.mode,
+        pct: input.takeProfit.mode === "average" ? input.takeProfit.pct : null,
+        exitGapPct: input.takeProfit.mode === "exitLadder" ? nextExitGapPct : 0,
+      }
+    : null
+  plan.stopLoss = input.stopLoss
+    ? {
+        mode: input.stopLoss.reference === "lastRung" ? "lastRung" : "percent",
+        pct: input.stopLoss.pct,
+        base: ladderBaseStopOf(input.stopLoss.base),
+      }
+    : null
+  if (!plan.stopLoss?.base) plan.reclaim = null
+}
+
+/** Move the complete mirrored exit shape after cancelling any funded sells. */
+export async function moveExitLadderPlan(
+  plan: LadderPlan,
+  input: { exitIndex: number; exitPx: number },
+  cancelSell: (orderId: string) => Promise<void>
+): Promise<void> {
+  if (plan.takeProfit?.mode !== "exitLadder") {
+    throw new Error("SMART_EXIT_GAP")
+  }
+  if (plan.exitLadderVersion !== 2) {
+    throw new Error("SMART_EXIT_MIGRATING")
+  }
+  const exitGapPct = exitLadderGapPctForPrice(
+    plan,
+    input.exitIndex,
+    input.exitPx
+  )
+  if (exitGapPct === null) throw new Error("SMART_EXIT_GAP")
+
+  await cancelExitLadderOrders(plan, cancelSell)
+  plan.takeProfit.exitGapPct = exitGapPct
+}
+
+/** Cancellation finishes before the plan forgets any exchange order id. */
+async function cancelExitLadderOrders(
+  plan: LadderPlan,
+  cancelSell: (orderId: string) => Promise<void>
+): Promise<void> {
+  for (const exit of plan.exitRungs) {
+    if (!exit.orderId) continue
+    await cancelSell(exit.orderId)
+    exit.orderId = null
+    exit.armedSz = 0
+  }
+}

@@ -112,7 +112,7 @@ export function DashboardTable(props: DashboardTableProps) {
       <DashboardToolbar>
         <DashboardToolbarTitle>
           {icon ? (
-            <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
+            <span className="flex size-7 shrink-0 items-center justify-center sm:size-8 [&_svg]:size-4">
               {icon}
             </span>
           ) : null}

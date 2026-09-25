@@ -1,0 +1,305 @@
+import { marketSymbol, type CandleInterval } from "@/lib/protocols/contracts"
+import { DRAWING_VOLUME_LOOKBACK } from "@/lib/trade/drawings"
+import { formatPrice, formatUsdRounded } from "@/lib/trade/format"
+
+/**
+ * The sentences the bell says about trades and flows.
+ *
+ * Pure and browser-safe on purpose: the server writes these into the inbox and
+ * the tests read them back, so the words live where both can see them. Every
+ * sentence follows the same rule as the rest of the app's words — dollars, the
+ * coin's symbol, and the wallet's own label, never an id.
+ */
+
+export type TradeNoticeLevel = "info" | "warning" | "critical"
+
+/** One price alert, using the direction fixed when the line was placed. */
+export function priceAlertNoticeWords(input: {
+  marketKey: string
+  price: number
+  direction: "above" | "below"
+}): { title: string; body: string; level: TradeNoticeLevel } {
+  const coin = marketSymbol(input.marketKey)
+  const movement = input.direction === "above" ? "rising" : "falling"
+  return {
+    title: `${coin} reached ${formatPrice(input.price)} (was ${movement})`,
+    body: "The price alert fired once and is now retired.",
+    level: "info",
+  }
+}
+
+/**
+ * A drawn line's alert, said once when the price crosses it. It names the
+ * shape, level or trendline, so a level's notice is never mistaken for a
+ * purple price alert's, which says "reached" and never "crossed". A line
+ * with a name is called by it instead of by its price, because a name the
+ * person typed needs no translating; the price then moves to the body.
+ */
+export function drawingAlertNoticeWords(input: {
+  retest?: boolean
+  marketKey: string
+  kind: "level" | "trendline"
+  /** Where the line was at the moment of the cross. */
+  price: number
+  direction: "above" | "below"
+  name?: string | null
+  /** How far past the line the price had to go, as a percentage. */
+  buffer?: number | null
+  /** The timeframe whose finished candle had to close past it, or null. */
+  closeInterval?: CandleInterval | null
+  /** The volume the breaking candle had to beat, as a multiple, or null. */
+  volumeMultiple?: number | null
+}): { title: string; body: string; level: TradeNoticeLevel } {
+  const coin = marketSymbol(input.marketKey)
+  const movement = input.direction === "above" ? "rising" : "falling"
+  // Said before the rest, because it explains the price in the line above it:
+  // the price went further than the number in the title.
+  // Printed as it was typed rather than through a formatter, so 0.1 reads as
+  // "0.1%" and not "0.10%".
+  const past = input.buffer
+    ? `The price had to go ${input.buffer}% past the ${input.kind}. `
+    : ""
+  // What the candle had to do, in the order it was asked for: close on the
+  // far side, and carry the volume. A Touch alert says neither.
+  const closed = input.closeInterval
+    ? `A finished ${input.closeInterval} candle closed ${input.direction} it. `
+    : ""
+  const volume = input.volumeMultiple
+    ? `Its volume was at least ${input.volumeMultiple}x the average of the ${DRAWING_VOLUME_LOOKBACK} candles before it. `
+    : ""
+  const returned = input.retest ? `The price broke ${input.direction} the ${input.kind}, then returned to it from that side. ` : ""
+  const verb = input.retest ? "retested" : "crossed"
+  const rest = `${returned}${closed}${volume}${past}The ${input.kind}'s alert fired once and is now off. The ${input.kind} is still on the chart.`
+  if (input.name) {
+    return {
+      title: `${coin} ${verb} ${input.name} (was ${movement})`,
+      body: `${input.name} was at ${formatPrice(input.price)}. ${rest}`,
+      level: "info",
+    }
+  }
+  return {
+    title: `${coin} ${verb} your ${input.kind} at ${formatPrice(input.price)} (was ${movement})`,
+    body: rest,
+    level: "info",
+  }
+}
+
+/** "(Main wallet)" — with the word practice added when the money is not real. */
+function walletTag(walletLabel: string, practice: boolean): string {
+  return practice ? `(${walletLabel}, practice)` : `(${walletLabel})`
+}
+
+/**
+ * Whether a fill got into a trade or out of one.
+ *
+ * The bell says "entered" or "exited", never "bought" or "sold". Tyler's
+ * rule: a long that is closed was not "shorted", and a long that is opened
+ * was not "bought"; the person entered a trade or exited one, and the words
+ * say which. The venue's own words decide when it gives them ("Close Long",
+ * "Open Short"); a venue that says nothing is read from the money, because
+ * only a close banks anything.
+ */
+export function fillWasExit(fill: {
+  dir?: string
+  closedPnl: number
+}): boolean {
+  const dir = (fill.dir ?? "").toLowerCase()
+  if (dir.startsWith("close")) return true
+  if (dir.startsWith("open")) return false
+  return fill.closedPnl !== 0
+}
+
+/** One fill, said the moment it is written down. */
+export function fillNoticeWords(fill: {
+  marketKey: string
+  side: "buy" | "sell"
+  px: number
+  sz: number
+  closedPnl: number
+  /** The venue's own words for the fill, "Close Long" and the rest, if any. */
+  dir?: string
+  /**
+   * The average entry the exchange measured the close against, when it can
+   * be said. Null leaves the sentence at the dollars alone.
+   */
+  entryPx?: number | null
+  /**
+   * What the grid rung that sold made on its own coins, when a grid sold
+   * this. Wins over the exchange's figure and its average. See
+   * `gridRoundTrips`.
+   */
+  ownRung?: GridSaleMoney | null
+  /**
+   * What the whole grid run made after fees, when this sale left no coins.
+   * Wins over `ownRung`. See `runEndedWords`.
+   */
+  runMoney?: number | null
+  liquidation: boolean
+  walletLabel: string
+  practice: boolean
+}): { title: string; body: string; level: TradeNoticeLevel } {
+  const coin = marketSymbol(fill.marketKey)
+  const usd = formatUsdRounded(Math.abs(fill.px * fill.sz))
+  const price = formatPrice(fill.px)
+  const did = fillWasExit(fill) ? "Exited a trade" : "Entered a trade"
+  const tag = walletTag(fill.walletLabel, fill.practice)
+
+  if (fill.liquidation) {
+    return {
+      title: `The exchange liquidated ${coin}: exited ${usd} at ${price} ${tag}`,
+      body:
+        fill.closedPnl !== 0
+          ? `${gainWords(fill.closedPnl, null)} The exchange closed this itself.`
+          : "The exchange closed this itself.",
+      level: "critical",
+    }
+  }
+
+  if (fill.runMoney !== undefined && fill.runMoney !== null) {
+    return runEndedWords({
+      coin,
+      usd,
+      price,
+      tag,
+      side: fill.side,
+      money: fill.runMoney,
+    })
+  }
+  const title = `${did}: ${usd} of ${coin} at ${price} ${tag}`
+  if (fill.ownRung) {
+    return {
+      title,
+      body: rungGainWords(fill.ownRung, fill.side),
+      level: fill.ownRung.money < 0 ? "warning" : "info",
+    }
+  }
+  if (fill.closedPnl !== 0) {
+    return {
+      title,
+      body: gainWords(fill.closedPnl, fill.entryPx ?? null),
+      level: fill.closedPnl < 0 ? "warning" : "info",
+    }
+  }
+  return { title, body: "The order filled on the exchange.", level: "info" }
+}
+
+/** One short notice for several entry rungs filled by one ladder. */
+export function ladderFillNoticeWords(input: {
+  marketKey: string
+  count: number
+  dollars: number
+  walletLabel: string
+  practice: boolean
+}): { title: string; body: string; level: TradeNoticeLevel } {
+  const coin = marketSymbol(input.marketKey)
+  const rungWord = input.count === 1 ? "rung" : "rungs"
+  return {
+    title: `${coin} ladder filled ${input.count} ${rungWord}`,
+    body: `${formatUsdRounded(input.dollars)} in. ${walletTag(input.walletLabel, input.practice)}`,
+    level: "info",
+  }
+}
+
+/**
+ * The second notice, sent when a closing fill turns out to have come from a
+ * stop or a target. Second on purpose: the fill fact arrives first and the
+ * stop fact arrives later, and two honest notices beat one delayed one.
+ */
+export function triggerNoticeWords(input: {
+  kind: "stop" | "target"
+  marketKey: string
+  side: "buy" | "sell"
+  px: number
+  closedPnl: number
+  walletLabel: string
+  practice: boolean
+}): { title: string; body: string; level: TradeNoticeLevel } {
+  const coin = marketSymbol(input.marketKey)
+  const name = input.kind === "stop" ? "Stop hit" : "Target hit"
+  const tag = walletTag(input.walletLabel, input.practice)
+  const money =
+    input.closedPnl !== 0
+      ? `, ${input.closedPnl < 0 ? "lost" : "made"} ${formatUsdRounded(Math.abs(input.closedPnl))}`
+      : ""
+  return {
+    title: `${name} on ${coin}: exited at ${formatPrice(input.px)}${money} ${tag}`,
+    body:
+      input.kind === "stop"
+        ? "The stop order fired and closed the position."
+        : "The target order fired and took the profit.",
+    level: input.kind === "stop" && input.closedPnl < 0 ? "warning" : "info",
+  }
+}
+
+/** A grid sale priced on the coins its own rung bought. */
+export type GridSaleMoney = {
+  /** After both fees, the same figure the chart arrow and the P&L page show. */
+  money: number
+  /** What the rung paid for the coins it sold, or sold them at on a short. */
+  entryPx: number
+  /** Counted from one. Absent when the sale closed coins of several rungs. */
+  rung?: number
+}
+
+/**
+ * "Made $1.20 on this close, after fees. Measured against rung 3, which bought
+ * these coins at $0.169."
+ *
+ * **A grid sale is never measured against the position's average.** Tyler's
+ * rule, 22 Sep 2026: it measures against its own rung. On 22 Sep an ANSEM
+ * grid sale rang the bell with "Made $1.81 … against the whole
+ * position's average entry", the venue's figure, while the rungs still
+ * holding held that average up. Each rung buys its own coins and sells those
+ * same coins, so its own buy is the only honest "before".
+ */
+function rungGainWords(sale: GridSaleMoney, side: "buy" | "sell"): string {
+  const money = `${sale.money < 0 ? "Lost" : "Made"} ${formatUsdRounded(Math.abs(sale.money))} on this close, after fees.`
+  const which = sale.rung === undefined ? "its own rungs" : `rung ${sale.rung}`
+  return `${money} Measured against ${which}, which ${side === "sell" ? "bought" : "sold"} these coins at ${formatPrice(sale.entryPx)}.`
+}
+
+/**
+ * "USELESS grid run ended: lost $16.43" — the sale that left no coins.
+ *
+ * **The last sale says the whole run, not itself.** Tyler's rule, 24 Sep
+ * 2026. On 24 Sep a USELESS grid was closed and the bell said "Lost $87.36 on
+ * this close", measured against the rungs still holding, the dearest ones.
+ * The Positions row had said about -$20 a moment before, and the Journal row
+ * for the same run said -$16.43: three figures for one close. The run's total
+ * is the one number every way of counting agrees on, and it is the Journal
+ * row's, so the bell says that.
+ */
+function runEndedWords(input: {
+  coin: string
+  usd: string
+  price: string
+  tag: string
+  /** A selling grid ends on a buy-back, so a buy is the last word. */
+  side: "buy" | "sell"
+  money: number
+}): { title: string; body: string; level: TradeNoticeLevel } {
+  const result = `${input.money < 0 ? "lost" : "made"} ${formatUsdRounded(Math.abs(input.money))}`
+  const last = input.side === "buy" ? "Bought back the last" : "Sold the last"
+  return {
+    title: `${input.coin} grid run ended: ${result} ${input.tag}`,
+    body: `${last} ${input.usd} at ${input.price}. That is the whole run, after fees, the same as its Journal row.`,
+    level: input.money < 0 ? "warning" : "info",
+  }
+}
+
+/**
+ * "Made $55 on this close." — and, when the entry is known, what the figure
+ * was measured against.
+ *
+ * **Said because the exchange's figure and the last buy disagree.** On 2 Sep
+ * 2026 a sale of 782 ENA at 0.15105, bought an hour earlier at 0.14737, rang
+ * the bell with "Lost $3.81". Hyperliquid was right: the position also held
+ * 1,734 coins bought near 0.16, and an exchange measures every close against
+ * the whole position's average entry, never against one buy. The number
+ * without the entry beside it read as a mistake, so the entry is named.
+ */
+function gainWords(closedPnl: number, entryPx: number | null): string {
+  const money = `${closedPnl < 0 ? "Lost" : "Made"} ${formatUsdRounded(Math.abs(closedPnl))} on this close.`
+  if (entryPx === null) return money
+  return `${money} That is measured against the whole position's average entry of ${formatPrice(entryPx)}, not the last buy.`
+}

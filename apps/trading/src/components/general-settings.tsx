@@ -26,13 +26,11 @@ import {
 
 type GeneralSettingsProps = {
   config: ShellConfig
-  isSaving: boolean
   onConfigChange: (config: ShellConfig) => void
 }
 
 export function GeneralSettings({
   config,
-  isSaving,
   onConfigChange,
 }: GeneralSettingsProps) {
   const [browserPermission, setBrowserPermission] = React.useState<
@@ -81,7 +79,6 @@ export function GeneralSettings({
           <Input
             id="workspace-name"
             value={config.workspaceName}
-            disabled={isSaving}
             onChange={(event) =>
               onConfigChange({
                 ...config,
@@ -97,7 +94,6 @@ export function GeneralSettings({
           <Input
             id="workspace-subheader"
             value={config.workspacePlan}
-            disabled={isSaving}
             onChange={(event) =>
               onConfigChange({
                 ...config,
@@ -113,7 +109,6 @@ export function GeneralSettings({
           <Input
             id="admin-route"
             value={config.adminRoute}
-            disabled={isSaving}
             onChange={(event) =>
               onConfigChange({
                 ...config,
@@ -135,7 +130,6 @@ export function GeneralSettings({
           </Label>
           <Select
             value={String(config.dashboardRowsPerPage)}
-            disabled={isSaving}
             onValueChange={(value) =>
               onConfigChange({
                 ...config,
@@ -165,7 +159,6 @@ export function GeneralSettings({
             max={MAX_CANDLES_LIMIT}
             className="w-32"
             value={config.maxCandles}
-            disabled={isSaving}
             onValueChange={(next) =>
               onConfigChange({ ...config, maxCandles: next })
             }
@@ -184,7 +177,6 @@ export function GeneralSettings({
           aspect="square"
           fit="contain"
           emptyLabel="Select favicon"
-          showLabel={false}
           className="max-w-20"
         />
       </CollapsibleSettingsCard>

@@ -629,7 +629,7 @@ export function ProfilesDashboard({
       <DashboardTable
         title="Profiles"
         icon={
-          <AppWindowIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+          <AppWindowIcon className="text-muted-foreground" />
         }
         count={profiles.length}
         selectedCount={selected.size}

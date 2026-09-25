@@ -254,7 +254,7 @@ export function RankingsDashboard({ project }: { project: ProjectItem }) {
 
       <DashboardTable
         title="Rankings"
-        icon={<RadarIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+        icon={<RadarIcon className="text-muted-foreground" />}
         count={total}
         status={status}
         controls={

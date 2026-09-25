@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button"
 import { Dialog } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils/tailwind"
 import {
   QUICK_LINK_ICON_OPTIONS,
@@ -21,6 +20,7 @@ import {
   renderQuickLinkIcon,
   type QuickLinkIconValue
 } from "@/lib/utils/site-quick-links"
+import { showErrorToast } from "@/lib/error-toast"
 
 export function ShellIconPreview({ icon, className }: { icon?: QuickLinkIconValue; className?: string }) {
   return renderQuickLinkIcon(icon, className)
@@ -82,7 +82,10 @@ export function ShellIconPickerField({
 
   function handleCustomIconSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!customLucideIcon) return
+    if (!customLucideIcon) {
+      showErrorToast("Pick an icon first")
+      return
+    }
     onChange(customLucideIcon)
     closePicker()
   }
@@ -132,10 +135,9 @@ export function ShellIconPickerField({
         }}
       >
         <DashboardModalContent
-          className="max-h-none max-w-2xl overflow-visible"
+          className="max-w-2xl"
           title="Choose Icon"
-          bodyClassName="overflow-visible"
-          viewportClassName="gap-4 pt-5"
+          description="Pick an icon from the library, or add any Lucide icon by name."
           footer={
             <>
               {allowEmpty && value ? (
@@ -181,15 +183,20 @@ export function ShellIconPickerField({
               </PopoverTrigger>
               <PopoverContent align="end" className="w-80">
                 <div className="mb-3 text-sm font-medium">Add Lucide Icon</div>
-                <form className="space-y-3" onSubmit={handleCustomIconSubmit}>
+                <form
+                  noValidate className="space-y-3" onSubmit={handleCustomIconSubmit}>
                   <Input
                     autoFocus
                     value={customIconName}
                     onChange={(event) => setCustomIconName(event.target.value)}
                     placeholder="octagon-x"
+                    aria-invalid={Boolean(customIconError) || undefined}
                   />
+                  {/* The pair below is a live lookup result, not a save failure:
+                      "found" and "not found" are the same message in two states,
+                      so neither is styled as an error. A failed submit toasts. */}
                   {customIconError ? (
-                    <p className="text-xs text-destructive">{customIconError}</p>
+                    <p className="text-xs text-muted-foreground">{customIconError}</p>
                   ) : customLucideIcon ? (
                     <p className="text-xs text-muted-foreground">
                       Found {getQuickLinkIconLabel(customLucideIcon)}.
@@ -203,7 +210,7 @@ export function ShellIconPickerField({
                     >
                       Cancel
                     </Button>
-                    <Button type="submit" disabled={!customLucideIcon}>
+                    <Button type="submit">
                       Use Icon
                     </Button>
                   </div>
@@ -212,56 +219,54 @@ export function ShellIconPickerField({
             </Popover>
           </div>
 
-          <ScrollArea className="pr-2">
-            {filteredOptions.length === 0 && !showDefaultOption ? (
-              <div className="py-10 text-center text-sm text-muted-foreground">No icons match that search.</div>
-            ) : (
-              <div className="grid grid-cols-5 gap-2 sm:grid-cols-7">
-                {showDefaultOption ? (
+          {filteredOptions.length === 0 && !showDefaultOption ? (
+            <div className="py-10 text-center text-sm text-muted-foreground">No icons match that search.</div>
+          ) : (
+            <div className="grid grid-cols-5 gap-2 sm:grid-cols-7">
+              {showDefaultOption ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onChange(undefined)
+                    closePicker()
+                  }}
+                  className={cn(
+                    "relative flex aspect-square flex-col items-center justify-center gap-2 rounded-lg p-2 text-center transition-colors hover:bg-muted/50",
+                    !value && "bg-primary/5"
+                  )}
+                  aria-label="Use default icon"
+                >
+                  {!value ? <ShellIconSelectedMark /> : null}
+                  <DefaultIcon className="h-5 w-5" />
+                  <span className="line-clamp-2 text-[11px] leading-tight">Default</span>
+                </button>
+              ) : null}
+              {filteredOptions.map((option) => {
+                const Icon = getQuickLinkIcon(option.value)
+                const isSelected = option.value === value
+
+                return (
                   <button
+                    key={option.value}
                     type="button"
                     onClick={() => {
-                      onChange(undefined)
+                      onChange(option.value)
                       closePicker()
                     }}
                     className={cn(
                       "relative flex aspect-square flex-col items-center justify-center gap-2 rounded-lg p-2 text-center transition-colors hover:bg-muted/50",
-                      !value && "bg-primary/5"
+                      isSelected && "bg-primary/5"
                     )}
-                    aria-label="Use default icon"
+                    aria-label={`Choose ${option.label} icon`}
                   >
-                    {!value ? <ShellIconSelectedMark /> : null}
-                    <DefaultIcon className="h-5 w-5" />
-                    <span className="line-clamp-2 text-[11px] leading-tight">Default</span>
+                    {isSelected ? <ShellIconSelectedMark /> : null}
+                    <Icon className="h-5 w-5" />
+                    <span className="line-clamp-2 text-[11px] leading-tight" title={option.label}>{option.label}</span>
                   </button>
-                ) : null}
-                {filteredOptions.map((option) => {
-                  const Icon = getQuickLinkIcon(option.value)
-                  const isSelected = option.value === value
-
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => {
-                        onChange(option.value)
-                        closePicker()
-                      }}
-                      className={cn(
-                        "relative flex aspect-square flex-col items-center justify-center gap-2 rounded-lg p-2 text-center transition-colors hover:bg-muted/50",
-                        isSelected && "bg-primary/5"
-                      )}
-                      aria-label={`Choose ${option.label} icon`}
-                    >
-                      {isSelected ? <ShellIconSelectedMark /> : null}
-                      <Icon className="h-5 w-5" />
-                      <span className="line-clamp-2 text-[11px] leading-tight">{option.label}</span>
-                    </button>
-                  )
-                })}
-              </div>
-            )}
-          </ScrollArea>
+                )
+              })}
+            </div>
+          )}
         </DashboardModalContent>
       </Dialog>
     </>

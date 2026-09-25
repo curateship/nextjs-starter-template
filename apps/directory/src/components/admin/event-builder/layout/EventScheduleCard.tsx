@@ -125,7 +125,7 @@ export function EventScheduleCard({
             <Popover open={dateOpen} onOpenChange={setDateOpen}>
               <PopoverTrigger asChild>
                 <Button variant="outline" id="schedule-date" disabled={disabled} className="w-full justify-between font-normal sm:w-52">
-                  <span className="truncate">{selectedDate ? format(selectedDate, "PPP") : "Select date"}</span>
+                  <span className="truncate" title={selectedDate ? format(selectedDate, "PPP") : "Select date"}>{selectedDate ? format(selectedDate, "PPP") : "Select date"}</span>
                   <ChevronDownIcon className="size-4" />
                 </Button>
               </PopoverTrigger>
@@ -233,7 +233,7 @@ export function EventScheduleCard({
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button variant="outline" disabled={disabled} className="w-56 justify-between font-normal">
-                        <span className="truncate">{untilDate ? format(untilDate, "PPP") : "No end date"}</span>
+                        <span className="truncate" title={untilDate ? format(untilDate, "PPP") : "No end date"}>{untilDate ? format(untilDate, "PPP") : "No end date"}</span>
                         <ChevronDownIcon className="size-4" />
                       </Button>
                     </PopoverTrigger>

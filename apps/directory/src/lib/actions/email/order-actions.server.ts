@@ -48,6 +48,7 @@ export interface ProductOrder {
   clicked_at: string | null
   click_count: number
   email_sent_at: string | null
+  recovery_email_sent_at: string | null
   metadata: Record<string, any> | null
   created_at: string
   updated_at: string
@@ -72,6 +73,7 @@ function toProductOrder(row: typeof productOrders.$inferSelect): ProductOrder {
     clicked_at: row.clickedAt?.toISOString() ?? null,
     click_count: row.clickCount ?? 0,
     email_sent_at: row.emailSentAt?.toISOString() ?? null,
+    recovery_email_sent_at: row.recoveryEmailSentAt?.toISOString() ?? null,
     metadata: row.metadata as Record<string, any> | null,
     created_at: row.createdAt.toISOString(),
     updated_at: row.updatedAt.toISOString(),
@@ -100,7 +102,7 @@ export async function getOrderIdsActionImpl(siteId: string): Promise<{ ids: stri
 export async function getOrdersWithProductsImpl(
   siteId: string,
   options?: { page?: number; pageSize?: number }
-): Promise<{ data: ProductOrder[]; total: number; productMap: Record<string, string> }> {
+): Promise<{ data: ProductOrder[]; total: number; recoverySentTotal: number; productMap: Record<string, string> }> {
   try {
     await verifySiteOwnership(siteId)
 
@@ -115,7 +117,10 @@ export async function getOrdersWithProductsImpl(
         .limit(pageSize)
         .offset(offset),
       db
-        .select({ count: sql<number>`count(*)::int` })
+        .select({
+          count: sql<number>`count(*)::int`,
+          recoverySent: sql<number>`count(*) filter (where ${productOrders.recoveryEmailSentAt} is not null)::int`,
+        })
         .from(productOrders)
         .where(eq(productOrders.siteId, siteId)),
       db
@@ -132,11 +137,12 @@ export async function getOrdersWithProductsImpl(
     return {
       data: ordersResult.map(toProductOrder),
       total: countResult[0]?.count ?? 0,
+      recoverySentTotal: countResult[0]?.recoverySent ?? 0,
       productMap,
     }
   } catch (error) {
     console.error('Error in getOrdersWithProducts:', error)
-    return { data: [], total: 0, productMap: {} }
+    return { data: [], total: 0, recoverySentTotal: 0, productMap: {} }
   }
 }
 

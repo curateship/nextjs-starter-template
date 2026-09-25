@@ -1,0 +1,341 @@
+import { readFileSync, readdirSync, statSync } from "node:fs"
+import { join, relative, sep } from "node:path"
+import { describe, expect, it } from "vitest"
+
+/**
+ * The fence around the exchange.
+ *
+ * The whole point of the protocol layer is that a second exchange is a new
+ * folder, not a hunt through the screens for everywhere the first one leaked.
+ * That only stays true if leaking is a failing test rather than a code-review
+ * hope — the same reasoning as `guards.test.ts`.
+ *
+ * Two rules:
+ *
+ * 1. The exchange SDK is imported only inside its own protocol folder.
+ * 2. Nothing outside `src/server/protocols/` and the contracts file ever asks
+ *    which protocol it is holding. Screens read capabilities and labels off
+ *    the data; they do not special-case an exchange.
+ */
+
+const SRC = join(__dirname, "..", "..")
+
+/**
+ * Each exchange package, and the only folders allowed to import it: the
+ * protocol's server side, and its browser side (the live stream — public
+ * data the browser subscribes to directly).
+ */
+const EXCHANGE_PACKAGES: Array<{ pkg: string; homes: string[] }> = [
+  {
+    pkg: "@nktkas/hyperliquid",
+    homes: [
+      join("server", "protocols", "hyperliquid"),
+      join("lib", "protocols", "hyperliquid"),
+    ],
+  },
+  {
+    // The signing library. Only the exchange's server folder may touch it: it
+    // exists to turn a stored trading key into signatures, and anywhere else
+    // it appears is a place a key could leak toward.
+    pkg: "viem",
+    homes: [
+      join("server", "protocols", "hyperliquid"),
+      join("server", "protocols", "aster"),
+      join("server", "protocols", "bnb"),
+      join("server", "protocols", "robinhood"),
+      join("server", "protocols", "evm-chain"),
+      // edgeX signs every order as EIP-712 typed data with its signer key.
+      join("server", "protocols", "edgex"),
+    ],
+  },
+  {
+    // The stock and forex history feed. Loaded through `createRequire` for
+    // the reason written in its client file, which is why the import check
+    // below also matches a `require(...)`.
+    pkg: "dukascopy-node",
+    homes: [join("server", "protocols", "dukascopy")],
+  },
+  {
+    // Solana's own library: it makes and reads the keypair that HOLDS the
+    // coins, and later signs the swap Jupiter hands back. Anywhere else it
+    // appears is a place that key could leak toward.
+    pkg: "@solana/web3.js",
+    homes: [join("server", "protocols", "solana")],
+  },
+]
+
+/**
+ * The addresses only Solana's client file may know. A node or Jupiter
+ * address named anywhere else is a second door onto the chain, and a second
+ * door is exactly how a paid node or a key ends up in the wrong file.
+ */
+const SOLANA_HOME = join("server", "protocols", "solana")
+const SOLANA_ADDRESSES =
+  /api\.jup\.ag|mainnet-beta\.solana\.com|devnet\.solana\.com/
+
+/** The addresses only Robinhood Chain's folder may know, for the same reason. */
+const ROBINHOOD_HOME = join("server", "protocols", "robinhood")
+const ROBINHOOD_ADDRESSES =
+  /chain\.robinhood\.com|cdn\.robinhood\.com|robinhoodchain\.blockscout\.com|robinhood-rpc/
+const CHAIN_HOMES = [join("server", "protocols", "bnb"), ROBINHOOD_HOME]
+
+/**
+ * The code BNB Chain and Robinhood Chain share. Each chain folder hands it
+ * its own names and addresses, so a fix here is a fix on both chains. It
+ * stays shared only while it names no chain, no chain's coin and no address.
+ * An import from either chain's folder names that chain, so the same check
+ * stops it.
+ */
+const EVM_HOME = join("server", "protocols", "evm-chain")
+const CHAIN_NAMES = /bnb|bsc|binance|pancake|robinhood|usdt|usdg|https?:\/\//i
+
+/**
+ * Lighter ships a compiled signer rather than a package, so the fence around
+ * it is a path rather than an import name: only the folder that owns those
+ * two vendored files may load them. Anywhere else is a place a private key
+ * could be handed to a blob nobody here can read.
+ */
+const SIGNER_HOME = join("server", "protocols", "lighter", "signer")
+
+/**
+ * ApeX Omni's addresses, and the only folders that may name them: its server
+ * folder, which reads them from `.env`, and its browser folder, which opens
+ * the public quote socket.
+ */
+const APEX_HOMES = [
+  join("server", "protocols", "apex"),
+  join("lib", "protocols", "apex"),
+]
+const APEX_ADDRESSES = /apex\.exchange/
+const APEX_SIGNER_HOME = join("server", "protocols", "apex", "signer")
+
+/**
+ * Binance's hosts, and the only folders that may name them: its server
+ * folder, which signs and trades, and its browser folder, which opens the
+ * public price socket. A Binance address anywhere else is a second door onto
+ * an exchange that holds real money.
+ */
+const BINANCE_HOMES = [
+  join("server", "protocols", "binance"),
+  join("lib", "protocols", "binance"),
+]
+const BINANCE_ADDRESSES = /(?:fapi|fstream|api)\.binance\.com/
+
+/**
+ * edgeX's hosts, and the only folders that may name them: its server folder,
+ * which reads them from `.env`, signs and trades, and its browser folder,
+ * which opens the public quote socket.
+ */
+const EDGEX_HOMES = [
+  join("server", "protocols", "edgex"),
+  join("lib", "protocols", "edgex"),
+]
+const EDGEX_ADDRESSES = /edgex\.exchange/
+
+/** Where naming a concrete protocol id is legitimate. */
+const PROTOCOL_AWARE = [
+  join("server", "protocols") + sep,
+  join("lib", "protocols") + sep,
+]
+
+function walk(dir: string): string[] {
+  const files: string[] = []
+  for (const entry of readdirSync(dir)) {
+    const full = join(dir, entry)
+    if (statSync(full).isDirectory()) files.push(...walk(full))
+    else if (/\.(ts|tsx)$/.test(entry)) files.push(full)
+  }
+  return files
+}
+
+const sources = walk(SRC).map((file) => ({
+  path: relative(SRC, file),
+  text: readFileSync(file, "utf8"),
+}))
+
+describe("the protocol fence", () => {
+  it("keeps BNB node and service addresses inside its folder", () => {
+    const addresses =
+      /bsc-dataseed|publicnode\.com|tokens\.pancakeswap\.finance/
+    const offenders = sources
+      .filter(
+        ({ path }) => !path.startsWith(join("server", "protocols", "bnb") + sep)
+      )
+      .filter(({ path }) => path !== relative(SRC, __filename))
+      .filter(({ text }) => addresses.test(text))
+      .map(({ path }) => path)
+    expect(offenders).toEqual([])
+  })
+
+  it("keeps the chains' shared service addresses inside the chain folders", () => {
+    // BNB Chain and Robinhood Chain both ask these services, so each
+    // chain's client may name them. Nothing else may.
+    const addresses =
+      /kyberswap\.com|paraswap\.io|dexscreener\.com|geckoterminal\.com|gopluslabs\.io/
+    const offenders = sources
+      .filter(({ path }) => !CHAIN_HOMES.some((home) => path.startsWith(home + sep)))
+      .filter(({ path }) => path !== relative(SRC, __filename))
+      .filter(({ text }) => addresses.test(text))
+      .map(({ path }) => path)
+    expect(offenders).toEqual([])
+  })
+
+  it("finds the source tree", () => {
+    // A walker that quietly matched nothing would pass everything below.
+    expect(sources.length).toBeGreaterThan(100)
+  })
+
+  it("keeps each exchange package inside its own folders", () => {
+    for (const { pkg, homes } of EXCHANGE_PACKAGES) {
+      // Real imports only — `from "pkg"`, `import("pkg")` or `require("pkg")`
+      // — so this file may name the package in its own list without fencing
+      // itself in.
+      const imports = new RegExp(
+        `(?:from\\s*|import\\s*\\(|require\\s*\\()\\s*["'\`]${pkg.replace(/[/@]/g, "\\$&")}`
+      )
+      const leaks = sources
+        .filter(({ text }) => imports.test(text))
+        .filter(
+          ({ path }) => !homes.some((home) => path.startsWith(home + sep))
+        )
+        .map(({ path }) => path)
+      expect(leaks, `${pkg} imported outside ${homes.join(", ")}`).toEqual([])
+    }
+  })
+
+  it("keeps the browser-side protocol folder off the server", () => {
+    // `lib/protocols/` is in the browser bundle; one `@/server` import there
+    // would drag the database toward the client. Real imports only — the
+    // rule gets written about in comments.
+    const serverImport = /(?:from\s*|import\s*\()\s*["'`]@\/server/
+    const offenders = sources
+      .filter(({ path }) => path.startsWith(join("lib", "protocols") + sep))
+      .filter(({ text }) => serverImport.test(text))
+      .map(({ path }) => path)
+    expect(offenders).toEqual([])
+  })
+
+  it("keeps protocol comparisons out of shared code", () => {
+    // `=== "hyperliquid"` in a screen is the first brick of the wall this
+    // layer exists to prevent. Building a key or a label belongs behind the
+    // fence; shared code only carries ids around. Every id the app knows is
+    // in the pattern — a new exchange joins it the day its id exists.
+    const comparison =
+      /[=!]==?\s*["'`](hyperliquid|binance|phemex|kucoin|aster|lighter|apex|edgex|dukascopy|solana|bnb|robinhood)["'`]|["'`](hyperliquid|binance|phemex|kucoin|aster|lighter|apex|edgex|dukascopy|solana|bnb|robinhood)["'`]\s*[=!]==?/
+    const offenders = sources
+      .filter(({ path }) => !PROTOCOL_AWARE.some((dir) => path.startsWith(dir)))
+      .filter(({ text }) => comparison.test(text))
+      .map(({ path }) => path)
+    expect(offenders).toEqual([])
+  })
+
+  it("keeps Lighter's vendored signer inside its own folder", () => {
+    // The `.wasm` and Go's `wasm_exec.js` are loaded by exactly one file.
+    // Anything else naming them is a second door to the signing path, and
+    // the whole point of one door is that a private key only ever goes
+    // through it.
+    // Both files are reached through `join(...)` rather than a bare import
+    // string, so this looks for the names themselves. That means this file
+    // has to leave itself out, the same way the package check above can name
+    // its packages only because it matches `from "…"` and its list does not.
+    const loadsSigner = /wasm_exec\.js|lighter-signer\.wasm/
+    const offenders = sources
+      .filter(({ path }) => !path.startsWith(SIGNER_HOME + sep))
+      .filter(({ path }) => path !== relative(SRC, __filename))
+      .filter(({ text }) => loadsSigner.test(text))
+      .map(({ path }) => path)
+    expect(offenders).toEqual([])
+  })
+
+  it("keeps Solana's node and Jupiter addresses inside its own folder", () => {
+    // This file has to leave itself out, for the same reason the signer
+    // check above does: the pattern names the addresses it forbids.
+    const offenders = sources
+      .filter(({ path }) => !path.startsWith(SOLANA_HOME + sep))
+      .filter(({ path }) => path !== relative(SRC, __filename))
+      .filter(({ text }) => SOLANA_ADDRESSES.test(text))
+      .map(({ path }) => path)
+    expect(offenders).toEqual([])
+  })
+
+  it("keeps ApeX Omni's vendored signer inside its own folder", () => {
+    // The same rule as Lighter's: one door to the signing path, so an omni
+    // key only ever goes through `apex/signer/index.ts`.
+    const loadsSigner = /zklink-sdk-node/
+    const offenders = sources
+      .filter(({ path }) => !path.startsWith(APEX_SIGNER_HOME + sep))
+      .filter(({ path }) => path !== relative(SRC, __filename))
+      .filter(({ text }) => loadsSigner.test(text))
+      .map(({ path }) => path)
+    expect(offenders).toEqual([])
+  })
+
+  it("keeps ApeX Omni's addresses inside its own folders", () => {
+    const offenders = sources
+      .filter(({ path }) => !APEX_HOMES.some((home) => path.startsWith(home + sep)))
+      .filter(({ path }) => path !== relative(SRC, __filename))
+      .filter(({ text }) => APEX_ADDRESSES.test(text))
+      .map(({ path }) => path)
+    expect(offenders).toEqual([])
+  })
+
+  it("keeps edgeX's addresses inside its own folders", () => {
+    const offenders = sources
+      .filter(({ path }) => !EDGEX_HOMES.some((home) => path.startsWith(home + sep)))
+      .filter(({ path }) => path !== relative(SRC, __filename))
+      .filter(({ text }) => EDGEX_ADDRESSES.test(text))
+      .map(({ path }) => path)
+    expect(offenders).toEqual([])
+  })
+
+  it("keeps Binance's addresses inside its own folders", () => {
+    const offenders = sources
+      .filter(({ path }) => !BINANCE_HOMES.some((home) => path.startsWith(home + sep)))
+      .filter(({ path }) => path !== relative(SRC, __filename))
+      .filter(({ text }) => BINANCE_ADDRESSES.test(text))
+      .map(({ path }) => path)
+    expect(offenders).toEqual([])
+  })
+
+  it("keeps Robinhood Chain's node and explorer addresses inside its own folder", () => {
+    const offenders = sources
+      .filter(({ path }) => !path.startsWith(ROBINHOOD_HOME + sep))
+      .filter(({ path }) => path !== relative(SRC, __filename))
+      .filter(({ text }) => ROBINHOOD_ADDRESSES.test(text))
+      .map(({ path }) => path)
+    expect(offenders).toEqual([])
+  })
+
+  it("keeps the shared chain code free of any one chain", () => {
+    const shared = sources.filter(({ path }) => path.startsWith(EVM_HOME + sep))
+    // A walker that matched nothing would pass the check below.
+    expect(shared.length).toBeGreaterThan(0)
+    // Tests may name a made-up host to prove a chain's own address is used.
+    const named = shared
+      .filter(({ path }) => !/\.test\.ts$/.test(path))
+      .filter(({ text }) => CHAIN_NAMES.test(text))
+      .map(({ path }) => path)
+    expect(named, "a chain name or address inside evm-chain/").toEqual([])
+  })
+
+  it("keeps each exchange's folder off the app's own tables", () => {
+    // An exchange folder importing `@/server/trade` is the adapter reaching
+    // back into the app — the leak that once had the Hyperliquid folder
+    // checking the app's real-money switch itself. Policy that reads app
+    // state lives one level up (`real-money.ts`), where every exchange finds
+    // it; the per-exchange folders speak to their exchange and nothing else.
+    const appImport = /(?:from\s*|import\s*\()\s*["'`]@\/server\/trade/
+    const offenders = sources
+      .filter(({ path }) => {
+        const inProtocols = path.startsWith(join("server", "protocols") + sep)
+        if (!inProtocols) return false
+        // Only the per-exchange subfolders — the shared files at the top of
+        // `server/protocols/` are exactly where app-state policy belongs.
+        const rest = relative(join("server", "protocols"), path)
+        return rest.includes(sep)
+      })
+      .filter(({ text }) => appImport.test(text))
+      .map(({ path }) => path)
+    expect(offenders).toEqual([])
+  })
+})

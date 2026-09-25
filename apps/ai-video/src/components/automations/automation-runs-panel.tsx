@@ -3,6 +3,7 @@ import {
   ChevronsDownIcon,
   Loader2Icon,
   MinusIcon,
+  ShieldCheckIcon,
   XIcon,
 } from "lucide-react"
 
@@ -18,6 +19,14 @@ import { cn } from "@/lib/utils"
 import { AutomationPanelToggles } from "./automation-panel-toggles"
 
 const timeFormatter = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+})
+
+const deadlineFormatter = new Intl.DateTimeFormat("en-US", {
+  weekday: "short",
   month: "short",
   day: "numeric",
   hour: "numeric",
@@ -51,6 +60,13 @@ function StatusIcon({
   status: AutomationRunSummary["status"] | AutomationStepItem["status"]
   className?: string
 }) {
+  if (status === "waiting_approval") {
+    return (
+      <ShieldCheckIcon
+        className={cn("text-amber-600 dark:text-amber-400", className)}
+      />
+    )
+  }
   if (status === "running") {
     return (
       <Loader2Icon className={cn("animate-spin text-primary", className)} />
@@ -81,13 +97,83 @@ function StatusIcon({
   )
 }
 
+// What the checkpoint is holding back, read off the parked step's pass-through
+// output so the reader can judge before spending anything downstream.
+function pendingItemsLabel(step: AutomationStepItem): string | null {
+  const counts: string[] = []
+  const add = (values: string[] | undefined, singular: string) => {
+    const count = values?.length ?? 0
+    if (count > 0) counts.push(`${count} ${singular}${count === 1 ? "" : "s"}`)
+  }
+  add(step.output?.videoUrls, "new video")
+  add(step.output?.videoIds, "analyzed video")
+  add(step.output?.templateIds, "template")
+  add(step.output?.projectIds, "project")
+  return counts.length > 0 ? counts.join(" · ") : null
+}
+
+function ApprovalCard({
+  step,
+  deciding,
+  onApprove,
+  onReject,
+}: {
+  step: AutomationStepItem
+  deciding: boolean
+  onApprove: () => void
+  onReject: () => void
+}) {
+  const pending = pendingItemsLabel(step)
+  return (
+    <div className="grid gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2">
+      <p className="flex items-center gap-1.5 font-medium text-amber-700 dark:text-amber-300">
+        <ShieldCheckIcon aria-hidden="true" className="size-3.5 shrink-0" />
+        Waiting for your approval
+      </p>
+      <p className="text-[11px] text-muted-foreground">
+        {pending
+          ? `${pending} ready for the next step.`
+          : "Nothing was passed to this checkpoint."}
+        {step.approval_deadline_at
+          ? ` Rejects automatically on ${deadlineFormatter.format(new Date(step.approval_deadline_at))}.`
+          : ""}
+      </p>
+      <div className="flex items-center gap-2">
+        <Button
+          type="button"
+          size="sm"
+          className="h-8"
+          disabled={deciding}
+          onClick={onApprove}
+        >
+          {deciding ? <Loader2Icon className="size-3.5 animate-spin" /> : null}
+          Approve
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8"
+          disabled={deciding}
+          onClick={onReject}
+        >
+          Reject
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 // Bottom panel: recent runs on the left, the selected run's steps on the
 // right. Statuses refresh from the editor's poll while a run is live.
 export function AutomationRunsPanel({
   runs,
   selectedRun,
   selectedRunId,
+  deciding = false,
   onSelectRun,
+  onApproveRun,
+  onRejectRun,
   onCollapse,
   showPanelToggles = false,
   paletteCollapsed = false,
@@ -98,7 +184,10 @@ export function AutomationRunsPanel({
   runs: AutomationRunSummary[]
   selectedRun: AutomationRunDetail | null
   selectedRunId: string | null
+  deciding?: boolean
   onSelectRun: (runId: string) => void
+  onApproveRun: (runId: string) => void
+  onRejectRun: (runId: string) => void
   onCollapse: () => void
   showPanelToggles?: boolean
   paletteCollapsed?: boolean
@@ -106,6 +195,11 @@ export function AutomationRunsPanel({
   onTogglePalette?: () => void
   onToggleInspector?: () => void
 }) {
+  const waitingStep =
+    selectedRun?.run.status === "waiting_approval"
+      ? (selectedRun.steps.find((step) => step.status === "waiting_approval") ??
+        null)
+      : null
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
       <div className="flex min-h-10 shrink-0 items-center gap-2 border-b p-4">
@@ -171,6 +265,14 @@ export function AutomationRunsPanel({
           <ScrollArea className="min-h-0 flex-1">
             {selectedRun ? (
               <div className="grid gap-2 p-3 text-xs">
+                {waitingStep ? (
+                  <ApprovalCard
+                    step={waitingStep}
+                    deciding={deciding}
+                    onApprove={() => onApproveRun(selectedRun.run.id)}
+                    onReject={() => onRejectRun(selectedRun.run.id)}
+                  />
+                ) : null}
                 {selectedRun.run.error ? (
                   <p
                     role="alert"
@@ -205,12 +307,15 @@ export function AutomationRunsPanel({
                             : "text-muted-foreground"
                         )}
                       >
+                        {/* Skipped wins over the stored summary: cancelling a
+                            run parked at a checkpoint leaves that step's
+                            "waiting for your approval" summary behind. */}
                         {step.status === "failed"
                           ? (step.error ?? "Step failed")
-                          : typeof step.output?.summary === "string"
-                            ? step.output.summary
-                            : step.status === "skipped"
-                              ? "Skipped."
+                          : step.status === "skipped"
+                            ? "Skipped."
+                            : typeof step.output?.summary === "string"
+                              ? step.output.summary
                               : step.status === "running"
                                 ? "Running…"
                                 : "Waiting for earlier steps."}

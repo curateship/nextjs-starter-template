@@ -19,15 +19,7 @@ export const getNewsletterStatusEvents = createServerFn({ method: "POST" })
   .handler(async ({ data }) => getNewsletterStatusEventsImpl(data.newsletterId, data.options))
 
 export const createNewsletter = createServerFn({ method: "POST" })
-  .inputValidator((data: { input: {
-  siteId: string
-  subject: string
-  audience_filter?: Record<string, any>
-  content_blocks?: Record<string, any>
-  content?: string
-  metadata?: Record<string, any>
-  status?: 'draft' | 'scheduled'
-} }) => data)
+  .inputValidator((data: { input: Parameters<typeof createNewsletterImpl>[0] }) => data)
   .handler(async ({ data }) => createNewsletterImpl(data.input))
 
 export const updateNewsletter = createServerFn({ method: "POST" })

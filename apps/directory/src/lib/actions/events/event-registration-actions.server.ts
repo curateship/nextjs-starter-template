@@ -12,6 +12,7 @@ import { isValidEventSlug } from '@/lib/utils/event-slug'
 import { getClientIp, isPersistentRateLimited } from '@/lib/utils/rate-limit'
 import { getSiteUrl } from '@/lib/utils/site-url-generator'
 import { UUID_REGEX } from '@/lib/utils/validation'
+import { generateCheckInCode } from './event-check-in-core'
 import {
   REGISTRATION_HOLD_MINUTES,
   holdIsActive,
@@ -72,6 +73,8 @@ export interface EventRegistrationListItem {
   amount_total: number | null
   currency: string | null
   reminder_sent_at: string | null
+  follow_up_sent_at: string | null
+  checked_in_at: string | null
   created_at: string
 }
 
@@ -85,6 +88,7 @@ export interface EventRegistrationEventSummary {
   capacity: number | null
   confirmed_count: number
   pending_count: number
+  checked_in_count: number
 }
 
 const CLOSED_MESSAGE = 'Registration for this event has closed.'
@@ -154,6 +158,7 @@ async function findLiveRegistration(executor: DbExecutor, eventId: string, email
       status: eventRegistrations.status,
       createdAt: eventRegistrations.createdAt,
       stripeSessionId: eventRegistrations.stripeSessionId,
+      checkInCode: eventRegistrations.checkInCode,
     })
     .from(eventRegistrations)
     .where(and(
@@ -301,9 +306,10 @@ export async function submitEventRegistrationActionImpl(input: {
           .update(eventRegistrations)
           .set({ status: 'confirmed', name, updatedAt: now })
           .where(eq(eventRegistrations.id, existing.id))
-        return { kind: 'registered' as const, registrationId: existing.id }
+        return { kind: 'registered' as const, registrationId: existing.id, checkInCode: existing.checkInCode }
       }
 
+      const checkInCode = generateCheckInCode()
       const [inserted] = await tx
         .insert(eventRegistrations)
         .values({
@@ -312,11 +318,12 @@ export async function submitEventRegistrationActionImpl(input: {
           status: 'confirmed',
           name,
           email,
+          checkInCode,
         })
         .returning({ id: eventRegistrations.id })
 
       if (!inserted) throw new Error('Registration insert returned no row')
-      return { kind: 'registered' as const, registrationId: inserted.id }
+      return { kind: 'registered' as const, registrationId: inserted.id, checkInCode }
     })
 
     if (outcome.kind === 'full') return { success: false, error: FULL_MESSAGE }
@@ -330,6 +337,7 @@ export async function submitEventRegistrationActionImpl(input: {
       event: eventEmailContext(event),
       attendeeName: name,
       attendeeEmail: email,
+      checkInCode: outcome.checkInCode,
     })
 
     try {
@@ -360,6 +368,7 @@ async function deliverConfirmation(params: {
   event: { slug: string; title: string; eventDate?: string; eventTime?: string; venueName?: string; venueAddress?: string }
   attendeeName: string
   attendeeEmail: string
+  checkInCode: string
 }) {
   try {
     const result = await sendEventRegistrationEmail({
@@ -368,6 +377,7 @@ async function deliverConfirmation(params: {
       event: params.event,
       attendeeName: params.attendeeName,
       attendeeEmail: params.attendeeEmail,
+      checkInCode: params.checkInCode,
     })
     if (!result.sent) return
     const now = new Date()
@@ -515,6 +525,7 @@ export async function createEventTicketCheckoutActionImpl(input: {
           status: 'pending',
           name,
           email,
+          checkInCode: generateCheckInCode(),
         })
         .returning({ id: eventRegistrations.id })
 
@@ -674,6 +685,8 @@ export async function getEventRegistrationListActionImpl(input: {
           amountTotal: eventRegistrations.amountTotal,
           currency: eventRegistrations.currency,
           reminderSentAt: eventRegistrations.reminderSentAt,
+          followUpSentAt: eventRegistrations.followUpSentAt,
+          checkedInAt: eventRegistrations.checkedInAt,
           createdAt: eventRegistrations.createdAt,
           eventTitle: events.title,
           eventSlug: events.slug,
@@ -693,6 +706,7 @@ export async function getEventRegistrationListActionImpl(input: {
           contentBlocks: events.contentBlocks,
           confirmedCount: sql<number>`count(${eventRegistrations.id}) filter (where ${eventRegistrations.status} = 'confirmed')::int`,
           pendingCount: sql<number>`count(${eventRegistrations.id}) filter (where ${eventRegistrations.status} = 'pending')::int`,
+          checkedInCount: sql<number>`count(${eventRegistrations.id}) filter (where ${eventRegistrations.status} = 'confirmed' and ${eventRegistrations.checkedInAt} is not null)::int`,
         })
         .from(events)
         .leftJoin(eventRegistrations, eq(eventRegistrations.eventId, events.id))
@@ -715,6 +729,7 @@ export async function getEventRegistrationListActionImpl(input: {
           capacity: settings.capacity,
           confirmed_count: row.confirmedCount ?? 0,
           pending_count: row.pendingCount ?? 0,
+          checked_in_count: row.checkedInCount ?? 0,
         }
       })
       .filter((summary) => summary.mode !== 'none' || summary.confirmed_count > 0 || summary.pending_count > 0)
@@ -732,6 +747,8 @@ export async function getEventRegistrationListActionImpl(input: {
         amount_total: row.amountTotal ?? null,
         currency: row.currency ?? null,
         reminder_sent_at: isoOrNull(row.reminderSentAt),
+        follow_up_sent_at: isoOrNull(row.followUpSentAt),
+        checked_in_at: isoOrNull(row.checkedInAt),
         created_at: row.createdAt?.toISOString() ?? '',
       })),
       events: summaries,

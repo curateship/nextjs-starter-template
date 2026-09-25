@@ -5,7 +5,7 @@ import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { Button } from "@/components/ui/button"
-import { UserBlock } from "@/components/ui/user-block"
+import { UserBlock } from "@/components/frontend/blocks/user-block"
 import Link from "@/components/app-link"
 
 export default function NewUserPage() {

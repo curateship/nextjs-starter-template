@@ -1,0 +1,355 @@
+/**
+ * A site's home page rows, in the parts the browser and the server both need.
+ *
+ * A row is a heading, an optional line under it, and then listings — a
+ * category, an order, how many, how they draw — or a card per category, or the
+ * soonest upcoming events, or the newest live deals.
+ * Everything that decides what is allowed lives here, so the admin form, the
+ * endpoint and the server all refuse the same things rather than three slightly
+ * different lists.
+ */
+
+import type {
+  DirectoryCategoryCard,
+  DirectoryCategorySource,
+} from "@/lib/directory/category-cards"
+import type { DirectorySort } from "@/lib/directory/public-search"
+import type { EventWhen } from "@/lib/events/event-time"
+import type { DealCardView } from "@/lib/promotions/deal-content"
+
+/**
+ * What the address `/` is, which depends entirely on the host that asked.
+ *
+ * Two answers, and the difference is the whole point. **A site's own address**
+ * gets that site's home page, or null when it has none and the shell's front
+ * page should draw instead. **The deployment's own address** is not a site at
+ * all, and the root there belongs to whoever runs the platform.
+ *
+ * A host that resolves to no workspace counts as `"site"` deliberately, so an
+ * address nobody has taken keeps behaving exactly as it did rather than
+ * becoming a sign-in page.
+ *
+ * `signedIn` rides along because the platform's root forwards on it, and asking
+ * again from the browser would be a second round trip to answer one question.
+ *
+ * It lives in this module rather than beside the endpoint that fills it because
+ * `src/app/options.ts` names it, and that file may not reach `@/lib/api/*` even
+ * for a type.
+ */
+export type DirectoryFrontPageAnswer =
+  | { host: "site"; page: DirectoryFrontPageData | null }
+  | { host: "platform"; signedIn: boolean }
+
+/**
+ * The kinds of row a home page is built from. The first one is the default,
+ * and it is what every row that existed before the others were added.
+ */
+export const DIRECTORY_FRONT_PAGE_KINDS = [
+  "listings",
+  "categories",
+  "events",
+  "deals",
+  "posts",
+] as const
+
+export type DirectoryFrontPageKind = (typeof DIRECTORY_FRONT_PAGE_KINDS)[number]
+
+export const DIRECTORY_FRONT_PAGE_KIND_LABELS: Record<
+  DirectoryFrontPageKind,
+  string
+> = {
+  listings: "Listings",
+  categories: "Category cards",
+  events: "Upcoming events",
+  deals: "Current deals",
+  posts: "Latest posts",
+}
+
+export const DIRECTORY_FRONT_PAGE_KIND_HINTS: Record<
+  DirectoryFrontPageKind,
+  string
+> = {
+  listings: "Cards for individual listings, chosen and ordered below.",
+  categories:
+    "A card per category, with its photo and how many listings are under it.",
+  events:
+    "The soonest events that are not over yet, as cards with their date, times and place. Left off the page while nothing is coming up.",
+  deals:
+    "The newest deals that are not over yet, as cards with their headlines. Left off the page while there are none.",
+  posts:
+    "The newest published posts, as cards with their cover photo and how long each takes to read. Left off the page while there are none.",
+}
+
+export function isDirectoryFrontPageKind(
+  value: unknown
+): value is DirectoryFrontPageKind {
+  return (DIRECTORY_FRONT_PAGE_KINDS as readonly unknown[]).includes(value)
+}
+
+/** How a row picks and orders its listings. The first one is the default. */
+export const DIRECTORY_FRONT_PAGE_SORTS = [
+  "newest",
+  "featured",
+  "rating",
+  "name",
+] as const
+
+export type DirectoryFrontPageSort = (typeof DIRECTORY_FRONT_PAGE_SORTS)[number]
+
+export const DIRECTORY_FRONT_PAGE_SORT_LABELS: Record<
+  DirectoryFrontPageSort,
+  string
+> = {
+  newest: "Newest first",
+  featured: "Featured only",
+  rating: "Top rated first",
+  name: "A to Z",
+}
+
+/**
+ * `featured` is a filter as well as an order, which is what the old
+ * whole-page "featured" setting did: a row of featured listings that quietly
+ * padded itself out with ordinary ones would be an advert nobody paid for.
+ */
+export const DIRECTORY_FRONT_PAGE_SORT_HINTS: Record<
+  DirectoryFrontPageSort,
+  string
+> = {
+  newest: "The most recently added listings.",
+  featured: "Only listings with paid placement running right now.",
+  rating: "Highest rated first. Unrated listings come last.",
+  name: "Alphabetical by title.",
+}
+
+/** How a row draws its listings. The first one is the default. */
+export const DIRECTORY_FRONT_PAGE_LAYOUTS = ["grid", "list", "map"] as const
+
+export type DirectoryFrontPageLayout =
+  (typeof DIRECTORY_FRONT_PAGE_LAYOUTS)[number]
+
+export const DIRECTORY_FRONT_PAGE_LAYOUT_LABELS: Record<
+  DirectoryFrontPageLayout,
+  string
+> = {
+  grid: "Grid of cards",
+  list: "One under the other",
+  map: "Map with pins",
+}
+
+/**
+ * Six rows of twelve is 72 listings, which is a home page. Seven rows of
+ * twelve is somebody discovering by accident that the front page can fetch
+ * four hundred records.
+ */
+export const MAX_DIRECTORY_FRONT_PAGE_SECTIONS = 6
+
+export const DIRECTORY_FRONT_PAGE_COUNT_MIN = 1
+export const DIRECTORY_FRONT_PAGE_COUNT_MAX = 12
+export const DIRECTORY_FRONT_PAGE_COUNT_DEFAULT = 8
+
+export const DIRECTORY_FRONT_PAGE_HEADING_MAX = 120
+export const DIRECTORY_FRONT_PAGE_INTRO_MAX = 500
+
+/** The sentence said when a seventh row is asked for, in one place. */
+export const DIRECTORY_FRONT_PAGE_FULL_MESSAGE = `A home page can have ${MAX_DIRECTORY_FRONT_PAGE_SECTIONS} rows. Delete one before adding another.`
+
+/** "cards" rather than "listings": a row of categories is counted the same way. */
+export const DIRECTORY_FRONT_PAGE_COUNT_MESSAGE = `A row shows between ${DIRECTORY_FRONT_PAGE_COUNT_MIN} and ${DIRECTORY_FRONT_PAGE_COUNT_MAX} cards.`
+
+export const DIRECTORY_FRONT_PAGE_HEADING_MESSAGE = "Give the row a heading."
+
+export function isDirectoryFrontPageSort(
+  value: unknown
+): value is DirectoryFrontPageSort {
+  return (DIRECTORY_FRONT_PAGE_SORTS as readonly unknown[]).includes(value)
+}
+
+export function isDirectoryFrontPageLayout(
+  value: unknown
+): value is DirectoryFrontPageLayout {
+  return (DIRECTORY_FRONT_PAGE_LAYOUTS as readonly unknown[]).includes(value)
+}
+
+/** One row as the admin screen edits it. */
+export type DirectoryFrontPageSection = {
+  id: string
+  displayOrder: number
+  heading: string
+  intro: string
+  kind: DirectoryFrontPageKind
+  /** Category rows only: where their categories come from. */
+  categorySource: DirectoryCategorySource
+  /** Category rows only: the chosen categories, in the admin's order. */
+  pickedCategoryIds: string[]
+  /** Null is every category. */
+  categoryId: string | null
+  /** The chosen category's public address, or null. Read for the row's link. */
+  categorySlug: string | null
+  /** The chosen category's name, so the admin list can say it. */
+  categoryName: string | null
+  sort: DirectoryFrontPageSort
+  listingCount: number
+  layout: DirectoryFrontPageLayout
+}
+
+/**
+ * The order the browse page should open in when somebody follows a row's "see
+ * them all" link.
+ *
+ * Two of the four have no browse equivalent — the browse page orders by the
+ * site's own choice, by newest or by title, and has no "top rated" and no
+ * "featured only". Those two send no order at all rather than a wrong one, so
+ * the browse page opens in the order the site chose, showing the same
+ * category. Naming that here keeps the guess out of the component.
+ */
+export function browseSortForFrontPageSort(
+  sort: DirectoryFrontPageSort
+): DirectorySort | undefined {
+  if (sort === "newest") return "newest"
+  if (sort === "name") return "title"
+  return undefined
+}
+
+/**
+ * One row as the public page draws it.
+ *
+ * Two shapes in one, told apart by `kind`, because a page that draws rows in
+ * order should not have to hold two lists and interleave them by hand.
+ */
+export type DirectoryFrontPageRow =
+  | {
+      kind: "listings"
+      id: string
+      heading: string
+      intro: string
+      layout: DirectoryFrontPageLayout
+      /** What the row's "see them all" link should carry. */
+      browse: { category?: string; sort?: DirectorySort }
+      listings: DirectoryFrontPageListing[]
+    }
+  | {
+      kind: "categories"
+      id: string
+      heading: string
+      intro: string
+      cards: DirectoryCategoryCard[]
+    }
+  | {
+      kind: "events"
+      id: string
+      heading: string
+      intro: string
+      /** How many to show, the row's own count. */
+      count: number
+      /** Only events filed under this category, or null for every event. */
+      categoryId: string | null
+      /** That category's address, for "See all events" to carry. */
+      categorySlug: string | null
+      /** Filled after the page's cache, by the site's clock, soonest first. */
+      events: DirectoryFrontPageEvent[]
+      /** "Eastern Time", the zone the times are in. Filled with the events. */
+      zone: string
+    }
+  | {
+      kind: "deals"
+      id: string
+      heading: string
+      intro: string
+      /** How many to show, the row's own count. */
+      count: number
+      /** Only deals at listings filed under this category, or null for all. */
+      categoryId: string | null
+      /** That category's address, for "See all deals" to carry. */
+      categorySlug: string | null
+      /** Filled after the page's cache, by the site's clock, newest first. */
+      deals: DealCardView[]
+    }
+  | {
+      kind: "posts"
+      id: string
+      heading: string
+      intro: string
+      /** How many to show, the row's own count. */
+      count: number
+      /** Only posts filed under this category, or null for every post. */
+      categoryId: string | null
+      /** That category's address, for "See all posts" to carry. */
+      categorySlug: string | null
+      /** Filled after the page's cache, newest first. */
+      posts: DirectoryFrontPagePost[]
+      /** The site's own name, printed under each card where a byline would be. */
+      siteName: string
+    }
+
+/**
+ * One post in a home page row, in the shape the Posts page's cards draw.
+ * Spelled out here for the same reason as the event and the listing below:
+ * the server's own type may not be imported by a browser-side file.
+ */
+export type DirectoryFrontPagePost = {
+  id: string
+  title: string
+  slug: string
+  summary: string
+  coverImage: string
+  publishedAt: Date
+  readMinutes: number
+  category: { name: string; slug: string } | null
+}
+
+/**
+ * One event in a home page row, in the shape the Events page's list draws.
+ * Spelled out here for the same reason as the listing below: the server's
+ * own type may not be imported by a browser-side file.
+ */
+export type DirectoryFrontPageEvent = EventWhen & {
+  id: string
+  title: string
+  slug: string
+  summary: string
+  coverImage: string
+  placeName: string
+  takesSignUps: boolean
+  going: number
+  category: { name: string; slug: string } | null
+}
+
+/**
+ * One card, in the shape the public grid and map already draw.
+ *
+ * Spelled out here rather than reusing `PublicListingCard`, and it has to be:
+ * that type lives in `@/server/*`, which a browser-side file may not import.
+ * The grid and the map still typecheck against it at every call site, so the
+ * two cannot quietly drift apart without the compiler saying so.
+ */
+export type DirectoryFrontPageListing = {
+  id: string
+  title: string
+  slug: string
+  metaDescription: string
+  rating: number | null
+  featuredImage: string
+  address: string
+  category: { name: string; slug: string } | null
+  neighbourhood: { name: string; slug: string } | null
+  claimed: boolean
+  featured: boolean
+  /** Present only on a row that draws a map, where a pin needs both. */
+  latitude?: number
+  longitude?: number
+}
+
+/** The complete browser-safe answer for a site's listings home page. */
+export type DirectoryFrontPageData = {
+  siteName: string
+  /** The page's own title, from the site's browse title. */
+  heading: string
+  intro: string
+  rows: DirectoryFrontPageRow[]
+  /**
+   * The site's browser map key, and only when a row actually draws a map. A
+   * page with no map row never carries it, so the key is not published on a
+   * home page that has no use for it.
+   */
+  mapApiKey: string | null
+}

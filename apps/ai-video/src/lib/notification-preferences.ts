@@ -26,6 +26,13 @@ export const NOTIFICATION_PREFERENCE_TYPES: readonly NotificationPreferenceMeta[
         "A creator you watch published new videos and they were added to your archive.",
     },
     {
+      type: "automation_approval",
+      label: "Automation approvals",
+      description:
+        "An automation paused at an approval checkpoint and is waiting for your decision.",
+      note: "Turning this off does not skip the checkpoint — the run still waits in the Automations runs panel.",
+    },
+    {
       type: "feedback_comment",
       label: "Comments on your feedback",
       description: "Someone replied to feedback you submitted.",

@@ -86,7 +86,7 @@ interface SlashCommandDefinition {
 const SLASH_MENU_WIDTH = 320
 const SLASH_MENU_MODAL_INSET = 12
 const PROSE_EDITOR_CLASS =
-  "prose dark:prose-invert max-w-none w-full text-left [&_h2]:scroll-mt-24 [&_.ProseMirror]:text-black dark:[&_.ProseMirror]:text-white"
+  "prose dark:prose-invert max-w-none w-full text-left [&_h2]:scroll-mt-24 [&_.ProseMirror]:text-foreground dark:[&_.ProseMirror]:text-white"
 const PROSE_EDITOR_TEXT_CLASS: Record<ProseEditorVariant, string> = {
   post: "[&_.ProseMirror]:text-lg",
   directory: "[&_.ProseMirror]:text-base",
@@ -901,8 +901,8 @@ export function InlineRichTextEditor({
                     <Icon className="h-4 w-4" />
                   </span>
                   <span className="flex min-w-0 flex-1 flex-col">
-                    <span className="truncate font-medium">{command.label}</span>
-                    <span className="truncate text-xs text-muted-foreground">{command.description}</span>
+                    <span className="truncate font-medium" title={command.label}>{command.label}</span>
+                    <span className="truncate text-xs text-muted-foreground" title={command.description}>{command.description}</span>
                   </span>
                 </button>
               )

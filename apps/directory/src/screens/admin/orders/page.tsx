@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo, useCallback } from "react"
 import { useSearchParams } from "@/lib/navigation-client"
+import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
 import ShoppingCart from "lucide-react/dist/esm/icons/shopping-cart.js"
 
@@ -9,18 +10,21 @@ import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   AdminBulkDeleteButton,
-  ConfirmDestructive,
   AdminListFooter,
+  AdminListPending,
+  AdminRowAction,
+  AdminRowActions,
   AdminSelectionBanner,
+  AdminSortableHead,
   AdminSortButton,
-  AdminTableShell, AdminListPending,
-  formatShortDate as formatDate,
+  AdminTableShell,
+  ConfirmDestructive,
+  RelativeDate,
   useAdminBulkSelection,
-  useAdminSort
+  useAdminSort,
 } from "@/components/admin/layout/list"
 import {
   TableRightActions,
@@ -29,8 +33,9 @@ import {
 } from "@/components/admin/layout/content/table-right-actions"
 import { Select, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
-import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
+import { useResetPageOnListChange } from "@/lib/use-reset-page"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import {
   getOrdersWithProducts,
@@ -72,6 +77,7 @@ export default function OrdersPage() {
   const searchParams = useSearchParams()
 
   const [orders, setOrders] = useState<ProductOrder[]>([])
+  const [recoverySentTotal, setRecoverySentTotal] = useState(0)
   const [productMap, setProductMap] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [deleting, setDeleting] = useState(false)
@@ -94,11 +100,20 @@ export default function OrdersPage() {
   const [total, setTotal] = useState(0)
   const [currentPage, setCurrentPage] = useState(1)
   const pageSize = contextPageSize
+  // Everything that changes what the table shows, minus the page itself.
+  const listQueryKey = `${currentSite?.id}|${activeTab}|${selectedProduct}|${searchQuery}|${orderSort.sortColumn}|${orderSort.sortDirection}`
+  // Searching, filtering or re-sorting from a later page would otherwise
+  // land you past the end of the shorter result.
+  useResetPageOnListChange(setCurrentPage, listQueryKey)
+  // Ticks never survive a change to what the table is showing — the page
+  // and rows-per-page included, so a bulk action only ever means rows on
+  // screen.
+  useClearSelectionOnListChange(orderSelection, `${listQueryKey}|${currentPage}|${pageSize}`)
+
 
   useEffect(() => {
     const nextTab = typeParam === "lead_magnet" || typeParam === "paid_purchase" ? typeParam : "all"
     setActiveTab(nextTab)
-    setCurrentPage(1)
   }, [typeParam])
 
   useEffect(() => {
@@ -114,6 +129,7 @@ export default function OrdersPage() {
 
         setOrders(result.data)
         setTotal(result.total)
+        setRecoverySentTotal(result.recoverySentTotal)
         setProductMap(result.productMap)
       } catch (error) {
         console.error("Error fetching orders data:", error)
@@ -133,12 +149,14 @@ export default function OrdersPage() {
 
   const confirmDelete = useCallback(async () => {
     setDeleting(true)
+    const deletedCount = deleteIds.length
     try {
       await deleteOrders({ data: { orderIds: deleteIds } })
       setOrders((prev) => prev.filter((o) => !deleteIds.includes(o.id)))
       clearOrderSelection()
       setShowDeleteDialog(false)
       setDeleteIds([])
+      showActionSuccess(deletedCount === 1 ? "Order deleted." : "Orders deleted.")
     } catch (error) {
       console.error("Error deleting orders:", error)
       setDeleteError("Failed to delete orders")
@@ -227,6 +245,13 @@ export default function OrdersPage() {
         </Badge>
       )
     }
+    if (order.recovery_email_sent_at) {
+      return (
+        <Badge variant="outline" className={emailStatusStyles.pending}>
+          Recovery sent
+        </Badge>
+      )
+    }
     return (
       <Badge variant="outline" className={emailStatusStyles.pending}>
         Pending
@@ -245,11 +270,18 @@ export default function OrdersPage() {
 
           <AdminTableShell
             title="Orders"
-            icon={<ShoppingCart className="size-4 text-muted-foreground sm:size-[18px]" />}
+            icon={<ShoppingCart className="text-muted-foreground" />}
             count={filteredOrders.length}
             loading={loading}
             selectedCount={orderSelection.selectedCount}
             onClearSelection={orderSelection.clearSelection}
+            titleMeta={
+              recoverySentTotal > 0 ? (
+                <span className="text-xs text-muted-foreground">
+                  {recoverySentTotal} recovery {recoverySentTotal === 1 ? "email" : "emails"} sent
+                </span>
+              ) : null
+            }
             titleActions={
               <AdminBulkDeleteButton
                 deleting={deleting}
@@ -266,11 +298,7 @@ export default function OrdersPage() {
                 />
                 <Select
                   value={activeTab}
-                  onValueChange={(v) => {
-                    setActiveTab(v as "all" | OrderType)
-                    setCurrentPage(1)
-                    clearOrderSelection()
-                  }}
+                  onValueChange={(v) => setActiveTab(v as "all" | OrderType)}
                 >
                   <TableRightActionsSelectTrigger aria-label="Order type filter">
                     <SelectValue />
@@ -281,16 +309,10 @@ export default function OrdersPage() {
                     <SelectItem value="paid_purchase">Paid ({tabCounts.paid_purchase})</SelectItem>
                   </SelectContent>
                 </Select>
-                {loading ? (
-                  <Skeleton className="h-8 w-[160px] rounded-md" />
-                ) : Object.keys(productMap).length > 0 ? (
+                {loading ? null : Object.keys(productMap).length > 0 ? (
                   <Select
                     value={selectedProduct}
-                    onValueChange={(v) => {
-                      setSelectedProduct(v)
-                      setCurrentPage(1)
-                      clearOrderSelection()
-                    }}
+                    onValueChange={setSelectedProduct}
                   >
                     <TableRightActionsSelectTrigger aria-label="Product filter" className="max-w-[180px]">
                       <SelectValue placeholder="All Products" />
@@ -332,44 +354,12 @@ export default function OrdersPage() {
                         aria-label="Select all orders"
                       />
                     </TableHead>
-                    <TableHead column="main">
-                      <AdminSortButton
-                        active={orderSort.sortColumn === "customer_email"}
-                        direction={orderSort.sortDirection}
-                        onClick={() => orderSort.toggleSort("customer_email")}
-                      >
-                        Customer
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={orderSort.sortColumn === "created_at"}
-                        direction={orderSort.sortDirection}
-                        onClick={() => orderSort.toggleSort("created_at")}
-                      >
-                        Date
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="content">
-                      <AdminSortButton
-                        active={orderSort.sortColumn === "product"}
-                        direction={orderSort.sortDirection}
-                        onClick={() => orderSort.toggleSort("product")}
-                      >
-                        Product
-                      </AdminSortButton>
-                    </TableHead>
+                    <AdminSortableHead column="main" sort={orderSort} sortKey="customer_email">Customer</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={orderSort} sortKey="created_at">Date</AdminSortableHead>
+                    <AdminSortableHead column="content" sort={orderSort} sortKey="product">Product</AdminSortableHead>
                     <TableHead column="meta">Type</TableHead>
                     <TableHead column="meta">Email Status</TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={orderSort.sortColumn === "amount"}
-                        direction={orderSort.sortDirection}
-                        onClick={() => orderSort.toggleSort("amount")}
-                      >
-                        Amount
-                      </AdminSortButton>
-                    </TableHead>
+                    <AdminSortableHead column="meta" sort={orderSort} sortKey="amount">Amount</AdminSortableHead>
                     <TableHead column="meta">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -381,9 +371,9 @@ export default function OrdersPage() {
                       <TableCell colSpan={8} className="h-32 text-center">
                         <ShoppingCart className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
                         <p className="text-muted-foreground">
-                          {orders.length === 0
-                            ? "No orders found"
-                            : `No ${activeTab === "lead_magnet" ? "lead magnet" : activeTab === "paid_purchase" ? "paid" : ""} orders found`}
+                          {searchQuery.trim() || activeTab !== "all" || selectedProduct !== "all"
+                            ? "No orders found matching your search."
+                            : "No orders found"}
                         </p>
                       </TableCell>
                     </TableRow>
@@ -402,9 +392,9 @@ export default function OrdersPage() {
                           />
                         </TableCell>
                         <TableCell column="main">
-                          <h4 className="truncate text-sm font-medium sm:text-base">{order.customer_email}</h4>
+                          <h4 className="truncate text-sm font-medium sm:text-base" title={order.customer_email}>{order.customer_email}</h4>
                         </TableCell>
-                        <TableCell column="mutedMeta">{formatDate(order.created_at)}</TableCell>
+                        <TableCell column="mutedMeta"><RelativeDate date={order.created_at} /></TableCell>
                         <TableCell column="content">
                           <span className="text-sm font-medium">{productMap[order.product_id] || "Unknown Product"}</span>
                         </TableCell>
@@ -422,16 +412,13 @@ export default function OrdersPage() {
                           )}
                         </TableCell>
                         <TableCell column="meta">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0 text-foreground hover:text-foreground"
-                            onClick={() => promptDelete([order.id])}
-                            title="Delete"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                            <span className="sr-only">Delete</span>
-                          </Button>
+                          <AdminRowActions>
+                            <AdminRowAction
+                              icon={Trash2}
+                              label="Delete order"
+                              onClick={() => promptDelete([order.id])}
+                            />
+                          </AdminRowActions>
                         </TableCell>
                       </TableRow>
                     ))

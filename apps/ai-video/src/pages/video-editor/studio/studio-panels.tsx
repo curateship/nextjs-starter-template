@@ -26,6 +26,10 @@ import {
   type MediaItem,
 } from "@/lib/api/media"
 import {
+  listMediaCollections,
+  type MediaCollection,
+} from "@/lib/api/media-collections"
+import {
   MUSIC_CATEGORIES,
   MUSIC_LENGTHS,
   MUSIC_TRACKS,
@@ -628,6 +632,10 @@ async function buildMediaClip(item: MediaItem): Promise<EditorClip> {
 function MediaPanel() {
   const { kind, documentId, dispatch, clock } = useEditorRuntime()
   const [filter, setFilter] = React.useState<"all" | MediaFileType>("all")
+  // "all" = no collection filter, "uncollected" = media in no collection,
+  // anything else is a collection id. Mirrors the library page's filter.
+  const [collectionFilter, setCollectionFilter] = React.useState("all")
+  const [collections, setCollections] = React.useState<MediaCollection[]>([])
   const [search, setSearch] = React.useState("")
   const [debounced, setDebounced] = React.useState("")
   const [searchOpen, setSearchOpen] = React.useState(false)
@@ -643,12 +651,38 @@ function MediaPanel() {
     return () => clearTimeout(id)
   }, [search])
 
+  // Collections are managed in the media library, not here, so this loads once
+  // per panel mount. Uploading does not change them.
+  React.useEffect(() => {
+    let active = true
+    listMediaCollections()
+      .then((loaded) => {
+        if (active) setCollections(loaded)
+      })
+      // A collections failure must not take the media grid down with it; the
+      // panel simply shows no collection chips.
+      .catch(() => undefined)
+    return () => {
+      active = false
+    }
+  }, [])
+
   React.useEffect(() => {
     let active = true
     listMedia({
       pageSize: 30,
+      collectionId:
+        collectionFilter === "all"
+          ? undefined
+          : collectionFilter === "uncollected"
+            ? null
+            : collectionFilter,
       fileTypes: filter === "all" ? undefined : [filter],
-      projectId,
+      // Only the default scope stays inside this project. Collections are
+      // organised across the whole library, so narrowing them to the open
+      // project would hide every file that is not already part of it — which
+      // is most of them.
+      projectId: collectionFilter === "all" ? projectId : undefined,
       search: debounced || undefined,
     })
       .then((data) => {
@@ -663,7 +697,7 @@ function MediaPanel() {
     return () => {
       active = false
     }
-  }, [filter, debounced, projectId, refresh])
+  }, [collectionFilter, filter, debounced, projectId, refresh])
 
   async function addItem(item: MediaItem) {
     try {
@@ -866,6 +900,59 @@ function MediaPanel() {
             )
           })}
         </div>
+
+        {/* Collections wrap rather than divide a fixed row: there can be any
+            number of them, with names of any length. Same chip styling as the
+            inspector's font picker. */}
+        {collections.length ? (
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 5,
+              marginBottom: 15,
+            }}
+          >
+            {[
+              // The default chip says which scope it is: inside a project it
+              // shows that project's media, everything else spans the library.
+              { id: "all", label: projectId ? "This project" : "All" },
+              { id: "uncollected", label: "Uncollected" },
+              ...collections.map((collection) => ({
+                id: collection.id,
+                label: collection.name,
+              })),
+            ].map((option) => {
+              const on = collectionFilter === option.id
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => setCollectionFilter(option.id)}
+                  title={option.label}
+                  style={{
+                    maxWidth: "100%",
+                    padding: "5px 9px",
+                    borderRadius: 8,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    border: on
+                      ? "1px solid var(--acc)"
+                      : "1px solid var(--line)",
+                    background: on ? "var(--acc-soft)" : "var(--panel)",
+                    color: on ? "var(--acc)" : "var(--ink2)",
+                  }}
+                >
+                  {option.label}
+                </button>
+              )
+            })}
+          </div>
+        ) : null}
 
         {items.length === 0 ? (
           <div

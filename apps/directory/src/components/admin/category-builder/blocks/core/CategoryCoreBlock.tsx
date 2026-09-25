@@ -82,7 +82,7 @@ export function CategoryCoreBlock({
                 <button
                   type="button"
                   onClick={() => onCategoryFeaturedImageChange?.("")}
-                  className="absolute right-2 top-2 rounded-full bg-red-500 p-1 text-white transition-colors hover:bg-red-600"
+                  className="absolute right-2 top-2 rounded-full bg-destructive p-1 text-destructive-foreground transition-colors hover:bg-destructive/90"
                 >
                   <X className="h-4 w-4" />
                 </button>

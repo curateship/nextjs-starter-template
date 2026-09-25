@@ -1,34 +1,28 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
-import ArrowDown from "lucide-react/dist/esm/icons/arrow-down.js"
-import ArrowUp from "lucide-react/dist/esm/icons/arrow-up.js"
+import { useState, type ComponentType, type ReactNode } from "react";
+import AppLink from "@/components/app-link";
 import ChevronLeft from "lucide-react/dist/esm/icons/chevron-left.js"
 import ChevronRight from "lucide-react/dist/esm/icons/chevron-right.js"
 import ChevronsLeft from "lucide-react/dist/esm/icons/chevrons-left.js"
 import ChevronsRight from "lucide-react/dist/esm/icons/chevrons-right.js"
-import ChevronsUpDown from "lucide-react/dist/esm/icons/chevrons-up-down.js"
 import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
 
 import { Button } from "@/components/ui/button";
-import { CardSection } from "@/components/ui/card";
+import { CardSection } from "@/components/shared/card-sections";
+import { formatExactDateTime, formatRelativeDate } from "./dates";
 import { Badge } from "@/components/ui/badge";
+import { ErrorBanner } from "@/components/ui/error-banner";
+import { AdminLoading } from "@/components/admin/layout/loading";
 import {
   TableCell,
+  TableHead,
   TableRow,
-  TableStatusIndicator,
+  TableSortButton,
   TableSurface,
 } from "@/components/ui/table";
 import { TableRightActionsButton } from "@/components/admin/layout/content/table-right-actions";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -47,11 +41,36 @@ type AdminTableStatus = {
   text: string;
 };
 
+// Directory-only status chip (moved out of ui/table.tsx so that file stays
+// byte-aligned with custom-shell). Color tokens are revisited in task 10.
+function TableStatusIndicator({
+  tone,
+  children,
+}: {
+  tone: "error" | "success";
+  children: ReactNode;
+}) {
+  return (
+    <span
+      role={tone === "error" ? "alert" : "status"}
+      className={cn(
+        "rounded-md border px-2 py-1 text-xs",
+        tone === "error"
+          ? "border-destructive/30 bg-destructive/10 text-destructive"
+          : "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
 export function AdminTableShell({
   children,
   className,
   controls,
   count,
+  error,
   footer,
   icon,
   loading = false,
@@ -66,6 +85,7 @@ export function AdminTableShell({
   className?: string;
   controls?: ReactNode;
   count: number;
+  error?: { message: string; onRetry?: () => void } | null;
   footer?: ReactNode;
   icon?: ReactNode;
   loading?: boolean;
@@ -81,7 +101,7 @@ export function AdminTableShell({
       <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
         <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
           {icon ? (
-            <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
+            <span className="flex size-7 shrink-0 items-center justify-center sm:size-8 [&_svg]:size-4">
               {icon}
             </span>
           ) : null}
@@ -106,12 +126,15 @@ export function AdminTableShell({
         </div>
         {controls}
       </div>
+      {error ? <ErrorBanner message={error.message} onRetry={error.onRetry} /> : null}
       {children}
       {footer}
     </TableSurface>
   );
 }
 
+// Thin wrapper over the shared TableSortButton so every table sorts (and looks)
+// identically; kept for its established prop shape across the admin screens.
 export function AdminSortButton({
   active,
   children,
@@ -126,25 +149,135 @@ export function AdminSortButton({
   onClick: () => void;
 }) {
   return (
-    <button
-      type="button"
+    <TableSortButton
+      active={active}
+      direction={direction}
       onClick={onClick}
-      className={cn(
-        "flex h-8 cursor-pointer items-center gap-2 px-0 text-xs font-medium text-foreground outline-none transition-colors hover:text-foreground sm:text-sm",
-        className,
-      )}
+      className={className}
     >
-      <span>{children}</span>
-      <span className="flex h-3.5 w-3.5 items-center justify-center">
-        {!active ? (
-          <ChevronsUpDown className="size-3 opacity-50" />
-        ) : direction === "asc" ? (
-          <ArrowUp className="size-3" />
+      {children}
+    </TableSortButton>
+  );
+}
+
+/**
+ * A sortable column heading — the `<TableHead><AdminSortButton …>` pair that
+ * every admin table repeats for each of its columns. Renders exactly what
+ * writing the two out by hand does.
+ */
+export function AdminSortableHead<TColumn extends string>({
+  children,
+  className,
+  column,
+  sort,
+  sortKey,
+}: {
+  children: ReactNode;
+  className?: string;
+  /** The table's own width bucket — "main", "meta", "content". */
+  column?: "main" | "meta" | "preview" | "select" | "content";
+  sort: {
+    sortColumn: TColumn | null;
+    sortDirection: AdminSortDirection;
+    toggleSort: (column: TColumn) => void;
+  };
+  sortKey: TColumn;
+}) {
+  return (
+    <TableHead column={column}>
+      <AdminSortButton
+        active={sort.sortColumn === sortKey}
+        className={className}
+        direction={sort.sortDirection}
+        onClick={() => sort.toggleSort(sortKey)}
+      >
+        {children}
+      </AdminSortButton>
+    </TableHead>
+  );
+}
+
+/**
+ * The action-icon group that ends every admin table row.
+ *
+ * One set, one order, everywhere — screen-specific actions first, then
+ * settings, preview, duplicate, edit, send, archive, and delete always last.
+ * A screen that cannot do one of them simply leaves it out; the rest keep their
+ * relative order. See `workspace/docs/ui-rules.md` for the full table.
+ */
+export function AdminRowActions({ children }: { children: ReactNode }) {
+  return <div className="flex items-center">{children}</div>;
+}
+
+/**
+ * One icon button inside `AdminRowActions`.
+ *
+ * `label` is required and becomes both the hover tooltip and the screen-reader
+ * name, so a row action cannot ship without either. A disabled button gets its
+ * tooltip from the wrapper, because a disabled control takes no pointer events
+ * and would otherwise never show one.
+ */
+export function AdminRowAction({
+  className,
+  disabled = false,
+  external = false,
+  href,
+  icon: Icon,
+  label,
+  onClick,
+}: {
+  /** Layout or visibility only — never a different look for the button itself. */
+  className?: string;
+  disabled?: boolean;
+  /** Opens in a new tab. */
+  external?: boolean;
+  href?: string;
+  icon: ComponentType<{ className?: string }>;
+  label: string;
+  onClick?: () => void;
+}) {
+  const content = (
+    <>
+      <Icon className="h-4 w-4" />
+      <span className="sr-only">{label}</span>
+    </>
+  );
+
+  if (href && !disabled) {
+    return (
+      <Button variant="ghost" size="icon" className={className} asChild>
+        {external ? (
+          <a href={href} target="_blank" rel="noopener noreferrer" title={label}>
+            {content}
+          </a>
         ) : (
-          <ArrowDown className="size-3" />
+          <AppLink href={href} title={label}>
+            {content}
+          </AppLink>
         )}
-      </span>
-    </button>
+      </Button>
+    );
+  }
+
+  const button = (
+    <Button
+      variant="ghost"
+      size="icon"
+      className={className}
+      disabled={disabled}
+      onClick={onClick}
+      title={label}
+    >
+      {content}
+    </Button>
+  );
+
+  return disabled ? (
+    <span className="inline-flex" title={label}>
+      {button}
+    </span>
+  ) : (
+    button
   );
 }
 
@@ -241,19 +374,37 @@ export function AdminSelectionBanner({
 
 export function AdminListPending() {
   return (
-    <TableRow aria-hidden="true" className="border-0">
-      <TableCell colSpan={100} className="h-32 border-0 p-0" />
+    <TableRow className="border-0 hover:bg-transparent">
+      <TableCell colSpan={100} className="border-0 p-0">
+        <AdminLoading />
+      </TableCell>
     </TableRow>
   );
 }
 
+/**
+ * A list that pages by remembering the last row it showed rather than by
+ * counting how many rows to skip. It can step one page forward or back, but it
+ * cannot jump straight to the last page, so those two arrows stay disabled.
+ * Passing this keeps such a list on the same footer as every other list instead
+ * of giving it its own pair of Previous/Next buttons.
+ */
+type AdminListCursor = {
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+  onNextPage: () => void;
+  onPreviousPage: () => void;
+};
+
 export function AdminListFooter({
+  cursor,
   currentPage,
   onPageChange,
   onPageSizeChange,
   pageSize,
   total,
 }: {
+  cursor?: AdminListCursor;
   currentPage: number;
   onPageChange: (page: number) => void;
   onPageSizeChange?: (pageSize: number) => void;
@@ -278,7 +429,7 @@ export function AdminListFooter({
     onPageChange(1);
 
     setIsSavingPageSize(true);
-    const result = await updateAdminSettingsAction({ dashboard_page_size: nextPageSize });
+    const result = await updateAdminSettingsAction({ data: { dashboard_page_size: nextPageSize } });
     setIsSavingPageSize(false);
 
     if (result.error) {
@@ -317,7 +468,7 @@ export function AdminListFooter({
           size="icon"
           className="size-8"
           onClick={() => onPageChange(1)}
-          disabled={safeCurrentPage === 1}
+          disabled={Boolean(cursor) || safeCurrentPage === 1}
           aria-label="Go to first page"
         >
           <ChevronsLeft className="size-4" />
@@ -326,8 +477,10 @@ export function AdminListFooter({
           variant="outline"
           size="icon"
           className="size-8"
-          onClick={() => onPageChange(Math.max(safeCurrentPage - 1, 1))}
-          disabled={safeCurrentPage === 1}
+          onClick={() =>
+            cursor ? cursor.onPreviousPage() : onPageChange(Math.max(safeCurrentPage - 1, 1))
+          }
+          disabled={cursor ? !cursor.hasPreviousPage : safeCurrentPage === 1}
           aria-label="Go to previous page"
         >
           <ChevronLeft className="size-4" />
@@ -336,8 +489,12 @@ export function AdminListFooter({
           variant="outline"
           size="icon"
           className="size-8"
-          onClick={() => onPageChange(Math.min(safeCurrentPage + 1, safeTotalPages))}
-          disabled={safeCurrentPage === safeTotalPages || total === 0}
+          onClick={() =>
+            cursor ? cursor.onNextPage() : onPageChange(Math.min(safeCurrentPage + 1, safeTotalPages))
+          }
+          disabled={
+            cursor ? !cursor.hasNextPage : safeCurrentPage === safeTotalPages || total === 0
+          }
           aria-label="Go to next page"
         >
           <ChevronRight className="size-4" />
@@ -347,7 +504,7 @@ export function AdminListFooter({
           size="icon"
           className="size-8"
           onClick={() => onPageChange(safeTotalPages)}
-          disabled={safeCurrentPage === safeTotalPages || total === 0}
+          disabled={Boolean(cursor) || safeCurrentPage === safeTotalPages || total === 0}
           aria-label="Go to last page"
         >
           <ChevronsRight className="size-4" />
@@ -371,38 +528,20 @@ export function AdminTableSummaryFooter({
   );
 }
 
-export function AdminErrorDialog({
-  message,
-  onOpenChange,
-  open,
+/**
+ * A relative date with the exact moment one hover away: renders
+ * `formatRelativeDate` with a `title` holding the full date and time, the same
+ * reasoning as the table long-text rule.
+ */
+export function RelativeDate({
+  date,
+  fallback = "-",
 }: {
-  message: string;
-  onOpenChange: (open: boolean) => void;
-  open: boolean;
+  date: string | Date | null | undefined;
+  fallback?: string;
 }) {
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent showCloseButton={false}>
-        <DialogHeader>
-          <DialogTitle>Error</DialogTitle>
-          <DialogDescription>{message}</DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button onClick={() => onOpenChange(false)}>OK</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-export function formatRelativeDate(dateString: string) {
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffTime = Math.abs(now.getTime() - date.getTime());
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-  if (diffDays === 1) return "1 day ago";
-  if (diffDays < 7) return `${diffDays} days ago`;
-  if (diffDays < 30) return `${Math.ceil(diffDays / 7)} weeks ago`;
-  return `${Math.ceil(diffDays / 30)} months ago`;
+  const exact = formatExactDateTime(date, "");
+  const label = formatRelativeDate(date, fallback);
+  if (!exact) return <>{label}</>;
+  return <span title={exact}>{label}</span>;
 }

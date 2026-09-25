@@ -11,8 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { ShellIconPickerField } from "@/components/admin/layout/settings/ShellIconPicker"
-import { useSortable } from "@dnd-kit/sortable"
-import { CSS } from "@dnd-kit/utilities"
+import { useSortableRow } from "@/components/admin/layout/builder/use-sortable-row"
 import type { LucideIcon } from "lucide-react"
 import Facebook from "lucide-react/dist/esm/icons/facebook.js"
 import Github from "lucide-react/dist/esm/icons/github.js"
@@ -152,20 +151,7 @@ export function SortableSocialLinkItem({
   onChange: (index: number, socialLink: DirectoryCoreSocialLink) => void
   onDelete: (index: number) => void
 }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: socialLink.id! })
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  }
+  const { attributes, listeners, setNodeRef, style, isDragging } = useSortableRow(socialLink.id!)
 
   return (
     <div ref={setNodeRef} style={style}>
@@ -312,20 +298,7 @@ export function SortableMenuLinkItem({
   onChange: (index: number, menuLink: DirectoryCoreMenuLink) => void
   onDelete: (index: number) => void
 }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: menuLink.id! })
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  }
+  const { attributes, listeners, setNodeRef, style, isDragging } = useSortableRow(menuLink.id!)
 
   return (
     <div ref={setNodeRef} style={style}>

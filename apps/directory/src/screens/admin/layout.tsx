@@ -1,7 +1,7 @@
 import { AdminClientShell } from "./admin-client-shell"
 import { requireAdminAccess } from "./require-admin"
-import { getCachedAdminSettings } from "@/lib/actions/admin-settings/admin-settings-actions"
-import { getAllSitesAction } from "@/lib/actions/sites/site-actions"
+import { getCachedAdminSettings } from "@/lib/actions/admin-settings/admin-settings-actions.server"
+import { getAllSitesActionImpl } from "@/lib/actions/sites/site-actions.server"
 import { DEFAULT_ADMIN_SIDEBAR_WIDTH } from "@/lib/utils/admin-sidebar-width"
 import { normalizeStyling } from "@/lib/utils/admin-styling"
 
@@ -15,7 +15,7 @@ export default async function AdminLayout({
   // Parallel fetch: admin settings + sites
   const [adminSettings, sitesResult] = await Promise.all([
     getCachedAdminSettings(),
-    getAllSitesAction(),
+    getAllSitesActionImpl(),
   ])
 
   const settings = adminSettings?.settings ?? {}

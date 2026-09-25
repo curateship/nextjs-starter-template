@@ -165,6 +165,14 @@ export function automationInputRows(
             label: "DCA maximum position",
             value: `${config.dca.maxPositionPct}%`,
           },
+          ...(config.dca.maxOrderVolPct > 0
+            ? [
+                {
+                  label: "DCA liquidity guard",
+                  value: `orders ≤ ${config.dca.maxOrderVolPct}% of 24h volume`,
+                },
+              ]
+            : []),
           {
             label: "DCA size ramp",
             value:
@@ -182,6 +190,12 @@ export function automationInputRows(
             label: "DCA uptrend filter",
             value: config.dca.trendFilterEnabled
               ? `above the ${config.dca.trendMaBars}-candle average`
+              : "off",
+          },
+          {
+            label: "DCA crash gate",
+            value: config.dca.crashFilterEnabled
+              ? `after a ${config.dca.crashMinFallPct}-${config.dca.crashMaxFallPct}% fall, wait until price is within ${config.dca.crashEntryAbovePct}% of the bottom (${config.dca.crashLookbackBars}-candle look back)`
               : "off",
           },
           {

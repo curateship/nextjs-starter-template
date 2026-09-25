@@ -18,11 +18,7 @@ export const getPostTemplateById = createServerFn({ method: "POST" })
   .handler(async ({ data }) => getPostTemplateByIdImpl(data.templateId))
 
 export const createPostTemplate = createServerFn({ method: "POST" })
-  .inputValidator((data: { input: {
-  siteId: string
-  name: string
-  contentBlocks?: Record<string, any>
-} }) => data)
+  .inputValidator((data: { input: Parameters<typeof createPostTemplateImpl>[0] }) => data)
   .handler(async ({ data }) => createPostTemplateImpl(data.input))
 
 export const updatePostTemplate = createServerFn({ method: "POST" })

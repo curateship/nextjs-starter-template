@@ -42,7 +42,7 @@ export function SponsorCard({ sponsor, postId, className, tracking = true }: Spo
         <span className="block text-xs font-medium uppercase tracking-normal text-muted-foreground">Sponsored</span>
         <span className="mt-1 block text-base font-semibold text-foreground">{sponsor.title}</span>
         {sponsor.description && (
-          <span className="mt-1 line-clamp-2 block text-sm leading-relaxed text-muted-foreground">{sponsor.description}</span>
+          <span className="mt-1 line-clamp-2 block text-sm leading-relaxed text-muted-foreground" title={sponsor.description}>{sponsor.description}</span>
         )}
       </span>
     </a>

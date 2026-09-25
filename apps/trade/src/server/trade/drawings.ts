@@ -1,0 +1,612 @@
+import { and, asc, count, countDistinct, eq, exists, inArray, isNotNull, isNull, not, sql } from "drizzle-orm"
+
+import {
+  DRAWINGS_FULL,
+  DRAWING_ALERT_NO_PRICE,
+  DRAWING_ALERT_NOT_ARMED,
+  MAX_DRAWINGS_PER_MARKET,
+  bufferedAlert,
+  drawingExpirySchema,
+  drawingAlertExpired,
+  expiringAlert,
+  type DrawingExpiry,
+  drawingAlertArmed,
+  rearmedAlert,
+  extendedRight,
+  priceAtTime,
+  readDrawingAlert,
+  readDrawingShape,
+  ruledAlert,
+  type ClearableCounts,
+  type ClearableKind,
+  type Drawing,
+  type DrawingAlert,
+  type DrawingShape,
+} from "@/lib/trade/drawings"
+import type { CandleInterval } from "@/lib/protocols/contracts"
+import { priceAlertDirection } from "@/lib/trade/price-alerts"
+import { lockGridLineStops } from "@/server/trade/grid-line-stops"
+import { db } from "@/server/db"
+import {
+  tradeChartDrawings,
+  tradeGridLineStops,
+  tradePriceAlerts,
+} from "@/server/trade/schema"
+
+/**
+ * One market's drawings, oldest first so the drawing order on screen is the
+ * order they were made in.
+ *
+ * A row whose shape cannot be read is left out rather than drawn as something
+ * it is not — the same rule the market keys follow. It stays in the table, so
+ * nothing is destroyed by a build that did not understand it.
+ */
+export async function loadChartDrawings(
+  userId: string,
+  marketKey: string
+): Promise<Drawing[]> {
+  const rows = await db
+    .select({
+      id: tradeChartDrawings.id,
+      shape: tradeChartDrawings.shape,
+      alert: tradeChartDrawings.alert,
+    })
+    .from(tradeChartDrawings)
+    .where(
+      and(
+        eq(tradeChartDrawings.userId, userId),
+        eq(tradeChartDrawings.marketKey, marketKey)
+      )
+    )
+    .orderBy(asc(tradeChartDrawings.createdAt), asc(tradeChartDrawings.id))
+
+  const drawings: Drawing[] = []
+  for (const row of rows) {
+    const shape = readDrawingShape(row.shape)
+    if (shape) {
+      drawings.push({ id: row.id, shape, alert: readDrawingAlert(row.alert) })
+    }
+  }
+  return drawings
+}
+
+/**
+ * Save a drawing, new or moved. One call for both because the screen does not
+ * distinguish them either: a line that has just been dragged is the same line.
+ *
+ * Keyed on the person and the drawing together, so a request carrying an id
+ * that belongs to somebody else writes a new row of its own instead of
+ * touching theirs. The market key is only set on the way in — moving a drawing
+ * cannot move it to another market, because the update never writes that
+ * column.
+ *
+ * **A moved line keeps its alert, pointed the right way.** The alert waits for
+ * the price to cross the line from one side, fixed when the switch went on.
+ * Dragging the line to the other side of the price would make that side wrong
+ * and fire it on the next pass for nothing, so when the screen says where the
+ * price is, the direction is set again from the line's new place. Only an
+ * alert still waiting is touched: one that has fired stays fired.
+ */
+export async function saveChartDrawing(
+  userId: string,
+  marketKey: string,
+  drawing: { id: string; shape: DrawingShape },
+  currentPrice: number | null = null,
+  now = Date.now()
+): Promise<void> {
+  const existing = await db
+    .select({ id: tradeChartDrawings.id })
+    .from(tradeChartDrawings)
+    .where(
+      and(
+        eq(tradeChartDrawings.userId, userId),
+        eq(tradeChartDrawings.id, drawing.id)
+      )
+    )
+    .limit(1)
+
+  if (existing.length === 0) {
+    const [total] = await db
+      .select({ total: count() })
+      .from(tradeChartDrawings)
+      .where(
+        and(
+          eq(tradeChartDrawings.userId, userId),
+          eq(tradeChartDrawings.marketKey, marketKey)
+        )
+      )
+    if ((total?.total ?? 0) >= MAX_DRAWINGS_PER_MARKET) {
+      throw new Error(DRAWINGS_FULL)
+    }
+  }
+
+  const linePrice = currentPrice === null ? null : priceAtTime(drawing.shape, now)
+  const direction = linePrice === null || currentPrice === null
+    ? null
+    : priceAlertDirection(linePrice, currentPrice)
+  const resetRetest = sql`jsonb_set(${tradeChartDrawings.alert}, '{retest}', '"waiting-break"'::jsonb)`
+  const movedRetest = direction === null
+    ? resetRetest
+    : sql`jsonb_set(${resetRetest}, '{direction}', ${JSON.stringify(direction)}::jsonb)`
+
+  await db
+    .insert(tradeChartDrawings)
+    .values({
+      userId,
+      id: drawing.id,
+      marketKey,
+      shape: drawing.shape,
+      updatedAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: [tradeChartDrawings.userId, tradeChartDrawings.id],
+      set: {
+        shape: drawing.shape,
+        alert: drawing.shape.kind === "fib" ? null : sql`case
+          when ${tradeChartDrawings.alert}->>'firedAt' is null
+            and ${tradeChartDrawings.alert} ? 'retest'
+            and (${tradeChartDrawings.shape} - 'name' - 'extendRight') <> (${JSON.stringify(drawing.shape)}::jsonb - 'name' - 'extendRight')
+          then ${movedRetest}
+          else ${tradeChartDrawings.alert} end`,
+        updatedAt: new Date(),
+      },
+    })
+
+  // Retests change direction only with their geometry, in the same write above.
+  // A description edit must not discard a break the engine already observed.
+  if (direction === null) return
+  await db
+    .update(tradeChartDrawings)
+    .set({
+      alert: sql`jsonb_set(${tradeChartDrawings.alert}, '{direction}', ${JSON.stringify(direction)}::jsonb)`,
+    })
+    .where(
+      and(
+        eq(tradeChartDrawings.userId, userId),
+        eq(tradeChartDrawings.id, drawing.id),
+        isNotNull(tradeChartDrawings.alert),
+        sql`not (${tradeChartDrawings.alert} ? 'retest')`,
+        sql`${tradeChartDrawings.alert}->>'firedAt' IS NULL`
+      )
+    )
+}
+
+/**
+ * Switch a drawing's alert on or off.
+ *
+ * On: the direction is fixed from where the line is right now against the
+ * live price, and the record starts fresh, so a line that fired before can be
+ * armed again. A trendline is also drawn on to the right edge from then on,
+ * so the place the alert will fire is on screen. Off: the record goes, fired
+ * or not, and the line keeps drawing the way it was.
+ *
+ * **A break buffer survives a firing.** Switching a line that has already
+ * fired back on is the same watch carried on, so the percentage it waits past
+ * the line comes with it. Switching the alert off by hand takes the whole
+ * record, buffer included, because that is somebody saying they are done
+ * with this line.
+ */
+export async function setChartDrawingAlert(
+  userId: string,
+  input: {
+    id: string
+    on: boolean
+    currentPrice: number | null
+    /** The account's last choice. Left out by older internal callers. */
+    buffer?: number | null
+  },
+  now = Date.now()
+): Promise<Drawing> {
+  const [row] = await db
+    .select({
+      id: tradeChartDrawings.id,
+      shape: tradeChartDrawings.shape,
+      alert: tradeChartDrawings.alert,
+    })
+    .from(tradeChartDrawings)
+    .where(
+      and(
+        eq(tradeChartDrawings.userId, userId),
+        eq(tradeChartDrawings.id, input.id)
+      )
+    )
+    .limit(1)
+  const shape = row ? readDrawingShape(row.shape) : null
+  if (!row || !shape) throw new Error("DRAWING_NOT_FOUND")
+
+  let alert: DrawingAlert | null = null
+  let saved = shape
+  if (input.on) {
+    const linePrice = priceAtTime(shape, now)
+    if (linePrice === null || input.currentPrice === null) {
+      throw new Error(DRAWING_ALERT_NO_PRICE)
+    }
+    const previousAlert = readDrawingAlert(row.alert)
+    alert = rearmedAlert(
+      {
+        direction: priceAlertDirection(linePrice, input.currentPrice),
+        armedAt: now,
+        firedAt: null,
+      },
+      previousAlert,
+      input.buffer ?? null
+    )
+    saved = extendedRight(shape)
+  }
+
+  // The shape is only written when the switch changed it. Writing it back
+  // unchanged would undo a drag that landed between the read above and here.
+  await db
+    .update(tradeChartDrawings)
+    .set(
+      saved === shape
+        ? { alert, updatedAt: new Date() }
+        : { alert, shape: saved, updatedAt: new Date() }
+    )
+    .where(
+      and(
+        eq(tradeChartDrawings.userId, userId),
+        eq(tradeChartDrawings.id, input.id)
+      )
+    )
+  return { id: row.id, shape: saved, alert }
+}
+
+/**
+ * Set or clear how far past the line an armed alert waits, as a percentage.
+ *
+ * Its own door rather than a second job for `setChartDrawingAlert`, because
+ * that one arms and disarms: putting the buffer through it would reset the
+ * direction and the armed time every time somebody corrected a number.
+ *
+ * Only an armed alert takes one. A window left open while the engine rang the
+ * alert underneath it is refused rather than quietly writing a buffer onto a
+ * record nobody is watching.
+ */
+export async function setChartDrawingAlertBuffer(
+  userId: string,
+  input: { id: string; buffer: number | null }
+): Promise<Drawing> {
+  const [row] = await db
+    .select({
+      id: tradeChartDrawings.id,
+      shape: tradeChartDrawings.shape,
+      alert: tradeChartDrawings.alert,
+    })
+    .from(tradeChartDrawings)
+    .where(
+      and(
+        eq(tradeChartDrawings.userId, userId),
+        eq(tradeChartDrawings.id, input.id)
+      )
+    )
+    .limit(1)
+  const shape = row ? readDrawingShape(row.shape) : null
+  if (!row || !shape) throw new Error("DRAWING_NOT_FOUND")
+
+  const alert = readDrawingAlert(row.alert)
+  if (!drawingAlertArmed(alert) || !alert) {
+    throw new Error(DRAWING_ALERT_NOT_ARMED)
+  }
+
+  const saved = bufferedAlert(alert, input.buffer)
+  const updated = await db
+    .update(tradeChartDrawings)
+    .set({ alert: saved, updatedAt: new Date() })
+    .where(
+      and(
+        eq(tradeChartDrawings.userId, userId),
+        eq(tradeChartDrawings.id, input.id),
+        eq(tradeChartDrawings.alert, row.alert!)
+      )
+    )
+    .returning({ id: tradeChartDrawings.id })
+  if (!updated.length) throw new Error(DRAWING_ALERT_NOT_ARMED)
+  return { id: row.id, shape, alert: saved }
+}
+
+/**
+ * Set or clear what an armed alert waits for: a finished candle on a
+ * timeframe instead of a live touch, and the volume that candle has to carry.
+ *
+ * Both rules are written together, always, because the window knows both and
+ * a half-sent rule has no meaning anybody could name. Its own door rather than
+ * a second job for `setChartDrawingAlert`, for the reason the buffer has one:
+ * that function arms and disarms, so putting a rule through it would reset the
+ * direction and the armed time every time somebody changed a timeframe.
+ *
+ * Only an armed alert takes one, the same as the buffer.
+ */
+export async function setChartDrawingAlertRules(
+  userId: string,
+  input: {
+    id: string
+    closeInterval: CandleInterval | null
+    volumeMultiple: number | null
+    retest?: boolean
+  }
+): Promise<Drawing> {
+  return db.transaction(async (tx) => {
+    await lockGridLineStops(userId, tx)
+    const [row] = await tx
+      .select({
+        id: tradeChartDrawings.id,
+        shape: tradeChartDrawings.shape,
+        alert: tradeChartDrawings.alert,
+      })
+      .from(tradeChartDrawings)
+      .where(
+        and(
+          eq(tradeChartDrawings.userId, userId),
+          eq(tradeChartDrawings.id, input.id)
+        )
+      )
+      .limit(1)
+    const shape = row ? readDrawingShape(row.shape) : null
+    if (!row || !shape) throw new Error("DRAWING_NOT_FOUND")
+
+    const alert = readDrawingAlert(row.alert)
+    if (!drawingAlertArmed(alert) || !alert) {
+      throw new Error(DRAWING_ALERT_NOT_ARMED)
+    }
+
+    const saved = ruledAlert(alert, input)
+    if (saved.retest && (saved.closeInterval || saved.volumeMultiple)) {
+      throw new Error("DRAWING_ALERT_RETEST_CLOSE")
+    }
+    if (saved.retest) {
+      const [linked] = await tx.select({ id: tradeGridLineStops.gridId })
+        .from(tradeGridLineStops).where(and(
+          eq(tradeGridLineStops.userId, userId),
+          eq(tradeGridLineStops.drawingId, input.id),
+          sql`${tradeGridLineStops.state} in ('watching', 'pending')`
+        )).limit(1)
+      if (linked) throw new Error("DRAWING_ALERT_RETEST_LINKED")
+    }
+    const updated = await tx
+      .update(tradeChartDrawings)
+      .set({ alert: saved, updatedAt: new Date() })
+      .where(
+        and(
+          eq(tradeChartDrawings.userId, userId),
+          eq(tradeChartDrawings.id, input.id),
+          eq(tradeChartDrawings.alert, row.alert!)
+        )
+      )
+      .returning({ id: tradeChartDrawings.id })
+    if (!updated.length) throw new Error(DRAWING_ALERT_NOT_ARMED)
+    return { id: row.id, shape, alert: saved }
+  })
+}
+
+/** Remove one, and say whether there was one to remove. */
+export async function deleteChartDrawing(
+  userId: string,
+  id: string
+): Promise<boolean> {
+  const removed = await db
+    .delete(tradeChartDrawings)
+    .where(
+      and(eq(tradeChartDrawings.userId, userId), eq(tradeChartDrawings.id, id))
+    )
+    .returning({ id: tradeChartDrawings.id })
+  return removed.length > 0
+}
+
+/**
+ * Clear one market's chart, and say how many went.
+ *
+ * One statement rather than a loop over the ids the screen happens to be
+ * showing: a loop can stop half way with nothing to say about it, and it
+ * cannot see a drawing another tab added meanwhile. "Everything on this
+ * market" is the whole instruction, so it is the whole query.
+ */
+export async function clearChartDrawings(
+  userId: string,
+  marketKey: string
+): Promise<number> {
+  const removed = await db
+    .delete(tradeChartDrawings)
+    .where(
+      and(
+        eq(tradeChartDrawings.userId, userId),
+        eq(tradeChartDrawings.marketKey, marketKey)
+      )
+    )
+    .returning({ id: tradeChartDrawings.id })
+  return removed.length
+}
+
+// A trendline a running grid uses as its stop. The database refuses to delete
+// one of those, so the clear below leaves them and says how many it left.
+function heldByGrid() {
+  return exists(
+    db
+      .select({ one: sql`1` })
+      .from(tradeGridLineStops)
+      .where(
+        and(
+          eq(tradeGridLineStops.userId, tradeChartDrawings.userId),
+          eq(tradeGridLineStops.drawingId, tradeChartDrawings.id),
+          inArray(tradeGridLineStops.state, ["watching", "pending"])
+        )
+      )
+  )
+}
+
+function isKind(kind: "trendline" | "fib") {
+  return sql`${tradeChartDrawings.shape}->>'kind' = ${kind}`
+}
+
+async function countDrawingKind(userId: string, kind: "trendline" | "fib") {
+  const [row] = await db
+    .select({
+      total: count(),
+      markets: countDistinct(tradeChartDrawings.marketKey),
+    })
+    .from(tradeChartDrawings)
+    .where(and(eq(tradeChartDrawings.userId, userId), isKind(kind)))
+  return { total: row?.total ?? 0, markets: row?.markets ?? 0 }
+}
+
+/**
+ * What the Drawings settings tab can clear, across every market: trendlines,
+ * fibs and waiting price alerts, each with how many markets it sits on, and
+ * how many trendlines a running grid is holding as its stop.
+ */
+export async function countClearableDrawings(
+  userId: string
+): Promise<ClearableCounts> {
+  const [trendlines, fibs, [alerts], [held]] = await Promise.all([
+    countDrawingKind(userId, "trendline"),
+    countDrawingKind(userId, "fib"),
+    db
+      .select({
+        total: count(),
+        markets: countDistinct(tradePriceAlerts.marketKey),
+      })
+      .from(tradePriceAlerts)
+      .where(
+        and(
+          eq(tradePriceAlerts.userId, userId),
+          isNull(tradePriceAlerts.firedAt)
+        )
+      ),
+    db
+      .select({ total: count() })
+      .from(tradeChartDrawings)
+      .where(
+        and(
+          eq(tradeChartDrawings.userId, userId),
+          isKind("trendline"),
+          heldByGrid()
+        )
+      ),
+  ])
+  return {
+    trendlines,
+    fibs,
+    alerts: { total: alerts?.total ?? 0, markets: alerts?.markets ?? 0 },
+    held: held?.total ?? 0,
+  }
+}
+
+/**
+ * Delete the chosen kinds on every market at once, and say how many of each
+ * went. Levels are never touched.
+ *
+ * Alerts means the price alerts still waiting, the purple lines. Fired ones
+ * are history, not lines, and the alerts dropdown has its own Clear all.
+ *
+ * A trendline a running grid uses as its stop stays. Deleting it would fail
+ * the whole statement at the database, and clearing lines is not a reason to
+ * take a grid's stop away. The grid-stop lock is held for the whole clear, so
+ * a grid cannot pick a line up between the check and the delete.
+ */
+export async function clearDrawingKinds(
+  userId: string,
+  kinds: Record<ClearableKind, boolean>
+): Promise<Record<ClearableKind, number> & { kept: number }> {
+  return db.transaction(async (tx) => {
+    await lockGridLineStops(userId, tx)
+    const deleteKind = async (kind: "trendline" | "fib") => {
+      const removed = await tx
+        .delete(tradeChartDrawings)
+        .where(
+          and(
+            eq(tradeChartDrawings.userId, userId),
+            isKind(kind),
+            not(heldByGrid())
+          )
+        )
+        .returning({ id: tradeChartDrawings.id })
+      return removed.length
+    }
+    const trendlines = kinds.trendlines ? await deleteKind("trendline") : 0
+    const fibs = kinds.fibs ? await deleteKind("fib") : 0
+    const alerts = kinds.alerts
+      ? (
+          await tx
+            .delete(tradePriceAlerts)
+            .where(
+              and(
+                eq(tradePriceAlerts.userId, userId),
+                isNull(tradePriceAlerts.firedAt)
+              )
+            )
+            .returning({ id: tradePriceAlerts.id })
+        ).length
+      : 0
+    let kept = 0
+    if (kinds.trendlines) {
+      const [left] = await tx
+        .select({ total: count() })
+        .from(tradeChartDrawings)
+        .where(
+          and(eq(tradeChartDrawings.userId, userId), isKind("trendline"))
+        )
+      kept = left?.total ?? 0
+    }
+    return { trendlines, fibs, alerts, kept }
+  })
+}
+
+/** Expiry and grid-stop linking share the same account lock. */
+export async function setChartDrawingAlertExpiry(
+  userId: string,
+  input: { id: string; expiry: DrawingExpiry },
+  now = Date.now()
+): Promise<Drawing> {
+  const expiry = drawingExpirySchema.parse(input.expiry)
+  return db.transaction(async (tx) => {
+    await lockGridLineStops(userId, tx)
+    const [row] = await tx
+      .select()
+      .from(tradeChartDrawings)
+      .where(
+        and(
+          eq(tradeChartDrawings.userId, userId),
+          eq(tradeChartDrawings.id, input.id)
+        )
+      )
+    const shape = readDrawingShape(row?.shape)
+    const alert = readDrawingAlert(row?.alert)
+    if (!row || !shape) throw new Error("DRAWING_NOT_FOUND")
+    if (
+      !alert ||
+      !drawingAlertArmed(alert) ||
+      drawingAlertExpired(alert, now)
+    ) {
+      throw new Error(DRAWING_ALERT_NOT_ARMED)
+    }
+    if (expiry.mode !== "never") {
+      const [linked] = await tx
+        .select({ id: tradeGridLineStops.gridId })
+        .from(tradeGridLineStops)
+        .where(
+          and(
+            eq(tradeGridLineStops.userId, userId),
+            eq(tradeGridLineStops.drawingId, input.id),
+            sql`${tradeGridLineStops.state} in ('watching', 'pending')`
+          )
+        )
+        .limit(1)
+      if (linked) throw new Error("DRAWING_ALERT_EXPIRY_LINKED")
+    }
+    const saved = expiringAlert(alert, shape, expiry, now)
+    const updated = await tx
+      .update(tradeChartDrawings)
+      .set({ alert: saved, updatedAt: new Date(now) })
+      .where(
+        and(
+          eq(tradeChartDrawings.userId, userId),
+          eq(tradeChartDrawings.id, input.id),
+          eq(tradeChartDrawings.alert, row.alert!),
+          eq(tradeChartDrawings.shape, row.shape)
+        )
+      )
+      .returning({ id: tradeChartDrawings.id })
+    if (!updated.length) throw new Error(DRAWING_ALERT_NOT_ARMED)
+    return { id: row.id, shape, alert: saved }
+  })
+}

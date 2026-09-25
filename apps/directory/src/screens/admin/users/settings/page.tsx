@@ -184,9 +184,9 @@ export default function SettingsPage() {
         />
 
         {message && (
-          <Alert className={`mb-6 ${message.type === 'error' ? 'border-red-200 bg-red-50' : 'border-green-200 bg-green-50'}`}>
+          <Alert className={`mb-6 ${message.type === 'error' ? 'border-destructive/30 bg-destructive/10' : 'border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-950/50'}`}>
             <AlertTriangle className="h-4 w-4" />
-            <AlertDescription className={message.type === 'error' ? 'text-red-800' : 'text-green-800'}>
+            <AlertDescription className={message.type === 'error' ? 'text-destructive' : 'text-green-800 dark:text-green-300'}>
               {message.text}
             </AlertDescription>
           </Alert>
@@ -215,7 +215,7 @@ export default function SettingsPage() {
                         <button
                           type="button"
                           onClick={() => setAvatarUrl("")}
-                          className="absolute right-3 top-3 z-10 rounded-full bg-red-500 p-1 text-white transition-colors hover:bg-red-600"
+                          className="absolute right-3 top-3 z-10 rounded-full bg-destructive p-1 text-destructive-foreground transition-colors hover:bg-destructive/90"
                           disabled={saving}
                         >
                           <X className="h-4 w-4" />

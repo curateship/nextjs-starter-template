@@ -7,6 +7,7 @@ import {
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Dialog,
   DialogBody,
@@ -70,7 +71,8 @@ export function NewWalletDialog({
   onCreated: () => Promise<void> | void
 }) {
   const [step, setStep] = React.useState<Step>("type")
-  const [importForm, setImportForm] = React.useState<ImportForm>(emptyImportForm)
+  const [importForm, setImportForm] =
+    React.useState<ImportForm>(emptyImportForm)
   const [mainnetConfirm, setMainnetConfirm] = React.useState("")
   const [paperLabel, setPaperLabel] = React.useState("")
   const [paperEquity, setPaperEquity] = React.useState("10000")
@@ -154,26 +156,33 @@ export function NewWalletDialog({
         </DialogHeader>
 
         {step === "type" ? (
-          <DialogBody className="grid gap-4">
-            <WalletTypeOption
-              icon={<WalletIcon className="size-5" />}
-              title="Connect real wallet"
-              badge="Recommended"
-              description="Connect MetaMask (or another browser wallet) and approve a trading key with one signature. The key can trade but can never withdraw."
-              onClick={() => setStep("connect")}
-            />
-            <WalletTypeOption
-              icon={<KeyRoundIcon className="size-5" />}
-              title="Import API wallet key"
-              description="Paste the private key of an API wallet you already created and approved on Hyperliquid."
-              onClick={() => setStep("import")}
-            />
-            <WalletTypeOption
-              icon={<FlaskConicalIcon className="size-5" />}
-              title="Paper wallet"
-              description="Simulated money, real market data. No exchange account needed — the safest way to practice."
-              onClick={() => setStep("paper")}
-            />
+          <DialogBody>
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>Wallet type</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4">
+                <WalletTypeOption
+                  icon={<WalletIcon className="size-5" />}
+                  title="Connect real wallet"
+                  badge="Recommended"
+                  description="Connect MetaMask (or another browser wallet) and approve a trading key with one signature. The key can trade but can never withdraw."
+                  onClick={() => setStep("connect")}
+                />
+                <WalletTypeOption
+                  icon={<KeyRoundIcon className="size-5" />}
+                  title="Import API wallet key"
+                  description="Paste the private key of an API wallet you already created and approved on Hyperliquid."
+                  onClick={() => setStep("import")}
+                />
+                <WalletTypeOption
+                  icon={<FlaskConicalIcon className="size-5" />}
+                  title="Paper wallet"
+                  description="Simulated money, real market data. No exchange account needed — the safest way to practice."
+                  onClick={() => setStep("paper")}
+                />
+              </CardContent>
+            </Card>
           </DialogBody>
         ) : null}
 
@@ -188,127 +197,140 @@ export function NewWalletDialog({
 
         {step === "import" ? (
           <>
-            <DialogBody className="grid gap-4 sm:grid-cols-2">
-              <div className="grid gap-2">
-                <Label htmlFor="wallet-label">Label</Label>
-                <Input
-                  id="wallet-label"
-                  value={importForm.label}
-                  placeholder="Main account"
-                  disabled={busy}
-                  onChange={(event) =>
-                    setImportForm({ ...importForm, label: event.target.value })
-                  }
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="wallet-network">Network</Label>
-                <Select
-                  value={importForm.network}
-                  disabled={busy}
-                  onValueChange={(value) =>
-                    setImportForm({
-                      ...importForm,
-                      network: value as ImportForm["network"],
-                    })
-                  }
-                >
-                  <SelectTrigger id="wallet-network" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="testnet">Testnet</SelectItem>
-                    <SelectItem value="mainnet" disabled={!mainnetEnabled}>
-                      Mainnet{mainnetEnabled ? "" : " (disabled)"}
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="wallet-account">Account address</Label>
-                <Input
-                  id="wallet-account"
-                  value={importForm.accountAddress}
-                  placeholder="0x… (the account that holds funds)"
-                  autoComplete="off"
-                  spellCheck={false}
-                  disabled={busy}
-                  onChange={(event) =>
-                    setImportForm({
-                      ...importForm,
-                      accountAddress: event.target.value,
-                    })
-                  }
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="wallet-agent">Agent address</Label>
-                <Input
-                  id="wallet-agent"
-                  value={importForm.agentAddress}
-                  placeholder="0x… (the API wallet address)"
-                  autoComplete="off"
-                  spellCheck={false}
-                  disabled={busy}
-                  onChange={(event) =>
-                    setImportForm({
-                      ...importForm,
-                      agentAddress: event.target.value,
-                    })
-                  }
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="wallet-vault">
-                  Vault / subaccount address (optional)
-                </Label>
-                <Input
-                  id="wallet-vault"
-                  value={importForm.vaultAddress}
-                  placeholder="0x…"
-                  autoComplete="off"
-                  spellCheck={false}
-                  disabled={busy}
-                  onChange={(event) =>
-                    setImportForm({
-                      ...importForm,
-                      vaultAddress: event.target.value,
-                    })
-                  }
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="wallet-key">Agent private key</Label>
-                <Input
-                  id="wallet-key"
-                  type="password"
-                  value={importForm.privateKey}
-                  placeholder="0x…"
-                  autoComplete="off"
-                  spellCheck={false}
-                  disabled={busy}
-                  onChange={(event) =>
-                    setImportForm({
-                      ...importForm,
-                      privateKey: event.target.value,
-                    })
-                  }
-                />
-              </div>
-              {importIsMainnet ? (
-                <div className="sm:col-span-2">
-                  <MainnetConfirmField
-                    value={mainnetConfirm}
-                    disabled={busy}
-                    onChange={setMainnetConfirm}
-                  />
-                </div>
-              ) : null}
-              {error ? (
-                <div className="sm:col-span-2">
-                  <ErrorMessage>{error}</ErrorMessage>
-                </div>
-              ) : null}
+            <DialogBody>
+              <Card size="sm">
+                <CardHeader>
+                  <CardTitle>Identity</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4 sm:grid-cols-2">
+                  <div className="grid gap-2">
+                    <Label htmlFor="wallet-label">Label</Label>
+                    <Input
+                      id="wallet-label"
+                      value={importForm.label}
+                      placeholder="Main account"
+                      disabled={busy}
+                      onChange={(event) =>
+                        setImportForm({
+                          ...importForm,
+                          label: event.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="wallet-network">Network</Label>
+                    <Select
+                      value={importForm.network}
+                      disabled={busy}
+                      onValueChange={(value) =>
+                        setImportForm({
+                          ...importForm,
+                          network: value as ImportForm["network"],
+                        })
+                      }
+                    >
+                      <SelectTrigger id="wallet-network" className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="testnet">Testnet</SelectItem>
+                        <SelectItem value="mainnet" disabled={!mainnetEnabled}>
+                          Mainnet{mainnetEnabled ? "" : " (disabled)"}
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card size="sm">
+                <CardHeader>
+                  <CardTitle>Addresses and key</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4 sm:grid-cols-2">
+                  <div className="grid gap-2">
+                    <Label htmlFor="wallet-account">Account address</Label>
+                    <Input
+                      id="wallet-account"
+                      value={importForm.accountAddress}
+                      placeholder="0x… (the account that holds funds)"
+                      autoComplete="off"
+                      spellCheck={false}
+                      disabled={busy}
+                      onChange={(event) =>
+                        setImportForm({
+                          ...importForm,
+                          accountAddress: event.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="wallet-agent">Agent address</Label>
+                    <Input
+                      id="wallet-agent"
+                      value={importForm.agentAddress}
+                      placeholder="0x… (the API wallet address)"
+                      autoComplete="off"
+                      spellCheck={false}
+                      disabled={busy}
+                      onChange={(event) =>
+                        setImportForm({
+                          ...importForm,
+                          agentAddress: event.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="wallet-vault">
+                      Vault / subaccount address (optional)
+                    </Label>
+                    <Input
+                      id="wallet-vault"
+                      value={importForm.vaultAddress}
+                      placeholder="0x…"
+                      autoComplete="off"
+                      spellCheck={false}
+                      disabled={busy}
+                      onChange={(event) =>
+                        setImportForm({
+                          ...importForm,
+                          vaultAddress: event.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="wallet-key">Agent private key</Label>
+                    <Input
+                      id="wallet-key"
+                      type="password"
+                      value={importForm.privateKey}
+                      placeholder="0x…"
+                      autoComplete="off"
+                      spellCheck={false}
+                      disabled={busy}
+                      onChange={(event) =>
+                        setImportForm({
+                          ...importForm,
+                          privateKey: event.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                  {importIsMainnet ? (
+                    <div className="sm:col-span-2">
+                      <MainnetConfirmField
+                        value={mainnetConfirm}
+                        disabled={busy}
+                        onChange={setMainnetConfirm}
+                      />
+                    </div>
+                  ) : null}
+                </CardContent>
+              </Card>
+              {error ? <ErrorMessage>{error}</ErrorMessage> : null}
             </DialogBody>
             <DialogFooter variant="plain">
               <>
@@ -325,7 +347,9 @@ export function NewWalletDialog({
                   disabled={busy || !importConfirmed}
                   onClick={() => void saveImport()}
                 >
-                  {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
+                  {busy ? (
+                    <Loader2Icon className="size-4 animate-spin" />
+                  ) : null}
                   {busy ? "Importing..." : "Import"}
                 </Button>
               </>
@@ -335,32 +359,37 @@ export function NewWalletDialog({
 
         {step === "paper" ? (
           <>
-            <DialogBody className="grid gap-4 sm:grid-cols-2">
-              <div className="grid gap-2">
-                <Label htmlFor="paper-label">Label</Label>
-                <Input
-                  id="paper-label"
-                  value={paperLabel}
-                  placeholder="Practice account"
-                  disabled={busy}
-                  onChange={(event) => setPaperLabel(event.target.value)}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="paper-equity">Starting equity (USD)</Label>
-                <Input
-                  id="paper-equity"
-                  value={paperEquity}
-                  inputMode="decimal"
-                  disabled={busy}
-                  onChange={(event) => setPaperEquity(event.target.value.trim())}
-                />
-              </div>
-              {error ? (
-                <div className="sm:col-span-2">
-                  <ErrorMessage>{error}</ErrorMessage>
-                </div>
-              ) : null}
+            <DialogBody>
+              <Card size="sm">
+                <CardHeader>
+                  <CardTitle>Paper wallet details</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4 sm:grid-cols-2">
+                  <div className="grid gap-2">
+                    <Label htmlFor="paper-label">Label</Label>
+                    <Input
+                      id="paper-label"
+                      value={paperLabel}
+                      placeholder="Practice account"
+                      disabled={busy}
+                      onChange={(event) => setPaperLabel(event.target.value)}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="paper-equity">Starting equity (USD)</Label>
+                    <Input
+                      id="paper-equity"
+                      value={paperEquity}
+                      inputMode="decimal"
+                      disabled={busy}
+                      onChange={(event) =>
+                        setPaperEquity(event.target.value.trim())
+                      }
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+              {error ? <ErrorMessage>{error}</ErrorMessage> : null}
             </DialogBody>
             <DialogFooter variant="plain">
               <>
@@ -377,7 +406,9 @@ export function NewWalletDialog({
                   disabled={busy || !paperLabel.trim()}
                   onClick={() => void savePaper()}
                 >
-                  {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
+                  {busy ? (
+                    <Loader2Icon className="size-4 animate-spin" />
+                  ) : null}
                   Create
                 </Button>
               </>

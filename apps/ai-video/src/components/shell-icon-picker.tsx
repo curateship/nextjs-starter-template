@@ -126,7 +126,7 @@ export function ShellIconPicker({
             </DialogDescription>
           </DialogHeader>
 
-          <DialogBody className="gap-4">
+          <DialogBody>
             <div className="flex items-center gap-2">
               <div className="relative min-w-0 flex-1">
                 <SearchIcon className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />

@@ -1,26 +1,21 @@
 import * as React from "react"
-import { cva, type VariantProps } from "class-variance-authority"
-import { cn } from "@/lib/utils/tailwind"
 
-const cardVariants = cva("text-card-foreground rounded-md", {
-  variants: {
-    variant: {
-      // Borderless white surfaces on the light gray admin canvas.
-      default: "bg-card",
-      soft: "bg-foreground/5",
-      mixed: "bg-foreground/5 border border-foreground.5"
-    }
-  },
-  defaultVariants: {
-    variant: "default"
-  }
-})
+import { cn } from "@/lib/utils"
 
-export interface CardProps extends React.HTMLAttributes<HTMLDivElement>, VariantProps<typeof cardVariants> {}
+// Directory carve-out (recorded in task 01): this file keeps directory's card
+// GEOMETRY — padding lives in CardHeader/CardContent (not on the card), the
+// header is a flex column, CardContent is a `grid gap-4`, and CardGroup has no
+// display of its own. ~200 call sites (full-bleed dashboard cards, settings
+// forms, modal bodies) are built against this contract; custom-shell's card
+// anatomy (py-4/gap-4 card, grid header, bare px content) belongs to a
+// screen-by-screen visual sweep, not a primitive swap. The adjustable border
+// is drawn by the runtime styling rules in styles.css, not by the primitive.
 
-const Card = React.forwardRef<HTMLDivElement, CardProps>(({ className, variant, ...props }, ref) => (
-  <div ref={ref} data-slot="card" className={cn(cardVariants({ variant, className }))} {...props} />
-))
+const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
+  ({ className, ...props }, ref) => (
+    <div ref={ref} data-slot="card" className={cn("text-card-foreground rounded-md bg-card", className)} {...props} />
+  )
+)
 Card.displayName = "Card"
 
 // CardGroup — wraps a grid or flex of Card elements and applies consistent responsive gap between them
@@ -68,26 +63,9 @@ const CardContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDi
 )
 CardContent.displayName = "CardContent"
 
-const CardSection = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => <div ref={ref} data-slot="card-section" className={cn("p-6", className)} {...props} />
-)
-CardSection.displayName = "CardSection"
-
-const CardTableHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
-    <div
-      ref={ref}
-      data-slot="card-table-header"
-      className={cn("grid gap-4 border-b bg-muted/30 px-6 py-4 text-sm font-medium text-muted-foreground", className)}
-      {...props}
-    />
-  )
-)
-CardTableHeader.displayName = "CardTableHeader"
-
 const CardFooter = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => <div ref={ref} data-slot="card-footer" className={cn("flex items-center p-6 pt-0", className)} {...props} />
 )
 CardFooter.displayName = "CardFooter"
 
-export { Card, CardGroup, CardHeader, CardFooter, CardTitle, CardDescription, CardContent, CardSection, CardTableHeader }
+export { Card, CardGroup, CardHeader, CardFooter, CardTitle, CardDescription, CardContent }

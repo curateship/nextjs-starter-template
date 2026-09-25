@@ -1,0 +1,1742 @@
+import { readLighterKeyPermission } from "@/server/protocols/lighter/permissions"
+import { readAsterKeyPermission } from "@/server/protocols/aster/permissions"
+import { readKucoinKeyPermission } from "@/server/protocols/kucoin/permissions"
+import { readPhemexKeyPermission } from "@/server/protocols/phemex/permissions"
+import { readHyperliquidKeyPermission } from "@/server/protocols/hyperliquid/permissions"
+import type { KeyPermission } from "@/lib/trade/wallets"
+import {
+  placeBnbOrder,
+  quoteBnbSwap,
+  cancelBnbOrder,
+  modifyBnbOrder,
+  closeBnbPosition,
+  setBnbBrackets,
+  fetchBnbOrderInfo,
+} from "./bnb/orders"
+import { fetchBnbOrderFills } from "./bnb/fills"
+import { bnbExecutionNotes } from "@/server/protocols/bnb-ledger"
+import {
+  fetchBnbCandles,
+  fetchBnbCandleHistory,
+} from "@/server/protocols/bnb/candles"
+import { poolHistoryFloor } from "@/server/protocols/evm-chain/candles"
+import {
+  fetchRobinhoodAccount,
+  fetchRobinhoodPortfolio,
+} from "@/server/protocols/robinhood/account"
+import { fetchRobinhoodOrderFills } from "@/server/protocols/robinhood/fills"
+import {
+  cancelRobinhoodOrder,
+  closeRobinhoodPosition,
+  fetchRobinhoodOrderInfo,
+  modifyRobinhoodOrder,
+  placeRobinhoodOrder,
+  quoteRobinhoodSwap,
+  setRobinhoodBrackets,
+} from "@/server/protocols/robinhood/orders"
+import { robinhoodExecutionNotes } from "@/server/protocols/robinhood-ledger"
+import {
+  fetchRobinhoodCandles,
+  fetchRobinhoodCandleHistory,
+} from "@/server/protocols/robinhood/candles"
+import type {
+  CandleBar,
+  CandleInterval,
+  CredentialForm,
+  FundingRate,
+  MarketCatalog,
+  MarketRow,
+  NetworkId,
+  OrderAuth,
+  PlaceOrderOutcome,
+  PlaceOrderParams,
+  ProtocolCapabilities,
+  ProtocolId,
+  SwapQuote,
+  WalletAccountFigures,
+  WalletOrderFill,
+  WalletOrderInfo,
+  WalletPortfolio,
+  WalletPosition,
+} from "@/lib/protocols/contracts"
+import { protocolCore, protocolDescription } from "@/lib/api/trade/protocols"
+import { roundOrderPx } from "@/lib/protocols/hyperliquid/translate"
+import { candleIntervalMs as standardCandleIntervalMs } from "@/lib/protocols/timing"
+import { roundToTick } from "@/lib/protocols/tick"
+import { fetchHyperliquidAccount } from "@/server/protocols/hyperliquid/account"
+import { verifyHyperliquidAgentKey } from "@/server/protocols/hyperliquid/agent"
+import {
+  hyperliquidApprovedBuilderFee,
+  submitHyperliquidBuilderFeeApproval,
+  type BuilderFeeApproval,
+} from "@/server/protocols/hyperliquid/builder-fee"
+import {
+  candleIntervalMs,
+  fetchHyperliquidCandleHistory,
+  fetchHyperliquidCandles,
+} from "@/server/protocols/hyperliquid/candles"
+import { fetchHyperliquidMarkets } from "@/server/protocols/hyperliquid/markets"
+import { fetchHyperliquidFunding } from "@/server/protocols/hyperliquid/funding"
+import {
+  cancelHyperliquidOrder,
+  closeHyperliquidPosition,
+  fetchHyperliquidOrderFills,
+  fetchHyperliquidOrderInfo,
+  fetchHyperliquidPortfolio,
+  placeHyperliquidOrder,
+  adjustHyperliquidMargin,
+  setHyperliquidLeverage,
+  setHyperliquidBrackets,
+  modifyHyperliquidOrder,
+  recoverHyperliquidClientOrder,
+} from "@/server/protocols/hyperliquid/orders"
+import {
+  fetchHyperliquidPrices,
+  forgetHyperliquidPrice,
+  pricesWereRationed as hyperliquidPricesWereRationed,
+} from "@/server/protocols/hyperliquid/prices"
+import { isHyperliquidPostOnlyRefusal } from "@/server/protocols/hyperliquid/refusals"
+import {
+  hyperliquidFillsNeedRecovery,
+  watchHyperliquidFills,
+} from "@/server/protocols/hyperliquid/user-fills-feed"
+import {
+  livePrices as readHyperliquidLivePrices,
+  livePricesFresh as hyperliquidLivePricesFresh,
+  openLivePrices as openHyperliquidLivePrices,
+} from "@/server/protocols/hyperliquid/live-prices"
+import {
+  binanceFundingIntervalMs,
+  fetchBinanceFunding,
+} from "@/server/protocols/binance/funding"
+import { phemexIntervalMs } from "@/lib/protocols/phemex/translate"
+import { fetchPhemexAccount } from "@/server/protocols/phemex/account"
+import { verifyPhemexAgentKey } from "@/server/protocols/phemex/agent"
+import {
+  fetchPhemexCandleHistory,
+  fetchPhemexCandles,
+} from "@/server/protocols/phemex/candles"
+import { packPhemexCredential } from "@/server/protocols/phemex/client"
+import {
+  fetchPhemexFunding,
+  phemexFundingIntervalMs,
+} from "@/server/protocols/phemex/funding"
+import {
+  closePhemexPosition,
+  cancelPhemexOrder,
+  fetchPhemexOrderFills,
+  fetchPhemexOrderInfo,
+  fetchPhemexPortfolio,
+  modifyPhemexOrder,
+  placePhemexOrder,
+  adjustPhemexMargin,
+  setPhemexLeverage,
+  setPhemexBrackets,
+} from "@/server/protocols/phemex/orders"
+import {
+  fetchPhemexMarkets,
+  fetchPhemexPrices,
+  phemexPricesWereRationed,
+} from "@/server/protocols/phemex/markets"
+import {
+  openPhemexLivePrices,
+  phemexLivePricesFresh,
+  readPhemexLivePrices,
+} from "@/server/protocols/phemex/live-prices"
+import {
+  phemexFillsNeedRecovery,
+  watchPhemexFills,
+} from "@/server/protocols/phemex/private-feed"
+import { fetchKucoinAccount } from "@/server/protocols/kucoin/account"
+import { verifyKucoinAgentKey } from "@/server/protocols/kucoin/agent"
+import {
+  fetchKucoinCandleHistory,
+  fetchKucoinCandles,
+} from "@/server/protocols/kucoin/candles"
+import { packKucoinCredential } from "@/server/protocols/kucoin/client"
+import { fetchKucoinFunding } from "@/server/protocols/kucoin/funding"
+import {
+  kucoinLivePricesFresh,
+  openKucoinLivePrices,
+  readKucoinLivePrices,
+} from "@/server/protocols/kucoin/live-prices"
+import { kucoinLiveTicket } from "@/server/protocols/kucoin/live-ticket"
+import {
+  fetchKucoinMarkets,
+  fetchKucoinPrices,
+  kucoinPricesWereRationed,
+  roundKucoinPx,
+} from "@/server/protocols/kucoin/markets"
+import {
+  cancelKucoinOrder,
+  closeKucoinPosition,
+  fetchKucoinOrderFills,
+  fetchKucoinOrderInfo,
+  fetchKucoinPortfolio,
+  modifyKucoinOrder,
+  placeKucoinOrder,
+  adjustKucoinMargin,
+  setKucoinLeverage,
+  setKucoinBrackets,
+} from "@/server/protocols/kucoin/orders"
+import {
+  kucoinFillsNeedRecovery,
+  watchKucoinFills,
+} from "@/server/protocols/kucoin/fill-feed"
+import {
+  KUCOIN_DEFAULT_FUNDING_MS,
+  kucoinIntervalMs,
+} from "@/lib/protocols/kucoin/translate"
+import {
+  fetchAsterAccount,
+  fetchAsterPortfolio,
+} from "@/server/protocols/aster/account"
+import { verifyAsterAgentKey } from "@/server/protocols/aster/agent"
+import { packAsterCredential } from "@/server/protocols/aster/client"
+import { fetchAsterLeverageCeilings } from "@/server/protocols/aster/leverage-ceilings"
+import {
+  asterLivePricesFresh,
+  openAsterLivePrices,
+  readAsterLivePrices,
+} from "@/server/protocols/aster/live-prices"
+import {
+  ASTER_HISTORY_BATCH_BARS,
+  fetchAsterCandleHistory,
+  fetchAsterCandles,
+} from "@/server/protocols/aster/candles"
+import {
+  asterFundingIntervalMs,
+  fetchAsterFunding,
+} from "@/server/protocols/aster/funding"
+import {
+  fetchAsterMarkets,
+  fetchAsterPrices,
+  asterPricesWereRationed,
+} from "@/server/protocols/aster/markets"
+import {
+  cancelAsterOrder,
+  closeAsterPosition,
+  fetchAsterOrderFills,
+  fetchAsterOrderInfo,
+  fetchAsterOrderPortfolio,
+  modifyAsterOrder,
+  placeAsterOrder,
+  adjustAsterMargin,
+  setAsterBrackets,
+  setAsterLeverage,
+} from "@/server/protocols/aster/orders"
+import {
+  asterFillsNeedRecovery,
+  watchAsterFills,
+} from "@/server/protocols/aster/user-stream"
+import {
+  LIGHTER_HISTORY_BATCH_BARS,
+  fetchLighterCandleHistory,
+  fetchLighterCandles,
+} from "@/server/protocols/lighter/candles"
+import {
+  fetchLighterFunding,
+  lighterFundingIntervalMs,
+} from "@/server/protocols/lighter/funding"
+import {
+  fetchLighterMarkets,
+  fetchLighterPrices,
+  lighterPricesWereRationed,
+} from "@/server/protocols/lighter/markets"
+import {
+  lighterLivePricesFresh,
+  openLighterLivePrices,
+  readLighterLivePrices,
+} from "@/server/protocols/lighter/live-prices"
+import {
+  fetchLighterAccount,
+  fetchLighterPortfolio,
+} from "@/server/protocols/lighter/account"
+import { verifyLighterAgentKey } from "@/server/protocols/lighter/agent"
+import { packLighterCredential } from "@/server/protocols/lighter/client"
+import {
+  fetchLighterOrderFills,
+  fetchLighterOrderInfo,
+} from "@/server/protocols/lighter/fills"
+import {
+  lighterFillsNeedRecovery,
+  watchLighterFills,
+} from "@/server/protocols/lighter/private-feed"
+import {
+  adjustLighterMargin,
+  cancelLighterOrder,
+  closeLighterPosition,
+  fetchLighterOrderPortfolio,
+  modifyLighterOrder,
+  placeLighterOrder,
+  setLighterBrackets,
+  setLighterLeverage,
+} from "@/server/protocols/lighter/orders"
+import {
+  APEX_HISTORY_BATCH_BARS,
+  apexHistoryFloor,
+  fetchApexCandleHistory,
+  fetchApexCandles,
+} from "@/server/protocols/apex/candles"
+import {
+  apexFundingIntervalMs,
+  fetchApexFunding,
+} from "@/server/protocols/apex/funding"
+import {
+  apexLivePricesFresh,
+  openApexLivePrices,
+  readApexLivePrices,
+} from "@/server/protocols/apex/live-prices"
+import { fetchApexAccount } from "@/server/protocols/apex/account"
+import { verifyApexAgentKey } from "@/server/protocols/apex/agent"
+import {
+  cancelApexOrder,
+  closeApexPosition,
+  fetchApexOrderInfo,
+  fetchApexPortfolio,
+  modifyApexOrder,
+  placeApexOrder,
+  setApexBrackets,
+  setApexLeverage,
+} from "@/server/protocols/apex/orders"
+import {
+  apexFillsNeedRecovery,
+  fetchApexOrderFills,
+  watchApexFills,
+} from "@/server/protocols/apex/private-feed"
+import { packApexCredential } from "@/server/protocols/apex/client"
+import {
+  apexPricesWereRationed,
+  fetchApexMarkets,
+  fetchApexPrices,
+} from "@/server/protocols/apex/markets"
+import {
+  EDGEX_HISTORY_BATCH_BARS,
+  edgexHistoryFloor,
+  fetchEdgexCandleHistory,
+  fetchEdgexCandles,
+} from "@/server/protocols/edgex/candles"
+import {
+  edgexFundingIntervalMs,
+  fetchEdgexFunding,
+} from "@/server/protocols/edgex/funding"
+import {
+  edgexLivePricesFresh,
+  openEdgexLivePrices,
+  readEdgexLivePrices,
+} from "@/server/protocols/edgex/live-prices"
+import { fetchEdgexAccount } from "@/server/protocols/edgex/account"
+import { verifyEdgexAgentKey } from "@/server/protocols/edgex/agent"
+import { packEdgexCredential } from "@/server/protocols/edgex/client"
+import {
+  edgexPricesWereRationed,
+  fetchEdgexMarkets,
+  fetchEdgexPrices,
+} from "@/server/protocols/edgex/markets"
+import {
+  cancelEdgexOrder,
+  closeEdgexPosition,
+  fetchEdgexOrderInfo,
+  fetchEdgexPortfolio,
+  modifyEdgexOrder,
+  placeEdgexOrder,
+  setEdgexBrackets,
+  setEdgexLeverage,
+} from "@/server/protocols/edgex/orders"
+import {
+  edgexFillsNeedRecovery,
+  fetchEdgexOrderFills,
+  watchEdgexFills,
+} from "@/server/protocols/edgex/private-feed"
+import {
+  fetchSolanaMarkets,
+  fetchSolanaPrices,
+  searchSolanaMarkets,
+  solanaHasNoCandles,
+} from "@/server/protocols/solana/markets"
+import {
+  fetchSolanaAccount,
+  fetchSolanaPortfolio,
+} from "@/server/protocols/solana/account"
+import {
+  cancelSolanaOrder,
+  closeSolanaPosition,
+  fetchSolanaOrderFills,
+  fetchSolanaOrderInfo,
+  modifySolanaOrder,
+  placeSolanaOrder,
+  quoteSolanaSwap,
+  setSolanaBrackets,
+} from "@/server/protocols/solana/orders"
+import { fetchBnbAccount, fetchBnbPortfolio } from "./bnb/account"
+import {
+  fetchBnbMarkets,
+  fetchBnbPrices,
+  searchBnbMarkets,
+  bnbPricesWereRationed,
+} from "@/server/protocols/bnb/markets"
+import {
+  packBnbCredential,
+  verifyBnbWallet,
+} from "@/server/protocols/bnb/wallet"
+import { makeEvmWallet } from "@/server/protocols/evm-chain/wallet"
+import {
+  fetchRobinhoodMarkets,
+  fetchRobinhoodPrices,
+  robinhoodPricesWereRationed,
+  searchRobinhoodMarkets,
+} from "@/server/protocols/robinhood/markets"
+import {
+  packRobinhoodCredential,
+  verifyRobinhoodWallet,
+} from "@/server/protocols/robinhood/wallet"
+import {
+  makeSolanaWallet,
+  packSolanaCredential,
+  verifySolanaWallet,
+} from "@/server/protocols/solana/wallet"
+
+/**
+ * The lookup between "a protocol id" and "the module that speaks it".
+ *
+ * Shared code hands in an id and gets adapters back; it never asks *which*
+ * protocol it holds, and `fence.test.ts` fails anything outside a protocol's
+ * own folder that tries. Adding an exchange is one new folder and one entry
+ * here — that line is what "plug-in work" means, so it stays true.
+ */
+
+export type ProtocolEntry = {
+  id: ProtocolId
+  label: string
+  /** Networks this adapter can truthfully serve. */
+  networks: readonly NetworkId[]
+  /** Which network a screen should show when nothing has chosen one. */
+  defaultNetwork: NetworkId
+  /**
+   * Where anybody can read a mainnet wallet's whole history without trusting
+   * this app. Present only on venues whose trades are public on a chain; an
+   * exchange account (KuCoin, Phemex) has no public address to link to.
+   */
+  explorer?: (address: string) => string
+  capabilities: ProtocolCapabilities
+  markets: {
+    fetch(network: NetworkId): Promise<MarketCatalog>
+    candles(
+      network: NetworkId,
+      marketId: string,
+      interval: CandleInterval,
+      /** Epoch ms to read from, instead of the recent slice a chart draws. */
+      since?: number
+    ): Promise<CandleBar[]>
+    /** One finished historical window, with `to` treated as exclusive. */
+    history(
+      network: NetworkId,
+      marketId: string,
+      interval: CandleInterval,
+      from: number,
+      to: number
+    ): Promise<CandleBar[]>
+    /**
+     * Bars the candle store hands this adapter at once. The adapter may split
+     * the range into its own exchange-sized pages and run them together.
+     */
+    historyBatchBars?: number
+    /** How long one bar of a timeframe lasts, in milliseconds. */
+    intervalMs(interval: CandleInterval): number
+    /**
+     * True on a source whose markets only trade during their exchange's
+     * hours, so an empty night or weekend is silence and not a hole. The
+     * candle store reads this to decide what counts as a gap.
+     */
+    barsOnlyInSession?: boolean
+    /**
+     * True on a source that publishes what traded, splits and all, so a
+     * five-for-one split reads as the price falling to a fifth overnight.
+     * The candle store folds those back so the history is in today's units.
+     */
+    pricesCarrySplits?: boolean
+    /**
+     * The earliest moment this source could have a bar of this size for the
+     * market, so a full fill starts there rather than at a guess. Absent
+     * where the source does not say.
+     */
+    historyFloor?(marketId: string, interval: CandleInterval): number | null
+    /**
+     * The latest moment this source has published finished bars for, when
+     * that lags behind the clock. Dukascopy writes a day's files after the
+     * day ends, so a window reaching into today is only covered up to
+     * midnight. Absent where a source publishes every closed bar at once.
+     */
+    historyPublishedThrough?(now: number, interval: CandleInterval): number
+    /**
+     * False on a venue that cannot afford to hand over its whole history for
+     * a market no source covers. Lighter allows sixty requests a minute for
+     * everything, and one full walk is eight of them.
+     */
+    chartChasesFullHistory?: false
+    /** Record screen prices as fallback bars and label borrowed history. */
+    recordsOwnBars?: true
+    /** Cache the venue candle API in the store, preferring it over recorded bars. */
+    storesVenueCandles?: true
+    /**
+     * What this source's volume figure really is, when it is not the
+     * market's own. The chart prints it on the volume pane for the bars
+     * that came from here.
+     */
+    volumeNote?: string
+    /**
+     * Today's price for these markets and nothing else — the cheap read the
+     * practice engine settles against, where `fetch` is the whole catalogue.
+     * A market the exchange would not price is left out of the answer rather
+     * than given a made-up one.
+     */
+    prices(
+      network: NetworkId,
+      marketIds: readonly string[],
+      options?: {
+        /** The price is needed to accept an order, not for an idle refresh. */
+        forOrder?: boolean
+      }
+    ): Promise<Map<string, number>>
+    /**
+     * The nearest price this exchange would accept for an order. Every
+     * protocol has its own rule about how fine a price may be; asking here is
+     * how the engine stays blind to which one it is talking to. Exchanges
+     * that state a per-market tick read `priceTick`; exchanges with a rule
+     * instead (Hyperliquid's five significant figures) ignore it.
+     */
+    roundPx(
+      px: number,
+      sizeDecimals: number | null,
+      priceTick: number | null
+    ): number
+    /**
+     * Whether the last `prices` answer for this market was served from a
+     * stale cache because the exchange was rationing requests — the
+     * difference between "this coin has no price" (permanent, worth looking
+     * at) and "the exchange is busy" (clears on its own). Absent where the
+     * prices layer never rations.
+     */
+    pricesWereRationed?(network: NetworkId, marketId: string): boolean
+    /**
+     * Drops a price this venue is holding for the market, so the next read
+     * asks afresh. Present where the prices layer keeps a short-lived copy
+     * that a refused order has just shown to be out of date (Hyperliquid).
+     */
+    forgetPrice?(network: NetworkId, marketId: string): void
+    /**
+     * A market that is not in the list, found by name or address. Present on
+     * an open network whose coins outnumber any list (Solana); absent where
+     * `fetch` is the whole catalogue. `picker.search` on the catalogue is the
+     * flag the screen reads.
+     */
+    search?(network: NetworkId, query: string): Promise<MarketRow[]>
+  }
+  /**
+   * The pushed-price line the trading engine reads instead of asking — one
+   * websocket per network, opened on first use and shared by everything.
+   * Absent on a protocol nothing trades on yet: the engine then falls back
+   * to `markets.prices`, which is correct, just rationed.
+   */
+  livePrices?: {
+    /**
+     * Makes sure the line for this network is up, and carrying these markets.
+     * Free once it is open and they are already on it.
+     *
+     * Most exchanges push every market down one feed and ignore the list.
+     * KuCoin subscribes per market, so it is told which ones matter — the
+     * ones the engine is actually settling, never the whole catalogue.
+     */
+    open(network: NetworkId, marketIds?: readonly string[]): void
+    /** The pushed prices by the exchange's own market id. */
+    read(network: NetworkId): { prices: ReadonlyMap<string, number> }
+    /** Whether the feed is currently worth reading — data arriving, not claims. */
+    fresh(network: NetworkId): boolean
+  }
+  /**
+   * A one-use ticket for the browser's live stream, on an exchange whose
+   * socket demands a token the browser cannot fetch itself (KuCoin's
+   * bullet-token handshake is cross-origin). Absent where the public socket
+   * is open to anyone.
+   */
+  liveTicket?(network: NetworkId): Promise<{
+    endpoint: string
+    token: string
+    pingIntervalMs: number
+  }>
+  /** Absent where a market has no periodic position funding. */
+  funding?: {
+    fetch(
+      network: NetworkId,
+      marketId: string,
+      from: number,
+      to: number
+    ): Promise<FundingRate[]>
+    /** Regular time between funding settlements, in milliseconds. */
+    intervalMs(network: NetworkId, marketId: string): number
+  }
+  /**
+   * Absent on an exchange that cannot hold an account. `capabilities.accounts` is the flag; this is the code behind it. Optional so a markets-only exchange is a shorter entry rather than a set of stubs that throw — a stub is a door that looks open.
+   */
+  account?: {
+    /**
+     * What the account holds and is worth. `credential` hands over the
+     * decrypted blob for an exchange whose accounts cannot be read without
+     * it — an API-key venue. It is a function on purpose: a venue whose
+     * accounts are public by address (Hyperliquid) never calls it, so the
+     * plaintext never even exists on that path. A connector that calls it
+     * and gets null throws `LIVE_WALLET_KEY` rather than answering with a
+     * guess.
+     */
+    fetch(
+      network: NetworkId,
+      address: string,
+      credential: () => string | null,
+      /** Server-verified wallet owner, for discovering tokens from saved fills. */
+      owner?: { userId: string; walletId: string }
+    ): Promise<WalletAccountFigures>
+    /**
+     * True when this exchange states what each individual sale made, at the
+     * moment that sale happens.
+     *
+     * **False is not a smaller version of true, it is a different meaning for
+     * the same zero.** On a venue that only pays out a figure when a whole
+     * position closes, every partial sale before that reports zero money, and
+     * that zero means "not stated yet" rather than "made nothing". Counting
+     * those zeros as real would report a day's trading as flat.
+     *
+     * The Dashboard's settled-money sum reads this instead of asking which
+     * exchange it is holding, which is the whole point of the fence: the fact
+     * lives once, on the exchange it is true of.
+     */
+    profitPerSale: boolean
+    /** Read-only positions while an exchange's order path is still closed. */
+    portfolio?(
+      network: NetworkId,
+      address: string,
+      credential: () => string | null,
+      /** A read needed before money moves may use the room kept from polling. */
+      priority?: "background" | "order",
+      /** Server-verified wallet owner, for discovering tokens from saved fills. */
+      owner?: { userId: string; walletId: string }
+    ): Promise<WalletPortfolio>
+    /**
+     * Each market's highest leverage for this account, keyed by market id.
+     *
+     * Present only where the public market list cannot state it and a signed
+     * read can (Aster). The market list's own figure always wins; this fills
+     * only a market the list left unknown. See `trade/leverage-ceilings.ts`.
+     */
+    leverageCeilings?(
+      network: NetworkId,
+      address: string,
+      credential: () => string | null
+    ): Promise<Map<string, number>>
+  }
+  /**
+   * Absent alongside `account`, for the same reason: a trading key only means something where there is trading.
+   */
+  agent?: {
+    permissions?(
+      network: NetworkId,
+      address: string,
+      credential: () => string | null
+    ): Promise<KeyPermission>
+    /**
+     * Proves a pasted credential before it is stored. On Hyperliquid:
+     * refuses the account's own key outright, and asks the exchange whether
+     * this key is really approved to trade for that account. On an API-key
+     * exchange: one signed harmless read with the packed blob. Answers the
+     * approval's expiry where the venue states one.
+     */
+    verify(
+      network: NetworkId,
+      accountAddress: string,
+      agentKey: string
+    ): Promise<{
+      validUntil: number | null
+      /** Account-wide direction setting where the exchange exposes one. */
+      positionMode?: "one-way" | "two-sided" | null
+    }>
+  }
+  /**
+   * How this exchange's sign-in fields are drawn and packed. Present wherever
+   * a wallet can be added, which is every venue with `account`. A venue that
+   * cannot hold an account at all has nothing to sign in to and no block
+   * here. Wherever this is, `agent` is too — nothing is stored unproven.
+   */
+  credentials?: {
+    /** The dialog's labels, patterns and help copy, as data. */
+    form: CredentialForm
+    /**
+     * Folds the dialog's fields into the ONE string that gets encrypted into
+     * `agent_key_encrypted` and later handed back as `OrderAuth.agentKey`.
+     * The format belongs to this protocol alone; a missing required field is
+     * refused here with a named `KEY_…` error, before anything is stored.
+     */
+    pack(input: {
+      /** The public identifier the dialog collected — some blobs carry it. */
+      address?: string
+      agentKey?: string
+      secret?: string
+      passphrase?: string
+    }): string
+    /**
+     * A fresh wallet made here on the server, on a chain where a wallet is
+     * just a keypair. The secret goes straight through `pack` into the
+     * store's encrypt step; only the address ever reaches the browser.
+     * Present exactly where `form.canMakeWallet` is true.
+     */
+    make?(): { address: string; secret: string }
+  }
+  /**
+   * Absent on an exchange that cannot place one. See `account` above.
+   */
+  orders?: {
+    /** Stops carry a fixed quantity and must be resized after position changes. */
+    fixedSizeStops?: true
+    /**
+     * True when this venue refused a post-only order because it would have
+     * crossed the book at once, the one refusal a resting order is sent again
+     * for. Absent where the venue's refusal is already the shared
+     * `POST_ONLY_RETRY`.
+     */
+    postOnlyRefused?(error: unknown): boolean
+    /**
+     * Finds an order by the client id it was sent with, after the venue's
+     * answer was lost. `found` false proves nothing: the caller keeps the
+     * order marked uncertain and asks again later.
+     */
+    recoverClientOrder?(
+      network: NetworkId,
+      address: string,
+      clientOrderId: string
+    ): Promise<{ orderId: string | null; found: boolean }>
+    /**
+     * What a swap would do right now, before anything is signed. Present on
+     * a venue whose orders are swaps (`capabilities.ordersAreSwaps`); absent
+     * on a book venue, where the price on the order is the price.
+     */
+    quote?(
+      network: NetworkId,
+      address: string,
+      params: {
+        marketId: string
+        side: "buy" | "sell"
+        sz: number
+        px: number
+        slippage: number
+      }
+    ): Promise<SwapQuote>
+    /** Signs and places one real order, with optional protection legs. */
+    place(
+      network: NetworkId,
+      auth: OrderAuth,
+      params: PlaceOrderParams
+    ): Promise<PlaceOrderOutcome>
+    /** Cancels one resting real order. */
+    cancel(
+      network: NetworkId,
+      auth: OrderAuth,
+      params: { marketId: string; orderId: string }
+    ): Promise<void>
+    /** Moves one resting real order to a new price, keeping its size and side. */
+    modify(
+      network: NetworkId,
+      auth: OrderAuth,
+      params: {
+        marketId: string
+        orderId: string
+        side: "buy" | "sell"
+        px: number
+        sz: number
+        reduceOnly: boolean
+      }
+    ): Promise<void>
+    /** Closes a real position at a capped market price. */
+    close(
+      network: NetworkId,
+      auth: OrderAuth,
+      params: {
+        marketId: string
+        szi: number
+        priceTick?: number | null
+        priceMultiplierUp?: number | null
+        priceMultiplierDown?: number | null
+      }
+    ): Promise<{
+      avgPx: number | null
+      filledSz: number | null
+      executionNote?: string
+    }>
+    /**
+     * Changes the leverage on a position that is already open.
+     *
+     * Optional, and `capabilities.changeLeverage` is the flag the screens
+     * read. Present only where the venue really allows it, so the button is
+     * hidden rather than offered and refused — a stub that throws is a door
+     * that looks open.
+     */
+    setLeverage?(
+      network: NetworkId,
+      auth: OrderAuth,
+      params: { marketId: string; leverage: number; szi: number }
+    ): Promise<void>
+    /**
+     * Adds or takes back the cash behind one isolated position. `dollars` is
+     * signed: negative takes margin out. Optional, like `setLeverage`.
+     */
+    adjustMargin?(
+      network: NetworkId,
+      auth: OrderAuth,
+      params: { marketId: string; szi: number; dollars: number }
+    ): Promise<void>
+    /**
+     * Replaces the stop and target riding on a real position.
+     *
+     * `slSz` null means the stop closes the whole position, however big the
+     * position is when it fires — the only stop most positions ever carry. A
+     * number is a fixed-size stop that sells exactly that many coins, the way
+     * a target with a size does, so a second strategy's coins on the same
+     * position survive it. The app layer has already checked the size against
+     * what is held; a venue that cannot place a fixed-size stop throws
+     * `LIVE_SIZED_STOP_UNSUPPORTED` rather than placing something that would
+     * close more than it promised.
+     *
+     * Answers with the new stop's own order id when the venue names one, so a
+     * caller that owns its stop — a grid running above a ladder — can cancel
+     * or move that one order later without touching anything else.
+     */
+    setBrackets(
+      network: NetworkId,
+      auth: OrderAuth,
+      params: {
+        marketId: string
+        position: Pick<WalletPosition, "szi" | "protectionOrderIds">
+        targets: Array<{ px: number; sz: number | null }>
+        slPx: number | null
+        slSz: number | null
+      }
+    ): Promise<{ slOrderId: string | null }>
+    /**
+     * What a live wallet holds and has waiting, from the exchange itself.
+     * `credential` as on `account.fetch`: needed by API-key venues, ignored
+     * by venues whose accounts are public by address.
+     */
+    portfolio(
+      network: NetworkId,
+      address: string,
+      credential: () => string | null,
+      /** A read needed before money moves may use the room kept from polling. */
+      priority?: "background" | "order",
+      /** Server-verified wallet owner, for discovering tokens from saved fills. */
+      owner?: { userId: string; walletId: string }
+    ): Promise<WalletPortfolio>
+    fills(
+      network: NetworkId,
+      address: string,
+      since: number,
+      credential: () => string | null,
+      /** A read following a real fill may use the room kept from polling. */
+      priority?: "background" | "order",
+      owner?: { userId: string; walletId: string }
+    ): Promise<WalletOrderFill[]>
+    executionNotes?(
+      userId: string,
+      walletIds: string[],
+      orderIds: string[]
+    ): Promise<Map<string, string>>
+    /**
+     * What one order was, asked after it is gone — the only way to tell a
+     * stop firing from an ordinary sell once the order itself has been
+     * cancelled and forgotten. `marketId` rides along because some venues
+     * only answer this per market (Phemex); venues that don't ignore it.
+     */
+    orderInfo(
+      network: NetworkId,
+      address: string,
+      orderId: string,
+      marketId: string,
+      credential: () => string | null
+    ): Promise<WalletOrderInfo>
+    /** Opens the venue's private fill stream and keeps this listener current. */
+    watchFills?(
+      network: NetworkId,
+      address: string,
+      listenerId: string,
+      credential: () => string | null,
+      onFill: (fill: WalletOrderFill) => void
+    ): void
+    /** True when a pushed feed needs a gap-closing or periodic REST read. */
+    fillsNeedRecovery?(
+      network: NetworkId,
+      address: string,
+      credential: () => string | null
+    ): boolean
+    /**
+     * An app's own fee on an order, which the account's main wallet approves
+     * once up to a highest rate (Hyperliquid's builder fee). Present only
+     * where the exchange has one; copying with real money needs it.
+     */
+    builderFee?: {
+      /** Hands on the approval the member's browser wallet signed. */
+      submitApproval(
+        network: NetworkId,
+        approval: BuilderFeeApproval
+      ): Promise<void>
+      /** The highest fee the account allows this builder, tenths of a basis point. */
+      approved(network: NetworkId, user: string, builder: string): Promise<number>
+    }
+  }
+}
+
+import {
+  fetchBinanceCandleHistory,
+  binanceHistoryFloor,
+  binanceIntervalMs,
+  binancePricesWereRationed,
+  fetchBinanceCandles,
+  fetchBinanceMarkets,
+  fetchBinancePrices,
+} from "@/server/protocols/binance/markets"
+import {
+  fetchBinanceAccount,
+  fetchBinanceLeverageCeilings,
+  fetchBinancePositions,
+} from "@/server/protocols/binance/account"
+import {
+  readBinanceKeyPermission,
+  verifyBinanceAgentKey,
+} from "@/server/protocols/binance/agent"
+import { packBinanceCredential } from "@/server/protocols/binance/client"
+import {
+  binanceLivePricesFresh,
+  openBinanceLivePrices,
+  readBinanceLivePrices,
+} from "@/server/protocols/binance/live-prices"
+import {
+  adjustBinanceMargin,
+  cancelBinanceOrder,
+  closeBinancePosition,
+  fetchBinanceOrderFills,
+  fetchBinanceOrderInfo,
+  fetchBinanceOrderPortfolio,
+  modifyBinanceOrder,
+  placeBinanceOrder,
+  setBinanceBrackets,
+  setBinanceLeverage,
+} from "@/server/protocols/binance/orders"
+import {
+  binanceFillsNeedRecovery,
+  watchBinanceFills,
+} from "@/server/protocols/binance/user-stream"
+import { dukascopyFirstBar } from "@/lib/protocols/dukascopy/instruments"
+import {
+  DUKASCOPY_HISTORY_BATCH_BARS,
+  dukascopyPublishedThrough,
+  fetchDukascopyCandleHistory,
+  fetchDukascopyCandles,
+} from "@/server/protocols/dukascopy/candles"
+import {
+  dukascopyIntervalMs,
+  fetchDukascopyMarkets,
+  fetchDukascopyPrices,
+  roundDukascopyPx,
+} from "@/server/protocols/dukascopy/markets"
+
+const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
+  hyperliquid: {
+    ...protocolCore("hyperliquid"),
+    explorer: (address) =>
+      `https://app.hyperliquid.xyz/explorer/address/${encodeURIComponent(address)}`,
+    markets: {
+      fetch: fetchHyperliquidMarkets,
+      candles: fetchHyperliquidCandles,
+      history: fetchHyperliquidCandleHistory,
+      intervalMs: candleIntervalMs,
+      prices: fetchHyperliquidPrices,
+      roundPx: roundOrderPx,
+      pricesWereRationed: hyperliquidPricesWereRationed,
+      forgetPrice: forgetHyperliquidPrice,
+    },
+    livePrices: {
+      open: openHyperliquidLivePrices,
+      read: readHyperliquidLivePrices,
+      fresh: hyperliquidLivePricesFresh,
+    },
+    funding: {
+      fetch: fetchHyperliquidFunding,
+      intervalMs: () => 3_600_000,
+    },
+    account: {
+      fetch: fetchHyperliquidAccount,
+      profitPerSale: true,
+    },
+    agent: {
+      permissions: readHyperliquidKeyPermission,
+      verify: verifyHyperliquidAgentKey,
+    },
+    credentials: {
+      form: protocolDescription("hyperliquid").credentialForm!,
+      // The blob IS the agent key: one hex string, stored as-is. The shape
+      // and never-your-main-key checks run in `verify` before anything is
+      // stored, so pack only refuses emptiness.
+      pack: (input) => {
+        const agentKey = input.agentKey?.trim() ?? ""
+        if (!agentKey) throw new Error("KEY_REQUIRED")
+        return agentKey
+      },
+    },
+    orders: {
+      postOnlyRefused: isHyperliquidPostOnlyRefusal,
+      recoverClientOrder: recoverHyperliquidClientOrder,
+      place: placeHyperliquidOrder,
+      cancel: cancelHyperliquidOrder,
+      modify: modifyHyperliquidOrder,
+      close: closeHyperliquidPosition,
+      setLeverage: setHyperliquidLeverage,
+      adjustMargin: adjustHyperliquidMargin,
+      setBrackets: setHyperliquidBrackets,
+      portfolio: fetchHyperliquidPortfolio,
+      fills: fetchHyperliquidOrderFills,
+      orderInfo: fetchHyperliquidOrderInfo,
+      watchFills: watchHyperliquidFills,
+      fillsNeedRecovery: hyperliquidFillsNeedRecovery,
+      builderFee: {
+        submitApproval: submitHyperliquidBuilderFeeApproval,
+        approved: hyperliquidApprovedBuilderFee,
+      },
+    },
+  },
+  /**
+   * Prices and markets, no trading — yet.
+   *
+   * Binance is an exchange this app intends to trade on, so it is registered
+   * as one from the start rather than kept as the backtest's private history
+   * source. Switching trading on later means filling in `account` and `orders`
+   * and flipping the two flags; nothing else moves, because no screen ever
+   * asks which exchange it is holding — they read these capabilities.
+   *
+   * Those blocks are absent rather than stubbed with throwing functions. A
+   * stub is a door that looks open: the flag says the door is not there, and
+   * anything that ignored the flag should fail loudly at the missing block
+   * rather than quietly at a thrown error deep in a settle.
+   */
+  /**
+   * A full trading venue, spoken through its dollar-settled (USDT-margined)
+   * perpetual API only — real decimal prices. Unlike Hyperliquid it signs
+   * with an API key id and secret, and its accounts cannot be read without
+   * the secret.
+   *
+   * Mainnet only, decided 19 Aug 2026: the practice network is not worth
+   * carrying, so the order path is proven the way KuCoin's will be — reads
+   * first (free), then one deliberately tiny real order behind both
+   * real-money switches.
+   */
+  phemex: {
+    ...protocolCore("phemex"),
+    markets: {
+      fetch: fetchPhemexMarkets,
+      candles: fetchPhemexCandles,
+      history: fetchPhemexCandleHistory,
+      intervalMs: phemexIntervalMs,
+      prices: fetchPhemexPrices,
+      roundPx: roundToTick,
+      pricesWereRationed: phemexPricesWereRationed,
+    },
+    livePrices: {
+      open: openPhemexLivePrices,
+      read: readPhemexLivePrices,
+      fresh: phemexLivePricesFresh,
+    },
+    funding: {
+      fetch: fetchPhemexFunding,
+      intervalMs: phemexFundingIntervalMs,
+    },
+    account: {
+      fetch: fetchPhemexAccount,
+      profitPerSale: true,
+    },
+    agent: {
+      permissions: readPhemexKeyPermission,
+      verify: verifyPhemexAgentKey,
+    },
+    credentials: {
+      form: protocolDescription("phemex").credentialForm!,
+      pack: packPhemexCredential,
+    },
+    orders: {
+      place: placePhemexOrder,
+      cancel: cancelPhemexOrder,
+      modify: modifyPhemexOrder,
+      close: closePhemexPosition,
+      setLeverage: setPhemexLeverage,
+      adjustMargin: adjustPhemexMargin,
+      setBrackets: setPhemexBrackets,
+      portfolio: fetchPhemexPortfolio,
+      fills: fetchPhemexOrderFills,
+      orderInfo: fetchPhemexOrderInfo,
+      watchFills: watchPhemexFills,
+      fillsNeedRecovery: phemexFillsNeedRecovery,
+    },
+  },
+  /**
+   * A full trading venue, dollar-settled perpetuals only, and mainnet only —
+   * KuCoin shut its practice environment down in 2023, so there is nowhere to
+   * rehearse and the real-money gate is the only thing standing between a
+   * click and money.
+   *
+   * Two of its habits show up in this entry. Its accounts need three values
+   * to sign rather than two, so the credential form asks for a passphrase.
+   * And its socket will not open without a ticket the browser cannot fetch,
+   * which is what `liveTicket` is for. Its price hub is told which markets
+   * to carry for the same reason: the exchange publishes no all-markets feed,
+   * so it is subscribed per market rather than to everything.
+   */
+  kucoin: {
+    ...protocolCore("kucoin"),
+    markets: {
+      fetch: fetchKucoinMarkets,
+      candles: fetchKucoinCandles,
+      history: fetchKucoinCandleHistory,
+      intervalMs: kucoinIntervalMs,
+      prices: fetchKucoinPrices,
+      roundPx: roundKucoinPx,
+      pricesWereRationed: kucoinPricesWereRationed,
+    },
+    liveTicket: kucoinLiveTicket,
+    livePrices: {
+      open: openKucoinLivePrices,
+      read: readKucoinLivePrices,
+      fresh: kucoinLivePricesFresh,
+    },
+    funding: {
+      fetch: fetchKucoinFunding,
+      // Eight hours on every KuCoin market seen so far. The contract states
+      // its own granularity and the catalogue reads it; this answer is the
+      // one the shared funding store asks for without a market in hand.
+      intervalMs: () => KUCOIN_DEFAULT_FUNDING_MS,
+    },
+    account: {
+      fetch: fetchKucoinAccount,
+      // KuCoin pays out a figure when a position CLOSES, not when part of one
+      // is sold. Its fills reader pins each payout onto the last fill before
+      // the close, so every other sell carries a zero that means "KuCoin has
+      // not said". The Dashboard counts those as unpriced rather than as
+      // nothing earned.
+      profitPerSale: false,
+    },
+    agent: {
+      permissions: readKucoinKeyPermission,
+      verify: verifyKucoinAgentKey,
+    },
+    credentials: {
+      form: protocolDescription("kucoin").credentialForm!,
+      pack: packKucoinCredential,
+    },
+    orders: {
+      place: placeKucoinOrder,
+      cancel: cancelKucoinOrder,
+      modify: modifyKucoinOrder,
+      close: closeKucoinPosition,
+      setLeverage: setKucoinLeverage,
+      adjustMargin: adjustKucoinMargin,
+      setBrackets: setKucoinBrackets,
+      portfolio: fetchKucoinPortfolio,
+      fills: fetchKucoinOrderFills,
+      orderInfo: fetchKucoinOrderInfo,
+      watchFills: watchKucoinFills,
+      fillsNeedRecovery: kucoinFillsNeedRecovery,
+    },
+  },
+  /**
+   * Aster V3 market data, accounts and orders on both networks.
+   */
+  aster: {
+    ...protocolCore("aster"),
+    markets: {
+      fetch: fetchAsterMarkets,
+      candles: fetchAsterCandles,
+      history: fetchAsterCandleHistory,
+      historyBatchBars: ASTER_HISTORY_BATCH_BARS,
+      intervalMs: standardCandleIntervalMs,
+      prices: fetchAsterPrices,
+      roundPx: roundToTick,
+      pricesWereRationed: asterPricesWereRationed,
+    },
+    livePrices: {
+      open: openAsterLivePrices,
+      read: readAsterLivePrices,
+      fresh: asterLivePricesFresh,
+    },
+    funding: {
+      fetch: fetchAsterFunding,
+      intervalMs: asterFundingIntervalMs,
+    },
+    account: {
+      fetch: fetchAsterAccount,
+      portfolio: fetchAsterPortfolio,
+      profitPerSale: true,
+      leverageCeilings: fetchAsterLeverageCeilings,
+    },
+    agent: { permissions: readAsterKeyPermission, verify: verifyAsterAgentKey },
+    credentials: {
+      form: protocolDescription("aster").credentialForm!,
+      pack: packAsterCredential,
+    },
+    orders: {
+      place: placeAsterOrder,
+      cancel: cancelAsterOrder,
+      modify: modifyAsterOrder,
+      close: closeAsterPosition,
+      setLeverage: setAsterLeverage,
+      adjustMargin: adjustAsterMargin,
+      setBrackets: setAsterBrackets,
+      portfolio: fetchAsterOrderPortfolio,
+      fills: fetchAsterOrderFills,
+      orderInfo: fetchAsterOrderInfo,
+      watchFills: watchAsterFills,
+      fillsNeedRecovery: asterFillsNeedRecovery,
+    },
+  },
+  /**
+   * Markets, charts, funding and a connected wallet. No orders yet.
+   *
+   * Lighter is the one venue here that runs its own chain and signs with its
+   * own maths rather than Ethereum signing, so it carries a vendored copy of
+   * Lighter's own compiled signer — see `lighter/signer/PROVENANCE.md`. That
+   * signer works and is proven by a test that really runs it, which is why a
+   * wallet can be connected. Placing orders is the next stage.
+   *
+   * A Standard account gets only 60 requests a minute, REST and socket
+   * together, so the socket does nearly all the reading and every REST call
+   * goes through `lighter/budget.ts`.
+   *
+   * Mainnet only, decided 26 Aug 2026. Lighter runs a testnet and it is not
+   * worth carrying: it held three markets, had been reset two days earlier,
+   * and served no candles at all. The order path will be proven the way
+   * Phemex's and KuCoin's were, with signed reads first and then one tiny
+   * real order behind both real-money switches.
+   */
+  lighter: {
+    ...protocolCore("lighter"),
+    markets: {
+      fetch: fetchLighterMarkets,
+      candles: fetchLighterCandles,
+      history: fetchLighterCandleHistory,
+      historyBatchBars: LIGHTER_HISTORY_BATCH_BARS,
+      // Measured 27 Aug 2026: clicking through the market list ran the
+      // minute's sixty requests out after eight coins. A market with a
+      // history source never asks Lighter for more than 30 days now; one
+      // without keeps to those 30 days too.
+      chartChasesFullHistory: false,
+      intervalMs: standardCandleIntervalMs,
+      prices: fetchLighterPrices,
+      roundPx: roundToTick,
+      pricesWereRationed: lighterPricesWereRationed,
+    },
+    livePrices: {
+      open: openLighterLivePrices,
+      read: readLighterLivePrices,
+      fresh: lighterLivePricesFresh,
+    },
+    funding: {
+      fetch: fetchLighterFunding,
+      // Hourly, measured 26 Aug 2026: three days of rows sat exactly one
+      // hour apart.
+      intervalMs: lighterFundingIntervalMs,
+    },
+    account: {
+      fetch: fetchLighterAccount,
+      // Positions only. Read-only while the order path is still closed, so
+      // the panel can show what is held without offering to change it.
+      portfolio: fetchLighterPortfolio,
+      // Lighter states a realized figure per position rather than per sale,
+      // and nothing has been measured yet because no fill has come from
+      // Trade. Left at the safe answer until a real fill proves otherwise:
+      // counting an unstated zero as "made nothing" would report a day of
+      // trading as flat.
+      profitPerSale: false,
+    },
+    agent: {
+      permissions: readLighterKeyPermission,
+      verify: verifyLighterAgentKey,
+    },
+    orders: {
+      fixedSizeStops: true,
+      place: placeLighterOrder,
+      cancel: cancelLighterOrder,
+      // Moving one is a cancel and a fresh order. Lighter has an amend
+      // transaction and it is deliberately unused: an amend that half-applies
+      // leaves an order at a price nobody chose.
+      modify: modifyLighterOrder,
+      close: closeLighterPosition,
+      setLeverage: setLighterLeverage,
+      adjustMargin: adjustLighterMargin,
+      setBrackets: setLighterBrackets,
+      portfolio: fetchLighterOrderPortfolio,
+      fills: fetchLighterOrderFills,
+      orderInfo: fetchLighterOrderInfo,
+      /**
+       * Lighter's account arrives pushed, like every other venue's.
+       *
+       * These two together take the fills sweep off its thirty-second clock:
+       * it now reads Lighter's trade history when the socket says something
+       * happened, and otherwise five-minutely. That matters more here than
+       * anywhere else — sixty requests a minute is the tightest cap of the
+       * five, and one idle tab was measured spending 46 of them.
+       */
+      watchFills: watchLighterFills,
+      fillsNeedRecovery: (network, address) =>
+        lighterFillsNeedRecovery(network, address),
+    },
+    credentials: {
+      form: protocolDescription("lighter").credentialForm!,
+      pack: packLighterCredential,
+    },
+  },
+  /**
+   * ApeX Omni's perpetual and stock contracts, charts, funding, a connected
+   * wallet and orders on the perpetuals. Stock contracts are listed and
+   * charted but not traded: ApeX trades them from a separate RWA account.
+   *
+   * ApeX publishes its limits, 600 requests a minute per address and per
+   * account 300 POST and 600 GET, and every request goes through
+   * `apex/budget.ts`. One socket topic carries every market's figures, so
+   * the market list and the engine read prices pushed rather than asked.
+   * Mainnet only (Tyler, 5 Sep 2026).
+   */
+  apex: {
+    ...protocolCore("apex"),
+    markets: {
+      fetch: fetchApexMarkets,
+      candles: fetchApexCandles,
+      history: fetchApexCandleHistory,
+      historyBatchBars: APEX_HISTORY_BATCH_BARS,
+      historyFloor: apexHistoryFloor,
+      intervalMs: standardCandleIntervalMs,
+      prices: fetchApexPrices,
+      roundPx: roundToTick,
+      pricesWereRationed: apexPricesWereRationed,
+    },
+    livePrices: {
+      open: openApexLivePrices,
+      read: readApexLivePrices,
+      fresh: apexLivePricesFresh,
+    },
+    funding: {
+      fetch: fetchApexFunding,
+      intervalMs: apexFundingIntervalMs,
+    },
+    account: {
+      fetch: fetchApexAccount,
+      // ApeX's fills state their fee but no profit; profit is stated only
+      // per whole close. Counting an unstated zero as "made nothing" would
+      // report a day of trading as flat, so this stays false until a real
+      // fill shows otherwise (`apex-omni.md`).
+      profitPerSale: false,
+    },
+    agent: { verify: verifyApexAgentKey },
+    credentials: {
+      form: protocolDescription("apex").credentialForm!,
+      pack: packApexCredential,
+    },
+    orders: {
+      place: placeApexOrder,
+      cancel: cancelApexOrder,
+      // ApeX has no amend: cancel, then place.
+      modify: modifyApexOrder,
+      close: closeApexPosition,
+      setLeverage: setApexLeverage,
+      setBrackets: setApexBrackets,
+      portfolio: fetchApexPortfolio,
+      fills: fetchApexOrderFills,
+      orderInfo: fetchApexOrderInfo,
+      watchFills: watchApexFills,
+      fillsNeedRecovery: apexFillsNeedRecovery,
+    },
+  },
+  /**
+   * edgeX's perpetual, stock, metal and currency contracts, charts, funding,
+   * a connected wallet, orders, stops and pushed fills (`edgex.md`).
+   *
+   * edgeX publishes no request limits, so `edgex/budget.ts` holds the app to
+   * Lighter's sixty a minute until a day-long run measures edgeX's own. One
+   * socket channel carries every contract's figures, so the market list and
+   * the engine read prices pushed rather than asked. Mainnet only (Tyler,
+   * 5 Sep 2026).
+   */
+  edgex: {
+    ...protocolCore("edgex"),
+    markets: {
+      fetch: fetchEdgexMarkets,
+      candles: fetchEdgexCandles,
+      history: fetchEdgexCandleHistory,
+      historyBatchBars: EDGEX_HISTORY_BATCH_BARS,
+      historyFloor: edgexHistoryFloor,
+      // Sixty requests a minute, as on Lighter: a market with a borrowed
+      // history reads that for anything older, and edgeX's own bars go back
+      // only to May 2026 anyway.
+      chartChasesFullHistory: false,
+      intervalMs: standardCandleIntervalMs,
+      prices: fetchEdgexPrices,
+      roundPx: roundToTick,
+      pricesWereRationed: edgexPricesWereRationed,
+    },
+    livePrices: {
+      open: openEdgexLivePrices,
+      read: readEdgexLivePrices,
+      fresh: edgexLivePricesFresh,
+    },
+    funding: {
+      fetch: fetchEdgexFunding,
+      intervalMs: edgexFundingIntervalMs,
+    },
+    account: {
+      fetch: fetchEdgexAccount,
+      // edgeX's fill page states `realizePnl` on every fill, and a pushed
+      // fill without it is read back from that page before it is recorded.
+      profitPerSale: true,
+    },
+    agent: { verify: verifyEdgexAgentKey },
+    credentials: {
+      form: protocolDescription("edgex").credentialForm!,
+      pack: packEdgexCredential,
+    },
+    orders: {
+      place: placeEdgexOrder,
+      cancel: cancelEdgexOrder,
+      // edgeX has no amend: cancel, then place.
+      modify: modifyEdgexOrder,
+      close: closeEdgexPosition,
+      setLeverage: setEdgexLeverage,
+      setBrackets: setEdgexBrackets,
+      portfolio: fetchEdgexPortfolio,
+      fills: fetchEdgexOrderFills,
+      orderInfo: fetchEdgexOrderInfo,
+      watchFills: watchEdgexFills,
+      fillsNeedRecovery: edgexFillsNeedRecovery,
+    },
+  },
+  /**
+   * Binance USDⓈ-M futures: its years of candles, which backtests read, and
+   * since 24 Sep 2026 a wallet, orders, stops on Binance's own stop-order
+   * service and fills pushed over the private stream (`binance.md`).
+   */
+  binance: {
+    ...protocolCore("binance"),
+    markets: {
+      fetch: fetchBinanceMarkets,
+      candles: fetchBinanceCandles,
+      history: fetchBinanceCandleHistory,
+      historyFloor: binanceHistoryFloor,
+      intervalMs: binanceIntervalMs,
+      prices: fetchBinancePrices,
+      roundPx: roundToTick,
+      pricesWereRationed: binancePricesWereRationed,
+    },
+    livePrices: {
+      open: openBinanceLivePrices,
+      read: readBinanceLivePrices,
+      fresh: binanceLivePricesFresh,
+    },
+    funding: {
+      fetch: fetchBinanceFunding,
+      intervalMs: binanceFundingIntervalMs,
+    },
+    account: {
+      fetch: fetchBinanceAccount,
+      portfolio: (network, _address, credential, priority) =>
+        fetchBinancePositions(network, credential, priority),
+      // Every Binance fill states its own realised profit.
+      profitPerSale: true,
+      leverageCeilings: fetchBinanceLeverageCeilings,
+    },
+    agent: {
+      permissions: readBinanceKeyPermission,
+      verify: verifyBinanceAgentKey,
+    },
+    credentials: {
+      form: protocolDescription("binance").credentialForm!,
+      pack: packBinanceCredential,
+    },
+    orders: {
+      place: placeBinanceOrder,
+      cancel: cancelBinanceOrder,
+      modify: modifyBinanceOrder,
+      close: closeBinancePosition,
+      setLeverage: setBinanceLeverage,
+      adjustMargin: adjustBinanceMargin,
+      setBrackets: setBinanceBrackets,
+      portfolio: fetchBinanceOrderPortfolio,
+      fills: fetchBinanceOrderFills,
+      orderInfo: fetchBinanceOrderInfo,
+      watchFills: watchBinanceFills,
+      fillsNeedRecovery: binanceFillsNeedRecovery,
+    },
+  },
+  /**
+   * Years of stock, index, metal and currency history, and nothing else.
+   *
+   * Dukascopy publishes finished bars as public files, so this entry has no
+   * live prices, no funding and no accounts. The candle store reads it for
+   * every market `historySourceFor` sends here; no screen ever lists it as
+   * somewhere to trade.
+   */
+  dukascopy: {
+    ...protocolCore("dukascopy"),
+    markets: {
+      fetch: fetchDukascopyMarkets,
+      candles: fetchDukascopyCandles,
+      history: fetchDukascopyCandleHistory,
+      historyBatchBars: DUKASCOPY_HISTORY_BATCH_BARS,
+      historyFloor: dukascopyFirstBar,
+      historyPublishedThrough: dukascopyPublishedThrough,
+      intervalMs: dukascopyIntervalMs,
+      barsOnlyInSession: true,
+      pricesCarrySplits: true,
+      // Dukascopy's volume is its own brokerage volume, not the exchange's.
+      volumeNote: "Dukascopy volume",
+      prices: fetchDukascopyPrices,
+      roundPx: roundDukascopyPx,
+    },
+  },
+  /**
+   * Markets, a wallet and its holdings, no orders — yet.
+   *
+   * Solana is a chain, not an exchange: the app holds its own wallet, reads
+   * the chain through a node, and will buy and sell through Jupiter, the
+   * swap router. Spot only, so there is no leverage, short side, funding or
+   * liquidation anywhere in this entry, and there never will be.
+   *
+   * The market list and prices come from Jupiter's token API, and a coin
+   * outside the list can be found by name or address (`search`). Candles
+   * are borrowed or recorded (`recordsOwnBars`). Holdings are read off the
+   * chain by address, priced through the same price feed, and each one is
+   * a position that is simply owned. Every order is a swap through Jupiter
+   * that fills the moment it is sent: nothing rests, so cancel, modify and
+   * brackets refuse in plain words rather than pretending.
+   *
+   * Mainnet only. Solana's devnet has a faucet but Jupiter cannot swap on
+   * it, so there is no practice network to list.
+   */
+  solana: {
+    ...protocolCore("solana"),
+    explorer: (address) =>
+      `https://solscan.io/account/${encodeURIComponent(address)}`,
+    markets: {
+      fetch: fetchSolanaMarkets,
+      // Neither Jupiter nor the chain publishes candles, so Solana answers
+      // with none of its own. Its charts are borrowed or recorded — see
+      // `recordsOwnBars` below and `charts/candle-store.md`.
+      candles: solanaHasNoCandles,
+      history: solanaHasNoCandles,
+      recordsOwnBars: true,
+      intervalMs: standardCandleIntervalMs,
+      prices: fetchSolanaPrices,
+      // A swap has no price grid; `priceTick` is null on every row, and the
+      // shared rounding leaves such a price alone.
+      roundPx: roundToTick,
+      // A Solana price is never served stale: the page read is fresh or it
+      // is refused as busy, and the engine then sends nothing that pass.
+      pricesWereRationed: () => false,
+      search: searchSolanaMarkets,
+    },
+    account: {
+      fetch: fetchSolanaAccount,
+      portfolio: fetchSolanaPortfolio,
+      // Nothing on the chain states what a sale made. When the swap task
+      // records fills, each one carries a price and nothing else, so a
+      // zero here means "not stated", never "broke even".
+      profitPerSale: false,
+    },
+    agent: { verify: verifySolanaWallet },
+    credentials: {
+      form: protocolDescription("solana").credentialForm!,
+      pack: packSolanaCredential,
+      make: makeSolanaWallet,
+    },
+    orders: {
+      quote: quoteSolanaSwap,
+      place: placeSolanaOrder,
+      cancel: cancelSolanaOrder,
+      modify: modifySolanaOrder,
+      close: closeSolanaPosition,
+      setBrackets: setSolanaBrackets,
+      portfolio: fetchSolanaPortfolio,
+      fills: fetchSolanaOrderFills,
+      orderInfo: fetchSolanaOrderInfo,
+    },
+  },
+  bnb: {
+    ...protocolCore("bnb"),
+    explorer: (address) =>
+      `https://bscscan.com/address/${encodeURIComponent(address)}`,
+    markets: {
+      fetch: fetchBnbMarkets,
+      candles: fetchBnbCandles,
+      history: fetchBnbCandleHistory,
+      historyFloor: poolHistoryFloor,
+      storesVenueCandles: true,
+      intervalMs: candleIntervalMs,
+      prices: fetchBnbPrices,
+      roundPx: (px) => px,
+      recordsOwnBars: true,
+      pricesWereRationed: bnbPricesWereRationed,
+      search: searchBnbMarkets,
+    },
+    account: {
+      fetch: fetchBnbAccount,
+      portfolio: fetchBnbPortfolio,
+      profitPerSale: false,
+    },
+    agent: { verify: verifyBnbWallet },
+    credentials: {
+      form: protocolDescription("bnb").credentialForm!,
+      pack: packBnbCredential,
+      make: makeEvmWallet,
+    },
+    orders: {
+      quote: quoteBnbSwap,
+      place: placeBnbOrder,
+      cancel: cancelBnbOrder,
+      modify: modifyBnbOrder,
+      close: closeBnbPosition,
+      setBrackets: setBnbBrackets,
+      portfolio: fetchBnbPortfolio,
+      fills: fetchBnbOrderFills,
+      orderInfo: fetchBnbOrderInfo,
+      executionNotes: bnbExecutionNotes,
+    },
+  },
+  /**
+   * Markets, a wallet, its holdings, and swaps.
+   *
+   * Robinhood Chain is BNB Chain's twin: an Ethereum-shaped chain where the
+   * app holds its own wallet, and both share `evm-chain/`. The market list is
+   * every stock token Robinhood's factory deployed plus the coins in the
+   * chain's busiest pools, priced by DexScreener. Charts work as on BNB Chain:
+   * GeckoTerminal's pool candles, stored (`storesVenueCandles`), with
+   * recorded screen prices for a coin no pool answers for (`recordsOwnBars`).
+   * A stock token's older years come from Dukascopy and ETH's from Binance,
+   * through `lib/protocols/robinhood/history.ts`. Holdings are read off the
+   * chain by address, with the explorer saying which tokens to ask about.
+   * Every order is a swap through KyberSwap or Velora, whichever gives more,
+   * approving each swap's exact amount. Nothing rests, so cancel, modify and
+   * brackets refuse in plain words.
+   */
+  robinhood: {
+    ...protocolCore("robinhood"),
+    explorer: (address) =>
+      `https://robinhoodchain.blockscout.com/address/${encodeURIComponent(address)}`,
+    markets: {
+      fetch: fetchRobinhoodMarkets,
+      candles: fetchRobinhoodCandles,
+      history: fetchRobinhoodCandleHistory,
+      historyFloor: poolHistoryFloor,
+      storesVenueCandles: true,
+      recordsOwnBars: true,
+      intervalMs: standardCandleIntervalMs,
+      prices: fetchRobinhoodPrices,
+      // A swap has no price grid; `priceTick` is null on every row.
+      roundPx: (px) => px,
+      pricesWereRationed: robinhoodPricesWereRationed,
+      search: searchRobinhoodMarkets,
+    },
+    account: {
+      fetch: fetchRobinhoodAccount,
+      portfolio: fetchRobinhoodPortfolio,
+      // Nothing on the chain states what a sale made, so a zero here means
+      // "not stated", never "broke even".
+      profitPerSale: false,
+    },
+    agent: { verify: verifyRobinhoodWallet },
+    credentials: {
+      form: protocolDescription("robinhood").credentialForm!,
+      pack: packRobinhoodCredential,
+      make: makeEvmWallet,
+    },
+    orders: {
+      quote: quoteRobinhoodSwap,
+      place: placeRobinhoodOrder,
+      cancel: cancelRobinhoodOrder,
+      modify: modifyRobinhoodOrder,
+      close: closeRobinhoodPosition,
+      setBrackets: setRobinhoodBrackets,
+      portfolio: fetchRobinhoodPortfolio,
+      fills: fetchRobinhoodOrderFills,
+      orderInfo: fetchRobinhoodOrderInfo,
+      executionNotes: robinhoodExecutionNotes,
+    },
+  },
+}
+
+export function getProtocol(id: ProtocolId): ProtocolEntry {
+  return PROTOCOLS[id]
+}
+
+/** Every protocol this build ships, for screens that show one list per protocol. */
+export function listProtocols(): ProtocolEntry[] {
+  return Object.values(PROTOCOLS)
+}
+
+/**
+ * The trading side of an exchange that has one, or a refusal naming it.
+ *
+ * Not every exchange here can trade — Dukascopy is listed for its years of
+ * candles and has no orders at all. Rather
+ * than let every call site guard, or worse leave the blocks as stubs that
+ * throw from somewhere deep inside a settle, asking for them goes through
+ * here and fails at the door with the exchange's name in the message.
+ *
+ * A caller reaching this is a bug, not a user's mistake: screens read
+ * `capabilities` and never offer to trade a market that cannot be traded.
+ */
+export function ordersOf(protocol: ProtocolEntry) {
+  if (!protocol.orders) {
+    throw new Error(`PROTOCOL_NO_ORDERS:${protocol.id}`)
+  }
+  return protocol.orders
+}
+
+/** The funding feed for an exchange that has one, or a clear refusal. */
+export function fundingOf(protocol: ProtocolEntry) {
+  if (!protocol.funding) {
+    throw new Error(`PROTOCOL_NO_FUNDING:${protocol.id}`)
+  }
+  return protocol.funding
+}
+
+export function accountOf(protocol: ProtocolEntry) {
+  if (!protocol.account) {
+    throw new Error(`PROTOCOL_NO_ACCOUNTS:${protocol.id}`)
+  }
+  return protocol.account
+}
+
+/**
+ * Whether this exchange states what each individual sale made.
+ *
+ * Answered by id rather than by entry because the caller adding up a day's
+ * fills has a market key in its hand, not a protocol entry. An exchange with
+ * no accounts has no fills either, so its answer never gets used; it reads
+ * true because a stated figure of zero, on a venue that states them, is zero.
+ */
+export function pricesEverySale(id: ProtocolId): boolean {
+  return getProtocol(id).account?.profitPerSale ?? true
+}
+
+export function agentOf(protocol: ProtocolEntry) {
+  if (!protocol.agent) {
+    throw new Error(`PROTOCOL_NO_AGENT:${protocol.id}`)
+  }
+  return protocol.agent
+}
+
+/** The sign-in form and blob packer for an exchange that holds accounts. */
+export function credentialsOf(protocol: ProtocolEntry) {
+  if (!protocol.credentials) {
+    throw new Error(`PROTOCOL_NO_CREDENTIALS:${protocol.id}`)
+  }
+  return protocol.credentials
+}

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 
-export type SaveStatusState = "idle" | "dirty" | "saving" | "saved" | "error"
+export type SaveStatusState = "idle" | "dirty" | "saving" | "saved" | "error" | "blocked"
 
 export interface SaveStatus {
   state: SaveStatusState
@@ -17,6 +17,7 @@ const SAVE_STATUS_LABELS: Record<SaveStatusState, string> = {
   saving: "Saving...",
   saved: "Saved",
   error: "Save failed",
+  blocked: "Not saved",
 }
 
 const SAVED_STATUS_CLEAR_MS = 3000
@@ -31,7 +32,11 @@ export function createSaveStatus(
 }
 
 export function getSaveStatusLabel(status: SaveStatus | null | undefined) {
-  return status ? SAVE_STATUS_LABELS[status.state] : ""
+  if (!status) return ""
+  // "Blocked" is auto-save refusing to write, so the badge has to say why —
+  // it is the only warning when the edit that broke the save was on another tab.
+  if (status.state === "blocked" && status.message) return status.message
+  return SAVE_STATUS_LABELS[status.state]
 }
 
 export function isSaveStatusVisible(status: SaveStatus | null | undefined): status is VisibleSaveStatus {

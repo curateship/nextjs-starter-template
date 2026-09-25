@@ -1,0 +1,423 @@
+# Orders on the chart
+
+An order is placed by right-clicking the candles at the price you want, and
+from then on it lives on the chart as its own line with a coloured bar at the
+right-hand end.
+
+On desktop, a small + button beside the price scale follows the cursor's height.
+Clicking + opens the same actions at that price. The button hides outside the
+chart, while a drawing tool is selected, and while the menu is open.
+The + and its tooltip also hide whenever the button would overlap an order
+bar, with four pixels of clearance. Order settings and remove controls stay
+clickable. Moving clear of the bar brings + back at the cursor's price.
+Grid and DCA ladder rows use the same clearance rule as manual orders, including
+price labels, rung controls, stops, exits and ladder settings. The shortcut disappears over those rows and
+returns when the cursor moves clear.
+Touch screens keep the existing long-press menu.
+
+The grid and DCA component regressions reproduce the overlapping shortcut
+before the row markers are added. Both verify that the shortcut disappears
+over the controls and returns outside their bounds. The focused chart tests
+pass in jsdom. Signed-in browser coverage remains unavailable after the local
+login attempt returned to login.
+
+Under Recent the menu has two fold-out rows, Manual order and Smart order,
+drawn the way the Folders panel draws a folder: a chevron on the right that
+turns when the row is open, the open row in gray, and its choices under it.
+Manual order holds Long and Short. Smart order holds DCA ladder and Grid. Both
+start closed. Clicking a row opens it, clicking it again closes it, and
+opening one closes the other. Nothing is saved: the Recent list is what
+remembers. The choices stay indented under their parent, but their hover and
+keyboard-focus backgrounds reach both menu edges. A wallet that cannot place
+smart orders gets no fold-out rows, just Long and Short.
+
+Once an order has been placed, the right-click menu starts with **Recent**.
+The two latest kinds are shown, newest first. Long, Short, DCA ladder and Grid
+can all appear there. Picking one uses
+the price that was just clicked and opens the same window as its row lower in
+the menu. The Long and Short window has an order row of Watched, Resting and
+Market. Picking Market fills the chosen side now, but does not add a separate
+Market kind to Recent. Closing
+a window without placing does not change the list.
+The browser saves the list under the signed-in account, so a reload keeps the
+same order without sharing it with another account on the same machine. A new
+browser or a first visit has no Recent section.
+
+An active grid on the chart removes Grid from Recent and disables Grid under
+Smart order. Hovering or tabbing to the disabled row explains,
+"You already have a grid on this chart". An active DCA ladder does the same
+for DCA ladder, with "You already have a DCA ladder on this chart".
+The check includes active orders in other wallets shown on that chart.
+Paused orders still count. Completed orders and orders on other charts do not.
+A grid and a DCA ladder remain separate choices, so their allowed pairing stays available.
+
+With a position open, the same menu offers Take profit when the clicked price
+is on the winning side of the entry and Stop loss when it is on the losing
+side. Stop loss draws at the clicked price as soon as it is picked, while the
+wallet saves and refreshes in the background. Take profit opens a small window
+at the clicked level, matching the limit-order window. It chooses how much of
+the still-unassigned position comes off and shows the profit at that price, so
+100% always means everything left after earlier targets. The full Stop and
+target window can hold up to three rows, with a running figure showing how much
+of the position they cover. The chart draws one labelled line for every target
+while the wallet saves in the background. The Take profit shortcut stays in
+the menu until the position has three targets. A stop already set keeps the
+Stop loss shortcut out because its chart line is the place to change it. With
+no position, the same two rows act on the waiting orders instead: Stop loss
+puts a stop on every waiting order the clicked price suits, Exit puts an exit
+on every one that has none, and each acts on one side only. See
+`../orders/watched-orders.md`.
+
+**The three rows that name a level say what the level means, not what it
+costs.** The exit reads "Exit at +6%" and the stop reads "Stop loss at -2%",
+measured from where the trade got in, which is a position's entry price or the
+price a waiting order will fill at. That is the same thing the order settings
+window means by its Exit % and Stop loss % boxes, with Exit set to Percent. The exit always carries its
+sign, so an exit dropped on the losing side of the entry reads "Exit at -3.1%"
+and one on the winning side reads "Exit at +3.1%". The alert row reads "Alert
+5% above", measured from the price the market is at right now, and it does not
+repeat the word "price" that the chart is already full of. Percentages carry
+no more decimals than they need, so 0.05 reads "5%" and 0.0521 reads "5.21%".
+A row whose percentage would round to nothing keeps the price instead,
+"Alert at $0.28666", because "0% above" says less than the price does, and so
+does a row with no price quoted for it yet.
+
+**A hand-placed order with no stop of its own joins the line that is already
+there.** Tyler, 16 Sep 2026: "If there is no stop for a second manual order then
+it joins the currant position stop." Nothing is merged, because an order with no
+stop never had a price to merge. It takes the price of the line it joins, and
+there are two lines it can join.
+
+- **The waiting orders' own stop and exit.** Place a second $150 buy with
+  nothing filled in and it lands on the red line the first one drew. The line's
+  figure then says what both orders lose together, and the same save that moves
+  a merged stop writes that stop onto the new order, so it is really covered
+  rather than only drawn that way. Its exit works the same, and only when the
+  lane draws exactly one exit line, because with two there is no such thing as
+  the only exit to join. The rules are in `src/lib/trade/order-line-groups.ts`
+  and the saves run from `chart-panel.tsx`.
+- **The position's stop and exit.** With a position open on the coin, the
+  order rides the position's stop, because once it fills it is part of that
+  position. Nothing is written onto the order.
+
+**A position's Exit and Stop Loss lines count only the position.** Tyler, 16 Sep
+2026: "If I'm in a position then the take profit should only show my projected
+take profit or stoploss for the currant position." The buys still waiting below
+have bought nothing yet, so their money is left out. A $100 position with $3,400
+of buys waiting under it once read "Exit $5,366 +$1,866.95". The same exit now
+reads about "$110 +$13", which is what that position would make.
+`src/components/trade/trade-lines-layer.tsx`.
+
+**The × on the waiting orders' stop or exit takes that level off every order
+under the line.** The orders themselves stay exactly where they are: it throws
+away the protection, not the trade. It is offered only on lines this app holds,
+because a stop on a resting exchange order cannot be changed in place. With a
+position open on the coin, the orders then ride its stop line instead, which is
+the rule above.
+
+An order that carries its own stop keeps it and is never moved onto somebody
+else's exit. An order going the other way is closing the position rather than
+adding to it. A resting exchange order cannot be given a stop in place, a
+bracket leg is protection the position already owns, and an order still being
+sent joins nothing until the answer lands.
+
+**A refused stop does not leave a stop drawn.** Trade draws the new stop the
+moment it is picked and tells the wallet behind it. If the save is refused, the
+drawn stop goes at once rather than standing for half a minute — a position
+that looks protected hides the Stop loss row, which was the one way to try
+again. The toast names what was not saved and says the position is as it was:
+"The stop was not saved, so the position is as it was." followed by whatever
+reason the exchange gave.
+
+A watched level that has already become a position is not drawn a second time
+as a waiting order, and a second order on the same coin and side is refused
+while the first is being placed. Both rules are in
+`../orders/watched-orders.md`.
+
+A live take-profit or stop-loss order appears once, as its coloured target or
+stop bar. Each target label states the dollars sold and the profit at its
+price. This includes a grid's own SL line, its stop. The chart does not draw the
+exchange's copy of that order as a second gray Sell bar.
+
+A position's Stop Loss and Liquidation labels state how many dollars the whole
+position would make or lose at that price after the fees charged so far. The
+Stop Loss figure changes while the line is dragged. A real position uses the
+exchange's liquidation price, while a practice position uses Trade's estimate.
+The fee on the future close is not included because the venue does not state it
+until the order fills. A live position shows a dash when the fills on hand do
+not cover its whole fee history.
+
+A grid's SL label gives the same answer for the levels that
+grid currently holds, including levels carried from an older range. It takes
+off the opening fees still attached to those levels. A flat grid shows $0.00
+because ending it at the stop would close no coin. Profit and fees already
+banked by completed rounds are not part of the figure. A grid shows a dash when
+the fills on hand do not add up to the amount its plan says it holds.
+
+## The money beside each grid line
+
+Every line of a grid carries a grey figure in dollars beside its price. It is
+money, never a price. On a coin trading at $0.31 the figures still read $28.29
+or $105, because they say what the level is worth, not where it sits.
+
+One rule decides the figure, and it is the same rule on every line: **a level
+that has bought shows what it is holding at its own price, and a level still
+waiting shows the stake it will put in when it fills.** A rung carried from an
+older range is holding by definition, so it shows what it holds, exactly like a
+holding rung inside the range.
+
+Before 3 September 2026 the rungs inside the range broke that rule. They showed
+the size the level was planned with rather than the size it holds, so a KuCoin
+BR rung holding 149 coins printed $13.94, the value of the 44 it was planned
+with, while the carried rung beside it printed the $105 it really held. Two
+meanings in one column is unreadable, and the wrong one understated real money.
+`levelUsd` in `src/components/trade/grid-layer.tsx` is now the only place the
+figure is worked out, and `grid-layer.test.tsx` fails if any line goes back to
+the planned size while it is holding.
+
+**Dragging the range does not change any of those figures.** A rung's stake is
+its share of the account, set by Share of account, leverage and the split
+across the rungs. The price only decides how many coins that stake buys, so
+moving the range leaves every figure where it was and the whole column holds
+still under the hand. Until 4 September 2026 the rungs between UPPER PRICE and
+LOWER PRICE were handed no figure at all while the range moved, so a four rung
+grid lost the two chips in the middle the moment it was dragged and got them
+back on the drop. The two named rungs kept theirs, because a different part of
+the layer draws them, which is what made the gap so obvious.
+
+While the range moves, the rungs between the ends are the only ones drawn as
+plain lines. Rung 1 and the deepest rung are drawn once each as the named
+lines, so nothing stacks a second line or a second chip on their row.
+
+The Entry line, border and name are chart blue. Its current dollar profit is
+green and its loss is red; exactly zero stays blue. The figure updates with the
+market price and stays out until a price has arrived, rather than showing a
+made-up zero. The bar does not borrow the account accent, so changing the theme
+cannot turn the entry into the colour of some other kind of line.
+
+A position's stop can be dragged past its entry after price moves in the
+trade's favour. This trailing stop protects profit. It must remain below the
+current price for a long, or above the current price for a short, so setting it
+does not close the position immediately.
+
+- **A waiting order shows its stop and its target too**, in the same green and
+  red as a position's but in a finer dash — they are where the trade will get
+  out once the order fills, which is a plan rather than a fact. The bar says
+  what each would pay in dollars if it got there. Either line can be dragged,
+  and the order's own window can change both together. Orders that can share a
+  stop are drawn as one stop line, below.
+- **Pressing a waiting order's bar opens that window** — how much the order is
+  for, the leverage it will use, and where it gets out. Not its price: the
+  price is the line, and you drag it. The bar carries the same 12px settings
+  cog as the Grid bar and other editable orders, tucked directly after the
+  order label with the Grid bar's small gap. Its compact settings window opens
+  beside that cog and leaves the chart visible; it is not a page modal. Its
+  header says Order settings on the left and the order's wallet on the right,
+  the way the quick order does. The title is green on a long and red on a
+  short. A long wallet name is cut off and shows in full on hover. An order
+  whose wallet is not loaded shows no name rather than a wrong one. The
+  window's leverage slider changes both the saved order and the amount of your
+  own cash shown under its size.
+- **Placing an order does not wait for the exchange, and does not say so
+  either.** The window shuts on the press and the order is drawn on the chart
+  at once, as an ordinary order bar. Tyler, 16 Sep 2026: "can you not make it
+  load at all visually. It should be instant and have it load in the background
+  instead." It used to read "Buy $150 · sending" for the length of a round
+  trip, which made a press that had already worked look unfinished. The bar
+  has no × and cannot be dragged for that moment, because there is nothing on
+  the server yet to change, and a press that fails still says so plainly: the
+  bar goes and a toast names the refusal. For a real order that rests, the bar
+  gains its controls the
+  moment the exchange's answer names the order — the line then carries the
+  real id and can be dragged or cancelled straight away, without waiting for
+  the next full read. An order that filled on arrival becomes the position in
+  the same moment: the answer says the fill price and size, so the Entry line
+  and the position row are painted from it at once, and the next read swaps
+  in the exchange's own figures. A reduce-only fill paints nothing new — it
+  shrank a position rather than opening one.
+- **A grid arrow names the rung and what happened.** An opening arrow says
+  "Enter rung 1 - for $50.00". The matching close says
+  "Exit rung 1 - profit $4.28". The words do not change between a buying grid
+  and a selling grid.
+- **Nothing is announced when it works.** No toast for placing an order and
+  none for cancelling one: the line appearing and the line disappearing is the
+  answer, and a toast on every click of a trading screen is noise. Refusals
+  still speak up, and so does the one case that must never pass quietly — a
+  real order that went on without the protection asked for.
+- **An order with nothing left on it still cancels.** An exchange can list an
+  order whose remaining size is zero, and the chart draws it as "Sell $0.00".
+  Its × sends the cancel all the same, because the exchange cancels by the
+  order's id and the size only goes into the Journal line. On 22 Sep 2026 a
+  Lighter USELESS close like this could not be taken off, because the app
+  turned the cancel down for its zero size before the exchange was ever asked.
+
+### One stop and one exit for the hand-placed orders that share them
+
+**Hand-placed orders on the same coin and the same side share one stop.** Two
+Buy orders used to draw two red Stop Loss lines a few pixels apart, each with
+its own dollar figure. They now draw one line, and its figure is what all of
+them lose together at that price. Tyler asked for this on 11 September 2026.
+
+The orders really are moved onto one price. The line is not a tidier picture of
+two prices behind it, because a line at a price where only half the money gets
+out says the wrong thing about where the loss stops.
+
+- **The tighter stop wins.** Of the prices already set, they all move to the one
+  that loses least: the higher price for a buy, the lower price for a sell. The
+  other direction would widen a stop somebody set on purpose and put more money
+  at risk, which is not a change a chart may make by itself.
+- **The amounts are left alone.** Dragging a stop by hand resizes an order sized
+  by risk so it still risks the same money. This move is nobody's decision, so
+  the only thing it does is move the stop somewhere that loses less.
+- **A stop never lands on the wrong side of an entry.** A buy at $2,054 and a
+  buy at $2,522 cannot share a stop at $2,437, because for the cheaper order
+  that price is above what it buys at. An order the winning price does not suit
+  keeps its own line, and whatever is left groups among itself.
+- **A buy and a sell never share, and neither do two wallets.** They are
+  different trades going opposite ways, and different people's money.
+- **Dragging the one line moves every order under it.** Each order is saved
+  separately, and an order sized by risk resizes as it always has.
+- **An order already resting at the exchange keeps its own line.** It cannot be
+  changed in place, so there is nothing to merge it with. An order still being
+  placed keeps its own line too, because there is nothing on the server yet.
+- **The merge happens when the coin's chart is open**, not in the background.
+  Opening ETH with two Buy orders on it saves the tighter stop onto both.
+
+What this costs: the edit window can no longer hold one of these orders at a
+wider stop than the others on the same coin and side. Widen one there and the
+chart pulls it back to the tightest the next time that coin is drawn. Move the
+whole group by dragging the one line instead.
+
+**An exit line groups the same way, but nothing is ever moved to make one.** A
+stop is a limit on what a trade may lose, so putting two of them on the tighter
+price only ever risks less. An exit is where a trade takes its profit, and
+dragging one onto another would quietly give profit away. Two exits at the same
+price draw as one line because they are one price; two at different prices stay
+two lines. The chart's own Exit row sets one price on every order at once, so
+the ordinary way of setting them already gives one line.
+
+**No stop is ever drawn above the price for a long, or below it for a short.**
+A stop there would get out the instant it was set, so it is not a stop, and the
+pill gives itself away by printing a profit. Tyler on 11 September 2026: "Just
+dont show the stoploss above the price, that makes no sense." The rule covers a
+position's stop as well as a waiting order's, and the line cannot be dragged
+there either. Until the exchange has given a price there is nothing to judge
+against, and every stop is drawn as it always was.
+
+**A waiting order's stop cannot be dragged to its winning side, nor its exit to
+its losing side.** The line stops following the pointer at the last price that
+is still a stop for every order under it, and a drag that never reached one
+saves nothing. Dropped the wrong way round a stop is not a stop: it sits where
+the trade is ahead, and the pill says so by printing a profit, which is what
+Tyler was shown on 11 September 2026 as "Stop Loss +$521.61". A position's stop may still be dragged past the entry, because
+after the price has moved your way that is a trailing stop and the profit it
+locks in is real. It still has to stay on the losing side of today's price.
+
+**A stop or exit line is drawn only while the order it belongs to is on the
+chart.** An order priced far outside what the chart is showing has its own bar
+drawn off the top or the bottom, where it is clipped away, and its stop was
+left sitting alone in the middle of the screen with nothing to explain it. On
+11 September 2026 Tyler cancelled the orders he could see and read that
+leftover line as a stop that would not go away. Scroll or zoom until the order
+is in view and its stop comes back with it.
+
+**An order still being sent draws no stop or exit line at all.** Its stop
+cannot join anything yet, because there is nothing on the server to save, so it
+used to appear for a second as a second red line beside the one it was about to
+join. The bar itself is drawn from the first moment, so nothing looks missing
+while that second passes.
+
+The rules live in `src/lib/trade/order-line-groups.ts` and the lines are drawn
+in `src/components/trade/trade-lines-layer.tsx`.
+
+### Buying more of what a position holds
+
+Every position row carries a **+** button beside its cog, labelled "Add to the
+BTC position". One press does what used to take five: it charts that coin,
+switches the traded wallet to that row's wallet, and opens the same order window
+a right-click opens, over today's price, on that position's side. The size box
+is the only thing left to fill in, and it starts empty and focused.
+
+- **The chart and the wallet both move before the window opens.** Two wallets
+  can hold the same coin, and a window that opened before the switch landed
+  would put the order on the wallet you were looking at rather than the one you
+  pressed — which is the mistake this button exists to remove. The window also
+  names the wallet inside itself, so a wrong one is readable before the press.
+- **Adding never changes leverage.** The window shows the position's own
+  leverage as a line and offers no slider. `placeLiveOrder` sends null for
+  leverage and margin mode whenever a position already exists, and the exchange
+  keeps what it has, so a slider here would be a promise the order cannot keep.
+- **The window says what it is adding to, and what the position becomes**:
+  "Adding to $500 long in Main wallet, at 3× leverage. After this order: $750 at
+  an average of $98." Both figures are what was paid, never what it is worth
+  today, so $500 plus $250 reads as $750 and the average is a number anybody can
+  check. It re-reads itself as the size is typed.
+- **A position that closes under the window takes the window with it.** The
+  window is looking at what that position IS, resolved live, not at a copy of
+  what it was when the button was pressed.
+- **It refuses out loud rather than doing nothing.** A wallet that is switched
+  off, a live wallet with no trading key, and a market the exchange has stopped
+  listing each say so and nothing moves.
+- **Adding uses a market order.** The button says "Add at market" and the
+  Watched / Resting / Market row is hidden. The final fill price can move. Ordinary chart
+  orders keep their existing price choices.
+- **The position shows "Adding..." during submission.** Its + button stays
+  disabled until the request finishes. Repeated submissions for that wallet
+  and market are ignored during the wait. A refusal clears the indicator and
+  shows the reason. The portfolio refresh brings the confirmed position size.
+
+### Selling part of a position
+
+The bin on a position row opens a window asking how much comes off, in dollars
+or in coins, with 25%, 50% and All of it as presses that fill the box. It starts
+on all of it, so the old one-press behaviour needs nothing filled in.
+
+- **All of it and part of it are sold differently, and the window says which.**
+  All of it is a market order. A part is a reduce-only limit that follows the
+  price and never pays the spread, which is what the trading rules ask of a
+  close.
+- **It says what happens to the rest**, in dollars, including where its stop
+  is. A refused amount says why above the button, with the box outlined.
+- **An amount leaving less than the exchange's smallest order sells all of it.**
+  A scrap under the floor could never be closed again. See `../orders/part-close.md`.
+
+### Leverage and the cash behind a position
+
+Every position row also carries a gauge button, labelled "Change the BTC
+leverage and margin". It opens a window with two boxes, each with its own
+button: the leverage the position runs on, and how much of your own cash is
+behind it.
+
+- **The button is hidden where the exchange allows neither**, and the window
+  says the exchange's own reason for the half it cannot do. Hyperliquid allows
+  both today; Aster allows leverage but will not lower it while a position is
+  open; Phemex and KuCoin allow neither yet.
+- **The liquidation figure on the window is this app's estimate and says so.**
+  What the row shows afterwards is the exchange's own figure, read back —
+  nothing about the change is written down here.
+- **Taking margin out is refused when it would bring liquidation inside the
+  stop**, with both prices in the sentence. Already being inside is not the
+  same as being brought inside, and only the second is refused.
+- **A practice wallet is refused rather than faked.** The practice engine has no
+  lender to renegotiate with, and the window says that instead of drawing boxes
+  that would pretend otherwise. See `../wallets/position-margin.md`.
+
+## Which chart line wins an overlap
+
+The grid stop-loss bar stays above entries, grid summaries, and rung labels.
+The stop keeps its own row even when its price matches a range boundary.
+The stop's × removes the stop without closing the grid or its position. The
+END GRID bar carries the same × and switches End Grid off, which leaves the
+grid running with no line to end it.
+
+Other position pills stay on the far right of the plot and cover grid money
+chips at the same price. Two pills from the trade-lines layer still move apart
+from each other.
+
+Grid lines with drag handles also accept dragging along the line itself.
+A drawing tool disables grid-stop dragging. Cancelling a pointer drag saves
+nothing. The stop's × never starts a drag.
+
+A waiting order's checking message names the exchange in that order's market
+key. KuCoin orders say "Checking KuCoin order...". Hyperliquid orders keep
+"Checking Hyperliquid order...". The message does not change order routing.

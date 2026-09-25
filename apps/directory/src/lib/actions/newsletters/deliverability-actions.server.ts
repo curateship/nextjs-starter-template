@@ -1,19 +1,11 @@
 import { eq, and, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { newsletterContacts, sites } from '@/lib/db/schema'
-import { getAuthenticatedUser } from '@/lib/db/helpers'
+import { checkSiteAccess, getAuthenticatedUser, verifySiteOwnership } from '@/lib/db/helpers'
 import { getEmailConfig } from '@/lib/actions/integrations/config-helpers'
 import dns from 'dns/promises'
 import { UUID_REGEX } from '@/lib/utils/validation'
 
-async function verifySiteOwnership(siteId: string, userId: string) {
-  const [site] = await db
-    .select({ id: sites.id })
-    .from(sites)
-    .where(and(eq(sites.id, siteId), eq(sites.userId, userId)))
-    .limit(1)
-  return !!site
-}
 
 export interface DomainHealth {
   domain: string
@@ -49,14 +41,8 @@ export interface DeliverabilityReport {
  */
 export async function checkDomainHealthImpl(siteId: string): Promise<{ data: DomainHealth | null; error: string | null }> {
   try {
-    if (!UUID_REGEX.test(siteId)) return { data: null, error: 'Invalid site ID' }
-
-    const user = await getAuthenticatedUser()
-    if (!user) return { data: null, error: 'Not authenticated' }
-
-    if (!await verifySiteOwnership(siteId, user.id)) {
-      return { data: null, error: 'Access denied' }
-    }
+    const access = await checkSiteAccess(siteId)
+    if (access.error) return { data: null, error: access.error }
 
     const config = await getEmailConfig(siteId)
     if (!config?.fromEmail) return { data: null, error: 'From email not configured' }
@@ -104,14 +90,8 @@ export async function checkDomainHealthImpl(siteId: string): Promise<{ data: Dom
  */
 export async function getDeliverabilityReportImpl(siteId: string): Promise<{ data: DeliverabilityReport | null; error: string | null }> {
   try {
-    if (!UUID_REGEX.test(siteId)) return { data: null, error: 'Invalid site ID' }
-
-    const user = await getAuthenticatedUser()
-    if (!user) return { data: null, error: 'Not authenticated' }
-
-    if (!await verifySiteOwnership(siteId, user.id)) {
-      return { data: null, error: 'Access denied' }
-    }
+    const access = await checkSiteAccess(siteId)
+    if (access.error) return { data: null, error: access.error }
 
     // Domain health
     const { data: domain } = await checkDomainHealthImpl(siteId)

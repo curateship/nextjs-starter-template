@@ -116,6 +116,13 @@ delisted markets are picked up by the background refresh.
 - Keep indicator signal arrows pinned to their exact price in Lightweight
   Charts' native marker layer. HTML overlays can read coordinates before a
   resize or timeframe reflow finishes and visibly detach from their candles.
+- Drawn trendlines and position boxes are HTML/SVG overlays, but their pixel
+  positions are recomputed from inside the chart's own repaint: a pane
+  primitive's `updateAllViews()` (price-chart.tsx), which the chart calls after
+  the frame's scales are final and just before it draws. Don't move that back
+  to visible-range/wheel/resize listeners — those fire with the previous
+  frame's coordinates (and a price-axis drag with auto-scale off fires nothing
+  at all), so the drawings trail the candles while the chart is dragged.
 - Don't merge cached bars over a fresh snapshot. Stale partial candles would
   permanently overwrite final ones.
 - Keep the cache cap. Unbounded caching across markets adds up quickly at

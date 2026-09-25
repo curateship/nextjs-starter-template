@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import ImageIcon from "lucide-react/dist/esm/icons/image.js"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { Button } from "@/components/ui/button"
@@ -12,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { saveCampaignAction } from "@/lib/actions/campaigns/campaign-actions"
 import type { CampaignInput, CampaignRecord, PopupCampaignContent } from "@/lib/campaigns/campaigns"
+import { showErrorToast } from "@/lib/error-toast"
 import { showActionError, showActionSuccess } from "@/lib/utils/admin-action-feedback"
 
 type FormState = {
@@ -107,6 +109,9 @@ export function CampaignEditorDialog({
 }) {
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
+  const [nameMissing, setNameMissing] = useState(false)
+  // Stays marked after the toast is dismissed, and clears itself once typed in.
+  const nameInvalid = nameMissing && !form.name.trim()
   const [mediaOpen, setMediaOpen] = useState(false)
 
   useEffect(() => {
@@ -118,6 +123,16 @@ export function CampaignEditorDialog({
   }
 
   const save = async () => {
+    // The click is always allowed; an empty name is answered here rather than by
+    // a greyed-out button, which would say no without saying why.
+    if (!form.name.trim()) {
+      setNameMissing(true)
+      showErrorToast("Name is required")
+      return
+    }
+
+    setNameMissing(false)
+
     const popupContent: PopupCampaignContent = {
       heading: form.heading,
       text: form.bodyText,
@@ -153,31 +168,40 @@ export function CampaignEditorDialog({
     }
 
     setSaving(true)
-    const result = await saveCampaignAction(input, campaign?.id)
+    const result = await saveCampaignAction({ data: { input, campaignId: campaign?.id } })
     setSaving(false)
     if (!result.ok) {
       showActionError(result.message)
       return
     }
     onSaved(result.data)
-    showActionSuccess(campaign ? "Campaign updated" : "Campaign created")
+    showActionSuccess(campaign ? "Campaign updated." : "Campaign created.")
     onOpenChange(false)
   }
 
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent variant="admin">
+        <DialogContent variant="admin" busy={saving}>
           <DialogHeader>
             <DialogTitle>{campaign ? "Edit campaign" : "New campaign"}</DialogTitle>
             <DialogDescription>Configure content, targeting, timing, and visitor frequency.</DialogDescription>
           </DialogHeader>
 
+          <form
+            noValidate
+            id="campaign-editor-form"
+            className="contents"
+            onSubmit={(event) => {
+              event.preventDefault()
+              save()
+            }}
+          >
           <DialogBody>
             <div className="grid gap-5 sm:grid-cols-2">
             <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="campaign-name">Name</Label>
-              <Input id="campaign-name" value={form.name} onChange={(event) => update("name", event.target.value)} placeholder="Summer sale" />
+              <Input id="campaign-name" value={form.name} onChange={(event) => update("name", event.target.value)} placeholder="Summer sale" aria-invalid={nameInvalid || undefined} />
             </div>
             <div className="space-y-2">
               <Label>Type</Label>
@@ -303,10 +327,11 @@ export function CampaignEditorDialog({
             </div>
           </div>
           </DialogBody>
+          </form>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancel</Button>
-            <Button onClick={save} disabled={saving}>{saving ? "Saving…" : "Save campaign"}</Button>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancel</Button>
+            <Button form="campaign-editor-form" type="submit" disabled={saving}>{saving ? <Loader2 className="size-4 animate-spin" /> : null}Save campaign</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

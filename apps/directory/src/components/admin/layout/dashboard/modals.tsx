@@ -2,6 +2,9 @@
 
 import * as React from "react"
 
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
+
+import { Button } from "@/components/ui/button"
 import { CardTitle } from "@/components/ui/card"
 import {
   DialogContent,
@@ -67,6 +70,42 @@ function DashboardModalContent({
   )
 }
 
+/**
+ * The Cancel + submit pair almost every form modal ends with. Pulled out
+ * because it was written by hand in ~20 places, identically apart from the
+ * label and the form id.
+ *
+ * `cancelDisabled` is deliberately separate from `busy`: some modals lock the
+ * Cancel button while saving and some let you back out mid-save. Each call site
+ * keeps whichever it already had — leaving it unset renders no `disabled`
+ * attribute at all, exactly as before.
+ */
+function DashboardModalFormFooter({
+  busy,
+  cancelDisabled,
+  form,
+  onCancel,
+  submitLabel,
+}: {
+  busy?: boolean
+  cancelDisabled?: boolean
+  form: string
+  onCancel: () => void
+  submitLabel: React.ReactNode
+}) {
+  return (
+    <>
+      <Button type="button" variant="outline" onClick={onCancel} disabled={cancelDisabled}>
+        Cancel
+      </Button>
+      <Button type="submit" form={form} disabled={busy}>
+        {busy ? <Loader2 className="size-4 animate-spin" /> : null}
+        {submitLabel}
+      </Button>
+    </>
+  )
+}
+
 function DashboardModalTitle({ className, ...props }: React.ComponentProps<typeof DialogTitle>) {
   return <DialogTitle className={cn("truncate", className)} {...props} />
 }
@@ -121,4 +160,5 @@ export {
   DashboardModalCardTitle,
   DashboardModalContent,
   DashboardModalFooterActions,
+  DashboardModalFormFooter,
 }

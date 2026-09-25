@@ -9,8 +9,8 @@ import PanelRight from "lucide-react/dist/esm/icons/panel-right.js"
 import PanelRightClose from "lucide-react/dist/esm/icons/panel-right-close.js"
 import CheckCircle from "lucide-react/dist/esm/icons/circle-check-big.js"
 import AlertCircle from "lucide-react/dist/esm/icons/circle-alert.js"
+import TriangleAlert from "lucide-react/dist/esm/icons/triangle-alert.js"
 import LoaderCircle from "lucide-react/dist/esm/icons/loader-circle.js"
-import ExternalLink from "lucide-react/dist/esm/icons/external-link.js"
 import ChevronDown from "lucide-react/dist/esm/icons/chevron-down.js"
 import Search from "lucide-react/dist/esm/icons/search.js"
 import ListFilter from "lucide-react/dist/esm/icons/list-filter.js"
@@ -55,15 +55,23 @@ const SAVE_STATUS_BADGE_STYLES: Record<VisibleSaveStatusState, {
   },
   saved: {
     icon: CheckCircle,
-    container: "border-green-200 bg-green-50",
-    iconClassName: "text-green-600",
-    textClassName: "text-green-700",
+    container: "border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-950/50",
+    iconClassName: "text-green-600 dark:text-green-400",
+    textClassName: "text-green-700 dark:text-green-300",
   },
   error: {
     icon: AlertCircle,
-    container: "border-red-200 bg-red-50",
-    iconClassName: "text-red-600",
-    textClassName: "text-red-800",
+    container: "border-destructive/30 bg-destructive/10",
+    iconClassName: "text-destructive",
+    textClassName: "text-destructive",
+  },
+  // Auto-save refused the change. Stays up until the reason is fixed, so it
+  // carries the reason as its label rather than a generic word.
+  blocked: {
+    icon: TriangleAlert,
+    container: "max-w-64 border-destructive/30 bg-destructive/10",
+    iconClassName: "text-destructive",
+    textClassName: "text-destructive",
   },
 }
 
@@ -120,8 +128,8 @@ function SaveStatusBadge({ status, compact = false }: SaveStatusBadgeProps) {
 
   return (
     <div
-      role={status.state === "error" ? "alert" : "status"}
-      aria-live={status.state === "error" ? "assertive" : "polite"}
+      role={status.state === "error" || status.state === "blocked" ? "alert" : "status"}
+      aria-live={status.state === "error" || status.state === "blocked" ? "assertive" : "polite"}
       title={status.message || label}
       className={cn(
         "flex items-center gap-2 rounded-md border",
@@ -149,7 +157,6 @@ interface StickybarTopRightActionsProps {
   preActions?: React.ReactNode
   filterMenu?: StickybarFilterMenuConfig
   rightActions?: React.ReactNode
-  viewPageHref?: string | null
   saveStatus?: SaveStatus | null
   isSaving?: boolean
   onSave?: () => void
@@ -175,7 +182,6 @@ export function StickybarTopRightActions({
   preActions,
   filterMenu,
   rightActions,
-  viewPageHref,
   saveStatus,
   isSaving = false,
   onSave,
@@ -198,7 +204,7 @@ export function StickybarTopRightActions({
   const openedDesktopBlockList = useRef(false)
   const activeItem = filterMenu?.items.find((item) => item.value === filterMenu.value) ?? filterMenu?.items[0]
   const { mobileOverflowSlot } = useDashboardHeaderActionsSlot()
-  const hasMobileOverflow = Boolean(search || preActions || filterMenu || rightActions || viewPageHref || renderSettingsModal || (onPublish && !isPublished) || onToggleBlockList)
+  const hasMobileOverflow = Boolean(search || preActions || filterMenu || rightActions || renderSettingsModal || (onPublish && !isPublished) || onToggleBlockList)
   const mobileMenuItemClassName = "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-50"
 
   useEffect(() => {
@@ -279,15 +285,6 @@ export function StickybarTopRightActions({
         ) : null}
 
         {rightActions}
-
-        {viewPageHref ? (
-          <Button variant="outline" size="sm" asChild>
-            <a href={viewPageHref} target="_blank" rel="noopener noreferrer" aria-label="View Page" title="View Page">
-              <ExternalLink className="h-4 w-4" />
-              <span className="hidden sm:inline">View Page</span>
-            </a>
-          </Button>
-        ) : null}
 
         {renderSettingsModal ? (
           <Button
@@ -403,18 +400,6 @@ export function StickybarTopRightActions({
           ) : null}
 
           {rightActions ? <div className="px-1 py-1 **:data-[slot=button]:h-8">{rightActions}</div> : null}
-
-          {viewPageHref ? (
-            <a
-              href={viewPageHref}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={mobileMenuItemClassName}
-            >
-              <ExternalLink className="h-4 w-4" />
-              View Page
-            </a>
-          ) : null}
 
           {renderSettingsModal ? (
             <button

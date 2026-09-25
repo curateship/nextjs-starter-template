@@ -18,11 +18,7 @@ export const getDirectoryTemplateById = createServerFn({ method: "POST" })
   .handler(async ({ data }) => getDirectoryTemplateByIdImpl(data.templateId))
 
 export const createDirectoryTemplate = createServerFn({ method: "POST" })
-  .inputValidator((data: { input: {
-  siteId: string
-  name: string
-  contentBlocks?: Record<string, any>
-} }) => data)
+  .inputValidator((data: { input: Parameters<typeof createDirectoryTemplateImpl>[0] }) => data)
   .handler(async ({ data }) => createDirectoryTemplateImpl(data.input))
 
 export const updateDirectoryTemplate = createServerFn({ method: "POST" })

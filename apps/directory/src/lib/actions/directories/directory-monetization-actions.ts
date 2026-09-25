@@ -11,24 +11,11 @@ export const getDirectoryFeaturedPlansAction = createServerFn({ method: "POST" }
   .handler(async ({ data }) => getDirectoryFeaturedPlansActionImpl(data.siteId))
 
 export const saveDirectoryFeaturedPlanAction = createServerFn({ method: "POST" })
-  .inputValidator((data: { input: {
-  siteId: string
-  planId?: string | null
-  name: string
-  description?: string | null
-  stripePriceId: string
-  durationDays: number | string
-  priority?: number | string
-  displayOrder?: number | string
-} }) => data)
+  .inputValidator((data: { input: Parameters<typeof saveDirectoryFeaturedPlanActionImpl>[0] }) => data)
   .handler(async ({ data }) => saveDirectoryFeaturedPlanActionImpl(data.input))
 
 export const setDirectoryFeaturedPlanArchivedAction = createServerFn({ method: "POST" })
-  .inputValidator((data: { input: {
-  siteId: string
-  planId: string
-  archived: boolean
-} }) => data)
+  .inputValidator((data: { input: Parameters<typeof setDirectoryFeaturedPlanArchivedActionImpl>[0] }) => data)
   .handler(async ({ data }) => setDirectoryFeaturedPlanArchivedActionImpl(data.input))
 
 export const getDirectoryFeaturedEntitlementsAction = createServerFn({ method: "POST" })
@@ -40,11 +27,7 @@ export const getDirectoryFeaturedRevenueSummaryAction = createServerFn({ method:
   .handler(async ({ data }) => getDirectoryFeaturedRevenueSummaryActionImpl(data.siteId))
 
 export const revokeDirectoryFeaturedEntitlementAction = createServerFn({ method: "POST" })
-  .inputValidator((data: { input: {
-  siteId: string
-  entitlementId: string
-  note?: string
-} }) => data)
+  .inputValidator((data: { input: Parameters<typeof revokeDirectoryFeaturedEntitlementActionImpl>[0] }) => data)
   .handler(async ({ data }) => revokeDirectoryFeaturedEntitlementActionImpl(data.input))
 
 export const getMyDirectoryFeaturedUpgradeStateAction = createServerFn({ method: "POST" })
@@ -52,17 +35,9 @@ export const getMyDirectoryFeaturedUpgradeStateAction = createServerFn({ method:
   .handler(async ({ data }) => getMyDirectoryFeaturedUpgradeStateActionImpl(data.siteId, data.directoryId))
 
 export const createDirectoryFeaturedCheckoutAction = createServerFn({ method: "POST" })
-  .inputValidator((data: { input: {
-  siteId: string
-  directoryId: string
-  planId: string
-  returnPath?: string
-} }) => data)
+  .inputValidator((data: { input: Parameters<typeof createDirectoryFeaturedCheckoutActionImpl>[0] }) => data)
   .handler(async ({ data }) => createDirectoryFeaturedCheckoutActionImpl(data.input))
 
 export const confirmDirectoryFeaturedCheckoutAction = createServerFn({ method: "POST" })
-  .inputValidator((data: { input: {
-  siteId: string
-  sessionId: string
-} }) => data)
+  .inputValidator((data: { input: Parameters<typeof confirmDirectoryFeaturedCheckoutActionImpl>[0] }) => data)
   .handler(async ({ data }) => confirmDirectoryFeaturedCheckoutActionImpl(data.input))

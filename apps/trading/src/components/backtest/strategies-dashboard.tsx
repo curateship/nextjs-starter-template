@@ -73,6 +73,7 @@ import {
 import type {
   BacktestTrade,
   GroupCombinedCurve,
+  GroupOpenPositions,
   GroupPortfolioMetrics,
 } from "@/lib/backtest/types"
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
@@ -80,13 +81,15 @@ import { usePanelLayout } from "@/lib/use-panel-layout"
 import { cn } from "@/lib/utils"
 
 import {
-  pct,
+  signedPct,
   signedUsd,
   toneClass,
   truncateWords,
   usd,
   windowDaysOf,
-} from "./backtest-format"
+} from "@/lib/format"
+import { combineMarketStats, potAtDrawdown } from "./backtest-combine"
+import { BacktestGroupKpis } from "./backtest-kpis"
 import {
   BacktestMarketsTable,
   sortHead,
@@ -97,21 +100,6 @@ import { RunStatusMenuItems } from "./run-status-menu"
 
 const pageSizeOptions = [...DASHBOARD_ROWS_PER_PAGE_OPTIONS]
 
-/** Short calendar date (e.g. "Mar 23, 2025") for stat-card context lines. */
-/** Month + day only — keeps the narrow group-summary rows readable. */
-const compactDateFormatter = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-})
-
-/**
- * Persist a resizable layout in localStorage, matching the automation editor:
- * the saved layout captures panel widths AND which panels are collapsed (a
- * collapsed panel has size 0). Read after mount (never during render — that
- * would mismatch hydration); `layoutKey` remounts the group once the saved
- * layout loads so it applies cleanly, and the `loaded` guard avoids saving the
- * pre-load default over it.
- */
 /** Keeps only changing run fields live; the full route refreshes once at completion. */
 function useLiveBacktestRuns(
   initial: BacktestListItem[],
@@ -668,7 +656,7 @@ export function RunGroupsDashboard({
       <DashboardTable
         title="Backtest"
         icon={
-          <ListIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+          <ListIcon className="text-muted-foreground" />
         }
         count={filtered.length}
         selectedCount={selection.selected.size}
@@ -872,7 +860,7 @@ export function RunGroupsDashboard({
               )}
             >
               {group.status === "done" && group.monthlyPnlPct !== null
-                ? pct(group.monthlyPnlPct)
+                ? signedPct(group.monthlyPnlPct)
                 : "—"}
             </TableCell>
             <TableCell
@@ -975,11 +963,14 @@ export function RunHistoryDashboard({
   groupId,
   groupMetrics,
   groupCurve,
+  openPositions,
 }: {
   runs: BacktestListItem[]
   groupId: string
   groupMetrics: Record<string, GroupPortfolioMetrics>
   groupCurve: GroupCombinedCurve | null
+  /** Money the basket was still holding when its window closed. */
+  openPositions: GroupOpenPositions | null
 }) {
   const navigate = useNavigate()
   const runs = useLiveBacktestRuns(initialRuns)
@@ -1010,53 +1001,21 @@ export function RunHistoryDashboard({
 
   const metrics = groupMetrics[groupId] ?? null
 
-  // This run's headline stats, blended across its completed markets.
-  const summary = React.useMemo(() => {
+  // This run's headline stats blended across its completed markets — the same
+  // combined summary the editor's live backtest panel shows, so the two cards
+  // read identically. The pot is the starting balance, once, never per market.
+  const combined = React.useMemo(() => {
     const done = marketRuns.filter((run) => run.status === "done")
-    // The pot — the starting balance once, never once per market. See the
-    // group-list summary above for the full rationale.
     const equity = metrics?.startEquity ?? done[0]?.startingEquity ?? 0
-    const pnl = done.reduce((sum, run) => sum + (run.netPnl ?? 0), 0)
-    return {
-      markets: marketRuns.length,
-      startEquity: done.length ? equity : null,
-      netPnl: done.length ? pnl : null,
-      netPnlPct: equity > 0 ? (pnl / equity) * 100 : null,
-      trades: done.reduce((sum, run) => sum + (run.tradeCount ?? 0), 0),
-    }
+    return combineMarketStats(
+      done.map((run) => ({
+        netPnl: run.netPnl,
+        tradeCount: run.tradeCount,
+        winRate: run.winRate,
+      })),
+      { startingEquity: equity }
+    )
   }, [marketRuns, metrics])
-
-  const summaryRows: {
-    label: string
-    value: string
-    sub?: string
-    tone?: number | null
-  }[] = [
-    { label: "Markets", value: String(summary.markets) },
-    { label: "Trades", value: summary.trades.toLocaleString() },
-    {
-      label: "Combined DD",
-      value: metrics ? `${metrics.combinedDrawdownPct.toFixed(1)}%` : "—",
-      tone: metrics ? metrics.combinedDrawdownPct : null,
-      sub:
-        metrics && metrics.drawdownAt !== null
-          ? compactDateFormatter.format(metrics.drawdownAt)
-          : undefined,
-    },
-    {
-      label: "Bucket low",
-      value: metrics
-        ? metrics.bucketLowPct < 0
-          ? `${metrics.bucketLowPct.toFixed(1)}%`
-          : "never"
-        : "—",
-      tone: metrics ? metrics.bucketLowPct : null,
-      sub:
-        metrics && metrics.bucketLowPct < 0 && metrics.bucketLowAt !== null
-          ? compactDateFormatter.format(metrics.bucketLowAt)
-          : undefined,
-    },
-  ]
 
   // Combined equity curve for the P&L chart, already downsampled server-side.
   const chartData = groupCurve?.points ?? []
@@ -1188,81 +1147,40 @@ export function RunHistoryDashboard({
               >
                 <WorkspacePanel>
                   <ScrollArea className="h-full">
-                    <div className="flex min-w-0 flex-col gap-5 p-4">
-                      <div className="flex flex-col gap-3">
-                        <span className="text-xs font-bold">Summary</span>
-                        <div className="flex flex-col gap-2">
-                          <div className="flex flex-col gap-1">
-                            <span className="text-xs text-muted-foreground">
-                              Total P&L
-                            </span>
-                            <span
-                              className={cn(
-                                "font-mono text-2xl leading-none font-semibold tabular-nums",
-                                summary.netPnl != null
-                                  ? toneClass(summary.netPnl)
-                                  : "text-foreground"
-                              )}
-                            >
-                              {summary.netPnl !== null
-                                ? signedUsd(summary.netPnl)
-                                : "—"}
-                            </span>
-                            {summary.startEquity !== null ? (
-                              <span className="text-[11px] text-muted-foreground">
-                                from {usd(summary.startEquity)}
-                              </span>
-                            ) : null}
-                          </div>
-                          {summary.netPnlPct !== null ? (
-                            <span
-                              className={cn(
-                                "inline-flex w-fit items-center gap-1 rounded-lg px-2.5 py-1.5 font-mono text-sm font-semibold tabular-nums",
-                                summary.netPnlPct >= 0
-                                  ? "bg-emerald-500/10 text-emerald-600"
-                                  : "bg-red-500/10 text-red-500"
-                              )}
-                            >
-                              {summary.netPnlPct >= 0 ? "▲" : "▼"}{" "}
-                              {pct(summary.netPnlPct)}
-                            </span>
-                          ) : null}
-                        </div>
-                        <div className="h-px bg-border" />
-                        <div className="flex flex-col">
-                          {summaryRows.map((row) => (
-                            <div
-                              key={row.label}
-                              className="flex items-baseline justify-between gap-3 py-1.5"
-                            >
-                              <span className="text-sm text-muted-foreground">
-                                {row.label}
-                              </span>
-                              <div className="flex items-baseline gap-2">
-                                {row.sub ? (
-                                  <span className="text-[11px] text-muted-foreground/70">
-                                    {row.sub}
-                                  </span>
-                                ) : null}
-                                <span
-                                  className={cn(
-                                    "font-mono text-sm tabular-nums",
-                                    row.tone != null
-                                      ? toneClass(row.tone)
-                                      : "text-foreground"
-                                  )}
-                                >
-                                  {row.value}
-                                </span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
+                    <div className="flex flex-col">
+                      <div className="flex min-h-10 shrink-0 items-center justify-between border-b px-3 py-2.5">
+                        <h2 className="text-xs font-semibold tracking-wide uppercase">
+                          Backtest · all markets
+                        </h2>
+                        <span className="text-[10px] text-muted-foreground">
+                          Read-only
+                        </span>
                       </div>
-
+                      {combined ? (
+                        <BacktestGroupKpis
+                          summary={combined}
+                          marketsTotal={marketRuns.length}
+                          combinedDrawdownPct={
+                            metrics?.combinedDrawdownPct ?? null
+                          }
+                          potAtMaxDdUsd={potAtDrawdown(
+                            chartData,
+                            metrics?.drawdownAt ?? null
+                          )}
+                          wallet={
+                            loadedRun
+                              ? (loadedRun.result?.portfolio ?? null)
+                              : undefined
+                          }
+                          openPositions={openPositions}
+                          className="p-3"
+                        />
+                      ) : null}
                       <PnlCurveCard
                         points={chartData}
                         baseline={groupCurve?.startEquity ?? null}
+                        emptyMessage="The P&L curve appears once the run's markets finish."
+                        className="p-3 pt-0"
                       />
                     </div>
                   </ScrollArea>

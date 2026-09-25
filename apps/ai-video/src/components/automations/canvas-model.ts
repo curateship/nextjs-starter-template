@@ -1,4 +1,5 @@
 import type {
+  AutomationGraph,
   AutomationNode,
   AutomationSourcePort,
 } from "@/lib/automations/automation"
@@ -45,9 +46,10 @@ export function nodeOutputPorts(node: AutomationNode): NodePort[] {
 export function canConnectNodes(
   source: AutomationNode,
   sourcePort: AutomationSourcePort,
-  target: AutomationNode
+  target: AutomationNode,
+  graph: Pick<AutomationGraph, "nodes" | "edges">
 ): boolean {
-  return canConnectAutomationNodes(source, sourcePort, target)
+  return canConnectAutomationNodes(source, sourcePort, target, graph)
 }
 
 export function portOut(

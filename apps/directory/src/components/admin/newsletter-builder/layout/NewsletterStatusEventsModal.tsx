@@ -9,7 +9,6 @@ import { Card, CardGroup, CardContent, CardHeader, CardTitle } from "@/component
 import { Dialog } from "@/components/ui/dialog"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
-import { Skeleton } from "@/components/ui/skeleton"
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
@@ -72,31 +71,31 @@ function getStatusEventBadge(event: NewsletterStatusEvent["event"]) {
   const label = getStatusEventLabel(event)
   if (event === "duplicate")
     return (
-      <Badge variant="outline" className="border-orange-200 bg-orange-50 text-orange-700">
+      <Badge variant="outline" className="border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-900 dark:bg-orange-950/50 dark:text-orange-400">
         {label}
       </Badge>
     )
   if (event === "bounced")
     return (
-      <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700">
+      <Badge variant="outline" className="border-destructive/30 bg-destructive/10 text-destructive">
         {label}
       </Badge>
     )
   if (event === "unsubscribed")
     return (
-      <Badge variant="outline" className="border-yellow-200 bg-yellow-50 text-yellow-800">
+      <Badge variant="outline" className="border-yellow-200 bg-yellow-50 text-yellow-800 dark:border-yellow-900 dark:bg-yellow-950/50 dark:text-yellow-300">
         {label}
       </Badge>
     )
   if (event === "opened")
     return (
-      <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700">
+      <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700 dark:text-green-300 dark:border-green-900 dark:bg-green-950/50 dark:text-green-400">
         {label}
       </Badge>
     )
   if (event === "clicked")
     return (
-      <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">
+      <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-950/50 dark:text-blue-400">
         {label}
       </Badge>
     )
@@ -281,13 +280,10 @@ export function NewsletterStatusEventsModal({
                   Array.from({ length: 8 }).map((_, index) => (
                     <TableRow key={index} className="border-0 hover:bg-transparent">
                       <TableCell className="px-3 py-2 first:pl-3 sm:px-4 sm:py-3 sm:first:pl-5">
-                        <Skeleton className="h-4 w-56 max-w-full" />
                       </TableCell>
                       <TableCell className="px-3 py-2 sm:px-4 sm:py-3">
-                        <Skeleton className="h-6 w-20 rounded-full" />
                       </TableCell>
                       <TableCell className="px-3 py-2 sm:px-4 sm:py-3 sm:last:pr-5">
-                        <Skeleton className="h-4 w-28" />
                       </TableCell>
                     </TableRow>
                   ))
@@ -301,7 +297,7 @@ export function NewsletterStatusEventsModal({
                   events.map((event) => (
                     <TableRow key={event.id} className="border-0 hover:bg-muted/50">
                       <TableCell className="min-w-0 px-3 py-2 text-xs first:pl-3 sm:px-4 sm:py-3 sm:text-sm sm:first:pl-5">
-                        <div className="truncate">{event.email}</div>
+                        <div className="truncate" title={event.email}>{event.email}</div>
                       </TableCell>
                       <TableCell className="px-3 py-2 text-xs sm:px-4 sm:py-3 sm:text-sm">
                         {getStatusEventBadge(event.event)}

@@ -1,0 +1,221 @@
+import { z } from "zod"
+
+import {
+  MAX_CLIP_SPEED,
+  MAX_CLIP_VOLUME,
+  MIN_CLIP_SPEED,
+  MIN_CLIP_VOLUME,
+} from "./clip-playback"
+import { CLIP_FITS } from "./clip-frame-fit"
+import { MAX_CLIP_SCALE, MIN_CLIP_SCALE } from "./clip-size"
+import {
+  MAX_CLIP_BRIGHTNESS,
+  MAX_CLIP_CONTRAST,
+  MAX_CLIP_SATURATION,
+  MIN_CLIP_BRIGHTNESS,
+  MIN_CLIP_CONTRAST,
+  MIN_CLIP_SATURATION,
+} from "./clip-colour"
+import { CLIP_MOTIONS } from "./clip-motion"
+import { TRANSITION_KINDS } from "./clip-transitions"
+import { CAPTION_ANIMATION_IDS } from "./caption-animations"
+import { MAX_CAPTION_WORDS } from "./caption-words"
+import { TEXT_FONT_IDS } from "./text-fonts"
+
+/**
+ * What a project's timeline is allowed to be.
+ *
+ * The timeline is stored as one JSON column, so this schema is the only thing
+ * standing between the editor and a saved value nobody can draw. Both ends
+ * check it: the browser before it saves, the server before it writes.
+ */
+
+// A blend at the seam entering this clip (see clip-transitions.ts). Absent =
+// hard cut.
+const clipTransitionSchema = z
+  .object({
+    kind: z.enum(TRANSITION_KINDS),
+    durationMs: z.number().positive().finite(),
+  })
+  .strict()
+
+export const clipSchema = z
+  .object({
+    id: z.string().min(1).max(64),
+    kind: z.enum(["video", "audio", "image", "text"]),
+    name: z.string().max(255),
+    // Where the clip sits on the timeline, and how long it runs for.
+    startMs: z.number().nonnegative().finite(),
+    durationMs: z.number().nonnegative().finite(),
+    // How far into the source file this clip starts — it moves when the left
+    // edge is trimmed or the clip is split.
+    trimStartMs: z.number().nonnegative().finite(),
+    // Media-backed clips. The address is re-derived from the id every time a
+    // project is opened, so it is a convenience rather than the truth.
+    mediaId: z.string().max(36).optional(),
+    url: z.string().max(2048).optional(),
+    muted: z.boolean().optional(),
+    // How loud this clip's own sound plays, 0 silent and 1 as recorded. Absent
+    // means 1, so every timeline saved before this existed still reads.
+    volume: z.number().min(MIN_CLIP_VOLUME).max(MAX_CLIP_VOLUME).optional(),
+    // How fast it plays. 2 is twice as fast, which is half the timeline room.
+    // Absent means 1.
+    speed: z.number().min(MIN_CLIP_SPEED).max(MAX_CLIP_SPEED).optional(),
+    // Whether a picture that is not the project's shape fits inside the frame
+    // with black at the edges, or fills it and loses the overflow. Absent
+    // means "contain", so a timeline saved before this reads unchanged.
+    fit: z.enum(CLIP_FITS).optional(),
+    // A slow move across a still picture over its time on screen. Absent
+    // means it holds still, so a timeline saved before this reads unchanged.
+    // Only picture clips move; the preview and the export ignore it elsewhere.
+    motion: z.enum(CLIP_MOTIONS).optional(),
+    // Brightness, contrast and saturation, in ffmpeg's own `eq` numbers.
+    // Absent means no change (0, 1 and 1), so a timeline saved before these
+    // existed reads unchanged. Only video and picture clips use them.
+    brightness: z
+      .number()
+      .min(MIN_CLIP_BRIGHTNESS)
+      .max(MAX_CLIP_BRIGHTNESS)
+      .optional(),
+    contrast: z
+      .number()
+      .min(MIN_CLIP_CONTRAST)
+      .max(MAX_CLIP_CONTRAST)
+      .optional(),
+    saturation: z
+      .number()
+      .min(MIN_CLIP_SATURATION)
+      .max(MAX_CLIP_SATURATION)
+      .optional(),
+    // How long the sound takes to fade away at the clip's end. Set on music
+    // laid under a project and cut short (see background-music.ts). Absent
+    // means it stops where the clip stops, as every clip always did.
+    fadeOutMs: z.number().nonnegative().finite().optional(),
+    // How long the whole source file runs, so a trim cannot reach past its end.
+    sourceDurationMs: z.number().nonnegative().finite().optional(),
+    // Text clips.
+    text: z.string().max(5000).optional(),
+    fontId: z.enum(TEXT_FONT_IDS).optional(),
+    fontSize: z.number().finite().optional(),
+    color: z.string().max(32).optional(),
+    // A block of colour drawn behind the whole line; unset = no box.
+    highlightColor: z.string().max(32).optional(),
+    // How the words arrive on screen. Unset means they simply appear.
+    animation: z.enum(CAPTION_ANIMATION_IDS).optional(),
+    // When each word of the text is said, matched to the words by position
+    // and measured from the clip's own start (see caption-words.ts). Only
+    // captions written from speech carry them.
+    wordTimes: z
+      .array(
+        z
+          .object({
+            startMs: z.number().finite(),
+            endMs: z.number().finite(),
+          })
+          .strict()
+      )
+      .max(MAX_CAPTION_WORDS)
+      .optional(),
+    // The colour the word being said turns. Unset means no word lights up,
+    // which is how every caption drew before this existed.
+    activeWordColor: z.string().max(32).optional(),
+    // Where the middle of the text sits on the frame, 0–1 in each direction
+    // (0.5/0.5 = dead centre). Set by dragging the text on the preview.
+    x: z.number().min(0).max(1).optional(),
+    y: z.number().min(0).max(1).optional(),
+    // How big a picture is, as a share of the frame it was fitted to (see
+    // clip-size.ts). Absent means the full frame. A picture smaller than the
+    // frame is placed by `x` and `y`, the same as text.
+    scale: z.number().min(MIN_CLIP_SCALE).max(MAX_CLIP_SCALE).optional(),
+    transition: clipTransitionSchema.optional(),
+  })
+  .strict()
+  .superRefine((clip, context) => {
+    if (clip.kind === "text" && !clip.fontId) {
+      context.addIssue({
+        code: "custom",
+        path: ["fontId"],
+        message: "Text clips require a font",
+      })
+    }
+  })
+
+export const MAX_TIMELINE_TRACKS = 50
+export const MAX_TRACK_CLIPS = 500
+
+export const ASPECT_RATIOS = ["16:9", "9:16", "1:1", "4:3"] as const
+export type AspectRatio = (typeof ASPECT_RATIOS)[number]
+
+export const timelineSchema = z
+  .object({
+    tracks: z
+      .array(
+        z
+          .object({
+            id: z.string().min(1).max(64),
+            muted: z.boolean(),
+            // When set, this track's audio is lowered under any overlapping
+            // audio on other tracks ("duck under voice").
+            duck: z.boolean().optional(),
+            clips: z.array(clipSchema).max(MAX_TRACK_CLIPS),
+          })
+          .strict()
+      )
+      .max(MAX_TIMELINE_TRACKS),
+    aspect: z.enum(ASPECT_RATIOS),
+  })
+  .strict()
+
+export type ProjectTimeline = z.infer<typeof timelineSchema>
+
+export const SAVED_TIMELINE_INVALID_MESSAGE =
+  "Saved timeline is invalid. Recreate it with the current editor."
+
+// Thrown when a save is based on a version the project has since moved past
+// (another tab, or a second window). Shared so the editor can recognise the
+// rejection, stop saving and keep its work as a new project instead of
+// retrying forever.
+export const PROJECT_CONFLICT_MESSAGE =
+  "This project changed elsewhere — reload to continue"
+
+export function createEmptyTimeline(): ProjectTimeline {
+  return { tracks: [], aspect: "9:16" }
+}
+
+export function createTimelineSnapshot(
+  timeline: ProjectTimeline
+): ProjectTimeline {
+  return requireCanonicalTimeline({
+    tracks: timeline.tracks,
+    aspect: timeline.aspect,
+  })
+}
+
+export function requireCanonicalTimeline(value: unknown): ProjectTimeline {
+  const parsed = timelineSchema.safeParse(value)
+  if (!parsed.success) {
+    throw new Error(SAVED_TIMELINE_INVALID_MESSAGE)
+  }
+  return parsed.data
+}
+
+// Reading a stored timeline for the editor: a value the schema refuses opens as
+// an empty timeline carrying the reason, so a corrupt project is still openable
+// and can be saved back over rather than being a dead end.
+export function parseTimelineForReset(value: unknown): {
+  timeline: ProjectTimeline
+  error: string | null
+} {
+  try {
+    return {
+      timeline: requireCanonicalTimeline(value),
+      error: null,
+    }
+  } catch (error) {
+    return {
+      timeline: createEmptyTimeline(),
+      error:
+        error instanceof Error ? error.message : SAVED_TIMELINE_INVALID_MESSAGE,
+    }
+  }
+}

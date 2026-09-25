@@ -272,25 +272,25 @@ export default function NewslettersPage() {
     switch (newsletter.status) {
       case "sent":
         return (
-          <Badge variant="default" className="bg-green-100 text-green-800">
+          <Badge variant="default" className="bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300">
             Sent
           </Badge>
         )
       case "sending":
         return (
-          <Badge variant="default" className="bg-blue-100 text-blue-800">
+          <Badge variant="default" className="bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300">
             {getDripStatusLabel(newsletter)}
           </Badge>
         )
       case "paused":
         return (
-          <Badge variant="default" className="bg-orange-100 text-orange-800">
+          <Badge variant="default" className="bg-orange-100 text-orange-800 dark:bg-orange-950/50 dark:text-orange-300">
             Paused
           </Badge>
         )
       case "scheduled":
         return (
-          <Badge variant="default" className="bg-yellow-100 text-yellow-800">
+          <Badge variant="default" className="bg-yellow-100 text-yellow-800 dark:bg-yellow-950/50 dark:text-yellow-300">
             Scheduled
           </Badge>
         )
@@ -358,7 +358,7 @@ export default function NewslettersPage() {
 
           <AdminTableShell
             title="Newsletters"
-            icon={<Mail className="size-4 text-muted-foreground sm:size-[18px]" />}
+            icon={<Mail className="text-muted-foreground" />}
             count={filteredNewsletters.length}
             selectedCount={newsletterSelection.selectedCount}
             onClearSelection={newsletterSelection.clearSelection}
@@ -506,7 +506,7 @@ export default function NewslettersPage() {
                                     <>
                                       <button
                                         type="button"
-                                        className={`inline-flex h-6 shrink-0 items-center gap-1 rounded border px-2 text-xs font-medium transition-colors ${newsletter.status === "sending" ? "border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100" : "border-green-200 bg-green-50 text-green-700 hover:bg-green-100"}`}
+                                        className={`inline-flex h-6 shrink-0 items-center gap-1 rounded border px-2 text-xs font-medium transition-colors ${newsletter.status === "sending" ? "border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100 dark:border-orange-900 dark:bg-orange-950/50 dark:text-orange-400 dark:hover:bg-orange-900/40" : "border-green-200 bg-green-50 text-green-700 hover:bg-green-100 dark:border-green-900 dark:bg-green-950/50 dark:text-green-400 dark:hover:bg-green-900/40"}`}
                                         title={newsletter.status === "sending" ? "Pause" : "Resume"}
                                         onClick={async (e) => {
                                           e.stopPropagation()

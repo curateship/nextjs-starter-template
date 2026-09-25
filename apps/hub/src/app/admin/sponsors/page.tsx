@@ -209,7 +209,7 @@ export default function SponsorsPage() {
 
         <AdminTableShell
           title="Sponsors"
-          icon={<Handshake className="size-4 text-muted-foreground sm:size-[18px]" />}
+          icon={<Handshake className="text-muted-foreground" />}
           count={filteredSponsors.length}
           selectedCount={sponsorSelection.selectedCount}
           onClearSelection={sponsorSelection.clearSelection}
@@ -364,7 +364,7 @@ export default function SponsorsPage() {
                         <TableCell column="meta">
                           <Badge
                             className={cn(
-                              sponsor.is_active ? "bg-green-100 text-green-800" : "bg-muted text-muted-foreground"
+                              sponsor.is_active ? "bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300" : "bg-muted text-muted-foreground"
                             )}
                           >
                             {sponsor.is_active ? "Active" : "Inactive"}

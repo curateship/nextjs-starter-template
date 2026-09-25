@@ -10,7 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
+import { HexColorInput } from "@/components/ui/hex-color-input"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -83,7 +83,7 @@ export function AdminStylingSettings({
             preview live and persist when you save.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="gap-6">
           <SliderRow
             label="Content spacing"
             value={styling.gutter}
@@ -175,7 +175,7 @@ export function AdminStylingSettings({
             gridlines. The whole admin area recolors live as you adjust this.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="gap-6">
           <BackgroundField
             idPrefix="divider-color"
             value={styling.dividerColor}
@@ -206,7 +206,7 @@ export function AdminStylingSettings({
           <CardTitle>Main content area</CardTitle>
           <CardDescription>The background behind your pages and cards.</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="gap-6">
           <BackgroundField
             idPrefix="content-bg"
             value={styling.content}
@@ -224,7 +224,7 @@ export function AdminStylingSettings({
             The background of the sidebar rail and the sticky top bar.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="gap-6">
           <BackgroundField
             idPrefix="chrome-bg"
             value={styling.chrome}
@@ -242,7 +242,7 @@ export function AdminStylingSettings({
             Dialogs across the admin area. Changes apply to any open modal live.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="gap-6">
           <SliderRow
             label="Inner spacing"
             value={modal.padding}
@@ -307,7 +307,7 @@ export function AdminStylingSettings({
           <CardTitle>Cards inside modals</CardTitle>
           <CardDescription>The bordered sections within a modal.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="gap-6">
           <div className="grid gap-3">
             <Label>Background</Label>
             <BackgroundField
@@ -408,8 +408,6 @@ function BackgroundField({
   defaultHint: string
   onChange: (patch: Partial<AdminBackground>) => void
 }) {
-  const color = /^#[0-9a-fA-F]{6}$/.test(value.color) ? value.color : "#ffffff"
-
   return (
     <div className="grid gap-6">
       <div className="grid gap-2">
@@ -449,24 +447,12 @@ function BackgroundField({
       {value.mode === "custom" ? (
         <div className="grid gap-2">
           <Label htmlFor={`${idPrefix}-color`}>Color</Label>
-          <div className="flex items-center gap-2">
-            <input
-              id={`${idPrefix}-color`}
-              type="color"
-              value={color}
-              disabled={isSaving}
-              onChange={(event) => onChange({ color: event.target.value })}
-              className="h-8 w-12 cursor-pointer rounded-md border border-border bg-background p-1 disabled:cursor-not-allowed disabled:opacity-50"
-              aria-label="Pick a color"
-            />
-            <Input
-              value={value.color}
-              disabled={isSaving}
-              onChange={(event) => onChange({ color: event.target.value })}
-              placeholder="#ffffff"
-              className="w-40"
-            />
-          </div>
+          <HexColorInput
+            id={`${idPrefix}-color`}
+            value={value.color}
+            disabled={isSaving}
+            onColorChange={(color) => onChange({ color })}
+          />
           <p className="text-xs text-muted-foreground">
             A custom color stays the same in light and dark mode.
           </p>
@@ -502,18 +488,17 @@ function SliderRow({
       <div className="grid max-w-sm gap-2">
         <div className="flex items-center justify-between">
           <Label>{label}</Label>
-          <span className="text-xs tabular-nums text-muted-foreground">{valueLabel}</span>
+          <span className="text-xs tabular-nums text-muted-foreground">
+            {valueLabel}
+          </span>
         </div>
         <Slider
           min={min}
           max={max}
           step={step}
           value={[value]}
-          className={cn(disabled && "pointer-events-none opacity-50")}
-          onValueChange={(next) => {
-            if (disabled) return
-            onChange(next[0] ?? min)
-          }}
+          disabled={disabled}
+          onValueChange={(next) => onChange(next[0] ?? min)}
         />
       </div>
       {help ? <p className="text-xs text-muted-foreground">{help}</p> : null}

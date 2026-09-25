@@ -1,0 +1,67 @@
+# CMS and Custom Shell
+
+CMS uses the shared Custom Shell code for accounts, billing, automations,
+navigation, public pages and settings. Directory routes, tables, migrations,
+imports and app options belong to CMS.
+
+The CMS settings tabs are registered in `src/app/options.ts`. Site identity,
+Directory and Listing badges load their own panels through the shell's settings
+tab extension. Adding a CMS setting does not require editing the shared settings
+page.
+
+CMS enables `workspaces.siteBranding`. A site's favicon, logo, dark logo and
+share image stay in that site's workspace settings. Public requests read the
+site selected by the domain. Empty image fields use the app-wide images.
+The Site identity panel edits those fields through the shell's guarded settings
+endpoint. The site's accent colour uses `publicTheme.brandColor`, including
+existing colours converted by migration `0075_custom_shell_public_brand_color`.
+
+The shell's site-branding contract is documented once in the repo's
+`docs/shell/shell-and-apps.md`.
+
+Platform Navigation combines the sidebar and top right menu editors. Top left
+max items sits inside the sidebar card and keeps the existing saved limit.
+Member Navigation groups the member editors separately. Sidebar sections use
+16px gaps to match their card inset, and menu actions stay inside their cards.
+CMS-specific settings remain under This app.
+
+The shell's optional app-owned left header content keeps the standard sidebar
+links as its fallback. CMS leaves this option unset. Worker builds expand the
+page registry so CMS's page declarations remain available outside Vite.
+
+## Applying updates
+
+Copy shell-owned files from Custom Shell. Keep CMS's `src/app/`, directory
+files, migrations, import scripts, environment and workspace documents.
+Preserve the `cms` package name and the import command when merging package
+scripts and dependencies. Regenerate the route tree from CMS's combined routes.
+
+Run the full test suite after a shell merge, then the app and Node TypeScript
+checks. Validate the existing CMS server on port 3015 in a browser.
+
+CMS also inherits the shell's Storage settings, generated brand images,
+plan-change confirmations and header quick settings. CMS keeps its own site
+identity panel and directory settings. Sidebar width belongs to each person.
+
+CMS also inherits the shell's public header, footer and breadcrumbs, public
+styling presets, resized public pictures, the page loading bar, per-page search
+engine controls and the bell that clears its number without marking notices
+read.
+
+The current shell includes database migrations through
+`0081_custom_shell_per_page_index_controls.sql`. CMS numbers its own migrations
+past the shell's, so a shell migration takes the next free CMS number and keeps
+its name: the shell's `0080` and `0081` are CMS's
+`0102_custom_shell_notifications_seen.sql` and
+`0103_custom_shell_per_page_index_controls.sql`. The first adds the bell's
+`seen_at` column, and the second adds `hidden_from_search` and `canonical_url`
+to written pages. Apply pending migrations
+with `npm run db:migrate` against the intended CMS database before running the
+updated app. Supply `CUSTOM_SHELL_DATABASE_URL` explicitly; the migration
+command does not load a local environment file. The background worker has its own build and start commands,
+`npm run build:worker` and `npm run worker`. Production releases must run that
+worker for scheduled shell and directory work.
+
+CMS retains its earlier `0077_custom_shell_sidebar_width_per_person.sql`.
+The shell's `0078` migration repeats that operation safely. Migration tracking
+uses the full filename, so the two `0077` filenames do not conflict.

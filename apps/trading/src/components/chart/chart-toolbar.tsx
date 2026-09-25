@@ -1,6 +1,6 @@
 import type * as React from "react"
 
-import { price as fmtPrice } from "@/components/backtest/backtest-format"
+import { formatPrice } from "@/lib/format"
 import type { ChartCandle } from "@/components/chart/price-chart"
 import type { CandleInterval } from "@/lib/hl/ws"
 import { cn } from "@/lib/utils"
@@ -76,8 +76,8 @@ export function ChartToolbar({
       <div className="flex-1" />
       {ohlc ? (
         <span className="font-mono text-[10px] text-muted-foreground">
-          O {fmtPrice(Number(ohlc.o))} · H {fmtPrice(Number(ohlc.h))} · L{" "}
-          {fmtPrice(Number(ohlc.l))} · C {fmtPrice(Number(ohlc.c))}
+          O {formatPrice(Number(ohlc.o))} · H {formatPrice(Number(ohlc.h))} · L{" "}
+          {formatPrice(Number(ohlc.l))} · C {formatPrice(Number(ohlc.c))}
         </span>
       ) : null}
       {children}

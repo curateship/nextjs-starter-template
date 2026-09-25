@@ -12,7 +12,7 @@ import {
   getContentBreadcrumbItems,
   shouldShowFrontendBreadcrumbs,
 } from "@/lib/actions/categories/frontend-breadcrumb-actions"
-import { getListingViewsData } from "@/lib/actions/pages/page-listing-views-actions"
+import { getListingViewsDataImpl } from "@/lib/actions/pages/page-listing-views-actions.server"
 
 interface ProductPageProps {
   params: Promise<{
@@ -47,7 +47,7 @@ async function prefetchProductListingData(
       const limit = isPaginated ? itemsPerPage : itemsToShow
       const offset = isPaginated ? (listingPage - 1) * itemsPerPage : 0
 
-      const result = await getListingViewsData({
+      const result = await getListingViewsDataImpl({
         site_id: siteId,
         contentType,
         sortBy,

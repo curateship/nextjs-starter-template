@@ -19,14 +19,18 @@ import {
   TableRightActionsSelectTrigger,
 } from "@/components/admin/layout/content/table-right-actions"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
+import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
+import { useResetPageOnListChange } from "@/lib/use-reset-page"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import {
+  AdminListFooter,
   AdminListPending,
+  AdminSortableHead,
   AdminSortButton,
   AdminTableShell,
   ConfirmDestructive,
-  formatShortDate as formatDate,
+  RelativeDate,
   useAdminBulkSelection,
   useAdminSort,
 } from "@/components/admin/layout/list"
@@ -52,9 +56,9 @@ const STATUS_RANK: Record<EventRegistrationStatus, number> = {
 function statusBadge(status: EventRegistrationStatus) {
   switch (status) {
     case "confirmed":
-      return <Badge className="bg-green-100 text-green-800">Registered</Badge>
+      return <Badge className="bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300">Registered</Badge>
     case "pending":
-      return <Badge className="bg-amber-100 text-amber-800">Awaiting payment</Badge>
+      return <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">Awaiting payment</Badge>
     default:
       return <Badge variant="destructive">Removed</Badge>
   }
@@ -64,15 +68,17 @@ function ticketLabel(row: EventRegistrationListItem) {
   return formatCentsAmount(row.amount_total, row.currency) || "Free"
 }
 
-/** "12 of 30 seats taken" / "12 seats taken" when the event has no limit. */
+/** "12 of 30 seats taken · 8 checked in" — the two numbers an organizer wants. */
 function seatSummary(summary: EventRegistrationEventSummary) {
   const taken = summary.confirmed_count
-  const seats = summary.capacity === null ? `${taken} signed up` : `${taken} of ${summary.capacity} seats taken`
-  return summary.pending_count > 0 ? `${seats} · ${summary.pending_count} awaiting payment` : seats
+  const parts = [summary.capacity === null ? `${taken} signed up` : `${taken} of ${summary.capacity} seats taken`]
+  if (summary.pending_count > 0) parts.push(`${summary.pending_count} awaiting payment`)
+  parts.push(`${summary.checked_in_count} of ${taken} checked in`)
+  return parts.join(" · ")
 }
 
 export default function EventRegistrationsPage() {
-  const { currentSite, loading: siteLoading } = useSiteSwitcher()
+  const { currentSite, loading: siteLoading, pageSize } = useSiteSwitcher()
   const [rows, setRows] = useState<EventRegistrationListItem[]>([])
   const [eventSummaries, setEventSummaries] = useState<EventRegistrationEventSummary[]>([])
   const [eventFilter, setEventFilter] = useState<string>(ALL_EVENTS)
@@ -82,9 +88,19 @@ export default function EventRegistrationsPage() {
   const [truncated, setTruncated] = useState(false)
   const [removeTargets, setRemoveTargets] = useState<string[] | null>(null)
   const [removeError, setRemoveError] = useState<string | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
 
   const selection = useAdminBulkSelection()
   const sort = useAdminSort<SortColumn>("registered", "desc")
+  // Everything that changes what the table shows, minus the page itself.
+  const listQueryKey = `${currentSite?.id}|${eventFilter}|${query}|${sort.sortColumn}|${sort.sortDirection}`
+  // Searching, filtering or re-sorting from a later page would otherwise land
+  // you past the end of the shorter result.
+  useResetPageOnListChange(setCurrentPage, listQueryKey)
+  // Ticks never survive a change to what the table is showing — the page and
+  // rows-per-page included, so "Remove (n)" only ever means rows on screen.
+  useClearSelectionOnListChange(selection, `${listQueryKey}|${currentPage}|${pageSize}`)
+
 
   const loadRows = useCallback(async () => {
     if (!currentSite?.id) {
@@ -154,7 +170,13 @@ export default function EventRegistrationsPage() {
     })
   }, [filtered, sort.sortColumn, sort.sortDirection])
 
-  const visibleIds = sorted.map((row) => row.id)
+  const pagedRows = useMemo(
+    () => sorted.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [currentPage, pageSize, sorted]
+  )
+
+  // Select-all ticks the page in front of you, never the whole filtered list.
+  const visibleIds = pagedRows.map((row) => row.id)
   const removableSelected = sorted.filter(
     (row) => selection.selectedIds.has(row.id) && row.status !== "cancelled",
   )
@@ -182,7 +204,7 @@ export default function EventRegistrationsPage() {
     selection.clearSelection()
     const removed = results.length - failed.length
     if (failed.length) showActionError(`Removed ${removed}, ${failed.length} failed`)
-    else showActionSuccess(`Removed ${removed} ${removed === 1 ? "registration" : "registrations"}`)
+    else showActionSuccess(removed === 1 ? "Registration removed." : "Registrations removed.")
     await loadRows()
   }
 
@@ -194,13 +216,21 @@ export default function EventRegistrationsPage() {
           <DashboardSubheader items={[{ label: "Events", href: "/admin/events" }, { label: "Registrations" }]} />
 
           <AdminTableShell
+            error={error ? { message: error, onRetry: loadRows } : null}
             title="Event Registrations"
-            icon={<Users className="size-4 text-muted-foreground sm:size-[18px]" />}
+            icon={<Users className="text-muted-foreground" />}
             count={filtered.length}
             loading={loading}
-            titleMeta={selectedSummary ? (
-              <span className="text-xs text-muted-foreground sm:text-sm">{seatSummary(selectedSummary)}</span>
-            ) : null}
+            titleMeta={
+              <>
+                {selectedSummary ? (
+                  <span className="text-xs text-muted-foreground sm:text-sm">{seatSummary(selectedSummary)}</span>
+                ) : null}
+                {truncated ? (
+                  <span className="text-xs text-muted-foreground">Showing the 500 most recent</span>
+                ) : null}
+              </>
+            }
             selectedCount={selection.selectedCount}
             onClearSelection={selection.clearSelection}
             titleActions={removableSelected.length ? (
@@ -216,18 +246,12 @@ export default function EventRegistrationsPage() {
               <TableRightActions>
                 <TableRightActionsSearch
                   value={query}
-                  onChange={(event) => {
-                    setQuery(event.target.value)
-                    selection.clearSelection()
-                  }}
+                  onChange={(event) => setQuery(event.target.value)}
                   placeholder="Search name, email or event"
                 />
                 <Select
                   value={eventFilter}
-                  onValueChange={(value) => {
-                    setEventFilter(value)
-                    selection.clearSelection()
-                  }}
+                  onValueChange={setEventFilter}
                 >
                   <TableRightActionsSelectTrigger aria-label="Event filter">
                     <SelectValue />
@@ -245,11 +269,12 @@ export default function EventRegistrationsPage() {
               </TableRightActions>
             }
             footer={!loading ? (
-              <div className="bg-muted/50 p-4 text-xs text-muted-foreground sm:text-sm">
-                {filtered.length} {filtered.length === 1 ? "registration" : "registrations"}
-                {selectedSummary ? ` · ${seatSummary(selectedSummary)}` : ""}
-                {truncated ? " · showing the 500 most recent" : ""}
-              </div>
+              <AdminListFooter
+                currentPage={currentPage}
+                pageSize={pageSize}
+                total={filtered.length}
+                onPageChange={setCurrentPage}
+              />
             ) : null}
           >
             <ScrollArea className="w-full">
@@ -263,78 +288,35 @@ export default function EventRegistrationsPage() {
                         aria-label="Select registrations"
                       />
                     </TableHead>
-                    <TableHead column="main">
-                      <AdminSortButton
-                        active={sort.sortColumn === "attendee"}
-                        direction={sort.sortDirection}
-                        onClick={() => sort.toggleSort("attendee")}
-                      >
-                        Attendee
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="content">
-                      <AdminSortButton
-                        active={sort.sortColumn === "event"}
-                        direction={sort.sortDirection}
-                        onClick={() => sort.toggleSort("event")}
-                      >
-                        Event
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={sort.sortColumn === "ticket"}
-                        direction={sort.sortDirection}
-                        onClick={() => sort.toggleSort("ticket")}
-                      >
-                        Ticket
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={sort.sortColumn === "status"}
-                        direction={sort.sortDirection}
-                        onClick={() => sort.toggleSort("status")}
-                      >
-                        Status
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={sort.sortColumn === "registered"}
-                        direction={sort.sortDirection}
-                        onClick={() => sort.toggleSort("registered")}
-                      >
-                        Registered
-                      </AdminSortButton>
-                    </TableHead>
+                    <AdminSortableHead column="main" sort={sort} sortKey="attendee">Attendee</AdminSortableHead>
+                    <AdminSortableHead column="content" sort={sort} sortKey="event">Event</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={sort} sortKey="ticket">Ticket</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={sort} sortKey="status">Status</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={sort} sortKey="registered">Registered</AdminSortableHead>
                     <TableHead column="meta">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {loading && rows.length === 0 ? (
                     <AdminListPending />
-                  ) : error ? (
-                    <TableRow>
-                      <TableCell colSpan={7} className="h-32 text-center">
-                        <p className="mb-4 text-red-600">{error}</p>
-                        <Button onClick={loadRows} variant="outline" size="sm">
-                          Try Again
-                        </Button>
-                      </TableCell>
-                    </TableRow>
                   ) : sorted.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={7} className="h-32 text-center">
                         <Users className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
                         <p className="text-muted-foreground">
-                          No registrations yet. Turn on sign-ups in an event&apos;s Registration settings to
-                          start collecting them.
+                          {query.trim() || eventFilter !== ALL_EVENTS ? (
+                            "No registrations found matching your search."
+                          ) : (
+                            <>
+                              No registrations yet. Turn on sign-ups in an event&apos;s Registration settings to
+                              start collecting them.
+                            </>
+                          )}
                         </p>
                       </TableCell>
                     </TableRow>
                   ) : (
-                    sorted.map((row) => (
+                    pagedRows.map((row) => (
                       <TableRow key={row.id} className="group">
                         <TableCell column="select">
                           <Checkbox
@@ -344,8 +326,8 @@ export default function EventRegistrationsPage() {
                           />
                         </TableCell>
                         <TableCell column="main">
-                          <h4 className="truncate font-medium">{row.name}</h4>
-                          <p className="truncate text-sm text-muted-foreground">{row.email}</p>
+                          <h4 className="truncate font-medium" title={row.name}>{row.name}</h4>
+                          <p className="truncate text-sm text-muted-foreground" title={row.email}>{row.email}</p>
                         </TableCell>
                         <TableCell column="content">
                           <a
@@ -353,19 +335,31 @@ export default function EventRegistrationsPage() {
                             target="_blank"
                             rel="noopener noreferrer"
                             className="truncate text-sm hover:underline"
-                          >
+                           title={row.event_title}>
                             {row.event_title}
                           </a>
                         </TableCell>
                         <TableCell column="meta">
                           <span className="text-sm">{ticketLabel(row)}</span>
                         </TableCell>
-                        <TableCell column="meta">{statusBadge(row.status)}</TableCell>
                         <TableCell column="meta">
-                          <div className="text-sm text-muted-foreground">{formatDate(row.created_at)}</div>
+                          {statusBadge(row.status)}
+                          {row.checked_in_at ? (
+                            <div className="mt-1 text-xs text-muted-foreground">
+                              Checked in <RelativeDate date={row.checked_in_at} />
+                            </div>
+                          ) : null}
+                        </TableCell>
+                        <TableCell column="meta">
+                          <div className="text-sm text-muted-foreground"><RelativeDate date={row.created_at} /></div>
                           {row.reminder_sent_at ? (
                             <div className="text-xs text-muted-foreground">
-                              Reminded {formatDate(row.reminder_sent_at)}
+                              Reminded <RelativeDate date={row.reminder_sent_at} />
+                            </div>
+                          ) : null}
+                          {row.follow_up_sent_at ? (
+                            <div className="text-xs text-muted-foreground">
+                              Thanked <RelativeDate date={row.follow_up_sent_at} />
                             </div>
                           ) : null}
                         </TableCell>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, use } from "react"
+import { useEffect, useRef, useState, use } from "react"
 import { useRouter } from "@/lib/navigation-client"
 import Monitor from "lucide-react/dist/esm/icons/monitor.js"
 import Smartphone from "lucide-react/dist/esm/icons/smartphone.js"
@@ -8,7 +8,7 @@ import Tablet from "lucide-react/dist/esm/icons/tablet.js"
 import { Button } from "@/components/ui/button"
 import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { useSaveStatus } from "@/components/admin/layout/builder/save-status"
+import { useAutoSave } from "@/components/admin/layout/builder/use-auto-save"
 import { BlockListPanel } from "@/components/admin/layout/builder/BlockListPanel"
 import { BlockSelectionModal } from "@/components/admin/layout/builder/BlockSelectionModal"
 import { NEWSLETTER_BLOCK_TYPES } from "@/components/admin/newsletter-builder/config/newsletter-block-types"
@@ -18,7 +18,7 @@ import { NewsletterBlockEditor } from "@/components/admin/newsletter-builder/lay
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { Dialog } from "@/components/ui/dialog"
 import { ModalTabs, ModalTabsProvider } from "@/components/admin/layout/dashboard/modal-tabs"
-import { DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
+import { DashboardModalContent, DashboardModalFormFooter } from "@/components/admin/layout/dashboard/modals"
 import {
   getSystemEmailEditorAction,
   saveSystemEmailTemplateAction,
@@ -49,8 +49,6 @@ export default function SystemEmailBuilderPage({ params }: PageProps) {
   const [previewWidth, setPreviewWidth] = useState<keyof typeof PREVIEW_WIDTHS>('desktop')
   const [blockModalOpen, setBlockModalOpen] = useState(false)
   const [blockListOpen, setBlockListOpen] = useState(false)
-  const [isSaving, setIsSaving] = useState(false)
-  const [saveStatus, setSaveStatus] = useSaveStatus()
   const [draftContent, setDraftContent] = useState<Record<string, any>>({})
   const [draftSubject, setDraftSubject] = useState("")
   const [isSavingBlock, setIsSavingBlock] = useState(false)
@@ -98,43 +96,51 @@ export default function SystemEmailBuilderPage({ params }: PageProps) {
     setDraftSubject(template?.subject || "")
   }, [selectedBlock, template?.subject])
 
-  async function handleSave() {
-    if (!template) return
+  const templateRef = useRef(template)
+  templateRef.current = template
+  const blocksRef = useRef(blockEditor.blocks)
+  blocksRef.current = blockEditor.blocks
+  const lastSavedJsonRef = useRef<string | null>(null)
 
-    await persistTemplate(blockEditor.blocks, template.subject)
-  }
+  // Auto-save: the subject line and the blocks are written once the edits stop.
+  const { saveStatus, isSaving, scheduleSave, saveNow } = useAutoSave<{
+    blocks: ReturnType<typeof useBlockEditor>["blocks"]
+    subject: string
+  }>({
+    save: async (draft) => {
+      const current = templateRef.current
+      if (!current) return { saved: true }
 
-  async function persistTemplate(nextBlocks: ReturnType<typeof useBlockEditor>["blocks"], nextSubject: string) {
-    if (!template) return false
+      const result = await saveSystemEmailTemplateAction({ data: { input: {
+        templateKey: current.template_key,
+        siteId: current.site_id,
+        subject: draft.subject,
+        contentBlocks: blocksToJson(draft.blocks),
+        fromName: current.from_name,
+        replyTo: current.reply_to,
+      } } })
 
-    setIsSaving(true)
-    setSaveStatus('saving')
-
-    const result = await saveSystemEmailTemplateAction({ data: { input: {
-      templateKey: template.template_key,
-      siteId: template.site_id,
-      subject: nextSubject,
-      contentBlocks: blocksToJson(nextBlocks),
-      fromName: template.from_name,
-      replyTo: template.reply_to,
-    } } })
-
-    if (!result.success) {
-      setSaveStatus('error', result.error || 'Failed to save')
-      setIsSaving(false)
-      return false
+      if (!result.success) return { saved: false, reason: result.error || "Failed to save" }
+      return { saved: true }
     }
+  })
 
-    const refreshed = await getSystemEmailEditorAction({ data: { templateKeyInput: template.template_key, siteId: template.site_id } })
-    if (refreshed.success && refreshed.data) {
-      setTemplate(refreshed.data.template)
-      blockEditor.setBlocks(parseBlocksFromJson(refreshed.data.template.content_blocks || {}))
+  const watchedJson = JSON.stringify({ blocks: blockEditor.blocks, subject: template?.subject || "" })
+
+  useEffect(() => {
+    if (loading || !template) {
+      lastSavedJsonRef.current = null
+      return
     }
+    if (lastSavedJsonRef.current === null) {
+      lastSavedJsonRef.current = watchedJson
+      return
+    }
+    if (lastSavedJsonRef.current === watchedJson) return
 
-    setSaveStatus('saved')
-    setIsSaving(false)
-    return true
-  }
+    lastSavedJsonRef.current = watchedJson
+    scheduleSave({ blocks: blocksRef.current, subject: templateRef.current?.subject || "" })
+  }, [loading, scheduleSave, template, watchedJson])
 
   function handleCloseBlockEditor() {
     if (!selectedBlock) return
@@ -149,7 +155,11 @@ export default function SystemEmailBuilderPage({ params }: PageProps) {
     if (!updatedBlocks) return
 
     setIsSavingBlock(true)
-    const saved = await persistTemplate(updatedBlocks, draftSubject)
+    setTemplate((current) => (current ? { ...current, subject: draftSubject } : current))
+    // The dialog closes on this, so it writes now rather than leaving the edit
+    // sitting in the debounce.
+    lastSavedJsonRef.current = JSON.stringify({ blocks: updatedBlocks, subject: draftSubject })
+    const saved = await saveNow({ blocks: updatedBlocks, subject: draftSubject })
     setIsSavingBlock(false)
 
     if (saved) {
@@ -166,9 +176,6 @@ export default function SystemEmailBuilderPage({ params }: PageProps) {
             <div className="flex-1 overflow-y-auto bg-muted/30 p-8 h-full">
               <div className="mx-auto bg-white shadow-sm rounded-sm" style={{ maxWidth: 600 }}>
                 <div className="p-5 space-y-3">
-                  <div className="h-4 bg-muted rounded animate-pulse w-full" />
-                  <div className="h-4 bg-muted rounded animate-pulse w-5/6" />
-                  <div className="h-4 bg-muted rounded animate-pulse w-4/6" />
                 </div>
               </div>
             </div>
@@ -178,8 +185,6 @@ export default function SystemEmailBuilderPage({ params }: PageProps) {
               {[1, 2, 3].map((index) => (
                 <div key={index} className="p-3">
                   <div className="flex items-center space-x-2">
-                    <div className="w-7 h-7 bg-muted rounded animate-pulse" />
-                    <div className="h-4 w-20 bg-muted rounded animate-pulse" />
                   </div>
                 </div>
               ))}
@@ -196,7 +201,7 @@ export default function SystemEmailBuilderPage({ params }: PageProps) {
         <DashboardStickyHeader />
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
-            <p className="text-red-600 mb-4">{error || 'Template not found'}</p>
+            <p className="text-destructive mb-4">{error || 'Template not found'}</p>
             <Button onClick={() => router.push('/admin/platforms/emails')} variant="outline">
               Back to Platform Emails
             </Button>
@@ -246,7 +251,6 @@ export default function SystemEmailBuilderPage({ params }: PageProps) {
             )}
             saveStatus={saveStatus}
             isSaving={isSaving}
-            onSave={handleSave}
             blockListOpen={blockListOpen}
             onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
           />
@@ -292,6 +296,7 @@ export default function SystemEmailBuilderPage({ params }: PageProps) {
         >
           <ModalTabsProvider>
             <DashboardModalContent
+              busy={isSavingBlock}
               className="h-[calc(100vh-4rem)] max-h-[820px] max-w-[960px]"
               title={`Edit ${selectedBlock.title}`}
               titleAccessory={
@@ -300,17 +305,17 @@ export default function SystemEmailBuilderPage({ params }: PageProps) {
                 </div>
               }
               viewportClassName="[&_h3]:pt-4"
-              footer={
-                <>
-                  <Button type="button" variant="outline" onClick={handleCloseBlockEditor} disabled={isSavingBlock}>
-                    Cancel
-                  </Button>
-                  <Button type="button" onClick={handleSaveBlockEditor} disabled={isSavingBlock}>
-                    {isSavingBlock ? "Saving..." : "Save"}
-                  </Button>
-                </>
-              }
+              footer={<DashboardModalFormFooter busy={isSavingBlock} cancelDisabled={isSavingBlock} form="email-block-editor-form" onCancel={handleCloseBlockEditor} submitLabel="Save" />}
             >
+              <form
+                noValidate
+                id="email-block-editor-form"
+                className="contents"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  handleSaveBlockEditor()
+                }}
+              >
               <NewsletterBlockEditor
                 block={selectedBlock}
                 content={draftContent}
@@ -324,6 +329,7 @@ export default function SystemEmailBuilderPage({ params }: PageProps) {
                 subject={draftSubject}
                 onSubjectChange={setDraftSubject}
               />
+              </form>
             </DashboardModalContent>
           </ModalTabsProvider>
         </Dialog>

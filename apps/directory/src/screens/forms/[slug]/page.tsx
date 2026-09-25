@@ -1,6 +1,6 @@
 import { notFound } from "@/lib/navigation-server"
 import { GuidedFormBlock } from "@/components/frontend/forms/GuidedFormBlock"
-import { getPublicGuidedFormBySlug } from "@/lib/actions/guided-forms/guided-form-actions"
+import { getPublicGuidedFormBySlugImpl } from "@/lib/actions/guided-forms/guided-form-actions.server"
 import { getSiteFromHeaders } from "@/lib/utils/site-resolver"
 import { buildSeoMetadata } from "@/lib/utils/seo-helpers"
 
@@ -13,7 +13,7 @@ export default async function GuidedFormPage({ params }: GuidedFormPageProps) {
   const { success, site } = await getSiteFromHeaders()
   if (!success || !site) notFound()
 
-  const formResult = await getPublicGuidedFormBySlug(site.id, slug)
+  const formResult = await getPublicGuidedFormBySlugImpl(site.id, slug)
   if (!formResult.data) notFound()
 
   return (
@@ -35,7 +35,7 @@ export async function generateMetadata({ params }: GuidedFormPageProps) {
     return { title: "Form Not Found" }
   }
 
-  const formResult = await getPublicGuidedFormBySlug(site.id, slug)
+  const formResult = await getPublicGuidedFormBySlugImpl(site.id, slug)
   if (!formResult.data) {
     return { title: "Form Not Found" }
   }

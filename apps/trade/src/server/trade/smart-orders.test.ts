@@ -1,0 +1,2631 @@
+import { PGlite } from "@electric-sql/pglite"
+import { eq } from "drizzle-orm"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+
+import type { CandleBar } from "@/lib/protocols/contracts"
+import { defaultCascade } from "@/lib/trade/cascade"
+import {
+  exitLadderLevels,
+  type DcaParams,
+  type LadderPlan,
+} from "@/lib/trade/dca"
+import { defaultGridParams } from "@/lib/trade/grid"
+import type { SignalPlan } from "@/lib/trade/signal-order"
+import type { TradeWallet } from "@/lib/trade/wallets"
+import { type CustomShellDb } from "@/server/db"
+import {
+  createTestDatabase,
+  insertUser,
+  insertWorkspace,
+} from "@/server/test-support"
+import { draftGridOrder } from "@/server/trade/grid-orders"
+import { clearMarketRulesCache } from "@/server/trade/market-rules"
+import { mayOpenCoin } from "@/server/trade/smart-ladders"
+import {
+  loadPaperPortfolio,
+  placePaperOrder,
+  setPaperBrackets,
+} from "@/server/trade/paper"
+import { loadSmartDca, saveSmartDca } from "@/server/trade/prefs"
+import {
+  cancelLadderRest,
+  cancelLadderRung,
+  cancelFlowLadderRemainder,
+  cancelFlowLadderRest,
+  cancelSignalRest,
+  cancelWatchOrder,
+  editWatchOrder,
+  moveWatchOrder,
+  listActiveSmartOrders,
+  listActiveSmartOrdersIfChanged,
+  placeDcaLadder,
+  placeWatchOrder,
+  resumeSmartOrder,
+  reshapeLadder,
+  saveLadderPlan,
+  updateLadderExits,
+} from "@/server/trade/smart-orders"
+import {
+  tradePaperJournal,
+  tradeFlowRunOrders,
+  tradePaperOrders,
+  tradePaperPositions,
+  tradePrefs,
+  tradeSmartLadders,
+  tradeRecipes,
+  tradeFlowRuns,
+  tradeWallets,
+} from "@/server/trade/schema"
+
+// The exchange is a mock, the same way the engine's own tests mock it: a
+// catalogue of rules, today's prices, and whatever candles a case scripts.
+const marks = new Map<string, number>([["BTC", 100]])
+let candles: CandleBar[] = []
+let minOrderValueUsd: number | null = null
+let minOrderSize: number | null = null
+let sizeDecimals = 3
+let marketMaxLeverage = 50
+
+// Only `getProtocol` is replaced. The rest of the module comes through as
+// itself, because `ordersOf` and its siblings live here too — a mock that
+// listed just this one left them undefined, and every live test died on a
+// call to nothing.
+vi.mock("@/server/protocols/registry", async (importOriginal) => {
+  const real =
+    await importOriginal<typeof import("@/server/protocols/registry")>()
+  return {
+    ...real,
+    // The id and what the venue can do come from the REAL registry, so a test
+    // asking about a venue that cannot place orders gets the true answer. Only
+    // the market data below is invented.
+    getProtocol: (id: Parameters<typeof real.getProtocol>[0]) => ({
+      id,
+      capabilities: real.getProtocol(id).capabilities,
+      label: "Hyperliquid",
+      markets: {
+        fetch: async () => ({
+          protocol: "hyperliquid",
+          protocolLabel: "Hyperliquid",
+          network: "mainnet",
+          networkLabel: "Mainnet",
+          rows: [
+            {
+              key: "hyperliquid:mainnet:BTC",
+              marketId: "BTC",
+              symbol: "BTC",
+              subExchange: null,
+              category: "crypto",
+              sizeDecimals,
+              priceTick: null,
+              minOrderValueUsd,
+              minOrderSize,
+              maxLeverage: marketMaxLeverage,
+              isolatedOnly: false,
+              iconUrl: null,
+              price: marks.get("BTC") ?? 100,
+              change24h: null,
+              volume24hUsd: 0,
+              fundingHourly: null,
+              openInterestUsd: null,
+            },
+          ],
+        }),
+        prices: async (_network: string, ids: readonly string[]) =>
+          new Map(
+            ids
+              .filter((id) => marks.has(id))
+              .map((id) => [id, marks.get(id) as number])
+          ),
+        candles: async () => candles,
+        roundPx: (px: number) => px,
+      },
+      account: { fetch: async () => null },
+    }),
+  }
+})
+
+const BTC = "hyperliquid:mainnet:BTC"
+const MINUTE = 60_000
+const HOUR4 = 14_400_000
+
+/**
+ * A tape whose last confirmed base is `level`.
+ *
+ * Fifty-something 4h candles, because that is what the rule costs: the low has
+ * to be the lowest of the 36 before it and then stand for 8 more.
+ *
+ * `endsAgoMs` is how long ago the newest candle closed, and it matters. The
+ * engine only asks for this feed once a 4h bar could have closed since the
+ * last look, so a tape that ends a minute ago is one the next settle will not
+ * re-read — right in a real market and useless in a test that settles twice in
+ * a row.
+ *
+ * `closes` replaces the closing prices of the newest candles, which is how the
+ * buy-back tests script price climbing back over a level.
+ */
+function tapeWithBase(
+  level: number,
+  over: { closes?: number[]; endsAgoMs?: number } = {}
+): CandleBar[] {
+  const lows = [
+    ...Array.from({ length: 41 }, () => level * 2),
+    level,
+    ...Array.from({ length: 18 }, () => level * 1.1),
+  ]
+  const tail = over.closes ?? []
+  const first = lows.length - tail.length
+  const start =
+    Date.now() - (over.endsAgoMs ?? 5 * 3_600_000) - lows.length * HOUR4
+  return lows.map((low, index) => {
+    const close = index >= first ? tail[index - first] : low * 1.1
+    return {
+      openTime: start + index * HOUR4,
+      open: close,
+      high: Math.max(close, low * 1.2),
+      low,
+      close,
+      volume: 1,
+    }
+  })
+}
+
+let client: PGlite
+let database: CustomShellDb
+let userId: string
+let workspace: Awaited<ReturnType<typeof insertWorkspace>>
+let wallet: TradeWallet
+
+/** Two rungs from a $100 click: buys at 95 and 87.4, sized 1:2 from 20%. */
+function params(over: Partial<DcaParams> = {}): DcaParams {
+  return {
+    rungs: [{ deviation: 5 }, { deviation: 8 }],
+    cascade: null,
+    entryLimit: null,
+    baseDetection: {
+      searchBars: 36,
+      holdBars: 8,
+      withTrendOnly: true,
+      minBarsApart: 20,
+    },
+    maxPositionPct: 20,
+    sizeMultiplier: 2,
+    compound: true,
+    leverage: 1,
+    maxOrderVolPct: 0,
+    twoGreen: false,
+    marketBuyFirst: false,
+    // Inert: every ladder watches its rungs now, whatever this says. Still
+    // here only because the saved-settings type carries the field.
+    rungEntry: "limit",
+    anchor: "base",
+    takeProfit: null,
+    stopLoss: null,
+    ...over,
+  }
+}
+
+async function place(over: Partial<DcaParams> = {}, clickPx = 110) {
+  return await placeDcaLadder(userId, wallet, {
+    marketKey: BTC,
+    clickPx,
+    interval: "1m",
+    params: params(over),
+  })
+}
+
+async function insertRunningFlow(id = "run-1"): Promise<void> {
+  await database.insert(tradeRecipes).values({
+    id: `flow-${id}`,
+    userId,
+    workspaceId: workspace.id,
+    name: "A running flow",
+    graph: { nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } },
+    compiledConfig: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  })
+  await database.insert(tradeFlowRuns).values({
+    userId,
+    id,
+    walletId: wallet.id,
+    automationId: `flow-${id}`,
+    status: "running",
+    spec: {
+      protocol: wallet.protocol,
+      network: wallet.network,
+      folderId: null,
+      marketKeys: [BTC],
+      strategy: { kind: "dca", params: params(), interval: "1m" },
+      capUsd: 500,
+      walletLabel: wallet.label,
+      real: false,
+    },
+  })
+}
+
+/** Settles everything — the read every poll makes. */
+async function settle() {
+  await loadPaperPortfolio(userId, [wallet])
+}
+
+async function orders() {
+  return await database
+    .select()
+    .from(tradePaperOrders)
+    .where(eq(tradePaperOrders.userId, userId))
+}
+
+async function positions() {
+  return await database
+    .select()
+    .from(tradePaperPositions)
+    .where(eq(tradePaperPositions.userId, userId))
+}
+
+async function journal() {
+  return await database
+    .select()
+    .from(tradePaperJournal)
+    .where(eq(tradePaperJournal.userId, userId))
+}
+
+async function ladderRows() {
+  return await database
+    .select()
+    .from(tradeSmartLadders)
+    .where(eq(tradeSmartLadders.userId, userId))
+}
+
+async function onlyLadder() {
+  const rows = await ladderRows()
+  expect(rows).toHaveLength(1)
+  return { ...rows[0], plan: rows[0].plan as LadderPlan }
+}
+
+/**
+ * Moves the newest ladder ten minutes into the past.
+ *
+ * Every rung is a price the engine watches on CLOSED candles, and a candle
+ * needs a minute to close — so a ladder placed "now" cannot buy anything in a
+ * test without literally waiting one out. Backdating the watch's start is the
+ * same trick the two-green case has always used, applied to every fill here.
+ */
+async function backdate() {
+  const rows = await ladderRows()
+  const row = rows[rows.length - 1]
+  const plan = {
+    ...(row.plan as LadderPlan),
+    startedAt: Date.now() - 10 * MINUTE,
+  }
+  await database
+    .update(tradeSmartLadders)
+    .set({ createdAt: new Date(plan.startedAt), plan })
+    .where(eq(tradeSmartLadders.id, row.id))
+}
+
+/** Scripted candles walk forward one slot per bar inside that window. */
+let dipSlot = 9
+
+/**
+ * Price dips to `px` on a closed one-minute candle and stays there.
+ *
+ * This is how a rung buys now: nothing rests, so a fill is a bar whose low
+ * reaches the rung, read on the next settle. The mark moves with it so the
+ * stops and targets downstream see the same price the old resting fills saw.
+ */
+async function dipTo(px: number, open = 110) {
+  marks.set("BTC", px)
+  candles.push({
+    openTime: Date.now() - dipSlot * MINUTE,
+    open,
+    high: open,
+    low: px,
+    close: px,
+    volume: 1,
+  })
+  dipSlot -= 1
+  await settle()
+}
+
+beforeEach(async () => {
+  const testDb = await createTestDatabase()
+  client = testDb.client
+  database = testDb.db
+  clearMarketRulesCache()
+  marks.set("BTC", 100)
+  minOrderValueUsd = null
+  minOrderSize = null
+  sizeDecimals = 3
+  marketMaxLeverage = 50
+  dipSlot = 9
+  // A ladder hangs from the confirmed base, so every test needs one. 100 is
+  // the base throughout unless a test swaps the tape, which keeps the rungs
+  // at the 95 and 87.4 the rest of this file is written around.
+  candles = tapeWithBase(100)
+
+  userId = (await insertUser(database)).id
+  workspace = await insertWorkspace(database)
+  await database.insert(tradeWallets).values({
+    userId,
+    id: "w1",
+    label: "Practice",
+    kind: "paper",
+    status: "active",
+    protocol: "hyperliquid",
+    network: "mainnet",
+    startingBalance: 10_000,
+  })
+  wallet = {
+    id: "w1",
+    label: "Practice",
+    kind: "paper",
+    status: "active",
+    protocol: "hyperliquid",
+    network: "mainnet",
+    startingBalance: 10_000,
+    address: null,
+    hasKey: false,
+    keyValidUntil: null,
+  }
+})
+
+afterEach(async () => {
+  await client.close()
+})
+
+describe("a watched order's market minimum", () => {
+  it("uses the watched level when a Long starts above the market", async () => {
+    sizeDecimals = 0
+    minOrderValueUsd = 10
+    marks.set("BTC", 0.1489)
+    const realWallet: TradeWallet = {
+      ...wallet,
+      label: "Grid only",
+      kind: "live",
+      address: "0x1234",
+      hasKey: true,
+    }
+
+    await placeWatchOrder(userId, realWallet, {
+      marketKey: BTC,
+      side: "buy",
+      // 67 coins clear $10 at the watched level. The lower current price no
+      // longer matters because this order waits for a rise instead of filling.
+      px: 0.15053287920550548,
+      sz: 67,
+      leverage: 1,
+      reduceOnly: false,
+      tpPx: null,
+      slPx: null,
+    })
+
+    const [watch] = await listActiveSmartOrders(userId, [wallet.id])
+    expect(watch.kind).toBe("watch")
+    if (watch.kind !== "watch") throw new Error("expected watch")
+    expect(watch.plan).toMatchObject({
+      triggerDirection: "up",
+      triggerPx: 0.15053287920550548,
+      sz: 67,
+    })
+  })
+
+  it("records a fall when a Short starts below the market", async () => {
+    marks.set("BTC", 100)
+
+    await placeWatchOrder(userId, wallet, {
+      marketKey: BTC,
+      side: "sell",
+      px: 95,
+      sz: 1,
+      leverage: 1,
+      reduceOnly: false,
+      tpPx: null,
+      slPx: null,
+    })
+
+    const [watch] = await listActiveSmartOrders(userId, [wallet.id])
+    expect(watch.kind).toBe("watch")
+    if (watch.kind !== "watch") throw new Error("expected watch")
+    expect(watch.plan.triggerDirection).toBe("down")
+  })
+
+  it("starts an added-to position working straight away instead of waiting", async () => {
+    // Tyler, 3 Sep 2026: "Hyperliquid takes about 2 minutes to execute when
+    // adding more to position." Adding picks no level, so waiting for one
+    // meant waiting for the market to come back to whatever the chart was
+    // showing when the window opened.
+    marks.set("BTC", 100)
+
+    await placeWatchOrder(userId, wallet, {
+      marketKey: BTC,
+      side: "buy",
+      px: 100,
+      sz: 1,
+      leverage: 1,
+      reduceOnly: false,
+      tpPx: null,
+      slPx: null,
+      startNow: true,
+    })
+
+    const [watch] = await listActiveSmartOrders(userId, [wallet.id])
+    if (watch.kind !== "watch") throw new Error("expected watch")
+    expect(watch.plan.phase).toBe("taking")
+  })
+
+  it("still waits at the level for an ordinary Long", async () => {
+    marks.set("BTC", 100)
+
+    await placeWatchOrder(userId, wallet, {
+      marketKey: BTC,
+      side: "buy",
+      px: 95,
+      sz: 1,
+      leverage: 1,
+      reduceOnly: false,
+      tpPx: null,
+      slPx: null,
+    })
+
+    const [watch] = await listActiveSmartOrders(userId, [wallet.id])
+    if (watch.kind !== "watch") throw new Error("expected watch")
+    expect(watch.plan.phase).toBe("waiting")
+  })
+
+  it("refuses a live watch on an exchange Trade cannot order on", async () => {
+    /**
+     * **A watch sends nothing until its price arrives**, so an exchange with
+     * no order path has nothing to reject at the moment one is saved. Without
+     * this the level sat looking like it was working, and the first sign of
+     * trouble was a refusal at the price, repeated on every engine pass.
+     * Dukascopy is the standing example: the app reads its candles and has no
+     * order path for it. Lighter, then Binance, were this test's example
+     * until their own order paths were built.
+     */
+    const cannotTrade: TradeWallet = {
+      ...wallet,
+      label: "Dukascopy",
+      kind: "live",
+      protocol: "dukascopy",
+      network: "mainnet",
+      address: "0x1234",
+      hasKey: true,
+    }
+
+    await expect(
+      placeWatchOrder(userId, cannotTrade, {
+        marketKey: "dukascopy:mainnet:tslaususd",
+        side: "buy",
+        px: 400,
+        sz: 1,
+        leverage: 1,
+        reduceOnly: false,
+        tpPx: null,
+        slPx: null,
+      })
+    ).rejects.toThrow("PROTOCOL_NO_ORDERS:dukascopy")
+
+    // Nothing was written, so nothing waits at a price that can never fire.
+    expect(await listActiveSmartOrders(userId, [wallet.id])).toEqual([])
+  })
+
+  it("still lets a practice wallet pretend on an exchange with no orders", async () => {
+    // Practice money never reaches an exchange, so a venue with no order
+    // path is no reason to refuse a pretend one.
+    const practiceOnLighter: TradeWallet = {
+      ...wallet,
+      protocol: "lighter",
+      network: "mainnet",
+    }
+    expect(
+      await placeWatchOrder(userId, practiceOnLighter, {
+        marketKey: "lighter:mainnet:BTC",
+        side: "buy",
+        px: 70_000,
+        sz: 1,
+        leverage: 1,
+        reduceOnly: false,
+        tpPx: null,
+        slPx: null,
+      })
+    ).toMatchObject({
+      watching: true,
+      watch: { kind: "watch", marketKey: "lighter:mainnet:BTC" },
+    })
+  })
+
+  it("uses the protocol's dollar floor after rounding the coin size", async () => {
+    sizeDecimals = 0
+    minOrderValueUsd = 10
+    const realWallet: TradeWallet = {
+      ...wallet,
+      label: "Duong",
+      kind: "live",
+      address: "0x1234",
+      hasKey: true,
+    }
+
+    await expect(
+      placeWatchOrder(userId, realWallet, {
+        marketKey: BTC,
+        side: "buy",
+        px: 1.75,
+        // A $10 request becomes five whole coins, worth $8.75.
+        sz: 10 / 1.75,
+        leverage: 1,
+        reduceOnly: false,
+        tpPx: null,
+        slPx: null,
+      })
+    ).rejects.toThrow(
+      "Hyperliquid's smallest order here is $10.50, and this order is $8.75"
+    )
+
+    expect(await listActiveSmartOrders(userId, [wallet.id])).toEqual([])
+  })
+
+  it("refuses a size below one exchange step before saving the watch", async () => {
+    minOrderValueUsd = 5
+    minOrderSize = 0.001
+
+    await expect(
+      placeWatchOrder(userId, wallet, {
+        marketKey: BTC,
+        side: "buy",
+        px: 77_000,
+        sz: 10 / 77_000,
+        leverage: 1,
+        reduceOnly: false,
+        tpPx: null,
+        slPx: null,
+      })
+    ).rejects.toThrow("PAPER_SIZE")
+
+    expect(await listActiveSmartOrders(userId, [wallet.id])).toEqual([])
+  })
+
+  it("does not invent a dollar minimum when the protocol states none", async () => {
+    sizeDecimals = 0
+
+    await placeWatchOrder(userId, wallet, {
+      marketKey: BTC,
+      side: "buy",
+      px: 1.75,
+      sz: 6,
+      leverage: 1,
+      reduceOnly: false,
+      tpPx: null,
+      slPx: null,
+    })
+
+    const [watch] = await listActiveSmartOrders(userId, [wallet.id])
+    expect(watch.kind).toBe("watch")
+    if (watch.kind !== "watch") throw new Error("expected watch")
+    expect(watch.plan.sz).toBe(6)
+    expect(watch.plan.minOrderValueUsd).toBeNull()
+  })
+
+  it("freezes the accepted size and both exchange floors in the watch", async () => {
+    minOrderValueUsd = 5
+    minOrderSize = 0.001
+    marks.set("BTC", 80_000)
+
+    await placeWatchOrder(userId, wallet, {
+      marketKey: BTC,
+      side: "buy",
+      px: 77_000,
+      sz: 80 / 77_000,
+      leverage: 1,
+      reduceOnly: false,
+      tpPx: null,
+      slPx: null,
+    })
+
+    const [watch] = await listActiveSmartOrders(userId, [wallet.id])
+    expect(watch.kind).toBe("watch")
+    if (watch.kind !== "watch") throw new Error("expected watch")
+    expect(watch.plan.sz).toBe(0.001)
+    expect(watch.plan.minOrderSize).toBe(0.001)
+    expect(watch.plan.minOrderValueUsd).toBe(5)
+  })
+})
+
+describe("the smart-order stamp", () => {
+  it("answers 'unchanged' until a plan really changes, then sends the list", async () => {
+    await placeWatchOrder(userId, wallet, {
+      marketKey: BTC,
+      side: "buy",
+      px: 95,
+      sz: 1,
+      leverage: 1,
+      reduceOnly: false,
+      tpPx: null,
+      slPx: null,
+    })
+    const first = await listActiveSmartOrdersIfChanged(
+      userId,
+      [wallet.id],
+      undefined
+    )
+    expect(first.smartOrders).toHaveLength(1)
+
+    // The engine touching the row's clock without changing the plan is not
+    // a change the browser needs to hear about.
+    await database
+      .update(tradeSmartLadders)
+      .set({ updatedAt: new Date(Date.now() + 60_000) })
+      .where(eq(tradeSmartLadders.userId, userId))
+    const again = await listActiveSmartOrdersIfChanged(
+      userId,
+      [wallet.id],
+      first.stamp
+    )
+    expect(again.smartOrders).toBeNull()
+    expect(again.stamp).toBe(first.stamp)
+
+    const [watch] = first.smartOrders ?? []
+    if (!watch || watch.kind !== "watch") throw new Error("expected watch")
+    await saveLadderPlan(
+      userId,
+      watch.id,
+      { ...watch.plan, px: 90 } as typeof watch.plan,
+      "active"
+    )
+    const changed = await listActiveSmartOrdersIfChanged(
+      userId,
+      [wallet.id],
+      first.stamp
+    )
+    expect(changed.smartOrders).toHaveLength(1)
+    expect(changed.stamp).not.toBe(first.stamp)
+
+    await cancelWatchOrder(userId, wallet.id, watch.id)
+    const gone = await listActiveSmartOrdersIfChanged(
+      userId,
+      [wallet.id],
+      changed.stamp
+    )
+    expect(gone.smartOrders).toEqual([])
+  })
+})
+
+describe("resuming a paused smart order", () => {
+  it("clears the refusal and leaves the strategy active", async () => {
+    await place()
+    const ladder = await onlyLadder()
+    await saveLadderPlan(
+      userId,
+      ladder.id,
+      {
+        ...ladder.plan,
+        paused: true,
+        pauseReason: "The order is below the market minimum.",
+        refusalStreak: 5,
+      },
+      "active"
+    )
+
+    await resumeSmartOrder(userId, wallet.id, ladder.id)
+
+    const [resumed] = await listActiveSmartOrders(userId, [wallet.id])
+    expect(resumed.plan).toMatchObject({
+      paused: false,
+      pauseReason: null,
+      refusalStreak: 0,
+    })
+    expect(resumed.status).toBe("active")
+  })
+})
+
+describe("cancelling a watched order", () => {
+  it("stays cancelled when an engine pass saves an older copy afterwards", async () => {
+    await placeWatchOrder(userId, wallet, {
+      marketKey: BTC,
+      side: "buy",
+      px: 95,
+      sz: 1,
+      leverage: 1,
+      reduceOnly: false,
+      tpPx: null,
+      slPx: null,
+    })
+    const [watch] = await listActiveSmartOrders(userId, [wallet.id])
+    if (!watch || watch.kind !== "watch") throw new Error("expected watch")
+
+    await cancelWatchOrder(userId, wallet.id, watch.id)
+    await saveLadderPlan(userId, watch.id, watch.plan, "active")
+
+    expect(await listActiveSmartOrders(userId, [wallet.id])).toEqual([])
+    // Deleted, and the older copy saved afterwards does not bring it back.
+    expect(await ladderRows()).toHaveLength(0)
+  })
+
+  it("answers quietly when the same watch is called off twice", async () => {
+    await placeWatchOrder(userId, wallet, {
+      marketKey: BTC,
+      side: "buy",
+      px: 95,
+      sz: 1,
+      leverage: 1,
+      reduceOnly: false,
+      tpPx: null,
+      slPx: null,
+    })
+    const [watch] = await listActiveSmartOrders(userId, [wallet.id])
+    if (!watch) throw new Error("expected watch")
+
+    await cancelWatchOrder(userId, wallet.id, watch.id)
+    await expect(
+      cancelWatchOrder(userId, wallet.id, watch.id)
+    ).resolves.toEqual({ cancelled: true })
+  })
+
+  it("lifts the pause when a paused watch is called off, so the engine reads the stop", async () => {
+    // The engine never looks at a paused row. A cancel that left the pause in
+    // place stayed "Paused" under Open orders for good (SOL, 2 Sep 2026).
+    await placeWatchOrder(userId, wallet, {
+      marketKey: BTC,
+      side: "buy",
+      px: 95,
+      sz: 1,
+      leverage: 1,
+      reduceOnly: false,
+      tpPx: null,
+      slPx: null,
+    })
+    const [watch] = await listActiveSmartOrders(userId, [wallet.id])
+    if (!watch || watch.kind !== "watch") throw new Error("expected watch")
+    await saveLadderPlan(
+      userId,
+      watch.id,
+      {
+        ...watch.plan,
+        phase: "taking",
+        sent: true,
+        paused: true,
+        pauseReason: "The exchange refused this order.",
+        refusalStreak: 5,
+      },
+      "active"
+    )
+
+    await cancelWatchOrder(userId, wallet.id, watch.id)
+
+    const [stored] = await ladderRows()
+    expect(stored.status).toBe("active")
+    expect(stored.plan).toMatchObject({
+      phase: "stopping",
+      paused: false,
+      pauseReason: null,
+      refusalStreak: 0,
+    })
+  })
+
+  it("accepts a repeated cancel after a stale screen shows the row again", async () => {
+    await placeWatchOrder(userId, wallet, {
+      marketKey: BTC,
+      side: "buy",
+      px: 95,
+      sz: 1,
+      leverage: 1,
+      reduceOnly: false,
+      tpPx: null,
+      slPx: null,
+    })
+    const [watch] = await listActiveSmartOrders(userId, [wallet.id])
+    if (!watch || watch.kind !== "watch") throw new Error("expected watch")
+
+    await expect(
+      cancelWatchOrder(userId, wallet.id, watch.id)
+    ).resolves.toEqual({ cancelled: true })
+    await expect(
+      cancelWatchOrder(userId, wallet.id, watch.id)
+    ).resolves.toEqual({ cancelled: true })
+  })
+})
+
+describe("editing a watched order", () => {
+  it.each([false, true])(
+    "moves a paused watch only when no order was sent: sent=%s",
+    async (sent) => {
+      await placeWatchOrder(userId, wallet, {
+        marketKey: BTC,
+        side: "sell",
+        px: 105,
+        sz: 1,
+        leverage: 1,
+        reduceOnly: false,
+        tpPx: null,
+        slPx: null,
+      })
+      const [watch] = await listActiveSmartOrders(userId, [wallet.id])
+      if (!watch || watch.kind !== "watch") throw new Error("expected watch")
+      await saveLadderPlan(
+        userId,
+        watch.id,
+        {
+          ...watch.plan,
+          phase: "taking",
+          paused: true,
+          sent,
+          orderId: null,
+        },
+        "active"
+      )
+      if (sent) {
+        await expect(
+          moveWatchOrder(userId, wallet.id, watch.id, 110)
+        ).rejects.toThrow("SMART_WATCH_TAKING")
+      } else {
+        await moveWatchOrder(userId, wallet.id, watch.id, 110)
+        const [moved] = await listActiveSmartOrders(userId, [wallet.id])
+        expect(moved.plan).toMatchObject({
+          triggerPx: 110,
+          phase: "waiting",
+          paused: true,
+          sent: false,
+        })
+      }
+    }
+  )
+
+  it("changes a stop loss without adding a take profit", async () => {
+    await placeWatchOrder(userId, wallet, {
+      marketKey: BTC,
+      side: "buy",
+      px: 95,
+      sz: 1,
+      leverage: 1,
+      reduceOnly: false,
+      tpPx: null,
+      slPx: null,
+    })
+    const [watch] = await listActiveSmartOrders(userId, [wallet.id])
+    if (!watch || watch.kind !== "watch") throw new Error("expected watch")
+
+    await editWatchOrder(
+      userId,
+      wallet.id,
+      watch.id,
+      { sz: 1.5, leverage: 3, tpPx: null, slPx: 88 },
+      wallet
+    )
+
+    const [edited] = await listActiveSmartOrders(userId, [wallet.id])
+    if (!edited || edited.kind !== "watch") throw new Error("expected watch")
+    expect(edited.plan).toMatchObject({
+      sz: 1.5,
+      leverage: 3,
+      tpPx: null,
+      slPx: 88,
+    })
+  })
+
+  it("refuses changes after the watched order starts taking", async () => {
+    await placeWatchOrder(userId, wallet, {
+      marketKey: BTC,
+      side: "buy",
+      px: 95,
+      sz: 1,
+      leverage: 1,
+      reduceOnly: false,
+      tpPx: null,
+      slPx: 88,
+    })
+    const [watch] = await listActiveSmartOrders(userId, [wallet.id])
+    if (!watch || watch.kind !== "watch") throw new Error("expected watch")
+    await saveLadderPlan(
+      userId,
+      watch.id,
+      {
+        ...watch.plan,
+        phase: "taking",
+        sent: true,
+        orderId: "resting-1",
+      },
+      "active"
+    )
+
+    await expect(
+      editWatchOrder(
+        userId,
+        wallet.id,
+        watch.id,
+        { sz: 1, leverage: 1, tpPx: null, slPx: 87 },
+        wallet
+      )
+    ).rejects.toThrow("SMART_WATCH_TAKING")
+  })
+
+  it("refuses leverage above the watched market maximum", async () => {
+    await placeWatchOrder(userId, wallet, {
+      marketKey: BTC,
+      side: "buy",
+      px: 95,
+      sz: 1,
+      leverage: 1,
+      reduceOnly: false,
+      tpPx: null,
+      slPx: null,
+    })
+    const [watch] = await listActiveSmartOrders(userId, [wallet.id])
+    if (!watch || watch.kind !== "watch") throw new Error("expected watch")
+
+    await expect(
+      editWatchOrder(
+        userId,
+        wallet.id,
+        watch.id,
+        { sz: 1, leverage: 51, tpPx: null, slPx: null },
+        wallet
+      )
+    ).rejects.toThrow("PAPER_LEVERAGE")
+
+    const [unchanged] = await listActiveSmartOrders(userId, [wallet.id])
+    if (!unchanged || unchanged.kind !== "watch") {
+      throw new Error("expected watch")
+    }
+    expect(unchanged.plan.leverage).toBe(1)
+  })
+})
+
+describe("who placed a smart order", () => {
+  it("credits the flow only for coins its own record says it placed", async () => {
+    // The flow's coin list is what it WATCHES. A ladder somebody placed by
+    // hand on one of those coins is theirs — the flow finds the coin taken and
+    // skips it — and reading the list instead of the record would hide their
+    // own order from every screen that draws it.
+    await place()
+    const ladder = await onlyLadder()
+
+    await database.insert(tradeRecipes).values({
+      id: "flow-1",
+      userId,
+      workspaceId: workspace.id,
+      name: "A flow",
+      graph: { nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } },
+      compiledConfig: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    await database.insert(tradeFlowRuns).values({
+      userId,
+      id: "run-1",
+      walletId: wallet.id,
+      automationId: "flow-1",
+      status: "running",
+      spec: {
+        protocol: "hyperliquid",
+        network: "mainnet",
+        folderId: null,
+        marketKeys: [BTC],
+        strategy: { kind: "dca", params: params(), interval: "1m" },
+        capUsd: 500,
+        walletLabel: wallet.label,
+        real: false,
+      },
+      // Watching BTC, but it never placed on it.
+      placed: [],
+      startedAt: new Date(ladder.createdAt.getTime() - 60_000),
+    })
+
+    const watched = await listActiveSmartOrders(userId, [wallet.id])
+    expect(watched[0].flowRunId).toBeNull()
+
+    // Once the flow records having placed it, it is the flow's.
+    await database
+      .update(tradeFlowRuns)
+      .set({ placed: [BTC] })
+      .where(eq(tradeFlowRuns.id, "run-1"))
+    const claimed = await listActiveSmartOrders(userId, [wallet.id])
+    expect(claimed[0].flowRunId).toBe("run-1")
+
+    // A manual grid may sit above the flow's DCA ladder on the same coin. The
+    // shared coin record must not make the newer grid look flow-owned too, or
+    // the Smart orders panel hides the grid from the person who placed it.
+    const grid = draftGridOrder({
+      marketKey: BTC,
+      params: defaultGridParams(),
+      topPx: 110,
+      bottomPx: 90,
+      mark: 100,
+      rules: {
+        sizeDecimals: 3,
+        priceTick: null,
+        maxLeverage: 50,
+        volume24hUsd: null,
+      },
+      roundPx: (px) => px,
+      equity: 5_000,
+      takerFeeRate: 0.0005,
+      startedAt: ladder.createdAt.getTime() + 120_000,
+      held: null,
+    })
+    await database.insert(tradeSmartLadders).values({
+      userId,
+      id: "manual-grid",
+      walletId: wallet.id,
+      marketKey: BTC,
+      kind: "grid",
+      status: "active",
+      flowRunId: null,
+      plan: grid.plan,
+      createdAt: new Date(ladder.createdAt.getTime() + 120_000),
+    })
+
+    const paired = await listActiveSmartOrders(userId, [wallet.id])
+    expect(paired.find((order) => order.kind === "dca")?.flowRunId).toBe(
+      "run-1"
+    )
+    expect(paired.find((order) => order.kind === "grid")?.flowRunId).toBeNull()
+  })
+
+  it("never credits a run with an order older than itself", async () => {
+    await place()
+    const ladder = await onlyLadder()
+    await database.insert(tradeRecipes).values({
+      id: "flow-2",
+      userId,
+      workspaceId: workspace.id,
+      name: "A later flow",
+      graph: { nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } },
+      compiledConfig: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    await database.insert(tradeFlowRuns).values({
+      userId,
+      id: "run-2",
+      walletId: wallet.id,
+      automationId: "flow-2",
+      status: "running",
+      spec: {
+        protocol: "hyperliquid",
+        network: "mainnet",
+        folderId: null,
+        marketKeys: [BTC],
+        strategy: { kind: "dca", params: params(), interval: "1m" },
+        capUsd: 500,
+        walletLabel: wallet.label,
+        real: false,
+      },
+      placed: [BTC],
+      // Switched on after the ladder already existed.
+      startedAt: new Date(ladder.createdAt.getTime() + 60_000),
+    })
+
+    const orders = await listActiveSmartOrders(userId, [wallet.id])
+    expect(orders[0].flowRunId).toBeNull()
+  })
+})
+
+describe("placing a ladder", () => {
+  it("refuses a flow placement after Stop has paused the run", async () => {
+    await insertRunningFlow()
+    await database
+      .update(tradeFlowRuns)
+      .set({ pausedAt: new Date() })
+      .where(eq(tradeFlowRuns.id, "run-1"))
+
+    await expect(
+      placeDcaLadder(userId, wallet, {
+        marketKey: BTC,
+        clickPx: 110,
+        interval: "1m",
+        params: params(),
+        flowRunId: "run-1",
+      })
+    ).rejects.toThrow("FLOW_NOT_ACCEPTING_PLACEMENTS")
+    expect(await ladderRows()).toHaveLength(0)
+  })
+
+  it("rests nothing — every rung waits as a watched price, sized by the ramp", async () => {
+    const placed = await place()
+    expect(placed).toMatchObject({ placed: 2, passed: 0 })
+
+    // Nothing on the book. A resting rung ties up the money for a buy that
+    // may never happen, eats the order cap, and draws its level twice.
+    expect(await orders()).toHaveLength(0)
+
+    const ladder = await onlyLadder()
+    expect(ladder.status).toBe("active")
+    expect("marketBuyFirst" in ladder.plan).toBe(false)
+    const rungs = ladder.plan.rungs
+    expect(rungs.map((rung) => rung.status)).toEqual(["waiting", "waiting"])
+    expect(rungs.map((rung) => rung.orderId)).toEqual([null, null])
+    expect(rungs[0].px).toBe(95)
+    expect(rungs[0].sz).toBeCloseTo(7.017, 9)
+    expect(rungs[1].px).toBeCloseTo(87.4, 9)
+    expect(rungs[1].sz).toBeCloseTo(15.255, 9)
+  })
+
+  it("buys rung 1 at today's price and leaves the deeper rungs waiting", async () => {
+    const placed = await place({ marketBuyFirst: true })
+
+    expect(placed).toMatchObject({
+      placed: 1,
+      passed: 0,
+      marketFirst: "bought",
+    })
+    const [held] = await positions()
+    expect(held.entryPx).toBe(100)
+    // Rung 1 was allowed about $666.62 at its $95 line. The market buy keeps
+    // that dollar budget and adjusts the coin count for today's $100 price.
+    expect(held.szi).toBeCloseTo((95 * 7.017) / 100, 3)
+
+    const ladder = await onlyLadder()
+    expect(ladder.plan.marketBuyFirst).toBe(true)
+    expect(ladder.plan.rungs.map((rung) => rung.status)).toEqual([
+      "filled",
+      "waiting",
+    ])
+    expect(await orders()).toHaveLength(0)
+  })
+
+  it.each(["prevRung", "nearestRung", "exitLadder"] as const)(
+    "uses an independent market-first exit percentage with %s",
+    async (mode) => {
+      const placed = await place({
+        marketBuyFirst: true,
+        marketFirstExitPct: 10,
+        takeProfit: { mode, pct: 2, exitGapPct: 3 },
+      })
+      expect(placed.ladder.plan.marketFirstExitPct).toBe(10)
+      const [held] = await positions()
+      expect(held.entryPx).toBe(100)
+      if (mode === "nearestRung") {
+        expect(held.tpPx).toBeCloseTo(110, 9)
+      } else {
+        const sells = (await orders()).filter((order) => order.side === "sell")
+        expect(sells.length).toBeGreaterThan(0)
+        expect(sells.every((sell) => Math.abs(sell.px - 110) < 1e-8)).toBe(true)
+      }
+      await backdate()
+      marks.set("BTC", 109)
+      await settle()
+      expect(await positions()).toHaveLength(1)
+      marks.set("BTC", 110.01)
+      await settle()
+      expect(await positions()).toHaveLength(0)
+    }
+  )
+
+  it("rests a previous-rung sell after the market-first buy", async () => {
+    const placed = await place({
+      marketBuyFirst: true,
+      takeProfit: { mode: "prevRung", pct: 2 },
+    })
+
+    expect(placed.ladder.plan.rungs[0].status).toBe("filled")
+    expect(placed.ladder.plan.rungs[0].sellOrderId).not.toBeNull()
+    const [sell] = (await orders()).filter((order) => order.side === "sell")
+    expect(sell).toMatchObject({ reduceOnly: true })
+    expect(sell.px).toBeCloseTo(105, 9)
+  })
+
+  it("keeps a nearest-rung target above the market-first buy", async () => {
+    const placed = await place({
+      marketBuyFirst: true,
+      takeProfit: { mode: "nearestRung", pct: 2 },
+    })
+
+    const [held] = await positions()
+    expect(held.entryPx).toBe(100)
+    expect(held.tpPx).toBeCloseTo(held.entryPx * 1.05, 9)
+    expect(placed.ladder.status).toBe("active")
+  })
+
+  it("moves and re-spreads a placed ladder until its first buy", async () => {
+    const placed = await place()
+    const moved = await reshapeLadder(userId, wallet, {
+      ladderId: placed.ladder.id,
+      anchorPx: 90,
+    })
+    expect(moved.ladder.plan.anchorPx).toBe(90)
+    expect(moved.ladder.plan.rungs[0].px).toBeCloseTo(85.5, 9)
+    expect(moved.ladder.plan.rungs[1].px).toBeCloseTo(78.66, 9)
+
+    const resized = await reshapeLadder(userId, wallet, {
+      ladderId: placed.ladder.id,
+      deepestPx: 60,
+    })
+    expect(resized.ladder.plan.rungs.at(-1)?.px).toBeCloseTo(60, 9)
+  })
+
+  it("rebuilds every setting before a buy and refuses the same edit after one", async () => {
+    const placed = await place()
+    const settings = params({
+      rungs: [{ deviation: 6 }, { deviation: 9 }, { deviation: 12 }],
+      maxPositionPct: 30,
+      sizeMultiplier: 3,
+      leverage: 2,
+      maxOrderVolPct: 1,
+      twoGreen: true,
+      takeProfit: { mode: "average", pct: 4, exitGapPct: 0 },
+      stopLoss: { pct: 5, base: { underPct: 1, reclaimDays: 2 } },
+    })
+    const changed = await reshapeLadder(userId, wallet, {
+      ladderId: placed.ladder.id,
+      settings,
+      greenInterval: "15m",
+    })
+
+    expect(changed.ladder.plan).toMatchObject({
+      leverage: 2,
+      maxPositionPct: 30,
+      sizeMultiplier: 3,
+      maxOrderVolPct: 1,
+      twoGreen: true,
+      greenInterval: "15m",
+      takeProfit: { mode: "average", pct: 4 },
+      stopLoss: { mode: "percent", pct: 5 },
+    })
+    expect(changed.ladder.plan.rungs).toHaveLength(3)
+
+    await cancelLadderRung(userId, wallet, {
+      ladderId: placed.ladder.id,
+      rungIndex: 0,
+    })
+    await expect(
+      reshapeLadder(userId, wallet, {
+        ladderId: placed.ladder.id,
+        settings,
+        greenInterval: "15m",
+      })
+    ).rejects.toThrow("SMART_LADDER_STARTED")
+  })
+
+  it("drags every mirrored exit and replaces a funded practice sell", async () => {
+    const placed = await place({
+      takeProfit: { mode: "exitLadder", pct: 2, exitGapPct: 0 },
+    })
+    await backdate()
+    await dipTo(95)
+    const firstSell = (await orders()).find((order) => order.side === "sell")
+    expect(firstSell?.px).toBeCloseTo(100, 9)
+
+    const moved = await reshapeLadder(userId, wallet, {
+      ladderId: placed.ladder.id,
+      exitIndex: 0,
+      exitPx: 110,
+    })
+
+    expect(moved.ladder.plan.takeProfit?.exitGapPct).toBeCloseTo(10, 9)
+    const exits = exitLadderLevels(moved.ladder.plan)
+    expect(exits[0]).toBeCloseTo(110, 9)
+    expect(exits[1]).toBeCloseTo(118.8, 9)
+    const sells = (await orders()).filter((order) => order.side === "sell")
+    expect(sells).toHaveLength(1)
+    expect(sells[0].id).not.toBe(firstSell?.id)
+    expect(sells[0].px).toBeCloseTo(110, 9)
+  })
+
+  it("leaves an automation-owned ladder under the automation's control", async () => {
+    await insertRunningFlow()
+    const placed = await placeDcaLadder(userId, wallet, {
+      marketKey: BTC,
+      clickPx: 110,
+      interval: "1m",
+      params: params(),
+      flowRunId: "run-1",
+    })
+
+    await expect(
+      reshapeLadder(userId, wallet, {
+        ladderId: placed.ladder.id,
+        anchorPx: 90,
+      })
+    ).rejects.toThrow("SMART_LADDER_FLOW")
+  })
+
+  it("stamps the flow that placed it, and leaves a hand-placed one blank", async () => {
+    // The whole of how a run's dashboard tells its own trades from the ones
+    // somebody put on the same wallet themselves. Without the stamp there is
+    // nothing to tell them apart by afterwards.
+    await insertRunningFlow()
+    await placeDcaLadder(userId, wallet, {
+      marketKey: BTC,
+      clickPx: 110,
+      interval: "1m",
+      params: params(),
+      flowRunId: "run-1",
+    })
+    expect((await onlyLadder()).flowRunId).toBe("run-1")
+
+    await database.delete(tradeSmartLadders)
+    await place()
+    expect((await onlyLadder()).flowRunId).toBeNull()
+  })
+
+  it("uses the borrowing chosen for a practice-wallet ladder", async () => {
+    const cash = await place()
+    const asked = await (async () => {
+      await database.delete(tradeSmartLadders)
+      return await place({ leverage: 3 })
+    })()
+
+    expect(asked).toMatchObject({ placed: cash.placed, passed: cash.passed })
+    const ladder = await onlyLadder()
+    expect(ladder.plan.leverage).toBe(3)
+    expect(ladder.plan.rungs[0].sz).toBeCloseTo(21.052, 9)
+    expect(ladder.plan.rungs[1].sz).toBeCloseTo(45.766, 9)
+  })
+
+  it("fires a borrowed watched rung when its margin fits", async () => {
+    await place({
+      rungs: [{ deviation: 5 }],
+      maxPositionPct: 100,
+      leverage: 3,
+    })
+    await backdate()
+    await dipTo(95)
+
+    const [held] = await positions()
+    expect(held).toBeDefined()
+    expect(held.leverage).toBe(3)
+    expect((held.szi * held.entryPx) / held.leverage).toBeLessThanOrEqual(
+      10_000
+    )
+  })
+
+  it("uses the market maximum when chosen borrowing is higher", async () => {
+    marketMaxLeverage = 2
+    clearMarketRulesCache()
+
+    await place({ leverage: 3 })
+
+    const ladder = await onlyLadder()
+    expect(ladder.plan.leverage).toBe(2)
+    expect(ladder.plan.rungs[0].sz).toBeCloseTo(14.035, 9)
+  })
+
+  it("keeps fixed sizing on the wallet's starting balance after a profit", async () => {
+    await database.insert(tradePaperJournal).values({
+      userId,
+      id: "earlier-profit",
+      walletId: wallet.id,
+      marketKey: BTC,
+      side: "sell",
+      px: 100,
+      sz: 1,
+      fee: 0,
+      closedPnl: 1_000,
+      reason: "manual",
+    })
+
+    await place({ compound: false })
+
+    expect((await onlyLadder()).plan.rungs[0].sz).toBeCloseTo(7.017, 9)
+  })
+
+  it("hangs the ladder from the confirmed base, never from a clicked price", async () => {
+    // The tape's base is 100, so rung 1 is a full step below it at 95 and each
+    // rung after steps down from the one above. Nothing about where the chart
+    // was clicked reaches this.
+    expect(await place()).toMatchObject({ placed: 2, passed: 0 })
+
+    const ladder = await onlyLadder()
+    expect(ladder.plan.rungs[0].px).toBe(95)
+    expect(ladder.plan.rungs[1].px).toBeCloseTo(87.4, 9)
+    expect(ladder.plan.anchorPx).toBe(100)
+  })
+
+  it("refuses a market with no confirmed base, writing nothing", async () => {
+    candles = []
+    await expect(place()).rejects.toThrow("SMART_LADDER_NO_BASE")
+    expect(await ladderRows()).toHaveLength(0)
+    expect(await orders()).toHaveLength(0)
+  })
+
+  it("still starts when price has slipped under the base", async () => {
+    // The rungs are 5% and 12.6% under a base of 100 — 95 and 87.40 — so at 99
+    // the whole ladder is still below the market and buys nothing today.
+    // Refusing this threw away coins for no gain: it was the base being a few
+    // percent above, not the ladder being in a bad place.
+    marks.set("BTC", 99)
+    expect(await place()).toMatchObject({ placed: 2, passed: 0 })
+    expect(await ladderRows()).toHaveLength(1)
+  })
+
+  it("refuses a two-green ladder once price is under every rung", async () => {
+    // Two-green marks nothing as skipped, so the ordinary above-market check
+    // cannot catch this. Without its own check the ladder buys all of its
+    // rungs at one price the moment two green candles print.
+    marks.set("BTC", 80)
+    await expect(place({ twoGreen: true })).rejects.toThrow(
+      "SMART_LADDER_ABOVE_MARKET"
+    )
+    expect(await ladderRows()).toHaveLength(0)
+  })
+
+  it("buys only rung 1 when market-first overrides two-green confirmation", async () => {
+    marks.set("BTC", 80)
+
+    expect(await place({ marketBuyFirst: true, twoGreen: true })).toMatchObject(
+      { placed: 0, passed: 1 }
+    )
+    expect((await onlyLadder()).plan.rungs.map((rung) => rung.status)).toEqual([
+      "filled",
+      "skipped",
+    ])
+  })
+
+  it("still places a two-green ladder while price is above its rungs", async () => {
+    marks.set("BTC", 99)
+    expect(await place({ twoGreen: true })).toMatchObject({
+      placed: 2,
+      passed: 0,
+    })
+  })
+
+  it("refuses when the fall has taken price under every rung", async () => {
+    // This is what the under-base rule was really about, asked of the prices
+    // being bought at instead of the level they were measured from: at 80
+    // both rungs are above the market, so the ladder would buy instantly into
+    // a fall.
+    marks.set("BTC", 80)
+    await expect(place()).rejects.toThrow("SMART_LADDER_ABOVE_MARKET")
+    expect(await ladderRows()).toHaveLength(0)
+    expect(await orders()).toHaveLength(0)
+  })
+
+  it("stops buying rungs once the wallet is worth less than its margin", async () => {
+    // The engine's own version of the same rule, driven through a real settle:
+    // a ladder that has bought and is now well down must not go on filling
+    // deeper rungs on cash the account no longer has.
+    await place()
+    await backdate()
+    await dipTo(95)
+    const bought = (await positions())[0]
+    expect(bought).toBeDefined()
+
+    // The coin collapses. Cash has not moved — nothing closed — so the old
+    // rule still saw the whole wallet as spendable.
+    marks.set("BTC", 20)
+    await settle()
+
+    const held = (await positions())[0]
+    // Whatever happened to the position, nothing may have been bought with
+    // money the wallet no longer had: the margin behind it cannot be more
+    // than the account is worth.
+    if (held) {
+      const margin = (Math.abs(held.szi) * held.entryPx) / held.leverage
+      const worth = 10_000 + (20 - held.entryPx) * held.szi
+      expect(margin).toBeLessThanOrEqual(worth + 1e-6)
+    }
+  })
+
+  it("places a watched ladder even when the wallet cannot afford its rungs yet", async () => {
+    // Half the account is already margin behind a position.
+    await placePaperOrder(userId, wallet, {
+      marketKey: BTC,
+      side: "buy",
+      px: 100,
+      sz: 50,
+      leverage: 1,
+      reduceOnly: false,
+      tpPx: null,
+      slPx: null,
+    })
+
+    await expect(place({ maxPositionPct: 100 })).resolves.toMatchObject({
+      placed: 2,
+    })
+    expect(await ladderRows()).toHaveLength(1)
+    expect(await orders()).toHaveLength(0)
+  })
+
+  it("refuses a rung too small to be an order, naming it, writing nothing", async () => {
+    await expect(place({ maxPositionPct: 0.001 })).rejects.toThrow(
+      "SMART_RUNG_TOO_SMALL:1"
+    )
+    expect(await ladderRows()).toHaveLength(0)
+    expect(await orders()).toHaveLength(0)
+  })
+
+  it("refuses the whole ladder when its split falls under the dollar floor", async () => {
+    minOrderValueUsd = 1_100
+    clearMarketRulesCache()
+    await expect(place({ sizeMultiplier: 1 })).rejects.toThrow(
+      /SMART_RUNG_DOLLAR_FLOOR:1100:.*:1:2/
+    )
+    expect(await ladderRows()).toHaveLength(0)
+    expect(await orders()).toHaveLength(0)
+  })
+
+  it("refuses a second live ladder on the same market", async () => {
+    await place()
+    await expect(place()).rejects.toThrow("SMART_LADDER_EXISTS")
+    expect(await ladderRows()).toHaveLength(1)
+  })
+
+  it("ignores the wallet's order cap, because placing rests nothing", async () => {
+    await database.insert(tradePaperOrders).values(
+      Array.from({ length: 49 }, (_, index) => ({
+        userId,
+        id: `stuffing-${index}`,
+        walletId: wallet.id,
+        marketKey: BTC,
+        side: "buy" as const,
+        px: 10,
+        sz: 1,
+        leverage: 1,
+        maxLeverage: 50,
+        reduceOnly: false,
+        tpPx: null,
+        slPx: null,
+      }))
+    )
+    // A resting ladder was refused here. A watching one adds no orders, so a
+    // full book is not its problem.
+    expect(await place()).toMatchObject({ placed: 2, passed: 0 })
+    expect(await ladderRows()).toHaveLength(1)
+  })
+})
+
+describe("the ladder at work", () => {
+  it("rests each bought rung's sell at the rung above, and ends when all sold", async () => {
+    await place({ takeProfit: { mode: "prevRung", pct: 2 } })
+    await backdate()
+
+    await dipTo(95)
+
+    let ladder = await onlyLadder()
+    expect(ladder.plan.rungs[0].status).toBe("filled")
+    expect(ladder.plan.rungs[0].sellOrderId).not.toBeNull()
+    expect(ladder.plan.rungs[1].status).toBe("waiting")
+
+    const sells = (await orders()).filter((row) => row.side === "sell")
+    expect(sells).toHaveLength(1)
+    // The first rung's sell rests at the click itself.
+    expect(sells[0]).toMatchObject({ px: 100, reduceOnly: true })
+    expect(sells[0].sz).toBeCloseTo(7.017, 9)
+
+    // Price returns: the sell fills, the position is flat, the ladder is over
+    // and the deeper rung is cancelled rather than left to re-buy.
+    marks.set("BTC", 100)
+    await settle()
+
+    ladder = await onlyLadder()
+    expect(ladder.status).toBe("done")
+    expect(ladder.plan.rungs[1].status).toBe("cancelled")
+    expect(await orders()).toHaveLength(0)
+    expect(await positions()).toHaveLength(0)
+  })
+
+  it("grows the closest exit as buys fill, then arms the next exit", async () => {
+    await place({ takeProfit: { mode: "exitLadder", pct: 2 } })
+    await backdate()
+
+    await dipTo(95)
+
+    let ladder = await onlyLadder()
+    const firstOrderId = ladder.plan.exitRungs[0].orderId
+    expect(ladder.plan.exitRungs).toMatchObject([
+      { status: "waiting", armedSz: ladder.plan.rungs[0].sz },
+      { status: "waiting", orderId: null, armedSz: 0 },
+    ])
+    expect((await orders()).filter((order) => order.side === "sell")).toEqual([
+      expect.objectContaining({ px: 100, sz: ladder.plan.rungs[0].sz }),
+    ])
+
+    await dipTo(87.4)
+
+    ladder = await onlyLadder()
+    const sells = (await orders()).filter((order) => order.side === "sell")
+    expect(sells).toHaveLength(2)
+    expect(ladder.plan.exitRungs[0].orderId).not.toBe(firstOrderId)
+    expect(ladder.plan.exitRungs.map((exit) => exit.armedSz)).toEqual([
+      ladder.plan.rungs[1].sz,
+      ladder.plan.rungs[0].sz,
+    ])
+    expect(sells).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ px: 100, sz: ladder.plan.rungs[1].sz }),
+        expect.objectContaining({ px: 108, sz: ladder.plan.rungs[0].sz }),
+      ])
+    )
+  })
+
+  it("sells the deepest coins at the closest exit and ends when flat", async () => {
+    await place({ takeProfit: { mode: "exitLadder", pct: 2 } })
+    await backdate()
+    await dipTo(95)
+    await dipTo(87.4)
+
+    marks.set("BTC", 100)
+    await settle()
+
+    let ladder = await onlyLadder()
+    expect(ladder.status).toBe("active")
+    expect(ladder.plan.rungs.map((rung) => rung.status)).toEqual([
+      "filled",
+      "sold",
+    ])
+    expect(ladder.plan.exitRungs.map((exit) => exit.status)).toEqual([
+      "sold",
+      "waiting",
+    ])
+
+    marks.set("BTC", 108)
+    await settle()
+
+    ladder = await onlyLadder()
+    expect(ladder.status).toBe("done")
+    expect(ladder.plan.rungs.map((rung) => rung.status)).toEqual([
+      "sold",
+      "sold",
+    ])
+    expect(await positions()).toHaveLength(0)
+    expect(await orders()).toHaveLength(0)
+  })
+
+  it("does not arm exit-ladder sells during a cascade hold", async () => {
+    await place({
+      takeProfit: { mode: "exitLadder", pct: 2 },
+      cascade: defaultCascade(),
+    })
+    await backdate()
+    const ladder = await onlyLadder()
+    ladder.plan.cascadeSeenAt = Date.now()
+    await saveLadderPlan(userId, ladder.id, ladder.plan, "active")
+
+    await dipTo(95)
+
+    expect((await onlyLadder()).plan.exitRungs).toEqual([
+      { status: "waiting", orderId: null, armedSz: 0 },
+      { status: "waiting", orderId: null, armedSz: 0 },
+    ])
+    expect((await orders()).filter((order) => order.side === "sell")).toEqual(
+      []
+    )
+  })
+
+  it("accounts for an exit first placed above its mirrored price", async () => {
+    await place({
+      takeProfit: { mode: "exitLadder", pct: 2 },
+      cascade: defaultCascade(),
+    })
+    await backdate()
+    let ladder = await onlyLadder()
+    ladder.plan.cascadeSeenAt = Date.now()
+    await saveLadderPlan(userId, ladder.id, ladder.plan, "active")
+    await dipTo(95)
+
+    ladder = await onlyLadder()
+    ladder.plan.cascadeSeenAt = Date.now() - 5 * HOUR4
+    await saveLadderPlan(userId, ladder.id, ladder.plan, "active")
+    marks.set("BTC", 110)
+    await settle()
+    expect((await orders()).filter((order) => order.side === "sell")).toEqual([
+      expect.objectContaining({ px: 110 }),
+    ])
+
+    await settle()
+    ladder = await onlyLadder()
+    expect(ladder.status).toBe("done")
+    expect(ladder.plan.rungs[0].status).toBe("sold")
+    expect(ladder.plan.exitRungs[0].status).toBe("sold")
+    expect(await positions()).toHaveLength(0)
+  })
+
+  it("keeps the flow's stamp on every order the ladder sends afterwards", async () => {
+    // The sell a bought rung rests is as much the flow's as the buy was, and
+    // its id is written down the moment it is placed — the plan lets go of it
+    // as soon as it fills, and a practice fill arrives carrying nothing else.
+    await insertRunningFlow()
+    await placeDcaLadder(userId, wallet, {
+      marketKey: BTC,
+      clickPx: 110,
+      interval: "1m",
+      params: params({ takeProfit: { mode: "prevRung", pct: 2 } }),
+      flowRunId: "run-1",
+    })
+    await backdate()
+    await dipTo(95)
+
+    const sells = (await orders()).filter((row) => row.side === "sell")
+    expect(sells).toHaveLength(1)
+
+    const ledger = await database
+      .select()
+      .from(tradeFlowRunOrders)
+      .where(eq(tradeFlowRunOrders.userId, userId))
+    expect(ledger.map((row) => row.orderId)).toContain(sells[0].id)
+    expect(ledger.every((row) => row.flowRunId === "run-1")).toBe(true)
+  })
+
+  it("slides the sell-everything target down as deeper rungs fill", async () => {
+    await place({ takeProfit: { mode: "nearestRung", pct: 2 } })
+    await backdate()
+
+    await dipTo(95)
+    expect((await positions())[0].tpPx).toBeCloseTo(100, 9)
+
+    await dipTo(87.4)
+    expect((await positions())[0].tpPx).toBeCloseTo(95, 9)
+  })
+
+  it("re-aims the average-price target after every fill", async () => {
+    await place({ takeProfit: { mode: "average", pct: 2 } })
+    await backdate()
+
+    await dipTo(95)
+    let held = (await positions())[0]
+    expect(held.tpPx).toBeCloseTo(95 * 1.02, 9)
+
+    await dipTo(87.4)
+    held = (await positions())[0]
+    expect(held.tpPx).toBeCloseTo(held.entryPx * 1.02, 9)
+  })
+
+  it("keeps a last-rung stop below every buy and closes the ladder when hit", async () => {
+    await place({ stopLoss: { pct: 2, reference: "lastRung", base: null } })
+    await backdate()
+    const last = (await onlyLadder()).plan.rungs.at(-1)!.px
+    await dipTo(95)
+    expect((await positions())[0].slPx).toBeCloseTo(last * 0.98, 9)
+    expect((await onlyLadder()).plan.rungs.every((rung) => !rung.dead)).toBe(
+      true
+    )
+    await dipTo(87.4)
+    expect((await positions())[0].slPx).toBeCloseTo(last * 0.98, 9)
+    await dipTo(last * 0.97)
+    expect(await positions()).toHaveLength(0)
+    expect((await onlyLadder()).status).toBe("done")
+    expect((await journal()).map((row) => row.reason)).toContain("stop_loss")
+  })
+
+  it("saves a last-rung stop drag before buying and honors a position stop drag after buying", async () => {
+    await place({ stopLoss: { pct: 2, reference: "lastRung", base: null } })
+    const ladder = await onlyLadder()
+    const moved = await reshapeLadder(userId, wallet, {
+      ladderId: ladder.id,
+      stopPx: 80,
+    })
+    expect(moved.ladder.plan.stopLoss?.mode).toBe("lastRung")
+    await backdate()
+    await dipTo(95)
+    expect((await positions())[0].slPx).toBeCloseTo(80, 9)
+    await setPaperBrackets(userId, wallet, {
+      marketKey: BTC,
+      targets: [],
+      slPx: 82,
+    })
+    await dipTo(87.4)
+    expect((await positions())[0].slPx).toBe(82)
+    expect((await onlyLadder()).plan.stopLoss?.mode).toBe("fixed")
+  })
+
+  it("keeps the stop under the average, kills rungs beneath it, and ends the ladder when it fires", async () => {
+    await place({ stopLoss: { pct: 1, base: null } })
+    await backdate()
+
+    await dipTo(95)
+
+    const held = (await positions())[0]
+    // One buy at 95, so the average is 95 and the stop 1% under it.
+    expect(held.slPx).toBeCloseTo(95 * 0.99, 9)
+
+    // The deeper rung sits below the stop: alive in the plan, off the book.
+    let ladder = await onlyLadder()
+    expect(ladder.plan.rungs[1].dead).toBe(true)
+    expect(ladder.plan.rungs[1].status).toBe("waiting")
+    expect(await orders()).toHaveLength(0)
+
+    // The stop fires — everything sells, the dead rung never buys.
+    marks.set("BTC", 93)
+    await settle()
+
+    ladder = await onlyLadder()
+    expect(ladder.status).toBe("done")
+    expect(ladder.plan.rungs[1].status).toBe("cancelled")
+    expect(await positions()).toHaveLength(0)
+    const reasons = (await journal()).map((row) => row.reason)
+    expect(reasons).toContain("stop_loss")
+  })
+
+  it("wakes the rungs under a stop that was cleared by hand", async () => {
+    await place({ stopLoss: { pct: 1, base: null } })
+    await backdate()
+    await dipTo(95)
+    expect((await onlyLadder()).plan.rungs[1].dead).toBe(true)
+
+    // Clearing the stop by hand: the ladder stops following, the rung wakes.
+    await setPaperBrackets(userId, wallet, {
+      marketKey: BTC,
+      targets: [],
+      slPx: null,
+    })
+    await settle()
+
+    const ladder = await onlyLadder()
+    expect(ladder.plan.stopLoss?.mode).toBe("fixed")
+    expect(ladder.plan.rungs[1].dead).toBe(false)
+
+    // Awake means it buys when price actually gets there — no order rests.
+    expect(await orders()).toHaveLength(0)
+    await dipTo(87.4)
+    expect((await onlyLadder()).plan.rungs[1].status).toBe("filled")
+  })
+
+  it("watches its candles in two-green mode and buys on the second green close", async () => {
+    await place({ twoGreen: true, leverage: 2 })
+    expect(await orders()).toHaveLength(0)
+
+    // The ladder was placed ten minutes ago; three one-minute candles have
+    // closed since — a red dip that reaches the first rung, then two greens.
+    await backdate()
+    const base = Date.now() - 4 * MINUTE
+    candles = [
+      {
+        openTime: base,
+        open: 96,
+        high: 96,
+        low: 94.9,
+        close: 94.95,
+        volume: 1,
+      },
+      {
+        openTime: base + MINUTE,
+        open: 94.95,
+        high: 95.5,
+        low: 94.9,
+        close: 95.5,
+        volume: 1,
+      },
+      {
+        openTime: base + 2 * MINUTE,
+        open: 95.5,
+        high: 96,
+        low: 95.4,
+        close: 96,
+        volume: 1,
+      },
+    ]
+    await settle()
+
+    const held = await positions()
+    expect(held).toHaveLength(1)
+    // Bought at the confirming candle's close, not at the rung's line — and
+    // sized so the rung spends its DOLLARS at that price rather than carrying
+    // a coin count fixed at a price it never filled at. The rung's budget is
+    // 95 × 14.035 = $1,333.33, and $1,333.33 at 96 is 13.888 coins.
+    expect(held[0].entryPx).toBeCloseTo(96, 9)
+    expect(held[0].leverage).toBe(2)
+    expect(held[0].szi).toBeCloseTo(13.888, 3)
+    expect(held[0].szi * held[0].entryPx).toBeCloseTo(95 * 14.035, 0)
+    const ladder = await onlyLadder()
+    expect(ladder.plan.rungs[0].status).toBe("filled")
+    expect(ladder.plan.rungs[1].status).toBe("waiting")
+    expect(await orders()).toHaveLength(0)
+
+    // Settling again changes nothing — the candles were already read.
+    await settle()
+    expect(await journal()).toHaveLength(1)
+  })
+
+  it("keeps a rung it cannot afford waiting, and never shrinks the ask", async () => {
+    await place()
+    await backdate()
+
+    // The cash goes somewhere else: a manual position takes nearly all of it,
+    // so when price reaches the first rung there is no margin left for it.
+    await placePaperOrder(userId, wallet, {
+      marketKey: BTC,
+      side: "buy",
+      px: 100,
+      sz: 95,
+      leverage: 1,
+      reduceOnly: false,
+      tpPx: null,
+      slPx: null,
+    })
+
+    await dipTo(95)
+
+    const ladder = await onlyLadder()
+    // Not bought small, and not written off: the rung stays waiting, and the
+    // next dip after cash frees up is still its dip.
+    expect(ladder.plan.rungs[0].status).toBe("waiting")
+    expect(ladder.status).toBe("active")
+    // Nothing was bought for it — the ladder never shrank the ask.
+    expect(
+      (await journal()).filter((row) => row.side === "buy" && row.px === 95)
+    ).toHaveLength(0)
+  })
+
+  it("calls off one rung, then the rest, and the empty ladder finishes", async () => {
+    await place()
+    const ladder = await onlyLadder()
+
+    await cancelLadderRung(userId, wallet, {
+      ladderId: ladder.id,
+      rungIndex: 0,
+    })
+    let after = await onlyLadder()
+    expect(after.plan.rungs[0].status).toBe("cancelled")
+    expect(after.status).toBe("active")
+    expect(await orders()).toHaveLength(0)
+
+    await expect(
+      cancelLadderRest(userId, wallet, { ladderId: ladder.id })
+    ).resolves.toEqual({ cancelled: 1, hasPosition: false })
+    after = await onlyLadder()
+    expect(after.status).toBe("done")
+    expect(await orders()).toHaveLength(0)
+  })
+
+  it("reports when cancelling the deeper rungs leaves a position open", async () => {
+    await place()
+    await backdate()
+    await dipTo(95)
+    const ladder = await onlyLadder()
+
+    await expect(
+      cancelLadderRest(userId, wallet, { ladderId: ladder.id })
+    ).resolves.toEqual({ cancelled: 1, hasPosition: true })
+
+    expect(await positions()).toHaveLength(1)
+    expect((await onlyLadder()).status).toBe("active")
+  })
+
+  it("calls off a flow ladder without settling its watched rungs", async () => {
+    marks.set("BTC", 100)
+    const placed = await place()
+    marks.set("BTC", 80)
+
+    await expect(
+      cancelFlowLadderRest(userId, wallet, {
+        ladderId: placed.ladder.id,
+      })
+    ).resolves.toEqual({ complete: true, done: true })
+
+    expect(await positions()).toHaveLength(0)
+    const finished = await onlyLadder()
+    expect(finished.status).toBe("done")
+    expect(
+      finished.plan.rungs.every((rung) => rung.status === "cancelled")
+    ).toBe(true)
+  })
+
+  it("calls off a removed coin's deeper rungs after one already bought", async () => {
+    const placed = await place()
+    const [row] = await database
+      .select({ plan: tradeSmartLadders.plan })
+      .from(tradeSmartLadders)
+      .where(eq(tradeSmartLadders.id, placed.ladder.id))
+    const plan = row.plan as LadderPlan
+    plan.rungs[0].status = "filled"
+    await database
+      .update(tradeSmartLadders)
+      .set({ plan })
+      .where(eq(tradeSmartLadders.id, placed.ladder.id))
+    await insertRunningFlow("partial-run")
+    await database.insert(tradePaperOrders).values({
+      userId,
+      walletId: wallet.id,
+      id: "held-exit",
+      marketKey: BTC,
+      side: "sell",
+      px: 110,
+      sz: 1,
+      leverage: 1,
+      maxLeverage: 50,
+      reduceOnly: true,
+    })
+    await database.insert(tradeFlowRunOrders).values({
+      userId,
+      walletId: wallet.id,
+      orderId: "held-exit",
+      flowRunId: "partial-run",
+      ladderId: placed.ladder.id,
+      marketKey: BTC,
+    })
+
+    await expect(
+      cancelFlowLadderRemainder(userId, wallet, {
+        ladderId: placed.ladder.id,
+      })
+    ).resolves.toEqual({ complete: true, done: false })
+
+    const after = await onlyLadder()
+    expect(after.status).toBe("active")
+    expect(after.plan.rungs.map((rung) => rung.status)).toEqual([
+      "filled",
+      "cancelled",
+    ])
+    expect((await orders()).map((order) => order.id)).toEqual(["held-exit"])
+  })
+
+  it("calls off a flow signal without waiting for the normal engine", async () => {
+    const plan: SignalPlan = {
+      signalPx: 100,
+      signalAt: Date.now(),
+      chaseGiveUp: 0.02,
+      stakeUsd: 100,
+      sizeDecimals: 3,
+      priceTick: null,
+      maxLeverage: 50,
+      phase: "buying",
+      orderId: "signal-order",
+      orderPx: 99,
+      missingSince: 0,
+      heldWhenPlaced: 0,
+      chasedAt: 0,
+      chases: 0,
+      startedAt: Date.now(),
+    }
+    await database.insert(tradePaperOrders).values({
+      userId,
+      walletId: wallet.id,
+      id: "signal-order",
+      marketKey: BTC,
+      side: "buy",
+      px: 99,
+      sz: 1,
+      leverage: 1,
+      maxLeverage: 50,
+      reduceOnly: false,
+    })
+    await database.insert(tradeSmartLadders).values({
+      userId,
+      walletId: wallet.id,
+      id: "signal-1",
+      marketKey: BTC,
+      kind: "signal",
+      status: "active",
+      plan,
+    })
+
+    await expect(
+      cancelSignalRest(userId, wallet, { signalId: "signal-1" })
+    ).resolves.toEqual({ complete: true, done: true })
+
+    expect(await orders()).toHaveLength(0)
+    const [finished] = await database
+      .select()
+      .from(tradeSmartLadders)
+      .where(eq(tradeSmartLadders.id, "signal-1"))
+    expect(finished.status).toBe("done")
+    expect((finished.plan as SignalPlan).orderId).toBeNull()
+  })
+
+  it("rewrites the brackets and the sells when the exits change mid-flight", async () => {
+    await place({ takeProfit: { mode: "average", pct: 2 } })
+    await backdate()
+    await dipTo(95)
+    expect((await positions())[0].tpPx).toBeCloseTo(96.9, 9)
+
+    const ladder = await onlyLadder()
+    await updateLadderExits(userId, wallet, {
+      ladderId: ladder.id,
+      takeProfit: { mode: "prevRung", pct: 2 },
+      stopLoss: null,
+    })
+
+    expect((await positions())[0].tpPx).toBeNull()
+    const sells = (await orders()).filter((row) => row.side === "sell")
+    expect(sells).toHaveLength(1)
+    expect(sells[0].px).toBeCloseTo(100, 9)
+    expect((await onlyLadder()).plan.takeProfit?.mode).toBe("prevRung")
+  })
+
+  it("cancels the mirrored sells when a running ladder changes modes", async () => {
+    await place({ takeProfit: { mode: "exitLadder", pct: 2 } })
+    await backdate()
+    await dipTo(95)
+
+    const ladder = await onlyLadder()
+    expect(ladder.plan.exitRungs[0].orderId).not.toBeNull()
+    await updateLadderExits(userId, wallet, {
+      ladderId: ladder.id,
+      takeProfit: { mode: "average", pct: 2 },
+      stopLoss: null,
+    })
+
+    const changed = await onlyLadder()
+    expect(changed.plan.exitRungs).toEqual([])
+    expect(changed.plan.takeProfit?.mode).toBe("average")
+    expect((await orders()).filter((order) => order.side === "sell")).toEqual(
+      []
+    )
+  })
+
+  it("replaces a funded mirrored sell when its saved gap changes", async () => {
+    await place({
+      takeProfit: { mode: "exitLadder", pct: 2, exitGapPct: 0 },
+    })
+    await backdate()
+    await dipTo(95)
+
+    const before = await onlyLadder()
+    const oldSell = (await orders()).find((order) => order.side === "sell")
+    await updateLadderExits(userId, wallet, {
+      ladderId: before.id,
+      takeProfit: { mode: "exitLadder", pct: 2, exitGapPct: 10 },
+      stopLoss: null,
+    })
+
+    const after = await onlyLadder()
+    const sells = (await orders()).filter((order) => order.side === "sell")
+    expect(after.plan.takeProfit?.exitGapPct).toBe(10)
+    expect(sells).toHaveLength(1)
+    expect(sells[0].id).not.toBe(oldSell?.id)
+    expect(sells[0].px).toBeCloseTo(110, 9)
+  })
+
+  it("replaces a funded sell from the old empty-anchor shape", async () => {
+    await place({
+      takeProfit: { mode: "exitLadder", pct: 2, exitGapPct: 0 },
+    })
+    await backdate()
+    await dipTo(95)
+
+    const before = await onlyLadder()
+    const oldSell = (await orders()).find((order) => order.side === "sell")
+    if (!oldSell) throw new Error("expected funded exit")
+    before.plan.exitLadderVersion = 1
+    await saveLadderPlan(userId, before.id, before.plan, "active")
+    await database
+      .update(tradePaperOrders)
+      .set({ px: 105 })
+      .where(eq(tradePaperOrders.id, oldSell.id))
+
+    marks.set("BTC", 100)
+    await settle()
+
+    await expect(
+      reshapeLadder(userId, wallet, {
+        ladderId: before.id,
+        exitIndex: 0,
+        exitPx: 110,
+      })
+    ).rejects.toThrow("SMART_EXIT_MIGRATING")
+    await expect(
+      updateLadderExits(userId, wallet, {
+        ladderId: before.id,
+        takeProfit: { mode: "exitLadder", pct: 2, exitGapPct: 10 },
+        stopLoss: null,
+      })
+    ).rejects.toThrow("SMART_EXIT_MIGRATING")
+
+    const covered = await onlyLadder()
+    const coveredSells = (await orders()).filter(
+      (order) => order.side === "sell"
+    )
+    expect(covered.plan.exitLadderVersion).toBe(1)
+    expect(coveredSells).toHaveLength(1)
+    expect(coveredSells[0]).toMatchObject({ id: oldSell.id, px: 105 })
+
+    marks.set("BTC", 95)
+    await settle()
+
+    const after = await onlyLadder()
+    const sells = (await orders()).filter((order) => order.side === "sell")
+    expect(after.plan.exitLadderVersion).toBe(2)
+    expect(sells).toHaveLength(1)
+    expect(sells[0].id).not.toBe(oldSell.id)
+    expect(sells[0].px).toBeCloseTo(100, 9)
+  })
+})
+
+describe("everything around a ladder", () => {
+  it("keeps ladders to their own account", async () => {
+    await place()
+    const stranger = (await insertUser(database)).id
+    expect(await listActiveSmartOrders(stranger, [wallet.id])).toHaveLength(0)
+    expect(await listActiveSmartOrders(userId, [wallet.id])).toHaveLength(1)
+  })
+
+  it("deleting the wallet takes its ladders with it", async () => {
+    await place()
+    await database.delete(tradeWallets).where(eq(tradeWallets.userId, userId))
+    expect(await ladderRows()).toHaveLength(0)
+  })
+
+  it("remembers the window's settings, and junk falls back to nothing", async () => {
+    expect(await loadSmartDca(userId)).toBeNull()
+
+    const saved = params({ maxPositionPct: 33, marketBuyFirst: true })
+    await saveSmartDca(userId, saved)
+    expect(await loadSmartDca(userId)).toEqual({
+      ...saved,
+      marketBuyFirst: false,
+    })
+
+    await database
+      .update(tradePrefs)
+      .set({ smartDca: { anything: true } as never })
+      .where(eq(tradePrefs.userId, userId))
+    expect(await loadSmartDca(userId)).toBeNull()
+  })
+})
+
+// ----- The stop that rests under the base ---------------------------------
+
+/** The base stop as the winning setup has it: on the level, buy back after a day. */
+function baseStop(over: Partial<NonNullable<DcaParams["stopLoss"]>> = {}) {
+  return {
+    pct: 100,
+    base: { underPct: 0, reclaimDays: 1 },
+    ...over,
+  }
+}
+
+describe("a stop that rests under the base", () => {
+  it("leaves no stop at all until a base confirms when the percent is 100", async () => {
+    await place({ stopLoss: baseStop() })
+    await backdate()
+
+    await dipTo(95)
+
+    // The base in force is 100 — above the buy at 95, so it is a place to take
+    // profit rather than one to give up. 100 is no percentage stop.
+    expect((await positions())[0].slPx).toBeNull()
+  })
+
+  it("holds the percent as the furthest stop while no base is below", async () => {
+    await place({ stopLoss: baseStop({ pct: 5 }) })
+    await backdate()
+
+    await dipTo(95)
+
+    // No base under the buy at 95 yet, so the 5% max stop stands: 90.25.
+    expect((await positions())[0].slPx).toBeCloseTo(90.25, 9)
+  })
+
+  it("keeps the percent when the base is deeper than it", async () => {
+    await place({ stopLoss: baseStop({ pct: 2 }) })
+    await backdate()
+    await dipTo(95)
+    candles = tapeWithBase(90)
+    await settle()
+
+    // A base at 90 is further than 2% under the buy at 95 (93.10), so the
+    // 2% wins. The stop never sits further away than the percent.
+    expect((await positions())[0].slPx).toBeCloseTo(93.1, 9)
+  })
+
+  it("rests on the base itself, not on a percent from the entry", async () => {
+    await place({ stopLoss: baseStop() })
+    await backdate()
+    await dipTo(95)
+
+    // Bought off the 100 base, then a lower one confirms — which is what a
+    // stop can actually rest under. The other order re-anchors the still
+    // waiting rungs to the new base first, and the dip never reaches them.
+    candles = tapeWithBase(90)
+    await settle()
+
+    expect((await positions())[0].slPx).toBeCloseTo(90, 9)
+    expect((await onlyLadder()).plan.baseWatch?.levelPx).toBeCloseTo(90, 9)
+  })
+
+  it("rests the chosen percent under the base", async () => {
+    await place({
+      stopLoss: baseStop({ base: { underPct: 2, reclaimDays: 0 } }),
+    })
+    await backdate()
+    await dipTo(95)
+    // Bought off the 100 base, then the lower one confirms.
+    candles = tapeWithBase(90)
+    await settle()
+
+    // 2% under a base of 90 is 88.20 — worked out from the level, never from
+    // the entry, which is the mistake that put the old app's stop above it.
+    expect((await positions())[0].slPx).toBeCloseTo(88.2, 9)
+  })
+
+  it("steps the ladder down instead of ending it, and the next rung still buys", async () => {
+    await place({ stopLoss: baseStop() })
+    await backdate()
+    await dipTo(95)
+    // Bought off the 100 base, then the lower one confirms under the buy.
+    candles = tapeWithBase(90)
+    await settle()
+    let ladder = await onlyLadder()
+    // The deeper rung sits under the stop, so it is asleep for now.
+    expect(ladder.plan.rungs[1].dead).toBe(true)
+    expect(await orders()).toHaveLength(0)
+
+    // Through the base: the stop takes the rung.
+    marks.set("BTC", 89)
+    await settle()
+
+    ladder = await onlyLadder()
+    expect(ladder.status).toBe("active")
+    expect(ladder.plan.steppedDown).toBe(1)
+    expect(ladder.plan.rungs[0].status).toBe("sold")
+    expect(ladder.plan.rungs[1].status).toBe("waiting")
+    expect(ladder.plan.rungs[1].dead).toBe(false)
+    expect(await positions()).toHaveLength(0)
+    expect((await journal()).map((row) => row.reason)).toContain("stop_loss")
+
+    // The next rung waits at its own price, and price reaching it buys it.
+    expect(await orders()).toHaveLength(0)
+    await dipTo(87.4)
+    expect((await onlyLadder()).plan.rungs[1].status).toBe("filled")
+  })
+
+  it("takes exit-ladder sells off when a stop steps the ladder down", async () => {
+    await place({
+      takeProfit: { mode: "exitLadder", pct: 2 },
+      stopLoss: baseStop(),
+    })
+    await backdate()
+    await dipTo(95)
+    expect((await onlyLadder()).plan.exitRungs[0].orderId).not.toBeNull()
+
+    candles = tapeWithBase(90)
+    await settle()
+    marks.set("BTC", 89)
+    await settle()
+
+    const ladder = await onlyLadder()
+    expect(ladder.status).toBe("active")
+    expect(ladder.plan.steppedDown).toBe(1)
+    expect(ladder.plan.exitRungs).toEqual([
+      { status: "waiting", orderId: null, armedSz: 0 },
+      { status: "waiting", orderId: null, armedSz: 0 },
+    ])
+    expect(await orders()).toHaveLength(0)
+  })
+
+  it("is over for good once the last rung is stopped out, and arms no buy-back", async () => {
+    await placeDcaLadder(userId, wallet, {
+      marketKey: BTC,
+      clickPx: 110,
+      interval: "1m",
+      params: params({ rungs: [{ deviation: 5 }], stopLoss: baseStop() }),
+    })
+    await backdate()
+    await dipTo(95)
+    candles = tapeWithBase(90)
+    await settle()
+
+    marks.set("BTC", 89)
+    await settle()
+
+    const ladder = await onlyLadder()
+    expect(ladder.status).toBe("done")
+    expect(ladder.plan.reclaim).toBeNull()
+    expect(await orders()).toHaveLength(0)
+    expect(await positions()).toHaveLength(0)
+  })
+
+  it("puts the rung back when price reclaims the level, for the money it was allowed", async () => {
+    await place({ stopLoss: baseStop(), leverage: 2 })
+    await backdate()
+    await dipTo(95)
+    // Bought off the 100 base, then the lower one confirms under the buy.
+    candles = tapeWithBase(90, { endsAgoMs: 48 * 3_600_000 })
+    await settle()
+
+    const budget = (await onlyLadder()).plan.rungs[0].budget
+    marks.set("BTC", 89)
+    await settle()
+
+    let ladder = await onlyLadder()
+    expect(ladder.plan.reclaim).toMatchObject({
+      rungIndex: 0,
+      aboveSince: null,
+    })
+
+    // Ten fresh 4h candles closing above where the stop cut — comfortably past
+    // the one day the buy-back waits for.
+    candles = tapeWithBase(90, { closes: Array.from({ length: 10 }, () => 96) })
+    marks.set("BTC", 96)
+    await settle()
+
+    ladder = await onlyLadder()
+    expect(ladder.plan.reclaim).toBeNull()
+    expect(ladder.plan.rungs[0].status).toBe("filled")
+
+    const held = (await positions())[0]
+    // Bought back HIGHER than it was cut, and for the rung's own budget — not
+    // for the coin count it used to hold, which at 96 would have cost more.
+    expect(held.leverage).toBe(2)
+    expect(held.entryPx).toBeCloseTo(96, 9)
+    expect(held.szi * 96).toBeLessThanOrEqual(budget + 0.01)
+    expect(held.szi * 96).toBeGreaterThan(budget * 0.99)
+  })
+
+  it("starts the buy-back wait again when a candle closes back under the level", async () => {
+    await place({ stopLoss: baseStop() })
+    await backdate()
+    await dipTo(95)
+    // Bought off the 100 base, then the lower one confirms under the buy.
+    candles = tapeWithBase(90, { endsAgoMs: 48 * 3_600_000 })
+    await settle()
+
+    marks.set("BTC", 89)
+    await settle()
+
+    // Above it for a while, one close back under, then above again — but only
+    // for eight hours, so the wait is nowhere near a day.
+    candles = tapeWithBase(90, { closes: [96, 96, 96, 96, 96, 96, 88, 96, 96] })
+    marks.set("BTC", 96)
+    await settle()
+
+    expect(await positions()).toHaveLength(0)
+    expect((await onlyLadder()).plan.reclaim).not.toBeNull()
+  })
+})
+
+describe("measuring the rungs from the click instead", () => {
+  it("hangs the ladder from the clicked price when asked to", async () => {
+    // The tape's base is 100 and the click is 80, so choosing the click has
+    // to change where every rung lands: 76 rather than 95.
+    expect(await place({ anchor: "click" }, 80)).toMatchObject({
+      placed: 2,
+      passed: 0,
+    })
+
+    const ladder = await onlyLadder()
+    expect(ladder.plan.rungs[0].px).toBe(76)
+    expect(ladder.plan.anchorPx).toBe(80)
+  })
+
+  it("needs no confirmed base at all", async () => {
+    // The same tape that refuses a base-anchored ladder places this one.
+    candles = []
+    await expect(place()).rejects.toThrow("SMART_LADDER_NO_BASE")
+    expect(await place({ anchor: "click" }, 80)).toMatchObject({
+      placed: 2,
+      passed: 0,
+    })
+  })
+
+  it("measures from the click rather than the base when asked to", async () => {
+    // Clicked at 90 with the market at 99: the rungs come off 90, not off the
+    // tape's base of 100.
+    marks.set("BTC", 99)
+    const ladder = await place({ anchor: "click" }, 90)
+    expect(ladder).toMatchObject({ placed: 2, passed: 0 })
+    expect((await onlyLadder()).plan.anchorPx).toBe(90)
+  })
+
+  it("still skips a rung price has already fallen past", async () => {
+    // Clicked at 110 with the market at 100: rung 1 lands at 104.50, which
+    // price is already below, so it never gets to wait for a drop.
+    expect(await place({ anchor: "click" }, 110)).toMatchObject({
+      placed: 1,
+      passed: 1,
+    })
+    expect(await positions()).toHaveLength(0)
+    expect((await onlyLadder()).plan.rungs[0].status).toBe("skipped")
+  })
+})
+
+describe("following the base while nothing has bought", () => {
+  it("moves every rung when a new base confirms", async () => {
+    await place()
+    let ladder = await onlyLadder()
+    expect(ladder.plan.anchorPx).toBe(100)
+    expect(ladder.plan.rungs[0].px).toBe(95)
+
+    // A lower base confirms, price is still above it, nothing has bought.
+    candles = tapeWithBase(90)
+    await settle()
+
+    ladder = await onlyLadder()
+    expect(ladder.plan.anchorPx).toBe(90)
+    // The shape is untouched: still a 5% step then an 8% step, off 90.
+    expect(ladder.plan.rungs[0].px).toBeCloseTo(85.5, 9)
+    expect(ladder.plan.rungs[1].px).toBeCloseTo(78.66, 9)
+  })
+
+  it("stops following the moment a rung buys", async () => {
+    await place()
+    await backdate()
+    await dipTo(95)
+    expect((await onlyLadder()).plan.rungs[0].status).toBe("filled")
+
+    candles = tapeWithBase(90)
+    await settle()
+
+    // Committed. Re-pricing the deeper rungs under an open position would
+    // leave a ladder whose rungs no longer relate to what it paid.
+    const ladder = await onlyLadder()
+    expect(ladder.plan.anchorPx).toBe(100)
+    expect(ladder.plan.rungs[1].px).toBeCloseTo(87.4, 9)
+  })
+
+  it("leaves a click-anchored ladder exactly where it was put", async () => {
+    await place({ anchor: "click" }, 80)
+    candles = tapeWithBase(90)
+    await settle()
+
+    expect((await onlyLadder()).plan.anchorPx).toBe(80)
+  })
+})
+
+describe("two-green mode and rungs above the market", () => {
+  it("keeps them, because price being below a rung is what it waits for", async () => {
+    // Clicked at 110 with the market at 100, so rung 1 lands at 104.50. A
+    // resting ladder would have missed it; this mode is watching for exactly
+    // that and buys it on the next confirmation.
+    expect(await place({ anchor: "click", twoGreen: true }, 110)).toMatchObject(
+      {
+        placed: 2,
+        passed: 0,
+      }
+    )
+    const ladder = await onlyLadder()
+    expect(ladder.plan.rungs.map((rung) => rung.status)).toEqual([
+      "waiting",
+      "waiting",
+    ])
+    // Nothing rests on the book in this mode.
+    expect(await orders()).toHaveLength(0)
+  })
+})
+
+describe("may this ladder open a new coin", () => {
+  const bookWith = (over: {
+    held?: boolean
+    cascading?: boolean
+    leastLeverage?: number | null
+    entryLimit?: { coins: number; withinHours: number } | null
+    openedAt?: number[]
+  }) =>
+    ({
+      positions: new Map(
+        over.held
+          ? [[BTC, { szi: 1, entryPx: 100, leverage: 1, maxLeverage: 50 }]]
+          : []
+      ),
+      crashEntry: {
+        cascading: over.cascading ?? false,
+        leastLeverage: over.leastLeverage ?? null,
+      },
+      entryLimit: over.entryLimit ?? null,
+      openedAt: over.openedAt ?? [],
+    }) as unknown as Parameters<typeof mayOpenCoin>[0]
+
+  const NOW = Date.parse("2025-10-10T20:30:00Z")
+
+  it("never limits adding to a coin already held", () => {
+    const book = bookWith({
+      held: true,
+      cascading: true,
+      leastLeverage: 100,
+      entryLimit: { coins: 1, withinHours: 1 },
+      openedAt: [NOW - 60_000],
+    })
+    expect(mayOpenCoin(book, BTC, 3, NOW)).toBe(true)
+  })
+
+  it("blocks a low-leverage coin only while the market is cascading", () => {
+    expect(
+      mayOpenCoin(bookWith({ cascading: true, leastLeverage: 10 }), BTC, 3, NOW)
+    ).toBe(false)
+    expect(
+      mayOpenCoin(
+        bookWith({ cascading: false, leastLeverage: 10 }),
+        BTC,
+        3,
+        NOW
+      )
+    ).toBe(true)
+    expect(
+      mayOpenCoin(
+        bookWith({ cascading: true, leastLeverage: 10 }),
+        BTC,
+        10,
+        NOW
+      )
+    ).toBe(true)
+  })
+
+  it("blocks a coin past the wallet's entry allowance", () => {
+    const used = bookWith({
+      entryLimit: { coins: 2, withinHours: 1 },
+      openedAt: [NOW - 20 * 60_000, NOW - 10 * 60_000],
+    })
+    expect(mayOpenCoin(used, BTC, 50, NOW)).toBe(false)
+    // The same two entries an hour later are outside the window.
+    expect(mayOpenCoin(used, BTC, 50, NOW + 3_600_000)).toBe(true)
+  })
+})

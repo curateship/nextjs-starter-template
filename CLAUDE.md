@@ -1,21 +1,56 @@
 # CLAUDE.md
 
-Monorepo-wide guidance for agents. App-specific rules live in each app's own `apps/<name>/CLAUDE.md`.
+A map of the repo. It holds no rules of its own. Everything it points at is the
+rule, and the file it points at is the one to read.
 
-## Dev Servers
+## How to reply
 
-- **Never start a dev server (foreground or background). Always use the server already running on the app's configured port.**
-- Every new app must receive one unused port under its app key in `local-apps.json` when the app is created.
-- **`local-apps.json` is the only place where an app port may be assigned. Never duplicate or hardcode the port in app code, scripts, tests, environment defaults, Dockerfiles, or documentation; those consumers must read it from `local-apps.json`.**
-- Never use another port or change an existing assignment unless the user explicitly requests that exact reassignment.
-- **Never start a new dev server if one is already running.** If an app's configured port is taken, that running server IS the one to use — do not spawn another on a fallback port. Running duplicate servers on scattered ports mucks everything up and confuses which URL is real.
-- Before running `pnpm run dev`, check whether the port is already listening: `lsof -iTCP -sTCP:LISTEN -nP | grep :<port>`. If it is, reuse that instance.
-- All Vite apps set `strictPort: true`, so `pnpm run dev` errors out instead of silently hopping to the next port. Keep it that way.
+**Re-read `.agents/skills/unslop/SKILL.md` before every reply**, not once a
+session, and check your draft against it before sending. It also covers every
+summary of finished work and every doc you write. The
+section at the end, "Writing for Tyler", is the part that is about him
+specifically, and it wins wherever the two halves disagree.
 
-## Validating Changes
+## Where the work happens
 
-- **After any browser-facing change, run `.agents/skills/validate-app` before calling the work done.** Open the page in a real browser and read the console.
-- The "never start a server" rule above does **not** rule this out. Point the browser at the server already running on the app's port, or at the deployed URL. Neither needs a new process.
-- A green build, a clean type check and a `curl` returning 200 are not evidence the page works. Server-rendered HTML returns 200 while the client JavaScript crashes on hydration; only a browser sees that.
-- `playwright` is installed at the repo root. Scripts using it must be run from the repo root so the import resolves.
-- Anything that changes bundling or code splitting (chunking config, `dynamic()`/`lazy` imports, moving code across a `"use client"` boundary) can only be proven in a production build, since dev does not chunk. Do not treat chunk counts or file sizes as verification. Ask before running a production build locally, and check the deployed URL's console straight after the deploy.
+Four apps are live, and they are the only ones worked on:
+
+- `apps/custom-shell` — the template every app is copied from.
+- `apps/trade`, `apps/cms`, `apps/video` — the products, each a copy of the
+  shell.
+
+Each has its own `CLAUDE.md`. Read that app's file before touching that app.
+Anything else under `apps/` is on its way out and is not worked on, fixed, or
+merged into.
+
+## The docs
+
+`docs/README.md` indexes everything. The ones that change how you work:
+
+- `docs/how-we-work.md` — how a discussion with Tyler goes, when a plan is
+  wanted, and what counts as evidence.
+- `docs/shell/shell-and-apps.md` — the rulebook for the shell and the apps built
+  on it.
+- `docs/shell/working-rules.md` — how to scope a change and how to prove it.
+- `docs/local-enviroment.md` — ports and dev servers.
+
+An app's own docs live in that app's `workspace/docs/`, and its tasks in
+`workspace/tasks/`.
+
+## The skills
+
+`.agents/skills/` holds them. `unslop` is always on. Reach for `check-yourself`
+the moment Tyler says an answer is wrong or asks whether you are sure, and
+`validate-app` before calling any browser-facing work done.
+
+## Four rules that never wait for a file to be opened
+
+- **Never start a dev server.** Use the one already running on the app's port
+  from `local-apps.json`. If that port is serving another worktree, it is not
+  yours: say so and stop.
+- **Never edit a shell-origin file from inside an app.** An edited shell file is
+  a fork that conflicts on every future merge.
+- **Write the doc in the same turn as the code**, in the app's
+  `workspace/docs/`.
+- **Only one shell session per agent.** Finish or close it before opening
+  another.

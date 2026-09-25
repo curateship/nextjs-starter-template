@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import { Dialog } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
@@ -36,7 +37,7 @@ export function PageSettingsModal({
   const [metaDescription, setMetaDescription] = useState("")
   const [isHomepage, setIsHomepage] = useState(false)
 
-  const { loading: saving, loadingAction: savingAction, error, setError, submit } = useCreateContent<Page>({
+  const { loading: saving, loadingAction: savingAction, setError, submit, titleInvalid } = useCreateContent<Page>({
     entityLabel: "page",
     title,
     titleRequiredMessage: "Page title is required",
@@ -89,13 +90,13 @@ export function PageSettingsModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <form id="page-settings-form" onSubmit={handleSubmit} className="contents">
-        <DashboardModalContent
+              <DashboardModalContent
+          busy={saving}
           title={
             <span className="flex items-center gap-3">
               Configure settings for &quot;{page.title}&quot;
               <span className="flex items-center space-x-2">
-                <span className={`h-2 w-2 rounded-full ${page.is_published ? "bg-green-500" : "bg-gray-400"}`} />
+                <span className={`h-2 w-2 rounded-full ${page.is_published ? "bg-green-500 dark:bg-green-600" : "bg-gray-400"}`} />
                 <span className="text-sm font-medium">{page.is_published ? "Published" : "Draft"}</span>
               </span>
             </span>
@@ -108,24 +109,20 @@ export function PageSettingsModal({
                   Cancel
                 </Button>
                 <Button form="page-settings-form" type="submit" variant="outline" disabled={saving}>
-                  {savingAction === "draft" ? "Saving..." : "Save as Draft"}
+                  {savingAction === "draft" ? <Loader2 className="size-4 animate-spin" /> : null}
+                  Save as Draft
                 </Button>
                 <Button type="button" onClick={() => handleSave(true)} disabled={saving}>
-                  {savingAction === "publish" ? (page.is_published ? "Saving..." : "Publishing...") : page.is_published ? "Save" : "Publish"}
+                  {savingAction === "publish" ? <Loader2 className="size-4 animate-spin" /> : null}
+                  {page.is_published ? "Save" : "Publish"}
                 </Button>
               </DashboardModalFooterActions>
             </>
           }
           footerClassName="sm:justify-between"
         >
-          {error && (
-            <div className="px-6 pb-2">
-              <div className="rounded-lg border border-red-200 bg-red-50 p-3">
-                <p className="text-sm text-red-800">{error}</p>
-              </div>
-            </div>
-          )}
-
+          <form
+            noValidate id="page-settings-form" onSubmit={handleSubmit} className="contents">
           <CardGroup className="grid">
             <Card>
               <CardHeader>
@@ -143,6 +140,7 @@ export function PageSettingsModal({
                   slugManuallyEdited={slugManuallyEdited}
                   onTitleChange={handleTitleChange}
                   onSlugChange={handleSlugChange}
+                  titleInvalid={titleInvalid}
                 />
 
                 <Field>
@@ -178,8 +176,9 @@ export function PageSettingsModal({
               </CardContent>
             </Card>
           </CardGroup>
+          </form>
         </DashboardModalContent>
-      </form>
+
     </Dialog>
   )
 }

@@ -5,7 +5,6 @@ import AlertCircle from "lucide-react/dist/esm/icons/circle-alert.js"
 import AlertTriangle from "lucide-react/dist/esm/icons/triangle-alert.js"
 import CheckCircle2 from "lucide-react/dist/esm/icons/circle-check.js"
 import { Card, CardGroup, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Skeleton } from "@/components/ui/skeleton"
 import { getSiteAuditData, getSiteForAudit } from "@/lib/actions/seo/site-audit/site-audit-actions"
 import { calculateAuditScore } from "@/lib/utils/site-audit-scoring"
 
@@ -16,8 +15,8 @@ interface SiteAuditOverviewTabProps {
 
 function ScoreGauge({ score, label, maxScore }: { score: number; label: string; maxScore: number }) {
   const percentage = maxScore > 0 ? Math.round((score / maxScore) * 100) : 0
-  const color = percentage >= 80 ? "text-green-500" : percentage >= 50 ? "text-yellow-500" : "text-red-500"
-  const bgColor = percentage >= 80 ? "bg-green-500" : percentage >= 50 ? "bg-yellow-500" : "bg-red-500"
+  const color = percentage >= 80 ? "text-green-500 dark:text-green-400" : percentage >= 50 ? "text-yellow-500" : "text-destructive"
+  const bgColor = percentage >= 80 ? "bg-green-500 dark:bg-green-600" : percentage >= 50 ? "bg-yellow-500" : "bg-destructive"
 
   return (
     <div className="flex flex-col items-center">
@@ -71,10 +70,8 @@ export function SiteAuditOverviewTab({ siteId, searchQuery }: SiteAuditOverviewT
           {[...Array(4)].map((_, i) => (
             <Card key={i}>
               <CardHeader className="flex flex-row items-center justify-between space-y-0">
-                <Skeleton className="h-4 w-24" />
               </CardHeader>
               <CardContent>
-                <Skeleton className="h-20 w-20 rounded-full" />
               </CardContent>
             </Card>
           ))}
@@ -82,12 +79,8 @@ export function SiteAuditOverviewTab({ siteId, searchQuery }: SiteAuditOverviewT
         {[...Array(3)].map((_, i) => (
           <Card key={i}>
             <CardHeader>
-              <Skeleton className="h-5 w-32" />
             </CardHeader>
             <CardContent className="space-y-2">
-              <Skeleton className="h-4 w-full" />
-              <Skeleton className="h-4 w-3/4" />
-              <Skeleton className="h-4 w-1/2" />
             </CardContent>
           </Card>
         ))}
@@ -155,7 +148,7 @@ export function SiteAuditOverviewTab({ siteId, searchQuery }: SiteAuditOverviewT
         <CardContent className="space-y-4">
           {criticalIssues.length > 0 && (
             <div className="space-y-2">
-              <h4 className="flex items-center gap-1 text-sm font-medium text-red-600">
+              <h4 className="flex items-center gap-1 text-sm font-medium text-destructive">
                 <AlertCircle className="h-4 w-4" /> Critical ({criticalIssues.length})
               </h4>
               {criticalIssues.map((issue: any, i: number) => (
@@ -181,7 +174,7 @@ export function SiteAuditOverviewTab({ siteId, searchQuery }: SiteAuditOverviewT
           )}
           {infoIssues.length > 0 && (
             <div className="space-y-2">
-              <h4 className="flex items-center gap-1 text-sm font-medium text-green-600">
+              <h4 className="flex items-center gap-1 text-sm font-medium text-green-600 dark:text-green-400">
                 <CheckCircle2 className="h-4 w-4" /> Info & Passed ({infoIssues.length})
               </h4>
               {infoIssues.map((issue: any, i: number) => (

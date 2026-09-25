@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog } from "@/components/ui/dialog"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
-import { DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
+import { DashboardModalContent, DashboardModalFormFooter } from "@/components/admin/layout/dashboard/modals"
 import { LogoPickerPreview } from "@/components/admin/structure-builder/LogoPickerPreview"
 import {
   DndContext,
@@ -495,19 +495,20 @@ export function Footer({
         }}
       >
         <DashboardModalContent
+          busy={modalSaving}
           title="Footer Link Settings"
           description="Update the label and destination URL for this footer link."
-          footer={
-            <>
-              <Button type="button" variant="outline" onClick={() => setEditingLinkIndex(null)}>
-                Cancel
-              </Button>
-              <Button type="button" disabled={modalSaving} onClick={saveLinkEditor}>
-                {modalSaving ? "Saving..." : "Save"}
-              </Button>
-            </>
-          }
+          footer={<DashboardModalFormFooter busy={modalSaving} form="footer-link-editor-form" onCancel={() => setEditingLinkIndex(null)} submitLabel="Save" />}
         >
+          <form
+            noValidate
+            id="footer-link-editor-form"
+            className="contents"
+            onSubmit={(event) => {
+              event.preventDefault()
+              saveLinkEditor()
+            }}
+          >
           <CardGroup className="grid">
             <Card>
               <CardContent>
@@ -545,6 +546,7 @@ export function Footer({
               </CardContent>
             </Card>
           </CardGroup>
+          </form>
         </DashboardModalContent>
       </Dialog>
 
@@ -558,19 +560,20 @@ export function Footer({
         }}
       >
         <DashboardModalContent
+          busy={modalSaving}
           title="Social Link Settings"
           description="Update the platform and destination URL for this social link."
-          footer={
-            <>
-              <Button type="button" variant="outline" onClick={() => setEditingSocialLinkIndex(null)}>
-                Cancel
-              </Button>
-              <Button type="button" disabled={modalSaving} onClick={saveSocialLinkEditor}>
-                {modalSaving ? "Saving..." : "Save"}
-              </Button>
-            </>
-          }
+          footer={<DashboardModalFormFooter busy={modalSaving} form="footer-social-link-editor-form" onCancel={() => setEditingSocialLinkIndex(null)} submitLabel="Save" />}
         >
+          <form
+            noValidate
+            id="footer-social-link-editor-form"
+            className="contents"
+            onSubmit={(event) => {
+              event.preventDefault()
+              saveSocialLinkEditor()
+            }}
+          >
           <CardGroup className="grid">
             <Card>
               <CardContent>
@@ -612,6 +615,7 @@ export function Footer({
               </CardContent>
             </Card>
           </CardGroup>
+          </form>
         </DashboardModalContent>
       </Dialog>
     </>

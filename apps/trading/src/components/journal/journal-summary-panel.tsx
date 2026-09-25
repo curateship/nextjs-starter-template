@@ -1,9 +1,10 @@
 import {
   pct,
+  signedPct,
   signedUsd,
   toneClass,
   usd,
-} from "@/components/backtest/backtest-format"
+} from "@/lib/format"
 import { PnlCurveCard } from "@/components/backtest/pnl-curve-card"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
@@ -27,7 +28,7 @@ export function JournalSummaryPanel({
     { label: "Trades", value: summary.trades.toLocaleString() },
     {
       label: "Win rate",
-      value: summary.winRate !== null ? `${summary.winRate.toFixed(1)}%` : "—",
+      value: summary.winRate !== null ? pct(summary.winRate, 1) : "—",
     },
     {
       label: "Won / lost",
@@ -37,7 +38,7 @@ export function JournalSummaryPanel({
       label: "Max drawdown",
       value:
         summary.maxDrawdownPct !== null
-          ? `${summary.maxDrawdownPct.toFixed(1)}%`
+          ? pct(summary.maxDrawdownPct, 1)
           : "—",
       tone: summary.maxDrawdownPct !== null ? -summary.maxDrawdownPct : null,
     },
@@ -75,7 +76,7 @@ export function JournalSummaryPanel({
                     : "bg-red-500/10 text-red-500"
                 )}
               >
-                {summary.netPnlPct >= 0 ? "▲" : "▼"} {pct(summary.netPnlPct)}
+                {summary.netPnlPct >= 0 ? "▲" : "▼"} {signedPct(summary.netPnlPct)}
               </span>
             ) : null}
           </div>

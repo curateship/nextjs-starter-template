@@ -1,30 +1,53 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 
-export function CacheSettingsCard() {
+type CacheSettingsCardProps = {
+  /**
+   * Mirrors this card's failures into the settings header's save-status badge
+   * so the badge and the error toast agree. "idle" clears a failure this card
+   * put there once a retry succeeds.
+   */
+  onSaveStatus?: (state: "error" | "idle", message?: string) => void
+}
+
+export function CacheSettingsCard({ onSaveStatus }: CacheSettingsCardProps) {
   const [clearing, setClearing] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  const reportedErrorRef = useRef(false)
+
+  const reportFailure = (reason: string) => {
+    reportedErrorRef.current = true
+    setMessage(reason)
+    showErrorToast(reason)
+    onSaveStatus?.("error", reason)
+  }
 
   const handleClear = async () => {
     try {
       setClearing(true)
       setMessage(null)
+      dismissErrorToast()
       const res = await fetch("/api/cache/clear", { method: "POST" })
       const data = await res.json()
       if (data.success) {
+        if (reportedErrorRef.current) {
+          reportedErrorRef.current = false
+          onSaveStatus?.("idle")
+        }
         setMessage(
           data.proxyPurged
             ? "Cache cleared (app + proxy)"
             : "App cache cleared. No proxy/CDN purge is configured, so cached pages at the CDN were left alone."
         )
       } else {
-        setMessage(data.error || "Failed to clear cache")
+        reportFailure(data.error || "Failed to clear cache")
       }
-    } catch (e) {
-      setMessage("Failed to clear cache")
+    } catch {
+      reportFailure("Failed to clear cache")
     } finally {
       setClearing(false)
     }

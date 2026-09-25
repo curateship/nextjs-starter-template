@@ -28,6 +28,7 @@ import {
   buildDayIndex,
   calGeom,
   compute,
+  computeCosts,
   DOWN,
   DOWN_RGB,
   ddStr,
@@ -35,14 +36,10 @@ import {
   dstr,
   eqGeom,
   mergeWallets,
-  money,
-  moneyK,
   monthlyGeom,
   MUTED,
-  num,
-  pct,
-  pfStr,
   RANGES,
+  rangeStart,
   sparkGeom,
   streakOf,
   tone,
@@ -58,6 +55,14 @@ import {
   type SparkGeom,
   type Today,
 } from "@/components/pnl/pnl-dashboard-model"
+import {
+  num,
+  pct,
+  profitFactor,
+  signedCompactUsd,
+  signedPct,
+  signedUsd,
+} from "@/lib/format"
 
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 // 7 equal day columns + a fixed week-summary column.
@@ -66,6 +71,7 @@ const CAL_GRID = "repeat(7, minmax(0, 1fr)) 48px"
 const DOT_PALETTE = ["#089981", "#2563eb", "#7c3aed", "#e8833a", "#0ea5e9", "#db2777"]
 
 type SortKey = "name" | "pnl" | "roi" | "win" | "pf" | "dd" | "trades"
+type CostSortKey = "name" | "gross" | "fees" | "funding" | "net"
 
 function metricVal(m: Metrics, key: SortKey) {
   switch (key) {
@@ -108,6 +114,8 @@ export function PnlDashboard({ initial }: { initial: PnlOverviewResponse }) {
   const [calView, setCalView] = React.useState<CalView>("days")
   const [sortKey, setSortKey] = React.useState<SortKey | null>(null)
   const [sortDir, setSortDir] = React.useState<"asc" | "desc">("desc")
+  const [costSortKey, setCostSortKey] = React.useState<CostSortKey | null>(null)
+  const [costSortDir, setCostSortDir] = React.useState<"asc" | "desc">("desc")
   const [hoverEq, setHoverEq] = React.useState<number | null>(null)
   const [hoverBar, setHoverBar] = React.useState<number | null>(null)
 
@@ -122,7 +130,7 @@ export function PnlDashboard({ initial }: { initial: PnlOverviewResponse }) {
   )
 
   const index = React.useMemo(
-    () => buildDayIndex(selected.trades, symbol),
+    () => buildDayIndex(selected, symbol),
     [selected, symbol]
   )
   const metrics = React.useMemo(
@@ -149,7 +157,7 @@ export function PnlDashboard({ initial }: { initial: PnlOverviewResponse }) {
   const walletStats = React.useMemo(
     () =>
       walletsWithAll.map((w, i) => {
-        const idx = buildDayIndex(w.trades, "All")
+        const idx = buildDayIndex(w, "All")
         const m = compute(idx, range, w.accountValue, now)
         const dot =
           w.id === "all"
@@ -159,6 +167,53 @@ export function PnlDashboard({ initial }: { initial: PnlOverviewResponse }) {
       }),
     [walletsWithAll, range, now]
   )
+
+  // Per-wallet cost breakdowns. Unlike the performance table these honor the
+  // symbol filter, so the figures tie back to the headline tiles.
+  const costStats = React.useMemo(
+    () =>
+      walletsWithAll.map((w, i) => ({
+        wallet: w,
+        costs: computeCosts(w, symbol, range, now),
+        dot:
+          w.id === "all"
+            ? "var(--foreground)"
+            : DOT_PALETTE[(i - 1) % DOT_PALETTE.length],
+      })),
+    [walletsWithAll, symbol, range, now]
+  )
+
+  const costRows = React.useMemo(() => {
+    if (!costSortKey) return costStats
+    const dir = costSortDir === "asc" ? 1 : -1
+    const pinned = costStats.filter((r) => r.wallet.id === "all")
+    const rest = costStats.filter((r) => r.wallet.id !== "all")
+    rest.sort((a, b) =>
+      costSortKey === "name"
+        ? dir * a.wallet.label.localeCompare(b.wallet.label)
+        : dir * (a.costs[costSortKey] - b.costs[costSortKey])
+    )
+    return [...pinned, ...rest]
+  }, [costStats, costSortKey, costSortDir])
+
+  // Honest-labeling notes for the cost card: wallets whose funding refresh
+  // failed, wallets with no funding stored at all, and how far back the
+  // recorded funding actually reaches.
+  const fundingNotes = React.useMemo(() => {
+    const stale = wallets
+      .filter((w) => w.fundingStale && w.funding.length > 0)
+      .map((w) => w.label)
+    const unknown = wallets
+      .filter((w) => w.fundingStale && w.funding.length === 0)
+      .map((w) => w.label)
+    const since = allWallet.fundingSince
+    const start = rangeStart(range, now)
+    const partialSince =
+      since !== null && start < since && allWallet.trades.length > 0
+        ? since
+        : null
+    return { stale, unknown, partialSince }
+  }, [wallets, allWallet, range, now])
 
   const rows = React.useMemo(() => {
     if (!sortKey) return walletStats
@@ -185,6 +240,14 @@ export function PnlDashboard({ initial }: { initial: PnlOverviewResponse }) {
     } else {
       setSortKey(key)
       setSortDir(key === "name" ? "asc" : "desc")
+    }
+  }
+  function toggleCostSort(key: CostSortKey) {
+    if (costSortKey === key) {
+      setCostSortDir((d) => (d === "asc" ? "desc" : "asc"))
+    } else {
+      setCostSortKey(key)
+      setCostSortDir(key === "name" ? "asc" : "desc")
     }
   }
   function calNav(delta: number) {
@@ -268,22 +331,22 @@ export function PnlDashboard({ initial }: { initial: PnlOverviewResponse }) {
         <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
           <KpiTile
             label={`Net P&L · ${rangeLabel}`}
-            value={money(metrics.total)}
+            value={signedUsd(metrics.total, 0)}
             tone={metrics.total}
-            sub={`${metrics.tradingDays} days · ${num(metrics.trades)} trades`}
+            sub={`${metrics.tradingDays} days · ${num(metrics.trades, 0)} trades`}
           />
           <KpiTile
             label="Return"
-            value={pct(metrics.roi)}
+            value={signedPct(metrics.roi, 1)}
             tone={metrics.roi}
-            sub={metrics.acct > 0 ? `on $${num(metrics.acct)}` : "equity unknown"}
+            sub={metrics.acct > 0 ? `on $${num(metrics.acct, 0)}` : "equity unknown"}
           />
           <KpiTile
             label="Win rate"
-            value={`${metrics.winRate}%`}
+            value={pct(metrics.winRate, 0)}
             sub={`${metrics.greenDays}/${metrics.tradingDays} green days`}
           />
-          <KpiTile label="Profit factor" value={pfStr(metrics.pf)} sub="gross W / gross L" />
+          <KpiTile label="Profit factor" value={profitFactor(metrics.pf)} sub="gross W / gross L" />
           <KpiTile
             label="Max drawdown"
             value={ddStr(metrics.maxDD)}
@@ -308,7 +371,7 @@ export function PnlDashboard({ initial }: { initial: PnlOverviewResponse }) {
                 className="font-mono text-sm font-semibold tabular-nums"
                 style={{ color: tone(metrics.total) }}
               >
-                {money(metrics.total)}
+                {signedUsd(metrics.total, 0)}
               </div>
               <div className="mt-0.5 text-[10.5px] text-muted-foreground">
                 peak {eq.mxStr}
@@ -406,12 +469,16 @@ export function PnlDashboard({ initial }: { initial: PnlOverviewResponse }) {
                     )}
                   </div>
                 </TableCell>
-                <NumCell value={money(r.m.total)} color={tone(r.m.total)} strong />
-                <NumCell value={pct(r.m.roi)} color={tone(r.m.roi)} />
-                <NumCell value={`${r.m.winRate}%`} />
-                <NumCell value={pfStr(r.m.pf)} />
+                <NumCell
+                  value={signedUsd(r.m.total)}
+                  color={tone(r.m.total)}
+                  strong
+                />
+                <NumCell value={signedPct(r.m.roi, 1)} color={tone(r.m.roi)} />
+                <NumCell value={pct(r.m.winRate, 0)} />
+                <NumCell value={profitFactor(r.m.pf)} />
                 <NumCell value={ddStr(r.m.maxDD)} />
-                <NumCell value={num(r.m.trades)} />
+                <NumCell value={num(r.m.trades, 0)} />
                 <TableCell className="text-right">
                   <MiniSpark spark={r.spark} up={r.m.total >= 0} />
                 </TableCell>
@@ -420,6 +487,147 @@ export function PnlDashboard({ initial }: { initial: PnlOverviewResponse }) {
             })}
           </TableBody>
         </Table>
+      </Card>
+
+      {/* True cost breakdown */}
+      <Card className="gap-0 overflow-hidden p-0">
+        <div className="px-6 pt-4 pb-2">
+          <div className="text-[13px] font-semibold">True cost of trading</div>
+          <div className="mt-0.5 text-[11px] text-muted-foreground">
+            What the trades made before costs, what fees and funding took ·{" "}
+            {rangeLabel}
+            {symbol !== "All" ? ` · ${symbol}` : ""}
+          </div>
+        </div>
+        <Table className="[&_tbody_tr:first-child_td]:pt-2">
+          <TableHeader>
+            <TableRow>
+              <TableHead column="main" className="min-w-[150px]">
+                <SortHead
+                  label="Wallet"
+                  k="name"
+                  sortKey={costSortKey}
+                  sortDir={costSortDir}
+                  onSort={toggleCostSort}
+                />
+              </TableHead>
+              {(
+                [
+                  ["gross", "Gross result"],
+                  ["fees", "Fees"],
+                  ["funding", "Funding"],
+                  ["net", "Net after costs"],
+                ] as [CostSortKey, string][]
+              ).map(([k, label]) => (
+                <TableHead key={k} className="text-right">
+                  <SortHead
+                    label={label}
+                    k={k}
+                    align="right"
+                    sortKey={costSortKey}
+                    sortDir={costSortDir}
+                    onSort={toggleCostSort}
+                  />
+                </TableHead>
+              ))}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {costRows.map((r) => {
+              const isSelected = r.wallet.id === walletId
+              const { costs } = r
+              return (
+                <TableRow
+                  key={r.wallet.id}
+                  onClick={() => selectWallet(r.wallet.id)}
+                  data-state={isSelected ? "selected" : undefined}
+                >
+                  <TableCell
+                    column="main"
+                    style={
+                      isSelected
+                        ? { boxShadow: `inset 3px 0 0 ${r.dot}` }
+                        : undefined
+                    }
+                  >
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="size-2 shrink-0 rounded-full"
+                        style={{ background: r.dot }}
+                      />
+                      <span className="font-medium">{r.wallet.label}</span>
+                      {r.wallet.id !== "all" && (
+                        <Badge
+                          variant={
+                            r.wallet.network === "mainnet"
+                              ? "default"
+                              : "secondary"
+                          }
+                          className="h-4 px-1.5 text-[9px] uppercase"
+                        >
+                          {r.wallet.network}
+                        </Badge>
+                      )}
+                    </div>
+                  </TableCell>
+                  <NumCell
+                    value={signedUsd(costs.gross)}
+                    color={tone(costs.gross)}
+                  />
+                  {/* Fees are a cost, so they read as the money they took. */}
+                  <NumCell
+                    value={signedUsd(-costs.fees)}
+                    color={tone(-costs.fees)}
+                  />
+                  {costs.fundingUnknown ? (
+                    <NumCell value="unavailable" />
+                  ) : (
+                    <NumCell
+                      value={signedUsd(costs.funding)}
+                      color={tone(costs.funding)}
+                    />
+                  )}
+                  {costs.fundingUnknown ? (
+                    <NumCell value="—" />
+                  ) : (
+                    <NumCell
+                      value={signedUsd(costs.net)}
+                      color={tone(costs.net)}
+                      strong
+                    />
+                  )}
+                </TableRow>
+              )
+            })}
+          </TableBody>
+        </Table>
+        <div className="flex flex-col gap-1 px-6 pt-2 pb-4 text-[11px] text-muted-foreground">
+          <p>
+            Net after costs = gross − fees + funding. Fees count every fill,
+            entry and exit, and every figure on this page uses the same
+            arithmetic — the tiles just round to whole dollars.
+          </p>
+          {fundingNotes.partialSince !== null && (
+            <p>
+              Funding is recorded since {dstr(fundingNotes.partialSince)} — the
+              exchange doesn&apos;t serve older payments, so earlier trades
+              show fees but no funding.
+            </p>
+          )}
+          {fundingNotes.stale.length > 0 && (
+            <p role="alert" className="text-destructive">
+              Couldn&apos;t refresh funding for {fundingNotes.stale.join(", ")}
+              — recent payments may be missing. Reload the page to retry.
+            </p>
+          )}
+          {fundingNotes.unknown.length > 0 && (
+            <p role="alert" className="text-destructive">
+              Funding for {fundingNotes.unknown.join(", ")} couldn&apos;t be
+              fetched and none is stored yet, so its net after costs
+              can&apos;t be shown. Reload the page to retry.
+            </p>
+          )}
+        </div>
       </Card>
 
       {/* Calendar */}
@@ -474,19 +682,19 @@ export function PnlDashboard({ initial }: { initial: PnlOverviewResponse }) {
         <div className="flex flex-col gap-[var(--shell-gutter,0.75rem)]">
           <StatTile
             label="Best day"
-            value={metrics.best.t ? money(metrics.best.pnl) : "—"}
+            value={metrics.best.t ? signedUsd(metrics.best.pnl, 0) : "—"}
             tone={metrics.best.t ? 1 : 0}
             sub={metrics.best.t ? dstr(metrics.best.t) : "—"}
           />
           <StatTile
             label="Worst day"
-            value={metrics.worst.t ? money(metrics.worst.pnl) : "—"}
+            value={metrics.worst.t ? signedUsd(metrics.worst.pnl, 0) : "—"}
             tone={metrics.worst.t ? -1 : 0}
             sub={metrics.worst.t ? dstr(metrics.worst.t) : "—"}
           />
           <StatTile
             label="Avg / trading day"
-            value={metrics.tradingDays ? money(metrics.avgDay) : "—"}
+            value={metrics.tradingDays ? signedUsd(metrics.avgDay, 0) : "—"}
             tone={metrics.avgDay}
             sub={`across ${rangeLabel}`}
           />
@@ -507,7 +715,8 @@ function PageHeader() {
         Performance
       </h1>
       <p className="mt-0.5 text-[13px] text-muted-foreground">
-        Realized profit &amp; loss across your trading wallets
+        Realized profit &amp; loss after all fees and funding, across your
+        trading wallets
       </p>
     </div>
   )
@@ -569,7 +778,7 @@ function StatTile(props: StatProps) {
   )
 }
 
-function SortHead({
+function SortHead<K extends string>({
   label,
   k,
   align,
@@ -578,11 +787,11 @@ function SortHead({
   onSort,
 }: {
   label: string
-  k: SortKey
+  k: K
   align?: "right"
-  sortKey: SortKey | null
+  sortKey: K | null
   sortDir: "asc" | "desc"
-  onSort: (key: SortKey) => void
+  onSort: (key: K) => void
 }) {
   const active = sortKey === k
   const button = (
@@ -750,9 +959,9 @@ function EquityChart({
             </div>
             <div>
               Equity{" "}
-              <span className="font-semibold">{money(dot.cum)}</span>
+              <span className="font-semibold">{signedUsd(dot.cum, 0)}</span>
             </div>
-            <div style={{ color: tone(dot.pnl) }}>Day {money(dot.pnl)}</div>
+            <div style={{ color: tone(dot.pnl) }}>Day {signedUsd(dot.pnl, 0)}</div>
           </ChartTip>
         )}
       </div>
@@ -823,7 +1032,7 @@ function DailyBars({
           <div className="mb-0.5 text-[10px] text-muted-foreground">
             {dstr(b.t)}
           </div>
-          <div style={{ color: tone(b.pnl) }}>{money(b.pnl)}</div>
+          <div style={{ color: tone(b.pnl) }}>{signedUsd(b.pnl, 0)}</div>
         </ChartTip>
       )}
     </div>
@@ -963,7 +1172,7 @@ function CalDays({ cal }: { cal: CalView2 }) {
                 className="font-mono text-[10px] font-semibold tabular-nums"
                 style={{ color: wk.netDays ? tone(wk.net) : MUTED }}
               >
-                {wk.netDays ? moneyK(wk.net) : "—"}
+                {wk.netDays ? signedCompactUsd(wk.net) : "—"}
               </span>
             </div>
           </div>
@@ -1004,7 +1213,7 @@ function DayCell({ cell }: { cell: CalView2["weeks"][number]["cells"][number] })
           className="font-mono text-[10px] font-semibold tabular-nums"
           style={{ color: cell.tone }}
         >
-          {moneyK(cell.pnl)}
+          {signedCompactUsd(cell.pnl)}
         </span>
       )}
     </div>
@@ -1048,7 +1257,7 @@ function CalMonths({
             className="w-16 text-right font-mono text-[12px] font-semibold tabular-nums"
             style={{ color: m.tone }}
           >
-            {m.has ? moneyK(m.total) : "—"}
+            {m.has ? signedCompactUsd(m.total) : "—"}
           </span>
         </button>
       ))}
@@ -1078,7 +1287,7 @@ function CalYear({
               className="font-mono text-[11.5px] font-semibold tabular-nums"
               style={{ color: m.tone }}
             >
-              {m.has ? moneyK(m.total) : "—"}
+              {m.has ? signedCompactUsd(m.total) : "—"}
             </span>
           </div>
           <div className="mt-2 grid grid-cols-7 gap-[2px]">

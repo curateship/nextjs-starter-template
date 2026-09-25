@@ -391,7 +391,7 @@ export function ProductHotspotBlock({
       {/* Hotspot editor is portaled to the modal shell to avoid scroll-area clipping. */}
       {editingHotspot && imageRef.current?.closest("[data-slot='dialog-content']") && createPortal(
         <div 
-          className="absolute z-60 w-80 max-w-[calc(100%-2rem)] rounded-lg border border-gray-200 bg-white p-3 shadow-2xl"
+          className="absolute z-60 w-80 max-w-[calc(100%-2rem)] rounded-lg border border-border bg-popover text-popover-foreground p-3 shadow-2xl"
           style={{
             left: `${tooltipPosition.left}px`,
             top: `${tooltipPosition.top}px`,

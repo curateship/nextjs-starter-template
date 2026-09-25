@@ -92,10 +92,8 @@ export function SidebarUserAdmin({
                 <AvatarFallback className="rounded-lg">{getInitials(user.email)}</AvatarFallback>
               </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">{user.name}</span>
-                <span className="truncate text-xs text-muted-foreground">
-                  {user.email}
-                </span>
+                <span className="truncate font-medium" title={user.name}>{user.name}</span>
+                <span className="truncate text-xs text-muted-foreground" title={user.email}>{user.email}</span>
               </div>
               <ChevronsUpDown className="ml-auto size-4" />
             </SidebarMenuButton>
@@ -113,8 +111,8 @@ export function SidebarUserAdmin({
                   <AvatarFallback className="rounded-lg">{getInitials(user.email)}</AvatarFallback>
                 </Avatar>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-medium">{user.name}</span>
-                  <span className="truncate text-xs">{user.email}</span>
+                  <span className="truncate font-medium" title={user.name}>{user.name}</span>
+                  <span className="truncate text-xs" title={user.email}>{user.email}</span>
                 </div>
               </div>
             </DropdownMenuLabel>

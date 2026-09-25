@@ -493,7 +493,7 @@ function SettingsModal({
                       <div className="truncate">{record.name}</div>
                       <div className="truncate text-xs text-muted-foreground">{record.value}</div>
                     </div>
-                    <Badge variant={record.status === "pass" ? "default" : "outline"} className={record.status === "pass" ? "bg-green-100 text-green-800" : ""}>
+                    <Badge variant={record.status === "pass" ? "default" : "outline"} className={record.status === "pass" ? "bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300" : ""}>
                       {record.status === "pass" ? "Pass" : "Missing"}
                     </Badge>
                   </div>

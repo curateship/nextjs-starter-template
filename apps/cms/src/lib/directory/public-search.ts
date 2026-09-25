@@ -1,0 +1,242 @@
+/**
+ * The public directory's list state, named once so the route's address reader,
+ * the endpoint and the toolbar all agree on what may appear in the URL.
+ *
+ * Separate from `listing-sort.ts` on purpose. That one is the admin's list —
+ * it sorts by status and by when a row was last edited, neither of which means
+ * anything to a visitor, and it has a draft filter a public page must never
+ * offer. Sharing the two would mean one list of columns that half the callers
+ * had to be told to ignore.
+ */
+
+import type { DirectoryView } from "@/lib/directory/listing-map"
+
+/** How a visitor may order the list. The first one is the default. */
+export const DIRECTORY_SORTS = ["order", "newest", "title", "distance"] as const
+export const DIRECTORY_DEFAULT_SORTS = ["order", "newest", "title"] as const
+
+export type DirectorySort = (typeof DIRECTORY_SORTS)[number]
+
+export function isDirectorySort(value: unknown): value is DirectorySort {
+  return (
+    typeof value === "string" &&
+    DIRECTORY_SORTS.includes(value as DirectorySort)
+  )
+}
+
+export type DirectoryDefaultSort = (typeof DIRECTORY_DEFAULT_SORTS)[number]
+
+export function isDirectoryDefaultSort(
+  value: unknown
+): value is DirectoryDefaultSort {
+  return (
+    typeof value === "string" &&
+    DIRECTORY_DEFAULT_SORTS.includes(value as DirectoryDefaultSort)
+  )
+}
+
+/**
+ * `order` is the hand-set order an admin gives listings on the edit form, and
+ * it is the default because that field exists for exactly this list. Ties fall
+ * back to newest-first, so a directory where nobody has set an order still
+ * reads sensibly.
+ */
+export const DIRECTORY_SORT_LABELS: Record<DirectorySort, string> = {
+  order: "Recommended",
+  newest: "Newest",
+  title: "A to Z",
+  distance: "Nearest",
+}
+
+/**
+ * What the browse page's address may carry.
+ *
+ * Every key is optional, and that is load-bearing rather than tidy: a route
+ * whose search keys are required makes every `<Link>` to it spell all four out,
+ * including the three it does not care about. Optional keys mean a link that
+ * only wants to change the category says only that.
+ */
+export type DirectoryBrowseSearch = {
+  q?: string
+  /**
+   * The ticked categories, comma separated: `?category=italian,portuguese`.
+   *
+   * One key holding a list rather than a repeated key, so every link written
+   * before the rail existed still means what it meant — one slug is a valid
+   * list of one. `readDirectoryCategories` turns it into slugs and
+   * `formatDirectoryCategories` turns them back.
+   */
+  category?: string
+  sort?: DirectorySort
+  page?: number
+  /** Rounded browser location only; never a precise position. */
+  near?: string
+  /** A human-readable place name, when the visitor typed one. */
+  place?: string
+  radius?: number
+  /** Stars and up, from `DIRECTORY_MIN_RATINGS`. Absent means any rating. */
+  minRating?: number
+  /**
+   * Grid or map. In the address rather than in memory so a map somebody sends
+   * opens as a map, which is the whole reason for having the switch.
+   */
+  view?: DirectoryView
+}
+
+/**
+ * The lowest ratings a visitor may ask for. Two rungs rather than five,
+ * because a directory where everything is between 4 and 5 gains nothing from
+ * a 2.0 rung, and "Any" is the absence of the value rather than a third
+ * choice in this list.
+ */
+export const DIRECTORY_MIN_RATINGS = [4, 4.5] as const
+
+/** As many slugs as the rail can sensibly hold, and a stop on a pasted address. */
+const MAX_DIRECTORY_CATEGORY_SLUGS = 12
+const MAX_DIRECTORY_CATEGORY_SLUG_LENGTH = 160
+
+/**
+ * The ticked categories, read out of the address.
+ *
+ * Nothing here checks that a slug names a real category — the server does that
+ * when it looks them up, and drops the ones it cannot find. A stale link
+ * should still show the directory rather than an error, which is what the
+ * single-category address has always done.
+ */
+export function readDirectoryCategories(value: unknown): string[] {
+  if (typeof value !== "string") return []
+  const seen = new Set<string>()
+  for (const part of value.split(",")) {
+    const slug = part.trim().slice(0, MAX_DIRECTORY_CATEGORY_SLUG_LENGTH)
+    if (slug) seen.add(slug)
+    if (seen.size >= MAX_DIRECTORY_CATEGORY_SLUGS) break
+  }
+  return [...seen]
+}
+
+/** Slugs back into one address value, or nothing when none are ticked. */
+export function formatDirectoryCategories(slugs: readonly string[]) {
+  return slugs.length ? slugs.join(",") : undefined
+}
+
+/** The address value after one box is clicked: the slug added, or taken out. */
+export function toggleDirectoryCategory(value: unknown, slug: string) {
+  const current = readDirectoryCategories(value)
+  const next = current.includes(slug)
+    ? current.filter((row) => row !== slug)
+    : [...current, slug]
+  return formatDirectoryCategories(next)
+}
+
+/** One of the rungs, or nothing. A hand-typed 9 is any rating, not no results. */
+export function readDirectoryMinRating(value: unknown) {
+  const rating = typeof value === "number" ? value : Number(value)
+  return DIRECTORY_MIN_RATINGS.includes(
+    rating as (typeof DIRECTORY_MIN_RATINGS)[number]
+  )
+    ? rating
+    : undefined
+}
+
+export const DIRECTORY_NEAR_RADII_KM = [5, 10, 25, 50] as const
+export const DEFAULT_DIRECTORY_NEAR_RADIUS_KM = 10
+
+export type DirectoryNearPoint = { latitude: number; longitude: number }
+
+/** Three decimals is about 110 metres: useful nearby without sharing a doorstep. */
+export function parseDirectoryNearPoint(
+  value: unknown
+): DirectoryNearPoint | null {
+  if (typeof value !== "string") return null
+  const [rawLatitude, rawLongitude, ...rest] = value.split(",")
+  if (rest.length || rawLatitude === undefined || rawLongitude === undefined)
+    return null
+  const latitude = Number(rawLatitude)
+  const longitude = Number(rawLongitude)
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null
+  if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180)
+    return null
+  return {
+    latitude: roundNearCoordinate(latitude),
+    longitude: roundNearCoordinate(longitude),
+  }
+}
+
+export function formatDirectoryNearPoint(point: DirectoryNearPoint) {
+  return `${roundNearCoordinate(point.latitude)},${roundNearCoordinate(point.longitude)}`
+}
+
+export function readDirectoryNearRadius(value: unknown) {
+  const radius = typeof value === "number" ? value : Number(value)
+  return DIRECTORY_NEAR_RADII_KM.includes(
+    radius as (typeof DIRECTORY_NEAR_RADII_KM)[number]
+  )
+    ? radius
+    : undefined
+}
+
+function roundNearCoordinate(value: number) {
+  return Math.round(value * 1_000) / 1_000
+}
+
+export function formatDirectoryDistance(distanceKm: number | null | undefined) {
+  if (distanceKm == null || !Number.isFinite(distanceKm) || distanceKm < 0)
+    return ""
+  if (distanceKm < 0.1) return "Nearby"
+  if (distanceKm < 1) return `${Math.round(distanceKm * 10) * 100} m away`
+  if (distanceKm < 10) return `${distanceKm.toFixed(1)} km away`
+  return `${Math.round(distanceKm)} km away`
+}
+
+/** How many "you might also like" listings a detail page shows. */
+export const RELATED_LISTING_COUNT = 3
+
+/**
+ * What the search box offers while somebody is still typing.
+ *
+ * Named here rather than in the endpoint because the box and the server both
+ * need the same two numbers: the box decides when a query is long enough to be
+ * worth asking about, and the server refuses anything shorter.
+ */
+export const DIRECTORY_SUGGESTION_MIN_LENGTH = 2
+
+/** How long typing has to stop before the box asks the server. */
+export const DIRECTORY_SUGGESTION_DELAY_MS = 200
+
+export const DIRECTORY_SUGGESTION_LISTING_LIMIT = 5
+export const DIRECTORY_SUGGESTION_CATEGORY_LIMIT = 3
+export const DIRECTORY_SUGGESTION_EVENT_LIMIT = 3
+
+/** One row under the search box: a listing, a category page, or an event. */
+export type DirectorySuggestion = {
+  kind: "listing" | "category" | "event"
+  title: string
+  slug: string
+  /** An event's first day, "2026-09-26", shown beside its title. */
+  startDate?: string
+}
+
+export type DirectorySuggestions = {
+  listings: Array<{ title: string; slug: string }>
+  categories: Array<{ title: string; slug: string }>
+  /** Events not over yet, soonest first. */
+  events: Array<{ title: string; slug: string; startDate: string }>
+}
+
+/**
+ * Categories first, then listings, then events.
+ *
+ * A category is a whole page of results and a listing is one shop, so somebody
+ * typing "pizz" is more often after "Pizza" than after any single pizzeria.
+ * Events come last because the box sits above the listings, which are what it
+ * searches when Enter is pressed.
+ */
+export function directorySuggestionRows(
+  answer: DirectorySuggestions
+): DirectorySuggestion[] {
+  return [
+    ...answer.categories.map((row) => ({ kind: "category" as const, ...row })),
+    ...answer.listings.map((row) => ({ kind: "listing" as const, ...row })),
+    ...answer.events.map((row) => ({ kind: "event" as const, ...row })),
+  ]
+}

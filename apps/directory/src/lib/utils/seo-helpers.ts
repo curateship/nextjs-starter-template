@@ -4,6 +4,7 @@
 
 import { getSiteUrl } from './site-url-generator'
 import { toCdnUrl } from './cdn'
+import { buildShareImagePath, shareImageVersion } from '@/lib/share-image'
 import type { SiteSettings } from '@/lib/db/schema/sites'
 import type { Metadata } from '@/lib/metadata'
 
@@ -19,6 +20,8 @@ interface SeoSite {
 
 // Content item with optional SEO fields
 interface SeoContent {
+  id?: string
+  updatedAt?: Date | string
   title?: string
   slug?: string
   description?: string
@@ -214,12 +217,33 @@ function getContentDescription(site: SeoSite, content: SeoContent | null, conten
 }
 
 /**
+ * Listings and events without a photo get a drawn share card from the
+ * /share-image route; the URL carries the item's updated-at as a version so
+ * edits produce a fresh image.
+ */
+function getGeneratedShareImage(site: SeoSite, content: SeoContent | null, contentType: ContentType): string | null {
+  if (contentType !== 'directory' && contentType !== 'event') return null
+  if (!content?.id) return null
+
+  const version = shareImageVersion(content.updatedAt)
+  if (!version) return null
+
+  const type = contentType === 'directory' ? 'listing' : 'event'
+  // Absolute URL: link-preview scrapers do not reliably resolve relative ones
+  return buildCanonicalUrl(site, buildShareImagePath(type, content.id, version))
+}
+
+/**
  * Get the best available image for OG/Twitter
  */
-function getContentImage(site: SeoSite, content: SeoContent | null): string | null {
+function getContentImage(site: SeoSite, content: SeoContent | null, contentType: ContentType): string | null {
   // Try content featured image first
   const contentImage = content?.featuredImage || content?.featured_image || content?.image
   if (contentImage) return toCdnUrl(contentImage)
+
+  // Then a drawn card for listings and events without a photo
+  const generated = getGeneratedShareImage(site, content, contentType)
+  if (generated) return generated
 
   // Fall back to site default OG image
   const defaultOg = site.settings?.seo_default_og_image
@@ -251,7 +275,7 @@ function buildOpenGraph(
   const title = getSeoTitle(site, content, contentType)
   const description = getContentDescription(site, content, contentType)
   const url = buildCanonicalUrl(site, path)
-  const image = getContentImage(site, content)
+  const image = getContentImage(site, content, contentType)
 
   const og: any = {
     title,
@@ -280,7 +304,7 @@ function buildTwitterCard(
   const cardType = settings?.seo_twitter_card_type || 'summary_large_image'
   const title = getSeoTitle(site, content, contentType)
   const description = getContentDescription(site, content, contentType)
-  const image = getContentImage(site, content)
+  const image = getContentImage(site, content, contentType)
 
   const twitter: any = {
     card: cardType,

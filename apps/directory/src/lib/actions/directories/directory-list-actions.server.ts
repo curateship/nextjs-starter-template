@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, inArray, or, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { categories, contentCategoryRelationships, directories, sites } from '@/lib/db/schema'
-import { getAuthenticatedUser } from '@/lib/db/helpers'
+import { getAuthenticatedUser, verifySiteOwnership } from '@/lib/db/helpers'
 import type { DirectoryStatus } from './directory-actions'
 import { buildDirectoryCursorListQuery, type DirectoryAdminCursorListParams } from './directory-admin-list'
 
@@ -91,14 +91,6 @@ function toDirectorySummary(row: {
   }
 }
 
-async function verifySiteOwnership(siteId: string, userId: string) {
-  const [site] = await db.select({ id: sites.id })
-    .from(sites)
-    .where(and(eq(sites.id, siteId), eq(sites.userId, userId)))
-    .limit(1)
-
-  return Boolean(site)
-}
 
 function buildSearchCondition(query: string) {
   const pattern = `%${query}%`

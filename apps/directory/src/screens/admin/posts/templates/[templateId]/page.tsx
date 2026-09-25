@@ -1,14 +1,15 @@
 "use client"
 
-import { use, useCallback, useEffect, useState } from "react"
+import { use, useCallback, useEffect, useRef, useState } from "react"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { useRouter } from "@/lib/navigation-client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { BuilderSkeleton } from "@/components/admin/layout/skeletons"
-import { useSaveStatus } from "@/components/admin/layout/builder/save-status"
-import { BlockSelectionModal } from "@/components/admin/layout/builder/BlockSelectionModal"
+import { AdminLoading } from "@/components/admin/layout/loading"
+import { useAutoSave } from "@/components/admin/layout/builder/use-auto-save"
+import { BlockSelectionModal, type BlockSelection } from "@/components/admin/layout/builder/BlockSelectionModal"
 import { POST_BLOCK_TYPES, getBlockTypeDefinition } from "@/components/admin/post-builder/config/post-block-types"
 import {
   orderPostBuilderBlocks,
@@ -39,10 +40,6 @@ interface PageProps {
   params: Promise<{ templateId: string }>
 }
 
-interface BlockSelection {
-  type: string
-  quantity: number
-}
 
 export default function PostTemplateEditorPage({ params }: PageProps) {
   const { templateId } = use(params)
@@ -53,8 +50,6 @@ export default function PostTemplateEditorPage({ params }: PageProps) {
   const [selectedBlock, setSelectedBlock] = useState<PostBlock | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [isSaving, setIsSaving] = useState(false)
-  const [saveStatus, setSaveStatus] = useSaveStatus()
   const [blockModalOpen, setBlockModalOpen] = useState(false)
   const [blockListOpen, setBlockListOpen] = useState(false)
   const [editingName, setEditingName] = useState(false)
@@ -63,7 +58,6 @@ export default function PostTemplateEditorPage({ params }: PageProps) {
   const [draftContent, setDraftContent] = useState<Record<string, any>>({})
   const [draftPostTitle, setDraftPostTitle] = useState("Preview Post")
   const [isSavingBlock, setIsSavingBlock] = useState(false)
-  const [blockSaveError, setBlockSaveError] = useState<string | null>(null)
 
   const loadTemplate = useCallback(async () => {
     setLoading(true)
@@ -99,7 +93,7 @@ export default function PostTemplateEditorPage({ params }: PageProps) {
     if (!selectedBlock) {
       setDraftContent({})
       setDraftPostTitle(previewTitle)
-      setBlockSaveError(null)
+      dismissErrorToast()
       return
     }
 
@@ -109,7 +103,7 @@ export default function PostTemplateEditorPage({ params }: PageProps) {
         : {}
     )
     setDraftPostTitle(previewTitle)
-    setBlockSaveError(null)
+    dismissErrorToast()
   }, [selectedBlock, previewTitle])
 
   function handleDeleteBlock(block: PostBlock) {
@@ -134,14 +128,14 @@ export default function PostTemplateEditorPage({ params }: PageProps) {
   function handleCloseBlockEditor() {
     if (isSavingBlock) return
     setSelectedBlock(null)
-    setBlockSaveError(null)
+    dismissErrorToast()
   }
 
   async function handleSaveBlockEditor() {
     if (!template || !selectedBlock) return
 
     setIsSavingBlock(true)
-    setBlockSaveError(null)
+    dismissErrorToast()
 
     try {
       setPreviewTitle(draftPostTitle.trim() || "Preview Post")
@@ -161,16 +155,16 @@ export default function PostTemplateEditorPage({ params }: PageProps) {
       } } })
 
       if (saveError || !data) {
-        setBlockSaveError(saveError || "Failed to save block")
+        showErrorToast(saveError || "Failed to save block")
         return
       }
 
       setBlocks(orderedBlocks)
       setTemplate(data)
-      setSaveStatus("saved")
+      markBlocksSaved(orderedBlocks)
       setSelectedBlock(null)
     } catch (error) {
-      setBlockSaveError(error instanceof Error ? error.message : "Failed to save block")
+      showErrorToast(error instanceof Error ? error.message : "Failed to save block")
     } finally {
       setIsSavingBlock(false)
     }
@@ -213,31 +207,55 @@ export default function PostTemplateEditorPage({ params }: PageProps) {
     setBlocks(nextBlocks)
   }
 
-  async function handleSave() {
-    if (!template) return
+  // Auto-save: a change to the blocks is written once the edits stop.
+  const blocksRef = useRef(blocks)
+  blocksRef.current = blocks
+  const templateRef = useRef(template)
+  templateRef.current = template
+  const lastSavedBlocksJsonRef = useRef<string | null>(null)
 
-    setIsSaving(true)
-    setSaveStatus("saving")
+  const { saveStatus, setSaveStatus, scheduleSave } = useAutoSave<typeof blocks>({
+    save: async (nextBlocks) => {
+      const currentTemplate = templateRef.current
+      if (!currentTemplate) return { saved: true }
 
-    try {
-      const contentBlocks = postBlocksToJson(blocks, template.content_blocks || {})
-      const { data, error: saveError } = await updatePostTemplate({ data: { templateId: template.id, updates: {
+      const contentBlocks = postBlocksToJson(nextBlocks, currentTemplate.content_blocks || {})
+      const { data, error: saveError } = await updatePostTemplate({ data: { templateId: currentTemplate.id, updates: {
         content_blocks: contentBlocks,
       } } })
 
-      if (saveError) {
-        setSaveStatus("error", saveError)
-      } else if (data) {
-        setTemplate(data)
-        setBlocks(parsePostBlocksFromJson(data.content_blocks || {}))
-        setSaveStatus("saved")
-      }
-    } catch (err) {
-      setSaveStatus("error", err instanceof Error ? err.message : 'Failed to save')
-    } finally {
-      setIsSaving(false)
+      if (saveError) return { saved: false, reason: saveError }
+      // What is on screen is deliberately not replaced with the round trip:
+      // re-reading it would look like another edit and save again, forever.
+      if (data) setTemplate(data)
+      return { saved: true }
     }
+  })
+
+  // A write that happened somewhere else (the block editor, the settings
+  // dialog) has already stored these blocks — recording them here stops the
+  // watcher below writing the same thing again a moment later.
+  function markBlocksSaved(savedBlocks: typeof blocks) {
+    lastSavedBlocksJsonRef.current = JSON.stringify(savedBlocks)
+    setSaveStatus("saved")
   }
+
+  const blocksJson = JSON.stringify(blocks)
+
+  useEffect(() => {
+    if (loading) {
+      lastSavedBlocksJsonRef.current = null
+      return
+    }
+    if (lastSavedBlocksJsonRef.current === null) {
+      lastSavedBlocksJsonRef.current = blocksJson
+      return
+    }
+    if (lastSavedBlocksJsonRef.current === blocksJson) return
+
+    lastSavedBlocksJsonRef.current = blocksJson
+    scheduleSave(blocksRef.current)
+  }, [blocksJson, loading, scheduleSave])
 
   async function handleSaveName() {
     if (!template || !nameInput.trim()) return
@@ -268,7 +286,7 @@ export default function PostTemplateEditorPage({ params }: PageProps) {
     return (
       <div className="flex flex-col h-full overflow-hidden">
         <DashboardStickyHeader />
-        <BuilderSkeleton />
+        <AdminLoading className="min-h-0 flex-1" />
       </div>
     )
   }
@@ -279,7 +297,7 @@ export default function PostTemplateEditorPage({ params }: PageProps) {
         <DashboardStickyHeader />
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
-            <p className="text-red-600 mb-4">{error}</p>
+            <p className="text-destructive mb-4">{error}</p>
             <Button onClick={() => router.push("/admin/posts/templates")} variant="outline">
               Back to Templates
             </Button>
@@ -335,8 +353,6 @@ export default function PostTemplateEditorPage({ params }: PageProps) {
               </div>
             )}
             saveStatus={saveStatus}
-            isSaving={isSaving}
-            onSave={handleSave}
             blockListOpen={blockListOpen}
             onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
           />
@@ -378,7 +394,6 @@ export default function PostTemplateEditorPage({ params }: PageProps) {
           onClose={handleCloseBlockEditor}
           onSave={handleSaveBlockEditor}
           saving={isSavingBlock}
-          error={blockSaveError}
           mode="template"
         />
 

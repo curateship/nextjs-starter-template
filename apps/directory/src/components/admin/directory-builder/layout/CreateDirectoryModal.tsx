@@ -4,17 +4,16 @@ import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardGroup, CardHeader } from "@/components/ui/card"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
-import { Skeleton } from "@/components/ui/skeleton"
 import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
 import { DashboardModalContent, DashboardModalFooterActions, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import ChevronDown from "lucide-react/dist/esm/icons/chevron-down.js"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
 import { getDirectoryTemplatesBySite } from "@/lib/actions/directories/directory-template-actions"
 import {
   FeaturedImageCard,
   MetaDescriptionField,
-  ModalErrorBanner,
   TitleSlugFields,
   postJson,
   useCreateContent,
@@ -46,6 +45,9 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
   const [templates, setTemplates] = useState<DirectoryTemplate[]>([])
   const [templatesLoading, setTemplatesLoading] = useState(true)
   const [selectedTemplateId, setSelectedTemplateId] = useState('')
+  const [templateMissing, setTemplateMissing] = useState(false)
+  // Cleared as soon as a template is chosen, so the ring never outlives the fault.
+  const templateInvalid = templateMissing && !selectedTemplateId
 
   // Load directory templates and preselect the default (or first)
   useEffect(() => {
@@ -77,7 +79,7 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
     }
   }, [currentSite?.id])
 
-  const { loading, loadingAction, error, setError, submit } = useCreateContent<Directory>({
+  const { loading, loadingAction, setError, submit, titleInvalid } = useCreateContent<Directory>({
     entityLabel: "listing",
     title,
     titleRequiredMessage: "Title is required",
@@ -118,9 +120,12 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
       return
     }
     if (!selectedTemplateId) {
+      setTemplateMissing(true)
       setError("Template is required")
       return
     }
+
+      setTemplateMissing(false)
     const action = publishNow ? "publish" : continueToBuilder ? "continue" : "draft"
     await submit(action, publishNow, (created) => {
       resetForm()
@@ -134,8 +139,8 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
   }
 
   return (
-    <form id="create-directory-form" onSubmit={handleSubmit} className="contents">
-      <DashboardModalContent
+          <DashboardModalContent
+        busy={loading}
         title="Add Listing"
         description="Add a new listing to your directory. You can customize the content after creation."
         footer={
@@ -145,19 +150,23 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
             </Button>
             <DashboardModalFooterActions>
               <Button form="create-directory-form" type="submit" variant="outline" disabled={loading}>
-                {loadingAction === 'draft' ? 'Saving...' : 'Save as Draft'}
+                {loadingAction === 'draft' ? <Loader2 className="size-4 animate-spin" /> : null}
+                Save as Draft
               </Button>
               <Button type="button" onClick={() => handleSave(true)} disabled={loading}>
-                {loadingAction === 'continue' ? 'Saving...' : 'Continue'}
+                {loadingAction === 'continue' ? <Loader2 className="size-4 animate-spin" /> : null}
+                Continue
               </Button>
               <Button type="button" onClick={() => handleSave(false, true)} disabled={loading}>
-                {loadingAction === 'publish' ? 'Publishing...' : 'Publish'}
+                {loadingAction === 'publish' ? <Loader2 className="size-4 animate-spin" /> : null}
+                Publish
               </Button>
             </DashboardModalFooterActions>
           </>
         }
       >
-        <ModalErrorBanner error={error} />
+        <form
+          noValidate id="create-directory-form" onSubmit={handleSubmit} className="contents">
         <CardGroup className="grid">
           <Card>
             <CardHeader>
@@ -169,12 +178,11 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
                 <FieldLabel htmlFor="template">Start from Template</FieldLabel>
                 {templatesLoading ? (
                   <div className="border-input inline-flex h-10 items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm whitespace-nowrap">
-                    <Skeleton className="h-4 w-24 rounded-sm" />
                     <ChevronDown className="size-4 opacity-50" />
                   </div>
                 ) : (
                   <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
-                    <SelectTrigger id="template">
+                    <SelectTrigger id="template" aria-invalid={templateInvalid || undefined}>
                       <SelectValue placeholder="Select template" />
                     </SelectTrigger>
                     <SelectContent className="z-60">
@@ -203,6 +211,7 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
                     Listing URL: /directory/{slug}
                   </FieldDescription>
                 ) : null}
+                titleInvalid={titleInvalid}
               />
             </CardContent>
           </Card>
@@ -239,7 +248,8 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
             </CardContent>
           </Card>
         </CardGroup>
+        </form>
       </DashboardModalContent>
-    </form>
+
   )
 }

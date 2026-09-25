@@ -1,9 +1,9 @@
 "use client";
 
 import React from "react";
-import DotPattern from "@/components/ui/dot-pattern";
+import DotPattern from "@/components/frontend/blocks/dot-pattern";
 import { cn } from "@/lib/utils/tailwind";
-import { TrustedByAvatars } from "@/components/ui/trusted-by-avatars";
+import { TrustedByAvatars } from "@/components/frontend/blocks/trusted-by-avatars";
 import type { HeroStyleRendererProps } from ".";
 import { getHeroBackgroundColor } from "@/lib/utils/page-hero-background";
 

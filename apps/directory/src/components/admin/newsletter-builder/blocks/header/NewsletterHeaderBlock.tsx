@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { Input } from "@/components/ui/input"
+import { HexColorInput } from "@/components/ui/hex-color-input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
 import AlignLeft from "lucide-react/dist/esm/icons/align-left.js"
@@ -10,7 +11,7 @@ import AlignRight from "lucide-react/dist/esm/icons/align-right.js"
 import ImageIcon from "lucide-react/dist/esm/icons/image.js"
 import X from "lucide-react/dist/esm/icons/x.js"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
-import { BlockTabs } from "@/components/ui/tabs"
+import { BlockTabs } from "@/components/admin/layout/builder/block-tabs"
 import { DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 
 interface NewsletterHeaderBlockProps {
@@ -50,7 +51,7 @@ export function NewsletterHeaderBlock({ content, onContentChange, onBack, siteId
                         <button
                           type="button"
                           onClick={() => onContentChange("logoUrl", "")}
-                          className="absolute top-2 right-2 rounded-full bg-red-500 p-1 text-white transition-colors hover:bg-red-600"
+                          className="absolute top-2 right-2 rounded-full bg-destructive p-1 text-destructive-foreground transition-colors hover:bg-destructive/90"
                         >
                           <X className="h-4 w-4" />
                         </button>
@@ -166,20 +167,14 @@ export function NewsletterHeaderBlock({ content, onContentChange, onBack, siteId
 
                   <div>
                     <Label htmlFor="header-bg-color">Background Color</Label>
-                    <div className="mt-1 flex items-center gap-2">
-                      <input
-                        type="color"
-                        value={content.backgroundColor || "#ffffff"}
-                        onChange={(e) => onContentChange("backgroundColor", e.target.value)}
-                        className="h-10 w-10 cursor-pointer rounded border"
-                      />
-                      <Input
-                        id="header-bg-color"
-                        value={content.backgroundColor || "#ffffff"}
-                        onChange={(e) => onContentChange("backgroundColor", e.target.value)}
-                        className="flex-1"
-                      />
-                    </div>
+                    <HexColorInput
+                      id="header-bg-color"
+                      className="mt-1"
+                      inputClassName="flex-1"
+                      value={content.backgroundColor || "#ffffff"}
+                      onColorChange={(color) => onContentChange("backgroundColor", color)}
+                      swatchAriaLabel="Pick a background color"
+                    />
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">

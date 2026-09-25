@@ -1,8 +1,4 @@
-import {
-  price as fmtPrice,
-  signedUsd,
-  usd,
-} from "@/components/backtest/backtest-format"
+import { formatPrice, pct, signedUsd, usd } from "@/lib/format"
 import { BotStatusBadge } from "@/components/bots/bot-status-badge"
 import { Kpi, MarkPriceInline } from "@/components/kpi"
 import { Badge } from "@/components/ui/badge"
@@ -89,7 +85,7 @@ export function BotSummaryPanel({
           />
           <Kpi
             label="Win Rate"
-            value={winRate !== null ? `${winRate.toFixed(0)}%` : "—"}
+            value={winRate !== null ? pct(winRate, 0) : "—"}
             sub={`${stats.wins}W / ${stats.losses}L`}
           />
           <Kpi
@@ -135,7 +131,7 @@ export function BotSummaryPanel({
                   {order.side.toUpperCase()}
                 </span>
                 <span className="font-mono">
-                  {order.sz} @ {order.px ? fmtPrice(Number(order.px)) : "mkt"}
+                  {order.sz} @ {order.px ? formatPrice(Number(order.px)) : "mkt"}
                 </span>
                 <span className="rounded border px-1 py-px text-[9px] text-muted-foreground">
                   {order.status}

@@ -2,17 +2,20 @@
 
 import type { ComponentType } from "react";
 import Bot from "lucide-react/dist/esm/icons/bot.js"
+import CalendarDays from "lucide-react/dist/esm/icons/calendar-days.js"
 import Clock3 from "lucide-react/dist/esm/icons/clock-3.js"
 import CornerDownLeft from "lucide-react/dist/esm/icons/corner-down-left.js"
 import FileText from "lucide-react/dist/esm/icons/file-text.js"
 import GitBranch from "lucide-react/dist/esm/icons/git-branch.js"
 import Globe2 from "lucide-react/dist/esm/icons/earth.js"
 import ImageIcon from "lucide-react/dist/esm/icons/image.js"
+import Mail from "lucide-react/dist/esm/icons/mail.js"
 import MapPin from "lucide-react/dist/esm/icons/map-pin.js"
 import Plus from "lucide-react/dist/esm/icons/plus.js"
 import Rss from "lucide-react/dist/esm/icons/rss.js"
 import Sparkles from "lucide-react/dist/esm/icons/sparkles.js"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
+import UserCheck from "lucide-react/dist/esm/icons/user-check.js"
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -28,6 +31,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { NEWSLETTER_SUBJECT_MAX } from "@/features/automations/domain/nodes/newsletter";
 import type {
   AutomationEditorData,
   AutomationNode,
@@ -38,12 +42,22 @@ import {
   formatRunAtForTimezoneInput,
   runAtFromTimezoneInput,
 } from "@/features/automations/domain/schedule";
-import { AI_IMAGE_PROVIDERS, AI_PROVIDER_LABELS } from "@/lib/utils/ai-models";
+import {
+  AI_IMAGE_PROVIDERS,
+  AI_PROVIDER_LABELS,
+  type AIProvider,
+} from "@/lib/utils/ai-models";
 import { MediaInput } from "@/components/admin/media-library/MediaInput";
 
 export type NodePanelData = Pick<
   AutomationEditorData,
-  "automation" | "templates" | "listingTemplates" | "categories" | "providers"
+  | "automation"
+  | "templates"
+  | "listingTemplates"
+  | "eventTemplates"
+  | "newsletterTemplates"
+  | "categories"
+  | "providers"
 >;
 
 export interface NodePanelProps {
@@ -115,6 +129,14 @@ const NODE_UI: Record<AutomationNodeKind, NodeUI> = {
         : "",
     Panel: ImagePanel,
   },
+  approval: {
+    icon: UserCheck,
+    describe: (node) =>
+      node.kind === "approval"
+        ? `Waits ${formatExpiryWindow(node.config.expiryHours)} for your OK`
+        : "",
+    Panel: ApprovalPanel,
+  },
   post: {
     icon: FileText,
     describe: (node) =>
@@ -131,6 +153,22 @@ const NODE_UI: Record<AutomationNodeKind, NodeUI> = {
       node.kind === "listing" ? `Draft listings · ${node.config.model}` : "",
     Panel: ListingPanel,
   },
+  event: {
+    icon: CalendarDays,
+    describe: (node) =>
+      node.kind === "event" ? `Draft events · ${node.config.model}` : "",
+    Panel: EventPanel,
+  },
+  newsletter: {
+    icon: Mail,
+    describe: (node) =>
+      node.kind === "newsletter"
+        ? node.config.subjectMode === "fixed"
+          ? "Draft newsletter · fixed subject"
+          : "Draft newsletter · AI subject"
+        : "",
+    Panel: NewsletterPanel,
+  },
 };
 
 export function getNodeUI(kind: AutomationNodeKind): NodeUI {
@@ -146,6 +184,16 @@ const WEEKDAYS = [
   "Friday",
   "Saturday",
 ];
+
+// Offered as a fixed list so the window is always a sensible round number. Any
+// value between 1 and 720 hours parses, so an older saved graph still loads.
+const APPROVAL_EXPIRY_WINDOWS = [6, 12, 24, 48, 72, 168, 336, 720];
+
+function formatExpiryWindow(hours: number) {
+  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"}`;
+  const days = Math.round(hours / 24);
+  return `${days} day${days === 1 ? "" : "s"}`;
+}
 
 const IMAGE_SIZES: Array<{
   value: Extract<AutomationNode, { kind: "image" }>["config"]["size"];
@@ -288,16 +336,32 @@ function TimePanel({ node, onChange }: NodePanelProps) {
   );
 }
 
-function ScraperPanel({ node, onChange }: NodePanelProps) {
-  if (node.kind !== "scraper") return null;
+/**
+ * The URL-list editor behind both the scraper and the feed node. They were the
+ * same 62-line panel twice over, differing only in the wording passed in here.
+ */
+function UrlListPanel({
+  node,
+  onChange,
+  label,
+  hint,
+  itemNoun,
+  placeholder,
+  addLabel,
+}: Pick<NodePanelProps, "node" | "onChange"> & {
+  label: string;
+  hint: string;
+  itemNoun: string;
+  placeholder: string;
+  addLabel: string;
+}) {
+  if (node.kind !== "scraper" && node.kind !== "feed") return null;
   const setUrls = (urls: string[]) => onChange({ ...node, config: { urls } });
   return (
     <div className="grid gap-3">
       <div>
-        <Label>Website URLs</Label>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Public HTTPS pages only. Unchanged pages are skipped.
-        </p>
+        <Label>{label}</Label>
+        <p className="mt-1 text-xs text-muted-foreground">{hint}</p>
       </div>
       <div className="grid gap-2 rounded-2xl border border-foreground/5 bg-muted/40 p-2.5">
         {node.config.urls.map((url, index) => (
@@ -309,11 +373,11 @@ function ScraperPanel({ node, onChange }: NodePanelProps) {
               {String(index + 1).padStart(2, "0")}
             </span>
             <Input
-              aria-label={`Website URL ${index + 1}`}
+              aria-label={`${itemNoun} ${index + 1}`}
               className="h-8 border-0 bg-transparent px-1 text-sm shadow-none focus-visible:ring-0"
               type="url"
               value={url}
-              placeholder="https://example.com/article"
+              placeholder={placeholder}
               onChange={(event) =>
                 setUrls(
                   node.config.urls.map((item, itemIndex) =>
@@ -330,7 +394,7 @@ function ScraperPanel({ node, onChange }: NodePanelProps) {
                 setUrls(node.config.urls.filter((_, itemIndex) => itemIndex !== index))
               }
               disabled={node.config.urls.length === 1}
-              aria-label={`Remove website URL ${index + 1}`}
+              aria-label={`Remove ${itemNoun.toLowerCase()} ${index + 1}`}
             >
               <Trash2 />
             </Button>
@@ -344,73 +408,40 @@ function ScraperPanel({ node, onChange }: NodePanelProps) {
           disabled={node.config.urls.length >= 20}
         >
           <Plus />
-          Add URL
+          {addLabel}
         </Button>
       </div>
     </div>
   );
 }
 
+function ScraperPanel({ node, onChange }: NodePanelProps) {
+  if (node.kind !== "scraper") return null;
+  return (
+    <UrlListPanel
+      node={node}
+      onChange={onChange}
+      label="Website URLs"
+      hint="Public HTTPS pages only. Unchanged pages are skipped."
+      itemNoun="Website URL"
+      placeholder="https://example.com/article"
+      addLabel="Add URL"
+    />
+  );
+}
+
 function FeedPanel({ node, onChange }: NodePanelProps) {
   if (node.kind !== "feed") return null;
-  const setUrls = (urls: string[]) => onChange({ ...node, config: { urls } });
   return (
-    <div className="grid gap-3">
-      <div>
-        <Label>Feed URLs</Label>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Public RSS or Atom feeds. Each entry is processed once across runs.
-        </p>
-      </div>
-      <div className="grid gap-2 rounded-2xl border border-foreground/5 bg-muted/40 p-2.5">
-        {node.config.urls.map((url, index) => (
-          <div
-            key={index}
-            className="flex items-center gap-2 rounded-xl border border-foreground/5 bg-card p-2.5 shadow-sm"
-          >
-            <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-amber-100 font-mono text-xs font-semibold text-amber-700 dark:bg-amber-950 dark:text-amber-200">
-              {String(index + 1).padStart(2, "0")}
-            </span>
-            <Input
-              aria-label={`Feed URL ${index + 1}`}
-              className="h-8 border-0 bg-transparent px-1 text-sm shadow-none focus-visible:ring-0"
-              type="url"
-              value={url}
-              placeholder="https://example.com/feed.xml"
-              onChange={(event) =>
-                setUrls(
-                  node.config.urls.map((item, itemIndex) =>
-                    itemIndex === index ? event.target.value : item,
-                  ),
-                )
-              }
-            />
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              className="shrink-0 text-muted-foreground hover:text-destructive"
-              onClick={() =>
-                setUrls(node.config.urls.filter((_, itemIndex) => itemIndex !== index))
-              }
-              disabled={node.config.urls.length === 1}
-              aria-label={`Remove feed URL ${index + 1}`}
-            >
-              <Trash2 />
-            </Button>
-          </div>
-        ))}
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-full"
-          onClick={() => setUrls([...node.config.urls, ""])}
-          disabled={node.config.urls.length >= 20}
-        >
-          <Plus />
-          Add feed
-        </Button>
-      </div>
-    </div>
+    <UrlListPanel
+      node={node}
+      onChange={onChange}
+      label="Feed URLs"
+      hint="Public RSS or Atom feeds. Each entry is processed once across runs."
+      itemNoun="Feed URL"
+      placeholder="https://example.com/feed.xml"
+      addLabel="Add feed"
+    />
   );
 }
 
@@ -564,12 +595,32 @@ function AgentPanel({ node, data, onChange }: NodePanelProps) {
   );
 }
 
+// AI Agent, AI Router, Listing, and Event all carry the same provider + model
+// config, so they share these two fields and one updater.
+type AiConfiguredNode = Extract<
+  AutomationNode,
+  { kind: "agent" | "router" | "listing" | "event" }
+>;
+
+// The branches are all the same edit; they exist because spreading the node
+// union would detach `kind` from `config` and stop type-checking. Doing it once
+// here keeps both fields below down to a single call each.
+function setAiConfig(
+  node: AiConfiguredNode,
+  changes: { provider?: AIProvider; model?: string },
+): AutomationNode {
+  if (node.kind === "agent") return { ...node, config: { ...node.config, ...changes } };
+  if (node.kind === "router") return { ...node, config: { ...node.config, ...changes } };
+  if (node.kind === "listing") return { ...node, config: { ...node.config, ...changes } };
+  return { ...node, config: { ...node.config, ...changes } };
+}
+
 function AiProviderFields({
   node,
   providers,
   onChange,
 }: {
-  node: Extract<AutomationNode, { kind: "agent" | "router" | "listing" }>;
+  node: AiConfiguredNode;
   providers: AutomationEditorData["providers"];
   onChange: (node: AutomationNode) => void;
 }) {
@@ -584,21 +635,12 @@ function AiProviderFields({
           onValueChange={(value) => {
             const provider = providers.find((item) => item.provider === value);
             if (!provider) return;
-            if (node.kind === "agent")
-              onChange({
-                ...node,
-                config: { ...node.config, provider: provider.provider, model: provider.defaultModel },
-              });
-            else if (node.kind === "router")
-              onChange({
-                ...node,
-                config: { ...node.config, provider: provider.provider, model: provider.defaultModel },
-              });
-            else
-              onChange({
-                ...node,
-                config: { ...node.config, provider: provider.provider, model: provider.defaultModel },
-              });
+            onChange(
+              setAiConfig(node, {
+                provider: provider.provider,
+                model: provider.defaultModel,
+              }),
+            );
           }}
         >
           <SelectTrigger
@@ -639,14 +681,9 @@ function AiProviderFields({
           className="rounded-xl font-semibold"
           value={node.config.model}
           maxLength={120}
-          onChange={(event) => {
-            if (node.kind === "agent")
-              onChange({ ...node, config: { ...node.config, model: event.target.value } });
-            else if (node.kind === "router")
-              onChange({ ...node, config: { ...node.config, model: event.target.value } });
-            else
-              onChange({ ...node, config: { ...node.config, model: event.target.value } });
-          }}
+          onChange={(event) =>
+            onChange(setAiConfig(node, { model: event.target.value }))
+          }
         />
       </Field>
     </>
@@ -733,6 +770,35 @@ function ImagePanel({ node, data, onChange }: NodePanelProps) {
         hideUrlInput
       />
     </>
+  );
+}
+
+function ApprovalPanel({ node, onChange }: NodePanelProps) {
+  if (node.kind !== "approval") return null;
+  return (
+    <Field
+      label="Wait for a decision for"
+      htmlFor={`${node.id}-approval-expiry`}
+      description="If nobody approves or rejects within this window, the run expires instead of waiting forever. Nothing after this node runs."
+    >
+      <Select
+        value={String(node.config.expiryHours)}
+        onValueChange={(value) =>
+          onChange({ ...node, config: { expiryHours: Number(value) } })
+        }
+      >
+        <SelectTrigger id={`${node.id}-approval-expiry`} className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {APPROVAL_EXPIRY_WINDOWS.map((hours) => (
+            <SelectItem key={hours} value={String(hours)}>
+              {formatExpiryWindow(hours)}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </Field>
   );
 }
 
@@ -907,6 +973,151 @@ function ListingPanel({ node, data, onChange }: NodePanelProps) {
           }
         />
       </Field>
+    </>
+  );
+}
+
+function EventPanel({ node, data, onChange }: NodePanelProps) {
+  if (node.kind !== "event") return null;
+  const setConfig = (config: typeof node.config) => onChange({ ...node, config });
+  return (
+    <>
+      <AiProviderFields node={node} providers={data.providers} onChange={onChange} />
+      <Field
+        label="Event template"
+        htmlFor="event-template"
+        description="New events are drafted with this template's blocks. Events are never auto-published."
+      >
+        <Select
+          value={node.config.templateId || undefined}
+          onValueChange={(templateId) => setConfig({ ...node.config, templateId })}
+        >
+          <SelectTrigger id="event-template" className="w-full">
+            <SelectValue placeholder="Choose a template" />
+          </SelectTrigger>
+          <SelectContent>
+            {data.eventTemplates.map((template) => (
+              <SelectItem key={template.id} value={template.id}>
+                {template.name}
+                {template.isDefault ? " (default)" : ""}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
+      <Field
+        label="Default category"
+        htmlFor="event-category"
+        description="Optional category applied to every drafted event."
+      >
+        <Select
+          value={node.config.categoryId || "none"}
+          onValueChange={(value) =>
+            setConfig({ ...node.config, categoryId: value === "none" ? null : value })
+          }
+        >
+          <SelectTrigger id="event-category" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">No category</SelectItem>
+            {data.categories.map((category) => (
+              <SelectItem key={category.id} value={category.id}>
+                {category.title}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
+      <Field
+        label="Instructions"
+        htmlFor="event-instructions"
+        description="Optional hints for what to extract, such as which events count or how to fill the description. An event with no exact date is always skipped."
+      >
+        <Textarea
+          id="event-instructions"
+          rows={6}
+          maxLength={4000}
+          value={node.config.instructions}
+          onChange={(event) =>
+            setConfig({ ...node.config, instructions: event.target.value })
+          }
+        />
+      </Field>
+    </>
+  );
+}
+
+function NewsletterPanel({ node, data, onChange }: NodePanelProps) {
+  if (node.kind !== "newsletter") return null;
+  const setConfig = (config: typeof node.config) => onChange({ ...node, config });
+  return (
+    <>
+      <Field
+        label="Newsletter template"
+        htmlFor="newsletter-template"
+        description="The template supplies the whole email frame — logo header, footer, and unsubscribe link. Its first Rich Text block holds the written content. Blank starts from a single Rich Text block."
+      >
+        <Select
+          value={node.config.templateId ?? "blank"}
+          onValueChange={(value) =>
+            setConfig({ ...node.config, templateId: value === "blank" ? null : value })
+          }
+        >
+          <SelectTrigger id="newsletter-template" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="blank">Blank</SelectItem>
+            {data.newsletterTemplates.map((template) => (
+              <SelectItem key={template.id} value={template.id}>
+                {template.name}
+                {template.isDefault ? " (default)" : ""}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
+      <Field
+        label="Subject line"
+        htmlFor="newsletter-subject-mode"
+        description="Drafts are never sent. You choose the audience and press send yourself in the newsletter builder."
+      >
+        <Select
+          value={node.config.subjectMode}
+          onValueChange={(value) =>
+            setConfig({
+              ...node.config,
+              subjectMode: value === "fixed" ? "fixed" : "article",
+            })
+          }
+        >
+          <SelectTrigger id="newsletter-subject-mode" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="article">Written by the AI</SelectItem>
+            <SelectItem value="fixed">The same line every time</SelectItem>
+          </SelectContent>
+        </Select>
+      </Field>
+      {node.config.subjectMode === "fixed" ? (
+        <Field
+          label="Fixed subject line"
+          htmlFor="newsletter-subject-text"
+          description="Write {{title}} anywhere in the line to drop in the AI's own title, such as: Austin Weekly: {{title}}"
+        >
+          <Input
+            id="newsletter-subject-text"
+            value={node.config.subjectText}
+            maxLength={NEWSLETTER_SUBJECT_MAX}
+            placeholder="Austin Weekly: {{title}}"
+            onChange={(event) =>
+              setConfig({ ...node.config, subjectText: event.target.value })
+            }
+          />
+        </Field>
+      ) : null}
     </>
   );
 }

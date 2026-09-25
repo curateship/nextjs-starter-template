@@ -3,7 +3,8 @@
 import { useCallback, useState } from "react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
+import { Field, FieldLabel } from "@/components/ui/field"
+import { FieldLabel as FieldHintLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
@@ -169,7 +170,7 @@ function DripToggle({ form, idPrefix, disabled }: DripSettingsFieldsProps) {
 function DripBatchFields({ form, idPrefix, disabled }: DripSettingsFieldsProps) {
   return (
     <>
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-2 gap-4">
         <Field>
           <FieldLabel htmlFor={`${idPrefix}-drip-batch-min`}>Batch size min</FieldLabel>
           <Input
@@ -194,7 +195,7 @@ function DripBatchFields({ form, idPrefix, disabled }: DripSettingsFieldsProps) 
         </Field>
       </div>
 
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-2 gap-4">
         <Field>
           <FieldLabel htmlFor={`${idPrefix}-drip-interval-min`}>Interval min (minutes)</FieldLabel>
           <Input
@@ -225,7 +226,12 @@ function DripBatchFields({ form, idPrefix, disabled }: DripSettingsFieldsProps) 
 function DripSafetyField({ form, idPrefix, disabled }: DripSettingsFieldsProps) {
   return (
     <Field>
-      <FieldLabel htmlFor={`${idPrefix}-drip-bounce-threshold`}>Bounce threshold (%)</FieldLabel>
+      <FieldHintLabel
+        htmlFor={`${idPrefix}-drip-bounce-threshold`}
+        hint="Auto-pause and notify you if the bounce rate exceeds this percentage."
+      >
+        Bounce threshold (%)
+      </FieldHintLabel>
       <Input
         id={`${idPrefix}-drip-bounce-threshold`}
         type="number"
@@ -235,9 +241,6 @@ function DripSafetyField({ form, idPrefix, disabled }: DripSettingsFieldsProps) 
         step="any"
         disabled={disabled}
       />
-      <FieldDescription>
-        Auto-pause and notify you if bounce rate exceeds this percentage
-      </FieldDescription>
     </Field>
   )
 }
@@ -402,7 +405,7 @@ export function DripSettingsFields({
       </div>
 
       {form.enabled && (
-        <div className="space-y-6">
+        <div className="space-y-4">
           <DripBatchFields form={form} idPrefix={idPrefix} disabled={disabled} />
           <DripSafetyField form={form} idPrefix={idPrefix} disabled={disabled} />
           <div className="pt-2">

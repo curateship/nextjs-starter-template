@@ -26,7 +26,7 @@ import type {
 import { cn } from "@/lib/utils"
 
 import { BacktestTradesTable } from "./backtest-trades-table"
-import { num, profitFactor, signedUsd, toneClass, usd } from "./backtest-format"
+import { num, profitFactor, signedUsd, toneClass, usd } from "@/lib/format"
 
 const UP = "#089981"
 const DOWN = "#f23645"
@@ -39,6 +39,7 @@ export function StrategyTester({
   onSelectTrade,
   emptyText,
   toggles,
+  extraTabs,
 }: {
   result: BacktestResult | null
   startingEquity: number
@@ -55,6 +56,8 @@ export function StrategyTester({
    * which is why a workspace that uses them collapses to exactly this row.
    */
   toggles?: React.ReactNode
+  /** Caller-specific tabs appended after the standard three (e.g. the bot run's Events). */
+  extraTabs?: { value: string; label: string; content: React.ReactNode }[]
 }) {
   return (
     <Tabs defaultValue="trades" className="flex h-full min-h-0 flex-col gap-0">
@@ -69,11 +72,21 @@ export function StrategyTester({
               {label}
             </TabsTrigger>
           ))}
+          {(extraTabs ?? []).map((tab) => (
+            <TabsTrigger key={tab.value} value={tab.value}>
+              {tab.label}
+            </TabsTrigger>
+          ))}
         </TabsList>
         {toggles ? <div className="ml-auto">{toggles}</div> : null}
       </div>
 
       <ScrollArea className={cn("min-h-0 flex-1", STICKY_SCROLL_OVERRIDES)}>
+        {(extraTabs ?? []).map((tab) => (
+          <TabsContent key={tab.value} value={tab.value} className="m-0">
+            {tab.content}
+          </TabsContent>
+        ))}
         <TabsContent value="trades" className="m-0">
           <BacktestTradesTable
             result={result}

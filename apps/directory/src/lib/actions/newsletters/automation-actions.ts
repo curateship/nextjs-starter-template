@@ -19,13 +19,7 @@ export const getAutomationJourneyIndicators = createServerFn({ method: "POST" })
   .handler(async ({ data }) => getAutomationJourneyIndicatorsImpl(data.automationId))
 
 export const createAutomation = createServerFn({ method: "POST" })
-  .inputValidator((data: { input: {
-  siteId: string
-  name: string
-  description?: string
-  triggerType: AutomationTriggerType
-  triggerConfig?: Record<string, any>
-} }) => data)
+  .inputValidator((data: { input: Parameters<typeof createAutomationImpl>[0] }) => data)
   .handler(async ({ data }) => createAutomationImpl(data.input))
 
 export const updateAutomation = createServerFn({ method: "POST" })
@@ -45,16 +39,7 @@ export const deleteAutomations = createServerFn({ method: "POST" })
   .handler(async ({ data }) => deleteAutomationsImpl(data.ids))
 
 export const createStep = createServerFn({ method: "POST" })
-  .inputValidator((data: { input: {
-  automationId: string
-  stepOrder: number
-  nodeType: 'email' | 'delay' | 'end_rules'
-  nodeConfig?: Record<string, any>
-  delayMinutes?: number
-  subject?: string
-  content?: string
-  contentBlocks?: Record<string, any>
-} }) => data)
+  .inputValidator((data: { input: Parameters<typeof createStepImpl>[0] }) => data)
   .handler(async ({ data }) => createStepImpl(data.input))
 
 export const reorderSteps = createServerFn({ method: "POST" })

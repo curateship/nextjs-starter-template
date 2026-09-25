@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Link from "@/components/app-link"
 import { useRouter } from "@/lib/navigation-client"
 import Pencil from "lucide-react/dist/esm/icons/pencil.js"
@@ -14,15 +14,26 @@ import {
 } from "@/components/admin/layout/content/table-right-actions"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { AdminTableShell, AdminListPending, AdminTableSummaryFooter, ConfirmDestructive } from "@/components/admin/layout/list"
+import {
+  AdminListFooter,
+  AdminListPending,
+  AdminRowAction,
+  AdminRowActions,
+  AdminSortableHead,
+  AdminTableShell,
+  ConfirmDestructive,
+  RelativeDate,
+  useAdminSort,
+} from "@/components/admin/layout/list"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { countDirectoryCustomFields } from "@/lib/actions/directories/directory-custom-blocks/utils"
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
 import { deleteDirectoryCustomBlock, getDirectoryCustomBlocksBySite } from "@/lib/actions/directories/directory-custom-block-actions"
+import { useResetPageOnListChange } from "@/lib/use-reset-page"
+import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
 
 const LAYOUT_LABELS: Record<DirectoryCustomBlockTemplate["layout"], string> = {
   stack: "Stack",
@@ -30,9 +41,11 @@ const LAYOUT_LABELS: Record<DirectoryCustomBlockTemplate["layout"], string> = {
   "two-column": "Two Column"
 }
 
+type BlockSortColumn = "block" | "layout" | "fields" | "used" | "modified"
+
 export default function DirectoryCustomBlocksPage() {
   const router = useRouter()
-  const { currentSite } = useSiteSwitcher()
+  const { currentSite, pageSize } = useSiteSwitcher()
   const [loading, setLoading] = useState(true)
   const [templates, setTemplates] = useState<DirectoryCustomBlockTemplate[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -40,6 +53,8 @@ export default function DirectoryCustomBlocksPage() {
   const [templateToDelete, setTemplateToDelete] = useState<DirectoryCustomBlockTemplate | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
+  const [currentPage, setCurrentPage] = useState(1)
+  const blockSort = useAdminSort<BlockSortColumn>("modified", "desc")
 
   useEffect(() => {
     const siteId = currentSite?.id
@@ -90,6 +105,7 @@ export default function DirectoryCustomBlocksPage() {
     setTemplates((prev) => prev.filter((item) => item.id !== template.id))
     setDeletingId(null)
     setTemplateToDelete(null)
+    showActionSuccess("Custom block deleted.")
   }
 
   const normalizedSearchQuery = searchQuery.trim().toLowerCase()
@@ -101,6 +117,34 @@ export default function DirectoryCustomBlocksPage() {
       })
     : templates
 
+  const sortedTemplates = useMemo(() => {
+    return [...filteredTemplates].sort((a, b) => {
+      if (!blockSort.sortColumn) return 0
+
+      const dir = blockSort.sortDirection === "asc" ? 1 : -1
+      if (blockSort.sortColumn === "block") return a.name.localeCompare(b.name) * dir
+      if (blockSort.sortColumn === "layout")
+        return LAYOUT_LABELS[a.layout].localeCompare(LAYOUT_LABELS[b.layout]) * dir
+      if (blockSort.sortColumn === "fields")
+        return (countDirectoryCustomFields(a.fields) - countDirectoryCustomFields(b.fields)) * dir
+      if (blockSort.sortColumn === "used") return ((a.used_in_count || 0) - (b.used_in_count || 0)) * dir
+
+      return (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()) * dir
+    })
+  }, [blockSort.sortColumn, blockSort.sortDirection, filteredTemplates])
+
+  // Searching or re-sorting from a later page would otherwise land you past
+  // the end of the shorter result.
+  useResetPageOnListChange(
+    setCurrentPage,
+    `${currentSite?.id}|${normalizedSearchQuery}|${blockSort.sortColumn}|${blockSort.sortDirection}`
+  )
+
+  const pagedTemplates = useMemo(
+    () => sortedTemplates.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [currentPage, pageSize, sortedTemplates]
+  )
+
   return (
     <>
       <StickyHeader />
@@ -110,7 +154,7 @@ export default function DirectoryCustomBlocksPage() {
 
           <AdminTableShell
             title="Custom Blocks"
-            icon={<Pencil className="size-4 text-muted-foreground sm:size-[18px]" />}
+            icon={<Pencil className="text-muted-foreground" />}
             count={filteredTemplates.length}
             loading={loading}
             controls={
@@ -126,17 +170,17 @@ export default function DirectoryCustomBlocksPage() {
                 </TableRightActionsButton>
               </TableRightActions>
             }
-            footer={!loading ? <AdminTableSummaryFooter count={filteredTemplates.length} label="custom blocks" /> : null}
+            footer={!loading ? <AdminListFooter currentPage={currentPage} pageSize={pageSize} total={filteredTemplates.length} onPageChange={setCurrentPage} /> : null}
           >
             <ScrollArea className="w-full">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead column="main">Block</TableHead>
-                    <TableHead column="meta">Layout</TableHead>
-                    <TableHead column="meta">Fields</TableHead>
-                    <TableHead column="meta">Used In</TableHead>
-                    <TableHead column="meta">Modified</TableHead>
+                    <AdminSortableHead column="main" sort={blockSort} sortKey="block">Block</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={blockSort} sortKey="layout">Layout</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={blockSort} sortKey="fields">Fields</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={blockSort} sortKey="used">Used In</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={blockSort} sortKey="modified">Modified</AdminSortableHead>
                     <TableHead column="meta">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -147,12 +191,12 @@ export default function DirectoryCustomBlocksPage() {
                     <TableRow>
                       <TableCell colSpan={6} className="h-32 text-center text-sm text-muted-foreground">
                         {normalizedSearchQuery
-                          ? "No custom blocks match your search."
+                          ? "No custom blocks found matching your search."
                           : "Create your first custom block to make it available in the directory builder."}
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredTemplates.map((template) => (
+                    pagedTemplates.map((template) => (
                       <TableRow key={template.id} className="group">
                         <TableCell column="main">
                           <div className="min-w-0 space-y-1">
@@ -162,38 +206,32 @@ export default function DirectoryCustomBlocksPage() {
                               </Link>
                               {template.used_in_count ? <Badge variant="secondary">Active</Badge> : null}
                             </div>
-                            <p className="truncate text-xs text-muted-foreground">/custom-blocks/{template.slug}</p>
+                            <p className="truncate text-xs text-muted-foreground" title={`/custom-blocks/${template.slug}`}>/custom-blocks/{template.slug}</p>
                           </div>
                         </TableCell>
                         <TableCell column="mutedMeta">{LAYOUT_LABELS[template.layout]}</TableCell>
                         <TableCell column="mutedMeta">{countDirectoryCustomFields(template.fields)}</TableCell>
                         <TableCell column="mutedMeta">{template.used_in_count || 0}</TableCell>
                         <TableCell column="mutedMeta">
-                          {template.updated_at ? new Date(template.updated_at).toLocaleDateString() : "-"}
+                          <RelativeDate date={template.updated_at} />
                         </TableCell>
                         <TableCell column="meta">
-                          <div className="flex items-center gap-1">
-                            <Button asChild variant="ghost" size="sm" className="h-8 w-8 p-0">
-                              <Link href={`/admin/directory/custom-blocks/${template.id}`}>
-                                <Pencil className="h-3.5 w-3.5" />
-                                <span className="sr-only">Edit {template.name}</span>
-                              </Link>
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0"
+                          <AdminRowActions>
+                            <AdminRowAction
+                              icon={Pencil}
+                              href={`/admin/directory/custom-blocks/${template.id}`}
+                              label={`Edit ${template.name}`}
+                            />
+                            <AdminRowAction
+                              icon={Trash2}
+                              label={(template.used_in_count || 0) > 0 ? "Block is in use" : `Delete ${template.name}`}
                               disabled={deletingId === template.id || (template.used_in_count || 0) > 0}
                               onClick={() => {
                                 setDeleteError(null)
                                 setTemplateToDelete(template)
                               }}
-                              aria-label={`Delete ${template.name}`}
-                              title={(template.used_in_count || 0) > 0 ? "Block is in use" : `Delete ${template.name}`}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
+                            />
+                          </AdminRowActions>
                         </TableCell>
                       </TableRow>
                     ))
@@ -204,7 +242,7 @@ export default function DirectoryCustomBlocksPage() {
             </ScrollArea>
           </AdminTableShell>
 
-          {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
+          {error && <p className="mt-4 text-sm text-destructive">{error}</p>}
           <ConfirmDestructive
             action="delete-directory-custom-block"
             open={templateToDelete !== null}

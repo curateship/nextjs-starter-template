@@ -2,8 +2,8 @@
 
 import { useMemo, useState } from "react"
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core"
-import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable"
-import { CSS } from "@dnd-kit/utilities"
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from "@dnd-kit/sortable"
+import { useSortableRow } from "@/components/admin/layout/builder/use-sortable-row"
 import GripVertical from "lucide-react/dist/esm/icons/grip-vertical.js"
 import ImageIcon from "lucide-react/dist/esm/icons/image.js"
 import Plus from "lucide-react/dist/esm/icons/plus.js"
@@ -12,7 +12,7 @@ import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import { VisibilitySettings } from "@/components/admin/layout/builder/VisibilitySettings"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { BlockEditorEmptyState, BlockTabs } from "@/components/ui/tabs"
+import { BlockEditorEmptyState, BlockTabs } from "@/components/admin/layout/builder/block-tabs"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardGroup, CardHeader } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -46,20 +46,7 @@ function SortableMessageItem({
   deleteItem: (index: number) => void
   onPickAvatar: (index: number) => void
 }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: item.id })
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  }
+  const { attributes, listeners, setNodeRef, style, isDragging } = useSortableRow(item.id)
 
   return (
     <div ref={setNodeRef} style={style} className="rounded-lg border bg-background p-3 transition-colors hover:border-muted-foreground/50">

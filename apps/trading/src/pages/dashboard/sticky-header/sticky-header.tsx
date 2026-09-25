@@ -11,6 +11,10 @@ import {
   type StickyHeaderLeftNavLink,
 } from "@/pages/dashboard/sticky-header/sticky-header-left-nav"
 import { useSidebar } from "@/components/ui/sidebar"
+import {
+  SaveStatusIndicator,
+  type SaveStatus,
+} from "@/components/ui/save-status"
 import { cn } from "@/lib/utils"
 import type { ShellTopRightNavigationItem } from "@/lib/custom-shell"
 
@@ -19,6 +23,8 @@ type StickyHeaderProps = {
   navLinks?: StickyHeaderLeftNavLink[]
   navContent?: React.ReactNode
   rightNavItems?: ShellTopRightNavigationItem[]
+  /** Auto-save feedback for the settings page, which has no save button. */
+  saveStatus?: SaveStatus
   onOpenFeedback?: () => void
   onOpenFeedbackThread?: (feedbackId: string) => void
 }
@@ -28,6 +34,7 @@ export function StickyHeader({
   navLinks,
   navContent,
   rightNavItems,
+  saveStatus,
   onOpenFeedback,
   onOpenFeedbackThread,
 }: StickyHeaderProps) {
@@ -62,11 +69,14 @@ export function StickyHeader({
             <StickyHeaderLeftNav navLinks={navLinks} />
           )}
         </div>
-        <StickyHeaderRightNav
-          items={rightNavItems}
-          onOpenFeedback={onOpenFeedback}
-          onOpenFeedbackThread={onOpenFeedbackThread}
-        />
+        <div className="flex items-center gap-3">
+          <SaveStatusIndicator status={saveStatus} />
+          <StickyHeaderRightNav
+            items={rightNavItems}
+            onOpenFeedback={onOpenFeedback}
+            onOpenFeedbackThread={onOpenFeedbackThread}
+          />
+        </div>
       </div>
     </header>
   )

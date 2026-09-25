@@ -1,5 +1,5 @@
 import * as React from "react"
-import { ChevronsUpIcon, XIcon } from "lucide-react"
+import { ChevronsUpIcon, Loader2Icon, XIcon } from "lucide-react"
 import type { Layout, PanelImperativeHandle } from "react-resizable-panels"
 import { toast } from "sonner"
 
@@ -9,6 +9,14 @@ import { AutomationPalette } from "@/components/automations/automation-palette"
 import { AutomationRunsPanel } from "@/components/automations/automation-runs-panel"
 import { AutomationToolbar } from "@/components/automations/automation-toolbar"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import {
   ResizableHandle,
   ResizablePanel,
@@ -23,6 +31,7 @@ import {
 } from "@/components/ui/sheet"
 import {
   cancelAutomationRun,
+  decideAutomationRunApproval,
   getAutomationErrorMessage,
   getAutomationRun,
   listAutomationRuns,
@@ -48,8 +57,16 @@ import type { AutomationNodeRunStatus } from "./automation-canvas-node"
 
 const RUN_POLL_MS = 2_000
 
+// Live = the worker is moving it, so poll. A run parked at an approval
+// checkpoint can sit for days; polling it would be pure waste.
 function isLiveStatus(status: AutomationRunSummary["status"]) {
   return status === "queued" || status === "running"
+}
+
+// Active = this automation's one in-flight run, parked or not. Drives the
+// toolbar's Cancel run button.
+function isActiveStatus(status: AutomationRunSummary["status"]) {
+  return isLiveStatus(status) || status === "waiting_approval"
 }
 
 export function AutomationEditor({ initial }: { initial: AutomationEditorData }) {
@@ -77,6 +94,8 @@ export function AutomationEditor({ initial }: { initial: AutomationEditorData })
   const [saving, setSaving] = React.useState(false)
   const [running, setRunning] = React.useState(false)
   const [canceling, setCanceling] = React.useState(false)
+  const [deciding, setDeciding] = React.useState(false)
+  const [rejectRunId, setRejectRunId] = React.useState<string | null>(null)
   const [desktop, setDesktop] = React.useState(false)
   const [paletteCollapsed, setPaletteCollapsed] = React.useState(false)
   const [inspectorCollapsed, setInspectorCollapsed] = React.useState(false)
@@ -171,7 +190,7 @@ export function AutomationEditor({ initial }: { initial: AutomationEditorData })
 
   const errors = React.useMemo(() => validateAutomationGraph(graph), [graph])
   const dirty = serialize(name, enabled, graph) !== lastSaved
-  const activeRun = runs.find((run) => isLiveStatus(run.status)) ?? null
+  const activeRun = runs.find((run) => isActiveStatus(run.status)) ?? null
 
   const selectedNode =
     previewNode ??
@@ -339,6 +358,45 @@ export function AutomationEditor({ initial }: { initial: AutomationEditorData })
       .catch((error) => toast.error(getAutomationErrorMessage(error)))
   }, [])
 
+  const decideApproval = React.useCallback(
+    async (runId: string, approved: boolean) => {
+      if (deciding) return
+      setDeciding(true)
+      try {
+        const detail = await decideAutomationRunApproval(runId, approved)
+        setSelectedRunDetail(detail)
+        setSelectedRunId(detail.run.id)
+        setRuns((current) =>
+          current.map((run) => (run.id === detail.run.id ? detail.run : run))
+        )
+        setRejectRunId(null)
+        toast.success(
+          approved
+            ? "Approved — the run is continuing."
+            : "Rejected — the run stopped here."
+        )
+      } catch (error) {
+        toast.error(getAutomationErrorMessage(error))
+        // The run moved on without us (timed out, canceled, already decided);
+        // pull the truth back into both the list and the detail so the panel
+        // stops offering the buttons and the two stop disagreeing.
+        getAutomationRun(runId)
+          .then((detail) => {
+            setSelectedRunDetail(detail)
+            setRuns((current) =>
+              current.map((run) =>
+                run.id === detail.run.id ? detail.run : run
+              )
+            )
+          })
+          .catch(() => undefined)
+      } finally {
+        setDeciding(false)
+      }
+    },
+    [deciding]
+  )
+
   const runDisabledReason = dirty
     ? "Save your changes first."
     : errors.length > 0
@@ -470,7 +528,10 @@ export function AutomationEditor({ initial }: { initial: AutomationEditorData })
                   runs={runs}
                   selectedRun={selectedRunDetail}
                   selectedRunId={selectedRunId}
+                  deciding={deciding}
                   onSelectRun={selectRun}
+                  onApproveRun={(runId) => void decideApproval(runId, true)}
+                  onRejectRun={setRejectRunId}
                   onCollapse={() => setRunsOpen(false)}
                   showPanelToggles={desktop}
                   paletteCollapsed={paletteCollapsed}
@@ -512,6 +573,47 @@ export function AutomationEditor({ initial }: { initial: AutomationEditorData })
           </div>
         ) : null}
       </div>
+
+      <Dialog
+        open={Boolean(rejectRunId)}
+        onOpenChange={(open) => {
+          if (!open && !deciding) setRejectRunId(null)
+        }}
+      >
+        <DialogContent variant="admin" showCloseButton={!deciding}>
+          <DialogHeader>
+            <DialogTitle>Reject this run?</DialogTitle>
+            <DialogDescription>
+              The run stops at the checkpoint and every step after it is
+              skipped. Anything earlier steps already created is kept. To try
+              again, start a new run.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter variant="plain">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={deciding}
+              onClick={() => setRejectRunId(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={deciding}
+              onClick={() =>
+                rejectRunId && void decideApproval(rejectRunId, false)
+              }
+            >
+              {deciding ? (
+                <Loader2Icon className="size-4 animate-spin" />
+              ) : null}
+              {deciding ? "Rejecting" : "Reject run"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Sheet open={paletteOpen} onOpenChange={setPaletteOpen}>
         <SheetContent

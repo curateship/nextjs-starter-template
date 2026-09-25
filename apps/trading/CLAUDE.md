@@ -10,7 +10,7 @@ Guidance for agents working in Trading.
 - Before coding, read the relevant docs in `workspace/docs/`.
 - Before changing task-driven work, check `workspace/tasks/`.
 - **Before back-testing any strategy, read and follow `workspace/docs/back-guide.md`.**
-- **Before building or changing any UI/layout, read and follow `workspace/docs/ui-rules.md`, including its site-gap rules.**
+- **Before building or changing any UI/layout, read and follow `../../.agents/skills/Ui-standards/SKILL.md`.**
 - **Before adding any new page, dashboard, or nav item, read and follow `workspace/docs/app-guide.md`** 
 - **Before touching any indicator or strategy, read and follow `workspace/docs/Key-Features/indicator-strategy-parity.md`.**
 
@@ -21,6 +21,10 @@ Trading is a TanStack Start app in the monorepo.
 Use this app's local code, config, and workspace docs as source of truth for Trading behavior.
 
 ## Communication Style
+
+**Read the "Talk Like a Normal Person" section in the root `CLAUDE.md` first — it
+has the banned-word list and the formatting limits. It is not optional, and this
+app is where it gets broken most often.**
 
 - **ALWAYS answer in plain English. This applies to EVERYTHING, every response, no exceptions.**
 - Write for a smart person who is NOT a programmer or a trader. Assume no technical background.

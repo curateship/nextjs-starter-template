@@ -12,16 +12,7 @@ import type { DirectorySubmissionStatus } from "./directory-submission-actions.s
 export type * from "./directory-submission-actions.server"
 
 export const submitDirectoryListingSubmissionAction = createServerFn({ method: "POST" })
-  .inputValidator((data: { input: {
-  siteId: string
-  businessName: string
-  address?: string
-  description?: string
-  imageUrl?: string
-  contactEmail: string
-  categoryId?: string
-  honeypot?: string
-} }) => data)
+  .inputValidator((data: { input: Parameters<typeof submitDirectoryListingSubmissionActionImpl>[0] }) => data)
   .handler(async ({ data }) => submitDirectoryListingSubmissionActionImpl(data.input))
 
 export const getListingSubmissionCategoriesAction = createServerFn({ method: "POST" })
@@ -33,9 +24,5 @@ export const getDirectorySubmissionListAction = createServerFn({ method: "POST" 
   .handler(async ({ data }) => getDirectorySubmissionListActionImpl(data.siteId, data.status))
 
 export const reviewDirectorySubmissionAction = createServerFn({ method: "POST" })
-  .inputValidator((data: { input: {
-  submissionId: string
-  status: 'approved' | 'rejected'
-  note?: string
-} }) => data)
+  .inputValidator((data: { input: Parameters<typeof reviewDirectorySubmissionActionImpl>[0] }) => data)
   .handler(async ({ data }) => reviewDirectorySubmissionActionImpl(data.input))

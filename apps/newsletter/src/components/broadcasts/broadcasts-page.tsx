@@ -187,7 +187,7 @@ export function BroadcastsPage() {
       <DashboardTable
         title="Broadcasts"
         icon={
-          <SendIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+          <SendIcon className="text-muted-foreground" />
         }
         count={total}
         controls={

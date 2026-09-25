@@ -1,0 +1,238 @@
+# The market list
+
+The left column holds Market scanner. Its cog controls volume and volatility
+conditions. `market-scanner.md` explains the results and candle coverage.
+Saved folders remain in the chart header's folder menu.
+
+- **Searching lives in the market picker** — the market name at the top of
+  the chart opens the whole catalogue with its own search. The panel has no
+  search box of its own. **Picking a market leaves the list open.** The chart
+  behind it changes and the window stays where it is, so a run down the rows
+  puts one market after another on screen without reopening the list each
+  time. Unpinned, the picker closes when the pointer leaves or Escape is pressed.
+  Pin keeps the picker open while the chart is used. Drag the grip to move the
+  pinned picker, or focus the grip and use arrow keys. Movement stops at the
+  screen edges. Unpin returns the picker beneath the market name. Escape closes
+  either mode. Pin and position last only while that picker remains mounted.
+  The toolbar has a grip icon, a pin icon, a search field and a checkbox
+  filter dropdown.
+  Several checked groups combine, so Crypto and TradFi show markets from either.
+  All markets clears the choices; clearing the last choice also shows all markets.
+  The browser remembers the checked filters and TradFi categories after closing
+  the picker, changing markets, or reloading. A filter unavailable on another
+  exchange stays saved but does not narrow that exchange's list. Search text
+  remains temporary. Blocked storage keeps the choices for the current visit.
+  TradFi reveals category checkboxes in the same menu. No category selected means
+  all TradFi categories. Trending adds the fifty highest-volume matching markets.
+  Search narrows the combined results. The filter menu stays open while checking
+  several choices, and the market dropdown stays open while its filter is used.
+  On narrow screens, the chart header wraps its controls so the market selector stays clickable.
+  The search box sits in the toolbar itself, always there. It is the shared
+  toolbar search field, with the magnifier drawn inside it and an × to clear
+  it once something is typed. Closing the picker clears what was typed.
+  The picker is 28rem wide, 448 pixels at the default text size, and capped to
+  the viewport. The table scrolls horizontally on narrow screens. The columns are Market,
+  24h change and Volume. Last price, Funding and Open interest are omitted.
+  The remaining columns keep sorting and live figures.
+  The list uses the themed ScrollArea and its heading stays visible while scrolling.
+  **The bar under the list counts the markets by kind** — "95 crypto and 44
+  stock markets", or "95 crypto, 44 stock and 7 FX markets" with three kinds
+  in view. Kinds keep the catalogue's own order, crypto first, so the sentence
+  does not reshuffle as prices move a market in or out of the list. One kind
+  on its own drops the "and"; a single market reads "1 stock market".
+- **A search that matches nothing can ask the venue itself**, on an exchange
+  that says it can (Solana, where anyone can mint a coin and no list holds
+  them all). Under "No matching markets." the picker offers one button, "Find
+  "BONK" on Solana". It is a button and not automatic because each lookup
+  spends one of the minute's requests. A coin it finds joins the list for the
+  session, in the picker and in All markets, and is charted like any other.
+  Nothing found says so; a coin the venue has no price for is left out.
+- **A coin the venue itself warns about wears a small word beside its name**,
+  "Unverified" or "Suspicious", in the shared badge, in both the panel and
+  the picker. The coin is never hidden, because "all of Solana" was the
+  point, but it never looks like a vetted one either. Hovering the word says
+  what it means.
+- **On testnet, the amber strip sits at the panel's foot and beneath the
+  market header controls.** Both say the money is pretend and offer Back to
+  Mainnet. The header warning stays visible on narrow screens with Markets
+  closed. Mainnet draws neither warning.
+- **Both side panels open at their smallest useful width.** Folders starts at
+  12% of the workspace and Smart orders starts at 18.5rem. The chart takes
+  the space left between them. Either width is still yours to drag and is
+  remembered in the account, so the same layout follows you to another
+  browser.
+- **A row is the symbol and the day's move, nothing else.** The percentage is
+  signed and sits in a soft pill of its colour — green up, red down; the price
+  belongs to the market header; a market with no yesterday price shows a plain
+  dash, not a zero in a pill. A ticker longer than nine characters shows its
+  first eight characters and an ellipsis. Hover and screen readers keep the
+  full ticker.
+- **Sub-exchange markets keep their full name** — "xyz:SNDK", never a
+  stripped "SNDK" that could be read as a main-exchange coin. The (i)
+  tooltip names the venue; coin art and the letter fallback use the bare
+  name.
+- **The bottom bar carries a kind-of-market filter** beside the search —
+  crypto, stocks, indices, commodities, forex, other; only kinds actually in
+  the list are offered. It narrows the All tab only (stars are stars), is
+  remembered per browser, and reads as switched off on the other tabs.
+- **The (i) tooltip ends with the market's ground rules:** the smallest size
+  an order may use, the max leverage, and — where it applies — "Isolated
+  only", explained in the same line. A rule the exchange does not state
+  shows nothing, never a guess.
+- **The market header's (i) tooltip names both kinds of price and the daily
+  dollar volume.** The list and every order rule use the exchange's mark price.
+  Chart bars show traded prices, so the newest candle may sit above or below
+  the number the exchange uses for stops and account value.
+- **A bare visit reopens your last market**, remembered against the account
+  (a second machine gets it too). The browser also keeps each protocol's most
+  recent market while the account save is travelling, so moving to another
+  protocol and straight back does not open an empty chart. A link with
+  `?market=` always wins, and a remembered market that no longer resolves
+  shows the honest missing state.
+- **A first visit to an exchange opens its busiest market**: the highest
+  24-hour dollar volume among the markets the lists show. The account
+  remembers a last market per exchange, so this happens only while an
+  exchange has nothing remembered. Before 24 Sep 2026 it was an empty chart
+  with no picker whenever the market list panel was folded away. The busiest
+  market is shown, never saved: only a market somebody picks or links to
+  becomes the remembered one. It is chosen once per visit, so a fresh market
+  list with a new busiest market does not move the chart.
+- **Sort is drawn as column headers** — "24h Vol" left, "24h Change" right, the
+  shared `TableSortButton` — and clicking the sorted one flips the direction.
+  Both headings lead with the time window, and so does the market picker's "24h
+  change", so the three read the same way round. All markets opens with 24h
+  Change sorted from the largest gain to the largest loss. Every saved folder
+  uses that same order. A market with no reported change comes last.
+- **Stars are put on in the market header**, at the head of the row, before the
+  logo of the market on screen. Every row of the market picker has the same
+  star. An empty star adds the coin to Fav in one press. A filled star opens
+  the folder list because the coin may be in more than one folder.
+- **Folders save to the account, not the browser**, so Fav, named folders and
+  their order follow you between machines. Each folder belongs to one
+  exchange and network. Fav is first and cannot be renamed or deleted.
+  Folder changes appear at once and revert with a toast if the save fails.
+- **Settings → Markets holds one minimum daily dollar volume for the account.**
+  Every exchange uses the same number. Markets below it disappear from every
+  list, including folders and search. The setting never disables a market:
+  links, remembered markets, positions and orders still open its normal header,
+  chart and order controls. A zero setting keeps the old rule, where markets
+  with no reported volume stay hidden. When the cutoff hides every market, All
+  says none meet the setting. A folder with no visible markets names the folder
+  and points back to the star control.
+- **A market you will never trade can be hidden by hand.** Right-click a row in
+  All markets and pick "Hide X from All markets". The row goes at once and the
+  save runs behind it; a refused save puts the row back with a toast. The
+  hidden market still shows in Manual orders, in every named folder, in the market
+  picker, in backtests and in recipes: only the All markets row leaves it
+  out, and its count leaves it out too. This is a different thing from the
+  volume cutoff. The cutoff is one number in Settings and a market comes back
+  the moment its volume rises; a market hidden by hand stays hidden until the
+  folder cog's Hidden markets card shows it again (`market-folders.md`). Each
+  exchange and network keeps its own list, capped at 200 markets with a plain
+  message. The charted market can be hidden too; the chart stays on it until
+  another market is chosen. When every listed market is hidden by hand, All
+  markets says so and points at the cog.
+- **Selection lives in the address** as a full market key
+  (`?market=hyperliquid:mainnet:BTC`), so a link means the same market even
+  when a second exchange exists. The selected row keeps its gray fill and adds
+  a right border in the theme's text color in saved folders and All markets.
+
+### The Manual orders panel
+
+Every price you are waiting at, across every coin and every wallet on this
+exchange. This is a separate draggable panel under Smart orders and Bots on
+the right. A plain order does not rest on the exchange any more. The app holds
+the level and sends nothing until the market comes to it, which
+`../orders/watched-orders.md` explains — and those levels were only ever visible one coin
+at a time on the chart, or mixed in with everything else under Open orders.
+
+When the panel also shows a hand-held position, a muted **Waiting orders**
+header separates the positions already open from prices that have not fired.
+
+- **One row per market.** When several orders wait on the same market, the row
+  shows the order nearest today's price. The market keeps the place given to
+  its newest order, so a changing price can change the order shown without
+  moving the row under the pointer. With no market price, or an equal distance,
+  the newest order wins. Manual order rows show the coin name without its
+  favicon.
+- **One line per row, shaped like a market row.** The coin with what the
+  order will spend beside it in the quiet grey the volume figure uses, and on
+  the right a green pill saying how far today's price is from the level:
+  "PENDLE $199  [36.09% away]". The dollars are whole dollars, because the
+  row is for telling a $20 level from a $1,000 one. Which way, at what price
+  and from which wallet sit on the row's tooltip; the chart the press opens
+  shows the level itself. The coin gives way to an ellipsis first and the
+  figures on the right never do.
+- **The wallet is named only when the list spans more than one.** With every
+  level in the same wallet its name is the same word on every row, pushing the
+  level into an ellipsis to say nothing.
+- **Newest first, and it stays that way** while prices move. Sorting by which
+  level is closest would reshuffle the list under the pointer every second.
+- **Pressing a row charts that coin**, the same press the market rows answer
+  to. Calling an order off stays where it already is, the × in Open orders and
+  the line on the chart, rather than becoming a second place to cancel.
+- **The charted coin's row carries the same gray fill the All tab uses.** On
+  both lists the fill runs edge to edge and the first row sits flush under the
+  header line, the way the folder menu draws its rows.
+- **"Reached" is the engine's own rule**, so the list and the engine can never
+  disagree about whether a price has arrived: a buy is reached when today's
+  price has come down to it, a sell when it has come up. The price is the
+  live feed's where there is one, and the catalogue's last mark where there
+  is not — KuCoin has no all-markets feed, so its rows had no distance at all
+  until 23 Aug 2026. With neither, the pill is left off, because a dash there
+  would read as zero.
+- **Loading, empty and failed are three different answers.** "Nothing is
+  waiting" is only said once the read has come back.
+- **It opens on the levels this browser saw last time**, so there is no spinner
+  on the first thing anybody looks at. Measured on 21 Aug 2026: the rows used
+  to land 5.3 seconds after a reload and now land at 1.8, which is as soon as
+  the panel itself exists. `../orders/watched-orders.md` says what is kept and why it is
+  never trusted.
+- **Nothing marks those rows while the read is on its way.** A "checking these
+  are still waiting" line was tried and taken out on 21 Aug 2026: the read
+  lands almost at once, the levels almost never differ, and a spinner on the
+  first thing on screen is the wait wearing a different hat.
+- **A read that FAILS is the one case that speaks up.** It keeps last time's
+  answer and puts "The read failed. This is what was here last time." above it,
+  with a Try again. Nothing is coming to correct it, so it has to say it is
+  old. That line sits above the "nothing is waiting" wording just as it sits
+  above rows. With no cache at all it says instead that it could not find out.
+- **The cache only ever stands in until this session has an answer of its own.**
+  A read that refuses in the afternoon never puts the morning's levels back
+  over what is on screen.
+- **The exchange call failing does not take the page down.** The list shows
+  the error and a retry; every other panel still works.
+- **The rows stream in after the page paints.** The market catalogue is the
+  exchange's answer, and since 29 Aug 2026 the page stops waiting for the
+  exchange before painting. Until the catalogue lands, All markets shows the
+  shared loading row and its count says nothing, and a folder with saved
+  coins shows the same loading row rather than claiming its coins are not
+  available. A list already on screen stays up while a fresh one loads for
+  the same network; switching network shows loading, never the old floor.
+
+## Checking the compact market picker
+
+The picker has three columns, Market, 24h change and Volume. Open its filter
+menu and check Crypto and TradFi together. The rows include either group.
+Checking Stocks under TradFi narrows that group while keeping Crypto visible.
+All markets clears the filters. Escape first closes the filter menu and then
+the picker. The same controls work while the picker is pinned.
+
+The focused picker and options tests cover combined groups, category choices,
+reset, empty favorites, the three columns, search, lookup and pinned movement.
+Playwright checked the combined filters, reset, Escape and pinning on
+Hyperliquid with no page errors or failed requests. The desktop picker measured
+448 pixels wide. At a 375-pixel viewport, the picker measured 352.5 pixels and
+stayed within the screen. Other exchange pages were not repeated for this change.
+The selected market's Favorite star and header pin sit on the same light-gray
+button surface as the other header controls. Both are amber before they are
+saved, then fill amber when saved. The market-list row star stays a bare icon,
+so the list does not gain a second button shape.
+
+The header pin fades to half strength while it is busy, the same as every other
+greyed-out button. It is busy while it reads the saved pins after the page opens
+and while it saves a click. Hovering or tabbing to the faded pin says which one
+is happening: "Saving header pins. Try again once it finishes." or "Reading
+header pins. The pin works once they load." A second click
+during a save does nothing, and the fade is what tells you so. The star is never
+greyed out, so it never fades.

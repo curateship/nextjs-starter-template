@@ -1,4 +1,5 @@
 import * as React from "react"
+import { usd } from "@/lib/format"
 import { Loader2Icon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -356,7 +357,7 @@ export function OrderTicket({
               Size
             </Label>
             <span className="font-mono text-[11px] text-muted-foreground tabular-nums">
-              Avail. {formatUsd(equity)}
+              Avail. {usd(equity)}
             </span>
           </div>
           <div className="flex items-center rounded-lg bg-muted pl-3">
@@ -471,10 +472,10 @@ export function OrderTicket({
         </div>
 
         <div className="grid gap-1.5 rounded-lg bg-muted p-3 font-mono text-[11px] tabular-nums">
-          <PreviewRow label="Order value" value={`$${preview.notionalUsd.toFixed(2)}`} />
+          <PreviewRow label="Order value" value={usd(preview.notionalUsd)} />
           <PreviewRow
             label="Margin required"
-            value={`$${preview.marginRequiredUsd.toFixed(2)}`}
+            value={usd(preview.marginRequiredUsd)}
           />
           <PreviewRow label="Est. fee" value={`$${preview.estFeeUsd.toFixed(3)}`} />
           <PreviewRow
@@ -581,13 +582,6 @@ function SegmentButton({
   )
 }
 
-export function formatUsd(value: number): string {
-  return value.toLocaleString("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 2,
-  })
-}
 
 export function ConfirmOrderDialog({
   open,
@@ -649,7 +643,7 @@ export function ConfirmOrderDialog({
           />
           <SummaryRow
             label="Size"
-            value={`${szCoin.toFixed(6)} ${market} ≈ $${notionalUsd.toFixed(2)}`}
+            value={`${szCoin.toFixed(6)} ${market} ≈ ${usd(notionalUsd)}`}
           />
           <SummaryRow
             label="Est. price"

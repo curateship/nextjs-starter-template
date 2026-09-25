@@ -1,0 +1,270 @@
+import {
+  parseMarketKey,
+  type CandleBar,
+  type CandleInterval,
+  type MarketKey,
+} from "@/lib/protocols/contracts"
+import {
+  intervalMs,
+  storeDepthFrom,
+  storeKeepsFrom,
+  venueSliceFrom,
+  wantsFullHistory,
+} from "@/lib/trade/chart-history"
+import { getProtocol } from "@/server/protocols/registry"
+import {
+  ensureCandleCoverage,
+  loadStoredCandles,
+} from "@/server/trade/candle-store"
+import {
+  resolveHistorySource,
+  sourceLabelOf,
+} from "@/server/trade/history-source"
+import { recordEngineWarning } from "@/server/trade/engine-errors"
+
+/**
+ * The two reads behind every chart.
+ *
+ * The first is the venue's own last 30 days, drawn at once. The second is the
+ * store's rows behind them, filled from the market's history source on first
+ * use and read straight back after that. `@/lib/trade/chart-history` says why
+ * the split is where it is.
+ */
+
+/** The venue's own recent slice, after resolving the market through the fence. */
+export async function loadProtocolCandles(
+  marketKey: string,
+  interval: CandleInterval
+): Promise<CandleBar[]> {
+  const ref = parseMarketKey(marketKey)
+  if (!ref) throw new Error("Not a market key.")
+  const protocol = getProtocol(ref.protocol)
+  if (protocol.markets.storesVenueCandles) {
+    const now = Date.now()
+    const step = intervalMs(interval)
+    const from = Math.ceil(venueSliceFrom(interval, now) / step) * step
+    const to = Math.floor(now / step) * step
+    try {
+      await ensureCandleCoverage(marketKey, interval, from, to)
+    } catch (error) {
+      const stored = await loadStoredCandles(marketKey, interval, from, to)
+      const source = stored.length
+        ? null
+        : await resolveHistorySource(marketKey)
+      // A refusal must not stop the chart from painting cached bars or loading
+      // borrowed history. The older-history read reports incomplete pool fills.
+      if (stored.length || source) {
+        recordEngineWarning(
+          "candles",
+          `Recent pool candles unavailable for ${marketKey}`
+        )
+        return stored.length
+          ? stored
+          : loadStoredCandles(source!, interval, from, to)
+      }
+      const said = error instanceof Error ? error.message : String(error)
+      if (said.includes("EXCHANGE_BUSY:") && !said.includes(" — ")) {
+        const detail = said.slice(
+          said.indexOf("EXCHANGE_BUSY:") + "EXCHANGE_BUSY:".length
+        )
+        throw new Error(`EXCHANGE_BUSY:${protocol.label} — ${detail}`)
+      }
+      throw error
+    }
+    const own = await loadStoredCandles(marketKey, interval, from, to)
+    if (own.length) return own
+    // A missing pool may still have borrowed history ready for first paint.
+  }
+  if (protocol.markets.recordsOwnBars) {
+    // **There is no venue to ask, so the first paint comes from the store.**
+    // Every other venue hands over its own recent slice at once and the
+    // store fills the years in behind it. A venue with no candles had
+    // nothing to paint, so the whole chart waited on a read of every bar
+    // ever stored — 2.8 seconds for JUP against Hyperliquid's 0.8, and
+    // longer on a fast timeframe. This reads the same recent slice the
+    // venues are asked for, at most a thousand bars, from whichever key
+    // holds this market's history. `loadOlderCandles` stitches the rest in
+    // behind it exactly as it does everywhere else.
+    const source = await resolveHistorySource(marketKey)
+    const now = Date.now()
+    const step = intervalMs(interval)
+    return loadStoredCandles(
+      source ?? marketKey,
+      interval,
+      venueSliceFrom(interval, now),
+      Math.floor(now / step) * step
+    )
+  }
+  try {
+    return await protocol.markets.candles(
+      ref.network,
+      ref.marketId,
+      interval,
+      venueSliceFrom(interval, Date.now())
+    )
+  } catch (error) {
+    const said = error instanceof Error ? error.message : String(error)
+    if (!said.includes("EXCHANGE_BUSY")) throw error
+
+    // Preserve the venue's own allowance detail when it supplied one. The
+    // browser turns this stable code into the chart's plain-language message.
+    const detail = /EXCHANGE_BUSY:(.+)$/.exec(said)?.[1]?.trim() ?? ""
+    throw new Error(
+      `EXCHANGE_BUSY:${protocol.label}${detail ? ` — ${detail}` : ""}`
+    )
+  }
+}
+
+export type OlderCandles = {
+  candles: CandleBar[]
+  /** Where the rows came from, or null when they are the venue's own. */
+  source: {
+    key: MarketKey
+    label: string
+    /** What the source's volume really is, when it is not the market's. */
+    volumeNote: string | null
+    /**
+     * One sentence naming whose history this is, on a venue where the
+     * borrowing has to be said out loud. Null everywhere else, so no other
+     * venue's chart changes.
+     */
+    borrowedNote: string | null
+  } | null
+  /**
+   * True when the source could not be asked for the rest just now, so the
+   * rows are what the store already held and may stop short. The chart
+   * draws them and says the older bars could not all be loaded.
+   */
+  partial: boolean
+}
+
+/**
+ * Two tabs opening the same market at once would each fill the store. The
+ * writes are harmless twice, but the fetch is not free, so a fill in flight
+ * is shared with whoever asks for the same one meanwhile.
+ */
+const filling = new Map<string, Promise<OlderCandles>>()
+
+/**
+ * The store's bars behind the venue's slice, filling the store first.
+ *
+ * A market with a source reads the source's key: back to the source's first
+ * bar on the timeframes that load in full, and `MOST_BARS_A_CHART_ASKS_FOR`
+ * deep on the rest. Every closed bar up to now is asked for, so the seam
+ * with the venue's slice has no hole in it; where both have a bar, the
+ * browser lets the venue win.
+ *
+ * A market with no source keeps today's behaviour: the venue's own whole
+ * history on the full-history timeframes, where the venue can afford it,
+ * and nothing more on the rest.
+ */
+export async function loadOlderCandles(
+  marketKey: string,
+  interval: CandleInterval
+): Promise<OlderCandles> {
+  const ref = parseMarketKey(marketKey)
+  if (!ref) throw new Error("Not a market key.")
+
+  const venue = getProtocol(ref.protocol)
+  const source = await resolveHistorySource(marketKey)
+  if (!source && !venue.markets.storesVenueCandles) {
+    // A venue that publishes no candles has one other place to look: the
+    // bars the app recorded under this market's own key while watching it.
+    // Nothing is fetched, because there is nowhere to fetch from.
+    if (venue.markets.recordsOwnBars) {
+      const now = Date.now()
+      const step = intervalMs(interval)
+      return {
+        candles: await loadStoredCandles(
+          marketKey,
+          interval,
+          Math.max(storeKeepsFrom(now), storeDepthFrom(interval, now)),
+          Math.floor(now / step) * step
+        ),
+        source: null,
+        partial: false,
+      }
+    }
+    const chases =
+      wantsFullHistory(interval) &&
+      venue.markets.chartChasesFullHistory !== false
+    if (!chases) return { candles: [], source: null, partial: false }
+    return {
+      candles: await venue.markets.candles(ref.network, ref.marketId, interval),
+      source: null,
+      partial: false,
+    }
+  }
+
+  const fillSource = source ?? marketKey
+  const fillKey = `${fillSource}@${interval}`
+  const inFlight = filling.get(fillKey)
+  const fill =
+    inFlight ??
+    fillStore(fillSource, interval).finally(() => {
+      if (filling.get(fillKey) === fill) filling.delete(fillKey)
+    })
+  if (!inFlight) filling.set(fillKey, fill)
+
+  const answer = await fill
+  if (!source) return { ...answer, source: null }
+  // The note belongs to the BORROWER, not the source, so it is added here
+  // rather than inside the shared fill: two venues can borrow the same
+  // Binance market and only one of them has to say so.
+  if (!venue.markets.recordsOwnBars || !answer.source) return answer
+  return {
+    ...answer,
+    source: {
+      ...answer.source,
+      borrowedNote: `History from ${answer.source.label}`,
+    },
+  }
+}
+
+async function fillStore(
+  source: MarketKey,
+  interval: CandleInterval
+): Promise<OlderCandles> {
+  const ref = parseMarketKey(source)
+  if (!ref) throw new Error("Not a market key.")
+  const entry = getProtocol(ref.protocol)
+  const now = Date.now()
+  const step = intervalMs(interval)
+  // The bar still forming is never stored: it would count as covered and
+  // never be looked at again.
+  const to = Math.floor(now / step) * step
+  const floor = entry.markets.historyFloor?.(ref.marketId, interval) ?? null
+  const readFloor = entry.markets.storesVenueCandles ? null : floor
+  const from = Math.max(
+    storeKeepsFrom(now),
+    wantsFullHistory(interval)
+      ? (readFloor ?? storeDepthFrom(interval, now))
+      : Math.max(storeDepthFrom(interval, now), readFloor ?? 0)
+  )
+
+  // A source that will not answer just now does not blank what the store
+  // already holds. The rows there are drawn, and the chart says the rest
+  // could not be loaded, with Try again.
+  let partial = false
+  try {
+    await ensureCandleCoverage(source, interval, Math.max(from, floor ?? 0), to)
+  } catch (error) {
+    recordEngineWarning(
+      "candles",
+      `[candle-store] ${source} ${interval}: fill failed, answering with what is stored — ${error instanceof Error ? error.message : String(error)}`
+    )
+    partial = true
+  }
+  return {
+    candles: await loadStoredCandles(source, interval, from, to),
+    source: {
+      key: source,
+      label: sourceLabelOf(source),
+      volumeNote: entry.markets.volumeNote ?? null,
+      // Filled in by the caller, which is the only one that knows which
+      // venue is doing the borrowing.
+      borrowedNote: null,
+    },
+    partial,
+  }
+}

@@ -1,6 +1,7 @@
-// Sends the two registration emails (immediate confirmation, and the reminder
-// before the event) through the same per-site Resend config and editable
-// system-email templates every other transactional email in the app uses.
+// Sends the three registration emails (the immediate confirmation, the reminder
+// before the event, and the thank-you after it) through the same per-site Resend
+// config and editable system-email templates every other transactional email in
+// the app uses.
 //
 // The sender config, the template and everything in the message that does not
 // depend on who is receiving it are resolved once by createEventRegistrationMailer.
@@ -17,10 +18,11 @@ import {
 } from '@/lib/actions/email/system-email'
 import { getEmailConfig } from '@/lib/actions/integrations/config-helpers'
 import { buildEventLocation, formatEventWhen } from '@/lib/utils/calendar'
+import { buildTicketQrUrl, buildTicketUrl } from './event-check-in-core'
 
 export type EventRegistrationEmailKey = Extract<
   SystemEmailTemplateKey,
-  'event_registration_confirmation' | 'event_reminder'
+  'event_registration_confirmation' | 'event_reminder' | 'event_follow_up'
 >
 
 export interface EventEmailContext {
@@ -33,7 +35,12 @@ export interface EventEmailContext {
 }
 
 export interface EventRegistrationMailer {
-  send(attendeeName: string, attendeeEmail: string): Promise<{ sent: boolean; error: string | null }>
+  /** `checkInCode` is this attendee's ticket, and the only per-recipient token besides their name. */
+  send(
+    attendeeName: string,
+    attendeeEmail: string,
+    checkInCode: string,
+  ): Promise<{ sent: boolean; error: string | null }>
 }
 
 /**
@@ -42,8 +49,9 @@ export interface EventRegistrationMailer {
  * Returns `mailer: null` with a reason rather than throwing, because every caller
  * must carry on when a site has no mail sender configured or the owner has turned
  * the template off — the registration itself still stands. Callers only stamp
- * `confirmation_sent_at` / `reminder_sent_at` on a successful send, so an unsent
- * email is retried later rather than silently skipped.
+ * `confirmation_sent_at` / `reminder_sent_at` / `follow_up_sent_at` on a
+ * successful send, so an unsent email is retried later rather than silently
+ * skipped.
  */
 export async function createEventRegistrationMailer(params: {
   templateKey: EventRegistrationEmailKey
@@ -60,7 +68,8 @@ export async function createEventRegistrationMailer(params: {
     return { mailer: null, error: 'This email template is turned off' }
   }
 
-  // Every token except the attendee's name is the same for the whole list.
+  // Every token except the attendee's name and their ticket links is the same
+  // for the whole list.
   const eventTokens = await buildSystemEmailTokens({
     siteId: params.siteId,
     eventName: params.event.title,
@@ -74,10 +83,19 @@ export async function createEventRegistrationMailer(params: {
   const provider = getEmailProvider(config.apiKey, config.providerType)
   const from = config.fromName ? `${config.fromName} <${config.fromEmail}>` : config.fromEmail
 
+  const siteUrl = eventTokens.site_url
+
   return {
     mailer: {
-      async send(attendeeName: string, attendeeEmail: string) {
-        const tokens = { ...eventTokens, attendee_name: attendeeName }
+      async send(attendeeName: string, attendeeEmail: string, checkInCode: string) {
+        const tokens = {
+          ...eventTokens,
+          attendee_name: attendeeName,
+          // Empty when the site has no resolvable URL: an email with a broken
+          // image and a dead link is worse than one with neither.
+          ticket_url: siteUrl ? buildTicketUrl(siteUrl, checkInCode) : '',
+          ticket_qr_url: siteUrl ? buildTicketQrUrl(siteUrl, checkInCode) : '',
+        }
         const result = await provider.send({
           from,
           to: attendeeEmail,
@@ -102,8 +120,9 @@ export async function sendEventRegistrationEmail(params: {
   event: EventEmailContext
   attendeeName: string
   attendeeEmail: string
+  checkInCode: string
 }): Promise<{ sent: boolean; error: string | null }> {
   const { mailer, error } = await createEventRegistrationMailer(params)
   if (!mailer) return { sent: false, error }
-  return mailer.send(params.attendeeName, params.attendeeEmail)
+  return mailer.send(params.attendeeName, params.attendeeEmail, params.checkInCode)
 }

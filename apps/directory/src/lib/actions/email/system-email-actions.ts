@@ -14,12 +14,5 @@ export const getSystemEmailEditorAction = createServerFn({ method: "POST" })
   .handler(async ({ data }) => getSystemEmailEditorActionImpl(data.templateKeyInput, data.siteId))
 
 export const saveSystemEmailTemplateAction = createServerFn({ method: "POST" })
-  .inputValidator((data: { input: {
-  templateKey: string
-  siteId?: string | null
-  subject: string
-  contentBlocks: Record<string, any>
-  fromName?: string | null
-  replyTo?: string | null
-} }) => data)
+  .inputValidator((data: { input: Parameters<typeof saveSystemEmailTemplateActionImpl>[0] }) => data)
   .handler(async ({ data }) => saveSystemEmailTemplateActionImpl(data.input))

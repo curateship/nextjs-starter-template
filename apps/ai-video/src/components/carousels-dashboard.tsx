@@ -318,7 +318,7 @@ export function CarouselsDashboard() {
         <DashboardTable
           title="Carousels"
           icon={
-            <PanelsTopLeftIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+            <PanelsTopLeftIcon className="text-muted-foreground" />
           }
           count={totalCarousels}
           controls={controls}
@@ -349,7 +349,7 @@ export function CarouselsDashboard() {
         <DashboardTable
           title="Carousels"
           icon={
-            <PanelsTopLeftIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+            <PanelsTopLeftIcon className="text-muted-foreground" />
           }
           count={totalCarousels}
           controls={controls}

@@ -11,6 +11,7 @@ import {
   clearAlertEvents,
   createAlertRule,
   deleteAlertRule,
+  deleteAlertRulesById,
   getAlertEventsPoll,
   getAlertEventsPage,
   getAlertRules,
@@ -19,8 +20,11 @@ import {
   pauseAlertRule,
   pruneAlertEvents,
   recordAlertEvent,
+  resolveTrendlineRuleLines,
   updateAlertRule,
+  type TrendlineAlertRule,
 } from "@/server/alerts"
+import { saveUserChartDrawings } from "@/server/chart-drawings"
 import * as schema from "@/server/schema"
 import { now, uuid } from "@/server/util"
 
@@ -32,7 +36,10 @@ beforeEach(async () => {
   for (const file of [
     "../../drizzle/0000_custom_shell_baseline.sql",
     "../../drizzle/0003_custom_shell_workspaces.sql",
+    "../../drizzle/0028_chart_trendlines.sql",
     "../../drizzle/0037_alert_dashboard.sql",
+    "../../drizzle/0050_chart_position_drawings.sql",
+    "../../drizzle/0053_trendline_alerts.sql",
   ]) {
     await client.exec(await readFile(new URL(file, import.meta.url), "utf8"))
   }
@@ -302,5 +309,167 @@ describe("alert storage", () => {
     expect(
       (await getAlertEventsPage(userId, {}, asDb())).items[0]?.observed
     ).toBe(5.3)
+  })
+})
+
+describe("drawn-line alerts", () => {
+  const lineInput: AlertRuleInput = {
+    name: "BTC drawn line",
+    coin: "BTC",
+    kind: "trendline",
+    network: "mainnet",
+    trendlineId: "trendline-1",
+    touch: "wick",
+    triggerMode: "once",
+  }
+
+  function chartLine(id: string) {
+    return {
+      id,
+      start: { time: 1_700_000_000, price: 60_000 },
+      end: { time: 1_700_003_600, price: 61_000 },
+      color: "#2962ff",
+    }
+  }
+
+  async function saveLines(userId: string, ids: string[]) {
+    await saveUserChartDrawings(
+      userId,
+      {
+        network: "mainnet",
+        market: "BTC",
+        trendlines: ids.map(chartLine),
+        positions: [],
+      },
+      asDb()
+    )
+  }
+
+  it("stores and round-trips a drawn-line rule", async () => {
+    const userId = await createUser("owner@example.test")
+    const rule = await createAlertRule(userId, lineInput, asDb())
+
+    expect(rule).toMatchObject({
+      kind: "trendline",
+      network: "mainnet",
+      trendlineId: "trendline-1",
+      touch: "wick",
+      status: "active",
+    })
+    expect((await getAlertRules(userId, asDb()))[0]).toMatchObject({
+      kind: "trendline",
+      trendlineId: "trendline-1",
+      touch: "wick",
+    })
+  })
+
+  it("records the line's own price beside the observed price in the log", async () => {
+    const userId = await createUser("owner@example.test")
+    const rule = await createAlertRule(userId, lineInput, asDb())
+    const event = await recordAlertEvent(
+      {
+        rule,
+        observed: 60_490,
+        occurredAt: now(),
+        eventKey: "line-touch",
+        linePrice: 60_500,
+      },
+      asDb()
+    )
+
+    expect(event).toMatchObject({
+      kind: "trendline",
+      touch: "wick",
+      level: 60_500,
+      observed: 60_490,
+    })
+    expect(event?.title).toBe("BTC touched your drawn line at 60490")
+    expect((await getAlertRules(userId, asDb()))[0]?.status).toBe("triggered")
+  })
+
+  it("refuses a second rule on the same drawn line, even in a race", async () => {
+    const userId = await createUser("owner@example.test")
+    await createAlertRule(userId, lineInput, asDb())
+    await expect(
+      createAlertRule(userId, { ...lineInput, name: "Duplicate" }, asDb())
+    ).rejects.toThrow()
+    expect(await getAlertRules(userId, asDb())).toHaveLength(1)
+
+    // A different line on the same chart is still fine.
+    await createAlertRule(
+      userId,
+      { ...lineInput, name: "Second line", trendlineId: "trendline-2" },
+      asDb()
+    )
+    expect(await getAlertRules(userId, asDb())).toHaveLength(2)
+  })
+
+  it("resolves each rule to its saved drawing and flags missing lines", async () => {
+    const userId = await createUser("owner@example.test")
+    await saveLines(userId, ["trendline-1"])
+    const kept = (await createAlertRule(
+      userId,
+      lineInput,
+      asDb()
+    )) as TrendlineAlertRule
+    const orphan = (await createAlertRule(
+      userId,
+      { ...lineInput, name: "Gone", trendlineId: "trendline-2" },
+      asDb()
+    )) as TrendlineAlertRule
+
+    const lines = await resolveTrendlineRuleLines([kept, orphan], asDb())
+    expect(lines.get(kept.id)).toMatchObject({ id: "trendline-1" })
+    expect(lines.get(orphan.id)).toBeNull()
+
+    await deleteAlertRulesById([orphan.id], asDb())
+    expect(await getAlertRules(userId, asDb())).toHaveLength(1)
+  })
+
+  it("retires a rule when its line is deleted from the chart", async () => {
+    const userId = await createUser("owner@example.test")
+    await saveLines(userId, ["trendline-1", "trendline-2"])
+    await createAlertRule(userId, lineInput, asDb())
+    await createAlertRule(
+      userId,
+      { ...lineInput, name: "Second", trendlineId: "trendline-2" },
+      asDb()
+    )
+
+    // Deleting one line keeps the other line's rule untouched...
+    await saveLines(userId, ["trendline-2"])
+    const remaining = await getAlertRules(userId, asDb())
+    expect(remaining).toHaveLength(1)
+    expect(remaining[0]).toMatchObject({ trendlineId: "trendline-2" })
+
+    // ...and clearing the chart retires the rest.
+    await saveLines(userId, [])
+    expect(await getAlertRules(userId, asDb())).toHaveLength(0)
+  })
+
+  it("leaves rules on other charts alone when one chart is cleared", async () => {
+    const userId = await createUser("owner@example.test")
+    await saveLines(userId, ["trendline-1"])
+    await saveUserChartDrawings(
+      userId,
+      {
+        network: "mainnet",
+        market: "ETH",
+        trendlines: [chartLine("trendline-9")],
+        positions: [],
+      },
+      asDb()
+    )
+    await createAlertRule(userId, lineInput, asDb())
+    await createAlertRule(
+      userId,
+      { ...lineInput, name: "ETH line", coin: "ETH", trendlineId: "trendline-9" },
+      asDb()
+    )
+
+    await saveLines(userId, [])
+    const remaining = await getAlertRules(userId, asDb())
+    expect(remaining).toHaveLength(1)
+    expect(remaining[0]).toMatchObject({ coin: "ETH", trendlineId: "trendline-9" })
   })
 })

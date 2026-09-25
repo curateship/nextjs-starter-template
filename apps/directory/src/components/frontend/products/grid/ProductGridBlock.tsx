@@ -1,6 +1,6 @@
 import Link from "@/components/app-link";
 import { BlockContainer } from "@/components/frontend/layout/block-container";
-import { ViewAllButton } from "@/components/ui/view-all-button";
+import { ViewAllButton } from "@/components/frontend/blocks/view-all-button";
 
 interface ProductGridBlockProps {
   className?: string;

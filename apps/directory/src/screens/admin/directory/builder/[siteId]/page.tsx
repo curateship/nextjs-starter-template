@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 import { use } from "react"
 import { useRouter, useSearchParams } from "@/lib/navigation-client"
 import { useDirectoryBuilderData } from "@/components/admin/directory-builder/config/useDirectoryBuilderData"
@@ -17,12 +18,10 @@ import { orderDirectoryEditorBlocks } from "@/components/admin/directory-builder
 import { updateDirectoryAction, updateDirectoryBlockValuesAction } from "@/lib/actions/directories/directory-actions"
 import { directoryBlocksToValueJson } from "@/lib/actions/directories/directory-template-inheritance"
 import type { Directory } from "@/lib/actions/directories/directory-actions"
-import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { DIRECTORY_CORE_BLOCK_TYPE } from "@/lib/actions/directories/directory-core"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { DirectoryPreview } from "@/components/admin/directory-builder/layout/DirectoryPreview"
 import { DirectoryBlockEditorModal } from "@/components/admin/directory-builder/layout/DirectoryBlockEditorModal"
-import { DirectoryBlockListPanel } from "@/components/admin/directory-builder/layout/DirectoryBlockListPanel"
 
 export default function DirectoryBuilderEditor({ params }: { params: Promise<{ siteId: string }> }) {
   const { siteId } = use(params)
@@ -35,7 +34,6 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
     queryValue: directoryFromUrl,
     siteId,
   })
-  const [blockListOpen, setBlockListOpen] = useState(false)
   const selectedDirectory = directoryFromUrl || ''
 
   // Custom hooks for data and state management
@@ -71,7 +69,6 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
   const [draftDirectoryTitle, setDraftDirectoryTitle] = useState("")
   const [draftDirectoryFeaturedImage, setDraftDirectoryFeaturedImage] = useState("")
   const [isSavingBlock, setIsSavingBlock] = useState(false)
-  const [blockSaveError, setBlockSaveError] = useState<string | null>(null)
 
   // Current directory row with staged deletions filtered out
   const currentDirectory = {
@@ -84,7 +81,7 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
     if (!selectedBlock) {
       setDraftContent({})
       setDraftDirectoryTitle("")
-      setBlockSaveError(null)
+      dismissErrorToast()
       return
     }
 
@@ -95,7 +92,7 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
     )
     setDraftDirectoryTitle(currentDirectoryRecord?.title || selectedDirectory)
     setDraftDirectoryFeaturedImage(currentDirectoryRecord?.featured_image || "")
-    setBlockSaveError(null)
+    dismissErrorToast()
   }, [selectedBlock, currentDirectoryRecord?.featured_image, currentDirectoryRecord?.title, selectedDirectory])
 
   // Handle directory updates
@@ -161,14 +158,14 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
   const handleCloseBlockEditor = () => {
     if (isSavingBlock) return
     builderState.setSelectedBlock(null)
-    setBlockSaveError(null)
+    dismissErrorToast()
   }
 
   const handleSaveBlockEditor = async () => {
     if (!selectedBlock || !currentDirectoryRecord?.id) return
 
     setIsSavingBlock(true)
-    setBlockSaveError(null)
+    dismissErrorToast()
 
     try {
       const currentBlocks = localBlocks[selectedDirectory] || []
@@ -196,7 +193,7 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
         if (Object.keys(directoryUpdates).length > 0) {
           const { data, error } = await updateDirectoryAction({ data: { directoryId: currentDirectoryRecord.id, data: directoryUpdates } })
           if (error || !data) {
-            setBlockSaveError(error || "Failed to save directory details")
+            showErrorToast(error || "Failed to save directory details")
             return
           }
           updatedDirectory = data
@@ -206,7 +203,7 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
       const contentBlocks = directoryBlocksToValueJson(nextBlocks)
       const result = await updateDirectoryBlockValuesAction({ data: { directoryId: currentDirectoryRecord.id, contentBlocks: contentBlocks } })
       if (!result.success) {
-        setBlockSaveError(result.error || "Failed to save block")
+        showErrorToast(result.error || "Failed to save block")
         return
       }
 
@@ -219,7 +216,7 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
       }
       builderState.setSelectedBlock(null)
     } catch (error) {
-      setBlockSaveError(error instanceof Error ? error.message : "Failed to save block")
+      showErrorToast(error instanceof Error ? error.message : "Failed to save block")
     } finally {
       setIsSavingBlock(false)
     }
@@ -241,24 +238,18 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
   const previewDirectoryFeaturedImage = selectedBlockIsCore
     ? draftDirectoryFeaturedImage.trim() || null
     : currentDirectoryRecord?.featured_image || null
-  const viewPageHref = site && currentDirectoryRecord
-    ? `${getSiteUrl(site)}/directory/${currentDirectoryRecord.slug}`
-    : null
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <DashboardStickyHeader
         rightActions={(
           <StickybarTopRightActions
-            preActions={siteError ? <span className="text-xs text-red-600">{siteError}</span> : null}
+            preActions={siteError ? <span className="text-xs text-destructive">{siteError}</span> : null}
             saveStatus={builderState.saveStatus}
             isSaving={builderState.isSaving}
-            onSave={builderState.handleSaveAllBlocks}
             onPublish={handlePublish}
             isPublishing={isPublishing}
             isPublished={currentDirectoryRecord?.status === "published"}
-            blockListOpen={blockListOpen}
-            onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
             settingsDisabled={!currentDirectoryRecord}
             renderSettingsModal={(show, setShow) => (
               show ? (
@@ -333,19 +324,8 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
           onClose={handleCloseBlockEditor}
           onSave={handleSaveBlockEditor}
           saving={isSavingBlock}
-          error={blockSaveError}
           mode="listing"
         />
-
-        {blockListOpen && (
-          <DirectoryBlockListPanel
-            blocks={currentDirectory.blocks}
-            selectedBlock={builderState.selectedBlock}
-            onSelectBlock={builderState.setSelectedBlock}
-            viewPageHref={viewPageHref}
-            blocksLoading={blocksLoading}
-          />
-        )}
 
       </div>
     </div>

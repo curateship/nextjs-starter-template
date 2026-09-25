@@ -30,6 +30,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { sanitizeAdminInput } from '@/lib/utils/sanitize'
+import { useSortableRow } from "@/components/admin/layout/builder/use-sortable-row"
 
 interface OrderBump {
   id: string
@@ -59,20 +60,7 @@ function SortableOrderBumpItem({
   updateBump: (index: number, field: keyof OrderBump, value: any) => void
   removeBump: (index: number) => void
 }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: bump.id })
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  }
+  const { attributes, listeners, setNodeRef, style, isDragging } = useSortableRow(bump.id)
 
   return (
     <div

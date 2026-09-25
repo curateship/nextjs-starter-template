@@ -95,6 +95,15 @@ Finished exports are streamed back through the app route (not the public R2
 URL) so a re-export at the same key can't serve stale bytes from the CDN, and
 the download filename comes from the editor via `?filename=`.
 
+**Loudness.** Every export is levelled to -14 LUFS unless "Normalize loudness"
+is turned off (workspace setting, also in Settings → General; the export modal's
+toggle saves it). After the render, two quick ffmpeg passes over the output
+measure the mix and apply the correction as a single fixed gain — video is
+stream-copied, so only the AAC track is re-encoded. Targets and the measurement
+parsing live in `lib/audio-loudness.ts`, which documents why it is two passes
+and why the loudness-range target is wide (a narrow one makes ffmpeg compress
+the ducking away).
+
 ## Automation Canvas
 
 A node-based workflow builder (`/admin/automations`) that chains pipeline

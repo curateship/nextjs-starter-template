@@ -1,6 +1,7 @@
 import { ImageUpload } from "@/components/image-upload"
 import { CollapsibleSettingsCard } from "@/components/collapsible-settings-card"
 import { CardGroup } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -20,6 +21,7 @@ import {
   API_USAGE_LIMIT_MIN,
 } from "@/lib/api-usage-constants"
 import { DUCK_DB_MAX, DUCK_DB_MIN } from "@/lib/audio-ducking"
+import { LOUDNESS_TARGET_LUFS } from "@/lib/audio-loudness"
 
 type GeneralSettingsProps = {
   config: ShellConfig
@@ -209,6 +211,29 @@ export function GeneralSettings({
           </p>
         </div>
 
+        <div className="grid gap-2">
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="normalize-loudness"
+              checked={config.normalizeLoudness}
+              disabled={isSaving}
+              onCheckedChange={(checked) =>
+                onConfigChange({
+                  ...config,
+                  normalizeLoudness: checked === true,
+                })
+              }
+            />
+            <Label htmlFor="normalize-loudness">
+              Normalize loudness on export
+            </Label>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Levels every export to {LOUDNESS_TARGET_LUFS} LUFS, the standard for
+            social video. The export dialog can turn it off per export.
+          </p>
+        </div>
+
         <ImageUpload
           label="Favicon"
           value={config.favicon}
@@ -216,7 +241,6 @@ export function GeneralSettings({
           aspect="square"
           fit="contain"
           emptyLabel="Select favicon"
-          showLabel={false}
           className="max-w-20"
         />
       </CollapsibleSettingsCard>

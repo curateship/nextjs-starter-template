@@ -242,7 +242,7 @@ export function MediaPicker({
         throw new Error(result.error || 'Upload failed')
       }
 
-      showActionSuccess("Media uploaded successfully!")
+      showActionSuccess("Media uploaded.")
 
       // Select the newly uploaded media immediately
       if (actualOnSelect) {
@@ -438,7 +438,6 @@ export function MediaPicker({
               {isLoading ? (
                 <div className="p-8 flex items-center justify-center">
                   <div className="text-center">
-                    <ImageIcon className="w-12 h-12 mx-auto mb-4 text-muted-foreground animate-pulse" />
                     <p className="text-muted-foreground">Loading images...</p>
                   </div>
                 </div>
@@ -519,7 +518,7 @@ export function MediaPicker({
                           )}
                           {actualCurrentUrl === media.public_url && (
                             <div className="absolute top-2 right-2">
-                              <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">
+                              <span className="px-2 py-1 text-xs bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300 rounded-full">
                                 Current
                               </span>
                             </div>

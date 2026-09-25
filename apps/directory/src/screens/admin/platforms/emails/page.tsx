@@ -1,15 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "@/components/app-link";
 import { AdminLayout } from "@/components/admin/layout/admin-layout";
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader";
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader";
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider";
 import {
-  AdminTableShell, AdminListPending,
-  AdminTableSummaryFooter,
-  formatShortDate,
+  AdminListFooter,
+  AdminListPending,
+  AdminSortableHead,
+  AdminTableShell,
+  RelativeDate,
+  useAdminSort,
 } from "@/components/admin/layout/list";
 import {
   TableRightActions,
@@ -28,14 +31,17 @@ import {
 } from "@/components/ui/table";
 import { getSystemEmailDashboardAction } from "@/lib/actions/email/system-email-actions";
 import type { SystemEmailListItem } from "@/lib/actions/email/system-email";
+import { useResetPageOnListChange } from "@/lib/use-reset-page";
 import Mail from "lucide-react/dist/esm/icons/mail.js"
 
 interface DashboardData {
   templates: SystemEmailListItem[];
 }
 
+type TemplateSortColumn = "template" | "scope" | "updated";
+
 export default function PlatformEmailsPage() {
-  const { currentSite } = useSiteSwitcher();
+  const { currentSite, pageSize } = useSiteSwitcher();
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<{
     type: "success" | "error";
@@ -43,6 +49,8 @@ export default function PlatformEmailsPage() {
   } | null>(null);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const templateSort = useAdminSort<TemplateSortColumn>("template", "asc");
 
   const loadPage = useCallback(async () => {
     if (!currentSite?.id) {
@@ -89,6 +97,33 @@ export default function PlatformEmailsPage() {
       })
     : templates;
 
+  const sortedTemplates = useMemo(() => {
+    return [...filteredTemplates].sort((a, b) => {
+      if (!templateSort.sortColumn) return 0;
+
+      const dir = templateSort.sortDirection === "asc" ? 1 : -1;
+      if (templateSort.sortColumn === "template") return a.name.localeCompare(b.name) * dir;
+      if (templateSort.sortColumn === "scope") return a.scope_label.localeCompare(b.scope_label) * dir;
+
+      // A template never edited shows "Default"; it sorts as the oldest.
+      const aUpdated = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+      const bUpdated = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+      return (aUpdated - bUpdated) * dir;
+    });
+  }, [filteredTemplates, templateSort.sortColumn, templateSort.sortDirection]);
+
+  // Searching or re-sorting from a later page would otherwise land you past
+  // the end of the shorter result.
+  useResetPageOnListChange(
+    setCurrentPage,
+    `${currentSite?.id}|${normalizedSearchQuery}|${templateSort.sortColumn}|${templateSort.sortDirection}`
+  );
+
+  const pagedTemplates = useMemo(
+    () => sortedTemplates.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [currentPage, pageSize, sortedTemplates]
+  );
+
   if (!currentSite) {
     return (
       <AdminLayout>
@@ -108,7 +143,7 @@ export default function PlatformEmailsPage() {
 
           {message && (
             <div
-              className={`mb-6 rounded-md border px-4 py-3 text-sm ${message.type === "error" ? "border-red-200 bg-red-50 text-red-800" : "border-green-200 bg-green-50 text-green-800"}`}
+              className={`mb-6 rounded-md border px-4 py-3 text-sm ${message.type === "error" ? "border-destructive/30 bg-destructive/10 text-destructive" : "border-green-200 bg-green-50 text-green-800 dark:border-green-900 dark:bg-green-950/50 dark:text-green-300"}`}
             >
               {message.text}
             </div>
@@ -116,7 +151,7 @@ export default function PlatformEmailsPage() {
 
           <AdminTableShell
             title="Email Templates"
-            icon={<Mail className="size-4 text-muted-foreground sm:size-[18px]" />}
+            icon={<Mail className="text-muted-foreground" />}
             count={filteredTemplates.length}
             loading={loading}
             controls={
@@ -128,16 +163,16 @@ export default function PlatformEmailsPage() {
                 />
               </TableRightActions>
             }
-            footer={!loading ? <AdminTableSummaryFooter count={filteredTemplates.length} label="email templates" /> : null}
+            footer={!loading ? <AdminListFooter currentPage={currentPage} pageSize={pageSize} total={filteredTemplates.length} onPageChange={setCurrentPage} /> : null}
           >
 
             <ScrollArea className="w-full">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead column="main">Template</TableHead>
-                    <TableHead column="meta">Scope</TableHead>
-                    <TableHead column="meta">Updated</TableHead>
+                    <AdminSortableHead column="main" sort={templateSort} sortKey="template">Template</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={templateSort} sortKey="scope">Scope</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={templateSort} sortKey="updated">Updated</AdminSortableHead>
                     <TableHead column="meta">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -151,12 +186,12 @@ export default function PlatformEmailsPage() {
                         className="h-32 text-center text-sm text-muted-foreground"
                       >
                         {normalizedSearchQuery
-                          ? "No email templates match your search."
+                          ? "No email templates found matching your search."
                           : "No email templates found."}
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredTemplates.map((template) => (
+                    pagedTemplates.map((template) => (
                       <TableRow key={template.template_key} className="group">
                         <TableCell column="main">
                           <div className="flex items-center gap-2">
@@ -164,28 +199,25 @@ export default function PlatformEmailsPage() {
                               <Link
                                 href={`/admin/platforms/emails/${template.template_key}`}
                                 className="truncate text-sm font-medium hover:underline sm:text-base"
+                                title={template.name}
                               >
                                 {template.name}
                               </Link>
                             ) : (
-                              <p className="truncate text-sm font-medium sm:text-base">
-                                {template.name}
-                              </p>
+                              <p className="truncate text-sm font-medium sm:text-base" title={template.name}>{template.name}</p>
                             )}
                             {!template.editable && (
                               <Badge variant="secondary">Super Admin</Badge>
                             )}
                           </div>
-                          <p className="mt-1 truncate text-xs text-muted-foreground sm:text-sm">
-                            {template.description}
-                          </p>
+                          <p className="mt-1 truncate text-xs text-muted-foreground sm:text-sm" title={template.description}>{template.description}</p>
                         </TableCell>
                         <TableCell column="meta">
                           {template.scope_label}
                         </TableCell>
                         <TableCell column="mutedMeta">
                           {template.updated_at
-                            ? formatShortDate(template.updated_at)
+                            ? <RelativeDate date={template.updated_at} />
                             : "Default"}
                         </TableCell>
                         <TableCell column="meta">

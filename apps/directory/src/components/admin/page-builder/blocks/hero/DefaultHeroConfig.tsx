@@ -2,6 +2,7 @@
 
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
+import { HexColorInput } from "@/components/ui/hex-color-input"
 import { Field, FieldContent, FieldLabel } from "@/components/ui/field"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
@@ -37,6 +38,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { HeroStyleAdminProps } from "./index"
+import { useSortableRow } from "@/components/admin/layout/builder/use-sortable-row"
 
 const HERO_BACKGROUND_COLOR_OPTIONS = [
   { value: "muted", label: "Muted" },
@@ -66,20 +68,7 @@ function SortableAvatarItem({
   removeAvatar: (index: number) => void
   onOpenImagePicker: (index: number) => void
 }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: avatar.id || `avatar-${index}` })
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  }
+  const { attributes, listeners, setNodeRef, style, isDragging } = useSortableRow(avatar.id || `avatar-${index}`)
 
   return (
     <div
@@ -326,7 +315,7 @@ export function DefaultHeroConfig({ config, onConfigChange }: HeroStyleAdminProp
                   e.stopPropagation();
                   onConfigChange('heroImage', '');
                 }}
-                className="absolute top-2 right-2 h-6 w-6 rounded-full bg-red-600 hover:bg-red-700 text-white flex items-center justify-center shadow-sm transition-colors"
+                className="absolute top-2 right-2 h-6 w-6 rounded-full bg-destructive hover:bg-destructive/90 text-destructive-foreground flex items-center justify-center shadow-sm transition-colors"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -496,20 +485,13 @@ export function DefaultHeroConfig({ config, onConfigChange }: HeroStyleAdminProp
         )}
 
         {backgroundColor === 'custom' && (
-          <div className="flex max-w-xs items-center gap-2">
-            <Input
-              type="color"
-              value={backgroundCustomColor}
-              onChange={(event) => onConfigChange('backgroundCustomColor', event.target.value)}
-              className="h-9 w-12 p-1"
-              aria-label="Custom background color"
-            />
-            <Input
-              value={config.backgroundCustomColor || ''}
-              onChange={(event) => onConfigChange('backgroundCustomColor', event.target.value)}
-              placeholder="#ffffff"
-            />
-          </div>
+          <HexColorInput
+            className="max-w-xs"
+            inputClassName="flex-1"
+            value={config.backgroundCustomColor || ''}
+            onColorChange={(color) => onConfigChange('backgroundCustomColor', color)}
+            swatchAriaLabel="Custom background color"
+          />
         )}
 
         <div className="flex items-center gap-2">

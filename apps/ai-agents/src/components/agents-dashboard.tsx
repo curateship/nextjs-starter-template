@@ -198,7 +198,7 @@ export function AgentsDashboard() {
 
       <DashboardTable
         title="Agents"
-        icon={<BotIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+        icon={<BotIcon className="text-muted-foreground" />}
         count={filteredAgents.length}
         controls={controls}
         header={

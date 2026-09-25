@@ -1,0 +1,1307 @@
+import * as React from "react"
+import { SettingsIcon } from "lucide-react"
+
+import type { ChartSurface } from "@/components/trade/price-chart"
+import type { ChartColors } from "@/lib/trade/chart-theme"
+import {
+  formatPrice,
+  formatSignedUsd,
+  formatUsdRounded,
+} from "@/lib/trade/format"
+import {
+  liquidationPx,
+  positionProfit,
+  projectedProfit,
+  type TradeOrder,
+  type TradePosition,
+} from "@/lib/trade/paper"
+import {
+  orderStopGroups,
+  orderTargetGroups,
+  stopMerges,
+  type OrderLineGroup,
+  type StopMerge,
+  targetMerges,
+  type TargetMerge,
+} from "@/lib/trade/order-line-groups"
+import { useHiddenPnlClass } from "@/lib/trade/hide-pnl"
+import { parseMarketKey, protocolLabel } from "@/lib/protocols/contracts"
+import type { PriceAlert } from "@/lib/trade/price-alerts"
+
+/**
+ * What you are holding, drawn over the candles.
+ *
+ * Five kinds of line, and they answer five different questions at a glance:
+ * where you got in, where you get out with a profit, where you get out with a
+ * loss, where the exchange takes the trade off you, and where anything still
+ * waiting sits. The two you can change — the target and the stop — and any
+ * waiting order can be dragged to a new price, opened for editing by pressing
+ * its bar, or thrown away with the ×.
+ *
+ * A waiting order carries its own target and stop, drawn in a finer dash than
+ * a live one's. They are where the trade will get out once the order fills,
+ * which is a different fact from where a trade already open gets out — so they
+ * are drawn but not draggable. The bar opens the window that changes them.
+ *
+ * Built the same way as the paint tools rather than as chart price lines: SVG
+ * elements over the plot, so every line is something the Tab key can reach and
+ * a screen reader can read out. The entry and the liquidation are markers, not
+ * controls, so they stay out of the pointer's way entirely.
+ *
+ * Every wallet holding this market is drawn, not only the one being traded
+ * with — clicking a row in the table below takes you to its market, and
+ * finding a bare chart there would make the row a dead end. When more than one
+ * wallet is in the same market each line says whose it is, and dragging one
+ * changes that wallet's order rather than the active wallet's.
+ */
+
+/**
+ * What a waiting order takes out of the wallet when it fills.
+ *
+ * Its own function because the two lanes answer differently: a practice order
+ * knows the leverage it was placed at, so the cash is the position divided by
+ * it; a live one carries a zero, and the honest answer there is what the
+ * position is worth.
+ */
+function orderCostUsd(order: TradeOrder): number {
+  const worth = order.px * order.sz
+  return order.leverage > 0 ? worth / order.leverage : worth
+}
+
+/** How far the pointer must travel before a press counts as a drag. */
+const DRAG_SLOP = 3
+
+/** Which line is being held, and where it has been dragged to. */
+type Grab = {
+  id: string
+  fromY: number
+  price: number
+  moved: boolean
+  /**
+   * Where the layer's box started on screen, measured once as the line was
+   * taken hold of. The box cannot move mid-drag, and measuring it on every
+   * pixel of movement forced the browser to lay the page out per mouse move.
+   */
+  top: number
+}
+
+type LineKind =
+  | "alert"
+  | "entry"
+  | "take_profit"
+  | "stop_loss"
+  | "liquidation"
+  | "order"
+  /** A waiting order's own target and stop — where it will get out, not where it is. */
+  | "order_take_profit"
+  | "order_stop_loss"
+
+type Line = {
+  id: string
+  kind: LineKind
+  price: number
+  /**
+   * What the line says at a given price — a function, not a string, because a
+   * target being dragged has to show what it would pay *where it is now*. Read
+   * from the stored price it would be a beat behind the hand moving it.
+   */
+  label: (price: number) => string
+  /** A signed dollar figure inside the label that takes the chart's money color. */
+  money?: {
+    before: string
+    text: string
+    after: string
+    value: number
+  }
+  /** Dragging it re-prices the thing behind it. */
+  onMove?: (price: number) => void
+  /**
+   * Prices this line may be dragged to. The line stops following the pointer
+   * at the edge of what it allows rather than being dropped somewhere that
+   * means nothing — a stop on the winning side of the order it protects.
+   */
+  allows?: (price: number) => boolean
+  /** The × throws it away. */
+  onRemove?: () => void
+  /** The ⚙ opens whatever settings the thing behind it has. */
+  onSettings?: (anchor: Element) => void
+  /** Words that belong on hover, not in the pill. */
+  hint?: string
+}
+
+/**
+ * Something riding on a position that wants to live in its entry pill — the
+ * DCA ladder folds itself in as "Entry · 4 ⚙ ×": the count and the controls,
+ * with the words in the hover tooltip instead of the bar.
+ */
+export type EntryBadge = {
+  /** As short as possible — a count, not a sentence. */
+  text: string
+  /** The sentence, shown on hover. */
+  hint: string
+  onSettings: (anchor: Element) => void
+  /** Null when there is nothing left to call off. */
+  onRemove: (() => void) | null
+}
+
+/** One theme colour per meaning, shared with candles, grids and ladders. */
+function colorOf(kind: LineKind, colors: ChartColors): string {
+  if (kind === "alert") return colors.alert
+  if (kind === "entry") return "#2962ff"
+  if (kind === "take_profit" || kind === "order_take_profit") return colors.up
+  if (kind === "stop_loss" || kind === "order_stop_loss") return colors.down
+  if (kind === "liquidation") return colors.warning
+  return colors.neutral
+}
+
+/** Money keeps its meaning even when it sits inside a differently colored line. */
+function moneyColor(value: number, colors: ChartColors, fallback: string) {
+  if (value > 0) return colors.up
+  if (value < 0) return colors.down
+  return fallback
+}
+
+/** A finer dash on the two that have not started yet — they are a plan, not a fact. */
+const DASHED: Record<LineKind, string | undefined> = {
+  alert: "5 4",
+  entry: undefined,
+  take_profit: "6 4",
+  stop_loss: "6 4",
+  liquidation: "2 4",
+  order: "5 4",
+  order_take_profit: "2 3",
+  order_stop_loss: "2 3",
+}
+
+/** How tall a label pill and its price badge are. */
+const PILL_HEIGHT = 22
+/** Roughly how wide the label text runs, for sizing its pill. */
+const CHAR_WIDTH = 6.4
+/** The exact font used by the SVG label, for measuring its rendered width. */
+const LABEL_FONT = "600 11px Inter, ui-sans-serif, system-ui, sans-serif"
+/** The × sits inside the pill, to the right of the words. */
+const CLOSE_WIDTH = 16
+/** The grip's dots, and the room they take at the pill's left edge. */
+const GRIP_WIDTH = 14
+/** The gap between the pill and the price badge that follows it. */
+const BADGE_GAP = 4
+/** The gap left between two pills that had to share a stretch of chart. */
+const PILL_GAP = 6
+/** How round both the pill and the price badge are. */
+const PILL_RADIUS = 8
+
+let labelMeasureContext: OffscreenCanvasRenderingContext2D | null = null
+
+/**
+ * Measure the label in the same font the SVG draws. A character count leaves a
+ * large hole after narrow letters such as the ones in "Sell". The fallback is
+ * for test and server runtimes without a browser canvas.
+ */
+function labelWidth(text: string): number {
+  if (typeof OffscreenCanvas === "undefined") return text.length * CHAR_WIDTH
+  labelMeasureContext ??= new OffscreenCanvas(1, 1).getContext("2d")
+  if (!labelMeasureContext) return text.length * CHAR_WIDTH
+  labelMeasureContext.font = LABEL_FONT
+  return (
+    labelMeasureContext.measureText(text).width +
+    Math.max(0, text.length - 1) * 0.3
+  )
+}
+
+/**
+ * The grip: two columns of three dots, drawn only where a line can be dragged.
+ *
+ * **It is the one thing that says a line moves.** A dashed line with a label
+ * looks exactly like a line you can only read, and somebody who does not know
+ * a stop can be dragged has no way to find out. The dots are the same handle
+ * every draggable thing in this app uses, so they read without a legend.
+ */
+function Grip({ x, y, color }: { x: number; y: number; color: string }) {
+  const dots: React.ReactNode[] = []
+  for (let column = 0; column < 2; column++) {
+    for (let row = 0; row < 3; row++) {
+      dots.push(
+        <circle
+          key={`${column}-${row}`}
+          cx={x + column * 4}
+          cy={y + row * 4}
+          r={1.1}
+          fill={color}
+        />
+      )
+    }
+  }
+  return <g opacity={0.75}>{dots}</g>
+}
+
+export const TradeLinesLayer = React.memo(function TradeLinesLayer({
+  surface,
+  colors,
+  marketKey,
+  currentPx,
+  positions,
+  orders,
+  alerts,
+  walletName,
+  tool,
+  entryBadge,
+  feesPaidFor,
+  onMoveOrder,
+  onMoveAlert,
+  onMoveOrderStop,
+  onMergeStops,
+  onMergeTargets,
+  onClearOrderStop,
+  onClearOrderTarget,
+  onMoveOrderTarget,
+  onCancelOrder,
+  onDeleteAlert,
+  onClosePosition,
+  onEditOrder,
+  onSetBrackets,
+  onSurface,
+}: {
+  surface: ChartSurface
+  colors: ChartColors
+  /** The market on screen — lines from other markets are not drawn here. */
+  marketKey: string | null
+  /** The market's current price, or null until the exchange has answered. */
+  currentPx: number | null
+  positions: readonly TradePosition[]
+  orders: readonly TradeOrder[]
+  /** Active account alerts; only rows for the market on screen are drawn. */
+  alerts?: readonly PriceAlert[]
+  /** Names a wallet, for when this market holds more than one wallet's lines. */
+  walletName: (walletId: string) => string
+  /**
+   * A drawing tool in hand. These lines sit above the paint layer, so while a
+   * tool is held they stop taking the pointer entirely — a press near a stop
+   * is meant for the line being drawn, not for the stop.
+   */
+  tool: string | null
+  /** What a position's entry pill carries besides "Entry", if anything. */
+  entryBadge?: (position: TradePosition) => EntryBadge | null
+  /** Fees already charged to this position, or null when the fills cannot say. */
+  feesPaidFor?: (position: TradePosition) => number | null
+  onMoveOrder: (walletId: string, orderId: string, price: number) => void
+  /** Dragging an alert hands its new price back to the chart owner. */
+  onMoveAlert?: (id: string, price: number) => void
+  /**
+   * Dragging a waiting order's stop, which changes how much the order is for.
+   *
+   * The money at stake stays where it was put: a stop dragged twice as far
+   * halves the order rather than doubling what it can lose. That is the whole
+   * reason this line is draggable at all — see `resizeForStop`.
+   */
+  onMoveOrderStop?: (walletId: string, orderId: string, price: number) => void
+  /**
+   * Puts the waiting orders that share a stop onto one price, so the single
+   * line drawn for them is the truth rather than a tidier picture of two — see
+   * `orderStopGroups`. Called as the lines are worked out, never from a drag.
+   */
+  onMergeStops?: (merges: readonly StopMerge[]) => void
+  /**
+   * Gives an order that was placed with no exit the one its lane already
+   * draws, so the line's profit counts it — see `orderTargetGroups`.
+   */
+  onMergeTargets?: (merges: readonly TargetMerge[]) => void
+  /**
+   * The × on a waiting order's stop or exit line, which takes that level off
+   * every order the line stands for and leaves the orders themselves alone.
+   */
+  onClearOrderStop?: (orders: readonly TradeOrder[]) => void
+  onClearOrderTarget?: (orders: readonly TradeOrder[]) => void
+  /** Dragging a waiting order's target. The amount is left alone. */
+  onMoveOrderTarget?: (walletId: string, orderId: string, price: number) => void
+  onCancelOrder: (order: TradeOrder) => void
+  onDeleteAlert?: (id: string) => void
+  /**
+   * The × on a position's Entry line. Closing costs real money, so it asks
+   * first — the panel owns that question, the same one the Positions table
+   * asks, rather than a second wording living here.
+   */
+  onClosePosition?: (position: TradePosition) => void
+  /**
+   * Pressing a waiting order's bar: its size and where it gets out. Only the
+   * order's id — the window reads the row itself, which carries its wallet.
+   */
+  onEditOrder?: (orderId: string, anchor: Element) => void
+  onSetBrackets: (
+    position: TradePosition,
+    brackets: {
+      targets: Array<{ px: number; sz: number | null }>
+      slPx: number | null
+    }
+  ) => void
+  /**
+   * Hands the chart's coordinates back up, so a right-click anywhere on the
+   * chart can be turned into the price it landed on. Reported from here rather
+   * than read out of the chart during its own render, which is the one moment
+   * the panel above is not allowed to touch.
+   */
+  onSurface?: (surface: ChartSurface) => void
+}) {
+  const [grab, setGrab] = React.useState<Grab | null>(null)
+  // Only the Entry line's figure goes behind frosted glass. It is what the
+  // position is up or down right now — the same number the panels hide. An
+  // Exit or a Stop Loss says what WOULD happen at a price nothing has reached,
+  // so it stays readable: those are the figures somebody drags a line by.
+  const hiddenPnl = useHiddenPnlClass()
+
+  React.useEffect(() => {
+    onSurface?.(surface)
+  }, [surface, onSurface])
+
+  /**
+   * Whether a price is still a stop for a trade going this way.
+   *
+   * **A stop never sits above the price for a long, or below it for a short.**
+   * A stop there would fire the moment it was set, so it is not a stop at all,
+   * and the pill gives itself away by printing a profit. Tyler on 11 Sep 2026:
+   * "Just dont show the stoploss above the price, that makes no sense." So a
+   * line like that is neither drawn nor draggable, whether it belongs to a
+   * waiting order or to an open position.
+   *
+   * With no price yet from the exchange there is nothing to judge against, and
+   * every stop is drawn as it always was rather than hidden on a guess.
+   */
+  const stopSuitsPrice = (long: boolean, price: number) =>
+    currentPx === null || (long ? price < currentPx : price > currentPx)
+
+  const held = positions.filter((one) => one.marketKey === marketKey)
+  const bracketOrderIds = new Map<string, Set<string>>()
+  for (const position of held) {
+    if (!position.live) continue
+    const ids = [
+      ...position.targets.map((target) => target.orderId),
+      position.live.slOrderId,
+    ].filter((orderId): orderId is string => orderId !== null)
+    if (ids.length === 0) continue
+    const walletIds =
+      bracketOrderIds.get(position.walletId) ?? new Set<string>()
+    for (const orderId of ids) walletIds.add(orderId)
+    bracketOrderIds.set(position.walletId, walletIds)
+  }
+  // Live portfolios include a position's target and stop both on the position
+  // and in the exchange's open-order list. The coloured bracket or smart-order
+  // line already carries the amount and the correct action, so drawing that
+  // order a second time as a gray Sell bar says the same thing twice. Grid
+  // stops still have their order id here after chart-panel masks slPx, because
+  // the grid layer draws that stop itself.
+  const waiting = orders.filter(
+    (one) =>
+      one.marketKey === marketKey &&
+      !bracketOrderIds.get(one.walletId)?.has(one.id)
+  )
+
+  // One stop line and one exit line per price the waiting orders share, and the
+  // saves that make the stop line true — see `orderStopGroups`. Worked out here
+  // rather than in the loop below, because a group is a fact about all the
+  // orders at once.
+  const stopGroups = orderStopGroups(waiting)
+  const targetGroups = orderTargetGroups(waiting)
+  const merges = stopMerges(stopGroups)
+  // The list is rebuilt on every pan and every price tick, so the effect is
+  // hung on what is actually in it. An unchanged list is a save already asked
+  // for, and asking again would send the same write on a loop.
+  const mergeKey = merges.map((one) => `${one.orderId}@${one.price}`).join(",")
+  const mergesRef = React.useRef<readonly StopMerge[]>(merges)
+  React.useEffect(() => {
+    mergesRef.current = merges
+  })
+  React.useEffect(() => {
+    if (mergeKey === "") return
+    onMergeStops?.(mergesRef.current)
+  }, [mergeKey, onMergeStops])
+
+  // The same again for the exits an order joined without one of its own.
+  const exitMerges = targetMerges(targetGroups)
+  const exitMergeKey = exitMerges
+    .map((one) => `${one.orderId}@${one.price}`)
+    .join(",")
+  const exitMergesRef = React.useRef<readonly TargetMerge[]>(exitMerges)
+  React.useEffect(() => {
+    exitMergesRef.current = exitMerges
+  })
+  React.useEffect(() => {
+    if (exitMergeKey === "") return
+    onMergeTargets?.(exitMergesRef.current)
+  }, [exitMergeKey, onMergeTargets])
+
+  // More than one wallet in this market means every line has to say which
+  // wallet it belongs to, or two entry lines sit there with nothing to tell
+  // them apart. With only one wallet involved the name would just be noise.
+  const involved = new Set([...held, ...waiting].map((one) => one.walletId))
+  const whose = (walletId: string) =>
+    involved.size > 1 ? ` · ${walletName(walletId)}` : ""
+
+  // Alerts use this same bar renderer instead of carrying a second chart UI.
+  // They go down first so a trading control wins the final paint order when
+  // both prices match, while the shared pill layout still keeps both readable.
+  const lines: Line[] = (alerts ?? [])
+    .filter((alert) => alert.marketKey === marketKey)
+    .map((alert) => ({
+      id: `alert:${alert.id}`,
+      kind: "alert" as const,
+      price: alert.price,
+      label: () => "Alert",
+      onMove: onMoveAlert
+        ? (price: number) => onMoveAlert(alert.id, price)
+        : undefined,
+      onRemove: onDeleteAlert ? () => onDeleteAlert(alert.id) : undefined,
+    }))
+
+  for (const position of held) {
+    if (!marketKey) break
+    // A coin that was sent in has no entry to draw: its `entryPx` is a
+    // stand-in, and a line at it would read as a price somebody paid.
+    if (position.owned?.entryKnown === false) continue
+    const tag = whose(position.walletId)
+    const badge = entryBadge?.(position) ?? null
+    const profit =
+      currentPx === null ? null : positionProfit(position, currentPx)
+    const profitText = profit === null ? null : formatSignedUsd(profit)
+    const afterProfit = `${tag}${badge ? ` · ${badge.text}` : ""}`
+    const feesPaid = feesPaidFor ? feesPaidFor(position) : position.feesPaid
+    const resultAfterFees = (at: number) =>
+      feesPaid === null ? null : projectedProfit(position, at) - feesPaid
+
+    lines.push({
+      id: `entry:${position.id}`,
+      kind: "entry",
+      price: position.entryPx,
+      label: () =>
+        `Entry${profitText === null ? "" : ` ${profitText}`}${afterProfit}`,
+      money:
+        profit === null || profitText === null
+          ? undefined
+          : {
+              before: "Entry ",
+              text: profitText,
+              after: afterProfit,
+              value: profit,
+            },
+      hint: badge?.hint,
+      onSettings: badge?.onSettings,
+      // A ladder's own × folds in here and means "stop the ladder"; a plain
+      // position's × closes it. Never both on one line, so the × can only
+      // ever mean one thing.
+      onRemove:
+        badge?.onRemove ??
+        (onClosePosition ? () => onClosePosition(position) : undefined),
+    })
+
+    // A real position's liquidation price is the exchange's own answer; the
+    // formula is for practice positions, where this app IS the exchange.
+    const liq = position.live
+      ? position.live.liquidationPx
+      : liquidationPx(position)
+    if (liq !== null) {
+      const liquidationResult = resultAfterFees(liq)
+      const liquidationText =
+        liquidationResult === null ? "—" : formatSignedUsd(liquidationResult)
+      lines.push({
+        id: `liq:${position.id}`,
+        kind: "liquidation",
+        price: liq,
+        // In caps, like the grid's own bars beside it — Tyler, 3 Sep 2026.
+        label: () => `LIQUIDATION ${liquidationText}${tag}`,
+        money:
+          liquidationResult === null
+            ? undefined
+            : {
+                before: "LIQUIDATION ",
+                text: liquidationText,
+                after: tag,
+                value: liquidationResult,
+              },
+        hint:
+          liquidationResult === null
+            ? "The fills on hand do not cover this position's fees."
+            : "After fees charged so far. The closing fee is known only after the order fills.",
+      })
+    }
+
+    // Only the coins the position holds. A waiting order has bought nothing
+    // yet, and counting it put +$1,866.95 on an exit whose position would make
+    // a fraction of that. Tyler, 16 Sep 2026.
+    for (const [targetIndex, target] of position.targets.entries()) {
+      const targetSz = target.sz ?? Math.abs(position.szi)
+      lines.push({
+        id: `tp:${position.id}:${target.orderId ?? targetIndex}`,
+        kind: "take_profit",
+        price: target.px,
+        label: (at) =>
+          `Exit ${formatUsdRounded(targetSz * at)} ${formatSignedUsd(
+            projectedProfit(
+              {
+                szi: Math.sign(position.szi) * targetSz,
+                entryPx: position.entryPx,
+              },
+              at
+            )
+          )}${tag}`,
+        onMove: (price) =>
+          onSetBrackets(position, {
+            targets: position.targets.map((one, index) => ({
+              px: index === targetIndex ? price : one.px,
+              sz: one.sz,
+            })),
+            slPx: position.slPx,
+          }),
+        onRemove: () =>
+          onSetBrackets(position, {
+            targets: position.targets
+              .filter((_, index) => index !== targetIndex)
+              .map((one) => ({ px: one.px, sz: one.sz })),
+            slPx: position.slPx,
+          }),
+      })
+    }
+    if (position.slPx !== null && stopSuitsPrice(position.szi > 0, position.slPx)) {
+      lines.push({
+        id: `sl:${position.id}`,
+        kind: "stop_loss",
+        price: position.slPx,
+        label: (at) => {
+          const result = resultAfterFees(at)
+          return `Stop Loss ${
+            result === null ? "—" : formatSignedUsd(result)
+          }${tag}`
+        },
+        hint:
+          feesPaid === null
+            ? "The fills on hand do not cover this position's fees."
+            : "After fees charged so far. The closing fee is known only after the order fills.",
+        allows: (price) => stopSuitsPrice(position.szi > 0, price),
+        onMove: (price) =>
+          onSetBrackets(position, {
+            targets: position.targets.map((target) => ({
+              px: target.px,
+              sz: target.sz,
+            })),
+            slPx: price,
+          }),
+        onRemove: () =>
+          onSetBrackets(position, {
+            targets: position.targets.map((target) => ({
+              px: target.px,
+              sz: target.sz,
+            })),
+            slPx: null,
+          }),
+      })
+    }
+  }
+
+  /**
+   * A second stop or target the position is carrying, if this order is one.
+   *
+   * A position is meant to hold one stop and one target, and those are drawn
+   * from the position itself. An exchange will happily hold more: brackets
+   * attached to an entry order arrive as their own legs, and a position that
+   * grows afterwards gets another pair put over the top. Drawn as a plain
+   * "Sell $167" a leg like that reads as an ordinary order somebody placed,
+   * which is the opposite of the truth — it is protection, it fires by itself,
+   * and on 24 Aug 2026 one sat exactly on top of the stop it was a copy of.
+   *
+   * Which one it is comes from the price, not from a flag: an exit above where
+   * a long got in takes a profit, one below it stops a loss.
+   */
+  const extraLeg = (order: TradeOrder): "take_profit" | "stop_loss" | null => {
+    if (!order.trigger || !order.reduceOnly) return null
+    const position = held.find(
+      (one) => one.walletId === order.walletId && one.marketKey === marketKey
+    )
+    if (!position) return null
+    const winning =
+      position.szi > 0
+        ? order.px > position.entryPx
+        : order.px < position.entryPx
+    return winning ? "take_profit" : "stop_loss"
+  }
+
+  for (const order of waiting) {
+    const tag = whose(order.walletId)
+    const protocol = parseMarketKey(order.marketKey)?.protocol
+    // An order still on its way to the server has no id anything could act on,
+    // so it is drawn and nothing more.
+    //
+    // **It does not say so.** Tyler, 16 Sep 2026: "can you not make it load at
+    // all visually. It should be instant and have it load in the background
+    // instead." The bar used to read "Buy $150 · sending" for the length of a
+    // round trip, which made a press that had already worked look unfinished.
+    // A press that does NOT work still says so: the bar goes and a toast names
+    // the refusal, so the quiet version is never a lie about a real order.
+    const settled = !order.placing && !order.taking
+    // A real resting order cannot be changed here. Practice and watched
+    // orders both belong to this app, so their line opens the edit window.
+    const edit =
+      settled && !order.live && onEditOrder
+        ? (anchor: Element) => onEditOrder(order.id, anchor)
+        : undefined
+
+    const spare = extraLeg(order)
+
+    lines.push({
+      id: `order:${order.id}`,
+      kind: spare ?? "order",
+      price: order.px,
+      // **The cash it takes, not what it buys.** In dollars first, because
+      // "Buy 3.2754" is an amount of something whose price is the other number
+      // on the same line — and then the money that actually leaves the wallet,
+      // which at 3× is a third of what the position is worth.
+      //
+      // A real order's leverage is the account's setting rather than the
+      // order's, so the exchange never tells us this one's; those rows carry a
+      // zero and fall back to what the position would be worth. Saying the
+      // wrong figure with a straight face is worse than saying the plain one.
+      label: () =>
+        order.taking
+          ? `Placing order...${tag}`
+          : order.checking
+            ? `Checking ${protocol ? `${protocolLabel(protocol)} ` : ""}order...${tag}`
+          : spare
+            ? `Extra ${spare === "take_profit" ? "Target" : "Stop"} ${formatUsdRounded(
+                orderCostUsd(order)
+              )}${tag}`
+            : `${order.side === "buy" ? "Buy" : "Sell"} ${formatUsdRounded(
+                orderCostUsd(order)
+              )}${tag}`,
+      // Every kind drags except a real trigger leg. A practice order
+      // re-prices its row, a real resting order is moved in place by the
+      // exchange's modify, and a watched price changes the level the app is
+      // watching — the hook routes each to its own door. A trigger's price is
+      // not a limit, and the modify door would rewrite it into one.
+      onMove:
+        settled && !order.trigger
+          ? (price) => onMoveOrder(order.walletId, order.id, price)
+          : undefined,
+      onRemove: settled ? () => onCancelOrder(order) : undefined,
+      onSettings: edit,
+      hint: edit
+        ? "Change this order's size, leverage, stop loss, and exit."
+        : undefined,
+    })
+  }
+
+  /**
+   * Whether a price is somewhere on the chart as it is scrolled right now.
+   *
+   * An order far outside the visible prices has its bar drawn off the top or
+   * the bottom, where the SVG clips it away — and its stop, if the stop price
+   * happens to be in view, was left sitting there on its own with no bar to
+   * explain it. On 11 Sep 2026 Tyler cancelled the orders he could see and
+   * read the leftover line as a stop that would not go away. A stop belongs to
+   * an order, so it is drawn when that order is.
+   */
+  const onChart = (price: number) => {
+    const y = surface.yOf(price)
+    return y !== null && y >= 0 && y <= surface.height
+  }
+
+  // What a group of waiting orders would make or lose together at a price.
+  // Read as a function so the figure follows the line while it is dragged.
+  const together = (group: OrderLineGroup) => (at: number) =>
+    group.orders.reduce(
+      (total, order) =>
+        total +
+        projectedProfit(
+          {
+            szi: order.side === "buy" ? order.sz : -order.sz,
+            entryPx: order.px,
+          },
+          at
+        ),
+      0
+    )
+
+  /**
+   * Whether a price is a real stop, or a real exit, for every order under the
+   * line being dragged.
+   *
+   * **A waiting order's stop has to be on its losing side and its exit on its
+   * winning side.** Dropped the wrong way round a stop is not a stop: it sits
+   * where the trade is ahead, and the pill says so by printing a profit. On 11
+   * Sep 2026 Tyler was shown "Stop Loss +$521.61" and asked why a stop was
+   * above the price. The drag now refuses that drop and the line goes back
+   * where it was, which is the same answer the right-click Stop loss row
+   * already gives.
+   *
+   * A position's stop is a different thing and keeps its freedom: dragged past
+   * the entry after the price has moved your way it becomes a trailing stop,
+   * and the profit it prints is real.
+   */
+  const soundFor = (
+    group: OrderLineGroup,
+    price: number,
+    losing: boolean
+  ): boolean =>
+    group.orders.every(
+      (order) =>
+        ((order.side === "buy") === losing
+          ? price < order.px
+          : price > order.px) &&
+        // And on the right side of the price the market is at now, which is
+        // the one a person reads the line against — see `stopSuitsPrice`.
+        (!losing || stopSuitsPrice(order.side === "buy", price))
+    )
+
+  // The waiting orders' stops, one line per price they share rather than one
+  // per order — see `orderStopGroups`. Drawn after the order bars above so a
+  // stop pill that has to move sideways moves clear of them and not under.
+  for (const group of stopGroups) {
+    if (!group.orders.some((order) => onChart(order.px))) continue
+    if (!soundFor(group, group.price, true)) continue
+    const tag = whose(group.walletId)
+    const loss = together(group)
+    // Draggable only on orders this app holds, exactly like the order's own
+    // price line above: a real resting order cannot be changed in place, it
+    // has to be cancelled and placed again.
+    const resize =
+      group.movable && onMoveOrderStop
+        ? (price: number) => {
+            if (!soundFor(group, price, true)) return
+            for (const order of group.orders) {
+              onMoveOrderStop(order.walletId, order.id, price)
+            }
+          }
+        : undefined
+    const sharing =
+      group.orders.length > 1
+        ? `One stop for ${group.orders.length} waiting orders. `
+        : ""
+    const sizing = group.orders.some((order) => order.riskSized)
+      ? group.orders.length > 1
+        ? "The orders sized by risk change with it, so they still risk the same money."
+        : "The order's size changes with it, so it still risks the same money."
+      : group.orders.length > 1
+        ? "The amounts stay where you put them."
+        : "The order's size stays where you put it."
+    lines.push({
+      id: group.id,
+      kind: "order_stop_loss",
+      price: group.price,
+      label: (at) => `Stop Loss ${formatSignedUsd(loss(at))}${tag}`,
+      onMove: resize,
+      allows: (price) => soundFor(group, price, true),
+      // The × takes the stop off every order under the line and leaves the
+      // orders where they are. Only on the lines this app holds: a resting
+      // exchange order's stop cannot be changed in place.
+      onRemove:
+        group.movable && onClearOrderStop
+          ? () => onClearOrderStop(group.orders)
+          : undefined,
+      hint: resize ? `${sharing}Drag to move the stop. ${sizing}` : undefined,
+    })
+  }
+
+  // The waiting orders' exits. One line per price they already share, and
+  // nothing is moved to make one — see `orderTargetGroups`. Moving an exit
+  // changes where the trade gets out in profit and nothing else: the amounts
+  // stay where they were put, because an exit has no say in what a trade can
+  // lose.
+  for (const group of targetGroups) {
+    if (!group.orders.some((order) => onChart(order.px))) continue
+    const tag = whose(group.walletId)
+    const profit = together(group)
+    const move =
+      group.movable && onMoveOrderTarget
+        ? (price: number) => {
+            if (!soundFor(group, price, false)) return
+            for (const order of group.orders) {
+              onMoveOrderTarget(order.walletId, order.id, price)
+            }
+          }
+        : undefined
+    lines.push({
+      id: group.id,
+      kind: "order_take_profit",
+      price: group.price,
+      label: (at) => `Exit ${formatSignedUsd(profit(at))}${tag}`,
+      onMove: move,
+      allows: (price) => soundFor(group, price, false),
+      onRemove:
+        group.movable && onClearOrderTarget
+          ? () => onClearOrderTarget(group.orders)
+          : undefined,
+      hint: move
+        ? group.orders.length > 1
+          ? `One exit for ${group.orders.length} waiting orders. Drag to move where they all take their profit.`
+          : "Drag to move where this order takes its profit."
+        : undefined,
+    })
+  }
+
+  // Pointer moves arrive faster than the screen repaints, so a drag's moves
+  // are coalesced onto one animation frame — the same rule the chart's own
+  // surface uses. The pending frame and the newest pointer height live in
+  // refs, because a render has no business knowing about either.
+  const frameRef = React.useRef(0)
+  const lastYRef = React.useRef(0)
+
+  const beginGrab = (event: React.PointerEvent<SVGElement>, line: Line) => {
+    if (!line.onMove) return
+    // A line owns this touch. The chart behind it must not begin a pan, and
+    // the chart panel must not begin the long press that opens an order menu.
+    event.preventDefault()
+    event.stopPropagation()
+    event.currentTarget.setPointerCapture(event.pointerId)
+    // Measured once, here — see `Grab.top`.
+    const box = event.currentTarget.ownerSVGElement?.getBoundingClientRect()
+    if (!box) return
+    setGrab({
+      id: line.id,
+      fromY: event.clientY - box.top,
+      price: line.price,
+      moved: false,
+      top: box.top,
+    })
+  }
+
+  const continueGrab = (event: React.PointerEvent<SVGElement>) => {
+    if (!grab) return
+    lastYRef.current = event.clientY
+    if (frameRef.current) return
+    frameRef.current = requestAnimationFrame(() => {
+      frameRef.current = 0
+      setGrab((held) => {
+        if (!held) return held
+        const y = lastYRef.current - held.top
+        if (!held.moved && Math.abs(y - held.fromY) <= DRAG_SLOP) return held
+        const price = surface.priceAt(y)
+        if (price === null || price <= 0) return held
+        // A line held against what it allows stays where it is and the pointer
+        // goes on without it, so the pill never reads a price nothing would
+        // save.
+        const line = lines.find((one) => one.id === held.id)
+        if (line?.allows && !line.allows(price)) {
+          return { ...held, moved: true }
+        }
+        return { ...held, price, moved: true }
+      })
+    })
+  }
+
+  const endGrab = (event: React.PointerEvent<SVGElement>, line: Line) => {
+    if (!grab || grab.id !== line.id) return
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+    if (frameRef.current) {
+      cancelAnimationFrame(frameRef.current)
+      frameRef.current = 0
+    }
+    // The drop lands exactly where the pointer let go, whether or not the
+    // last coalesced move had painted yet.
+    const y = event.clientY - grab.top
+    const moved = grab.moved || Math.abs(y - grab.fromY) > DRAG_SLOP
+    const price = surface.priceAt(y)
+    // A press that never travelled was a press, not a move, and saving a price
+    // that did not change would be a write for nothing.
+    if (moved && price !== null && price > 0) {
+      // The drop lands where the drag was allowed to reach, which for a line
+      // held at its edge is the last price it stood on. A line dragged only
+      // into prices it refuses lands back where it started and saves nothing.
+      const drop = line.allows && !line.allows(price) ? grab.price : price
+      if (drop !== line.price) line.onMove?.(drop)
+    }
+    setGrab(null)
+  }
+
+  // Where every pill and price badge goes, settled before anything is drawn.
+  //
+  // A pill is 22 pixels tall and they all want the same place: hard against
+  // the price axis, centred on the line. Two prices closer together than that
+  // on screen used to land on the same spot and the second one drawn covered
+  // the first, words and × and all. So each pill is put down in turn, and one
+  // that lands on a pill already there moves LEFT of it. Never up or down: a
+  // pill off its own line points at a price that is not its own.
+  const pills: Array<{ top: number; bottom: number; x: number }> = []
+  const badges: Array<{ top: number; bottom: number; text: string }> = []
+  const drawn = lines.flatMap((line) => {
+    const price = grab?.id === line.id ? grab.price : line.price
+    const y = surface.yOf(price)
+    if (y === null) return []
+    const label = line.label(price)
+    const priceText = formatPrice(price)
+
+    // Line, then an outlined pill saying what it is, then the price in a solid
+    // badge over the axis. The words sit in the line's own colour on the
+    // chart's background rather than in white on a block of it: a solid bar
+    // that wide reads as a thing in its own right and hides the candles behind
+    // it, while the price — the one figure that has to be found at a glance —
+    // keeps the colour to itself.
+    const grip = line.onMove ? GRIP_WIDTH : 0
+    // Ten pixels at the left, plus room for the grip and controls. A controlled
+    // pill needs seven more pixels for the small text-to-cog gap and its right
+    // edge. A plain label keeps ten pixels at both ends.
+    const controls =
+      (line.onRemove ? CLOSE_WIDTH : 0) + (line.onSettings ? CLOSE_WIDTH : 0)
+    const pillWidth =
+      labelWidth(label) + 10 + grip + (controls > 0 ? controls + 7 : 10)
+    const badgeWidth = Math.max(
+      surface.axisWidth,
+      priceText.length * CHAR_WIDTH + 12
+    )
+    const top = y - PILL_HEIGHT / 2
+    const bottom = top + PILL_HEIGHT
+
+    let pillX = surface.width - pillWidth - BADGE_GAP
+    // One try per pill already down is enough: every move puts this pill fully
+    // left of one of them, and the list is finite.
+    for (let tries = 0; tries <= pills.length; tries++) {
+      const clash = pills.find(
+        (one) =>
+          one.top < bottom &&
+          top < one.bottom &&
+          pillX + pillWidth + PILL_GAP > one.x
+      )
+      if (!clash) break
+      pillX = clash.x - PILL_GAP - pillWidth
+    }
+    pillX = Math.max(2, pillX)
+    pills.push({ top, bottom, x: pillX })
+
+    // A price badge cannot move sideways, because the axis is the only place a
+    // price is read. Two badges saying the SAME price are one fact printed
+    // twice, so the second is dropped. Two saying different prices both have to
+    // be legible, so the later one slides down until it is clear.
+    let badgeY = y
+    let sameTwice = false
+    for (let tries = 0; tries <= badges.length; tries++) {
+      const clash = badges.find(
+        (one) =>
+          one.top < badgeY + PILL_HEIGHT / 2 &&
+          badgeY - PILL_HEIGHT / 2 < one.bottom
+      )
+      if (!clash) break
+      if (clash.text === priceText) {
+        sameTwice = true
+        break
+      }
+      badgeY = clash.bottom + PILL_HEIGHT / 2
+    }
+    // A badge that slid past the bottom of the chart is a price nobody can
+    // read, which is worse than two badges touching. Kept on the chart even
+    // when that means giving the sliding up.
+    badgeY = Math.min(
+      Math.max(badgeY, PILL_HEIGHT / 2),
+      Math.max(PILL_HEIGHT / 2, surface.height - PILL_HEIGHT / 2)
+    )
+    if (!sameTwice) {
+      badges.push({
+        top: badgeY - PILL_HEIGHT / 2,
+        bottom: badgeY + PILL_HEIGHT / 2,
+        text: priceText,
+      })
+    }
+
+    return [
+      {
+        line,
+        y,
+        label,
+        priceText,
+        pillWidth,
+        badgeWidth,
+        pillX,
+        top,
+        grip,
+        badgeY,
+        showBadge: !sameTwice,
+      },
+    ]
+  })
+
+  return (
+    <svg
+      // Marks everything these lines own, so a press anywhere else on the page
+      // is plainly not aimed at them.
+      data-chart-trade
+      // Wider than the plot by the axis, which is where each line's price
+      // badge sits. The lines themselves still stop at the plot's edge.
+      width={surface.width + surface.axisWidth}
+      height={surface.height}
+      className="absolute top-0 left-0"
+    >
+      {drawn.map(
+        ({
+          line,
+          y,
+          label,
+          priceText,
+          pillWidth,
+          badgeWidth,
+          pillX,
+          top,
+          grip,
+          badgeY,
+          showBadge,
+        }) => {
+          // Not `held`: that name belongs to the positions above, and this
+          // callback now sits under a helper that reads them.
+          const dragging = grab?.id === line.id
+          const color = colorOf(line.kind, colors)
+          const settingsCenterX =
+            pillX +
+            pillWidth -
+            (line.onRemove ? CLOSE_WIDTH : 0) -
+            CLOSE_WIDTH / 2 -
+            6
+
+          return (
+            <g
+              key={line.id}
+              data-chart-alert={line.kind === "alert" ? "true" : undefined}
+            >
+              {/* Stops at the pill rather than running under it, so the words
+                are read against the chart and not against their own line. */}
+              <line
+                x1={0}
+                y1={y}
+                x2={Math.max(0, pillX - 2)}
+                y2={y}
+                stroke={color}
+                strokeWidth={dragging ? 2 : 1.5}
+                strokeDasharray={DASHED[line.kind]}
+              />
+
+              <g style={{ pointerEvents: "none" }}>
+                <rect
+                  data-chart-order-bar
+                  x={pillX}
+                  y={top}
+                  width={pillWidth}
+                  height={PILL_HEIGHT}
+                  rx={PILL_RADIUS}
+                  fill="var(--card)"
+                  fillOpacity={0.92}
+                  stroke={color}
+                  strokeWidth={dragging ? 1.75 : 1.25}
+                />
+                {line.onMove ? (
+                  <Grip x={pillX + 9} y={y - 4} color={color} />
+                ) : null}
+                <text
+                  x={pillX + 10 + grip}
+                  y={y + 4}
+                  fill={color}
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    letterSpacing: 0.3,
+                  }}
+                >
+                  {line.money ? (
+                    <>
+                      {line.money.before}
+                      <tspan
+                        className={
+                          line.kind === "entry" ? hiddenPnl : undefined
+                        }
+                        fill={moneyColor(line.money.value, colors, color)}
+                      >
+                        {line.money.text}
+                      </tspan>
+                      {line.money.after}
+                    </>
+                  ) : (
+                    label
+                  )}
+                </text>
+                {/* The price in the line's colour, over the axis, where every
+                  other price on the chart is read. Dropped when a badge for
+                  this same price is already there — see the layout above. */}
+                {showBadge ? (
+                  <>
+                    <rect
+                      x={surface.width + BADGE_GAP}
+                      y={badgeY - PILL_HEIGHT / 2}
+                      width={badgeWidth}
+                      height={PILL_HEIGHT}
+                      rx={PILL_RADIUS}
+                      fill={color}
+                    />
+                    <text
+                      x={surface.width + BADGE_GAP + 6}
+                      y={badgeY + 4}
+                      fill={colors.badgeText}
+                      style={{ fontSize: 11, fontWeight: 600 }}
+                    >
+                      {priceText.replace("$", "")}
+                    </text>
+                  </>
+                ) : null}
+              </g>
+
+              {line.onMove && !tool ? (
+                // A fat invisible line over the thin visible one, because a
+                // 1.5px target is not one.
+                <line
+                  x1={0}
+                  y1={y}
+                  x2={surface.width}
+                  y2={y}
+                  stroke={color}
+                  strokeOpacity={0}
+                  className="[stroke-width:44px] min-[1280px]:[stroke-width:14px]"
+                  style={{
+                    pointerEvents: "stroke",
+                    cursor: "ns-resize",
+                    outline: "none",
+                    touchAction: "none",
+                  }}
+                  tabIndex={0}
+                  role="button"
+                  aria-label={`${label} at ${priceText}`}
+                  onPointerDown={(event) => beginGrab(event, line)}
+                  onPointerMove={continueGrab}
+                  onPointerUp={(event) => endGrab(event, line)}
+                  onPointerCancel={(event) => endGrab(event, line)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Delete" || event.key === "Backspace") {
+                      event.preventDefault()
+                      line.onRemove?.()
+                    }
+                  }}
+                />
+              ) : null}
+
+              {line.onSettings && !tool ? (
+                // The whole pill is the press target, not just the little gear —
+                // the gear stays as the visual cue, the × on top still wins.
+                //
+                // **It opens on the release, and only if the pointer stayed
+                // put.** The pill sits on the line, so a press on it that then
+                // moves is somebody dragging the order to a new price; opening
+                // on the press meant the window jumped up the moment they took
+                // hold of it, and the drag never happened. A press that travels
+                // drags, a press that does not opens the window.
+                <g
+                  role="button"
+                  tabIndex={0}
+                  aria-label={
+                    line.hint ?? `Settings for ${label.toLowerCase()}`
+                  }
+                  style={{
+                    pointerEvents: "all",
+                    cursor: line.onMove ? "ns-resize" : "pointer",
+                    outline: "none",
+                  }}
+                  onPointerDown={(event) => {
+                    event.stopPropagation()
+                    if (line.onMove) beginGrab(event, line)
+                  }}
+                  onPointerMove={continueGrab}
+                  onPointerUp={(event) => {
+                    // Judged from where the pointer really is, not from the
+                    // last painted frame — a fast flick could let go before its
+                    // coalesced move ever painted.
+                    const dragged =
+                      grab?.id === line.id &&
+                      (grab.moved ||
+                        Math.abs(event.clientY - grab.top - grab.fromY) >
+                          DRAG_SLOP)
+                    endGrab(event, line)
+                    if (!dragged) line.onSettings?.(event.currentTarget)
+                  }}
+                  onPointerCancel={(event) => endGrab(event, line)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault()
+                      line.onSettings?.(event.currentTarget)
+                    }
+                  }}
+                >
+                  {line.hint ? <title>{line.hint}</title> : null}
+                  <rect
+                    x={pillX}
+                    y={top}
+                    width={pillWidth}
+                    height={PILL_HEIGHT}
+                    rx={PILL_RADIUS}
+                    fill="transparent"
+                  />
+                </g>
+              ) : null}
+
+              {line.onSettings ? (
+                // The 12px Settings icon used by the grid's chart order bar.
+                // The whole pill above remains the press target, so this glyph
+                // never fights it for the pointer.
+                <SettingsIcon
+                  data-order-settings-icon
+                  x={settingsCenterX - 6}
+                  y={y - 6}
+                  width={12}
+                  height={12}
+                  stroke={color}
+                  opacity={0.9}
+                  style={{ pointerEvents: "none" }}
+                />
+              ) : null}
+
+              {line.onRemove && !tool ? (
+                <RemoveButton
+                  x={pillX + pillWidth - CLOSE_WIDTH / 2 - 6}
+                  y={y}
+                  color={color}
+                  label={`Remove ${label.toLowerCase()}`}
+                  onRemove={line.onRemove}
+                />
+              ) : null}
+            </g>
+          )
+        }
+      )}
+    </svg>
+  )
+})
+
+/** The × inside a label pill, in the line's own colour. */
+function RemoveButton({
+  x,
+  y,
+  color,
+  label,
+  onRemove,
+}: {
+  x: number
+  y: number
+  color: string
+  label: string
+  onRemove: () => void
+}) {
+  return (
+    <g
+      role="button"
+      tabIndex={0}
+      aria-label={label}
+      style={{ pointerEvents: "all", cursor: "pointer", outline: "none" }}
+      // On the press, not the click: the line underneath takes hold of the
+      // pointer on its own press, and a click would arrive after the drag it
+      // started.
+      onPointerDown={(event) => {
+        event.stopPropagation()
+        onRemove()
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault()
+          onRemove()
+        }
+      }}
+    >
+      {/* Invisible, only so the × has something finger-sized to be pressed on. */}
+      <rect x={x - 8} y={y - 9} width={18} height={18} fill="transparent" />
+      <path
+        d={`M${x - 3.5} ${y - 3.5} L${x + 3.5} ${y + 3.5} M${x + 3.5} ${y - 3.5} L${x - 3.5} ${y + 3.5}`}
+        stroke={color}
+        strokeOpacity={0.9}
+        strokeWidth={1.6}
+        strokeLinecap="round"
+      />
+    </g>
+  )
+}

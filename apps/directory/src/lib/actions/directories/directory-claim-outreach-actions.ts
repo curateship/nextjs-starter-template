@@ -13,8 +13,5 @@ export const getDirectoryClaimOutreachListAction = createServerFn({ method: "POS
   .handler(async ({ data }) => getDirectoryClaimOutreachListActionImpl(data.siteId))
 
 export const sendDirectoryClaimOutreachAction = createServerFn({ method: "POST" })
-  .inputValidator((data: { input: {
-  siteId: string
-  directoryIds: string[]
-} }) => data)
+  .inputValidator((data: { input: Parameters<typeof sendDirectoryClaimOutreachActionImpl>[0] }) => data)
   .handler(async ({ data }) => sendDirectoryClaimOutreachActionImpl(data.input))

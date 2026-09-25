@@ -45,6 +45,8 @@ export interface ContentListPageProps<TItem extends ContentListItem> {
   builderPath: string
   builderQueryParam?: string
   canDeleteItem?: (item: TItem) => boolean
+  /** Why `canDeleteItem` said no, shown on the greyed-out trash. */
+  deleteBlockedLabel?: string
   canSelectItem?: (item: TItem) => boolean
   columnCount?: 5 | 6
   createButtonLabel: string
@@ -54,7 +56,6 @@ export interface ContentListPageProps<TItem extends ContentListItem> {
   emptyButtonLabel: string
   emptyDescription?: (items: TItem[], filterStatus: ContentStatusFilter) => string
   emptyTitle: (items: TItem[], filterStatus: ContentStatusFilter) => string
-  formatModified?: (item: TItem) => string
   getBuilderHref?: (item: TItem) => string
   getCursorItems?: (
     params: ContentCursorListParams

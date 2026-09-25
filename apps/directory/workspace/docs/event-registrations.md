@@ -6,18 +6,27 @@ How people sign up for an event, free or paid, and what happens after they do.
 
 An event's registration settings sit on its `event-content` block, next to the date, time and
 venue — the same block-JSON model the rest of events already uses (see
-`content-template-inheritance.md`). Four values:
+`content-template-inheritance.md`). Seven values:
 
 - `registrationMode` — `free`, `paid`, or absent (off).
 - `capacity` — a whole number of seats. Absent or 0 means no limit.
 - `ticketPriceId` — the Stripe Price id that is actually charged. Paid events only.
 - `ticketPriceLabel` — display text on the button, e.g. `$25`. Never used to charge anyone.
+- `remindersEnabled` — `false` to stop the reminder. Absent means on.
+- `reminderLeadHours` — how far ahead the reminder goes out. Absent means 24 hours.
+- `followUpEnabled` — `false` to stop the thank-you. Absent means on.
 
-The owner edits these in the event builder's **Registration** card. A paid event with no valid
-Stripe price reports itself as "off" rather than showing a buy button that would fail at checkout.
+The owner edits the first four in the event builder's **Registration** card and the last three in
+the **Reminder Emails** card beside it. A paid event with no valid Stripe price reports itself as
+"off" rather than showing a buy button that would fail at checkout.
+
+**Only the non-default answer is stored.** Both reminder switches are on and the lead time is 24
+hours unless the block says otherwise, so an event that has never been near these boxes behaves
+exactly like one that has, and changing the app's default later moves every event that never chose
+its own.
 
 Nothing about registration lives in an `events` column, so no schema change is needed to turn it on
-for an event — only `event_registrations` (migration 195) is new.
+for an event — only `event_registrations` (migrations 195 and 201) is new.
 
 ## Free RSVP
 
@@ -68,37 +77,111 @@ quietly reporting success.
 
 ## Emails
 
-Two editable system-email templates, alongside the app's other transactional emails:
+Three editable system-email templates, alongside the app's other transactional emails:
 
 - `event_registration_confirmation` — immediately after signing up or paying.
-- `event_reminder` — sent by `/api/cron/event-reminders` (hourly) when an event starts within
-  `REMINDER_LEAD_HOURS` (24h).
+- `event_reminder` — the configured number of hours before the event starts.
+- `event_follow_up` — 9am on the day after the event.
 
-Both offer `{{attendee_name}}`, `{{event_name}}`, `{{event_when}}`, `{{event_location}}`,
-`{{event_url}}`, `{{event_calendar_url}}`, `{{site_name}}` and `{{site_url}}`.
-`reminder_sent_at` is stamped only on a successful send, so an unconfigured mail sender means the
-reminder retries rather than being silently skipped.
+All three offer `{{attendee_name}}`, `{{event_name}}`, `{{event_when}}`, `{{event_location}}`,
+`{{ticket_url}}`, `{{ticket_qr_url}}`, `{{event_url}}`, `{{event_calendar_url}}`, `{{site_name}}`
+and `{{site_url}}`. The two ticket tokens are the only ones besides the name that differ per
+recipient — everything else is resolved once for the whole list. There is deliberately no
+"next events" token: a site's events page is whatever page its owner built, so the thank-you links
+to the site itself and the owner adds their own link when they edit the template.
+
+## The reminder and follow-up cron
+
+`/api/cron/event-reminders` runs hourly and sends both of the automatic emails. It scans published
+events dated from three days ago to eight days out — wide enough for the longest lead time an owner
+can pick (a week) and for the follow-up window behind — then decides event by event in JS, using the
+same floating wall-clock rule as the event page.
+
+**The two moments can never overlap**, since one is before the start and the other is the morning
+after, so exactly one email is ever in play for an event on a given tick. That is why the attendee
+list is fetched per email rather than for everyone who needs either: an attendee who has had this
+email drops out of the next tick's batch, which is what lets an event with more attendees than the
+500-per-tick limit drain instead of re-serving the same first 500 forever.
+
+**Nothing is stamped until the provider says the message went out.** A site with no Resend
+integration, or an owner who turned a template off, simply retries next tick — the send is never
+silently skipped, and re-running the job can never email anybody twice.
+
+**Only confirmed attendees are emailed.** A cancelled registration and an abandoned paid checkout
+(`pending`) both stay out of every send.
+
+**A rescheduled event sends one corrected reminder.** `reminder_sent_for` records the start time the
+reminder actually described, e.g. `2026-08-15T18:00`. Move the event and that key stops matching, so
+everyone holding the wrong time is reminded again — once, because the new send stamps the new key.
+Moving an event *after* the thank-you has gone out produces no second thank-you; `follow_up_sent_at`
+is written once and never reconsidered.
+
+**An old event never produces a surprise.** The follow-up window closes 48 hours after its 9am
+moment, so an event nobody has thought about in days cannot suddenly generate email.
 
 ## Events with no date yet
 
 An event whose date has not been set is treated as **not started**, so sign-ups stay open: nothing
 can be claimed about a date that does not exist, and closing registration with "this event has
 already started" would be untrue. The confirmation email prints "Date to be announced", and the
-reminder cron only ever looks at events that do have a date, so such an event simply gets no
-reminder until the owner sets one.
+reminder cron only ever looks at events that do have a date, so such an event gets neither a
+reminder nor a thank-you until the owner sets one.
 
 ## Timezones
 
 Events carry a floating wall-clock date and time with no timezone — the model `calendar.ts`
-documents and the `.ics` output relies on. Registration follows it: "has the event started" and "is
-the reminder due" compare the event's wall-clock start against the server's clock. A per-event
-timezone would have to change the whole event date model (page, calendar feed, `.ics`, recurrence),
-so it is deliberately out of scope here.
+documents and the `.ics` output relies on. Registration follows it: "has the event started", "is
+the reminder due" and "is it 9am the morning after" all compare the event's wall-clock start against
+the server's clock. A per-event timezone would have to change the whole event date model (page,
+calendar feed, `.ics`, recurrence), so it is deliberately out of scope here.
 
 ## Admin
 
 `/admin/events/registrations` lists every signup for the current site: attendee, event, ticket
-amount, status, when they registered and whether the reminder went out. The event filter shows each
-event's confirmed count against its capacity. Removing a registration cancels it — the seat is freed
-and a paid row keeps its Stripe references for the owner's books, and nothing is refunded
-automatically.
+amount, status, whether they have been checked in, when they registered, and whether the reminder
+and the thank-you went out. The event filter shows each event's confirmed count against its capacity
+and how many of those people actually turned up. Removing a registration cancels it — the seat is freed and a paid
+row keeps its Stripe references for the owner's books, and nothing is refunded automatically.
+
+## Check-in at the door
+
+Every registration gets a **ticket code** the moment it is created (migration 198): sixteen
+uppercase hex characters, random, unique, and never reused. It is a bearer token — whoever holds it
+can open that ticket's page — so it is generated rather than derived from the row id, and the
+registrations that predate the migration were backfilled from `gen_random_uuid()`.
+
+**The ticket page** is `/tickets/{code}` on the site's own domain. It shows the attendee's name, the
+event, when and where, the code printed in groups of four, and a QR of that same URL. The QR is
+generated by `src/lib/utils/qr-code.ts` — `uqr` encodes the matrix, and this file draws it as inline
+SVG for the page and as a hand-written 1-bit PNG for the email, because mail clients do not render
+SVG. `/api/tickets/{code}/qr` serves that PNG and is what `{{ticket_qr_url}}` points at. Both the
+page and the image are scoped to the site the request arrived on, so one site's URL can never serve
+another site's ticket, and the image endpoint refuses codes that are not real tickets rather than
+acting as a general-purpose QR generator.
+
+**Scanning is the phone's own camera, not an in-page scanner.** Point any phone at the QR and it
+offers the ticket URL; an organizer who is signed in to that site's admin lands on the ticket page
+with a **Check in** button on it, one tap from done. This is deliberate: the browser barcode API
+(`BarcodeDetector`) exists only on Android Chrome, and the app's `Permissions-Policy` header keeps
+`camera=()` off for every page — an in-page scanner would work for a minority of organizers and
+would cost a security header to enable. The native camera works on every phone and asks for no
+permissions at all. Sessions are per host, so the organizer must be signed in on the *site's* domain
+(`site.example.com/admin/...`), not the platform one, for the button to appear.
+
+**The door screen** is `/admin/events/check-in`. Pick the event, and it shows how many of the
+registered have arrived, a box to type or paste a ticket code, and a name/email search over the
+confirmed attendees with a Check in button on each row. Its event picker lists the next event first.
+Arrivals are applied to the screen from the server's own answer rather than reloading the board —
+on venue wifi, a round trip between every attendee is the difference between a queue moving and a
+queue waiting.
+
+Scanning the same ticket twice warns with who it belongs to and when it was first used, rather than
+counting them again: the update is guarded on `checked_in_at` still being null, so two organizers
+scanning at the same moment cannot both record an arrival. A real ticket for a different event is
+refused by name and event title. A ticket whose payment never completed says so and is not admitted;
+one the owner removed says that instead. Only confirmed registrations appear in the attendee
+list — someone who abandoned a checkout is not registered, and listing them at a door only raises
+the question of whether to let them in.
+
+Every check-in path requires an admin session. The code alone lets you look at a ticket; it never
+lets you mark one used.

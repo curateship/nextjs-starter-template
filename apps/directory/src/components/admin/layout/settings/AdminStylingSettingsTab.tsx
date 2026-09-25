@@ -5,7 +5,9 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { AdminStylingSettings } from "@/components/admin/layout/settings/AdminStylingSettings"
 import { useAdminStyling } from "@/components/admin/layout/settings/admin-styling-provider"
 import { Card, CardContent } from "@/components/ui/card"
-import { useSaveStatus, type SaveStatus } from "@/components/admin/layout/builder/save-status"
+import { ErrorBanner } from "@/components/ui/error-banner"
+import { type SaveStatus } from "@/components/admin/layout/builder/save-status"
+import { useAutoSave } from "@/components/admin/layout/builder/use-auto-save"
 import {
   getAdminSettingsAction,
   updateAdminSettingsAction,
@@ -23,13 +25,25 @@ export function AdminStylingSettingsTab({ onStatusChange }: AdminStylingSettings
   stylingRef.current = styling
 
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [saveStatus, setSaveStatus] = useSaveStatus()
+
+  const { saveStatus, isSaving, scheduleSave } = useAutoSave<AdminStyling>({
+    save: async (next) => {
+      const result = await updateAdminSettingsAction({ data: { styling: next } })
+      if (!result.success) {
+        return { saved: false, reason: result.error || "Failed to save styling settings" }
+      }
+
+      // The saved value is deliberately not pushed back into the live context:
+      // the colours are a live preview, and re-applying a round trip mid-drag
+      // makes the whole admin flicker back a step.
+      return { saved: true }
+    }
+  })
 
   useEffect(() => {
-    onStatusChange?.({ loading, saving, saveStatus })
-  }, [loading, onStatusChange, saveStatus, saving])
+    onStatusChange?.({ loading, saving: isSaving, saveStatus })
+  }, [isSaving, loading, onStatusChange, saveStatus])
 
   // Sync the live context with the persisted value on mount (the shell may have
   // been initialized before the latest save).
@@ -66,37 +80,10 @@ export function AdminStylingSettingsTab({ onStatusChange }: AdminStylingSettings
     (next: AdminStyling) => {
       stylingRef.current = next
       stylingContext?.setStyling(next)
+      scheduleSave(next)
     },
-    [stylingContext]
+    [scheduleSave, stylingContext]
   )
-
-  const handleSave = useCallback(async () => {
-    if (saving) return false
-    try {
-      setSaving(true)
-      setError(null)
-      setSaveStatus("saving")
-
-      const result = await updateAdminSettingsAction({ styling: stylingRef.current })
-      if (!result.success) {
-        setError(result.error || "Failed to save styling settings")
-        setSaveStatus("error", result.error || "Failed to save styling settings")
-        return false
-      }
-
-      const saved = normalizeStyling(result.data?.settings?.styling)
-      stylingContext?.setStyling(saved)
-      setSaveStatus("saved", "Styling saved")
-      return true
-    } catch (saveError) {
-      console.error("Error saving admin styling settings:", saveError)
-      setError("Failed to save styling settings")
-      setSaveStatus("error", "Failed to save styling settings")
-      return false
-    } finally {
-      setSaving(false)
-    }
-  }, [saving, setSaveStatus, stylingContext])
 
   if (loading) {
     return (
@@ -104,8 +91,6 @@ export function AdminStylingSettingsTab({ onStatusChange }: AdminStylingSettings
         <CardContent>
           {[1, 2, 3].map((item) => (
             <div key={item} className="space-y-2">
-              <div className="h-4 w-40 animate-pulse rounded bg-muted" />
-              <div className="h-10 animate-pulse rounded bg-muted/60" />
             </div>
           ))}
         </CardContent>
@@ -114,20 +99,13 @@ export function AdminStylingSettingsTab({ onStatusChange }: AdminStylingSettings
   }
 
   return (
-    <form
-      id="admin-styling-settings-form"
-      className="contents"
-      onSubmit={(event) => {
-        event.preventDefault()
-        void handleSave()
-      }}
-    >
-      {error && (
-        <div className="mb-3 rounded-lg border border-red-200 bg-red-50 p-4">
-          <p className="text-sm text-red-800">{error}</p>
+    <>
+      {error ? (
+        <div className="mb-3 overflow-hidden rounded-lg">
+          <ErrorBanner message={error} />
         </div>
-      )}
-      <AdminStylingSettings styling={styling} isSaving={saving} onChange={handleChange} />
-    </form>
+      ) : null}
+      <AdminStylingSettings styling={styling} isSaving={isSaving} onChange={handleChange} />
+    </>
   )
 }

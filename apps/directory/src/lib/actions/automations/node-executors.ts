@@ -1,19 +1,23 @@
 import type {
   AgentAutomationNode,
+  ApprovalAutomationNode,
   AutomationNode,
-  AutomationNodeKind,
   AutomationTriggerType,
+  EventAutomationNode,
   FeedAutomationNode,
   ImageAutomationNode,
   ListingAutomationNode,
+  NewsletterAutomationNode,
   PostAutomationNode,
   RouterAutomationNode,
   ScraperAutomationNode,
 } from '@/features/automations/domain/types'
 import { runAgentNode } from './nodes/agent'
+import { runEventNode } from './nodes/event'
 import { runFeedNode } from './nodes/feed'
 import { runImageNode } from './nodes/image'
 import { runListingNode } from './nodes/listing'
+import { runNewsletterNode } from './nodes/newsletter'
 import { runPostNode } from './nodes/post'
 import { runRouterNode } from './nodes/router'
 import { runScraperNode } from './nodes/scraper'
@@ -25,15 +29,22 @@ export interface NodeExecutionContext {
   triggerType: AutomationTriggerType
 }
 
+/**
+ * Every node kind except Approval. Approval is a control node: pausing a run is
+ * not something a node can express by returning a value, so the graph runner in
+ * execution.ts handles it directly instead of dispatching to an executor.
+ */
+export type ExecutableAutomationNode = Exclude<AutomationNode, ApprovalAutomationNode>
+
 export interface NodeExecutor {
   // Whether temporary (retryable) errors from this node are retried.
   retry: boolean
-  run(ctx: NodeExecutionContext, payloads: RuntimeOutput[], node: AutomationNode): Promise<RuntimeOutput>
+  run(ctx: NodeExecutionContext, payloads: RuntimeOutput[], node: ExecutableAutomationNode): Promise<RuntimeOutput>
 }
 
-// One executor per node kind. Adding a node kind means adding one entry here;
-// the graph runner in execution.ts dispatches through getNodeExecutor.
-const NODE_EXECUTORS: Record<AutomationNodeKind, NodeExecutor> = {
+// One executor per executable node kind. Adding a node kind means adding one entry
+// here; the graph runner in execution.ts dispatches through getNodeExecutor.
+const NODE_EXECUTORS: Record<ExecutableAutomationNode['kind'], NodeExecutor> = {
   time: {
     retry: false,
     run: async () => ({ type: 'signal' }),
@@ -103,8 +114,24 @@ const NODE_EXECUTORS: Record<AutomationNodeKind, NodeExecutor> = {
       return { type: 'listing', listing }
     },
   },
+  event: {
+    retry: true,
+    run: async (ctx, payloads, node) => {
+      const event = await runEventNode(ctx.siteId, node as EventAutomationNode, documentsFrom(payloads))
+      return { type: 'event', event }
+    },
+  },
+  newsletter: {
+    retry: false,
+    run: async (ctx, payloads, node) => {
+      const article = articleFrom(payloads)
+      if (!article) throw new Error('Newsletter did not receive an article')
+      const newsletter = await runNewsletterNode(ctx.siteId, node as NewsletterAutomationNode, article)
+      return { type: 'newsletter', newsletter }
+    },
+  },
 }
 
-export function getNodeExecutor(kind: AutomationNodeKind): NodeExecutor {
+export function getNodeExecutor(kind: ExecutableAutomationNode['kind']): NodeExecutor {
   return NODE_EXECUTORS[kind]
 }

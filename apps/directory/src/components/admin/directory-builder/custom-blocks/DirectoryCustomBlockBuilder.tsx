@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import Link from "@/components/app-link"
 import { useRouter } from "@/lib/navigation-client"
 import Monitor from "lucide-react/dist/esm/icons/monitor.js"
@@ -10,6 +10,7 @@ import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
 import { Button } from "@/components/ui/button"
 import { useSaveStatus } from "@/components/admin/layout/builder/save-status"
+import { AUTO_SAVE_DEBOUNCE_MS } from "@/components/admin/layout/builder/use-auto-save"
 import { BlockListPanel } from "@/components/admin/layout/builder/BlockListPanel"
 import { BlockSelectionModal, type BlockSelection } from "@/components/admin/layout/builder/BlockSelectionModal"
 import { DirectoryCustomBlockPreview } from "@/components/admin/directory-builder/custom-blocks/DirectoryCustomBlockPreview"
@@ -108,9 +109,14 @@ export function DirectoryCustomBlockBuilder({ templateId }: DirectoryCustomBlock
     setFields(prev => prev.map(field => field.id === updatedField.id ? updatedField : field))
   }
 
+  // Auto-save bookkeeping — declared above handleSave because it records what
+  // that save wrote.
+  const lastBlockJsonRef = useRef<string | null>(null)
+  const pendingBlockSaveRef = useRef(false)
+
   const handleSave = async () => {
     if (!name.trim()) {
-      setSaveStatus('error', 'Block name is required')
+      setSaveStatus('blocked', 'Not saved — add a block name')
       return
     }
 
@@ -133,6 +139,11 @@ export function DirectoryCustomBlockBuilder({ templateId }: DirectoryCustomBlock
     }
 
     setTemplate(result.data)
+    lastBlockJsonRef.current = JSON.stringify({
+      name: result.data.name,
+      layout: result.data.layout,
+      fields: result.data.fields || []
+    })
     setName(result.data.name)
     setLayout(result.data.layout)
     setFields(result.data.fields || [])
@@ -143,6 +154,42 @@ export function DirectoryCustomBlockBuilder({ templateId }: DirectoryCustomBlock
       router.replace(`/admin/directory/custom-blocks/${result.data.id}`)
     }
   }
+
+  // Auto-save, but only once the block exists. On the "new block" screen the
+  // first keystroke would otherwise create a half-named block, so that one
+  // still has a Create Block button.
+  const handleSaveRef = useRef(handleSave)
+  handleSaveRef.current = handleSave
+  const watchedBlockJson = JSON.stringify({ name, layout, fields })
+
+  useEffect(() => {
+    if (!templateId || loading) {
+      lastBlockJsonRef.current = null
+      return
+    }
+    if (lastBlockJsonRef.current === null) {
+      lastBlockJsonRef.current = watchedBlockJson
+      return
+    }
+    if (lastBlockJsonRef.current === watchedBlockJson) return
+
+    lastBlockJsonRef.current = watchedBlockJson
+    pendingBlockSaveRef.current = true
+    const timer = setTimeout(() => {
+      pendingBlockSaveRef.current = false
+      void handleSaveRef.current()
+    }, AUTO_SAVE_DEBOUNCE_MS)
+    return () => clearTimeout(timer)
+  }, [loading, templateId, watchedBlockJson])
+
+  // Leaving the screen inside that wait must not lose the edit.
+  useEffect(() => {
+    return () => {
+      if (pendingBlockSaveRef.current) {
+        void handleSaveRef.current()
+      }
+    }
+  }, [])
 
   const previewTemplate = {
     name: name.trim() || 'Untitled Custom Block',
@@ -158,15 +205,12 @@ export function DirectoryCustomBlockBuilder({ templateId }: DirectoryCustomBlock
             <StickybarTopRightActions
               rightActions={(
                 <div className="flex items-center gap-2">
-                  <div className="h-8 w-24 animate-pulse rounded bg-muted" />
-                  <div className="h-8 w-24 animate-pulse rounded bg-muted" />
                 </div>
               )}
             />
           )}
         />
         <div className="flex flex-1 overflow-hidden">
-          <div className="flex-1 animate-pulse bg-muted/30" />
         </div>
       </div>
     )
@@ -178,7 +222,7 @@ export function DirectoryCustomBlockBuilder({ templateId }: DirectoryCustomBlock
         <StickyHeader />
         <div className="flex flex-1 items-center justify-center">
           <div className="space-y-4 text-center">
-            <p className="text-red-600">{error}</p>
+            <p className="text-destructive">{error}</p>
             <Button asChild variant="outline">
               <Link href="/admin/directory/custom-blocks">Back to Custom Blocks</Link>
             </Button>
@@ -231,8 +275,8 @@ export function DirectoryCustomBlockBuilder({ templateId }: DirectoryCustomBlock
             )}
             saveStatus={saveStatus}
             isSaving={isSaving}
-            onSave={handleSave}
-            saveLabel={templateId ? "Save" : "Create Block"}
+            onSave={templateId ? undefined : handleSave}
+            saveLabel="Create Block"
           />
         )}
       />

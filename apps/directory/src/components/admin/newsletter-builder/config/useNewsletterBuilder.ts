@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { getNewsletterById, updateNewsletter } from "@/lib/actions/newsletters/newsletter-actions"
-import { useSaveStatus, type SaveStatus } from "@/components/admin/layout/builder/save-status"
+import { type SaveStatus } from "@/components/admin/layout/builder/save-status"
+import { useAutoSave } from "@/components/admin/layout/builder/use-auto-save"
 import { useBlockEditor, parseBlocksFromJson, blocksToJson } from "./useBlockEditor"
 import type { Newsletter } from "@/lib/actions/newsletters/newsletter-actions"
 
@@ -26,7 +27,7 @@ interface UseNewsletterBuilderReturn {
   handleDeleteBlock: ReturnType<typeof useBlockEditor>['handleDeleteBlock']
   handleReorderBlocks: ReturnType<typeof useBlockEditor>['handleReorderBlocks']
   handleAddBlocks: ReturnType<typeof useBlockEditor>['handleAddBlocks']
-  handleSave: () => Promise<void>
+  saveNow: () => Promise<boolean>
   saveSelectedBlockContent: (content: Record<string, any>, nextSubject?: string) => Promise<boolean>
   reloadNewsletter: () => Promise<void>
 }
@@ -34,8 +35,6 @@ interface UseNewsletterBuilderReturn {
 export function useNewsletterBuilder({ newsletterId }: UseNewsletterBuilderParams): UseNewsletterBuilderReturn {
   const [newsletter, setNewsletter] = useState<Newsletter | null>(null)
   const [subject, setSubject] = useState("")
-  const [isSaving, setIsSaving] = useState(false)
-  const [saveStatus, setSaveStatus] = useSaveStatus()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -60,42 +59,55 @@ export function useNewsletterBuilder({ newsletterId }: UseNewsletterBuilderParam
     loadNewsletter()
   }, [loadNewsletter])
 
-  const persistNewsletter = async (nextBlocks: ReturnType<typeof useBlockEditor>['blocks'], nextSubject = subject) => {
-    if (!newsletter) return false
+  const newsletterRef = useRef(newsletter)
+  newsletterRef.current = newsletter
+  const subjectRef = useRef(subject)
+  subjectRef.current = subject
+  const blocksRef = useRef(blockEditor.blocks)
+  blocksRef.current = blockEditor.blocks
+  const lastSavedJsonRef = useRef<string | null>(null)
 
-    setIsSaving(true)
-    setSaveStatus("saving")
+  // Auto-save: the subject line and the blocks are written once the edits stop.
+  const { saveStatus, isSaving, scheduleSave, saveNow } = useAutoSave<{
+    blocks: ReturnType<typeof useBlockEditor>['blocks']
+    subject: string
+  }>({
+    save: async (draft) => {
+      const current = newsletterRef.current
+      if (!current) return { saved: true }
 
-    const contentBlocks = blocksToJson(nextBlocks)
-
-    try {
-      const { data, error: saveError } = await updateNewsletter({ data: { newsletterId: newsletter.id, updates: {
-        subject: nextSubject,
-        content_blocks: contentBlocks
+      const { data, error: saveError } = await updateNewsletter({ data: { newsletterId: current.id, updates: {
+        subject: draft.subject,
+        content_blocks: blocksToJson(draft.blocks)
       } } })
-      if (saveError) {
-        setSaveStatus("error", saveError)
-        return false
-      }
 
-      if (data) {
-        setNewsletter(data)
-        setSubject(nextSubject)
-        setSaveStatus("saved")
-        return true
-      }
-    } catch (err) {
-      setSaveStatus("error", err instanceof Error ? err.message : 'Failed to save')
-    } finally {
-      setIsSaving(false)
+      if (saveError) return { saved: false, reason: saveError }
+      if (data) setNewsletter(data)
+      return { saved: true }
     }
+  })
 
-    return false
-  }
+  const watchedJson = JSON.stringify({ blocks: blockEditor.blocks, subject })
 
-  const handleSave = async () => {
-    await persistNewsletter(blockEditor.blocks, subject)
-  }
+  useEffect(() => {
+    if (loading) {
+      lastSavedJsonRef.current = null
+      return
+    }
+    if (lastSavedJsonRef.current === null) {
+      lastSavedJsonRef.current = watchedJson
+      return
+    }
+    if (lastSavedJsonRef.current === watchedJson) return
+
+    lastSavedJsonRef.current = watchedJson
+    scheduleSave({ blocks: blocksRef.current, subject: subjectRef.current })
+  }, [loading, scheduleSave, watchedJson])
+
+  const flushSave = useCallback(
+    () => saveNow({ blocks: blocksRef.current, subject: subjectRef.current }),
+    [saveNow]
+  )
 
   const saveSelectedBlockContent = async (content: Record<string, any>, nextSubject = subject) => {
     const updatedBlocks = blockEditor.replaceSelectedBlockContent(content)
@@ -104,7 +116,11 @@ export function useNewsletterBuilder({ newsletterId }: UseNewsletterBuilderParam
       return false
     }
 
-    return persistNewsletter(updatedBlocks, nextSubject)
+    // The block dialog closes on this, so it writes now rather than leaving the
+    // edit sitting in the debounce.
+    setSubject(nextSubject)
+    lastSavedJsonRef.current = JSON.stringify({ blocks: updatedBlocks, subject: nextSubject })
+    return saveNow({ blocks: updatedBlocks, subject: nextSubject })
   }
 
   return {
@@ -123,7 +139,7 @@ export function useNewsletterBuilder({ newsletterId }: UseNewsletterBuilderParam
     handleDeleteBlock: blockEditor.handleDeleteBlock,
     handleReorderBlocks: blockEditor.handleReorderBlocks,
     handleAddBlocks: blockEditor.handleAddBlocks,
-    handleSave,
+    saveNow: flushSave,
     saveSelectedBlockContent,
     reloadNewsletter: loadNewsletter
   }

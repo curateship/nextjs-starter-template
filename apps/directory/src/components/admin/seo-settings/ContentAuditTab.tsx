@@ -8,7 +8,6 @@ import ClipboardCheck from "lucide-react/dist/esm/icons/clipboard-check.js"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardGroup, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { getSiteAuditData, getSiteForAudit } from "@/lib/actions/seo/site-audit/site-audit-actions"
 
@@ -69,22 +68,16 @@ export function ContentAuditTab({ siteId, searchQuery }: ContentAuditTabProps) {
           {[...Array(4)].map((_, i) => (
             <Card key={i}>
               <CardHeader className="flex flex-row items-center justify-between space-y-0">
-                <Skeleton className="h-4 w-24" />
               </CardHeader>
               <CardContent>
-                <Skeleton className="h-8 w-16" />
               </CardContent>
             </Card>
           ))}
         </CardGroup>
         <Card>
           <CardHeader>
-            <Skeleton className="h-5 w-32" />
           </CardHeader>
           <CardContent className="space-y-3">
-            {[...Array(6)].map((_, i) => (
-              <Skeleton key={i} className="h-8 w-full" />
-            ))}
           </CardContent>
         </Card>
       </CardGroup>
@@ -105,7 +98,7 @@ export function ContentAuditTab({ siteId, searchQuery }: ContentAuditTabProps) {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <CardTitle className="text-sm font-medium">Missing Meta Desc</CardTitle>
-            <AlertCircle className="h-4 w-4 text-red-500" />
+            <AlertCircle className="h-4 w-4 text-destructive" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{missingMeta}</div>
@@ -208,18 +201,18 @@ export function ContentAuditTab({ siteId, searchQuery }: ContentAuditTabProps) {
                         </Badge>
                       </td>
                       <td className="py-2 pr-4">
-                        <span className={titleOk ? "text-green-600" : "text-yellow-600"}>{titleLengthLabel}</span>
+                        <span className={titleOk ? "text-green-600 dark:text-green-400" : "text-yellow-600"}>{titleLengthLabel}</span>
                       </td>
                       <td className="py-2 pr-4">
                         {hasMeta ? (
-                          <CheckCircle2 className="h-4 w-4 text-green-500" />
+                          <CheckCircle2 className="h-4 w-4 text-green-500 dark:text-green-400" />
                         ) : (
-                          <AlertCircle className="h-4 w-4 text-red-500" />
+                          <AlertCircle className="h-4 w-4 text-destructive" />
                         )}
                       </td>
                       <td className="py-2">
                         {hasImage ? (
-                          <CheckCircle2 className="h-4 w-4 text-green-500" />
+                          <CheckCircle2 className="h-4 w-4 text-green-500 dark:text-green-400" />
                         ) : (
                           <AlertTriangle className="h-4 w-4 text-yellow-500" />
                         )}

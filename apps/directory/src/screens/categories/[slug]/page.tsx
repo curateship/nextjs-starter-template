@@ -6,8 +6,8 @@ import { unstable_cache } from "@/lib/cache"
 import { convertContentBlocksToArray } from '@/lib/utils/block-utils'
 import { CATEGORY_CHILDREN_GRID_BLOCK_TYPE, CATEGORY_LISTINGS_BLOCK_TYPE, mergeCategoryTemplateBlocks } from '@/lib/actions/categories/category-template-inheritance'
 import { getCategoryChildrenAction, type CategoryChildItem } from "@/lib/actions/categories/category-children-actions"
-import { getListingViewsData } from "@/lib/actions/pages/page-listing-views-actions"
-import { getDirectoryMapConfigAction } from "@/lib/actions/directories/directory-map-actions"
+import { getListingViewsDataImpl } from "@/lib/actions/pages/page-listing-views-actions.server"
+import { getDirectoryMapConfigActionImpl } from "@/lib/actions/directories/directory-map-actions.server"
 import { isDirectoryMapBlock } from "@/lib/actions/directories/directory-map-core"
 import { toSnakeCase } from "@/lib/db/to-snake-case"
 import { notFound } from "@/lib/navigation-server"
@@ -53,7 +53,7 @@ async function prefetchCategoryListingData(
       const limit = isPaginated ? itemsPerPage : itemsToShow
       const offset = isPaginated ? (listingPage - 1) * itemsPerPage : 0
 
-      const result = await getListingViewsData({
+      const result = await getListingViewsDataImpl({
         site_id: siteId,
         contentType,
         // The rendered category is the implicit filter for this block
@@ -90,7 +90,7 @@ async function prefetchCategoryMapApiKey(
   )
   if (!hasMapBlock) return undefined
 
-  return (await getDirectoryMapConfigAction(siteId)).apiKey
+  return (await getDirectoryMapConfigActionImpl(siteId)).apiKey
 }
 
 async function prefetchCategoryChildrenData(

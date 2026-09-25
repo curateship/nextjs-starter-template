@@ -255,7 +255,7 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
 
           <AdminTableShell
             title="Templates"
-            icon={<FileText className="size-4 text-muted-foreground sm:size-[18px]" />}
+            icon={<FileText className="text-muted-foreground" />}
             count={templates.length}
             selectedCount={templateSelection.selectedCount}
             onClearSelection={templateSelection.clearSelection}

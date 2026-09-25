@@ -7,7 +7,6 @@ import {
   getLocalObjectUrl,
   getFromR2,
   resolveLocalObjectPath,
-  uploadPrivateToR2,
   uploadToR2,
   usesLocalObjectStorage,
 } from './r2'
@@ -55,21 +54,4 @@ test('development object storage writes, reads ranges, and deletes local files',
   }
 
   await assert.rejects(() => getFromR2(key), /ENOENT/)
-})
-
-test('development private objects are readable without receiving a public URL', async (context) => {
-  if (!usesLocalObjectStorage()) {
-    context.skip('Local object storage is disabled when R2 is configured')
-    return
-  }
-
-  const key = `tests/${randomUUID()}.png`
-  const source = Buffer.from('private-local-media')
-
-  try {
-    assert.equal(await uploadPrivateToR2(key, source, 'image/png'), key)
-    assert.deepEqual((await getFromR2(key)).Body, source)
-  } finally {
-    await deleteFromR2(key)
-  }
 })

@@ -18,11 +18,7 @@ export const getProductTemplateById = createServerFn({ method: "POST" })
   .handler(async ({ data }) => getProductTemplateByIdImpl(data.templateId))
 
 export const createProductTemplate = createServerFn({ method: "POST" })
-  .inputValidator((data: { input: {
-  siteId: string
-  name: string
-  contentBlocks?: Record<string, any>
-} }) => data)
+  .inputValidator((data: { input: Parameters<typeof createProductTemplateImpl>[0] }) => data)
   .handler(async ({ data }) => createProductTemplateImpl(data.input))
 
 export const updateProductTemplate = createServerFn({ method: "POST" })

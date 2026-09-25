@@ -1,3 +1,5 @@
+"use client"
+
 import * as React from "react"
 import InfoIcon from "lucide-react/dist/esm/icons/info.js"
 
@@ -7,7 +9,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { cn } from "@/lib/utils/tailwind"
+import { cn } from "@/lib/utils"
 
 /**
  * A field label with its help text behind an info icon.
@@ -23,13 +25,18 @@ export function FieldLabel({
   children,
   ...props
 }: React.ComponentProps<typeof Label> & { hint?: React.ReactNode }) {
+  // Controlled so a tap toggles the hint open, not hover/focus alone: a
+  // hover-only tooltip is invisible to touch users, who would never see the
+  // rule. Hover and focus still open it through onOpenChange on desktop.
+  const [open, setOpen] = React.useState(false)
+
   return (
     <div className={cn("flex items-center gap-1.5", className)}>
       <Label htmlFor={htmlFor} {...props}>
         {children}
       </Label>
       {hint ? (
-        <Tooltip>
+        <Tooltip open={open} onOpenChange={setOpen}>
           <TooltipTrigger asChild>
             <button
               type="button"
@@ -39,6 +46,7 @@ export function FieldLabel({
               aria-label={
                 typeof children === "string" ? `About ${children}` : "More information"
               }
+              onClick={() => setOpen((shown) => !shown)}
               className="text-muted-foreground transition-colors hover:text-foreground"
             >
               <InfoIcon className="size-3.5" />

@@ -30,14 +30,10 @@ import {
 
 export function TradingSettings({
   config,
-  isSaving,
   onConfigChange,
-  onSaveConfig,
 }: {
   config: ShellConfig
-  isSaving: boolean
   onConfigChange: (config: ShellConfig) => void
-  onSaveConfig: (config: ShellConfig) => Promise<boolean>
 }) {
   return (
     <CardGroup>
@@ -45,9 +41,11 @@ export function TradingSettings({
         <CardHeader>
           <CardTitle>Order confirmation</CardTitle>
           <CardDescription>
-            When on, entering, exiting, or cancelling all orders opens a
-            confirmation box first. Turn it off to send those actions straight
-            away.
+            When on, every button that sends a real order asks &ldquo;Are you
+            sure?&rdquo; first: placing an order (order ticket, chart trading,
+            one-click panel), Close and Reverse in the positions table, and
+            Cancel all orders. Turn it off and one click trades immediately,
+            with no confirmation.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -55,18 +53,16 @@ export function TradingSettings({
             <Checkbox
               id="order-confirmation"
               checked={config.orderConfirmation}
-              disabled={isSaving}
-              onCheckedChange={(checked) => {
-                const next = {
+              onCheckedChange={(checked) =>
+                onConfigChange({
                   ...config,
                   orderConfirmation: checked === true,
-                }
-                onConfigChange(next)
-                void onSaveConfig(next)
-              }}
+                })
+              }
             />
             <Label htmlFor="order-confirmation" className="font-normal">
-              Ask me to confirm before entering, exiting, or cancelling all orders
+              Ask me to confirm before placing, closing, reversing, or
+              cancelling orders
             </Label>
           </div>
         </CardContent>
@@ -90,7 +86,6 @@ export function TradingSettings({
               max={MAX_LIQUIDATION_ALERT_THRESHOLD_PCT}
               step={0.5}
               value={config.liquidationAlertThresholdPct}
-              disabled={isSaving}
               className="h-8 w-28"
               aria-label="Liquidation warning threshold percent"
               onValueChange={(next) =>
@@ -100,7 +95,6 @@ export function TradingSettings({
                     clampLiquidationAlertThreshold(next),
                 })
               }
-              onBlur={() => void onSaveConfig(config)}
             />
             <Label
               htmlFor="liquidation-alert-threshold"
@@ -133,7 +127,6 @@ export function TradingSettings({
                   max={MAX_DEFAULT_LEVERAGE}
                   step={1}
                   value={config.orderDefaults.leverage}
-                  disabled={isSaving}
                   className="w-24"
                   onValueChange={(next) =>
                     onConfigChange({
@@ -144,7 +137,6 @@ export function TradingSettings({
                       },
                     })
                   }
-                  onBlur={() => void onSaveConfig(config)}
                 />
                 <span className="text-sm text-muted-foreground">x</span>
               </div>
@@ -153,18 +145,15 @@ export function TradingSettings({
               <Label htmlFor="default-margin-mode">Margin mode</Label>
               <Select
                 value={config.orderDefaults.marginMode}
-                disabled={isSaving}
-                onValueChange={(value) => {
-                  const next = {
+                onValueChange={(value) =>
+                  onConfigChange({
                     ...config,
                     orderDefaults: {
                       ...config.orderDefaults,
                       marginMode: value as "cross" | "isolated",
                     },
-                  }
-                  onConfigChange(next)
-                  void onSaveConfig(next)
-                }}
+                  })
+                }
               >
                 <SelectTrigger
                   id="default-margin-mode"
@@ -183,18 +172,15 @@ export function TradingSettings({
               <Label htmlFor="default-order-type">Order type</Label>
               <Select
                 value={config.orderDefaults.orderType}
-                disabled={isSaving}
-                onValueChange={(value) => {
-                  const next = {
+                onValueChange={(value) =>
+                  onConfigChange({
                     ...config,
                     orderDefaults: {
                       ...config.orderDefaults,
                       orderType: value as "market" | "limit",
                     },
-                  }
-                  onConfigChange(next)
-                  void onSaveConfig(next)
-                }}
+                  })
+                }
               >
                 <SelectTrigger
                   id="default-order-type"
@@ -213,18 +199,15 @@ export function TradingSettings({
               <Label htmlFor="default-size-unit">Size entered in</Label>
               <Select
                 value={config.orderDefaults.sizeUnit}
-                disabled={isSaving}
-                onValueChange={(value) => {
-                  const next = {
+                onValueChange={(value) =>
+                  onConfigChange({
                     ...config,
                     orderDefaults: {
                       ...config.orderDefaults,
                       sizeUnit: value as "usd" | "coin" | "pct",
                     },
-                  }
-                  onConfigChange(next)
-                  void onSaveConfig(next)
-                }}
+                  })
+                }
               >
                 <SelectTrigger
                   id="default-size-unit"

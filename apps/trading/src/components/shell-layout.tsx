@@ -37,8 +37,10 @@ import {
   saveShellSettings,
 } from "@/lib/api/shell-settings"
 import type { WorkspaceListResponse } from "@/lib/api/workspaces"
+import type { SaveStatus } from "@/components/ui/save-status"
 
-type SaveStatus = "idle" | "saving" | "saved"
+// Debounce window before an edit on the settings page is auto-saved.
+const CONFIG_SAVE_DEBOUNCE_MS = 700
 
 type ShellRuntime = {
   config: ShellConfig
@@ -46,7 +48,8 @@ type ShellRuntime = {
   saveStatus: SaveStatus
   feedbackRefreshToken: number
   onConfigChange: (config: ShellConfig) => void
-  onSaveConfig: (nextConfig?: ShellConfig) => Promise<boolean>
+  /** Flushes a pending auto-save now; reports whether it landed. */
+  onSaveConfig: () => Promise<boolean>
   onOpenFeedback: () => void
   onOpenFeedbackThread: (feedbackId: string) => void
 }
@@ -83,6 +86,15 @@ export function ShellLayout({
   const savedSidebarWidthRef = React.useRef(config.sidebarWidth)
   const sidebarWidthSaveQueueRef = React.useRef(Promise.resolve())
   const sidebarWidthSaveVersionRef = React.useRef(0)
+  // Auto-save plumbing for the full shell config (settings page). Mirrors the
+  // sidebar-width queue/version pattern below: edits schedule a debounced save
+  // that runs on a serialized queue so rapid edits persist in order.
+  const latestConfigRef = React.useRef(config)
+  const configSaveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  )
+  const configSaveQueueRef = React.useRef(Promise.resolve())
+  const configSaveVersionRef = React.useRef(0)
   const [settingsError, setSettingsError] = React.useState<string | null>(null)
   const [saveStatus, setSaveStatus] = React.useState<SaveStatus>("idle")
   const [feedbackOpen, setFeedbackOpen] = React.useState(false)
@@ -103,6 +115,13 @@ export function ShellLayout({
     lastSettingsRef.current = settings
     const nextConfig = normalizeConfig(settings)
     savedSidebarWidthRef.current = nextConfig.sidebarWidth
+    // Fresh server data supersedes any pending debounced auto-save so an
+    // in-flight edit can't overwrite it.
+    if (configSaveTimerRef.current) {
+      clearTimeout(configSaveTimerRef.current)
+      configSaveTimerRef.current = null
+    }
+    latestConfigRef.current = nextConfig
     setConfig(nextConfig)
     setSettingsError(null)
     setSaveStatus("idle")
@@ -115,27 +134,115 @@ export function ShellLayout({
   // guarded server-side by the _authenticated loader on navigation, which reads
   // the cookie from the request directly — that's the reliable gate.
 
-  const handleConfigChange = React.useCallback((nextConfig: ShellConfig) => {
-    setConfig(nextConfig)
-    setSettingsError(null)
-    setSaveStatus("idle")
-  }, [])
+  // Persists the freshest config immediately, cancelling any pending debounce.
+  // Skips while the workspace name is blank (the server rejects an empty name)
+  // so an in-progress edit doesn't flash an error. Returns whether it saved.
+  // `explicit` is set by the one place a save is still a button press — the
+  // sidebar link modal — so a refusal says why instead of doing nothing.
+  const saveConfigNow = React.useCallback(async (explicit = false) => {
+    if (configSaveTimerRef.current) {
+      clearTimeout(configSaveTimerRef.current)
+      configSaveTimerRef.current = null
+    }
 
-  const handleSaveConfig = React.useCallback(async (nextConfig?: ShellConfig) => {
-    setSettingsError(null)
-    setSaveStatus("saving")
-
-    try {
-      await saveShellSettings(nextConfig ?? config)
-      setSaveStatus("saved")
-      return true
-    } catch (error) {
-      if (nextConfig) setConfig(config)
-      setSettingsError(getShellSettingsErrorMessage(error))
-      setSaveStatus("idle")
+    const snapshot = latestConfigRef.current
+    if (!snapshot.workspaceName.trim()) {
+      if (explicit) {
+        setSettingsError(
+          "Give the workspace a name on the General tab before saving."
+        )
+      }
       return false
     }
-  }, [config])
+
+    const version = configSaveVersionRef.current + 1
+    configSaveVersionRef.current = version
+    setSaveStatus("saving")
+
+    const save = configSaveQueueRef.current
+      .catch(() => undefined)
+      .then(() => saveShellSettings(snapshot))
+    configSaveQueueRef.current = save.then(
+      () => undefined,
+      () => undefined
+    )
+
+    try {
+      await save
+      if (version === configSaveVersionRef.current) {
+        setSaveStatus("saved")
+      }
+      return true
+    } catch (error) {
+      if (version === configSaveVersionRef.current) {
+        const message = getShellSettingsErrorMessage(error)
+        setSettingsError(message)
+        setSaveStatus("idle")
+        toast.error(message)
+      }
+      return false
+    }
+  }, [])
+
+  // Every settings edit funnels through here. Update state immediately and
+  // schedule a debounced auto-save; the settings-sync effect above uses
+  // setConfig directly, so loading data never triggers a save.
+  const handleConfigChange = React.useCallback(
+    (nextConfig: ShellConfig) => {
+      setConfig(nextConfig)
+      latestConfigRef.current = nextConfig
+      setSettingsError(null)
+      if (configSaveTimerRef.current) {
+        clearTimeout(configSaveTimerRef.current)
+      }
+      configSaveTimerRef.current = setTimeout(() => {
+        configSaveTimerRef.current = null
+        void saveConfigNow()
+      }, CONFIG_SAVE_DEBOUNCE_MS)
+    },
+    [saveConfigNow]
+  )
+
+  // The sidebar link-editor dialog's Save button flushes any pending debounced
+  // save immediately, so closing it never leaves an unsaved edit.
+  const handleSaveConfig = React.useCallback(
+    () => saveConfigNow(true),
+    [saveConfigNow]
+  )
+
+  // Flush a pending auto-save if the shell unmounts (logout / full navigation)
+  // so a debounced edit isn't dropped. It joins the same queue as every other
+  // save — an earlier write may still be in flight, and jumping it would let
+  // the older config land last. Fire-and-forget — no state updates, since the
+  // component is going away.
+  React.useEffect(() => {
+    return () => {
+      if (configSaveTimerRef.current) {
+        clearTimeout(configSaveTimerRef.current)
+        configSaveTimerRef.current = null
+        const snapshot = latestConfigRef.current
+        if (snapshot.workspaceName.trim()) {
+          configSaveQueueRef.current = configSaveQueueRef.current
+            .catch(() => undefined)
+            .then(() => saveShellSettings(snapshot))
+            .then(
+              () => undefined,
+              () => undefined
+            )
+        }
+      }
+    }
+  }, [])
+
+  // Auto-clear the "Saved" badge a couple seconds after it appears so it
+  // doesn't linger in the shared header after leaving the settings page.
+  React.useEffect(() => {
+    if (saveStatus !== "saved") {
+      return
+    }
+    const timer = setTimeout(() => setSaveStatus("idle"), 2000)
+    return () => clearTimeout(timer)
+  }, [saveStatus])
 
   const handleSidebarWidthCommit = React.useCallback((sidebarWidth: number) => {
     const version = sidebarWidthSaveVersionRef.current + 1
@@ -240,6 +347,7 @@ export function ShellLayout({
             <StickyHeader
               navLinks={getStickyHeaderNavLinks(config, currentPath)}
               rightNavItems={config.topRightNavigation}
+              saveStatus={saveStatus}
               onOpenFeedback={() => openFeedback()}
               onOpenFeedbackThread={openFeedback}
             />

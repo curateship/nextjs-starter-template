@@ -93,6 +93,10 @@ export function useAdminBulkSelection() {
   }, [allSelected, selectedIds])
 
   return {
+    // Exposed so `useClearSelectionOnListChange` can empty the selection from
+    // the screen, where the values that make up its list key are in scope.
+    setSelectedIds,
+    setAllSelected,
     selectedIds,
     selectedCount: selectedIds.size,
     allSelected,

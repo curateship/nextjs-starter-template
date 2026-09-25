@@ -29,11 +29,25 @@ export type BotListItem = {
   realized_pnl: number
   /** Realized P&L for the current UTC day, summed across the bot's markets. */
   daily_realized_pnl: number
-  /** Open per-market positions; persisted for paper brokers only. */
+  /**
+   * Open per-market positions, both modes. A live bot's figure is its
+   * wallet's position on that market — manual trades on the same wallet
+   * and market are included.
+   */
   positions: BotListPosition[]
   trade_count: number
   created_at: string
   updated_at: string
+}
+
+export type FleetEvent = {
+  id: string
+  bot_id: string
+  bot_name: string
+  level: string
+  type: string
+  message: string
+  created_at: string
 }
 
 export type BotListResponse = {
@@ -41,6 +55,8 @@ export type BotListResponse = {
   workerOnline: boolean
   /** Account-level kill-switch state, shown as the bots-page banner. */
   guardian: GuardianStatus
+  /** Newest events across the fleet (last 100), for the activity feed. */
+  events: FleetEvent[]
 }
 
 export type BotMarketState = {
@@ -63,6 +79,12 @@ export type BotDetailResponse = {
     paper_starting_equity: number | null
     source_name: string | null
     automation_id: string | null
+    /**
+     * The source automation has been saved with different settings since
+     * this run last took them. Saves never touch a deployed run — the admin
+     * applies by hand (pause → apply → resume).
+     */
+    settings_behind: boolean
   }
   states: BotMarketState[]
   trades: {
@@ -75,6 +97,8 @@ export type BotDetailResponse = {
     fee: string
     closed_pnl: string | null
     fill_time: string
+    /** The resting order's limit price behind this fill, for slippage. */
+    order_px: string | null
   }[]
   open_orders: {
     id: string
@@ -165,6 +189,7 @@ const loadBotDetailFn = createServerFn({ method: "POST" })
           : null,
         source_name: detail.sourceName,
         automation_id: detail.bot.automationId,
+        settings_behind: detail.settingsBehind,
         realized_pnl: Number(detail.aggregates?.realizedPnl ?? 0),
         trade_count: Number(detail.aggregates?.tradeCount ?? 0),
         ...aggregateBotStates(detail.states),
@@ -195,6 +220,7 @@ const loadBotDetailFn = createServerFn({ method: "POST" })
         fee: trade.fee,
         closed_pnl: trade.closedPnl,
         fill_time: trade.fillTime.toISOString(),
+        order_px: trade.orderPx,
       })),
       open_orders: detail.openOrders.map((order) => ({
         id: order.id,
@@ -241,6 +267,23 @@ const deployBotFn = createServerFn({ method: "POST" })
     return deployAutomationBot(user.id, data)
   })
 
+const updateMarketsSchema = z.object({
+  botId: z.string().min(1),
+  markets: z.array(hyperliquidMarketSchema).min(1).max(200),
+})
+
+/** Edits a run's market list; the worker restarts its runners to match. */
+const updateBotMarketsFn = createServerFn({ method: "POST" })
+  .inputValidator(updateMarketsSchema)
+  .handler(async ({ data }): Promise<{ ok: true }> => {
+    const { requireAppOrigin } = await import("@/server/origin")
+    const { updateBotMarkets } = await import("@/server/bots")
+    requireAppOrigin()
+    const user = await requireUser()
+    await updateBotMarkets(user.id, data.botId, data.markets)
+    return { ok: true }
+  })
+
 const renameBotSchema = z.object({
   botId: z.string().min(1),
   name: z.string().trim().min(1).max(255),
@@ -255,6 +298,18 @@ const renameBotFn = createServerFn({ method: "POST" })
     requireAppOrigin()
     const user = await requireUser()
     await renameUserBot(user.id, data.botId, data.name)
+    return { ok: true }
+  })
+
+/** Pulls the automation's saved settings into a PAUSED bot, by hand. */
+const applyBotSettingsFn = createServerFn({ method: "POST" })
+  .inputValidator(botIdSchema)
+  .handler(async ({ data }): Promise<{ ok: true }> => {
+    const { requireAppOrigin } = await import("@/server/origin")
+    const { applyAutomationSettings } = await import("@/server/bots")
+    requireAppOrigin()
+    const user = await requireUser()
+    await applyAutomationSettings(user.id, data.botId)
     return { ok: true }
   })
 
@@ -312,6 +367,14 @@ export function renameBot(botId: string, name: string) {
   return renameBotFn({ data: { botId, name } })
 }
 
+export function updateBotMarkets(botId: string, markets: string[]) {
+  return updateBotMarketsFn({ data: { botId, markets } })
+}
+
+export function applyBotSettings(botId: string) {
+  return applyBotSettingsFn({ data: { botId } })
+}
+
 export function sendCommand(
   botId: string,
   command: z.infer<typeof botCommandSchema>["command"]
@@ -338,7 +401,7 @@ async function requireUser() {
 
 /**
  * Folds a bot's per-market state rows into what the fleet list needs: open
- * positions (paper brokers only — live brokers persist null) and realized
+ * positions (persisted for both paper and live brokers) and realized
  * P&L for the current UTC day (the worker keys dailyPnlDate to UTC).
  */
 function aggregateBotStates(
@@ -387,15 +450,19 @@ async function botWorkerOnline(): Promise<boolean> {
 }
 
 async function botListForUser(userId: string): Promise<BotListResponse> {
-  const { listUserBots, listUserBotStates } = await import("@/server/bots")
+  const { listUserBots, listUserBotStates, listUserBotEvents } = await import(
+    "@/server/bots"
+  )
   const { getGuardianStatus } = await import("@/server/guardian")
 
-  const [rows, stateRows, workerOnline, guardian] = await Promise.all([
-    listUserBots(userId),
-    listUserBotStates(userId),
-    botWorkerOnline(),
-    getGuardianStatus(userId),
-  ])
+  const [rows, stateRows, workerOnline, guardian, eventRows] =
+    await Promise.all([
+      listUserBots(userId),
+      listUserBotStates(userId),
+      botWorkerOnline(),
+      getGuardianStatus(userId),
+      listUserBotEvents(userId),
+    ])
 
   const statesByBot = new Map<string, typeof stateRows>()
   for (const state of stateRows) {
@@ -413,6 +480,15 @@ async function botListForUser(userId: string): Promise<BotListResponse> {
     })),
     workerOnline,
     guardian,
+    events: eventRows.map((row) => ({
+      id: row.id,
+      bot_id: row.botId,
+      bot_name: row.botName,
+      level: row.level,
+      type: row.type,
+      message: row.message,
+      created_at: row.createdAt.toISOString(),
+    })),
   }
 }
 

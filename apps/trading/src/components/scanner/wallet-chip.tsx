@@ -1,6 +1,6 @@
 import { EyeOffIcon, StarIcon } from "lucide-react"
 
-import { shortAddress } from "@/components/scanner/format"
+import { shortAddress } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import type { ScannerWalletInfo } from "@/lib/api/scanner"
 

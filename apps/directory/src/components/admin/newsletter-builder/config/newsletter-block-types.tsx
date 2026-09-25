@@ -3,7 +3,10 @@ import FileText from "lucide-react/dist/esm/icons/file-text.js"
 import Minus from "lucide-react/dist/esm/icons/minus.js"
 import Footprints from "lucide-react/dist/esm/icons/footprints.js"
 import { BlockTypeDefinition, findBlockType } from "@/lib/utils/block-types"
-import { DEFAULT_NEWSLETTER_IMAGE_BORDER_COLOR } from "@/lib/actions/newsletters/render"
+import {
+  DEFAULT_NEWSLETTER_RICH_TEXT_CONTENT,
+  NEWSLETTER_RICH_TEXT_BLOCK_TYPE,
+} from "@/lib/actions/newsletters/render"
 
 export type { BlockTypeDefinition }
 
@@ -22,17 +25,11 @@ export const NEWSLETTER_BLOCK_TYPES: BlockTypeDefinition[] = [
     }
   },
   {
-    type: 'newsletter-rich-text',
+    type: NEWSLETTER_RICH_TEXT_BLOCK_TYPE,
     name: 'Rich Text',
     icon: FileText,
     description: 'Formatted text content',
-    defaultContent: {
-      htmlContent: '',
-      backgroundColor: '#ffffff',
-      padding: 20,
-      imageBorderSize: 0,
-      imageBorderColor: DEFAULT_NEWSLETTER_IMAGE_BORDER_COLOR,
-    }
+    defaultContent: { ...DEFAULT_NEWSLETTER_RICH_TEXT_CONTENT }
   },
   {
     type: 'newsletter-divider',

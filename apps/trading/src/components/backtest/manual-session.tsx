@@ -2,7 +2,7 @@ import * as React from "react"
 import { useBlocker, useNavigate } from "@tanstack/react-router"
 import { toast } from "sonner"
 
-import { formatPriceDisplay } from "@/components/trading/format"
+import { formatFocusDays, formatPrice, signedPct, signedUsd, toneClass, usd } from "@/lib/format"
 import { ChartToolbar } from "@/components/chart/chart-toolbar"
 import { computeIndicatorPaint } from "@/components/chart/indicator-paint"
 import { IndicatorsMenu } from "@/components/chart/indicators-menu"
@@ -75,13 +75,6 @@ import {
   PictureInPicture2Icon,
 } from "lucide-react"
 
-import {
-  formatFocusDays,
-  pct,
-  signedUsd,
-  toneClass,
-  usd,
-} from "./backtest-format"
 import { BacktestKpis } from "./backtest-kpis"
 import { PracticeMiniChart } from "./practice-mini-chart"
 import { ReplayTransport } from "./replay-transport"
@@ -595,7 +588,7 @@ function ActiveSession({
       // question — and answering it wrong means drawing the trade twice.
       for (const box of newlyPlaced(next)) {
         toast.success(
-          `${box.side === "long" ? "Buy" : "Sell"} order waiting at ${formatPriceDisplay(box.entry)} — rests until price reaches it. Delete the box to cancel.`
+          `${box.side === "long" ? "Buy" : "Sell"} order waiting at ${formatPrice(box.entry)} — rests until price reaches it. Delete the box to cancel.`
         )
       }
       // Whatever the user just left on screen is where the box belongs now.
@@ -1027,7 +1020,7 @@ function ActiveSession({
               : ""
           }`}
         />
-        <HudStat label="Max DD" value={pct(-snap.maxDrawdownPct)} />
+        <HudStat label="Max DD" value={signedPct(-snap.maxDrawdownPct)} />
         {snap.pendingOrders > 0 ? (
           <HudStat label="Working orders" value={String(snap.pendingOrders)} />
         ) : null}
@@ -1221,7 +1214,7 @@ function ActiveSession({
                     </span>
                     <span>Buy &amp; hold</span>
                     <span className="text-right font-mono">
-                      {pct(result.stats.buyHoldPct)}
+                      {signedPct(result.stats.buyHoldPct)}
                     </span>
                   </div>
                 ) : null}

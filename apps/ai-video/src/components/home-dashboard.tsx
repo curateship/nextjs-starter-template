@@ -462,14 +462,14 @@ function HeroCard({ item, onOpen }: { item: HeroItem; onOpen: () => void }) {
 function StatusBadge({ status }: { status: NonNullable<HeroItem["status"]> }) {
   if (status === "ready") {
     return (
-      <span className="absolute left-2.5 top-2.5 rounded-full bg-emerald-100 px-2 py-0.5 text-[10.5px] font-semibold text-emerald-700">
+      <span className="absolute left-2.5 top-2.5 rounded-full bg-emerald-100 px-2 py-0.5 text-[10.5px] font-semibold text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400">
         Ready
       </span>
     )
   }
   if (status === "error") {
     return (
-      <span className="absolute left-2.5 top-2.5 rounded-full bg-rose-100 px-2 py-0.5 text-[10.5px] font-semibold text-rose-700">
+      <span className="absolute left-2.5 top-2.5 rounded-full bg-rose-100 px-2 py-0.5 text-[10.5px] font-semibold text-rose-700 dark:bg-rose-950/50 dark:text-rose-400">
         Error
       </span>
     )

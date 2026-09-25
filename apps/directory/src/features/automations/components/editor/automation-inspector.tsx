@@ -134,21 +134,23 @@ function InspectorHeader({
             <Icon className="size-4" />
           </span>
         ) : null}
+        {/* The kind sits on its own line rather than beside the name: this panel
+            is only ~200px wide, and a long kind (APPROVAL, SCRAPER) shared with
+            the name left neither readable. */}
         <div className="min-w-0">
-          <div className="flex min-w-0 items-center gap-2">
-            <div className="truncate text-base font-semibold">{title}</div>
-            {node ? (
-              <Badge className="border-0 bg-amber-100 px-2 py-0.5 text-[10px] tracking-[0.16em] text-amber-700 dark:bg-amber-950 dark:text-amber-200">
-                {node.kind.toUpperCase()}
-              </Badge>
-            ) : null}
-          </div>
-          <div className="mt-0.5 text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-            Inspector
-          </div>
+          <div className="truncate text-base font-semibold">{title}</div>
+          {node ? (
+            <Badge className="mt-1 min-w-0 max-w-full shrink truncate border-0 bg-amber-100 px-2 py-0.5 text-[10px] tracking-[0.16em] text-amber-700 dark:bg-amber-950 dark:text-amber-200">
+              {node.kind.toUpperCase()}
+            </Badge>
+          ) : (
+            <div className="mt-0.5 text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+              Inspector
+            </div>
+          )}
         </div>
       </div>
-      <div className="flex items-center gap-1">
+      <div className="flex shrink-0 items-center gap-1">
         {onToggleFavorite ? (
           <Button
             variant="ghost"

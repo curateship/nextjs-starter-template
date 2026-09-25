@@ -122,6 +122,8 @@ export type BacktestPortfolioUsage = {
   timeAtPeakMs?: number
   /** Time-weighted average of the wallet deployed, in percent. */
   avgExposurePct?: number
+  /** When the peak was reached, ms since epoch. Absent on older runs. */
+  peakAt?: number | null
 }
 
 export type BacktestResult = {

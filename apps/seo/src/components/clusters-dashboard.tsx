@@ -154,7 +154,7 @@ export function ClustersDashboard({ project }: { project: ProjectItem }) {
       <DashboardTable
         title="Topic Clusters"
         icon={
-          <FolderTreeIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+          <FolderTreeIcon className="text-muted-foreground" />
         }
         count={total}
         controls={

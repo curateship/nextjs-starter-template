@@ -72,31 +72,31 @@ function getStatusEventBadge(event: NewsletterStatusEvent["event"]) {
   const label = getStatusEventLabel(event)
   if (event === "duplicate")
     return (
-      <Badge variant="outline" className="border-orange-200 bg-orange-50 text-orange-700">
+      <Badge variant="outline" className="border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-900 dark:bg-orange-950/50 dark:text-orange-400">
         {label}
       </Badge>
     )
   if (event === "bounced")
     return (
-      <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700">
+      <Badge variant="outline" className="border-destructive/30 bg-destructive/10 text-destructive">
         {label}
       </Badge>
     )
   if (event === "unsubscribed")
     return (
-      <Badge variant="outline" className="border-yellow-200 bg-yellow-50 text-yellow-800">
+      <Badge variant="outline" className="border-yellow-200 bg-yellow-50 text-yellow-800 dark:border-yellow-900 dark:bg-yellow-950/50 dark:text-yellow-300">
         {label}
       </Badge>
     )
   if (event === "opened")
     return (
-      <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700">
+      <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700 dark:border-green-900 dark:bg-green-950/50 dark:text-green-400">
         {label}
       </Badge>
     )
   if (event === "clicked")
     return (
-      <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">
+      <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-950/50 dark:text-blue-400">
         {label}
       </Badge>
     )

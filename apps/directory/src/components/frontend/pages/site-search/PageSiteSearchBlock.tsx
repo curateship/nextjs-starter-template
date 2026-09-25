@@ -1,14 +1,13 @@
 "use client"
 
-import { FormEvent, useEffect, useMemo, useState } from "react"
-import Image from "@/components/app-image"
+import { useEffect, useMemo, useState } from "react"
 import Link from "@/components/app-link"
 import { usePathname, useRouter, useSearchParams } from "@/lib/navigation-client"
-import Search from "lucide-react/dist/esm/icons/search.js"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { BlockContainer } from "@/components/frontend/layout/block-container"
+import { SiteSearchThumbnail } from "@/components/frontend/pages/site-search/SiteSearchThumbnail"
+import { SiteSearchTypeahead } from "@/components/frontend/pages/site-search/SiteSearchTypeahead"
 import {
   searchSiteAction,
   type SiteSearchResult,
@@ -143,11 +142,6 @@ export function PageSiteSearchBlock({
     router.replace(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false })
   }
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    updateUrl(draftQuery, type, 1)
-  }
-
   const showTitle = visibility.title !== false && Boolean(title)
   const showSubtitle = visibility.subtitle !== false && Boolean(subtitle)
   const showForm = visibility.form !== false
@@ -169,18 +163,17 @@ export function PageSiteSearchBlock({
     >
       <div className="space-y-6">
         {showForm && (
-          <form onSubmit={handleSubmit} className="flex flex-col gap-3 sm:flex-row">
-            <Input
-              value={draftQuery}
-              onChange={(event) => setDraftQuery(event.target.value)}
-              placeholder={placeholder}
-              className="min-h-11 flex-1 text-base"
-            />
-            <Button type="submit" className="min-h-11 gap-2">
-              <Search className="h-4 w-4" />
-              Search
-            </Button>
-          </form>
+          <SiteSearchTypeahead
+            siteId={siteId}
+            enabledTypes={enabledTypes}
+            value={draftQuery}
+            placeholder={placeholder}
+            noResultsText={noResultsText}
+            showImages={showImages}
+            onValueChange={setDraftQuery}
+            onSubmit={() => updateUrl(draftQuery, type, 1)}
+            onSelect={(url) => router.push(url)}
+          />
         )}
 
         {showChips && (
@@ -218,23 +211,16 @@ export function PageSiteSearchBlock({
             ) : data && data.items.length > 0 ? (
               <>
                 <div className="space-y-3">
-                  {data.items.map((item) => (
+                  {data.items.map((item, index) => (
                     <Link
-                      key={`${item.type}-${item.url}`}
+                      // Two documents can point at the same page, so the URL is
+                      // not a unique key on its own; the index disambiguates
+                      // without making every row reuse the previous row's image.
+                      key={`${item.url}-${index}`}
                       href={item.url}
                       className="grid gap-4 rounded-md border p-4 transition-colors hover:bg-muted/40 sm:grid-cols-[96px_minmax(0,1fr)]"
                     >
-                      {showImages && item.image ? (
-                        <Image
-                          src={item.image}
-                          alt=""
-                          width={96}
-                          height={96}
-                          className="h-24 w-full rounded-md object-cover sm:w-24"
-                        />
-                      ) : showImages ? (
-                        <div className="hidden h-24 w-24 rounded-md bg-muted sm:block" />
-                      ) : null}
+                      {showImages && <SiteSearchThumbnail image={item.image} size="lg" />}
                       <div className="min-w-0 space-y-2">
                         <Badge variant="outline" className="rounded-full">
                           {SITE_SEARCH_TYPE_LABELS[item.type]}

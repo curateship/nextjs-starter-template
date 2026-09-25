@@ -1,0 +1,156 @@
+# The stop and target riding on a position
+
+A position that is already open can carry a stop and a target. Both live on the
+exchange as their own orders, called legs here, and both sell the position by
+themselves when the price reaches them. This file is about how the app reads
+them back, replaces them, and draws them.
+
+## A position is meant to carry one of each. It can end up carrying more.
+
+Nothing in the app places a second stop on purpose. Two ways it happens anyway:
+
+- An order placed with a stop and a target attached leaves its own pair behind
+  when it fills. Those legs are for the size of that order, not for the position.
+- A position that grows after that gets a whole-position pair put over the top,
+  and the older pair is still there.
+
+On 24 Aug 2026 a real Hyperliquid position was found holding four legs: a
+whole-position stop and target, plus a second pair covering 48% of it. Both
+pairs sat at the same two prices.
+
+## Replacing the protection takes every leg off
+
+When you move a stop or a target, the app places the new protection first, then
+cancels what was there. The position stays protected while the exchange
+answers. After the replacement is accepted, the app cancels **every**
+reduce-only leg the exchange is holding on that market, not the two it happens
+to show you.
+
+Hyperliquid throws a whole cancellation request when one named order is already
+gone, even though an absent order has nothing left to cancel. Trade reads each
+answer inside that thrown request. The replacement finishes when every failed
+cancel says the order was already cancelled, filled or never placed. Any other
+failure still raises the warning that old and new protection may both be on.
+
+Each Hyperliquid replacement also clears the four-second portfolio answer and
+stops trusting order lists pushed before the change. A retry therefore reads
+the replacement's current order ids instead of placing another pair beside an
+old cached list.
+
+Before the replacement is sent, every new stop and target is rounded to the
+market's legal price step. A chart can produce a price with many decimal
+places, but that raw number never reaches the exchange. The rounded price is
+also the one checked against the position and written to the Journal.
+
+Two exceptions, both tracked by order id rather than guessed. On a coin running
+a grid above a DCA ladder, the grid holds its own fixed-size stop, and its order
+id is written on the grid's record. An order you placed yourself on a coin a
+strategy is working holds one the same way, sized to the coins that order
+bought, with the id on that order's own record. An ordinary replace spares
+exactly those orders, so dragging the position's stop can never silently delete
+either. `grid-above-ladder.md` covers the pairing and `watched-orders.md` covers
+the hand-placed one.
+
+This is the part that used to be wrong, and it cost real money rather than
+looking untidy. The app knew two leg ids. A third leg was invisible to it, so
+it could never be cancelled, and every replacement added one more. A position
+with two live stops gets sold twice: the first stop closes it, the second opens
+a new position the other way round.
+
+Every exchange the app talks to does this the same way. The list of legs comes
+back with the position on each read, so cancelling them costs no extra request.
+
+## A stop you move by hand is written down, not worked out later
+
+Moving a stop tells two things: the exchange, and the smart order working that
+coin. Both happen in the one call, in that order, and the smart order is only
+told once the exchange has taken the change.
+
+This used to be one thing. The drag wrote the exchange and nothing else, and
+the grid or ladder working the coin found a stop it had not placed and worked
+out what must have happened by comparing its last reading with this one. That
+guess is right only when the reading is fresh, and on the live server it often
+is not: the engine runs in its own container, holds a wallet's answer for five
+seconds, and never hears about a drag made on the website.
+
+What it cost, measured on the real account on 3 Sep 2026: every stop dragged on
+kSHIB, TAO and HYPE was cancelled five to six seconds later and the grid's own
+price put back. Four times in one evening.
+
+- **A grid keeps the price a hand gives it.** The stop stops following the
+  range and stays where it was put. A hand may move a grid's stop; it cannot
+  take it away, so pulling one off gets it back on the next pass.
+- **A ladder keeps both lines.** A dragged stop or target freezes that side,
+  and clearing a ladder's stop is honoured, because a ladder's stop is
+  optional.
+- **A grid running above a ladder is left out of it.** The position's one stop
+  belongs to the ladder beneath, and the grid's own stop is a separate order.
+  `grid-above-ladder.md` covers the pairing.
+- **An order you placed yourself on a strategy's coin is left out of it too.**
+  Its stop covers only the coins that order bought, so a drag on the position's
+  stop is about the strategy's stop and says nothing about yours.
+
+**The engine then leaves that coin's stop alone for fifteen seconds.** The
+readings it holds may still be from before the change, and it cannot tell an
+old reading from a real one. The stop the hand placed is on the exchange the
+whole time; only the engine's opinion about it waits. Fifteen seconds because
+the readings it has to outlast add up to about nine — four for the venue's
+answer, five for the engine's own hold.
+
+## The one it shows you is the oldest one
+
+When a position carries two stops, the app names the one with the lowest order
+id as the position's stop. Not the first one the exchange happened to list.
+
+Before this rule the answer changed between reads. The same untouched position
+read "Take Profit 48% +$89.60" one second and "Take Profit +$185.96" the next,
+because the exchange does not promise an order and the app took whichever came
+first.
+
+## What the chart draws
+
+Every leg is drawn, and none of them is hidden. Hiding an order that sells a
+position on its own would be worse than drawing it in an awkward place.
+
+- The position's own stop and target are the red and green lines with the grip
+  dots. Drag them, or press the × to take them off.
+- A spare leg reads **Extra Stop** or **Extra Target** with what it sells, in
+  the same red or green. Its × cancels that leg on its own.
+- A spare leg is never draggable. It is a trigger, and the exchange has no way
+  to move one in place.
+
+Which of the two a spare leg is comes from its price, not from a flag. An exit
+above where a long got in takes a profit; one below it stops a loss.
+
+## Two labels never land on top of each other
+
+Every label pill is 22 pixels tall and they all want the same place, hard
+against the price axis and centred on their own line. Two prices closer
+together than that used to land on the same spot, and the pill drawn second
+covered the first, words and × and all.
+
+- A pill that lands on a pill already there moves **left** of it, never up or
+  down. A pill off its own line would be pointing at a price that is not its
+  own.
+- The price badge on the axis cannot move sideways, because the axis is the
+  only place a price is read. Two badges showing the same price are one fact
+  printed twice, so the second is dropped. Two showing different prices both
+  have to be legible, so the later one slides down until it is clear.
+
+## Still to do
+
+Setting two separate take profits, each selling part of the position, is not
+built. The task is `workspace/tasks/Trading/several-take-profit-levels.md`.
+Right-clicking a position that already has a target does not offer another one.
+
+## A position check after a fast entry
+
+Hyperliquid portfolio reads share a four-second cache. Trade clears that cache
+before sending an entry and again when the exchange request finishes. A poll
+that runs during placement can otherwise save an empty position list just before
+the entry fills. The protection check would then report `LIVE_POSITION_GONE`
+even though the exchange holds the coins.
+
+The next protection check reads the exchange again. Actual placement and
+protection failures still report errors. A successful entry alone does not prove
+that its requested stop or target was accepted.

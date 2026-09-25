@@ -223,7 +223,7 @@ export function FeedbackDashboard({
 
       <DashboardTable
         title="Feedback"
-        icon={<MessageSquarePlusIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+        icon={<MessageSquarePlusIcon className="text-muted-foreground" />}
         count={filteredFeedback.length}
         selectedCount={selectedIds.size}
         onClearSelection={() => setSelectedIds(new Set())}
@@ -245,7 +245,6 @@ export function FeedbackDashboard({
             <Select value={typeFilter} onValueChange={setTypeFilter}>
               <DashboardToolbarSelectTrigger
                 aria-label="Filter by type"
-                labels={["All Types", ...Object.values(feedbackTypeLabels)]}
               >
                 <SelectValue placeholder="Type" />
               </DashboardToolbarSelectTrigger>

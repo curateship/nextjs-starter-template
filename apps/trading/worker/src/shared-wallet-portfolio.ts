@@ -42,6 +42,10 @@ export class SharedWalletPortfolio implements SharedWalletPortfolioControl {
   private readonly equityDeltas = new Map<string, number>()
   private startingEquity: number | null = null
   private peakReserved = 0
+  /** Bar time of the moment the peak was set; null until anything deploys. */
+  private peakAtMs: number | null = null
+  /** The replay stamps each bar's time here before processing it. */
+  private nowMs: number | null = null
   private samples = 0
   private reservedTotal = 0
   /**
@@ -150,7 +154,20 @@ export class SharedWalletPortfolio implements SharedWalletPortfolioControl {
 
   private trackPeak() {
     const total = this.reservedPct()
-    if (total > this.peakReserved) this.peakReserved = total
+    if (total > this.peakReserved) {
+      this.peakReserved = total
+      this.peakAtMs = this.nowMs
+    }
+  }
+
+  /** Called once per bar by the replay so the peak can carry its date. */
+  noteTime(ms: number) {
+    this.nowMs = ms
+  }
+
+  /** When the wallet hit its high-water mark, ms since epoch; null if never. */
+  peakAt() {
+    return this.peakAtMs
   }
 
   /** The most of the wallet ever committed at once, across the whole run. */

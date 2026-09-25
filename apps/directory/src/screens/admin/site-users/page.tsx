@@ -8,6 +8,7 @@ import SlidersHorizontal from "lucide-react/dist/esm/icons/sliders-horizontal.js
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
 import Users from "lucide-react/dist/esm/icons/users.js"
 import X from "lucide-react/dist/esm/icons/x.js"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import {
@@ -17,16 +18,22 @@ import {
 } from "@/components/admin/layout/content/table-right-actions"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
+import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
+import { useResetPageOnListChange } from "@/lib/use-reset-page"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import {
   AdminBulkDeleteButton,
-  ConfirmDestructive,
   AdminListFooter,
+  AdminListPending,
+  AdminRowAction,
+  AdminRowActions,
+  AdminSortableHead,
   AdminSortButton,
-  AdminTableShell, AdminListPending,
-  formatShortDate as formatDate,
+  AdminTableShell,
+  ConfirmDestructive,
+  RelativeDate,
   useAdminBulkSelection,
-  useAdminSort
+  useAdminSort,
 } from "@/components/admin/layout/list"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -51,6 +58,8 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Calendar as CalendarPicker } from "@/components/ui/calendar"
 import { toCalendarDate, fromCalendarDate, formatDatePickerLabel } from "@/lib/utils/calendar-dates"
 import { cn } from "@/lib/utils/tailwind"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
 import {
   createSiteUser,
   deleteSiteUsers,
@@ -89,26 +98,12 @@ function isValueRule(rule: SiteUserFilterRule): rule is Extract<SiteUserFilterRu
   return rule.type === "status" || rule.type === "role"
 }
 
-function formatRelativeTime(dateString: string | null) {
-  if (!dateString) return "—"
-  const diff = Date.now() - new Date(dateString).getTime()
-  const minutes = Math.floor(diff / 60000)
-  if (minutes < 1) return "Just now"
-  if (minutes < 60) return `${minutes}m ago`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.floor(hours / 24)
-  if (days < 30) return `${days}d ago`
-  const months = Math.floor(days / 30)
-  return `${months}mo ago`
-}
-
 function getRoleBadge(role: string) {
   switch (role) {
     case "owner":
-      return <Badge className="bg-blue-100 text-blue-800">Owner</Badge>
+      return <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300">Owner</Badge>
     case "admin":
-      return <Badge className="bg-amber-100 text-amber-800">Admin</Badge>
+      return <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">Admin</Badge>
     default:
       return <Badge variant="secondary">Member</Badge>
   }
@@ -117,7 +112,7 @@ function getRoleBadge(role: string) {
 function getStatusBadge(status: string) {
   switch (status) {
     case "active":
-      return <Badge className="bg-green-100 text-green-800">Active</Badge>
+      return <Badge className="bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300">Active</Badge>
     case "suspended":
       return <Badge variant="destructive">Suspended</Badge>
     default:
@@ -165,6 +160,16 @@ export default function SiteUsersPage() {
   const [pendingFilters, setPendingFilters] = useState<SiteUserFilterGroup>(emptySiteUserFilterGroup)
   const [pendingFilteredTotal, setPendingFilteredTotal] = useState(0)
   const [filterModalOpen, setFilterModalOpen] = useState(false)
+  // Everything that changes what the table shows, minus the page itself.
+  const listQueryKey = `${currentSite?.id}|${deferredSearchQuery}|${JSON.stringify(filters)}|${userSort.sortColumn}|${userSort.sortDirection}`
+  // Searching, filtering or re-sorting from a later page would otherwise
+  // land you past the end of the shorter result.
+  useResetPageOnListChange(setCurrentPage, listQueryKey)
+  // Ticks never survive a change to what the table is showing — the page
+  // and rows-per-page included, so a bulk action only ever means rows on
+  // screen.
+  useClearSelectionOnListChange(userSelection, `${listQueryKey}|${currentPage}|${pageSize}`)
+
   const [createModalOpen, setCreateModalOpen] = useState(false)
   const [createForm, setCreateForm] = useState({
     email: "",
@@ -182,6 +187,7 @@ export default function SiteUsersPage() {
   })
   const [saving, setSaving] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [createFieldMissing, setCreateFieldMissing] = useState<"email" | "password" | null>(null)
 
   const loadUsers = useCallback(async () => {
     const requestId = ++requestIdRef.current
@@ -410,6 +416,7 @@ export default function SiteUsersPage() {
       await loadUsers()
       setConfirmDeleteOpen(false)
       setPendingDeleteId(null)
+      showActionSuccess("User removed.")
     } finally {
       setMassDeleting(false)
     }
@@ -420,6 +427,7 @@ export default function SiteUsersPage() {
 
     setMassDeleting(true)
     setErrorMessage(null)
+    const removedCount = userSelection.selectedCount
 
     try {
       const result = await deleteSiteUsers({ data: { input: {
@@ -435,6 +443,7 @@ export default function SiteUsersPage() {
       clearUserSelection()
       await loadUsers()
       setMassDeleteConfirmOpen(false)
+      showActionSuccess(removedCount === 1 ? "User removed." : "Users removed.")
     } finally {
       setMassDeleting(false)
     }
@@ -447,15 +456,26 @@ export default function SiteUsersPage() {
       role: user.role === "admin" ? "admin" : "member",
       status: user.status
     })
-    setErrorMessage(null)
+    dismissErrorToast()
   }
 
   async function handleCreateUser(e: React.FormEvent) {
     e.preventDefault()
     if (!currentSite?.id) return
 
+    // Named here rather than left to the browser's own bubble, which never
+    // shows for a field on a tab panel that has been switched away.
+    const firstEmpty = !createForm.email.trim() ? "email" : !createForm.password ? "password" : null
+    if (firstEmpty) {
+      setCreateFieldMissing(firstEmpty)
+      showErrorToast(firstEmpty === "email" ? "Email is required" : "Password is required")
+      return
+    }
+
+    setCreateFieldMissing(null)
+
     setCreating(true)
-    setErrorMessage(null)
+    dismissErrorToast()
     const result = await createSiteUser({ data: { input: {
       siteId: currentSite.id,
       email: createForm.email,
@@ -466,7 +486,7 @@ export default function SiteUsersPage() {
     } } })
 
     if (result.error) {
-      setErrorMessage(result.error)
+      showErrorToast(result.error)
       setCreating(false)
       return
     }
@@ -481,6 +501,7 @@ export default function SiteUsersPage() {
     })
     setCreating(false)
     await loadUsers()
+    showActionSuccess("User created.")
   }
 
   async function handleUpdateUser(e: React.FormEvent) {
@@ -488,7 +509,7 @@ export default function SiteUsersPage() {
     if (!currentSite?.id || !editUser) return
 
     setSaving(true)
-    setErrorMessage(null)
+    dismissErrorToast()
     const result = await updateSiteUser({ data: { input: {
       membershipId: editUser.id,
       siteId: currentSite.id,
@@ -498,7 +519,7 @@ export default function SiteUsersPage() {
     } } })
 
     if (result.error) {
-      setErrorMessage(result.error)
+      showErrorToast(result.error)
       setSaving(false)
       return
     }
@@ -506,6 +527,7 @@ export default function SiteUsersPage() {
     setEditUser(null)
     setSaving(false)
     await loadUsers()
+    showActionSuccess("User updated.")
   }
 
   return (
@@ -518,8 +540,9 @@ export default function SiteUsersPage() {
           />
 
           <AdminTableShell
+            error={error ? { message: error, onRetry: () => loadUsers() } : null}
             title="Site Users"
-            icon={<Users className="size-4 text-muted-foreground sm:size-[18px]" />}
+            icon={<Users className="text-muted-foreground" />}
             count={total}
             loading={siteLoading || loading}
             selectedCount={userSelection.selectedCount}
@@ -605,51 +628,11 @@ export default function SiteUsersPage() {
                         aria-label="Select all site users"
                       />
                     </TableHead>
-                    <TableHead column="main">
-                      <AdminSortButton
-                        active={userSort.sortColumn === "user"}
-                        direction={userSort.sortDirection}
-                        onClick={() => userSort.toggleSort("user")}
-                      >
-                        User
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={userSort.sortColumn === "role"}
-                        direction={userSort.sortDirection}
-                        onClick={() => userSort.toggleSort("role")}
-                      >
-                        Role
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={userSort.sortColumn === "status"}
-                        direction={userSort.sortDirection}
-                        onClick={() => userSort.toggleSort("status")}
-                      >
-                        Status
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={userSort.sortColumn === "added"}
-                        direction={userSort.sortDirection}
-                        onClick={() => userSort.toggleSort("added")}
-                      >
-                        Date Added
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={userSort.sortColumn === "engaged"}
-                        direction={userSort.sortDirection}
-                        onClick={() => userSort.toggleSort("engaged")}
-                      >
-                        Last Active
-                      </AdminSortButton>
-                    </TableHead>
+                    <AdminSortableHead column="main" sort={userSort} sortKey="user">User</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={userSort} sortKey="role">Role</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={userSort} sortKey="status">Status</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={userSort} sortKey="added">Date Added</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={userSort} sortKey="engaged">Last Active</AdminSortableHead>
                     <TableHead column="meta">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -663,27 +646,14 @@ export default function SiteUsersPage() {
                         <p className="text-muted-foreground">Select a site to view scoped users.</p>
                       </TableCell>
                     </TableRow>
-                  ) : error ? (
-                    <TableRow>
-                      <TableCell colSpan={7} className="h-32 text-center">
-                        <p className="mb-4 text-red-600">{error}</p>
-                        <Button onClick={() => loadUsers()} variant="outline" size="sm">
-                          Try Again
-                        </Button>
-                      </TableCell>
-                    </TableRow>
                   ) : users.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={7} className="h-32 text-center">
                         <Users className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
                         <p className="text-muted-foreground">
-                          {hasSearchQuery && activeFilterCount > 0
-                            ? "No users match this search and filter"
-                            : hasSearchQuery
-                              ? "No users match this search"
-                              : activeFilterCount > 0
-                                ? "No users match this filter"
-                                : "No users found for this site"}
+                          {hasSearchQuery || activeFilterCount > 0
+                            ? "No users found matching your search."
+                            : "No users found for this site"}
                         </p>
                       </TableCell>
                     </TableRow>
@@ -711,39 +681,29 @@ export default function SiteUsersPage() {
                               </AvatarFallback>
                             </Avatar>
                             <div className="min-w-0">
-                              <h4 className="truncate text-sm font-medium sm:text-base">{user.display_name || user.email}</h4>
-                              <p className="truncate text-xs text-muted-foreground sm:text-sm">{user.email}</p>
+                              <h4 className="truncate text-sm font-medium sm:text-base" title={user.display_name || user.email}>{user.display_name || user.email}</h4>
+                              <p className="truncate text-xs text-muted-foreground sm:text-sm" title={user.email}>{user.email}</p>
                             </div>
                           </div>
                         </TableCell>
                         <TableCell column="meta">{getRoleBadge(user.role)}</TableCell>
                         <TableCell column="meta">{getStatusBadge(user.status)}</TableCell>
-                        <TableCell column="mutedMeta">{formatDate(user.created_at)}</TableCell>
-                        <TableCell column="mutedMeta">{formatRelativeTime(user.last_sign_in_at)}</TableCell>
+                        <TableCell column="mutedMeta"><RelativeDate date={user.created_at} /></TableCell>
+                        <TableCell column="mutedMeta"><RelativeDate date={user.last_sign_in_at} fallback="Never" /></TableCell>
                         <TableCell column="meta">
-                          <div className="flex items-center gap-1">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0"
+                          <AdminRowActions>
+                            <AdminRowAction
+                              icon={Settings}
+                              label="User settings"
                               onClick={() => openEditModal(user)}
-                              title="Edit User"
-                            >
-                              <Settings className="h-4 w-4" />
-                              <span className="sr-only">Edit User</span>
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 text-foreground hover:text-foreground"
-                              onClick={() => handleDelete(user.id)}
-                              title="Delete User"
+                            />
+                            <AdminRowAction
+                              icon={Trash2}
+                              label={user.role === "owner" ? "The owner cannot be removed" : "Delete user"}
                               disabled={user.role === "owner" || massDeleting}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              <span className="sr-only">Delete User</span>
-                            </Button>
-                          </div>
+                              onClick={() => handleDelete(user.id)}
+                            />
+                          </AdminRowActions>
                         </TableCell>
                       </TableRow>
                     ))
@@ -970,22 +930,22 @@ export default function SiteUsersPage() {
         </Dialog>
 
         <Dialog open={createModalOpen} onOpenChange={setCreateModalOpen}>
-          <DialogContent variant="admin">
+          <DialogContent variant="admin" busy={creating}>
             <DialogHeader>
               <DialogTitle>Add Site User</DialogTitle>
             </DialogHeader>
             <form
+              noValidate
               onSubmit={handleCreateUser}
               className="flex min-h-0 flex-1 flex-col [&_label+input]:mt-2 [&_label+button]:mt-2"
             >
               <DialogBody>
-              {errorMessage && <p className="text-sm text-red-600">{errorMessage}</p>}
               <div>
                 <Label htmlFor="site-user-email">Email *</Label>
                 <Input
                   id="site-user-email"
                   type="email"
-                  required
+                  aria-invalid={(createFieldMissing === "email" && !createForm.email.trim()) || undefined}
                   value={createForm.email}
                   onChange={(e) =>
                     setCreateForm((prev) => ({
@@ -1013,7 +973,7 @@ export default function SiteUsersPage() {
                 <Input
                   id="site-user-password"
                   type="password"
-                  required
+                  aria-invalid={(createFieldMissing === "password" && !createForm.password) || undefined}
                   value={createForm.password}
                   onChange={(e) =>
                     setCreateForm((prev) => ({
@@ -1070,7 +1030,8 @@ export default function SiteUsersPage() {
                   Cancel
                 </Button>
                 <Button type="submit" disabled={creating}>
-                  {creating ? "Creating..." : "Create User"}
+                  {creating ? <Loader2 className="size-4 animate-spin" /> : null}
+                  Create User
                 </Button>
               </DialogFooter>
             </form>
@@ -1083,16 +1044,16 @@ export default function SiteUsersPage() {
             if (!open) setEditUser(null)
           }}
         >
-          <DialogContent variant="admin">
+          <DialogContent variant="admin" busy={saving}>
             <DialogHeader>
               <DialogTitle>Edit Site User</DialogTitle>
             </DialogHeader>
             <form
+              noValidate
               onSubmit={handleUpdateUser}
               className="flex min-h-0 flex-1 flex-col [&_label+input]:mt-2 [&_label+button]:mt-2"
             >
               <DialogBody>
-              {errorMessage && <p className="text-sm text-red-600">{errorMessage}</p>}
               <div>
                 <Label>Email</Label>
                 <Input value={editUser?.email || ""} disabled />
@@ -1159,7 +1120,8 @@ export default function SiteUsersPage() {
                   Cancel
                 </Button>
                 <Button type="submit" disabled={saving}>
-                  {saving ? "Saving..." : "Save Changes"}
+                  {saving ? <Loader2 className="size-4 animate-spin" /> : null}
+                  Save Changes
                 </Button>
               </DialogFooter>
             </form>

@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
 
-import { signedUsd, toneClass } from "./backtest-format"
+import { signedUsd, toneClass } from "@/lib/format"
 
 /** One market's result row — the shape every backtest markets table renders. */
 export type BacktestMarketRow = {

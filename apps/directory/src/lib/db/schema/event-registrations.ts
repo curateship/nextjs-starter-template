@@ -31,8 +31,23 @@ export const eventRegistrations = pgTable('event_registrations', {
   stripePaymentIntentId: text('stripe_payment_intent_id'),
   amountTotal: integer('amount_total'),
   currency: varchar('currency', { length: 10 }),
+  // The ticket's bearer token (see migration 198): unguessable, one per row,
+  // rendered as the QR in the confirmation email and on the ticket page.
+  // Required here on purpose: the column does carry a database default, but that
+  // exists only so the migration can land before the deploy — every insert in
+  // this app supplies a code from generateCheckInCode(), which is the one place
+  // the format is defined and tested.
+  checkInCode: varchar('check_in_code', { length: 16 }).notNull(),
+  // Set the moment an organizer checks this person in at the door. Never reset,
+  // so a second scan of the same ticket warns instead of counting twice.
+  checkedInAt: timestamp('checked_in_at', { withTimezone: true }),
   confirmationSentAt: timestamp('confirmation_sent_at', { withTimezone: true }),
   reminderSentAt: timestamp('reminder_sent_at', { withTimezone: true }),
+  // The start time the reminder described, e.g. `2026-08-15T18:00` (see
+  // migration 201). When the event is rescheduled this stops matching, which is
+  // how one corrected reminder goes out instead of none or one per tick.
+  reminderSentFor: varchar('reminder_sent_for', { length: 20 }),
+  followUpSentAt: timestamp('follow_up_sent_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
@@ -48,9 +63,10 @@ export const eventRegistrations = pgTable('event_registrations', {
   uniqueIndex('idx_event_registrations_payment_intent')
     .on(table.stripePaymentIntentId)
     .where(sql`${table.stripePaymentIntentId} is not null`),
-  index('idx_event_registrations_reminder_pending')
+  uniqueIndex('idx_event_registrations_check_in_code').on(table.checkInCode),
+  index('idx_event_registrations_checked_in')
     .on(table.eventId)
-    .where(sql`${table.status} = 'confirmed' and ${table.reminderSentAt} is null`),
+    .where(sql`${table.checkedInAt} is not null`),
 ])
 
 export const eventRegistrationsRelations = relations(eventRegistrations, ({ one }) => ({

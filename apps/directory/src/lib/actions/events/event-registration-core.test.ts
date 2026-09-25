@@ -2,16 +2,23 @@ import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 
 import {
+  FOLLOW_UP_WINDOW_HOURS,
   REGISTRATION_HOLD_MINUTES,
   REMINDER_LEAD_HOURS,
   eventStartTimestamp,
+  followUpTimestamp,
+  formatReminderLeadTime,
   holdIsActive,
   isEventPast,
+  isFollowUpDue,
   isReminderDue,
+  isReminderSwitchOn,
   isSoldOut,
   normalizeCapacity,
+  normalizeReminderLeadHours,
   normalizeTicketPriceId,
   readEventRegistrationSettings,
+  reminderStartKey,
   sanitizeRegistrantEmail,
   sanitizeRegistrantName,
   seatsRemaining,
@@ -151,6 +158,96 @@ describe("event timing", () => {
     assert.equal(isReminderDue(startMs, new Date(startMs - 60 * 1000)), true)
     assert.equal(isReminderDue(startMs, new Date(startMs)), false)
     assert.equal(isReminderDue(startMs, new Date(startMs + hourMs)), false)
+  })
+
+  it("moves the reminder window with the lead time the event chose", () => {
+    const startMs = new Date(2026, 7, 15, 18, 0).getTime()
+    const hourMs = 60 * 60 * 1000
+
+    // A one-week lead reminds a day out; a one-hour lead does not.
+    assert.equal(isReminderDue(startMs, new Date(startMs - 24 * hourMs), 168), true)
+    assert.equal(isReminderDue(startMs, new Date(startMs - 24 * hourMs), 1), false)
+    assert.equal(isReminderDue(startMs, new Date(startMs - 30 * 60 * 1000), 1), true)
+  })
+})
+
+describe("follow-up timing", () => {
+  const startMs = new Date(2026, 7, 15, 18, 0).getTime()
+  const hourMs = 60 * 60 * 1000
+
+  it("lands at 9am the morning after the event", () => {
+    assert.equal(followUpTimestamp(startMs), new Date(2026, 7, 16, 9, 0).getTime())
+  })
+
+  it("thanks an all-day event's attendees the next morning too, not a day later", () => {
+    const allDayStart = eventStartTimestamp("2026-08-15", null) as number
+    assert.equal(followUpTimestamp(allDayStart), new Date(2026, 7, 16, 9, 0).getTime())
+  })
+
+  it("rolls into the next month correctly", () => {
+    const monthEnd = new Date(2026, 7, 31, 20, 0).getTime()
+    assert.equal(followUpTimestamp(monthEnd), new Date(2026, 8, 1, 9, 0).getTime())
+  })
+
+  it("waits for the morning, then closes the window once the event is old news", () => {
+    const dueMs = followUpTimestamp(startMs)
+
+    assert.equal(isFollowUpDue(startMs, new Date(startMs + hourMs)), false)
+    assert.equal(isFollowUpDue(startMs, new Date(dueMs - 60 * 1000)), false)
+    assert.equal(isFollowUpDue(startMs, new Date(dueMs)), true)
+    assert.equal(isFollowUpDue(startMs, new Date(dueMs + FOLLOW_UP_WINDOW_HOURS * hourMs)), true)
+    assert.equal(isFollowUpDue(startMs, new Date(dueMs + (FOLLOW_UP_WINDOW_HOURS + 1) * hourMs)), false)
+  })
+})
+
+describe("reminder settings", () => {
+  it("reminds and thanks by default, so an untouched event behaves like every other one", () => {
+    assert.equal(isReminderSwitchOn(undefined), true)
+    assert.equal(isReminderSwitchOn(null), true)
+    assert.equal(isReminderSwitchOn(true), true)
+    assert.equal(normalizeReminderLeadHours(undefined), REMINDER_LEAD_HOURS)
+  })
+
+  it("turns an email off only when the event says false", () => {
+    assert.equal(isReminderSwitchOn(false), false)
+    // The cron reads block JSON out as text, so the string form has to count too.
+    assert.equal(isReminderSwitchOn("false"), false)
+    assert.equal(isReminderSwitchOn("true"), true)
+    assert.equal(isReminderSwitchOn(0), true)
+  })
+
+  it("only accepts a lead time that is actually offered", () => {
+    assert.equal(normalizeReminderLeadHours(1), 1)
+    assert.equal(normalizeReminderLeadHours("168"), 168)
+    assert.equal(normalizeReminderLeadHours(5), REMINDER_LEAD_HOURS)
+    assert.equal(normalizeReminderLeadHours(-24), REMINDER_LEAD_HOURS)
+    assert.equal(normalizeReminderLeadHours("soon"), REMINDER_LEAD_HOURS)
+    assert.equal(normalizeReminderLeadHours(undefined), REMINDER_LEAD_HOURS)
+  })
+
+  it("reads every lead time back in words", () => {
+    assert.equal(formatReminderLeadTime(1), "1 hour before")
+    assert.equal(formatReminderLeadTime(3), "3 hours before")
+    assert.equal(formatReminderLeadTime(24), "1 day before")
+    assert.equal(formatReminderLeadTime(48), "2 days before")
+    assert.equal(formatReminderLeadTime(168), "1 week before")
+  })
+})
+
+describe("rescheduled events", () => {
+  it("keys a reminder to the start time it described", () => {
+    assert.equal(reminderStartKey("2026-08-15", "18:00"), "2026-08-15T18:00")
+    assert.equal(reminderStartKey("2026-08-15", null), "2026-08-15")
+    assert.equal(reminderStartKey("2026-08-15", "25:00"), "2026-08-15")
+    assert.equal(reminderStartKey("", "18:00"), "")
+    assert.equal(reminderStartKey("15-08-2026", "18:00"), "")
+  })
+
+  it("changes the key when the event moves, and only then", () => {
+    const sent = reminderStartKey("2026-08-15", "18:00")
+    assert.equal(reminderStartKey("2026-08-15", "18:00"), sent)
+    assert.notEqual(reminderStartKey("2026-08-15", "20:00"), sent)
+    assert.notEqual(reminderStartKey("2026-08-16", "18:00"), sent)
   })
 })
 

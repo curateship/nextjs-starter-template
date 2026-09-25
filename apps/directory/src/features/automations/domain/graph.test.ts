@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
-import { parseAutomationGraph, validateAutomationGraph } from './graph'
+import { downstreamAutomationNodeIds, parseAutomationGraph, validateAutomationGraph } from './graph'
 import type { AutomationGraph } from './types'
 
 const ids = {
@@ -94,6 +94,46 @@ describe('automation graph validation', () => {
     assert.ok(codes.includes('listing-template'))
   })
 
+  it('accepts a scraper and a router route feeding a terminal Event node', () => {
+    const graph: AutomationGraph = {
+      viewport: { x: 0, y: 0, zoom: 1 },
+      nodes: [
+        { id: ids.time, kind: 'time', name: 'Time', x: 0, y: 0, config: { schedule: { frequency: 'daily', time: '02:00', timezone: 'UTC' } } },
+        { id: ids.scraper, kind: 'scraper', name: 'Scraper', x: 300, y: 0, config: { urls: ['https://example.com/calendar'] } },
+        { id: ids.router, kind: 'router', name: 'AI Router', x: 600, y: 0, config: { provider: 'openai', model: 'gpt-test', routes: [{ id: ids.route, name: 'Concerts', description: 'Live music.' }] } },
+        { id: ids.newsPost, kind: 'event', name: 'Event', x: 900, y: 0, config: { provider: 'openai', model: 'gpt-test', templateId: 'template-1', categoryId: null, instructions: '' } },
+        { id: ids.elsePost, kind: 'event', name: 'Other Events', x: 900, y: 180, config: { provider: 'openai', model: 'gpt-test', templateId: 'template-1', categoryId: null, instructions: '' } },
+      ],
+      edges: [
+        { id: 'e1', from: ids.time, sourcePort: 'then', to: ids.scraper },
+        { id: 'e2', from: ids.scraper, sourcePort: 'documents', to: ids.router },
+        { id: 'e3', from: ids.router, sourcePort: `route:${ids.route}`, to: ids.newsPost },
+        { id: 'e4', from: ids.router, sourcePort: 'else', to: ids.elsePost },
+      ],
+    }
+    assert.deepEqual(validateAutomationGraph(parseAutomationGraph(graph)), [])
+  })
+
+  it('rejects an Event node with outgoing connections and requires its template', () => {
+    const graph: AutomationGraph = {
+      viewport: { x: 0, y: 0, zoom: 1 },
+      nodes: [
+        { id: ids.time, kind: 'time', name: 'Time', x: 0, y: 0, config: { schedule: { frequency: 'daily', time: '02:00', timezone: 'UTC' } } },
+        { id: ids.scraper, kind: 'scraper', name: 'Scraper', x: 300, y: 0, config: { urls: ['https://example.com/calendar'] } },
+        { id: ids.newsPost, kind: 'event', name: 'Event', x: 600, y: 0, config: { provider: 'openai', model: 'gpt-test', templateId: '', categoryId: null, instructions: '' } },
+        { id: ids.elsePost, kind: 'post', name: 'Post', x: 900, y: 0, config: { templateId: 'template-1', publish: false, categoryIds: [], primaryCategoryId: null } },
+      ],
+      edges: [
+        { id: 'e1', from: ids.time, sourcePort: 'then', to: ids.scraper },
+        { id: 'e2', from: ids.scraper, sourcePort: 'documents', to: ids.newsPost },
+        { id: 'e3', from: ids.newsPost, sourcePort: 'article', to: ids.elsePost },
+      ],
+    }
+    const codes = validateAutomationGraph(parseAutomationGraph(graph)).map((error) => error.code)
+    assert.ok(codes.includes('post-terminal'))
+    assert.ok(codes.includes('event-template'))
+  })
+
   it('parses structurally valid incomplete drafts so they can be saved', () => {
     const graph = validGraph()
     const agent = graph.nodes.find((node) => node.id === ids.newsAgent)
@@ -141,9 +181,161 @@ describe('automation graph validation', () => {
     const codes = validateAutomationGraph(parseAutomationGraph(graph)).map((error) => error.code)
     assert.ok(codes.includes('invalid-connection'))
   })
+
+  it('accepts an Approval gate between the AI Agent and the Post', () => {
+    assert.deepEqual(validateAutomationGraph(parseAutomationGraph(approvalGraph())), [])
+  })
+
+  it('accepts an Approval gate after an AI Image node', () => {
+    const graph = approvalGraph()
+    graph.nodes.push({ id: imageId, kind: 'image', name: 'AI Image', x: 750, y: 0, config: { provider: 'openai', prompt: 'Header image.', size: 'landscape', referenceImage: '' } })
+    graph.edges = graph.edges.filter((edge) => edge.id !== 'e3')
+    graph.edges.push(
+      { id: 'e3a', from: ids.newsAgent, sourcePort: 'article', to: imageId },
+      { id: 'e3b', from: imageId, sourcePort: 'article', to: approvalId },
+    )
+    assert.deepEqual(validateAutomationGraph(parseAutomationGraph(graph)), [])
+  })
+
+  it('rejects an Approval gate wired to a Listing, which takes many inputs', () => {
+    const graph = approvalGraph()
+    const post = graph.nodes.find((node) => node.id === ids.newsPost)
+    if (!post) assert.fail('Missing post fixture')
+    post.kind = 'listing'
+    ;(post as { config: unknown }).config = { provider: 'openai', model: 'gpt-test', templateId: 'template-1', categoryId: null, instructions: '' }
+    const codes = validateAutomationGraph(parseAutomationGraph(graph)).map((error) => error.code)
+    assert.ok(codes.includes('invalid-connection'))
+  })
+
+  it('requires an Approval gate to have exactly one input', () => {
+    const graph = approvalGraph()
+    graph.nodes.push({ id: ids.elseAgent, kind: 'agent', name: 'Second Writer', x: 600, y: 200, config: { provider: 'openai', model: 'gpt-test', instructions: 'Write another article.' } })
+    graph.edges.push(
+      { id: 'e5', from: ids.scraper, sourcePort: 'documents', to: ids.elseAgent },
+      { id: 'e6', from: ids.elseAgent, sourcePort: 'article', to: approvalId },
+    )
+    const codes = validateAutomationGraph(parseAutomationGraph(graph)).map((error) => error.code)
+    assert.ok(codes.includes('approval-input'))
+  })
+
+  it('rejects an approval expiry window outside 1 hour to 30 days', () => {
+    for (const expiryHours of [0, 721, 1.5]) {
+      const graph = approvalGraph(expiryHours)
+      assert.throws(() => parseAutomationGraph(graph), /Approval expiry window is invalid/)
+    }
+  })
+
+  it('lists every node after an Approval gate so a resume knows what is left', () => {
+    const graph = parseAutomationGraph(approvalGraph())
+    assert.deepEqual([...downstreamAutomationNodeIds(graph, approvalId)], [ids.newsPost])
+    assert.ok(!downstreamAutomationNodeIds(graph, approvalId).has(approvalId))
+  })
+
+  it('accepts a Newsletter node in place of the Post', () => {
+    assert.deepEqual(validateAutomationGraph(parseAutomationGraph(newsletterGraph())), [])
+  })
+
+  it('accepts a Newsletter node after an Approval gate and an AI Image', () => {
+    const graph = newsletterGraph()
+    graph.nodes.push(
+      { id: imageId, kind: 'image', name: 'AI Image', x: 750, y: 0, config: { provider: 'openai', prompt: 'Header image.', size: 'landscape', referenceImage: '' } },
+      { id: approvalId, kind: 'approval', name: 'Approval', x: 900, y: 0, config: { expiryHours: 48 } },
+    )
+    graph.edges = graph.edges.filter((edge) => edge.id !== 'e3')
+    graph.edges.push(
+      { id: 'e3a', from: ids.newsAgent, sourcePort: 'article', to: imageId },
+      { id: 'e3b', from: imageId, sourcePort: 'article', to: approvalId },
+      { id: 'e3c', from: approvalId, sourcePort: 'approved', to: newsletterId },
+    )
+    assert.deepEqual(validateAutomationGraph(parseAutomationGraph(graph)), [])
+  })
+
+  it('rejects a Newsletter node with outgoing connections', () => {
+    const graph = newsletterGraph()
+    graph.nodes.push({ id: ids.elsePost, kind: 'post', name: 'Post', x: 1200, y: 0, config: { templateId: 'template-1', publish: false, categoryIds: [], primaryCategoryId: null } })
+    graph.edges.push({ id: 'e4', from: newsletterId, sourcePort: 'article', to: ids.elsePost })
+    const codes = validateAutomationGraph(parseAutomationGraph(graph)).map((error) => error.code)
+    assert.ok(codes.includes('post-terminal'))
+  })
+
+  it('rejects a Newsletter node fed straight from a Scraper, which emits pages not an article', () => {
+    const graph = newsletterGraph()
+    graph.edges.push({ id: 'e4', from: ids.scraper, sourcePort: 'documents', to: newsletterId })
+    const codes = validateAutomationGraph(parseAutomationGraph(graph)).map((error) => error.code)
+    assert.ok(codes.includes('invalid-connection'))
+    assert.ok(codes.includes('newsletter-input'))
+  })
+
+  it('requires a fixed subject line only when the fixed mode is chosen', () => {
+    const aiWritten = newsletterGraph({ subjectMode: 'article', subjectText: '' })
+    assert.deepEqual(validateAutomationGraph(parseAutomationGraph(aiWritten)), [])
+
+    const blankFixed = newsletterGraph({ subjectMode: 'fixed', subjectText: '  ' })
+    const codes = validateAutomationGraph(parseAutomationGraph(blankFixed)).map((error) => error.code)
+    assert.ok(codes.includes('newsletter-subject'))
+  })
+
+  it('reads an unknown or missing subject mode on a stored graph as AI-written', () => {
+    const graph = newsletterGraph()
+    const node = graph.nodes.find((item) => item.id === newsletterId)
+    if (!node) assert.fail('Missing newsletter fixture')
+    ;(node as { config: Record<string, unknown> }).config = { templateId: null }
+    const parsed = parseAutomationGraph(graph).nodes.find((item) => item.kind === 'newsletter')
+    assert.equal(parsed?.kind === 'newsletter' ? parsed.config.subjectMode : null, 'article')
+    assert.equal(parsed?.kind === 'newsletter' ? parsed.config.subjectText : null, '')
+  })
+
+  it('treats an empty template id on a stored graph as Blank', () => {
+    const graph = newsletterGraph()
+    const node = graph.nodes.find((item) => item.id === newsletterId)
+    if (!node) assert.fail('Missing newsletter fixture')
+    ;(node as { config: Record<string, unknown> }).config = { templateId: '', subjectMode: 'article', subjectText: '' }
+    const parsed = parseAutomationGraph(graph).nodes.find((item) => item.kind === 'newsletter')
+    assert.equal(parsed?.kind === 'newsletter' ? parsed.config.templateId : 'unset', null)
+  })
 })
 
 const imageId = '99999999-9999-4999-8999-999999999999'
+const approvalId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+const newsletterId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+
+function newsletterGraph(
+  config: { subjectMode: 'article' | 'fixed'; subjectText: string } = { subjectMode: 'article', subjectText: '' }
+): AutomationGraph {
+  return {
+    viewport: { x: 0, y: 0, zoom: 1 },
+    nodes: [
+      { id: ids.time, kind: 'time', name: 'Time', x: 0, y: 0, config: { schedule: { frequency: 'weekly', time: '07:00', timezone: 'UTC', dayOfWeek: 1 } } },
+      { id: ids.scraper, kind: 'scraper', name: 'Scraper', x: 300, y: 0, config: { urls: ['https://example.com/news'] } },
+      { id: ids.newsAgent, kind: 'agent', name: 'Roundup Writer', x: 600, y: 0, config: { provider: 'openai', model: 'gpt-test', instructions: 'Write a weekly roundup.' } },
+      { id: newsletterId, kind: 'newsletter', name: 'Newsletter', x: 900, y: 0, config: { templateId: null, ...config } },
+    ],
+    edges: [
+      { id: 'e1', from: ids.time, sourcePort: 'then', to: ids.scraper },
+      { id: 'e2', from: ids.scraper, sourcePort: 'documents', to: ids.newsAgent },
+      { id: 'e3', from: ids.newsAgent, sourcePort: 'article', to: newsletterId },
+    ],
+  }
+}
+
+function approvalGraph(expiryHours = 48): AutomationGraph {
+  return {
+    viewport: { x: 0, y: 0, zoom: 1 },
+    nodes: [
+      { id: ids.time, kind: 'time', name: 'Time', x: 0, y: 0, config: { schedule: { frequency: 'daily', time: '09:00', timezone: 'UTC' } } },
+      { id: ids.scraper, kind: 'scraper', name: 'Scraper', x: 300, y: 0, config: { urls: ['https://example.com/news'] } },
+      { id: ids.newsAgent, kind: 'agent', name: 'Writer', x: 600, y: 0, config: { provider: 'openai', model: 'gpt-test', instructions: 'Write an article.' } },
+      { id: approvalId, kind: 'approval', name: 'Approval', x: 900, y: 0, config: { expiryHours } },
+      { id: ids.newsPost, kind: 'post', name: 'Post', x: 1200, y: 0, config: { templateId: 'template-1', publish: false, categoryIds: [], primaryCategoryId: null } },
+    ],
+    edges: [
+      { id: 'e1', from: ids.time, sourcePort: 'then', to: ids.scraper },
+      { id: 'e2', from: ids.scraper, sourcePort: 'documents', to: ids.newsAgent },
+      { id: 'e3', from: ids.newsAgent, sourcePort: 'article', to: approvalId },
+      { id: 'e4', from: approvalId, sourcePort: 'approved', to: ids.newsPost },
+    ],
+  }
+}
 
 function imageGraph(prompt: string, referenceImage = ''): AutomationGraph {
   return {

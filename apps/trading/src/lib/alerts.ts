@@ -8,18 +8,25 @@ export const ALERT_KINDS = [
   "price_level",
   "price_move",
   "volume_spike",
+  "trendline",
 ] as const
 export const PRICE_LEVEL_OPERATORS = [
   "crossing",
   "crossing_up",
   "crossing_down",
 ] as const
+/**
+ * What counts as "price touched your drawn line": any trade reaching it
+ * ("wick") or a one-minute candle finishing on the far side of it ("close").
+ */
+export const TRENDLINE_TOUCH_MODES = ["wick", "close"] as const
 
 export type AlertWindow = (typeof ALERT_WINDOWS)[number]
 export type AlertCooldown = (typeof ALERT_COOLDOWNS)[number]
 export type AlertKind = (typeof ALERT_KINDS)[number]
 export type AlertStatus = "active" | "paused" | "triggered"
 export type PriceLevelOperator = (typeof PRICE_LEVEL_OPERATORS)[number]
+export type TrendlineTouchMode = (typeof TRENDLINE_TOUCH_MODES)[number]
 export type AlertLogSort =
   | "time"
   | "market"
@@ -74,6 +81,15 @@ const volumeSpikeFields = {
   window: z.enum(ALERT_WINDOWS),
 }
 
+const trendlineFields = {
+  kind: z.literal("trendline"),
+  /** Which chart the drawing lives on; drawings are stored per network. */
+  network: z.enum(["testnet", "mainnet"]),
+  /** The drawn line's id inside that chart's saved drawings. */
+  trendlineId: z.string().regex(/^[A-Za-z0-9_-]{1,80}$/),
+  touch: z.enum(TRENDLINE_TOUCH_MODES),
+}
+
 export const alertRuleInputSchema = z.union([
   z.object({ ...identityFields, ...priceLevelFields, ...onceFields }).strict(),
   z
@@ -85,6 +101,8 @@ export const alertRuleInputSchema = z.union([
   z
     .object({ ...identityFields, ...volumeSpikeFields, ...repeatFields })
     .strict(),
+  z.object({ ...identityFields, ...trendlineFields, ...onceFields }).strict(),
+  z.object({ ...identityFields, ...trendlineFields, ...repeatFields }).strict(),
 ])
 
 export type AlertRuleInput = z.infer<typeof alertRuleInputSchema>
@@ -112,6 +130,7 @@ export type AlertEventItem = {
   percent: number | null
   multiplier: number | null
   window: AlertWindow | null
+  touch: TrendlineTouchMode | null
   triggerMode: "once" | "repeat"
   cooldown: AlertCooldown | null
   observed: number
@@ -140,6 +159,41 @@ export function quickPriceAlert(
     level,
     triggerMode: "once",
   }
+}
+
+export function quickTrendlineAlert(
+  coin: string,
+  network: "testnet" | "mainnet",
+  trendlineId: string,
+  touch: TrendlineTouchMode
+): Extract<AlertRuleInput, { kind: "trendline" }> {
+  return {
+    name: `${coin} drawn line`,
+    coin,
+    kind: "trendline",
+    network,
+    trendlineId,
+    touch,
+    triggerMode: "once",
+  }
+}
+
+export function alertWithTrendlineTouch(
+  rule: Extract<AlertRuleItem, { kind: "trendline" }>,
+  touch: TrendlineTouchMode
+): Extract<AlertRuleInput, { kind: "trendline" }> {
+  const shared = {
+    name: rule.name,
+    ...(rule.message !== undefined ? { message: rule.message } : {}),
+    coin: rule.coin,
+    kind: "trendline" as const,
+    network: rule.network,
+    trendlineId: rule.trendlineId,
+    touch,
+  }
+  return rule.triggerMode === "repeat"
+    ? { ...shared, triggerMode: "repeat", cooldown: rule.cooldown }
+    : { ...shared, triggerMode: "once" }
 }
 
 export function alertWithPriceLevel(
@@ -212,7 +266,7 @@ export function evaluateWindowAlert(
   bars: MarketBar[],
   now: number
 ): WindowAlertEvaluation | null {
-  if (rule.kind === "price_level") return null
+  if (rule.kind === "price_level" || rule.kind === "trendline") return null
 
   const windowMs = ALERT_WINDOW_MS[rule.window]
   const currentStart = now - windowMs
@@ -280,6 +334,73 @@ export function nextThresholdState(
     matched,
     lastTriggeredAt: shouldAlert ? now : previous.lastTriggeredAt,
     stopped: shouldAlert && triggerMode === "once",
+    shouldAlert,
+  }
+}
+
+export type LineTouchState = {
+  /** Which side of the line the last look left price on. */
+  aboveLine: boolean
+  lastTriggeredAt: number | null
+  stopped: boolean
+}
+
+export type LineTouchStateResult = LineTouchState & {
+  shouldAlert: boolean
+}
+
+/**
+ * Touch detection against a drawn line whose trigger price moves with time.
+ * The caller passes the line's price *now*, so this fires both when price
+ * crosses the line and when a sloped line catches up to a quiet price.
+ *
+ * The first look only arms: it records which side of the line price is on
+ * and never fires, so arming a line that price already passed stays silent
+ * until the next real touch.
+ */
+export function nextLineTouchState(
+  previous: LineTouchState | undefined,
+  currentPrice: number,
+  linePrice: number,
+  now: number,
+  config: {
+    triggerMode: "once" | "repeat"
+    cooldownMs: number
+    /**
+     * Whether landing exactly on the line counts. A wick touching the line
+     * to the tick is a touch; a candle closing exactly on the line has not
+     * closed *beyond* it.
+     */
+    exactTouchFires: boolean
+  },
+  initialLastTriggeredAt: number | null = null
+): LineTouchStateResult {
+  const aboveLine = currentPrice >= linePrice
+  if (!previous) {
+    return {
+      aboveLine,
+      lastTriggeredAt: initialLastTriggeredAt,
+      stopped: false,
+      shouldAlert: false,
+    }
+  }
+
+  if (previous.stopped) {
+    return { ...previous, aboveLine, shouldAlert: false }
+  }
+
+  const touched =
+    aboveLine !== previous.aboveLine ||
+    (config.exactTouchFires && currentPrice === linePrice)
+  const cooledDown =
+    previous.lastTriggeredAt === null ||
+    now - previous.lastTriggeredAt >= config.cooldownMs
+  const shouldAlert = touched && cooledDown
+
+  return {
+    aboveLine,
+    lastTriggeredAt: shouldAlert ? now : previous.lastTriggeredAt,
+    stopped: shouldAlert && config.triggerMode === "once",
     shouldAlert,
   }
 }

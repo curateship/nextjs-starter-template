@@ -11,16 +11,16 @@ import { Textarea } from "@/components/ui/textarea"
 import { Calendar as CalendarPicker } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { DashboardModalCardTitle, DashboardModalContent, DashboardModalFooterActions } from "@/components/admin/layout/dashboard/modals"
-import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
+import { FeaturedImageField } from "@/components/admin/layout/dashboard/content-modal-shared"
 import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
 import CalendarIcon from "lucide-react/dist/esm/icons/calendar.js"
-import ImageIcon from "lucide-react/dist/esm/icons/image.js"
-import X from "lucide-react/dist/esm/icons/x.js"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import { getContentCategoriesAction, bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
 import type { CategoryInfo } from "@/lib/actions/categories/category-relationship-actions"
 import { generateSlug } from "@/lib/utils/slug"
 import type { Product, UpdateProductData } from "@/lib/actions/products/product-actions"
 import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 
 const EMPTY_INITIAL_CATEGORIES: CategoryInfo[] = []
 
@@ -94,18 +94,25 @@ export function ProductSettingsModal({
   const [featuredImage, setFeaturedImage] = useState('')
   const [isPrivate, setIsPrivate] = useState(false)
   const [savingAction, setSavingAction] = useState<"draft" | "publish" | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [titleMissing, setTitleMissing] = useState(false)
+  // Marked until the box has something in it, so it is still flagged once the
+  // toast has been dismissed and clears itself as soon as the user types.
+  const titleInvalid = titleMissing && !formData.title?.trim()
+  // Failures report through the one shared error toast, never inside the modal
+  // body — see workspace/docs/admin-action-feedback.md.
+  const setError = (message: string | null) => {
+    if (message) showErrorToast(message)
+    else dismissErrorToast()
+  }
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
-  const [showImagePicker, setShowImagePicker] = useState(false)
   const [createdDateInput, setCreatedDateInput] = useState('')
+  const [createdDateBad, setCreatedDateBad] = useState(false)
+  // Clears itself once the box holds a real date, so the ring never outlives the fault.
+  const createdDateInvalid = createdDateBad && !isValidDateInputValue(createdDateInput)
   const [createdDateOpen, setCreatedDateOpen] = useState(false)
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
   const [selectedCategoryDetails, setSelectedCategoryDetails] = useState<CategoryInfo[]>([])
   const [primaryCategoryId, setPrimaryCategoryId] = useState<string | null>(null)
-  const [loadingCategories, setLoadingCategories] = useState(false)
-  const hasInitialCategorySnapshot = initialCategories !== undefined
-  const hasInitialSelectedCategories = (initialCategories?.length ?? 0) > 0
-  const showCategorySkeleton = loadingCategories && (!hasInitialCategorySnapshot || hasInitialSelectedCategories)
   const saving = savingAction !== null
 
   const handleTitleChange = (title: string) => {
@@ -124,14 +131,6 @@ export function ProductSettingsModal({
       setSlugManuallyEdited(true)
       setFormData(prev => ({ ...prev, slug }))
     }
-  }
-
-  const handleImageChange = async (newImageUrl: string) => {
-    setFeaturedImage(newImageUrl)
-  }
-
-  const handleRemoveImage = async () => {
-    setFeaturedImage('')
   }
 
   useEffect(() => {
@@ -160,7 +159,6 @@ export function ProductSettingsModal({
       setSelectedCategoryIds(startingCategories.map((category) => category.id))
       setSelectedCategoryDetails([])
       setPrimaryCategoryId(null)
-      setLoadingCategories(true)
       getContentCategoriesAction({ data: { contentId: product.id, contentType: 'product' } }).then(({ data }) => {
         if (cancelled) return
         if (data) {
@@ -172,9 +170,6 @@ export function ProductSettingsModal({
           setSelectedCategoryDetails([])
           setPrimaryCategoryId(null)
         }
-      }).finally(() => {
-        if (cancelled) return
-        setLoadingCategories(false)
       })
     }
 
@@ -185,6 +180,7 @@ export function ProductSettingsModal({
 
   const handleSaveDraft = async () => {
     if (!formData.title?.trim()) {
+      setTitleMissing(true)
       setError('Product title is required')
       return
     }
@@ -193,9 +189,12 @@ export function ProductSettingsModal({
       return
     }
     if (!isValidDateInputValue(createdDateInput) || !formData.created_at || Number.isNaN(new Date(formData.created_at).getTime())) {
+      setCreatedDateBad(true)
       setError('Enter a valid created date')
       return
     }
+
+    setCreatedDateBad(false)
 
     try {
       setSavingAction("draft")
@@ -254,9 +253,12 @@ export function ProductSettingsModal({
       return
     }
     if (!isValidDateInputValue(createdDateInput) || !formData.created_at || Number.isNaN(new Date(formData.created_at).getTime())) {
+      setCreatedDateBad(true)
       setError('Enter a valid created date')
       return
     }
+
+    setCreatedDateBad(false)
 
     try {
       setSavingAction("publish")
@@ -315,11 +317,12 @@ export function ProductSettingsModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DashboardModalContent
+        busy={saving}
         title={(
           <div className="flex min-w-0 items-center gap-3">
-            <span className="truncate">{product.title}</span>
+            <span className="truncate" title={product.title}>{product.title}</span>
             <div className="flex shrink-0 items-center space-x-2">
-              <div className={`w-2 h-2 rounded-full ${product?.is_published ? 'bg-green-500' : 'bg-gray-400'}`} />
+              <div className={`w-2 h-2 rounded-full ${product?.is_published ? 'bg-green-500 dark:bg-green-600' : 'bg-gray-400'}`} />
               <span className="text-sm font-medium">
                 {product?.is_published ? 'Published' : 'Draft'}
               </span>
@@ -345,30 +348,27 @@ export function ProductSettingsModal({
                 variant="outline"
                 disabled={saving}
               >
-                {savingAction === "draft" ? "Saving..." : "Save as Draft"}
+                {savingAction === "draft" ? <Loader2 className="size-4 animate-spin" /> : null}
+                Save as Draft
               </Button>
               <Button
                 type="button"
                 onClick={handlePublish}
                 disabled={saving}
               >
-                {savingAction === "publish" ? "Saving..." : product?.is_published ? "Save" : "Publish"}
+                {savingAction === "publish" ? <Loader2 className="size-4 animate-spin" /> : null}
+                {product?.is_published ? "Save" : "Publish"}
               </Button>
             </DashboardModalFooterActions>
           </>
         )}
       >
         <form
+          noValidate
           id="product-settings-form"
           onSubmit={handleSubmit}
           className="contents"
         >
-          {error && (
-            <div className="px-6 pb-2">
-              <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div>
-            </div>
-          )}
-
           <CardGroup className="grid">
             <Card>
               <CardHeader>
@@ -383,7 +383,7 @@ export function ProductSettingsModal({
                     value={formData.title || ''}
                     onChange={(e) => handleTitleChange(e.target.value)}
                     placeholder="Enter product title"
-                    required
+                    aria-invalid={titleInvalid || undefined}
                   />
                 </Field>
 
@@ -418,7 +418,7 @@ export function ProductSettingsModal({
                         }))
                       }}
                       placeholder="YYYY-MM-DD"
-                      required
+                      aria-invalid={createdDateInvalid || undefined}
                     />
                     <Popover open={createdDateOpen} onOpenChange={setCreatedDateOpen}>
                       <PopoverTrigger asChild>
@@ -447,45 +447,7 @@ export function ProductSettingsModal({
                   <FieldDescription>Used when product listings are sorted by date.</FieldDescription>
                 </Field>
 
-                <Field className="[&>div]:w-fit">
-                  <div>
-                    {featuredImage ? (
-                      <div className="relative aspect-square w-48 overflow-hidden rounded-lg bg-muted">
-                        <img
-                          src={featuredImage}
-                          alt="Featured image preview"
-                          className="h-full w-full object-contain"
-                        />
-                        <button
-                          type="button"
-                          onClick={handleRemoveImage}
-                          className="absolute top-2 right-2 rounded-full bg-red-500 p-1 text-white transition-colors hover:bg-red-600"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                        <div
-                          className="absolute inset-0 flex cursor-pointer items-center justify-center bg-black/50 opacity-0 transition-opacity hover:opacity-100"
-                          onClick={() => setShowImagePicker(true)}
-                        >
-                          <div className="text-center text-white">
-                            <ImageIcon className="mx-auto mb-2 h-8 w-8" />
-                            <p className="text-sm font-medium">Click to change image</p>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div
-                        className="flex aspect-square w-48 cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 p-4 transition-all hover:border-muted-foreground/40 hover:bg-muted/70"
-                        onClick={() => setShowImagePicker(true)}
-                      >
-                        <div className="text-center">
-                          <ImageIcon className="mx-auto h-8 w-8 text-muted-foreground/50" />
-                          <p className="mt-2 text-sm text-muted-foreground">Click to select featured image</p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </Field>
+                <FeaturedImageField imageUrl={featuredImage} onChange={setFeaturedImage} />
               </CardContent>
             </Card>
 
@@ -521,7 +483,6 @@ export function ProductSettingsModal({
                       selectedCategoryDetails={selectedCategoryDetails}
                       primaryCategoryId={primaryCategoryId}
                       onPrimaryCategoryChange={setPrimaryCategoryId}
-                      loadingSelectedCategories={showCategorySkeleton}
                       variant="combobox"
                     />
                     <FieldDescription>Assign this product to one or more categories.</FieldDescription>
@@ -557,15 +518,6 @@ export function ProductSettingsModal({
           </CardGroup>
         </form>
 
-        <MediaPicker
-          open={showImagePicker}
-          onOpenChange={setShowImagePicker}
-          onSelectMedia={(imageUrl) => {
-            handleImageChange(imageUrl)
-            setShowImagePicker(false)
-          }}
-          currentMediaUrl={featuredImage || ''}
-        />
       </DashboardModalContent>
     </Dialog>
   )

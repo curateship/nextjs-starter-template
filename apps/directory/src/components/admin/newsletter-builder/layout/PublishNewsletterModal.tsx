@@ -20,7 +20,9 @@ import Send from "lucide-react/dist/esm/icons/send.js"
 import Radio from "lucide-react/dist/esm/icons/radio.js"
 import AlertTriangle from "lucide-react/dist/esm/icons/triangle-alert.js"
 import CheckCircle2 from "lucide-react/dist/esm/icons/circle-check.js"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import { formatNewsletterSendWindows, getNewsletterSendWindows } from "@/lib/actions/newsletters/send-windows"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 
 interface PublishNewsletterModalProps {
   open: boolean
@@ -44,7 +46,12 @@ export function PublishNewsletterModal({
   const [testEmail, setTestEmail] = useState('')
   const [cronStatus, setCronStatus] = useState<{ isRunning: boolean; enabledCount: number; totalCount: number; lastRunAt: string | null } | null>(null)
   const [cronStatusLoaded, setCronStatusLoaded] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  // Failures report through the one shared error toast, never inside the modal
+  // body — see workspace/docs/admin-action-feedback.md.
+  const setError = (message: string | null) => {
+    if (message) showErrorToast(message)
+    else dismissErrorToast()
+  }
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
 
   // Load segments
@@ -150,6 +157,7 @@ export function PublishNewsletterModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DashboardModalContent
+        busy={sending}
         title={
           <span className="flex items-center gap-2">
             <Radio className="h-5 w-5" />
@@ -166,9 +174,10 @@ export function PublishNewsletterModal({
               <Tooltip>
                 <TooltipTrigger asChild>
                   <span className="w-full sm:w-auto" tabIndex={!hasAudience ? 0 : -1}>
-                    <Button onClick={handleConfirmAndBroadcast} disabled={sending || !hasAudience}>
+                    <Button form="publish-newsletter-form" type="submit" disabled={sending || !hasAudience}>
                       <Send className="mr-2 h-4 w-4" />
-                      {sending ? 'Broadcasting...' : 'Confirm and Broadcast'}
+                      {sending ? <Loader2 className="size-4 animate-spin" /> : null}
+                      Confirm and Broadcast
                     </Button>
                   </span>
                 </TooltipTrigger>
@@ -182,17 +191,19 @@ export function PublishNewsletterModal({
           </>
         }
       >
-        {error && (
-          <div className="px-6 pb-2">
-            <div className="rounded-lg border border-red-200 bg-red-50 p-3">
-              <p className="text-sm text-red-800">{error}</p>
-            </div>
-          </div>
-        )}
+        <form
+          noValidate
+          id="publish-newsletter-form"
+          className="contents"
+          onSubmit={(event) => {
+            event.preventDefault()
+            handleConfirmAndBroadcast()
+          }}
+        >
         {successMsg && (
           <div className="px-6 pb-2">
-            <div className="rounded-lg border border-green-200 bg-green-50 p-3">
-              <p className="text-sm text-green-800">{successMsg}</p>
+            <div className="rounded-lg border border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-950/50 p-3">
+              <p className="text-sm text-green-800 dark:text-green-300">{successMsg}</p>
             </div>
           </div>
         )}
@@ -272,7 +283,7 @@ export function PublishNewsletterModal({
                       </div>
                     ) : cronStatus ? (
                       cronStatus.isRunning ? (
-                        <div className="flex items-center justify-end gap-1.5 text-xs text-green-700">
+                        <div className="flex items-center justify-end gap-1.5 text-xs text-green-700 dark:text-green-300">
                           <CheckCircle2 className="h-3.5 w-3.5" />
                           <span>{cronStatus.enabledCount} cron{cronStatus.enabledCount !== 1 ? 's' : ''} running</span>
                         </div>
@@ -305,13 +316,15 @@ export function PublishNewsletterModal({
                   />
                   <Button variant="outline" onClick={handleSendTest} disabled={sendingTest || !testEmail}>
                     <TestTube className="h-4 w-4 mr-1" />
-                    {sendingTest ? 'Sending...' : 'Test'}
+                    {sendingTest ? <Loader2 className="size-4 animate-spin" /> : null}
+                    Test
                   </Button>
                 </div>
               </Field>
             </CardContent>
           </Card>
         </CardGroup>
+        </form>
       </DashboardModalContent>
     </Dialog>
   )

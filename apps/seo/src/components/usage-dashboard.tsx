@@ -146,7 +146,7 @@ export function UsageDashboard({
       <DashboardTable
         title="API Usage"
         icon={
-          <BarChart3Icon className="size-4 text-muted-foreground sm:size-[18px]" />
+          <BarChart3Icon className="text-muted-foreground" />
         }
         count={total}
         controls={

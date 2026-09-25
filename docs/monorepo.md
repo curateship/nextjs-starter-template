@@ -24,46 +24,30 @@ Root `package.json` registers:
 ["apps/*", "packages/*", "services/*"]
 ```
 
-The current apps are:
+Four apps are live, and they are the only ones worked on:
 
-- `apps/hub` - main Hub app, package name `@repo/hub`
-- `apps/custom-shell` - Custom Shell app
-- `apps/core` - Core app
-- `apps/ai-video` - AI Video app
-- `apps/anti-detect` - Antidetect app
-- `apps/ai-agents` - AI Agents app
-- `apps/seo` - SEO app
-- `apps/trading` - Trading app
-- `apps/directory` - Directory app
-- `apps/personal-ide` - desktop Personal IDE app
-- `apps/directory` - Vite/TanStack port of Hub
+- `apps/custom-shell` - the template every app is copied from, and a running app
+  in its own right
+- `apps/trade` - the trading app
+- `apps/cms` - the CMS and directory app
+- `apps/video` - the video app
+
+`apps/personal-ide` is the Tauri desktop tool that creates workspaces for those
+apps. Everything else under `apps/` is an older app on its way out: not worked
+on, not fixed, and never merged into.
 
 `packages/` is reserved for shared code when a real shared package is needed. `services/` currently contains `traefik-config-writer`.
 
 ## Root Commands
 
-Common commands run through the root:
+`pnpm run dev`, `pnpm run build` and `pnpm run lint` run through the root, and
+Turbo orchestrates all three. `dev` is persistent and uncached. `build` depends
+on upstream builds and stores app build outputs. Per-app shortcuts follow the
+`dev:<app>` pattern and are listed in the root `package.json`.
 
-```bash
-pnpm run dev
-pnpm run build
-pnpm run lint
-```
-
-App-specific root shortcuts are also defined, such as:
-
-```bash
-pnpm run dev:hub
-pnpm run dev:custom-shell
-pnpm run dev:core
-pnpm run dev:ai-video
-pnpm run dev:anti-detect
-pnpm run dev:ai-agents
-pnpm run dev:personal-ide
-pnpm run dev:directory
-```
-
-Turbo handles `dev`, `build`, and `lint` orchestration. `dev` is persistent and uncached. `build` depends on upstream builds and stores app build outputs.
+Do not run `pnpm run dev`. A server is already running for every app, and
+`docs/local-enviroment.md` explains why starting a second one takes the app away
+from somebody.
 
 ## Local Ports
 
@@ -89,38 +73,50 @@ Project skills live in:
 
 The shared skill set is intentionally small and flat:
 
+- `unslop` - how to write anything, including every reply. Always on
+- `Ui-standards` - the one UI standard for every app
+- `check-yourself` - prove the last answer instead of defending it
 - `plan-change` - refine requests, specifications, and implementation plans
-- `new-features-suggestion` - scan a codebase and confirm feature opportunities in batches of ten
-- `polish-app-suggestions` - inspect an app and confirm polish opportunities in batches of ten
 - `implement-change` - build and test focused code changes
 - `validate-app` - verify changed workflows in a running app
 - `audit-change` - review changes for correctness, security, and commit readiness
 - `commit-change` - create an explicitly requested local commit without pushing
 - `migrate-legacy-code` - perform explicit legacy-system cutovers
 - `ship-release` - prepare and execute authorized production releases
+- `new-features-suggestion` and `polish-app-suggestions` - confirm opportunities
+  in batches of ten
 
 Use `.agents/skills/` for repo-local agent workflows, not app runtime code. App-specific agent instructions should live in the relevant app folder when needed.
 
-Each app has its own `AGENTS.md`. Those files route agents to:
+Each app has its own `CLAUDE.md`, with an `AGENTS.md` beside it that points at
+it. Both are maps and hold no rules of their own. They route agents to:
 
-- shared skills in `.agents/skills/`
-- app docs in `workspace/docs/`
+- shared skills in `.agents/skills/`, starting with `unslop`, which says how to
+  write
+- the shell's docs in `docs/shell/`, one copy for every app
+- the app's own docs in `workspace/docs/`
 - app tasks in `workspace/tasks/`
 
-Every app carries the same `workspace/docs/ui-rules.md` and routes UI work to it from its `AGENTS.md`. App-specific UI guides may add stricter conventions, but the shared copies should remain identical.
+The single UI standard lives in `.agents/skills/Ui-standards/SKILL.md`, and every app routes UI work there from its `AGENTS.md`. App-specific UX guides may describe the product without restating or weakening the shared conventions.
 
 ## Deployment
 
-The root `Dockerfile` builds the Directory app for production using its Nitro server output. Production infrastructure is managed outside the app code, with Coolify running on the VPS.
+The root `Dockerfile` is one reusable recipe for any app built on Custom Shell. It has two targets — `web` and `worker` — and takes the app's folder name as a build argument:
 
-Directory is the production Docker target. Hub is still in the repo and still owns the SQL migration history, but it is no longer deployed. Other apps can be built through their workspace scripts, but they are not the root Dockerfile target.
+```sh
+docker build --target web    --build-arg APP=custom-shell -t custom-shell-web .
+docker build --target worker --build-arg APP=custom-shell -t custom-shell-worker .
+```
 
-Directory's `VITE_APP_URL` and `VITE_APP_DOMAIN` are build arguments rather than runtime variables, because Vite freezes them into the bundle. The image build fails when they are missing. The container port stays 3000, unchanged from the Hub image, so the proxy and custom-domain routing keep working across the cutover.
+An app is those two things running side by side: the website, which brings the database up to date on the way in and then serves on port 3000, and a background worker, which runs automations, scheduled newsletters and the app's own registered jobs whether or not anyone is on the site. Both carry their own health checks.
+
+Apps never share a database or any settings with each other. Production infrastructure is managed outside the app code, with Coolify running on the VPS.
+
+The full guide — the two Coolify resources, the values they need, the release order, the health checks and rollback — is `docs/deployment.md`.
 
 ## Documentation
 
-Useful docs:
-
-- `docs/local-enviroment.md` - local URLs and helper command notes
-- `docs/scalability.md` - scalability notes
-- `docs/monorepo.md` - this overview
+`docs/README.md` indexes every doc in the repo. The two that decide how work is
+done here are `docs/how-we-work.md`, for how a discussion goes and what counts
+as evidence, and `docs/shell/shell-and-apps.md`, for what an app may and may not
+edit.

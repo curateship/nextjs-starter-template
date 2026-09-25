@@ -67,7 +67,8 @@ export function AutomationActivityLog({
         >
           {entries.length === 0 ? (
             <p className="text-muted-foreground">
-              Canvas changes and saves will appear here.
+              Canvas changes will appear here. Saving is automatic, so it isn&rsquo;t
+              logged.
             </p>
           ) : (
             entries.map((entry) => (

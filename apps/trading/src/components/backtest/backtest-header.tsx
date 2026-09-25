@@ -31,7 +31,7 @@ import {
 } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
 
-import { pct, toneClass } from "./backtest-format"
+import { signedPct, toneClass } from "@/lib/format"
 
 export type MarketOption = { coin: string; markPx: string; prevDayPx: string }
 
@@ -149,7 +149,7 @@ export function BacktestHeader({
                         change !== null ? toneClass(change) : "text-muted-foreground"
                       )}
                     >
-                      {change !== null ? pct(change) : "—"}
+                      {change !== null ? signedPct(change) : "—"}
                     </span>
                   </button>
                 )
@@ -198,7 +198,7 @@ export function BacktestHeader({
                   )}
                 >
                   {groupRun.status === "done" && groupRun.netPnlPct !== null
-                    ? pct(groupRun.netPnlPct)
+                    ? signedPct(groupRun.netPnlPct)
                     : groupRun.status}
                 </span>
               </DropdownMenuItem>
@@ -271,7 +271,7 @@ export function BacktestHeader({
                   )}
                 >
                   {run.status === "done" && run.netPnlPct !== null
-                    ? pct(run.netPnlPct)
+                    ? signedPct(run.netPnlPct)
                     : run.status}
                 </span>
               </DropdownMenuItem>

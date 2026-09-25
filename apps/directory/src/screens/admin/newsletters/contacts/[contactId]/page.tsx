@@ -4,9 +4,11 @@ import { use, useState, useEffect, useCallback } from "react"
 import { useRouter } from "@/lib/navigation-client"
 import Link from "@/components/app-link"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
+import { RelativeDate, formatShortDate } from "@/components/admin/layout/list"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { Card, CardGroup, CardContent, CardHeader, CardSection, CardTitle } from "@/components/ui/card"
+import { Card, CardGroup, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { CardSection } from "@/components/shared/card-sections"
 import { Field, FieldLabel, FieldDescription } from "@/components/ui/field"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -17,6 +19,7 @@ import { ConfirmDestructive } from "@/components/admin/layout/ConfirmDestructive
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
 import ExternalLink from "lucide-react/dist/esm/icons/external-link.js"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
 import {
   getContactById,
@@ -29,6 +32,7 @@ import {
   deleteContacts
 } from "@/lib/actions/newsletters/contact-actions"
 import type { CrmContact } from "@/lib/actions/newsletters/contact-actions"
+import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
 
 export default function ContactDashboardPage({ params }: { params: Promise<{ contactId: string }> }) {
   const router = useRouter()
@@ -78,7 +82,6 @@ export default function ContactDashboardPage({ params }: { params: Promise<{ con
     status: "active"
   })
   const [saving, setSaving] = useState(false)
-  const [saveSuccess, setSaveSuccess] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
@@ -147,7 +150,6 @@ export default function ContactDashboardPage({ params }: { params: Promise<{ con
     e.preventDefault()
     if (!contact) return
     setSaving(true)
-    setSaveSuccess(false)
 
     const tags = editForm.tags
       ? editForm.tags
@@ -166,8 +168,7 @@ export default function ContactDashboardPage({ params }: { params: Promise<{ con
 
     if (data) {
       setContact(data)
-      setSaveSuccess(true)
-      setTimeout(() => setSaveSuccess(false), 3000)
+      showActionSuccess("Contact updated.")
     }
     if (error) setError(error)
     setSaving(false)
@@ -186,28 +187,6 @@ export default function ContactDashboardPage({ params }: { params: Promise<{ con
     }
   }
 
-  // Helper: format date relative (e.g. "3d ago") or absolute
-  function formatRelativeDate(dateStr: string | null): string {
-    if (!dateStr) return "Never"
-    const date = new Date(dateStr)
-    const now = new Date()
-    const diffMs = now.getTime() - date.getTime()
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
-    if (diffDays === 0) return "Today"
-    if (diffDays === 1) return "1d ago"
-    if (diffDays < 30) return `${diffDays}d ago`
-    if (diffDays < 365) return `${Math.floor(diffDays / 30)}mo ago`
-    return `${Math.floor(diffDays / 365)}y ago`
-  }
-
-  // Helper: format date for display
-  function formatDate(dateStr: string): string {
-    return new Date(dateStr).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric"
-    })
-  }
 
   // Helper: get initials for avatar
   function getInitials(): string {
@@ -222,9 +201,9 @@ export default function ContactDashboardPage({ params }: { params: Promise<{ con
   function getStatusBadge(status: string) {
     switch (status) {
       case "active":
-        return <Badge className="bg-green-100 text-green-800">Active</Badge>
+        return <Badge className="bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300">Active</Badge>
       case "cold":
-        return <Badge className="bg-yellow-100 text-yellow-800">Cold</Badge>
+        return <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-950/50 dark:text-yellow-300">Cold</Badge>
       case "unsubscribed":
         return <Badge variant="secondary">Unsubscribed</Badge>
       case "bounced":
@@ -255,7 +234,7 @@ export default function ContactDashboardPage({ params }: { params: Promise<{ con
         return <Badge variant="outline">Lead Magnet</Badge>
       case "paid_purchase":
         return (
-          <Badge variant="outline" className="border-green-200 text-green-700">
+          <Badge variant="outline" className="border-green-200 dark:border-green-900 text-green-700 dark:text-green-300">
             Purchase
           </Badge>
         )
@@ -288,9 +267,9 @@ export default function ContactDashboardPage({ params }: { params: Promise<{ con
           </Badge>
         )
       case "opened":
-        return <Badge className="bg-blue-100 text-blue-800 text-xs">Opened</Badge>
+        return <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300 text-xs">Opened</Badge>
       case "clicked":
-        return <Badge className="bg-green-100 text-green-800 text-xs">Clicked</Badge>
+        return <Badge className="bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300 text-xs">Clicked</Badge>
       case "bounced":
         return (
           <Badge variant="destructive" className="text-xs">
@@ -332,9 +311,7 @@ export default function ContactDashboardPage({ params }: { params: Promise<{ con
               { label: "Newsletters", href: "/admin/newsletters" },
               { label: "Contacts", href: "/admin/newsletters/contacts" },
               {
-                label: loading ? (
-                  <span className="inline-block h-4 w-32 bg-muted rounded animate-pulse align-middle" />
-                ) : (
+                label: loading ? null : (
                   displayName
                 )
               }
@@ -348,8 +325,8 @@ export default function ContactDashboardPage({ params }: { params: Promise<{ con
                     </Button>
                   </DialogTrigger>
                   {contact && (
-                    <form id="contact-settings-form" onSubmit={handleSave} className="contents">
-                      <DashboardModalContent
+                                          <DashboardModalContent
+                        busy={saving}
                         title="Settings"
                         description="Update this contact's name, status, and tags."
                         footer={
@@ -363,11 +340,14 @@ export default function ContactDashboardPage({ params }: { params: Promise<{ con
                               Cancel
                             </Button>
                             <Button form="contact-settings-form" type="submit" disabled={saving}>
-                              {saving ? "Saving..." : saveSuccess ? "Saved!" : "Save Changes"}
+                              {saving ? <Loader2 className="size-4 animate-spin" /> : null}
+                              Save Changes
                             </Button>
                           </>
                         }
                       >
+                        <form
+                          noValidate id="contact-settings-form" onSubmit={handleSave} className="contents">
                         <CardGroup className="grid">
                           <Card>
                             <CardHeader>
@@ -435,8 +415,9 @@ export default function ContactDashboardPage({ params }: { params: Promise<{ con
                             </CardContent>
                           </Card>
                         </CardGroup>
+                        </form>
                       </DashboardModalContent>
-                    </form>
+
                   )}
                 </Dialog>
                 <Button
@@ -449,23 +430,20 @@ export default function ContactDashboardPage({ params }: { params: Promise<{ con
                   disabled={deleting || loading}
                 >
                   <Trash2 className="h-4 w-4 mr-1" />
-                  {deleting ? "Deleting..." : "Delete"}
+                  {deleting ? <Loader2 className="size-4 animate-spin" /> : null}
+                  Delete
                 </Button>
               </div>
             }
           />
 
           <CardGroup className="grid">
-            {/* Loading skeleton */}
             {loading && (
               <>
                 <Card>
                   <CardContent>
                     <div className="flex items-center gap-4">
-                      <div className="h-14 w-14 rounded-full bg-muted animate-pulse" />
                       <div className="space-y-2">
-                        <div className="h-5 w-48 bg-muted rounded animate-pulse" />
-                        <div className="h-4 w-32 bg-muted/60 rounded animate-pulse" />
                       </div>
                     </div>
                   </CardContent>
@@ -474,8 +452,6 @@ export default function ContactDashboardPage({ params }: { params: Promise<{ con
                   {[1, 2, 3, 4].map((i) => (
                     <Card key={i}>
                       <CardContent>
-                        <div className="h-4 w-20 bg-muted rounded animate-pulse mb-2" />
-                        <div className="h-8 w-16 bg-muted rounded animate-pulse" />
                       </CardContent>
                     </Card>
                   ))}
@@ -487,7 +463,7 @@ export default function ContactDashboardPage({ params }: { params: Promise<{ con
             {error && !loading && (
               <Card>
                 <CardContent className="text-center">
-                  <p className="text-red-600 mb-4">{error}</p>
+                  <p className="text-destructive mb-4">{error}</p>
                   <Link href="/admin/newsletters/contacts">
                     <Button variant="outline">Back to Contacts</Button>
                   </Link>
@@ -507,13 +483,13 @@ export default function ContactDashboardPage({ params }: { params: Promise<{ con
                         {getInitials()}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h1 className="text-lg font-semibold truncate">{displayName}</h1>
-                        <p className="text-sm text-muted-foreground truncate">{contact.email}</p>
+                        <h1 className="text-lg font-semibold truncate" title={displayName}>{displayName}</h1>
+                        <p className="text-sm text-muted-foreground truncate" title={contact.email}>{contact.email}</p>
                       </div>
                       <div className="flex items-center gap-3 flex-wrap">
                         {getStatusBadge(contact.status)}
                         {getSourceBadge(contact.metadata?.source || "manual")}
-                        <span className="text-xs text-muted-foreground">Since {formatDate(contact.created_at)}</span>
+                        <span className="text-xs text-muted-foreground">Since {formatShortDate(contact.created_at)}</span>
                       </div>
                     </div>
                   </CardContent>
@@ -550,7 +526,7 @@ export default function ContactDashboardPage({ params }: { params: Promise<{ con
                       <CardTitle className="text-sm font-medium text-muted-foreground">Last Engaged</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <p className="text-2xl font-semibold">{formatRelativeDate(contact.last_engaged_at)}</p>
+                      <p className="text-2xl font-semibold"><RelativeDate date={contact.last_engaged_at} fallback="Never" /></p>
                     </CardContent>
                   </Card>
                 </CardGroup>
@@ -573,7 +549,7 @@ export default function ContactDashboardPage({ params }: { params: Promise<{ con
                             <p className="font-medium text-sm mb-1">{event.newsletterSubject || "Unknown"}</p>
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="text-xs text-muted-foreground">
-                                {formatDate(event.createdAt)}
+                                <RelativeDate date={event.createdAt} />
                               </span>
                               <span className="text-xs text-muted-foreground">·</span>
                               {getEventBadge(event.eventType)}
@@ -636,10 +612,10 @@ export default function ContactDashboardPage({ params }: { params: Promise<{ con
                               <div className="flex items-start gap-2">
                                 <ExternalLink className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground" />
                                 <div className="min-w-0">
-                                  <p className="text-sm truncate">{link.linkUrl || "Unknown URL"}</p>
+                                  <p className="text-sm truncate" title={link.linkUrl || "Unknown URL"}>{link.linkUrl || "Unknown URL"}</p>
                                   <p className="text-xs text-muted-foreground">
                                     {link.newsletterSubject && <span>{link.newsletterSubject} · </span>}
-                                    {formatDate(link.createdAt)}
+                                    <RelativeDate date={link.createdAt} />
                                   </p>
                                 </div>
                               </div>

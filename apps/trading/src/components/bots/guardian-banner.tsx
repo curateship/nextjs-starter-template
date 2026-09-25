@@ -46,7 +46,7 @@ export function GuardianBanner({
   }
 
   return (
-    <div className="mt-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+    <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
       <div className="flex flex-wrap items-center gap-2">
         <ShieldAlertIcon className="size-4 shrink-0" />
         <span className="min-w-0 flex-1">

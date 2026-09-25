@@ -1,5 +1,3 @@
-'use server'
-
 import { db } from '@/lib/db'
 import { sites } from '@/lib/db/schema'
 import { and, eq, sql } from 'drizzle-orm'

@@ -5,7 +5,7 @@ import { useSearchParams } from "@/lib/navigation-client"
 import Link from "@/components/app-link"
 import Image from "@/components/app-image"
 import { BlockContainer } from "@/components/frontend/layout/block-container"
-import { ViewAllButton } from "@/components/ui/view-all-button"
+import { ViewAllButton } from "@/components/frontend/blocks/view-all-button"
 import { getListingViewsData, type ListingViewsData } from "@/lib/actions/pages/page-listing-views-actions"
 import { Button } from "@/components/ui/button"
 import ChevronLeft from "lucide-react/dist/esm/icons/chevron-left.js"
@@ -97,14 +97,14 @@ export function ProductListingViewBlock({ content, siteId, siteSubdomain, urlPre
       const limit = isPaginated ? itemsPerPage : itemsToShow
       const offset = isPaginated ? (currentPage - 1) * itemsPerPage : 0
 
-      const result = await getListingViewsData({
+      const result = await getListingViewsData({ data: {
         site_id: siteId,
         contentType,
         sortBy,
         sortOrder,
         limit,
         offset
-      })
+      } })
 
       if (result.success && result.data) {
         setData(result.data)

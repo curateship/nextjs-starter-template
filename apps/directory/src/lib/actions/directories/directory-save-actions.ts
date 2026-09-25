@@ -7,28 +7,15 @@ import type { DirectorySaveFolderTypeFilter } from "./directory-save-actions.ser
 export type * from "./directory-save-actions.server"
 
 export const getDirectorySaveStateAction = createServerFn({ method: "POST" })
-  .inputValidator((data: { input: {
-  siteId: string
-  directoryId: string
-} }) => data)
+  .inputValidator((data: { input: Parameters<typeof getDirectorySaveStateActionImpl>[0] }) => data)
   .handler(async ({ data }) => getDirectorySaveStateActionImpl(data.input))
 
 export const toggleDirectorySaveCollectionAction = createServerFn({ method: "POST" })
-  .inputValidator((data: { input: {
-  siteId: string
-  directoryId: string
-  collectionId?: string | null
-  defaultKey?: string | null
-  saved: boolean
-} }) => data)
+  .inputValidator((data: { input: Parameters<typeof toggleDirectorySaveCollectionActionImpl>[0] }) => data)
   .handler(async ({ data }) => toggleDirectorySaveCollectionActionImpl(data.input))
 
 export const createDirectorySaveCollectionAction = createServerFn({ method: "POST" })
-  .inputValidator((data: { input: {
-  siteId: string
-  directoryId: string
-  name: string
-} }) => data)
+  .inputValidator((data: { input: Parameters<typeof createDirectorySaveCollectionActionImpl>[0] }) => data)
   .handler(async ({ data }) => createDirectorySaveCollectionActionImpl(data.input))
 
 export const getMySavedCollectionsAction = createServerFn({ method: "POST" })
@@ -36,51 +23,25 @@ export const getMySavedCollectionsAction = createServerFn({ method: "POST" })
   .handler(async ({ data }) => getMySavedCollectionsActionImpl(data.siteId))
 
 export const getDirectorySaveFoldersDashboardAction = createServerFn({ method: "POST" })
-  .inputValidator((data: { input: {
-  siteId: string
-  page?: number
-  pageSize?: number
-  query?: string
-  type?: DirectorySaveFolderTypeFilter
-} }) => data)
+  .inputValidator((data: { input: Parameters<typeof getDirectorySaveFoldersDashboardActionImpl>[0] }) => data)
   .handler(async ({ data }) => getDirectorySaveFoldersDashboardActionImpl(data.input))
 
 export const getDirectorySaveFolderItemsDashboardAction = createServerFn({ method: "POST" })
-  .inputValidator((data: { input: {
-  siteId: string
-  collectionId: string
-  page?: number
-  pageSize?: number
-  query?: string
-} }) => data)
+  .inputValidator((data: { input: Parameters<typeof getDirectorySaveFolderItemsDashboardActionImpl>[0] }) => data)
   .handler(async ({ data }) => getDirectorySaveFolderItemsDashboardActionImpl(data.input))
 
 export const updateDirectorySaveDefaultCollectionsAction = createServerFn({ method: "POST" })
-  .inputValidator((data: { input: {
-  siteId: string
-  savedLabel: string
-  wantToGoLabel: string
-} }) => data)
+  .inputValidator((data: { input: Parameters<typeof updateDirectorySaveDefaultCollectionsActionImpl>[0] }) => data)
   .handler(async ({ data }) => updateDirectorySaveDefaultCollectionsActionImpl(data.input))
 
 export const renameDirectorySaveCollectionDashboardAction = createServerFn({ method: "POST" })
-  .inputValidator((data: { input: {
-  siteId: string
-  collectionId: string
-  name: string
-} }) => data)
+  .inputValidator((data: { input: Parameters<typeof renameDirectorySaveCollectionDashboardActionImpl>[0] }) => data)
   .handler(async ({ data }) => renameDirectorySaveCollectionDashboardActionImpl(data.input))
 
 export const removeDirectorySaveCollectionsDashboardAction = createServerFn({ method: "POST" })
-  .inputValidator((data: { input: {
-  siteId: string
-  collectionIds: string[]
-} }) => data)
+  .inputValidator((data: { input: Parameters<typeof removeDirectorySaveCollectionsDashboardActionImpl>[0] }) => data)
   .handler(async ({ data }) => removeDirectorySaveCollectionsDashboardActionImpl(data.input))
 
 export const removeDirectorySaveItemsDashboardAction = createServerFn({ method: "POST" })
-  .inputValidator((data: { input: {
-  siteId: string
-  itemIds: string[]
-} }) => data)
+  .inputValidator((data: { input: Parameters<typeof removeDirectorySaveItemsDashboardActionImpl>[0] }) => data)
   .handler(async ({ data }) => removeDirectorySaveItemsDashboardActionImpl(data.input))

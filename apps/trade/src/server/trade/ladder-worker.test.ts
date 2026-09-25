@@ -1,0 +1,621 @@
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest"
+
+/**
+ * The rate the server works ladders at, and the one promise that matters: two
+ * turns of the shell's loop can never run at the same time.
+ */
+
+const walletRows = vi.hoisted(() => ({
+  value: [] as Array<{ userId: string; walletId: string }>,
+}))
+const lineWalletRows = vi.hoisted(() => ({ value: [] as Array<{ userId: string; walletId: string }> }))
+const closeOnlyWork = vi.hoisted(() => ({ wallets: [] as string[], alerts: 0 }))
+const flowRows = vi.hoisted(() => ({
+  value: [] as Array<{
+    userId: string
+    walletId: string
+    status: "running" | "stopping"
+    hasMarketCancels: boolean
+  }>,
+}))
+const settled = vi.hoisted(() => ({
+  count: 0,
+  /** Wallets whose turn throws, so a failing wallet can be staged. */
+  fail: new Set<string>(),
+  /** Wallets whose exchange never answers until the test lets it finish. */
+  hang: new Set<string>(),
+  finish: new Map<string, () => void>(),
+  /** Which wallets have finished a turn, in the order they finished. */
+  done: [] as string[],
+  /** How long each wallet's turn takes, so a slow one can be staged. */
+  delays: new Map<string, number>(),
+}))
+const control = vi.hoisted(() => ({
+  value: { enabled: true, paused: false } as {
+    enabled: boolean
+    paused: boolean
+    restartRequestedAt?: Date | null
+    flowScanRequestedAt?: Date | null
+  },
+  cleared: 0,
+  scanCleared: 0,
+}))
+const flowWork = vi.hoisted(() => ({ scans: 0, stops: 0, removals: 0 }))
+const alertWork = vi.hoisted(() => ({ checks: 0 }))
+const walletReads = vi.hoisted(() => ({ calls: 0, keys: 0 }))
+
+vi.mock("@/server/db", async () => {
+  const { PgDialect } = await import("drizzle-orm/pg-core")
+  const dialect = new PgDialect()
+  return ({
+  db: {
+    selectDistinct: () => ({
+      from: () => ({ where: async (where: Parameters<typeof dialect.sqlToQuery>[0]) => dialect.sqlToQuery(where).sql.includes("lineStop") ? lineWalletRows.value : walletRows.value }),
+    }),
+    select: () => ({
+      from: () => ({ where: async () => flowRows.value }),
+    }),
+  },
+})})
+
+vi.mock("@/server/trade/wallets", () => ({
+  walletMapKey: (userId: string, id: string) => `${userId}\0${id}`,
+  findWallets: async (
+    keys: ReadonlyArray<{ userId: string; walletId: string }>
+  ) => {
+    walletReads.calls += 1
+    const unique = new Map(
+      keys.map((key) => [`${key.userId}\0${key.walletId}`, key])
+    )
+    walletReads.keys = unique.size
+    return new Map(
+      [...unique.values()].map(({ userId, walletId: id }) => [
+        `${userId}\0${id}`,
+        {
+          id,
+          label: id,
+          kind: "paper" as const,
+          status: "active" as const,
+          protocol: "hyperliquid" as const,
+          network: "mainnet" as const,
+          startingBalance: 1_000,
+          address: null,
+          hasKey: false,
+          keyValidUntil: null,
+        },
+      ])
+    )
+  },
+}))
+
+vi.mock("@/server/trade/workers", () => ({
+  workerControl: async () => ({
+    restartRequestedAt: null,
+    flowScanRequestedAt: null,
+    ...control.value,
+  }),
+  clearWorkerRestart: async () => {
+    control.cleared += 1
+  },
+  clearFlowScanRequest: async () => {
+    control.scanCleared += 1
+    control.value.flowScanRequestedAt = null
+  },
+}))
+
+vi.mock("@/server/trade/live-marks", () => ({
+  // A line carrying nothing: every market comes back on the missing list, so
+  // the caller asks the ordinary way.
+  pushedMarks: (keys: readonly string[]) => ({
+    marks: new Map<string, number>(),
+    missing: [...keys],
+  }),
+}))
+
+vi.mock("@/server/trade/paper", () => ({
+  exposedMarketKeys: async () => [],
+  settleWallet: async (_userId: string, wallet: { id: string }, options?: { lineStopsOnly?: boolean }) => {
+    if (options?.lineStopsOnly) { closeOnlyWork.wallets.push(wallet.id); return }
+    if (settled.hang.has(wallet.id)) {
+      await new Promise<void>((done) => settled.finish.set(wallet.id, done))
+    }
+    // A pass slow enough that the timer would fire again mid-flight.
+    else {
+      await new Promise((done) =>
+        setTimeout(done, settled.delays.get(wallet.id) ?? 1)
+      )
+    }
+    if (settled.fail.has(wallet.id)) throw new Error("this wallet is broken")
+    settled.count += 1
+    settled.done.push(wallet.id)
+  },
+}))
+
+vi.mock("@/server/trade/live-smart-orders", () => ({
+  reconcileLiveLadders: async () => {},
+}))
+
+// Not mocked before, so every pass loaded the real module and its whole
+// dependency graph. On its own that was slow but survivable; run beside another
+// suite it took longer than the test's own timeout, and the wallet left mid-flight
+// stayed marked busy, so every test after it settled nothing.
+vi.mock("@/server/trade/flow-run", () => ({
+  advanceRunningFlows: async () => {
+    flowWork.scans += 1
+  },
+  advanceStoppingFlows: async () => {
+    flowWork.stops += 1
+  },
+  advanceRemovedFlowLadders: async () => {
+    flowWork.removals += 1
+  },
+}))
+
+vi.mock("@/server/trade/price-alerts", () => ({
+  checkPriceAlerts: async () => {
+    alertWork.checks += 1
+  },
+}))
+
+vi.mock("@/server/trade/drawing-alerts", () => ({ checkDrawingAlerts: async () => { closeOnlyWork.alerts += 1 } }))
+// Hearing copied traders has its own suite. Here it is only counted, so the
+// pass is not loading and querying the copy code against a pretend database.
+const heardTraders = vi.hoisted(() => ({ passes: 0 }))
+vi.mock("@/server/trade/copy-engine", () => ({
+  hearCopiedTraders: async () => {
+    heardTraders.passes += 1
+  },
+}))
+
+const leader = vi.hoisted(() => ({ asked: 0 }))
+vi.mock("@/server/trade/leadership", () => ({
+  nonEngineProcessMayTrade: () => process.env.NODE_ENV === "development",
+  tryBecomeLeader: async () => {
+    leader.asked += 1
+    return { held: false }
+  },
+}))
+
+const {
+  advanceWorkingLadders,
+  ensureLadderLoop,
+  lastPass,
+  resetLadderPassState,
+} = await import("@/server/trade/ladder-worker")
+
+/**
+ * The website and the shell worker may stand in for the engine in
+ * development only. In production they are separate containers on whatever
+ * build they last got, and an old build standing in ended seven short grids
+ * on 3 Sep 2026. Nothing standing in beats something old standing in.
+ */
+describe("standing in for the engine", () => {
+  const env = { VITEST: process.env.VITEST, NODE_ENV: process.env.NODE_ENV }
+  beforeEach(() => {
+    leader.asked = 0
+    delete process.env.VITEST
+    // Offered to trade long ago, so the stand-back delay is not what stops it.
+    globalThis.__tradeLadderSince = 1
+    globalThis.__tradeLadderClaiming = undefined
+  })
+  afterEach(() => {
+    process.env.VITEST = env.VITEST
+    process.env.NODE_ENV = env.NODE_ENV
+    globalThis.__tradeLadderSince = undefined
+    globalThis.__tradeLadderClaiming = undefined
+  })
+
+  it("never happens in production", async () => {
+    process.env.NODE_ENV = "production"
+    ensureLadderLoop()
+    await new Promise((done) => setTimeout(done, 20))
+    expect(leader.asked).toBe(0)
+  })
+
+  it("happens in development once the stand-back has passed", async () => {
+    process.env.NODE_ENV = "development"
+    ensureLadderLoop()
+    await vi.waitFor(() => expect(leader.asked).toBe(1))
+  })
+})
+
+describe("the server's ladder job", () => {
+  beforeEach(() => {
+    resetLadderPassState()
+    lineWalletRows.value = []
+    closeOnlyWork.wallets = []
+    closeOnlyWork.alerts = 0
+    settled.count = 0
+    settled.done = []
+    settled.delays = new Map()
+    settled.fail = new Set()
+    settled.hang = new Set()
+    settled.finish = new Map()
+    flowWork.scans = 0
+    flowWork.stops = 0
+    flowWork.removals = 0
+    alertWork.checks = 0
+    walletReads.calls = 0
+    walletReads.keys = 0
+    control.scanCleared = 0
+    control.value = { enabled: true, paused: false }
+    walletRows.value = [{ userId: "u1", walletId: "w1" }]
+    flowRows.value = [
+      {
+        userId: "u1",
+        walletId: "w1",
+        status: "stopping",
+        hasMarketCancels: false,
+      },
+      {
+        userId: "u1",
+        walletId: "w1",
+        status: "running",
+        hasMarketCancels: true,
+      },
+    ]
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it("works every wallet that has a ladder going", async () => {
+    walletRows.value = [
+      { userId: "u1", walletId: "w1" },
+      { userId: "u2", walletId: "w2" },
+    ]
+    await advanceWorkingLadders()
+    expect(settled.count).toBe(2)
+  })
+
+  it("checks account alerts even when no wallet has work", async () => {
+    walletRows.value = []
+    flowRows.value = []
+
+    await advanceWorkingLadders()
+
+    expect(alertWork.checks).toBe(1)
+    expect(settled.count).toBe(0)
+  })
+
+  it("keeps copied traders heard on a pass with no wallet work", async () => {
+    walletRows.value = []
+    flowRows.value = []
+    heardTraders.passes = 0
+
+    await advanceWorkingLadders()
+
+    expect(heardTraders.passes).toBe(1)
+  })
+
+  it("reads twenty wallets in one batch", async () => {
+    walletRows.value = Array.from({ length: 20 }, (_, index) => ({
+      userId: `u${index}`,
+      walletId: `w${index}`,
+    }))
+
+    await advanceWorkingLadders()
+
+    expect(walletReads.calls).toBe(1)
+    expect(walletReads.keys).toBe(20)
+    expect(settled.count).toBe(20)
+  })
+
+  it("works stops every pass without speeding up the coin hunt", async () => {
+    await advanceWorkingLadders()
+    await advanceWorkingLadders()
+
+    expect(flowWork.stops).toBe(2)
+    expect(flowWork.removals).toBe(2)
+    expect(flowWork.scans).toBe(1)
+  })
+
+  it("runs the next coin hunt when a folder asks for one", async () => {
+    await advanceWorkingLadders()
+    await advanceWorkingLadders()
+    expect(flowWork.scans).toBe(1)
+
+    control.value.flowScanRequestedAt = new Date()
+    await advanceWorkingLadders()
+
+    expect(flowWork.scans).toBe(2)
+    expect(control.scanCleared).toBe(1)
+  })
+
+  it("leaves a wallet with nothing running alone", async () => {
+    walletRows.value = []
+    flowRows.value = []
+    await advanceWorkingLadders()
+    expect(settled.count).toBe(0)
+    expect(walletReads.keys).toBe(0)
+  })
+
+  it("never runs two passes at once", async () => {
+    // The four-second timer fires again while a slow pass is still going. A
+    // second pass would double every query without anything happening sooner.
+    const first = advanceWorkingLadders()
+    const second = advanceWorkingLadders()
+    await Promise.all([first, second])
+
+    expect(settled.count).toBe(1)
+  })
+
+  it("leaves wallets alone while paused but still finishes explicit stops", async () => {
+    control.value = { enabled: true, paused: false }
+    await advanceWorkingLadders()
+    expect(settled.count).toBe(1)
+
+    // Pausing is meant to stop trading dead while somebody looks at something,
+    // and it has to take effect on the very next pass rather than at a restart.
+    control.value = { enabled: true, paused: true }
+    await advanceWorkingLadders()
+    expect(settled.count).toBe(1)
+    expect(flowWork.stops).toBe(2)
+    expect(flowWork.removals).toBe(2)
+    expect(flowWork.scans).toBe(1)
+  })
+
+  it.each([true, false])("consumes drawing stops while ordinary trading is paused or off, enabled=%s", async (enabled) => {
+    walletRows.value = [{ userId: "u1", walletId: "w1" }, { userId: "u1", walletId: "w2" }]
+    lineWalletRows.value = [{ userId: "u1", walletId: "w1" }]
+    control.value = { enabled, paused: enabled }
+    await advanceWorkingLadders()
+    expect(closeOnlyWork.wallets).toEqual(["w1"])
+    expect(closeOnlyWork.alerts).toBe(enabled ? 1 : 0)
+    expect(settled.count).toBe(0)
+  })
+
+  it("honours a restart request between passes, and clears it", async () => {
+    control.cleared = 0
+    const asked: string[] = []
+    globalThis.__tradeLadderRestart = (reason: string) => asked.push(reason)
+    try {
+      control.value = {
+        enabled: true,
+        paused: false,
+        restartRequestedAt: new Date(),
+      }
+      await advanceWorkingLadders()
+      // Nothing was worked: the pass ends before any wallet is touched, so
+      // the exit always lands between passes, never inside one.
+      expect(settled.count).toBe(0)
+      // Cleared BEFORE the handler runs, so the replacement boots clean.
+      expect(control.cleared).toBe(1)
+      expect(asked).toEqual(["restart requested"])
+      expect(lastPass.activity).toBe("Restarting")
+    } finally {
+      globalThis.__tradeLadderRestart = undefined
+    }
+  })
+
+  it("clears a restart request and keeps running when nothing registered an exit", async () => {
+    control.cleared = 0
+    control.value = {
+      enabled: true,
+      paused: false,
+      restartRequestedAt: new Date(),
+    }
+    await advanceWorkingLadders()
+    expect(control.cleared).toBe(1)
+    expect(settled.count).toBe(0)
+
+    // The dev server survives: the next pass simply works as normal.
+    control.value = { enabled: true, paused: false }
+    await advanceWorkingLadders()
+    expect(settled.count).toBe(1)
+  })
+
+  it("leaves wallets alone while switched off but still finishes explicit stops", async () => {
+    control.value = { enabled: false, paused: false }
+    await advanceWorkingLadders()
+    expect(settled.count).toBe(0)
+    expect(flowWork.stops).toBe(1)
+    expect(flowWork.removals).toBe(1)
+    expect(flowWork.scans).toBe(0)
+  })
+})
+
+/**
+ * One wallet must never set another wallet's clock.
+ *
+ * The whole pass used to wait for every wallet, so the slowest one decided how
+ * often ALL of them were looked at. Measured on 22 Aug 2026: a KuCoin wallet
+ * on 454 markets took about fourteen seconds, because KuCoin prices one market
+ * at a time. A Hyperliquid wallet next to it needed 0.3 seconds and was still
+ * only looked at every fourteen, which is how a grid level was crossed and
+ * missed while CHIP fell 22% in ninety seconds.
+ */
+describe("a slow wallet", () => {
+  beforeEach(() => {
+    resetLadderPassState()
+    settled.count = 0
+    settled.done = []
+    settled.delays = new Map()
+    settled.fail = new Set()
+    settled.hang = new Set()
+    settled.finish = new Map()
+    control.value = { enabled: true, paused: false }
+  })
+
+  it("does not make a quick wallet wait for it", async () => {
+    walletRows.value = [
+      { userId: "u1", walletId: "slow" },
+      { userId: "u1", walletId: "quick" },
+    ]
+    settled.delays.set("slow", 60)
+    settled.delays.set("quick", 1)
+
+    await advanceWorkingLadders()
+
+    // The quick one finished first even though it was second in the list. In a
+    // queue it could only ever have finished after the slow one.
+    expect(settled.done).toEqual(["quick", "slow"])
+  })
+
+  it("is stepped over by the next pass rather than blocking it", async () => {
+    walletRows.value = [
+      { userId: "u1", walletId: "slow" },
+      { userId: "u1", walletId: "quick" },
+    ]
+    settled.delays.set("slow", 60)
+    settled.delays.set("quick", 1)
+
+    const first = advanceWorkingLadders()
+    // Long enough for the guard on the short stretch to be let go and for the
+    // quick wallet to have finished, while the slow one is still going.
+    await new Promise((done) => setTimeout(done, 20))
+    await advanceWorkingLadders()
+
+    // The quick wallet got a second turn while the slow one was still on its
+    // first. The slow one was not started twice.
+    expect(settled.done.filter((id) => id === "quick")).toHaveLength(2)
+    expect(settled.done.filter((id) => id === "slow")).toHaveLength(0)
+
+    await first
+    expect(settled.done.filter((id) => id === "slow")).toHaveLength(1)
+  })
+})
+
+/**
+ * What the Workers screen is told when a wallet is failing.
+ *
+ * The error used to be wiped at the top of every pass. That was harmless while
+ * a pass took half a minute. With a pass every second it meant a wallet failing
+ * on every single pass showed its error for under a second at a time, and the
+ * screen called the engine healthy. It has done exactly that before, for twenty
+ * minutes, on 20 Aug 2026.
+ */
+describe("a wallet that keeps failing", () => {
+  beforeEach(() => {
+    resetLadderPassState()
+    settled.count = 0
+    settled.done = []
+    settled.delays = new Map()
+    settled.fail = new Set()
+    settled.hang = new Set()
+    settled.finish = new Map()
+    control.value = { enabled: true, paused: false }
+    lastPass.error = null
+  })
+
+  it("keeps saying so rather than being wiped by the next pass", async () => {
+    walletRows.value = [{ userId: "u1", walletId: "broken" }]
+    settled.fail = new Set(["broken"])
+
+    await advanceWorkingLadders()
+    expect(lastPass.error).toBe("this wallet is broken")
+
+    // A second pass a second later must not report health it has not seen.
+    const firstErrorAt = lastPass.errorAt
+    expect(firstErrorAt).not.toBeNull()
+    await new Promise((resolve) => setTimeout(resolve, 5))
+    await advanceWorkingLadders()
+    expect(lastPass.error).toBe("this wallet is broken")
+    expect(lastPass.errorAt).not.toBe(firstErrorAt)
+  })
+
+  it("stops saying so once a wallet works again", async () => {
+    walletRows.value = [{ userId: "u1", walletId: "broken" }]
+    settled.fail = new Set(["broken"])
+    await advanceWorkingLadders()
+    expect(lastPass.error).toBe("this wallet is broken")
+
+    settled.fail = new Set()
+    await advanceWorkingLadders()
+    expect(lastPass.error).toBeNull()
+  })
+})
+
+describe("a wallet whose turn never finishes", () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date("2026-08-29T12:00:00Z"))
+    resetLadderPassState()
+    settled.count = 0
+    settled.done = []
+    settled.delays = new Map()
+    settled.fail = new Set()
+    settled.hang = new Set()
+    settled.finish = new Map()
+    control.value = { enabled: true, paused: false }
+    flowRows.value = []
+    lastPass.error = null
+  })
+
+  afterEach(() => {
+    for (const finish of settled.finish.values()) finish()
+    vi.useRealTimers()
+  })
+
+  it("names one stuck wallet after two minutes and clears the error when it finishes", async () => {
+    walletRows.value = [
+      { userId: "u1", walletId: "stuck" },
+      { userId: "u2", walletId: "quick" },
+    ]
+    settled.hang.add("stuck")
+
+    const first = advanceWorkingLadders()
+    await vi.advanceTimersByTimeAsync(1)
+    expect(settled.finish.has("stuck")).toBe(true)
+
+    vi.setSystemTime(new Date("2026-08-29T12:02:00Z"))
+    const next = advanceWorkingLadders()
+    await vi.advanceTimersByTimeAsync(1)
+    await next
+    expect(lastPass.error).toBe(
+      "Wallet stuck has been working for 2 minutes and has not finished."
+    )
+    const errorAt = lastPass.errorAt
+    expect(errorAt).not.toBeNull()
+    vi.setSystemTime(new Date("2026-08-29T12:03:00Z"))
+    const refresh = advanceWorkingLadders()
+    await vi.advanceTimersByTimeAsync(1)
+    await refresh
+    expect(lastPass.errorAt).toBe(errorAt)
+
+    settled.hang.delete("stuck")
+    settled.finish.get("stuck")?.()
+    await first
+    expect(lastPass.error).toBeNull()
+    expect(lastPass.errorAt).toBeNull()
+  })
+
+  it("reports the count and first name when several wallets are stuck", async () => {
+    walletRows.value = [
+      { userId: "u1", walletId: "first" },
+      { userId: "u2", walletId: "second" },
+    ]
+    settled.hang = new Set(["first", "second"])
+
+    const firstPass = advanceWorkingLadders()
+    await vi.advanceTimersByTimeAsync(0)
+
+    vi.setSystemTime(new Date("2026-08-29T12:02:00Z"))
+    await advanceWorkingLadders()
+    expect(lastPass.error).toBe(
+      "2 wallets have not finished their turn. The first is first, working for 2 minutes."
+    )
+
+    for (const finish of settled.finish.values()) finish()
+    await firstPass
+  })
+
+  it("forgets the timer when a stuck wallet is no longer active", async () => {
+    walletRows.value = [{ userId: "u1", walletId: "removed" }]
+    settled.hang.add("removed")
+
+    const first = advanceWorkingLadders()
+    await vi.advanceTimersByTimeAsync(0)
+
+    vi.setSystemTime(new Date("2026-08-29T12:02:00Z"))
+    await advanceWorkingLadders()
+    expect(lastPass.error).toContain("Wallet removed")
+
+    walletRows.value = []
+    await advanceWorkingLadders()
+    expect(lastPass.error).toBeNull()
+
+    settled.finish.get("removed")?.()
+    await first
+  })
+})

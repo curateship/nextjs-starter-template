@@ -49,7 +49,7 @@ export function usePostBuilderData(
         if (contextSite) {
           setSite(contextSite)
         } else {
-          const siteResult = await getSiteByIdAction(siteId)
+          const siteResult = await getSiteByIdAction({ data: { siteId } })
           if (!cancelled && siteResult.data) {
             setSite(siteResult.data)
           }

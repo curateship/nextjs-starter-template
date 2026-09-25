@@ -1,0 +1,51 @@
+/**
+ * Every panel layout the Trade workspace remembers, in one place.
+ *
+ * The shell keeps its own list in `panelLayoutKey`, and this app may not edit
+ * that file — an edited shell file conflicts on every future shell merge. So
+ * the app keeps its own list, for the same reason the shell keeps one: keys
+ * written out at each call site collide and drift.
+ *
+ * Both are read by the same `useRememberedPanelLayout`, and both are prefixed
+ * so a key from one can never land on the other.
+ */
+export const tradePanelLayoutKey = {
+  /** Markets | chart | smart orders, across the workspace. */
+  workspaceHorizontal: "trade-workspace-horizontal",
+  /** The chart row above, the positions row below. */
+  workspaceVertical: "trade-workspace-vertical",
+  /** A backtest run: settings | chart | summary, across the workspace. */
+  backtestHorizontal: "trade-backtest-horizontal",
+  /** The backtest workspace above, its coins and trades below. */
+  backtestVertical: "trade-backtest-vertical",
+  /** A live run: figures | chart | coins, across the workspace. */
+  flowRunHorizontal: "trade-flow-run-horizontal",
+  /** The live-run workspace above, its trades below. */
+  flowRunVertical: "trade-flow-run-vertical",
+  /** P&L: the Journal on the left, the grid and cards on the right. */
+  pnlHorizontal: "trade-pnl-horizontal",
+  /** P&L's right column: the month grid above, the three cards below. */
+  pnlVertical: "trade-pnl-vertical",
+} as const
+
+export type TradePanelLayoutKey =
+  (typeof tradePanelLayoutKey)[keyof typeof tradePanelLayoutKey]
+
+/** The account-owned panel groups, also used to validate imported keys. */
+export const TRADE_PANEL_LAYOUT_KEYS = Object.values(tradePanelLayoutKey)
+
+/** The exact panel names each saved group must contain. */
+export const tradePanelIds: Record<TradePanelLayoutKey, readonly string[]> = {
+  [tradePanelLayoutKey.workspaceHorizontal]: [
+    "markets",
+    "chart",
+    "smart-orders",
+  ],
+  [tradePanelLayoutKey.workspaceVertical]: ["workspace", "activity"],
+  [tradePanelLayoutKey.backtestHorizontal]: ["stats", "chart", "markets"],
+  [tradePanelLayoutKey.backtestVertical]: ["workspace", "trades"],
+  [tradePanelLayoutKey.flowRunHorizontal]: ["stats", "chart", "coins"],
+  [tradePanelLayoutKey.flowRunVertical]: ["workspace", "trades"],
+  [tradePanelLayoutKey.pnlHorizontal]: ["journal", "figures"],
+  [tradePanelLayoutKey.pnlVertical]: ["months", "cards"],
+}

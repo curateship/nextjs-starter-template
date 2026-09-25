@@ -64,6 +64,7 @@ const loadShellSettingsFn = createServerFn({ method: "GET" }).handler(
         defaultApiUsageMonthlyCredits,
         sidebarWidth: workspaceSettings.sidebarWidth,
         duckingDb: workspaceSettings.duckingDb,
+        normalizeLoudness: workspaceSettings.normalizeLoudness,
         favicon: workspaceSettings.favicon,
         brandKit: workspaceSettings.brandKit,
         topRightNavigation: workspaceSettings.topRightNavigation,
@@ -102,6 +103,7 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
             ...workspaceSettings,
             sidebarWidth: data.sidebarWidth,
             duckingDb: data.duckingDb,
+            normalizeLoudness: data.normalizeLoudness,
             favicon: data.favicon,
             brandKit,
             topRightNavigation: data.topRightNavigation,
@@ -195,6 +197,44 @@ const saveSidebarWidthFn = createServerFn({ method: "POST" })
 
 export function saveSidebarWidth(sidebarWidth: number) {
   return saveSidebarWidthFn({ data: { sidebarWidth } })
+}
+
+// Per-user save for the export modal's "Normalize loudness" toggle. Like the
+// sidebar width this is not admin-gated: it is the exporting user's own
+// workspace preference, and the renderer reads it when the job runs.
+const saveNormalizeLoudnessFn = createServerFn({ method: "POST" })
+  .inputValidator(z.object({ normalizeLoudness: z.boolean() }))
+  .handler(async ({ data }) => {
+    requireAppOrigin()
+    const user = await requireUser()
+    const { getOrCreateCurrentWorkspace, parseWorkspaceSettings } =
+      await import("@/server/workspaces")
+    const workspace = await getOrCreateCurrentWorkspace(user.id)
+    const settings = parseWorkspaceSettings(workspace.settings)
+
+    const [updated] = await db
+      .update(aiVideoWorkspaces)
+      .set({
+        settings: { ...settings, normalizeLoudness: data.normalizeLoudness },
+        updatedAt: now(),
+      })
+      .where(
+        and(
+          eq(aiVideoWorkspaces.id, workspace.id),
+          eq(aiVideoWorkspaces.userId, user.id)
+        )
+      )
+      .returning({ id: aiVideoWorkspaces.id })
+
+    if (!updated) {
+      throw new Error("Workspace not found")
+    }
+
+    return data
+  })
+
+export function saveNormalizeLoudness(normalizeLoudness: boolean) {
+  return saveNormalizeLoudnessFn({ data: { normalizeLoudness } })
 }
 
 function parseShellGlobals(value: unknown) {

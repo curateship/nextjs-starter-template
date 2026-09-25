@@ -42,6 +42,7 @@ export default function SitePagesPage({ params }: { params: Promise<{ siteId: st
     <ContentListPage<Page>
       builderPath="/admin/pages"
       canDeleteItem={(page) => !page.is_homepage}
+      deleteBlockedLabel="The homepage cannot be deleted"
       canSelectItem={(page) => !page.is_homepage}
       columnCount={5}
       createButtonLabel="Create Page"
@@ -75,11 +76,11 @@ export default function SitePagesPage({ params }: { params: Promise<{ siteId: st
       )}
       renderStatusBadge={(page) =>
         page.is_homepage ? (
-          <Badge variant="default" className="bg-blue-100 text-blue-800">
+          <Badge variant="default" className="bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300">
             Homepage
           </Badge>
         ) : page.is_published ? (
-          <Badge variant="default" className="bg-green-100 text-green-800">
+          <Badge variant="default" className="bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300">
             Published
           </Badge>
         ) : (

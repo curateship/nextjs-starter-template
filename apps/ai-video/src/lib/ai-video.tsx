@@ -14,6 +14,7 @@ import {
   API_USAGE_DEFAULT_MONTHLY_CREDITS,
 } from "@/lib/api-usage-constants"
 import { DEFAULT_DUCK_DB } from "@/lib/audio-ducking"
+import { DEFAULT_NORMALIZE_LOUDNESS } from "@/lib/audio-loudness"
 import { DEFAULT_SIDEBAR_WIDTH } from "@/lib/sidebar-width"
 import {
   AppWindowIcon,
@@ -360,6 +361,9 @@ export type ShellConfig = {
   // Per-workspace "duck under voice" amount in dB (negative; 0 = off). Applied
   // by the export renderer. See lib/audio-ducking.ts.
   duckingDb: number
+  // Level every export to the standard loudness target. Applied by the export
+  // renderer; the export modal toggles it. See lib/audio-loudness.ts.
+  normalizeLoudness: boolean
   favicon: string
   // Route "/" and "/admin" forward to. Empty opens the Home dashboard.
   // See lib/home-route.ts and routes/_authenticated/index.tsx.
@@ -857,6 +861,7 @@ export function createDefaultShellConfig(): ShellConfig {
     mediaUploadMaxMb: DEFAULT_MEDIA_UPLOAD_MAX_MB,
     sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
     duckingDb: DEFAULT_DUCK_DB,
+    normalizeLoudness: DEFAULT_NORMALIZE_LOUDNESS,
     favicon: "",
     adminRoute: "",
     brandKit: createDefaultBrandKitConfig(),

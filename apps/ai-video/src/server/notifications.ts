@@ -13,6 +13,8 @@ import {
 import { db, type AiVideoDb } from "@/server/db"
 import { requireAppOrigin } from "@/server/origin"
 import {
+  aiVideoAutomationRuns,
+  aiVideoAutomations,
   aiVideoCreators,
   aiVideoFeedback,
   aiVideoNotifications,
@@ -264,6 +266,13 @@ async function serializeNotificationRows(
       rows.map((row) => row.creatorId).filter((id): id is string => Boolean(id))
     )
   )
+  const automationRunIds = Array.from(
+    new Set(
+      rows
+        .map((row) => row.automationRunId)
+        .filter((id): id is string => Boolean(id))
+    )
+  )
   const userRows = await database
     .select({ id: aiVideoUsers.id, name: aiVideoUsers.name })
     .from(aiVideoUsers)
@@ -284,15 +293,35 @@ async function serializeNotificationRows(
         .from(aiVideoCreators)
         .where(inArray(aiVideoCreators.id, creatorIds))
     : []
+  // Approval notifications link to the automation editor, so the run row is
+  // only a hop to the automation the reader actually wants to open.
+  const automationRunRows = automationRunIds.length
+    ? await database
+        .select({
+          id: aiVideoAutomationRuns.id,
+          automationId: aiVideoAutomationRuns.automationId,
+          automationName: aiVideoAutomations.name,
+        })
+        .from(aiVideoAutomationRuns)
+        .innerJoin(
+          aiVideoAutomations,
+          eq(aiVideoAutomations.id, aiVideoAutomationRuns.automationId)
+        )
+        .where(inArray(aiVideoAutomationRuns.id, automationRunIds))
+    : []
 
   const userNames = new Map(userRows.map((row) => [row.id, row.name]))
   const feedbackMessages = new Map(
     feedbackRows.map((row) => [row.id, row.message])
   )
   const creators = new Map(creatorRows.map((row) => [row.id, row]))
+  const automationRuns = new Map(automationRunRows.map((row) => [row.id, row]))
 
   return rows.map((row) => {
     const creator = row.creatorId ? creators.get(row.creatorId) : null
+    const automationRun = row.automationRunId
+      ? automationRuns.get(row.automationRunId)
+      : null
     return {
       id: row.id,
       type: row.type as NotificationItem["type"],
@@ -306,6 +335,11 @@ async function serializeNotificationRows(
       creator_username: creator?.username ?? null,
       creator_display_name: creator?.displayName ?? null,
       creator_new_video_count: row.creatorNewVideoCount,
+      automation_run_id: row.automationRunId,
+      automation_id: automationRun?.automationId ?? null,
+      automation_name: automationRun?.automationName ?? null,
+      automation_approval_state:
+        row.automationApprovalState as NotificationItem["automation_approval_state"],
       api_usage_level: row.apiUsageLevel as NotificationItem["api_usage_level"],
       api_usage_period_start: row.apiUsagePeriodStart?.toISOString() ?? null,
       api_usage_used_credits: row.apiUsageUsedCredits,

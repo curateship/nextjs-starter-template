@@ -107,5 +107,57 @@ describe("exitLevels / tickExit — the one TP/SL implementation", () => {
       expect(levels[0]).toBeCloseTo(110, 10)
       expect(levels[1]).toBeCloseTo(95, 10)
     })
+
+    it("rests ON the level even when the stop is anchored to the first buy", () => {
+      // The ladder bug: the level used to be turned into a percent of the
+      // AVERAGE and then applied to the FIRST buy, so the stop came out at
+      // level * first/average — above the base by however far the ladder had
+      // dragged the average down (~8.5% on a four-rung ladder), matching no
+      // base and no rung. A stop set to a level belongs ON that level.
+      const anchored: ProtectionSettings = {
+        stopLossPct: 100,
+        stopAnchor: "first",
+        stopLossLevel: {
+          kind: "confirmedBase",
+          basePeriods: 100,
+          pumpPeriods: 5,
+        },
+      }
+      // First buy at 112.1, averaged down to 103.28, fresh base at 100.
+      const state = {
+        exitRequested: false,
+        stopAnchorPx: 112.1,
+        stopLevelPx: 100,
+      }
+      expect(exitLevels(anchored, position(1, 103.28), state)[0]).toBeCloseTo(
+        100,
+        10
+      )
+      expect(tickExit(anchored, position(1, 103.28), state, 100)).toBe("sl")
+      // The old level, 8.5% up, must no longer close the ladder.
+      expect(
+        tickExit(anchored, position(1, 103.28), state, 108.54)
+      ).toBeNull()
+    })
+
+    it("leaves the base stop off while the level sits above the anchor", () => {
+      // The ladder buys BELOW the base it armed on, so that base is not a stop
+      // for it — only a fresh, lower base is. The configured percent stands.
+      const anchored: ProtectionSettings = {
+        stopLossPct: 20,
+        stopAnchor: "first",
+        stopLossLevel: {
+          kind: "confirmedBase",
+          basePeriods: 100,
+          pumpPeriods: 5,
+        },
+      }
+      const state = {
+        exitRequested: false,
+        stopAnchorPx: 95,
+        stopLevelPx: 100,
+      }
+      expect(exitLevels(anchored, position(1, 90), state)[0]).toBeCloseTo(76, 10)
+    })
   })
 })

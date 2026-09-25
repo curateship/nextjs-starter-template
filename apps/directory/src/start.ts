@@ -14,9 +14,12 @@ const securityHeaders = createMiddleware().server(async ({ next }) => {
   if (!isEmbeddableWidget) setResponseHeader("X-Frame-Options", "SAMEORIGIN")
   setResponseHeader("X-Content-Type-Options", "nosniff")
   setResponseHeader("Referrer-Policy", "origin-when-cross-origin")
+  // Geolocation is allowed for this origin's own pages so the directory's
+  // "near me" search can ask the browser where the visitor is. Embedded
+  // third-party frames still cannot use it, and camera/microphone stay off.
   setResponseHeader(
     "Permissions-Policy",
-    "camera=(), microphone=(), geolocation=()"
+    "camera=(), microphone=(), geolocation=(self)"
   )
 
   if (process.env.NODE_ENV === "production") {

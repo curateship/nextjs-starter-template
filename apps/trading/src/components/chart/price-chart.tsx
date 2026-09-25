@@ -1,10 +1,13 @@
 import * as React from "react"
 import { flushSync } from "react-dom"
-import { Trash2Icon, XIcon } from "lucide-react"
+
+import { signedPct } from "@/lib/format"
+import { BellRingIcon, Trash2Icon, XIcon } from "lucide-react"
 import type {
   CandlestickData,
   HistogramData,
   IChartApi,
+  IPanePrimitive,
   IPriceLine,
   ISeriesApi,
   ISeriesMarkersPluginApi,
@@ -51,12 +54,15 @@ import {
 import {
   DEFAULT_TRENDLINE_COLOR,
   distanceToSegment,
+  moveTrendline,
   moveTrendlinePoint,
   nearestCandleTime,
+  trendlinePriceAt,
   type PixelPoint,
   type Trendline,
   type TrendlinePoint,
 } from "@/lib/trading/trendlines"
+import type { AlertStatus, TrendlineTouchMode } from "@/lib/alerts"
 import {
   Popover,
   PopoverAnchor,
@@ -65,6 +71,15 @@ import {
   PopoverTitle,
 } from "@/components/ui/popover"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { ChartLoadingSkeleton } from "@/components/loading-skeleton"
 import { useChartDrawings } from "@/components/chart/use-chart-drawings"
 import {
@@ -301,6 +316,27 @@ export type ChartBarColor = {
 /** Points at one drawing on the chart — what is selected, or being edited. */
 type DrawingRef = { kind: "trendline" | "position"; id: string }
 
+/** The alert rule attached to one drawn line, as the chart needs to see it. */
+export type TrendlineAlertRuleInfo = {
+  id: string
+  status: AlertStatus
+  touch: TrendlineTouchMode
+}
+
+/**
+ * Lets the live chart arm price alerts on drawn trendlines. Only charts
+ * watching a real market pass this — backtest and replay charts don't.
+ */
+export type TrendlineAlertControls = {
+  /** The rule attached to each drawn line, keyed by line id. */
+  rules: ReadonlyMap<string, TrendlineAlertRuleInfo>
+  /** Line id with an in-flight arm/disarm request, to debounce the toggle. */
+  busyLineId: string | null
+  onArm: (line: Trendline, touch: TrendlineTouchMode) => void
+  onDisarm: (rule: TrendlineAlertRuleInfo) => void
+  onTouchChange: (rule: TrendlineAlertRuleInfo, touch: TrendlineTouchMode) => void
+}
+
 /** Transient shift+drag measurement overlay, in container-local pixels. */
 type Measurement = {
   left: number
@@ -312,6 +348,50 @@ type Measurement = {
   priceText: string
   bars: number
   daysText: string
+}
+
+/** One drawn trendline projected to container pixels for the current frame. */
+type TrendlinePixels = {
+  id: string
+  start: PixelPoint
+  end: PixelPoint
+  color: string
+  draft?: boolean
+}
+
+function samePixelLines(a: TrendlinePixels[], b: TrendlinePixels[]): boolean {
+  if (a.length !== b.length) return false
+  return a.every((line, index) => {
+    const other = b[index]
+    return (
+      line.id === other.id &&
+      line.color === other.color &&
+      line.draft === other.draft &&
+      line.start.x === other.start.x &&
+      line.start.y === other.start.y &&
+      line.end.x === other.end.x &&
+      line.end.y === other.end.y
+    )
+  })
+}
+
+function samePixelBoxes(
+  a: ChartPositionPixels[],
+  b: ChartPositionPixels[]
+): boolean {
+  if (a.length !== b.length) return false
+  return a.every((box, index) => {
+    const other = b[index]
+    return (
+      box.id === other.id &&
+      box.side === other.side &&
+      box.left === other.left &&
+      box.right === other.right &&
+      box.entryY === other.entryY &&
+      box.stopY === other.stopY &&
+      box.targetY === other.targetY
+    )
+  })
 }
 
 const DRAG_HIT_PX = 6
@@ -326,6 +406,12 @@ const DROP_HOLD_MS = 8_000
  */
 const MAX_VISIBLE_CHIPS = 300
 const TRENDLINE_HIT_PX = 8
+/**
+ * Grab radius for a selected trendline's endpoint dots — deliberately wider
+ * than the body radius, and tested first, so a near-miss on a dot stretches
+ * the line instead of sliding the whole thing.
+ */
+const TRENDLINE_ENDPOINT_HIT_PX = 14
 /** Grab radius for a position drawing's stop/entry/target/right-edge handles. */
 const POSITION_HIT_PX = 8
 
@@ -363,6 +449,7 @@ export function PriceChartView({
   drawings = EMPTY_CHART_DRAWINGS,
   onDrawingsChange,
   onDrawingsCommit,
+  trendlineAlerts,
 }: {
   /** Candles to render, ascending by open time. */
   candles: ChartCandle[]
@@ -426,6 +513,8 @@ export function PriceChartView({
   onDrawingsChange?: (drawings: ChartDrawings) => void
   /** Persists a completed create, edit, or delete action. */
   onDrawingsCommit?: (drawings: ChartDrawings) => void
+  /** Arms price alerts on drawn trendlines (live trading chart only). */
+  trendlineAlerts?: TrendlineAlertControls
 }) {
   const containerRef = React.useRef<HTMLDivElement | null>(null)
   const { trendlines, positions } = drawings
@@ -559,14 +648,12 @@ export function PriceChartView({
   const [drawingSettings, setDrawingSettings] = React.useState<
     (DrawingRef & { x: number; y: number }) | null
   >(null)
+  // Touch-definition choice shown before a line is armed; the armed rule
+  // itself is the source of truth once one exists.
+  const [pendingTouch, setPendingTouch] =
+    React.useState<TrendlineTouchMode>("wick")
   const [trendlinePixels, setTrendlinePixels] = React.useState<
-    {
-      id: string
-      start: PixelPoint
-      end: PixelPoint
-      color: string
-      draft?: boolean
-    }[]
+    TrendlinePixels[]
   >([])
   const [positionPixels, setPositionPixels] = React.useState<ChartPositionPixels[]>(
     []
@@ -589,10 +676,19 @@ export function PriceChartView({
   const positionPixelsRef = React.useRef(positionPixels)
   const selectionRef = React.useRef(selection)
   const activeToolRef = React.useRef(activeTool)
-  const trendlineDragRef = React.useRef<{
-    id: string
-    endpoint: "start" | "end"
-  } | null>(null)
+  const trendlineDragRef = React.useRef<
+    | { id: string; endpoint: "start" | "end" }
+    | {
+        id: string
+        endpoint: "body"
+        /** The line as it was when grabbed, so the slide stays absolute. */
+        origin: Trendline
+        grab: TrendlinePoint
+        grabPx: PixelPoint
+        moved: boolean
+      }
+    | null
+  >(null)
   const positionDragRef = React.useRef<{
     id: string
     handle: ChartPositionHandle
@@ -976,12 +1072,12 @@ export function PriceChartView({
                 Math.hypot(
                   point.x - pixels.start.x,
                   point.y - pixels.start.y
-                ) <= TRENDLINE_HIT_PX
+                ) <= TRENDLINE_ENDPOINT_HIT_PX
               )
                 return { id: selected, endpoint: "start" }
               if (
                 Math.hypot(point.x - pixels.end.x, point.y - pixels.end.y) <=
-                TRENDLINE_HIT_PX
+                TRENDLINE_ENDPOINT_HIT_PX
               )
                 return { id: selected, endpoint: "end" }
             }
@@ -1103,7 +1199,7 @@ export function PriceChartView({
             width: Math.abs(x - anchor.startX),
             height: Math.abs(y - anchor.startY),
             up: endPrice >= anchor.startPrice,
-            pctText: `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`,
+            pctText: signedPct(pct),
             priceText: `${priceDelta >= 0 ? "+" : ""}${priceFormatter.format(
               priceDelta
             )}`,
@@ -1227,6 +1323,23 @@ export function PriceChartView({
                 endpoint: trendHit.endpoint,
               }
               chart.applyOptions({ handleScroll: false, handleScale: false })
+            } else {
+              // Grabbing the body slides the whole line; endpoints stretch it.
+              const origin = drawingsRef.current.trendlines.find(
+                (line) => line.id === trendHit.id
+              )
+              const grab = chartPoint(event)
+              if (origin && grab) {
+                trendlineDragRef.current = {
+                  id: trendHit.id,
+                  endpoint: "body",
+                  origin,
+                  grab,
+                  grabPx: point,
+                  moved: false,
+                }
+                chart.applyOptions({ handleScroll: false, handleScale: false })
+              }
             }
             event.preventDefault()
             event.stopPropagation()
@@ -1316,6 +1429,19 @@ export function PriceChartView({
           }
           const trendlineDrag = trendlineDragRef.current
           if (trendlineDrag) {
+            if (trendlineDrag.endpoint === "body" && !trendlineDrag.moved) {
+              // A plain click (and the two clicks of a double-click) must not
+              // nudge the line — the slide starts only after real travel.
+              const travel = Math.hypot(
+                paneX(event) - trendlineDrag.grabPx.x,
+                paneY(event) - trendlineDrag.grabPx.y
+              )
+              if (travel < DRAG_START_PX) {
+                event.preventDefault()
+                return
+              }
+              trendlineDrag.moved = true
+            }
             const point = chartPoint(event)
             if (point) {
               const current = drawingsRef.current
@@ -1323,9 +1449,19 @@ export function PriceChartView({
                 {
                   ...current,
                   trendlines: current.trendlines.map((line) =>
-                    line.id === trendlineDrag.id
-                      ? moveTrendlinePoint(line, trendlineDrag.endpoint, point)
-                      : line
+                    line.id !== trendlineDrag.id
+                      ? line
+                      : trendlineDrag.endpoint === "body"
+                        ? moveTrendline(
+                            trendlineDrag.origin,
+                            trendlineDrag.grab,
+                            point
+                          )
+                        : moveTrendlinePoint(
+                            line,
+                            trendlineDrag.endpoint,
+                            point
+                          )
                   ),
                 },
                 false
@@ -1427,10 +1563,20 @@ export function PriceChartView({
           const point = { x: paneX(event), y }
           const trendHit = trendlineHit(point)
           const posHit = trendHit ? null : positionHit(point)
+          // An endpoint dot shows a stretch cursor along the line's own slope,
+          // so you can tell "stretch" from "slide" before pressing the button.
+          const trendCursor = () => {
+            if (!trendHit?.endpoint) return "move"
+            const pixels = trendlinePixelsRef.current.find(
+              (line) => line.id === trendHit.id
+            )
+            if (!pixels) return "move"
+            const slope =
+              (pixels.end.x - pixels.start.x) * (pixels.end.y - pixels.start.y)
+            return slope > 0 ? "nwse-resize" : "nesw-resize"
+          }
           container.style.cursor = trendHit
-            ? trendHit.endpoint
-              ? "move"
-              : "pointer"
+            ? trendCursor()
             : posHit
               ? posHit.handle === "width"
                 ? "ew-resize"
@@ -1443,10 +1589,15 @@ export function PriceChartView({
         }
 
         const endDrag = () => {
-          if (trendlineDragRef.current) {
+          const trendlineDrag = trendlineDragRef.current
+          if (trendlineDrag) {
             trendlineDragRef.current = null
             chart.applyOptions({ handleScroll: true, handleScale: true })
-            commitDrawings()
+            // A body grab that never travelled is just a click — selecting
+            // the line must not rewrite it.
+            if (trendlineDrag.endpoint !== "body" || trendlineDrag.moved) {
+              commitDrawings()
+            }
           }
           const positionDrag = positionDragRef.current
           if (positionDrag) {
@@ -1908,12 +2059,11 @@ export function PriceChartView({
   }, [ready])
 
   // Drawings are stored in chart values (time + price) and projected back to
-  // pixels whenever the user pans, zooms, resizes, or edits one.
+  // pixels whenever the chart repaints or a drawing is edited.
   React.useEffect(() => {
     const chart = chartRef.current
     const series = candleSeriesRef.current
-    const container = containerRef.current
-    if (!ready || !chart || !series || !container) return
+    if (!ready || !chart || !series) return
     const timeScale = chart.timeScale()
     /**
      * X for any drawing anchor. Anchors past the newest candle sit in empty
@@ -1954,13 +2104,7 @@ export function PriceChartView({
       return index < 0 ? null : timeScale.logicalToCoordinate(index as Logical)
     }
     const recompute = (sync = false) => {
-      const next: {
-        id: string
-        start: PixelPoint
-        end: PixelPoint
-        color: string
-        draft?: boolean
-      }[] = []
+      const next: TrendlinePixels[] = []
       for (const line of [
         ...trendlines,
         ...(trendlineDraft ? [trendlineDraft] : []),
@@ -1985,7 +2129,6 @@ export function PriceChartView({
           draft: line === trendlineDraft,
         })
       }
-      trendlinePixelsRef.current = next
 
       const boxes: ChartPositionPixels[] = []
       for (const position of positions) {
@@ -2005,7 +2148,10 @@ export function PriceChartView({
           // it just vanishes off the screen, which is exactly what the
           // "flickering / my box disappeared" reports look like. Say WHICH of
           // the five numbers came back empty, with the raw values behind it, so
-          // the cause is named instead of guessed at.
+          // the cause is named instead of guessed at. A chart with no candles
+          // yet is not an anomaly — saved drawings load ahead of the data and
+          // simply cannot be placed until it lands.
+          if (candleTimes.length === 0) continue
           reportDrawingAnomaly(
             `Box not drawable: ${[
               ["left", left],
@@ -2032,12 +2178,18 @@ export function PriceChartView({
           targetY,
         })
       }
-      positionPixelsRef.current = boxes
+      // The paint hook below fires on every real repaint, including live data
+      // ticks — skip the React work when no drawing actually moved on screen.
+      const linesChanged = !samePixelLines(trendlinePixelsRef.current, next)
+      const boxesChanged = !samePixelBoxes(positionPixelsRef.current, boxes)
+      if (!linesChanged && !boxesChanged) return
+      if (linesChanged) trendlinePixelsRef.current = next
+      if (boxesChanged) positionPixelsRef.current = boxes
       const apply = () => {
-        setTrendlinePixels(next)
-        setPositionPixels(boxes)
+        if (linesChanged) setTrendlinePixels(next)
+        if (boxesChanged) setPositionPixels(boxes)
       }
-      // Event-driven recomputes (pan, zoom, replay follow, resize) commit the
+      // Paint-driven recomputes (pan, zoom, replay follow, resize) commit the
       // overlay DOM in the SAME frame as the canvas move. Without this the
       // drawings re-place a frame behind every view change — at replay speed
       // that reads as every drawing shivering or skipping.
@@ -2067,26 +2219,30 @@ export function PriceChartView({
         }
       })
     }
-    const recomputeSync = () => recompute(true)
-    const recomputeAfterWheel = () => requestAnimationFrame(recomputeSync)
-    recompute()
-    timeScale.subscribeVisibleTimeRangeChange(recomputeSync)
-    const observer = new ResizeObserver(recomputeSync)
-    observer.observe(container)
-    container.addEventListener("wheel", recomputeAfterWheel)
-    return () => {
-      timeScale.unsubscribeVisibleTimeRangeChange(recomputeSync)
-      observer.disconnect()
-      container.removeEventListener("wheel", recomputeAfterWheel)
+    // The chart calls a pane primitive's updateAllViews() inside every real
+    // repaint — pan, zoom, price-axis drag, autoscale refit, resize, new data
+    // — after the frame's scales are final and just before the canvas draws.
+    // Re-projecting there keeps the drawings pinned to their candles exactly
+    // like the native arrow markers, which ride the same paint. The previous
+    // trigger (the visible-time-range event, plus wheel and resize listeners)
+    // fired mid-update with the previous frame's coordinates, so the drawings
+    // visibly trailed the candles while the chart was dragged — and some
+    // repaints (a price-axis drag with auto-scale off, the autoscale refit a
+    // frame after a pan) fired no event at all, leaving the projection stale.
+    const paintSync: IPanePrimitive<Time> = {
+      updateAllViews: () => recompute(true),
     }
-  }, [
-    ready,
-    trendlines,
-    positions,
-    trendlineDraft,
-    overlayRevision,
-    candleTimes,
-  ])
+    const pane = chart.panes()[0]
+    pane.attachPrimitive(paintSync)
+    // Editing a drawing changes no chart state, so it never repaints the
+    // canvas — project those directly.
+    recompute()
+    return () => {
+      // chartRef is nulled once the chart itself is torn down; detaching from
+      // a disposed chart throws.
+      if (chartRef.current) pane.detachPrimitive(paintSync)
+    }
+  }, [ready, trendlines, positions, trendlineDraft, candleTimes])
 
   // Pan (without changing zoom) so a newly focused trade is centered in view —
   // the user's current zoom level is preserved.
@@ -2893,7 +3049,7 @@ export function PriceChartView({
                     <circle
                       cx={line.start.x}
                       cy={line.start.y}
-                      r={4}
+                      r={6}
                       fill="var(--card)"
                       stroke={color}
                       strokeWidth={2}
@@ -2901,7 +3057,7 @@ export function PriceChartView({
                     <circle
                       cx={line.end.x}
                       cy={line.end.y}
-                      r={4}
+                      r={6}
                       fill="var(--card)"
                       stroke={color}
                       strokeWidth={2}
@@ -2912,6 +3068,31 @@ export function PriceChartView({
             )
           })}
         </svg>
+      ) : null}
+      {trendlineAlerts && trendlinePixels.length > 0 ? (
+        // A bell above an armed line's midpoint marks it as a live tripwire.
+        <div className="pointer-events-none absolute inset-0 z-30 overflow-hidden">
+          {trendlinePixels.map((line) => {
+            const rule = trendlineAlerts.rules.get(line.id)
+            if (rule?.status !== "active") return null
+            return (
+              <div
+                key={line.id}
+                className="absolute -translate-x-1/2 -translate-y-[135%]"
+                style={{
+                  left: (line.start.x + line.end.x) / 2,
+                  top: (line.start.y + line.end.y) / 2,
+                }}
+              >
+                <BellRingIcon
+                  aria-label="Alert armed on this line"
+                  className="size-3.5"
+                  style={{ color: line.color }}
+                />
+              </div>
+            )
+          })}
+        </div>
       ) : null}
       {positionPixels.length > 0 ? (
         <ChartPositionOverlay
@@ -2932,7 +3113,10 @@ export function PriceChartView({
       <Popover
         open={Boolean(settingsTrendline ?? settingsPosition)}
         onOpenChange={(open) => {
-          if (!open) setDrawingSettings(null)
+          if (!open) {
+            setDrawingSettings(null)
+            setPendingTouch("wick")
+          }
         }}
       >
         {drawingSettings && (settingsTrendline ?? settingsPosition) ? (
@@ -2981,6 +3165,19 @@ export function PriceChartView({
                       }
                     />
                   </label>
+                  {trendlineAlerts ? (
+                    <TrendlineAlertSection
+                      line={settingsTrendline}
+                      controls={trendlineAlerts}
+                      pendingTouch={pendingTouch}
+                      onPendingTouchChange={setPendingTouch}
+                      nowMs={
+                        candles.length > 0
+                          ? candles[candles.length - 1].t
+                          : null
+                      }
+                    />
+                  ) : null}
                 </div>
               ) : settingsPosition ? (
                 <Button
@@ -3230,6 +3427,7 @@ export function PriceChart({
   onCandlesChange,
   registerApi,
   onDrawingPersistenceError,
+  trendlineAlerts,
 }: {
   network: TradingNetwork
   coin: string
@@ -3264,6 +3462,8 @@ export function PriceChart({
   registerApi?: (api: PriceChartHandle | null) => void
   /** Fired when saved drawings could not be loaded or saved. */
   onDrawingPersistenceError?: (action: "load" | "save") => void
+  /** Arms price alerts on drawn trendlines (live trading chart only). */
+  trendlineAlerts?: TrendlineAlertControls
 }) {
   const maxCandles = useShellRuntime().config.maxCandles
   const { candles: liveCandles, loading } = useCandles(
@@ -3560,8 +3760,96 @@ export function PriceChart({
       drawings={drawings}
       onDrawingsChange={onDrawingsChange}
       onDrawingsCommit={onDrawingsCommit}
+      trendlineAlerts={trendlineAlerts}
     />
   )
+}
+
+/**
+ * The "Alert me" block in the trendline settings popover: a toggle that arms
+ * the drawn line as a price alert, plus the explicit touch definition (any
+ * trade touching the line vs a one-minute candle closing beyond it).
+ */
+function TrendlineAlertSection({
+  line,
+  controls,
+  pendingTouch,
+  onPendingTouchChange,
+  nowMs,
+}: {
+  line: Trendline
+  controls: TrendlineAlertControls
+  pendingTouch: TrendlineTouchMode
+  onPendingTouchChange: (touch: TrendlineTouchMode) => void
+  /** The latest candle's time — the live chart's "now", kept pure for render. */
+  nowMs: number | null
+}) {
+  const rule = controls.rules.get(line.id)
+  const armed = rule?.status === "active"
+  const busy = controls.busyLineId === line.id
+  const linePrice = nowMs === null ? null : trendlinePriceAt(line, nowMs)
+  const touch = rule?.touch ?? pendingTouch
+
+  return (
+    <div className="grid gap-2.5 border-t pt-2.5">
+      <span className="text-xs font-medium text-muted-foreground">
+        Price alert
+      </span>
+      <div className="flex items-center gap-2">
+        <Checkbox
+          id="trendline-alert-armed"
+          checked={armed}
+          disabled={busy || (linePrice === null && !armed)}
+          onCheckedChange={(checked) => {
+            if (checked === true) controls.onArm(line, touch)
+            else if (rule) controls.onDisarm(rule)
+          }}
+        />
+        <Label htmlFor="trendline-alert-armed" className="text-xs font-normal">
+          Alert me when price reaches this line
+        </Label>
+      </div>
+      <Select
+        value={touch}
+        disabled={busy}
+        onValueChange={(value) => {
+          const next = value as TrendlineTouchMode
+          if (rule) controls.onTouchChange(rule, next)
+          else onPendingTouchChange(next)
+        }}
+      >
+        <SelectTrigger className="w-full" aria-label="What counts as a touch">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="wick">Any touch, even a wick</SelectItem>
+          <SelectItem value="close">1-minute candle closes past it</SelectItem>
+        </SelectContent>
+      </Select>
+      <p className="text-xs text-muted-foreground">
+        {linePrice === null
+          ? "This line has no watchable price right now (it is vertical or its extension left the price range)."
+          : `The line's trigger price is ${formatLinePrice(linePrice)} right now.`}
+      </p>
+      {rule?.status === "triggered" ? (
+        <p className="text-xs text-muted-foreground">
+          This alert already fired. Tick the box to re-arm it.
+        </p>
+      ) : rule?.status === "paused" ? (
+        <p className="text-xs text-muted-foreground">
+          Paused on the Alerts page. Tick the box to resume it.
+        </p>
+      ) : armed ? (
+        <p className="text-xs text-muted-foreground">
+          Armed quietly — it pings once, on the next touch.
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
+function formatLinePrice(price: number) {
+  return price.toLocaleString("en-US", { maximumSignificantDigits: 6 })
 }
 
 /** Rough hover-panel size, used only to decide which side of the cursor it sits on. */

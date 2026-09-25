@@ -1,0 +1,1594 @@
+import { AsyncLocalStorage } from "node:async_hooks"
+import { randomUUID } from "node:crypto"
+import { isHyperliquidOrderGoneRefusal } from "@/server/protocols/hyperliquid/refusals"
+import { isPhemexOrderGoneRefusal } from "@/server/protocols/phemex/refusals"
+import { POST_ONLY_RETRY } from "@/server/trade/smart-order-pause"
+
+import { and, eq, inArray, sql } from "drizzle-orm"
+
+import {
+  marketKey as marketKeyOf,
+  parseMarketKey,
+  type NetworkId,
+  type OrderAuth,
+  type PlaceOrderOutcome,
+  type WalletPosition,
+} from "@/lib/protocols/contracts"
+import {
+  livePortfolioRows,
+  type LiveJournalAction,
+  type LiveRefusal,
+} from "@/lib/trade/live"
+import type { LiveFill, LiveTrade } from "@/lib/trade/live-trades"
+import {
+  isMarketable,
+  liquidationPx,
+  type TradeOrder,
+  type TradePosition,
+  type TradeSide,
+} from "@/lib/trade/paper"
+import type { TradeWallet } from "@/lib/trade/wallets"
+import type { GridPlan } from "@/lib/trade/grid"
+import type { WatchPlan } from "@/lib/trade/watch-order"
+import { reattributePairedStops } from "@/lib/trade/pairing"
+import { readSmartPlan } from "@/lib/trade/smart-plan"
+import { checkOrderMinimum, orderMinimumRefusal } from "@/lib/trade/market-info"
+import { formatUsd } from "@/lib/trade/format"
+import { overrodeNote } from "@/lib/trade/trading-rules"
+import { db } from "@/server/trade/db"
+import { credentialFor, walletCredentials } from "@/server/trade/wallet-auth"
+import { getProtocol, ordersOf } from "@/server/protocols/registry"
+import { slippageFraction } from "@/lib/trade/quick-order"
+import { marketRules } from "@/server/trade/market-rules"
+import { loadQuickOrder } from "@/server/trade/prefs"
+import {
+  dropEngineExchangeReads,
+  heldEngineAccount,
+} from "@/server/trade/engine-exchange-reads"
+import { openingMarginMode } from "@/server/protocols/order-settings"
+import { pairedStopRefs } from "@/server/trade/smart-pairing"
+import {
+  loadLiveHistoryIfChanged,
+  loadLiveRefusals,
+  sweepIsWaitedFor,
+  sweepWouldBeWaitedFor,
+  sweepLiveFills,
+  sweepSoon,
+} from "@/server/trade/live-fills"
+import {
+  tradeLiveJournal,
+  tradeSmartLadders,
+  tradeWalletNonces,
+  tradeWallets,
+} from "@/server/trade/schema"
+import { recordEngineError } from "@/server/trade/engine-errors"
+import { copyBuilderFee } from "@/server/trade/copy-ledger"
+
+/**
+ * Real orders, app side. The protocol adapter signs; this file owns
+ * everything around the signing:
+ *
+ * - **The wallet checks.** Every function starts from (userId, walletId), so
+ *   somebody else's wallet id can only ever miss; the wallet must be live,
+ *   hold a key, and be on the SAME network as the market being traded — a
+ *   testnet wallet can never place a mainnet order, or the reverse.
+ * - **The key's whole life.** Decrypted here, immediately before the adapter
+ *   call, passed once, never stored anywhere else — not even in a local that
+ *   outlives the call.
+ * - **The order-number counter.** One atomic bump per signature, in the
+ *   database, shared by every producer.
+ * - **The journal.** Every ask and every refusal lands in
+ *   `trade_live_journal` before the answer travels — with real money the
+ *   record is part of the action, not an afterthought. Journal writes
+ *   themselves never take the trading path down; a failed write is logged
+ *   and the action's own result stands.
+ */
+
+/** One atomic bump: never reused, never behind the clock. */
+async function allocateNonce(
+  address: string,
+  network: NetworkId
+): Promise<number> {
+  const now = Date.now()
+  const rows = await db
+    .insert(tradeWalletNonces)
+    .values({ address, network, lastNonce: now })
+    .onConflictDoUpdate({
+      target: [tradeWalletNonces.address, tradeWalletNonces.network],
+      set: {
+        lastNonce: sql`greatest(${tradeWalletNonces.lastNonce} + 1, ${now})`,
+      },
+    })
+    .returning({ lastNonce: tradeWalletNonces.lastNonce })
+  return rows[0].lastNonce
+}
+
+export type LiveWalletRow = typeof tradeWallets.$inferSelect
+
+/** The wallet, or the refusal — the same first step as the paper store's. */
+export async function liveWallet(
+  userId: string,
+  walletId: string
+): Promise<LiveWalletRow> {
+  const rows = await db
+    .select()
+    .from(tradeWallets)
+    .where(and(eq(tradeWallets.userId, userId), eq(tradeWallets.id, walletId)))
+    .limit(1)
+  const row = rows[0]
+  if (!row) throw new Error("LIVE_WALLET_NOT_FOUND")
+  if (row.kind !== "live") throw new Error("LIVE_WALLET_KIND")
+  if (!row.address || !row.agentKeyEncrypted) throw new Error("LIVE_WALLET_KEY")
+  return row
+}
+
+/**
+ * The market a request names, checked against the wallet it would trade
+ * from. The network rule is the heart of it: the wallet's network and the
+ * market's must MATCH — that one comparison is what makes "testnet first"
+ * enforceable at all. Sub-exchange markets ("xyz:IBM") pass through like any
+ * other: the adapter reads and numbers every venue.
+ */
+function checkedMarket(row: LiveWalletRow, marketKey: string) {
+  const ref = parseMarketKey(marketKey)
+  if (!ref) throw new Error("LIVE_MARKET")
+  if (ref.protocol !== row.protocol) throw new Error("LIVE_MARKET")
+  if (ref.network !== row.network) throw new Error("LIVE_NETWORK_MISMATCH")
+  return ref
+}
+
+/** The one moment plaintext exists: decrypt, hand over, done. */
+function authFor(row: LiveWalletRow): OrderAuth {
+  const credential = credentialFor(row)
+  if (!credential) throw new Error("LIVE_WALLET_KEY")
+  return {
+    agentKey: credential,
+    owner: { userId: row.userId, walletId: row.id },
+    accountAddress: row.address ?? "",
+    allocateNonce: (signerAddress) => allocateNonce(signerAddress, row.network),
+  }
+}
+
+/** The smart order the engine is acting for, while it acts. */
+const actingFor = new AsyncLocalStorage<string>()
+
+/**
+ * Runs `act` with every journal row it writes marked as this smart order's.
+ *
+ * The rows are written deep inside placing, cancelling and protecting, which
+ * know the coin but not which smart order asked. Marking them here lets a
+ * watch show its own refusals and nobody else's.
+ */
+export function actForSmartOrder<T>(
+  smartOrderId: string,
+  act: () => Promise<T>
+): Promise<T> {
+  return actingFor.run(smartOrderId, act)
+}
+
+/**
+ * One row written for every ask and every refusal. Never throws — the
+ * journal must not take the trading path down — but a lost row is loudly
+ * logged, because a silent gap in this record defeats its purpose.
+ */
+async function journal(
+  userId: string,
+  walletId: string,
+  marketKey: string,
+  entry: {
+    action: LiveJournalAction
+    side: TradeSide | null
+    px?: number
+    sz?: number
+    note?: string | null
+  }
+): Promise<void> {
+  try {
+    await db.insert(tradeLiveJournal).values({
+      userId,
+      walletId,
+      id: randomUUID(),
+      marketKey,
+      action: entry.action,
+      side: entry.side,
+      px: entry.px ?? 0,
+      sz: entry.sz ?? 0,
+      note: entry.note ?? null,
+      smartOrderId: actingFor.getStore() ?? null,
+    })
+  } catch (error) {
+    recordEngineError("live-orders", "trade_live_journal write failed", error)
+  }
+}
+
+/** "Overrode: lines on the chart. Resting on the exchange." */
+function withOverride(
+  overrode: readonly string[] | undefined,
+  sentence: string
+): string {
+  return overrode && overrode.length > 0
+    ? `${overrodeNote(overrode)}. ${sentence}`
+    : sentence
+}
+
+/**
+ * The override row for a ladder or a grid. Their orders are sent later by the
+ * engine, one pass at a time, so the moment somebody confirmed the entry
+ * against their own rules is written here, at placement, on its own row.
+ */
+export async function journalOverride(
+  userId: string,
+  walletId: string,
+  marketKey: string,
+  side: TradeSide,
+  overrode: readonly string[]
+): Promise<void> {
+  if (overrode.length === 0) return
+  await journal(userId, walletId, marketKey, {
+    action: "placed",
+    side,
+    note: overrodeNote(overrode),
+  })
+}
+
+async function recordRefusal(
+  userId: string,
+  walletId: string,
+  marketKey: string,
+  side: TradeSide | null,
+  error: unknown
+): Promise<void> {
+  const message = error instanceof Error ? error.message : String(error)
+  await journal(userId, walletId, marketKey, {
+    action: "refused",
+    side,
+    // The move codes carry a whole written sentence rather than a bare
+    // reason, so stripping the code leaves the Journal reading properly.
+    note: message.replace(
+      /^(?:EXCHANGE_BUSY:|LIVE_(EXCHANGE|ORDER_REFUSED|ORDER_TOO_SMALL|ORDER_UNAFFORDABLE|MOVE_REFUSED|MOVE_DOUBLED|BRACKET_REPLACE_PARTIAL|BRACKET_REPLACE_DOUBLED|LEVERAGE_TOO_HIGH|MARGIN_TOO_MUCH|MARGIN_PAST_STOP):)/,
+      ""
+    ),
+  })
+}
+
+/** The rails' own refusals, journalled like the exchange's. */
+async function refuse(
+  userId: string,
+  walletId: string,
+  marketKey: string,
+  side: TradeSide | null,
+  error: unknown
+): Promise<never> {
+  await recordRefusal(userId, walletId, marketKey, side, error)
+  throw error
+}
+
+/**
+ * Refuses an order the wallet cannot pay for, before anything is signed.
+ *
+ * **Why the exchange refusing is not good enough.** Hyperliquid does not turn
+ * down a buy it cannot fully fund: it fills whatever the margin reaches and
+ * answers "filled", so a $100 order on a wallet with $10 left came back as a $1
+ * position and nothing anywhere said that was not what was asked for. The
+ * app's own rule, in Tyler's words on 26 Aug 2026, is that a buy the wallet
+ * cannot afford is refused, never made smaller — `rules/trading-rules.md`.
+ *
+ * **What "afford" means here.** The size box is the position's worth, and
+ * leverage decides how much of it the wallet actually puts up: $100 at 10x
+ * needs $10. So the comparison is the margin, not the order.
+ *
+ * A closing order needs no margin and is never refused. Neither is an order
+ * whose account cannot be read: not knowing is not the same as knowing there is
+ * not enough, and a person pressing a button deserves the exchange's own answer
+ * over a guess.
+ *
+ * **Only ever asked about an order that is going out now.** A level waiting for
+ * a price commits no money and is deliberately not blocked by today's cash —
+ * `rules/trading-rules.md` — so the one watched order this is asked about is
+ * the kind that starts working immediately.
+ */
+export async function refuseWhatTheWalletCannotPayFor(
+  row: LiveWalletRow,
+  order: { reduceOnly: boolean; orderUsd: number; leverage: number }
+): Promise<void> {
+  if (order.reduceOnly) return
+  const account = await heldEngineAccount(row, () => credentialFor(row)).catch(
+    () => null
+  )
+  if (!account) return
+  const needed = order.orderUsd / Math.max(1, order.leverage)
+  if (needed <= account.free + 1e-9) return
+  throw new Error(
+    `LIVE_ORDER_UNAFFORDABLE:This order needs ${formatUsd(needed)} and ${row.label} has ${formatUsd(account.free)} free. Use a smaller size, more leverage, or close something first.`
+  )
+}
+
+export async function placeLiveOrder(
+  userId: string,
+  input: {
+    walletId: string
+    marketKey: string
+    side: TradeSide
+    px: number
+    sz: number
+    leverage: number
+    reduceOnly: boolean
+    tpPx: number | null
+    slPx: number | null
+    /** Stay passive; refuse instead of turning into an instant fill. */
+    restingOnly?: boolean
+    /** Keep the requested limit even when it can fill immediately. */
+    limitOnly?: boolean
+    /** The watched-order engine owns safe retries and their progress notice. */
+    retryPostOnly?: boolean
+    /** Fill at the fresh venue price and keep out of the resting-order path. */
+    marketOnly?: boolean
+    /** A smart order is skipped if the fresh quote left its trigger level. */
+    marketGuardPx?: number
+    /**
+     * A person pressed a button for this order, so it is checked against what
+     * the wallet can actually pay for and refused if it cannot — see
+     * `refuseWhatTheWalletCannotPayFor`.
+     *
+     * Off for everything the engine sends. A rung, a grid level and a watched
+     * price each have their own affordability rule that waits rather than
+     * refusing, and a second answer here would turn a level that is patiently
+     * waiting into one that has failed.
+     */
+    byHand?: boolean
+    /**
+     * The person's own trading rules this entry went out against, by name,
+     * confirmed in the chart's warning window. Written on the Journal row so
+     * the trade can later be read against the rule it broke.
+     */
+    overrode?: readonly string[]
+    /** An id the exchange can use to recover this exact order after a lost reply. */
+    clientOrderId?: string | null
+    /**
+     * A copy of another trader sent this, so it carries Trade's fee where the
+     * exchange has one. Never set for an order somebody placed by hand.
+     */
+    copied?: boolean
+  }
+): Promise<PlaceOrderOutcome> {
+  // The stopwatch every real placement reports — one line per order saying
+  // where its time went, so "placing feels slow" is answered by the server
+  // log instead of a guess.
+  const t0 = Date.now()
+  const row = await liveWallet(userId, input.walletId)
+  const tWallet = Date.now()
+  if (row.status === "inactive") throw new Error("WALLET_INACTIVE")
+  const protocol = getProtocol(row.protocol)
+  // Refused before any price is read or size worked out, so an exchange with
+  // no order path says so plainly instead of failing deep inside `ordersOf`
+  // with the market rules already fetched.
+  if (protocol.capabilities?.orders === false) {
+    throw new Error(`PROTOCOL_NO_ORDERS:${protocol.id}`)
+  }
+
+  try {
+    const ref = checkedMarket(row, input.marketKey)
+    if (
+      (input.restingOnly && input.marketOnly) ||
+      (input.limitOnly && (input.restingOnly || input.marketOnly))
+    )
+      throw new Error("LIVE_ORDER_KIND")
+    // The price, the market's rules and the account are three independent
+    // questions, so they go out together — fetched one after another they
+    // were most of the wait between the click and the order. The price still
+    // decides whether this waits or fills now — the same rule the practice
+    // engine uses, so the two kinds of wallet never disagree about what a
+    // click means — and the portfolio is only read at all to learn whether
+    // this market is already held, which decides the leverage below.
+    // Warmed here rather than read where it is used, because the affordability
+    // check below sits between the click and the order and a second round trip
+    // there is exactly the wait this app is trying not to add. The read holds
+    // for five seconds, so the check picks up this same answer.
+    if (input.byHand) {
+      void heldEngineAccount(row, () => credentialFor(row)).catch(() => null)
+    }
+    // The slippage cap rides along in the same round: a swap venue reads it
+    // and a book venue ignores it, and asking after the price would put one
+    // more wait between the level and the order.
+    const [prices, rules, portfolio, quickPrefs] = await Promise.all([
+      protocol.markets.prices(row.network, [ref.marketId]),
+      marketRules(row.protocol, row.network, ref.marketId),
+      ordersOf(protocol).portfolio(row.network, row.address ?? "", () =>
+        credentialFor(row)
+      ),
+      loadQuickOrder(userId).catch(() => null),
+    ])
+    const tFetch = Date.now()
+    const mark = prices.get(ref.marketId)
+    if (mark === undefined) throw new Error("LIVE_NO_PRICE")
+    if (
+      input.marketOnly &&
+      input.marketGuardPx !== undefined &&
+      !isMarketable(input.side, input.marketGuardPx, mark)
+    ) {
+      throw new Error("LIVE_SMART_ORDER_PRICE_MOVED")
+    }
+    const marketable =
+      input.marketOnly || isMarketable(input.side, input.px, mark)
+    if (input.restingOnly && marketable) {
+      if (input.retryPostOnly) throw new Error(POST_ONLY_RETRY)
+      throw new Error("LIVE_SMART_ORDER_NOT_RESTING")
+    }
+    const entryPx = marketable ? mark : input.px
+    const minimum = rules ? checkOrderMinimum(rules, entryPx, input.sz) : null
+    const orderSize = minimum?.size ?? input.sz
+    if (minimum?.tooSmall || orderSize <= 0) {
+      const refusal =
+        minimum ??
+        checkOrderMinimum(
+          {
+            sizeDecimals: null,
+            minOrderValueUsd: null,
+            minOrderSize: null,
+          },
+          entryPx,
+          input.sz
+        )
+      throw new Error(
+        `LIVE_ORDER_TOO_SMALL:${orderMinimumRefusal(protocol.label, refusal)}`
+      )
+    }
+
+    // Protection must sit on the winning/losing side of the price the order
+    // will actually fill at — validated here, before anything is signed.
+    if (input.tpPx !== null) {
+      const winning =
+        input.side === "buy" ? input.tpPx > entryPx : input.tpPx < entryPx
+      if (!winning) throw new Error("LIVE_TAKE_PROFIT_SIDE")
+    }
+    if (input.slPx !== null) {
+      const losing =
+        input.side === "buy" ? input.slPx < entryPx : input.slPx > entryPx
+      if (!losing) throw new Error("LIVE_STOP_SIDE")
+    }
+
+    // Leverage is set only when this opens fresh; adding to a position
+    // inherits what the position already runs at — the practice engine's
+    // rule, kept identical for real money.
+    const held = portfolio.positions.find(
+      (one) => one.marketId === ref.marketId
+    )
+
+    if (input.byHand) {
+      await refuseWhatTheWalletCannotPayFor(row, {
+        reduceOnly: input.reduceOnly,
+        orderUsd: entryPx * orderSize,
+        // Adding to a position runs at the position's own leverage, the same
+        // rule the order below follows. Checking the asked-for leverage would
+        // pass an order the exchange is about to refuse, or refuse one it
+        // would have taken.
+        leverage: held ? held.leverage : input.leverage,
+      })
+    }
+
+    const outcome = await ordersOf(protocol).place(row.network, authFor(row), {
+      marketId: ref.marketId,
+      side: input.side,
+      kind: input.restingOnly
+        ? "postOnly"
+        : input.limitOnly
+          ? "limit"
+          : marketable
+            ? "market"
+            : "limit",
+      px: input.limitOnly ? input.px : marketable ? mark : input.px,
+      priceTick: rules?.priceTick ?? null,
+      priceMultiplierUp: rules?.priceMultiplierUp ?? null,
+      priceMultiplierDown: rules?.priceMultiplierDown ?? null,
+      sz: orderSize,
+      reduceOnly: input.reduceOnly,
+      leverage: held ? null : input.leverage,
+      marginMode: held
+        ? null
+        : openingMarginMode(row.protocol, row.asterMarginMode),
+      tpPx: input.tpPx,
+      slPx: input.slPx,
+      slippage: slippageFraction(quickPrefs?.slippagePct),
+      clientOrderId: input.clientOrderId,
+      builder: input.copied ? await copyBuilderFee() : null,
+    })
+    dropEngineExchangeReads(row)
+    console.log(
+      `[trade] placeLiveOrder ${input.marketKey}: wallet ${tWallet - t0}ms, fetch ${tFetch - tWallet}ms, place ${Date.now() - tFetch}ms, total ${Date.now() - t0}ms`
+    )
+
+    // **A fill smaller than the ask is not a plain fill.** Hyperliquid answers
+    // "filled" for whatever its margin reached, so a $100 order that only had
+    // $10 behind it came back looking exactly like a $100 order that worked.
+    // The Journal now says which it was, and says both amounts at the one
+    // price the fill really got, so the two figures can be compared.
+    const awaitingReceipt = !!outcome.executionNote && outcome.filledSz === null
+    const filledPx = outcome.avgPx ?? (awaitingReceipt ? 0 : entryPx)
+    const shortFill =
+      outcome.status === "filled" &&
+      outcome.filledSz !== null &&
+      outcome.filledSz < orderSize * (1 - 1e-6)
+        ? outcome.filledSz
+        : null
+
+    // The journal rides behind the answer, not in front of it — `journal`
+    // never throws and logs its own losses, so awaiting it here only slowed
+    // the reply. The two entries still land in order. A refusal is different:
+    // `refuse` below stays awaited, so no refusal is answered unrecorded.
+    void (async () => {
+      await journal(userId, row.id, input.marketKey, {
+        action:
+          outcome.status === "filled" && !awaitingReceipt ? "fill" : "placed",
+        side: input.side,
+        px: filledPx,
+        sz: outcome.filledSz ?? (awaitingReceipt ? 0 : orderSize),
+        note: withOverride(
+          input.overrode,
+          outcome.executionNote ??
+            (shortFill !== null
+              ? `Filled ${formatUsd(shortFill * filledPx)} of the ${formatUsd(orderSize * filledPx)} asked for.`
+              : outcome.status === "filled"
+                ? "Filled straight away."
+                : "Resting on the exchange.")
+        ),
+      })
+      if (outcome.protection === "partial") {
+        await journal(userId, row.id, input.marketKey, {
+          action: "refused",
+          side: input.side,
+          note: outcome.protectionNote,
+        })
+      }
+    })()
+    return outcome
+  } catch (error) {
+    if (
+      input.restingOnly &&
+      input.retryPostOnly &&
+      ((error instanceof Error && error.message === POST_ONLY_RETRY) ||
+        protocol.orders?.postOnlyRefused?.(error) === true)
+    ) {
+      // The price the refusal was judged against is stale, so the retry must
+      // not read it back from the venue's short-lived copy.
+      const forgetPrice = protocol.markets.forgetPrice
+      if (forgetPrice) {
+        forgetPrice(row.network, checkedMarket(row, input.marketKey).marketId)
+      }
+      dropEngineExchangeReads(row)
+      // The engine records progress only after restoring its saved plan.
+      throw new Error(POST_ONLY_RETRY)
+    }
+    if (
+      error instanceof Error &&
+      (error.message === "LIVE_SMART_ORDER_PRICE_MOVED" ||
+        error.message === "LIVE_SMART_ORDER_NOT_RESTING")
+    ) {
+      // Both answers keep the order inside this app. The caller either leaves
+      // its smart order waiting or creates a watched Long or Short, so neither
+      // is an exchange refusal to show in the Journal.
+      throw error
+    }
+    return await refuse(userId, row.id, input.marketKey, input.side, error)
+  }
+}
+
+/**
+ * Drags one resting real order to a new price.
+ *
+ * **The level is never left with nothing on it.** Hyperliquid and Phemex have
+ * an amend command, so the order itself stays alive — same id, same size, new
+ * price. KuCoin has none, so its own `modify` puts the new order on before
+ * taking the old one off and the level is covered twice for a moment instead.
+ * Either way there is no gap, which is the rule in `trading-rules.md`.
+ *
+ * **One exchange call, nothing read first.** Size, side and reduce-only come
+ * from the row on screen, because a drag has to land the moment the hand lets
+ * go — reading the portfolio back just to learn what the browser was already
+ * showing added seconds to every drop. The exchange still owns the truth: an
+ * order that filled or died mid-drag is its refusal to give, and the refusal
+ * path journals it like any other.
+ */
+export async function moveLiveOrder(
+  userId: string,
+  input: {
+    walletId: string
+    marketKey: string
+    orderId: string
+    px: number
+    side: TradeSide
+    sz: number
+    reduceOnly: boolean
+  }
+): Promise<void> {
+  const row = await liveWallet(userId, input.walletId)
+  if (row.status === "inactive") throw new Error("WALLET_INACTIVE")
+  const protocol = getProtocol(row.protocol)
+  try {
+    const ref = checkedMarket(row, input.marketKey)
+    await ordersOf(protocol).modify(row.network, authFor(row), {
+      marketId: ref.marketId,
+      orderId: input.orderId,
+      side: input.side,
+      px: input.px,
+      sz: input.sz,
+      reduceOnly: input.reduceOnly,
+    })
+    dropEngineExchangeReads(row)
+    // Behind the answer, not in front of it — see `placeLiveOrder`.
+    void journal(userId, row.id, input.marketKey, {
+      action: "placed",
+      side: input.side,
+      px: input.px,
+      sz: input.sz,
+      note: "Moved to a new price.",
+    })
+  } catch (error) {
+    await refuse(userId, row.id, input.marketKey, null, error)
+  }
+}
+
+export async function cancelLiveOrder(
+  userId: string,
+  input: {
+    walletId: string
+    marketKey: string
+    orderId: string
+    side?: TradeSide
+    px?: number
+    sz?: number
+    /**
+     * A caller cancelling a whole batch has the wallet row in hand already —
+     * re-reading it once per order made a five-rung stand-down pay five
+     * identical reads. The row is still checked to belong to this user and
+     * wallet, so a stale hand-me-down cannot aim a cancel elsewhere.
+     */
+    walletRow?: LiveWalletRow
+  }
+): Promise<void> {
+  const preloaded =
+    input.walletRow &&
+    input.walletRow.userId === userId &&
+    input.walletRow.id === input.walletId
+      ? input.walletRow
+      : null
+  const row = preloaded ?? (await liveWallet(userId, input.walletId))
+  const protocol = getProtocol(row.protocol)
+
+  try {
+    const ref = checkedMarket(row, input.marketKey)
+    // The screen already has the exchange's order id. Asking for the whole
+    // account again before cancelling made a valid cancel depend on a second,
+    // cached account answer. Send the cancel straight to the exchange. The
+    // exchange will say if the order filled or disappeared first.
+    await ordersOf(protocol).cancel(row.network, authFor(row), {
+      marketId: ref.marketId,
+      orderId: input.orderId,
+    })
+    dropEngineExchangeReads(row)
+  } catch (error) {
+    if (isOrderGoneRefusal(error)) {
+      await forgetOwnedStop(userId, row.id, input.marketKey, input.orderId)
+    }
+    await recordRefusal(
+      userId,
+      row.id,
+      input.marketKey,
+      input.side ?? null,
+      error
+    )
+    throw error
+  }
+  await forgetOwnedStop(userId, row.id, input.marketKey, input.orderId)
+  // Behind the answer, not in front of it — see `placeLiveOrder`.
+  void journal(userId, row.id, input.marketKey, {
+    action: "cancelled",
+    side: input.side ?? null,
+    px: input.px,
+    sz: input.sz,
+  })
+}
+
+/** The exchange's own word that an order is already filled or cancelled. */
+function isOrderGoneRefusal(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error)
+  return (
+    isHyperliquidOrderGoneRefusal(error) ||
+    isPhemexOrderGoneRefusal(error) ||
+    /^(?:LIVE_ORDER_GONE|ASTER_ORDER_GONE):/.test(message)
+  )
+}
+
+/**
+ * Cancels an exchange order this app has just placed and already knows by id.
+ * Used to roll back a partly accepted multi-order action; unlike the normal
+ * cancel path it does not depend on the next portfolio read seeing the order.
+ *
+ * `goneIsCancelled` is for a stop whose coins have already gone. There, the
+ * exchange saying the order is already filled or cancelled is the result the
+ * caller wanted. Without it, the row kept its dead order id and asked for the
+ * same cancel on every pass: on 17 Sep 2026 a DASH watch did that every two
+ * seconds for twelve hours after its position closed.
+ */
+export async function rollbackLiveOrder(
+  userId: string,
+  input: {
+    walletId: string
+    marketKey: string
+    orderId: string
+    goneIsCancelled?: boolean
+  }
+): Promise<boolean> {
+  const row = await liveWallet(userId, input.walletId)
+  const protocol = getProtocol(row.protocol)
+  const side: TradeSide | null = null
+
+  try {
+    const ref = checkedMarket(row, input.marketKey)
+    await ordersOf(protocol).cancel(row.network, authFor(row), {
+      marketId: ref.marketId,
+      orderId: input.orderId,
+    })
+    dropEngineExchangeReads(row)
+    await journal(userId, row.id, input.marketKey, {
+      action: "cancelled",
+      side,
+      note: "A partly placed Smart order was rolled back.",
+    })
+    return true
+  } catch (error) {
+    // **Whether it cancelled is the answer, not a thrown fit.** A cancel that
+    // failed usually failed because the order had already FILLED — and a
+    // caller about to place a replacement must know that, or it buys the
+    // same thing twice. This used to rethrow, and the throw landed in the
+    // smart-order recovery path, which "restored" the cancelled original by
+    // PLACING IT AGAIN — an order that was never cancelled got a sibling.
+    // So the refusal is journalled and the answer is returned, calmly.
+    if (input.goneIsCancelled && isOrderGoneRefusal(error)) {
+      dropEngineExchangeReads(row)
+      await journal(userId, row.id, input.marketKey, {
+        action: "cancelled",
+        side,
+        note: "The exchange had already taken this order off.",
+      })
+      return true
+    }
+    // Still false: nothing was cancelled, and the caller must not place a
+    // replacement. But the exchange said nothing was wrong, only that the
+    // order had already left, almost always because it filled. Saved as a
+    // refusal, it showed as a red error on PONS on 18 Sep 2026 for a sell
+    // that had filled 30ms before a chase tried to move it.
+    if (isOrderGoneRefusal(error)) {
+      dropEngineExchangeReads(row)
+      await journal(userId, row.id, input.marketKey, {
+        action: "gone",
+        side,
+        note: "The order had already left the exchange, most likely because it filled.",
+      })
+      return false
+    }
+    const message = error instanceof Error ? error.message : String(error)
+    await journal(userId, row.id, input.marketKey, {
+      action: "refused",
+      side,
+      note: message.replace(/^LIVE_(EXCHANGE|ORDER_REFUSED):/, ""),
+    })
+    return false
+  }
+}
+
+export async function closeLivePosition(
+  userId: string,
+  input: { walletId: string; marketKey: string },
+  closeProgress?: {
+    expectedSide: TradeSide
+    beforeSubmit: (requestedSz: number) => Promise<void>
+    afterSubmit: (filledSz: number, requestedSz: number) => Promise<void>
+  }
+): Promise<void> {
+  const row = await liveWallet(userId, input.walletId)
+  const protocol = getProtocol(row.protocol)
+  let side: TradeSide | null = null
+
+  try {
+    const ref = checkedMarket(row, input.marketKey)
+    // Closing needs only the exchange's current position. Lighter's account
+    // reader supplies that without spending another request on resting orders,
+    // and the order priority uses the room polling is deliberately kept out
+    // of. Other venues fall back to their complete portfolio reader.
+    const readPosition =
+      protocol.account?.portfolio ?? ordersOf(protocol).portfolio
+    // The portfolio read is a safety rule, not overhead: the close is sized
+    // from the exchange's own number, never a cached one, because a sell
+    // bigger than the position becomes a short. The rules read is merely
+    // independent of it, so the two go out together.
+    const [portfolio, rules] = await Promise.all([
+      readPosition(
+        row.network,
+        row.address ?? "",
+        () => credentialFor(row),
+        "order"
+      ),
+      marketRules(row.protocol, row.network, ref.marketId),
+    ])
+    const held = portfolio.positions.find(
+      (one) => one.marketId === ref.marketId
+    )
+    if (!held) throw new Error("LIVE_POSITION_GONE")
+    side = held.szi > 0 ? "sell" : "buy"
+
+    // A pending grid stop must not close an opposite position opened elsewhere.
+    if (closeProgress && side !== closeProgress.expectedSide) {
+      throw new Error("SMART_GRID_LINE_STOP_CLOSE_UNCONFIRMED")
+    }
+    await closeProgress?.beforeSubmit(Math.abs(held.szi))
+    const closed = await ordersOf(protocol).close(row.network, authFor(row), {
+      marketId: ref.marketId,
+      szi: held.szi,
+      priceTick: rules?.priceTick ?? null,
+      priceMultiplierUp: rules?.priceMultiplierUp ?? null,
+      priceMultiplierDown: rules?.priceMultiplierDown ?? null,
+    })
+    await closeProgress?.afterSubmit(closed.filledSz ?? 0, Math.abs(held.szi))
+    dropEngineExchangeReads(row)
+    // The Journal row for this trade is built from the fill this close just
+    // made, so the next read must not sit behind the idle wait.
+    sweepSoon(userId, row.id)
+    // Behind the answer, not in front of it — see `placeLiveOrder`.
+    void journal(userId, row.id, input.marketKey, {
+      action: "close",
+      side,
+      px: closed.avgPx ?? 0,
+      sz: closed.filledSz ?? (closed.executionNote ? 0 : Math.abs(held.szi)),
+      note:
+        closed.executionNote ??
+        (closed.avgPx === null
+          ? "The exchange accepted the close but reported no fill yet — check the position."
+          : null),
+    })
+  } catch (error) {
+    await refuse(userId, row.id, input.marketKey, side, error)
+  }
+}
+
+/**
+ * What one live wallet holds of one market, straight from the exchange.
+ *
+ * The exchange's own answer, not this app's copy of it, because the thing it
+ * is used for is checking a size against what is really there. A part close
+ * sized off a cached number could ask to sell more than the account holds, and
+ * a sell bigger than the position is how a close becomes a short.
+ *
+ * Null means the position is not there. That is a real answer and the caller
+ * decides what it means, rather than a throw from inside a read.
+ */
+export async function liveHeldPosition(
+  userId: string,
+  walletId: string,
+  marketKey: string
+): Promise<WalletPosition | null> {
+  const row = await liveWallet(userId, walletId)
+  const protocol = getProtocol(row.protocol)
+  const ref = checkedMarket(row, marketKey)
+  const portfolio = await ordersOf(protocol).portfolio(
+    row.network,
+    row.address ?? "",
+    () => credentialFor(row)
+  )
+  return (
+    portfolio.positions.find((one) => one.marketId === ref.marketId) ?? null
+  )
+}
+
+/**
+ * Changes the leverage on a position that is already open.
+ *
+ * **The exchange's answer is the only answer.** Nothing here writes a leverage
+ * anywhere: the command goes out, and what the row shows afterwards comes from
+ * the next portfolio read. So a venue that quietly clamps what was asked for
+ * shows its own number rather than ours, which is the whole point of not
+ * keeping a copy.
+ *
+ * Refused where the venue refuses it — Aster will not lower isolated leverage
+ * on an open position — and that refusal reaches the screen in the venue's own
+ * words through the journal's refusal path.
+ */
+export async function changeLiveLeverage(
+  userId: string,
+  input: {
+    walletId: string
+    marketKey: string
+    leverage: number
+    positionSide?: "long" | "short"
+  }
+): Promise<void> {
+  const row = await liveWallet(userId, input.walletId)
+  if (row.status === "inactive") throw new Error("WALLET_INACTIVE")
+  const protocol = getProtocol(row.protocol)
+  const change = ordersOf(protocol).setLeverage
+  if (!change) throw new Error("LIVE_LEVERAGE_UNSUPPORTED")
+
+  try {
+    const ref = checkedMarket(row, input.marketKey)
+    const asked = Math.max(1, Math.round(input.leverage))
+    // Independent questions, one wait — see `placeLiveOrder`.
+    const [rules, portfolio] = await Promise.all([
+      marketRules(row.protocol, row.network, ref.marketId),
+      ordersOf(protocol).portfolio(row.network, row.address ?? "", () =>
+        credentialFor(row)
+      ),
+    ])
+    if (rules?.maxLeverage != null && asked > rules.maxLeverage) {
+      throw new Error(
+        `LIVE_LEVERAGE_TOO_HIGH:${protocol.label} allows at most ${rules.maxLeverage}x on this market.`
+      )
+    }
+    const held = portfolio.positions.find(
+      (one) =>
+        one.marketId === ref.marketId &&
+        (input.positionSide === undefined ||
+          (input.positionSide === "long" ? one.szi > 0 : one.szi < 0))
+    )
+    if (!held) throw new Error("LIVE_POSITION_GONE")
+
+    await change(row.network, authFor(row), {
+      marketId: ref.marketId,
+      leverage: asked,
+      szi: held.szi,
+    })
+    dropEngineExchangeReads(row)
+    // Behind the answer, not in front of it — see `placeLiveOrder`.
+    void journal(userId, row.id, input.marketKey, {
+      action: "brackets",
+      side: held.szi > 0 ? "buy" : "sell",
+      note: `Leverage asked to change from ${held.leverage}x to ${asked}x.`,
+    })
+  } catch (error) {
+    await refuse(userId, row.id, input.marketKey, null, error)
+  }
+}
+
+/**
+ * Adds or takes back the cash behind one isolated position. Signed: negative
+ * takes margin out.
+ *
+ * **Taking margin out is refused when it would bring the liquidation price
+ * inside the stop.** A stop at $90 with liquidation moved to $92 means the
+ * exchange takes the trade before the stop can fire, so the stop is no longer
+ * the worst case and the trade is not the trade that was agreed to. The
+ * refusal names both prices.
+ *
+ * The estimate uses this app's own formula, because the exchange will not tell
+ * us where liquidation WOULD move to until after the money has moved. That is
+ * said out loud on the window as well: what the row shows afterwards is the
+ * exchange's own figure, read back.
+ */
+export async function changeLiveMargin(
+  userId: string,
+  input: {
+    walletId: string
+    marketKey: string
+    dollars: number
+    positionSide?: "long" | "short"
+  }
+): Promise<void> {
+  const row = await liveWallet(userId, input.walletId)
+  if (row.status === "inactive") throw new Error("WALLET_INACTIVE")
+  const protocol = getProtocol(row.protocol)
+  const adjust = ordersOf(protocol).adjustMargin
+  if (!adjust) throw new Error("LIVE_MARGIN_UNSUPPORTED")
+
+  try {
+    const ref = checkedMarket(row, input.marketKey)
+    if (!Number.isFinite(input.dollars) || input.dollars === 0) {
+      throw new Error("LIVE_MARGIN_NOTHING")
+    }
+    const portfolio = await ordersOf(protocol).portfolio(
+      row.network,
+      row.address ?? "",
+      () => credentialFor(row)
+    )
+    const held = portfolio.positions.find(
+      (one) =>
+        one.marketId === ref.marketId &&
+        (input.positionSide === undefined ||
+          (input.positionSide === "long" ? one.szi > 0 : one.szi < 0))
+    )
+    if (!held) throw new Error("LIVE_POSITION_GONE")
+
+    if (input.dollars < 0) {
+      if (held.marginUsed + input.dollars <= 0) {
+        throw new Error(
+          `LIVE_MARGIN_TOO_MUCH:This position is holding $${money(held.marginUsed)} of margin, and taking $${money(-input.dollars)} back would leave nothing behind it.`
+        )
+      }
+      const rules = await marketRules(row.protocol, row.network, ref.marketId)
+      const cap = rules?.maxLeverage ?? null
+      const wouldBe = liquidationAfterMargin(
+        held,
+        held.marginUsed + input.dollars,
+        cap
+      )
+      // **"Would bring it inside" and "is already inside" are different, and
+      // only the first is refused.** A position whose stop already sits past
+      // its liquidation price is in that state whatever anybody does next, so
+      // blocking a withdrawal there traps the cash and fixes nothing. Both
+      // sides use this app's own estimate: measuring "after" with our formula
+      // and "now" with the exchange's would compare two arithmetics, and the
+      // difference between them would read as a change the withdrawal caused.
+      const nowAt = liquidationAfterMargin(held, held.marginUsed, cap)
+      const inside = (px: number | null) =>
+        px !== null &&
+        held.slPx !== null &&
+        (held.szi > 0 ? px >= held.slPx : px <= held.slPx)
+      if (held.slPx !== null && inside(wouldBe) && !inside(nowAt)) {
+        throw new Error(
+          `LIVE_MARGIN_PAST_STOP:Taking that out moves the liquidation price to about $${money(wouldBe ?? 0)}, which the market reaches before the stop at $${money(held.slPx)} — the exchange would take the trade before the stop could. Take out less, or move the stop first.`
+        )
+      }
+    }
+
+    await adjust(row.network, authFor(row), {
+      marketId: ref.marketId,
+      szi: held.szi,
+      dollars: input.dollars,
+    })
+    dropEngineExchangeReads(row)
+    // Behind the answer, not in front of it — see `placeLiveOrder`.
+    void journal(userId, row.id, input.marketKey, {
+      action: "brackets",
+      side: held.szi > 0 ? "buy" : "sell",
+      note:
+        input.dollars > 0
+          ? `Asked to put $${money(input.dollars)} more margin behind the position.`
+          : `Asked to take $${money(-input.dollars)} of margin back out.`,
+    })
+  } catch (error) {
+    await refuse(userId, row.id, input.marketKey, null, error)
+  }
+}
+
+/** Dollars inside a sentence, to two decimals. */
+function money(value: number): string {
+  return Math.abs(value).toFixed(2)
+}
+
+/**
+ * Where liquidation would sit with a different amount of margin behind the
+ * position — this app's estimate, never a figure from the exchange.
+ *
+ * The margin decides the effective leverage, and the leverage decides how far
+ * price can travel before the stake is gone. `liquidationPx` holds that one
+ * formula for the whole app, so this only works out the leverage to hand it.
+ *
+ * Null when the venue states no maximum leverage for the market: without it
+ * there is no maintenance buffer to work from, and an estimate on a guess is
+ * worse than no estimate. The stop check then does not fire, which leaves the
+ * venue's own refusal as the backstop.
+ */
+function liquidationAfterMargin(
+  held: WalletPosition,
+  margin: number,
+  maxLeverage: number | null
+): number | null {
+  const notional = Math.abs(held.szi) * held.entryPx
+  if (!(margin > 0) || !(notional > 0) || maxLeverage === null) return null
+  return liquidationPx({
+    szi: held.szi,
+    entryPx: held.entryPx,
+    leverage: notional / margin,
+    maxLeverage,
+  })
+}
+
+/**
+ * Everything one live wallet holds, market key and all, in ONE read.
+ *
+ * **The positions come back, not just their names, and that is the point.**
+ * Emptying a wallet works through this list, and asking the exchange again for
+ * each coin turned four positions into five whole-account reads — on the one
+ * press somebody makes while a market is moving and the venue is already
+ * rationing requests. One read, handed down.
+ */
+export async function liveHeldPositions(
+  userId: string,
+  walletId: string
+): Promise<{ marketKey: string; held: WalletPosition }[]> {
+  const row = await liveWallet(userId, walletId)
+  const protocol = getProtocol(row.protocol)
+  const portfolio = await ordersOf(protocol).portfolio(
+    row.network,
+    row.address ?? "",
+    () => credentialFor(row)
+  )
+  return portfolio.positions
+    .filter((one) => Math.abs(one.szi) > 0)
+    .map((one) => ({
+      marketKey: marketKeyOf({
+        protocol: row.protocol,
+        network: row.network,
+        marketId: one.marketId,
+      }),
+      held: one,
+    }))
+}
+
+/**
+ * Tells a watched order or a grid that the stop it owns has been cancelled.
+ *
+ * The ordinary cancel, the × on a row, used to leave the owner holding the
+ * dead order id. On 17 Sep 2026 a DASH row believed in a stop cancelled at
+ * 00:53 until its coins went at 02:08, then asked Hyperliquid to cancel it
+ * every two seconds for twelve hours.
+ *
+ * - **A watched order loses its stop price too**, because its stop is the
+ *   person's own and the × took it off. The next engine pass finishes the row.
+ * - **A grid keeps its stop price**, so the next pass puts the grid's stop
+ *   back, the same way the engine restores any strategy's stop.
+ *
+ * Matched on the order id inside the plan, so only the row holding that id
+ * changes. Never throws, because the cancel has already happened. A watched
+ * order that misses this write is still finished by the engine once its stop
+ * has been missing for 15 seconds.
+ */
+async function forgetOwnedStop(
+  userId: string,
+  walletId: string,
+  marketKey: string,
+  orderId: string
+): Promise<void> {
+  const owner = and(
+    eq(tradeSmartLadders.userId, userId),
+    eq(tradeSmartLadders.walletId, walletId),
+    eq(tradeSmartLadders.marketKey, marketKey),
+    eq(tradeSmartLadders.status, "active")
+  )
+  try {
+    await db
+      .update(tradeSmartLadders)
+      .set({
+        plan: sql`${tradeSmartLadders.plan} || '{"ownStop": null, "slPx": null}'::jsonb`,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          owner,
+          eq(tradeSmartLadders.kind, "watch"),
+          sql`${tradeSmartLadders.plan}->'ownStop'->>'orderId' = ${orderId}`
+        )
+      )
+    await db
+      .update(tradeSmartLadders)
+      .set({
+        plan: sql`${tradeSmartLadders.plan} || '{"pairedStop": null}'::jsonb`,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          owner,
+          eq(tradeSmartLadders.kind, "grid"),
+          sql`${tradeSmartLadders.plan}->'pairedStop'->>'orderId' = ${orderId}`
+        )
+      )
+  } catch (error) {
+    recordEngineError("live-orders", "could not forget a cancelled stop", error)
+  }
+}
+
+/**
+ * The order ids of stops on this market that belong to somebody else — the
+ * fixed-size stop a grid places for itself while a DCA ladder shares the
+ * coin, and the one a hand-placed order holds over the coins it bought.
+ *
+ * Read here, inside the bracket replace, rather than passed in by callers:
+ * replacing a position's protection cancels every leg the exchange holds, and
+ * every caller — the drag on the chart, the ladder's own engine pass, the ×
+ * on a pill — must spare those stops without having to know they exist. A
+ * hand moving the position's stop deletes the position's stop, nobody else's.
+ */
+async function ownedStopOrderIds(
+  userId: string,
+  walletId: string,
+  marketKey: string
+): Promise<string[]> {
+  const rows = await db
+    .select({ kind: tradeSmartLadders.kind, plan: tradeSmartLadders.plan })
+    .from(tradeSmartLadders)
+    .where(
+      and(
+        eq(tradeSmartLadders.userId, userId),
+        eq(tradeSmartLadders.walletId, walletId),
+        eq(tradeSmartLadders.marketKey, marketKey),
+        inArray(tradeSmartLadders.kind, ["grid", "watch"]),
+        eq(tradeSmartLadders.status, "active")
+      )
+    )
+  return rows.flatMap((row) => {
+    if (row.kind === "grid") {
+      const plan = readSmartPlan("grid", row.plan) as GridPlan | null
+      return plan?.pairedStop ? [plan.pairedStop.orderId] : []
+    }
+    const plan = readSmartPlan("watch", row.plan) as WatchPlan | null
+    return plan?.ownStop ? [plan.ownStop.orderId] : []
+  })
+}
+
+export async function setLiveBrackets(
+  userId: string,
+  input: {
+    walletId: string
+    marketKey: string
+    targets: Array<{ px: number; sz: number | null }>
+    slPx: number | null
+    /**
+     * Coins the stop sells, or null/absent for the whole position. The same
+     * rules as a target's size: more than is held is refused, and a size
+     * that IS the whole position collapses back to null so the exchange
+     * holds a stop that grows with the position.
+     */
+    slSz?: number | null
+    /**
+     * Replace exactly these protection orders and leave the rest standing —
+     * how a grid swaps its own stop without touching the ladder's. Absent,
+     * every protection leg is replaced except a paired grid's own stop,
+     * which no ordinary replace may take off.
+     */
+    replaceOrderIds?: string[]
+  }
+): Promise<{ slOrderId: string | null }> {
+  const row = await liveWallet(userId, input.walletId)
+  const protocol = getProtocol(row.protocol)
+  let side: TradeSide | null = null
+
+  try {
+    const ref = checkedMarket(row, input.marketKey)
+    // Four independent questions, one wait — see `placeLiveOrder`. The price
+    // is only wanted when a stop is being set, and the grid's spared stop
+    // only when no explicit replacement list came in, so each of those rides
+    // along as nothing when it is not needed.
+    const [rules, portfolio, stopPrices, sparedIds] = await Promise.all([
+      marketRules(row.protocol, row.network, ref.marketId),
+      ordersOf(protocol).portfolio(row.network, row.address ?? "", () =>
+        credentialFor(row)
+      ),
+      input.slPx !== null
+        ? protocol.markets.prices(row.network, [ref.marketId])
+        : null,
+      input.replaceOrderIds === undefined
+        ? ownedStopOrderIds(userId, input.walletId, input.marketKey)
+        : null,
+    ])
+    if (!rules) throw new Error("LIVE_MARKET")
+    const roundPx = (px: number) =>
+      protocol.markets.roundPx(px, rules.sizeDecimals, rules.priceTick)
+    const targets = input.targets
+      .map((target) => ({ ...target, px: roundPx(target.px) }))
+      .sort((left, right) => left.px - right.px)
+    const slPx = input.slPx === null ? null : roundPx(input.slPx)
+    const held = portfolio.positions.find(
+      (one) => one.marketId === ref.marketId
+    )
+    if (!held) throw new Error("LIVE_POSITION_GONE")
+    side = held.szi > 0 ? "buy" : "sell"
+
+    const long = held.szi > 0
+    if (targets.length > 3) throw new Error("LIVE_TAKE_PROFIT_COUNT")
+    for (const target of targets) {
+      if (!Number.isFinite(target.px) || !(target.px > 0)) {
+        throw new Error("LIVE_PRICE")
+      }
+    }
+    if (targets.length > 1 && targets.some((target) => target.sz === null)) {
+      throw new Error("LIVE_TAKE_PROFIT_LIST_SIZE")
+    }
+    const heldSz = Math.abs(held.szi)
+    const coveredSz = targets.reduce(
+      (sum, target) => sum + (target.sz ?? heldSz),
+      0
+    )
+    if (targets.some((target) => target.sz !== null && !(target.sz > 0))) {
+      throw new Error("LIVE_TAKE_PROFIT_SIZE")
+    }
+    if (coveredSz > heldSz * (1 + 1e-6)) {
+      const targetsUsd = targets.reduce(
+        (sum, target) => sum + (target.sz ?? heldSz) * target.px,
+        0
+      )
+      throw new Error(
+        `LIVE_TAKE_PROFIT_TOTAL:${targetsUsd}:${heldSz * held.entryPx}`
+      )
+    }
+    // The stop's size, checked the way the target's already is. A stop for
+    // more coins than are held would sell somebody else's; a stop for
+    // exactly what is held is the whole-position stop and is sent as one, so
+    // it keeps growing with the position instead of freezing at today's size.
+    //
+    // EXCEPT for a caller that owns its stop and named the order it is
+    // replacing. A paired grid can hold the entire position for a while —
+    // the ladder beneath it has simply not bought yet — and collapsing its
+    // stop to the growing kind then would quietly stretch it over every
+    // rung the ladder buys later. An owned stop keeps its exact size.
+    let slSz = slPx === null ? null : (input.slSz ?? null)
+    if (slSz !== null) {
+      if (!(slSz > 0)) throw new Error("LIVE_STOP_SIZE")
+      if (slSz > heldSz * (1 + 1e-6)) {
+        throw new Error(
+          `LIVE_STOP_TOTAL:${slSz * (slPx ?? 0)}:${heldSz * held.entryPx}`
+        )
+      }
+      if (slSz >= heldSz * (1 - 1e-6) && input.replaceOrderIds === undefined) {
+        slSz = null
+      }
+    }
+    if (slPx !== null) {
+      const mark = stopPrices?.get(ref.marketId)
+      if (mark === undefined) throw new Error("LIVE_NO_PRICE")
+      const ahead = slPx > 0 && (long ? slPx < mark : slPx > mark)
+      if (!ahead) throw new Error("LIVE_STOP_SIDE")
+    }
+
+    // Which legs this replace may take off. A grid running above a ladder
+    // owns its stop outright: an ordinary replace spares it, and the grid's
+    // own replace names exactly its old order and touches nothing else.
+    const spared = sparedIds !== null ? new Set(sparedIds) : null
+    const replacing = spared
+      ? held.protectionOrderIds.filter((id) => !spared.has(id))
+      : held.protectionOrderIds.filter((id) =>
+          (input.replaceOrderIds as string[]).includes(id)
+        )
+
+    const placed = await ordersOf(protocol).setBrackets(
+      row.network,
+      authFor(row),
+      {
+        marketId: ref.marketId,
+        position: { ...held, protectionOrderIds: replacing },
+        targets,
+        slPx,
+        slSz,
+      }
+    )
+    dropEngineExchangeReads(row)
+    // Behind the answer, not in front of it — see `placeLiveOrder`.
+    void journal(userId, row.id, input.marketKey, {
+      action: "brackets",
+      side,
+      note: describeBrackets(targets, slPx, slSz),
+    })
+    return { slOrderId: placed.slOrderId }
+  } catch (error) {
+    return await refuse(userId, row.id, input.marketKey, side, error)
+  }
+}
+
+function describeBrackets(
+  targets: Array<{ px: number; sz: number | null }>,
+  slPx: number | null,
+  slSz: number | null
+): string {
+  const parts = [
+    targets.length > 0
+      ? `take profit at ${targets
+          .map(
+            (target) =>
+              `${target.px}${target.sz !== null ? ` selling ${target.sz}` : " selling the whole position"}`
+          )
+          .join(", ")}`
+      : "take profits removed",
+    slPx !== null
+      ? `stop at ${slPx}${slSz !== null ? ` selling ${slSz}` : ""}`
+      : "stop removed",
+  ]
+  return `Protection set: ${parts.join(", ")}.`
+}
+
+/**
+ * Everything every live wallet holds and has waiting, plus the journal and the
+ * finished trades — the one read the polling hook makes. A wallet the exchange
+ * will not answer for contributes nothing this tick and is named in
+ * `unreachable`; it never blanks the others and never throws the read.
+ */
+/**
+ * How long one wallet's read may take before the screen stops waiting on it.
+ *
+ * Giving up does not cancel the work — it only stops the panel hanging on
+ * it, and the request already in flight warms the caches the next poll uses.
+ * The wallet says "could not be reached", which is both true and something a
+ * person can act on, where a spinner that never ends is neither.
+ *
+ * Eight seconds, because this is the wait a person watches. One wallet that
+ * cannot answer in that time must not hold up the ones that can — it keeps
+ * the figures it last had, marked as a moment old, and the next poll is four
+ * seconds away.
+ */
+const WALLET_READ_DEADLINE_MS = 8_000
+
+function withDeadline<T>(work: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    work,
+    new Promise<never>((_resolve, reject) =>
+      setTimeout(() => reject(new Error("LIVE_WALLET_SLOW")), ms).unref?.()
+    ),
+  ])
+}
+
+export async function loadLivePortfolio(
+  userId: string,
+  wallets: readonly TradeWallet[],
+  options: {
+    /**
+     * The stamp of the Journal history the caller already holds. When
+     * nothing has happened since — no fill, no binned row, no new trigger —
+     * the history comes back `null` and the caller keeps what it has, instead
+     * of carrying up to four thousand rows every four seconds. The refusals
+     * are small and always come back.
+     */
+    journalStamp?: string
+    /**
+     * Whether anyone is looking at the Journal.
+     *
+     * False means the sweep is skipped for wallets with nothing new. The
+     * Journal is history — it changes only when a fill lands — so keeping it
+     * current while another tab is showing bought nothing and cost a trade
+     * history read every half minute, on Lighter a real share of a
+     * sixty-a-minute allowance. A wallet that HAS just filled is still swept,
+     * whatever tab is open, so the bell notice and the row never disagree.
+     */
+    journalOpen?: boolean
+    /** Each wallet's key, when the caller read the rows already. */
+    credentials?: ReadonlyMap<string, () => string | null>
+  } = {}
+): Promise<{
+  positions: TradePosition[]
+  orders: TradeOrder[]
+  fills: LiveFill[]
+  trades: LiveTrade[]
+  nextBefore: number | null
+  /** True when the history is the caller's own, unchanged (see `journalStamp`). */
+  journalUnchanged: boolean
+  journalStamp: string
+  /** The last refusal on each market, so a stuck level can say why. */
+  refusals: LiveRefusal[]
+  unreachable: string[]
+}> {
+  const live = wallets.filter(
+    (wallet) =>
+      wallet.kind === "live" &&
+      wallet.status === "active" &&
+      wallet.address !== null
+  )
+
+  const now = Date.now()
+  const positions: TradePosition[] = []
+  const orders: TradeOrder[] = []
+  const unreachable: string[] = []
+
+  // One read for every wallet's key, not one per wallet — or none at all
+  // when the caller's wallet read brought them along.
+  const credentials =
+    options.credentials ??
+    (await walletCredentials(
+      userId,
+      live.map((wallet) => wallet.id)
+    ))
+
+  // The Journal's history and the refusals come from this app's own tables,
+  // so they can be read while the exchanges are being asked — unless a
+  // wallet has just made a fill, in which case the history must be read
+  // AFTER that wallet's sweep has written the fill down (see below).
+  const walletIds = live.map((wallet) => wallet.id)
+  // Peeked, not spent: the flag is spent below, only once the exchange has
+  // answered, so a wallet that cannot be reached keeps its turn to wait.
+  const anyWaited = live.some((wallet) =>
+    sweepWouldBeWaitedFor(userId, wallet.id)
+  )
+
+  const readHistory = () =>
+    Promise.all([
+      loadLiveHistoryIfChanged(userId, walletIds, options.journalStamp),
+      loadLiveRefusals(userId, walletIds),
+    ])
+  const early = anyWaited ? null : readHistory()
+
+  // Which markets are running a grid above a ladder, so each stop can be
+  // handed back to its owner — the exchange read names the oldest stop leg
+  // as the position's, which is usually the grid's. One indexed query for
+  // every wallet, empty for anyone not using the pairing.
+  const pairedStops = await pairedStopRefs(userId, walletIds)
+
+  await Promise.all(
+    live.map(async (wallet) => {
+      try {
+        // One wallet may not hold the whole screen up. A venue that is slow
+        // or rationing us can take longer than anyone will sit and watch, and
+        // the panel already has an honest way to say so — this wallet is
+        // reported unreachable and the next poll tries again, rather than
+        // every other wallet's figures waiting behind it.
+        await withDeadline(
+          (async () => {
+            const credential = credentials.get(wallet.id) ?? (() => null)
+            const protocol = getProtocol(wallet.protocol)
+            const readPortfolio =
+              protocol.orders?.portfolio ?? protocol.account?.portfolio
+            if (!readPortfolio) {
+              throw new Error(`PROTOCOL_NO_PORTFOLIO:${protocol.id}`)
+            }
+            const portfolio = reattributePairedStops(
+              await readPortfolio(
+                wallet.network,
+                wallet.address ?? "",
+                credential,
+                "background",
+                { userId, walletId: wallet.id }
+              ),
+              pairedStops.get(wallet.id) ?? new Map()
+            )
+            const rows = livePortfolioRows(wallet, portfolio, now)
+            positions.push(...rows.positions)
+            orders.push(...rows.orders)
+            // The Journal's history is kept up to date ALONGSIDE this read, not
+            // inside it. What the panel draws comes from `trade_live_fills`,
+            // which the sweep writes into — so waiting for the sweep only made
+            // the whole panel sit on a spinner while an exchange was asked about
+            // months of old trades nobody was looking at. It cannot throw, it
+            // paces itself, and whatever it brings in shows on the next poll.
+            // ...unless this wallet has just made a fill. Then the row the
+            // Journal is about to draw comes from that very sweep, and answering
+            // without it means the trade shows a poll later and reads as not
+            // having been recorded at all.
+            if (protocol.orders) {
+              if (sweepIsWaitedFor(userId, wallet.id)) {
+                await sweepLiveFills(
+                  userId,
+                  wallet,
+                  portfolio,
+                  credential,
+                  options.journalOpen ?? false,
+                  true
+                )
+              } else {
+                // Still swept when nobody is looking, just far less often:
+                // the record behind the Journal is what sends the bell
+                // notice, and a stop firing overnight has to be written down
+                // whether or not a tab is open.
+                void sweepLiveFills(
+                  userId,
+                  wallet,
+                  portfolio,
+                  credential,
+                  options.journalOpen ?? false
+                )
+              }
+            }
+          })(),
+          WALLET_READ_DEADLINE_MS
+        )
+      } catch {
+        unreachable.push(wallet.id)
+      }
+    })
+  )
+
+  // **The refusals are read now.** For a long time `trade_live_journal` was
+  // written and read by nothing, on the reasoning that a person could go
+  // digging when an order had gone wrong. Digging needs a database client, so
+  // in practice the answer was invisible: a Phemex level refused twenty times
+  // in eighteen minutes still drew as "waiting", and the only way to learn
+  // why was to query the table by hand. One refusal per market, six hours
+  // back — see `loadLiveRefusals`.
+  const [read, refusals] = await (early ?? readHistory())
+  const history = read.history ?? {
+    fills: [],
+    trades: [],
+    nextBefore: null,
+  }
+
+  return {
+    positions,
+    orders,
+    ...history,
+    journalUnchanged: read.history === null,
+    journalStamp: read.stamp,
+    refusals,
+    unreachable,
+  }
+}

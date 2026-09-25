@@ -1,4 +1,5 @@
 import * as React from "react"
+import { usd } from "@/lib/format"
 import { Loader2Icon } from "lucide-react"
 import { formatPrice } from "@nktkas/hyperliquid/utils"
 
@@ -238,7 +239,7 @@ export function OneClickMenuActions({
   const marginUsd = selected
     ? oneClickSizing(selected, options.equity).margin
     : 0
-  const marginLabel = marginUsd > 0 ? ` · ~$${marginUsd.toFixed(2)}` : ""
+  const marginLabel = marginUsd > 0 ? ` · ~${usd(marginUsd)}` : ""
 
   return (
     <>
@@ -417,17 +418,17 @@ function OneClickConfirmDialog({
                 ? "Risk per wallet"
                 : "Wallet cash used"
             }
-            value={`${template.orderSizePct}% · $${sizingAmount.toFixed(2)}`}
+            value={`${template.orderSizePct}% · ${usd(sizingAmount)}`}
           />
           {template.sizingMode === "risk" ? (
             <SummaryRow
               label="Wallet cash used"
-              value={`About $${margin.toFixed(2)}`}
+              value={`About ${usd(margin)}`}
             />
           ) : null}
           <SummaryRow
             label="Position size"
-            value={`${sz.toFixed(6)} ${market} · $${preview.notionalUsd.toFixed(2)}`}
+            value={`${sz.toFixed(6)} ${market} · ${usd(preview.notionalUsd)}`}
           />
           <SummaryRow label="Leverage" value={`${template.leverage}x cross`} />
           <SummaryRow

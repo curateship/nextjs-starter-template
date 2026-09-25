@@ -1,11 +1,19 @@
 import { readFile } from "node:fs/promises"
 
 import { PGlite } from "@electric-sql/pglite"
+import { eq } from "drizzle-orm"
 import { drizzle } from "drizzle-orm/pglite"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { AutomationConfig } from "@/lib/automations/automation"
-import { createUserBot, getBotDetail, sendBotCommand } from "@/server/bots"
+import {
+  applyAutomationSettings,
+  createUserBot,
+  getBotDetail,
+  listUserBotEvents,
+  sendBotCommand,
+  updateBotMarkets,
+} from "@/server/bots"
 import { setDbForTests, type CustomShellDb } from "@/server/db"
 import {
   customShellUsers,
@@ -318,5 +326,223 @@ describe("Automation bot commands", () => {
     const [command] = await database.select().from(tradingBotCommands)
     expect(command?.botId).toBe(bot.id)
     expect(command?.command).toBe("start")
+  })
+})
+
+async function insertEvent(
+  botId: string,
+  createdAt: Date,
+  message = "event"
+) {
+  const id = uuid()
+  await database.insert(schema.tradingBotEvents).values({
+    id,
+    botId,
+    level: "info",
+    type: "order",
+    message,
+    createdAt,
+  })
+  return id
+}
+
+describe("Fleet events", () => {
+  it("returns only the requesting user's events, joined to the bot name", async () => {
+    const ownerId = await createUser()
+    const ownerWallet = await createWallet(ownerId)
+    const ownerAutomation = await createAutomation(ownerId)
+    const ownerBot = await createUserBot(
+      ownerId,
+      botInput(ownerWallet, ownerAutomation)
+    )
+
+    const otherId = await createUser()
+    const otherWallet = await createWallet(otherId)
+    const otherAutomation = await createAutomation(otherId)
+    const otherBot = await createUserBot(
+      otherId,
+      botInput(otherWallet, otherAutomation)
+    )
+
+    await insertEvent(ownerBot.id, now(), "mine")
+    await insertEvent(otherBot.id, now(), "not mine")
+
+    const events = await listUserBotEvents(ownerId)
+    expect(events).toHaveLength(1)
+    expect(events[0].message).toBe("mine")
+    expect(events[0].botId).toBe(ownerBot.id)
+    expect(events[0].botName).toBe("Test bot")
+  })
+
+  it("orders newest first and respects the limit", async () => {
+    const userId = await createUser()
+    const walletId = await createWallet(userId)
+    const automationId = await createAutomation(userId)
+    const bot = await createUserBot(userId, botInput(walletId, automationId))
+
+    const base = now().getTime()
+    for (let i = 0; i < 5; i++) {
+      await insertEvent(bot.id, new Date(base + i * 1000), `event ${i}`)
+    }
+
+    const events = await listUserBotEvents(userId, undefined, 3)
+    expect(events.map((event) => event.message)).toEqual([
+      "event 4",
+      "event 3",
+      "event 2",
+    ])
+  })
+})
+
+describe("Apply automation settings by hand", () => {
+  const EDITED_CONFIG: AutomationConfig = {
+    ...AUTOMATION_CONFIG,
+    rules: [
+      {
+        ...AUTOMATION_CONFIG.rules[0],
+        targetEquityPct: 50,
+      },
+    ],
+  }
+
+  async function pausedBotWithEditedAutomation() {
+    const userId = await createUser()
+    const walletId = await createWallet(userId)
+    const automationId = await createAutomation(userId)
+    const bot = await createUserBot(userId, botInput(walletId, automationId))
+    await database
+      .update(schema.tradingBots)
+      .set({ desiredState: "paused", status: "paused" })
+      .where(eq(schema.tradingBots.id, bot.id))
+    await database
+      .update(tradingAutomations)
+      .set({ compiledConfig: EDITED_CONFIG })
+      .where(eq(tradingAutomations.id, automationId))
+    return { userId, bot, automationId }
+  }
+
+  it("flags the drift on the detail, without touching the bot", async () => {
+    const { userId, bot } = await pausedBotWithEditedAutomation()
+
+    const detail = await getBotDetail(userId, bot.id)
+    expect(detail.settingsBehind).toBe(true)
+
+    const [fresh] = await database
+      .select()
+      .from(schema.tradingBots)
+      .where(eq(schema.tradingBots.id, bot.id))
+    expect(fresh?.params).toEqual(AUTOMATION_CONFIG)
+    expect(await database.select().from(tradingBotCommands)).toHaveLength(0)
+  })
+
+  it("writes the fresh config to a paused bot and wakes the worker", async () => {
+    const { userId, bot } = await pausedBotWithEditedAutomation()
+
+    await applyAutomationSettings(userId, bot.id)
+
+    const [fresh] = await database
+      .select()
+      .from(schema.tradingBots)
+      .where(eq(schema.tradingBots.id, bot.id))
+    expect(fresh?.params).toEqual(EDITED_CONFIG)
+    const commands = await database.select().from(tradingBotCommands)
+    expect(commands).toHaveLength(1)
+    expect(commands[0]?.command).toBe("update_params")
+    expect((await getBotDetail(userId, bot.id)).settingsBehind).toBe(false)
+  })
+
+  it("refuses while the bot is running", async () => {
+    const { userId, bot } = await pausedBotWithEditedAutomation()
+    await database
+      .update(schema.tradingBots)
+      .set({ desiredState: "running", status: "running" })
+      .where(eq(schema.tradingBots.id, bot.id))
+
+    await expect(applyAutomationSettings(userId, bot.id)).rejects.toThrow(
+      "Pause the bot first"
+    )
+    expect(await database.select().from(tradingBotCommands)).toHaveLength(0)
+  })
+
+  it("does nothing when the configs already match", async () => {
+    const userId = await createUser()
+    const walletId = await createWallet(userId)
+    const automationId = await createAutomation(userId)
+    const bot = await createUserBot(userId, botInput(walletId, automationId))
+    await database
+      .update(schema.tradingBots)
+      .set({ desiredState: "paused", status: "paused" })
+      .where(eq(schema.tradingBots.id, bot.id))
+
+    expect((await getBotDetail(userId, bot.id)).settingsBehind).toBe(false)
+    await applyAutomationSettings(userId, bot.id)
+
+    expect(await database.select().from(tradingBotCommands)).toHaveLength(0)
+  })
+})
+
+describe("Edit bot markets", () => {
+  it("saves the new list, seeds state rows, and wakes a running worker", async () => {
+    const userId = await createUser()
+    const walletId = await createWallet(userId)
+    const automationId = await createAutomation(userId)
+    const bot = await createUserBot(userId, botInput(walletId, automationId))
+    await database
+      .update(schema.tradingBots)
+      .set({ desiredState: "running", status: "running" })
+      .where(eq(schema.tradingBots.id, bot.id))
+
+    await updateBotMarkets(userId, bot.id, ["BTC", "ETH"])
+
+    const [fresh] = await database
+      .select()
+      .from(schema.tradingBots)
+      .where(eq(schema.tradingBots.id, bot.id))
+    expect(fresh?.markets).toEqual(["BTC", "ETH"])
+
+    const states = await database
+      .select()
+      .from(schema.tradingBotState)
+      .where(eq(schema.tradingBotState.botId, bot.id))
+    expect(states.map((state) => state.market).sort()).toEqual(["BTC", "ETH"])
+
+    const commands = await database.select().from(tradingBotCommands)
+    expect(commands).toHaveLength(1)
+    expect(commands[0]?.command).toBe("update_params")
+  })
+
+  it("does not enqueue a command for a stopped bot", async () => {
+    const userId = await createUser()
+    const walletId = await createWallet(userId)
+    const automationId = await createAutomation(userId)
+    const bot = await createUserBot(userId, botInput(walletId, automationId))
+
+    await updateBotMarkets(userId, bot.id, ["ETH"])
+
+    const commands = await database.select().from(tradingBotCommands)
+    expect(commands).toHaveLength(0)
+    const [fresh] = await database
+      .select()
+      .from(schema.tradingBots)
+      .where(eq(schema.tradingBots.id, bot.id))
+    expect(fresh?.markets).toEqual(["ETH"])
+  })
+
+  it("rejects unknown markets, empty lists, and other users' bots", async () => {
+    const userId = await createUser()
+    const walletId = await createWallet(userId)
+    const automationId = await createAutomation(userId)
+    const bot = await createUserBot(userId, botInput(walletId, automationId))
+
+    await expect(updateBotMarkets(userId, bot.id, ["NOPE"])).rejects.toThrow(
+      "Unknown Hyperliquid market"
+    )
+    await expect(updateBotMarkets(userId, bot.id, [])).rejects.toThrow(
+      "Pick at least one market"
+    )
+    const otherId = await createUser()
+    await expect(
+      updateBotMarkets(otherId, bot.id, ["BTC"])
+    ).rejects.toThrow("Bot not found")
   })
 })

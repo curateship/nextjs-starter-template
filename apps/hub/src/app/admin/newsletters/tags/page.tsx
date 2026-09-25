@@ -194,7 +194,7 @@ export default function NewsletterContactTagsPage() {
 
           <AdminTableShell
             title="Tags"
-            icon={<Tag className="size-4 text-muted-foreground sm:size-[18px]" />}
+            icon={<Tag className="text-muted-foreground" />}
             count={tags.length}
             selectedCount={tagSelection.selectedCount}
             onClearSelection={tagSelection.clearSelection}

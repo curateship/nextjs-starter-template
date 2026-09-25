@@ -6,13 +6,18 @@ import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import {
   AdminBulkDeleteButton,
-  ConfirmDestructive,
+  AdminListFooter,
+  AdminListPending,
+  AdminRowAction,
+  AdminRowActions,
+  AdminSortableHead,
   AdminSortButton,
-  AdminTableShell, AdminListPending,
-  AdminTableSummaryFooter,
-  formatShortDate as formatDate,
+  AdminTableShell,
+  ConfirmDestructive,
+  formatShortDate,
+  RelativeDate,
   useAdminBulkSelection,
-  useAdminSort
+  useAdminSort,
 } from "@/components/admin/layout/list"
 import {
   TableRightActions,
@@ -21,6 +26,9 @@ import {
 } from "@/components/admin/layout/content/table-right-actions"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
+import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
+import { useResetPageOnListChange } from "@/lib/use-reset-page"
+import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -42,6 +50,7 @@ import { Calendar as CalendarPicker } from "@/components/ui/calendar"
 import { deleteUser, deleteUsers, listUsers, type UserListItem } from "@/lib/actions/users/user-management-actions"
 import { toCalendarDate, fromCalendarDate, formatDatePickerLabel } from "@/lib/utils/calendar-dates"
 import { cn } from "@/lib/utils/tailwind"
+import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
 import CalendarIcon from "lucide-react/dist/esm/icons/calendar.js"
 import Plus from "lucide-react/dist/esm/icons/plus.js"
 import SlidersHorizontal from "lucide-react/dist/esm/icons/sliders-horizontal.js"
@@ -98,6 +107,7 @@ function isValueRule(rule: FilterRule): rule is Extract<FilterRule, { type: "rol
 }
 
 export default function UsersPage() {
+  const { pageSize } = useSiteSwitcher()
   const [users, setUsers] = useState<UserListItem[]>([])
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -110,8 +120,18 @@ export default function UsersPage() {
   const [filters, setFilters] = useState<FilterGroup>(emptyFilterGroup)
   const [pendingFilters, setPendingFilters] = useState<FilterGroup>(emptyFilterGroup)
   const [filterModalOpen, setFilterModalOpen] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
   const userSelection = useAdminBulkSelection()
   const userSort = useAdminSort<SortColumn>()
+  // Everything that changes what the table shows, minus the page itself.
+  const listQueryKey = `${searchQuery}|${JSON.stringify(filters)}|${userSort.sortColumn}|${userSort.sortDirection}`
+  // Searching, filtering or re-sorting from a later page would otherwise land
+  // you past the end of the shorter result.
+  useResetPageOnListChange(setCurrentPage, listQueryKey)
+  // Ticks never survive a change to what the table is showing — the page and
+  // rows-per-page included, so "Delete (n)" only ever means rows on screen.
+  useClearSelectionOnListChange(userSelection, `${listQueryKey}|${currentPage}|${pageSize}`)
+
 
   async function loadUsers() {
     setLoading(true)
@@ -147,9 +167,9 @@ export default function UsersPage() {
   const getRoleBadge = (role: string) => {
     switch (role) {
       case "super_admin":
-        return <Badge className="bg-blue-100 text-blue-800">Super Admin</Badge>
+        return <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300">Super Admin</Badge>
       case "end_user":
-        return <Badge className="bg-green-100 text-green-800">User</Badge>
+        return <Badge className="bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300">User</Badge>
       default:
         return <Badge variant="secondary">{role}</Badge>
     }
@@ -173,7 +193,7 @@ export default function UsersPage() {
       case "unverified":
         return <Badge variant="secondary">Unverified</Badge>
       default:
-        return <Badge className="bg-green-100 text-green-800">Active</Badge>
+        return <Badge className="bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300">Active</Badge>
     }
   }
 
@@ -186,22 +206,6 @@ export default function UsersPage() {
       default:
         return "Active"
     }
-  }
-
-  const formatLastActive = (lastSignIn: string | null) => {
-    if (!lastSignIn) return "Never"
-
-    const date = new Date(lastSignIn)
-    const now = new Date()
-    const diffMs = now.getTime() - date.getTime()
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
-    const diffDays = Math.floor(diffHours / 24)
-
-    if (diffHours < 1) return "Just now"
-    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`
-    if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`
-    if (diffDays < 30) return `${Math.floor(diffDays / 7)} week${diffDays >= 14 ? "s" : ""} ago`
-    return `${Math.floor(diffDays / 30)} month${diffDays >= 60 ? "s" : ""} ago`
   }
 
   const handleDeleteUser = async () => {
@@ -221,6 +225,7 @@ export default function UsersPage() {
     setPendingDeleteUser(null)
     setDeletingUserId(null)
     await loadUsers()
+    showActionSuccess("User deleted.")
   }
 
   const handleMassDelete = async () => {
@@ -229,6 +234,7 @@ export default function UsersPage() {
     }
 
     setMassDeleting(true)
+    const deletedCount = userSelection.selectedCount
     const result = await deleteUsers({ data: { userIds: Array.from(userSelection.selectedIds) } })
 
     if (!result.success) {
@@ -241,6 +247,7 @@ export default function UsersPage() {
     setMassDeleting(false)
     setMassDeleteConfirmOpen(false)
     await loadUsers()
+    showActionSuccess(deletedCount === 1 ? "User deleted." : "Users deleted.")
   }
 
   function openFilterModal() {
@@ -352,7 +359,7 @@ export default function UsersPage() {
       return `${label} ${operatorLabel} in the last ${rule.value.days} days`
     }
 
-    const formatValue = (value: string) => new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+    const formatValue = (value: string) => formatShortDate(value)
     const range = rule.value.from && rule.value.to
       ? `${formatValue(rule.value.from)} to ${formatValue(rule.value.to)}`
       : rule.value.from
@@ -412,9 +419,6 @@ export default function UsersPage() {
 
     return filters.match === "all" ? matches.every(Boolean) : matches.some(Boolean)
   })
-  const deletableUserIds = filteredUsers
-    .filter((user) => user.id !== currentUserId)
-    .map((user) => user.id)
   const sortedUsers = [...filteredUsers].sort((a, b) => {
     if (!userSort.sortColumn) return 0
 
@@ -435,6 +439,13 @@ export default function UsersPage() {
     return (aActive - bActive) * dir
   })
 
+  const pagedUsers = sortedUsers.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+  // Select-all ticks the page in front of you, minus your own account, which
+  // cannot be deleted.
+  const deletableUserIds = pagedUsers
+    .filter((user) => user.id !== currentUserId)
+    .map((user) => user.id)
+
   return (
     <>
       <StickyHeader />
@@ -445,8 +456,9 @@ export default function UsersPage() {
           />
 
           <AdminTableShell
+            error={error ? { message: error, onRetry: () => loadUsers() } : null}
             title="Users"
-            icon={<User className="size-4 text-muted-foreground sm:size-[18px]" />}
+            icon={<User className="text-muted-foreground" />}
             count={filteredUsers.length}
             loading={loading}
             selectedCount={userSelection.selectedCount}
@@ -486,7 +498,6 @@ export default function UsersPage() {
                   value={searchQuery}
                   onChange={(event) => {
                     setSearchQuery(event.target.value)
-                    userSelection.clearSelection()
                   }}
                   placeholder="Search users"
                 />
@@ -507,7 +518,7 @@ export default function UsersPage() {
                 </TableRightActionsButton>
               </TableRightActions>
             }
-            footer={!loading ? <AdminTableSummaryFooter count={filteredUsers.length} label="users" /> : null}
+            footer={!loading ? <AdminListFooter currentPage={currentPage} pageSize={pageSize} total={filteredUsers.length} onPageChange={setCurrentPage} /> : null}
           >
             <ScrollArea className="w-full">
               <Table>
@@ -520,72 +531,26 @@ export default function UsersPage() {
                         aria-label="Select all users"
                       />
                     </TableHead>
-                    <TableHead column="main">
-                      <AdminSortButton
-                        active={userSort.sortColumn === "user"}
-                        direction={userSort.sortDirection}
-                        onClick={() => userSort.toggleSort("user")}
-                      >
-                        User
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={userSort.sortColumn === "role"}
-                        direction={userSort.sortDirection}
-                        onClick={() => userSort.toggleSort("role")}
-                      >
-                        Role
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={userSort.sortColumn === "status"}
-                        direction={userSort.sortDirection}
-                        onClick={() => userSort.toggleSort("status")}
-                      >
-                        Status
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={userSort.sortColumn === "added"}
-                        direction={userSort.sortDirection}
-                        onClick={() => userSort.toggleSort("added")}
-                      >
-                        Date Added
-                      </AdminSortButton>
-                    </TableHead>
-                    <TableHead column="meta">
-                      <AdminSortButton
-                        active={userSort.sortColumn === "active"}
-                        direction={userSort.sortDirection}
-                        onClick={() => userSort.toggleSort("active")}
-                      >
-                        Last Active
-                      </AdminSortButton>
-                    </TableHead>
+                    <AdminSortableHead column="main" sort={userSort} sortKey="user">User</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={userSort} sortKey="role">Role</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={userSort} sortKey="status">Status</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={userSort} sortKey="added">Date Added</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={userSort} sortKey="active">Last Active</AdminSortableHead>
                     <TableHead column="meta">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {loading && sortedUsers.length === 0 ? (
                     <AdminListPending />
-                  ) : error ? (
-                    <TableRow>
-                      <TableCell colSpan={7} className="h-32 text-center">
-                        <p className="text-red-500">Error loading users: {error}</p>
-                      </TableCell>
-                    </TableRow>
                   ) : filteredUsers.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={7} className="h-32 text-center">
                         <User className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
-                        <p className="text-muted-foreground">No users found</p>
+                        <p className="text-muted-foreground">{normalizedSearchQuery || filters.rules.length > 0 ? "No users found matching your search." : "No users found"}</p>
                       </TableCell>
                     </TableRow>
                   ) : (
-                    sortedUsers.map((user) => (
+                    pagedUsers.map((user) => (
                       <TableRow
                         key={user.id}
                         data-state={userSelection.selectedIds.has(user.id) ? "selected" : undefined}
@@ -608,31 +573,26 @@ export default function UsersPage() {
                               </AvatarFallback>
                             </Avatar>
                             <div className="min-w-0">
-                              <h4 className="truncate text-sm font-medium sm:text-base">
-                                {user.display_name || user.email.split("@")[0]}
-                              </h4>
-                              <p className="truncate text-xs text-muted-foreground sm:text-sm">{user.email}</p>
+                              <h4 className="truncate text-sm font-medium sm:text-base" title={user.display_name || user.email.split("@")[0]}>{user.display_name || user.email.split("@")[0]}</h4>
+                              <p className="truncate text-xs text-muted-foreground sm:text-sm" title={user.email}>{user.email}</p>
                             </div>
                           </div>
                         </TableCell>
                         <TableCell column="meta">{getRoleBadge(user.role)}</TableCell>
                         <TableCell column="meta">{getStatusBadge(user.status)}</TableCell>
-                        <TableCell column="mutedMeta">{formatDate(user.created_at)}</TableCell>
-                        <TableCell column="mutedMeta">{formatLastActive(user.last_sign_in_at)}</TableCell>
+                        <TableCell column="mutedMeta"><RelativeDate date={user.created_at} /></TableCell>
+                        <TableCell column="mutedMeta"><RelativeDate date={user.last_sign_in_at} fallback="Never" /></TableCell>
                         <TableCell column="meta">
-                          {user.id !== currentUserId && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 text-foreground hover:text-foreground"
-                              disabled={deletingUserId === user.id}
+                          <AdminRowActions>
+                            <AdminRowAction
+                              icon={Trash2}
+                              label={user.id === currentUserId
+                                ? "You cannot delete your own account"
+                                : `Delete ${user.display_name || user.email}`}
+                              disabled={user.id === currentUserId || deletingUserId === user.id}
                               onClick={() => { setError(null); setPendingDeleteUser(user) }}
-                              aria-label={`Delete ${user.display_name || user.email}`}
-                              title={`Delete ${user.display_name || user.email}`}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          )}
+                            />
+                          </AdminRowActions>
                         </TableCell>
                       </TableRow>
                     ))

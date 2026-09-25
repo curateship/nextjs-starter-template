@@ -1,17 +1,9 @@
 import { eq, and, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { newsletterContacts, newsletterSegmentContacts, sites } from '@/lib/db/schema'
-import { getAuthenticatedUser } from '@/lib/db/helpers'
+import { getAuthenticatedUser, verifySiteOwnership } from '@/lib/db/helpers'
 import { UUID_REGEX } from '@/lib/utils/validation'
 
-async function verifySiteOwnership(siteId: string, userId: string) {
-  const [site] = await db
-    .select({ id: sites.id })
-    .from(sites)
-    .where(and(eq(sites.id, siteId), eq(sites.userId, userId)))
-    .limit(1)
-  return !!site
-}
 
 /**
  * Get audience count matching a newsletter's filter.

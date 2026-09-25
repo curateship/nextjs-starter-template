@@ -70,6 +70,32 @@ describe("shared wallet usage over time", () => {
     expect(portfolio.avgReservedPct()).toBe(75)
   })
 
+  it("stamps the peak with the bar it happened on, not a later one", () => {
+    const portfolio = new SharedWalletPortfolio(100)
+    // The 80 bar is the run's high-water mark, so the date must stay on it
+    // even though later bars keep deploying (less) capital.
+    portfolio.noteTime(1_000)
+    portfolio.setExposure("A", 40)
+    portfolio.sample()
+    portfolio.noteTime(2_000)
+    portfolio.setExposure("A", 80)
+    portfolio.sample()
+    portfolio.noteTime(3_000)
+    portfolio.setExposure("A", 10)
+    portfolio.sample()
+
+    expect(portfolio.peakReservedPct()).toBe(80)
+    expect(portfolio.peakAt()).toBe(2_000)
+  })
+
+  it("has no peak date on a wallet that never deployed", () => {
+    const portfolio = new SharedWalletPortfolio(100)
+    portfolio.noteTime(1_000)
+    portfolio.sample()
+
+    expect(portfolio.peakAt()).toBeNull()
+  })
+
   it("reads zero before any bar has been sampled", () => {
     const portfolio = new SharedWalletPortfolio(100)
     expect(portfolio.avgReservedPct()).toBe(0)

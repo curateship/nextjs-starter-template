@@ -167,9 +167,7 @@ export function BlockSelectionModal({
                 <Info className="w-4 h-4 text-muted-foreground shrink-0" />
               )}
             </div>
-            <p className="text-xs text-muted-foreground line-clamp-2">
-              {blockType.description}
-            </p>
+            <p className="text-xs text-muted-foreground line-clamp-2" title={blockType.description}>{blockType.description}</p>
 
             {isSelected && (
               <div className="flex items-center space-x-2 mt-3" onClick={(e) => e.stopPropagation()}>

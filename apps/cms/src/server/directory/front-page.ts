@@ -1,0 +1,587 @@
+import { sql } from "drizzle-orm"
+
+import { cleanContactLinks } from "@/lib/directory/contact-links"
+import {
+  browseSortForFrontPageSort,
+  DIRECTORY_FRONT_PAGE_COUNT_MAX,
+  isDirectoryFrontPageKind,
+  isDirectoryFrontPageLayout,
+  isDirectoryFrontPageSort,
+  MAX_DIRECTORY_FRONT_PAGE_SECTIONS,
+  type DirectoryFrontPageData,
+  type DirectoryFrontPageListing,
+  type DirectoryFrontPageRow,
+} from "@/lib/directory/front-page"
+import {
+  readCategoryCardsForChoices,
+  resolvedCategoryChoice,
+} from "@/server/directory/category-cards"
+import { db, type CustomShellDb } from "@/server/db"
+import { timeZoneLabel, wallClockAt } from "@/lib/events/event-time"
+import type { VisitorSite } from "@/server/directory/public"
+import { cachedPublicDirectoryRead } from "@/server/directory/public-cache"
+import {
+  directoryMapDisplayKey,
+  siteTimeZone,
+} from "@/server/directory/settings"
+import { readUpcomingEvents } from "@/server/events/public"
+import { newestPosts } from "@/server/posts/cards"
+import { listedDealsAt } from "@/server/promotions/deal-view"
+import { readNewestDeals } from "@/server/promotions/public"
+
+type FrontPageRow = {
+  pageHeading: string
+  pageIntro: string
+  sectionId: string
+  sectionHeading: string
+  sectionIntro: string
+  kind: string
+  categorySource: string | null
+  pickedCategoryIds: unknown
+  listingCount: number
+  sort: string
+  layout: string
+  categoryId: string | null
+  categorySlug: string | null
+  id: string | null
+  title: string | null
+  slug: string | null
+  metaDescription: string | null
+  rating: number | string | null
+  featuredImage: string | null
+  contactLinks: unknown
+  latitude: number | string | null
+  longitude: number | string | null
+  listingCategoryName: string | null
+  listingCategorySlug: string | null
+  neighbourhoodName: string | null
+  neighbourhoodSlug: string | null
+  claimed: boolean | null
+  featured: boolean | null
+}
+
+/**
+ * Every row of a site's home page, and what goes in each.
+ *
+ * **One query for every row of listings, however many there are.** Each row's
+ * listings come from a lateral subquery re-run per row with that row's own
+ * filter, order and limit, so six rows of twelve cost the same round trip as one
+ * row of eight — which is the whole reason a home page is allowed several rows.
+ *
+ * **Two more, and only if a row of category cards exists**: one for the
+ * categories and one for their counts, shared by every category row on the page
+ * rather than run per row. So a home page is one query, or three if it has
+ * category cards on it, whatever it holds.
+ *
+ * A row that comes back with nothing in it is dropped here rather than drawn as
+ * a heading over an empty space, whichever kind of row it is.
+ */
+async function readFrontPageRows(
+  site: { id: string; name: string },
+  database: CustomShellDb
+): Promise<Omit<DirectoryFrontPageData, "mapApiKey"> | null> {
+  const result = await database.execute(sql`
+    WITH config AS (
+      SELECT
+        coalesce(nullif(trim(settings.browse_title), ''), 'Directory') AS heading,
+        coalesce(trim(settings.browse_intro), '') AS intro,
+        (
+          coalesce(settings.map_enabled, false)
+          AND settings.map_display_key_encrypted IS NOT NULL
+        ) AS map_ok,
+        -- Which parent category names a neighbourhood here. Null on a site
+        -- that has not picked one, and the join below then finds nothing.
+        settings.neighbourhood_category_id AS neighbourhood_category_id
+      FROM (SELECT 1) fallback
+      LEFT JOIN directory_settings settings
+        ON settings.workspace_id = ${site.id}
+    ),
+    sections AS (
+      SELECT
+        section.id,
+        section.display_order,
+        section.heading,
+        section.intro,
+        section.category_id,
+        section.kind,
+        section.category_source,
+        section.picked_category_ids,
+        section.sort,
+        section.listing_count,
+        -- A map this site cannot draw becomes a grid of the same listings. The
+        -- choice is refused in the admin screen too, so this is the belt for a
+        -- site that saved a map row and then removed its key.
+        CASE
+          WHEN section.layout = 'map' AND config.map_ok THEN 'map'
+          WHEN section.layout = 'map' THEN 'grid'
+          ELSE section.layout
+        END AS layout,
+        category.slug AS category_slug
+      FROM directory_front_page_sections section
+      CROSS JOIN config
+      LEFT JOIN categories category
+        ON category.id = section.category_id
+       AND category.workspace_id = ${site.id}
+      WHERE section.workspace_id = ${site.id}
+      ORDER BY section.display_order ASC, section.id ASC
+      LIMIT ${MAX_DIRECTORY_FRONT_PAGE_SECTIONS}
+    ),
+    active_feature AS (
+      SELECT fe.listing_id, max(fp.priority)::int AS priority
+      FROM directory_featured_entitlements fe
+      INNER JOIN directory_featured_plans fp ON fp.id = fe.plan_id
+      INNER JOIN directory_claims claim
+        ON claim.id = fe.claim_id
+       AND claim.status = 'approved'
+       AND claim.user_id = fe.buyer_user_id
+       AND claim.listing_id = fe.listing_id
+      WHERE fe.workspace_id = ${site.id}
+        AND fe.status = 'active'
+        AND fe.starts_at <= now()
+        AND fe.ends_at > now()
+      GROUP BY fe.listing_id
+    )
+    SELECT
+      config.heading AS "pageHeading",
+      config.intro AS "pageIntro",
+      sections.id AS "sectionId",
+      sections.heading AS "sectionHeading",
+      sections.intro AS "sectionIntro",
+      sections.kind,
+      sections.category_source AS "categorySource",
+      sections.picked_category_ids AS "pickedCategoryIds",
+      sections.listing_count AS "listingCount",
+      sections.sort,
+      sections.layout,
+      sections.category_id AS "categoryId",
+      sections.category_slug AS "categorySlug",
+      chosen.id,
+      chosen.title,
+      chosen.slug,
+      chosen."metaDescription",
+      chosen.rating,
+      chosen."featuredImage",
+      chosen."contactLinks",
+      chosen.latitude,
+      chosen.longitude,
+      chosen."listingCategoryName",
+      chosen."listingCategorySlug",
+      chosen."neighbourhoodName",
+      chosen."neighbourhoodSlug",
+      chosen.claimed,
+      chosen.featured
+    FROM sections
+    CROSS JOIN config
+    LEFT JOIN LATERAL (
+      SELECT
+        listing.id,
+        listing.title,
+        listing.slug,
+        listing.meta_description AS "metaDescription",
+        listing.rating,
+        listing.featured_image AS "featuredImage",
+        listing.contact_links AS "contactLinks",
+        listing.latitude,
+        listing.longitude,
+        category.name AS "listingCategoryName",
+        category.slug AS "listingCategorySlug",
+        neighbourhood.name AS "neighbourhoodName",
+        neighbourhood.slug AS "neighbourhoodSlug",
+        EXISTS (
+          SELECT 1 FROM directory_claims approved
+          WHERE approved.listing_id = listing.id
+            AND approved.workspace_id = ${site.id}
+            AND approved.status = 'approved'
+        ) AS claimed,
+        (feature.listing_id IS NOT NULL) AS featured,
+        row_number() OVER (
+          ORDER BY
+            CASE WHEN sections.sort = 'featured' THEN feature.priority END DESC NULLS LAST,
+            CASE WHEN sections.sort = 'rating' THEN listing.rating END DESC NULLS LAST,
+            CASE WHEN sections.sort = 'name' THEN listing.title END ASC,
+            listing.created_at DESC,
+            listing.id ASC
+        ) AS position
+      FROM directory_listings listing
+      LEFT JOIN active_feature feature ON feature.listing_id = listing.id
+      LEFT JOIN LATERAL (
+        SELECT category.name, category.slug
+        FROM category_relationships relationship
+        INNER JOIN categories category ON category.id = relationship.category_id
+        WHERE relationship.workspace_id = ${site.id}
+          AND relationship.content_type = 'directory_listing'
+          AND relationship.content_id = listing.id
+        ORDER BY relationship.is_primary DESC, category.display_order ASC, category.name ASC
+        LIMIT 1
+      ) category ON true
+      -- The listing's neighbourhood: whichever of its categories is a child of
+      -- the one this site named. Nothing at all when it named none.
+      LEFT JOIN LATERAL (
+        SELECT category.name, category.slug
+        FROM category_relationships relationship
+        INNER JOIN categories category ON category.id = relationship.category_id
+        WHERE relationship.workspace_id = ${site.id}
+          AND relationship.content_type = 'directory_listing'
+          AND relationship.content_id = listing.id
+          AND category.parent_id = config.neighbourhood_category_id
+        ORDER BY category.display_order ASC, category.name ASC
+        LIMIT 1
+      ) neighbourhood ON true
+      WHERE listing.workspace_id = ${site.id}
+        AND listing.status = 'published'
+        -- A category row draws categories, so it fetches no listings at all.
+        AND sections.kind = 'listings'
+        AND (
+          sections.category_id IS NULL
+          OR EXISTS (
+            SELECT 1 FROM category_relationships filtered
+            WHERE filtered.workspace_id = ${site.id}
+              AND filtered.content_type = 'directory_listing'
+              AND filtered.content_id = listing.id
+              AND filtered.category_id = sections.category_id
+          )
+        )
+        -- 'featured' is a filter as well as an order: a row of featured
+        -- listings padded out with ordinary ones is an advert nobody paid for.
+        AND (sections.sort <> 'featured' OR feature.listing_id IS NOT NULL)
+        -- A pin needs both numbers, so a map row never counts a listing it
+        -- could not draw towards its total.
+        AND (
+          sections.layout <> 'map'
+          OR (listing.latitude IS NOT NULL AND listing.longitude IS NOT NULL)
+        )
+      ORDER BY position ASC
+      -- The row's own limit is applied by the join below. This one is the
+      -- ceiling on any row, read from the same constant that refuses a bigger
+      -- one on the way in, so raising the cap does not need this remembering.
+      LIMIT ${DIRECTORY_FRONT_PAGE_COUNT_MAX}
+    ) chosen ON chosen.position <= sections.listing_count
+    ORDER BY sections.display_order ASC, sections.id ASC, chosen.position ASC
+  `)
+
+  const rows = result.rows as FrontPageRow[]
+  const first = rows[0]
+  if (!first) return null
+
+  const byId = new Map<string, DirectoryFrontPageRow>()
+  // Every category row's choice, kept beside the row it belongs to so the cards
+  // can be read for all of them together rather than one row at a time.
+  const categoryRows: Array<{ id: string; row: FrontPageRow }> = []
+
+  for (const row of rows) {
+    const kind = isDirectoryFrontPageKind(row.kind) ? row.kind : "listings"
+    let section = byId.get(row.sectionId)
+
+    if (!section) {
+      if (kind === "events") {
+        // Filled after the cache by `fillFrontPageEvents`, because which
+        // events are still to come changes by the minute.
+        section = {
+          kind: "events",
+          id: row.sectionId,
+          heading: row.sectionHeading,
+          intro: row.sectionIntro,
+          count: row.listingCount,
+          categoryId: row.categoryId,
+          categorySlug: row.categorySlug,
+          events: [],
+          zone: "",
+        }
+      } else if (kind === "deals") {
+        // Filled after the cache by `fillFrontPageDeals`, because which deals
+        // are still on changes by the minute.
+        section = {
+          kind: "deals",
+          id: row.sectionId,
+          heading: row.sectionHeading,
+          intro: row.sectionIntro,
+          count: row.listingCount,
+          categoryId: row.categoryId,
+          categorySlug: row.categorySlug,
+          deals: [],
+        }
+      } else if (kind === "posts") {
+        // Filled after the cache by `fillFrontPagePosts`, beside the events
+        // and the deals, so one read of the page's shape serves every visitor.
+        section = {
+          kind: "posts",
+          id: row.sectionId,
+          heading: row.sectionHeading,
+          intro: row.sectionIntro,
+          count: row.listingCount,
+          categoryId: row.categoryId,
+          categorySlug: row.categorySlug,
+          posts: [],
+          siteName: site.name,
+        }
+      } else if (kind === "categories") {
+        section = {
+          kind: "categories",
+          id: row.sectionId,
+          heading: row.sectionHeading,
+          intro: row.sectionIntro,
+          cards: [],
+        }
+        categoryRows.push({ id: row.sectionId, row })
+      } else {
+        const sort = isDirectoryFrontPageSort(row.sort) ? row.sort : "newest"
+        const browseSort = browseSortForFrontPageSort(sort)
+        section = {
+          kind: "listings",
+          id: row.sectionId,
+          heading: row.sectionHeading,
+          intro: row.sectionIntro,
+          layout: isDirectoryFrontPageLayout(row.layout) ? row.layout : "grid",
+          browse: {
+            ...(row.categorySlug ? { category: row.categorySlug } : {}),
+            ...(browseSort ? { sort: browseSort } : {}),
+          },
+          listings: [],
+        }
+      }
+      byId.set(row.sectionId, section)
+    }
+
+    if (section.kind === "listings") {
+      const listing = toListing(row, section.layout === "map")
+      if (listing) section.listings.push(listing)
+    }
+  }
+
+  // Two more queries, and only when a category row exists — not two per row.
+  if (categoryRows.length) {
+    const cardsPerRow = await readCategoryCardsForChoices(
+      site.id,
+      categoryRows.map((entry) =>
+        resolvedCategoryChoice(
+          {
+            source: entry.row.categorySource,
+            pickedCategoryIds: entry.row.pickedCategoryIds,
+          },
+          entry.row.listingCount
+        )
+      ),
+      database
+    )
+    for (const [index, entry] of categoryRows.entries()) {
+      const section = byId.get(entry.id)
+      if (section?.kind === "categories") {
+        section.cards = cardsPerRow[index] ?? []
+      }
+    }
+  }
+
+  return {
+    siteName: site.name,
+    heading: first.pageHeading,
+    intro: first.pageIntro,
+    // A heading over nothing is worse than one row fewer, so an empty row is
+    // not drawn at all — whichever kind of row it is. A row of events is kept
+    // here and judged once it is filled.
+    rows: [...byId.values()].filter((row) =>
+      row.kind === "events" || row.kind === "deals" || row.kind === "posts"
+        ? true
+        : row.kind === "categories"
+          ? row.cards.length > 0
+          : row.listings.length > 0
+    ),
+  }
+}
+
+function toListing(
+  row: FrontPageRow,
+  needsPoint: boolean
+): DirectoryFrontPageListing | null {
+  if (!row.id || !row.title || !row.slug) return null
+  const latitude = row.latitude === null ? null : Number(row.latitude)
+  const longitude = row.longitude === null ? null : Number(row.longitude)
+  // The query already refuses a map row's listing that is missing either
+  // number. Checked again rather than cast, so the promise the type makes — a
+  // pin always has both — is one the compiler proved.
+  if (needsPoint && (latitude === null || longitude === null)) return null
+
+  return {
+    id: row.id,
+    title: row.title,
+    slug: row.slug,
+    metaDescription: row.metaDescription ?? "",
+    rating: row.rating === null ? null : Number(row.rating),
+    featuredImage: row.featuredImage ?? "",
+    address: cleanContactLinks(row.contactLinks).address,
+    category:
+      row.listingCategoryName && row.listingCategorySlug
+        ? { name: row.listingCategoryName, slug: row.listingCategorySlug }
+        : null,
+    neighbourhood:
+      row.neighbourhoodName && row.neighbourhoodSlug
+        ? { name: row.neighbourhoodName, slug: row.neighbourhoodSlug }
+        : null,
+    claimed: row.claimed ?? false,
+    featured: row.featured ?? false,
+    ...(needsPoint && latitude !== null && longitude !== null
+      ? { latitude, longitude }
+      : {}),
+  }
+}
+
+/**
+ * The home page with its rows of events filled in: the soonest events still to
+ * come by the site's clock, filtered to the row's category when it has one.
+ * Read after the page's cache, like the listing page's "What's on here", so a
+ * finished event never lingers. `visible` is whether this visitor may see the
+ * Events page; when not, the rows of events are left off.
+ *
+ * A row with nothing coming up is dropped, and a page left with no rows at all
+ * is null, so the platform's own front page draws instead of an empty one.
+ */
+export async function fillFrontPageEvents(
+  site: VisitorSite,
+  page: DirectoryFrontPageData,
+  visible: boolean,
+  database: CustomShellDb = db,
+  at: Date = new Date()
+): Promise<DirectoryFrontPageData | null> {
+  const hasEvents = page.rows.some((row) => row.kind === "events")
+  const timeZone =
+    visible && hasEvents ? await siteTimeZone(site.id, database) : null
+  const now = timeZone ? wallClockAt(timeZone, at) : null
+  const rows = await Promise.all(
+    page.rows.map(async (row) => {
+      if (row.kind !== "events") return row
+      if (!now) return null
+      const upcoming = await readUpcomingEvents(
+        site,
+        1,
+        now,
+        database,
+        row.categoryId ? { categoryId: row.categoryId } : {}
+      )
+      const events = upcoming.events.slice(0, row.count)
+      return events.length && timeZone
+        ? { ...row, events, zone: timeZoneLabel(timeZone) }
+        : null
+    })
+  )
+  const kept = rows.filter((row) => row !== null)
+  return kept.length ? { ...page, rows: kept } : null
+}
+
+/**
+ * The home page with its rows of deals filled in: the newest deals still on
+ * by the site's clock, at listings in the row's category when it has one.
+ * Read after the page's cache, like the events rows. `visible` is whether
+ * this visitor may see the Deals page; when not, the rows of deals are left
+ * off. A row with no live deal is dropped, never drawn empty, and a page left
+ * with no rows at all is null.
+ */
+export async function fillFrontPageDeals(
+  site: VisitorSite,
+  page: DirectoryFrontPageData,
+  visible: boolean,
+  database: CustomShellDb = db,
+  at: Date = new Date()
+): Promise<DirectoryFrontPageData | null> {
+  const hasDeals = page.rows.some((row) => row.kind === "deals")
+  const now =
+    visible && hasDeals
+      ? wallClockAt(await siteTimeZone(site.id, database), at)
+      : null
+  const rows = await Promise.all(
+    page.rows.map(async (row) => {
+      if (row.kind !== "deals") return row
+      if (!now) return null
+      const deals = listedDealsAt(
+        await readNewestDeals(
+          site,
+          now,
+          { categoryId: row.categoryId, limit: row.count },
+          database
+        ),
+        now
+      )
+      return deals.length ? { ...row, deals } : null
+    })
+  )
+  const kept = rows.filter((row) => row !== null)
+  return kept.length ? { ...page, rows: kept } : null
+}
+
+/**
+ * The home page with its rows of posts filled in: the newest published posts,
+ * in the row's category when it has one. Read after the page's cache, like the
+ * events and deals rows, so one read of the page's shape serves everybody and
+ * a post published a minute ago is on the page. `visible` is whether this
+ * visitor may see the Posts page; when not, the rows of posts are left off,
+ * because every card on them leads there. A row with no post is dropped, never
+ * drawn empty, and a page left with no rows at all is null.
+ */
+export async function fillFrontPagePosts(
+  site: VisitorSite,
+  page: DirectoryFrontPageData,
+  visible: boolean,
+  database: CustomShellDb = db
+): Promise<DirectoryFrontPageData | null> {
+  const rows = await Promise.all(
+    page.rows.map(async (row) => {
+      if (row.kind !== "posts") return row
+      if (!visible) return null
+      const posts = await newestPosts(
+        site.id,
+        row.count,
+        row.categoryId,
+        database
+      )
+      return posts.length ? { ...row, posts } : null
+    })
+  )
+  const kept = rows.filter((row) => row !== null)
+  return kept.length ? { ...page, rows: kept } : null
+}
+
+/**
+ * A site's listings home page, or null when it has no rows.
+ *
+ * Cached like every other public directory page, and cleared by the same
+ * `clearPublicDirectoryCache` that saving a listing already calls — so a new
+ * listing appears on the home page immediately rather than in two minutes.
+ */
+export async function readDirectoryFrontPage(
+  site: { id: string; name: string },
+  database: CustomShellDb = db
+): Promise<DirectoryFrontPageData | null> {
+  const page = await cachedPublicDirectoryRead(
+    site.id,
+    "front-page",
+    { name: site.name },
+    () => readFrontPageRows(site, database),
+    // "This site has no rows" is remembered too, unlike every other public
+    // page here. It is the answer for every site that does not use the feature,
+    // and it is asked on their busiest page — leaving it uncached would mean
+    // this query ran on every single visit to a home page that has no use for
+    // it. Adding a row clears the cache, so the "no" cannot go stale.
+    () => true
+  )
+  if (!page || page.rows.length === 0) return null
+
+  // Read after the cache, like every other secret-shaped value here: a key
+  // pasted a minute ago should reach the next visitor rather than the one after
+  // the cache expires. Only asked for when a row actually draws a map, so a
+  // home page with no map never carries the key at all.
+  const mapApiKey = page.rows.some(
+    (row) => row.kind === "listings" && row.layout === "map"
+  )
+    ? await directoryMapDisplayKey(site.id, database)
+    : null
+
+  // A key that has gone missing since the rows were read leaves a map row with
+  // nothing to draw into, so it becomes the grid it would have been.
+  const rows = mapApiKey
+    ? page.rows
+    : page.rows.map((row) =>
+        row.kind === "listings" && row.layout === "map"
+          ? { ...row, layout: "grid" as const }
+          : row
+      )
+
+  return { ...page, rows, mapApiKey }
+}

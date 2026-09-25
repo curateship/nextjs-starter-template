@@ -1,7 +1,8 @@
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { Card, CardTableHeader } from "@/components/ui/card"
+import { Card } from "@/components/ui/card"
+import { CardTableHeader } from "@/components/shared/card-sections"
 
 export default function AppsIntegrationPage() {
   return (

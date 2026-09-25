@@ -1,0 +1,239 @@
+{
+ "documented": {
+  "account": {
+   "id": "543429922991899150",
+   "userId": "543429922866069763",
+   "ethAddress": "0x1fB51aa234287C3CA1F957eA9AD0E148Bb814b7A",
+   "l2Key": "0x5580341e2c99823a0a35356b8ac84e372dd38fd1f4b50f607b931ec8038c211",
+   "l2KeyYCoordinate": "0x6ea3dd81a7fc864893c8c6f674e4a4510c369f939bdc0259a0980dfde882c2d",
+   "clientAccountId": "main",
+   "isSystemAccount": false,
+   "defaultTradeSetting": {
+    "isSetFeeRate": true,
+    "takerFeeRate": "0.000500",
+    "makerFeeRate": "0.000180",
+    "isSetFeeDiscount": false,
+    "takerFeeDiscount": "0",
+    "makerFeeDiscount": "0",
+    "isSetMaxLeverage": false,
+    "maxLeverage": "0"
+   },
+   "contractIdToTradeSetting": {
+    "30000001": {
+     "isSetFeeRate": false,
+     "takerFeeRate": "",
+     "makerFeeRate": "",
+     "isSetFeeDiscount": false,
+     "takerFeeDiscount": "",
+     "makerFeeDiscount": "",
+     "isSetMaxLeverage": true,
+     "maxLeverage": "50"
+    }
+   },
+   "maxLeverageLimit": "0",
+   "createOrderPerMinuteLimit": 0,
+   "createOrderDelayMillis": 0,
+   "extraType": "",
+   "extraDataJson": "",
+   "status": "NORMAL",
+   "isLiquidating": false,
+   "createdTime": "1730204434094",
+   "updatedTime": "1733993378059"
+  },
+  "collateralList": [
+   {
+    "userId": "543429922866069763",
+    "accountId": "543429922991899150",
+    "coinId": "1000",
+    "amount": "-81.943188",
+    "legacyAmount": "15.501312",
+    "cumDepositAmount": "70.000000",
+    "cumWithdrawAmount": "0",
+    "cumTransferInAmount": "0",
+    "cumTransferOutAmount": "-55.000000",
+    "cumPositionBuyAmount": "-388.4645",
+    "cumPositionSellAmount": "291.7367",
+    "cumFillFeeAmount": "-0.215388",
+    "cumFundingFeeAmount": "0",
+    "cumFillFeeIncomeAmount": "0",
+    "createdTime": "1730204434094",
+    "updatedTime": "1734663352066"
+   }
+  ],
+  "positionList": [
+   {
+    "userId": "543429922866069763",
+    "accountId": "543429922991899150",
+    "coinId": "1000",
+    "contractId": "30000001",
+    "openSize": "0.001",
+    "openValue": "97.444500",
+    "openFee": "-0.017540",
+    "fundingFee": "0.000000",
+    "longTermCount": 3,
+    "longTermStat": {
+     "cumOpenSize": "0.001",
+     "cumOpenValue": "97.444500",
+     "cumOpenFee": "-0.017540",
+     "cumCloseSize": "0",
+     "cumCloseValue": "0",
+     "cumCloseFee": "0",
+     "cumFundingFee": "0",
+     "cumLiquidateFee": "0"
+    },
+    "longTermCreatedTime": "1734662617992",
+    "longTermUpdatedTime": "1734662617992",
+    "shortTermCount": 0,
+    "shortTermStat": {
+     "cumOpenSize": "0",
+     "cumOpenValue": "0",
+     "cumOpenFee": "0",
+     "cumCloseSize": "0",
+     "cumCloseValue": "0",
+     "cumCloseFee": "0",
+     "cumFundingFee": "0",
+     "cumLiquidateFee": "0"
+    },
+    "shortTermCreatedTime": "0",
+    "shortTermUpdatedTime": "0",
+    "longTotalStat": {
+     "cumOpenSize": "0.004",
+     "cumOpenValue": "388.464500",
+     "cumOpenFee": "-0.131882",
+     "cumCloseSize": "-0.003",
+     "cumCloseValue": "-291.736700",
+     "cumCloseFee": "-0.083506",
+     "cumFundingFee": "0",
+     "cumLiquidateFee": "0"
+    },
+    "shortTotalStat": {
+     "cumOpenSize": "0",
+     "cumOpenValue": "0",
+     "cumOpenFee": "0",
+     "cumCloseSize": "0",
+     "cumCloseValue": "0",
+     "cumCloseFee": "0",
+     "cumFundingFee": "0",
+     "cumLiquidateFee": "0"
+    },
+    "createdTime": "1734661018663",
+    "updatedTime": "1734662617992"
+   },
+   {
+    "userId": "543429922866069763",
+    "accountId": "543429922991899150",
+    "coinId": "1000",
+    "contractId": "30000010",
+    "openSize": "-0.06",
+    "openValue": "-46.027200",
+    "openFee": "-0.020712",
+    "fundingFee": "0.000000",
+    "createdTime": "1790280000000",
+    "updatedTime": "1790280000000"
+   }
+  ],
+  "version": "1021",
+  "positionAssetList": [
+   {
+    "userId": "543429922866069763",
+    "accountId": "543429922991899150",
+    "coinId": "1000",
+    "contractId": "30000001",
+    "positionValue": "97.734426609240472316741943359375",
+    "maxLeverage": "50",
+    "initialMarginRequirement": "1.954688532184809446334838867187500000",
+    "riskRate": "0.00500000012107193470001220703125",
+    "riskValue": "0.48867214487909847796080764492643311314168386161327362060546875",
+    "avgEntryPrice": "97444.5",
+    "liquidatePrice": "82354.9",
+    "bankruptPrice": "81943.1",
+    "worstClosePrice": "81984.2",
+    "unrealizePnl": "0.289926609240472316741943359375",
+    "termRealizePnl": "0.000000",
+    "totalRealizePnl": "0.716700"
+   },
+   {
+    "userId": "543429922866069763",
+    "accountId": "543429922991899150",
+    "coinId": "1000",
+    "contractId": "30000010",
+    "positionValue": "-46.0490",
+    "maxLeverage": "5",
+    "initialMarginRequirement": "9.2098",
+    "riskRate": "0.01",
+    "riskValue": "0.46",
+    "avgEntryPrice": "767.12",
+    "liquidatePrice": "905.5",
+    "bankruptPrice": "920.0",
+    "worstClosePrice": "918.0",
+    "unrealizePnl": "-0.0218",
+    "termRealizePnl": "0",
+    "totalRealizePnl": "0"
+   }
+  ],
+  "collateralAssetModelList": [
+   {
+    "userId": "543429922866069763",
+    "accountId": "543429922991899150",
+    "coinId": "1000",
+    "totalEquity": "15.791238609240472316741943359375",
+    "totalPositionValueAbs": "97.734426609240472316741943359375",
+    "initialMarginRequirement": "1.954688532184809446334838867187500000",
+    "riskValue": "0.48867214487909847796080764492643311314168386161327362060546875",
+    "pendingWithdrawAmount": "0",
+    "pendingTransferOutAmount": "0",
+    "orderFrozenAmount": "0",
+    "availableAmount": "13.836550"
+   }
+  ],
+  "oraclePriceList": []
+ },
+ "empty": {
+  "account": {
+   "id": "543429922991899150",
+   "userId": "543429922866069763",
+   "ethAddress": "0x1fB51aa234287C3CA1F957eA9AD0E148Bb814b7A",
+   "l2Key": "0x5580341e2c99823a0a35356b8ac84e372dd38fd1f4b50f607b931ec8038c211",
+   "l2KeyYCoordinate": "0x6ea3dd81a7fc864893c8c6f674e4a4510c369f939bdc0259a0980dfde882c2d",
+   "clientAccountId": "main",
+   "isSystemAccount": false,
+   "defaultTradeSetting": {
+    "isSetFeeRate": true,
+    "takerFeeRate": "0.000500",
+    "makerFeeRate": "0.000180",
+    "isSetFeeDiscount": false,
+    "takerFeeDiscount": "0",
+    "makerFeeDiscount": "0",
+    "isSetMaxLeverage": false,
+    "maxLeverage": "0"
+   },
+   "contractIdToTradeSetting": {
+    "30000001": {
+     "isSetFeeRate": false,
+     "takerFeeRate": "",
+     "makerFeeRate": "",
+     "isSetFeeDiscount": false,
+     "takerFeeDiscount": "",
+     "makerFeeDiscount": "",
+     "isSetMaxLeverage": true,
+     "maxLeverage": "50"
+    }
+   },
+   "maxLeverageLimit": "0",
+   "createOrderPerMinuteLimit": 0,
+   "createOrderDelayMillis": 0,
+   "extraType": "",
+   "extraDataJson": "",
+   "status": "NORMAL",
+   "isLiquidating": false,
+   "createdTime": "1730204434094",
+   "updatedTime": "1733993378059"
+  },
+  "collateralList": [],
+  "positionList": [],
+  "version": "1",
+  "positionAssetList": [],
+  "collateralAssetModelList": [],
+  "oraclePriceList": []
+ }
+}

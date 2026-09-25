@@ -1,5 +1,5 @@
 import * as React from "react"
-import { useBlocker } from "@tanstack/react-router"
+import { useNavigate } from "@tanstack/react-router"
 import { ChevronsUpIcon, XIcon } from "lucide-react"
 import type { PanelImperativeHandle } from "react-resizable-panels"
 import { toast } from "sonner"
@@ -23,23 +23,17 @@ import {
   BacktestRunChart,
   type BacktestTuneDrag,
 } from "@/components/backtest/backtest-run-chart"
-import { StrategyTester } from "@/components/backtest/strategy-tester"
-import { BotLifecycleControls } from "@/components/bots/bot-lifecycle-controls"
 import { BotLiveChartPanel } from "@/components/bots/bot-live-chart-panel"
-import { buildBotResult } from "@/components/bots/bot-result"
-import { BotSummaryPanel } from "@/components/bots/bot-summary-panel"
 import { useBotLive } from "@/components/bots/use-bot-live"
-import type { BotCommand } from "@/components/bots/bot-lifecycle-controls"
 import {
   CHART_DOWN_COLOR,
   CHART_UP_COLOR,
 } from "@/components/chart/chart-markers"
 import type { ChartPriceLine } from "@/components/chart/price-chart"
-import { getBotErrorMessage, sendCommand } from "@/lib/api/bots"
-import { maxWindowDays } from "@/lib/backtest/types"
 import type { TradingNetwork } from "@/lib/hl/network"
 import type { CandleInterval } from "@/lib/hl/ws"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import {
   Dialog,
   DialogBody,
@@ -84,12 +78,17 @@ import {
 } from "@/lib/automations/node-registry"
 import type { AutomationInterval } from "@/lib/strategies/kinds/contract"
 import { usePanelLayout } from "@/lib/use-panel-layout"
+import type { SaveStatus } from "@/components/ui/save-status"
 
 import { nextNodePosition, type CanvasSize } from "./canvas-model"
 import { appendAutomationLog, type AutomationLogEntry } from "./automation-log"
 import { AutomationPanelToggles } from "./automation-panel-toggles"
 import { useAutomationBacktest } from "./use-automation-backtest"
 import { useAutomationBot } from "./use-automation-bot"
+
+// Quiet window after the last edit before the canvas auto-saves itself. Matches
+// the settings page's debounce so the whole app feels the same.
+const SAVE_DEBOUNCE_MS = 700
 
 export function AutomationEditor({
   initial,
@@ -128,7 +127,7 @@ export function AutomationEditor({
   const [paletteOpen, setPaletteOpen] = React.useState(false)
   const [inspectorOpen, setInspectorOpen] = React.useState(false)
   const [settingsOpen, setSettingsOpen] = React.useState(false)
-  const [saving, setSaving] = React.useState(false)
+  const [saveStatus, setSaveStatus] = React.useState<SaveStatus>("idle")
   const [saveError, setSaveError] = React.useState<string | null>(null)
   const [desktop, setDesktop] = React.useState(false)
   const [paletteCollapsed, setPaletteCollapsed] = React.useState(false)
@@ -140,7 +139,12 @@ export function AutomationEditor({
   )
   const [savingFavorites, setSavingFavorites] = React.useState(false)
   const backtest = useAutomationBacktest(initial.id)
-  const bot = useAutomationBot(initial.id)
+  const navigate = useNavigate()
+  // A deployed run lives on its own page — Bot mode here is only the setup
+  // form. An existing current run (or a fresh deploy) navigates to it.
+  const bot = useAutomationBot(initial.id, (botId) =>
+    void navigate({ to: "/bots/$botId", params: { botId } })
+  )
   // Land straight in a mode when a run dashboard deep-links here.
   const enteredInitialView = React.useRef(false)
   React.useEffect(() => {
@@ -153,11 +157,10 @@ export function AutomationEditor({
     }
   }, [initialView, backtest, bot])
   const [runLastClose, setRunLastClose] = React.useState<number | null>(null)
-  /** Trade selected in the bot bottom panel — pulses rings on the live chart. */
-  const [botFocusedTradeN, setBotFocusedTradeN] = React.useState<number | null>(
-    null
-  )
-  const [botCommandBusy, setBotCommandBusy] = React.useState(false)
+  // "Save run" (toolbar, backtest results): names the group so the next
+  // backtest won't replace it.
+  const [saveRunOpen, setSaveRunOpen] = React.useState(false)
+  const [saveRunName, setSaveRunName] = React.useState("")
   const graphRef = React.useRef(graph)
   const palettePanelRef = React.useRef<PanelImperativeHandle | null>(null)
   const inspectorPanelRef = React.useRef<PanelImperativeHandle | null>(null)
@@ -243,16 +246,8 @@ export function AutomationEditor({
   )
   const dirty = currentSerialized !== lastSaved
 
-  // Guard navigation while the graph has unsaved edits. Keyed on `dirty`
-  // alone: a save in flight keeps `dirty` true until it succeeds, and after a
-  // successful save the programmatic create-bot/backtest navigations pass
-  // through unprompted. `enableBeforeUnload` covers refresh/close natively.
-  const shouldBlockNavigation = React.useCallback(() => dirty, [dirty])
-  const blocker = useBlocker({
-    shouldBlockFn: shouldBlockNavigation,
-    enableBeforeUnload: shouldBlockNavigation,
-    withResolver: true,
-  })
+  // No navigation guard: edits auto-save, and leaving flushes whatever is still
+  // pending (see the unmount effect below), so there is nothing to warn about.
 
   const selectedNode =
     previewNode ??
@@ -443,77 +438,194 @@ export function AutomationEditor({
     [record]
   )
 
-  const handleSave = React.useCallback(async () => {
-    if (saving) return false
-    setSaving(true)
-    setSaveError(null)
-    const payload = {
+  // ── Auto-save ───────────────────────────────────────────────────────────
+  // There is no Save button. Every edit schedules a debounced write, and
+  // anything that reads the SAVED automation (a backtest, a deploy) flushes
+  // first. Saves run on a serialized queue so rapid edits land in order.
+  const latestPayloadRef = React.useRef({
+    name,
+    type,
+    interval,
+    graph,
+    backtest: backtestSettings,
+  })
+  React.useEffect(() => {
+    latestPayloadRef.current = {
       name,
       type,
       interval,
       graph,
       backtest: backtestSettings,
     }
-    try {
-      const saved = await saveAutomation({
-        automationId: initial.id,
-        ...payload,
-      })
-      setName(saved.name)
-      setType(saved.type)
-      setInterval(saved.interval)
-      setGraph(saved.graph)
-      setBacktestSettings(saved.backtest)
-      setLastSaved(
-        serialize(
-          saved.name,
-          saved.type,
-          saved.interval,
-          saved.graph,
-          saved.backtest
-        )
-      )
-      record(
-        saved.compiledConfig
-          ? "Saved Automation. It is ready to run."
-          : "Saved draft with validation issues."
-      )
-      return Boolean(saved.compiledConfig)
-    } catch (error) {
-      setSaveError(
-        error instanceof Error
-          ? error.message
-          : "Could not save this automation."
-      )
-      return false
-    } finally {
-      setSaving(false)
-    }
-  }, [
-    backtestSettings,
-    graph,
-    initial.id,
-    interval,
-    name,
-    record,
-    saving,
-    serialize,
-    type,
-  ])
+  }, [backtestSettings, graph, interval, name, type])
+  const saveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const saveQueueRef = React.useRef(Promise.resolve())
+  const saveVersionRef = React.useRef(0)
+  // The last snapshot a save was started for. A failed save is not retried
+  // until the user edits again, so a rejected name can't loop every 700ms.
+  const attemptedRef = React.useRef(lastSaved)
+  const serializePayload = React.useCallback(
+    (payload: typeof latestPayloadRef.current) =>
+      serialize(
+        payload.name,
+        payload.type,
+        payload.interval,
+        payload.graph,
+        payload.backtest
+      ),
+    [serialize]
+  )
 
-  // Whale Wall gate + save gate, shared by the toolbar and the backtest panel.
+  /**
+   * Writes the freshest canvas now, cancelling any pending debounce. Returns
+   * whether the saved copy is ready to run, which is what gates Run/Deploy.
+   * `explicit` is set by those buttons: they say why nothing happened, while a
+   * background auto-save stays quiet about a half-typed name.
+   */
+  const saveNow = React.useCallback(
+    async (explicit = false) => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current)
+        saveTimerRef.current = null
+      }
+
+      const snapshot = latestPayloadRef.current
+      // The server requires a name; skip while the field is mid-retype instead
+      // of flashing a validation error at someone who just cleared it.
+      if (!snapshot.name.trim()) {
+        if (explicit) setSaveError("Give this automation a name first.")
+        return false
+      }
+
+      const sent = serializePayload(snapshot)
+      attemptedRef.current = sent
+      const version = saveVersionRef.current + 1
+      saveVersionRef.current = version
+      setSaveStatus("saving")
+      setSaveError(null)
+
+      const save = saveQueueRef.current
+        .catch(() => undefined)
+        .then(() => saveAutomation({ automationId: initial.id, ...snapshot }))
+      saveQueueRef.current = save.then(
+        () => undefined,
+        () => undefined
+      )
+
+      try {
+        const saved = await save
+        // A newer save has already superseded this one: let it own the status
+        // and the state write-back, so an older reply can't rewind either.
+        if (version !== saveVersionRef.current) {
+          return Boolean(saved.compiledConfig)
+        }
+        if (sent === serializePayload(latestPayloadRef.current)) {
+          // Nothing was typed during the round trip, so it is safe to adopt the
+          // server's normalized copy. If something was, keep the user's version
+          // — overwriting it would swallow keystrokes — and let the next
+          // debounce save it.
+          setName(saved.name)
+          setType(saved.type)
+          setInterval(saved.interval)
+          // Keep the live camera. Pan and zoom are deliberately excluded from
+          // the dirty check, so they move without a save — which means the
+          // reply's viewport is stale and adopting it would snap the canvas
+          // back to wherever it was when the save left.
+          setGraph((current) => ({ ...saved.graph, viewport: current.viewport }))
+          setBacktestSettings(saved.backtest)
+          setLastSaved(
+            serialize(
+              saved.name,
+              saved.type,
+              saved.interval,
+              saved.graph,
+              saved.backtest
+            )
+          )
+        } else {
+          setLastSaved(sent)
+        }
+        setSaveStatus("saved")
+        return Boolean(saved.compiledConfig)
+      } catch (error) {
+        if (version === saveVersionRef.current) {
+          setSaveError(
+            error instanceof Error
+              ? error.message
+              : "Could not save this automation."
+          )
+          setSaveStatus("idle")
+        }
+        return false
+      }
+    },
+    [initial.id, serialize, serializePayload]
+  )
+
+  // Debounce: every edit restarts the clock, so a save fires once the canvas
+  // goes quiet. Guarded on the attempted snapshot so a failure doesn't retry.
+  React.useEffect(() => {
+    if (!dirty || currentSerialized === attemptedRef.current) return
+    const timer = setTimeout(() => {
+      saveTimerRef.current = null
+      void saveNow()
+    }, SAVE_DEBOUNCE_MS)
+    saveTimerRef.current = timer
+    return () => clearTimeout(timer)
+  }, [currentSerialized, dirty, saveNow])
+
+  // Leaving the editor flushes an edit the debounce never got to. Keyed on the
+  // snapshot, not the timer: the debounce effect's own cleanup runs first on
+  // unmount and would have already cleared it. It goes on the same queue as
+  // every other save — an earlier write may still be in flight, and jumping it
+  // would let the older content land last. Fire-and-forget, since the component
+  // is going away and has no state left to update.
+  React.useEffect(() => {
+    return () => {
+      const snapshot = latestPayloadRef.current
+      if (!snapshot.name.trim()) return
+      const sent = serializePayload(snapshot)
+      if (sent === attemptedRef.current) return
+      attemptedRef.current = sent
+      saveQueueRef.current = saveQueueRef.current
+        .catch(() => undefined)
+        .then(() => saveAutomation({ automationId: initial.id, ...snapshot }))
+        .then(
+          () => undefined,
+          () => undefined
+        )
+    }
+  }, [initial.id, serializePayload])
+
+  // Let the "Saved" tick fade so the toolbar isn't permanently annotated.
+  React.useEffect(() => {
+    if (saveStatus !== "saved") return
+    const timer = setTimeout(() => setSaveStatus("idle"), 2000)
+    return () => clearTimeout(timer)
+  }, [saveStatus])
+
+  // Run and Deploy read the SAVED automation, so they flush a pending edit
+  // first. When nothing is pending they must NOT write: every save re-syncs
+  // this automation's live bots and costs a database round trip before the run
+  // can even start. `dirty === false` means the server confirmed this exact
+  // graph, and the buttons are already gated on it compiling.
+  const flushBeforeRun = React.useCallback(
+    () => (dirty ? saveNow(true) : Promise.resolve(true)),
+    [dirty, saveNow]
+  )
+
+  // Whale Wall gate, shared by the toolbar and the backtest panel. There is no
+  // save gate any more: Run and Deploy flush the pending save themselves.
   const backtestDisabledReason =
     compiled.config &&
     !automationCapabilities(compiled.config).supportsHistoricalBacktest
       ? "Whale Wall needs live order-book data, so historical backtesting is unavailable."
       : undefined
-  const runnableNow = compiled.config !== null && !dirty && !saving
+  const runnableNow = compiled.config !== null
   const runnableDisabledReason =
     compiled.config === null
       ? "Fix the automation's issues to enable."
-      : dirty || saving
-        ? "Save the automation to enable."
-        : undefined
+      : undefined
 
   const view: AutomationView = bot.open
     ? "bot"
@@ -590,84 +702,31 @@ export function AutomationEditor({
     [record, updateNode]
   )
 
-  const handleSaveAndRerun = async () => {
-    const saved = await handleSave()
-    if (!saved) return
-    const windowDays = Number(backtest.days)
-    await backtest.start(
-      Math.min(
-        Number.isInteger(windowDays) && windowDays >= 1 ? windowDays : 30,
-        maxWindowDays(interval)
-      )
-    )
-  }
-
   // Selecting a market surfaces its trades in the bottom panel.
   const selectedBacktestRunId = backtest.selectedRunId
   React.useEffect(() => {
     if (selectedBacktestRunId) setLogOpen(true)
   }, [selectedBacktestRunId])
 
-  // ── Bot mode: the automation running live ───────────────────────────────
-  // Bot mode's center is ALWAYS a live chart, never the node canvas: the
-  // current run's market when one is loaded, else the market picked in the
-  // setup form (a preview of what's about to be deployed).
-  const botChartMarket = bot.detail
-    ? bot.selectedMarket
-    : (bot.selectedMarkets[0] ?? "BTC")
+  // ── Bot mode: the deploy setup form ─────────────────────────────────────
+  // Bot mode's center is a live chart of the market picked in the setup
+  // form — a preview of what's about to be deployed. A deployed run lives
+  // on its own page (/bots/$botId).
+  const botChartMarket = bot.selectedMarkets[0] ?? "BTC"
   const botSetupNetwork: TradingNetwork =
     bot.wallets.find((wallet) => wallet.id === bot.walletId)?.network ===
     "mainnet"
       ? "mainnet"
       : "testnet"
-  const botLive = useBotLive(bot.detail, botChartMarket, botSetupNetwork)
-  const botShowsDashboard = bot.open && bot.detail !== null
-  React.useEffect(() => {
-    if (botShowsDashboard) setLogOpen(true)
-  }, [botShowsDashboard])
+  const botLive = useBotLive(null, botChartMarket, botSetupNetwork)
 
-  // Per-market equity base: cash minus what this market realized, falling
-  // back to the bot's paper stake, then the paper default.
-  const botClosedPnl = botLive.trips
-    .filter((trip) => !trip.open)
-    .reduce((sum, trip) => sum + trip.pnl, 0)
-  const botStartingEquity =
-    botLive.state?.paper_cash != null &&
-    botLive.state.paper_cash - botClosedPnl > 0
-      ? botLive.state.paper_cash - botClosedPnl
-      : (bot.detail?.bot.paper_starting_equity ?? 10_000)
-  const botResult = React.useMemo(
-    () =>
-      botShowsDashboard
-        ? buildBotResult(
-            botLive.trips,
-            botLive.marketTrades,
-            botLive.state,
-            botStartingEquity
-          )
-        : null,
-    [
-      botShowsDashboard,
-      botLive.trips,
-      botLive.marketTrades,
-      botLive.state,
-      botStartingEquity,
-    ]
-  )
-
-  // Live TP/SL lines come from the CANVAS nodes (the bot's config is the
-  // canvas): anchored at the open position's entry, else the mark price.
-  // Dragging rewrites the node — dirty — and Save pushes it to the bot.
-  const botPosition = botLive.state?.paper_position ?? null
-  const botPositionSzi = botPosition ? Number(botPosition.szi) : 0
-  const botTuneSide: "long" | "short" = botPositionSzi < 0 ? "short" : "long"
-  const botTuneAnchor =
-    botPositionSzi !== 0 && Number(botPosition?.entryPx) > 0
-      ? Number(botPosition?.entryPx)
-      : botLive.markPrice
+  // Preview TP/SL lines come from the CANVAS nodes (the bot's config is the
+  // canvas), anchored at the current mark price. Dragging rewrites the node —
+  // dirty, so the auto-save stores it; the deployed run gets exactly this
+  // config, because Deploy flushes any pending write before it fires.
+  const botTuneAnchor = botLive.markPrice
   const botPriceLines = React.useMemo<ChartPriceLine[]>(() => {
     if (!bot.open || !(botTuneAnchor > 0)) return []
-    const long = botTuneSide === "long"
     const lines: ChartPriceLine[] = []
     const protective = graph.nodes.filter(
       (node) => node.kind === "takeProfit" || node.kind === "stopLoss"
@@ -677,7 +736,7 @@ export function AutomationEditor({
         id: "bot:entry",
         price: botTuneAnchor,
         color: "#64748b",
-        title: botPositionSzi !== 0 ? "Entry" : "Entry (now)",
+        title: "Entry (now)",
         lineStyle: "dashed",
         lineWidth: 1,
       })
@@ -686,7 +745,7 @@ export function AutomationEditor({
       if (node.kind === "takeProfit") {
         lines.push({
           id: "bot:tp",
-          price: botTuneAnchor * (1 + (long ? 1 : -1) * (node.pct / 100)),
+          price: botTuneAnchor * (1 + node.pct / 100),
           color: CHART_UP_COLOR,
           title: `TP +${node.pct}%`,
           lineStyle: "dashed",
@@ -695,7 +754,7 @@ export function AutomationEditor({
       } else {
         lines.push({
           id: "bot:sl",
-          price: botTuneAnchor * (1 - (long ? 1 : -1) * (node.pct / 100)),
+          price: botTuneAnchor * (1 - node.pct / 100),
           color: CHART_DOWN_COLOR,
           title: `${node.mode === "trailing" ? "Trail SL" : "SL"} -${node.pct}%`,
           lineStyle: "dashed",
@@ -704,7 +763,7 @@ export function AutomationEditor({
       }
     }
     return lines
-  }, [bot.open, botTuneAnchor, botTuneSide, botPositionSzi, graph.nodes])
+  }, [bot.open, botTuneAnchor, graph.nodes])
 
   const handleBotLineDrag = React.useCallback(
     (id: string, price: number) => {
@@ -714,30 +773,14 @@ export function AutomationEditor({
         kind,
         price,
         anchor: botTuneAnchor,
-        side: botTuneSide,
+        side: "long",
       })
       if (!next) return
       updateNode(next)
-      record(
-        "Adjusted a setting by dragging on the live chart — Save applies it to the bot."
-      )
+      record("Adjusted a setting by dragging on the preview chart.")
     },
-    [botTuneAnchor, botTuneSide, record, updateNode]
+    [botTuneAnchor, record, updateNode]
   )
-
-  async function runBotCommand(command: BotCommand) {
-    const currentBotId = bot.botId
-    if (!currentBotId || botCommandBusy) return
-    setBotCommandBusy(true)
-    try {
-      await sendCommand(currentBotId, command)
-      bot.refresh()
-    } catch (commandError) {
-      toast.error(getBotErrorMessage(commandError))
-    } finally {
-      setBotCommandBusy(false)
-    }
-  }
 
   const inspector = (
     <AutomationInspector
@@ -768,25 +811,16 @@ export function AutomationEditor({
   const centerPanel =
     bot.open && botChartMarket ? (
       <BotLiveChartPanel
-        key={`${bot.botId ?? "setup"}-${botChartMarket}`}
+        key={`setup-${botChartMarket}`}
         network={botLive.network}
         market={botChartMarket}
         interval={(compiled.config?.interval ?? "15m") as CandleInterval}
         automationConfig={compiled.config}
         fills={botLive.marketTrades}
         trips={botLive.trips}
-        focusedTradeN={botFocusedTradeN}
+        focusedTradeN={null}
         priceLines={botPriceLines}
         onLineDragEnd={handleBotLineDrag}
-        toolbarActions={
-          bot.detail ? (
-            <BotLifecycleControls
-              bot={bot.detail.bot}
-              busy={botCommandBusy}
-              onCommand={(command) => void runBotCommand(command)}
-            />
-          ) : null
-        }
       />
     ) : selectedBacktestRun && selectedBacktestResult ? (
       <BacktestRunChart
@@ -840,8 +874,7 @@ export function AutomationEditor({
       config={compiled.config}
       runnable={runnableNow && !backtestDisabledReason}
       disabledReason={backtestDisabledReason ?? runnableDisabledReason}
-      canSaveAndRerun={dirty && compiled.config !== null && !saving}
-      onSaveAndRerun={() => void handleSaveAndRerun()}
+      onBeforeRun={flushBeforeRun}
     />
   )
   const paramsPanel = (
@@ -865,27 +898,10 @@ export function AutomationEditor({
       isDca={Boolean(compiled.config?.dca)}
       runnable={runnableNow}
       disabledReason={runnableDisabledReason}
+      onBeforeDeploy={flushBeforeRun}
     />
   )
-  const botSummaryPanel =
-    botShowsDashboard && bot.detail ? (
-      <BotSummaryPanel
-        bot={bot.detail.bot}
-        state={botLive.state}
-        stats={bot.detail.stats}
-        openOrders={botLive.openOrders}
-        selectedMarket={bot.selectedMarket}
-        markPrice={botLive.markPrice}
-        dayChangePct={botLive.dayChangePct}
-      />
-    ) : (
-      palette
-    )
-  const leftPanel = bot.open
-    ? botSummaryPanel
-    : backtest.open
-      ? paramsPanel
-      : palette
+  const leftPanel = backtest.open ? paramsPanel : palette
   const rightPanel = bot.open
     ? botSidePanel
     : backtest.open
@@ -940,11 +956,16 @@ export function AutomationEditor({
         backtestDisabledReason={backtestDisabledReason}
         view={view}
         onViewChange={handleViewChange}
-        dirty={dirty}
-        saving={saving}
+        saveStatus={saveStatus}
         onNameChange={setName}
         onOpenSettings={() => setSettingsOpen(true)}
-        onSave={() => void handleSave()}
+        onSaveRun={
+          view === "backtest" &&
+          backtest.phase === "results" &&
+          backtest.replaceable
+            ? () => setSaveRunOpen(true)
+            : undefined
+        }
         onOpenPalette={() => setPaletteOpen(true)}
         onOpenInspector={() => setInspectorOpen(true)}
       />
@@ -977,17 +998,7 @@ export function AutomationEditor({
               maxSize="45%"
             >
               <WorkspacePanel>
-                {botShowsDashboard && botResult ? (
-                  <StrategyTester
-                    result={botResult}
-                    startingEquity={botStartingEquity}
-                    markPrice={botLive.markPrice}
-                    selectedTradeN={botFocusedTradeN}
-                    onSelectTrade={(trade) =>
-                      setBotFocusedTradeN(trade?.n ?? null)
-                    }
-                  />
-                ) : selectedBacktestRun && selectedBacktestResult ? (
+                {selectedBacktestRun && selectedBacktestResult ? (
                   <AutomationBacktestTradesPanel
                     market={selectedBacktestRun.market}
                     result={selectedBacktestResult}
@@ -1019,18 +1030,14 @@ export function AutomationEditor({
         {!logOpen ? (
           <div className="flex min-h-10 shrink-0 items-center rounded-xl border border-foreground/5 bg-card px-4 py-2">
             <span className="text-xs font-semibold tracking-wide uppercase">
-              {botShowsDashboard
-                ? `Trades — ${bot.selectedMarket}`
-                : selectedBacktestRun
-                  ? `Trades — ${selectedBacktestRun.market}`
-                  : "Activity log"}
+              {selectedBacktestRun
+                ? `Trades — ${selectedBacktestRun.market}`
+                : "Activity log"}
             </span>
             <span className="ml-2 text-xs text-muted-foreground">
-              {botShowsDashboard && botResult
-                ? `${botResult.trades.length} closed`
-                : selectedBacktestRun && selectedBacktestResult
-                  ? `${selectedBacktestResult.trades.length} closed`
-                  : `${logEntries.length} ${logEntries.length === 1 ? "event" : "events"}`}
+              {selectedBacktestRun && selectedBacktestResult
+                ? `${selectedBacktestResult.trades.length} closed`
+                : `${logEntries.length} ${logEntries.length === 1 ? "event" : "events"}`}
             </span>
             <div className="ml-auto flex items-center gap-1">
               {desktop ? (
@@ -1093,38 +1100,43 @@ export function AutomationEditor({
         </SheetContent>
       </Sheet>
 
-      <Dialog
-        open={blocker.status === "blocked"}
-        onOpenChange={(open) => {
-          if (!open) blocker.reset?.()
-        }}
-      >
+      <Dialog open={saveRunOpen} onOpenChange={setSaveRunOpen}>
         <DialogContent variant="admin" className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Unsaved changes</DialogTitle>
+            <DialogTitle>Save this run</DialogTitle>
             <DialogDescription>
-              Leaving discards the edits made since the last save.
+              A saved run stays in your backtest history forever.
             </DialogDescription>
           </DialogHeader>
           <DialogBody className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              You have unsaved changes — leave without saving?
+            <Input
+              value={saveRunName}
+              onChange={(event) => setSaveRunName(event.target.value)}
+              placeholder="Run name"
+              aria-label="Run name"
+            />
+            <p className="text-xs text-muted-foreground">
+              Unnamed runs are replaced by your next backtest.
             </p>
           </DialogBody>
           <DialogFooter variant="plain">
             <Button
               type="button"
               variant="outline"
-              onClick={() => blocker.reset?.()}
+              onClick={() => setSaveRunOpen(false)}
             >
-              Stay
+              Cancel
             </Button>
             <Button
               type="button"
-              variant="destructive"
-              onClick={() => blocker.proceed?.()}
+              disabled={!saveRunName.trim()}
+              onClick={() => {
+                void backtest.keep(saveRunName)
+                setSaveRunName("")
+                setSaveRunOpen(false)
+              }}
             >
-              Leave
+              Save run
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -2,7 +2,7 @@ import * as React from "react"
 
 import { BacktestGroupKpis, BacktestKpis } from "@/components/backtest/backtest-kpis"
 import type { CombinedBacktestSummary } from "@/components/backtest/backtest-combine"
-import { windowDaysOf } from "@/components/backtest/backtest-format"
+import { windowDaysOf } from "@/lib/format"
 import { PnlCurveCard } from "@/components/backtest/pnl-curve-card"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import type { BacktestDetail } from "@/lib/api/backtests"

@@ -22,7 +22,6 @@ import {
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
-import { Skeleton } from "@/components/ui/skeleton"
 import { useSiteAuthUser } from "@/components/frontend/layout/site-auth-provider"
 import { cn } from "@/lib/utils/tailwind"
 
@@ -188,8 +187,6 @@ export function DirectorySaveDropdown({ siteId, directoryId, opacity = 100, logi
           <DropdownMenuLabel className="mb-2">Save to</DropdownMenuLabel>
           {loading ? (
             <div className="space-y-2 px-2 py-1.5">
-              <Skeleton className="h-5 w-32" />
-              <Skeleton className="h-5 w-40" />
             </div>
           ) : (
             sortedCollections.map((collection) => {

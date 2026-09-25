@@ -2,7 +2,7 @@ import { and, desc, eq, inArray } from 'drizzle-orm'
 import { revalidateTag } from '@/lib/cache'
 import { db } from '@/lib/db'
 import { directories, directoryCustomBlocks, directoryTemplates, sites } from '@/lib/db/schema'
-import { getAuthenticatedUser } from '@/lib/db/helpers'
+import { checkSiteAccess, getAuthenticatedUser, verifySiteOwnership } from '@/lib/db/helpers'
 import { generateSlug } from '@/lib/utils/slug'
 import {
   ensureUniqueTemplateSlug,
@@ -12,15 +12,6 @@ import {
 import type { DirectoryCustomBlockLayout, DirectoryCustomBlockTemplate } from './directory-custom-blocks/types'
 import { UUID_REGEX } from '@/lib/utils/validation'
 
-async function verifySiteOwnership(siteId: string, userId: string) {
-  const [site] = await db
-    .select({ id: sites.id })
-    .from(sites)
-    .where(and(eq(sites.id, siteId), eq(sites.userId, userId)))
-    .limit(1)
-
-  return !!site
-}
 
 function rowToTemplate(row: any, usedInCount = 0): DirectoryCustomBlockTemplate {
   return {
@@ -170,14 +161,8 @@ async function syncTemplateUsage(siteId: string, templateId: string, updates: { 
 
 export async function getDirectoryCustomBlocksBySiteImpl(siteId: string): Promise<{ data: DirectoryCustomBlockTemplate[] | null; error: string | null }> {
   try {
-    if (!UUID_REGEX.test(siteId)) return { data: null, error: 'Invalid site ID' }
-
-    const user = await getAuthenticatedUser()
-    if (!user) return { data: null, error: 'Not authenticated' }
-
-    if (!await verifySiteOwnership(siteId, user.id)) {
-      return { data: null, error: 'Access denied' }
-    }
+    const access = await checkSiteAccess(siteId)
+    if (access.error) return { data: null, error: access.error }
 
     const [rows, usageCounts] = await Promise.all([
       db
@@ -233,14 +218,8 @@ export async function createDirectoryCustomBlockImpl(input: {
   fields?: any[]
 }): Promise<{ data: DirectoryCustomBlockTemplate | null; error: string | null }> {
   try {
-    if (!UUID_REGEX.test(input.siteId)) return { data: null, error: 'Invalid site ID' }
-
-    const user = await getAuthenticatedUser()
-    if (!user) return { data: null, error: 'Not authenticated' }
-
-    if (!await verifySiteOwnership(input.siteId, user.id)) {
-      return { data: null, error: 'Access denied' }
-    }
+    const access = await checkSiteAccess(input.siteId)
+    if (access.error) return { data: null, error: access.error }
 
     const name = input.name.trim()
     if (!name) return { data: null, error: 'Block name is required' }

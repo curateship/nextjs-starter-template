@@ -20,6 +20,11 @@ import {
   duckEnvelopeToVolumeExpr,
   type Interval,
 } from "@/lib/audio-ducking"
+import {
+  loudnormApplyFilter,
+  loudnormMeasureFilter,
+  parseLoudnormMeasurement,
+} from "@/lib/audio-loudness"
 import { getMusicTrack } from "@/lib/music-library"
 import { getSoundEffect } from "@/lib/sound-effects"
 import { requireTextFont } from "@/lib/text-fonts"
@@ -43,7 +48,7 @@ import { now } from "@/server/security"
 import { extractVideoThumbnail } from "@/server/video-download"
 import {
   getCurrentWorkspaceBrandKit,
-  getCurrentWorkspaceDuckingDb,
+  getCurrentWorkspaceExportAudio,
 } from "@/server/workspaces"
 import type {
   AspectRatio,
@@ -91,6 +96,7 @@ function renderSize(aspect: AspectRatio, quality: RenderQuality) {
 }
 
 const OUTPUT_FPS = 30
+const AUDIO_BITRATE = "192k"
 // Text clips are authored against this height in the editor preview; export
 // scales their font size by outputHeight / DESIGN_HEIGHT to match.
 const DESIGN_HEIGHT = 1080
@@ -283,7 +289,9 @@ export async function renderProject(
       }
     }
     const brandKit = await getCurrentWorkspaceBrandKit(userId)
-    const duckingGain = dbToGain(await getCurrentWorkspaceDuckingDb(userId))
+    const { duckingDb, normalizeLoudness } =
+      await getCurrentWorkspaceExportAudio(userId)
+    const duckingGain = dbToGain(duckingDb)
     const logoFile =
       brandKit.watermark.enabled || includeEndCard
         ? await resolveBrandLogo({ userId, dir, brandKit })
@@ -324,8 +332,11 @@ export async function renderProject(
 
     const outFile = path.join(dir, "out.mp4")
     await runFfmpeg([...command, outFile])
+    const finalFile = normalizeLoudness
+      ? await normalizeExportLoudness(dir, outFile)
+      : outFile
 
-    const bytes = await readFile(outFile)
+    const bytes = await readFile(finalFile)
     const storagePath = `renders/${userId}/${projectId}.mp4`
     await uploadToR2(storagePath, bytes, "video/mp4")
     const renderedAt = now()
@@ -365,6 +376,49 @@ export async function renderProject(
   } finally {
     await rm(dir, { recursive: true, force: true })
   }
+}
+
+// Levels the finished mix to the export loudness target and returns the file to
+// upload. Pass 1 measures the rendered audio, pass 2 applies the correction as
+// one fixed gain, so the ducking envelope keeps its shape (see
+// lib/audio-loudness.ts). The video stream is copied — only the AAC track is
+// re-encoded. A render with no audio, or a silent one, is returned untouched.
+async function normalizeExportLoudness(dir: string, file: string) {
+  if (!(await hasAudioStream(file))) return file
+
+  const stderr = await runFfmpeg([
+    "-i",
+    file,
+    "-vn",
+    "-af",
+    loudnormMeasureFilter(),
+    "-f",
+    "null",
+    "-",
+  ])
+  const measurement = parseLoudnormMeasurement(stderr)
+  if (!measurement) {
+    console.warn("Loudness measurement unavailable; exporting the mix as-is")
+    return file
+  }
+
+  const normalized = path.join(dir, "out-normalized.mp4")
+  await runFfmpeg([
+    "-i",
+    file,
+    "-c:v",
+    "copy",
+    "-af",
+    loudnormApplyFilter(measurement),
+    "-c:a",
+    "aac",
+    "-b:a",
+    AUDIO_BITRATE,
+    "-movflags",
+    "+faststart",
+    normalized,
+  ])
+  return normalized
 }
 
 async function storeRenderThumbnail({
@@ -755,7 +809,9 @@ async function buildFfmpegCommand(options: {
     scriptFile,
     "-map",
     `[${finalVideo}]`,
-    ...(hasAudio ? ["-map", "[aout]", "-c:a", "aac", "-b:a", "192k"] : []),
+    ...(hasAudio
+      ? ["-map", "[aout]", "-c:a", "aac", "-b:a", AUDIO_BITRATE]
+      : []),
     "-c:v",
     "libx264",
     "-preset",
@@ -1105,9 +1161,10 @@ function hasAudioStream(file: string) {
 }
 
 // Long-form ffmpeg runner (renders take minutes, unlike the 30s thumbnail
-// helper in video-download); keeps the stderr tail for the server log.
+// helper in video-download); resolves with the stderr tail, which the server
+// log uses on failure and the loudness pass parses its measurement out of.
 function runFfmpeg(args: string[]) {
-  return new Promise<void>((resolve, reject) => {
+  return new Promise<string>((resolve, reject) => {
     const child = spawn("ffmpeg", ["-y", ...args], {
       timeout: RENDER_TIMEOUT_MS,
     })
@@ -1124,7 +1181,7 @@ function runFfmpeg(args: string[]) {
     })
     child.on("close", (code) => {
       if (code === 0) {
-        resolve()
+        resolve(stderr)
       } else {
         console.error("ffmpeg render stderr tail:", stderr)
         reject(new Error("Render failed"))

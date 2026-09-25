@@ -1,0 +1,719 @@
+import { ORDER_GONE_AFTER_MS } from "@/lib/trade/order-presence"
+import { PGlite } from "@electric-sql/pglite"
+import { eq } from "drizzle-orm"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+
+import { isMarketable } from "@/lib/trade/paper"
+import { CHASE_EVERY_MS, CHASE_PATIENCE_MS } from "@/lib/trade/signal-order"
+import type { WatchPlan } from "@/lib/trade/watch-order"
+import type { TradeWallet } from "@/lib/trade/wallets"
+import { type CustomShellDb } from "@/server/db"
+import { createTestDatabase, insertUser } from "@/server/test-support"
+import { clearMarketRulesCache } from "@/server/trade/market-rules"
+import { loadPaperPortfolio } from "@/server/trade/paper"
+import {
+  resetWatchChaseGate,
+  watchKeepsItsOwnStop,
+} from "@/server/trade/smart-watch"
+import {
+  tradePaperOrders,
+  tradePaperPositions,
+  tradeSmartLadders,
+  tradeWallets,
+} from "@/server/trade/schema"
+
+/**
+ * A watched price, driven through real settles rather than by calling the
+ * engine directly — the same way the ladder, grid and signal suites work.
+ *
+ * Nothing is submitted before the level is reached. The submitted limit
+ * keeps the chosen price and permits an immediate fill within that limit.
+ */
+
+const marks = new Map<string, number>([["BTC", 100]])
+
+vi.mock("@/server/protocols/registry", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  getProtocol: () => ({
+    markets: {
+      fetch: async () => ({
+        protocol: "hyperliquid",
+        protocolLabel: "Hyperliquid",
+        network: "mainnet",
+        networkLabel: "Mainnet",
+        rows: [
+          {
+            key: "hyperliquid:mainnet:BTC",
+            marketId: "BTC",
+            symbol: "BTC",
+            subExchange: null,
+            category: "crypto",
+            sizeDecimals: 3,
+            maxLeverage: 50,
+            isolatedOnly: false,
+            iconUrl: null,
+            price: marks.get("BTC") ?? 100,
+            change24h: null,
+            volume24hUsd: 0,
+            fundingHourly: null,
+            openInterestUsd: null,
+          },
+        ],
+      }),
+      prices: async (_network: string, ids: readonly string[]) =>
+        new Map(
+          ids
+            .filter((id) => marks.has(id))
+            .map((id) => [id, marks.get(id) as number])
+        ),
+      candles: async () => [],
+      roundPx: (px: number) => Math.round(px * 1000) / 1000,
+    },
+    account: { fetch: async () => null },
+  }),
+}))
+
+const BTC = "hyperliquid:mainnet:BTC"
+
+let client: PGlite
+let database: CustomShellDb
+let userId: string
+let wallet: TradeWallet
+
+/** A buy waiting at $95, with nothing sent yet. */
+function plan(over: Partial<WatchPlan> = {}): WatchPlan {
+  return {
+    triggerPx: 95,
+    side: "buy",
+    sz: 1,
+    leverage: 1,
+    maxLeverage: 50,
+    sizeDecimals: 3,
+    minOrderSize: null,
+    minOrderValueUsd: null,
+    priceTick: null,
+    tpPx: null,
+    slPx: null,
+    reduceOnly: false,
+    riskSized: false,
+    maker: false,
+    heldAtStart: 0,
+    chaseGiveUp: 0,
+    phase: "waiting",
+    sent: false,
+    orderId: null,
+    orderPx: null,
+    missingSince: 0,
+    heldWhenPlaced: 0,
+    ownSz: null,
+    ownStop: null,
+    chasedAt: 0,
+    chases: 0,
+    startedAt: 0,
+    ...over,
+  }
+}
+
+async function watchAt(over: Partial<WatchPlan> = {}) {
+  await database.insert(tradeSmartLadders).values({
+    userId,
+    id: "w-1",
+    walletId: "w1",
+    marketKey: BTC,
+    kind: "watch",
+    status: "active",
+    plan: plan(over),
+  })
+}
+
+/** Settles everything — the read every pass of the engine makes. */
+async function settle() {
+  await loadPaperPortfolio(userId, [wallet])
+}
+
+async function priceTo(px: number) {
+  marks.set("BTC", px)
+  await settle()
+}
+
+async function orders() {
+  return await database
+    .select()
+    .from(tradePaperOrders)
+    .where(eq(tradePaperOrders.userId, userId))
+}
+
+async function positions() {
+  return await database
+    .select()
+    .from(tradePaperPositions)
+    .where(eq(tradePaperPositions.userId, userId))
+}
+
+async function row() {
+  const rows = await database
+    .select()
+    .from(tradeSmartLadders)
+    .where(eq(tradeSmartLadders.userId, userId))
+  expect(rows).toHaveLength(1)
+  return { ...rows[0], plan: rows[0].plan as WatchPlan }
+}
+
+/** A finished watched order is deleted, not kept. */
+async function expectFinished() {
+  const rows = await database
+    .select()
+    .from(tradeSmartLadders)
+    .where(eq(tradeSmartLadders.userId, userId))
+  expect(rows).toHaveLength(0)
+}
+
+beforeEach(async () => {
+  const testDb = await createTestDatabase()
+  client = testDb.client
+  database = testDb.db
+  clearMarketRulesCache()
+  resetWatchChaseGate()
+  marks.set("BTC", 100)
+  vi.useFakeTimers()
+  vi.setSystemTime(new Date("2026-08-16T00:00:00Z"))
+
+  userId = (await insertUser(database)).id
+  await database.insert(tradeWallets).values({
+    userId,
+    id: "w1",
+    label: "Practice",
+    kind: "paper",
+    status: "active",
+    protocol: "hyperliquid",
+    network: "mainnet",
+    startingBalance: 10_000,
+  })
+  wallet = {
+    id: "w1",
+    label: "Practice",
+    kind: "paper",
+    status: "active",
+    protocol: "hyperliquid",
+    network: "mainnet",
+    startingBalance: 10_000,
+    address: null,
+    hasKey: false,
+    keyValidUntil: null,
+  }
+})
+
+afterEach(async () => {
+  vi.useRealTimers()
+  await client.close()
+})
+
+describe("a price being watched", () => {
+  it("sends nothing at all while the price is away from the level", async () => {
+    await watchAt()
+    await priceTo(120)
+    await priceTo(101)
+
+    expect(await orders()).toHaveLength(0)
+    expect(await positions()).toHaveLength(0)
+    expect((await row()).plan.phase).toBe("waiting")
+  })
+
+  it("submits the chosen limit once the level is touched", async () => {
+    await watchAt()
+    await priceTo(95)
+
+    const [order] = await orders()
+    expect(order).toBeDefined()
+    // The submitted limit allows an immediate fill at the chosen price.
+    expect(isMarketable("buy", order.px, marks.get("BTC") as number)).toBe(true)
+    expect((await row()).plan.phase).toBe("taking")
+    expect(await positions()).toHaveLength(0)
+  })
+
+  it("fills a buy within its limit even without a stored direction", async () => {
+    await watchAt({ triggerPx: 105 })
+    await priceTo(100)
+    await settle()
+
+    const [held] = await positions()
+    expect(held).toBeDefined()
+    expect(held.szi).toBeCloseTo(1)
+    expect(held.entryPx).toBeLessThanOrEqual(105)
+    expect(await orders()).toHaveLength(0)
+  })
+
+  it("places nothing once it is holding its own coins", async () => {
+    // Filled, with a stop of its own over the coins it bought. The live pass
+    // owns that stop from here; this row must never buy again.
+    await watchAt({ phase: "holding", slPx: 90 })
+
+    await priceTo(95)
+    await priceTo(90)
+
+    expect(await orders()).toHaveLength(0)
+    expect(await positions()).toHaveLength(0)
+    expect((await row()).status).toBe("active")
+  })
+
+  it("stays alive when called off while its own stop is still on the exchange", async () => {
+    // Finishing here would leave a stop nothing spares and nothing cancels.
+    await watchAt({
+      phase: "stopping",
+      slPx: 90,
+      ownStop: { orderId: "s-1", px: 90, sz: 1, placedAt: 1 },
+    })
+
+    await settle()
+
+    expect((await row()).status).toBe("active")
+  })
+
+  it("ends when called off with no stop of its own to take off", async () => {
+    await watchAt({ phase: "stopping" })
+
+    await settle()
+
+    await expectFinished()
+  })
+
+  it("ends an old watch whose size rounds below one coin step", async () => {
+    await watchAt({ triggerPx: 105, sz: 0.000129, sizeDecimals: 3 })
+
+    await priceTo(100)
+
+    await expectFinished()
+    expect(await orders()).toHaveLength(0)
+    expect(await positions()).toHaveLength(0)
+  })
+
+  it("fills a sell within its limit even without a stored direction", async () => {
+    await watchAt({ side: "sell", triggerPx: 95, reduceOnly: false })
+    await priceTo(100)
+    await settle()
+
+    const [held] = await positions()
+    expect(held).toBeDefined()
+    expect(held.szi).toBeCloseTo(-1)
+    expect(await orders()).toHaveLength(0)
+  })
+
+  it("keeps a Long above the market waiting until price rises to it", async () => {
+    await watchAt({ triggerPx: 105, triggerDirection: "up" })
+
+    await priceTo(100)
+    await priceTo(104)
+    expect(await orders()).toHaveLength(0)
+    expect(await positions()).toHaveLength(0)
+    expect((await row()).plan.phase).toBe("waiting")
+
+    await priceTo(105)
+    const [order] = await orders()
+    expect(order).toBeDefined()
+    expect(order.px).toBe(105)
+    expect(await positions()).toHaveLength(0)
+    expect((await row()).plan.phase).toBe("taking")
+  })
+
+  it("keeps a Short below the market waiting until price falls to it", async () => {
+    await watchAt({
+      side: "sell",
+      triggerPx: 95,
+      triggerDirection: "down",
+    })
+
+    await priceTo(100)
+    await priceTo(96)
+    expect(await orders()).toHaveLength(0)
+    expect(await positions()).toHaveLength(0)
+    expect((await row()).plan.phase).toBe("waiting")
+
+    await priceTo(95)
+    const [order] = await orders()
+    expect(order).toBeDefined()
+    expect(order.px).toBe(95)
+    expect(await positions()).toHaveLength(0)
+    expect((await row()).plan.phase).toBe("taking")
+  })
+
+  it("queues a limit at the exact watched level for the next paper settle", async () => {
+    // Paper orders fill on the following settle, using the same limit.
+    await watchAt()
+    await priceTo(95)
+
+    expect(await orders()).toHaveLength(1)
+    expect(await positions()).toHaveLength(0)
+  })
+
+  it("submits the chosen limit when the order was told to start now", async () => {
+    await watchAt({ phase: "taking", triggerPx: 100 })
+    // Starting now skips waiting but still respects the chosen limit.
+    await priceTo(100)
+
+    const resting = await orders()
+    expect(resting).toHaveLength(1)
+    expect(resting[0].px).toBe(100)
+    expect((await row()).plan.orderId).not.toBeNull()
+  })
+
+  it("keeps the chosen limit when the market walks away", async () => {
+    // Neither the chase interval nor its patience timer can raise the limit.
+    await watchAt()
+    await priceTo(95)
+    const first = (await orders())[0].px
+
+    // A creep far too small for the drift rule: 0.03%, where it wants 0.1%.
+    vi.setSystemTime(new Date(Date.now() + CHASE_EVERY_MS + 1_000))
+    await priceTo(95.03)
+    expect((await orders())[0].px).toBeCloseTo(first, 9)
+
+    vi.setSystemTime(new Date(Date.now() + CHASE_PATIENCE_MS + 1_000))
+    await priceTo(95.03)
+    expect((await orders())[0].px).toBe(first)
+  })
+
+  it("keeps waiting at the level when price ticks back away", async () => {
+    // What separates a watch from an order that gives up: it stands in for one
+    // that would have rested on the exchange until it filled.
+    await watchAt()
+    await priceTo(95)
+    await priceTo(99)
+
+    expect((await row()).status).toBe("active")
+    expect(await orders()).toHaveLength(1)
+  })
+
+  it("gives up only when it was told how far to follow", async () => {
+    await watchAt({ chaseGiveUp: 0.02 })
+    await priceTo(95)
+    // 2% above the level is 96.90; 99 is past it.
+    await priceTo(99)
+
+    await expectFinished()
+    expect(await orders()).toHaveLength(0)
+  })
+
+  it("buys when price comes through, and the trade is over", async () => {
+    await watchAt()
+    await priceTo(95)
+    vi.setSystemTime(new Date(Date.now() + CHASE_EVERY_MS + 1_000))
+    await priceTo(90)
+
+    expect(await positions()).toHaveLength(1)
+    expect(await orders()).toHaveLength(0)
+    await expectFinished()
+  })
+
+  it("hands the position a stop loss without inventing a take profit", async () => {
+    // It was chosen when the level was, and nothing else remembers it: the
+    // order that fills carries no protection of its own.
+    await watchAt({ tpPx: null, slPx: 88 })
+    await priceTo(95)
+    vi.setSystemTime(new Date(Date.now() + CHASE_EVERY_MS + 1_000))
+    await priceTo(90)
+
+    const [held] = await positions()
+    expect(held.tpPx).toBeNull()
+    expect(held.slPx).toBe(88)
+  })
+
+  it("never places a second order while the first one's fate is unknown", async () => {
+    // **The money bug of 20 Aug 2026, pinned.** An order was placed, and the
+    // next pass could not see it — the exchange's open-orders list lags a
+    // freshly placed order, and a filled one's position takes a moment to
+    // show. The engine read that absence as proof the order was gone and
+    // placed a fresh one at full size, every pass, until one $50 watch had
+    // bought $150 of coin. A watch that has sent money and lost sight of it
+    // must WAIT, not spend again.
+    await watchAt({ phase: "taking", sent: true, orderId: null })
+    await priceTo(95)
+    await priceTo(94)
+    await priceTo(93)
+
+    expect(await orders()).toHaveLength(0)
+    expect(await positions()).toHaveLength(0)
+    expect((await row()).status).toBe("active")
+  })
+
+  it("still places when nothing was ever sent, even mid-taking", async () => {
+    // The hold is about unaccounted money, not about the phase. A watch that
+    // reached its level but could not place that pass — no cash, say — must
+    // try again, or it would stand at a touched level doing nothing forever.
+    await watchAt({ phase: "taking", sent: false, orderId: null })
+    await priceTo(95)
+
+    expect(await orders()).toHaveLength(1)
+  })
+
+  it("finishes the moment its lost order turns out to have filled", async () => {
+    // The position is the proof. The instant it shows, the watch hands over
+    // the stop and target it was keeping and ends — it does not stay stuck
+    // just because it once lost sight of the order.
+    await watchAt({
+      phase: "taking",
+      sent: true,
+      orderId: null,
+      tpPx: 110,
+      slPx: 88,
+    })
+    await database.insert(tradePaperPositions).values({
+      userId,
+      id: "p-1",
+      walletId: "w1",
+      marketKey: BTC,
+      szi: 1,
+      entryPx: 95,
+      leverage: 1,
+      maxLeverage: 50,
+    })
+    await priceTo(96)
+
+    await expectFinished()
+    const [position] = await positions()
+    expect(position.tpPx).toBe(110)
+    expect(position.slPx).toBe(88)
+    expect(await orders()).toHaveLength(0)
+  })
+
+  it("waits out a lagging open-orders list instead of buying again", async () => {
+    // **What actually happened to PRL on 20 Aug 2026.** One watch worth $50
+    // placed SIX orders between 18:54:30 and 18:54:48, each a few seconds
+    // apart at a slightly different price, and three of them filled together
+    // when the price arrived. Every pass placed one, because every pass
+    // looked for the previous order, did not find it in the exchange's list,
+    // and concluded it was gone. The list was simply behind.
+    await watchAt()
+    await priceTo(95)
+    const [placed] = await orders()
+    expect(placed).toBeDefined()
+
+    // The list loses sight of the order — exactly the gap the exchange left.
+    // The order itself is untouched on the exchange; nothing has filled and
+    // nothing has been cancelled.
+    for (let pass = 0; pass < 6; pass += 1) {
+      await database
+        .delete(tradePaperOrders)
+        .where(eq(tradePaperOrders.userId, userId))
+      vi.setSystemTime(new Date(Date.now() + 2_000))
+      await priceTo(95 - pass * 0.01)
+      expect(await orders()).toHaveLength(0)
+    }
+
+    // Not one replacement in twelve seconds, and the watch is still alive
+    // rather than quietly finished.
+    expect(await positions()).toHaveLength(0)
+    const held = await row()
+    expect(held.status).toBe("active")
+    expect(held.plan.orderId).toBe(placed.id)
+    expect(held.plan.missingSince).toBeGreaterThan(0)
+  })
+
+  it("still waits out a lagging list when the coin was already held", async () => {
+    // The hole the first version of this fix left. Proof of a fill used to be
+    // "there is a position" — but a watch that ADDS to a coin already held
+    // sees one from its very first pass, so every absent read read as a fill
+    // and the protection did nothing on exactly the coins most likely to be
+    // traded twice. What is measured now is the amount held CHANGING.
+    await database.insert(tradePaperPositions).values({
+      userId,
+      id: "p-held",
+      walletId: "w1",
+      marketKey: BTC,
+      szi: 5,
+      entryPx: 99,
+      leverage: 1,
+      maxLeverage: 50,
+    })
+    await watchAt()
+    await priceTo(95)
+    const [placed] = await orders()
+    expect(placed).toBeDefined()
+
+    await database
+      .delete(tradePaperOrders)
+      .where(eq(tradePaperOrders.userId, userId))
+    vi.setSystemTime(new Date(Date.now() + 2_000))
+    await priceTo(94.99)
+
+    // Nothing new placed, and the order is still remembered.
+    expect(await orders()).toHaveLength(0)
+    expect((await row()).plan.orderId).toBe(placed.id)
+  })
+
+  it("lets go of an order that has been missing far too long", async () => {
+    // The other half of the rule: a wait with no end would leave a watch
+    // holding an id for an order somebody cancelled on the exchange's own
+    // website, doing nothing forever.
+    await watchAt()
+    await priceTo(95)
+    expect(await orders()).toHaveLength(1)
+
+    await database
+      .delete(tradePaperOrders)
+      .where(eq(tradePaperOrders.userId, userId))
+    // One pass to notice it is missing — the clock starts when the engine
+    // first cannot see it, not when it actually vanished — then long enough
+    // that a lagging list is no longer a possible explanation.
+    await priceTo(95)
+    expect((await row()).plan.orderId).not.toBeNull()
+
+    vi.setSystemTime(new Date(Date.now() + ORDER_GONE_AFTER_MS + 1_000))
+    await priceTo(95)
+
+    expect((await row()).plan.orderId).toBeNull()
+  })
+
+  it("takes its order back when it is called off", async () => {
+    await watchAt()
+    await priceTo(95)
+    expect(await orders()).toHaveLength(1)
+
+    const held = await row()
+    await database
+      .update(tradeSmartLadders)
+      .set({ plan: { ...held.plan, phase: "stopping" } })
+      .where(eq(tradeSmartLadders.id, "w-1"))
+    await settle()
+
+    expect(await orders()).toHaveLength(0)
+    await expectFinished()
+  })
+})
+
+describe("whose stop it is", () => {
+  const live = { kind: "live", protocol: "hyperliquid" }
+
+  const bought = { slPx: 90, side: "buy" as const, reduceOnly: false }
+
+  it("keeps the stop as its own when a strategy shares the coin", () => {
+    expect(watchKeepsItsOwnStop(bought, { paired: true }, live)).toBe(true)
+  })
+
+  it("leaves a sale's stop alone, because a sale holds nothing after it", () => {
+    expect(
+      watchKeepsItsOwnStop(
+        { ...bought, side: "sell" },
+        { paired: true },
+        live
+      )
+    ).toBe(false)
+    expect(
+      watchKeepsItsOwnStop(
+        { ...bought, reduceOnly: true },
+        { paired: true },
+        live
+      )
+    ).toBe(false)
+  })
+
+  it("hands the stop to the position when nothing else works the coin", () => {
+    expect(
+      watchKeepsItsOwnStop(bought, { paired: false }, live)
+    ).toBe(false)
+  })
+
+  it("hands it over on a practice wallet, which holds one stop per position", () => {
+    expect(
+      watchKeepsItsOwnStop(bought, { paired: true }, {
+        kind: "paper",
+        protocol: "hyperliquid",
+      })
+    ).toBe(false)
+  })
+
+  it("hands it over on an exchange that cannot hold two stops", () => {
+    expect(
+      watchKeepsItsOwnStop(bought, { paired: true }, {
+        kind: "live",
+        protocol: "phemex",
+      })
+    ).toBe(false)
+  })
+
+  it("has nothing to keep when the order carries no stop", () => {
+    expect(
+      watchKeepsItsOwnStop({ ...bought, slPx: null }, { paired: true }, live)
+    ).toBe(false)
+  })
+})
+
+describe("a copy's opening order", () => {
+  /** A copy of a trader's buy of 1 BTC at $100, allowed $1 in every $100 of room. */
+  const copyBuy = {
+    phase: "taking" as const,
+    triggerPx: 100,
+    maker: true,
+    reduceOnly: false,
+    chaseGiveUp: 0.01,
+    copyId: "copy-1",
+  }
+
+  it("rests just under the price instead of taking it, and waits with nothing held", async () => {
+    await watchAt(copyBuy)
+    await settle()
+
+    const [order] = await orders()
+    expect(order).toMatchObject({ side: "buy", sz: 1, reduceOnly: false })
+    expect(order.px).toBeLessThan(100)
+    // Nothing is held yet, and unlike a close that is no reason to stop.
+    expect((await row()).plan.orderId).toBe(order.id)
+  })
+
+  it("buys exactly its size once, counting the position as it grows", async () => {
+    await watchAt(copyBuy)
+    await settle()
+    await priceTo(99.5)
+    vi.advanceTimersByTime(CHASE_EVERY_MS)
+    await settle()
+
+    expect(await positions()).toEqual([
+      expect.objectContaining({ marketKey: BTC, szi: 1 }),
+    ])
+    await expectFinished()
+    expect(await orders()).toEqual([])
+  })
+
+  it("stops instead of buying back coins the copier sold while it chased", async () => {
+    // The copier already held 1 BTC and the copy adds 1 more. Before the copy
+    // fills, the copier sells everything by hand. Counting from the 1 BTC it
+    // started at, the copy would read that sale as 2 coins still to buy.
+    await database.insert(tradePaperPositions).values({
+      userId,
+      id: "held",
+      walletId: "w1",
+      marketKey: BTC,
+      szi: 1,
+      entryPx: 100,
+      leverage: 1,
+      maxLeverage: 50,
+      targets: [],
+      tpPx: null,
+      tpSz: null,
+      slPx: null,
+      feesPaid: 0,
+      updatedAt: new Date(),
+    })
+    await watchAt({ ...copyBuy, heldAtStart: 1 })
+    await settle()
+    expect(await orders()).toHaveLength(1)
+
+    await database
+      .delete(tradePaperPositions)
+      .where(eq(tradePaperPositions.userId, userId))
+    await settle()
+
+    await expectFinished()
+    expect(await orders()).toEqual([])
+    expect(await positions()).toEqual([])
+  })
+
+  it("gives up once the price runs past the copier's allowance", async () => {
+    await watchAt(copyBuy)
+    await settle()
+    await priceTo(101.5)
+
+    await expectFinished()
+    expect(await orders()).toEqual([])
+    expect(await positions()).toEqual([])
+  })
+})

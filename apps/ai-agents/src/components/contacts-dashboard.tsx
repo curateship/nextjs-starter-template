@@ -345,7 +345,7 @@ export function ContactsDashboard() {
 
       <DashboardTable
         title={activeList ? `Contacts · ${activeList.name}` : "Contacts"}
-        icon={<UsersIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+        icon={<UsersIcon className="text-muted-foreground" />}
         count={filteredContacts.length}
         controls={controls}
         header={

@@ -24,10 +24,13 @@ import {
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import GripVertical from "lucide-react/dist/esm/icons/grip-vertical.js"
+import MinusIcon from "lucide-react/dist/esm/icons/minus.js"
 import PlusIcon from "lucide-react/dist/esm/icons/plus.js"
 import RotateCcwIcon from "lucide-react/dist/esm/icons/rotate-ccw.js"
 import Trash2Icon from "lucide-react/dist/esm/icons/trash-2.js"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 
+import { ConfirmDestructive } from "@/components/admin/layout/ConfirmDestructive"
 import { ShellIconPickerField, ShellIconPreview } from "@/components/admin/layout/settings/ShellIconPicker"
 import { Button } from "@/components/ui/button"
 import { Card, CardGroup, CardContent } from "@/components/ui/card"
@@ -42,8 +45,10 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils/tailwind"
+import { useSortableRow } from "@/components/admin/layout/builder/use-sortable-row"
 import {
   createDefaultAdminSidebarSettings,
+  isAdminSidebarEntryNamed,
   type AdminSidebarChildItem,
   type AdminSidebarItem,
   type AdminSidebarSection,
@@ -121,13 +126,8 @@ function updateSection(
 }
 
 function SortableChild({ child, onChange, onDelete }: SortableChildProps) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: child.id })
-
-  const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.55 : 1
-  }
+  const { attributes, listeners, setNodeRef, style, isDragging } = useSortableRow(child.id, 0.55)
+  const childName = isAdminSidebarEntryNamed(child) ? child.label : "child link"
 
   return (
     <div
@@ -140,7 +140,7 @@ function SortableChild({ child, onChange, onDelete }: SortableChildProps) {
         {...attributes}
         {...listeners}
         className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
-        aria-label={`Reorder ${child.label || "child link"}`}
+        aria-label={`Reorder ${childName}`}
       >
         <GripVertical className="h-4 w-4" />
       </button>
@@ -168,7 +168,7 @@ function SortableChild({ child, onChange, onDelete }: SortableChildProps) {
         variant="ghost"
         size="icon"
         onClick={() => onDelete(child.id)}
-        aria-label={`Delete ${child.label || "child link"}`}
+        aria-label={`Delete ${childName}`}
       >
         <Trash2Icon className="h-4 w-4" />
       </Button>
@@ -189,20 +189,18 @@ function SortableSidebarItem({
 }: SortableItemProps) {
   const [dialogOpen, setDialogOpen] = React.useState(false)
   const [savingDialog, setSavingDialog] = React.useState(false)
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id })
-
+  const labelInputRef = React.useRef<HTMLInputElement>(null)
+  // One source of truth for "has this link been named yet" — it drives the row
+  // text, the accessible names, the dialog title and where focus lands.
+  const isNamed = isAdminSidebarEntryNamed(item)
+  const itemName = isNamed ? item.label : "sidebar link"
+  const { attributes, listeners, setNodeRef, style, isDragging } = useSortableRow(item.id, 0.55)
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates
     })
   )
-
-  const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.55 : 1
-  }
 
   const children = item.children ?? []
 
@@ -226,7 +224,7 @@ function SortableSidebarItem({
           {...attributes}
           {...listeners}
           className="flex h-9 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground"
-          aria-label={`Reorder ${item.label || "sidebar link"}`}
+          aria-label={`Reorder ${itemName}`}
         >
           <GripVertical className="h-4 w-4" />
         </button>
@@ -240,7 +238,15 @@ function SortableSidebarItem({
             <ShellIconPreview icon={item.icon} className="h-4 w-4" />
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-medium">{item.label || "Untitled link"}</span>
+            {/* An unnamed link reads as a placeholder, the same muted grey an
+                empty input uses — never as normal text, which would look like
+                the link had been named "Untitled link" for you. */}
+            <span
+              className={cn("block truncate text-sm", isNamed ? "font-medium" : "font-normal text-muted-foreground")}
+              title={isNamed ? item.label : "Name this link"}
+            >
+              {isNamed ? item.label : "Name this link"}
+            </span>
           </span>
           {children.length ? (
             <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
@@ -260,7 +266,7 @@ function SortableSidebarItem({
             checked={item.visible}
             onCheckedChange={(checked) => onItemChange(sectionId, item.id, { visible: checked === true })}
           />
-          <span className="sr-only">Show {item.label || "sidebar link"}</span>
+          <span className="sr-only">Show {itemName}</span>
         </label>
 
         <Button
@@ -269,16 +275,26 @@ function SortableSidebarItem({
           size="icon"
           className="hover:bg-transparent"
           onClick={() => onItemDelete(sectionId, item.id)}
-          aria-label={`Delete ${item.label || "sidebar link"}`}
+          aria-label={`Delete ${itemName}`}
         >
           <Trash2Icon className="h-4 w-4" />
         </Button>
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-3xl">
+        <DialogContent
+          className="sm:max-w-3xl"
+          // An unnamed link opens ready to be named: focus lands in the Label
+          // box so you can type. A named link keeps the dialog's normal focus,
+          // since landing in a filled field invites a stray edit.
+          onOpenAutoFocus={(event) => {
+            if (isNamed) return
+            event.preventDefault()
+            labelInputRef.current?.focus()
+          }}
+        >
           <DialogHeader>
-            <DialogTitle>{item.label || "Sidebar Link"}</DialogTitle>
+            <DialogTitle>{isNamed ? item.label : "Sidebar Link"}</DialogTitle>
             <DialogDescription>Edit this sidebar destination and its child links.</DialogDescription>
           </DialogHeader>
 
@@ -291,6 +307,7 @@ function SortableSidebarItem({
                 allowEmpty={false}
               />
               <Input
+                ref={labelInputRef}
                 value={item.label}
                 onChange={(event) =>
                   onItemChange(sectionId, item.id, {
@@ -351,7 +368,8 @@ function SortableSidebarItem({
 
           <DialogFooter>
             <Button type="button" onClick={handleSaveAndClose} disabled={savingDialog}>
-              {savingDialog ? "Saving..." : "Save"}
+              {savingDialog ? <Loader2 className="size-4 animate-spin" /> : null}
+              Save
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -380,6 +398,7 @@ function SortableSectionCard({
     id: getSectionDropId(section.id),
     disabled: !isDraggingItem
   })
+  const sectionName = section.title.trim() || "Untitled Section"
   const sortableItemIds = section.entries.map((entry) => entry.id)
   const style: React.CSSProperties = {
     transform: CSS.Translate.toString(transform),
@@ -410,23 +429,28 @@ function SortableSectionCard({
             />
           </div>
           <div className="flex items-center gap-2">
+            {/* Not a per-section reset — this throws away the whole sidebar
+                layout, so the label has to say so, and it confirms first. */}
             <Button type="button" variant="outline" size="sm" onClick={onReset}>
               <RotateCcwIcon className="h-4 w-4" />
-              Reset
+              Reset all to defaults
             </Button>
             <Button type="button" variant="outline" size="sm" onClick={() => onItemAdd(section.id)}>
               <PlusIcon className="h-4 w-4" />
               Add Link
             </Button>
+            {/* Must be the destructive variant, not an outline button with a
+                red hover class: the outline variant's own dark:hover:bg-input/50
+                beats a call-site hover, so the red would vanish in dark mode. */}
             <Button
               type="button"
-              variant="ghost"
-              size="icon"
-              className="hover:bg-transparent"
+              variant="destructive"
+              size="sm"
               onClick={() => onSectionDelete(section.id)}
-              aria-label={`Delete ${section.title || "sidebar section"} section`}
+              aria-label={`Delete ${sectionName} section`}
             >
-              <Trash2Icon className="h-4 w-4" />
+              <MinusIcon className="h-4 w-4" />
+              Delete Section
             </Button>
           </div>
         </div>
@@ -462,8 +486,27 @@ function SortableSectionCard({
   )
 }
 
+// Confirm copy that counts the damage: "Administration and its 3 links will be
+// removed." A section with no links drops the clause instead of saying "0 links".
+function describeSectionDelete(section: AdminSidebarSection | null) {
+  if (!section) return ""
+
+  const name = section.title.trim() || "Untitled Section"
+  const linkCount = section.entries.length
+  const links = linkCount === 0 ? "" : linkCount === 1 ? " and its link" : ` and its ${linkCount} links`
+
+  return (
+    <>
+      <strong>{name}</strong>
+      {links} will be removed.
+    </>
+  )
+}
+
 export function AdminSidebarSettingsCard({ config, siteId, onConfigChange, onSave }: AdminSidebarSettingsCardProps) {
   const [activeDragId, setActiveDragId] = React.useState<string | null>(null)
+  const [resetConfirmOpen, setResetConfirmOpen] = React.useState(false)
+  const [sectionToDelete, setSectionToDelete] = React.useState<AdminSidebarSection | null>(null)
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, {
@@ -520,11 +563,13 @@ export function AdminSidebarSettingsCard({ config, siteId, onConfigChange, onSav
   )
 
   const handleAddItem = (sectionId: string) => {
+    // A new link starts blank — placeholder text would be a live label with a
+    // broken address the moment it saved. Unnamed links stay out of the nav.
     const item: AdminSidebarItem = {
       type: "item",
       id: createSidebarId("item"),
-      label: "New Link",
-      href: "/admin/new-link",
+      label: "",
+      href: "",
       icon: "grid",
       visible: true
     }
@@ -551,9 +596,8 @@ export function AdminSidebarSettingsCard({ config, siteId, onConfigChange, onSav
     })
   }
 
-  // Drops the section and every link inside it. Nothing persists until Save, and
-  // Reset restores the defaults, so this matches the link delete beside it and
-  // does not ask for confirmation.
+  // Runs only after the ConfirmDestructive below — with auto-save there is no
+  // unsaved draft to back out of, so a stray click here would be unrecoverable.
   const handleSectionDelete = (sectionId: string) => {
     onConfigChange({
       ...config,
@@ -723,10 +767,11 @@ export function AdminSidebarSettingsCard({ config, siteId, onConfigChange, onSav
   }
 
   const handleChildAdd = (sectionId: string, itemId: string) => {
+    // Blank for the same reason as handleAddItem: never a live-but-broken route.
     const child: AdminSidebarChildItem = {
       id: createSidebarId("child"),
-      label: "New Child",
-      href: "/admin/new-child"
+      label: "",
+      href: ""
     }
 
     onConfigChange(
@@ -821,8 +866,10 @@ export function AdminSidebarSettingsCard({ config, siteId, onConfigChange, onSav
                 section={section}
                 isDraggingItem={isDraggingItem}
                 onSectionTitleChange={handleSectionTitleChange}
-                onSectionDelete={handleSectionDelete}
-                onReset={() => onConfigChange(createDefaultAdminSidebarSettings(siteId))}
+                onSectionDelete={(sectionId) =>
+                  setSectionToDelete(config.sections.find((candidate) => candidate.id === sectionId) ?? null)
+                }
+                onReset={() => setResetConfirmOpen(true)}
                 onItemAdd={handleAddItem}
                 onItemChange={handleItemChange}
                 onItemDelete={handleItemDelete}
@@ -842,6 +889,32 @@ export function AdminSidebarSettingsCard({ config, siteId, onConfigChange, onSav
           Add Section
         </Button>
       </div>
+
+      <ConfirmDestructive
+        action="delete-sidebar-section"
+        open={Boolean(sectionToDelete)}
+        title="Delete Section?"
+        description={describeSectionDelete(sectionToDelete)}
+        confirmLabel="Delete Section"
+        onCancel={() => setSectionToDelete(null)}
+        onConfirm={() => {
+          if (!sectionToDelete) return
+          handleSectionDelete(sectionToDelete.id)
+          setSectionToDelete(null)
+        }}
+      />
+
+      <ConfirmDestructive
+        action="reset-admin-sidebar"
+        open={resetConfirmOpen}
+        title="Reset all to defaults?"
+        confirmLabel="Reset all to defaults"
+        onCancel={() => setResetConfirmOpen(false)}
+        onConfirm={() => {
+          onConfigChange(createDefaultAdminSidebarSettings(siteId))
+          setResetConfirmOpen(false)
+        }}
+      />
     </>
   )
 }

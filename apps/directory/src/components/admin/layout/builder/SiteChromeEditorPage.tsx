@@ -1,12 +1,13 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "@/components/app-link"
 import { useSearchParams } from "@/lib/navigation-client"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { useSaveStatus } from "@/components/admin/layout/builder/save-status"
+import { AUTO_SAVE_DEBOUNCE_MS } from "@/components/admin/layout/builder/use-auto-save"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
@@ -68,7 +69,6 @@ export function SiteChromeEditorPage({ siteId, mode, publicAuthPagePath }: SiteC
   const [site, setSite] = useState<SiteWithTheme | null>(cachedSite)
   const [loading, setLoading] = useState(!cachedSite)
   const [error, setError] = useState<string | null>(null)
-  const [saving, setSaving] = useState(false)
   const [saveStatus, setSaveStatus] = useSaveStatus()
   const [navigationContent, setNavigationContent] = useState<Record<string, any>>(defaultNavigation)
   const [footerContent, setFooterContent] = useState<Record<string, any>>(DEFAULT_FOOTER)
@@ -97,7 +97,7 @@ export function SiteChromeEditorPage({ siteId, mode, publicAuthPagePath }: SiteC
       try {
         setLoading(true)
         setError(null)
-        const result = await getSiteByIdAction(siteId)
+        const result = await getSiteByIdAction({ data: { siteId } })
 
         if (cancelled) return
         if (!result.data) {
@@ -131,11 +131,15 @@ export function SiteChromeEditorPage({ siteId, mode, publicAuthPagePath }: SiteC
     }
   }, [cachedSite, defaultNavigation, publicAuthPagePath, siteId])
 
+  // Auto-save bookkeeping — declared above handleSave because it records what
+  // that save wrote.
+  const lastChromeJsonRef = useRef<string | null>(null)
+  const pendingChromeSaveRef = useRef(false)
+
   const handleSave = async () => {
     if (!site) return
 
     try {
-      setSaving(true)
       setError(null)
       setSaveStatus("saving")
 
@@ -146,8 +150,8 @@ export function SiteChromeEditorPage({ siteId, mode, publicAuthPagePath }: SiteC
       const nextFooterContent = sanitizeFooterSettings(footerContent) || DEFAULT_FOOTER
       const result =
         mode === "navigation"
-          ? await updateSiteNavigationAction(site.id, nextNavigationContent)
-          : await updateSiteFooterAction(site.id, nextFooterContent)
+          ? await updateSiteNavigationAction({ data: { siteId: site.id, navigationData: nextNavigationContent } })
+          : await updateSiteFooterAction({ data: { siteId: site.id, footerData: nextFooterContent } })
 
       if (!result.success) {
         const message = result.error || "Failed to save changes"
@@ -169,6 +173,11 @@ export function SiteChromeEditorPage({ siteId, mode, publicAuthPagePath }: SiteC
       } else {
         setFooterContent(nextFooterContent)
       }
+      // Tidying the content on the way out counts as a change, so record it as
+      // already written rather than letting it schedule the same save again.
+      lastChromeJsonRef.current = JSON.stringify(
+        mode === "navigation" ? nextNavigationContent : nextFooterContent
+      )
       setSite(updatedSite)
       if (currentSite?.id === updatedSite.id) {
         setCurrentSite(updatedSite)
@@ -180,16 +189,47 @@ export function SiteChromeEditorPage({ siteId, mode, publicAuthPagePath }: SiteC
       const message = `Failed to save ${activeLabel.toLowerCase()}`
       setError(message)
       setSaveStatus("error", message)
-    } finally {
-      setSaving(false)
     }
   }
+
+  // Auto-save: an edit here is written once the changes stop.
+  const handleSaveRef = useRef(handleSave)
+  handleSaveRef.current = handleSave
+  const watchedChromeJson = JSON.stringify(mode === "navigation" ? navigationContent : footerContent)
+
+  useEffect(() => {
+    if (loading || !site) {
+      lastChromeJsonRef.current = null
+      return
+    }
+    if (lastChromeJsonRef.current === null) {
+      lastChromeJsonRef.current = watchedChromeJson
+      return
+    }
+    if (lastChromeJsonRef.current === watchedChromeJson) return
+
+    lastChromeJsonRef.current = watchedChromeJson
+    pendingChromeSaveRef.current = true
+    const timer = setTimeout(() => {
+      pendingChromeSaveRef.current = false
+      void handleSaveRef.current()
+    }, AUTO_SAVE_DEBOUNCE_MS)
+    return () => clearTimeout(timer)
+  }, [loading, site, watchedChromeJson])
+
+  // Leaving the screen inside that wait must not lose the edit.
+  useEffect(() => {
+    return () => {
+      if (pendingChromeSaveRef.current) {
+        void handleSaveRef.current()
+      }
+    }
+  }, [])
 
   const persistNavigationContent = async (nextNavigationContent: Record<string, any>) => {
     if (!site) return false
 
     try {
-      setSaving(true)
       setError(null)
       setSaveStatus("saving")
 
@@ -197,7 +237,7 @@ export function SiteChromeEditorPage({ siteId, mode, publicAuthPagePath }: SiteC
         sanitizeNavigationSettings(nextNavigationContent, {
           publicAuthPagePath
         }) || defaultNavigation
-      const result = await updateSiteNavigationAction(site.id, sanitizedNavigation)
+      const result = await updateSiteNavigationAction({ data: { siteId: site.id, navigationData: sanitizedNavigation } })
 
       if (!result.success) {
         const message = result.error || "Failed to save changes"
@@ -227,8 +267,6 @@ export function SiteChromeEditorPage({ siteId, mode, publicAuthPagePath }: SiteC
       setError("Failed to save navigation")
       setSaveStatus("error", "Failed to save navigation")
       return false
-    } finally {
-      setSaving(false)
     }
   }
 
@@ -236,12 +274,11 @@ export function SiteChromeEditorPage({ siteId, mode, publicAuthPagePath }: SiteC
     if (!site) return false
 
     try {
-      setSaving(true)
       setError(null)
       setSaveStatus("saving")
 
       const sanitizedFooter = sanitizeFooterSettings(nextFooterContent) || DEFAULT_FOOTER
-      const result = await updateSiteFooterAction(site.id, sanitizedFooter)
+      const result = await updateSiteFooterAction({ data: { siteId: site.id, footerData: sanitizedFooter } })
 
       if (!result.success) {
         const message = result.error || "Failed to save changes"
@@ -271,8 +308,6 @@ export function SiteChromeEditorPage({ siteId, mode, publicAuthPagePath }: SiteC
       setError("Failed to save footer")
       setSaveStatus("error", "Failed to save footer")
       return false
-    } finally {
-      setSaving(false)
     }
   }
 
@@ -291,11 +326,6 @@ export function SiteChromeEditorPage({ siteId, mode, publicAuthPagePath }: SiteC
               { label: activeLabel }
             ]}
             saveStatus={saveStatus}
-            isSaving={saving}
-            onSave={handleSave}
-            saveLabel="Save"
-            savingLabel="Saving..."
-            saveVariant="default"
             actions={safeReturnTo ? (
               <div className="flex items-center gap-2">
                 <Button variant="outline" asChild>
@@ -306,17 +336,14 @@ export function SiteChromeEditorPage({ siteId, mode, publicAuthPagePath }: SiteC
           />
 
           {error && (
-            <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
-              <p className="text-sm text-red-800">{error}</p>
+            <div className="mb-6 rounded-lg border border-destructive/30 bg-destructive/10 p-4">
+              <p className="text-sm text-destructive">{error}</p>
             </div>
           )}
 
           {loading ? (
             <Card>
               <CardContent className="space-y-4">
-                <div className="h-8 w-48 animate-pulse rounded bg-muted" />
-                <div className="h-48 animate-pulse rounded bg-muted/60" />
-                <div className="h-48 animate-pulse rounded bg-muted/40" />
               </CardContent>
             </Card>
           ) : !site ? (

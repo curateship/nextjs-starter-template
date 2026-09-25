@@ -1,0 +1,112 @@
+{
+  "source": "ApeX Omni API docs, GET /v3/account and GET /v3/account-balance examples, read 24 Sep 2026. No real account was available, so these are ApeX's documented shapes with made-up numbers; l2Key is the public key of the made-up omni key in signer/connector-signatures.fixture.json.",
+  "accountEmpty": {
+    "ethereumAddress": "0x1111111111111111111111111111111111111111",
+    "l2Key": "0x14869c75c2dc97a1e63fda5864a547664bcfe820bf98ee8b7a6e3b31e9d7cf08",
+    "id": "588972539589427317",
+    "spotAccount": {
+      "createdAt": 1690365436385,
+      "zkAccountId": "123456",
+      "defaultSubAccountId": "0",
+      "nonce": 1,
+      "status": "NORMAL",
+      "subAccounts": [
+        {
+          "subAccountId": "0",
+          "l2Key": "0x14869c75c2dc97a1e63fda5864a547664bcfe820bf98ee8b7a6e3b31e9d7cf08",
+          "nonce": 1,
+          "nonceVersion": 1,
+          "changePubKeyStatus": "FINISHED"
+        }
+      ]
+    },
+    "contractAccount": {
+      "createdAt": 1690365436385,
+      "takerFeeRate": "0.00050",
+      "makerFeeRate": "0.00020",
+      "minInitialMarginRate": "0",
+      "status": "NORMAL",
+      "unrealizePnlPriceType": "INDEX_PRICE",
+      "token": "USDT"
+    },
+    "contractWallets": [
+      {
+        "userId": "1",
+        "accountId": "588972539589427317",
+        "balance": "250.000000",
+        "asset": "USDT",
+        "pendingDepositAmount": "0.000000",
+        "pendingWithdrawAmount": "0.000000",
+        "pendingTransferOutAmount": "0.000000",
+        "pendingTransferInAmount": "0.000000"
+      }
+    ],
+    "positions": [
+      {
+        "isPrelaunch": false,
+        "symbol": "BTC-USDT",
+        "status": "",
+        "side": "LONG",
+        "size": "0.000",
+        "entryPrice": "0.00",
+        "exitPrice": "",
+        "createdAt": 1690366452416,
+        "updatedTime": 1690366452416,
+        "fee": "0.000000",
+        "fundingFee": "0.000000",
+        "lightNumbers": "",
+        "customInitialMarginRate": "0"
+      }
+    ]
+  },
+  "accountWithPositions": {
+    "ethereumAddress": "0x1111111111111111111111111111111111111111",
+    "l2Key": "0x14869c75c2dc97a1e63fda5864a547664bcfe820bf98ee8b7a6e3b31e9d7cf08",
+    "id": "588972539589427317",
+    "spotAccount": {
+      "zkAccountId": "123456",
+      "subAccounts": []
+    },
+    "contractAccount": {
+      "takerFeeRate": "0.00050",
+      "makerFeeRate": "0.00020",
+      "unrealizePnlPriceType": "INDEX_PRICE"
+    },
+    "contractWallets": [
+      {
+        "balance": "250.000000",
+        "asset": "USDT"
+      }
+    ],
+    "positions": [
+      {
+        "symbol": "BTC-USDT",
+        "side": "LONG",
+        "size": "0.003",
+        "entryPrice": "84000.0",
+        "customInitialMarginRate": "0.2",
+        "fee": "0.126000",
+        "fundingFee": "0.000000"
+      },
+      {
+        "symbol": "SPCX-USDT",
+        "side": "SHORT",
+        "size": "1.00",
+        "entryPrice": "150.00",
+        "customInitialMarginRate": "0"
+      }
+    ]
+  },
+  "balance": {
+    "totalEquityValue": "251.500000",
+    "availableBalance": "180.250000",
+    "initialMargin": "80.400000",
+    "maintenanceMargin": "3.200000",
+    "symbolToOraclePrice": {
+      "BTC-USDT": {
+        "oraclePrice": "84100",
+        "createdTime": 124566
+      }
+    }
+  }
+}

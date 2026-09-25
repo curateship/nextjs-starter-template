@@ -1,0 +1,994 @@
+import * as React from "react"
+import {
+  ArchiveIcon,
+  CheckIcon,
+  ChevronDownIcon,
+  CreditCardIcon,
+  EllipsisVerticalIcon,
+  InfoIcon,
+  LayersIcon,
+  PlusIcon,
+  SettingsIcon,
+  ListXIcon,
+} from "lucide-react"
+
+import { KeyPermissionNotice } from "@/components/trade/key-permission-notice"
+import { PanelPlaceholder } from "@/components/trade/panel-placeholder"
+import { ErrorRow } from "@/components/ui/error-row"
+import { PnlAmount } from "@/components/trade/pnl-amount"
+import { TradeBadge } from "@/components/trade/trade-badge"
+import type { useTradeAccount } from "@/components/trade/use-trade-account"
+import { DisabledReason } from "@/components/ui/disabled-reason"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
+  DashboardCardTab,
+  DashboardCardTabsHeader,
+} from "@/components/shared/dashboard-card-header"
+import { LoadingRow } from "@/components/ui/loading-row"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Tabs, TabsContent } from "@/components/ui/tabs"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
+import { marketSymbol } from "@/lib/protocols/contracts"
+import { readWalletPanelCache } from "@/lib/trade/dashboard-cache"
+import {
+  formatAway,
+  formatSignedUsd,
+  formatSize,
+  formatUsd,
+  formatPrice,
+} from "@/lib/trade/format"
+import { keyExpiryNotice } from "@/lib/trade/live"
+import { useLiveMarks } from "@/lib/trade/live-market"
+import { walletMarginHealth } from "@/lib/trade/margin-health"
+import {
+  ALARM_SURFACE,
+  MADE_MONEY_DOT,
+  WARNING_SURFACE,
+  WARNING_DOT,
+  moneyTone,
+} from "@/lib/trade/money-tone"
+import type { TradePosition } from "@/lib/trade/paper"
+import {
+  type TradeWallet,
+  type WalletAccountSummary,
+} from "@/lib/trade/wallets"
+import { cn } from "@/lib/utils"
+
+/**
+ * The chart header's wallet picker and its management popover. Purely a view:
+ * the state comes from the one `useTradeAccount` the workspace owns, and the
+ * add, details and edit windows belong to the workspace too.
+ */
+
+export function KindBadge({ wallet }: { wallet: TradeWallet }) {
+  const testnet = wallet.kind === "live" && wallet.network === "testnet"
+  if (wallet.kind === "live" && !testnet) return null
+  return (
+    <TradeBadge
+      className="shrink-0"
+      tone={wallet.kind === "paper" ? "neutral" : "testnet"}
+    >
+      {wallet.kind === "paper" ? "Practice" : "Testnet"}
+    </TradeBadge>
+  )
+}
+
+/** A gain or loss, painted by the one helper every money figure uses. */
+function SignedUsd({
+  value,
+  className,
+}: {
+  value: number
+  className?: string
+}) {
+  return (
+    <PnlAmount className={cn("tabular-nums", moneyTone(value), className)}>
+      {formatSignedUsd(value)}
+    </PnlAmount>
+  )
+}
+
+function FigureRow({
+  label,
+  children,
+}: {
+  label: React.ReactNode
+  children: React.ReactNode
+}) {
+  return (
+    <div className="flex items-baseline justify-between gap-3">
+      <span className="text-muted-foreground">{label}</span>
+      {children}
+    </div>
+  )
+}
+
+function useKeyExpiryNotice(keyValidUntil: number | null) {
+  const [readAt, setReadAt] = React.useState(Date.now)
+  // One clock per wallet row, and only for a row that has a key to run out:
+  // a wallet with no expiry has nothing for the minute to change.
+  React.useEffect(() => {
+    if (keyValidUntil === null) return
+    const timer = window.setInterval(() => setReadAt(Date.now()), 60_000)
+    return () => window.clearInterval(timer)
+  }, [keyValidUntil])
+  return keyExpiryNotice(keyValidUntil, readAt)
+}
+
+/**
+ * The trading key is running out (or has). Said on the wallet itself, where
+ * the fix is one click away, and only while it is worth saying.
+ */
+function KeyExpiryNotice({ wallet }: { wallet: TradeWallet }) {
+  const notice = useKeyExpiryNotice(wallet.keyValidUntil)
+  if (!notice) return null
+  return (
+    <p
+      className={cn(
+        "rounded-md px-2.5 py-1.5 text-xs",
+        notice.tone === "quiet" && "bg-muted text-muted-foreground",
+        notice.tone === "warning" && WARNING_SURFACE,
+        notice.tone === "expired" && ALARM_SURFACE
+      )}
+    >
+      {notice.message}
+    </p>
+  )
+}
+
+const walletRowGridClassName =
+  "grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_5rem_3.75rem] items-center gap-2 self-stretch"
+const walletRowFrameClassName =
+  "flex min-h-12 items-center gap-2 px-3 transition-colors"
+
+function walletRowState(summary: WalletAccountSummary | null) {
+  const figures = summary?.state === "ok" ? summary : null
+  const ok = figures !== null
+  const inactive = summary?.state === "inactive"
+  const stale = summary?.state === "ok" && summary.stale === true
+  const refusal = summary?.state === "unreachable" ? summary.reason : undefined
+  // Saved but never asked: this build cannot read the exchange's holdings
+  // yet. Not a failure, so it neither counts as unreachable nor offers a
+  // retry.
+  const unread = summary?.state === "unread" ? summary.reason : undefined
+  const status = inactive
+    ? "Not switched on"
+    : ok
+      ? stale
+        ? "Figures a moment old"
+        : "Connected"
+      : unread
+        ? "Holdings not read yet"
+        : refusal
+          ? "Two-sided. Change to one-way mode"
+          : "Can't reach it"
+  return { figures, inactive, ok, refusal, stale, status, unread }
+}
+
+function walletPositionModeLabel(mode: TradeWallet["positionMode"]): string {
+  if (mode === "one-way") return "One-way: a short closes your long"
+  if (mode === "two-sided") return "Hedge: a short opens beside your long"
+  return "Mode not read yet"
+}
+
+/** The one name, state and money grid shared by every wallet tab. */
+function WalletRowCells({
+  wallet,
+  profit,
+  selector,
+  state,
+  showKindBadge = false,
+}: {
+  wallet: TradeWallet
+  profit: number | null
+  selector: React.ReactNode
+  state: ReturnType<typeof walletRowState>
+  showKindBadge?: boolean
+}) {
+  const { figures, inactive, ok, stale, status } = state
+  return (
+    <>
+      <span className="flex min-w-0 items-center gap-2">
+        {selector}
+        <span className="min-w-0">
+          <span className="block truncate text-sm font-medium">
+            {wallet.label}
+          </span>
+          {wallet.liquidationWarningInUse ? (
+            <span className="block text-xs break-words text-muted-foreground">
+              Liquidation warning:{" "}
+              {[
+                wallet.liquidationWarningInUse.usd !== null
+                  ? `${formatPrice(wallet.liquidationWarningInUse.usd)} away`
+                  : null,
+                wallet.liquidationWarningInUse.pct !== null
+                  ? `${wallet.liquidationWarningInUse.pct} out of 100 away`
+                  : null,
+              ]
+                .filter(Boolean)
+                .join(" or ")}
+            </span>
+          ) : null}
+        </span>
+        <WalletStatusDot state={state} />
+        {inactive ? (
+          <span className="sr-only">Not switched on</span>
+        ) : !ok || stale ? (
+          <span className="truncate text-xs text-muted-foreground">
+            {status}
+          </span>
+        ) : (
+          <span className="sr-only">Connected</span>
+        )}
+        {showKindBadge ? <KindBadge wallet={wallet} /> : null}
+      </span>
+      <span className="text-right font-mono text-sm font-medium tabular-nums">
+        {figures ? formatUsd(figures.equity) : "—"}
+      </span>
+      {ok && profit !== null ? (
+        <SignedUsd value={profit} className="text-right font-mono text-xs" />
+      ) : (
+        <span />
+      )}
+    </>
+  )
+}
+
+function WalletStatusDot({
+  state,
+}: {
+  state: ReturnType<typeof walletRowState>
+}) {
+  const { inactive, ok, stale, unread } = state
+  return (
+    <span
+      className={cn(
+        "size-1.5 shrink-0 rounded-full",
+        inactive || unread
+          ? "bg-muted-foreground"
+          : !ok
+            ? "bg-destructive"
+            : stale
+              ? WARNING_DOT
+              : MADE_MONEY_DOT
+      )}
+      aria-hidden
+    />
+  )
+}
+
+function ActiveWalletRow({
+  wallet,
+  usingCache = false,
+  summary,
+  selected,
+  onSelect,
+  onOpenDetails,
+}: {
+  usingCache?: boolean
+  wallet: TradeWallet
+  summary: WalletAccountSummary | null
+  selected: boolean
+  onSelect: () => void
+  onOpenDetails: () => void
+}) {
+  const state = walletRowState(summary)
+  const { figures } = state
+
+  return (
+    <div
+      className={cn(
+        walletRowFrameClassName,
+        wallet.kind === "live" && "flex-wrap",
+        selected ? "bg-muted/60 hover:bg-muted/60" : "hover:bg-muted/40"
+      )}
+    >
+      <label className={cn(walletRowGridClassName, "cursor-pointer")}>
+        <WalletRowCells
+          wallet={wallet}
+          profit={figures?.madeOrLost ?? null}
+          state={state}
+          showKindBadge
+          selector={
+            <DisabledReason
+              disabled={usingCache}
+              reason="These wallets are from last visit. Waiting for a successful read."
+            >
+              <Checkbox
+                disabled={usingCache}
+                checked={selected}
+                onCheckedChange={() => {
+                  if (!selected) onSelect()
+                }}
+                aria-label={
+                  selected
+                    ? `${wallet.label} is the wallet in use`
+                    : `Trade with ${wallet.label}`
+                }
+                className="rounded-full"
+              />
+            </DisabledReason>
+          }
+        />
+      </label>
+      <DisabledReason
+        disabled={usingCache}
+        reason="These wallets are from last visit. Waiting for a successful read."
+      >
+        <Button
+          disabled={usingCache}
+          type="button"
+          size="icon-sm"
+          variant="ghost"
+          aria-label={`Open ${wallet.label} wallet details`}
+          onClick={onOpenDetails}
+        >
+          <EllipsisVerticalIcon className="size-4" />
+        </Button>
+      </DisabledReason>
+      {/* A safe key says nothing on a row; only a key that can withdraw
+          money, or one nobody could check, speaks up here. The wallet window
+          states the safe answer. */}
+      <KeyPermissionNotice
+        wallet={wallet}
+        sayWhenSafe={false}
+        className="basis-full"
+      />
+    </div>
+  )
+}
+
+function WalletCard({
+  wallet,
+  usingCache = false,
+  summary,
+  active,
+  onOpenDetails,
+}: {
+  usingCache?: boolean
+  wallet: TradeWallet
+  summary: WalletAccountSummary | null
+  /** This is the wallet being traded with — the card says so. */
+  active: boolean
+  onOpenDetails: () => void
+}) {
+  const state = walletRowState(summary)
+  const { figures } = state
+  return (
+    <div
+      className={cn(
+        walletRowFrameClassName,
+        wallet.kind === "live" && "flex-wrap",
+        active ? "bg-muted/60 hover:bg-muted/60" : "hover:bg-muted/40"
+      )}
+    >
+      <div className={walletRowGridClassName}>
+        <WalletRowCells
+          wallet={wallet}
+          profit={figures?.openProfit ?? null}
+          state={state}
+          selector={
+            <span
+              className={cn(
+                "flex size-4 shrink-0 items-center justify-center rounded-full border",
+                active && "border-primary bg-primary text-primary-foreground"
+              )}
+              aria-hidden
+            >
+              {active ? <CheckIcon className="size-3" /> : null}
+            </span>
+          }
+        />
+      </div>
+      <DisabledReason
+        disabled={usingCache}
+        reason="These wallets are from last visit. Waiting for a successful read."
+      >
+        <Button
+          disabled={usingCache}
+          type="button"
+          size="icon-sm"
+          variant="ghost"
+          aria-label={`Open ${wallet.label} wallet details`}
+          onClick={onOpenDetails}
+        >
+          <EllipsisVerticalIcon className="size-4" />
+        </Button>
+      </DisabledReason>
+      {/* A safe key says nothing on a row; only a key that can withdraw
+          money, or one nobody could check, speaks up here. The wallet window
+          states the safe answer. */}
+      <KeyPermissionNotice
+        wallet={wallet}
+        sayWhenSafe={false}
+        className="basis-full"
+      />
+    </div>
+  )
+}
+
+export function ActiveWalletsView({
+  wallets,
+  usingCache = false,
+  summaryOf,
+  activeWalletId,
+  onUseWallet,
+  onOpenWalletDetails,
+}: {
+  usingCache?: boolean
+  wallets: TradeWallet[]
+  summaryOf: (walletId: string) => WalletAccountSummary | null
+  activeWalletId: string | null
+  onUseWallet: (walletId: string) => void
+  onOpenWalletDetails: (wallet: TradeWallet) => void
+}) {
+  return (
+    <div>
+      {wallets.map((wallet) => (
+        <ActiveWalletRow
+          key={wallet.id}
+          usingCache={usingCache}
+          wallet={wallet}
+          summary={summaryOf(wallet.id)}
+          selected={wallet.id === activeWalletId}
+          onSelect={() => onUseWallet(wallet.id)}
+          onOpenDetails={() => onOpenWalletDetails(wallet)}
+        />
+      ))}
+    </div>
+  )
+}
+
+export function AllWalletsView({
+  wallets,
+  usingCache = false,
+  summaryOf,
+  activeWalletId,
+  onOpenWalletDetails,
+}: {
+  usingCache?: boolean
+  wallets: TradeWallet[]
+  summaryOf: (walletId: string) => WalletAccountSummary | null
+  activeWalletId: string | null
+  onOpenWalletDetails: (wallet: TradeWallet) => void
+}) {
+  return (
+    <div>
+      {/* The wallet in use sits at the top; the rest keep the order they were
+          added in. Sorted on a copy because `wallets` belongs to the poll. */}
+      {[...wallets]
+        .sort((first, second) =>
+          first.id === activeWalletId
+            ? -1
+            : second.id === activeWalletId
+              ? 1
+              : 0
+        )
+        .map((wallet) => (
+          <WalletCard
+            key={wallet.id}
+            usingCache={usingCache}
+            wallet={wallet}
+            summary={summaryOf(wallet.id)}
+            active={wallet.id === activeWalletId}
+            onOpenDetails={() => onOpenWalletDetails(wallet)}
+          />
+        ))}
+    </div>
+  )
+}
+
+export function WalletDetailsDialog({
+  wallet,
+  summary,
+  positions,
+  fallbackMarks,
+  onClose,
+  onOpenWallet,
+  onFlattenWallet,
+  onRetry,
+  walletButtonRef,
+}: {
+  wallet: TradeWallet | null
+  summary: WalletAccountSummary | null
+  positions: readonly TradePosition[]
+  fallbackMarks: ReadonlyMap<string, number>
+  onClose: () => void
+  onOpenWallet: (wallet: TradeWallet) => void
+  onFlattenWallet: (wallet: TradeWallet) => void
+  onRetry: () => void
+  walletButtonRef?: React.RefObject<HTMLButtonElement | null>
+}) {
+  const donePressed = React.useRef(false)
+  const walletPositions = wallet
+    ? positions.filter((position) => position.walletId === wallet.id)
+    : []
+  const marks = useLiveMarks(
+    walletPositions.map((position) => position.marketKey)
+  )
+  const marginHealth = wallet
+    ? walletMarginHealth(walletPositions, marks, fallbackMarks, wallet.id)
+    : null
+  if (!wallet) return null
+
+  const state = walletRowState(summary)
+  const { figures, inactive, refusal, unread } = state
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent
+        variant="admin"
+        className="sm:max-w-lg"
+        onCloseAutoFocus={(event) => {
+          if (donePressed.current && walletButtonRef?.current) {
+            event.preventDefault()
+            walletButtonRef.current.focus()
+          }
+          donePressed.current = false
+        }}
+      >
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <span className="truncate">{wallet.label}</span>
+            <WalletStatusDot state={state} />
+          </DialogTitle>
+          <DialogDescription className="sr-only">
+            {state.status}
+          </DialogDescription>
+        </DialogHeader>
+        <DialogBody>
+          <Card size="sm">
+            <CardContent className="grid gap-4">
+              <p className="text-sm text-muted-foreground">
+                {walletPositionModeLabel(wallet.positionMode)}
+              </p>
+              <KeyPermissionNotice wallet={wallet} />
+              {wallet.status === "active" ? (
+                <KeyExpiryNotice wallet={wallet} />
+              ) : null}
+              {figures?.feeCoin?.warning ? (
+                <p
+                  className={cn(
+                    "rounded-md px-2.5 py-1.5 text-xs",
+                    WARNING_SURFACE
+                  )}
+                >
+                  {figures.feeCoin.warning}
+                </p>
+              ) : null}
+              {figures ? (
+                <div className="grid gap-2">
+                  <FigureRow label="Free">
+                    <span className="font-mono tabular-nums">
+                      {formatUsd(figures.free)}
+                    </span>
+                  </FigureRow>
+                  <FigureRow label="In trades">
+                    <span className="font-mono tabular-nums">
+                      {formatUsd(figures.inTrades)}
+                    </span>
+                  </FigureRow>
+                  {figures.feeCoin ? (
+                    // A chain wallet pays its own fees in a coin, so the
+                    // amount kept for them is a figure of its own.
+                    <FigureRow label={`${figures.feeCoin.symbol} for fees`}>
+                      <span className="font-mono tabular-nums">
+                        {formatSize(figures.feeCoin.amount)}{" "}
+                        {figures.feeCoin.symbol}
+                      </span>
+                    </FigureRow>
+                  ) : null}
+                  <FigureRow label="Margin used">
+                    <span className="font-mono tabular-nums">
+                      {marginHealth ? formatUsd(marginHealth.marginUsed) : "—"}
+                    </span>
+                  </FigureRow>
+                  <FigureRow label="Nearest position">
+                    <span className="text-right font-mono tabular-nums">
+                      {marginHealth?.nearest
+                        ? `${formatAway(marginHealth.nearest.away)} away on ${marketSymbol(marginHealth.nearest.marketKey)}`
+                        : "—"}
+                    </span>
+                  </FigureRow>
+                  <FigureRow label="Open profit">
+                    <SignedUsd
+                      value={figures.openProfit}
+                      className="font-mono"
+                    />
+                  </FigureRow>
+                  <FigureRow
+                    label={
+                      <span className="flex items-center gap-1">
+                        Settled
+                        {figures.unpricedFills ? (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                type="button"
+                                aria-label="About settled profit"
+                                className="text-muted-foreground transition-colors hover:text-foreground"
+                              >
+                                <InfoIcon className="size-3" />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-64">
+                              Settled and Made or lost are short of{" "}
+                              {figures.unpricedFills.toLocaleString()}{" "}
+                              {figures.unpricedFills === 1 ? "trade" : "trades"}{" "}
+                              whose profit the exchange has not stated.
+                            </TooltipContent>
+                          </Tooltip>
+                        ) : null}
+                      </span>
+                    }
+                  >
+                    <SignedUsd value={figures.settled} className="font-mono" />
+                  </FigureRow>
+                  <FigureRow label="Made or lost">
+                    <SignedUsd
+                      value={figures.madeOrLost}
+                      className="font-mono"
+                    />
+                  </FigureRow>
+                </div>
+              ) : inactive ? (
+                <p className="text-sm text-muted-foreground">
+                  This wallet is not switched on. Edit the wallet to make it
+                  active again.
+                </p>
+              ) : unread ? (
+                <p className="text-sm text-muted-foreground">{unread}</p>
+              ) : refusal ? (
+                <p className="text-sm text-muted-foreground">{refusal}</p>
+              ) : (
+                <div className="flex flex-col items-start gap-2 text-sm text-muted-foreground">
+                  <p>
+                    The exchange did not answer for this wallet, so there are no
+                    figures to show. Showing zeros would be making them up.
+                  </p>
+                  <Button size="sm" variant="outline" onClick={onRetry}>
+                    Try again
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </DialogBody>
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="destructive"
+            className="mr-auto"
+            onClick={() => {
+              onClose()
+              onFlattenWallet(wallet)
+            }}
+          >
+            <ListXIcon className="size-4" />
+            Empty wallet
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              onClose()
+              onOpenWallet(wallet)
+            }}
+          >
+            <SettingsIcon className="size-4" />
+            Edit wallet
+          </Button>
+          <Button
+            type="button"
+            onClick={() => {
+              donePressed.current = true
+              onClose()
+            }}
+          >
+            Done
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+type WalletMenuContentProps = {
+  account: ReturnType<typeof useTradeAccount>
+  cacheScope: string
+  onAddWallet: () => void
+  onOpenWalletDetails: (wallet: TradeWallet) => void
+}
+
+type WalletManagementProps = WalletMenuContentProps & {
+  detailsOpen: boolean
+  walletButtonRef?: React.RefObject<HTMLButtonElement | null>
+}
+
+export function WalletManagement({
+  walletButtonRef,
+  ...props
+}: WalletManagementProps) {
+  const [open, setOpen] = React.useState(false)
+  const { account } = props
+  const activeWallet = account.activeWallet
+  const activeSummary = activeWallet ? account.summaryOf(activeWallet.id) : null
+  const activeState = walletRowState(activeSummary)
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen && props.detailsOpen) return
+        setOpen(nextOpen)
+      }}
+    >
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <PopoverTrigger asChild>
+            <Button
+              ref={walletButtonRef}
+              type="button"
+              variant="outline"
+              aria-label={
+                activeWallet
+                  ? `Manage wallets. ${activeWallet.label} is in use.`
+                  : "Manage wallets"
+              }
+              className="max-w-72 min-w-0 bg-muted/60 dark:bg-muted/60"
+            >
+              <CreditCardIcon className="size-4" />
+              <span className="max-w-24 truncate max-sm:sr-only">
+                {activeWallet?.label ?? "Wallets"}
+              </span>
+              {activeState.figures ? (
+                <>
+                  <span className="hidden font-mono tabular-nums xl:inline">
+                    - {formatUsd(activeState.figures.equity)}
+                  </span>
+                  <SignedUsd
+                    value={activeState.figures.madeOrLost}
+                    className="hidden font-mono xl:inline"
+                  />
+                </>
+              ) : null}
+              <ChevronDownIcon
+                className={cn(
+                  "size-4 text-muted-foreground transition-transform max-sm:hidden",
+                  open && "rotate-180"
+                )}
+              />
+            </Button>
+          </PopoverTrigger>
+        </TooltipTrigger>
+        <TooltipContent>Manage wallets</TooltipContent>
+      </Tooltip>
+      <PopoverContent
+        align="end"
+        sideOffset={8}
+        className="w-[calc(100vw-1rem)] max-w-sm gap-0 overflow-hidden p-0"
+      >
+        <WalletMenuContent
+          {...props}
+          onAddWallet={() => {
+            setOpen(false)
+            props.onAddWallet()
+          }}
+          onOpenWalletDetails={props.onOpenWalletDetails}
+        />
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+export function WalletMenuContent({
+  account,
+  cacheScope,
+  onAddWallet,
+  onOpenWalletDetails,
+}: WalletMenuContentProps) {
+  const [tab, setTab] = React.useState<"active" | "all" | "inactive">("active")
+  const { wallets, activeWallet, summaryOf, loading, failed, refresh } = account
+  const [cached, setCached] = React.useState(
+    () => null as ReturnType<typeof readWalletPanelCache>
+  )
+  useEffectBeforePaint(() => {
+    setCached(readWalletPanelCache(cacheScope))
+  }, [cacheScope])
+  // Cached wallets draw the panel only. They never enter `useTradeAccount`,
+  // so they cannot select a wallet, fund an order, or open wallet settings.
+  const shownCache = loading || failed ? cached : null
+  const usingCache = shownCache !== null
+  const shownWallets = shownCache?.wallets ?? wallets
+  const shownActiveWalletId = shownCache
+    ? shownCache.lastWalletId
+    : (activeWallet?.id ?? null)
+  const shownSummaryOf = shownCache
+    ? (walletId: string) =>
+        shownCache.summaries.find((summary) => summary.walletId === walletId) ??
+        null
+    : summaryOf
+  const activeWallets = shownWallets.filter(
+    (wallet) => wallet.status === "active"
+  )
+  const inactiveWallets = shownWallets.filter(
+    (wallet) => wallet.status === "inactive"
+  )
+  return (
+    <Tabs
+      value={tab}
+      onValueChange={(value) => setTab(value as "active" | "all" | "inactive")}
+      className="min-w-0 gap-0 overflow-hidden bg-popover"
+    >
+      <DashboardCardTabsHeader
+        action={
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                aria-label="Add wallet"
+                className="bg-muted/60 dark:bg-muted/60"
+                onClick={onAddWallet}
+              >
+                <PlusIcon className="size-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Add wallet</TooltipContent>
+          </Tooltip>
+        }
+      >
+        <DashboardCardTab
+          value="active"
+          icon={<CreditCardIcon className="size-4" />}
+          label="Active"
+        />
+        <DashboardCardTab
+          value="all"
+          icon={<LayersIcon className="size-4" />}
+          label="All"
+        />
+        <DashboardCardTab
+          value="inactive"
+          icon={<ArchiveIcon className="size-4" />}
+          label="Inactive"
+        />
+      </DashboardCardTabsHeader>
+      {failed && usingCache ? (
+        <LoadFailed onRetry={() => void refresh()} />
+      ) : null}
+
+      <TabsContent value="active" className="min-h-0 flex-1">
+        <ScrollArea className="max-h-80" viewportClassName="max-h-80">
+          {loading && !usingCache ? (
+            <PanelLoading />
+          ) : failed && !usingCache ? (
+            <LoadFailed onRetry={() => void refresh()} />
+          ) : activeWallets.length > 0 ? (
+            <ActiveWalletsView
+              wallets={activeWallets}
+              summaryOf={shownSummaryOf}
+              activeWalletId={shownActiveWalletId}
+              usingCache={usingCache}
+              onUseWallet={account.switchWallet}
+              onOpenWalletDetails={onOpenWalletDetails}
+            />
+          ) : (
+            <NoActiveWallets hasWallets={shownWallets.length > 0} />
+          )}
+        </ScrollArea>
+      </TabsContent>
+
+      <TabsContent value="inactive" className="min-h-0 flex-1">
+        <ScrollArea className="max-h-80" viewportClassName="max-h-80">
+          {loading && !usingCache ? (
+            <PanelLoading />
+          ) : failed && !usingCache ? (
+            <LoadFailed onRetry={() => void refresh()} />
+          ) : inactiveWallets.length > 0 ? (
+            <AllWalletsView
+              usingCache={usingCache}
+              wallets={inactiveWallets}
+              summaryOf={shownSummaryOf}
+              activeWalletId={null}
+              onOpenWalletDetails={onOpenWalletDetails}
+            />
+          ) : (
+            <PanelPlaceholder
+              icon={<ArchiveIcon className="size-4" />}
+              title="No inactive wallets"
+            >
+              Set a wallet to inactive from its settings and it will appear
+              here.
+            </PanelPlaceholder>
+          )}
+        </ScrollArea>
+      </TabsContent>
+
+      <TabsContent value="all" className="min-h-0 flex-1">
+        <ScrollArea className="max-h-80" viewportClassName="max-h-80">
+          {loading && !usingCache ? (
+            <PanelLoading />
+          ) : failed && !usingCache ? (
+            <LoadFailed onRetry={() => void refresh()} />
+          ) : shownWallets.length > 0 ? (
+            <AllWalletsView
+              usingCache={usingCache}
+              wallets={shownWallets}
+              summaryOf={shownSummaryOf}
+              activeWalletId={shownActiveWalletId}
+              onOpenWalletDetails={onOpenWalletDetails}
+            />
+          ) : (
+            <NoWalletsYet />
+          )}
+        </ScrollArea>
+      </TabsContent>
+    </Tabs>
+  )
+}
+
+/**
+ * Still reading the wallets.
+ *
+ * The shared spinner, not the grey bars this panel used to draw. Five fake
+ * rows on a card that lists money read as figures arriving, and the rule is
+ * written down next door in `loading-row.tsx`: a panel that fetches its own
+ * contents gets "a compact centred spinner sitting in the surface's own frame,
+ * never a skeleton".
+ */
+function PanelLoading() {
+  return <LoadingRow label="Reading your wallets" />
+}
+
+function LoadFailed({ onRetry }: { onRetry: () => void }) {
+  return (
+    <ErrorRow message="The wallets could not be loaded." onRetry={onRetry} />
+  )
+}
+
+function NoWalletsYet() {
+  return (
+    <PanelPlaceholder
+      icon={<CreditCardIcon className="size-4" />}
+      title="No wallets yet"
+    >
+      Use Add wallet above. It can use pretend cash or a live exchange account.
+    </PanelPlaceholder>
+  )
+}
+
+function NoActiveWallets({ hasWallets }: { hasWallets: boolean }) {
+  if (!hasWallets) return <NoWalletsYet />
+  return (
+    <PanelPlaceholder
+      icon={<CreditCardIcon className="size-4" />}
+      title="No active wallets"
+    >
+      Make a wallet active from the Inactive tab before choosing one to trade
+      with.
+    </PanelPlaceholder>
+  )
+}

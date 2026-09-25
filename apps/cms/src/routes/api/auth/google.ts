@@ -1,0 +1,44 @@
+import { createFileRoute } from "@tanstack/react-router"
+
+import { safeRedirectPath } from "@/lib/nav/redirect-path"
+import { readReferralCode } from "@/lib/billing/referrals"
+import {
+  browserRedirect,
+  googleSignInEnabled,
+  rememberGoogleHandshake,
+  startGoogleSignIn,
+} from "@/server/auth/google"
+
+/**
+ * "Continue with Google", step one: send the browser to Google.
+ *
+ * Deliberately no origin check. This is a plain link somebody clicks, not a
+ * mutation — it writes nothing to the database, and the state it puts in the
+ * cookie is itself the guard for the step that does.
+ */
+export const Route = createFileRoute("/api/auth/google")({
+  server: {
+    handlers: {
+      GET: ({ request }) => {
+        if (!googleSignInEnabled()) {
+          return browserRedirect("/login?error=GOOGLE_SIGN_IN_FAILED")
+        }
+
+        // Carried out to Google and back, so somebody who was sent to sign in
+        // still lands on the page they originally asked for.
+        const parameters = new URL(request.url).searchParams
+        const redirectTo = safeRedirectPath(parameters.get("redirect"))
+        const referralValue = parameters.get("ref")
+        const referralCode = readReferralCode(referralValue)
+        if (referralValue !== null && !referralCode) {
+          return browserRedirect("/login?error=REFERRAL_NOT_FOUND")
+        }
+
+        const handshake = startGoogleSignIn()
+        rememberGoogleHandshake(handshake, redirectTo, referralCode)
+
+        return browserRedirect(handshake.authorizeUrl)
+      },
+    },
+  },
+})

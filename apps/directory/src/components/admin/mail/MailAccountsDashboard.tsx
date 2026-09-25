@@ -11,6 +11,7 @@ import Mail from "lucide-react/dist/esm/icons/mail.js"
 import Send from "lucide-react/dist/esm/icons/send.js"
 import Settings from "lucide-react/dist/esm/icons/settings.js"
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -37,7 +38,6 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Skeleton } from "@/components/ui/skeleton"
 import {
   SidebarContent,
   SidebarFooter,
@@ -47,6 +47,7 @@ import {
 } from "@/components/admin/layout/sidebar/Sidebar"
 import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/utils/tailwind"
+import { showErrorToast } from "@/lib/error-toast"
 import { runAction, showActionError } from "@/lib/utils/admin-action-feedback"
 import {
   createMailboxAction,
@@ -274,26 +275,45 @@ function FolderTabs({
   )
 }
 
-function MxrouteForm({ siteId, onSaved }: { siteId: string; onSaved: () => Promise<void> }) {
+function MxrouteForm({
+  siteId,
+  onSaved,
+  onSavingChange,
+}: {
+  siteId: string
+  onSaved: () => Promise<void>
+  onSavingChange: (saving: boolean) => void
+}) {
   const [server, setServer] = useState("")
   const [username, setUsername] = useState("")
   const [apiKey, setApiKey] = useState("")
   const [webmailUrl, setWebmailUrl] = useState("https://webmail.mxroute.com")
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [missing, setMissing] = useState<string | null>(null)
+
+  const beginSaving = (next: boolean) => {
+    setSaving(next)
+    onSavingChange(next)
+  }
 
   const handleSave = async () => {
-    setSaving(true)
+    // Answer the click rather than greying the button out: name the empty box in
+    // the toast and ring it, and let the ring clear itself once it is filled in.
+    const firstEmpty = !server.trim() ? "server" : !username.trim() ? "username" : !apiKey.trim() ? "apiKey" : null
+    if (firstEmpty) {
+      setMissing(firstEmpty)
+      showErrorToast(`${firstEmpty === "apiKey" ? "API Key" : firstEmpty === "server" ? "Server" : "Username"} is required`)
+      return
+    }
+
+    setMissing(null)
+    beginSaving(true)
     const outcome = await runAction(
       () => saveMxrouteIntegrationAction({ data: { input: { siteId, server, username, apiKey, webmailUrl } } }),
       { successMessage: "MXroute settings saved" },
     )
-    setSaving(false)
-    if (!outcome.ok) {
-      setError(outcome.message)
-      return
-    }
-    setError(null)
+    beginSaving(false)
+    if (!outcome.ok) return
     setApiKey("")
     await onSaved()
   }
@@ -305,26 +325,34 @@ function MxrouteForm({ siteId, onSaved }: { siteId: string; onSaved: () => Promi
         <CardDescription className="text-xs">Credentials are encrypted before storage.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label htmlFor="mxroute-server">Server</Label>
-            <Input id="mxroute-server" value={server} onChange={(event) => setServer(event.target.value)} placeholder="eagle.mxlogin.com" />
+        <form
+          noValidate
+          className="space-y-3"
+          onSubmit={(event) => {
+            event.preventDefault()
+            handleSave()
+          }}
+        >
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="mxroute-server">Server</Label>
+              <Input id="mxroute-server" value={server} onChange={(event) => setServer(event.target.value)} placeholder="eagle.mxlogin.com" aria-invalid={(missing === "server" && !server.trim()) || undefined} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="mxroute-username">Username</Label>
+              <Input id="mxroute-username" value={username} onChange={(event) => setUsername(event.target.value)} aria-invalid={(missing === "username" && !username.trim()) || undefined} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="mxroute-api-key">API Key</Label>
+              <Input id="mxroute-api-key" type="password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} aria-invalid={(missing === "apiKey" && !apiKey.trim()) || undefined} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="mxroute-webmail">Webmail URL</Label>
+              <Input id="mxroute-webmail" value={webmailUrl} onChange={(event) => setWebmailUrl(event.target.value)} />
+            </div>
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="mxroute-username">Username</Label>
-            <Input id="mxroute-username" value={username} onChange={(event) => setUsername(event.target.value)} />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="mxroute-api-key">API Key</Label>
-            <Input id="mxroute-api-key" type="password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="mxroute-webmail">Webmail URL</Label>
-            <Input id="mxroute-webmail" value={webmailUrl} onChange={(event) => setWebmailUrl(event.target.value)} />
-          </div>
-        </div>
-        {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-        <Button onClick={handleSave} disabled={saving}>{saving ? "Saving..." : "Save MXroute"}</Button>
+          <Button type="submit" disabled={saving}>{saving ? <Loader2 className="size-4 animate-spin" /> : null}Save MXroute</Button>
+        </form>
       </CardContent>
     </Card>
   )
@@ -334,29 +362,37 @@ function CreateMailboxForm({
   siteId,
   disabled,
   onCreated,
+  onSavingChange,
 }: {
   siteId: string
   disabled: boolean
   onCreated: () => Promise<void>
+  onSavingChange: (saving: boolean) => void
 }) {
   const [localPart, setLocalPart] = useState("")
   const [password, setPassword] = useState("")
   const [quotaMb, setQuotaMb] = useState(1024)
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [missing, setMissing] = useState<string | null>(null)
 
   const handleCreate = async () => {
+    const firstEmpty = !localPart.trim() ? "localPart" : !password ? "password" : null
+    if (firstEmpty) {
+      setMissing(firstEmpty)
+      showErrorToast(firstEmpty === "localPart" ? "Mailbox name is required" : "Password is required")
+      return
+    }
+
+    setMissing(null)
     setSaving(true)
+    onSavingChange(true)
     const outcome = await runAction(
       () => createMailboxAction({ data: { input: { siteId, localPart, password, quotaMb } } }),
       { successMessage: "Mailbox created" },
     )
     setSaving(false)
-    if (!outcome.ok) {
-      setError(outcome.message)
-      return
-    }
-    setError(null)
+    onSavingChange(false)
+    if (!outcome.ok) return
     setLocalPart("")
     setPassword("")
     await onCreated()
@@ -369,22 +405,30 @@ function CreateMailboxForm({
         <CardDescription className="text-xs">Password is stored encrypted for provider-backed management.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
-        <div className="grid gap-3 sm:grid-cols-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="mailbox-name">Mailbox</Label>
-            <Input id="mailbox-name" value={localPart} onChange={(event) => setLocalPart(event.target.value)} placeholder="hello" disabled={disabled} />
+        <form
+          noValidate
+          className="space-y-3"
+          onSubmit={(event) => {
+            event.preventDefault()
+            handleCreate()
+          }}
+        >
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="mailbox-name">Mailbox</Label>
+              <Input id="mailbox-name" value={localPart} onChange={(event) => setLocalPart(event.target.value)} placeholder="hello" disabled={disabled} aria-invalid={(missing === "localPart" && !localPart.trim()) || undefined} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="mailbox-password">Password</Label>
+              <Input id="mailbox-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} disabled={disabled} aria-invalid={(missing === "password" && !password) || undefined} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="mailbox-quota">Quota MB</Label>
+              <Input id="mailbox-quota" type="number" min={0} value={quotaMb} onChange={(event) => setQuotaMb(Number(event.target.value))} disabled={disabled} />
+            </div>
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="mailbox-password">Password</Label>
-            <Input id="mailbox-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} disabled={disabled} />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="mailbox-quota">Quota MB</Label>
-            <Input id="mailbox-quota" type="number" min={0} value={quotaMb} onChange={(event) => setQuotaMb(Number(event.target.value))} disabled={disabled} />
-          </div>
-        </div>
-        {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-        <Button onClick={handleCreate} disabled={disabled || saving}>{saving ? "Creating..." : "Create mailbox"}</Button>
+          <Button type="submit" disabled={disabled || saving}>{saving ? <Loader2 className="size-4 animate-spin" /> : null}Create mailbox</Button>
+        </form>
       </CardContent>
     </Card>
   )
@@ -401,6 +445,9 @@ function SettingsModal({
 }) {
   const [settingUpDomain, setSettingUpDomain] = useState(false)
   const [disablingId, setDisablingId] = useState<string | null>(null)
+  // The two forms inside this hub own their own saves, so they hand their
+  // in-flight state up here — otherwise closing the hub could abandon one.
+  const [childSaving, setChildSaving] = useState(false)
 
   const setupDomain = async () => {
     setSettingUpDomain(true)
@@ -430,6 +477,7 @@ function SettingsModal({
         </Button>
       </DialogTrigger>
       <DashboardModalContent
+        busy={settingUpDomain || childSaving || disablingId !== null}
         title="Email Settings"
         description="Manage provider setup, DNS, mailboxes, and webmail access."
         footer={(
@@ -443,14 +491,14 @@ function SettingsModal({
             <Card>
               <CardContent className="p-3">
                 <div className="text-xs text-muted-foreground">Custom domain</div>
-                <div className="mt-1 truncate text-sm font-medium">{data?.customDomain || "Missing"}</div>
+                <div className="mt-1 truncate text-sm font-medium" title={data?.customDomain || "Missing"}>{data?.customDomain || "Missing"}</div>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="p-3">
                 <div className="text-xs text-muted-foreground">Provider</div>
                 <div className="mt-1 flex items-center gap-2 text-sm font-medium">
-                  {data?.providerConfigured ? <CheckCircle2 className="size-4 text-green-600" /> : <AlertTriangle className="size-4 text-yellow-600" />}
+                  {data?.providerConfigured ? <CheckCircle2 className="size-4 text-green-600 dark:text-green-400" /> : <AlertTriangle className="size-4 text-yellow-600" />}
                   MXroute
                 </div>
               </CardContent>
@@ -463,7 +511,7 @@ function SettingsModal({
             </Card>
           </CardGroup>
 
-          <MxrouteForm siteId={siteId} onSaved={onRefresh} />
+          <MxrouteForm siteId={siteId} onSaved={onRefresh} onSavingChange={setChildSaving} />
 
           <Card>
             <CardHeader>
@@ -472,7 +520,8 @@ function SettingsModal({
             </CardHeader>
             <CardContent>
               <Button onClick={setupDomain} disabled={settingUpDomain || !data?.customDomain || !data.providerConfigured}>
-                {settingUpDomain ? "Setting up..." : "Add domain to MXroute"}
+                {settingUpDomain ? <Loader2 className="size-4 animate-spin" /> : null}
+                Add domain to MXroute
               </Button>
             </CardContent>
           </Card>
@@ -488,10 +537,10 @@ function SettingsModal({
                   <div key={`${record.type}-${record.name}-${index}`} className="grid gap-2 rounded-md border p-3 text-sm md:grid-cols-[80px_1fr_92px] md:items-center">
                     <div className="font-medium">{record.type}</div>
                     <div className="min-w-0">
-                      <div className="truncate">{record.name}</div>
-                      <div className="truncate text-xs text-muted-foreground">{record.value}</div>
+                      <div className="truncate" title={record.name}>{record.name}</div>
+                      <div className="truncate text-xs text-muted-foreground" title={record.value}>{record.value}</div>
                     </div>
-                    <Badge variant={record.status === "pass" ? "default" : "outline"} className={record.status === "pass" ? "bg-green-100 text-green-800" : ""}>
+                    <Badge variant={record.status === "pass" ? "default" : "outline"} className={record.status === "pass" ? "bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300" : ""}>
                       {record.status === "pass" ? "Pass" : "Missing"}
                     </Badge>
                   </div>
@@ -502,7 +551,7 @@ function SettingsModal({
             </CardContent>
           </Card>
 
-          <CreateMailboxForm siteId={siteId} disabled={!data?.customDomain || !data.providerConfigured} onCreated={onRefresh} />
+          <CreateMailboxForm siteId={siteId} disabled={!data?.customDomain || !data.providerConfigured} onCreated={onRefresh} onSavingChange={setChildSaving} />
 
           <Card>
             <CardHeader className="flex-row items-center justify-between gap-3 space-y-0">
@@ -531,7 +580,8 @@ function SettingsModal({
                         onClick={() => disableMailbox(mailbox)}
                         disabled={mailbox.status === "disabled" || mailbox.id.startsWith("provider:") || disablingId === mailbox.id}
                       >
-                        {disablingId === mailbox.id ? "Disabling..." : "Disable"}
+                        {disablingId === mailbox.id ? <Loader2 className="size-4 animate-spin" /> : null}
+                        Disable
                       </Button>
                     </div>
                   </div>
@@ -580,44 +630,6 @@ function ThreadDetail({ mail }: { mail: MailItem | null }) {
   )
 }
 
-export function MailAccountsSkeleton() {
-  return (
-    <div className="flex h-[calc(100vh-4rem)] min-h-0 flex-col overflow-hidden" aria-hidden="true">
-      <div className="flex h-14 shrink-0 items-center justify-between border-b px-4">
-        <div className="flex gap-2">
-          {[72, 68, 64].map((width) => <Skeleton key={width} className="h-8" style={{ width }} />)}
-        </div>
-        <Skeleton className="h-8 w-24" />
-      </div>
-      <div className="flex min-h-0 flex-1 overflow-hidden">
-        <div className="h-full w-full shrink-0 border-r bg-sidebar md:w-[320px]">
-          {Array.from({ length: 6 }, (_, index) => (
-            <div key={index} className="flex gap-3 border-b p-4">
-              <Skeleton className="h-9 w-9 shrink-0 rounded-full" />
-              <div className="min-w-0 flex-1 space-y-2">
-                <Skeleton className="h-4 w-3/4" />
-                <Skeleton className="h-4 w-full" />
-                <Skeleton className="h-3 w-5/6" />
-              </div>
-            </div>
-          ))}
-        </div>
-        <div className="hidden flex-1 space-y-4 p-4 md:block">
-          <div className="flex gap-3">
-            <Skeleton className="h-10 w-10 rounded-full" />
-            <div className="space-y-2">
-              <Skeleton className="h-4 w-40" />
-              <Skeleton className="h-3 w-56" />
-            </div>
-          </div>
-          <Skeleton className="h-7 w-2/3" />
-          <Skeleton className="h-4 w-full" />
-          <Skeleton className="h-4 w-5/6" />
-        </div>
-      </div>
-    </div>
-  )
-}
 
 export function MailAccountsDashboard({ siteId }: MailAccountsDashboardProps) {
   const [data, setData] = useState<MailDashboardData | null>(null)
@@ -691,7 +703,7 @@ export function MailAccountsDashboard({ siteId }: MailAccountsDashboardProps) {
                             <span className="shrink-0 text-xs text-muted-foreground">{mail.date}</span>
                           </div>
                           <p className={cn("mt-0.5 truncate text-sm", !mail.read && "font-medium")}>{mail.subject}</p>
-                          <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">{mail.teaser}</p>
+                          <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground" title={mail.teaser}>{mail.teaser}</p>
                         </div>
                       </button>
                     )

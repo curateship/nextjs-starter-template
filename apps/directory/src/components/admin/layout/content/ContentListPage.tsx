@@ -12,17 +12,19 @@ import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import {
   AdminBulkDeleteButton,
-  AdminErrorDialog,
   AdminListFooter,
+  AdminRowAction,
+  AdminRowActions,
   AdminSortButton,
   AdminTableShell, AdminListPending,
-  formatRelativeDate,
+  RelativeDate,
   useAdminBulkSelection,
   useAdminSort,
 } from "@/components/admin/layout/list"
 import { ConfirmDestructive } from "@/components/admin/layout/ConfirmDestructive"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
+import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import {
   TableRightActions,
@@ -35,7 +37,6 @@ import { useContentListMutations } from "@/components/admin/layout/content/useCo
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { CursorPagination } from "@/components/ui/cursor-pagination"
 import { Dialog } from "@/components/ui/dialog"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
@@ -62,6 +63,7 @@ export function ContentListPage<TItem extends ContentListItem>({
   builderPath,
   builderQueryParam,
   canDeleteItem,
+  deleteBlockedLabel = "This one cannot be deleted",
   canSelectItem,
   columnCount = 6,
   createButtonLabel,
@@ -74,7 +76,6 @@ export function ContentListPage<TItem extends ContentListItem>({
   emptyButtonLabel,
   emptyDescription,
   emptyTitle,
-  formatModified,
   getBuilderHref,
   getCursorItems,
   getDisplayPath,
@@ -125,7 +126,6 @@ export function ContentListPage<TItem extends ContentListItem>({
     ...sortableColumns,
   }
   const contentData = useContentListData({
-    clearSelection: itemSelection.clearSelection,
     contextPageSize,
     effectiveSiteId,
     getCursorItems,
@@ -167,6 +167,12 @@ export function ContentListPage<TItem extends ContentListItem>({
     total,
     usesCursorPagination,
   } = contentData
+
+  // Ticks never survive a change to what the table is showing.
+  useClearSelectionOnListChange(
+    itemSelection,
+    `${effectiveSiteId}|${searchQuery}|${filterStatus}|${itemSort.sortColumn}|${itemSort.sortDirection}|${currentPage}|${cursorHistory.length}|${pageSize}`
+  )
   const contentMutations = useContentListMutations({
     appendItem,
     builderPath,
@@ -228,7 +234,7 @@ export function ContentListPage<TItem extends ContentListItem>({
     if (isPublished(item)) {
       return (
         <div className="flex gap-1">
-          <Badge variant="default" className="bg-green-100 text-green-800">
+          <Badge variant="default" className="bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300">
             Published
           </Badge>
           {privateItem && (
@@ -293,8 +299,9 @@ export function ContentListPage<TItem extends ContentListItem>({
           />
 
           <AdminTableShell
+            error={error ? { message: error, onRetry: reloadItems } : null}
             title={listLabel}
-            icon={<EmptyIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+            icon={<EmptyIcon className="text-muted-foreground" />}
             count={usesCursorPagination || showTotalCount ? total : filteredItems.length}
             loading={loading}
             selectedCount={itemSelection.selectedCount}
@@ -338,21 +345,19 @@ export function ContentListPage<TItem extends ContentListItem>({
               </TableRightActions>
             }
             footer={
-              !loading && usesCursorPagination ? (
-                <div className="flex items-center justify-between bg-muted/50 p-4">
-                  <div className="text-sm text-muted-foreground">
-                    Showing {items.length} items from a filtered total of {total}
-                  </div>
-                  <CursorPagination
-                    hasPreviousPage={cursorHistory.length > 0}
-                    hasNextPage={Boolean(nextCursor)}
-                    onPreviousPage={handlePreviousPage}
-                    onNextPage={handleNextPage}
-                  />
-                </div>
-              ) : !loading ? (
+              !loading ? (
                 <AdminListFooter
-                  currentPage={currentPage}
+                  // A cursor list still gets the shared footer — same rows-per-page
+                  // box, same "1-25 of 340", same arrows — rather than its own pair
+                  // of Previous/Next buttons. Only the two jump-to-the-end arrows
+                  // are unavailable, because that query steps one page at a time.
+                  cursor={usesCursorPagination ? {
+                    hasPreviousPage: cursorHistory.length > 0,
+                    hasNextPage: Boolean(nextCursor),
+                    onPreviousPage: handlePreviousPage,
+                    onNextPage: handleNextPage,
+                  } : undefined}
+                  currentPage={usesCursorPagination ? cursorHistory.length + 1 : currentPage}
                   pageSize={pageSize}
                   total={total}
                   onPageChange={setCurrentPage}
@@ -383,26 +388,29 @@ export function ContentListPage<TItem extends ContentListItem>({
                 <TableBody>
                   {loading && sortedItems.length === 0 ? (
                     <AdminListPending />
-                  ) : error ? (
-                    <TableRow>
-                      <TableCell colSpan={tableColumnCount} className="h-32 text-center">
-                        <AlertCircle className="mx-auto h-10 w-10 text-red-500" />
-                        <h3 className="mt-4 text-lg font-semibold text-red-900">Error Loading {itemLabelPlural}</h3>
-                        <p className="text-red-700">{error}</p>
-                      </TableCell>
-                    </TableRow>
                   ) : filteredItems.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={tableColumnCount} className="h-32 text-center">
                         <EmptyIcon className="mx-auto h-10 w-10 text-muted-foreground" />
-                        <h3 className="mt-4 text-lg font-semibold">{emptyTitle(items, filterStatus)}</h3>
-                        {emptyDescription && (
-                          <p className="mt-2 text-muted-foreground">{emptyDescription(items, filterStatus)}</p>
-                        )}
-                        {(items.length === 0 || showEmptyButtonWhenFiltered) && (
-                          <Button onClick={() => setShowCreateDialog(true)} className="mt-4" variant="outline">
-                            {emptyButtonLabel}
-                          </Button>
+                        {/* A search that found nothing never shows the first-run
+                            "create your first" copy — `emptyTitle` cannot tell
+                            the two apart because it is not given the query. */}
+                        {searchQuery.trim() ? (
+                          <h3 className="mt-4 text-lg font-semibold">
+                            No {itemLabelPlural.toLowerCase()} found matching your search.
+                          </h3>
+                        ) : (
+                          <>
+                            <h3 className="mt-4 text-lg font-semibold">{emptyTitle(items, filterStatus)}</h3>
+                            {emptyDescription && (
+                              <p className="mt-2 text-muted-foreground">{emptyDescription(items, filterStatus)}</p>
+                            )}
+                            {(items.length === 0 || showEmptyButtonWhenFiltered) && (
+                              <Button onClick={() => setShowCreateDialog(true)} className="mt-4" variant="outline">
+                                {emptyButtonLabel}
+                              </Button>
+                            )}
+                          </>
                         )}
                       </TableCell>
                     </TableRow>
@@ -453,8 +461,11 @@ export function ContentListPage<TItem extends ContentListItem>({
                                 )}
                               </div>
                               <div className="min-w-0">
-                                <h4 className="truncate text-sm font-medium hover:underline sm:text-base">{item.title}</h4>
-                                <p className="truncate text-xs text-muted-foreground sm:text-sm">
+                                <h4 className="truncate text-sm font-medium hover:underline sm:text-base" title={item.title}>{item.title}</h4>
+                                <p
+                                  className="truncate text-xs text-muted-foreground sm:text-sm"
+                                  title={getDisplayPath?.(item) || `/${pathPrefix}/${item.slug}`}
+                                >
                                   {getDisplayPath?.(item) || `/${pathPrefix}/${item.slug}`}
                                 </p>
                               </div>
@@ -477,58 +488,35 @@ export function ContentListPage<TItem extends ContentListItem>({
                           )}
                           <TableCell column="meta">{renderStatusBadge ? renderStatusBadge(item) : getDefaultStatusBadge(item)}</TableCell>
                           <TableCell column="mutedMeta">
-                            {formatModified ? formatModified(item) : formatRelativeDate(item.updated_at)}
+                            <RelativeDate date={item.updated_at} />
                           </TableCell>
                           <TableCell column="meta">
-                            <div className="flex items-center">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 w-8 p-0"
+                            <AdminRowActions>
+                              <AdminRowAction
+                                icon={Settings}
+                                label={`${itemLabel} Settings`}
                                 onClick={() => setSettingsItem(item)}
-                                title={`${itemLabel} Settings`}
-                              >
-                                <Settings className="h-4 w-4" />
-                                <span className="sr-only">{itemLabel} Settings</span>
-                              </Button>
-                              {previewDisabled ? (
-                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0" disabled title={`Publish ${itemLabel.toLowerCase()} to preview`}>
-                                  <Eye className="h-4 w-4" />
-                                  <span className="sr-only">Publish {itemLabel.toLowerCase()} to preview</span>
-                                </Button>
-                              ) : (
-                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0" asChild>
-                                  <a href={previewHref} target="_blank" rel="noopener noreferrer" title="Preview">
-                                    <Eye className="h-4 w-4" />
-                                    <span className="sr-only">Preview</span>
-                                  </a>
-                                </Button>
-                              )}
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 w-8 p-0"
-                                onClick={() => handleDuplicate(item)}
+                              />
+                              <AdminRowAction
+                                icon={Eye}
+                                external
+                                href={previewHref}
+                                disabled={previewDisabled}
+                                label={previewDisabled ? `Publish ${itemLabel.toLowerCase()} to preview` : "Preview"}
+                              />
+                              <AdminRowAction
+                                icon={Copy}
+                                label="Duplicate"
                                 disabled={duplicatingItemId === item.id}
-                                title="Duplicate"
-                              >
-                                <Copy className="h-4 w-4" />
-                                <span className="sr-only">Duplicate</span>
-                              </Button>
-                              {isDeletable(item) && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-8 w-8 p-0 text-foreground hover:text-foreground"
-                                  onClick={() => setPendingDeleteId(item.id)}
-                                  disabled={deletingItemId === item.id}
-                                  title="Delete"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                  <span className="sr-only">Delete</span>
-                                </Button>
-                              )}
-                            </div>
+                                onClick={() => handleDuplicate(item)}
+                              />
+                              <AdminRowAction
+                                icon={Trash2}
+                                label={isDeletable(item) ? "Delete" : deleteBlockedLabel}
+                                disabled={!isDeletable(item) || deletingItemId === item.id}
+                                onClick={() => setPendingDeleteId(item.id)}
+                              />
+                            </AdminRowActions>
                           </TableCell>
                         </TableRow>
                       )
@@ -586,14 +574,6 @@ export function ContentListPage<TItem extends ContentListItem>({
             : undefined}
           onCancel={() => { setMassDeleteConfirmOpen(false); setErrorMessage(null) }}
           onConfirm={confirmMassDelete}
-        />
-
-        <AdminErrorDialog
-          open={errorMessage !== null}
-          message={errorMessage ?? ""}
-          onOpenChange={(open) => {
-            if (!open) setErrorMessage(null)
-          }}
         />
       </AdminLayout>
     </>

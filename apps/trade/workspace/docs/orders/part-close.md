@@ -1,0 +1,178 @@
+# Closing a position: how much, and market or limit
+
+The X on a position row opens a window asking how much comes off and how it
+sells. It starts on all of it at market, which is what the button did before,
+so nothing has to be filled in to get the old behaviour.
+
+## Market or limit, for any amount
+
+Tyler asked for the choice on 24 Sep 2026: "When closing trade. GIve me an
+option to choose market close or limit close". The window's **Order type**
+picks one.
+
+- **Market** sells now. It pays the spread and the taker fee to be out right
+  away. All of it at market is the ordinary close. Part of it at market is one
+  reduce-only market order for that piece.
+- **Limit** is an order that follows the price. It rests just off the market,
+  never crosses it, and moves as the price moves until it fills. Nothing is
+  typed in: Tyler chose this over a fixed price on 24 Sep 2026. Taking some
+  profit off a winner is where it matters most, because there is no hurry and
+  the spread is money.
+- **Until the person picks one, the choice follows the amount.** All of it
+  starts on Market and a part starts on Limit, which is how the window worked
+  before it offered the choice. Once picked, it stays picked when the amount
+  changes.
+
+The window says in dollars what the press will do before it is pressed, and
+which of the two it is.
+
+## What the window asks
+
+- **An amount, in dollars or in coins**, with 25%, 50% and All of it as
+  presses that fill the box. Switching the unit says the same amount in the
+  other unit, so switching never quietly changes what would be sold.
+- **All of it follows the live price while the window is open.** The dollar
+  figure changes with the market price instead of becoming larger than the
+  position after a price drop. Typing a figure ends that preset, so an amount
+  entered by hand stays exactly as entered and is still refused when it is too
+  large.
+- **What happens to the rest**, in dollars, including where its stop is. "$49.62
+  of the $99.23 position, about 17.852132 coins at $2.7795. $49.61 keeps
+  running, with its stop at $2.40."
+- **A refused amount says why**, above the button, and the box is outlined. An
+  amount bigger than the position names what the position holds; an empty box
+  says what all of it comes to.
+
+## The sums happen on the server, not in the window
+
+The window shows dollars and coins side by side, but the price it showed them
+at is a second or two old by the time the press lands. Dollars become coins on
+the server, against the price the exchange is quoting then, and the result is
+rounded down to the market's own size step.
+
+**More than the position holds is capped, not refused.** A window saying "sell
+$95.57, all of it" is quoting an old price, and if the coin has dropped since,
+$95.57 is more coins than the account holds. Refusing there would turn a plain
+"all of it" press into an error on a falling market, which is the worst moment
+for one. Capping cannot over-sell, because of the next rule.
+
+**A remainder too small to be an order is not a remainder.** If what would be
+left is under the exchange's smallest order, the whole position is sold
+instead: with the ordinary close for market, and chased for limit. Leaving a scrap behind would leave something that can never be closed
+again: from then on the close button itself would be refused. This also covers
+a near-miss the window makes on its own — the amount box holds cents, and all
+of a $99.29 position is 35.699133 coins, which read back from "99.29" is a hair
+short.
+
+## How the chase works
+
+This section is the Limit choice. Market sends its order straight away and
+writes no row.
+
+Nothing is sent to an exchange when the press lands. One row is written, and
+the engine's next pass rests a reduce-only post-only limit just off the price
+and follows it. It is the same chase a watched order runs, with the same
+ten-second spacing between moves and the same "has the price moved enough to be
+worth moving" test.
+
+That means the practice lane and the real lane need no separate code: the
+engine already knows how to place an order in either, and a practice run that
+filled instantly where the real one had to queue would make practice a worse
+guide than no practice at all.
+
+**Following the price has no time limit.** The order keeps following until the
+requested part sells or the person cancels. Repeated order refusals can still
+pause the close, as described below.
+
+**It never asks for more than is left.** The chase cancels and re-places its
+order whenever the price drifts, and a fill landing in between would otherwise
+be forgotten — the next order would go out at the full size and four coins
+asked for could leave as six. What is left to sell is the amount asked for less
+how far the holding has already come down, so the position itself is the count.
+The one way that can be wrong is something else reducing the position, a stop
+firing or a ladder exit on the same coin, and then the close stops early. Early
+sells less than asked and never more.
+
+**A missing order does not mean a part close is gone.** The exchange's open
+order list can briefly leave out an order that is still working. Trade waits
+until the whole requested piece has left the position before it releases that
+order number. A partial fill does not prove the unsold remainder has gone. A
+replacement could meet the first order and sell too much.
+
+## When the exchange refuses the waiting price
+
+A post-only sell must wait on the exchange before filling. If the submitted
+price can already match a buyer, Hyperliquid refuses the attempt. The watched
+order keeps trying at a newly read price. Trade does not turn the sale into a
+market order.
+
+Trade recognizes both Hyperliquid's original rejection and its translated
+sentence. A price rejected by Trade before any request is sent follows the
+same retry path. The engine clears the refused attempt from its plan and
+discards the cached Hyperliquid price. The next engine pass reads the price
+again and calculates a new waiting price.
+
+**Each refusal in a row stands the next attempt twice as far off the market.**
+The first attempt waits 0.02% off the price, then 0.04%, 0.08%, 0.16% and so
+on, up to the 2% the chase is ever allowed. An accepted order puts it straight
+back to 0.02%, so a calm coin never widens at all and the queue position comes
+back as soon as one order rests.
+
+The widening exists because the refusals arrive in runs at one price. The
+engine prices the order against the live price the exchange pushes it, and the
+order path then checks that price against Hyperliquid's mids, which are cached
+for two seconds and are the middle of the book rather than the mark. When those
+two numbers disagree by more than 0.02%, every attempt at 0.02% is takeable and
+every attempt is refused, so asking again at the same distance only earns the
+same answer. A DOGE part close hit that on 21 Sep 2026, refused five times in
+fourteen seconds and paused with nothing sold, and an AVNT one paused twice on
+7 and 8 September.
+
+Standing further off is always in your favour on price and never against it: a
+sell asks for more and a buy offers less. What it costs is queue position, so
+the part may take longer to fill.
+
+The popup and watched row say the order is still trying. The popup clears when
+Trade records an accepted order or an immediate fill, or the watch is removed.
+Repeated refusals use the existing consecutive-refusal limit, five by default.
+At the limit the order pauses and the popup becomes an error asking the person
+to check the market and resume. An accepted send resets the count.
+
+A lost response is different. The exchange may have accepted the sale, so Trade
+does not send another sale while its outcome is unknown. Even a partial fill
+does not authorize another order, because the first order may still hold the
+remaining coins. The close can finish when the requested amount has left the
+position. An unconfirmed cancellation also prevents a replacement.
+
+`live-orders.ts` identifies safe retries before the engine changes its saved
+plan. `live-smart-orders.ts` records retry progress after that save.
+`loadLiveRefusals` clears retry progress on acceptance while retaining separate
+errors such as failed position protection. No database migration is needed;
+the existing journal action column also stores `retrying`.
+
+## Calling one off
+
+The resting order shows under Open orders like any other. The × on it stops the
+close rather than taking that one order back — taking it back would be answered
+by the engine placing another a few seconds later, and the row would come back
+looking like the press had missed.
+
+Cancel a part close from Trade, not from the exchange's own screen. If an order
+vanishes outside Trade before the requested piece has left, Trade waits instead
+of guessing that another order is safe.
+
+## The stop and the target on what is left
+
+A whole-position target shrinks with the position on its own and is left alone.
+A target set to sell a fixed number of coins does not, so one bigger than what
+will be left is brought down to what will be left, before the close is placed.
+
+It is done then rather than after the fill because the fill happens in the
+engine minutes later, and a target the exchange refuses is a position with no
+way out. The cost is that a close which never fills leaves a smaller target
+than was asked for, which sells less than intended and never more.
+
+**Not read back from Aster, Phemex or KuCoin yet.** Hyperliquid's whole-position
+bracket tracks the position; what the other three do with a fixed-size target
+after a part close has not been checked against those venues, and the answer
+belongs in this file when it has been.

@@ -1,0 +1,73 @@
+# Editor chrome
+
+The video editor keeps the shell's own chrome. It draws its panels inside the
+shell layout and changes nothing about the navigation around them.
+
+## The sidebar keeps its right border
+
+The navigation sidebar carries the same 1px right border on the editor screen
+as it does on every other screen. That line comes from the shell's sidebar
+component and is coloured by Settings → Styling → Divider lines.
+
+Between 9 Aug 2026 and 20 Sep 2026 it did not. `studio.css` carried a rule that
+set `border-right-width: 0` on the sidebar whenever a studio was open, on the
+grounds that the content gutter already parted the navigation from the
+workspace. Tyler asked for the line back on 20 Sep 2026, so the rule is gone.
+
+**The rule: the editor never switches off a piece of shell chrome.** If a shell
+line looks wrong on this screen, the fix belongs to the shell or to the editor's
+own layout, not to a rule that hides the shell's line on one route.
+
+## The lines the editor does draw
+
+`studio.css` still draws three of its own, and only in flat mode, where cards
+have no chrome of their own:
+
+- `.studio-flat-stage-left` and `.studio-flat-stage-right` put a line down each
+  side of the picture, on the stage body so they never cut through the header
+  controls.
+- `.studio-flat-timeline` puts a line above the timeline.
+
+All three use `--border`, so they follow the divider colour the user picked.
+
+## The playhead runs the full height of the timeline
+
+The red playhead, and the alignment line that appears while a clip is being
+dragged, reach the bottom edge of the timeline panel however few lanes the
+project has.
+
+Both lines are drawn `top: 0; bottom: 0` inside the timeline's scrolling
+content, so their height is the height of that content. With three lanes in a
+tall panel the content stopped under the last lane and the playhead stopped with
+it, well short of the panel's edge. The content now carries `min-height: 100%`
+(`src/components/video-editor/studio-timeline.tsx:287`), so it is always at
+least as tall as the box it scrolls in. A project with enough lanes to scroll is
+unaffected, because the lanes are already taller than that.
+
+## The parts the editor borrows from the shell
+
+Every panel header in the studio and in the carousel studio comes from the
+shell's `src/components/shared/dashboard-card-header.tsx`. The side panels use
+`DashboardCardTitleHeader`. The middle panel, with the way back, the project
+name and the Export button, uses the plain `DashboardCardHeader` frame laid out
+as three columns (`StageHeader` in `studio-editor.tsx`, `CarouselStageHeader` in
+`carousel-studio.tsx`). The frame owns the 57px height, so a header in the
+studio and a header on the contacts page are the same height and have the same
+line underneath, and a change to the shell's reaches both at once.
+
+Until 23 Sep 2026 the middle header set its own height of 3.15rem, about 50px,
+so its line sat 7px higher than the lines under the panels on either side.
+
+Failures the editor cannot put right itself go to the shared error toast from
+`src/lib/toast/error-toast.ts`. Two of them exist: a timeline that will not
+parse, and a project that another window saved first so this one has stopped
+saving (`two-windows.md` says what happens to that window's work). Neither
+draws a banner in the editor, because a banner above the stage would shrink the
+picture every time something went wrong. A window that is not saving shows a
+lock button beside the project name instead, which is 32px wide and reloads the
+page.
+
+Both were named differently until 20 Sep 2026, `WorkspacePanelHeader` and
+`ErrorBanner`, and both lived in files the app carried its own copy of. The
+shell renamed them and deleted the old files, so the editor now imports the
+shell's.

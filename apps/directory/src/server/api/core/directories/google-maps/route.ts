@@ -21,6 +21,7 @@ import {
   mergeDirectoryTemplateBlocks,
   pruneDirectoryValueBlocksForTemplate,
 } from '@/lib/actions/directories/directory-template-inheritance'
+import { pickContactEmail } from '@/lib/utils/contact-email'
 import { generateSlug } from '@/lib/utils/slug'
 import { isAuthorizedCoreBridgeRequest, isCoreBridgeSiteAllowed } from '@/lib/utils/core-bridge-auth'
 import { deleteFromR2, uploadToR2 } from '@/lib/utils/r2'
@@ -724,6 +725,14 @@ function applyCoreMenuLinkMapping(
     throw new Error(`Mapped Core menu link "${mapping.targetFieldKey}" is not supported.`)
   }
 
+  // Scraped email columns carry addresses that are not contacts — a site
+  // builder's error-reporting inbox, an automated sender. Leave the row's
+  // existing email alone rather than publishing one of those on the listing.
+  const linkValue = mapping.targetFieldKey === 'email'
+    ? pickContactEmail(sourceValue)
+    : valueForCoreLink(sourceValue)
+  if (mapping.targetFieldKey === 'email' && !linkValue) return
+
   const index = menuLinks.findIndex((link: unknown) => {
     return link && typeof link === 'object' && !Array.isArray(link) && (link as { type?: unknown }).type === mapping.targetFieldKey
   })
@@ -733,7 +742,7 @@ function applyCoreMenuLinkMapping(
     ...(index >= 0 ? nextLinks[index] || {} : {}),
     id: index >= 0 ? nextLinks[index]?.id : `core-menu-${mapping.targetFieldKey}`,
     type: mapping.targetFieldKey,
-    value: valueForCoreLink(sourceValue),
+    value: linkValue,
   }
   if (index >= 0) nextLinks[index] = nextLink
   else nextLinks.push(nextLink)

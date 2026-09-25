@@ -15,6 +15,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import AlertTriangle from "lucide-react/dist/esm/icons/triangle-alert.js"
 import { getAllSitesAction, type Site } from "@/lib/actions/sites/site-actions"
 import { applyThemeToSiteAction } from "@/lib/actions/themes/user-theme-actions"
+import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
 
 interface ApplyThemeDialogProps {
   templateId: string
@@ -35,7 +37,12 @@ export function ApplyThemeDialog({
   const [selectedSiteId, setSelectedSiteId] = useState("")
   const [loading, setLoading] = useState(true)
   const [applying, setApplying] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  // Failures report through the one shared error toast, never inside the modal
+  // body — see workspace/docs/admin-action-feedback.md.
+  const setError = (message: string | null) => {
+    if (message) showErrorToast(message)
+    else dismissErrorToast()
+  }
 
   useEffect(() => {
     if (open) {
@@ -57,7 +64,7 @@ export function ApplyThemeDialog({
 
   const handleApply = async () => {
     if (!selectedSiteId) {
-      setError("Please select a site")
+      setError("Choose a site to apply this theme to")
       return
     }
 
@@ -76,6 +83,7 @@ export function ApplyThemeDialog({
         onOpenChange(false)
         setSelectedSiteId("")
         onApplied?.()
+        showActionSuccess("Theme applied.")
       }
     } catch {
       setError("Failed to apply theme")
@@ -127,17 +135,13 @@ export function ApplyThemeDialog({
               </div>
             </div>
           )}
-
-          {error && (
-            <p className="text-sm text-red-600">{error}</p>
-          )}
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={applying}>
             Cancel
           </Button>
-          <Button onClick={handleApply} disabled={applying || !selectedSiteId}>
+          <Button onClick={handleApply} disabled={applying}>
             {applying ? "Applying..." : "Apply Theme"}
           </Button>
         </DialogFooter>

@@ -7,11 +7,11 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardGroup, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Skeleton } from "@/components/ui/skeleton"
 import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
 import { DashboardModalCardTitle, DashboardModalContent, DashboardModalFooterActions } from "@/components/admin/layout/dashboard/modals"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import ChevronDown from "lucide-react/dist/esm/icons/chevron-down.js"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
 import { getContentCategoriesAction, bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
 import { getPostTemplatesBySite, type PostTemplate } from "@/lib/actions/posts/post-template-actions"
 import {
@@ -53,12 +53,14 @@ export function PostSettingsModal({
   const [excerpt, setExcerpt] = useState("")
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
   const [primaryCategoryId, setPrimaryCategoryId] = useState<string | null>(null)
-  const [loadingCategories, setLoadingCategories] = useState(false)
   const [templates, setTemplates] = useState<PostTemplate[]>([])
   const [templatesLoading, setTemplatesLoading] = useState(true)
   const [selectedTemplateId, setSelectedTemplateId] = useState("")
+  const [templateMissing, setTemplateMissing] = useState(false)
+  // Cleared as soon as a template is chosen, so the ring never outlives the fault.
+  const templateInvalid = templateMissing && !selectedTemplateId
 
-  const { loading: saving, loadingAction: savingAction, error, setError, submit } = useCreateContent<Post>({
+  const { loading: saving, loadingAction: savingAction, setError, submit, titleInvalid } = useCreateContent<Post>({
     entityLabel: "post",
     title,
     titleRequiredMessage: "Post title is required",
@@ -94,16 +96,12 @@ export function PostSettingsModal({
 
       setSelectedCategoryIds([])
       setPrimaryCategoryId(null)
-      setLoadingCategories(true)
       getContentCategoriesAction({ data: { contentId: post.id, contentType: 'post' } }).then(({ data }) => {
         if (cancelled) return
         if (data) {
           setSelectedCategoryIds(data.map((c) => c.id))
           setPrimaryCategoryId(data.find((c) => c.is_primary)?.id || data[0]?.id || null)
         }
-      }).finally(() => {
-        if (cancelled) return
-        setLoadingCategories(false)
       })
     }
 
@@ -155,9 +153,12 @@ export function PostSettingsModal({
       return
     }
     if (!selectedTemplateId) {
+      setTemplateMissing(true)
       setError('Template is required')
       return
     }
+
+      setTemplateMissing(false)
     await submit(publish ? "publish" : "draft", publish, (updated) => {
       onSuccess?.(updated)
       onOpenChange(false)
@@ -177,12 +178,13 @@ export function PostSettingsModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DashboardModalContent
+        busy={saving}
         title={(
           <div className="flex min-w-0 items-center gap-3">
-            <span className="truncate">{post.title}</span>
+            <span className="truncate" title={post.title}>{post.title}</span>
             <div className="flex shrink-0 items-center space-x-2">
               <div className={`w-2 h-2 rounded-full ${
-                post?.is_published ? 'bg-green-500' : 'bg-gray-400'
+                post?.is_published ? 'bg-green-500 dark:bg-green-600' : 'bg-gray-400'
               }`} />
               <span className="text-sm font-medium">
                 {post?.is_published ? 'Published' : 'Draft'}
@@ -209,26 +211,23 @@ export function PostSettingsModal({
                 variant="outline"
                 disabled={saving}
               >
-                {savingAction === "draft" ? "Saving..." : "Save as Draft"}
+                {savingAction === "draft" ? <Loader2 className="size-4 animate-spin" /> : null}
+                Save as Draft
               </Button>
               <Button
                 type="button"
                 onClick={() => handleSave(true)}
                 disabled={saving}
               >
-                {savingAction === "publish" ? (post?.is_published ? "Saving..." : "Publishing...") : (post?.is_published ? "Save" : "Publish")}
+                {savingAction === "publish" ? <Loader2 className="size-4 animate-spin" /> : null}
+                {post?.is_published ? "Save" : "Publish"}
               </Button>
             </DashboardModalFooterActions>
           </>
         )}
       >
-        <form id="post-settings-form" onSubmit={handleSubmit} className="contents">
-          {error && (
-            <div className="px-6 pb-2">
-              <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div>
-            </div>
-          )}
-
+        <form
+          noValidate id="post-settings-form" onSubmit={handleSubmit} className="contents">
           <CardGroup className="grid">
             <Card>
               <CardHeader>
@@ -240,12 +239,11 @@ export function PostSettingsModal({
                   <FieldLabel htmlFor="modal-post-template">Template</FieldLabel>
                   {templatesLoading ? (
                     <div className="border-input inline-flex h-10 items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm whitespace-nowrap shadow-xs">
-                      <Skeleton className="h-4 w-24 rounded-sm" />
                       <ChevronDown className="size-4 opacity-50" />
                     </div>
                   ) : (
                     <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
-                      <SelectTrigger id="modal-post-template">
+                      <SelectTrigger id="modal-post-template" aria-invalid={templateInvalid || undefined}>
                         <SelectValue placeholder="Select template" />
                       </SelectTrigger>
                       <SelectContent className="z-60">
@@ -271,6 +269,7 @@ export function PostSettingsModal({
                   onTitleChange={handleTitleChange}
                   onSlugChange={handleSlugChange}
                   slugAutoDescription={null}
+                  titleInvalid={titleInvalid}
                 />
 
                 <FeaturedImageField imageUrl={featuredImage} onChange={setFeaturedImage} />
@@ -301,7 +300,6 @@ export function PostSettingsModal({
                       onSelectionChange={setSelectedCategoryIds}
                       primaryCategoryId={primaryCategoryId}
                       onPrimaryCategoryChange={setPrimaryCategoryId}
-                      loadingSelectedCategories={loadingCategories}
                       variant="combobox"
                     />
                   </Field>

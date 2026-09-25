@@ -2,9 +2,9 @@ import * as React from "react"
 
 import {
   formatFocusDays,
-  pct,
+  signedPct,
   signedUsd,
-} from "@/components/backtest/backtest-format"
+} from "@/lib/format"
 import { buildBotFillMarkers } from "@/components/bots/bot-chart-overlays"
 import type {
   BotRoundTrip,
@@ -101,7 +101,7 @@ export function BotLiveChartPanel({
     const spanMs = focusedTrip.exitTime - focusedTrip.entryTime
     return {
       up: focusedTrip.pnl >= 0,
-      pctText: pct(focusedTrip.returnPct),
+      pctText: signedPct(focusedTrip.returnPct),
       pnlText: signedUsd(focusedTrip.pnl),
       bars: Math.max(1, Math.round(spanMs / intervalMs)),
       daysText: formatFocusDays(spanMs / 86_400_000),

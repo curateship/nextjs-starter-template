@@ -37,13 +37,35 @@ type ExitState = {
 }
 
 /** The percentages in force right now: an anchored stop and a risk-reward
- * take profit become plain percents here, before any level math runs. */
+ * take profit become plain percents here, before any level math runs.
+ *
+ * The level is converted against the STOP BASIS, not the position, because the
+ * basis is the price `effectiveStopPx` applies the resulting percent back to.
+ * Measuring off one price and applying to another lands the stop on a third
+ * that means nothing: with `stopAnchor: "first"` a DCA ladder drags the average
+ * below the first buy, so a base-anchored stop sat ABOVE its base by that same
+ * ratio — ~8.5% for a four-rung ladder, firing at a price matching no base and
+ * no rung. They are the same price whenever no anchor is set, which is why this
+ * only ever showed up on ladders.
+ */
 function inForce(
   settings: ProtectionSettings,
   position: { szi: number; entryPx: number },
   state: ExitState
 ): ProtectionSettings {
-  return resolveProtection(settings, position, state.stopLevelPx)
+  const anchored = resolveProtection(
+    settings,
+    stopBasis(position, state),
+    state.stopLevelPx
+  )
+  if (settings.takeProfitRr === undefined) return anchored
+  // Take profit always measures off the average, so its R — the distance from
+  // the average to the level — keeps being read off the average too.
+  return {
+    ...anchored,
+    takeProfitPct: resolveProtection(settings, position, state.stopLevelPx)
+      .takeProfitPct,
+  }
 }
 
 /** The position the stop measures against — the anchor when one is set. */

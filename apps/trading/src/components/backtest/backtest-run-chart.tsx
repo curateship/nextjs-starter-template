@@ -41,7 +41,7 @@ import {
   type ReplaySpeed,
 } from "@/lib/backtest/replay"
 
-import { formatFocusDays, pct, signedUsd } from "./backtest-format"
+import { formatFocusDays, signedPct, signedUsd } from "@/lib/format"
 import { ReplayTransport } from "./replay-transport"
 import {
   buildRunFillMarkers,
@@ -433,7 +433,7 @@ export function BacktestRunChart({
     const days = spanMs / DAY_MS
     return {
       up: committedFocus.pnl >= 0,
-      pctText: pct(committedFocus.returnPct),
+      pctText: signedPct(committedFocus.returnPct),
       pnlText: signedUsd(committedFocus.pnl),
       bars: Math.max(1, Math.round(spanMs / barMs)),
       daysText: formatFocusDays(days),

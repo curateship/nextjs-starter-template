@@ -1,0 +1,520 @@
+import { PGlite } from "@electric-sql/pglite"
+import { eq } from "drizzle-orm"
+import { afterEach, beforeEach, describe, expect, it } from "vitest"
+
+import {
+  COLLECTION_NAME_TAKEN_MESSAGE,
+  COLLECTION_NOT_FOUND_MESSAGE,
+} from "@/lib/video/media-collections"
+import { now, uuid } from "@/server/auth/security"
+import { type CustomShellDb } from "@/server/db"
+import { customShellMedia, type CustomShellUser } from "@/server/schema"
+import {
+  createTestDatabase,
+  insertUser,
+  insertWorkspace,
+} from "@/server/test-support"
+import {
+  addMediaToOwnedCollection,
+  createOwnedCollection,
+  deleteOwnedCollection,
+  listOwnedCollections,
+  removeMediaFromOwnedCollection,
+  renameOwnedCollection,
+  setMediaItemCollections,
+} from "@/server/video/media-collections"
+import { createOwnedCarousel } from "@/server/video/carousels"
+import {
+  attachMediaToScope,
+  attachPastedMediaToProject,
+  deleteMediaFromScope,
+  listVideoMedia,
+  retryOwnedMediaPreparation,
+} from "@/server/video/media-list"
+import {
+  createOwnedProject,
+  writeProjectTimeline,
+} from "@/server/video/projects"
+import {
+  videoMediaCollectionItems,
+  videoMediaFilmstrips,
+  videoMediaProxies,
+} from "@/server/video/schema"
+
+let client: PGlite
+let database: CustomShellDb
+let user: CustomShellUser
+let workspaceId: string
+
+// serializeMedia builds public URLs, which need the R2 base — same pattern as
+// the shell's own tests.
+const hadOriginalR2PublicUrl = Object.prototype.hasOwnProperty.call(
+  process.env,
+  "CUSTOM_SHELL_R2_PUBLIC_URL"
+)
+const originalR2PublicUrl = process.env.CUSTOM_SHELL_R2_PUBLIC_URL
+
+beforeEach(async () => {
+  process.env.CUSTOM_SHELL_R2_PUBLIC_URL = "https://video-media.example.test"
+  const testDb = await createTestDatabase()
+  client = testDb.client
+  database = testDb.db
+  user = await insertUser(database)
+  workspaceId = (await insertWorkspace(database, { userId: user.id })).id
+})
+
+afterEach(async () => {
+  await client.close()
+  if (hadOriginalR2PublicUrl) {
+    process.env.CUSTOM_SHELL_R2_PUBLIC_URL = originalR2PublicUrl
+  } else {
+    delete process.env.CUSTOM_SHELL_R2_PUBLIC_URL
+  }
+})
+
+async function insertMedia(
+  ownerId: string,
+  overrides: Partial<typeof customShellMedia.$inferInsert> = {}
+) {
+  const timestamp = now()
+  const [row] = await database
+    .insert(customShellMedia)
+    .values({
+      id: uuid(),
+      workspaceId,
+      userId: ownerId,
+      filename: `${uuid()}.mp4`,
+      originalName: "clip.mp4",
+      fileSize: 1000,
+      mimeType: "video/mp4",
+      fileType: "video",
+      storagePath: `${ownerId}/${uuid()}.mp4`,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      ...overrides,
+    })
+    .returning()
+  return row
+}
+
+describe("collections", () => {
+  it("lists by name and counts items", async () => {
+    const beta = await createOwnedCollection(user.id, "beta", database)
+    await createOwnedCollection(user.id, "Alpha", database)
+    const media = await insertMedia(user.id)
+    await addMediaToOwnedCollection(user.id, beta.id, [media.id], database)
+
+    const listed = await listOwnedCollections(user.id, database)
+    expect(listed.map((c) => c.name)).toEqual(["Alpha", "beta"])
+    expect(listed[1].item_count).toBe(1)
+  })
+
+  it("refuses a name that only differs by case or spacing", async () => {
+    await createOwnedCollection(user.id, "B-roll", database)
+    await expect(
+      createOwnedCollection(user.id, "  b-roll  ", database)
+    ).rejects.toThrowError(COLLECTION_NAME_TAKEN_MESSAGE)
+  })
+
+  it("refuses renaming onto a taken name", async () => {
+    await createOwnedCollection(user.id, "Hooks", database)
+    const other = await createOwnedCollection(user.id, "Logos", database)
+    await expect(
+      renameOwnedCollection(user.id, other.id, "hooks", database)
+    ).rejects.toThrowError(COLLECTION_NAME_TAKEN_MESSAGE)
+  })
+
+  it("deleting a collection detaches media without destroying it", async () => {
+    const collection = await createOwnedCollection(user.id, "Hooks", database)
+    const media = await insertMedia(user.id)
+    await addMediaToOwnedCollection(user.id, collection.id, [media.id], database)
+
+    await deleteOwnedCollection(user.id, collection.id, database)
+
+    const items = await database.select().from(videoMediaCollectionItems)
+    expect(items).toEqual([])
+    const survivors = await database
+      .select()
+      .from(customShellMedia)
+      .where(eq(customShellMedia.id, media.id))
+    expect(survivors).toHaveLength(1)
+  })
+
+  it("never attaches media the caller does not own", async () => {
+    const stranger = await insertUser(database)
+    const strangersMedia = await insertMedia(stranger.id)
+    const collection = await createOwnedCollection(user.id, "Mine", database)
+
+    const result = await addMediaToOwnedCollection(
+      user.id,
+      collection.id,
+      [strangersMedia.id],
+      database
+    )
+    expect(result.added_count).toBe(0)
+  })
+
+  it("adding twice is harmless and says so", async () => {
+    const collection = await createOwnedCollection(user.id, "Hooks", database)
+    const media = await insertMedia(user.id)
+    await addMediaToOwnedCollection(user.id, collection.id, [media.id], database)
+    const again = await addMediaToOwnedCollection(
+      user.id,
+      collection.id,
+      [media.id],
+      database
+    )
+    expect(again.added_count).toBe(0)
+  })
+
+  it("replaces one item's memberships wholesale", async () => {
+    const first = await createOwnedCollection(user.id, "First", database)
+    const second = await createOwnedCollection(user.id, "Second", database)
+    const media = await insertMedia(user.id)
+    await addMediaToOwnedCollection(user.id, first.id, [media.id], database)
+
+    await setMediaItemCollections(user.id, media.id, [second.id], database)
+
+    const items = await database.select().from(videoMediaCollectionItems)
+    expect(items.map((item) => item.collectionId)).toEqual([second.id])
+  })
+
+  it("refuses membership in a collection that is not the caller's", async () => {
+    const stranger = await insertUser(database)
+    const strangers = await createOwnedCollection(stranger.id, "Not yours", database)
+    const media = await insertMedia(user.id)
+
+    await expect(
+      setMediaItemCollections(user.id, media.id, [strangers.id], database)
+    ).rejects.toThrowError(COLLECTION_NOT_FOUND_MESSAGE)
+  })
+
+  it("removes membership and reports the honest count", async () => {
+    const collection = await createOwnedCollection(user.id, "Hooks", database)
+    const media = await insertMedia(user.id)
+    await addMediaToOwnedCollection(user.id, collection.id, [media.id], database)
+    const removed = await removeMediaFromOwnedCollection(
+      user.id,
+      collection.id,
+      [media.id],
+      database
+    )
+    expect(removed.removed_count).toBe(1)
+  })
+})
+
+describe("the media list with video extras", () => {
+  it("keeps project and carousel media on their own editor shelves", async () => {
+    const project = await createOwnedProject(user.id, "Project", database)
+    const carousel = await createOwnedCarousel(user.id, "Carousel", database)
+    const projectMedia = await insertMedia(user.id)
+    const carouselMedia = await insertMedia(user.id)
+    await insertMedia(user.id)
+
+    await attachMediaToScope(
+      user.id,
+      { type: "project", id: project.id },
+      projectMedia.id,
+      database
+    )
+    await attachMediaToScope(
+      user.id,
+      { type: "carousel", id: carousel.id },
+      carouselMedia.id,
+      database
+    )
+
+    const projectList = await listVideoMedia({
+      userId: user.id,
+      scope: { type: "project", id: project.id },
+      database,
+    })
+    const carouselList = await listVideoMedia({
+      userId: user.id,
+      scope: { type: "carousel", id: carousel.id },
+      database,
+    })
+
+    expect(projectList.media.map((item) => item.id)).toEqual([projectMedia.id])
+    expect(carouselList.media.map((item) => item.id)).toEqual([carouselMedia.id])
+  })
+
+  it("refuses to attach media or documents owned by another person", async () => {
+    const stranger = await insertUser(database)
+    const project = await createOwnedProject(user.id, "Project", database)
+    const theirProject = await createOwnedProject(stranger.id, "Private", database)
+    const mine = await insertMedia(user.id)
+    const theirs = await insertMedia(stranger.id)
+
+    await expect(
+      attachMediaToScope(
+        user.id,
+        { type: "project", id: theirProject.id },
+        mine.id,
+        database
+      )
+    ).rejects.toThrowError("Project not found")
+    await expect(
+      attachMediaToScope(
+        user.id,
+        { type: "project", id: project.id },
+        theirs.id,
+        database
+      )
+    ).rejects.toThrowError("Media not found")
+    await expect(
+      listVideoMedia({
+        userId: user.id,
+        scope: { type: "project", id: theirProject.id },
+        database,
+      })
+    ).rejects.toThrowError("Project not found")
+  })
+
+  it("keeps media already used by an older project visible", async () => {
+    const project = await createOwnedProject(user.id, "Project", database)
+    const used = await insertMedia(user.id)
+    await writeProjectTimeline(
+      user.id,
+      project.id,
+      {
+        aspect: "9:16",
+        tracks: [
+          {
+            id: "track-1",
+            muted: false,
+            clips: [
+              {
+                id: "clip-1",
+                kind: "video",
+                name: "Used clip",
+                startMs: 0,
+                durationMs: 1_000,
+                trimStartMs: 0,
+                mediaId: used.id,
+              },
+            ],
+          },
+        ],
+      },
+      project.version,
+      database
+    )
+
+    const listed = await listVideoMedia({
+      userId: user.id,
+      scope: { type: "project", id: project.id },
+      database,
+    })
+    expect(listed.media.map((item) => item.id)).toEqual([used.id])
+  })
+
+  it("deletes media from an editor only when it belongs to that shelf", async () => {
+    const project = await createOwnedProject(user.id, "Project", database)
+    const attached = await insertMedia(user.id)
+    const unattached = await insertMedia(user.id)
+    await attachMediaToScope(
+      user.id,
+      { type: "project", id: project.id },
+      attached.id,
+      database
+    )
+    const deleteRows: typeof import("@/server/media/library").deleteMediaAsAdmin =
+      async (mediaIds, targetDatabase = database) => {
+        const deleted = await targetDatabase
+          .delete(customShellMedia)
+          .where(eq(customShellMedia.id, mediaIds[0]))
+          .returning({ id: customShellMedia.id })
+        // Nothing in this test is protected by email already sent.
+        return { deletedCount: deleted.length, protectedCount: 0 }
+      }
+
+    await expect(
+      deleteMediaFromScope(
+        user.id,
+        { type: "project", id: project.id },
+        unattached.id,
+        database,
+        deleteRows
+      )
+    ).rejects.toThrowError("Media not found")
+    await deleteMediaFromScope(
+      user.id,
+      { type: "project", id: project.id },
+      attached.id,
+      database,
+      deleteRows
+    )
+
+    const remaining = await database
+      .select({ id: customShellMedia.id })
+      .from(customShellMedia)
+      .where(eq(customShellMedia.userId, user.id))
+    expect(remaining.map((row) => row.id)).toEqual([unattached.id])
+  })
+
+  it("filters to one collection, to Uncollected, or not at all", async () => {
+    const collection = await createOwnedCollection(user.id, "Hooks", database)
+    const inCollection = await insertMedia(user.id)
+    const loose = await insertMedia(user.id)
+    await addMediaToOwnedCollection(
+      user.id,
+      collection.id,
+      [inCollection.id],
+      database
+    )
+
+    const everything = await listVideoMedia({ userId: user.id, database })
+    expect(everything.media).toHaveLength(2)
+
+    const members = await listVideoMedia({
+      userId: user.id,
+      collectionId: collection.id,
+      database,
+    })
+    expect(members.media.map((m) => m.id)).toEqual([inCollection.id])
+
+    const uncollected = await listVideoMedia({
+      userId: user.id,
+      collectionId: null,
+      database,
+    })
+    expect(uncollected.media.map((m) => m.id)).toEqual([loose.id])
+  })
+
+  it("never shows another person's media", async () => {
+    const stranger = await insertUser(database)
+    await insertMedia(stranger.id)
+    const mine = await insertMedia(user.id)
+
+    const listed = await listVideoMedia({ userId: user.id, database })
+    expect(listed.media.map((m) => m.id)).toEqual([mine.id])
+  })
+
+  it("searches by name with wildcards kept literal", async () => {
+    await insertMedia(user.id, { originalName: "gym-hook.mp4" })
+    await insertMedia(user.id, { originalName: "other.mp4" })
+
+    const hits = await listVideoMedia({
+      userId: user.id,
+      search: "gym-hook",
+      database,
+    })
+    expect(hits.media).toHaveLength(1)
+
+    const literal = await listVideoMedia({
+      userId: user.id,
+      search: "%",
+      database,
+    })
+    expect(literal.media).toHaveLength(0)
+  })
+
+  it("falls back to the original file until a proxy is ready", async () => {
+    await insertMedia(user.id)
+    const listed = await listVideoMedia({ userId: user.id, database })
+    expect(listed.media[0].playback_url).toBe(listed.media[0].url)
+    expect(listed.media[0].proxy_status).toBeNull()
+  })
+
+  it("puts pasted files on the new project's shelf and names the missing ones", async () => {
+    const stranger = await insertUser(database)
+    const project = await createOwnedProject(user.id, "Project", database)
+    const mine = await insertMedia(user.id)
+    const theirs = await insertMedia(stranger.id)
+    const deletedId = uuid()
+
+    const result = await attachPastedMediaToProject(
+      user.id,
+      project.id,
+      [mine.id, theirs.id, deletedId, mine.id],
+      database
+    )
+
+    expect(result.missingMediaIds).toEqual([theirs.id, deletedId])
+    const shelf = await listVideoMedia({
+      userId: user.id,
+      scope: { type: "project", id: project.id },
+      database,
+    })
+    expect(shelf.media.map((item) => item.id)).toEqual([mine.id])
+
+    // Pasting the same file again is not an error.
+    await expect(
+      attachPastedMediaToProject(user.id, project.id, [mine.id], database)
+    ).resolves.toEqual({ missingMediaIds: [] })
+  })
+
+  it("refuses to paste into somebody else's project", async () => {
+    const stranger = await insertUser(database)
+    const theirProject = await createOwnedProject(stranger.id, "Private", database)
+    const mine = await insertMedia(user.id)
+
+    await expect(
+      attachPastedMediaToProject(user.id, theirProject.id, [mine.id], database)
+    ).rejects.toThrowError("Project not found")
+  })
+})
+
+describe("trying a failed file again", () => {
+  async function insertJobs(
+    mediaId: string,
+    proxy: string,
+    filmstrip: string
+  ) {
+    const timestamp = now()
+    const job = (status: string) => ({
+      mediaId,
+      status,
+      attempts: 3,
+      error: status === "error" ? "Generation failed" : null,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+    await database
+      .insert(videoMediaProxies)
+      .values({ ...job(proxy), profile: "h264-720p" })
+    await database
+      .insert(videoMediaFilmstrips)
+      .values({ ...job(filmstrip), profile: "jpeg-160h-v1" })
+  }
+
+  it("queues only the part that failed, with its tries reset", async () => {
+    const media = await insertMedia(user.id)
+    await insertJobs(media.id, "error", "generating")
+
+    await retryOwnedMediaPreparation(user.id, media.id, database)
+
+    const [proxy] = await database
+      .select()
+      .from(videoMediaProxies)
+      .where(eq(videoMediaProxies.mediaId, media.id))
+    expect(proxy).toMatchObject({ status: "queued", attempts: 0, error: null })
+    const [filmstrip] = await database
+      .select()
+      .from(videoMediaFilmstrips)
+      .where(eq(videoMediaFilmstrips.mediaId, media.id))
+    expect(filmstrip).toMatchObject({ status: "generating", attempts: 3 })
+
+    const listed = await listVideoMedia({ userId: user.id, database })
+    expect(listed.media[0]).toMatchObject({
+      proxy_status: "queued",
+      filmstrip_status: "generating",
+    })
+  })
+
+  it("refuses somebody else's file and leaves it failed", async () => {
+    const stranger = await insertUser(database)
+    const theirs = await insertMedia(stranger.id)
+    await insertJobs(theirs.id, "error", "error")
+
+    await expect(
+      retryOwnedMediaPreparation(user.id, theirs.id, database)
+    ).rejects.toThrowError("Media not found")
+    const [proxy] = await database
+      .select()
+      .from(videoMediaProxies)
+      .where(eq(videoMediaProxies.mediaId, theirs.id))
+    expect(proxy.status).toBe("error")
+  })
+})

@@ -3,14 +3,13 @@ import { eq, and, asc, sql, or } from 'drizzle-orm'
 import { unstable_cache } from '@/lib/cache'
 import { db } from '@/lib/db'
 import { pages, sites } from '@/lib/db/schema'
-import { getListingViewsData } from './page-listing-views-actions'
+import { getListingViewsDataImpl } from './page-listing-views-actions.server'
 import { DIRECTORY_MAP_LISTING_LIMIT, isDirectoryMapBlock } from '@/lib/actions/directories/directory-map-core'
-import { getDirectoryMapConfigAction } from '@/lib/actions/directories/directory-map-actions'
+import { getDirectoryMapConfigActionImpl } from '@/lib/actions/directories/directory-map-actions.server'
 import { getCategoriesListingData, type CategoriesListingData } from './page-category-listing-actions'
 import { getMemberDirectoryData, type MemberDirectoryData } from './page-member-directory-actions'
 import { getEventsCalendarData, type EventsCalendarData } from './page-events-calendar-actions'
 import { isReservedPlatformSubdomain } from '@/lib/utils/platform-host'
-import { resolveSiteByHostInternal } from '@/lib/site-host-resolution'
 
 type SitePageLookup = {
   site: typeof sites.$inferSelect
@@ -62,10 +61,6 @@ function orderSitesByHostMatch(host: string, subdomain: string | null) {
       else 3
     end
   `
-}
-
-export async function resolveSiteByHost(hostname: string) {
-  return resolveSiteByHostInternal(hostname)
 }
 
 async function getCachedSiteAndPageByHost(hostname: string, pageSlug: string) {
@@ -301,7 +296,7 @@ async function prefetchListingData(
         const limit = isMapMode ? DIRECTORY_MAP_LISTING_LIMIT : isPaginated ? itemsPerPage : itemsToShow
         const offset = isMapMode || !isPaginated ? 0 : (listingPage - 1) * itemsPerPage
 
-        const result = await getListingViewsData({
+        const result = await getListingViewsDataImpl({
           site_id: siteId,
           contentType,
           categoryIds: Array.isArray(categoryIds) ? categoryIds : [],
@@ -339,7 +334,7 @@ async function prefetchMapApiKey(
   )
   if (!hasMapBlock) return undefined
 
-  return (await getDirectoryMapConfigAction(siteId)).apiKey
+  return (await getDirectoryMapConfigActionImpl(siteId)).apiKey
 }
 
 async function prefetchCategoryListingData(

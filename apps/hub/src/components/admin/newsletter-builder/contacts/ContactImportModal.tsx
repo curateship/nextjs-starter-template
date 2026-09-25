@@ -205,7 +205,7 @@ export function ContactImportModal({
               <CardContent>
             {importResult ? (
               <div className="text-center space-y-4">
-                <div className="p-4 bg-green-50 text-green-800 rounded-lg">
+                <div className="p-4 bg-green-50 text-green-800 dark:bg-green-950/50 dark:text-green-300 rounded-lg">
                   <p className="font-medium">Import complete</p>
                   <p className="text-sm">{importResult.imported} contacts imported, {importResult.skipped} skipped</p>
                 </div>

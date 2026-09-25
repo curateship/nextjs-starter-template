@@ -1,0 +1,770 @@
+# Watched orders — how a plain order works now
+
+Since 18 Aug 2026 a plain order does not rest in the exchange's book. The app
+watches the price, and only when the market actually reaches the level does it
+start placing anything. This doc says how that works, what dragging does for
+each kind of order, and what the trade-offs are.
+
+The rules this machinery must add up to are stated once, in
+`../rules/trading-rules.md` — that file outranks both this doc and the code.
+
+The code lives in `src/lib/trade/order-style.ts` (the setting),
+`src/lib/trade/watch-order.ts` (what a watched level is),
+`src/server/trade/smart-watch.ts` (the engine that works it), and
+`src/server/trade/live-orders.ts` / `src/server/protocols/hyperliquid/orders.ts`
+(the real-money doors).
+
+## Moving a watched price
+
+When a saved watch starts placing its order, the entry bar says "Placing order...".
+The stop and exit remain visible. Those three prices cannot be dragged during
+placement. A paused watch returns to its normal controls.
+
+If a Hyperliquid reply is lost, Trade says "Checking Hyperliquid order..."
+instead. New watches carry a unique Hyperliquid client order id before Trade
+sends them. Trade can ask Hyperliquid about that exact id, so another order at
+the same price can never be mistaken for the lost one. A failed check keeps the
+watch protected and never sends a duplicate. Older watches without that id stay
+protected and show the clear checking state until their account result arrives.
+
+An exchange order id alone does not remove the watched bars. The chart waits
+until the matching exchange order or changed position arrives in a wallet read.
+The exchange order keeps the watch's stop and exit prices because exchange
+order reads do not include those planned protections. The chart draws only one
+entry throughout that handover.
+
+Dragging a waiting watch saves its new price in the app. The drag does not
+place or move an exchange order. The engine can place the order separately
+when the watched condition is met.
+
+The chart's temporary stand-in line disappears permanently when the saved
+watch first appears. The stand-in is drawn as an ordinary order bar and never
+says it is loading. Moving or removing that watch cannot bring the old line
+back. The placeholder previously stayed in memory and was hidden by matching
+its original price, which let a drag make the old line visible again.
+A confirmed exchange order stays available while cancellation is pending, so
+an exchange refusal restores its line.
+
+## Checking watched limits locally
+
+Use a practice wallet for an order check. Place a watched buy or sell and wait
+for the chosen level. A buy must not fill above its limit; a sell must not fill
+below its limit. If price moves beyond the limit before placement, the order
+waits at the chosen price rather than following the market.
+
+For a paused watch with no submitted order, drag its price and reload. The new
+price remains saved and the watch remains paused. Resume separately when ready.
+An order with an unknown exchange result must still reject a price change.
+
+The focused tests are `smart-watch.test.ts`, `live-orders.test.ts`,
+`live-smart-orders.test.ts`, and `smart-orders.test.ts` under `src/server/trade`.
+Exchange placement is mocked in these tests; they do not submit live trades.
+Production needs the web app and trading engine updated together. No database
+migration is needed for this behavior.
+
+## The two styles
+
+- **Watch** (the default): the level stays inside this app as a row in the
+  database. Nothing is sent to the exchange until the market touches the
+  price. The money stays free until that moment, the level is nobody else's
+  business, it never shows in the public book, and it does not use up the
+  exchange's cap on open orders. The watch remembers which side of the level
+  price started on. A Long above today's price waits for the rise and a Short
+  below it waits for the fall. A Long below today's price also waits for the
+  fall, and a Short above it waits for the rise.
+- **Rest** (the old way, still choosable in Settings → Trading engine): the
+  order sits on the exchange itself. It fills even when this app is switched
+  off, and anyone reading the book can see it. Only a passive limit can rest.
+  If the clicked level is already through today's price, the order becomes a
+  local watch instead of quietly filling at market.
+
+Every account starts on watch. One saved setting in Settings → Trading engine
+flips the whole account back to resting.
+
+**The Long and Short window picks its own style, order by order.** Above the
+size box it has one row of three: **Watched**, **Resting** and **Market**. It
+opens on Watched, and after that it opens on whatever the last order that
+actually went out was placed with, the same way the size and leverage are
+remembered. The choice is saved as `entryStyle` inside the window's own
+remembered settings, and it travels with the order as `orderStyle`.
+
+The account setting is what answers when an order names no style — a market
+order, or a browser tab left open through a deploy. So the window now decides
+every ordinary Long and Short, and Settings → Trading engine only decides the
+first one on a fresh account.
+
+The label carries the explanation of all three on hover, per the UI rule that
+help is a tooltip beside the label rather than a paragraph under the control.
+
+A swap venue has no book for an order to rest in, so it offers Watched and
+Swap now only. A remembered Resting reads as Watched there rather than being
+sent as something the venue cannot do.
+
+The web app and the trading engine must run this behavior from the same commit.
+The web app records whether price must rise or fall into the level. An older
+engine ignores that new field and treats the row as an older watch, so a Short
+below the market becomes a market sell. Deploy the trading engine first and the
+web app second, all three containers from the same commit
+(`../engine/deploying-all-three.md`). An engine that finds a field it does not
+know leaves the row alone.
+
+The watch keeps the chosen leverage while it waits. Its settings window can
+change that leverage until the watch starts taking. DCA ladders start at 1×
+and use a higher number only when somebody chooses it. Aster still reads the
+wallet's current margin choice when the order fires, so Settings remains the
+only place that controls Aster margin mode.
+
+A wallet flow has no separate spending cap. Waiting levels commit no money.
+The strategy works out each level from the wallet, and the engine checks the
+free money again when the level's price arrives. A buy that does not fit is
+refused and stays waiting.
+
+The dedicated trading engine waits in PostgreSQL's lock queue when another
+copy is already working. PostgreSQL gives the released lock to that queued
+engine before a website backup or an older copy can race in. This matters
+during a deploy: the new engine takes over as soon as the previous holder lets
+go, while every other copy remains unable to trade.
+
+The same check handles every market on every protocol. It reads the protocol's
+current price, dollar minimum and coin-size step, then checks the rounded coin
+size that would actually be sent. No coin has a separate branch. A request can
+still become smaller when a market only trades whole coins. At $1.75, for
+example, a $10 request becomes five coins worth $8.75. Trade refuses the watch
+and reports the first legal size.
+
+The first size check uses the clicked level because that is where a watched
+Long or Short is meant to start. The engine checks the venue's current minimum
+again when the level fires, so a coin that became too small while it waited is
+refused rather than sent as an invalid order.
+
+A press draws a temporary price line marked "sending" while the app waits for
+the answer. A refusal removes that line as soon as the reason returns because
+no saved watch or exchange order will replace it, and the toast shows the same
+reason. A successful line remains until the saved watch or resting order takes
+its place, so success never flashes an empty chart between the two.
+
+## One line per order, and one attempt at a time
+
+**A level that has finished leaves the chart at the next read.** The reads only
+carry levels that are still running, so a level missing from one has either not
+reached the app yet or is over. The app used to treat both the same way and hold
+its own copy on screen for thirty seconds, which meant a level that filled soon
+after it was placed was drawn twice: once as the Entry line with its stop and
+its target, and once more as a waiting order with a second stop and a second
+exit beside them. On 12 September 2026 an ARB sell filled twenty seconds after
+it was placed and the chart showed that pile. A level the reads have already
+carried once is now dropped the moment they stop carrying it. A level they have
+never carried is still held, because that one really is on its way.
+
+**A second order on the same coin and the same side is refused while the first
+one is being placed.** Between the market reaching a level and the order coming
+back filled there are a few seconds where nothing on screen moves and it looks
+as though the press did nothing. Pressing again in those seconds used to write a
+second order, and both of them filled. On 12 September 2026 three ARB sells went
+on inside a minute that way, each with its own stop and its own exit, which is
+the wall of bars Tyler was looking at. The refusal says "A sell on this coin is
+being placed right now. Wait for it to finish, then place the next one."
+
+- **Only a level that has actually been touched blocks anything.** A level still
+  waiting for its price is a price somebody chose, and you may stack as many of
+  those on one coin as you like.
+- **A close is never blocked.** Getting out is never made to wait for something
+  that is going in.
+- **The other side is never blocked**, and neither is the + button on a position
+  row, which has its own guard against a double press.
+
+The rules live in `place` and `withJustPlaced` in
+`src/components/trade/use-trading.ts`, and `use-trading.test.tsx` fails if
+either one goes back.
+
+## What happens when the price hits the level
+
+When the market reaches a watched Long or Short, Trade submits a normal limit
+order at the chosen price. A buy may fill at that price or lower. A sell may
+fill at that price or higher. An immediate fill is allowed; the order does not
+become a market order. An unfilled remainder waits at the same limit instead
+of following the market beyond the chosen price.
+
+The live account read starts after the watched-order read finishes. This keeps
+the handoff intact while a fill is happening. Either the response still has
+the reached watch, or its later account snapshot has the resulting order or
+position. The Manual orders and Open orders panels do not go empty between a
+watch reaching its price and the position appearing.
+
+If the exchange does not answer that later account read, the reached watch
+stays in Manual orders. Waiting and cancelled watches still follow the saved
+database state. The reached row leaves only after a successful account read
+can show what replaced it.
+
+An existing paused watch stays paused. A paused ordinary watch with no submitted
+order can be dragged to a new price. Moving returns it to waiting but does not
+resume it. Resume is a separate action. Watches with a submitted or uncertain
+order remain protected against moving their saved price.
+
+Stop loss and take profit travel with the watch and are applied when the
+position opens. A timeout is not proof of refusal: Trade keeps the order marked
+sent until its result is known, preventing a duplicate submission.
+
+### A lost placement reply is checked, then given up on
+
+When a Hyperliquid order is sent and the reply is lost, Trade asks Hyperliquid
+what became of it by the client id it chose before sending. It asks every two
+seconds while the line reads "Checking Hyperliquid order...".
+
+**It stops asking after five minutes and pauses the watch.** Hyperliquid stops
+mapping an old client id, so a reply lost long enough ago is never going to get
+an answer, and the line used to sit on "Checking Hyperliquid order..." for good
+with nothing to press (Tyler, 14 Sep 2026). The paused row carries the reason,
+a notice is written, and Resume or the × is one press away.
+
+**It is paused, not sent back to waiting.** Trade cannot prove what became of
+the order, and an unproven "nothing of mine stands" is how one $50 watch bought
+$150 of coin — the reason the `sent` flag exists at all. Paused, the money is
+safe and the next move is a person's. The reason says to check Hyperliquid for
+a position or a resting order on that coin before resuming.
+
+### Adding to a position uses market orders
+
+The position row's + button opens an addition at the current market price.
+The window has no order style row at all. Its button says "Add at market" and explains
+that the final fill price can move. An addition creates no watched order.
+
+The position row shows "Adding..." while the placement request is pending.
+The + button is disabled for that wallet and market, and repeated submissions
+are ignored until the request finishes. A refusal clears the indicator and
+shows the existing error toast. A confirmed addition refreshes the position.
+The progress indicator describes the submission, not a guarantee of a full fill.
+If the chart or wallet does not reach the requested position within five
+seconds, the request is cleared and an error toast explains that the order
+window could not open. The message names the position's market and asks the
+user to pick that market and try again.
+
+Existing watched orders remain active until filled or cancelled. Ordinary Long
+and Short windows keep the three-way choice and the chosen-price behaviour.
+
+On **Watched** the level stays here. On **Resting** the order goes to the
+exchange as a passive limit, and a level already through today's price becomes
+a local watch instead, because the chosen price is a limit and an order that
+was not asked to fill now must never quietly fill at market. On **Market** the
+chosen side uses the venue's fresh current price, pays the taker fee and
+creates no watched row.
+
+Stop loss and Take profit are separate checkboxes in the same window. A watched
+order may carry either one, both, or neither. The stop loss accepts either its
+exact losing price or a percent away from the entry. A long stop must sit below
+the entry, while a short stop must sit above it. A percent may include the `%`
+sign. The price worked out from either form stays under the box so the line can
+be checked before the order is placed.
+
+The window remembers the two switches and the stop's price-or-percent choice
+after a successful order. Saved settings from before the switches were split
+still mean what they meant then: the old combined switch turns both lines on.
+
+A stop or an exit can also be added after a manual watched order is placed.
+Right-click a price on the losing side of a stopless waiting order and choose
+**Stop loss**, or a price on the winning side of one with no exit and choose
+**Exit**; the clicked price is saved on that watch and the other line is left
+as it was. A stop also has to be on the losing side of the price the market is
+at now, or the order would get out the instant it filled, so the row stays away
+from those prices. An exit has no such limit, because reaching it in profit is
+the point of it. The shortcut
+prefers an open position that needs a stop over a waiting order on the same
+market. Once the position has its stop, the shortcut can target the waiting
+order. The waiting order's own line always opens its exact edit window.
+Both rows work the same way when more than one manual order is waiting on that
+market in the active wallet: all of them the clicked price suits take that stop
+or that exit at once. They share
+one stop line afterwards, so there is nothing ambiguous left to decide. Before
+11 September 2026 the shortcut hid itself in that case, which left somebody who
+had just placed two levels by hand with no way to protect either from the
+chart. The shortcut never acts both ways from one click: a price under a buy is
+also over a sell, so the stopless order nearest the click decides which side
+the row is for, and only that side's orders take the stop. A position stop
+still comes first. Pressing one order's own line still opens its edit window.
+
+The DCA ladder's rungs work the same way on real and practice wallets, and the
+grid always has. In a backtest a rung is modelled as a resting order the
+candle's wick fills — the replay cannot watch a price tick by tick, and the
+wick-fill is the same price the chase would have chased to.
+
+## Dragging, for each kind of line
+
+Dragging is instant on screen: the line is pinned where the hand lets go, and
+the saving happens behind it. If the save is refused, the line goes back and a
+message says why.
+
+- **A watched level**: the drag rewrites the price the app is watching.
+  Nothing touches the exchange. A paused watch with nothing submitted can also
+  move and stays paused. Once an order is submitted, moving is refused until
+  its result is known.
+- **A real resting order** (rest mode): the level never ends up with nothing
+  on it. On Hyperliquid, Phemex and Aster the exchange's own _modify_ command moves
+  the order in place — same order, same size, new price, one call. For years
+  the code said a real order "cannot be changed in place"; that was never
+  true, the modify command existed all along.
+- **A real resting order on KuCoin**: KuCoin Futures has no modify command,
+  checked again on 21 Aug 2026 against the exchange's own SDK, whose futures
+  order list is add, cancel and read with nothing between them. So a move
+  there is two calls, and the new order goes on **first**. The old one comes
+  off after it, so for a fraction of a second that level is covered twice
+  rather than not at all. Three endings, and the screen says which:
+  - The usual one. The new order goes on, the old one comes off, the line is
+    where it was dropped and nothing is said.
+  - The new order is refused, most often because both orders need margin at
+    once and the wallet has not got it. Then **nothing moved**, the old order
+    is still resting at its old price, the line snaps back and the message
+    says why. A rate limit and a missing key are handed back as themselves
+    rather than dressed up as a move that could not be made.
+  - The new order goes on and the old one will not come off. Then **two orders
+    may be resting**, the message says so in those words and says to check
+    Open orders and cancel one. "May", because the old order might equally
+    have filled while the new one was going on: the exchange is asked once,
+    and only a straight answer that the old order has gone buys silence. An
+    exchange that will not say is not an exchange saying no.
+
+  `../rules/trading-rules.md` states what the doubled moment can cost in dollars. It
+  used to be the other way round — cancel first, place second — and the moment
+  in the middle was a level with nothing on it, which is the moment a fall can
+  reach it.
+
+- **A practice order**: re-prices its row, same as ever.
+- A waiting order's **stop** drags too. What that does to the amount depends on
+  how the order was sized:
+  - **Sized by Risk %**: the amount is worked out again from the new stop, so
+    the order still risks the same money. The stop is what turned "1% of the
+    wallet" into an amount of coin in the first place, so moving it has to
+    redo that sum or the order quietly stops risking what was asked for. The
+    new amount is floored to the market's own step, never rounded up.
+  - **Sized in USD, or in a share of free cash**: the amount stays exactly
+    where it was typed, however far the stop is dragged. Those orders were
+    given their amount outright, and the stop has no say in it.
+
+  Which of the two an order is, is written down when it is placed — on the
+  practice order's row, and in a watched order's plan. Every order placed
+  before 10 September 2026 counts as typed by hand, so dragging its stop
+  leaves its amount alone.
+
+  Its **target** drags without touching the size, whatever the order was
+  sized by.
+
+  **A new level appears the moment it is written, not at the next read.** The
+  answer to placing a watched order carries the row itself, so the chart draws
+  the level from that and the "sending" line hands over at once. It used to wait
+  for the next full account read — another round trip to the exchange, and a
+  read already in flight when the order went knows nothing about it and is
+  thrown away, so the wait could run to ten or fifteen seconds.
+
+  **The line stays where you drop it.** The new stop is shown the instant the
+  drag ends and held there until a read carries it back, the same way a dragged
+  order price is. Waiting for the save to answer first left the line at the old
+  stop for the length of the round trip, so it appeared to spring back and then
+  jump forward. A refusal puts the line back where the server has it and says
+  why.
+
+The order bar uses the same 12px settings cog as the Grid bar. Pressing it opens
+a compact settings window beside the bar, like the DCA and Grid editors, rather
+than a page modal. Its size, leverage, stop loss and take profit can still
+change there, including adding a stop without adding a target. Once the level
+has been hit and the order has started chasing, the same edit is refused
+because the order is already in flight.
+
+After Save succeeds, the changed size, leverage, stop loss and take profit stay
+on the chart while the next account read confirms them. Reopening the window in
+that gap shows the saved values, not the copy from before Save was pressed.
+
+## Where they are on screen
+
+A watched level shows in three places, and all three are drawn from one list
+built in `use-trading.ts`, so they can never disagree.
+
+- **On the chart of its own coin**, as the line the order would have been.
+- **Under Open orders** in the bottom panel, mixed in with real and practice
+  orders, because a watched price IS an open order to the person who placed it.
+- **Under Manual orders**, a separate draggable panel below Smart orders and
+  Bots on the right. That
+  is the only one of the three that answers "what am I waiting on across all my
+  coins" without changing market. Each market appears once. When several
+  orders wait on the same market, the row shows the order nearest today's
+  price. `../screens/rules-everywhere.md` has the rest of its rules.
+
+### One sortable table, holdings and waiting prices together
+
+The panel is a table with the same four columns the Smart orders panel above it
+uses, and the same four widths, so the two line up when they sit one over the
+other. Every column sorts. Pressing a row charts that coin.
+
+- **It wears the Smart orders row, cell for cell** (Tyler, 14 Sep 2026): coin
+  art then the ticker, the side as a toned badge, Value quiet in mono, PnL in
+  the money colours. The two panels sit one above the other, so a row that was
+  shaped differently read as a different kind of thing.
+- **Ticker, Type, Value, PnL.** Type is what tells a holding from a waiting
+  price: a holding reads Long or Short and a waiting price reads Buy or Sell.
+  Value is what the coins are worth at today's price on a holding, and what the
+  order will spend when it fires on a waiting price. The column was called Held
+  until 14 Sep 2026, in both this panel and Smart orders. PnL is what a holding
+  is up or down right now, in dollars:
+  today's price less the entry, times the coins held, less the fees it has
+  paid. It is the same figure the Smart orders panel shows beside a strategy's
+  name, and it comes off `positionProfit` in `paper.ts` like every other profit
+  on the screen.
+- **A waiting price shows how far away it is, in the PnL column, in grey and a
+  size smaller.** It has no profit to report, so the column carries "0.30%
+  away" instead — 10px, in the muted colour every other "nothing here" in this
+  table wears, never in the money colours, so it can never be misread as a
+  profit (Tyler, 14 Sep 2026). 10px is as small as a whole phrase goes here.
+- **Waiting prices always sit under the holdings, in every sort.** Pressing any
+  of the four headings sorts inside each half and never mixes them. Coins you
+  are already in are the ones with money moving on them, and a column that
+  shuffled a waiting level up between two holdings made the panel a list of two
+  unlike things.
+- **Two lists became one because a column could not sort across a heading.**
+  The panel used to be holdings, then a "Waiting orders" line, then the
+  levels — and the question the panel answers, where the money is and what it
+  is doing, spans both (Tyler, 14 Sep 2026).
+- **A coin a strategy is running is not here.** A ladder, a grid or a signal
+  already has its own row with its own money in the Smart orders panel above,
+  so repeating it would put one position on the screen twice. A coin whose only
+  smart order is a watch is still yours, because a watch IS a hand-placed
+  order. The rule lives in `positionsYouOpenedByHand`.
+- **A coin an automation is running IS here** (Tyler, 16 Sep 2026). A flow's
+  orders are not listed in the Smart orders panel, which leaves them to that
+  flow's own run dashboard, so leaving the coin out of this panel took it off
+  this screen and left it nowhere but the Positions tab. ARB, held by an
+  automation, was missing from Manual orders for exactly that reason. Both
+  panels now read the same list, `smartOrdersYouPlaced`. A paused flow order
+  is the exception both ways round: it appears in the Smart orders panel, so
+  its coin leaves this one.
+- **Nothing is shown for a level the price has already come to.** It is about
+  to become a position, and the word "reached" sat where a figure belongs.
+- **A Solana holding with no recorded entry price shows a dash for PnL**,
+  rather than a made-up zero that would read as breaking even. The same goes
+  for Value when nothing has quoted a price.
+
+It does not share the Smart orders tab or its card. Smart orders is for a
+ladder or grid. Manual orders is for a plain order waiting at a price.
+
+### A level that was refused says so
+
+A watched level that the exchange keeps refusing used to look exactly like one
+waiting patiently. On 21 Aug 2026 a Phemex level was refused twenty times over
+eighteen minutes — the market had reached the exchange's cap on open interest
+and would not accept anything that opened a position — and the row said
+"waiting" the whole time. There was no way to find out from the app at all.
+
+The reason now sits under the level in the Manual orders panel.
+
+- **It comes from the record that was already being kept.** Every refusal has
+  always been written to `trade_live_journal`. Nothing read it, on the
+  reasoning that a person could go digging when an order had gone wrong —
+  and digging needs a database client, so the answer may as well not have
+  existed. `loadLiveRefusals` reads it now, one row per wallet, market and
+  watch, six hours back.
+- **A watch shows only its own refusals.** While the engine acts for a watch,
+  every journal row it writes carries that watch's id in `smart_order_id`
+  (`actForSmartOrder` in `src/server/trade/live-orders.ts`). The row under a
+  watch reads refusals with its own id and nothing else. It used to take any
+  refusal on the same coin made after the watch began. On 18 Sep 2026 a PONS
+  sell's refusal showed under a $2,000 PONS buy watch that had done nothing
+  wrong.
+- **One line per watch, not one per attempt.** A full market refuses every
+  retry, so twenty identical rows are one fact. The newest carries the reason
+  and the rest are noise that would bury every other market. Two wallets
+  watching the same coin keep separate answers.
+- **"Already filled" is not a refusal.** When a chase goes to move its order
+  and the exchange says the order has already left the book, the order almost
+  always filled a moment before. The journal records that as `gone`, not
+  `refused`, so nothing turns red. The chase still does not place a
+  replacement, because the fill is about to become the position. The PONS
+  sell above had filled 30 thousandths of a second before the chase tried to
+  move it.
+- **A refusal is a toast and a row.** A refusal that comes back from a press
+  appears as a toast at once. The browser's regular read carries a refusal from
+  the background engine. Trade shows the first new reason as a toast while the
+  page is open and keeps the reason under the watched level, so closing the
+  browser cannot erase the explanation.
+- **The triangle says it as much as the colour does**, per the UI standard's
+  rule against saying anything in colour alone. The panel is about 300px wide,
+  so the sentence is clamped to two lines with the whole of it on the row's
+  tooltip, and it breaks anywhere it has to: an exchange code arrives as one
+  unbroken token and ran off the edge until it was allowed to.
+- **Nothing there offers a retry.** The engine is already retrying — that is
+  what made twenty rows — so a button promising to do again what is happening
+  anyway would be a lie about who is stuck.
+- **The words are ours, not the exchange's.** `TE_OI_LIMIT_REDUCE_ONLY` reads
+  as this app being broken. Each protocol folder turns its own exchange's
+  codes into a sentence, because that is the only place that knows what the
+  number means — Phemex's are in `src/server/protocols/phemex/orders.ts`.
+
+### Maker-close retries
+
+The separate maker-close workflow sends post-only orders, and a market that moves into one
+between the price read and the send is refused by the exchange rather than
+filled as a taker. That refusal is normal; the next pass simply asks again.
+
+The maker-close placement path recognizes Hyperliquid's original rejection
+and its translated sentence. It also recognizes a stale waiting price refused
+locally before any request was sent. Those confirmed refusals clear the attempt
+and invalidate the cached Hyperliquid price. The next engine pass calculates a
+new waiting price, without converting the order to a market order or restoring
+a cancelled order at its old price.
+
+The watched row and popup say the order is still trying. Acceptance clears that
+progress notice. Five consecutive refusals pause the order and produce an error,
+using the same limit as other order refusals. An accepted send resets the count.
+`part-close.md` explains the same handling when selling part of a position.
+
+An unknown placement result still keeps the sent flag. A timeout may have
+filled, so another order could buy or sell twice. A part close follows that rule
+too, including after a partial fill whose remaining order is still unaccounted
+for. A cancellation that the exchange has not confirmed never authorizes a
+replacement.
+
+## Your stop stays yours on a coin a strategy is working
+
+A DCA ladder or a grid can be working a coin at the same time as an order you
+placed by hand. The exchange holds one position for that coin, and the position
+carries one stop that sells all of it, so the two cannot share it.
+
+**The strategy keeps the position's stop and your order gets one of its own.**
+Yours is a separate reduce-only order sized to the coins your order bought, and
+its id is written on your order's record, so nothing else can move or cancel
+it. The strategy's stop is the position's ordinary one, which grows by itself as
+the strategy buys. This is the same arrangement `grid-above-ladder.md` describes
+for a grid above a ladder, with the hand in the grid's place.
+
+```
+The ladder holds 3,000 ARB it paid $0.14 for, $420.
+You buy 1,000 ARB yourself at $0.15, $150, with a stop at $0.145.
+
+Before:  price hits $0.145 and the one stop sells all 4,000 ARB, and the
+         ladder, holding nothing, cancels every rung still waiting below.
+Now:     your 1,000 ARB sells for $145, you are out $5, and the ladder keeps
+         its 3,000 ARB and its waiting rungs.
+```
+
+- **Your stop has to sit above where the ladder starts buying**, and it is
+  refused rather than warned about. Below it, the ladder's own stop would have
+  sold everything before yours was reached, so it could never fire. Tyler,
+  16 Sep 2026: "the manual order stop sits above the ladder and I would never
+  place manual orders below ladders."
+- **Live wallets only, on Hyperliquid, Aster and KuCoin.** A practice book holds
+  one stop per position, and a Phemex stop may close the whole position whatever
+  size it carries. Everywhere else your stop is the position's stop, exactly as
+  it always was, and so is every stop on a coin no strategy is working.
+- **Your order's row stays alive after it fills**, because that row is the only
+  thing that knows which stop is yours. It is not drawn as a waiting order any
+  more; it is holding one. The engine keeps the stop at the size your coins
+  come to, capped at the position, and ends the row once the coins have gone.
+- **A stop the exchange has already taken off counts as cancelled.** When the
+  coins go, the row cancels its stop before it finishes. If the exchange
+  answers that the stop is already filled or cancelled, the row finishes. On
+  17 Sep 2026 a DASH row whose stop had been cancelled by hand asked for that
+  same cancel every two seconds for twelve hours, and each refusal showed up
+  on screen. A grid's own stop follows the same rule.
+- **Cancelling your stop by hand, with the × on its row, ends the row.** The
+  row forgets the stop and its stop price, and the next engine pass finishes
+  it. Your coins stay in the position. Before this, the row kept the dead
+  order's id and went on believing it had a stop.
+- **A stop missing from the exchange for 15 seconds also ends the row.** This
+  covers a stop taken off some other way, such as on Hyperliquid's own site,
+  or a stop that fired. The engine checks its account read, which is at most
+  5 seconds old, every pass. 15 seconds is how long an exchange's list can lag
+  behind an order.
+- **A missing stop is never put back.** The account read cannot tell a stop
+  that fired from one that was cancelled. Putting back one that fired would
+  arm a stop for 1 coin that was already sold. On a coin a ladder also holds,
+  that stop would then sell 1 of the ladder's coins.
+- **Calling the order off takes the stop off with it.** The row waits for the
+  exchange to confirm that cancel before it finishes, so a busy venue cannot
+  leave a stop behind that nothing owns.
+- **What it does not cover yet:** the take profit. That is still written to the
+  position, so a target on a shared coin sells everything at the target price.
+  Moving the stop after your order has filled is not wired up either. Both are
+  tracked on the task.
+
+### A level refused five times running pauses, and stays on its own rows
+
+After five order-specific refusals in a row the engine puts the watch down:
+nothing rests on the exchange, later passes skip it, and the fifth refusal
+sends one notice (`../screens/notices.md` has the counting rule). A paused
+watch does not resume itself. It stays under Open orders, in Manual orders
+with the refusal under it, and on its chart, exactly where an unpaused one
+sits.
+
+- **Open orders says "Paused" beside the coin and puts Resume beside the ×.**
+  Resume clears the count and lets the next engine pass act; × calls the
+  watch off. Nothing resumes on its own. Calling it off also lifts the pause,
+  because the engine never reads a paused row and a stop it cannot read would
+  never be carried out.
+- **It is never listed in the Smart orders panel.** Until 2 Sep 2026 a paused
+  watch was the one exception to the rule above, because that panel owned the
+  only Resume button. The panel's list also decides which coins the Positions
+  tab leaves out, so the paused half close of SOL that day took the SOL
+  position off the bottom panel while 25.96 SOL short was still on
+  Hyperliquid. The Positions tab now keeps every coin a watch touches.
+- **A half close that has already filled ends instead of pausing.** The same
+  SOL close paused because 51.91 less 25.96 came out to 25.949999999999996 on
+  the computer, and the leftover 0.0000000000000036 SOL went to Hyperliquid
+  as an order for $0.00, five times. What is left to sell is now rounded to
+  the coin's size step before the watch decides whether it is finished, so a
+  leftover smaller than one step counts as done. `part-close.md` covers the
+  close itself.
+
+### Manual orders opens on last time's levels
+
+The rows come from the trading read, and that read takes about three and a half
+seconds against the database. Measured on 21 Aug 2026, the same on a warm
+server, so it is not a dev-server cold start. The panel opens on this tab, so
+those seconds were the first thing on screen every visit.
+
+So the browser keeps the last answer and draws it at once. The code is
+`src/lib/trade/watched-cache.ts`.
+
+- **It is a picture of the past and it is never trusted.** Nothing is placed,
+  cancelled or priced from it. It only decides what is drawn for the second or
+  two before the truth lands, and the first real read replaces it whether it
+  agrees or not.
+- **They arrive silently.** A line saying "checking these are still waiting"
+  was tried and taken out on 21 Aug 2026: the read lands almost at once, and a
+  spinner on the first thing on screen is the wait wearing a different hat. A
+  read that REFUSES is the one case that still speaks up, because then nothing
+  is coming to correct what is drawn — the tab says "The read failed. This is
+  what was here last time." and offers a Try again.
+- **"You had none waiting" is a picture too.** A cached list of nothing stands
+  in exactly like a cached list of three. Leaving it out was why an exchange
+  with no levels still sat on the spinner: Phemex took 2.6 seconds to say
+  "nothing is waiting" where Hyperliquid took 0.6 to draw three rows. All three
+  exchanges now take the same 0.6.
+- **It is kept per account and per exchange.** localStorage belongs to the
+  browser rather than to whoever is signed in, so without the account in the
+  key the next person to sign in on that machine would see somebody else's
+  levels. A different account looks in a different place and finds nothing.
+- **Only the eight fields a row is drawn from are stored**, and at most sixty
+  levels. A blob is read back by whatever build is running months later, so the
+  less of the order's shape it copies, the less there is to go stale. Anything
+  that will not parse is dropped rather than patched. Coin art is deliberately
+  not among the seven: it comes from the exchange's catalogue every time, so a
+  hand-edited blob cannot put a picture of its choosing on the page.
+
+**The read itself was also holding itself up.** The practice half and the real
+half were both waited for before either was drawn, so every screen on this page
+sat on the slower one — 3.5 seconds against the database while the exchange
+answered in 1.4. Each half now lands on its own, which is why the Positions,
+Open orders and Journal tabs fill sooner too. The 3.5-second practice read is
+still 3.5 seconds; that is the database round trips and it is its own job.
+
+**But half a read is not an answer, and this tab is where that showed.**
+Somebody whose every waiting level is on a real wallet has an empty practice
+half in their hands for a second or two, and the tab read it as the answer: it
+said "Nothing is waiting at a price" on all three dashboards, and wrote that
+empty list into the cache, so the next visit opened on the same claim before
+the exchange had said a word.
+
+Every list that merges the two halves can be told the same lie, and the bottom
+panel's Positions, Open orders and Journal all merge them — they said "No open
+positions" off `loading` in exactly the same way, and the count on each tab
+said "0". It showed in Manual orders first because that panel
+opens on, and because that tab was also writing the half-answer down. All four
+wait for the whole read now.
+
+Measured in a browser on 21 Aug 2026, with the exchange half held back seven
+seconds the way a rate-limited venue holds it back: the old build showed both
+"Nothing is waiting at a price" and "No open positions" for 3.1 seconds of it,
+with every tab counting "0", while the account beside them read $5,898. The
+same test on the fixed build shows neither, says "Reading your watched prices"
+and "Reading what you are holding" instead, leaves the counts blank, and fills
+in the moment the exchange answers.
+
+So the tab waits for BOTH halves before it speaks. `settled` on the trading
+hook is the fact it waits for — both halves have answered, landed or refused —
+and it is what the empty wording and the cache write are allowed to speak from.
+`loading` still means "neither half is in", which is the right question for a
+spinner and the wrong one for a claim about what somebody is waiting on.
+
+**Waiting is not the same as showing nothing, and the cache is untouched by
+this.** It stands in for longer now, not less: it used to be shoved aside the
+moment the first half landed, which is the moment the tab had least to say.
+Levels the landed half DID bring are drawn straight away, whether or not the
+other half is in. The spinner is only ever what is left when a browser has no
+cached picture and neither half has brought a row — and the poisoned blobs
+correct themselves, because the very next whole read overwrites them.
+
+## What it costs
+
+A watched order only fires **while the engine is running**. A resting order
+filled at 3am with the laptop closed; a watched one is this app's own eyes,
+and closed eyes see nothing. That is the price of the money staying free and
+the level staying private. On the server deployment the engine runs all the
+time, so this matters most when trading against a dev machine.
+
+## The safety around it
+
+- **A refused market is held back for one minute.** When the exchange refuses
+  an order on some market, that market's triggers stop firing for sixty
+  seconds instead of retrying every pass — a persistent refusal costs one
+  request a minute, not sixty. The app once rate-limited itself off the
+  exchange with exactly that loop. A fill clears the hold.
+
+  A rate limit is not held that way. "Too fast" is already held off inside the
+  exchange's own client — for the whole key rather than for one market, and
+  the next attempt costs no request at all — so a minute on top of it would
+  only make the level late once the allowance came back.
+
+- **A refusal puts the level back to waiting.** The moment a watch asks for an
+  order it writes down that it has spent, and while that is written and no
+  order is in sight it does nothing at all: that is what stops one level
+  buying the same coin twice. Nothing clears it but the fill arriving or a
+  person calling the order off — so the wait is forever, and a level that
+  writes it down for an order that never went out is a level that will never
+  fire again.
+
+  Trade also believes a refusal from the margin or leverage check because the
+  order endpoint has not been called yet. The other two certain answers are an
+  order the exchange read and refused, or an exchange too busy to look. In
+  those cases no money moved, the level goes back to waiting, and it tries
+  again. A timeout after the order starts may have filled, so the level stays
+  marked sent rather than risking the same buy twice.
+
+  Both doors were open until 21 Aug 2026. A watch drawn above the price on
+  Phemex NFLX was refused at 17:40 because the exchange had put that market
+  into reduce-only, and stood still for the next seventy-seven minutes while
+  the price sat a dollar under the level it was told to buy at. Re-drawn at
+  18:57, it was rate-limited on its first attempt and froze again in four
+  seconds.
+
+  The same rule covers a size that no longer meets the protocol's minimum when
+  price reaches the level. The watch stays active, the protocol's order path
+  records the reason, and nothing is sent. The old path marked the watch done
+  before the protocol could answer, which removed both the level and its
+  explanation.
+
+- **Calling a watch off wins over an engine pass already in progress.** The
+  engine may have read the watch just before the press. A later save from that
+  older read cannot make the cancelled watch active again, and pressing the
+  cancel control twice has the same result as pressing it once.
+- **A finished watch is deleted, not kept.** One that never sent anything is
+  deleted the moment it is called off. One with an order or its own stop on the
+  exchange is deleted by the engine once those are cancelled. One that ends by
+  itself, such as a filled buy whose coins have since gone, is deleted the same
+  way. `deleteFinishedWatch` in `src/server/trade/smart-ladders.ts` does it,
+  and `../rules/trading-rules.md` holds the rule.
+
+  A watch that has only just been placed can still be the copy held on screen
+  while the account read catches up. Its cancel still goes through the watched
+  order path, and a successful cancel removes that held copy at once. It never
+  falls through to the practice-order path merely because the full read has not
+  returned yet. Calling off every watched price in one press follows the same
+  rule for each held copy.
+
+- **A refusal stays with the order that received it.** Reusing the same coin
+  in a new watched order does not carry the previous order's refusal onto the
+  new row. Refusals also stay separate when two wallets watch the same coin.
+
+- **Wallet-wide entry rules fire where the trigger fires.** The cap on how
+  many coins open per hour, and the crash rule's "only coins the exchange
+  allows 10× or more on", are checked at the moment a trigger would open a
+  new coin — on practice and real wallets alike, not only in backtests.
+- **Money is one pool.** Hyperliquid unified its account on their side: the
+  USDC balance backs orders on every market, main or side, with the exchange
+  moving slices onto a market as orders there need them. The app no longer
+  gates anything on "money parked on that market".

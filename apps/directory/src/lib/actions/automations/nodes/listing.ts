@@ -64,12 +64,21 @@ export async function runListingNode(
   let displayOrder = await getNextContentDisplayOrder(directories, siteId)
   const seen = new Set<string>()
 
+  let overCap = 0
   for (const listing of extractions) {
     const sourceId = listingSourceId(context.automationId, listing)
     const titleKey = normalize(listing.name)
     if (seen.has(sourceId) || existing.sourceIds.has(sourceId) || existing.titles.has(titleKey)) {
       result.skipped.push({ name: listing.name, reason: 'A matching listing already exists.' })
       result.skippedCount++
+      continue
+    }
+    // The cap bounds what one run writes, and it sits *after* the duplicate check
+    // so it only ever counts new listings. Capping the extraction instead would
+    // strand everything past the cap forever: the next run would re-read the same
+    // leading businesses, skip them all as duplicates, and never reach the rest.
+    if (result.createdCount >= MAX_LISTINGS_PER_RUN) {
+      overCap++
       continue
     }
     seen.add(sourceId)
@@ -93,6 +102,16 @@ export async function runListingNode(
       result.skipped.push({ name: listing.name, reason: error instanceof Error ? error.message : 'Listing could not be created.' })
       result.skippedCount++
     }
+  }
+
+  // One line for the whole overflow, not one per listing: the cap exists to bound
+  // a run, so its own report must stay bounded too.
+  if (overCap > 0) {
+    result.skipped.push({
+      name: `${overCap} more listing${overCap === 1 ? '' : 's'}`,
+      reason: `Only ${MAX_LISTINGS_PER_RUN} listings are drafted per run. The rest are drafted on the next run that reads this page.`,
+    })
+    result.skippedCount++
   }
 
   if (result.createdCount > 0) {
@@ -229,7 +248,6 @@ function parseListings(output: string): ListingExtraction[] {
       metaDescription: boundedText(item.metaDescription, 300),
       descriptionHtml: boundedText(item.descriptionHtml ?? item.description, 200_000),
     })
-    if (results.length >= MAX_LISTINGS_PER_RUN) break
   }
   return results
 }

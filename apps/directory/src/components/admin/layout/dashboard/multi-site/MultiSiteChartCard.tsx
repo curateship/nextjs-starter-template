@@ -140,7 +140,7 @@ export function MultiSiteChartCard({ metrics, rangeControl, subject = "Combined 
                 <span className="text-2xl font-bold tracking-tight">
                   {formatMetricValue(stat.metric, stat.value)}
                 </span>
-                <span className={`text-xs font-semibold ${stat.change >= 0 ? "text-green-600" : "text-red-600"}`}>
+                <span className={`text-xs font-semibold ${stat.change >= 0 ? "text-green-600 dark:text-green-400" : "text-destructive"}`}>
                   {stat.change >= 0 ? "+" : ""}
                   {stat.change.toFixed(1)}%
                 </span>
