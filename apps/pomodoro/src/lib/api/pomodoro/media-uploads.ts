@@ -112,7 +112,7 @@ const uploadFn = createServerFn({ method: "POST" })
       return await storePomodoroUpload({
         userId: context.user.id,
         purpose: data.purpose,
-        file: { name: data.file.name, size: bytes.byteLength },
+        file: { name: data.file.name },
         bytes,
         detected,
       })

@@ -1,3 +1,4 @@
+import * as React from "react"
 import { CheckIcon, LockIcon } from "lucide-react"
 
 import { Card, CardContent } from "@/components/ui/card"
@@ -14,6 +15,7 @@ import {
 } from "@/lib/pomodoro/background-catalog"
 import { useBackgroundSelection } from "@/lib/pomodoro/background-store"
 import { MediaUploadsSection } from "@/components/pomodoro/media-uploads-section"
+import { MediaGeneratorSection } from "@/components/pomodoro/media-generator-section"
 
 const descriptorLabels = {
   video: "Video",
@@ -29,6 +31,15 @@ const descriptorLabels = {
 export function BackgroundsPage() {
   const { background, canUsePremiumMedia, chooseBackground } =
     useBackgroundSelection()
+  // An AI background arrives as an ordinary upload, so finishing one means the
+  // grid above has a new card and has to read its list again.
+  const [reloadToken, setReloadToken] = React.useState(0)
+  // Stable, so the generator's own fetch is not re-armed by an unrelated
+  // re-render of this page.
+  const reloadUploads = React.useCallback(
+    () => setReloadToken((token) => token + 1),
+    []
+  )
 
   return (
     <>
@@ -115,6 +126,7 @@ export function BackgroundsPage() {
         </div>
 
         <MediaUploadsSection
+          reloadToken={reloadToken}
           purpose="background"
           title="Your own"
           description="A picture or a clip of your own, behind everything."
@@ -148,14 +160,12 @@ export function BackgroundsPage() {
                 preload="metadata"
               />
             ) : (
-              <img
-                src={upload.url}
-                alt=""
-                className="size-full object-cover"
-              />
+              <img src={upload.url} alt="" className="size-full object-cover" />
             )
           }
         />
+
+        <MediaGeneratorSection kind="background" onFinished={reloadUploads} />
       </div>
     </>
   )

@@ -53,6 +53,7 @@ export function MediaUploadsSection({
   purpose,
   title,
   description,
+  reloadToken = 0,
   isSelected,
   onPick,
   renderThumbnail,
@@ -60,6 +61,12 @@ export function MediaUploadsSection({
   purpose: PomodoroUploadPurpose
   title: string
   description: string
+  /**
+   * Bump this to make the strip read its list again. The generator below uses
+   * it: an AI file lands as an ordinary upload, so it belongs in this grid, and
+   * nothing else would tell the grid it is there.
+   */
+  reloadToken?: number
   isSelected: (upload: StoredUpload) => boolean
   onPick: (upload: StoredUpload) => void
   renderThumbnail: (upload: StoredUpload) => React.ReactNode
@@ -90,7 +97,7 @@ export function MediaUploadsSection({
       .catch((loadError: unknown) => {
         setError(getPomodoroUploadErrorMessage(loadError))
       })
-  }, [purpose, signedIn])
+  }, [purpose, reloadToken, signedIn])
 
   React.useEffect(() => {
     void refresh()
