@@ -187,7 +187,7 @@ describe("cleanUpOldData", () => {
     expect(expired).not.toBe(live)
   })
 
-  it("applies the idle limit from Settings → Security, not just the expiry", async () => {
+  it("applies the idle limit from the Sessions card, not just the expiry", async () => {
     const user = await insertUser(database)
     await setSessionPolicy({ maxAgeDays: 0, idleMinutes: 60 }, database)
     const away = await addSession(user.id, { lastSeenAt: ago(3 * HOUR) })

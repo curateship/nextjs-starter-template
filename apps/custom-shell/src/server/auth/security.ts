@@ -434,7 +434,8 @@ export const SESSION_LIST_LIMIT = 20
 /**
  * The rule for "this session would still let somebody in", written the same way
  * `findSessionContextByToken` above decides it: inside its own lifetime, and
- * inside both limits from Settings → Security. A limit of 0 means it is off.
+ * inside both limits from the Sessions card on General settings. A limit of 0
+ * means it is off.
  *
  * The Security tab must not list a session the app would already refuse. Left
  * to the lifetime alone it would show sessions that die the moment their
@@ -472,7 +473,8 @@ function stillSignedIn(
 
 /**
  * The opposite of `stillSignedIn` above: the session is out of its own lifetime,
- * or past one of the two limits from Settings → Security. Written once because
+ * or past one of the two limits from the Sessions card on General settings.
+ * Written once because
  * both the sign-in tidy-up and the app-wide cleanup delete on exactly this rule,
  * and two copies of it could drift apart into two different answers.
  */
@@ -680,7 +682,8 @@ const DAY_MS = 24 * 60 * 60 * 1000
 const LAST_SEEN_REFRESH_MS = MINUTE_MS
 
 /**
- * The app-wide session limits (Settings → Security), read fresh on every
+ * The app-wide session limits (the Sessions card on General settings), read
+ * fresh on every
  * request so tightening the policy reaches sessions that already exist.
  *
  * Read here with its own narrow query rather than through shell-settings.ts,
