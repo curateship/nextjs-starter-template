@@ -5,7 +5,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import { createListing, updateListing } from "@/server/directory/listings"
 import type { VisitorSite } from "@/server/directory/public"
 import { resetPublicDirectoryCacheForTests } from "@/server/directory/public-cache"
-import { dealViewAt } from "@/server/promotions/deal-view"
+import { blankListingHours } from "@/lib/directory/listing-details"
+import { dealViewAt, listedDealsAt } from "@/server/promotions/deal-view"
 import {
   createPromotion,
   type PromotionInput,
@@ -36,6 +37,8 @@ let userId: string
 let listingId: string
 
 const today = "2026-10-05"
+// 3 PM that day, the site's wall clock.
+const now = `${today}T15:00`
 
 async function deal(
   title: string,
@@ -101,7 +104,7 @@ describe("the Deals page", () => {
       endDate: "2026-10-04",
     })
 
-    const list = await readDeals(site, 1, today, database)
+    const list = await readDeals(site, 1, now, database)
     expect(list.deals.map((row) => row.title)).toEqual([
       "Ends today",
       "Ends Friday",
@@ -116,9 +119,31 @@ describe("the Deals page", () => {
 
   it("drops a deal the morning after its last day with nothing else changing", async () => {
     await deal("Pasta week", { startDate: "2026-10-01", endDate: today })
-    expect((await readDeals(site, 1, today, database)).total).toBe(1)
+    expect((await readDeals(site, 1, now, database)).total).toBe(1)
     // The next day is a new cache entry, so no job and no cache clear is needed.
-    expect((await readDeals(site, 1, "2026-10-06", database)).total).toBe(0)
+    expect((await readDeals(site, 1, "2026-10-06T09:00", database)).total).toBe(0)
+  })
+
+  it("keeps a last night past midnight until it closes, then drops it", async () => {
+    const hours = blankListingHours()
+    // Monday 5 Oct is the last day: 10 PM to 2 AM Tuesday.
+    hours.monday = { open: "22:00", close: "02:00", second: null }
+    await deal(
+      "Late night",
+      { startDate: "2026-10-01", endDate: today },
+      { times: hours }
+    )
+    const at = async (clock: string) => {
+      resetPublicDirectoryCacheForTests()
+      return (await readDeals(site, 1, clock, database)).deals.map((row) => row.title)
+    }
+    expect(await at("2026-10-06T01:30")).toEqual(["Late night"])
+    expect(await at("2026-10-06T02:00")).toEqual([])
+    const list = await readDeals(site, 1, "2026-10-06T01:30", database)
+    expect(listedDealsAt(list.deals, "2026-10-06T01:30")[0]).toMatchObject({
+      stage: "on",
+      nowText: "On now · until 2 AM",
+    })
   })
 
   it("leaves out drafts and deals at a draft listing", async () => {
@@ -129,12 +154,12 @@ describe("the Deals page", () => {
       { startDate: today, endDate: null },
       { listingId: hidden.id }
     )
-    expect((await readDeals(site, 1, today, database)).total).toBe(0)
+    expect((await readDeals(site, 1, now, database)).total).toBe(0)
 
     await updateListing(site.id, hidden.id, { status: "published" }, database)
     resetPublicDirectoryCacheForTests()
     expect(
-      (await readDeals(site, 1, today, database)).deals.map((row) => row.title)
+      (await readDeals(site, 1, now, database)).deals.map((row) => row.title)
     ).toEqual(["At a draft listing"])
   })
 
@@ -161,7 +186,7 @@ describe("the Deals page", () => {
       },
       database
     )
-    expect((await readDeals(site, 1, today, database)).total).toBe(0)
+    expect((await readDeals(site, 1, now, database)).total).toBe(0)
   })
 })
 
@@ -184,6 +209,24 @@ describe("a deal's page", () => {
     const nextMorning = dealViewAt(page!, new Date("2026-10-06T05:00:00Z"))
     expect(nextMorning.ended).toBe(true)
     expect(nextMorning.deal.code).toBe("")
+  })
+
+  it("lists the times in words and says when it is next on", async () => {
+    const hours = blankListingHours()
+    for (const day of ["monday", "tuesday", "wednesday", "thursday", "friday"] as const) {
+      hours[day] = { open: "16:00", close: "18:00", second: null }
+    }
+    const made = await deal(
+      "Happy hour",
+      { startDate: "2026-10-01", endDate: null },
+      { times: hours }
+    )
+    const page = await readPublicDeal(site, made.slug, database)
+    // 7 PM on Tuesday 6 Oct in Toronto.
+    expect(dealViewAt(page!, new Date("2026-10-06T23:00:00Z"))).toMatchObject({
+      times: ["Mon to Fri, 4 to 6 PM"],
+      nowText: "Next: tomorrow at 4 PM",
+    })
   })
 
   it("says a deal with no end has no end date", async () => {

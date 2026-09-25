@@ -2,15 +2,19 @@ import { PGlite } from "@electric-sql/pglite"
 import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
+import { blankListingHours } from "@/lib/directory/listing-details"
 import {
   createListing,
   deleteListings,
+  updateListing,
 } from "@/server/directory/listings"
 import {
+  cleanDealTimes,
   createPromotion,
   dealImpactForListings,
   deletePromotions,
   findPromotion,
+  listingHoursForDeal,
   listPromotions,
   updatePromotion,
   type PromotionInput,
@@ -253,6 +257,54 @@ describe("the type and headline", () => {
   })
 })
 
+describe("the times", () => {
+  it("saves Mon to Fri, 4 to 6 PM and reads the same back", async () => {
+    const times = blankListingHours()
+    for (const day of ["monday", "tuesday", "wednesday", "thursday", "friday"] as const) {
+      times[day] = { open: "16:00", close: "18:00", second: null }
+    }
+    const made = await createPromotion(siteId, userId, input({ times }), database)
+    expect((await findPromotion(siteId, made.id, database))?.promotion.times).toEqual(times)
+  })
+
+  it("means all day, every day with every day off", async () => {
+    const made = await createPromotion(siteId, userId, input(), database)
+    expect(made.times).toEqual(blankListingHours())
+  })
+
+  it("refuses a day switched on with no times, naming the day", async () => {
+    expect(() =>
+      cleanDealTimes({ tuesday: { open: "16:00", close: "", second: null } })
+    ).toThrow("Give Tuesday a start and an end time.")
+    expect(() =>
+      cleanDealTimes({
+        friday: { open: "16:00", close: "18:00", second: { open: "25:00", close: "02:00" } },
+      })
+    ).toThrow("Give Friday's second time a start and an end time.")
+  })
+
+  it("copies a listing's hours, second stretch included, from this site only", async () => {
+    await updateListing(
+      siteId,
+      listingId,
+      {
+        hours: {
+          ...blankListingHours(),
+          friday: { open: "12:00", close: "14:30", second: { open: "17:00", close: "22:00" } },
+        },
+      },
+      database
+    )
+    const hours = await listingHoursForDeal(siteId, listingId, database)
+    expect(hours?.friday).toEqual({
+      open: "12:00",
+      close: "14:30",
+      second: { open: "17:00", close: "22:00" },
+    })
+    expect(await listingHoursForDeal(otherSiteId, listingId, database)).toBeNull()
+  })
+})
+
 describe("changing a deal", () => {
   it("publishes, unpublishes and publishes again, keeping the first publish date", async () => {
     const made = await createPromotion(siteId, userId, input(), database)
@@ -335,7 +387,7 @@ describe("the list", () => {
     expect(none.total).toBe(0)
   })
 
-  it("filters by status and gives the site's today", async () => {
+  it("filters by status and gives the site's wall clock", async () => {
     await createPromotion(siteId, userId, input(), database)
     await createPromotion(
       siteId,
@@ -345,7 +397,7 @@ describe("the list", () => {
     )
     const drafts = await listPromotions(siteId, { status: "draft" }, database)
     expect(drafts.total).toBe(1)
-    expect(drafts.today).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    expect(drafts.now).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/)
   })
 })
 

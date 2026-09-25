@@ -46,7 +46,8 @@ import {
   useListSort,
   useSearchBoxText,
 } from "@/lib/nav/list-search"
-import { dealAdminDaysText, dealStage } from "@/lib/promotions/deal-days"
+import { dealAdminDaysText } from "@/lib/promotions/deal-days"
+import { dealStage } from "@/lib/promotions/deal-times"
 import {
   DEFAULT_PROMOTION_SORT,
   promotionSortDirection,
@@ -300,7 +301,7 @@ export function PromotionsDashboard({
               </span>
             </TableCell>
             <TableCell column="meta">
-              <StatusBadges promotion={promotion} today={data.today} />
+              <StatusBadges promotion={promotion} now={data.now} />
             </TableCell>
             <TableCell column="meta">{dealAdminDaysText(promotion)}</TableCell>
             <TableCell column="meta" className="hidden lg:table-cell">
@@ -382,12 +383,13 @@ export function PromotionsDashboard({
  */
 function StatusBadges({
   promotion,
-  today,
+  now,
 }: {
   promotion: PromotionSummary
-  today: string
+  /** The site's wall clock, so a last night past midnight still counts. */
+  now: string
 }) {
-  const ended = dealStage(promotion, today) === "ended"
+  const ended = dealStage(promotion, now) === "ended"
   return (
     <div className="flex items-center gap-1">
       {promotion.status === "published" ? (
