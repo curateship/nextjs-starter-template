@@ -72,6 +72,18 @@ export function isBrandColorValue(value: string) {
   return HEX_COLOR.test(value)
 }
 
+/**
+ * A brand colour written the one way carousel slides store colours: six
+ * lower-case digits. The kit accepts `#fff`, a slide only `#ffffff`, so a
+ * short colour copied onto a slide as it is would fail the slide's save.
+ */
+export function sixDigitBrandColor(value: string) {
+  const digits = value.slice(1).toLowerCase()
+  return digits.length === 3
+    ? `#${[...digits].map((digit) => digit + digit).join("")}`
+    : `#${digits}`
+}
+
 export function createDefaultBrandKit(): VideoBrandKit {
   return {
     colors: [

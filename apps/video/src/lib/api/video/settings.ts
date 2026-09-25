@@ -17,7 +17,12 @@ import {
   CAPTION_Y_MIN,
 } from "@/lib/video/caption-look"
 import { adminPost, userGet } from "@/server/guards"
-import { getVideoBrandKit, saveVideoBrandKit } from "@/server/video/settings"
+import { serializeMedia } from "@/server/media/library"
+import {
+  findBrandLogoMedia,
+  getVideoBrandKit,
+  saveVideoBrandKit,
+} from "@/server/video/settings"
 
 /**
  * The brand kit. Anyone editing can read it — the editor draws with it on every
@@ -77,6 +82,17 @@ const getBrandKitFn = createServerFn({ method: "GET" })
     return getVideoBrandKit()
   })
 
+// The logo as a library picture, which is what a carousel image layer holds.
+// Only what the layer needs, since any signed-in person may ask.
+const getBrandLogoMediaFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .handler(async () => {
+    const row = await findBrandLogoMedia()
+    if (!row) return null
+    const media = await serializeMedia(row)
+    return { id: media.id, url: media.url, name: media.original_name }
+  })
+
 const saveBrandKitFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(brandKitSchema)
@@ -86,6 +102,10 @@ const saveBrandKitFn = createServerFn({ method: "POST" })
 
 export function loadBrandKit() {
   return getBrandKitFn()
+}
+
+export function loadBrandLogoMedia() {
+  return getBrandLogoMediaFn()
 }
 
 export function saveBrandKit(brandKit: z.infer<typeof brandKitSchema>) {
