@@ -41,6 +41,7 @@ import { Route as AuthenticatedTradeRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as THandleRouteImport } from './routes/t.$handle'
+import { Route as ToolsCompoundGrowthRouteImport } from './routes/tools_.compound-growth'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedAdminAiRouteImport } from './routes/_authenticated/admin/ai'
 import { Route as AuthenticatedAdminAiUsageRouteImport } from './routes/_authenticated/admin/ai-usage'
@@ -268,6 +269,11 @@ const ApiHealthRoute = ApiHealthRouteImport.update({
 const THandleRoute = THandleRouteImport.update({
   id: '/t/$handle',
   path: '/t/$handle',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ToolsCompoundGrowthRoute = ToolsCompoundGrowthRouteImport.update({
+  id: '/tools_/compound-growth',
+  path: '/tools/compound-growth',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
@@ -702,6 +708,7 @@ export interface FileRoutesByFullPath {
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/health': typeof ApiHealthRoute
   '/t/$handle': typeof THandleRoute
+  '/tools/compound-growth': typeof ToolsCompoundGrowthRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
@@ -802,6 +809,7 @@ export interface FileRoutesByTo {
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/health': typeof ApiHealthRoute
   '/t/$handle': typeof THandleRoute
+  '/tools/compound-growth': typeof ToolsCompoundGrowthRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
@@ -906,6 +914,7 @@ export interface FileRoutesById {
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/health': typeof ApiHealthRoute
   '/t/$handle': typeof THandleRoute
+  '/tools_/compound-growth': typeof ToolsCompoundGrowthRoute
   '/_authenticated/admin/ai': typeof AuthenticatedAdminAiRoute
   '/_authenticated/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
   '/_authenticated/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
@@ -1010,6 +1019,7 @@ export interface FileRouteTypes {
     | '/workspaces'
     | '/api/health'
     | '/t/$handle'
+    | '/tools/compound-growth'
     | '/admin/ai'
     | '/admin/ai-usage'
     | '/admin/announcements'
@@ -1110,6 +1120,7 @@ export interface FileRouteTypes {
     | '/workspaces'
     | '/api/health'
     | '/t/$handle'
+    | '/tools/compound-growth'
     | '/admin/ai'
     | '/admin/ai-usage'
     | '/admin/announcements'
@@ -1213,6 +1224,7 @@ export interface FileRouteTypes {
     | '/_authenticated/workspaces'
     | '/api/health'
     | '/t/$handle'
+    | '/tools_/compound-growth'
     | '/_authenticated/admin/ai'
     | '/_authenticated/admin/ai-usage'
     | '/_authenticated/admin/announcements'
@@ -1307,6 +1319,7 @@ export interface RootRouteChildren {
   VerifyEmailRoute: typeof VerifyEmailRoute
   ApiHealthRoute: typeof ApiHealthRoute
   THandleRoute: typeof THandleRoute
+  ToolsCompoundGrowthRoute: typeof ToolsCompoundGrowthRoute
   ApiAuthGoogleRoute: typeof ApiAuthGoogleRoute
   ApiWebhooksResendRoute: typeof ApiWebhooksResendRoute
   ApiWebhooksStripeRoute: typeof ApiWebhooksStripeRoute
@@ -1541,6 +1554,13 @@ declare module '@tanstack/react-router' {
       path: '/t/$handle'
       fullPath: '/t/$handle'
       preLoaderRoute: typeof THandleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tools_/compound-growth': {
+      id: '/tools_/compound-growth'
+      path: '/tools/compound-growth'
+      fullPath: '/tools/compound-growth'
+      preLoaderRoute: typeof ToolsCompoundGrowthRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin/': {
@@ -2259,6 +2279,7 @@ const rootRouteChildren: RootRouteChildren = {
   VerifyEmailRoute: VerifyEmailRoute,
   ApiHealthRoute: ApiHealthRoute,
   THandleRoute: THandleRoute,
+  ToolsCompoundGrowthRoute: ToolsCompoundGrowthRoute,
   ApiAuthGoogleRoute: ApiAuthGoogleRoute,
   ApiWebhooksResendRoute: ApiWebhooksResendRoute,
   ApiWebhooksStripeRoute: ApiWebhooksStripeRoute,

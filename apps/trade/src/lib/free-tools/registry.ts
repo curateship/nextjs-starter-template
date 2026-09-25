@@ -59,7 +59,7 @@ export const FREE_TOOLS: readonly FreeTool[] = [
       "What a steady gain each day, week or month grows your money to, and what it takes to reach a goal.",
     group: "calculators",
     path: "/tools/compound-growth",
-    shipped: false,
+    shipped: true,
   },
   {
     id: "convert",

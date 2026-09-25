@@ -108,6 +108,9 @@ screen: anything not written there has not been agreed yet.
 - `tools-page.md` — the `/tools` page, the one list of tools in
   `src/lib/free-tools/registry.ts`, what the shipped flag hides, how a new tool
   gets onto the page, and where an admin adds the Free tools menu link.
+- `compound-growth-calculator.md` — `/tools/compound-growth`: the forwards and
+  backwards formulas, money added each month, how losing days are spread, and
+  what the page refuses.
 
 ## charts/ — the chart itself
 

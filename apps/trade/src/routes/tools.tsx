@@ -17,7 +17,7 @@ import { FREE_TOOLS, shippedFreeTools } from "@/lib/free-tools/registry"
  * at before the first tool exists. It works in the dev server only: the
  * production build replaces `import.meta.env.DEV` with false and drops it.
  *
- * A tool route must not sit under this one as `tools.<name>.tsx`: this page
+ * A tool's route is `tools_.<name>.tsx`, not `tools.<name>.tsx`: this page
  * has no outlet, so a nested child would never draw.
  */
 export const Route = createFileRoute("/tools")({

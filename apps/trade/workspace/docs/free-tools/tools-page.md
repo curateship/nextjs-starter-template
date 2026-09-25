@@ -41,11 +41,30 @@ the same list.
 
 ## Putting a new tool on the page
 
-1. Build the tool's route and its `*.page.ts` declaration (`definePage`,
-   `layout: "marketing"`), the way `src/routes/tools.page.ts` does.
+1. Build the tool's route as `src/routes/tools_.<name>.tsx`, with its
+   declaration beside it as `tools_.<name>.page.ts` (`definePage`, `layout:
+   "marketing"`, `path: "/tools/<name>"`). `tools_.compound-growth.tsx` is the
+   one to copy.
 2. Set `shipped: true` on its entry in `registry.ts`, and correct the address if
    the page ended up somewhere else.
 3. Run `registry.test.ts`. It passes only when the flag and the page agree.
+
+Why the file name has an underscore, and what that costs:
+
+- **The underscore:** `tools.<name>.tsx` would nest the tool under the tools
+  page, which has no outlet, so the tool would never draw. The underscore
+  keeps the address `/tools/<name>` without the nesting.
+- **The title and share preview:** the root route finds a page's declaration
+  by its route id, and the id keeps the underscore (`/tools_/<name>`), so the
+  root misses it. Each tool sets its own head with `freeToolHead` from
+  `src/lib/free-tools/tool-head.ts`. It builds the title and social tags from
+  the declaration's `name` and `summary` through
+  `src/lib/pages/public-metadata.ts`.
+- **The loader passes the root's branding through.** The tool's loader awaits
+  `parentMatchPromise` and returns its `loaderData` as `branding`, and the head
+  reads it from there. Read from `matches`, it is still missing when the server
+  draws the page: the server title then says "Custom Shell", the browser's says
+  the real app name, and React reports a mismatch.
 
 Nothing else is needed for the sitemap or the share preview:
 
@@ -54,13 +73,12 @@ Nothing else is needed for the sitemap or the share preview:
   `src/app/server-options.ts` would list it twice, so don't. The tasks point at
   `appSitemapChunkFiles`, which is for splitting a very large sitemap into
   numbered files and has nothing to do with this.
-- **Share preview.** The root route turns the declaration's `name` and
-  `summary` into the page title and the description social sites show, through
-  `src/lib/pages/public-metadata.ts`. The site's share image from Settings is
-  used for the picture.
-- **Route file.** A tool's route cannot be `src/routes/tools.<name>.tsx`. That
-  file name nests it under the tools page, which has no outlet, so the tool
-  would never draw.
+- **Sign-up link.** `FreeToolSignUpCard` in
+  `src/components/free-tools/sign-up-card.tsx` is the one every tool page ends
+  with, shown only to a visitor who is not signed in.
+- **Number fields.** `DecimalField` in
+  `src/components/free-tools/decimal-field.tsx` takes decimals and thousands
+  commas, marks a bad value and keeps the last good one in use.
 
 ## The Free tools link in the public menu
 
