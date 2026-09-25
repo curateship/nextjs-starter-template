@@ -48,7 +48,7 @@ export type PromotionsPage = {
 
 const idInput = z.string().min(1).max(36)
 
-/** A blank title, the listing and the days are checked by the server, which says what is wrong in words. */
+/** A blank title, the listing, the type and headline and the days are checked by the server, which says what is wrong in words. */
 const promotionInput = z.object({
   title: z.string().max(MAX_PROMOTION_TITLE),
   slug: z.string().max(160).optional(),
@@ -59,6 +59,10 @@ const promotionInput = z.object({
   endDate: z.string().max(10).nullable(),
   code: z.string().max(MAX_PROMOTION_CODE),
   smallPrint: z.string().max(MAX_PROMOTION_SMALL_PRINT),
+  // Longer than the columns on purpose: the server refuses in words.
+  dealType: z.string().max(20),
+  amount: z.string().max(20),
+  headline: z.string().max(100),
   status: z.enum(["draft", "published"]),
 })
 

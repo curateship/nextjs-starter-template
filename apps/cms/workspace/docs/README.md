@@ -44,9 +44,9 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   automation step that reads a page and drafts the events on it, and
   reporting a problem on an event.
 - `promotions.md` — each site's deals: writing them in Admin → Promotions,
-  the Deals page and each deal's page, the rules Tyler set, how the site's
-  time zone decides when a deal is over, and the one filter every public read
-  goes through.
+  the Deals page and each deal's page, deal types and headlines, the rules
+  Tyler set, how the site's time zone decides when a deal is over, and the one
+  filter every public read goes through.
 
 ## Adding a doc
 

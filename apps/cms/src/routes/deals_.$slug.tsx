@@ -13,6 +13,7 @@ import {
   directoryTitle,
 } from "@/lib/directory/public-seo"
 import { focusRing } from "@/lib/layout/focus-ring"
+import { shownHeadline } from "@/lib/promotions/deal-headline"
 
 /**
  * One deal's page at /deals/<address>. It follows the Deals page's on/off
@@ -81,7 +82,12 @@ function DealRoute() {
           />
         ) : null}
         <CardContent className="grid gap-4">
-          <h1 className="text-2xl font-semibold">{deal.title}</h1>
+          <header className="grid gap-1">
+            <p className="text-3xl leading-tight font-bold wrap-anywhere">
+              {shownHeadline(deal.headline)}
+            </p>
+            <h1 className="text-2xl font-semibold">{deal.title}</h1>
+          </header>
 
           <div className="grid gap-2 text-sm">
             <p className="flex items-start gap-2">

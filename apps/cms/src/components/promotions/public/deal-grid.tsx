@@ -3,12 +3,15 @@ import { Link } from "@tanstack/react-router"
 import { Card, CardContent } from "@/components/ui/card"
 import type { PublicDealCard } from "@/lib/api/promotions/public"
 import { dealCardDaysText } from "@/lib/promotions/deal-days"
+import { shownHeadline } from "@/lib/promotions/deal-headline"
 import { focusRing } from "@/lib/layout/focus-ring"
 
 /**
  * One group of cards on the Deals page. Each card shows the deal's cover, or
- * the listing's own photo when the deal has none, then the listing's name, the
- * deal's title and where it stands today, like "Until Sun, Oct 12".
+ * the listing's own photo when the deal has none, then the headline in big
+ * type, the deal's title, the listing's name and where it stands today, like
+ * "Until Sun, Oct 12". A long headline wraps inside the card rather than
+ * pushing it wider.
  *
  * `today` is the site's, from the server, so the server and the browser print
  * the same words and the page never redraws itself after loading.
@@ -36,8 +39,8 @@ export function DealGrid({
                 />
               ) : null}
               <CardContent className="grid gap-1">
-                <p className="truncate text-xs text-muted-foreground">
-                  {deal.listingTitle}
+                <p className="text-2xl leading-tight font-semibold wrap-anywhere">
+                  {shownHeadline(deal.headline)}
                 </p>
                 <h3 className="text-base leading-snug font-medium">
                   {/* The whole card is the link, the same as a post card. */}
@@ -49,6 +52,9 @@ export function DealGrid({
                     {deal.title}
                   </Link>
                 </h3>
+                <p className="truncate text-xs text-muted-foreground">
+                  {deal.listingTitle}
+                </p>
                 <p className="text-sm text-muted-foreground">
                   {dealCardDaysText(deal, today)}
                 </p>

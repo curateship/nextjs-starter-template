@@ -28,6 +28,8 @@ import { listingOfPromotion, sitePromotions } from "@/server/promotions/schema"
 export type PublicDealCard = DealDays & {
   id: string
   title: string
+  /** "20% off", or empty on a deal made before headlines, shown as "Deal". */
+  headline: string
   slug: string
   coverImage: string
   listingTitle: string
@@ -79,6 +81,7 @@ function listedDealsOnSite(siteId: string) {
 const dealCardColumns = {
   id: sitePromotions.id,
   title: sitePromotions.title,
+  headline: sitePromotions.headline,
   slug: sitePromotions.slug,
   coverImage: sitePromotions.coverImage,
   startDate: sitePromotions.startDate,

@@ -17,6 +17,15 @@ admin writes them in Admin → Promotions. Visitors see them on the Deals page a
   forget. The listing's delete warning says how many deals go with it first.
 - **A deal at a draft listing stays off every public page** until the listing
   is published. Chosen on 24 Sep 2026. Its own page answers "not found" too.
+- **Five deal types: money off, percent off, 2 for 1, free item and other.**
+  Chosen on 24 Sep 2026. A type can be added later but never removed or
+  renamed, because old deals store it.
+- **Money off and percent off build their headline from a number**, "$5 off"
+  from 5 and "20% off" from 20. The other three types have a typed headline of
+  24 characters at most. Chosen on 24 Sep 2026.
+- **A deal made before types existed shows "Deal"** until someone edits it,
+  and saving it then needs a type, the same as a new deal. Chosen on
+  24 Sep 2026.
 - **No automatic sidebar link**, the same rule as Posts and Events. Add
   Promotions to the sidebar in Settings the way the Events link was added.
 
@@ -25,9 +34,37 @@ admin writes them in Admin → Promotions. Visitors see them on the Deals page a
 One row in the `promotions` table (`drizzle/0095_cms_promotions.sql`), each
 thing in its own column: the site, the listing, title, address part,
 description, cover photo, start day, end day (optional), code (optional),
-small print, draft or published, and the admin who wrote it. The window shows
+small print, type, headline, draft or published, and the admin who wrote it.
+The type and headline came in `drizzle/0096_cms_promotion_headline.sql`. The window shows
 who wrote it and when. If that account is later deleted, the deal stays and
 the window says "an account that is gone".
+
+## Types and the headline
+
+The headline is the few words a card shows in big type, so a visitor can
+compare "20% off" and "Free dessert" without opening either deal. The site
+never works out what a visitor saves.
+
+| Type | Headline |
+| --- | --- |
+| Money off | Built from dollars and cents: 5 gives "$5 off", 5.50 gives "$5.50 off", 1000 gives "$1,000 off". Up to $99,999.99. |
+| Percent off | Built from a whole number from 1 to 100: 20 gives "20% off". |
+| 2 for 1 | Typed, up to 24 characters. |
+| Free item | Typed, up to 24 characters. |
+| Other | Typed, up to 24 characters. |
+
+- **One rule for everyone.** `src/lib/promotions/deal-headline.ts` holds the
+  types, the number check and the built words. The window, the server and the
+  pages all use it.
+- **The number is kept** in `amount`, so the window shows 20 again when the
+  deal is reopened. The typed types have no number.
+- **The database holds it together too.** A deal with a type always has a
+  headline, and only money off and percent off have a number.
+- **The window shows the headline before saving.** Under the boxes it says
+  "Cards show 20% off" as soon as the number is readable.
+- **A long headline wraps** inside the card and at the top of the deal page,
+  breaking even a single long word, so it never makes the page wider than a
+  phone.
 
 ## Days and the site's time zone
 
@@ -50,15 +87,16 @@ the window says "an account that is gone".
   deals last. "Starting soon" follows, starting soonest first. Every deal that
   has not started yet shows there, however far off it is.
 - **Each card** shows the deal's cover photo, or the listing's own photo when
-  the deal has none, then the listing's name, the title, and a line like
+  the deal has none, then the headline in big type, the title, the listing's
+  name, and a line like
   "Until Sun, Oct 12", "Today only", "No end date" or "Starts Thu, Oct 1 ·
   until Wed, Oct 7".
 - **24 cards a page**, with Previous and Next under them.
 
 ## A deal's page
 
-- Title, the listing with a link to its page, the days, the description, the
-  code and the small print.
+- The headline in big type at the top, then the title, the listing with a
+  link to its page, the days, the description, the code and the small print.
 - **An ended deal's page still opens.** It says "This deal has ended", and the
   server leaves the code out of the page entirely, so it can't be found in the
   page source either. `dealViewAt` in `src/server/promotions/deal-view.ts` does
@@ -81,9 +119,9 @@ directly.
 
 - A table with search (title, listing name, address part and code), a status
   filter, sorting and paging, built like Admin → Events.
-- **New deal** opens a window with three cards: the deal (title, address part,
-  listing, status, cover photo), its days, and what the page says
-  (description, code, small print). Publishing and unpublishing is the Status
+- **New deal** opens a window with four cards: the deal (title, address part,
+  listing, status, cover photo), the headline (type, then the number or the
+  words), its days, and what the page says (description, code, small print). Publishing and unpublishing is the Status
   box.
 - The Status column adds "Ended" when a published deal is over, and "Listing
   is a draft" when the deal can't be seen for that reason.
@@ -108,6 +146,5 @@ directly.
 
 ## Not built yet
 
-Owners posting deals (task 04), a headline like "20% off" (02), happy hour
-times (03), search, sitemap and feed (08), and claiming a deal (13). The task
+Owners posting deals (task 04), happy hour times (03), search, sitemap and feed (08), and claiming a deal (13). The task
 files are in `workspace/tasks/promotions/`.

@@ -3,6 +3,7 @@ import {
   check,
   date,
   index,
+  numeric,
   pgTable,
   timestamp,
   uniqueIndex,
@@ -14,7 +15,8 @@ import { customShellUsers, customShellWorkspaces } from "@/server/schema"
 
 /**
  * Each site's deals, one deal at one listing. The matching SQL is
- * `drizzle/0095_cms_promotions.sql`.
+ * `drizzle/0095_cms_promotions.sql`, and
+ * `drizzle/0096_cms_promotion_headline.sql` for the type and headline.
  *
  * The start and end are days on the site's calendar, never moments, the same
  * way events store theirs, so a new site time zone never moves a deal. A deal
@@ -46,6 +48,15 @@ export const sitePromotions = pgTable(
     /** What a visitor says or types to get the deal, or empty. */
     code: varchar("code", { length: 40 }).notNull().default(""),
     smallPrint: varchar("small_print", { length: 1000 }).notNull().default(""),
+    /**
+     * One of `DEAL_TYPES` in `lib/promotions/deal-headline.ts`, or null on a
+     * deal made before types existed.
+     */
+    dealType: varchar("deal_type", { length: 20 }),
+    /** The number a money off or percent off headline is built from. */
+    amount: numeric("amount", { precision: 7, scale: 2, mode: "number" }),
+    /** "20% off", "Free dessert". Empty only while `dealType` is null. */
+    headline: varchar("headline", { length: 24 }).notNull().default(""),
     /** 'draft' or 'published'. Drafts never reach a visitor. */
     status: varchar("status", { length: 20 }).notNull().default("draft"),
     /** Set on first publish and kept. */
@@ -76,6 +87,18 @@ export const sitePromotions = pgTable(
     check(
       "promotions_published_has_date_check",
       sql`${table.status} <> 'published' OR ${table.publishedAt} IS NOT NULL`
+    ),
+    check(
+      "promotions_deal_type_check",
+      sql`${table.dealType} IS NULL OR ${table.dealType} IN ('money_off', 'percent_off', 'two_for_one', 'free_item', 'other')`
+    ),
+    check(
+      "promotions_headline_check",
+      sql`(${table.dealType} IS NULL) = (${table.headline} = '')`
+    ),
+    check(
+      "promotions_amount_check",
+      sql`CASE WHEN ${table.dealType} IN ('money_off', 'percent_off') THEN ${table.amount} IS NOT NULL ELSE ${table.amount} IS NULL END`
     ),
     check(
       "promotions_end_after_start_check",

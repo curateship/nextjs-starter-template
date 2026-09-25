@@ -44,6 +44,17 @@ import {
 } from "@/lib/api/promotions/promotions"
 import { slugFromTitle } from "@/lib/directory/slugs"
 import { dayForPicker, dayFromPicker } from "@/lib/events/picker-day"
+import {
+  builtHeadline,
+  DEAL_TYPE_LABELS,
+  DEAL_TYPES,
+  headlineIsBuilt,
+  isDealType,
+  MAX_DEAL_HEADLINE,
+  readDealAmount,
+  shownHeadline,
+  type DealType,
+} from "@/lib/promotions/deal-headline"
 import { formatDate } from "@/lib/format/format-time"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
@@ -65,6 +76,12 @@ type PromotionFields = {
   endDate: string
   code: string
   smallPrint: string
+  /** Empty on a new deal, and on an old deal made before types existed. */
+  dealType: DealType | ""
+  /** As typed, for money off and percent off. */
+  amount: string
+  /** As typed, for the types whose headline is typed. */
+  headline: string
   status: "draft" | "published"
 }
 
@@ -79,6 +96,9 @@ function blankFields(): PromotionFields {
     endDate: "",
     code: "",
     smallPrint: "",
+    dealType: "",
+    amount: "",
+    headline: "",
     status: "draft",
   }
 }
@@ -95,8 +115,81 @@ function fieldsFrom(data: PromotionForEdit): PromotionFields {
     endDate: promotion.endDate ?? "",
     code: promotion.code,
     smallPrint: promotion.smallPrint,
+    dealType: promotion.dealType ?? "",
+    amount: promotion.amount === null ? "" : String(promotion.amount),
+    // A built headline is made again from the number, so its box starts empty.
+    headline:
+      promotion.dealType && headlineIsBuilt(promotion.dealType)
+        ? ""
+        : promotion.headline,
     status: promotion.status,
   }
+}
+
+/** An example headline for each type whose headline is typed, shown in its empty box. */
+const HEADLINE_EXAMPLES: Record<
+  Exclude<DealType, "money_off" | "percent_off">,
+  string
+> = {
+  two_for_one: "2 for 1",
+  free_item: "Free dessert",
+  other: "Happy hour",
+}
+
+/**
+ * What a card will show for these fields, before saving: "20% off" once a
+ * number is readable, the typed words, or null while there is nothing to show.
+ */
+function headlinePreview(fields: PromotionFields): string | null {
+  const type = fields.dealType
+  if (!type) return null
+  if (type === "money_off" || type === "percent_off") {
+    try {
+      return builtHeadline(type, readDealAmount(type, fields.amount))
+    } catch {
+      return null
+    }
+  }
+  return fields.headline.trim() || null
+}
+
+/**
+ * The line under the headline's boxes, saying what a card will show before
+ * anything is saved. A deal made before types existed shows "Deal" until it
+ * is given one.
+ */
+function HeadlinePreview({
+  fields,
+  oldDeal,
+}: {
+  fields: PromotionFields
+  oldDeal: boolean
+}) {
+  const shown = headlinePreview(fields)
+  return (
+    <p className="min-w-0 text-sm text-muted-foreground" role="status">
+      {shown ? (
+        <>
+          Cards show{" "}
+          <span className="font-semibold wrap-anywhere text-foreground">
+            {shown}
+          </span>
+        </>
+      ) : fields.dealType ? (
+        "Cards show the headline once it is filled in."
+      ) : oldDeal ? (
+        <>
+          Cards show{" "}
+          <span className="font-semibold text-foreground">
+            {shownHeadline("")}
+          </span>{" "}
+          until a type is picked and saved.
+        </>
+      ) : (
+        "Pick a type to see what cards show."
+      )}
+    </p>
+  )
 }
 
 /**
@@ -404,6 +497,109 @@ export function PromotionDialog({
                         className="max-w-60"
                       />
                     </div>
+                  </CardContent>
+                </Card>
+
+                <Card size="sm">
+                  <CardHeader>
+                    <CardTitle>Headline</CardTitle>
+                    <CardDescription>
+                      The few words a card shows in big type, like 20% off or
+                      Free dessert.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="grid gap-4">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+                      <div className="grid gap-2">
+                        <FieldLabel htmlFor="promotion-type">Type</FieldLabel>
+                        <Select
+                          value={fields.dealType}
+                          disabled={saving}
+                          onValueChange={(value) => {
+                            if (isDealType(value)) update("dealType", value)
+                          }}
+                        >
+                          <SelectTrigger
+                            id="promotion-type"
+                            className="w-full sm:w-fit"
+                            aria-invalid={tried && !fields.dealType}
+                          >
+                            <SelectValue placeholder="Pick a type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {DEAL_TYPES.map((type) => (
+                              <SelectItem key={type} value={type}>
+                                {DEAL_TYPE_LABELS[type]}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      {fields.dealType === "money_off" ||
+                      fields.dealType === "percent_off" ? (
+                        <div className="grid gap-2 sm:flex-1">
+                          <FieldLabel
+                            htmlFor="promotion-amount"
+                            hint={
+                              fields.dealType === "money_off"
+                                ? "Dollars and cents, like 5 or 5.50. The headline is written from it."
+                                : "A whole number from 1 to 100. The headline is written from it."
+                            }
+                          >
+                            {fields.dealType === "money_off"
+                              ? "Dollars off"
+                              : "Percent off"}
+                          </FieldLabel>
+                          <Input
+                            id="promotion-amount"
+                            inputMode={
+                              fields.dealType === "money_off"
+                                ? "decimal"
+                                : "numeric"
+                            }
+                            value={fields.amount}
+                            maxLength={12}
+                            placeholder={
+                              fields.dealType === "money_off" ? "5" : "20"
+                            }
+                            disabled={saving}
+                            aria-invalid={
+                              tried && headlinePreview(fields) === null
+                            }
+                            onChange={(event) =>
+                              update("amount", event.target.value)
+                            }
+                          />
+                        </div>
+                      ) : fields.dealType ? (
+                        <div className="grid gap-2 sm:flex-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <FieldLabel htmlFor="promotion-headline">
+                              Headline
+                            </FieldLabel>
+                            <CharacterCount
+                              value={fields.headline}
+                              max={MAX_DEAL_HEADLINE}
+                            />
+                          </div>
+                          <Input
+                            id="promotion-headline"
+                            value={fields.headline}
+                            maxLength={MAX_DEAL_HEADLINE}
+                            placeholder={HEADLINE_EXAMPLES[fields.dealType]}
+                            disabled={saving}
+                            aria-invalid={tried && !fields.headline.trim()}
+                            onChange={(event) =>
+                              update("headline", event.target.value)
+                            }
+                          />
+                        </div>
+                      ) : null}
+                    </div>
+                    <HeadlinePreview
+                      fields={fields}
+                      oldDeal={!creating && !loaded?.data.promotion.dealType}
+                    />
                   </CardContent>
                 </Card>
 

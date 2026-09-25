@@ -46,6 +46,9 @@ function input(overrides: Partial<PromotionInput> = {}): PromotionInput {
     endDate: "2026-10-31",
     code: "",
     smallPrint: "",
+    dealType: "two_for_one",
+    amount: "",
+    headline: "2 for 1",
     status: "draft",
     ...overrides,
   }
@@ -137,6 +140,116 @@ describe("making a deal", () => {
       database
     )
     expect(noEnd.endDate).toBeNull()
+  })
+})
+
+describe("the type and headline", () => {
+  it("builds money off and percent off from the number", async () => {
+    const money = await createPromotion(
+      siteId,
+      userId,
+      input({ dealType: "money_off", amount: "5.50", headline: "ignored" }),
+      database
+    )
+    expect(money).toMatchObject({
+      dealType: "money_off",
+      amount: 5.5,
+      headline: "$5.50 off",
+    })
+    const percent = await createPromotion(
+      siteId,
+      userId,
+      input({ dealType: "percent_off", amount: "20", headline: "" }),
+      database
+    )
+    expect(percent.headline).toBe("20% off")
+  })
+
+  it("keeps a typed headline and no number for the other types", async () => {
+    const made = await createPromotion(
+      siteId,
+      userId,
+      input({ dealType: "free_item", amount: "5", headline: " Free dessert " }),
+      database
+    )
+    expect(made).toMatchObject({
+      dealType: "free_item",
+      amount: null,
+      headline: "Free dessert",
+    })
+  })
+
+  it("refuses a missing type, number or headline in words", async () => {
+    await expect(
+      createPromotion(siteId, userId, input({ dealType: "" }), database)
+    ).rejects.toThrow("Pick the type of deal.")
+    await expect(
+      createPromotion(siteId, userId, input({ dealType: "bogo" }), database)
+    ).rejects.toThrow("Pick the type of deal.")
+    await expect(
+      createPromotion(
+        siteId,
+        userId,
+        input({ dealType: "percent_off", amount: "" }),
+        database
+      )
+    ).rejects.toThrow("Type the percent off as a whole number from 1 to 100.")
+    await expect(
+      createPromotion(
+        siteId,
+        userId,
+        input({ dealType: "other", headline: "  " }),
+        database
+      )
+    ).rejects.toThrow("Type the headline")
+    await expect(
+      createPromotion(
+        siteId,
+        userId,
+        input({ dealType: "other", headline: "x".repeat(25) }),
+        database
+      )
+    ).rejects.toThrow("Keep the headline to 24 characters.")
+  })
+
+  it("leaves an old deal without one until it is saved, and then needs one", async () => {
+    const made = await createPromotion(siteId, userId, input(), database)
+    // What a deal made before migration 0096 looks like.
+    await database
+      .update(sitePromotions)
+      .set({ dealType: null, amount: null, headline: "" })
+      .where(eq(sitePromotions.id, made.id))
+    const old = await findPromotion(siteId, made.id, database)
+    expect(old?.promotion).toMatchObject({ dealType: null, headline: "" })
+
+    await expect(
+      updatePromotion(
+        siteId,
+        made.id,
+        { ...input({ dealType: "" }), slug: made.slug },
+        database
+      )
+    ).rejects.toThrow("Pick the type of deal.")
+    const saved = await updatePromotion(
+      siteId,
+      made.id,
+      { ...input({ dealType: "percent_off", amount: "15" }), slug: made.slug },
+      database
+    )
+    expect(saved.headline).toBe("15% off")
+  })
+
+  it("is held together by the database too", async () => {
+    const made = await createPromotion(siteId, userId, input(), database)
+    const breaks = (values: Partial<typeof sitePromotions.$inferInsert>) =>
+      database
+        .update(sitePromotions)
+        .set(values)
+        .where(eq(sitePromotions.id, made.id))
+    await expect(breaks({ headline: "" })).rejects.toThrow()
+    await expect(breaks({ dealType: "percent_off", amount: null })).rejects.toThrow()
+    await expect(breaks({ amount: 5 })).rejects.toThrow()
+    await expect(breaks({ dealType: "bogo" })).rejects.toThrow()
   })
 })
 

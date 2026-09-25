@@ -52,6 +52,9 @@ async function deal(
       coverImage: "",
       code: "",
       smallPrint: "",
+      dealType: "percent_off",
+      amount: "20",
+      headline: "",
       status: "published",
       ...days,
       ...overrides,
@@ -108,6 +111,7 @@ describe("the Deals page", () => {
     ])
     expect(list.total).toBe(5)
     expect(list.deals[0]?.listingTitle).toBe("43 Down")
+    expect(list.deals[0]?.headline).toBe("20% off")
   })
 
   it("drops a deal the morning after its last day with nothing else changing", async () => {
@@ -148,6 +152,9 @@ describe("the Deals page", () => {
         coverImage: "",
         code: "",
         smallPrint: "",
+        dealType: "free_item",
+        amount: "",
+        headline: "Free dessert",
         status: "published",
         startDate: today,
         endDate: null,

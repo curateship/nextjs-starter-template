@@ -4,6 +4,13 @@ import { isValidDateString } from "@/lib/events/calendar-grid"
 import { slugFromTitle, slugProblem } from "@/lib/directory/slugs"
 import { siteToday, type DealDays } from "@/lib/promotions/deal-days"
 import {
+  builtHeadline,
+  isDealType,
+  MAX_DEAL_HEADLINE,
+  readDealAmount,
+  type DealType,
+} from "@/lib/promotions/deal-headline"
+import {
   DEFAULT_PROMOTION_SORT,
   promotionSortDirection,
   type PromotionSortColumn,
@@ -49,6 +56,12 @@ export type SitePromotion = DealDays & {
   coverImage: string
   code: string
   smallPrint: string
+  /** Null on a deal made before types existed. */
+  dealType: DealType | null
+  /** The number a money off or percent off headline is built from. */
+  amount: number | null
+  /** "20% off". Empty only on a deal made before types existed. */
+  headline: string
   status: PromotionStatus
   publishedAt: Date | null
   createdByUserId: string | null
@@ -78,6 +91,12 @@ export type PromotionInput = DealDays & {
   coverImage: string
   code: string
   smallPrint: string
+  /** One of `DEAL_TYPES`, checked by `cleanDealHeadline`. Empty while none is picked. */
+  dealType: string
+  /** As typed. Read only for money off and percent off. */
+  amount: string
+  /** As typed. Read only for the types whose headline is typed. */
+  headline: string
   status: PromotionStatus
 }
 
@@ -95,6 +114,9 @@ function toPromotion(row: PromotionRow): SitePromotion {
     endDate: row.endDate,
     code: row.code,
     smallPrint: row.smallPrint,
+    dealType: isDealType(row.dealType) ? row.dealType : null,
+    amount: row.amount,
+    headline: row.headline,
     status: row.status === "published" ? "published" : "draft",
     publishedAt: row.publishedAt,
     createdByUserId: row.createdByUserId,
@@ -123,6 +145,32 @@ export function cleanDealDays(input: {
     throw new Error("The deal ends before it starts. Pick a later end day.")
   }
   return { startDate, endDate }
+}
+
+/**
+ * The type and headline as stored, or a refusal the admin can act on. Every
+ * save needs a type, an old deal's included. Money off and percent off build
+ * their headline from the number; the rest keep what was typed.
+ */
+export function cleanDealHeadline(input: {
+  dealType: string
+  amount: string
+  headline: string
+}): { dealType: DealType; amount: number | null; headline: string } {
+  const dealType = input.dealType
+  if (!isDealType(dealType)) throw new Error("Pick the type of deal.")
+  if (dealType === "money_off" || dealType === "percent_off") {
+    const amount = readDealAmount(dealType, input.amount)
+    return { dealType, amount, headline: builtHeadline(dealType, amount) }
+  }
+  const headline = input.headline.trim()
+  if (!headline) {
+    throw new Error("Type the headline, the few words a card shows in big type.")
+  }
+  if (headline.length > MAX_DEAL_HEADLINE) {
+    throw new Error(`Keep the headline to ${MAX_DEAL_HEADLINE} characters.`)
+  }
+  return { dealType, amount: null, headline }
 }
 
 function cleanTitle(raw: string): string {
@@ -174,6 +222,7 @@ async function cleanValues(
     coverImage: input.coverImage.trim().slice(0, 600),
     code: input.code.trim().slice(0, MAX_PROMOTION_CODE),
     smallPrint: input.smallPrint.trim().slice(0, MAX_PROMOTION_SMALL_PRINT),
+    ...cleanDealHeadline(input),
     status: input.status,
     ...cleanDealDays(input),
   }
