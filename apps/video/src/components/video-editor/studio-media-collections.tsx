@@ -7,6 +7,7 @@ import {
   Trash2Icon,
   XIcon,
 } from "lucide-react"
+import { ContextMenu as ContextMenuPrimitive } from "radix-ui"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -25,11 +26,15 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { FormDialog } from "@/components/ui/form-dialog"
+import {
+  CONTEXT_MENU_CONTENT_CLASS,
+  CONTEXT_MENU_DESTRUCTIVE_ITEM_CLASS,
+  CONTEXT_MENU_ITEM_CLASS,
+} from "@/components/shared/editor-media-context-menu"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -62,7 +67,7 @@ function filesWord(count: number) {
 // ------------------------------------------------------ Name window -------
 
 /** Creates a collection when `collection` is null, renames it otherwise. */
-function CollectionNameDialog({
+export function CollectionNameDialog({
   open,
   onOpenChange,
   collection,
@@ -193,9 +198,9 @@ function CollectionNameDialog({
 // ------------------------------------------------------------- Chips ------
 
 /**
- * The collection filter chips, plus the one button that manages them. Rename
- * and delete act on the chip that is picked, so the menu never needs a list of
- * its own.
+ * The collection filter chips. Right-clicking a collection's chip renames or
+ * deletes it; making one is the Media header's + menu, so the chips only ever
+ * act on a chip that exists.
  */
 export function CollectionChips({
   collections,
@@ -207,17 +212,15 @@ export function CollectionChips({
   /** "all", "uncollected", or a collection's id. */
   value: string
   onChange: (value: string) => void
-  /** A collection was made, renamed or deleted. */
+  /** A collection was renamed or deleted. */
   onCollectionsChanged: () => void
 }) {
-  const [naming, setNaming] = React.useState<{
-    collection: MediaCollectionSummary | null
-  } | null>(null)
+  const [renaming, setRenaming] =
+    React.useState<MediaCollectionSummary | null>(null)
   const [deleting, setDeleting] = React.useState<MediaCollectionSummary | null>(
     null
   )
   const [deleteBusy, setDeleteBusy] = React.useState(false)
-  const active = collections.find((collection) => collection.id === value)
 
   async function confirmDelete() {
     if (!deleting) return
@@ -238,16 +241,16 @@ export function CollectionChips({
     }
   }
 
-  const options = collections.length
-    ? [
-        { id: "all", label: "All" },
-        { id: "uncollected", label: "Uncollected" },
-        ...collections.map((collection) => ({
-          id: collection.id,
-          label: collection.name,
-        })),
-      ]
-    : []
+  if (!collections.length) return null
+
+  const options = [
+    { id: "all", label: "All" },
+    { id: "uncollected", label: "Uncollected" },
+    ...collections.map((collection) => ({
+      id: collection.id,
+      label: collection.name,
+    })),
+  ]
 
   return (
     <>
@@ -264,7 +267,7 @@ export function CollectionChips({
       >
         {options.map((option) => {
           const on = value === option.id
-          return (
+          const chip = (
             <button
               key={option.id}
               type="button"
@@ -289,83 +292,50 @@ export function CollectionChips({
               {option.label}
             </button>
           )
-        })}
-
-        {collections.length ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Manage collections"
-                title="Manage collections"
-              >
-                <SettingsIcon />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuItem
-                onSelect={() => setNaming({ collection: null })}
-              >
-                <PlusIcon />
-                New collection
-              </DropdownMenuItem>
-              {active ? (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuLabel className="truncate">
-                    {active.name} · {filesWord(active.item_count)}
-                  </DropdownMenuLabel>
-                  <DropdownMenuItem
-                    onSelect={() => setNaming({ collection: active })}
+          const collection = collections.find(
+            (candidate) => candidate.id === option.id
+          )
+          // All and Uncollected are views, not collections; there is nothing
+          // to rename or delete on them.
+          if (!collection) return chip
+          return (
+            <ContextMenuPrimitive.Root key={option.id}>
+              <ContextMenuPrimitive.Trigger asChild>
+                {chip}
+              </ContextMenuPrimitive.Trigger>
+              <ContextMenuPrimitive.Portal>
+                <ContextMenuPrimitive.Content
+                  className={CONTEXT_MENU_CONTENT_CLASS}
+                >
+                  <ContextMenuPrimitive.Item
+                    className={CONTEXT_MENU_ITEM_CLASS}
+                    onSelect={() => setRenaming(collection)}
                   >
                     <SettingsIcon />
                     Rename
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    variant="destructive"
-                    onSelect={() => setDeleting(active)}
+                  </ContextMenuPrimitive.Item>
+                  <ContextMenuPrimitive.Item
+                    className={CONTEXT_MENU_DESTRUCTIVE_ITEM_CLASS}
+                    onSelect={() => setDeleting(collection)}
                   >
                     <Trash2Icon />
                     Delete
-                  </DropdownMenuItem>
-                </>
-              ) : (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-                    Pick a collection to rename or delete it.
-                  </DropdownMenuLabel>
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ) : (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => setNaming({ collection: null })}
-          >
-            <PlusIcon />
-            New collection
-          </Button>
-        )}
+                  </ContextMenuPrimitive.Item>
+                </ContextMenuPrimitive.Content>
+              </ContextMenuPrimitive.Portal>
+            </ContextMenuPrimitive.Root>
+          )
+        })}
       </div>
 
       <CollectionNameDialog
-        open={naming !== null}
+        open={renaming !== null}
         onOpenChange={(open) => {
-          if (!open) setNaming(null)
+          if (!open) setRenaming(null)
         }}
-        collection={naming?.collection ?? null}
+        collection={renaming}
         onSaved={(saved) => {
-          toast.success(
-            naming?.collection
-              ? `Renamed to “${saved.name}”.`
-              : `Created “${saved.name}”.`
-          )
+          toast.success(`Renamed to “${saved.name}”.`)
           onCollectionsChanged()
         }}
       />
