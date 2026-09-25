@@ -4,6 +4,12 @@ import { z } from "zod"
 import type { ListingHours } from "@/lib/directory/listing-details"
 import { LISTING_STATUS_FILTERS } from "@/lib/directory/listing-sort"
 import {
+  MAX_PROMOTION_CODE,
+  MAX_PROMOTION_DESCRIPTION,
+  MAX_PROMOTION_SMALL_PRINT,
+  MAX_PROMOTION_TITLE,
+} from "@/lib/promotions/deal-limits"
+import {
   PROMOTION_SORT_COLUMNS,
   type PromotionSortColumn,
 } from "@/lib/promotions/promotion-sort"
@@ -15,10 +21,6 @@ import {
   listingHoursForDeal,
   listPromotions,
   reopenPromotion,
-  MAX_PROMOTION_CODE,
-  MAX_PROMOTION_DESCRIPTION,
-  MAX_PROMOTION_SMALL_PRINT,
-  MAX_PROMOTION_TITLE,
   updatePromotion,
   type PromotionForEdit,
   type PromotionInput,
