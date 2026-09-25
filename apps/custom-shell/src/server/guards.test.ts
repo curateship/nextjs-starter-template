@@ -38,6 +38,8 @@ const GUARDED_DEEPER: Record<string, string> = {
     "markCurrentUserNotificationRead calls requireAppOrigin and requireNotificationUser.",
   "notification.ts:markAllNotificationsReadFn":
     "markAllCurrentUserNotificationsRead calls requireAppOrigin and requireNotificationUser.",
+  "notification.ts:markNotificationsSeenFn":
+    "markCurrentUserNotificationsSeen calls requireAppOrigin and requireNotificationUser.",
   "notification.ts:deleteAdminNotificationsFn":
     "deleteAdminNotificationRows calls requireAppOrigin and requireAdminNotificationUser.",
   "notification.ts:clearAdminNotificationsFn":

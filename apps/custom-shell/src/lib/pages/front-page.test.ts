@@ -39,6 +39,8 @@ describe("front page rows", () => {
         intro: "Start here.",
         kind: "text",
         layout: "narrow",
+        hidden: false,
+        device: "all",
       },
       {
         id: "pricing",
@@ -46,6 +48,8 @@ describe("front page rows", () => {
         intro: "Pick one.",
         kind: "plans",
         layout: "wide",
+        hidden: false,
+        device: "all",
       },
     ])
     expect(frontPageHasPlans(rows)).toBe(true)
@@ -70,6 +74,8 @@ describe("front page rows", () => {
         intro: "",
         kind: FRONT_PAGE_ROW_KINDS[0],
         layout: FRONT_PAGE_ROW_LAYOUTS[0],
+        hidden: false,
+        device: "all",
       },
       {
         id: "front-page-row-2-2",
@@ -77,6 +83,8 @@ describe("front page rows", () => {
         intro: "",
         kind: "text",
         layout: "wide",
+        hidden: false,
+        device: "all",
       },
     ])
   })
@@ -229,6 +237,8 @@ describe("front page rows", () => {
         intro: "",
         kind: "testimonials",
         layout: "wide",
+        hidden: false,
+        device: "all",
         items: [
           {
             id: "front-page-testimonial-1",

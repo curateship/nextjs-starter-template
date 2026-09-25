@@ -16,6 +16,12 @@ How to make a change here and how to prove it works.
 
 - `npm run test` runs the whole suite. Run the files your change touches first,
   and the whole suite only when the change is wide.
+- `npm run test` also runs the build scripts' tests with `node --test`, after
+  the main suite. Those files are `scripts/*.test.mjs`, and the main suite skips
+  them because they are written for plain Node.
+- A test date that the code compares with today's date goes in 2099, not next
+  month. Four billing tests gave a subscription a period ending 1 Sep 2026 and
+  began failing on that day, although nothing in billing had changed.
 - When the app has an `npm run test:app` script, that is the suite for audits
   and pre-commit checks. It skips the shell's own test files and starts each
   test's database from a saved copy, so it is several times faster and deletes
