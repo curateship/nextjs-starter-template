@@ -114,6 +114,9 @@ screen: anything not written there has not been agreed yet.
 - `price-converter.md` — `/tools/convert` and one page per coin: where the
   Hyperliquid price comes from, how old it can be, and which coin pages are in
   the sitemap.
+- `fee-comparison.md` — `/tools/fee-comparison`: where each exchange's fee
+  rate comes from, the 90-day warning, the monthly sum, and how to refresh the
+  rates.
 
 ## charts/ — the chart itself
 
