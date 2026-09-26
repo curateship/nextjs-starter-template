@@ -26,10 +26,15 @@ describe("StickyHeader save status", () => {
     expect(markup).toContain("Saving…")
   })
 
-  it("keeps announcing a refused save", () => {
-    const markup = renderToStaticMarkup(<StickyHeader saveStatus="blocked" />)
+  it("keeps announcing a refused save and names the fix", () => {
+    const markup = renderToStaticMarkup(
+      <StickyHeader
+        saveStatus={{ blocked: "fix the brand colour on Public → Styling" }}
+      />
+    )
 
     expect(markup).toContain('role="status"')
     expect(markup).toContain("Not saved")
+    expect(markup).toContain("fix the brand colour on Public")
   })
 })

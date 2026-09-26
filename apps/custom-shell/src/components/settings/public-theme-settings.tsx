@@ -91,6 +91,7 @@ import {
   derivePublicBrandColors,
   publicThemeContrast,
 } from "@/lib/public-theme-colors"
+import { shellConfigSaveRefusalSentence } from "@/lib/custom-shell"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 type PublicThemeSettingsProps = {
@@ -104,6 +105,12 @@ type PublicThemeSettingsProps = {
     publicFont: PublicFontAsset | null
   ) => void
   onSaveConfig: () => Promise<boolean>
+  /**
+   * Why the settings auto-save is refusing to write, or null when it will. The
+   * font buttons and the presets card all depend on that save, so each one says
+   * this instead of spinning and changing nothing.
+   */
+  saveRefusal: string | null
 }
 
 export function PublicThemeSettings({
@@ -114,6 +121,7 @@ export function PublicThemeSettings({
   onPresetsChange,
   onFontStateChange,
   onSaveConfig,
+  saveRefusal,
 }: PublicThemeSettingsProps) {
   const fontInputId = React.useId()
   const fontInputRef = React.useRef<HTMLInputElement>(null)
@@ -191,7 +199,13 @@ export function PublicThemeSettings({
 
     setFontBusy("upload")
     try {
-      if (!(await onSaveConfig())) return
+      if (!(await onSaveConfig())) {
+        if (saveRefusal) {
+          const fix = shellConfigSaveRefusalSentence(saveRefusal)
+          showErrorToast(`The font was not uploaded. ${fix}`)
+        }
+        return
+      }
       const state = await uploadPublicFont(file)
       onFontStateChange(state.publicTheme, state.publicFont)
       toast.success("Public font uploaded.")
@@ -205,7 +219,13 @@ export function PublicThemeSettings({
   const handleFontRemove = async () => {
     setFontBusy("remove")
     try {
-      if (!(await onSaveConfig())) return
+      if (!(await onSaveConfig())) {
+        if (saveRefusal) {
+          const fix = shellConfigSaveRefusalSentence(saveRefusal)
+          showErrorToast(`The font was not removed. ${fix}`)
+        }
+        return
+      }
       const state = await removePublicFont()
       onFontStateChange(state.publicTheme, state.publicFont)
       setRemoveFontOpen(false)
@@ -224,6 +244,7 @@ export function PublicThemeSettings({
         presets={presets}
         onApply={onThemeChange}
         onPresetsChange={onPresetsChange}
+        saveRefusal={saveRefusal}
       />
 
       <CollapsibleSettingsCard

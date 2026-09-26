@@ -36,7 +36,11 @@ import {
   type PublicSystemCopy,
   type SocialCardType,
 } from "@/lib/pages/public-metadata"
-import { createDefaultPublicTheme, type PublicTheme } from "@/lib/public-theme"
+import {
+  createDefaultPublicTheme,
+  publicThemeColorProblem,
+  type PublicTheme,
+} from "@/lib/public-theme"
 import type { PublicThemePreset } from "@/lib/public-theme-presets"
 import type { PublicFontAsset } from "@/lib/public-font"
 import type { FrontPageRow } from "@/lib/pages/front-page"
@@ -730,6 +734,30 @@ export function createDefaultTopRightNavigation(
       visible: true,
     })),
   ]
+}
+
+/**
+ * Why the settings auto-save is refusing to write, worded as the end of the
+ * header's "Not saved" line, or null when it will write. Two things stop it: a
+ * workspace name the server rejects, and a half-typed colour the public site
+ * could not render. Both are edited on one tab and break saving on every tab,
+ * so the header is the only warning that reaches the person who broke it.
+ */
+export function shellConfigSaveRefusal(config: ShellConfig): string | null {
+  if (!config.workspaceName.trim()) {
+    return "add a workspace name"
+  }
+  const colour = publicThemeColorProblem(config.publicTheme)
+  return colour ? `fix the ${colour} on Public \u2192 Styling` : null
+}
+
+/**
+ * The same refusal turned into its own sentence, for a toast on a button whose
+ * work depended on that save. A button that ran, spun and changed nothing is
+ * worse than one that says why.
+ */
+export function shellConfigSaveRefusalSentence(refusal: string): string {
+  return `${refusal.charAt(0).toUpperCase()}${refusal.slice(1)} first.`
 }
 
 export function createDefaultShellConfig(): ShellConfig {

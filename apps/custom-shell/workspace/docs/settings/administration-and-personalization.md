@@ -122,10 +122,30 @@ Settings saving follows these rules:
 - Show saving, saved, or not saved in the sticky page header.
 - Announce saved and failed states to assistive technology.
 
-The workspace name is required. An empty name blocks the save and keeps the
-unsaved state visible. Provider key fields preserve exactly what the admin typed
-for the save in progress, even if another settings field changes while that
-request is running.
+Two things stop the save, and the header names both of them. An empty workspace
+name reads "Not saved — add a workspace name". A half-typed colour anywhere on
+Public → Styling reads "Not saved — fix the brand colour on Public →
+Styling", with the field's own name in it: brand colour, hover colour, soft
+tint, button text colour, dark-mode brand colour, canvas colour, border colour,
+divider colour, header and footer colour, or one of the four modal colours. A
+colour left on Theme default or Muted has no hex to get wrong, so it is never
+named.
+
+Naming the field is the point. Both of these are typed on one tab and stop the
+save on every tab, so the person who later edits General settings and loses the
+edit is usually not looking at the field that broke it. The reason is worked out
+by `shellConfigSaveRefusal` in `lib/custom-shell.tsx`, which asks
+`publicThemeColorProblem` in `lib/public-theme.ts` for the colour; the same one
+sentence feeds the header and every button below.
+
+Four buttons depend on that save and used to run, spin and change nothing
+while it was refused. Upload font, Remove font, Save current look and Delete
+preset now each say so: "The font was not uploaded. Fix the brand colour on
+Public → Styling first." Applying a preset is left alone, because a preset
+writes every colour at once and applying one is the way out of a bad colour.
+
+Provider key fields preserve exactly what the admin typed for the save in
+progress, even if another settings field changes while that request is running.
 
 The maintenance switch has its own server action because it shares the global
 settings record with this page. Both writers lock and merge the record so one
@@ -314,6 +334,26 @@ message beside the field instead of raising a page-level toast.
 Each child link has the same label, address checks, drag handle, and delete
 control as the flat menu. Groups are one level deep and the menu has no
 menu-specific link limit. Existing flat menus need no conversion.
+
+A direct link is edited the same way. The window holds a draft, so Cancel,
+Escape and a click outside leave the saved menu exactly as it was, and a window
+with edits in it asks before throwing them away. Adding a link writes nothing
+into the menu until Done, so a window opened and abandoned leaves no chip
+behind.
+
+Done is the only way a link reaches the menu, and it checks the link against the
+same rule the save applies. A link with no label marks the Label field and says
+"Label is required." beside it. A link with no address, or an address the public
+site would refuse such as `javascript:x`, marks the Address field and says what
+to type instead. Either way the window stays open. The save used to drop such a
+link without a word, so the chip stayed, the header said Saved, and the link was
+gone after a reload.
+
+Done then waits for the save. It shows a spinner and refuses a second click
+while the save is running, and it closes only once the save has landed. A save
+refused for something else, a bad colour on Public → Styling or an empty
+workspace name, puts the menu back as it was and leaves the window open with the
+link still in it; the header says what to fix.
 
 The menu, footer links, and footer copyright are app-wide when workspace
 domains are off. Saving them from any workspace changes the same public site.

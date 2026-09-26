@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils"
 import {
   createDefaultShellConfig,
   createDefaultTopRightNavigation,
+  shellConfigSaveRefusal,
   type ShellConfig,
   type ShellMaintenance,
   type ShellSessionPolicy,
@@ -271,6 +272,7 @@ export function SettingsPage({
               onConfigChange({ ...config, publicTheme, publicFont })
             }
             onSaveConfig={onSaveConfig}
+            saveRefusal={shellConfigSaveRefusal(config)}
           />
         ) : null}
         {shellDraws(activeTab, "public-pages") ? (

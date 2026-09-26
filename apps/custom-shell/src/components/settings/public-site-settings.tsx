@@ -9,6 +9,7 @@ import {
 import {
   ChevronDownIcon,
   GripVertical,
+  Loader2Icon,
   PlusIcon,
   SearchIcon,
   Trash2Icon,
@@ -36,7 +37,6 @@ import {
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import {
-  Dialog,
   DialogBody,
   DialogContent,
   DialogDescription,
@@ -418,6 +418,7 @@ function PublicLinkEditor<T extends PublicNavigationItem>({
 }) {
   const [openIndex, setOpenIndex] = React.useState<number | null>(null)
   const [creatingGroup, setCreatingGroup] = React.useState(false)
+  const [creatingLink, setCreatingLink] = React.useState(false)
   const [pendingDeleteIndex, setPendingDeleteIndex] = React.useState<
     number | null
   >(null)
@@ -441,16 +442,6 @@ function PublicLinkEditor<T extends PublicNavigationItem>({
     onLinksChange(arrayMove(links, oldIndex, newIndex))
   }
 
-  const changeLink = (index: number, patch: Partial<PublicNavigationLink>) => {
-    onLinksChange(
-      links.map((item, at) =>
-        at === index && isPublicNavigationLink(item)
-          ? { ...item, ...patch }
-          : item
-      ) as T[]
-    )
-  }
-
   const changeSearchVisibility = (index: number, visible: boolean) => {
     onLinksChange(
       links.map((item, at) =>
@@ -469,11 +460,24 @@ function PublicLinkEditor<T extends PublicNavigationItem>({
     )
   }
 
-  const addLink = () => {
-    const nextIndex = links.length
-    onLinksChange([...links, { label: "", href: "" } as T])
-    setOpenIndex(nextIndex)
+  /**
+   * Writes the menu and waits for the settings save, so the link window knows
+   * whether it may close. A refused save puts the menu back as it was: nothing
+   * reached the server, so the list must not keep a link the reload would not
+   * show, and pressing Done again must not add a second copy of it. The header
+   * says why the save was refused.
+   */
+  const saveLinks = async (nextLinks: T[]) => {
+    onLinksChange(nextLinks)
+    const saved = await onSaveConfig()
+    if (!saved) onLinksChange(links)
+    return saved
   }
+
+  const saveLink = (index: number, link: PublicNavigationLink) =>
+    saveLinks(links.map((item, at) => (at === index ? (link as T) : item)))
+
+  const addLink = () => setCreatingLink(true)
 
   const pendingDeleteItem =
     pendingDeleteIndex === null ? null : links[pendingDeleteIndex]
@@ -532,9 +536,8 @@ function PublicLinkEditor<T extends PublicNavigationItem>({
                 onDialogOpenChange={(open) =>
                   setOpenIndex(open ? index : null)
                 }
-                onChange={(patch) => changeLink(index, patch)}
+                onSave={(nextLink) => saveLink(index, nextLink)}
                 onDelete={() => setPendingDeleteIndex(index)}
-                onSaveConfig={onSaveConfig}
               />
             )
           )}
@@ -631,6 +634,15 @@ function PublicLinkEditor<T extends PublicNavigationItem>({
             onLinksChange([...links, group] as T[])
             setCreatingGroup(false)
           }}
+        />
+      ) : null}
+
+      {creatingLink ? (
+        <PublicLinkDialog
+          linkNoun={linkNoun}
+          perDevice={allowGroups}
+          onClose={() => setCreatingLink(false)}
+          onSave={(link) => saveLinks([...links, link as T])}
         />
       ) : null}
     </>
@@ -1131,9 +1143,8 @@ function PublicLinkChip({
   perDevice,
   dialogOpen,
   onDialogOpenChange,
-  onChange,
+  onSave,
   onDelete,
-  onSaveConfig,
 }: {
   id: string
   link: PublicNavigationLink
@@ -1142,15 +1153,11 @@ function PublicLinkChip({
   perDevice: boolean
   dialogOpen: boolean
   onDialogOpenChange: (open: boolean) => void
-  onChange: (patch: Partial<PublicNavigationLink>) => void
+  onSave: (link: PublicNavigationLink) => Promise<boolean>
   onDelete: () => void
-  onSaveConfig: () => Promise<boolean>
 }) {
-  const labelInputRef = React.useRef<HTMLInputElement>(null)
-  const [addressTouched, setAddressTouched] = React.useState(false)
   const label = link.label.trim()
   const itemName = label || linkNoun
-  const addressProblem = getPublicAddressProblem(link.href, Boolean(label))
   const { attributes, listeners, setNodeRef, style } = useSortableRow(id, true)
 
   return (
@@ -1193,20 +1200,112 @@ function PublicLinkChip({
         </Button>
       </div>
 
-      <Dialog open={dialogOpen} onOpenChange={onDialogOpenChange}>
+      {dialogOpen ? (
+        <PublicLinkDialog
+          link={link}
+          linkNoun={linkNoun}
+          perDevice={perDevice}
+          onClose={() => onDialogOpenChange(false)}
+          onSave={onSave}
+          onDelete={() => {
+            onDialogOpenChange(false)
+            onDelete()
+          }}
+        />
+      ) : null}
+    </div>
+  )
+}
+
+/**
+ * One menu link, edited as a draft.
+ *
+ * The window holds its own copy until Done, for the reason PublicGroupDialog
+ * does: Escape and a click outside must leave the saved menu exactly as it was.
+ * Done then checks the draft against the same rule the save applies
+ * (`isSafeWrittenPageLink`, through getPublicAddressProblem) and stays open
+ * on a problem, because the save silently drops a link with no label or an
+ * unsafe address, and a window that closed on "Saved" and lost the link is the
+ * bug this replaces.
+ */
+function PublicLinkDialog({
+  link,
+  linkNoun,
+  perDevice,
+  onClose,
+  onSave,
+  onDelete,
+}: {
+  /** The saved link being edited, or nothing for a link being added. */
+  link?: PublicNavigationLink
+  linkNoun: string
+  perDevice: boolean
+  onClose: () => void
+  /** Puts the link in the menu and waits for the settings save. */
+  onSave: (link: PublicNavigationLink) => Promise<boolean>
+  onDelete?: () => void
+}) {
+  const id = React.useId()
+  const [draft, setDraft] = React.useState<PublicNavigationLink>(
+    () => link ?? { label: "", href: "" }
+  )
+  const [attempted, setAttempted] = React.useState(false)
+  const [labelTouched, setLabelTouched] = React.useState(false)
+  const [addressTouched, setAddressTouched] = React.useState(false)
+  const [saving, setSaving] = React.useState(false)
+  const labelInputRef = React.useRef<HTMLInputElement>(null)
+  const addressInputRef = React.useRef<HTMLInputElement>(null)
+  const labelErrorId = `${id}-label-error`
+  const label = draft.label.trim()
+  const named = Boolean(label)
+  const addressProblem = getPublicAddressProblem(draft.href, true)
+  const labelInvalid = (attempted || labelTouched) && !named
+  const addressInvalid = Boolean(
+    (attempted || addressTouched) && addressProblem
+  )
+  const dirty = publicLinkDraftIsDirty(draft, link)
+
+  const save = async () => {
+    setAttempted(true)
+    if (!named) {
+      labelInputRef.current?.focus()
+      return
+    }
+    if (addressProblem) {
+      showErrorToast(addressProblem)
+      addressInputRef.current?.focus()
+      return
+    }
+
+    setSaving(true)
+    try {
+      const saved = await onSave({
+        ...draft,
+        label,
+        href: draft.href.trim(),
+      })
+      if (saved) onClose()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <FormDialog open dirty={dirty} busy={saving} onClose={onClose}>
+      {(requestClose) => (
         <DialogContent
           variant="admin"
           className="sm:max-w-lg"
           onOpenAutoFocus={(event) => {
-            if (label) return
+            if (named) return
             event.preventDefault()
             labelInputRef.current?.focus()
           }}
         >
           <DialogHeader>
-            <DialogTitle>{label || linkNoun}</DialogTitle>
+            <DialogTitle>{link?.label.trim() || linkNoun}</DialogTitle>
             <DialogDescription>
-              Edit this public {linkNoun}.
+              {link ? `Edit this public ${linkNoun}.` : `Add a ${linkNoun}.`}
             </DialogDescription>
           </DialogHeader>
           <DialogBody>
@@ -1220,28 +1319,41 @@ function PublicLinkChip({
                   <Input
                     ref={labelInputRef}
                     id={`${id}-label`}
-                    value={link.label}
+                    value={draft.label}
                     maxLength={MAX_PUBLIC_NAVIGATION_LABEL_LENGTH}
                     placeholder="About"
+                    disabled={saving}
+                    aria-invalid={labelInvalid || undefined}
+                    aria-describedby={labelInvalid ? labelErrorId : undefined}
                     onChange={(event) =>
-                      onChange({ label: event.target.value })
+                      setDraft((current) => ({
+                        ...current,
+                        label: event.target.value,
+                      }))
                     }
+                    onBlur={() => setLabelTouched(true)}
                   />
+                  {labelInvalid ? (
+                    <InlineError id={labelErrorId} className="text-xs">
+                      Label is required.
+                    </InlineError>
+                  ) : null}
                 </div>
                 <div className="grid gap-2">
                   <FieldLabel htmlFor={`${id}-href`}>Address</FieldLabel>
                   <Input
+                    ref={addressInputRef}
                     id={`${id}-href`}
-                    value={link.href}
+                    value={draft.href}
                     maxLength={MAX_PUBLIC_NAVIGATION_HREF_LENGTH}
                     placeholder="/about"
-                    aria-invalid={
-                      addressProblem && (link.href || addressTouched)
-                        ? true
-                        : undefined
-                    }
+                    disabled={saving}
+                    aria-invalid={addressInvalid || undefined}
                     onChange={(event) =>
-                      onChange({ href: event.target.value })
+                      setDraft((current) => ({
+                        ...current,
+                        href: event.target.value,
+                      }))
                     }
                     onBlur={() => {
                       setAddressTouched(true)
@@ -1252,38 +1364,55 @@ function PublicLinkChip({
                 {perDevice ? (
                   <PublicDeviceField
                     id={`${id}-device`}
-                    device={link.device}
-                    onChange={(device) => onChange({ device })}
+                    device={draft.device}
+                    onChange={(device) =>
+                      setDraft((current) => ({ ...current, device }))
+                    }
                   />
                 ) : null}
               </CardContent>
             </Card>
           </DialogBody>
           <DialogFooter>
+            {onDelete ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="mr-auto"
+                disabled={saving}
+                onClick={onDelete}
+              >
+                Delete link
+              </Button>
+            ) : null}
             <Button
               type="button"
               variant="outline"
-              className="mr-auto"
-              onClick={() => {
-                onDialogOpenChange(false)
-                onDelete()
-              }}
+              disabled={saving}
+              onClick={requestClose}
             >
-              Delete link
+              Cancel
             </Button>
-            <Button
-              type="button"
-              onClick={async () => {
-                await onSaveConfig()
-                onDialogOpenChange(false)
-              }}
-            >
+            <Button type="button" disabled={saving} onClick={() => void save()}>
+              {saving ? <Loader2Icon className="size-4 animate-spin" /> : null}
               Done
             </Button>
           </DialogFooter>
         </DialogContent>
-      </Dialog>
-    </div>
+      )}
+    </FormDialog>
+  )
+}
+
+function publicLinkDraftIsDirty(
+  draft: PublicNavigationLink,
+  link?: PublicNavigationLink
+) {
+  const saved = link ?? { label: "", href: "" }
+  return (
+    draft.label !== saved.label ||
+    draft.href !== saved.href ||
+    normalizePublicDevice(draft.device) !== normalizePublicDevice(saved.device)
   )
 }
 

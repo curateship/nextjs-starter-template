@@ -259,21 +259,32 @@ function publicBrandOverrideChanges(
 }
 
 /**
- * Every colour an admin can type on the Public styling tab, so the auto-save
- * can wait until a half-typed hex is finished. A colour on "Theme default" or
- * "Muted" has no hex to get wrong.
+ * Every canvas colour an admin can type on the Public styling tab, paired with
+ * the name that tab gives it and listed in the order that tab shows them. The
+ * header names the field to fix when the auto-save refuses a half-typed hex, so
+ * the label lives beside the value it belongs to. A colour left on "Theme
+ * default" or "Muted" has no hex to get wrong.
  */
-function publicThemeBackgrounds(theme: PublicTheme): ShellBackground[] {
+function publicThemeBackgroundFields(
+  theme: PublicTheme
+): readonly (readonly [ShellBackground, string])[] {
   return [
-    theme.canvasColor,
-    theme.chrome,
-    theme.cardBorderColor,
-    theme.dividerColor,
-    theme.modal.background,
-    theme.modal.borderColor,
-    theme.modal.cardBackground,
-    theme.modal.cardBorderColor,
+    [theme.canvasColor, "canvas colour"],
+    [theme.cardBorderColor, "border colour"],
+    [theme.dividerColor, "divider colour"],
+    [theme.chrome, "header and footer colour"],
+    [theme.modal.background, "modal background"],
+    [theme.modal.borderColor, "modal border colour"],
+    [theme.modal.cardBackground, "modal card background"],
+    [theme.modal.cardBorderColor, "modal card border colour"],
   ]
+}
+
+const PUBLIC_BRAND_OVERRIDE_LABELS: Record<PublicBrandOverrideKey, string> = {
+  hoverColor: "hover colour",
+  softColor: "soft tint",
+  foregroundColor: "button text colour",
+  darkColor: "dark-mode brand colour",
 }
 
 function isPublicBackgroundValid(background: ShellBackground): boolean {
@@ -283,18 +294,30 @@ function isPublicBackgroundValid(background: ShellBackground): boolean {
   )
 }
 
-export function isPublicThemeInputValid(theme: PublicTheme) {
-  return (
-    isPublicBrandColor(theme.brandColor) &&
-    publicThemeBackgrounds(theme).every(isPublicBackgroundValid) &&
-    PUBLIC_BRAND_OVERRIDE_KEYS.every((key) => {
-      if (!Object.prototype.hasOwnProperty.call(theme.brandOverrides, key)) {
-        return true
-      }
-      const value = theme.brandOverrides[key]
-      return typeof value === "string" && PUBLIC_BRAND_COLOR_PATTERN.test(value)
-    })
-  )
+/**
+ * The first half-typed colour on the Public styling tab, named as that tab
+ * names it, or null when every colour is a finished 6-digit hex. The auto-save
+ * refuses a theme with one of these in it, so this is what the header names.
+ */
+export function publicThemeColorProblem(theme: PublicTheme): string | null {
+  if (!isPublicBrandColor(theme.brandColor)) {
+    return "brand colour"
+  }
+  for (const key of PUBLIC_BRAND_OVERRIDE_KEYS) {
+    if (!Object.prototype.hasOwnProperty.call(theme.brandOverrides, key)) {
+      continue
+    }
+    const value = theme.brandOverrides[key]
+    if (typeof value !== "string" || !PUBLIC_BRAND_COLOR_PATTERN.test(value)) {
+      return PUBLIC_BRAND_OVERRIDE_LABELS[key]
+    }
+  }
+  for (const [background, label] of publicThemeBackgroundFields(theme)) {
+    if (!isPublicBackgroundValid(background)) {
+      return label
+    }
+  }
+  return null
 }
 
 /**
