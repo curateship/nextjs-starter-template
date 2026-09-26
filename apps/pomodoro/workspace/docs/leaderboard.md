@@ -16,3 +16,10 @@ ranking.
   timezone). Top 100 by focus time.
 - **Guests** see their local stats and a sign-in card in place of the
   ranking.
+- **The header pill opens the top five.** The Leaderboard pill in the
+  product header is a popover, not a link to the page: this week's top
+  five with rank, initials, name and session count, your own row in the
+  accent colour, and "Full leaderboard" at the foot for the page itself.
+  It reads the same ranking the page does, with the same opt-in rule, and
+  it only asks for it when the popover is opened. The sidebar still has a
+  Leaderboard link, so nothing lost a way in.

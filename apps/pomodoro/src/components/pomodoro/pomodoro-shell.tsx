@@ -3,6 +3,7 @@ import { Link, useNavigate, useRouterState } from "@tanstack/react-router"
 import {
   BarChart3Icon,
   CheckSquareIcon,
+  ChevronLeftIcon,
   HistoryIcon,
   ImageIcon,
   LayoutDashboardIcon,
@@ -120,6 +121,14 @@ function ThemeTogglePill() {
   )
 }
 
+/**
+ * One row in the sidebar: a nav link or the collapse button. Both are the
+ * same pill so the column reads down one edge, and both keep their icon in
+ * the same place when the sidebar narrows.
+ */
+const sidebarRowClass =
+  "flex min-h-11 w-full shrink-0 items-center gap-3 overflow-hidden whitespace-nowrap rounded-full px-3.5 text-[14.5px] font-semibold text-muted-foreground transition-colors hover:bg-[rgba(var(--p-fg-rgb),0.07)] hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+
 export function PomodoroShell({
   user,
   children,
@@ -128,6 +137,7 @@ export function PomodoroShell({
   children: React.ReactNode
 }) {
   const [menuOpen, setMenuOpen] = React.useState(false)
+  const [collapsed, setCollapsed] = React.useState(false)
   const navigate = useNavigate()
   const pathname = useRouterState({ select: (state) => state.location.pathname })
   const { background, fallBackToDefault } = useBackgroundSelection()
@@ -156,16 +166,17 @@ export function PomodoroShell({
       <Link
         key={to}
         to={to}
+        title={label}
         onClick={() => setMenuOpen(false)}
         className={cn(
-          "flex min-h-11 w-full shrink-0 items-center gap-3 overflow-hidden whitespace-nowrap rounded-full px-3.5 text-[14.5px] font-semibold text-muted-foreground transition-colors hover:bg-[rgba(var(--p-fg-rgb),0.07)] hover:text-foreground",
+          sidebarRowClass,
           active &&
             "bg-[rgba(255,90,60,0.14)] text-[var(--p-accent-2)] hover:bg-[rgba(255,90,60,0.14)] hover:text-[var(--p-accent-2)]",
           footer && "mt-auto"
         )}
       >
         <Icon className="size-[19px] shrink-0" aria-hidden />
-        {label}
+        <span className={cn(collapsed && "lg:hidden")}>{label}</span>
       </Link>
     )
   }
@@ -174,7 +185,8 @@ export function PomodoroShell({
     <div data-pomodoro-screen className="flex min-h-screen bg-background">
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 flex h-screen w-56 shrink-0 flex-col gap-1.5 overflow-hidden border-r border-[rgba(var(--p-fg-rgb),0.07)] bg-[rgba(var(--p-canvas-rgb),0.35)] px-3.5 py-[22px] backdrop-blur-[14px] max-lg:-translate-x-full max-lg:bg-[var(--p-canvas)] max-lg:transition-transform",
+          "fixed inset-y-0 left-0 z-40 flex h-screen w-56 shrink-0 flex-col gap-1.5 overflow-hidden border-r border-[rgba(var(--p-fg-rgb),0.07)] bg-[rgba(var(--p-canvas-rgb),0.35)] px-3.5 py-[22px] backdrop-blur-[14px] transition-[width] duration-300 max-lg:-translate-x-full max-lg:bg-[var(--p-canvas)] max-lg:transition-transform",
+          collapsed && "lg:w-[76px]",
           menuOpen && "max-lg:translate-x-0"
         )}
       >
@@ -184,7 +196,7 @@ export function PomodoroShell({
           aria-label="Pomodoro dashboard"
         >
           <TomatoMark className="size-9 shrink-0" />
-          <span>
+          <span className={cn(collapsed && "lg:hidden")}>
             pomodoro<span className="text-[var(--p-accent)]">.</span>
           </span>
         </Link>
@@ -203,6 +215,26 @@ export function PomodoroShell({
         >
           {NAV_LINKS.map((item) => navLink(item.to, item.label, item.icon))}
           {navLink("/settings", "Settings", SettingsIcon, true)}
+          {/* Narrows the sidebar to its icons. Desktop only: on a phone the
+              sidebar is a drawer that is either open or gone, so there is
+              nothing for a half-width state to mean. */}
+          <button
+            className={cn(sidebarRowClass, "max-lg:hidden")}
+            onClick={() => setCollapsed((value) => !value)}
+            aria-expanded={!collapsed}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            <ChevronLeftIcon
+              className={cn(
+                "size-[19px] shrink-0 transition-transform",
+                collapsed && "rotate-180"
+              )}
+              aria-hidden="true"
+            />
+            {/* Narrow, the label is gone and the `title` above is the
+                button's only name, which is why it says "sidebar" too. */}
+            <span className={cn(collapsed && "lg:hidden")}>Collapse</span>
+          </button>
         </nav>
       </aside>
 
@@ -214,7 +246,12 @@ export function PomodoroShell({
         />
       ) : null}
 
-      <div className="min-h-screen w-full lg:pl-56">
+      <div
+        className={cn(
+          "min-h-screen w-full transition-[padding] duration-300 lg:pl-56",
+          collapsed && "lg:pl-[76px]"
+        )}
+      >
         <header className="sticky top-0 z-20 flex min-h-[86px] items-center gap-6 px-10 py-[22px]">
           <Button
             variant="ghost"
