@@ -84,7 +84,9 @@ export function EventCard({ event }: { event: ListedEvent }) {
   return (
     <Card
       className={cn(
-        `relative w-full ${publicCardHover}`,
+        // `h-full` so every card in a row is the height of the tallest, which
+        // is what stops a row with one photo in it reading as a broken grid.
+        `relative h-full w-full ${publicCardHover}`,
         // The card only drops its top padding for a bare `<img>` first child,
         // and the blocks over the photo need a box to sit in.
         event.coverImage && "pt-0"
@@ -150,8 +152,10 @@ export function EventCard({ event }: { event: ListedEvent }) {
           </p>
         ) : null}
       </CardContent>
+      {/* `mt-auto` pins the footer to the bottom of a card that was stretched
+          to match its row, so the RSVP buttons line up across the row. */}
       {event.takesSignUps ? (
-        <CardFooter className="justify-between gap-2 bg-transparent">
+        <CardFooter className="mt-auto justify-between gap-2 bg-transparent">
           {/* Nothing where the count goes until somebody has signed up. "0
               going" on an event nobody has found yet argues against itself. */}
           <p className="text-sm text-muted-foreground">

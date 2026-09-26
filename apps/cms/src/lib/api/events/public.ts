@@ -13,11 +13,13 @@ import {
   eventDateWindow,
   readEventDateFilter,
   readEventNear,
+  type EventDateFilter,
   type EventDateSearch,
   type EventNearSearch,
   type EventsPageSearch,
 } from "@/lib/events/events-page"
 import { parseDirectoryNearPoint } from "@/lib/directory/public-search"
+import { readSearchText } from "@/lib/nav/list-search"
 import {
   eventHasEnded,
   eventWhenLines,
@@ -39,6 +41,7 @@ import {
   eventsAccessFor,
   findEventPlace,
   readEventCategories,
+  readEventDateCounts,
   readEventsBetween,
   readPublicEvent,
   readUpcomingEvents,
@@ -75,6 +78,12 @@ async function siteWithOpenEvents(): Promise<{
   )
   return access ? { site, access } : null
 }
+
+/** The number of events behind each date chip, "Any time" included. */
+export type EventDateCounts = { anyTime: number } & Record<
+  EventDateFilter,
+  number
+>
 
 /** An event in a list, marked when it is already over. */
 export type ListedEvent = PublicEventCard & { ended: boolean }
@@ -128,6 +137,12 @@ export type EventsPageData = EventsPageCommon &
         total: number
         page: number
         pageSize: number
+        /**
+         * The number beside each date chip: how many events that chip would
+         * show with the rest of the filters left alone. Null on one day's
+         * list, which has no date chips.
+         */
+        dateCounts: EventDateCounts | null
       }
     | {
         view: "month"
@@ -149,6 +164,7 @@ const readEventsPageFn = createServerFn({ method: "GET" })
       when: z.enum(EVENT_DATE_FILTERS).optional(),
       from: z.string().max(10).optional(),
       to: z.string().max(10).optional(),
+      q: z.string().max(120).optional(),
       near: z.string().max(40).optional(),
       radius: z.number().int().optional(),
       area: z.string().max(120).optional(),
@@ -228,6 +244,7 @@ const readEventsPageFn = createServerFn({ method: "GET" })
         total: events.length,
         page: 1,
         pageSize: Math.max(events.length, 1),
+        dateCounts: null,
       }
     }
 
@@ -242,15 +259,34 @@ const readEventsPageFn = createServerFn({ method: "GET" })
     // Read again with the route's rule, because anyone can call this endpoint
     // with any text.
     const dates = readEventDateFilter(data)
+    const typed = readSearchText(data.q)
     const nearby = readEventNear(data)
     const point = parseDirectoryNearPoint(nearby.near)
-    const upcoming = await readUpcomingEvents(site, page, now, undefined, {
-      featured: true,
+    // What every chip and the list share: the place, the category, the typed
+    // words and the distance. The dates are the one thing the chips change,
+    // so they are the one thing the counts leave out.
+    const narrowed = {
       ...onlyCategory,
       ...(place ? { placeId: place.id } : {}),
-      ...eventDateWindow(dates, common.today),
       ...(point ? { near: point, radius: nearby.radius } : {}),
-    })
+      ...(typed ? { q: typed } : {}),
+    }
+    const [upcoming, counts] = await Promise.all([
+      readUpcomingEvents(site, page, now, undefined, {
+        featured: true,
+        ...narrowed,
+        ...eventDateWindow(dates, common.today),
+      }),
+      readEventDateCounts(
+        site,
+        now,
+        EVENT_DATE_FILTERS.map(
+          (when) => eventDateWindow({ when }, common.today) ?? {}
+        ),
+        undefined,
+        narrowed
+      ),
+    ])
     return {
       ...common,
       view: "list",
@@ -268,6 +304,15 @@ const readEventsPageFn = createServerFn({ method: "GET" })
       total: upcoming.total,
       page,
       pageSize: upcoming.pageSize,
+      dateCounts: {
+        anyTime: counts.anyTime,
+        ...(Object.fromEntries(
+          EVENT_DATE_FILTERS.map((when, index) => [
+            when,
+            counts.windows[index] ?? 0,
+          ])
+        ) as Record<EventDateFilter, number>),
+      },
     }
   })
 

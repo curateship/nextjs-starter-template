@@ -2,8 +2,7 @@ import { Link } from "@tanstack/react-router"
 import { CalendarDaysIcon, ListIcon } from "lucide-react"
 
 import type { EventView } from "@/lib/events/events-page"
-import { focusRing } from "@/lib/layout/focus-ring"
-import { cn } from "@/lib/utils"
+import { segmentClass } from "@/lib/layout/segmented"
 
 const VIEWS: { view: EventView; label: string; Icon: typeof ListIcon }[] = [
   { view: "list", label: "List", Icon: ListIcon },
@@ -43,13 +42,7 @@ export function EventViewSwitch({
           // Only an exact match is current: "List" is part of every address.
           activeOptions={{ exact: true }}
           aria-current={view === current ? "page" : undefined}
-          className={cn(
-            "inline-flex h-7 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-medium whitespace-nowrap transition-colors",
-            focusRing,
-            view === current
-              ? "bg-background text-foreground shadow-sm"
-              : "hover:text-foreground"
-          )}
+          className={segmentClass(view === current)}
         >
           <Icon aria-hidden="true" className="size-4" />
           {label}

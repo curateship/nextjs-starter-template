@@ -11,6 +11,7 @@ import {
   lte,
   or,
   sql,
+  type SQL,
 } from "drizzle-orm"
 
 import { listingShareImageVersion } from "@/lib/directory/listing-share-image"
@@ -548,6 +549,7 @@ export function readUpcomingEvents(
     near?: DirectoryNearPoint
     radius?: number
     featured?: boolean
+    q?: string
   } = {}
 ): Promise<UpcomingEvents> {
   const [nowDay = "", nowTime = ""] = now.split("T")
@@ -558,6 +560,7 @@ export function readUpcomingEvents(
   const near = only.near && only.radius ? only.near : null
   const radius = near ? only.radius! : null
   const featured = only.featured ?? false
+  const query = only.q?.trim() || null
   return cachedPublicDirectoryRead(
     site.id,
     "upcoming-events",
@@ -572,6 +575,7 @@ export function readUpcomingEvents(
       near: near ? formatDirectoryNearPoint(near) : null,
       radius,
       featured,
+      q: query,
     },
     async () => {
       const distanceKm = near
@@ -580,14 +584,15 @@ export function readUpcomingEvents(
           )
         : null
       const where = and(
-        listedEventsOnSite(site.id),
-        notOverAt(nowDay, nowTime),
-        placeId ? eq(siteEvents.listingId, placeId) : undefined,
-        categoryId ? inCategory(site.id, categoryId, database) : undefined,
+        eventsNarrowedBy(
+          site.id,
+          nowDay,
+          nowTime,
+          { placeId, categoryId, distanceKm, radius, query },
+          database
+        ),
         to ? lte(siteEvents.startDate, to) : undefined,
-        from ? gte(lastDayOfEvent, from) : undefined,
-        // No position measures as null, and null is never within the radius.
-        distanceKm ? sql`${distanceKm} <= ${radius}` : undefined
+        from ? gte(lastDayOfEvent, from) : undefined
       )
       const [rows, [countRow]] = await Promise.all([
         database
@@ -622,6 +627,139 @@ export function readUpcomingEvents(
         total: countRow?.total ?? 0,
         page,
         pageSize: EVENTS_PAGE_SIZE,
+      }
+    }
+  )
+}
+
+/**
+ * The typed words against an event: its title, the line under it, and the
+ * name of the place it is at. The body is left out on purpose, because the
+ * Events page is a list of cards and a match a visitor cannot see on the card
+ * reads as a wrong result.
+ */
+function matchesEventText(query: string) {
+  const pattern = siteSearchPattern(query)
+  return or(
+    ilike(siteEvents.title, pattern),
+    ilike(siteEvents.summary, pattern),
+    ilike(livePlaceName, pattern)
+  )
+}
+
+/**
+ * Everything the Events page narrows by except the dates: the site, events
+ * that are not over, one listing, one category, a distance and the typed
+ * words. The list and the numbers on the date chips both build on this one
+ * filter, so a new way of narrowing can never reach one and miss the other
+ * and leave a chip promising events the list will not show.
+ *
+ * The query has to left-join `directoryListings` on `listingOfEvent`.
+ */
+function eventsNarrowedBy(
+  siteId: string,
+  nowDay: string,
+  nowTime: string,
+  only: {
+    placeId: string | null
+    categoryId: string | null
+    /** The measured distance, already null when there is no point. */
+    distanceKm: SQL<number> | null
+    radius: number | null
+    query: string | null
+  },
+  database: CustomShellDb
+) {
+  return and(
+    listedEventsOnSite(siteId),
+    notOverAt(nowDay, nowTime),
+    only.placeId ? eq(siteEvents.listingId, only.placeId) : undefined,
+    only.categoryId ? inCategory(siteId, only.categoryId, database) : undefined,
+    // No position measures as null, and null is never within the radius.
+    only.distanceKm ? sql`${only.distanceKm} <= ${only.radius}` : undefined,
+    only.query ? matchesEventText(only.query) : undefined
+  )
+}
+
+/** A stretch of days a date chip covers, both included. */
+export type EventDayWindow = { from?: string; to?: string }
+
+/**
+ * How many events each date chip would show, in the chips' own order.
+ * `anyTime` is every event that is not over, with the dates left out.
+ */
+export type EventWindowCounts = { anyTime: number; windows: number[] }
+
+/**
+ * The number beside each date chip on the Events page: how many events that
+ * chip would show if it were pressed, with every other filter left as it is.
+ * `windows` comes back in the order the windows were asked for.
+ *
+ * Counted in one query rather than one query per chip, because four chips over
+ * a list of twelve cards is not worth four round trips.
+ */
+export function readEventDateCounts(
+  site: VisitorSite,
+  now: string,
+  windows: EventDayWindow[],
+  database: CustomShellDb = db,
+  only: {
+    placeId?: string
+    categoryId?: string
+    near?: DirectoryNearPoint
+    radius?: number
+    q?: string
+  } = {}
+): Promise<EventWindowCounts> {
+  const [nowDay = "", nowTime = ""] = now.split("T")
+  const placeId = only.placeId ?? null
+  const categoryId = only.categoryId ?? null
+  const near = only.near && only.radius ? only.near : null
+  const radius = near ? only.radius! : null
+  const query = only.q?.trim() || null
+  return cachedPublicDirectoryRead(
+    site.id,
+    "event-date-counts",
+    {
+      now,
+      windows,
+      placeId,
+      categoryId,
+      near: near ? formatDirectoryNearPoint(near) : null,
+      radius,
+      q: query,
+    },
+    async () => {
+      const distanceKm = near
+        ? distanceKmFrom(near, livePlaceLatitude, livePlaceLongitude).mapWith(
+            Number
+          )
+        : null
+      const where = eventsNarrowedBy(
+        site.id,
+        nowDay,
+        nowTime,
+        { placeId, categoryId, distanceKm, radius, query },
+        database
+      )
+      const counted = Object.fromEntries(
+        windows.map((window, index) => [
+          `w${index}`,
+          sql<number>`count(*) filter (where ${and(
+            window.to ? lte(siteEvents.startDate, window.to) : sql`true`,
+            window.from ? gte(lastDayOfEvent, window.from) : sql`true`
+          )})::int`,
+        ])
+      )
+      const [row] = await database
+        .select({ total: sql<number>`count(*)::int`, ...counted })
+        .from(siteEvents)
+        .leftJoin(directoryListings, listingOfEvent)
+        .where(where)
+      const read = (key: string) => Number(row?.[key as "total"] ?? 0)
+      return {
+        anyTime: read("total"),
+        windows: windows.map((_, index) => read(`w${index}`)),
       }
     }
   )

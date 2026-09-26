@@ -8,10 +8,11 @@ import { formatDirectoryNearPoint } from "@/lib/directory/public-search"
  * postcode, or the browser's own location.
  *
  * A hook rather than a component because two things draw these controls now.
- * `NearPicker` draws them as a row of fields, which is what the Events and
- * Deals pages use, and the directory's search bar draws the same three inside
- * one bar. Written twice, the two would disagree about what a refused
- * permission says, and that message is the only thing a visitor has to go on.
+ * `NearPicker` draws them as a row of fields, which is what the Deals page
+ * uses, and the directory's and the Events page's search bars draw the same
+ * three inside one bar. Written twice, the two would disagree about what a
+ * refused permission says, and that message is the only thing a visitor has to
+ * go on.
  */
 export function useNearPlace({
   radius,
