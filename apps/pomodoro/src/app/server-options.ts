@@ -1,6 +1,7 @@
 import type { AppServerOptions } from "@/server/app-options"
 
 import { advanceDueRooms } from "@/server/pomodoro/rooms"
+import { openDueRooms } from "@/server/pomodoro/scheduled-rooms"
 import { processNextMediaUpload } from "@/server/pomodoro/media-worker"
 import { processNextGeneration } from "@/server/pomodoro/generation-worker"
 
@@ -35,6 +36,16 @@ export const appServerOptions: AppServerOptions = {
         name: "pomodoro-room-clock",
         tick: async () => {
           await advanceDueRooms()
+        },
+      },
+      {
+        // Booked rooms. Each pass opens every room whose start time has
+        // passed and then sends the invitations still waiting to go out.
+        // Both claim their work with a guard in the WHERE, so overlapping
+        // passes cannot open a room twice or email one person twice.
+        name: "pomodoro-scheduled-rooms",
+        tick: async () => {
+          await openDueRooms()
         },
       },
       {

@@ -1,16 +1,21 @@
 import * as React from "react"
 import { Link, useNavigate, useParams } from "@tanstack/react-router"
-import { LockKeyholeIcon, UsersIcon } from "lucide-react"
+import { CalendarClockIcon, LockKeyholeIcon, UsersIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { lookupRoom, joinRoom } from "@/lib/api/pomodoro/rooms"
 import { useProductAuth } from "@/lib/pomodoro/auth-state"
+import {
+  describeWaitUntil,
+  formatRoomStart,
+} from "@/lib/pomodoro/scheduled-rooms"
 
 /**
- * The invite page at /rooms/$slug, with the old app's seven states:
- * checking, failed, not found, closed, banned, already a member, locked
- * mid-focus, and joinable (signed in or prompted to sign in).
+ * The invite page at /rooms/$slug, with the old app's seven states: checking,
+ * failed, not found, closed, banned, already a member, locked mid-focus, and
+ * joinable. Booked rooms add an eighth, because an invitation email arrives
+ * before its room exists to join.
  */
 export function RoomInvitePage() {
   const { authenticated } = useProductAuth()
@@ -100,6 +105,41 @@ export function RoomInvitePage() {
               <Button asChild variant="outline" className="rounded-full">
                 <Link to="/rooms">Browse rooms</Link>
               </Button>
+            </>
+          ) : lookup.status === "scheduled" ? (
+            <>
+              <p className="font-mono text-[10px] uppercase tracking-widest text-[var(--p-accent-2)]">
+                You’re invited
+              </p>
+              <h2 className="text-xl font-bold">{lookup.name}</h2>
+              <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                <CalendarClockIcon className="size-4" aria-hidden="true" />
+                {formatRoomStart(
+                  new Date(lookup.startsAt),
+                  Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
+                )}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                That is{" "}
+                {describeWaitUntil(new Date(lookup.startsAt), new Date())}, in
+                your own clock. The room opens itself then, with{" "}
+                {lookup.focusMinutes} minute focus sessions. Come back to this
+                link at the time and you are in.
+              </p>
+              <div className="flex gap-2">
+                <Button className="rounded-full font-bold" onClick={refresh}>
+                  Check again
+                </Button>
+                {authenticated ? (
+                  <Button asChild variant="outline" className="rounded-full">
+                    <Link to="/rooms">Browse rooms</Link>
+                  </Button>
+                ) : (
+                  <Button asChild variant="outline" className="rounded-full">
+                    <Link to="/register">Create free account</Link>
+                  </Button>
+                )}
+              </div>
             </>
           ) : lookup.status === "banned" ? (
             <>

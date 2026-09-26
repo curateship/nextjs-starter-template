@@ -397,6 +397,13 @@ export const rooms = pgTable(
     phase: varchar("phase", { length: 20 }).notNull().default("waiting"),
     /** Bumped by every phase change; stale timed transitions no-op on it. */
     sequence: integer("sequence").notNull().default(0),
+    /**
+     * When a booked room opens itself. Null on a room started by hand, which
+     * is every room made before scheduling existed. Set alongside the
+     * 'scheduled' phase and left in place afterwards, so an opened room still
+     * says what time it was booked for.
+     */
+    startsAt: timestamp("starts_at", { withTimezone: true }),
     phaseStartedAt: timestamp("phase_started_at", { withTimezone: true }),
     phaseEndsAt: timestamp("phase_ends_at", { withTimezone: true }),
     focusMinutes: integer("focus_minutes").notNull().default(25),
@@ -423,13 +430,20 @@ export const rooms = pgTable(
     ),
     check(
       "rooms_phase_check",
-      sql`${table.phase} in ('waiting', 'focus', 'short', 'long', 'closed')`
+      sql`${table.phase} in ('scheduled', 'waiting', 'focus', 'short', 'long', 'closed')`
+    ),
+    // A room waiting for its own clock must say when that clock goes off,
+    // otherwise nothing would ever open it.
+    check(
+      "rooms_scheduled_starts_at_check",
+      sql`${table.phase} <> 'scheduled' or ${table.startsAt} is not null`
     ),
     index("rooms_public_idx").on(
       table.visibility,
       table.phase,
       table.createdAt
     ),
+    index("rooms_scheduled_idx").on(table.phase, table.startsAt),
   ]
 )
 
@@ -529,6 +543,41 @@ export const roomBans = pgTable(
   },
   (table) => [
     unique("room_bans_room_user_unique").on(table.roomId, table.userId),
+  ]
+)
+
+/**
+ * One invitation email for a booked room: who it goes to and what became of
+ * it. The row is written when the host books the room and the worker sends
+ * it on the next pass, so cancelling in between means the email never leaves.
+ *
+ * The address is stored lowercased and unique per room, so a host who types
+ * the same person twice invites them once.
+ */
+export const roomInvites = pgTable(
+  "room_invites",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    roomId: uuid("room_id")
+      .notNull()
+      .references(() => rooms.id, { onDelete: "cascade" }),
+    email: varchar("email", { length: 254 }).notNull(),
+    status: varchar("status", { length: 20 }).notNull().default("queued"),
+    /** Claimed by the sender before it sends, so two passes cannot both send. */
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    failureReason: varchar("failure_reason", { length: 200 }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      "room_invites_status_check",
+      sql`${table.status} in ('queued', 'sent', 'failed', 'cancelled')`
+    ),
+    unique("room_invites_room_email_unique").on(table.roomId, table.email),
+    index("room_invites_status_created_idx").on(table.status, table.createdAt),
   ]
 )
 
@@ -776,5 +825,6 @@ export const pomodoroGenerations = pgTable(
 )
 
 export type Room = typeof rooms.$inferSelect
+export type RoomInvite = typeof roomInvites.$inferSelect
 export type PomodoroMediaUpload = typeof pomodoroMediaUploads.$inferSelect
 export type PomodoroGeneration = typeof pomodoroGenerations.$inferSelect

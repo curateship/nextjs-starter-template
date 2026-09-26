@@ -29,6 +29,17 @@ import {
   type RoomHostAction,
 } from "@/server/pomodoro/rooms"
 import { ROOM_REACTION_EMOJIS } from "@/lib/pomodoro/room-reactions"
+import {
+  cancelScheduledRoom,
+  countScheduledRoomsHostedBy,
+  listUpcomingRooms,
+  scheduleRoomWithInvites,
+} from "@/server/pomodoro/scheduled-rooms"
+import {
+  parseInviteEmails,
+  scheduleProblem,
+  scheduleProblemMessage,
+} from "@/lib/pomodoro/scheduled-rooms"
 
 /**
  * The rooms endpoints, ported from the old app. No delayed-job queue here:
@@ -53,6 +64,16 @@ const createRoomSchema = z.object({
   shortBreakMinutes: z.number().int().min(1).max(90).default(5),
   longBreakMinutes: z.number().int().min(1).max(90).default(15),
   autoStart: z.boolean().default(false),
+})
+// A booking is the same room settings plus when it opens and who to tell.
+// The time arrives as an ISO instant, so the host's clock and the server's
+// never have to agree about what "7pm" means.
+const scheduleRoomSchema = createRoomSchema.extend({
+  startsAt: z.string().datetime({ offset: true }),
+  // Twenty addresses at the column's full 254 characters, plus separators.
+  // The friendlier "that is too many people" answer comes from
+  // scheduleProblem; this only stops a caller posting a novel.
+  invitesTyped: z.string().max(6_000).default(""),
 })
 const slugSchema = z.object({ slug: z.string().min(12).max(80) })
 const actionSchema = slugSchema.extend({
@@ -110,6 +131,62 @@ const createRoomFn = createServerFn({ method: "POST" })
     await awardRoomsHosted(context.user.id)
     return roomSnapshot(room.id, context.user.id)
   })
+
+/** One person may have this many rooms booked and not yet opened. */
+const MAX_SCHEDULED_ROOMS_PER_HOST = 10
+
+/**
+ * Books a room for later. Hosting is Pro, so booking is too.
+ *
+ * The clock is the server's: the host's chosen instant is checked against
+ * `new Date()` here, not against anything the browser said the time was. The
+ * addresses are parsed and checked by the same rules the dialog used, so a
+ * request that skipped the dialog cannot queue a thousand emails.
+ */
+const scheduleRoomFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(scheduleRoomSchema)
+  .handler(async ({ data, context }) => {
+    await requirePomodoroPerk(context.user.id, "hostRooms")
+    // Every booking costs an attempt whether or not it emails anyone, and the
+    // limit comes before the reads below so a burst cannot spend the
+    // database on requests that were never going to be allowed.
+    await enforceRateLimit(`room-schedule:${context.user.id}`, {
+      maxAttempts: 10,
+      windowSeconds: 3_600,
+    })
+
+    const { startsAt: startsAtText, invitesTyped, ...settings } = data
+    const startsAt = new Date(startsAtText)
+    const invites = parseInviteEmails(invitesTyped)
+    const problem = scheduleProblem(startsAt, invites, new Date())
+    if (problem) throw new Error(`SCHEDULE_REJECTED: ${scheduleProblemMessage(problem)}`)
+
+    if ((await countScheduledRoomsHostedBy(context.user.id)) >= MAX_SCHEDULED_ROOMS_PER_HOST) {
+      throw new Error(
+        `SCHEDULE_REJECTED: You already have ${MAX_SCHEDULED_ROOMS_PER_HOST} rooms booked. Cancel one to book another.`
+      )
+    }
+
+    const slug = randomBytes(18).toString("base64url")
+    const room = await scheduleRoomWithInvites(context.user.id, slug, {
+      ...settings,
+      startsAt,
+      invites,
+    })
+    return { slug: room.slug, name: room.name, startsAt: room.startsAt, invited: invites.length }
+  })
+
+const upcomingRoomsFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .handler(async ({ context }) => listUpcomingRooms(context.user.id))
+
+const cancelScheduledRoomFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(slugSchema)
+  .handler(async ({ data, context }) =>
+    cancelScheduledRoom(data.slug, context.user.id)
+  )
 
 async function awardRoomsHosted(userId: string) {
   try {
@@ -251,6 +328,11 @@ export const getCurrentRoom = () => currentRoomFn()
 export const lookupRoom = (slug: string) => lookupRoomFn({ data: { slug } })
 export const createRoom = (data: z.infer<typeof createRoomSchema>) =>
   createRoomFn({ data })
+export const scheduleRoom = (data: z.infer<typeof scheduleRoomSchema>) =>
+  scheduleRoomFn({ data })
+export const listUpcoming = () => upcomingRoomsFn()
+export const cancelBookedRoom = (slug: string) =>
+  cancelScheduledRoomFn({ data: { slug } })
 export const joinRoom = (slug: string) => joinRoomFn({ data: { slug } })
 export const leaveActiveRoom = (slug: string) =>
   leaveRoomFn({ data: { slug } })

@@ -19,13 +19,18 @@ import { isRoomReactionEmoji, roomReactionOrder } from "@/lib/pomodoro/room-reac
 type PomoderDb = CustomShellDb
 type PomoderTransaction = Parameters<Parameters<PomoderDb["transaction"]>[0]>[0]
 
-export type RoomPhase = "waiting" | "focus" | "short" | "long" | "closed"
+export type RoomPhase = "scheduled" | "waiting" | "focus" | "short" | "long" | "closed"
 export type RoomHostAction = "start_focus" | "start_break" | "next_phase" | "close"
 
 const FOCUS_PERIODS_PER_CYCLE = 4
 const TIMED_PHASES: readonly RoomPhase[] = ["focus", "short", "long"]
 
 export function canJoinRoom(phase: string) { return ["waiting", "short", "long"].includes(phase) }
+
+// A booked room exists before it opens, so it is a room nobody may act on
+// yet: not joinable, not drivable by its host, and not in the browse lists.
+// See src/server/pomodoro/scheduled-rooms.ts for what opens it.
+export function isScheduledRoom(phase: string) { return phase === "scheduled" }
 
 // Every fourth completed focus period earns the long break; the cycle resets
 // once the long break ends.
@@ -57,7 +62,7 @@ export function resolveHostAction(room: Pick<Room, "phase" | "cycleFocusCount">,
   return room.phase === "focus" ? breakPhaseAfterFocus(room.cycleFocusCount) : "focus"
 }
 
-function phaseUpdate(room: Room, nextPhase: RoomPhase, timestamp: Date) {
+export function phaseUpdate(room: Room, nextPhase: RoomPhase, timestamp: Date) {
   const durationMinutes = nextPhase === "focus" ? room.focusMinutes : nextPhase === "short" ? room.shortBreakMinutes : nextPhase === "long" ? room.longBreakMinutes : 0
   const phaseEndsAt = TIMED_PHASES.includes(nextPhase) ? new Date(timestamp.getTime() + durationMinutes * 60_000) : null
   const cycleFocusCount = nextPhase === "closed" ? room.cycleFocusCount
@@ -86,6 +91,10 @@ export async function applyHostRoomAction(slug: string, userId: string, action: 
     if (!room) throw new Error("ROOM_NOT_FOUND")
     if (room.hostUserId !== userId) throw new Error("ROOM_HOST_REQUIRED")
     if (room.closedAt || room.phase === "closed") throw new Error("ROOM_CLOSED")
+    // A booked room has no session to drive until its start time comes round.
+    // Cancelling it is a different act with different consequences, and lives
+    // in cancelScheduledRoom.
+    if (isScheduledRoom(room.phase)) throw new Error("ROOM_NOT_OPEN_YET")
     const nextPhase = resolveHostAction(room, action)
     const { set, transitionAt } = phaseUpdate(room, nextPhase, timestamp)
     const [updated] = await tx.update(rooms).set(set).where(eq(rooms.id, room.id)).returning()
@@ -140,6 +149,7 @@ export async function joinRoomBySlug(slug: string, userId: string, database: Pom
     const [room] = await tx.select().from(rooms).where(eq(rooms.slug, slug)).for("update").limit(1)
     if (!room) throw new Error("ROOM_NOT_FOUND")
     if (room.closedAt || room.phase === "closed") throw new Error("ROOM_CLOSED")
+    if (isScheduledRoom(room.phase)) throw new Error("ROOM_NOT_OPEN_YET")
     if (!canJoinRoom(room.phase)) throw new Error("ROOM_LOCKED")
     await assertNotBanned(room.id, userId, tx)
     const closedRoomIds = await closeRoomsHostedBy(tx, userId, timestamp, room.id)
@@ -155,6 +165,10 @@ export async function leaveRoom(slug: string, userId: string, database: PomoderD
   return database.transaction(async (tx) => {
     const [room] = await tx.select().from(rooms).where(eq(rooms.slug, slug)).for("update").limit(1)
     if (!room) throw new Error("ROOM_NOT_FOUND")
+    // Nobody is in a booked room, so there is nothing to leave. Refusing here
+    // keeps cancelScheduledRoom the only way a booking ends: closing one
+    // through this path would strand its queued invitations as queued.
+    if (isScheduledRoom(room.phase)) throw new Error("ROOM_NOT_OPEN_YET")
     if (room.hostUserId === userId && !room.closedAt && room.phase !== "closed") {
       const { set } = phaseUpdate(room, "closed", timestamp)
       const [updated] = await tx.update(rooms).set(set).where(eq(rooms.id, room.id)).returning()
@@ -184,7 +198,9 @@ export async function listPublicRooms(database: PomoderDb = db) {
     .innerJoin(users, eq(rooms.hostUserId, users.id))
     .leftJoin(pomodoroProfiles, eq(pomodoroProfiles.userId, users.id))
     .leftJoin(roomMemberships, and(eq(roomMemberships.roomId, rooms.id), sql`${roomMemberships.leftAt} is null`))
-    .where(and(eq(rooms.visibility, "public"), sql`${rooms.closedAt} is null`))
+    // A booked room is not open, so it stays out of both browse groups and
+    // appears under Upcoming instead — see listUpcomingRooms.
+    .where(and(eq(rooms.visibility, "public"), sql`${rooms.closedAt} is null`, sql`${rooms.phase} <> 'scheduled'`))
     .groupBy(rooms.id, users.id, pomodoroProfiles.publicDisplayName)
     .orderBy(desc(rooms.createdAt))
     .limit(50)
@@ -302,6 +318,7 @@ async function loadMessageReactions(roomId: string, userId: string, messageIds: 
 export type RoomLookup =
   | { status: "not_found" }
   | { status: "closed"; name: string }
+  | { status: "scheduled"; name: string; startsAt: Date; focusMinutes: number }
   | { status: "banned"; name: string }
   | { status: "member"; name: string; memberCount: number }
   | { status: "locked"; name: string; memberCount: number }
@@ -317,6 +334,11 @@ export async function lookupRoomBySlug(slug: string, userId: string | null, data
   if (userId) {
     const banned = await database.select({ id: roomBans.id }).from(roomBans).where(and(eq(roomBans.roomId, room.id), eq(roomBans.userId, userId))).limit(1)
     if (banned.length) return { status: "banned", name: room.name }
+  }
+  // An invite email is sent before the room opens, so the link has to be able
+  // to say "not yet" and when. Nobody is in the room, so no count is shown.
+  if (isScheduledRoom(room.phase) && room.startsAt) {
+    return { status: "scheduled", name: room.name, startsAt: room.startsAt, focusMinutes: room.focusMinutes }
   }
   const [{ memberCount }] = await database.select({ memberCount: sql<number>`count(*)::int` }).from(roomMemberships).where(and(eq(roomMemberships.roomId, room.id), sql`${roomMemberships.leftAt} is null`))
   if (userId) {
@@ -492,8 +514,13 @@ async function endActiveMemberships(tx: PomoderTransaction, roomId: string, time
 // Hosting is single-tenancy: starting or joining another room abandons any
 // room the user still hosts, closing it so members are not stranded in a
 // hostless room.
+//
+// A booked room is exempt. It has no members to strand, and a host who books
+// 7pm and then runs a room at three o'clock means to do both — closing the
+// booking here would delete a meeting other people have already been emailed
+// about.
 async function closeRoomsHostedBy(tx: PomoderTransaction, userId: string, timestamp: Date, exceptRoomId?: string) {
-  const hosted = await tx.select().from(rooms).where(and(eq(rooms.hostUserId, userId), sql`${rooms.closedAt} is null`)).for("update")
+  const hosted = await tx.select().from(rooms).where(and(eq(rooms.hostUserId, userId), sql`${rooms.closedAt} is null`, sql`${rooms.phase} <> 'scheduled'`)).for("update")
   const closedRoomIds: string[] = []
   for (const room of hosted) {
     if (room.id === exceptRoomId) continue

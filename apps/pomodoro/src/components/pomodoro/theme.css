@@ -115,6 +115,22 @@ html:root:has([data-pomodoro-screen]) body.app-font {
   font-family: var(--app-font-sans);
 }
 
+/*
+ * The two motions the room cards need, ported from the old app by value.
+ * They live here rather than in a component because a Tailwind arbitrary
+ * animation can name a keyframe but cannot declare one. The elements that use
+ * them carry `motion-reduce:animate-none`, so both stop for anyone who has
+ * asked their machine for less movement.
+ */
+@keyframes pomodoro-vibe {
+  0% { background-position: 0 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+@keyframes pomodoro-equaliser {
+  0%, 100% { transform: scaleY(0.35); }
+  50% { transform: scaleY(1); }
+}
 html:root.dark:has([data-pomodoro-screen]) {
   color-scheme: dark;
 

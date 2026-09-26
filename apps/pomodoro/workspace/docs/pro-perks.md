@@ -20,6 +20,14 @@ the old app's Pro).
   missing key falls back to the old contract — paid unlocks everything,
   free nothing. A paused plan counts as free. Unit tests:
   `src/server/pomodoro/entitlements.test.ts`.
+- **An admin reads as paid, whatever their plan.** An operator of the
+  deployment is not a customer of it, so they are never asked to buy their
+  own product to host a room or upload a background. Nothing else about them
+  changes: their plan's feature record still applies on top, so a plan
+  handing out 100 monthly backgrounds still hands the admin 100, and a plan
+  that deliberately switches a perk off still switches it off. Being an admin
+  answers "have they paid", not "what did they buy". Tyler asked for this on
+  25 Sep 2026.
 - **Feature keys** an admin can set on a plan (Settings → Plans):
   `hostRooms`, `premiumMedia`, `uploadMedia`, `longRangeReports`,
   `aiCredits`, `storageLimitBytes`, `monthlyBackgrounds`,

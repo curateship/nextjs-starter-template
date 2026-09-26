@@ -45,6 +45,8 @@ cover this one.
   stat cards.
 - [Focus rooms](rooms.md) — shared timers with a host, the fifteen-second
   server clock, SSE snapshots and invite links.
+- [Scheduled rooms](scheduled-rooms.md) — booking a room for later, the
+  invitation emails, and the worker that opens the room on time.
 - [Room chat and moderation](room-chat-and-moderation.md) — talking in a
   room, the five reactions, reporting a message, and the host's delete,
   remove and ban.

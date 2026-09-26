@@ -22,8 +22,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import {
   Select,
   SelectContent,
@@ -31,23 +33,43 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { cn } from "@/lib/utils"
 import {
   applyRoomAction,
   banMember,
+  cancelBookedRoom,
   createRoom,
   deleteMessage,
   getCurrentRoom,
   joinRoom,
   leaveActiveRoom,
   listRooms,
+  listUpcoming,
   removeMember,
+  scheduleRoom,
   toggleReaction,
 } from "@/lib/api/pomodoro/rooms"
 import {
   RoomChatPanel,
   RoomMemberList,
 } from "@/components/pomodoro/room-chat"
+import {
+  UpcomingRooms,
+  type UpcomingRoomRow,
+} from "@/components/pomodoro/upcoming-rooms"
+import {
+  RoomCard,
+  RoomCardAction,
+  RoomCardDetail,
+  RoomCardTitle,
+  RoomGroupEmpty,
+  RoomGroupHeading,
+} from "@/components/pomodoro/room-card"
+import {
+  MAX_ROOM_INVITES,
+  parseInviteEmails,
+  scheduleProblem,
+  scheduleProblemMessage,
+} from "@/lib/pomodoro/scheduled-rooms"
 import { useProductAuth } from "@/lib/pomodoro/auth-state"
 import { PRO_PERKS } from "@/lib/pomodoro/pro"
 
@@ -103,6 +125,8 @@ export function RoomsPage() {
   const [notice, setNotice] = React.useState("")
   const [reconnecting, setReconnecting] = React.useState(false)
   const [confirm, setConfirm] = React.useState<ConfirmRequest | null>(null)
+  const [upcoming, setUpcoming] = React.useState<UpcomingRoomRow[]>([])
+  const [cancellingSlug, setCancellingSlug] = React.useState("")
   const activeRoomSlug = activeRoom?.room.slug
 
   const refreshRooms = React.useCallback(() => {
@@ -110,6 +134,9 @@ export function RoomsPage() {
     void listRooms()
       .then(setRoomRows)
       .catch(() => setError("Rooms could not be loaded."))
+    void listUpcoming()
+      .then(setUpcoming)
+      .catch(() => setError("Upcoming rooms could not be loaded."))
   }, [authenticated])
   React.useEffect(refreshRooms, [refreshRooms])
   React.useEffect(() => {
@@ -207,11 +234,48 @@ export function RoomsPage() {
     await performJoin(slug)
   }
 
+  const cancelBooking = async (room: UpcomingRoomRow) => {
+    setError("")
+    setCancellingSlug(room.slug)
+    try {
+      const { cancelledInvites } = await cancelBookedRoom(room.slug)
+      setNotice(
+        cancelledInvites
+          ? `${room.name} is cancelled. ${cancelledInvites} ${cancelledInvites === 1 ? "invitation that had not gone out was" : "invitations that had not gone out were"} stopped.`
+          : `${room.name} is cancelled.`
+      )
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : ""
+      setError(
+        message.includes("ROOM_ALREADY_OPEN")
+          ? "That room already opened, so it has to be closed from inside instead."
+          : message.includes("ROOM_HOST_REQUIRED")
+            ? "Only the host can cancel that booking."
+            : "The booking could not be cancelled."
+      )
+    } finally {
+      setCancellingSlug("")
+      refreshRooms()
+    }
+  }
+
+  const confirmCancelBooking = (room: UpcomingRoomRow) =>
+    setConfirm({
+      title: `Cancel ${room.name}?`,
+      description: room.invitedCount
+        ? "The room never opens. Invitations that have not gone out yet are stopped, but anyone already emailed will not be told."
+        : "The room never opens and its invite link stops working.",
+      confirmLabel: "Cancel booking",
+      onConfirm: () => void cancelBooking(room),
+    })
+
   const openRooms = roomRows.filter(({ room }) => room.phase !== "focus")
   const liveRooms = roomRows.filter(({ room }) => room.phase === "focus")
 
+  // 860px wide with a 36px gap between groups are the old app's own numbers
+  // for this screen. Two room cards side by side need the width.
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 py-8">
+    <div className="mx-auto flex w-full max-w-[860px] flex-col gap-9 py-8">
       <header>
         <h2 className="text-2xl font-bold tracking-tight">Focus rooms</h2>
         <p className="text-sm text-muted-foreground">
@@ -225,6 +289,11 @@ export function RoomsPage() {
         onCreated={(snapshot) => {
           setShowHostForm(false)
           applySnapshot(snapshot)
+          refreshRooms()
+        }}
+        onBooked={(message) => {
+          setShowHostForm(false)
+          setNotice(message)
           refreshRooms()
         }}
       />
@@ -280,6 +349,12 @@ export function RoomsPage() {
         </Card>
       ) : (
         <>
+          <UpcomingRooms
+            rooms={upcoming}
+            busySlug={cancellingSlug}
+            onCancel={confirmCancelBooking}
+            onReachedStart={refreshRooms}
+          />
           <RoomGroup
             title="Open to join"
             subtitle="on break · waiting to start"
@@ -301,14 +376,31 @@ export function RoomsPage() {
   )
 }
 
+/** What the browser's own clock makes of the typed date and time. */
+function startValueAsDate(value: string) {
+  if (!value) return null
+  const parsed = new Date(value)
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
+/** The datetime-local value for "in about an hour", on the host's own clock. */
+function defaultStartValue() {
+  const date = new Date(Date.now() + 60 * 60 * 1000)
+  date.setMinutes(0, 0, 0)
+  const pad = (value: number) => String(value).padStart(2, "0")
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
 function HostRoomDialog({
   open,
   onOpenChange,
   onCreated,
+  onBooked,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   onCreated: (snapshot: RoomSnapshotClient) => void
+  onBooked: (message: string) => void
 }) {
   const [roomName, setRoomName] = React.useState("")
   const [visibility, setVisibility] = React.useState<"public" | "unlisted">(
@@ -318,31 +410,70 @@ function HostRoomDialog({
   const [shortBreakMinutes, setShortBreakMinutes] = React.useState(5)
   const [longBreakMinutes, setLongBreakMinutes] = React.useState(15)
   const [autoStart, setAutoStart] = React.useState(false)
+  const [startMode, setStartMode] = React.useState<"now" | "later">("now")
+  const [startValue, setStartValue] = React.useState(defaultStartValue)
+  const [invitesTyped, setInvitesTyped] = React.useState("")
   const [creating, setCreating] = React.useState(false)
   const [error, setError] = React.useState("")
   const validDurations = [focusMinutes, shortBreakMinutes, longBreakMinutes].every(
     (value) => Number.isInteger(value) && value >= 1 && value <= 90
   )
+  const invites = parseInviteEmails(invitesTyped)
+  // The dialog checks the same rules the endpoint does, so the problem is
+  // named beside the field instead of arriving as a failed save. The server
+  // checks them again against its own clock, which is the one that counts.
+  const booking =
+    startMode === "later"
+      ? scheduleProblem(startValueAsDate(startValue), invites, new Date())
+      : null
 
   const submit = async () => {
     setError("")
+    if (startMode === "later" && booking) {
+      setError(scheduleProblemMessage(booking))
+      return
+    }
     setCreating(true)
+    const settings = {
+      name: roomName,
+      visibility,
+      focusMinutes,
+      shortBreakMinutes,
+      longBreakMinutes,
+      autoStart,
+    }
     try {
-      const created = await createRoom({
-        name: roomName,
-        visibility,
-        focusMinutes,
-        shortBreakMinutes,
-        longBreakMinutes,
-        autoStart,
-      })
+      if (startMode === "later") {
+        const startsAt = startValueAsDate(startValue)
+        const booked = await scheduleRoom({
+          ...settings,
+          startsAt: startsAt!.toISOString(),
+          invitesTyped,
+        })
+        setRoomName("")
+        setInvitesTyped("")
+        onBooked(
+          invites.length
+            ? `${booked.name} is booked. ${invites.length} ${invites.length === 1 ? "invitation goes" : "invitations go"} out in a moment.`
+            : `${booked.name} is booked. It opens on its own at the time you picked.`
+        )
+        return
+      }
+      const created = await createRoom(settings)
       setRoomName("")
       onCreated(created)
     } catch (cause) {
+      const message = cause instanceof Error ? cause.message : ""
       setError(
-        cause instanceof Error && cause.message.includes("UPGRADE_REQUIRED")
+        message.includes("UPGRADE_REQUIRED")
           ? PRO_PERKS.hostRooms.lockedReason
-          : "The room could not be created."
+          : message.includes("SCHEDULE_REJECTED")
+            ? message.split("SCHEDULE_REJECTED: ")[1]
+            : message.includes("RATE_LIMITED")
+              ? "That is a lot of bookings in one hour. Wait a while and try again."
+              : startMode === "later"
+                ? "The room could not be booked."
+                : "The room could not be created."
       )
     } finally {
       setCreating(false)
@@ -363,8 +494,8 @@ function HostRoomDialog({
         <DialogHeader>
           <DialogTitle>Host a room</DialogTitle>
           <DialogDescription>
-            Pick the vibe and timers — you control the session once people
-            join.
+            Pick the timers, then start it now or book a time. You control the
+            session once people join.
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
@@ -440,6 +571,77 @@ function HostRoomDialog({
                 Auto-start the next focus after each break
               </Label>
             </div>
+            <div className="grid gap-2">
+              <Label htmlFor="room-start-mode">Starts at</Label>
+              <Select
+                value={startMode}
+                onValueChange={(value) =>
+                  setStartMode(value as "now" | "later")
+                }
+              >
+                <SelectTrigger id="room-start-mode" aria-label="Starts at">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="now">Now — open the room today</SelectItem>
+                  <SelectItem value="later">
+                    A set time — the room opens itself
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {startMode === "later" ? (
+              <>
+                <div className="grid gap-2">
+                  <FieldLabel
+                    htmlFor="room-starts-at"
+                    hint="That is your own clock, not the server's. Invitations say the time in your timezone."
+                  >
+                    Date and time
+                  </FieldLabel>
+                  <Input
+                    id="room-starts-at"
+                    type="datetime-local"
+                    required
+                    value={startValue}
+                    aria-invalid={
+                      booking === "not_a_time" ||
+                      booking === "too_soon" ||
+                      booking === "too_far"
+                    }
+                    onChange={(event) => setStartValue(event.target.value)}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <FieldLabel
+                    htmlFor="room-invites"
+                    hint={`Up to ${MAX_ROOM_INVITES} addresses, separated by commas, spaces or new lines. Each one gets the link and the time.`}
+                  >
+                    Invite by email
+                  </FieldLabel>
+                  <Textarea
+                    id="room-invites"
+                    rows={2}
+                    placeholder="sam@example.com, alex@example.com"
+                    value={invitesTyped}
+                    aria-invalid={
+                      booking === "bad_email" || booking === "too_many_invites"
+                    }
+                    onChange={(event) => setInvitesTyped(event.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {invites.length
+                      ? `${invites.length} ${invites.length === 1 ? "person" : "people"} will be emailed when you book this room.`
+                      : "Nobody is emailed unless you add an address. Anyone can still be sent the link by hand."}
+                  </p>
+                </div>
+                {booking ? (
+                  <p role="alert" className="text-sm text-destructive">
+                    {scheduleProblemMessage(booking)}
+                  </p>
+                ) : null}
+              </>
+            ) : null}
             {error ? (
               <p role="alert" className="text-sm text-destructive">
                 {error}
@@ -460,7 +662,13 @@ function HostRoomDialog({
             form="host-room-form"
             disabled={creating || !validDurations}
           >
-            {creating ? "Creating…" : "Create room"}
+            {creating
+              ? startMode === "later"
+                ? "Booking…"
+                : "Creating…"
+              : startMode === "later"
+                ? "Book room"
+                : "Create room"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -817,55 +1025,70 @@ function RoomGroup({
   onJoin: (slug: string) => Promise<void>
   onHost?: () => void
 }) {
+  const now = new Date()
   return (
-    <section className="flex flex-col gap-3">
-      <div className="flex items-baseline gap-3">
-        <h3 className="text-lg font-bold">{title}</h3>
-        <span className="text-xs text-muted-foreground">{subtitle}</span>
+    <section className="flex flex-col gap-3.5">
+      <RoomGroupHeading title={title} subtitle={subtitle}>
         {onHost ? (
-          <Button size="sm" variant="outline" className="ml-auto" onClick={onHost}>
-            <PlusIcon aria-hidden="true" /> Host a room
-          </Button>
+          <button
+            type="button"
+            className="ml-auto flex items-center gap-1.5 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 rounded-full border border-[rgba(255,90,60,0.4)] bg-[rgba(255,90,60,0.1)] px-[15px] py-2 text-[12.5px] font-bold text-[var(--p-accent-2)]"
+            onClick={onHost}
+          >
+            <PlusIcon className="size-3.5" aria-hidden="true" /> Host a room
+          </button>
         ) : null}
-      </div>
-      <div className="grid gap-3 sm:grid-cols-2">
+      </RoomGroupHeading>
+      <div className="grid gap-3.5 sm:grid-cols-2">
         {rooms.map(({ room, memberCount }) => {
           const end = room.phaseEndsAt ? new Date(room.phaseEndsAt).getTime() : 0
-          const remaining = Math.max(0, Math.ceil((end - Date.now()) / 60_000))
+          const remaining = Math.max(0, Math.ceil((end - now.getTime()) / 60_000))
           return (
-            <Card key={room.id} className={cn(!open && "opacity-70")}>
-              <CardContent className="flex flex-col gap-2 py-4">
-                <div className="flex items-baseline justify-between gap-2">
-                  <strong className="truncate text-sm">{room.name}</strong>
-                  <time className="shrink-0 font-mono text-[10px] text-muted-foreground">
-                    {room.phase === "waiting"
-                      ? "waiting to start"
-                      : `${remaining} min left`}
-                  </time>
-                </div>
-                <span className="text-xs text-muted-foreground">
-                  {room.phase === "focus"
+            <RoomCard key={room.id} roomId={room.id} dimmed={!open}>
+              <RoomCardTitle
+                name={room.name}
+                tone={open ? "open" : "locked"}
+                status={
+                  room.phase === "waiting"
+                    ? "waiting to start"
+                    : `${remaining} min left`
+                }
+              />
+              <RoomCardDetail>
+                <UsersIcon className="size-3.5" aria-hidden="true" />
+                {memberCount} focusing
+              </RoomCardDetail>
+              <RoomCardAction
+                note={
+                  room.phase === "focus"
                     ? `Session ${Math.min(room.cycleFocusCount + 1, 4)} of 4`
-                    : `Next: ${room.focusMinutes} min focus`}{" "}
-                  · {memberCount} focusing
-                </span>
-                <div>
-                  {open ? (
-                    <Button size="sm" onClick={() => void onJoin(room.slug)}>
-                      Join
-                    </Button>
-                  ) : (
-                    <Button size="sm" variant="outline" disabled>
-                      <LockKeyholeIcon aria-hidden="true" /> Locked
-                    </Button>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+                    : `Next: ${room.focusMinutes} min focus`
+                }
+              >
+                {open ? (
+                  <button
+                    type="button"
+                    className="outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 rounded-full bg-[var(--p-accent)] px-6 py-2.5 text-[13.5px] font-bold text-[var(--p-on-accent)] hover:bg-[var(--p-accent-2)]"
+                    onClick={() => void onJoin(room.slug)}
+                  >
+                    Join
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    disabled
+                    className="flex cursor-not-allowed items-center gap-[7px] outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 rounded-full border px-5 py-2.5 text-[13.5px] font-bold text-[var(--p-text-subtle)]"
+                  >
+                    <LockKeyholeIcon className="size-3" aria-hidden="true" />
+                    Locked
+                  </button>
+                )}
+              </RoomCardAction>
+            </RoomCard>
           )
         })}
         {!rooms.length ? (
-          <p className="text-sm text-muted-foreground">No rooms here yet.</p>
+          <RoomGroupEmpty>No rooms here yet.</RoomGroupEmpty>
         ) : null}
       </div>
     </section>

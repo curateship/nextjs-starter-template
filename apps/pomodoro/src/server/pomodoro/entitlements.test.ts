@@ -86,4 +86,42 @@ describe("pomodoro entitlements", () => {
     expect(resolved.canHostRooms).toBe(false)
     expect(resolved.storageLimitBytes).toBe(0)
   })
+
+  it("an admin gets every perk without a plan", () => {
+    const resolved = resolvePomodoroEntitlements(shellEntitlements(), {
+      admin: true,
+    })
+    expect(resolved.plan).toBe("free")
+    expect(resolved.isPaid).toBe(true)
+    expect(resolved.canHostRooms).toBe(true)
+    expect(resolved.canUploadMedia).toBe(true)
+    expect(resolved.canUsePremiumMedia).toBe(true)
+    expect(resolved.canUseLongRangeReports).toBe(true)
+    expect(resolved.storageLimitBytes).toBeGreaterThan(0)
+  })
+
+  it("an admin on a paused plan still hosts rooms", () => {
+    const resolved = resolvePomodoroEntitlements(
+      shellEntitlements({ planSlug: "pro", isPaid: false, paused: true }),
+      { admin: true }
+    )
+    expect(resolved.canHostRooms).toBe(true)
+  })
+
+  it("an admin still follows a plan that deliberately withholds a perk", () => {
+    const resolved = resolvePomodoroEntitlements(
+      shellEntitlements({ features: { hostRooms: false } }),
+      { admin: true }
+    )
+    expect(resolved.canHostRooms).toBe(false)
+    expect(resolved.canUploadMedia).toBe(true)
+  })
+
+  it("an admin keeps the numbers their own plan hands out", () => {
+    const resolved = resolvePomodoroEntitlements(
+      shellEntitlements({ features: { monthlyBackgrounds: 100 } }),
+      { admin: true }
+    )
+    expect(resolved.monthlyBackgrounds).toBe(100)
+  })
 })
