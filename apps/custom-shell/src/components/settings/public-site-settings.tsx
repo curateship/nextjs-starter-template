@@ -76,7 +76,9 @@ import {
   type PublicBreadcrumbs,
 } from "@/lib/pages/public-breadcrumbs"
 import {
+  MAX_PUBLIC_HEADER_LOGO_GAP,
   MAX_PUBLIC_HEADER_WIDTH,
+  MIN_PUBLIC_HEADER_LOGO_GAP,
   MIN_PUBLIC_HEADER_WIDTH,
   PUBLIC_HEADER_BLUR_LABELS,
   PUBLIC_HEADER_BLURS,
@@ -351,6 +353,16 @@ function PublicHeaderSettings({
         </Select>
       </div>
 
+      <NumberField
+        id="public-header-logo-gap"
+        label="Space after the logo"
+        hint={`Empty space between the logo and the first menu word, in pixels, from ${MIN_PUBLIC_HEADER_LOGO_GAP} to ${MAX_PUBLIC_HEADER_LOGO_GAP}. It moves the menu along the bar on screens 1024px and wider. Phones are unchanged, because the menu is behind the menu button there.`}
+        value={header.logoGap}
+        min={MIN_PUBLIC_HEADER_LOGO_GAP}
+        max={MAX_PUBLIC_HEADER_LOGO_GAP}
+        inputClassName="w-full sm:w-32"
+        onChange={(logoGap) => update({ logoGap })}
+      />
 
       <div className="grid gap-2">
         <FieldLabel

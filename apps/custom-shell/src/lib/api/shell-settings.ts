@@ -58,7 +58,9 @@ import {
   MAX_PUBLIC_NAVIGATION_LABEL_LENGTH,
 } from "@/lib/pages/public-navigation"
 import {
+  MAX_PUBLIC_HEADER_LOGO_GAP,
   MAX_PUBLIC_HEADER_WIDTH,
+  MIN_PUBLIC_HEADER_LOGO_GAP,
   MIN_PUBLIC_HEADER_WIDTH,
   PUBLIC_HEADER_BLURS,
   PUBLIC_HEADER_LOGO_SIZES,
@@ -524,6 +526,12 @@ const shellConfigSchema = z.object({
       .nullable()
       .default(null),
     blur: z.enum(PUBLIC_HEADER_BLURS).default("medium"),
+    logoGap: z
+      .number()
+      .int()
+      .min(MIN_PUBLIC_HEADER_LOGO_GAP)
+      .max(MAX_PUBLIC_HEADER_LOGO_GAP)
+      .default(0),
   }),
   // Checked by the same function the reader uses, so an unknown or missing
   // value saves as "every kind off" rather than refusing the whole settings

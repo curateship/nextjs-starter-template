@@ -264,6 +264,15 @@ scrolling, and left are the defaults. The public header still shows the logo,
 site name, search, and colour-mode choice before any menu or footer links have
 been added.
 
+Space after the logo moves the menu along the bar. It is empty space between
+the logo and the first menu word, from 0 to 400 pixels, and 0 is the spacing
+the header always had, so nothing moves until a number is typed. It applies
+from 1024px up, where the menu words are in the bar; a narrower screen is
+unchanged because the menu is behind the menu button there. With Menu position
+on Centre the menu stays in the middle of the page and the space only widens
+the logo's own room: at a 1600px window the centred menu measured 800px from
+the left edge both at 0 and at 200.
+
 Full width spreads the logo, menu and buttons across the whole window. Otherwise
 Navigation width caps them at a number of pixels from 320 to 2560. Until a
 number is typed there, the header follows the page width in Public Styling, so a
