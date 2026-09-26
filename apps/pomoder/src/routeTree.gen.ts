@@ -37,6 +37,7 @@ import { Route as AuthenticatedAdminPomoderRouteImport } from './routes/_authent
 import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin/settings'
 import { Route as PomoderBillingSuccessRouteImport } from './routes/_pomoder/billing/success'
 import { Route as PomoderRoomsSlugRouteImport } from './routes/_pomoder/rooms_.$slug'
+import { Route as ApiAvatarIndexRouteImport } from './routes/api/avatar/index'
 import { Route as ApiHealthLiveRouteImport } from './routes/api/health/live'
 import { Route as ApiHealthReadyRouteImport } from './routes/api/health/ready'
 import { Route as ApiMediaIndexRouteImport } from './routes/api/media/index'
@@ -45,6 +46,7 @@ import { Route as AuthenticatedAdminFeedbackCommentsRouteImport } from './routes
 import { Route as AuthenticatedAdminPomoderIndexRouteImport } from './routes/_authenticated/admin/pomoder/index'
 import { Route as AuthenticatedAdminPomoderSectionRouteImport } from './routes/_authenticated/admin/pomoder/$section'
 import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
+import { Route as ApiAvatarsMediaIdFileRouteImport } from './routes/api/avatars/$mediaId/file'
 import { Route as ApiMediaMediaIdFileRouteImport } from './routes/api/media/$mediaId/file'
 import { Route as ApiRoomsSlugEventsRouteImport } from './routes/api/rooms/$slug/events'
 import { Route as ApiV1MediaMediaIdFileRouteImport } from './routes/api/v1/media/$mediaId/file'
@@ -191,6 +193,11 @@ const PomoderRoomsSlugRoute = PomoderRoomsSlugRouteImport.update({
   path: '/rooms/$slug',
   getParentRoute: () => PomoderRoute,
 } as any)
+const ApiAvatarIndexRoute = ApiAvatarIndexRouteImport.update({
+  id: '/api/avatar/',
+  path: '/api/avatar/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiHealthLiveRoute = ApiHealthLiveRouteImport.update({
   id: '/api/health/live',
   path: '/api/health/live',
@@ -235,6 +242,11 @@ const AuthenticatedAdminSettingsTabRoute =
     path: '/$tab',
     getParentRoute: () => AuthenticatedAdminSettingsRoute,
   } as any)
+const ApiAvatarsMediaIdFileRoute = ApiAvatarsMediaIdFileRouteImport.update({
+  id: '/api/avatars/$mediaId/file',
+  path: '/api/avatars/$mediaId/file',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiMediaMediaIdFileRoute = ApiMediaMediaIdFileRouteImport.update({
   id: '/api/media/$mediaId/file',
   path: '/api/media/$mediaId/file',
@@ -281,10 +293,12 @@ export interface FileRoutesByFullPath {
   '/api/health/ready': typeof ApiHealthReadyRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
+  '/api/avatar/': typeof ApiAvatarIndexRoute
   '/api/media/': typeof ApiMediaIndexRoute
   '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/admin/pomoder/$section': typeof AuthenticatedAdminPomoderSectionRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
+  '/api/avatars/$mediaId/file': typeof ApiAvatarsMediaIdFileRoute
   '/api/media/$mediaId/file': typeof ApiMediaMediaIdFileRoute
   '/api/rooms/$slug/events': typeof ApiRoomsSlugEventsRoute
   '/admin/pomoder/': typeof AuthenticatedAdminPomoderIndexRoute
@@ -319,10 +333,12 @@ export interface FileRoutesByTo {
   '/api/health/ready': typeof ApiHealthReadyRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
+  '/api/avatar': typeof ApiAvatarIndexRoute
   '/api/media': typeof ApiMediaIndexRoute
   '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/admin/pomoder/$section': typeof AuthenticatedAdminPomoderSectionRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
+  '/api/avatars/$mediaId/file': typeof ApiAvatarsMediaIdFileRoute
   '/api/media/$mediaId/file': typeof ApiMediaMediaIdFileRoute
   '/api/rooms/$slug/events': typeof ApiRoomsSlugEventsRoute
   '/admin/pomoder': typeof AuthenticatedAdminPomoderIndexRoute
@@ -361,10 +377,12 @@ export interface FileRoutesById {
   '/api/health/ready': typeof ApiHealthReadyRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
+  '/api/avatar/': typeof ApiAvatarIndexRoute
   '/api/media/': typeof ApiMediaIndexRoute
   '/_authenticated/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/_authenticated/admin/pomoder/$section': typeof AuthenticatedAdminPomoderSectionRoute
   '/_authenticated/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
+  '/api/avatars/$mediaId/file': typeof ApiAvatarsMediaIdFileRoute
   '/api/media/$mediaId/file': typeof ApiMediaMediaIdFileRoute
   '/api/rooms/$slug/events': typeof ApiRoomsSlugEventsRoute
   '/_authenticated/admin/pomoder/': typeof AuthenticatedAdminPomoderIndexRoute
@@ -402,10 +420,12 @@ export interface FileRouteTypes {
     | '/api/health/ready'
     | '/api/webhooks/stripe'
     | '/admin/'
+    | '/api/avatar/'
     | '/api/media/'
     | '/admin/feedback/comments'
     | '/admin/pomoder/$section'
     | '/admin/settings/$tab'
+    | '/api/avatars/$mediaId/file'
     | '/api/media/$mediaId/file'
     | '/api/rooms/$slug/events'
     | '/admin/pomoder/'
@@ -440,10 +460,12 @@ export interface FileRouteTypes {
     | '/api/health/ready'
     | '/api/webhooks/stripe'
     | '/admin'
+    | '/api/avatar'
     | '/api/media'
     | '/admin/feedback/comments'
     | '/admin/pomoder/$section'
     | '/admin/settings/$tab'
+    | '/api/avatars/$mediaId/file'
     | '/api/media/$mediaId/file'
     | '/api/rooms/$slug/events'
     | '/admin/pomoder'
@@ -481,10 +503,12 @@ export interface FileRouteTypes {
     | '/api/health/ready'
     | '/api/webhooks/stripe'
     | '/_authenticated/admin/'
+    | '/api/avatar/'
     | '/api/media/'
     | '/_authenticated/admin/feedback/comments'
     | '/_authenticated/admin/pomoder/$section'
     | '/_authenticated/admin/settings/$tab'
+    | '/api/avatars/$mediaId/file'
     | '/api/media/$mediaId/file'
     | '/api/rooms/$slug/events'
     | '/_authenticated/admin/pomoder/'
@@ -505,7 +529,9 @@ export interface RootRouteChildren {
   ApiHealthLiveRoute: typeof ApiHealthLiveRoute
   ApiHealthReadyRoute: typeof ApiHealthReadyRoute
   ApiWebhooksStripeRoute: typeof ApiWebhooksStripeRoute
+  ApiAvatarIndexRoute: typeof ApiAvatarIndexRoute
   ApiMediaIndexRoute: typeof ApiMediaIndexRoute
+  ApiAvatarsMediaIdFileRoute: typeof ApiAvatarsMediaIdFileRoute
   ApiMediaMediaIdFileRoute: typeof ApiMediaMediaIdFileRoute
   ApiRoomsSlugEventsRoute: typeof ApiRoomsSlugEventsRoute
   ApiV1MediaMediaIdFileRoute: typeof ApiV1MediaMediaIdFileRoute
@@ -709,6 +735,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PomoderRoomsSlugRouteImport
       parentRoute: typeof PomoderRoute
     }
+    '/api/avatar/': {
+      id: '/api/avatar/'
+      path: '/api/avatar'
+      fullPath: '/api/avatar/'
+      preLoaderRoute: typeof ApiAvatarIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/health/live': {
       id: '/api/health/live'
       path: '/api/health/live'
@@ -764,6 +797,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/settings/$tab'
       preLoaderRoute: typeof AuthenticatedAdminSettingsTabRouteImport
       parentRoute: typeof AuthenticatedAdminSettingsRoute
+    }
+    '/api/avatars/$mediaId/file': {
+      id: '/api/avatars/$mediaId/file'
+      path: '/api/avatars/$mediaId/file'
+      fullPath: '/api/avatars/$mediaId/file'
+      preLoaderRoute: typeof ApiAvatarsMediaIdFileRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/media/$mediaId/file': {
       id: '/api/media/$mediaId/file'
@@ -904,7 +944,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiHealthLiveRoute: ApiHealthLiveRoute,
   ApiHealthReadyRoute: ApiHealthReadyRoute,
   ApiWebhooksStripeRoute: ApiWebhooksStripeRoute,
+  ApiAvatarIndexRoute: ApiAvatarIndexRoute,
   ApiMediaIndexRoute: ApiMediaIndexRoute,
+  ApiAvatarsMediaIdFileRoute: ApiAvatarsMediaIdFileRoute,
   ApiMediaMediaIdFileRoute: ApiMediaMediaIdFileRoute,
   ApiRoomsSlugEventsRoute: ApiRoomsSlugEventsRoute,
   ApiV1MediaMediaIdFileRoute: ApiV1MediaMediaIdFileRoute,

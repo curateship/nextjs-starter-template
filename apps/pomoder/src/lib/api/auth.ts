@@ -23,7 +23,7 @@ import {
   SESSION_COOKIE_NAME,
 } from "@/server/security"
 
-export type AuthUser = Pick<User, "id" | "email" | "name" | "role" | "timezone" | "publicDisplayName" | "leaderboardOptIn" | "emailVerifiedAt">
+export type AuthUser = Pick<User, "id" | "email" | "name" | "role" | "timezone" | "publicDisplayName" | "leaderboardOptIn" | "emailVerifiedAt" | "avatarMediaId">
 
 const email = z.string().trim().toLowerCase().email().max(255)
 const password = z.string().min(8).max(128)
@@ -164,7 +164,7 @@ export function getAuthErrorMessage(error: unknown) {
 
 function serializeUser(user: User | null | undefined): AuthUser | null {
   if (!user) return null
-  return { id: user.id, email: user.email, name: user.name, role: user.role, timezone: user.timezone, publicDisplayName: user.publicDisplayName, leaderboardOptIn: user.leaderboardOptIn, emailVerifiedAt: user.emailVerifiedAt }
+  return { id: user.id, email: user.email, name: user.name, role: user.role, timezone: user.timezone, publicDisplayName: user.publicDisplayName, leaderboardOptIn: user.leaderboardOptIn, emailVerifiedAt: user.emailVerifiedAt, avatarMediaId: user.avatarMediaId }
 }
 
 function appUrl() { return (process.env.POMODER_APP_URL || localPomoderUrl).replace(/\/$/, "") }

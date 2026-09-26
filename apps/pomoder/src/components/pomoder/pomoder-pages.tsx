@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Link, useNavigate, useParams, useRouteContext } from "@tanstack/react-router"
+import { Link, useNavigate, useParams, useRouteContext, useRouter } from "@tanstack/react-router"
 import {
   Check,
   Coffee,
@@ -51,13 +51,16 @@ import { usePomodoro } from "@/hooks/use-pomodoro"
 import { ConfirmDialog, type ConfirmRequest } from "@/components/pomoder/confirm-dialog"
 import { FocusRhythmPresets } from "@/components/pomoder/focus-rhythm-presets"
 import { usePomoderBackground } from "@/components/pomoder/pomoder-background"
+import { ProfileAvatar } from "@/components/pomoder/profile-avatar"
 import { useSoundPlayer } from "@/components/pomoder/sound-player"
 import { TodayTaskList } from "@/components/pomoder/task-plan-list"
 import { ThemeToggle } from "@/components/pomoder/theme-toggle"
+import { AVATAR_UPLOAD_TYPES } from "@/lib/avatar"
 import { curatedBackgrounds, sameBackgroundReference } from "@/lib/background-catalog"
 import { enableCompletionAlerts } from "@/lib/completion-alerts"
 import { curatedSounds, sameSoundReference, type SoundReference } from "@/lib/sound-catalog"
-import { deleteAccount, updateProfile } from "@/lib/api/auth"
+import { deleteAccount, updateProfile, type AuthUser } from "@/lib/api/auth"
+import { getAvatarErrorMessage, removeAvatar, uploadAvatar } from "@/lib/api/avatar"
 import { createBillingPortal, createCheckout, loadEntitlements } from "@/lib/api/billing"
 import { requestGeneration } from "@/lib/api/generation"
 import { listMedia } from "@/lib/api/pomoder-media"
@@ -139,7 +142,6 @@ export function CatalogPage({ kind }: { kind: "themes" | "sounds" }) {
 type RoomSnapshotClient = Awaited<ReturnType<typeof joinRoom>>
 type RoomHostActionClient = Parameters<typeof applyRoomAction>[1]
 
-const ROOM_AVATARS = ["maya", "tomas", "ana", "devon"] as const
 const ROOM_PHASE_LABELS: Record<string, string> = { waiting: "Waiting to start", focus: "Focus", short: "Short break", long: "Long break", closed: "Closed" }
 
 // Countdowns derive from the server's phaseEndsAt on every tick, so they stay
@@ -465,7 +467,7 @@ function ActiveRoomPanel({ snapshot, reconnecting, onSnapshot, onLeft, onActionE
           <ul>
             {members.map((member) => (
               <li key={member.id}>
-                <img src={`/pomoder/avatars-${ROOM_AVATARS[member.avatarIndex % ROOM_AVATARS.length]}.png`} alt="" />
+                <ProfileAvatar name={member.name} avatarMediaId={member.avatarMediaId} />
                 <span>{member.name}</span>
                 {member.role === "host" ? <b>HOST</b> : null}
                 {isHost && member.role !== "host" ? (
@@ -492,6 +494,7 @@ function ActiveRoomPanel({ snapshot, reconnecting, onSnapshot, onLeft, onActionE
               </div>
             ) : (
               <div className={`chat-message ${entry.mine ? "mine" : ""}`} key={entry.id}>
+                <ProfileAvatar name={entry.authorName} avatarMediaId={entry.authorAvatarMediaId} />
                 <div>
                   <p>{entry.authorName}<time>{new Date(entry.createdAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}</time></p>
                   <span>{entry.body}</span>
@@ -688,19 +691,19 @@ export function RoomInvitePage() {
   )
 }
 
-type RoomCard = { id: string; slug: string; name: string; status: string; detail: string; memberCount: number; avatars: string[]; vibe: number; demo?: boolean }
+type RoomCard = { id: string; slug: string; name: string; status: string; detail: string; memberCount: number; vibe: number; demo?: boolean }
 
 const demoRooms: RoomCard[] = [
-  { id: "demo-deep-work", slug: "demo", name: "Deep Work Club", status: "break · 3:12 left", detail: "Next: 25 min focus", memberCount: 5, avatars: ["maya", "tomas", "ana"], vibe: 0, demo: true },
-  { id: "demo-thesis", slug: "demo", name: "Thesis Grind", status: "waiting to start", detail: "Starts when host begins", memberCount: 2, avatars: ["devon", "ana"], vibe: 1, demo: true },
-  { id: "demo-morning", slug: "demo", name: "Morning Sprint", status: "14:05 left", detail: "Session 3 of 4", memberCount: 7, avatars: ["tomas", "devon", "maya"], vibe: 2, demo: true },
-  { id: "demo-coffee", slug: "demo", name: "Code & Coffee", status: "07:41 left", detail: "Session 1 of 4", memberCount: 3, avatars: ["ana", "maya"], vibe: 3, demo: true },
+  { id: "demo-deep-work", slug: "demo", name: "Deep Work Club", status: "break · 3:12 left", detail: "Next: 25 min focus", memberCount: 5, vibe: 0, demo: true },
+  { id: "demo-thesis", slug: "demo", name: "Thesis Grind", status: "waiting to start", detail: "Starts when host begins", memberCount: 2, vibe: 1, demo: true },
+  { id: "demo-morning", slug: "demo", name: "Morning Sprint", status: "14:05 left", detail: "Session 3 of 4", memberCount: 7, vibe: 2, demo: true },
+  { id: "demo-coffee", slug: "demo", name: "Code & Coffee", status: "07:41 left", detail: "Session 1 of 4", memberCount: 3, vibe: 3, demo: true },
 ]
 
 function roomCard({ room, memberCount }: Awaited<ReturnType<typeof listRooms>>[number], index: number): RoomCard {
   const end = room.phaseEndsAt ? new Date(room.phaseEndsAt).getTime() : 0
   const remaining = Math.max(0, Math.ceil((end - Date.now()) / 60_000))
-  return { id: room.id, slug: room.slug, name: room.name, status: room.phase === "waiting" ? "waiting to start" : `${remaining} min left`, detail: room.phase === "focus" ? `Session ${Math.min(room.cycleFocusCount + 1, 4)} of 4` : `Next: ${room.focusMinutes} min focus`, memberCount, avatars: ["maya", "tomas", "ana"].slice(0, Math.min(3, Math.max(1, memberCount))), vibe: index % 4 }
+  return { id: room.id, slug: room.slug, name: room.name, status: room.phase === "waiting" ? "waiting to start" : `${remaining} min left`, detail: room.phase === "focus" ? `Session ${Math.min(room.cycleFocusCount + 1, 4)} of 4` : `Next: ${room.focusMinutes} min focus`, memberCount, vibe: index % 4 }
 }
 
 function RoomGroup({ title, subtitle, rooms, open, onJoin, onHost }: { title: string; subtitle: string; rooms: RoomCard[]; open: boolean; onJoin: (slug: string, demo?: boolean) => Promise<void>; onHost?: () => void }) {
@@ -712,7 +715,9 @@ function RoomGroup({ title, subtitle, rooms, open, onJoin, onHost }: { title: st
           <article className={`reference-room-card ${open ? "" : "locked"}`} key={room.id}>
             <div className={`room-vibe vibe-${room.vibe}`}><LiveVibe /></div>
             <div className="reference-room-title"><i /><strong>{room.name}</strong><time>{room.status}</time></div>
-            <div className="reference-room-members"><div>{room.avatars.map((avatar, index) => <img key={`${avatar}-${index}`} src={`/pomoder/avatars-${avatar}.png`} alt="" />)}</div><span>{room.memberCount} focusing</span></div>
+            {/* Who is in the room stays inside the room; the public card only
+                counts them. */}
+            <div className="reference-room-members"><span><Users aria-hidden="true" />{room.memberCount} focusing</span></div>
             <div className="reference-room-action"><span>{room.detail}</span>{open ? <button onClick={() => void onJoin(room.slug, room.demo)}>Join</button> : <button disabled><LockKeyhole aria-hidden="true" /> Locked</button>}</div>
           </article>
         ))}
@@ -771,13 +776,13 @@ export function LeaderboardPage() {
   const chartValues = stats ? [0,1,2,3,4,5,6].map((index) => week[index]?.focusSessions || 0) : user ? [0, 0, 0, 0, 0, 0, 0] : [6, 8, 4, 9, 7, 3, 5]
   const chartDays = stats ? [0,1,2,3,4,5,6].map((index) => week[index] ? new Date(`${week[index].localDate}T12:00:00`).toLocaleDateString(undefined, { weekday: "short" }) : "·") : ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
   const chartMax = Math.max(1, ...chartValues)
-  const leaderRows = leaders.length ? leaders.map((leader, index) => ({ id: leader.id, name: leader.name, focusSeconds: leader.focusSeconds, sessions: leader.focusSessions, avatar: ["tomas", "maya", "ana", "devon"][index % 4], you: leader.id === user?.id })) : [
-    { id: "l1", name: "Kenji Watanabe", focusSeconds: 31 * 3600 + 10 * 60, sessions: 74, avatar: "tomas", you: false },
-    { id: "l2", name: "Sofia Marino", focusSeconds: 28 * 3600 + 45 * 60, sessions: 69, avatar: "maya", you: false },
-    { id: "l3", name: "Amara Okafor", focusSeconds: 25 * 3600 + 20 * 60, sessions: 61, avatar: "ana", you: false },
-    { id: "l4", name: "Lucas Fenn", focusSeconds: 22 * 3600 + 5 * 60, sessions: 53, avatar: "devon", you: false },
-    { id: "l5", name: "You", focusSeconds: 18 * 3600 + 20 * 60, sessions: 42, avatar: "you", you: true },
-    { id: "l6", name: "Priya Anand", focusSeconds: 16 * 3600 + 40 * 60, sessions: 38, avatar: "ana", you: false },
+  const leaderRows = leaders.length ? leaders.map((leader) => ({ id: leader.id, name: leader.name ?? "Someone", avatarMediaId: leader.avatarMediaId, focusSeconds: leader.focusSeconds, sessions: leader.focusSessions, you: leader.id === user?.id })) : [
+    { id: "l1", name: "Kenji Watanabe", avatarMediaId: null, focusSeconds: 31 * 3600 + 10 * 60, sessions: 74, you: false },
+    { id: "l2", name: "Sofia Marino", avatarMediaId: null, focusSeconds: 28 * 3600 + 45 * 60, sessions: 69, you: false },
+    { id: "l3", name: "Amara Okafor", avatarMediaId: null, focusSeconds: 25 * 3600 + 20 * 60, sessions: 61, you: false },
+    { id: "l4", name: "Lucas Fenn", avatarMediaId: null, focusSeconds: 22 * 3600 + 5 * 60, sessions: 53, you: false },
+    { id: "l5", name: "You", avatarMediaId: null, focusSeconds: 18 * 3600 + 20 * 60, sessions: 42, you: true },
+    { id: "l6", name: "Priya Anand", avatarMediaId: null, focusSeconds: 16 * 3600 + 40 * 60, sessions: 38, you: false },
   ]
   const statCards = stats ? [
     ["Focus today", `${Math.floor((stats.recentStats.find((day) => day.localDate === stats.today)?.focusSeconds || 0) / 3600)}h ${Math.floor(((stats.recentStats.find((day) => day.localDate === stats.today)?.focusSeconds || 0) % 3600) / 60)}m`, `${stats.recentStats.find((day) => day.localDate === stats.today)?.focusSessions || 0} sessions`],
@@ -790,7 +795,7 @@ export function LeaderboardPage() {
       <div className="reference-kicker">Your stats</div>
       <section className="reference-stat-grid">{statCards.map(([label, value, sub]) => <article key={label}><span>{label}</span><strong>{value}</strong><small>{sub}</small></article>)}</section>
       <section className="reference-week-chart"><header><h3>Sessions this week</h3><span>{chartValues.reduce((sum, value) => sum + value, 0)} total</span></header><div className="reference-bars">{chartValues.map((value, index) => <div key={chartDays[index]}><span>{value}</span><i className={index === 3 ? "today" : ""} style={{ height: `${Math.round(value / chartMax * 130) + 6}px` }} /><small>{chartDays[index]}</small></div>)}</div></section>
-      <section className="reference-ranking"><header><span>Global ranking</span><small>this week</small></header><div>{leaderRows.map((leader, index) => <article className={leader.you ? "you" : ""} key={leader.id}><strong>{index + 1}</strong><img src={`/pomoder/avatars-${leader.avatar}.png`} alt="" /><b>{leader.name}</b><span>{Math.floor(leader.focusSeconds / 3600)}h {String(Math.floor((leader.focusSeconds % 3600) / 60)).padStart(2, "0")}m <small>{leader.sessions} sessions</small></span></article>)}</div></section>
+      <section className="reference-ranking"><header><span>Global ranking</span><small>this week</small></header><div>{leaderRows.map((leader, index) => <article className={leader.you ? "you" : ""} key={leader.id}><strong>{index + 1}</strong><ProfileAvatar name={leader.name} avatarMediaId={leader.avatarMediaId} /><b>{leader.name}</b><span>{Math.floor(leader.focusSeconds / 3600)}h {String(Math.floor((leader.focusSeconds % 3600) / 60)).padStart(2, "0")}m <small>{leader.sessions} sessions</small></span></article>)}</div></section>
     </div></div>
   )
 }
@@ -828,6 +833,74 @@ export function TasksPage() {
 
 const DEFAULT_ALERT_HELP = "Plays a chime and shows a browser notification when a timer finishes."
 
+// Your picture in rooms, chat and the leaderboard. The file is cropped to a
+// square in the browser before it is sent, and removing it brings back the
+// coloured initial everyone else already sees.
+function ProfilePictureSetting({ user }: { user: AuthUser }) {
+  const router = useRouter()
+  const fileInput = React.useRef<HTMLInputElement>(null)
+  const [avatarMediaId, setAvatarMediaId] = React.useState(user.avatarMediaId)
+  const [pending, setPending] = React.useState<"upload" | "remove" | "">("")
+  const [error, setError] = React.useState("")
+  const [status, setStatus] = React.useState("")
+  const shownName = user.publicDisplayName || user.name
+
+  const apply = async (action: "upload" | "remove", run: () => Promise<{ avatarMediaId: string | null }>, done: string) => {
+    setError("")
+    setStatus("")
+    setPending(action)
+    try {
+      const result = await run()
+      setAvatarMediaId(result.avatarMediaId)
+      setStatus(done)
+      // The picture is already saved. Everything else that draws this person
+      // reads the router context, so refreshing it updates the room and
+      // leaderboard views without a reload — but a failed refresh must never
+      // report a save that worked as a failure.
+      void router.invalidate().catch(() => undefined)
+    } catch (cause) {
+      setError(getAvatarErrorMessage(cause))
+    } finally {
+      setPending("")
+    }
+  }
+
+  return (
+    <div className="avatar-setting-row">
+      <ProfileAvatar name={shownName} avatarMediaId={avatarMediaId} className="avatar-setting-preview" />
+      <div className="avatar-setting-copy">
+        <strong>Profile picture</strong>
+        <span>Shown beside your name in rooms, chat and the leaderboard. Pictures are cropped to a square; PNG, JPEG or WebP up to 12 MB.</span>
+        <div className="avatar-setting-actions">
+          <input
+            ref={fileInput}
+            hidden
+            type="file"
+            accept={AVATAR_UPLOAD_TYPES.join(",")}
+            onChange={(event) => {
+              const file = event.target.files?.[0]
+              event.target.value = ""
+              if (file) void apply("upload", () => uploadAvatar(file), "Profile picture updated.")
+            }}
+          />
+          <button className="pill-button" disabled={pending !== ""} onClick={() => fileInput.current?.click()}>
+            {pending === "upload" ? <Loader2 className="player-spinner" aria-hidden="true" /> : <Upload aria-hidden="true" />}
+            {avatarMediaId ? "Change picture" : "Upload a picture"}
+          </button>
+          {avatarMediaId ? (
+            <button className="outline-pill" disabled={pending !== ""} onClick={() => void apply("remove", removeAvatar, "Profile picture removed.")}>
+              {pending === "remove" ? <Loader2 className="player-spinner" aria-hidden="true" /> : <Trash2 aria-hidden="true" />}
+              Remove
+            </button>
+          ) : null}
+        </div>
+        {error ? <p className="avatar-setting-error" role="alert">{error}</p> : null}
+        {!error && status ? <p className="avatar-setting-status" role="status">{status}</p> : null}
+      </div>
+    </div>
+  )
+}
+
 export function SettingsPage() {
   const { user } = useRouteContext({ from: "__root__" })
   const pomodoro = usePomodoro(Boolean(user))
@@ -856,7 +929,7 @@ export function SettingsPage() {
     <div className="settings-layout">
       <section className="surface-card settings-card"><p>Appearance</p><h2>Theme</h2><div className="theme-setting-row"><div className="theme-setting-copy"><strong>Light or dark</strong><span>Pick the look that feels calm to you. Your choice is saved{user ? " to your account and synced across devices" : " on this device"}.</span></div><ThemeToggle showLabel /></div></section>
       <section className="surface-card settings-card"><p>Timer</p><h2>Focus rhythm</h2><FocusRhythmPresets pomodoro={pomodoro} authenticated={Boolean(user)} /><label>Focus minutes<input type="number" min="1" max="90" value={focus} onChange={(event) => setFocus(event.target.valueAsNumber)} /></label><label>Short break<input type="number" min="1" max="90" value={short} onChange={(event) => setShort(event.target.valueAsNumber)} /></label><label>Long break<input type="number" min="1" max="90" value={long} onChange={(event) => setLong(event.target.valueAsNumber)} /></label><label>Daily session goal<input type="number" min="1" max="20" value={dailyGoal} aria-describedby="daily-goal-help" onChange={(event) => setDailyGoal(event.target.valueAsNumber)} /></label><span id="daily-goal-help">Only completed focus sessions count toward your daily goal and streak.</span><label>Auto-start next<Checkbox checked={pomodoro.autoStart} onCheckedChange={(state) => pomodoro.setAutoStart(state === true)} /></label><label>Completion alerts<Checkbox checked={player.state.completionAlerts} aria-describedby="completion-alert-help" onCheckedChange={(state) => { const enabled = state === true; player.setCompletionAlerts(enabled); if (!enabled) { setAlertHelp(DEFAULT_ALERT_HELP); return }; void enableCompletionAlerts().then((permission) => setAlertHelp(permission === "granted" ? "You'll hear a chime and get a notification when a timer finishes." : permission === "denied" ? "Notifications are blocked in this browser, so you'll only hear the chime." : "You'll hear a chime when a timer finishes.")) }} /></label><span id="completion-alert-help">{alertHelp}</span><button className="pill-button" disabled={!validTimerSettings} onClick={async () => { setNotice(""); try { await pomodoro.setDurations({ focus, short, long }, dailyGoal); setNotice(user ? "Focus rhythm synced." : "Focus rhythm saved locally.") } catch { setNotice("Focus rhythm could not be saved.") } }}>Save focus rhythm</button></section>
-      {user ? <section className="surface-card settings-card"><p>Account</p><h2>Your profile</h2><label>Name<input maxLength={100} value={name} onChange={(event) => setName(event.target.value)} /></label><label>Public display name<input maxLength={50} value={displayName} onChange={(event) => setDisplayName(event.target.value)} /></label><label>Timezone<input maxLength={80} value={timezone} onChange={(event) => setTimezone(event.target.value)} /></label><label>Leaderboard<Checkbox checked={leaderboard} onCheckedChange={(state) => setLeaderboard(state === true)} /></label><button className="pill-button" onClick={async () => { try { await updateProfile({ name, publicDisplayName: displayName.trim() || null, timezone, leaderboardOptIn: leaderboard }); setNotice("Profile updated.") } catch { setNotice("Profile could not be updated.") } }}>Save profile</button><button className="outline-pill" onClick={async () => { try { const portal = await createBillingPortal(); window.location.assign(portal.url) } catch { setNotice("No active subscription was found.") } }}>Manage billing</button><label>Confirm password to delete account<input type="password" autoComplete="current-password" value={deletePassword} onChange={(event) => setDeletePassword(event.target.value)} /></label><button className="outline-pill" disabled={!deletePassword} onClick={async () => { if (!window.confirm("Delete your Pomoder account and all of its data? This cannot be undone.")) return; try { await deleteAccount(deletePassword); window.location.assign("/") } catch { setNotice("The account was not deleted. Check your password.") } }}>Delete account</button></section> : <section className="surface-card settings-card"><p>Account</p><h2>Sync across devices</h2><span>Sign in to save focus history, join rooms, upload custom media and appear on the leaderboard.</span><Link to="/register" className="pill-button">Create free account</Link></section>}
+      {user ? <section className="surface-card settings-card"><p>Account</p><h2>Your profile</h2><ProfilePictureSetting user={user} /><label>Name<input maxLength={100} value={name} onChange={(event) => setName(event.target.value)} /></label><label>Public display name<input maxLength={50} value={displayName} onChange={(event) => setDisplayName(event.target.value)} /></label><label>Timezone<input maxLength={80} value={timezone} onChange={(event) => setTimezone(event.target.value)} /></label><label>Leaderboard<Checkbox checked={leaderboard} onCheckedChange={(state) => setLeaderboard(state === true)} /></label><button className="pill-button" onClick={async () => { try { await updateProfile({ name, publicDisplayName: displayName.trim() || null, timezone, leaderboardOptIn: leaderboard }); setNotice("Profile updated.") } catch { setNotice("Profile could not be updated.") } }}>Save profile</button><button className="outline-pill" onClick={async () => { try { const portal = await createBillingPortal(); window.location.assign(portal.url) } catch { setNotice("No active subscription was found.") } }}>Manage billing</button><label>Confirm password to delete account<input type="password" autoComplete="current-password" value={deletePassword} onChange={(event) => setDeletePassword(event.target.value)} /></label><button className="outline-pill" disabled={!deletePassword} onClick={async () => { if (!window.confirm("Delete your Pomoder account and all of its data? This cannot be undone.")) return; try { await deleteAccount(deletePassword); window.location.assign("/") } catch { setNotice("The account was not deleted. Check your password.") } }}>Delete account</button></section> : <section className="surface-card settings-card"><p>Account</p><h2>Sync across devices</h2><span>Sign in to save focus history, join rooms, upload custom media and appear on the leaderboard.</span><Link to="/register" className="pill-button">Create free account</Link></section>}
       {notice ? <p role="status">{notice}</p> : null}
     </div>
   )

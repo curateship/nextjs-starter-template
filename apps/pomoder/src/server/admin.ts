@@ -1,4 +1,4 @@
-import { asc, count, desc, eq, inArray, type SQL } from "drizzle-orm"
+import { asc, count, desc, eq, inArray, sql, type SQL } from "drizzle-orm"
 import { alias } from "drizzle-orm/pg-core"
 
 import { db, type PomoderDb } from "@/server/db"
@@ -95,6 +95,7 @@ export async function loadPomoderAdminData(
       generationUsage.id,
     ][query.sortColumn] ?? users.email
   )
+  const avatarOwners = alias(users, "avatar_owners")
   const reportAuthors = alias(users, "report_message_authors")
   const reportReviewers = alias(users, "report_reviewers")
   const reportOrder = direction(
@@ -169,9 +170,17 @@ export async function loadPomoderAdminData(
       : Promise.resolve([]),
     query.section === "media"
       ? database
-          .select({ media: mediaAssets, ownerEmail: users.email })
+          // The extra join marks the assets that are somebody's profile
+          // picture, so moderators can recognise and preview an avatar in the
+          // same table they already use to delete media.
+          .select({
+            media: mediaAssets,
+            ownerEmail: users.email,
+            isAvatar: sql<boolean>`${avatarOwners.id} is not null`,
+          })
           .from(mediaAssets)
           .leftJoin(users, eq(mediaAssets.ownerUserId, users.id))
+          .leftJoin(avatarOwners, eq(avatarOwners.avatarMediaId, mediaAssets.id))
           .orderBy(mediaOrder, asc(mediaAssets.id))
           .limit(query.pageSize)
           .offset(offset)

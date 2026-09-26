@@ -1,11 +1,11 @@
-import { and, count, eq, gt, sql } from "drizzle-orm"
+import { count, eq, sql } from "drizzle-orm"
 
 import {
   earnedAchievementIds,
   type AchievementCounters,
 } from "@/lib/pomodoro/achievements"
 import { db } from "@/server/db"
-import { calculateFocusStreaks } from "@/server/pomodoro/productivity"
+import { loadFocusStreaks } from "@/server/pomodoro/productivity"
 import {
   dailyFocusStats,
   pomodoroAchievements,
@@ -55,20 +55,7 @@ export async function loadLifetimeTotals(userId: string) {
  * asking again; the panel has no summary, so it asks here.
  */
 export async function loadBestStreak(userId: string, todayLocalDate: string) {
-  const days = await db
-    .select({ localDate: dailyFocusStats.localDate })
-    .from(dailyFocusStats)
-    .where(
-      and(
-        eq(dailyFocusStats.userId, userId),
-        gt(dailyFocusStats.focusSessions, 0)
-      )
-    )
-    .orderBy(dailyFocusStats.localDate)
-  return calculateFocusStreaks(
-    days.map((day) => day.localDate),
-    todayLocalDate
-  ).bestStreak
+  return (await loadFocusStreaks(userId, todayLocalDate)).bestStreak
 }
 
 export async function loadAchievementCounters(

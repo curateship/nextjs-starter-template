@@ -182,7 +182,7 @@ const exportFocusHistoryFn = createServerFn({ method: "GET" }).inputValidator(fo
 })
 
 const leaderboardFn = createServerFn({ method: "GET" }).handler(async () => {
-  return db.select({ id: users.id, name: users.publicDisplayName, focusSessions: sql<number>`coalesce(sum(${dailyFocusStats.focusSessions}), 0)::int`, focusSeconds: sql<number>`coalesce(sum(${dailyFocusStats.focusSeconds}), 0)::int` }).from(users).leftJoin(dailyFocusStats, eq(dailyFocusStats.userId, users.id)).where(and(eq(users.leaderboardOptIn, true), sql`${users.publicDisplayName} is not null`)).groupBy(users.id).orderBy(desc(sql`sum(${dailyFocusStats.focusSeconds})`)).limit(100)
+  return db.select({ id: users.id, name: users.publicDisplayName, avatarMediaId: users.avatarMediaId, focusSessions: sql<number>`coalesce(sum(${dailyFocusStats.focusSessions}), 0)::int`, focusSeconds: sql<number>`coalesce(sum(${dailyFocusStats.focusSeconds}), 0)::int` }).from(users).leftJoin(dailyFocusStats, eq(dailyFocusStats.userId, users.id)).where(and(eq(users.leaderboardOptIn, true), sql`${users.publicDisplayName} is not null`)).groupBy(users.id).orderBy(desc(sql`sum(${dailyFocusStats.focusSeconds})`)).limit(100)
 })
 
 const importGuestStateFn = createServerFn({ method: "POST" }).inputValidator(guestImportSchema).handler(async ({ data }) => {

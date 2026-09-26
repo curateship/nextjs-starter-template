@@ -1,10 +1,14 @@
-import { readFile } from "node:fs/promises"
+import { readFile, rm } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import path from "node:path"
 
 import { PGlite } from "@electric-sql/pglite"
 import { and, eq, isNull } from "drizzle-orm"
 import { drizzle } from "drizzle-orm/pglite"
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest"
 
+import { AVATAR_MAX_BYTES } from "@/lib/avatar"
+import { findPublicAvatar, removeUserAvatar, saveUserAvatar } from "@/server/avatars"
 import { getEntitlements } from "@/server/entitlements"
 import { applyPomoderAdminAction, loadPomoderAdminData } from "@/server/admin"
 import {
@@ -16,6 +20,7 @@ import { loadFocusReport, loadFocusReportSessions, localDateStartInstant, REPORT
 import { generationLimit } from "@/server/generation"
 import {
   finalizeProcessedUpload,
+  mediaObjectExists,
   validateMediaUpload,
   validateUploadContentLength,
 } from "@/server/pomoder-media"
@@ -162,6 +167,12 @@ beforeEach(async () => {
   await client.exec(
     await readFile(
       new URL("../../drizzle/0014_room_chat_reactions.sql", import.meta.url),
+      "utf8"
+    )
+  )
+  await client.exec(
+    await readFile(
+      new URL("../../drizzle/0015_profile_avatars.sql", import.meta.url),
       "utf8"
     )
   )
@@ -556,6 +567,130 @@ describe("media and room policies", () => {
     expect(() =>
       validateUploadContentLength(String(102 * 1024 * 1024))
     ).toThrow("FILE_TOO_LARGE")
+  })
+})
+
+describe("profile avatars", () => {
+  const avatarDb = () => database as unknown as PomoderDb
+  const storageDir = path.join(tmpdir(), `pomoder-avatar-test-${crypto.randomUUID()}`)
+  const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4])
+  const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 5, 6, 7, 8])
+
+  beforeAll(() => {
+    process.env.POMODER_LOCAL_STORAGE_DIR = storageDir
+  })
+
+  afterAll(async () => {
+    delete process.env.POMODER_LOCAL_STORAGE_DIR
+    await rm(storageDir, { recursive: true, force: true })
+  })
+
+  async function seedAvatarUser(email: string, name = "Ada Lovelace", publicDisplayName: string | null = null) {
+    const [user] = await database.insert(users).values({ email, name, publicDisplayName, passwordHash: "hash" }).returning()
+    return user
+  }
+
+  it("stores one picture per account and queues the replaced file for deletion", async () => {
+    const user = await seedAvatarUser("avatar-store@example.com")
+    const first = await saveUserAvatar(user.id, { bytes: png, mimeType: "image/png" }, avatarDb())
+
+    const [afterFirst] = await database.select().from(users).where(eq(users.id, user.id))
+    expect(afterFirst.avatarMediaId).toBe(first.avatarMediaId)
+    const [asset] = await database.select().from(mediaAssets).where(eq(mediaAssets.id, first.avatarMediaId))
+    // The picture is an ordinary media asset, so the admin media tools list it.
+    expect(asset).toMatchObject({ ownerUserId: user.id, kind: "image", source: "upload", status: "ready", mimeType: "image/png" })
+    expect(asset.storageKey).toBe(`users/${user.id}/avatars/${first.avatarMediaId}.png`)
+    expect(await mediaObjectExists(asset.storageKey)).toBe(true)
+
+    const second = await saveUserAvatar(user.id, { bytes: jpeg, mimeType: "image/jpeg" }, avatarDb())
+    expect(second.avatarMediaId).not.toBe(first.avatarMediaId)
+    expect(await database.select().from(mediaAssets).where(eq(mediaAssets.id, first.avatarMediaId))).toHaveLength(0)
+    expect((await database.select().from(storageDeletionJobs)).map((job) => job.storageKey)).toEqual([asset.storageKey])
+    expect((await database.select().from(mediaAssets))).toHaveLength(1)
+  })
+
+  it("refuses anything that is not an image and anything over the size limit", async () => {
+    const user = await seedAvatarUser("avatar-reject@example.com")
+    await expect(saveUserAvatar(user.id, { bytes: new Uint8Array([1, 2, 3]), mimeType: "image/png" }, avatarDb())).rejects.toThrow("INVALID_FILE_CONTENT")
+    // A real file of the wrong kind: an MP3 cannot become a profile picture.
+    const mp3 = new Uint8Array([0x49, 0x44, 0x33, 3, 0, 0, 0])
+    await expect(saveUserAvatar(user.id, { bytes: mp3, mimeType: "audio/mpeg" }, avatarDb())).rejects.toThrow("INVALID_FILE_CONTENT")
+    const oversized = new Uint8Array(AVATAR_MAX_BYTES + 1)
+    oversized.set(png)
+    await expect(saveUserAvatar(user.id, { bytes: oversized, mimeType: "image/png" }, avatarDb())).rejects.toThrow("FILE_TOO_LARGE")
+
+    expect((await database.select().from(users).where(eq(users.id, user.id)))[0].avatarMediaId).toBeNull()
+    expect(await database.select().from(mediaAssets)).toHaveLength(0)
+  })
+
+  it("serves only pictures that are somebody's current avatar", async () => {
+    const user = await seedAvatarUser("avatar-serve@example.com")
+    const saved = await saveUserAvatar(user.id, { bytes: png, mimeType: "image/png" }, avatarDb())
+    expect(await findPublicAvatar(saved.avatarMediaId, avatarDb())).toMatchObject({ mimeType: "image/png" })
+
+    // The same account's private background is not readable through the public
+    // avatar door just because it is an image the account owns.
+    const [background] = await database
+      .insert(mediaAssets)
+      .values({ ownerUserId: user.id, kind: "image", source: "upload", status: "ready", name: "Scene", storageKey: `users/${user.id}/scene.png`, mimeType: "image/png" })
+      .returning()
+    await expect(findPublicAvatar(background.id, avatarDb())).rejects.toThrow("AVATAR_NOT_FOUND")
+
+    await removeUserAvatar(user.id, avatarDb())
+    expect((await database.select().from(users).where(eq(users.id, user.id)))[0].avatarMediaId).toBeNull()
+    await expect(findPublicAvatar(saved.avatarMediaId, avatarDb())).rejects.toThrow("AVATAR_NOT_FOUND")
+    // Removing twice is harmless, so a double click cannot fail.
+    expect(await removeUserAvatar(user.id, avatarDb())).toEqual({ avatarMediaId: null })
+  })
+
+  it("falls back to the initial when a moderator deletes the picture", async () => {
+    const moderator = await seedAvatarUser("avatar-admin@example.com", "Moderator")
+    await database.update(users).set({ role: "admin" }).where(eq(users.id, moderator.id))
+    const member = await seedAvatarUser("avatar-moderated@example.com", "Member")
+    const saved = await saveUserAvatar(member.id, { bytes: png, mimeType: "image/png" }, avatarDb())
+
+    await applyPomoderAdminAction(
+      moderator.id,
+      { type: "delete_records", resource: "media", ids: [saved.avatarMediaId] },
+      avatarDb()
+    )
+
+    expect((await database.select().from(users).where(eq(users.id, member.id)))[0].avatarMediaId).toBeNull()
+    await expect(findPublicAvatar(saved.avatarMediaId, avatarDb())).rejects.toThrow("AVATAR_NOT_FOUND")
+  })
+
+  it("carries each person's picture into room snapshots but never into the public list", async () => {
+    const host = await seedAvatarUser("avatar-host@example.com", "Real Host Name", "Host Nick")
+    const member = await seedAvatarUser("avatar-member@example.com", "Member")
+    const hostAvatar = await saveUserAvatar(host.id, { bytes: png, mimeType: "image/png" }, avatarDb())
+    const { room } = await createRoomWithHost(
+      host.id,
+      "avatar-room-0001",
+      { name: "Deep Work", visibility: "public", focusMinutes: 25, shortBreakMinutes: 5, longBreakMinutes: 15, autoStart: false },
+      avatarDb()
+    )
+    await joinRoomBySlug(room.slug, member.id, avatarDb())
+    await database.insert(roomMessages).values({ roomId: room.id, userId: host.id, body: "Welcome" })
+
+    const snapshot = await roomSnapshot(room.id, member.id, avatarDb())
+    expect(snapshot.members.map((row) => [row.name, row.avatarMediaId])).toEqual([
+      ["Host Nick", hostAvatar.avatarMediaId],
+      ["Member", null],
+    ])
+    expect(snapshot.messages[0].authorAvatarMediaId).toBe(hostAvatar.avatarMediaId)
+
+    // The public room list stays anonymous: it counts people without naming or
+    // picturing any of them, because anyone may read it signed out.
+    const [card] = await listPublicRooms(avatarDb())
+    expect(card).toEqual({ room: expect.objectContaining({ slug: room.slug }), memberCount: 2 })
+    expect(JSON.stringify(card)).not.toContain(hostAvatar.avatarMediaId)
+    expect(JSON.stringify(card)).not.toContain("Host Nick")
+
+    // A deleted message keeps its tombstone but stops carrying the author's
+    // picture, exactly as it stops carrying the body.
+    await deleteRoomMessage(room.slug, host.id, snapshot.messages[0].id, avatarDb())
+    const moderated = await roomSnapshot(room.id, member.id, avatarDb())
+    expect(moderated.messages[0]).toMatchObject({ deleted: true, body: "", authorAvatarMediaId: null })
   })
 })
 
@@ -1824,8 +1959,8 @@ describe("room controls", () => {
     const snapshot = await roomSnapshot(room.id, member.id, roomDb())
     expect(snapshot.you).toEqual({ role: "member" })
     expect(snapshot.members.map((row) => [row.name, row.role])).toEqual([["Host Nick", "host"], ["Member Real Name", "member"]])
-    expect(Object.keys(snapshot.members[0]).sort()).toEqual(["avatarIndex", "id", "joinedAt", "name", "role"])
-    expect(Object.keys(snapshot.messages[0]).sort()).toEqual(["authorName", "body", "createdAt", "deleted", "id", "mine", "reactions"])
+    expect(Object.keys(snapshot.members[0]).sort()).toEqual(["avatarMediaId", "id", "joinedAt", "name", "role"])
+    expect(Object.keys(snapshot.messages[0]).sort()).toEqual(["authorAvatarMediaId", "authorName", "body", "createdAt", "deleted", "id", "mine", "reactions"])
     expect(snapshot.messages.map((row) => [row.authorName, row.mine])).toEqual([["Host Nick", false], ["Member Real Name", true]])
     expect(snapshot.messages.every((row) => Array.isArray(row.reactions))).toBe(true)
     expect(JSON.stringify(snapshot)).not.toContain("@example.com")

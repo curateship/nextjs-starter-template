@@ -305,18 +305,36 @@ export const pomodoroAchievements = pgTable(
   ]
 )
 
-export const pomodoroProfiles = pgTable("pomodoro_profiles", {
-  userId: varchar("user_id", { length: 36 })
-    .primaryKey()
-    .references(() => customShellUsers.id, { onDelete: "cascade" }),
-  publicDisplayName: varchar("public_display_name", { length: 50 }),
-  timezone: varchar("timezone", { length: 80 }).notNull().default("UTC"),
-  leaderboardOptIn: boolean("leaderboard_opt_in").notNull().default(false),
-  guestImportedAt: timestamp("guest_imported_at", { withTimezone: true }),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-})
+export const pomodoroProfiles = pgTable(
+  "pomodoro_profiles",
+  {
+    userId: varchar("user_id", { length: 36 })
+      .primaryKey()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    publicDisplayName: varchar("public_display_name", { length: 50 }),
+    timezone: varchar("timezone", { length: 80 }).notNull().default("UTC"),
+    leaderboardOptIn: boolean("leaderboard_opt_in").notNull().default(false),
+    /**
+     * The secret in the public streak badge's address. Null is off, which is
+     * the default, so a badge only ever exists because someone asked for one.
+     * Turning it off clears the column, which is what kills the old link;
+     * asking for a new link writes a new secret and kills the old one the
+     * same way.
+     */
+    streakBadgeToken: varchar("streak_badge_token", { length: 64 }),
+    guestImportedAt: timestamp("guest_imported_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    // Unique so one address can never resolve to two accounts, and partial so
+    // the many accounts with no badge do not all collide on null.
+    uniqueIndex("pomodoro_profiles_streak_badge_token_unique")
+      .on(table.streakBadgeToken)
+      .where(sql`${table.streakBadgeToken} is not null`),
+  ]
+)
 
 export const userTimerPresets = pgTable(
   "user_timer_presets",

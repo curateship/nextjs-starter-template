@@ -32,6 +32,7 @@ import {
   type BackgroundReference,
 } from "@/lib/background-catalog"
 import { PomoderBackgroundContext } from "@/components/pomoder/pomoder-background"
+import { ProfileAvatar } from "@/components/pomoder/profile-avatar"
 import {
   HeaderSoundPlayer,
   SoundPlayerProvider,
@@ -325,8 +326,8 @@ function QuickControls({
       <div className="quick-control">
         <button onClick={() => toggle("leaderboard")} aria-expanded={open === "leaderboard"}><BarChart3 aria-hidden="true" />Leaderboard</button>
         {open === "leaderboard" ? <div className="quick-popover leaderboard-popover"><div className="popover-heading"><h2>Leaderboard</h2><span>this week</span></div>{[
-          ["Maya K.", "maya", 24], ["Devon", "devon", 21], ["Tomas", "tomas", 19], ["Ana Ribeiro", "ana", 16], ["You", "you", 12],
-        ].map(([name, avatar, count], index) => <div className="quick-leader" key={String(name)}><span>{index + 1}</span><img src={`/pomoder/avatars-${avatar}.png`} alt="" /><strong>{name}</strong><b>{count} 🍅</b></div>)}</div> : null}
+          ["Maya Kern", 24], ["Devon Hale", 21], ["Tomas Reyes", 19], ["Ana Ribeiro", 16], ["You", 12],
+        ].map(([name, count], index) => <div className="quick-leader" key={String(name)}><span>{index + 1}</span><ProfileAvatar name={String(name)} /><strong>{name}</strong><b>{count} 🍅</b></div>)}</div> : null}
       </div>
       <div className="quick-control">
         <button onClick={() => toggle("theme")} aria-expanded={open === "theme"}><Palette aria-hidden="true" />Theme</button>
