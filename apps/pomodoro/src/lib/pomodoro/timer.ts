@@ -100,6 +100,41 @@ export function resetTimer(timer: PomodoroTimer): PomodoroTimer {
   return createTimer(timer.mode, timer.durationMinutes)
 }
 
+/**
+ * How much of the current phase has been spent, in seconds. A phase that has
+ * not been started reads zero, because the remaining time is still the whole
+ * duration.
+ */
+export function elapsedSeconds(timer: PomodoroTimer, timestamp = Date.now()) {
+  return Math.max(
+    0,
+    timer.durationMinutes * 60 - getRemainingSeconds(timer, timestamp)
+  )
+}
+
+/**
+ * Whether leaving this phase throws work away. Only a focus does: a break has
+ * nothing to lose, and neither does a focus nobody has started. Switching to a
+ * break, or pressing Reset, asks first when this is true.
+ */
+export function focusWouldBeLost(
+  timer: PomodoroTimer,
+  timestamp = Date.now()
+) {
+  return timer.mode === "focus" && elapsedSeconds(timer, timestamp) > 0
+}
+
+/**
+ * The spent time as a sentence fragment, so the confirmation reads as a fact
+ * rather than a scare. Whole minutes, because a countdown is read in minutes,
+ * and anything under a minute says so instead of reading "0 minutes".
+ */
+export function elapsedFocusLabel(spentSeconds: number) {
+  const minutes = Math.floor(Math.max(0, spentSeconds) / 60)
+  if (minutes < 1) return "Less than a minute"
+  return `${minutes} ${minutes === 1 ? "minute" : "minutes"}`
+}
+
 /** The browser's own IANA timezone, for the server's "which day is it" math. */
 export function browserTimezone() {
   try {

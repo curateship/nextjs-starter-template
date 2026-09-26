@@ -16,5 +16,10 @@ app-level facts about a person, in `pomodoro_profiles` (migration
 - **Leaderboard opt-in** — off by default; opting out hides the account
   from the leaderboard immediately (the leaderboard query filters on it).
 
+The three fields appear once the saved profile arrives; until then the card
+shows "Loading your profile…". They are not offered sooner because the load
+fills them in, and a name typed into an empty box would be overwritten the
+moment it landed.
+
 Account name, email, password and deletion stay with the shell's account
 dialog; this tab never duplicates them.

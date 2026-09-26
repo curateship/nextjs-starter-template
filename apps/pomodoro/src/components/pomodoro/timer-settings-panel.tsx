@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { LoadingRow } from "@/components/ui/loading-row"
 import { Switch } from "@/components/ui/switch"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -149,6 +150,11 @@ export default function TimerSettingsPanel() {
           <CardTitle>Focus rhythm</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4">
+          {/* Until the saved row is here there is nothing true to put in the
+              boxes, and three empty boxes read as a rhythm of nothing. */}
+          {!loaded && !error ? (
+            <LoadingRow label="Loading your focus rhythm…" />
+          ) : null}
           {loaded ? (
             <FocusRhythmPresets
               current={{
@@ -193,81 +199,85 @@ export default function TimerSettingsPanel() {
               }}
             />
           ) : null}
-          <div className="grid gap-4 sm:grid-cols-3">
-            {(
-              [
-                ["Focus minutes", "timer-focus", focus, setFocus, 90],
-                ["Short break", "timer-short", short, setShort, 90],
-                ["Long break", "timer-long", long, setLong, 90],
-              ] as const
-            ).map(([label, id, value, setValue, max]) => (
-              <div key={id} className="grid gap-2">
-                <Label htmlFor={id}>{label}</Label>
+          {loaded ? (
+            <>
+              <div className="grid gap-4 sm:grid-cols-3">
+                {(
+                  [
+                    ["Focus minutes", "timer-focus", focus, setFocus, 90],
+                    ["Short break", "timer-short", short, setShort, 90],
+                    ["Long break", "timer-long", long, setLong, 90],
+                  ] as const
+                ).map(([label, id, value, setValue, max]) => (
+                  <div key={id} className="grid gap-2">
+                    <Label htmlFor={id}>{label}</Label>
+                    <Input
+                      id={id}
+                      type="number"
+                      min={1}
+                      max={max}
+                      value={Number.isFinite(value) ? value : ""}
+                      aria-invalid={validPresetMinutes(value) ? undefined : true}
+                      onChange={(event) => setValue(event.target.valueAsNumber)}
+                    />
+                  </div>
+                ))}
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="timer-goal">Daily session goal</Label>
                 <Input
-                  id={id}
+                  id="timer-goal"
                   type="number"
                   min={1}
-                  max={max}
-                  value={Number.isFinite(value) ? value : ""}
-                  aria-invalid={validPresetMinutes(value) ? undefined : true}
-                  onChange={(event) => setValue(event.target.valueAsNumber)}
+                  max={20}
+                  value={Number.isFinite(dailyGoal) ? dailyGoal : ""}
+                  aria-describedby="timer-goal-help"
+                  aria-invalid={
+                    Number.isInteger(dailyGoal) && dailyGoal >= 1 && dailyGoal <= 20
+                      ? undefined
+                      : true
+                  }
+                  onChange={(event) => setDailyGoal(event.target.valueAsNumber)}
+                  className="sm:max-w-40"
                 />
+                <span id="timer-goal-help" className="text-xs text-muted-foreground">
+                  Only completed focus sessions count toward your daily goal and
+                  streak.
+                </span>
               </div>
-            ))}
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="timer-goal">Daily session goal</Label>
-            <Input
-              id="timer-goal"
-              type="number"
-              min={1}
-              max={20}
-              value={Number.isFinite(dailyGoal) ? dailyGoal : ""}
-              aria-describedby="timer-goal-help"
-              aria-invalid={
-                Number.isInteger(dailyGoal) && dailyGoal >= 1 && dailyGoal <= 20
-                  ? undefined
-                  : true
-              }
-              onChange={(event) => setDailyGoal(event.target.valueAsNumber)}
-              className="sm:max-w-40"
-            />
-            <span id="timer-goal-help" className="text-xs text-muted-foreground">
-              Only completed focus sessions count toward your daily goal and
-              streak.
-            </span>
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="timer-long-break-cycle">
-              Sessions before long break
-            </Label>
-            <Input
-              id="timer-long-break-cycle"
-              type="number"
-              min={SESSIONS_BEFORE_LONG_BREAK_MIN}
-              max={SESSIONS_BEFORE_LONG_BREAK_MAX}
-              value={Number.isFinite(cycle) ? cycle : ""}
-              aria-describedby="timer-long-break-cycle-help"
-              aria-invalid={validSessionsBeforeLongBreak(cycle) ? undefined : true}
-              onChange={(event) => setCycle(event.target.valueAsNumber)}
-              className="sm:max-w-40"
-            />
-            <span
-              id="timer-long-break-cycle-help"
-              className="text-xs text-muted-foreground"
-            >
-              How many focuses earn the long break. Four is the classic
-              pattern; a 50-minute rhythm usually wants two.
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Switch
-              id="timer-auto-start"
-              checked={autoStart}
-              onCheckedChange={setAutoStart}
-            />
-            <Label htmlFor="timer-auto-start">Auto-start next phase</Label>
-          </div>
+              <div className="grid gap-2">
+                <Label htmlFor="timer-long-break-cycle">
+                  Sessions before long break
+                </Label>
+                <Input
+                  id="timer-long-break-cycle"
+                  type="number"
+                  min={SESSIONS_BEFORE_LONG_BREAK_MIN}
+                  max={SESSIONS_BEFORE_LONG_BREAK_MAX}
+                  value={Number.isFinite(cycle) ? cycle : ""}
+                  aria-describedby="timer-long-break-cycle-help"
+                  aria-invalid={validSessionsBeforeLongBreak(cycle) ? undefined : true}
+                  onChange={(event) => setCycle(event.target.valueAsNumber)}
+                  className="sm:max-w-40"
+                />
+                <span
+                  id="timer-long-break-cycle-help"
+                  className="text-xs text-muted-foreground"
+                >
+                  How many focuses earn the long break. Four is the classic
+                  pattern; a 50-minute rhythm usually wants two.
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="timer-auto-start"
+                  checked={autoStart}
+                  onCheckedChange={setAutoStart}
+                />
+                <Label htmlFor="timer-auto-start">Auto-start next phase</Label>
+              </div>
+            </>
+          ) : null}
           <div className="grid gap-2">
             {/* This checkbox is the one place notification permission is
                 asked for; the click also unlocks the chime's audio context. */}

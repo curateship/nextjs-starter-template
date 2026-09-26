@@ -8,9 +8,12 @@ import {
   XIcon,
 } from "lucide-react"
 
+import { useDiscardFocusConfirm } from "@/components/pomodoro/discard-focus-confirm"
 import { SessionNotePrompt } from "@/components/pomodoro/session-note-prompt"
 import { ZenMode } from "@/components/pomodoro/zen-mode"
+import { InlineError } from "@/components/ui/inline-error"
 import { Label } from "@/components/ui/label"
+import { LoadingRow } from "@/components/ui/loading-row"
 import { Switch } from "@/components/ui/switch"
 import {
   Tooltip,
@@ -47,6 +50,8 @@ const circumference = 2 * Math.PI * 132
  */
 export function TimerDashboard() {
   const pomodoro = usePomodoro()
+  const { requestReset, requestMode, discardDialog } =
+    useDiscardFocusConfirm(pomodoro)
   const [taskTitle, setTaskTitle] = React.useState("")
   const [zen, setZen] = React.useState(false)
   const zenButton = React.useRef<HTMLButtonElement>(null)
@@ -117,7 +122,7 @@ export function TimerDashboard() {
             <div className="flex items-center gap-2.5">
               <button
                 className="grid size-11 place-items-center rounded-full border border-[rgba(var(--p-fg-rgb),0.14)] text-muted-foreground hover:border-[rgba(var(--p-fg-rgb),0.3)] hover:text-foreground"
-                onClick={pomodoro.reset}
+                onClick={requestReset}
                 aria-label="Reset timer"
               >
                 <RotateCcwIcon className="size-[17px]" aria-hidden="true" />
@@ -158,7 +163,7 @@ export function TimerDashboard() {
                 pomodoro.timer.mode === mode &&
                   "bg-[rgba(255,90,60,0.14)] text-[var(--p-accent-2)]"
               )}
-              onClick={() => pomodoro.selectMode(mode)}
+              onClick={() => requestMode(mode)}
             >
               {MODE_LABELS[mode]}
             </button>
@@ -202,9 +207,9 @@ export function TimerDashboard() {
           {modeHint(pomodoro.timer.mode, pomodoro.sessionsBeforeLongBreak)}
         </p>
         {pomodoro.syncError ? (
-          <p role="alert" className="text-center text-sm text-[var(--p-accent-2)]">
+          <InlineError className="text-center">
             {pomodoro.syncError}
-          </p>
+          </InlineError>
         ) : null}
 
         <div className="flex w-full flex-col items-center gap-4 border-t border-[rgba(var(--p-fg-rgb),0.07)] pt-5">
@@ -263,7 +268,14 @@ export function TimerDashboard() {
           </span>
         </header>
         <div className="flex flex-col px-3 py-2">
-          {!pomodoro.tasks.length ? (
+          {/* Loading and empty mean opposite things, so the card says which
+              one it is instead of claiming an empty list on every visit. */}
+          {pomodoro.loading && !pomodoro.tasks.length ? (
+            <LoadingRow label="Loading your tasks…" className="py-[18px]" />
+          ) : null}
+          {!pomodoro.loading &&
+          !pomodoro.loadFailed &&
+          !pomodoro.tasks.length ? (
             <p className="px-3 py-[18px] text-center text-[13.5px] text-muted-foreground">
               No active tasks.{" "}
               <Link
@@ -277,6 +289,7 @@ export function TimerDashboard() {
           ) : null}
           {pomodoro.tasks.map((task) => {
             const selected = pomodoro.selectedTaskId === task.id
+            const busy = pomodoro.taskBusy(task.id)
             return (
               <div
                 key={task.id}
@@ -288,11 +301,12 @@ export function TimerDashboard() {
               >
                 <button
                   className={cn(
-                    "grid size-6 shrink-0 place-items-center rounded-full",
+                    "grid size-6 shrink-0 place-items-center rounded-full disabled:cursor-not-allowed disabled:opacity-50",
                     task.completed
                       ? "bg-[var(--p-success)] text-[var(--p-on-accent)]"
                       : "border-[1.5px] border-[rgba(var(--p-fg-rgb),0.25)] text-transparent"
                   )}
+                  disabled={busy}
                   onClick={() => pomodoro.toggleTask(task.id)}
                   aria-label={`${task.completed ? "Reopen" : "Complete"} ${task.title}`}
                 >
@@ -324,7 +338,8 @@ export function TimerDashboard() {
                   </small>
                 </button>
                 <button
-                  className="grid size-[30px] shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-[rgba(var(--p-fg-rgb),0.08)] hover:text-foreground"
+                  className="grid size-[30px] shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-[rgba(var(--p-fg-rgb),0.08)] hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={busy}
                   onClick={() => pomodoro.removeTask(task.id)}
                   aria-label={`Remove ${task.title}`}
                 >
@@ -353,6 +368,7 @@ export function TimerDashboard() {
           />
         </form>
       </section>
+      {discardDialog}
     </div>
   )
 }
