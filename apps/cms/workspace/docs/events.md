@@ -1077,7 +1077,9 @@ They go into the same queue, and every one is read by an admin.
   The owner is emailed "<title> is on the Events page". Rejecting emails the
   note, the same as a public suggestion.
 - **What the owner sees:** each event with "Waiting for approval", "Approved"
-  with "See its page", or "Not approved" with the admin's note.
+  with "See its page", or "Not approved" with the admin's note. A published
+  event also shows its views, as "12 views in 30 days · 48 all time".
+  "View counts" below says where those numbers come from.
 - **Only their own.** An owner sees the events their own account sent, never
   another owner's. A listing that changes hands shows its new owner none of
   the old owner's events.
@@ -1375,6 +1377,45 @@ Deleting an event deletes its sign-ups with it.
   one transaction at a time, so its race test shows the outcome but cannot
   show the lock at work. The lock was also checked against the real local
   Postgres with ten sign-ups sent at once for one seat.
+
+## View counts
+
+Admin → Events has a Views column, and an owner sees the same numbers under
+each of their published events on My listings. Both read the traffic the site
+already keeps, so nothing new is recorded and no visitor is identified.
+
+- **What is counted:** visits to the event's own page, `/events/<address>`, in
+  the site's daily traffic facts. That is the same source and the same rule as
+  the Listings Views column, which `workspace/docs/listing-view-counts.md`
+  describes.
+- **The two ranges:** a picker beside the status filter offers "All time" and
+  "Last 30 days", and the column's heading follows it: "Views" or "30-day
+  views". All time is the default and stays out of the address.
+- **The column sorts,** biggest first, and it sorts the whole filtered list on
+  the server before it is cut into pages. The address carries `sort=views` and
+  `days=30`.
+- **Inside one site.** A count only ever uses the traffic of the site the admin
+  has open. Two sites can hold the same event address and each shows its own
+  number.
+- **Renaming an event loses its old views.** The count is matched on the
+  address the event has now, so views recorded under the old address stay
+  there and the renamed event starts from 0. Listings work the same way.
+- **An owner sees only their own events.** The card lists the events that
+  account sent, so the counts beside them are for those pages and no others. A
+  pending or rejected event has no page, so it shows no number at all.
+- **A page nobody has opened reads as 0** in the admin column and as "0 views
+  in 30 days" for the owner.
+- **No chart and no daily breakdown.** The Traffic screen stays the place for
+  that.
+- **Where it lives:** `src/server/events/views.ts` holds `eventViewTotals`, the
+  grouped totals the list joins on, and `eventViewsForPages`, which reads both
+  counts for a set of pages across sites. `listEvents` in
+  `src/server/events/events.ts` joins the first and puts `views` on each row;
+  `ownerEventsFor` in `src/server/events/owner-submissions.ts` uses the second.
+  The ranges and the sort columns are `src/lib/events/event-sort.ts`. The
+  screens are `src/components/events/events-dashboard.tsx` and
+  `src/components/events/owner-events.tsx`. The tests are
+  `src/server/events/views.test.ts`.
 
 ## Not built yet
 

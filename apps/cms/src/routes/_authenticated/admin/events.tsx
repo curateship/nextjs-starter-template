@@ -18,7 +18,9 @@ import {
 } from "@/lib/nav/list-search"
 import {
   EVENT_SORT_COLUMNS,
+  readEventViewRange,
   type EventSortColumn,
+  type EventViewRange,
 } from "@/lib/events/event-sort"
 
 type EventsSearch = {
@@ -26,6 +28,7 @@ type EventsSearch = {
   status?: ListingStatusFilter
   sort?: EventSortColumn
   direction?: "asc" | "desc"
+  days?: EventViewRange
   page?: number
   size?: number
   /** Which event's window is open, so an event can be linked to. */
@@ -39,6 +42,7 @@ function readEventsSearch(search: Record<string, unknown>): EventsSearch {
     status: readOneOf(search.status, LISTING_STATUS_FILTERS),
     sort: readOneOf(search.sort, EVENT_SORT_COLUMNS),
     direction: readDirection(search.direction),
+    days: readEventViewRange(search.days),
     page: readPage(search.page),
     size: readOneOf(
       String(search.size),
@@ -63,6 +67,7 @@ export const Route = createFileRoute("/_authenticated/admin/events")({
         status: deps.status,
         sort: deps.sort,
         direction: deps.direction,
+        days: deps.days,
         page: deps.page,
         limit: deps.size,
       }),

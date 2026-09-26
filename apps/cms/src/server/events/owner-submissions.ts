@@ -21,6 +21,11 @@ import {
   type EventSubmissionOutcome,
   type EventSubmissionStatus,
 } from "@/server/events/submissions"
+import {
+  eventViewsForPages,
+  eventViewsKey,
+  type EventViews,
+} from "@/server/events/views"
 import { isOwnedImageUrl } from "@/server/media/library"
 import { customShellUsers } from "@/server/schema"
 
@@ -215,6 +220,8 @@ export type OwnerEvent = {
   eventId: string | null
   /** Featured now, by the admin or by this owner's payment. */
   featured: boolean
+  /** Views of its page, or null while it has no page. */
+  views: EventViews | null
   createdAt: Date
 }
 
@@ -286,6 +293,18 @@ export async function ownerEventsFor(
     eventLinksByIds(eventIds, database),
     featuredEventIds(eventIds, database),
   ])
+  // Only this account's own events reach this point, so the counts are only
+  // ever for pages the owner sent. Nobody else's event is counted here.
+  const views = await eventViewsForPages(
+    rows.flatMap((row) => {
+      const link = row.eventId ? links.get(row.eventId) : undefined
+      return link?.status === "published"
+        ? [{ workspaceId: row.workspaceId, slug: link.slug }]
+        : []
+    }),
+    database,
+    at
+  )
   const byListing: Record<string, OwnerEvent[]> = {}
   for (const row of rows) {
     if (!row.listingId) continue
@@ -304,6 +323,13 @@ export async function ownerEventsFor(
       eventSlug: published ? link.slug : null,
       eventId: published ? row.eventId : null,
       featured: published && featured.has(row.eventId ?? ""),
+      // A published page with no traffic yet reads as 0, not as nothing.
+      views: published
+        ? (views.get(eventViewsKey(row.workspaceId, link.slug)) ?? {
+            recent: 0,
+            all: 0,
+          })
+        : null,
       createdAt: row.createdAt,
     })
   }

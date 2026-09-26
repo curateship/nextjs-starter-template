@@ -46,8 +46,9 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   adding events to a calendar or subscribing to them, duplicating an event,
   private events, the Suggest an event form with its review queue,
   listing owners adding events from My listings, the Draft events
-  automation step that reads a page and drafts the events on it, and
-  reporting a problem on an event.
+  automation step that reads a page and drafts the events on it,
+  reporting a problem on an event, and the view counts on Admin → Events and
+  on an owner's own events.
 - `the-root-address.md` — what `/` is on a site's address and on the
   deployment's own, and why "no page" never means "send them to sign in".
 - `record-windows.md` — what the listing, event, post and deal windows share:

@@ -26,6 +26,7 @@ import {
   reviewEventSubmission,
 } from "@/server/events/submissions"
 import { customShellMedia } from "@/server/schema"
+import { recordVisit } from "@/server/traffic"
 import {
   createTestDatabase,
   insertUser,
@@ -286,6 +287,49 @@ describe("the owner's view", () => {
       ["Open mic", "approved", true],
     ])
     expect(mine[1]?.reviewNote).toBe("Too loud for the street.")
+  })
+
+  it("counts views of their published event's page, and nobody else's", async () => {
+    const submission = await sent({ title: "Open mic" })
+    await sent({ title: "Quiz night" })
+    const { eventId } = await reviewEventSubmission(
+      siteId,
+      submission.id,
+      { decision: "approve", reviewerId: adminId },
+      database
+    )
+    const event = await findEvent(siteId, eventId!, database)
+    const slug = event!.slug
+    const visit = async (path: string, on: Date) => {
+      await recordVisit(
+        {
+          workspaceId: siteId,
+          path,
+          referrerDomain: "direct",
+          device: "computer",
+          audience: "visitor",
+          visitorHash: uuid(),
+        },
+        database,
+        on
+      )
+    }
+    await visit(`/events/${slug}`, at)
+    await visit(`/events/${slug}`, at)
+    await visit(`/events/${slug}`, new Date(at.getTime() - 90 * 86_400_000))
+    // Another event's page on the same site, which must not be counted here.
+    await visit("/events/somebody-elses-thing", at)
+
+    const mine = (await ownerEventsFor(ownerId, database, at)).events[
+      listingId
+    ]!
+    expect(mine.map((row) => [row.title, row.views])).toEqual([
+      ["Quiz night", null],
+      ["Open mic", { recent: 2, all: 3 }],
+    ])
+    expect((await ownerEventsFor(otherOwnerId, database, at)).events).toEqual(
+      {}
+    )
   })
 
   it("never shows one owner another owner's events", async () => {
