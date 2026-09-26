@@ -39,6 +39,10 @@ export const userPreferences = pgTable(
     shortBreakMinutes: integer("short_break_minutes").notNull().default(5),
     longBreakMinutes: integer("long_break_minutes").notNull().default(15),
     dailyGoalSessions: integer("daily_goal_sessions").notNull().default(4),
+    /** How many focuses earn the long break. Part of the saved rhythm. */
+    sessionsBeforeLongBreak: integer("sessions_before_long_break")
+      .notNull()
+      .default(4),
     autoStart: boolean("auto_start").notNull().default(false),
     selectedSound: varchar("selected_sound", { length: 60 }),
     selectedBackground: varchar("selected_background", { length: 60 }),
@@ -65,6 +69,10 @@ export const userPreferences = pgTable(
     check(
       "preferences_goal_check",
       sql`${table.dailyGoalSessions} between 1 and 20`
+    ),
+    check(
+      "preferences_long_break_cycle_check",
+      sql`${table.sessionsBeforeLongBreak} between 2 and 8`
     ),
   ]
 )
@@ -347,6 +355,10 @@ export const userTimerPresets = pgTable(
     focusMinutes: integer("focus_minutes").notNull(),
     shortBreakMinutes: integer("short_break_minutes").notNull(),
     longBreakMinutes: integer("long_break_minutes").notNull(),
+    /** The preset owns the long-break cycle, the same as its durations. */
+    sessionsBeforeLongBreak: integer("sessions_before_long_break")
+      .notNull()
+      .default(4),
     autoStart: boolean("auto_start").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -367,6 +379,10 @@ export const userTimerPresets = pgTable(
     check(
       "timer_presets_long_check",
       sql`${table.longBreakMinutes} between 1 and 90`
+    ),
+    check(
+      "timer_presets_long_break_cycle_check",
+      sql`${table.sessionsBeforeLongBreak} between 2 and 8`
     ),
     unique("timer_presets_user_name_unique").on(table.userId, table.name),
   ]

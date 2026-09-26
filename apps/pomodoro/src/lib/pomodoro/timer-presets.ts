@@ -8,6 +8,12 @@ export type TimerPresetValues = {
   focusMinutes: number
   shortBreakMinutes: number
   longBreakMinutes: number
+  /**
+   * How many focuses earn the long break. Four is the classic pattern and the
+   * default everywhere; a 50-minute rhythm usually wants two, because four
+   * fifty-minute blocks before a real rest is punishing.
+   */
+  sessionsBeforeLongBreak: number
   autoStart: boolean
 }
 
@@ -21,6 +27,10 @@ export type BuiltinTimerPreset = TimerPresetValues & {
 export const TIMER_PRESET_LIMIT = 10
 export const TIMER_PRESET_NAME_MAX = 60
 
+export const SESSIONS_BEFORE_LONG_BREAK_DEFAULT = 4
+export const SESSIONS_BEFORE_LONG_BREAK_MIN = 2
+export const SESSIONS_BEFORE_LONG_BREAK_MAX = 8
+
 // Built-in ids and values are part of the product contract — do not change
 // them across releases; add new presets instead.
 export const builtinTimerPresets: readonly BuiltinTimerPreset[] = [
@@ -30,6 +40,7 @@ export const builtinTimerPresets: readonly BuiltinTimerPreset[] = [
     focusMinutes: 25,
     shortBreakMinutes: 5,
     longBreakMinutes: 15,
+    sessionsBeforeLongBreak: 4,
     autoStart: false,
     builtin: true,
   },
@@ -39,6 +50,9 @@ export const builtinTimerPresets: readonly BuiltinTimerPreset[] = [
     focusMinutes: 50,
     shortBreakMinutes: 10,
     longBreakMinutes: 30,
+    // Two, not four: four fifty-minute blocks before a proper rest is the
+    // thing people give up on. This is the rhythm the number was added for.
+    sessionsBeforeLongBreak: 2,
     autoStart: false,
     builtin: true,
   },
@@ -48,6 +62,7 @@ export const builtinTimerPresets: readonly BuiltinTimerPreset[] = [
     focusMinutes: 15,
     shortBreakMinutes: 3,
     longBreakMinutes: 10,
+    sessionsBeforeLongBreak: 4,
     autoStart: true,
     builtin: true,
   },
@@ -62,6 +77,26 @@ export function validPresetMinutes(value: unknown): value is number {
   )
 }
 
+export function validSessionsBeforeLongBreak(value: unknown): value is number {
+  return (
+    typeof value === "number" &&
+    Number.isInteger(value) &&
+    value >= SESSIONS_BEFORE_LONG_BREAK_MIN &&
+    value <= SESSIONS_BEFORE_LONG_BREAK_MAX
+  )
+}
+
+/**
+ * A stored number turned into a usable one. Anything out of range, and a row
+ * saved before the number existed, reads as the classic four rather than
+ * throwing the whole row away: the rhythm it was saved with still works.
+ */
+export function normalizeSessionsBeforeLongBreak(value: unknown) {
+  return validSessionsBeforeLongBreak(value)
+    ? value
+    : SESSIONS_BEFORE_LONG_BREAK_DEFAULT
+}
+
 export function normalizePresetName(value: unknown): string | null {
   if (typeof value !== "string") return null
   const name = value.trim().slice(0, TIMER_PRESET_NAME_MAX)
@@ -69,7 +104,7 @@ export function normalizePresetName(value: unknown): string | null {
 }
 
 export function presetSummary(values: TimerPresetValues) {
-  return `${values.focusMinutes} · ${values.shortBreakMinutes} · ${values.longBreakMinutes}${values.autoStart ? " · auto" : ""}`
+  return `${values.focusMinutes} · ${values.shortBreakMinutes} · ${values.longBreakMinutes} · long after ${values.sessionsBeforeLongBreak}${values.autoStart ? " · auto" : ""}`
 }
 
 function sameTimerValues(left: TimerPresetValues, right: TimerPresetValues) {
@@ -77,6 +112,7 @@ function sameTimerValues(left: TimerPresetValues, right: TimerPresetValues) {
     left.focusMinutes === right.focusMinutes &&
     left.shortBreakMinutes === right.shortBreakMinutes &&
     left.longBreakMinutes === right.longBreakMinutes &&
+    left.sessionsBeforeLongBreak === right.sessionsBeforeLongBreak &&
     left.autoStart === right.autoStart
   )
 }
@@ -128,6 +164,11 @@ export function normalizeCustomTimerPresets(value: unknown): CustomTimerPreset[]
       focusMinutes: preset.focusMinutes,
       shortBreakMinutes: preset.shortBreakMinutes,
       longBreakMinutes: preset.longBreakMinutes,
+      // Not a reason to discard the row: a guest preset saved before the
+      // number existed keeps its durations and takes the classic four.
+      sessionsBeforeLongBreak: normalizeSessionsBeforeLongBreak(
+        preset.sessionsBeforeLongBreak
+      ),
       autoStart: preset.autoStart,
     })
   }
