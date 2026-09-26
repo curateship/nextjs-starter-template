@@ -30,6 +30,10 @@ import {
 import { SESSION_NOTE_MAX_LENGTH } from "@/lib/pomodoro/session-notes"
 import { EVERY_DAY } from "@/lib/pomodoro/task-repeats"
 import {
+  SESSIONS_BEFORE_LONG_BREAK_MAX,
+  SESSIONS_BEFORE_LONG_BREAK_MIN,
+} from "@/lib/pomodoro/timer-presets"
+import {
   dailyFocusStats,
   focusSessions,
   tasks,
@@ -44,11 +48,17 @@ import {
  */
 
 const timezoneSchema = z.string().min(1).max(60)
+const sessionsBeforeLongBreakSchema = z
+  .number()
+  .int()
+  .min(SESSIONS_BEFORE_LONG_BREAK_MIN)
+  .max(SESSIONS_BEFORE_LONG_BREAK_MAX)
 const preferencesSchema = z.object({
   focusMinutes: z.number().int().min(1).max(90),
   shortBreakMinutes: z.number().int().min(1).max(90),
   longBreakMinutes: z.number().int().min(1).max(90),
   dailyGoalSessions: z.number().int().min(1).max(20),
+  sessionsBeforeLongBreak: sessionsBeforeLongBreakSchema,
   autoStart: z.boolean(),
 })
 const startSessionSchema = z.object({
@@ -111,6 +121,7 @@ const guestImportSchema = z.object({
   shortBreakMinutes: z.number().int().min(1).max(90),
   longBreakMinutes: z.number().int().min(1).max(90),
   dailyGoalSessions: z.number().int().min(1).max(20),
+  sessionsBeforeLongBreak: sessionsBeforeLongBreakSchema,
   autoStart: z.boolean(),
   timezone: timezoneSchema,
 })
@@ -456,6 +467,7 @@ const importGuestStateFn = createServerFn({ method: "POST" })
           shortBreakMinutes: data.shortBreakMinutes,
           longBreakMinutes: data.longBreakMinutes,
           dailyGoalSessions: data.dailyGoalSessions,
+          sessionsBeforeLongBreak: data.sessionsBeforeLongBreak,
           autoStart: data.autoStart,
         })
         .onConflictDoUpdate({
@@ -465,6 +477,7 @@ const importGuestStateFn = createServerFn({ method: "POST" })
             shortBreakMinutes: data.shortBreakMinutes,
             longBreakMinutes: data.longBreakMinutes,
             dailyGoalSessions: data.dailyGoalSessions,
+            sessionsBeforeLongBreak: data.sessionsBeforeLongBreak,
             autoStart: data.autoStart,
             updatedAt: new Date(),
           },

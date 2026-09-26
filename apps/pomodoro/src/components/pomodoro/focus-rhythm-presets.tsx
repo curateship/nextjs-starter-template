@@ -32,9 +32,12 @@ import {
   matchTimerPreset,
   normalizePresetName,
   presetSummary,
+  SESSIONS_BEFORE_LONG_BREAK_MAX,
+  SESSIONS_BEFORE_LONG_BREAK_MIN,
   TIMER_PRESET_LIMIT,
   TIMER_PRESET_NAME_MAX,
   validPresetMinutes,
+  validSessionsBeforeLongBreak,
   type CustomTimerPreset,
   type TimerPresetValues,
 } from "@/lib/pomodoro/timer-presets"
@@ -131,6 +134,7 @@ export function FocusRhythmPresets({
         focusMinutes: preset.focusMinutes,
         shortBreakMinutes: preset.shortBreakMinutes,
         longBreakMinutes: preset.longBreakMinutes,
+        sessionsBeforeLongBreak: preset.sessionsBeforeLongBreak,
         autoStart: preset.autoStart,
         dailyGoalSessions,
       })
@@ -275,7 +279,7 @@ export function FocusRhythmPresets({
         </Select>
         <span className="text-xs text-muted-foreground">
           {matched
-            ? `Matches ${matched.name} (focus · short break · long break minutes).`
+            ? `Matches ${matched.name} (focus · short break · long break minutes · focuses before the long break).`
             : "Your current values don't match a preset — save them below to reuse them."}
         </span>
       </div>
@@ -410,10 +414,15 @@ function PresetEditor({
   const [longBreakMinutes, setLongBreakMinutes] = React.useState(
     preset.longBreakMinutes
   )
+  const [sessionsBeforeLongBreak, setSessionsBeforeLongBreak] = React.useState(
+    preset.sessionsBeforeLongBreak
+  )
   const [autoStart, setAutoStart] = React.useState(preset.autoStart)
   const cleanName = normalizePresetName(name)
+  const cycleValid = validSessionsBeforeLongBreak(sessionsBeforeLongBreak)
   const valid =
     Boolean(cleanName) &&
+    cycleValid &&
     [focusMinutes, shortBreakMinutes, longBreakMinutes].every(
       validPresetMinutes
     )
@@ -429,6 +438,7 @@ function PresetEditor({
             focusMinutes,
             shortBreakMinutes,
             longBreakMinutes,
+            sessionsBeforeLongBreak,
             autoStart,
           })
       }}
@@ -464,6 +474,35 @@ function PresetEditor({
             />
           </div>
         ))}
+      </div>
+      <div className="grid gap-2">
+        <Label htmlFor={`preset-cycle-${preset.id}`}>
+          Sessions before long break
+        </Label>
+        <Input
+          id={`preset-cycle-${preset.id}`}
+          type="number"
+          min={SESSIONS_BEFORE_LONG_BREAK_MIN}
+          max={SESSIONS_BEFORE_LONG_BREAK_MAX}
+          value={
+            Number.isFinite(sessionsBeforeLongBreak)
+              ? sessionsBeforeLongBreak
+              : ""
+          }
+          aria-describedby={`preset-cycle-help-${preset.id}`}
+          aria-invalid={cycleValid ? undefined : true}
+          onChange={(event) =>
+            setSessionsBeforeLongBreak(event.target.valueAsNumber)
+          }
+          className="sm:max-w-40"
+        />
+        <span
+          id={`preset-cycle-help-${preset.id}`}
+          className="text-xs text-muted-foreground"
+        >
+          How many focuses earn the long break. {SESSIONS_BEFORE_LONG_BREAK_MIN}{" "}
+          to {SESSIONS_BEFORE_LONG_BREAK_MAX}, four in the classic pattern.
+        </span>
       </div>
       <div className="flex items-center gap-2">
         <Checkbox

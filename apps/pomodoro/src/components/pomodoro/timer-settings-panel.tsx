@@ -14,8 +14,19 @@ import {
 import { useProductAuth } from "@/lib/pomodoro/auth-state"
 import { enableCompletionAlerts } from "@/lib/pomodoro/completion-alerts"
 import { browserTimezone } from "@/lib/pomodoro/timer"
-import { validPresetMinutes } from "@/lib/pomodoro/timer-presets"
-import { applyDurations, usePomodoro } from "@/lib/pomodoro/use-pomodoro"
+import {
+  normalizeSessionsBeforeLongBreak,
+  SESSIONS_BEFORE_LONG_BREAK_DEFAULT,
+  SESSIONS_BEFORE_LONG_BREAK_MAX,
+  SESSIONS_BEFORE_LONG_BREAK_MIN,
+  validPresetMinutes,
+  validSessionsBeforeLongBreak,
+} from "@/lib/pomodoro/timer-presets"
+import {
+  applyDurations,
+  reloadPomodoroData,
+  usePomodoro,
+} from "@/lib/pomodoro/use-pomodoro"
 import { useSoundPlayer } from "@/lib/pomodoro/use-sound-player"
 
 const DEFAULT_ALERT_HELP =
@@ -36,6 +47,7 @@ export default function TimerSettingsPanel() {
   const [short, setShort] = React.useState(5)
   const [long, setLong] = React.useState(15)
   const [dailyGoal, setDailyGoal] = React.useState(4)
+  const [cycle, setCycle] = React.useState(SESSIONS_BEFORE_LONG_BREAK_DEFAULT)
   const [autoStart, setAutoStart] = React.useState(false)
   const [loaded, setLoaded] = React.useState(false)
   const [notice, setNotice] = React.useState("")
@@ -51,6 +63,7 @@ export default function TimerSettingsPanel() {
       setShort(pomodoro.durations.short)
       setLong(pomodoro.durations.long)
       setDailyGoal(pomodoro.dailyGoalSessions)
+      setCycle(pomodoro.sessionsBeforeLongBreak)
       setAutoStart(pomodoro.autoStart)
       setLoaded(true)
       return
@@ -63,6 +76,11 @@ export default function TimerSettingsPanel() {
         setShort(data.preferences.shortBreakMinutes)
         setLong(data.preferences.longBreakMinutes)
         setDailyGoal(data.preferences.dailyGoalSessions)
+        setCycle(
+          normalizeSessionsBeforeLongBreak(
+            data.preferences.sessionsBeforeLongBreak
+          )
+        )
         setAutoStart(data.preferences.autoStart)
         setLoaded(true)
       })
@@ -73,23 +91,31 @@ export default function TimerSettingsPanel() {
     return () => {
       cancelled = true
     }
-  }, [known, authenticated, loaded, pomodoro.durations, pomodoro.dailyGoalSessions, pomodoro.autoStart])
+  }, [
+    known,
+    authenticated,
+    loaded,
+    pomodoro.durations,
+    pomodoro.dailyGoalSessions,
+    pomodoro.sessionsBeforeLongBreak,
+    pomodoro.autoStart,
+  ])
 
   const valid =
     [focus, short, long].every(validPresetMinutes) &&
     Number.isInteger(dailyGoal) &&
     dailyGoal >= 1 &&
-    dailyGoal <= 20
+    dailyGoal <= 20 &&
+    validSessionsBeforeLongBreak(cycle)
 
   const save = async () => {
     setNotice("")
     setError("")
     if (!authenticated) {
-      const applied = applyDurations(
-        { focus, short, long },
-        autoStart,
-        dailyGoal
-      )
+      const applied = applyDurations({ focus, short, long }, autoStart, {
+        dailyGoalSessions: dailyGoal,
+        sessionsBeforeLongBreak: cycle,
+      })
       if (applied) setNotice("Focus rhythm saved locally.")
       else setError("Reset or finish the timer first.")
       return
@@ -101,8 +127,13 @@ export default function TimerSettingsPanel() {
         shortBreakMinutes: short,
         longBreakMinutes: long,
         dailyGoalSessions: dailyGoal,
+        sessionsBeforeLongBreak: cycle,
         autoStart,
       })
+      // The engine holds the rhythm the timer counts on, so the saved row is
+      // read straight back. Without it the cycle would keep the old number
+      // until some other screen mounted and reloaded it.
+      void reloadPomodoroData()
       setNotice("Focus rhythm saved.")
     } catch {
       setError("The focus rhythm could not be saved.")
@@ -124,6 +155,7 @@ export default function TimerSettingsPanel() {
                 focusMinutes: focus,
                 shortBreakMinutes: short,
                 longBreakMinutes: long,
+                sessionsBeforeLongBreak: cycle,
                 autoStart,
               }}
               dailyGoalSessions={dailyGoal}
@@ -131,7 +163,11 @@ export default function TimerSettingsPanel() {
                 setFocus(values.focusMinutes)
                 setShort(values.shortBreakMinutes)
                 setLong(values.longBreakMinutes)
+                setCycle(values.sessionsBeforeLongBreak)
                 setAutoStart(values.autoStart)
+                // The preset wrote the preferences row itself, so the engine
+                // reads it back rather than being told twice.
+                void reloadPomodoroData()
               }}
               onApplyLocally={(values) => {
                 const applied = applyDurations(
@@ -141,12 +177,16 @@ export default function TimerSettingsPanel() {
                     long: values.longBreakMinutes,
                   },
                   values.autoStart,
-                  dailyGoal
+                  {
+                    dailyGoalSessions: dailyGoal,
+                    sessionsBeforeLongBreak: values.sessionsBeforeLongBreak,
+                  }
                 )
                 if (applied) {
                   setFocus(values.focusMinutes)
                   setShort(values.shortBreakMinutes)
                   setLong(values.longBreakMinutes)
+                  setCycle(values.sessionsBeforeLongBreak)
                   setAutoStart(values.autoStart)
                 }
                 return applied
@@ -195,6 +235,29 @@ export default function TimerSettingsPanel() {
             <span id="timer-goal-help" className="text-xs text-muted-foreground">
               Only completed focus sessions count toward your daily goal and
               streak.
+            </span>
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="timer-long-break-cycle">
+              Sessions before long break
+            </Label>
+            <Input
+              id="timer-long-break-cycle"
+              type="number"
+              min={SESSIONS_BEFORE_LONG_BREAK_MIN}
+              max={SESSIONS_BEFORE_LONG_BREAK_MAX}
+              value={Number.isFinite(cycle) ? cycle : ""}
+              aria-describedby="timer-long-break-cycle-help"
+              aria-invalid={validSessionsBeforeLongBreak(cycle) ? undefined : true}
+              onChange={(event) => setCycle(event.target.valueAsNumber)}
+              className="sm:max-w-40"
+            />
+            <span
+              id="timer-long-break-cycle-help"
+              className="text-xs text-muted-foreground"
+            >
+              How many focuses earn the long break. Four is the classic
+              pattern; a 50-minute rhythm usually wants two.
             </span>
           </div>
           <div className="flex items-center gap-2">

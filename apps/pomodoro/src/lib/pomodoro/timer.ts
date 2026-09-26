@@ -22,6 +22,27 @@ export const MODE_LABELS: Record<TimerMode, string> = {
   long: "Long break",
 }
 
+/**
+ * Where you are in the long-break cycle, in the words the room cards already
+ * use. While focusing it names the focus you are in; on a break it names the
+ * focus that comes next, because the one you were in is over. The number of
+ * focuses comes from the saved rhythm, so a Deep Work cycle counts to two.
+ */
+export function cycleSessionLabel(
+  mode: TimerMode,
+  cycleFocusSessions: number,
+  sessionsBeforeLongBreak: number
+) {
+  const total = Math.max(1, sessionsBeforeLongBreak)
+  const done = Math.min(Math.max(0, cycleFocusSessions), total)
+  const tail = `of ${total} before the long break`
+  if (mode === "focus") return `Session ${Math.min(done + 1, total)} ${tail}`
+  // A finished long break has already reset the count, so "next" is the first
+  // focus of the new cycle; a short break points at the one it earned.
+  const next = done >= total ? 1 : done + 1
+  return `Next: session ${next} ${tail}`
+}
+
 export const DEFAULT_DURATIONS: Record<TimerMode, number> = {
   focus: 25,
   short: 5,

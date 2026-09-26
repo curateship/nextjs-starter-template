@@ -15,6 +15,7 @@ export type TimerPresetInput = {
   focusMinutes: number
   shortBreakMinutes: number
   longBreakMinutes: number
+  sessionsBeforeLongBreak: number
   autoStart: boolean
 }
 

@@ -13,9 +13,16 @@ orange selection bar).
 
 - **Three modes** — Focus, Short break and Long break — as segmented tabs.
   Lengths come from the saved preferences (defaults 25/5/15 minutes).
-- **The cycle:** every finished focus leads to a short break; the 4th finished
-  focus leads to the long break; every break leads back to focus. The rule is
+- **The cycle:** every finished focus leads to a short break, the focus that
+  reaches the rhythm's number leads to the long break, and every break leads
+  back to focus. The number is part of the saved rhythm, 4 in the classic
+  pattern and 2 to 8 in general; see
+  [Sessions before the long break](sessions-before-long-break.md). The rule is
   `advanceCycle` in `src/lib/pomodoro/use-pomodoro.ts`, unit-tested next to it.
+- **A mono line under the goal bar says where the cycle is:** "Session 2 of 4
+  before the long break" while focusing, and "Next: session 3 of 4 before the
+  long break" on a break, because the focus you were in is over
+  (`cycleSessionLabel` in `src/lib/pomodoro/timer.ts`).
 - **Auto-start** (the switch under the goal bar) moves to the next phase on
   its own and opens the next server session itself.
 - **The countdown runs in the browser** on a 250ms tick against a wall-clock

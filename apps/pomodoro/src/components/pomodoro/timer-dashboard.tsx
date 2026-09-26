@@ -19,14 +19,21 @@ import {
 } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { taskProgressLabel } from "@/lib/pomodoro/tasks"
-import { MODE_LABELS, type TimerMode } from "@/lib/pomodoro/timer"
+import {
+  cycleSessionLabel,
+  MODE_LABELS,
+  type TimerMode,
+} from "@/lib/pomodoro/timer"
 import { usePomodoro } from "@/lib/pomodoro/use-pomodoro"
 
-// The old app's own words, kept letter for letter.
-const modeHints: Record<TimerMode, string> = {
-  focus: "Silence the noise. One task, nothing else, until the ring closes.",
-  short: "Step away from the screen. Stretch, breathe, refill the glass.",
-  long: "You earned it. A proper pause before the next block of four.",
+// The old app's own words, kept letter for letter. The long break's line said
+// "the next block of four", which is now whatever the rhythm says.
+function modeHint(mode: TimerMode, sessionsBeforeLongBreak: number) {
+  if (mode === "focus")
+    return "Silence the noise. One task, nothing else, until the ring closes."
+  if (mode === "short")
+    return "Step away from the screen. Stretch, breathe, refill the glass."
+  return `You earned it. A proper pause before the next block of ${sessionsBeforeLongBreak}.`
 }
 
 const circumference = 2 * Math.PI * 132
@@ -192,7 +199,7 @@ export function TimerDashboard() {
         <SessionNotePrompt pomodoro={pomodoro} />
 
         <p className="max-w-[380px] text-center text-[15.5px] leading-[1.55] text-[rgba(var(--p-text-rgb),0.65)]">
-          {modeHints[pomodoro.timer.mode]}
+          {modeHint(pomodoro.timer.mode, pomodoro.sessionsBeforeLongBreak)}
         </p>
         {pomodoro.syncError ? (
           <p role="alert" className="text-center text-sm text-[var(--p-accent-2)]">
@@ -225,6 +232,15 @@ export function TimerDashboard() {
               completed today{goalReached ? " · Goal reached" : ""}
             </span>
           </div>
+          {/* Where this rhythm's long break is. Same mono treatment as the
+              goal and streak lines, and the same words the room cards use. */}
+          <span className="font-mono text-xs text-muted-foreground">
+            {cycleSessionLabel(
+              pomodoro.timer.mode,
+              pomodoro.cycleFocusSessions,
+              pomodoro.sessionsBeforeLongBreak
+            )}
+          </span>
           <span className="font-mono text-xs text-muted-foreground">
             {pomodoro.currentStreak} day streak · best {pomodoro.bestStreak}
           </span>

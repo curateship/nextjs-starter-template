@@ -9,6 +9,7 @@ import {
   normalizeTaskPriority,
 } from "@/lib/pomodoro/tasks"
 import { browserTimezone } from "@/lib/pomodoro/timer"
+import { normalizeSessionsBeforeLongBreak } from "@/lib/pomodoro/timer-presets"
 
 /**
  * The first signed-in visit after working as a guest copies the guest's
@@ -22,6 +23,7 @@ export async function maybeImportGuestState() {
     tasks?: unknown
     durations?: { focus?: unknown; short?: unknown; long?: unknown }
     dailyGoalSessions?: unknown
+    sessionsBeforeLongBreak?: unknown
     autoStart?: unknown
   }>(GUEST_STATE_KEY)
   if (!saved) return false
@@ -66,6 +68,9 @@ export async function maybeImportGuestState() {
         saved.dailyGoalSessions <= 20
           ? saved.dailyGoalSessions
           : 4,
+      sessionsBeforeLongBreak: normalizeSessionsBeforeLongBreak(
+        saved.sessionsBeforeLongBreak
+      ),
       autoStart: saved.autoStart === true,
       timezone: browserTimezone(),
     })

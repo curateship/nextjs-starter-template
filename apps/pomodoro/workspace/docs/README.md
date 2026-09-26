@@ -23,6 +23,9 @@ cover this one.
   archiving does, and the per-project split in History.
 - [Session notes](session-notes.md) — the one line you jot after a focus
   finishes, why it never interrupts the break, and where it shows up.
+- [Sessions before the long break](sessions-before-long-break.md) — how many
+  focuses earn the long break, why it belongs to each preset, and what
+  changing it does to the count.
 - [Timer settings and rhythm presets](timer-settings.md) — the Settings →
   Timer tab: durations, daily goal, auto-start, and built-in plus custom
   rhythms.

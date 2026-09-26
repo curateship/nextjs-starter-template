@@ -44,6 +44,10 @@ import {
   type TaskPriority,
 } from "@/lib/pomodoro/tasks"
 import {
+  normalizeSessionsBeforeLongBreak,
+  SESSIONS_BEFORE_LONG_BREAK_DEFAULT,
+} from "@/lib/pomodoro/timer-presets"
+import {
   browserTimezone,
   createTimer,
   DEFAULT_DURATIONS,
@@ -94,6 +98,8 @@ type PomodoroState = {
   cycleFocusSessions: number
   todayFocusSessions: number
   dailyGoalSessions: number
+  /** How many focuses this rhythm takes before the long break. */
+  sessionsBeforeLongBreak: number
   currentStreak: number
   bestStreak: number
   durations: Record<TimerMode, number>
@@ -119,6 +125,7 @@ const initialState: PomodoroState = {
   cycleFocusSessions: 0,
   todayFocusSessions: 0,
   dailyGoalSessions: 4,
+  sessionsBeforeLongBreak: SESSIONS_BEFORE_LONG_BREAK_DEFAULT,
   currentStreak: 0,
   bestStreak: 0,
   durations: DEFAULT_DURATIONS,
@@ -170,17 +177,27 @@ export function timerIsIdle(current: PomodoroState = state) {
   )
 }
 
-/** Which mode follows a finished one, per the old app's 4-focus cycle. */
-export function advanceCycle(mode: TimerMode, cycleFocusSessions: number) {
+/**
+ * Which mode follows a finished one. The rhythm says how many focuses earn
+ * the long break: four in the classic pattern, two in Deep Work. A count that
+ * has somehow overshot its rhythm (the number was lowered mid-cycle) still
+ * lands on the long break rather than counting past it for ever.
+ */
+export function advanceCycle(
+  mode: TimerMode,
+  cycleFocusSessions: number,
+  sessionsBeforeLongBreak = SESSIONS_BEFORE_LONG_BREAK_DEFAULT
+) {
+  const target = normalizeSessionsBeforeLongBreak(sessionsBeforeLongBreak)
   const completedFocusSessions =
     mode === "focus"
-      ? Math.min(4, cycleFocusSessions + 1)
+      ? Math.min(target, cycleFocusSessions + 1)
       : mode === "long"
         ? 0
         : cycleFocusSessions
   const nextMode: TimerMode =
     mode === "focus"
-      ? completedFocusSessions === 4
+      ? completedFocusSessions >= target
         ? "long"
         : "short"
       : "focus"
@@ -221,6 +238,7 @@ type GuestSnapshot = {
   cycleFocusSessions: number
   todayFocusSessions: number
   dailyGoalSessions: number
+  sessionsBeforeLongBreak: number
   dailyProgressDate: string
   durations: Record<TimerMode, number>
   selectedTaskId: string | null
@@ -246,6 +264,7 @@ function persistGuest() {
     cycleFocusSessions: state.cycleFocusSessions,
     todayFocusSessions: state.todayFocusSessions,
     dailyGoalSessions: state.dailyGoalSessions,
+    sessionsBeforeLongBreak: state.sessionsBeforeLongBreak,
     dailyProgressDate: guestProgressDate || browserLocalDate(),
     durations: state.durations,
     selectedTaskId: state.selectedTaskId,
@@ -295,6 +314,9 @@ function hydrateGuest() {
           }))
       : []
   )
+  const sessionsBeforeLongBreak = normalizeSessionsBeforeLongBreak(
+    saved?.sessionsBeforeLongBreak
+  )
   const sameDay = saved?.dailyProgressDate === today
   const savedTimer = saved?.timer
   const timer: PomodoroTimer =
@@ -323,7 +345,11 @@ function hydrateGuest() {
     projects: [],
     selectedTaskId: resolveSelectedTaskId(tasks, saved?.selectedTaskId),
     autoStart: saved?.autoStart === true,
-    cycleFocusSessions: storedCount(saved?.cycleFocusSessions, 4),
+    sessionsBeforeLongBreak,
+    cycleFocusSessions: storedCount(
+      saved?.cycleFocusSessions,
+      sessionsBeforeLongBreak
+    ),
     todayFocusSessions: sameDay ? storedCount(saved?.todayFocusSessions) : 0,
     dailyGoalSessions:
       typeof saved?.dailyGoalSessions === "number" &&
@@ -365,6 +391,9 @@ export function reloadPomodoroData() {
         short: data.preferences.shortBreakMinutes,
         long: data.preferences.longBreakMinutes,
       }
+      const sessionsBeforeLongBreak = normalizeSessionsBeforeLongBreak(
+        data.preferences.sessionsBeforeLongBreak
+      )
       const tasks = orderTasksForDisplay(
         data.tasks
           .filter((task) => ["active", "completed"].includes(task.status))
@@ -397,7 +426,12 @@ export function reloadPomodoroData() {
         archive: data.archivedTasks,
         projects: data.projects,
         selectedTaskId: resolveSelectedTaskId(tasks, state.selectedTaskId),
-        cycleFocusSessions: data.summary.todayCompletedSessions % 4,
+        sessionsBeforeLongBreak,
+        // Where today's finished focuses leave the cycle. Read against the
+        // saved rhythm, so an account on two focuses is on the long break
+        // after its second, not its fourth.
+        cycleFocusSessions:
+          data.summary.todayCompletedSessions % sessionsBeforeLongBreak,
         todayFocusSessions: data.summary.todayCompletedSessions,
         dailyGoalSessions: data.summary.dailyGoalSessions,
         currentStreak: data.summary.currentStreak,
@@ -500,7 +534,8 @@ function handleCompletion() {
 
   const { nextMode, completedFocusSessions } = advanceCycle(
     current.timer.mode,
-    current.cycleFocusSessions
+    current.cycleFocusSessions,
+    current.sessionsBeforeLongBreak
   )
   const ready = createTimer(nextMode, current.durations[nextMode])
   const timer = current.autoStart ? startTimer(ready) : ready
@@ -599,6 +634,7 @@ export function setAutoStart(autoStart: boolean) {
     shortBreakMinutes: state.durations.short,
     longBreakMinutes: state.durations.long,
     dailyGoalSessions: state.dailyGoalSessions,
+    sessionsBeforeLongBreak: state.sessionsBeforeLongBreak,
     autoStart,
   }).catch(() => undefined)
   setState({ autoStart })
@@ -612,15 +648,35 @@ export function setAutoStart(autoStart: boolean) {
 export function applyDurations(
   durations: Record<TimerMode, number>,
   autoStart: boolean,
-  dailyGoalSessions = state.dailyGoalSessions
+  rest: {
+    dailyGoalSessions?: number
+    sessionsBeforeLongBreak?: number
+  } = {}
 ) {
+  const dailyGoalSessions = rest.dailyGoalSessions ?? state.dailyGoalSessions
+  // Normalized here rather than trusted: a zero would make the cycle sum below
+  // divide by zero, and the number reaching this function comes from a form,
+  // from a stored preset, or from a server row.
+  const sessionsBeforeLongBreak = normalizeSessionsBeforeLongBreak(
+    rest.sessionsBeforeLongBreak ?? state.sessionsBeforeLongBreak
+  )
   if (!timerIsIdle()) return false
+  // A count from the old rhythm can be past the new rhythm's own target, so a
+  // changed number works the position out the way every load does: today's
+  // finished focuses against the new number. Anything else would disagree with
+  // itself the next time the screen reloaded.
+  const cycleFocusSessions =
+    sessionsBeforeLongBreak === state.sessionsBeforeLongBreak
+      ? state.cycleFocusSessions
+      : state.todayFocusSessions % sessionsBeforeLongBreak
   if (!isAuthed()) {
     const timer = createTimer(state.timer.mode, durations[state.timer.mode])
     setState({
       durations,
       autoStart,
       dailyGoalSessions,
+      sessionsBeforeLongBreak,
+      cycleFocusSessions,
       timer,
       remainingSeconds: timer.remainingSeconds,
       serverSessionId: null,
@@ -633,6 +689,7 @@ export function applyDurations(
     shortBreakMinutes: durations.short,
     longBreakMinutes: durations.long,
     dailyGoalSessions,
+    sessionsBeforeLongBreak,
     autoStart,
   }).catch(() => setSyncError("The timer settings could not be saved."))
   const timer = createTimer(state.timer.mode, durations[state.timer.mode])
@@ -640,6 +697,8 @@ export function applyDurations(
     durations,
     autoStart,
     dailyGoalSessions,
+    sessionsBeforeLongBreak,
+    cycleFocusSessions,
     timer,
     remainingSeconds: timer.remainingSeconds,
     serverSessionId: null,

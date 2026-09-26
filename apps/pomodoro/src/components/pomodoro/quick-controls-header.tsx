@@ -143,6 +143,7 @@ function TimerQuickControl() {
       focusMinutes: pomodoro.durations.focus,
       shortBreakMinutes: pomodoro.durations.short,
       longBreakMinutes: pomodoro.durations.long,
+      sessionsBeforeLongBreak: pomodoro.sessionsBeforeLongBreak,
       autoStart: pomodoro.autoStart,
     },
     presets
@@ -269,7 +270,10 @@ function TimerQuickControl() {
                       short: preset.shortBreakMinutes,
                       long: preset.longBreakMinutes,
                     },
-                    preset.autoStart
+                    preset.autoStart,
+                    {
+                      sessionsBeforeLongBreak: preset.sessionsBeforeLongBreak,
+                    }
                   )
                 }
               >
