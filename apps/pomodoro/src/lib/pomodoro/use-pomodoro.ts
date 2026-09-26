@@ -1,6 +1,7 @@
 import * as React from "react"
 import { toast } from "sonner"
 
+import { showErrorToast } from "@/lib/toast/error-toast"
 import { findAchievement } from "@/lib/pomodoro/achievements"
 import {
   abandonTask,
@@ -112,6 +113,26 @@ type PomodoroState = {
    */
   noteSession: { id: string; note: string } | null
   syncError: string
+  /**
+   * True while the account's tasks, preferences and summary are being
+   * fetched, so a screen shows a loading line instead of claiming the list is
+   * empty. Starts true because the first load is already owed before the
+   * signed-in check has answered. A guest is never loading: the browser
+   * snapshot is read synchronously.
+   */
+  loading: boolean
+  /**
+   * True when the last load failed. An empty list then means "we do not know"
+   * rather than "you have nothing", so the screens hold the empty state back
+   * and let the warning line do the talking.
+   */
+  loadFailed: boolean
+  /**
+   * The tasks with a tick or a removal still in flight. The row's own
+   * checkbox and X do nothing while its id is here, so one press sends one
+   * request.
+   */
+  pendingTaskIds: string[]
 }
 
 const initialState: PomodoroState = {
@@ -132,6 +153,9 @@ const initialState: PomodoroState = {
   serverSessionId: null,
   noteSession: null,
   syncError: "",
+  loading: true,
+  loadFailed: false,
+  pendingTaskIds: [],
 }
 
 let state: PomodoroState = initialState
@@ -166,6 +190,26 @@ function announceRunning(running: boolean) {
 
 function setSyncError(message: string) {
   setState({ syncError: message })
+}
+
+/**
+ * Takes the warning line down. Called from every request that settles
+ * successfully, because a warning left up after the problem has gone trains
+ * people to ignore warnings. Checked first so a success while nothing is
+ * wrong costs no render.
+ */
+function clearSyncError() {
+  if (state.syncError) setState({ syncError: "" })
+}
+
+function markTaskPending(taskId: string) {
+  setState({ pendingTaskIds: [...state.pendingTaskIds, taskId] })
+}
+
+function releaseTaskPending(taskId: string) {
+  setState({
+    pendingTaskIds: state.pendingTaskIds.filter((id) => id !== taskId),
+  })
 }
 
 /** "Idle" means fully stopped: not running, no live session, not paused midway. */
@@ -222,6 +266,7 @@ function beginServerSession(
     timezone: browserTimezone(),
   })
     .then((session) => {
+      clearSyncError()
       if (session) setState({ serverSessionId: session.id })
     })
     .catch(() => setSyncError("Your focus session could not be synced."))
@@ -360,6 +405,8 @@ function hydrateGuest() {
         : 4,
     durations,
     serverSessionId: null,
+    loading: false,
+    loadFailed: false,
   })
   announceRunning(timer.running)
   // A guest's "today" resets at the browser's own midnight.
@@ -384,6 +431,7 @@ export function reloadPomodoroData() {
     return Promise.resolve()
   }
   hydrating = true
+  if (!state.loading) setState({ loading: true })
   return loadProductivity(browserTimezone())
     .then((data) => {
       const durations = {
@@ -436,11 +484,19 @@ export function reloadPomodoroData() {
         dailyGoalSessions: data.summary.dailyGoalSessions,
         currentStreak: data.summary.currentStreak,
         bestStreak: data.summary.bestStreak,
+        syncError: "",
+        loadFailed: false,
       })
     })
-    .catch(() => setSyncError("Your tasks and settings could not be loaded."))
+    .catch(() => {
+      setState({
+        syncError: "Your tasks and settings could not be loaded.",
+        loadFailed: true,
+      })
+    })
     .finally(() => {
       hydrating = false
+      setState({ loading: false })
     })
 }
 
@@ -526,6 +582,7 @@ function handleCompletion() {
           dailyGoalSessions: result.summary.dailyGoalSessions,
           currentStreak: result.summary.currentStreak,
           bestStreak: result.summary.bestStreak,
+          syncError: "",
         })
       })
       .catch(() =>
@@ -636,7 +693,7 @@ export function setAutoStart(autoStart: boolean) {
     dailyGoalSessions: state.dailyGoalSessions,
     sessionsBeforeLongBreak: state.sessionsBeforeLongBreak,
     autoStart,
-  }).catch(() => undefined)
+  }).then(clearSyncError, () => undefined)
   setState({ autoStart })
 }
 
@@ -691,7 +748,9 @@ export function applyDurations(
     dailyGoalSessions,
     sessionsBeforeLongBreak,
     autoStart,
-  }).catch(() => setSyncError("The timer settings could not be saved."))
+  }).then(clearSyncError, () =>
+    setSyncError("The timer settings could not be saved.")
+  )
   const timer = createTimer(state.timer.mode, durations[state.timer.mode])
   setState({
     durations,
@@ -740,6 +799,7 @@ export function addTask(title: string) {
           state.selectedTaskId === temporaryId
             ? created.id
             : state.selectedTaskId,
+        syncError: "",
       })
     )
     .catch(() => {
@@ -766,25 +826,46 @@ export function toggleTask(taskId: string) {
     persistGuest()
     return
   }
+  // The row moves on the press, not on the answer, so three ticks in a row
+  // land as fast as they are pressed. The answer is still the truth: the
+  // status and the done count it carries are written on top when it arrives,
+  // so a tick the server disagrees with gets corrected.
+  if (state.pendingTaskIds.includes(taskId)) return
+  const target = state.tasks.find((task) => task.id === taskId)
+  if (!target) return
+  const wasCompleted = target.completed
+  applyTaskChange(taskId, { completed: !wasCompleted })
+  markTaskPending(taskId)
   void togglePersistentTask(taskId, browserTimezone())
-    .then((updated) => {
-      const tasks = orderTasksForDisplay(
-        state.tasks.map((task) =>
-          task.id === taskId
-            ? {
-                ...task,
-                completed: updated.status === "completed",
-                pomodoros: updated.pomodoroCount,
-              }
-            : task
-        )
-      )
-      setState({
-        tasks,
-        selectedTaskId: resolveSelectedTaskId(tasks, state.selectedTaskId),
-      })
-    })
-    .catch(() => setSyncError("The task could not be updated."))
+    .then(
+      (updated) => {
+        applyTaskChange(taskId, {
+          completed: updated.status === "completed",
+          pomodoros: updated.pomodoroCount,
+        })
+        clearSyncError()
+      },
+      () => {
+        // Only this one row goes back, not the whole list: another row's
+        // answer may have landed in the meantime.
+        applyTaskChange(taskId, { completed: wasCompleted })
+        showErrorToast("The task could not be updated.")
+      }
+    )
+    .finally(() => releaseTaskPending(taskId))
+}
+
+/** One row's fields, re-sorted and with the picked task resolved again. */
+function applyTaskChange(taskId: string, changes: Partial<TaskItem>) {
+  const tasks = orderTasksForDisplay(
+    state.tasks.map((task) =>
+      task.id === taskId ? { ...task, ...changes } : task
+    )
+  )
+  setState({
+    tasks,
+    selectedTaskId: resolveSelectedTaskId(tasks, state.selectedTaskId),
+  })
 }
 
 export function removeTask(taskId: string) {
@@ -797,15 +878,32 @@ export function removeTask(taskId: string) {
     persistGuest()
     return
   }
+  if (state.pendingTaskIds.includes(taskId)) return
+  const removed = state.tasks.find((task) => task.id === taskId)
+  if (!removed) return
+  const wasSelected = state.selectedTaskId === taskId
+  setState({
+    tasks: state.tasks.filter((task) => task.id !== taskId),
+    selectedTaskId: wasSelected ? null : state.selectedTaskId,
+  })
+  markTaskPending(taskId)
   void abandonTask(taskId)
-    .then(() =>
+    .then(clearSyncError, () => {
+      // The row goes back where the ordering rules put it, and it gets its
+      // selection back only if it still held it when it left.
+      const tasks = orderTasksForDisplay([...state.tasks, removed])
       setState({
-        tasks: state.tasks.filter((task) => task.id !== taskId),
-        selectedTaskId:
-          state.selectedTaskId === taskId ? null : state.selectedTaskId,
+        tasks,
+        selectedTaskId: resolveSelectedTaskId(
+          tasks,
+          wasSelected && state.selectedTaskId === null
+            ? taskId
+            : state.selectedTaskId
+        ),
       })
-    )
-    .catch(() => setSyncError("The task could not be removed."))
+      showErrorToast("The task could not be removed.")
+    })
+    .finally(() => releaseTaskPending(taskId))
 }
 
 export function updateTaskDetails(
@@ -853,7 +951,10 @@ export function updateTaskDetails(
   // for the new title to be there. The answer says whether it landed, so a
   // failed save does not go on to write a rule from a title nobody saved.
   return updateTask({ taskId, timezone: browserTimezone(), ...applied }).then(
-    () => true,
+    () => {
+      clearSyncError()
+      return true
+    },
     () => {
       setState({ tasks: previousTasks })
       setSyncError("The task could not be updated.")
@@ -880,7 +981,7 @@ export function setTaskRepeat(taskId: string, weekdays: number | null) {
     taskId,
     timezone: browserTimezone(),
     weekdays,
-  }).catch(() => {
+  }).then(clearSyncError, () => {
     setState({ tasks: previousTasks })
     setSyncError("The repeat could not be saved.")
   })
@@ -904,7 +1005,10 @@ export function createProject(name: string) {
   if (!cleanName || !isAuthed()) return Promise.resolve()
   return createProjectRequest(cleanName)
     .then((created) =>
-      setState({ projects: orderProjects([...state.projects, created]) })
+      setState({
+        projects: orderProjects([...state.projects, created]),
+        syncError: "",
+      })
     )
     .catch((error: unknown) =>
       setSyncError(
@@ -931,6 +1035,7 @@ export function renameProject(projectId: string, name: string) {
             ? { ...task, projectName: updated.name }
             : task
         ),
+        syncError: "",
       })
     )
     .catch((error: unknown) =>
@@ -956,6 +1061,7 @@ export function setProjectArchived(projectId: string, archived: boolean) {
             project.id === projectId ? updated : project
           )
         ),
+        syncError: "",
       })
     )
     .catch((error: unknown) =>
@@ -976,13 +1082,16 @@ export function reorderActiveTasks(orderedTaskIds: string[]) {
     persistGuest()
     return
   }
-  void reorderTasks(orderedTaskIds, browserTimezone()).catch(() => {
-    // The server refused the order (someone else changed the list), so
-    // roll back and reload the truth — the TASK_ORDER_MISMATCH contract.
-    setState({ tasks: previousTasks })
-    setSyncError("The new task order could not be saved.")
-    void reloadPomodoroData()
-  })
+  void reorderTasks(orderedTaskIds, browserTimezone()).then(
+    clearSyncError,
+    () => {
+      // The server refused the order (someone else changed the list), so
+      // roll back and reload the truth — the TASK_ORDER_MISMATCH contract.
+      setState({ tasks: previousTasks })
+      setSyncError("The new task order could not be saved.")
+      void reloadPomodoroData()
+    }
+  )
 }
 
 /**
@@ -997,7 +1106,10 @@ export function saveSessionNote(note: string) {
   const previous = target.note
   setState({ noteSession: { ...target, note: line } })
   return saveFocusSessionNote(target.id, line).then(
-    () => true,
+    () => {
+      clearSyncError()
+      return true
+    },
     () => {
       // Only roll back when the prompt is still showing the same session; a
       // slow save must not overwrite the next focus's prompt.
@@ -1064,6 +1176,8 @@ export function usePomodoro() {
     selectedTask,
     canSelectTask: timerIdle,
     timerIdle,
+    /** True while a tick or a removal on this task is still in flight. */
+    taskBusy: (taskId: string) => snapshot.pendingTaskIds.includes(taskId),
     selectMode,
     toggleTimer,
     reset: resetPomodoroTimer,

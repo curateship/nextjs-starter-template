@@ -4,6 +4,7 @@ import { copyFile } from "node:fs/promises"
 
 import { build } from "esbuild"
 import { workerPageRegistry } from "./worker-page-registry.mjs"
+import { workerDropCss } from "./worker-drop-css.mjs"
 
 /**
  * Builds the background worker and its health check into files Node can run.
@@ -27,7 +28,8 @@ import { workerPageRegistry } from "./worker-page-registry.mjs"
  * calls into it.
  *
  * The one alias below is a package with no `exports` map: bundlers guess the
- * missing extension and Node does not.
+ * missing extension and Node does not. Stylesheets are dropped for a related
+ * reason: Node cannot open one at all. See `worker-drop-css.mjs`.
  *
  * Trade adds one entry to the shell's two: the trading engine
  * (`index.ts` → `trade.mjs`), its own program with its own image
@@ -48,7 +50,7 @@ const buildStamp = {
 }
 
 await build({
-  plugins: [workerPageRegistry(root)],
+  plugins: [workerPageRegistry(root), workerDropCss()],
   entryPoints: {
     worker: path.join(root, "worker/src/worker.ts"),
     health: path.join(root, "worker/src/health.ts"),

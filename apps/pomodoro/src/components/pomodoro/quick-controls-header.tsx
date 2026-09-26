@@ -25,6 +25,7 @@ import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/utils"
 import { loadLeaderboard } from "@/lib/api/pomodoro/leaderboard"
 import { listTimerPresets } from "@/lib/api/pomodoro/timer-presets"
+import { useDiscardFocusConfirm } from "@/components/pomodoro/discard-focus-confirm"
 import { InitialsAvatar } from "@/components/pomodoro/initials-avatar"
 import { useProductAuth } from "@/lib/pomodoro/auth-state"
 import {
@@ -110,6 +111,7 @@ export default function QuickControlsHeader() {
 
 function TimerQuickControl() {
   const pomodoro = usePomodoro()
+  const { requestReset, discardDialog } = useDiscardFocusConfirm(pomodoro)
   const { authenticated } = useProductAuth()
   const [presets, setPresets] = React.useState<CustomTimerPreset[]>([])
   const [open, setOpen] = React.useState(false)
@@ -196,7 +198,7 @@ function TimerQuickControl() {
             size="sm"
             variant="outline"
             className="rounded-full"
-            onClick={pomodoro.reset}
+            onClick={requestReset}
             aria-label="Reset timer"
           >
             <RotateCcwIcon aria-hidden="true" />
@@ -302,6 +304,9 @@ function TimerQuickControl() {
           </p>
         ) : null}
       </PopoverContent>
+      {/* Outside PopoverContent on purpose: the popover unmounts its contents
+          when it closes, and opening the dialog moves focus out of it. */}
+      {discardDialog}
     </Popover>
   )
 }

@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { Input } from "@/components/ui/input"
+import { LoadingRow } from "@/components/ui/loading-row"
 import {
   Select,
   SelectContent,
@@ -125,7 +126,12 @@ export function TodayTaskList({ pomodoro }: { pomodoro: PomodoroApi }) {
 
   return (
     <div className="flex flex-col gap-2">
-      {!activeTasks.length ? (
+      {/* A loading list and an empty list mean opposite things, so the card
+          never claims you have nothing while it is still fetching. */}
+      {pomodoro.loading && !pomodoro.tasks.length ? (
+        <LoadingRow label="Loading your tasks…" className="py-4" />
+      ) : null}
+      {!pomodoro.loading && !pomodoro.loadFailed && !activeTasks.length ? (
         <p className="py-2 text-sm text-muted-foreground">
           No active tasks. Add one below to choose your next focus.
         </p>
@@ -179,6 +185,7 @@ export function TodayTaskList({ pomodoro }: { pomodoro: PomodoroApi }) {
         >
           <Checkbox
             checked
+            disabled={pomodoro.taskBusy(task.id)}
             onCheckedChange={() => pomodoro.toggleTask(task.id)}
             aria-label={`Reopen ${task.title}`}
           />
@@ -191,6 +198,7 @@ export function TodayTaskList({ pomodoro }: { pomodoro: PomodoroApi }) {
           <Button
             variant="ghost"
             size="icon-sm"
+            disabled={pomodoro.taskBusy(task.id)}
             onClick={() => pomodoro.removeTask(task.id)}
             aria-label={`Remove ${task.title}`}
           >
@@ -223,6 +231,7 @@ function SortableTaskRow({
     isDragging,
   } = useSortable({ id: task.id, disabled: editing })
   const selected = pomodoro.selectedTaskId === task.id
+  const busy = pomodoro.taskBusy(task.id)
 
   return (
     <div
@@ -264,7 +273,8 @@ function SortableTaskRow({
             <GripVerticalIcon className="size-4" aria-hidden="true" />
           </button>
           <Checkbox
-            checked={false}
+            checked={task.completed}
+            disabled={busy}
             onCheckedChange={() => pomodoro.toggleTask(task.id)}
             aria-label={`Complete ${task.title}`}
           />
@@ -320,6 +330,7 @@ function SortableTaskRow({
           <Button
             variant="ghost"
             size="icon-sm"
+            disabled={busy}
             onClick={() => pomodoro.removeTask(task.id)}
             aria-label={`Remove ${task.title}`}
           >

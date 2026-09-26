@@ -4,7 +4,9 @@ import { PlusIcon } from "lucide-react"
 import { ProjectsCard } from "@/components/pomodoro/projects-card"
 import { TodayTaskList } from "@/components/pomodoro/today-task-list"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { InlineError } from "@/components/ui/inline-error"
 import { Input } from "@/components/ui/input"
+import { LoadingRow } from "@/components/ui/loading-row"
 import { usePomodoro } from "@/lib/pomodoro/use-pomodoro"
 
 const archiveStatusLabels: Record<string, string> = {
@@ -47,9 +49,7 @@ export function TasksPage() {
           </p>
         </header>
         {pomodoro.syncError ? (
-          <p role="alert" className="text-sm text-destructive">
-            {pomodoro.syncError}
-          </p>
+          <InlineError>{pomodoro.syncError}</InlineError>
         ) : null}
         <Card>
           <CardHeader className="flex-row items-center justify-between">
@@ -93,7 +93,10 @@ export function TasksPage() {
               {archiveItems.length} past tasks
             </span>
           </header>
-          {!archiveItems.length ? (
+          {pomodoro.loading && !archiveItems.length ? (
+            <LoadingRow label="Loading past days…" className="py-4" />
+          ) : null}
+          {!pomodoro.loading && !pomodoro.loadFailed && !archiveItems.length ? (
             <p className="text-sm text-muted-foreground">
               Past days will show up here once a task list rolls over.
             </p>
