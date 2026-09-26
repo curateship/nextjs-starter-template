@@ -439,6 +439,14 @@ describe("PublicPageFrame navigation", () => {
     expect(frame?.style.getPropertyValue("--border")).toBe("#445566")
     expect(frame?.style.getPropertyValue("--shell-gutter")).toBe("24px")
     expect(main?.style.paddingInline).toBe("24px")
+    // One edge for the whole page: the bar above the content and the footer
+    // below it take the same padding main does.
+    expect(
+      (host.querySelector("header") as HTMLElement | null)?.style.paddingInline
+    ).toBe("24px")
+    expect(
+      (host.querySelector("footer") as HTMLElement | null)?.style.paddingInline
+    ).toBe("24px")
     expect(column?.style.gap).toBe("24px")
     expect(column?.className).not.toContain("gap-2")
     expect(host.querySelector("header")?.style.backgroundColor).toBe(
@@ -477,6 +485,12 @@ describe("PublicPageFrame navigation", () => {
     expect(frame?.getAttribute("data-flat")).toBe("true")
     expect(main?.style.paddingInline).toBe("0px")
     expect(main?.className).not.toContain("px-4")
+    expect(
+      (host.querySelector("header") as HTMLElement | null)?.style.paddingInline
+    ).toBe("0px")
+    expect(
+      (host.querySelector("footer") as HTMLElement | null)?.style.paddingInline
+    ).toBe("0px")
 
     await act(async () => root.unmount())
   })
@@ -495,6 +509,8 @@ describe("PublicPageFrame navigation", () => {
 
     expect(main?.className).toContain("px-4")
     expect(main?.style.paddingInline).toBe("")
+    expect(host.querySelector("header")?.className).toContain("px-4")
+    expect(host.querySelector("footer")?.className).toContain("px-4")
     expect(column?.className).toContain("gap-2 md:gap-3")
     expect(column?.style.gap).toBe("")
 

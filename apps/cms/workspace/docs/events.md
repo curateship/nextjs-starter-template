@@ -42,6 +42,9 @@ published event has its own page at `/events/<address>`.
   when the suggestion is approved. Chosen on 24 Sep 2026.
 - **The Events page has a "Suggest an event" button** while the Suggest an
   event page is on. Chosen on 24 Sep 2026. The page starts on for every site.
+- **That button opens a window, not a page.** Tyler asked for this on 25 Sep
+  2026. `/add-event` is still a page of its own for anyone who follows a link
+  to it.
 - **Approving a listing owner's event publishes it.** Chosen on 24 Sep 2026,
   because the owner wrote it for their own place. A public suggestion still
   becomes a draft.
@@ -499,27 +502,74 @@ address, so a shared link opens the same view.
 - **The helpers** for the grid are copied from the old Directory app with their
   tests, in `src/lib/events/calendar-grid.ts`.
 
+### The band at the top of the Events page
+
+The page opens with a band across the whole window, the same one the directory
+browse page has. It holds where the page sits, its name, the time zone line,
+the buttons, and one bar a visitor searches with. Tyler asked for this shape on
+25 Sep 2026 from a picture of the directory's band.
+
+- **What is in it, top to bottom:** the breadcrumbs, then "Events" with "All
+  times are Eastern Time." under it and "Suggest an event" and "Subscribe"
+  opposite, then the search bar.
+- **The bar, left to right:** the words to look for, the category, a town or
+  postcode, "Use my location", Within a distance, and the Search button. The
+  same four questions the directory's bar asks, in the same order, so the two
+  pages are one page to a visitor.
+- **The band is shared, not copied.** `PublicHeroBand` and `PublicHeroBar` in
+  `src/components/shared/public-hero-band.tsx` draw the band, its width, its
+  dots and the bar; the directory's hero and the Events page's both sit inside
+  them. Changing the look changes both.
+- **The buttons are not filters,** so they sit with the title rather than in
+  the bar. The category box has no icon of its own and no line to its left,
+  which Tyler asked for on 25 Sep 2026. "Suggest an event" opens the form in a
+  window over the list and
+  shows while that page is open to the visitor; "Subscribe" shows while the
+  Events page is open to everyone, as before.
+- **The band takes the page's own spacing and palette** from Settings →
+  Styling. Nothing in it names a colour, and it adds no margin of its own under
+  itself, so the gap to the date chips is the site's spacing rather than that
+  plus 24px.
+
 ### Filters on the Events page
 
-A visitor narrows the page by category and by date. A visitor after food this
-weekend taps "Food", then "This weekend", and the list shows only that. Every
-filter sits in the address, like `/events?category=food&when=weekend`, so a
-reload keeps it and a shared link opens the same list.
+A visitor narrows the page by words, category, date and distance. Somebody
+after food this weekend types nothing, picks "Food" in the bar, then taps "This
+weekend" under it. Every filter sits in the address, like
+`/events?category=food&when=weekend`, so a reload keeps it and a shared link
+opens the same list.
 
-- **The category chips:** "All", then one chip per category with at least one
-  published public event filed under it, in the order set on the Categories
-  screen. A category holding only drafts or private events gets no chip, so a
-  chip never gives either away. Past events count, because the month shows
-  them.
+- **The search box** matches an event's title, the line under it, and the name
+  of the place it is at. The body is left out on purpose: a match a visitor
+  cannot see on the card reads as a wrong result. It is `?q=jazz`.
+- **Typing narrows the upcoming list**, so searching from the month opens the
+  list, the same as picking a distance does.
+- **The category box** offers "All categories" and then one line per category
+  with at least one published public event filed under it, in the order set on
+  the Categories screen. A category holding only drafts or private events is
+  not offered, so the box never gives either away. Past events count, because
+  the month shows them. It is a box rather than a row of chips because a site
+  with twenty categories wrapped the chips over three lines and pushed the
+  events off the screen.
 - **A category's own events only,** never its subcategories', the same rule a
   category page follows.
 - **The category follows every view.** The list, the month, one day, the
   months either side, Today, a day opened from the month, and the List and
   Month switch all keep it.
-- **The date chips,** on the upcoming list only: "Any time", "Today", "This
-  weekend" and "Next 7 days". Beside them, From and To pick a range with the
-  same date picker as Admin → Events. One end alone works too: From alone is
-  that day onwards, To alone is up to that day.
+- **The date chips,** on the upcoming list only, in one segmented group under
+  the band: "Any time", "Today", "This weekend" and "Next 7 days". The List and
+  Month switch sits opposite them in the same shape, because both are one
+  choice out of a few.
+- **Each chip carries its own number**, which is how many events it would show
+  with the rest of the filters left as they are, so nobody presses a chip to
+  find nothing behind it. The numbers are counted in one query beside the list,
+  and they follow the words typed, the category, the place and the distance.
+  A screen reader hears "Today, 1 event".
+- **There is no picker for a pair of days.** Tyler had it taken off on 25 Sep
+  2026. A `?from=` and `?to=` in the address still narrow the list, so a link
+  made before that still works: the line under the row then says which days,
+  with "Clear dates" beside it. One end alone works too, From alone being that
+  day onwards.
 - **What each date chip covers,** by the site's calendar, never the visitor's:
   - Today is the rest of today.
   - Next 7 days is today and the six days after it.
@@ -534,9 +584,9 @@ reload keeps it and a shared link opens the same list.
 - **The date filter stays with the list.** Switching to the month drops it, and
   so does opening one day, because both already are a stretch of dates.
   Picking a category keeps the date filter, and picking a date keeps the
-  category and the place. Either one goes back to page 1.
+  category, the typed words and the place. Either one goes back to page 1.
 - **The empty card says what was asked:** "Nothing is on this weekend in
-  Chinese.", "Nothing in Food is on in October 2026." or "Nothing is coming up
+  Chinese.", "Nothing is coming up matching "jazz"." or "Nothing is coming up
   at The Rex."
 - **An odd address shows the page, not an error.** A category that is not
   here shows every event, a date word it does not know is dropped, a range
@@ -550,25 +600,26 @@ reload keeps it and a shared link opens the same list.
   exists.
 - **Where it lives:** the address and the date rules in
   `src/lib/events/events-page.ts` (`readEventsSearch`, `eventDateWindow`), the
-  chips in `src/components/events/public/event-filters.tsx`, the chips' look
-  shared with the directory in
-  `src/components/directory/public/filter-chip.ts`, and the reads in
-  `src/server/events/public.ts` (`readEventCategories`, and a category and
-  dates on `readUpcomingEvents` and `readEventsBetween`). "This weekend" has a
-  test for each day of the week in `src/lib/events/events-page.test.ts`.
+  band and its bar in `src/components/events/public/events-hero.tsx`, the date
+  chips in `src/components/events/public/event-filters.tsx`, and the reads in
+  `src/server/events/public.ts` (`readEventCategories`, `readEventDateCounts`,
+  and a category, dates and typed words on `readUpcomingEvents`). "This
+  weekend" has a test for each day of the week in
+  `src/lib/events/events-page.test.ts`, and `private.test.ts` proves a private
+  event is never counted behind a chip.
 
 ### Events near a place
 
-A visitor on a phone can ask for what is on near them tonight. Under the date
-chips on the upcoming list sit the same Near and Within controls the
-directory's listings use: a town or postcode with "Search place", "Use my
-location", and Within 5, 10, 25 or 50 km. Tapping "Today" and "Use my
-location" gives tonight's events within 10 km.
+A visitor on a phone can ask for what is on near them tonight. The search bar
+in the band holds the same place controls the directory's bar does: a town or
+postcode, "Use my location", and Within 5, 10, 25 or 50 km, with Search running
+them. Tapping "Today" after that gives tonight's events within 10 km.
 
-- **The same picker as listings.** `NearPicker` in
-  `src/components/directory/public/near-picker.tsx` is the one both pages draw,
+- **The same lookup as listings.** `useNearPlace` in
+  `src/components/directory/public/use-near-place.ts` is what both bars call,
   so Within stays disabled with "Pick a location first." until a place is
-  found, on both. `directory-radius.md` has that rule.
+  found, on both, and a refused permission says the same thing on both.
+  `directory-radius.md` has that rule.
 - **In the address:** `?near=43.653,-79.384&radius=5&area=Toronto`. The point
   is rounded to about 110 metres, the same as the directory's, so a shared link
   never gives away a doorstep. `area` names the place for the page's words;
@@ -578,9 +629,8 @@ location" gives tonight's events within 10 km.
   Google found for it, as "The map on the event page" above says.
 - **No position, not listed.** An event with no pin, like one with only a place
   name, one Google could not find, or one at a listing with no pin, is left out
-  while the filter is on. The page says so under the controls: "Showing events
-  within 5 km of Toronto, ON, Canada. Events with no place on the map are left
-  out."
+  while the filter is on. The band says so under the bar: "Within 5 km of
+  Toronto, ON, Canada. Events with no place on the map are left out."
 - **Still soonest first.** The distance narrows the list and does not reorder
   it, because the question is what is on soon nearby. Each row adds how far
   away it is beside the place, like "The Rex · 2.3 km away".
@@ -870,9 +920,24 @@ about each new suggestion.
 
 ### The form
 
-- **Where:** `/add-event`, reached from the "Suggest an event" button beside
-  Subscribe on the Events page. The button shows only while the Suggest an
-  event page is open to the visitor.
+- **Where:** two places, with one set of boxes behind both. "Suggest an event"
+  on the Events page opens a window over the list, and `/add-event` is the same
+  form as a page of its own, for a link or a bookmark. The button shows only
+  while the Suggest an event page is open to the visitor.
+- **The window is the app's standard form window,** which is what everything
+  from Admin → Accounts to the deal editor uses: `DialogContent variant="admin"`
+  with a header, a scrolling body of `Card size="sm"` sections a window-padding
+  apart, and a footer of Cancel then the action. The boxes sit in a form of
+  their own, so Enter sends it from whichever box the visitor is in, and the
+  footer's Send button submits that form by name.
+- **A window, so the list is not lost.** Somebody who has just read what is on
+  and found their own event missing keeps the page, the filters and their place
+  in it; closing the window puts them back. The window asks before throwing
+  away a half-filled form, which is `FormDialog` doing its usual job.
+- **Asked for when it is opened.** The site's name, its time zone, its today
+  and whether photos are allowed are fetched when the button is pressed, not
+  with the Events page, so a visitor who never suggests anything never pays for
+  it. The window says "Opening the form." while that is on its way.
 - **Two switches:** the page follows its own switch on the Pages screen and
   the Events page's. With either off, the page is not found and its endpoint
   refuses a send, so a direct call cannot get round it.
@@ -894,9 +959,19 @@ about each new suggestion.
   `src/lib/events/event-submission-fields.ts` is what the form shows under each
   box and what the server refuses with. The old Directory app checked its
   required boxes in the browser only.
+- **Nothing moves as you fill it in.** A problem is drawn in the 16px gap
+  under its box rather than in the column of fields, so a message appearing
+  when a box is left never shifts the boxes below and never spreads the form
+  out. It used to shift them, and a press that started on the Day picker landed
+  somewhere else by the time it was let go, so the first press on it did
+  nothing at all.
 - **After Send:** "Thank you", naming the event and the email the answer goes
-  to, with "Suggest another event", which keeps the name and email, and "Back
-  to events".
+  to, with "Suggest another event", which keeps the name and email. The page
+  adds "Back to events"; the window has "Done", which closes it.
+- **Where it lives:** the answers and the sending in
+  `src/components/events/public/use-event-submission.ts`, the boxes in
+  `event-submission-form.tsx` (`EventSubmissionFields`), the page around them
+  in `src/routes/add-event.tsx`, and the window in `suggest-event-button.tsx`.
 
 ### Spam
 

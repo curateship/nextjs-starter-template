@@ -38,6 +38,16 @@ dim on hover, rather than looking like buttons. A dropdown group opens as a
 panel under its own word, with a chevron that turns over while it is open. The
 bar is 1152px wide by default and follows the Page width setting.
 
+The logo, the page content and the footer links all start at the same distance
+from the window edge. `public-page-frame.tsx` sets the left and right padding
+on `<main>` and hands the same number to the header and the footer, which never
+choose one of their own. Until 25 September 2026 both of them carried 24px
+inside their own 1152px box while the content column carried none, so on any
+window wider than 1184px the logo and the footer links sat 24px further in than
+the heading and the cards between them. Moving Content spacing in Settings →
+Styling now moves all three edges together, and setting it to zero puts all
+three flat against the window.
+
 The desktop menu appears at 1024px and wider. Below that the menu button takes
 over. The two menu icons are stacked and both drawn: pressing the button spins
 the bars out as the cross spins in, rather than swapping one picture for
@@ -128,8 +138,9 @@ header can scroll with the page or stay at the top, and its desktop menu can sit
 in the normal header flow or in the exact centre of the page. Logo sizes are
 fixed at 32px, 48px, or 64px high. The header's contents follow the page width
 until Navigation width gives them their own, or Full width spreads them across
-the window. Glass blur effect picks how strongly the header blurs the page
-scrolling under it. Phone navigation remains behind the menu button for both
+the window. Space after the logo is empty space between the logo and the first
+menu word, 0 to 400 pixels, which is how the menu is moved along the bar. Glass
+blur effect picks how strongly the header blurs the page scrolling under it. Phone navigation remains behind the menu button for both
 positions. The header still shows the logo, site name, search,
 and colour-mode choice when no menu or footer has been added. Empty navigation
 adds no empty menu control.

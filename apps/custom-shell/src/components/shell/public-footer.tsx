@@ -102,6 +102,7 @@ export function PublicFooter({
   copyright,
   footerBorder,
   pageWidthStyle,
+  edgeStyle,
   chromeBackground,
 }: {
   appName: string
@@ -113,6 +114,12 @@ export function PublicFooter({
   copyright: string
   footerBorder: boolean
   pageWidthStyle: { maxWidth: number } | undefined
+  /**
+   * The page's left and right padding, from the frame. Undefined keeps the
+   * `px-4` default. The footer never picks its own, or its links stop lining
+   * up with the content above them.
+   */
+  edgeStyle: { paddingInline: number } | undefined
   /** Public styling's header and footer colour, or undefined for the theme's. */
   chromeBackground: string | undefined
 }) {
@@ -126,15 +133,16 @@ export function PublicFooter({
     <footer
       className={cn(
         "pt-20 text-foreground",
+        edgeStyle ? undefined : "px-4",
         chromeBackground ? undefined : "bg-background",
         footerBorder && "border-t"
       )}
-      style={chromeBackground ? { backgroundColor: chromeBackground } : undefined}
+      style={{
+        ...(chromeBackground ? { backgroundColor: chromeBackground } : {}),
+        ...edgeStyle,
+      }}
     >
-      <div
-        className="mx-auto w-full max-w-6xl px-6"
-        style={pageWidthStyle}
-      >
+      <div className="mx-auto w-full max-w-6xl" style={pageWidthStyle}>
         <Link
           to="/"
           aria-label="Go to the home page"

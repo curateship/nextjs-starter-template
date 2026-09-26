@@ -193,11 +193,13 @@ export function PublicNavigation({
   logo,
   logoDark,
   logoSize,
+  logoGap,
   navigation,
   sticky,
   menuAlignment,
   headerBorder,
   widthStyle,
+  edgeStyle,
   blur,
   userPanel,
   chromeBackground,
@@ -207,12 +209,24 @@ export function PublicNavigation({
   logo: string
   logoDark: string
   logoSize: PublicHeaderLogoSize
+  /**
+   * Empty space after the logo in pixels, which is how far along the bar the
+   * menu words start. Desktop only, because the phone menu is behind its
+   * button.
+   */
+  logoGap: number
   navigation: PublicNavigationItem[]
   sticky: boolean
   menuAlignment: PublicHeaderMenuAlignment
   headerBorder: boolean
   /** Caps the header's contents; undefined keeps the built-in 1152px. */
   widthStyle: { maxWidth: number | "none" } | undefined
+  /**
+   * The page's left and right padding, from the frame. Undefined keeps the
+   * `px-4` default. The header never picks its own, or the logo stops lining
+   * up with the content below it.
+   */
+  edgeStyle: { paddingInline: number } | undefined
   blur: PublicHeaderBlur
   userPanel: PublicUserPanel
   /** Public styling's header and footer colour, or undefined for the theme's. */
@@ -427,8 +441,18 @@ export function PublicNavigation({
       aria-label="Go to the home page"
       className={cn(
         "flex min-w-0 shrink-0 items-center gap-2 rounded-md",
+        // The space is drawn from a variable rather than an inline
+        // `paddingRight`, so it can be held back until the width where the
+        // menu is actually in the bar. On a phone the same padding would only
+        // squeeze the logo against the account button.
+        logoGap > 0 && "lg:pr-[var(--public-logo-gap)]",
         focusRing
       )}
+      style={
+        logoGap > 0
+          ? ({ "--public-logo-gap": `${logoGap}px` } as React.CSSProperties)
+          : undefined
+      }
     >
       <BrandLogo
         src={logo}
@@ -548,6 +572,7 @@ export function PublicNavigation({
       data-menu-alignment={menuAlignment}
       className={cn(
         "z-40 w-full",
+        edgeStyle ? undefined : "px-4",
         HEADER_BLUR_CLASS[blur],
         // A chosen colour is drawn solid, the way the signed-in sidebar and
         // sticky bar are, so the header reads the same over any page content.
@@ -555,13 +580,13 @@ export function PublicNavigation({
         headerBorder && "border-b",
         sticky && "sticky top-0"
       )}
-      style={chromeBackground ? { backgroundColor: chromeBackground } : undefined}
+      style={{
+        ...(chromeBackground ? { backgroundColor: chromeBackground } : {}),
+        ...edgeStyle,
+      }}
     >
       <nav data-state={menuState ? "active" : undefined} className="w-full">
-        <div
-          className="mx-auto w-full max-w-6xl px-5 sm:px-4 lg:px-6"
-          style={widthStyle}
-        >
+        <div className="mx-auto w-full max-w-6xl" style={widthStyle}>
           <div
             className={cn(
               "relative flex flex-wrap items-center justify-between gap-6 py-3 lg:py-4",

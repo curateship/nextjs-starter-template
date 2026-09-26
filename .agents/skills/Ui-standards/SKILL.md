@@ -51,6 +51,42 @@ modals, loaders, or scroll areas.
 - Design narrow and desktop layouts together. Avoid arbitrary widths, radii,
   shadows, gradients, pills, and badges.
 
+## The public frontend has one left and right edge
+
+Signed-out pages drift because each new block picks its own horizontal padding.
+One container sets the left and right edge for the whole page and everything
+inside it is flat. This covers every public screen in every app, including the
+components under a `public/` folder.
+
+- **`src/components/shell/public-page-frame.tsx` owns the edge.** Its `<main>`
+  sets the left and right padding, and the column inside it sets the page
+  width. No other file on a public page sets either one.
+- **Everything the frame renders starts at zero.** A page, hero, section, row
+  or block inside it gets no `px-*`, no `mx-auto`, no `max-w-*`, no
+  `container`, and no responsive ramp such as `sm:px-6 lg:px-8`. Vertical
+  spacing and gaps are still the block's own. The left and right edge is not.
+- **The header and footer are handed the edge, they do not pick one.** They
+  render outside `<main>`, so the frame passes them its own padding as
+  `edgeStyle` and they put it on their outer element. Their capped box carries
+  no padding at all. A header that sets `px-6` inside a `max-w-6xl` box puts
+  the logo 24px further in than the card below it, which is the stagger
+  visitors notice first.
+- **Read the runtime gutter through `pageGutter`.** The public gutter is a
+  Settings → Styling number. Import `pageGutter` from
+  `src/lib/layout/shell-gutter.ts` instead of writing `var(--shell-gutter)`
+  again, or the fallbacks drift apart file by file.
+- **A full-width block pulls out, it never pushes the others in.** A row that
+  must touch the window edge uses a negative margin of the value the frame
+  already set and restores the inset on its own content, the same move as the
+  divider rule. Never a fresh number such as `-mx-6`.
+- **Padding inside a card belongs to the card.** `Card`, `TableSurface` and
+  `DashboardCardHeader` bring their own. Adding padding to a page wrapper so a
+  card looks right means the wrong component is holding the content.
+- **The check before calling it done.** Open the page wide and read down the
+  left edge. The header logo, the first heading and the first footer link sit
+  on one vertical line. If one is further in, a wrapper inside the frame added
+  padding of its own.
+
 ## Custom Shell runtime styling
 
 Custom Shell lets each workspace adjust its gutter, content background, card

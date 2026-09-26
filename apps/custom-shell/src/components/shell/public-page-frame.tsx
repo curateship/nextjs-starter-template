@@ -147,9 +147,14 @@ export function PublicPageFrame({
     // rather than the 24px fallback meant for content inside a modal.
     "--shell-gutter": `${theme.gutter}px`,
   } as React.CSSProperties
+  // The one left and right edge for the whole page. The header and the footer
+  // sit outside `<main>`, so they are handed the same value rather than
+  // carrying padding of their own, which is what used to leave the logo and
+  // the footer links further in than the content between them.
+  const edgeStyle = gutterChanged ? { paddingInline: theme.gutter } : undefined
   const mainStyle = {
     ...mainSpacingStyle,
-    ...(gutterChanged ? { paddingInline: theme.gutter } : {}),
+    ...edgeStyle,
   }
   const contentStyle = {
     ...pageWidthStyle,
@@ -198,11 +203,13 @@ export function PublicPageFrame({
         logo={logo}
         logoDark={logoDark}
         logoSize={publicHeader.logoSize}
+        logoGap={publicHeader.logoGap}
         navigation={visibleNavigation}
         sticky={publicHeader.sticky}
         menuAlignment={publicHeader.menuAlignment}
         headerBorder={theme.headerBorder}
         widthStyle={headerWidthStyle}
+        edgeStyle={edgeStyle}
         blur={publicHeader.blur}
         userPanel={userPanel}
         chromeBackground={chromeBackground}
@@ -240,6 +247,7 @@ export function PublicPageFrame({
         copyright={footerCopyright}
         footerBorder={theme.footerBorder}
         pageWidthStyle={pageWidthStyle}
+        edgeStyle={edgeStyle}
         chromeBackground={chromeBackground}
       />
     </div>

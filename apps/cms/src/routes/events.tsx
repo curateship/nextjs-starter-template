@@ -1,16 +1,21 @@
-import { createFileRoute, Link, notFound } from "@tanstack/react-router"
-import { PlusIcon } from "lucide-react"
+import {
+  createFileRoute,
+  Link,
+  notFound,
+  useNavigate,
+} from "@tanstack/react-router"
 
 import { DirectoryBreadcrumbs } from "@/components/directory/public/directory-breadcrumbs"
 import { DirectoryRouteError } from "@/components/directory/public/directory-error"
 import { DirectoryFrame } from "@/components/directory/public/directory-frame"
 import { DirectoryPagination } from "@/components/directory/public/directory-pagination"
-import { EventFilters } from "@/components/events/public/event-filters"
+import { EventDateFilters } from "@/components/events/public/event-filters"
+import { EventsHero } from "@/components/events/public/events-hero"
+import { SuggestEventButton } from "@/components/events/public/suggest-event-button"
 import { EventCardGrid } from "@/components/events/public/event-card"
 import { SubscribeMenu } from "@/components/events/public/calendar-menus"
 import { EventMonth } from "@/components/events/public/event-month"
 import { EventViewSwitch } from "@/components/events/public/event-view-switch"
-import { Button } from "@/components/ui/button"
 import { requirePageVisible } from "@/lib/api/content/pages"
 import { loadEventsPage } from "@/lib/api/events/public"
 import {
@@ -18,6 +23,7 @@ import {
   directoryHead,
   directoryTitle,
 } from "@/lib/directory/public-seo"
+import { DEFAULT_DIRECTORY_NEAR_RADIUS_KM } from "@/lib/directory/public-search"
 import { parseYearMonth, toMonthString } from "@/lib/events/calendar-grid"
 import {
   eventDateFilterText,
@@ -29,6 +35,7 @@ import {
 } from "@/lib/events/events-page"
 import { formatEventDay } from "@/lib/events/event-time"
 import { focusRing } from "@/lib/layout/focus-ring"
+import { pageGutter } from "@/lib/layout/shell-gutter"
 
 /**
  * The Events page: what is coming up, as a list or a month. It opens on the
@@ -75,6 +82,7 @@ function EventsRoute() {
     day: search.day,
     page: search.page,
     place: data.view === "list" ? data.place?.slug : undefined,
+    q: data.view === "list" ? search.q : undefined,
     category: data.category?.slug,
     when: search.when,
     from: search.from,
@@ -84,48 +92,100 @@ function EventsRoute() {
     area: data.view === "list" ? data.nearby.area : undefined,
   }
   const categoryName = data.category?.name
+  const navigate = useNavigate()
+  // A box in the band writes to the address and starts the list again, because
+  // page 3 of the old list is nowhere in the new one.
+  const setSearch = (patch: Partial<EventsPageSearch>) =>
+    void navigate({
+      to: "/events",
+      search: { ...current, page: undefined, ...patch },
+    })
+
+  const switcher = (
+    <EventViewSwitch
+      current={data.view}
+      month={
+        data.view === "list" && data.day
+          ? toMonthString(parseYearMonth(data.day)!)
+          : undefined
+      }
+      category={current.category}
+    />
+  )
 
   return (
-    <DirectoryFrame>
-      <DirectoryBreadcrumbs
-        crumbs={[{ label: data.site.name, home: true }, { label: "Events" }]}
-      />
-      <header className="flex flex-wrap items-center justify-between gap-2">
-        <div className="grid gap-1">
-          <h1 className="text-2xl font-semibold">Events</h1>
-          <p className="text-sm text-muted-foreground">
-            All times are {data.zone}.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {data.canSuggest ? (
-            <Button asChild variant="outline">
-              <Link to="/add-event">
-                <PlusIcon />
-                Suggest an event
-              </Link>
-            </Button>
-          ) : null}
-          {data.calendarFeedUrl ? (
-            <SubscribeMenu feedUrl={data.calendarFeedUrl} />
-          ) : null}
-          <EventViewSwitch
-            current={data.view}
-            month={
-              data.view === "list" && data.day
-                ? toMonthString(parseYearMonth(data.day)!)
-                : undefined
-            }
-            category={current.category}
-          />
-        </div>
-      </header>
-
-      <EventFilters
-        current={current}
-        categories={data.categories}
-        showListFilters={data.view === "list" && !data.day}
-      />
+    <DirectoryFrame
+      hero={
+        <EventsHero
+          crumbs={
+            <DirectoryBreadcrumbs
+              crumbs={[
+                { label: data.site.name, home: true },
+                { label: "Events" },
+              ]}
+            />
+          }
+          intro={`All times are ${data.zone}.`}
+          actions={
+            <>
+              {data.canSuggest ? <SuggestEventButton /> : null}
+              {data.calendarFeedUrl ? (
+                <SubscribeMenu feedUrl={data.calendarFeedUrl} />
+              ) : null}
+            </>
+          }
+          current={current}
+          categories={data.categories}
+          radius={current.radius ?? DEFAULT_DIRECTORY_NEAR_RADIUS_KM}
+          // The typed words narrow the upcoming list, so searching from the
+          // month opens the list, the same as a distance does.
+          onSearchChange={(value) =>
+            void navigate({
+              to: "/events",
+              search: {
+                place: current.place,
+                category: current.category,
+                q: value || undefined,
+                when: current.when,
+                from: current.from,
+                to: current.to,
+                near: current.near,
+                radius: current.radius,
+                area: current.area,
+              },
+            })
+          }
+          // A category works on every view, so this one keeps the view it is
+          // on, the month it is showing and the day it is narrowed to.
+          onCategoryChange={(category) => setSearch({ category })}
+          onNearChange={(near, area, radius) =>
+            setSearch({ near, radius, area, view: undefined, day: undefined })
+          }
+          onRadiusChange={(radius) => setSearch({ radius })}
+          onNearClear={() =>
+            setSearch({ near: undefined, radius: undefined, area: undefined })
+          }
+        />
+      }
+    >
+      {/*
+       * The row of chips and the view switch sits the same distance from the
+       * cards under it as from the band over it. The band's distance is the
+       * site's own spacing from Settings → Styling, so this reads the same
+       * number and takes off the 12px the page column already puts between
+       * every two blocks.
+       */}
+      <div
+        className="flex flex-wrap items-center justify-between gap-2"
+        style={{ marginBottom: `calc(${pageGutter} - 0.75rem)` }}
+      >
+        {data.view === "list" && !data.day && data.dateCounts ? (
+          <EventDateFilters current={current} counts={data.dateCounts} />
+        ) : (
+          <div />
+        )}
+        {switcher}
+      </div>
 
       {data.view === "month" ? (
         <EventMonth
@@ -195,7 +255,8 @@ function EventsRoute() {
                     data.dates,
                     categoryName,
                     data.place?.title,
-                    eventNearText(data.nearby)
+                    eventNearText(data.nearby),
+                    current.q
                   )
             }
           />
@@ -207,6 +268,7 @@ function EventsRoute() {
               eventsListHref({
                 place: current.place,
                 category: current.category,
+                q: current.q,
                 ...data.dates,
                 ...data.nearby,
                 page: next,
@@ -229,12 +291,14 @@ function nothingComingUp(
   dates: EventDateSearch,
   categoryName: string | undefined,
   placeTitle: string | undefined,
-  nearText: string
+  nearText: string,
+  typed: string | undefined
 ): string {
   const when = eventDateFilterText(dates)
-  const filtered = when || categoryName || placeTitle || nearText
+  const filtered = when || categoryName || placeTitle || nearText || typed
   return [
     when ? `Nothing is on ${when}` : "Nothing is coming up",
+    typed ? ` matching "${typed}"` : "",
     categoryName ? ` in ${categoryName}` : "",
     placeTitle ? ` at ${placeTitle}` : "",
     nearText ? ` ${nearText}` : "",

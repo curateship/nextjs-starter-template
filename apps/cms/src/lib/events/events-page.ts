@@ -12,7 +12,7 @@ import {
   readDirectoryNearRadius,
 } from "@/lib/directory/public-search"
 import { slugProblem } from "@/lib/directory/slugs"
-import { readOneOf, readPage } from "@/lib/nav/list-search"
+import { readOneOf, readPage, readSearchText } from "@/lib/nav/list-search"
 
 /**
  * The Events page's state, named once so the route's address reader, the
@@ -30,7 +30,7 @@ export type EventView = (typeof EVENT_VIEWS)[number]
 /** The date filters with a button of their own. A range is the fourth kind. */
 export const EVENT_DATE_FILTERS = ["today", "weekend", "week"] as const
 
-type EventDateFilter = (typeof EVENT_DATE_FILTERS)[number]
+export type EventDateFilter = (typeof EVENT_DATE_FILTERS)[number]
 
 export const EVENT_DATE_FILTER_LABELS: Record<EventDateFilter, string> = {
   today: "Today",
@@ -57,6 +57,8 @@ export type EventsPageSearch = {
   page?: number
   /** A listing's address, like "the-rex": the list narrowed to that place. */
   place?: string
+  /** List only. The words typed in the search box. */
+  q?: string
   /** A category's address, like "live-music", on any view. */
   category?: string
   /** List only. A named stretch of days, by the site's calendar. */
@@ -165,6 +167,7 @@ export function readEventsSearch(
   return {
     page: readPage(search.page),
     place: readSlug(search.place),
+    q: readSearchText(search.q),
     category,
     ...readEventDateFilter(search),
     ...readEventNear(search),
@@ -223,6 +226,7 @@ export function eventDateFilterText(search: EventDateSearch): string {
 export function eventsListHref(search: EventsPageSearch): string {
   const params = new URLSearchParams()
   if (search.place) params.set("place", search.place)
+  if (search.q) params.set("q", search.q)
   if (search.category) params.set("category", search.category)
   if (search.when) params.set("when", search.when)
   if (search.from) params.set("from", search.from)

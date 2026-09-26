@@ -1,171 +1,97 @@
-import { Link, useNavigate } from "@tanstack/react-router"
+import { Link } from "@tanstack/react-router"
 
-import { filterChipClass } from "@/components/directory/public/filter-chip"
-import { NearPicker } from "@/components/directory/public/near-picker"
-import { DatePicker } from "@/components/ui/date-picker"
-import type { EventCategory } from "@/lib/api/events/public"
-import { DEFAULT_DIRECTORY_NEAR_RADIUS_KM } from "@/lib/directory/public-search"
+import type { EventDateCounts } from "@/lib/api/events/public"
 import {
   EVENT_DATE_FILTERS,
   EVENT_DATE_FILTER_LABELS,
-  eventNearText,
-  type EventNearSearch,
+  eventDateFilterText,
   type EventsPageSearch,
 } from "@/lib/events/events-page"
-import { dayForPicker, dayFromPicker } from "@/lib/events/picker-day"
+import { focusRing } from "@/lib/layout/focus-ring"
+import { segmentClass } from "@/lib/layout/segmented"
 
 /**
  * The router marks a link as the current page when its address is part of
- * the one showing, so "All" would count as current beside "Food". Only an
- * exact match is current; every chip also says so itself.
+ * the one showing, so "Any time" would count as current beside "Today". Only
+ * an exact match is current; every chip also says so itself.
  */
 const exactSearch = { exact: true }
 
 /**
- * The filters above the Events page: a chip per category, and on the upcoming
- * list the date chips, a From and To day, and Near and Within a distance.
- * Every one writes to the address, so a filtered page survives a reload and
- * can be sent to somebody.
+ * The date row above the list: Any time, Today, This weekend and Next 7 days.
+ * Each carries the number of events it would show, so nobody presses a chip to
+ * find nothing behind it.
  *
- * A category chip keeps the view it is on, so the month and one day follow
- * it too. A date chip keeps the category, the place and the distance, and a
- * distance keeps the dates. Each drops the page number, because page 3 of the
- * old list is nowhere in the new one.
+ * There is no picker for a pair of days of the visitor's own. Tyler had it
+ * taken off on 25 Sep 2026. A `?from=` and `?to=` in the address still narrow
+ * the list, so an old link keeps working and says so in the line under the
+ * row, with "Clear dates" to drop it.
+ *
+ * Drawn as one segmented group, the same shape as the List and Month switch it
+ * sits opposite, because both are one choice out of a few.
+ *
+ * Every chip writes to the address, so a filtered page survives a reload and
+ * can be sent to somebody. A chip keeps the category, the typed words, the
+ * place and the distance, and drops the page number, because page 3 of the old
+ * list is nowhere in the new one.
  */
-export function EventFilters({
+export function EventDateFilters({
   current,
-  categories,
-  showListFilters,
+  counts,
 }: {
   /** The address as it stands, so a chip keeps what it is not changing. */
   current: EventsPageSearch
-  categories: EventCategory[]
-  /** Only the upcoming list takes a date or a distance filter. */
-  showListFilters: boolean
+  /** How many events are behind each chip. */
+  counts: EventDateCounts
 }) {
-  const navigate = useNavigate()
-  const nearby = {
+  const kept = {
+    place: current.place,
+    category: current.category,
+    q: current.q,
     near: current.near,
     radius: current.radius,
     area: current.area,
   }
-  const kept = { place: current.place, category: current.category, ...nearby }
-  const dates = { when: current.when, from: current.from, to: current.to }
   const rangeActive = Boolean(current.from || current.to)
-  const nearText = eventNearText(current)
-
-  const pickRangeDay = (end: "from" | "to", date: Date | undefined) => {
-    const range = { from: current.from, to: current.to }
-    range[end] = dayFromPicker(date) || undefined
-    void navigate({ to: "/events", search: { ...kept, ...range } })
-  }
-
-  const pickNear = (next: EventNearSearch) =>
-    void navigate({
-      to: "/events",
-      search: {
-        place: current.place,
-        category: current.category,
-        ...dates,
-        ...next,
-      },
-    })
-
-  if (!categories.length && !showListFilters) return null
 
   return (
-    <div className="grid gap-2 md:gap-3">
-      {categories.length ? (
-        <ul aria-label="Category" className="flex flex-wrap gap-1">
-          <li>
-            <Link
-              to="/events"
-              search={{ ...current, page: undefined, category: undefined }}
-              activeOptions={exactSearch}
-              aria-current={!current.category ? "page" : undefined}
-              className={filterChipClass(!current.category)}
-            >
-              All
-            </Link>
-          </li>
-          {categories.map((row) => (
-            <li key={row.id}>
-              <Link
-                to="/events"
-                search={{ ...current, page: undefined, category: row.slug }}
-                activeOptions={exactSearch}
-                aria-current={
-                  row.slug === current.category ? "page" : undefined
-                }
-                className={filterChipClass(row.slug === current.category)}
-              >
-                {row.name}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-
-      {showListFilters ? (
-        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end">
-          <ul aria-label="When" className="flex flex-wrap gap-1">
-            <DateChip
-              search={kept}
-              active={!current.when && !rangeActive}
-              label="Any time"
-            />
-            {EVENT_DATE_FILTERS.map((when) => (
-              <DateChip
-                key={when}
-                search={{ ...kept, when }}
-                active={current.when === when}
-                label={EVENT_DATE_FILTER_LABELS[when]}
-              />
-            ))}
-          </ul>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <div className="grid gap-1 sm:w-52">
-              <label htmlFor="events-from" className="text-sm font-medium">
-                From
-              </label>
-              <DatePicker
-                id="events-from"
-                value={dayForPicker(current.from)}
-                placeholder="Any day"
-                onChange={(date) => pickRangeDay("from", date)}
-              />
-            </div>
-            <div className="grid gap-1 sm:w-52">
-              <label htmlFor="events-to" className="text-sm font-medium">
-                To
-              </label>
-              <DatePicker
-                id="events-to"
-                value={dayForPicker(current.to)}
-                placeholder="Any day"
-                onChange={(date) => pickRangeDay("to", date)}
-              />
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {showListFilters ? (
-        <NearPicker
-          idPrefix="events"
-          near={current.near}
-          radius={current.radius ?? DEFAULT_DIRECTORY_NEAR_RADIUS_KM}
-          onNearChange={(near, area, radius) =>
-            pickNear({ near, radius, area })
-          }
-          onRadiusChange={(radius) => pickNear({ ...nearby, radius })}
-          onNearClear={() => pickNear({})}
+    // `min-w-0` so the group below may be narrower than its chips and scroll
+    // them inside itself. Without it a flex item never shrinks past its
+    // content, and on a phone the whole page scrolls sideways instead.
+    <div className="flex max-w-full min-w-0 flex-col gap-1">
+      <div
+        role="group"
+        aria-label="When"
+        className="flex h-8 w-full items-center justify-start gap-0.5 overflow-x-auto rounded-lg bg-muted p-0.5 text-muted-foreground sm:w-fit"
+      >
+        <DateChip
+          search={kept}
+          active={!current.when && !rangeActive}
+          label="Any time"
+          count={counts.anyTime}
         />
-      ) : null}
-      {showListFilters && nearText ? (
+        {EVENT_DATE_FILTERS.map((when) => (
+          <DateChip
+            key={when}
+            search={{ ...kept, when }}
+            active={current.when === when}
+            label={EVENT_DATE_FILTER_LABELS[when]}
+            count={counts[when]}
+          />
+        ))}
+      </div>
+      {/* Only ever from an address somebody was sent or typed, now that the
+          picker is gone. */}
+      {rangeActive ? (
         <p className="text-sm text-muted-foreground">
-          Showing events {nearText}. Events with no place on the map are left
-          out.
+          Showing events {eventDateFilterText(current)}.{" "}
+          <Link
+            to="/events"
+            search={kept}
+            className={`rounded-sm underline hover:text-foreground ${focusRing}`}
+          >
+            Clear dates
+          </Link>
         </p>
       ) : null}
     </div>
@@ -176,22 +102,30 @@ function DateChip({
   search,
   active,
   label,
+  count,
 }: {
   search: EventsPageSearch
   active: boolean
   label: string
+  count: number
 }) {
   return (
-    <li>
-      <Link
-        to="/events"
-        search={search}
-        activeOptions={exactSearch}
-        aria-current={active ? "page" : undefined}
-        className={filterChipClass(active)}
-      >
-        {label}
-      </Link>
-    </li>
+    <Link
+      to="/events"
+      search={search}
+      activeOptions={exactSearch}
+      aria-current={active ? "page" : undefined}
+      className={segmentClass(active)}
+    >
+      {label}
+      {/* The number is read out with the words, so a screen reader hears
+          "Today, 1 event" rather than "Today 1". */}
+      <span className="sr-only">
+        , {count === 1 ? "1 event" : `${count} events`}
+      </span>
+      <span aria-hidden="true" className="text-xs tabular-nums opacity-70">
+        {count}
+      </span>
+    </Link>
   )
 }
