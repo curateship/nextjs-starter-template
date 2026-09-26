@@ -185,6 +185,7 @@ function OwnerEventRow({
       </div>
       <p className="text-xs text-muted-foreground">
         {eventRowText(submissionWhen(event))}
+        {event.views ? ` · ${viewsLine(event.views)}` : ""}
       </p>
       {event.status === "rejected" && event.reviewNote ? (
         <p className="text-xs whitespace-pre-wrap text-muted-foreground">
@@ -204,6 +205,18 @@ function OwnerEventRow({
       ) : null}
     </li>
   )
+}
+
+/**
+ * The two counts under a published event: the last 30 days first, because
+ * that is the one that moves, and all time after it. Both count visits to the
+ * event's page at its address as it is now. An address that changes leaves the
+ * old page's views behind.
+ */
+function viewsLine(views: NonNullable<OwnerEvent["views"]>): string {
+  const recent = views.recent.toLocaleString()
+  const all = views.all.toLocaleString()
+  return `${recent} ${views.recent === 1 ? "view" : "views"} in 30 days · ${all} all time`
 }
 
 type Fields = Pick<

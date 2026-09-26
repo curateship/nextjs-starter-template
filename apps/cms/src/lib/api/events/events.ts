@@ -5,6 +5,7 @@ import { LISTING_STATUS_FILTERS } from "@/lib/directory/listing-sort"
 import {
   EVENT_SORT_COLUMNS,
   type EventSortColumn,
+  type EventViewRange,
 } from "@/lib/events/event-sort"
 import type { RepeatRule } from "@/lib/events/event-repeat"
 import { MAX_EVENT_SEATS } from "@/lib/events/sign-up-fields"
@@ -80,6 +81,7 @@ const loadEventsPageFn = createServerFn({ method: "GET" })
       status: z.enum(LISTING_STATUS_FILTERS).optional(),
       sort: z.enum(EVENT_SORT_COLUMNS).optional(),
       direction: z.enum(["asc", "desc"]).optional(),
+      days: z.union([z.literal("all"), z.literal(30)]).optional(),
       page: z.number().int().min(1).max(10_000).optional(),
       limit: z.number().int().min(1).max(200).optional(),
     })
@@ -93,6 +95,7 @@ const loadEventsPageFn = createServerFn({ method: "GET" })
       status: data.status,
       sort: data.sort,
       direction: data.direction,
+      viewDays: data.days,
       limit: pageSize,
       offset: (page - 1) * pageSize,
     })
@@ -104,6 +107,7 @@ export function loadEventsPage(input: {
   status?: EventStatus
   sort?: EventSortColumn
   direction?: "asc" | "desc"
+  days?: EventViewRange
   page?: number
   limit?: number
 }) {

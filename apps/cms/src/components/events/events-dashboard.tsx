@@ -46,8 +46,11 @@ import {
 } from "@/lib/directory/listing-sort"
 import {
   DEFAULT_EVENT_SORT,
+  EVENT_VIEW_RANGES,
+  EVENT_VIEW_RANGE_LABELS,
   eventSortDirection,
   type EventSortColumn,
+  type EventViewRange,
 } from "@/lib/events/event-sort"
 import { describeRepeat } from "@/lib/events/event-repeat"
 import { formatEventStart } from "@/lib/events/event-time"
@@ -62,17 +65,26 @@ import {
   useSearchBoxText,
 } from "@/lib/nav/list-search"
 
-const COLUMNS: SortableColumn<EventSortColumn>[] = [
-  { key: "title", label: "Event", column: "main" },
-  { key: "status", label: "Status", column: "meta" },
-  { key: "date", label: "Date", column: "meta" },
-  {
-    key: "updated",
-    label: "Updated",
-    column: "meta",
-    className: "hidden md:table-cell",
-  },
-]
+function columnsFor(
+  viewDays: EventViewRange
+): SortableColumn<EventSortColumn>[] {
+  return [
+    { key: "title", label: "Event", column: "main" },
+    { key: "status", label: "Status", column: "meta" },
+    { key: "date", label: "Date", column: "meta" },
+    {
+      key: "views",
+      label: viewDays === "all" ? "Views" : "30-day views",
+      column: "meta",
+    },
+    {
+      key: "updated",
+      label: "Updated",
+      column: "meta",
+      className: "hidden md:table-cell",
+    },
+  ]
+}
 
 /**
  * The admin's Events screen: this site's events, searched, filtered by
@@ -92,6 +104,7 @@ export function EventsDashboard({
     status?: ListingStatusFilter
     sort?: EventSortColumn
     direction?: "asc" | "desc"
+    days?: EventViewRange
     open?: string
   }
 }) {
@@ -104,6 +117,8 @@ export function EventsDashboard({
 
   const sort = search.sort ?? DEFAULT_EVENT_SORT
   const direction = search.direction ?? eventSortDirection(sort)
+  const viewDays = search.days ?? "all"
+  const columns = React.useMemo(() => columnsFor(viewDays), [viewDays])
   const toggleSort = useListSort<EventSortColumn>(
     { sort, direction },
     eventSortDirection
@@ -128,7 +143,7 @@ export function EventsDashboard({
         .reduce((sum, event) => sum + event.seriesDates.total, 0),
     })
 
-  const listKey = `${search.q ?? ""}|${search.status ?? ""}|${sort}|${direction}|${data.page}|${data.pageSize}`
+  const listKey = `${search.q ?? ""}|${search.status ?? ""}|${sort}|${direction}|${viewDays}|${data.page}|${data.pageSize}`
   useClearSelectionOnListChange(selection.setSelected, listKey)
 
   const visibleIds = React.useMemo(
@@ -244,6 +259,26 @@ export function EventsDashboard({
                 ))}
               </SelectContent>
             </Select>
+            <Select
+              value={String(viewDays)}
+              onValueChange={(value) =>
+                setListSearch({
+                  days: value === "all" ? undefined : Number(value),
+                  page: undefined,
+                })
+              }
+            >
+              <SelectTrigger className="w-fit" aria-label="Choose view range">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {EVENT_VIEW_RANGES.map((days) => (
+                  <SelectItem key={days} value={String(days)}>
+                    {EVENT_VIEW_RANGE_LABELS[days]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <DashboardToolbarButton
               type="button"
               onClick={() => setCreating(true)}
@@ -255,7 +290,7 @@ export function EventsDashboard({
         }
         header={
           <SortableTableHeader
-            columns={COLUMNS}
+            columns={columns}
             sort={sort}
             direction={direction}
             onSort={toggleSort}
@@ -277,7 +312,7 @@ export function EventsDashboard({
             ? "No event matches that search."
             : "No events yet. Add the first one."
         }
-        emptyColSpan={6}
+        emptyColSpan={7}
         footer={{
           type: "pagination",
           page: data.page,
@@ -336,6 +371,7 @@ export function EventsDashboard({
               </div>
             </TableCell>
             <TableCell column="meta">{formatEventStart(event)}</TableCell>
+            <TableCell column="meta">{event.views.toLocaleString()}</TableCell>
             <TableCell column="meta" className="hidden md:table-cell">
               {formatDate(event.updatedAt)}
             </TableCell>

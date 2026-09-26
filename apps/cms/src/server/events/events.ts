@@ -19,6 +19,7 @@ import {
   DEFAULT_EVENT_SORT,
   eventSortDirection,
   type EventSortColumn,
+  type EventViewRange,
 } from "@/lib/events/event-sort"
 import { parseRepeatRule, type RepeatRule } from "@/lib/events/event-repeat"
 import { toClock, wallClockAt, type EventWhen } from "@/lib/events/event-time"
@@ -55,6 +56,7 @@ import {
   listingOfEvent,
   livePlaceName,
 } from "@/server/events/place"
+import { EVENT_PATH_PREFIX, eventViewTotals } from "@/server/events/views"
 import { listingChoice } from "@/server/posts/posts"
 
 /**
@@ -127,6 +129,8 @@ export type EventSummary = Omit<SiteEvent, "body"> & {
   seriesDates: { total: number; upcoming: number }
   /** Featured now, by the admin's switch or by an owner's paid spot. */
   featuredNow: boolean
+  /** Views of this event's page over the range the screen asked for. */
+  views: number
 }
 
 /** When an event happens, as a form sends it. Empty ends mean "no end". */
@@ -381,6 +385,8 @@ export async function listEvents(
     status?: EventStatus
     sort?: EventSortColumn
     direction?: "asc" | "desc"
+    /** Which window the Views column counts. All time when left out. */
+    viewDays?: EventViewRange
     limit?: number
     offset?: number
   } = {},
@@ -408,6 +414,17 @@ export async function listEvents(
   const where = and(...filters)
 
   const sort = options.sort ?? DEFAULT_EVENT_SORT
+  // Counted here rather than in the browser, because the page holds one page
+  // of events: sorting what already arrived would shuffle those rows and
+  // leave the rest of the list where it was.
+  const viewTotals = eventViewTotals(
+    workspaceId,
+    options.viewDays ?? "all",
+    database
+  )
+  const views = sql<number>`coalesce(${viewTotals.views}, 0)::int`.mapWith(
+    Number
+  )
   // With no direction given, each column runs the way the screen's arrow says.
   const order =
     (options.direction ?? eventSortDirection(sort)) === "asc" ? asc : desc
@@ -419,6 +436,7 @@ export async function listEvents(
             {
               title: siteEvents.title,
               status: siteEvents.status,
+              views,
               updated: siteEvents.updatedAt,
             }[sort]
           ),
@@ -430,9 +448,14 @@ export async function listEvents(
         row: siteEvents,
         placeName: livePlaceName,
         featuredNow: eventIsFeatured,
+        views,
       })
       .from(siteEvents)
       .leftJoin(directoryListings, listingOfEvent)
+      .leftJoin(
+        viewTotals,
+        eq(viewTotals.key, sql`${EVENT_PATH_PREFIX} || ${siteEvents.slug}`)
+      )
       .where(where)
       // The id breaks ties, so a page boundary never shows an event twice.
       .orderBy(...ordering, asc(siteEvents.id))
@@ -454,6 +477,7 @@ export async function listEvents(
     categoryNamesFor(workspaceId, EVENT_CONTENT_TYPE, ids, database),
     seriesDateCounts(workspaceId, ids, database),
   ])
+  const viewsById = new Map(found.map((each) => [each.row.id, each.views]))
   return {
     events: rows.map((row) => {
       const { body: _body, ...rest } = toEvent(row)
@@ -462,6 +486,7 @@ export async function listEvents(
         categories: names.get(row.id) ?? [],
         seriesDates: dateCounts.get(row.id) ?? { total: 0, upcoming: 0 },
         featuredNow: featuredNow.has(row.id),
+        views: viewsById.get(row.id) ?? 0,
       }
     }),
     total: countRow?.total ?? 0,
