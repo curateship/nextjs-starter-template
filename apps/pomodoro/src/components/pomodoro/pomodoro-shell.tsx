@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { logout } from "@/lib/api/auth/auth"
 import { useBackgroundSelection } from "@/lib/pomodoro/background-store"
+import { useTabCountdown } from "@/lib/pomodoro/use-tab-countdown"
 
 // The whole Pomoder look rides in with the product shell: the tokens
 // stylesheet and the two fonts. Nothing of it is imported from the shell's
@@ -142,6 +143,12 @@ export function PomodoroShell({
   const pathname = useRouterState({ select: (state) => state.location.pathname })
   const { background, fallBackToDefault } = useBackgroundSelection()
   const { setTheme } = useTheme()
+
+  // The tab's title and favicon count down with the timer. It lives here
+  // rather than on the timer page because the countdown keeps running while
+  // you are on Tasks or Rooms, and it never re-renders this shell: it writes
+  // to the document directly, once a second.
+  useTabCountdown()
 
   // The product's identity is dark; a first visit with no saved choice
   // starts there instead of following the OS.

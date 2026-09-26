@@ -11,6 +11,9 @@ cover this one.
   that switches them on.
 - [The timer](timer.md) — the ring at `/timer`, the 4-focus cycle, auto-start,
   and the session rows and daily stats every run writes.
+- [The tab countdown](tab-countdown.md) — the time left in the browser tab's
+  title and a filling ring in its icon, the worker that keeps them moving in a
+  background tab, and how both go back on stop.
 - [Zen mode](zen-mode.md) — the fullscreen timer: the ring, the phase and
   the task name, how you get in and out, and why the countdown never notices.
 - [Tasks](tasks.md) — today's plan: create, inline edit, drag to reorder,
