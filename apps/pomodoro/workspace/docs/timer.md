@@ -23,6 +23,22 @@ orange selection bar).
   before the long break" while focusing, and "Next: session 3 of 4 before the
   long break" on a break, because the focus you were in is over
   (`cycleSessionLabel` in `src/lib/pomodoro/timer.ts`).
+- **Switching phase and pressing Reset ask first when a focus is in
+  progress.** Nothing is recorded for a focus that does not finish, and both
+  controls are one stray tap away, so the app asks before nineteen minutes go
+  in the bin. The question names the minutes already spent and what happens
+  next: "19 minutes of this focus is lost and the timer switches to Short
+  break." Cancel is worded "Keep focusing" and leaves the countdown running,
+  untouched.
+- **It only asks when there is something to lose.** A break of any kind, and a
+  focus nobody has started, change straight away with no dialog. A focus that
+  is paused partway through still asks, because the time spent is just as gone.
+  The rule is `focusWouldBeLost` in `src/lib/pomodoro/timer.ts`, unit-tested
+  beside it, and all three controls share one hook,
+  `src/components/pomodoro/discard-focus-confirm.tsx`: the mode pills, Reset on
+  the dashboard, and Reset in the header's Timer popover. The minutes are
+  frozen when the question is asked so the sentence does not climb while it is
+  being read.
 - **Auto-start** (the switch under the goal bar) moves to the next phase on
   its own and opens the next server session itself.
 - **The countdown runs in the browser** on a 250ms tick against a wall-clock
@@ -39,6 +55,27 @@ orange selection bar).
   task pill, for what that session was for. It never takes keyboard focus and
   never touches the countdown, so a running break keeps running while it is on
   screen. See [Session notes](session-notes.md).
+
+## When a save fails
+
+- **One red line, and it leaves when the problem does.** A failed save writes a
+  sentence into `syncError` (`src/lib/pomodoro/use-pomodoro.ts`) and the timer
+  and the tasks page each show it above the content. Every request that settles
+  successfully clears it, so a save that works takes the warning down with no
+  reload. Before that, one dropped request pinned the line up for the rest of
+  the evening, which teaches people to ignore warnings.
+- **Both screens word it the same.** Both use `InlineError` from
+  `src/components/ui/inline-error.tsx`, so one failure never reads as a warning
+  on one screen and an error on the other.
+- **A failed tick or removal is a toast, not this line.** Those two belong to a
+  single row rather than the whole screen; see [Tasks](tasks.md).
+- **A failed load never claims the list is empty.** After a load that failed,
+  an empty list means "we do not know", so `loadFailed` on the engine's state
+  holds the empty state back and the warning line does the talking.
+- **While the tasks are loading the screen says so** instead of claiming you
+  have none. "Loading your tasks…" stands in the Tasks card until the list
+  lands (`loading` on the engine's state, true until the first load settles
+  either way).
 
 ## What the server records
 

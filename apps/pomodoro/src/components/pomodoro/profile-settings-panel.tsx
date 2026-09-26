@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { LoadingRow } from "@/components/ui/loading-row"
 import { Switch } from "@/components/ui/switch"
 import {
   loadPomodoroProfile,
@@ -76,47 +77,57 @@ export default function ProfileSettingsPanel() {
           <CardTitle>Your profile</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4">
-          <div className="grid gap-2">
-            <Label htmlFor="profile-display-name">Public display name</Label>
-            <Input
-              id="profile-display-name"
-              maxLength={50}
-              value={displayName}
-              placeholder="Shown on the leaderboard and in rooms"
-              onChange={(event) => setDisplayName(event.target.value)}
-            />
-            <span className="text-xs text-muted-foreground">
-              The only name other people ever see. Leave it empty to stay
-              unnamed.
-            </span>
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="profile-timezone">Timezone</Label>
-            <Input
-              id="profile-timezone"
-              maxLength={80}
-              value={timezone}
-              aria-describedby="profile-timezone-help"
-              onChange={(event) => setTimezone(event.target.value)}
-            />
-            <span
-              id="profile-timezone-help"
-              className="text-xs text-muted-foreground"
-            >
-              Your days, goals and streaks roll over at midnight in this
-              timezone. Yours right now is {browserTimezone()}.
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Switch
-              id="profile-leaderboard"
-              checked={leaderboard}
-              onCheckedChange={setLeaderboard}
-            />
-            <Label htmlFor="profile-leaderboard">
-              Show me on the leaderboard
-            </Label>
-          </div>
+          {/* The fields arrive with the saved profile in them, so they are not
+              offered before it lands: typing into an empty name and having the
+              load overwrite it a moment later is the worse outcome. */}
+          {!loaded && !error ? (
+            <LoadingRow label="Loading your profile…" />
+          ) : null}
+          {loaded ? (
+            <>
+              <div className="grid gap-2">
+                <Label htmlFor="profile-display-name">Public display name</Label>
+                <Input
+                  id="profile-display-name"
+                  maxLength={50}
+                  value={displayName}
+                  placeholder="Shown on the leaderboard and in rooms"
+                  onChange={(event) => setDisplayName(event.target.value)}
+                />
+                <span className="text-xs text-muted-foreground">
+                  The only name other people ever see. Leave it empty to stay
+                  unnamed.
+                </span>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="profile-timezone">Timezone</Label>
+                <Input
+                  id="profile-timezone"
+                  maxLength={80}
+                  value={timezone}
+                  aria-describedby="profile-timezone-help"
+                  onChange={(event) => setTimezone(event.target.value)}
+                />
+                <span
+                  id="profile-timezone-help"
+                  className="text-xs text-muted-foreground"
+                >
+                  Your days, goals and streaks roll over at midnight in this
+                  timezone. Yours right now is {browserTimezone()}.
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="profile-leaderboard"
+                  checked={leaderboard}
+                  onCheckedChange={setLeaderboard}
+                />
+                <Label htmlFor="profile-leaderboard">
+                  Show me on the leaderboard
+                </Label>
+              </div>
+            </>
+          ) : null}
           <div className="flex items-center gap-3">
             <Button
               disabled={!loaded || saving || !timezone.trim()}

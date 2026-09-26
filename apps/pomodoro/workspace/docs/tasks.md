@@ -18,6 +18,30 @@ optional project ([Projects](projects.md)).
   day's `tasks_completed` stat, reopening takes it back. Completed tasks
   group below the active ones.
 - **Remove** marks the row `abandoned`; it keeps its finished sessions.
+- **A tick and a removal land on the press, not on the answer.** The row moves
+  straight away and the request goes afterwards, so three tasks ticked in a row
+  keep up with how fast you press. A guest always worked this way; an account
+  used to wait for the round trip, which made signing in feel slower than not
+  bothering.
+- **The server's answer is still the truth.** `togglePersistentTask` answers
+  with the row's status and its done count, and both are written on top when
+  they arrive, so a tick the server disagrees with is corrected rather than
+  kept.
+- **One press sends one request.** While a row's own request is in flight its
+  checkbox and its X are switched off (`pendingTaskIds` in
+  `src/lib/pomodoro/use-pomodoro.ts`), so a fast double press cannot send two.
+- **A failed tick or removal puts that one row back** and says why in the
+  shared error toast: "The task could not be updated." or "The task could not
+  be removed." Only the row that failed moves, because another row's answer may
+  have landed while this one was in the air. A removal that failed comes back
+  where the ordering rules put it, and gets its selection back only if it still
+  held it when it left.
+- **While the list is loading it says so.** "Loading your tasks…" stands where
+  "No active tasks." would, and the archive says "Loading past days…", because
+  an empty state and a loading state mean opposite things and the empty one
+  arrived first on every visit. The card keeps its own frame around the line so
+  nothing jumps when the rows land. A guest is never loading: those tasks come
+  out of the browser's own storage in the same breath as the page.
 - **The focus task:** clicking a row's title picks it, only while the timer
   is fully idle. The next focus session carries its id, and completing that
   focus adds one to the task's count (`completeProductivitySession`).

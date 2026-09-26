@@ -33,3 +33,12 @@ rhythm presets. The long-break number has its own doc,
 
 The tab edits the same `user_preferences` row the dashboard reads on load,
 so the next visit to `/timer` picks the new rhythm up.
+
+## While it is loading
+
+The card shows "Loading your focus rhythm…" in place of the preset picker and
+the number fields until the saved row arrives. Three empty boxes read as a
+rhythm of nothing, and a number typed into one of them would be overwritten the
+moment the load landed. If the load fails the card says so and offers a reload
+instead of spinning for ever. The Profile tab does the same with its own fields
+for the same reason.
