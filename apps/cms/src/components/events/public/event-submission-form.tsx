@@ -16,84 +16,160 @@ import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import {
+  useEventSubmission,
+  type EventSubmissionBox,
+} from "@/components/events/public/use-event-submission"
+import {
   EVENT_SUBMISSION_TRAP,
-  getEventSubmissionErrorMessage,
-  submitEvent,
   type EventSubmissionForm as FormInfo,
 } from "@/lib/api/events/submissions"
 import {
   EVENT_PHOTO_TYPES,
   EVENT_SUBMISSION_MAX_LENGTH,
-  emptyEventSubmission,
   eventPhotoProblem,
-  eventSubmissionProblems,
   type EventSubmissionField,
 } from "@/lib/events/event-submission-fields"
-import { dayForPicker, dayFromPicker } from "@/lib/events/picker-day"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
 /**
- * The public Suggest an event form.
- *
- * The answers are checked by `eventSubmissionProblems`, the same check the
- * server runs, so the form and the server never disagree about what is
- * required. A problem shows under its box once the box is left, and all of
- * them show when Send is pressed, which stays enabled throughout.
+ * The boxes themselves, in three cards: the event, when and where, and about
+ * you. `size` is "sm" inside a window, where the cards sit on a narrower
+ * surface, and the default on the page.
  *
  * The photo box is this form's own and not the shared image upload. That one
  * files a picture in the Media library the moment it is picked, which needs
  * an account, and nobody filling this in has one. So the picture stays in the
  * browser until Send, and goes with the answers.
  */
-export function EventSubmissionForm({ form }: { form: FormInfo }) {
-  const [values, setValues] = React.useState(emptyEventSubmission())
-  const [photo, setPhoto] = React.useState<File | null>(null)
-  const [trap, setTrap] = React.useState("")
-  const [touched, setTouched] = React.useState<Set<EventSubmissionField>>(
-    new Set()
+export function EventSubmissionFields({
+  box,
+  form,
+  size = "default",
+  showIntro = true,
+}: {
+  box: EventSubmissionBox
+  form: FormInfo
+  size?: "default" | "sm"
+  /** False where the window around the boxes already says who reads them. */
+  showIntro?: boolean
+}) {
+  const { field, day } = box
+  return (
+    <>
+      {/* A box no person sees or reaches. A bot fills every box it finds, and
+          the server throws away anything that arrives with this one filled. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -left-[9999px] size-px overflow-hidden"
+      >
+        <label htmlFor="suggest-trap">Leave this empty</label>
+        <input
+          id="suggest-trap"
+          name={EVENT_SUBMISSION_TRAP}
+          type="text"
+          tabIndex={-1}
+          autoComplete="off"
+          value={box.trap}
+          onChange={(event) => box.setTrap(event.target.value)}
+        />
+      </div>
+
+      <Card size={size}>
+        <CardHeader>
+          <CardTitle>The event</CardTitle>
+          {showIntro ? (
+            <CardDescription>
+              Somebody reads every suggestion before it appears on{" "}
+              {form.siteName}.
+            </CardDescription>
+          ) : null}
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          <TextField label="Name of the event" {...field("title")} />
+          <TextField
+            label="Description (optional)"
+            multiline
+            {...field("description")}
+          />
+          {form.photosAllowed ? (
+            <PhotoField
+              photo={box.photo}
+              disabled={box.sending}
+              onChange={box.setPhoto}
+            />
+          ) : null}
+        </CardContent>
+      </Card>
+
+      <Card size={size}>
+        <CardHeader>
+          <CardTitle>When and where</CardTitle>
+          <CardDescription>All times are {form.zone}.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+            <div className="relative grid gap-2 sm:flex-1">
+              <FieldLabel htmlFor="suggest-startDate">Day</FieldLabel>
+              <DatePicker
+                id="suggest-startDate"
+                value={day.value}
+                disabled={day.disabled}
+                placeholder="Pick a day"
+                onChange={day.onChange}
+              />
+              <Problem id="suggest-startDate" problem={day.problem} />
+            </div>
+            <TextField
+              label="Starts"
+              type="time"
+              className="sm:flex-1"
+              {...field("startTime")}
+            />
+            <TextField
+              label="Ends (optional)"
+              type="time"
+              className="sm:flex-1"
+              hint="Past midnight? Put the time it ends, and it counts as the next day."
+              {...field("endTime")}
+            />
+          </div>
+          <TextField label="Place (optional)" {...field("placeName")} />
+          <TextField
+            label="Street address (optional)"
+            {...field("placeAddress")}
+          />
+        </CardContent>
+      </Card>
+
+      <Card size={size}>
+        <CardHeader>
+          <CardTitle>About you</CardTitle>
+          <CardDescription>
+            Only the people who run {form.siteName} see this.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          <TextField label="Your name (optional)" {...field("submitterName")} />
+          <TextField
+            label="Your email"
+            type="email"
+            hint="We email you once, when your suggestion has been looked at."
+            {...field("submitterEmail")}
+          />
+        </CardContent>
+      </Card>
+    </>
   )
-  const [sending, setSending] = React.useState(false)
-  const [sent, setSent] = React.useState(false)
+}
 
-  const problems = eventSubmissionProblems(values, form.today)
-  const problemFor = (field: EventSubmissionField) =>
-    touched.has(field) ? (problems[field] ?? null) : null
-  const touch = (field: EventSubmissionField) =>
-    setTouched((was) => new Set(was).add(field))
-  const set = (field: EventSubmissionField, value: string) =>
-    setValues((was) => ({ ...was, [field]: value }))
-
-  async function send() {
-    dismissErrorToast()
-    setTouched(new Set(Object.keys(values) as EventSubmissionField[]))
-    const first = Object.values(problems)[0]
-    if (first) {
-      showErrorToast(first)
-      return
-    }
-    setSending(true)
-    try {
-      const result = await submitEvent(values, photo, trap)
-      if (result.sent) setSent(true)
-      else showErrorToast(result.problem)
-    } catch (error) {
-      showErrorToast(getEventSubmissionErrorMessage(error))
-    } finally {
-      setSending(false)
-    }
-  }
-
-  function startAgain() {
-    setValues((was) => ({
-      ...emptyEventSubmission(),
-      // The same person is most likely sending the next one too.
-      submitterName: was.submitterName,
-      submitterEmail: was.submitterEmail,
-    }))
-    setPhoto(null)
-    setTouched(new Set())
-    setSent(false)
-  }
+/**
+ * The Suggest an event page's form: the boxes above, with the thank-you and
+ * the Send row the page needs around them. The Events page draws the same
+ * boxes in a window instead, through `SuggestEventButton`.
+ */
+export function EventSubmissionForm({ form }: { form: FormInfo }) {
+  const box = useEventSubmission(form)
+  const { values, sending, sent, startAgain } = box
 
   if (sent) {
     return (
@@ -118,126 +194,16 @@ export function EventSubmissionForm({ form }: { form: FormInfo }) {
     )
   }
 
-  const field = (name: EventSubmissionField) => ({
-    name,
-    value: values[name],
-    problem: problemFor(name),
-    disabled: sending,
-    onBlur: () => touch(name),
-    onChange: (value: string) => set(name, value),
-  })
-
   return (
     <form
       className="relative grid gap-2 md:gap-3"
       noValidate
       onSubmit={(event) => {
         event.preventDefault()
-        void send()
+        void box.send()
       }}
     >
-      {/* A box no person sees or reaches. A bot fills every box it finds, and
-          the server throws away anything that arrives with this one filled. */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute -left-[9999px] size-px overflow-hidden"
-      >
-        <label htmlFor="suggest-trap">Leave this empty</label>
-        <input
-          id="suggest-trap"
-          name={EVENT_SUBMISSION_TRAP}
-          type="text"
-          tabIndex={-1}
-          autoComplete="off"
-          value={trap}
-          onChange={(event) => setTrap(event.target.value)}
-        />
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>The event</CardTitle>
-          <CardDescription>
-            Somebody reads every suggestion before it appears on {form.siteName}
-            .
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4">
-          <TextField label="Name of the event" {...field("title")} />
-          <TextField
-            label="Description (optional)"
-            multiline
-            {...field("description")}
-          />
-          {form.photosAllowed ? (
-            <PhotoField photo={photo} disabled={sending} onChange={setPhoto} />
-          ) : null}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>When and where</CardTitle>
-          <CardDescription>All times are {form.zone}.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-            <div className="grid gap-2 sm:flex-1">
-              <FieldLabel htmlFor="suggest-startDate">Day</FieldLabel>
-              <DatePicker
-                id="suggest-startDate"
-                value={dayForPicker(values.startDate)}
-                disabled={sending}
-                placeholder="Pick a day"
-                onChange={(date) => {
-                  set("startDate", dayFromPicker(date))
-                  touch("startDate")
-                }}
-              />
-              <Problem
-                id="suggest-startDate"
-                problem={problemFor("startDate")}
-              />
-            </div>
-            <TextField
-              label="Starts"
-              type="time"
-              className="sm:flex-1"
-              {...field("startTime")}
-            />
-            <TextField
-              label="Ends (optional)"
-              type="time"
-              className="sm:flex-1"
-              hint="Past midnight? Put the time it ends, and it counts as the next day."
-              {...field("endTime")}
-            />
-          </div>
-          <TextField label="Place (optional)" {...field("placeName")} />
-          <TextField
-            label="Street address (optional)"
-            {...field("placeAddress")}
-          />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>About you</CardTitle>
-          <CardDescription>
-            Only the people who run {form.siteName} see this.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4">
-          <TextField label="Your name (optional)" {...field("submitterName")} />
-          <TextField
-            label="Your email"
-            type="email"
-            hint="We email you once, when your suggestion has been looked at."
-            {...field("submitterEmail")}
-          />
-        </CardContent>
-      </Card>
+      <EventSubmissionFields box={box} form={form} />
 
       <div className="flex items-center gap-2">
         {/* Stays enabled while empty: the boxes say what is missing when it
@@ -290,7 +256,7 @@ function TextField({
     onBlur,
   }
   return (
-    <div className={`grid gap-2 ${className ?? ""}`}>
+    <div className={`relative grid gap-2 ${className ?? ""}`}>
       <div className="flex items-center justify-between gap-2">
         <FieldLabel htmlFor={id} hint={hint}>
           {label}
@@ -315,9 +281,24 @@ function TextField({
   )
 }
 
+/**
+ * What is wrong with one box, drawn in the gap under it rather than in the
+ * column of fields, so no box ever moves when a message appears.
+ *
+ * It used to sit in the column: the message appeared when a box was left,
+ * everything under it dropped 20px, and a press that started on the Day
+ * picker landed somewhere else by the time it was let go, so the first press
+ * on it did nothing at all. Reserving an empty line for it instead fixed that
+ * and pushed every field 16px further apart, which is worse. The message is
+ * 16px tall and the gap between fields is 16px, so out of flow it fits the gap
+ * exactly and costs nothing.
+ */
 function Problem({ id, problem }: { id: string; problem: string | null }) {
   return problem ? (
-    <p id={`${id}-problem`} className="text-xs text-destructive">
+    <p
+      id={`${id}-problem`}
+      className="absolute top-full left-0 text-xs leading-4 text-destructive"
+    >
       {problem}
     </p>
   ) : null

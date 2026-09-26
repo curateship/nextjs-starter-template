@@ -122,6 +122,9 @@ const everyPublicRead: Record<
     notAList: "Lists categories, not events. Proven on its own below.",
   },
   eventsAccessFor: { notAList: "Reads the Events page's switch." },
+  readEventDateCounts: {
+    notAList: "Counts events rather than naming them. Proven on its own below.",
+  },
 }
 
 describe("private events", () => {
@@ -152,6 +155,17 @@ describe("private events", () => {
     expect(page?.event.isPrivate).toBe(true)
     const open = await publicReads.readPublicEvent(site, listed, database)
     expect(open?.event.isPrivate).toBe(false)
+  })
+
+  it("are never counted behind the Events page's date chips", async () => {
+    const counts = await publicReads.readEventDateCounts(
+      site,
+      siteNow,
+      [{ from: "2026-10-03", to: "2026-10-03" }],
+      database
+    )
+    // One public event on that day, and the private one beside it uncounted.
+    expect(counts).toEqual({ anyTime: 1, windows: [1] })
   })
 
   it("never make a category a filter on the Events page", async () => {

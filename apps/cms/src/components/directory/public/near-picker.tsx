@@ -16,9 +16,10 @@ import { DIRECTORY_NEAR_RADII_KM } from "@/lib/directory/public-search"
 
 /**
  * Near a place and Within a distance: a typed town or postcode, the browser's
- * own location, and the distance picker. The directory's listings and the
- * Events page both use this one, so the two never differ on how a place is
- * found or when Within can be used.
+ * own location, and the distance picker. The Deals page uses this one, and the
+ * directory's and the Events page's search bars draw the same three controls
+ * inside their bar, so the pages never differ on how a place is found or when
+ * Within can be used.
  *
  * Within stays disabled until a place is active, and says why. A pick made
  * before there is anywhere to measure from would do nothing, and the visitor
