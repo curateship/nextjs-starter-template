@@ -35,7 +35,7 @@ import {
 async function loadPricingLandingData() {
   return (await pricingLandingPage.loader?.()) as {
     frontPageRows: typeof api.rows
-    billingEnabled: boolean
+    plans: unknown[]
   }
 }
 
@@ -57,7 +57,7 @@ describe("front page row loading", () => {
     const data = await loadPricingLandingData()
 
     expect(data.frontPageRows).toEqual([])
-    expect(data.billingEnabled).toBe(true)
+    expect(data.plans).toEqual([])
     expect(api.loadCurrentUser).toHaveBeenCalledOnce()
     expect(api.loadPublicPricing).toHaveBeenCalledOnce()
   })

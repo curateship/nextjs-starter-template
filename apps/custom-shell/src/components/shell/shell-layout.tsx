@@ -72,6 +72,7 @@ import {
 import { normalizeNotificationTypeVisibility } from "@/lib/notification-types"
 import { normalizePublicTheme } from "@/lib/public-theme"
 import { normalizePublicFontAsset } from "@/lib/public-font"
+import { normalizePublicSocialLinks } from "@/lib/pages/public-social"
 import { normalizeFrontPageRows } from "@/lib/pages/front-page"
 import { resolveAppName } from "@/lib/branding"
 import {
@@ -774,6 +775,7 @@ function normalizeConfig(
     publicFooter: Array.isArray(settings.publicFooter)
       ? settings.publicFooter
       : fallback.publicFooter,
+    publicFooterSocial: normalizePublicSocialLinks(settings.publicFooterSocial),
     publicFooterCopyright:
       settings.publicFooterCopyright ?? fallback.publicFooterCopyright,
     publicHeader: normalizePublicHeader(settings.publicHeader),

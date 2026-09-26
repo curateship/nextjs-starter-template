@@ -62,7 +62,6 @@ describe("front page content blocks", () => {
       <FrontPageRows
         rows={rows}
         plans={[]}
-        billingEnabled={false}
         trialUsed={false}
         interval="monthly"
         onIntervalChange={vi.fn()}
@@ -107,7 +106,6 @@ describe("front page content blocks", () => {
       <FrontPageRows
         rows={rows}
         plans={[]}
-        billingEnabled={false}
         trialUsed={false}
         interval="monthly"
         onIntervalChange={vi.fn()}
@@ -136,7 +134,6 @@ describe("front page content blocks", () => {
       <FrontPageRows
         rows={rows}
         plans={[]}
-        billingEnabled={false}
         trialUsed={false}
         interval="monthly"
         onIntervalChange={vi.fn()}

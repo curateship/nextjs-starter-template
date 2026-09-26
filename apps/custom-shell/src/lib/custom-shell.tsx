@@ -44,6 +44,7 @@ import {
 import type { PublicThemePreset } from "@/lib/public-theme-presets"
 import type { PublicFontAsset } from "@/lib/public-font"
 import type { FrontPageRow } from "@/lib/pages/front-page"
+import type { PublicSocialLink } from "@/lib/pages/public-social"
 import {
   DEFAULT_FAVICON_MODE,
   type FaviconMode,
@@ -496,6 +497,7 @@ export type ShellConfig = {
   publicNavigation: PublicNavigationItem[]
   /** App-wide on one-site apps; saved per workspace when domains enable multisite. */
   publicFooter: PublicNavigationLink[]
+  publicFooterSocial: PublicSocialLink[]
   /** The short line shown beneath the public footer links. */
   publicFooterCopyright: string
   /** App-wide layout choices for the signed-out header. */
@@ -789,6 +791,7 @@ export function createDefaultShellConfig(): ShellConfig {
     frontPageRows: [],
     publicNavigation: createDefaultPublicNavigation(),
     publicFooter: [],
+    publicFooterSocial: [],
     publicFooterCopyright: "",
     publicHeader: createDefaultPublicHeader(),
     publicBreadcrumbs: createDefaultPublicBreadcrumbs(),

@@ -231,6 +231,7 @@ export function SettingsPage({
           <PublicSiteSettings
             navigation={config.publicNavigation}
             footer={config.publicFooter}
+            footerSocial={config.publicFooterSocial}
             footerCopyright={config.publicFooterCopyright}
             publicHeader={config.publicHeader}
             pageWidth={config.publicTheme.pageWidth}
@@ -241,6 +242,9 @@ export function SettingsPage({
             }
             onFooterChange={(publicFooter) =>
               onConfigChange({ ...config, publicFooter })
+            }
+            onFooterSocialChange={(publicFooterSocial) =>
+              onConfigChange({ ...config, publicFooterSocial })
             }
             onFooterCopyrightChange={(publicFooterCopyright) =>
               onConfigChange({ ...config, publicFooterCopyright })

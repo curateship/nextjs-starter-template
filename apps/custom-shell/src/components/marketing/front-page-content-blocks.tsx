@@ -5,6 +5,7 @@ import { publicContentAlignmentRowClassName } from "@/components/shell/public-co
 import { SavedLink } from "@/components/shell/public-navigation"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import {
   MAX_FRONT_PAGE_HERO_STARS,
@@ -109,10 +110,10 @@ export function FrontPageHero({
     </div>
   )
 
-  if (!image) return <div className="w-full py-6 md:py-12">{words}</div>
+  if (!image) return words
 
   return (
-    <div className="grid w-full gap-6 py-6 md:grid-cols-2 md:items-center md:gap-10 md:py-12">
+    <div className="grid w-full gap-6 md:grid-cols-2 md:items-start md:gap-10">
       {words}
       <MediaThumbnail
         url={image}
@@ -184,27 +185,32 @@ export function FrontPageTestimonials({
   )
 }
 
+/**
+ * Three columns of questions on a wide screen, two on a tablet and one on a
+ * phone. Each card is numbered, so a visitor reading down a column can tell
+ * where they are and can point at a question by its number.
+ *
+ * The card is the theme's muted surface rather than the shared `Card`, so it
+ * is a light grey block with no edge in light mode and a dark grey one in
+ * dark mode. A site that also sets its canvas to muted at full strength will
+ * see less separation between the two.
+ */
 export function FrontPageFaq({ items }: { items: FrontPageFaqItem[] }) {
   return (
-    <dl
-      className={cn(
-        "flex w-full flex-wrap gap-2 md:gap-3",
-        publicContentAlignmentRowClassName
-      )}
-    >
-      {items.map((item) => (
-        <Card
+    <dl className="grid w-full gap-4 sm:grid-cols-2 md:gap-6 lg:grid-cols-3">
+      {items.map((item, index) => (
+        <div
           key={item.id}
-          size="sm"
-          className="w-full md:w-[calc(50%-0.375rem)]"
+          className="grid content-start gap-3 rounded-xl bg-muted p-6 md:p-7"
         >
-          <CardContent className="grid gap-2">
-            <dt className="text-sm font-medium">{item.question}</dt>
-            <dd className="text-sm whitespace-pre-wrap text-muted-foreground">
-              {item.answer}
-            </dd>
-          </CardContent>
-        </Card>
+          <Badge variant="outline" className="bg-background">
+            Q{index + 1}
+          </Badge>
+          <dt className="font-medium">{item.question}</dt>
+          <dd className="text-sm leading-relaxed whitespace-pre-wrap text-muted-foreground">
+            {item.answer}
+          </dd>
+        </div>
       ))}
     </dl>
   )

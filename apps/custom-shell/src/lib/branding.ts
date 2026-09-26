@@ -4,6 +4,7 @@ import type {
   PublicNavigationItem,
   PublicNavigationLink,
 } from "@/lib/pages/public-navigation"
+import type { PublicSocialLink } from "@/lib/pages/public-social"
 import {
   normalizePublicHeader,
   type PublicHeader,
@@ -89,6 +90,22 @@ export function usePublicFooter(): PublicNavigationLink[] {
   return useLoaderData({
     from: rootRouteId,
     select: (data) => data.publicFooter ?? [],
+  })
+}
+
+/** The site's one-line description, shared with search engines. */
+export function usePublicSiteDescription() {
+  return useLoaderData({
+    from: rootRouteId,
+    select: (data) => data.publicSeo?.siteDescription ?? "",
+  })
+}
+
+/** The social accounts drawn as buttons in the public footer. */
+export function usePublicFooterSocial(): PublicSocialLink[] {
+  return useLoaderData({
+    from: rootRouteId,
+    select: (data) => data.publicFooterSocial ?? [],
   })
 }
 

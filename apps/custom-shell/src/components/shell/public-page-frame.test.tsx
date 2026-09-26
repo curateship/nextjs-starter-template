@@ -31,6 +31,8 @@ const publicSite = vi.hoisted(() => ({
   ] as PublicNavigationItem[],
   footer: [{ label: "About", href: "/about?from=footer#team" }],
   copyright: "Copyright",
+  description: "A short line about the site.",
+  social: [] as { platform: string; url: string }[],
 }))
 const publicHeader = vi.hoisted(() => ({
   current: {
@@ -103,6 +105,8 @@ vi.mock("@/lib/branding", () => ({
   usePublicNavigation: () => publicSite.navigation,
   usePublicFooter: () => publicSite.footer,
   usePublicFooterCopyright: () => publicSite.copyright,
+  usePublicSiteDescription: () => publicSite.description,
+  usePublicFooterSocial: () => publicSite.social,
   usePublicSearchEnabled: () => publicSearch.enabled,
   usePublicHeader: () => publicHeader.current,
   usePublicUserPanel: () => publicUserPanel.current,
@@ -396,8 +400,10 @@ describe("PublicPageFrame navigation", () => {
 
     expect(frame?.style.backgroundColor).toBe("rgb(171, 205, 239)")
     expect(main?.className).toContain("place-items-center")
-    expect(main?.firstElementChild?.className).toContain("items-end")
-    expect(main?.firstElementChild?.className).toContain("text-right")
+    // The site says right, but a card page is one box in the middle of the
+    // screen and stays centred whatever the site chose.
+    expect(main?.firstElementChild?.className).toContain("items-center")
+    expect(main?.firstElementChild?.className).toContain("text-center")
     expect(main?.style.paddingBlock).toBe("24px")
     expect(
       widthElements.every((element) => element?.style.maxWidth === "800px")
@@ -405,6 +411,25 @@ describe("PublicPageFrame navigation", () => {
     expect(host.querySelector("header")?.className).not.toContain("border-b")
     expect(host.querySelector("footer")?.className).not.toContain("border-t")
     expect(host.textContent).not.toContain("Choose colour mode")
+
+    await act(async () => root.unmount())
+  })
+
+  it("keeps the site's alignment on a page built from blocks", async () => {
+    router.pathname = "/"
+    publicTheme.current = { ...publicTheme.current, contentAlignment: "right" }
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(<PublicPageFrame>Page</PublicPageFrame>)
+    })
+
+    const column = host.querySelector("main")?.firstElementChild
+    expect(column?.className).toContain("items-end")
+    expect(column?.className).toContain("text-right")
+    expect(column?.getAttribute("data-content-alignment")).toBe("right")
 
     await act(async () => root.unmount())
   })

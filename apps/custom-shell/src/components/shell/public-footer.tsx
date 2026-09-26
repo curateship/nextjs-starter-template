@@ -1,22 +1,34 @@
 import { Link } from "@tanstack/react-router"
 
 import { BrandLogo } from "@/components/shell/brand-logo"
+import {
+  publicContentAlignmentClassNames,
+  publicContentAlignmentJustifyClassNames,
+} from "@/components/shell/public-content-alignment"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { isInternalHref, toLinkProps } from "@/lib/nav/nav-href"
 import type { PublicHeaderLogoSize } from "@/lib/pages/public-header"
 import { renderCopyrightText } from "@/lib/pages/public-footer-copyright"
 import type { PublicNavigationLink } from "@/lib/pages/public-navigation"
+import {
+  PUBLIC_SOCIAL_PLATFORM_LABELS,
+  type PublicSocialLink,
+  type PublicSocialPlatform,
+} from "@/lib/pages/public-social"
+import type { PublicContentAlignment } from "@/lib/public-theme"
 import { cn } from "@/lib/utils"
 
 /**
- * The public footer, drawn the way the directory app draws it: the branding
- * centred at the top, the links centred in one wrapping row, the social
- * accounts under those, and the copyright line last.
+ * The public footer: the logo and app name, the site's own description under
+ * them, and the social accounts as buttons. A rule then separates the last
+ * line, which carries the copyright and the footer links side by side.
+ *
+ * It follows the site's content alignment the long way round, through a prop.
+ * The footer renders outside the public content column, so the `group-data`
+ * alignment classes have no group to read here.
  */
 
-export type PublicSocialLink = { platform: string; url: string }
-
-const SOCIAL_PATHS: Record<string, string> = {
+const SOCIAL_PATHS: Record<PublicSocialPlatform, string> = {
   twitter:
     "M10.488 14.651L15.25 21h7l-7.858-10.478L20.93 3h-2.65l-5.117 5.886L8.75 3h-7l7.51 10.015L2.32 21h2.65zM16.25 19L5.75 5h2l10.5 14z",
   linkedin:
@@ -39,26 +51,22 @@ const SOCIAL_PATHS: Record<string, string> = {
     "M22.539 8.242H1.46V5.406h21.08v2.836zM1.46 10.812V24L12 18.11 22.54 24V10.812H1.46zM22.54 0H1.46v2.836h21.08V0z",
 }
 
-const FALLBACK_SOCIAL_PATH =
-  "M18.364 5.636L16.95 7.05A7 7 0 1 0 19 12h2a9 9 0 1 1-2.636-6.364z"
-
-function SocialIcon({ platform, url }: PublicSocialLink) {
-  const path = SOCIAL_PATHS[platform.toLowerCase()] ?? FALLBACK_SOCIAL_PATH
-  const label = platform.charAt(0).toUpperCase() + platform.slice(1)
+function SocialButton({ platform, url }: PublicSocialLink) {
+  const path = SOCIAL_PATHS[platform]
+  const label = PUBLIC_SOCIAL_PLATFORM_LABELS[platform]
 
   return (
     <a
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      aria-label={label}
       className={cn(
-        "block rounded-md text-muted-foreground hover:text-foreground",
+        "inline-flex items-center gap-2 rounded-md border bg-background px-3 py-1.5 text-sm text-foreground duration-150 hover:bg-muted",
         focusRing
       )}
     >
       <svg
-        className="size-6"
+        className="size-4"
         xmlns="http://www.w3.org/2000/svg"
         width="1em"
         height="1em"
@@ -67,6 +75,7 @@ function SocialIcon({ platform, url }: PublicSocialLink) {
       >
         <path fill="currentColor" d={path} />
       </svg>
+      {label}
     </a>
   )
 }
@@ -100,6 +109,8 @@ export function PublicFooter({
   links,
   socialLinks,
   copyright,
+  description,
+  contentAlignment,
   footerBorder,
   pageWidthStyle,
   edgeStyle,
@@ -112,6 +123,9 @@ export function PublicFooter({
   links: PublicNavigationLink[]
   socialLinks: PublicSocialLink[]
   copyright: string
+  /** The site's own description, or empty to draw no line under the logo. */
+  description: string
+  contentAlignment: PublicContentAlignment
   footerBorder: boolean
   pageWidthStyle: { maxWidth: number } | undefined
   /**
@@ -132,7 +146,7 @@ export function PublicFooter({
   return (
     <footer
       className={cn(
-        "pt-20 text-foreground",
+        "text-foreground",
         edgeStyle ? undefined : "px-4",
         chromeBackground ? undefined : "bg-background",
         footerBorder && "border-t"
@@ -143,48 +157,72 @@ export function PublicFooter({
       }}
     >
       <div className="mx-auto w-full max-w-6xl" style={pageWidthStyle}>
-        <Link
-          to="/"
-          aria-label="Go to the home page"
+        <div
           className={cn(
-            "mx-auto flex w-fit items-center gap-2 rounded-md",
-            focusRing
+            "flex flex-col gap-6 py-10 md:py-14",
+            publicContentAlignmentClassNames[contentAlignment]
           )}
         >
-          <BrandLogo
-            src={logo}
-            darkSrc={logoDark}
-            appName={appName}
-            size={logoSize}
-          />
-          <span className="text-sm font-medium text-foreground">{appName}</span>
-        </Link>
+          <Link
+            to="/"
+            aria-label="Go to the home page"
+            className={cn(
+              "flex w-fit items-center gap-2 rounded-md",
+              focusRing
+            )}
+          >
+            <BrandLogo
+              src={logo}
+              darkSrc={logoDark}
+              appName={appName}
+              size={logoSize}
+            />
+            <span className="text-lg font-semibold text-foreground">
+              {appName}
+            </span>
+          </Link>
 
-        {links.length ? (
-          <nav aria-label="Footer navigation" className="my-8">
-            <ul className="flex flex-wrap justify-center gap-6 text-sm">
-              {links.map((link, index) => (
-                <li key={`${link.label}-${link.href}-${index}`}>
-                  <FooterLink link={link} />
+          {description ? (
+            <p className="max-w-xl text-xs text-muted-foreground md:text-sm">
+              {description}
+            </p>
+          ) : null}
+
+          {socialLinks.length ? (
+            <ul
+              className={cn(
+                "flex w-full flex-wrap gap-2",
+                publicContentAlignmentJustifyClassNames[contentAlignment]
+              )}
+            >
+              {socialLinks.map((social, index) => (
+                <li key={`${social.platform}-${index}`}>
+                  <SocialButton platform={social.platform} url={social.url} />
                 </li>
               ))}
             </ul>
-          </nav>
-        ) : null}
+          ) : null}
+        </div>
 
-        {socialLinks.length ? (
-          <ul className="my-8 flex flex-wrap justify-center gap-6">
-            {socialLinks.map((social, index) => (
-              <li key={`${social.platform}-${index}`}>
-                <SocialIcon platform={social.platform} url={social.url} />
-              </li>
-            ))}
-          </ul>
-        ) : null}
-
-        <span className="mt-8 block pb-4 text-center text-sm text-muted-foreground">
-          {copyrightText}
-        </span>
+        <div
+          className={cn(
+            "flex flex-wrap items-center gap-x-8 gap-y-2 border-t py-6 text-sm text-muted-foreground",
+            publicContentAlignmentJustifyClassNames[contentAlignment]
+          )}
+        >
+          <span>{copyrightText}</span>
+          {links.length ? (
+            <nav aria-label="Footer navigation">
+              <ul className="flex flex-wrap items-center gap-6">
+                {links.map((link, index) => (
+                  <li key={`${link.label}-${link.href}-${index}`}>
+                    <FooterLink link={link} />
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          ) : null}
+        </div>
       </div>
     </footer>
   )

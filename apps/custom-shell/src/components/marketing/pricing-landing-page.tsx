@@ -4,7 +4,6 @@ import { Link, useNavigate } from "@tanstack/react-router"
 import { publicContentAlignmentRowClassName } from "@/components/shell/public-content-alignment"
 import { FrontPageRows } from "@/components/marketing/front-page-rows"
 import { PublicPageFrame } from "@/components/shell/public-page-frame"
-import { PaymentsOffCard } from "@/components/shared/payments-off-card"
 import { PricingTable } from "@/components/shared/pricing-table"
 import { Button } from "@/components/ui/button"
 import { definePublicPage } from "@/lib/app-options"
@@ -27,7 +26,6 @@ type LandingData = {
   signedIn: boolean
   userRole: string | null
   plans: PlanOption[]
-  billingEnabled: boolean
   trialUsed: boolean
 }
 
@@ -63,7 +61,6 @@ export async function loadPricingLandingData(
       signedIn: false,
       userRole: null,
       plans: [],
-      billingEnabled: false,
       trialUsed: false,
     }
   }
@@ -91,7 +88,6 @@ export async function loadPricingLandingData(
     signedIn: Boolean(user),
     userRole: user?.role ?? null,
     plans: pricing.plans,
-    billingEnabled: pricing.billingEnabled,
     trialUsed: Boolean(overview?.trialUsed),
   }
 }
@@ -102,7 +98,6 @@ function PricingLanding({ data }: { data: LandingData }) {
     signedIn,
     userRole,
     plans,
-    billingEnabled,
     trialUsed,
   } = data
   const appName = useAppName()
@@ -132,7 +127,6 @@ function PricingLanding({ data }: { data: LandingData }) {
         <FrontPageRows
           rows={frontPageRows}
           plans={plans}
-          billingEnabled={billingEnabled}
           trialUsed={trialUsed}
           interval={interval}
           onIntervalChange={setInterval}
@@ -173,18 +167,14 @@ function PricingLanding({ data }: { data: LandingData }) {
           </div>
         </header>
 
-        {billingEnabled ? (
-          <PricingTable
-            plans={plans}
-            interval={interval}
-            onIntervalChange={setInterval}
-            onSelect={handleSelect}
-            trialUsed={trialUsed}
-            actionLabel="Get started"
-          />
-        ) : (
-          <PaymentsOffCard />
-        )}
+        <PricingTable
+          plans={plans}
+          interval={interval}
+          onIntervalChange={setInterval}
+          onSelect={handleSelect}
+          trialUsed={trialUsed}
+          actionLabel="Get started"
+        />
       </div>
     </PublicPageFrame>
   )

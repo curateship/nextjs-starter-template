@@ -372,6 +372,33 @@ an image and caption. Testimonial and screenshot rows hold up to six entries;
 FAQ and logo rows hold up to twelve. Cards and images collapse into a readable
 single column on phones.
 
+An FAQ row draws three questions across on a wide screen, two on a tablet and
+one on a phone, and numbers each card Q1, Q2 and so on. The number tells a
+reader working down a column where they are, and lets one person point another
+at a question without quoting it. The numbers come from the saved order, so
+dragging the entries renumbers them.
+
+## The footer
+
+The footer is two blocks with a rule between them. The upper block carries the
+logo and the app name, the site's own description under those, and the social
+accounts as buttons with their name beside the mark. The lower block is one
+line: the copyright, then the footer links beside it.
+
+The description is the Default page description from Public > SEO, the same
+sentence a search engine is given when a page has none of its own. Nothing new
+to fill in, and an empty one draws no line at all rather than a gap.
+
+The footer follows the site's content alignment, but it is handed that choice
+as a prop rather than reading it from the page. It renders outside the public
+content column, so the alignment classes that work inside the column have no
+group to read out there.
+
+The social accounts come from Public > Navigation, under the Public footer
+card, and they draw in the order they are dragged into there. A site with none
+draws no row at all. Each button opens in a new tab and carries
+`rel="noopener noreferrer"`, because the address belongs to somebody else.
+
 Rows are app-wide and render in the order saved by the drag editor. A saved row
 without its required heading is dropped before it reaches the public page. An
 incomplete content entry is dropped too, and a content row with no complete

@@ -54,6 +54,14 @@ import {
   normalizeFrontPageRows,
 } from "@/lib/pages/front-page"
 import {
+  MAX_PUBLIC_SOCIAL_LINKS,
+  MAX_PUBLIC_SOCIAL_URL_LENGTH,
+  PUBLIC_SOCIAL_PLATFORMS,
+  PUBLIC_SOCIAL_URL_MESSAGE,
+  normalizePublicSocialLinks,
+  normalizePublicSocialUrl,
+} from "@/lib/pages/public-social"
+import {
   cleanPublicFooterCopyright,
   cleanPublicNavigationItems,
   cleanPublicNavigationLinks,
@@ -267,6 +275,23 @@ const publicFooterSchema = z
   .array(publicNavigationLinkSchema)
   .max(MAX_PUBLIC_FOOTER_LINKS)
   .transform(cleanPublicNavigationLinks)
+
+const publicFooterSocialSchema = z
+  .array(
+    z.object({
+      platform: z.enum(PUBLIC_SOCIAL_PLATFORMS),
+      url: z
+        .string()
+        .trim()
+        .max(MAX_PUBLIC_SOCIAL_URL_LENGTH)
+        .refine(
+          (value) => normalizePublicSocialUrl(value) === value,
+          PUBLIC_SOCIAL_URL_MESSAGE
+        ),
+    })
+  )
+  .max(MAX_PUBLIC_SOCIAL_LINKS)
+  .transform(normalizePublicSocialLinks)
 
 const publicBrandOverridesSchema = z.object(
   Object.fromEntries(
@@ -533,6 +558,7 @@ const shellConfigSchema = z.object({
   frontPageRows: frontPageRowsSchema,
   publicNavigation: publicNavigationSchema,
   publicFooter: publicFooterSchema,
+  publicFooterSocial: publicFooterSocialSchema,
   publicFooterCopyright: z
     .string()
     .max(MAX_PUBLIC_FOOTER_COPYRIGHT_LENGTH)

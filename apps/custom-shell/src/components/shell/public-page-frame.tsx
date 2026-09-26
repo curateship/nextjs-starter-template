@@ -13,6 +13,8 @@ import {
   useBrandLogoDark,
   usePublicFooter,
   usePublicFooterCopyright,
+  usePublicFooterSocial,
+  usePublicSiteDescription,
   usePublicHeader,
   usePublicUserPanel,
   usePublicNavigation,
@@ -72,6 +74,8 @@ export function PublicPageFrame({
   const navigation = usePublicNavigation()
   const footer = usePublicFooter()
   const footerCopyright = usePublicFooterCopyright()
+  const siteDescription = usePublicSiteDescription()
+  const footerSocial = usePublicFooterSocial()
   const publicHeader = usePublicHeader()
   const userPanel = usePublicUserPanel()
   const brandedPublicSearchEnabled = usePublicSearchEnabled()
@@ -160,6 +164,11 @@ export function PublicPageFrame({
     ...pageWidthStyle,
     ...(gutterChanged ? { gap: theme.gutter } : {}),
   }
+  // Content alignment is for pages built out of blocks: the front page, the
+  // pricing page and search. A card page is one box in the middle of the
+  // screen, and pushing that box to one side leaves it stranded beside an
+  // empty half, so it stays centred whatever the site chose.
+  const contentAlignment = marketing ? theme.contentAlignment : "center"
   const mainLayoutClass = marketing
     ? "items-start justify-items-center"
     : "place-items-center"
@@ -228,9 +237,9 @@ export function PublicPageFrame({
           className={cn(
             "group/public-content flex w-full max-w-6xl flex-col",
             gutterChanged ? undefined : "gap-2 md:gap-3",
-            publicContentAlignmentClassNames[theme.contentAlignment]
+            publicContentAlignmentClassNames[contentAlignment]
           )}
-          data-content-alignment={theme.contentAlignment}
+          data-content-alignment={contentAlignment}
           style={contentStyle}
         >
           <PublicBreadcrumbs trail={breadcrumbTrail} />
@@ -243,8 +252,10 @@ export function PublicPageFrame({
         logoDark={logoDark}
         logoSize={publicHeader.logoSize}
         links={footer}
-        socialLinks={[]}
+        socialLinks={footerSocial}
         copyright={footerCopyright}
+        description={siteDescription}
+        contentAlignment={theme.contentAlignment}
         footerBorder={theme.footerBorder}
         pageWidthStyle={pageWidthStyle}
         edgeStyle={edgeStyle}

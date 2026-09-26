@@ -16,6 +16,7 @@ import {
 } from "lucide-react"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
+import { PublicSocialEditor } from "@/components/settings/public-social-editor"
 import { SettingsCardSection } from "@/components/settings/settings-card-section"
 import { SettingsSwitchRow } from "@/components/settings/settings-switch-row"
 import { PublicUserPanelSettings } from "@/components/settings/public-user-panel-settings"
@@ -101,6 +102,7 @@ import {
   type PublicNavigationItem,
   type PublicNavigationLink,
 } from "@/lib/pages/public-navigation"
+import type { PublicSocialLink } from "@/lib/pages/public-social"
 import type { PublicUserPanel } from "@/lib/pages/public-user-panel"
 import { isSafeWrittenPageLink } from "@/lib/pages/written-page-body"
 import { showErrorToast } from "@/lib/toast/error-toast"
@@ -109,6 +111,7 @@ import { cn } from "@/lib/utils"
 type PublicSiteSettingsProps = {
   navigation: PublicNavigationItem[]
   footer: PublicNavigationLink[]
+  footerSocial: PublicSocialLink[]
   footerCopyright: string
   publicHeader: PublicHeader
   /** Styling's page width, which the header follows until it has its own. */
@@ -117,6 +120,7 @@ type PublicSiteSettingsProps = {
   publicBreadcrumbs: PublicBreadcrumbs
   onNavigationChange: (items: PublicNavigationItem[]) => void
   onFooterChange: (links: PublicNavigationLink[]) => void
+  onFooterSocialChange: (links: PublicSocialLink[]) => void
   onFooterCopyrightChange: (copyright: string) => void
   onPublicHeaderChange: (header: PublicHeader) => void
   onPublicUserPanelChange: (panel: PublicUserPanel) => void
@@ -130,6 +134,7 @@ const CHIP_CLASS =
 export function PublicSiteSettings({
   navigation,
   footer,
+  footerSocial,
   footerCopyright,
   publicHeader,
   pageWidth,
@@ -137,6 +142,7 @@ export function PublicSiteSettings({
   publicBreadcrumbs,
   onNavigationChange,
   onFooterChange,
+  onFooterSocialChange,
   onFooterCopyrightChange,
   onPublicHeaderChange,
   onPublicUserPanelChange,
@@ -180,6 +186,16 @@ export function PublicSiteSettings({
         onLinksChange={onFooterChange}
         onSaveConfig={onSaveConfig}
       >
+        <SettingsCardSection
+          title="Social accounts"
+          description="Drawn as buttons under the site's description. Drag them into the order they should appear."
+        >
+          <PublicSocialEditor
+            links={footerSocial}
+            onLinksChange={onFooterSocialChange}
+            onSaveConfig={onSaveConfig}
+          />
+        </SettingsCardSection>
         <SettingsCardSection
           title="Copyright"
           description="One short copyright line shown beneath the footer links. Leave it empty to show nothing."

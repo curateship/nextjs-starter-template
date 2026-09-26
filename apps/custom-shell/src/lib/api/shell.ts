@@ -198,6 +198,7 @@ const loadBrandingFn = createServerFn({ method: "GET" }).handler(
     publicUserPanel: PublicUserPanel
     publicNavigation: ShellConfig["publicNavigation"]
     publicFooter: ShellConfig["publicFooter"]
+    publicFooterSocial: ShellConfig["publicFooterSocial"]
     publicFooterCopyright: string
     publicSearchEnabled: boolean
     publicFont: PublicFontAsset | null
@@ -232,6 +233,7 @@ const loadBrandingFn = createServerFn({ method: "GET" }).handler(
         publicUserPanel: createDefaultPublicUserPanel(),
         publicNavigation: createDefaultPublicNavigation(),
         publicFooter: [],
+        publicFooterSocial: [],
         publicFooterCopyright: "",
         publicSearchEnabled: true,
         publicFont: null,

@@ -6,18 +6,17 @@ import {
   FrontPageTestimonials,
 } from "@/components/marketing/front-page-content-blocks"
 import { publicContentAlignmentGridClassName } from "@/components/shell/public-content-alignment"
-import { PaymentsOffCard } from "@/components/shared/payments-off-card"
 import { PricingTable } from "@/components/shared/pricing-table"
 import type { PlanOption } from "@/lib/api/billing/billing"
 import type { BillingInterval } from "@/lib/billing/pricing-choice"
 import type { FrontPageRow } from "@/lib/pages/front-page"
+import { pageGutter } from "@/lib/layout/shell-gutter"
 import { publicDeviceRowClassName } from "@/lib/pages/public-device"
 import { cn } from "@/lib/utils"
 
 export function FrontPageRows({
   rows,
   plans,
-  billingEnabled,
   trialUsed,
   interval,
   onIntervalChange,
@@ -25,7 +24,6 @@ export function FrontPageRows({
 }: {
   rows: FrontPageRow[]
   plans: PlanOption[]
-  billingEnabled: boolean
   trialUsed: boolean
   interval: BillingInterval
   onIntervalChange: (interval: BillingInterval) => void
@@ -33,10 +31,8 @@ export function FrontPageRows({
 }) {
   return (
     <div
-      className={cn(
-        "grid w-full gap-2 md:gap-3",
-        publicContentAlignmentGridClassName
-      )}
+      className={cn("grid w-full", publicContentAlignmentGridClassName)}
+      style={{ gap: pageGutter }}
       data-front-page-rows=""
     >
       {rows.map((row, index) => {
@@ -49,7 +45,9 @@ export function FrontPageRows({
           <section
             key={row.id}
             className={cn(
-              "flex w-full flex-col gap-2",
+              // The row's words and the row's content are two things, not
+              // one, so they sit further apart than the lines inside either.
+              "flex w-full flex-col gap-6 md:gap-8",
               row.layout === "narrow" && "max-w-3xl",
               publicDeviceRowClassName(row.device)
             )}
@@ -60,17 +58,21 @@ export function FrontPageRows({
             {/* A hero draws its own heading, at its own size and beside the
                 picture. Every other row puts the heading above its content. */}
             {row.kind === "hero" ? null : (
-              <header className="grid gap-1">
+              <header className="grid gap-2">
                 <Heading
                   className={cn(
-                    "font-semibold",
-                    index === 0 ? "text-2xl" : "text-xl"
+                    "font-semibold tracking-tight text-balance",
+                    index === 0
+                      ? "text-3xl md:text-4xl"
+                      : "text-2xl md:text-3xl"
                   )}
                 >
                   {row.heading}
                 </Heading>
                 {row.intro ? (
-                  <p className="text-sm text-muted-foreground">{row.intro}</p>
+                  <p className="text-base text-muted-foreground md:text-lg">
+                    {row.intro}
+                  </p>
                 ) : null}
               </header>
             )}
@@ -89,18 +91,14 @@ export function FrontPageRows({
                 eager={eager}
               />
             ) : row.kind === "plans" ? (
-              billingEnabled ? (
-                <PricingTable
-                  plans={plans}
-                  interval={interval}
-                  onIntervalChange={onIntervalChange}
-                  onSelect={onSelectPlan}
-                  trialUsed={trialUsed}
-                  actionLabel="Get started"
-                />
-              ) : (
-                <PaymentsOffCard />
-              )
+              <PricingTable
+                plans={plans}
+                interval={interval}
+                onIntervalChange={onIntervalChange}
+                onSelect={onSelectPlan}
+                trialUsed={trialUsed}
+                actionLabel="Get started"
+              />
             ) : row.kind === "testimonials" ? (
               <FrontPageTestimonials items={row.items} />
             ) : row.kind === "faq" ? (

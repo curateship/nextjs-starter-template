@@ -390,7 +390,6 @@ export function PublicNavigation({
           key={action.key}
           asChild
           variant={action.style === "primary" ? "default" : action.style}
-          size="sm"
         >
           <SavedLink href={action.href}>
             <IconLabel icon={action.icon} label={action.label} />

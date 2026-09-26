@@ -445,6 +445,19 @@ takes a 6-digit hex value and stays the same colour in light and dark. A canvas
 colour saved before this picker existed reads as a custom colour, so the site
 looks the same as it did.
 
+The Public footer card holds three things: the footer links, the social
+accounts and the copyright line. An account is a platform and the full address
+of its page. The platform is a fixed list, X, LinkedIn, Facebook, Instagram,
+Threads, YouTube, TikTok, GitHub, Medium and Substack, because each one is
+drawn with its own mark and a name nobody typed could not be drawn at all. A
+footer shows up to eight, dragging changes the order the public footer draws
+them in, and an address has to start with `http://` or `https://` or it is not
+saved.
+
+The saved key for an account never changes when its name does. X is still
+stored as `twitter`, which is why renaming it in the list would empty the
+footer of every site that saved one.
+
 Public Styling is five cards, plus Presets above them: Brand, Page frame,
 Spacing & borders, Header & footer and Modal. Settings that belong to the same
 subject sit in one card under their own headings rather than in a card each,
