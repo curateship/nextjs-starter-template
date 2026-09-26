@@ -357,6 +357,9 @@ always used.
   the starting.
   Also the rule that in production only the engine trades, and why a
   saved plan a build does not understand is left alone.
+- `no-stylesheets-in-the-worker.md` — why a `.css` import stopped the engine
+  booting for ten hours on 26 Sep 2026, the path from the engine to an image
+  cropper, and the build plugin that empties every stylesheet.
 - `worker-image.md` — page-registry build checks, why local worker builds keep source maps, why those maps
   contain no server source, and which files enter the running image.
 - `data-retention.md` — which trading rows are permanent records and which
