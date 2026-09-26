@@ -1,14 +1,132 @@
+import { StarIcon } from "lucide-react"
+
 import { MediaThumbnail } from "@/components/media/media-thumbnail"
 import { publicContentAlignmentRowClassName } from "@/components/shell/public-content-alignment"
+import { SavedLink } from "@/components/shell/public-navigation"
+import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Card, CardContent } from "@/components/ui/card"
-import type {
-  FrontPageFaqItem,
-  FrontPageLogo,
-  FrontPageScreenshot,
-  FrontPageTestimonial,
+import {
+  MAX_FRONT_PAGE_HERO_STARS,
+  type FrontPageFaqItem,
+  type FrontPageLogo,
+  type FrontPageScreenshot,
+  type FrontPageTestimonial,
 } from "@/lib/pages/front-page"
 import { cn } from "@/lib/utils"
+
+/**
+ * The top of a front page: a large heading, a line beneath it, a button, and a
+ * short line of proof. A chosen picture puts all of that in a left column and
+ * the picture in a right one; without a picture the words run across the page.
+ * A phone stacks them either way, words first.
+ */
+export function FrontPageHero({
+  heading,
+  intro,
+  image,
+  alt,
+  buttonLabel,
+  buttonHref,
+  note,
+  stars,
+  headingLevel,
+  eager = false,
+}: {
+  heading: string
+  intro: string
+  image: string
+  alt: string
+  buttonLabel: string
+  buttonHref: string
+  note: string
+  stars: number
+  headingLevel: "h1" | "h2"
+  eager?: boolean
+}) {
+  const Heading = headingLevel
+  const words = (
+    <div
+      className={cn(
+        "grid gap-6",
+        // Long lines are hard to read, so the words stop short of the full
+        // page even when no picture is taking the other half.
+        image ? "w-full" : "w-full max-w-3xl"
+      )}
+    >
+      <div className="grid gap-4">
+        <Heading
+          className={cn(
+            "font-normal tracking-tight text-balance",
+            image
+              ? "text-3xl leading-[1.1] md:text-5xl"
+              : "text-4xl leading-[1.05] md:text-6xl"
+          )}
+        >
+          {heading}
+        </Heading>
+        {intro ? (
+          <p className="text-base text-muted-foreground md:text-lg">{intro}</p>
+        ) : null}
+      </div>
+
+      {buttonLabel && buttonHref ? (
+        <div
+          className={cn("flex w-full", publicContentAlignmentRowClassName)}
+        >
+          <Button asChild size="lg">
+            <SavedLink href={buttonHref}>{buttonLabel}</SavedLink>
+          </Button>
+        </div>
+      ) : null}
+
+      {stars > 0 || note ? (
+        <div
+          className={cn(
+            "flex w-full flex-wrap items-center gap-2",
+            publicContentAlignmentRowClassName
+          )}
+        >
+          {stars > 0 ? (
+            <span
+              className="flex items-center gap-0.5"
+              aria-label={`Rated ${stars} out of ${MAX_FRONT_PAGE_HERO_STARS}`}
+            >
+              {Array.from({ length: stars }, (_, index) => (
+                <StarIcon
+                  key={index}
+                  aria-hidden="true"
+                  className="size-4 fill-amber-400 text-amber-400"
+                />
+              ))}
+            </span>
+          ) : null}
+          {note ? (
+            <span className="text-sm text-muted-foreground">{note}</span>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  )
+
+  if (!image) return <div className="w-full py-6 md:py-12">{words}</div>
+
+  return (
+    <div className="grid w-full gap-6 py-6 md:grid-cols-2 md:items-center md:gap-10 md:py-12">
+      {words}
+      <MediaThumbnail
+        url={image}
+        fileType="image"
+        alt={alt}
+        fit="contain"
+        className="aspect-video w-full rounded-lg bg-muted/50"
+        // Half the reading width on desktop, the whole of it on a phone.
+        sizes="(min-width: 768px) 50vw, 100vw"
+        eager={eager}
+      />
+    </div>
+  )
+}
 
 export function FrontPageTestimonials({
   items,

@@ -75,10 +75,19 @@ assumes the picture fills the window and takes the widest copy, which is worse
 than taking the original once. So a new picture on a screen gets its `sizes`
 written when it is added, or it keeps the old behaviour and nothing breaks.
 
+## A picture fits its box rather than spilling out of it
+
+`MediaThumbnail` draws the picture in a box the caller shapes, usually
+`aspect-video` or `aspect-square`. The picture carries `min-h-0` so that it
+fits. Without it a tall picture in a wide box keeps its own height, because a
+grid item's smallest allowed height is the height of what is inside it, and the
+part that does not fit is cut off by the box. A phone shows this first, since
+the box is at its narrowest and the picture at its tallest.
+
 ## Where this applies today
 
 - The logo above every signed-out page.
-- Front-page logo rows and screenshot rows.
+- Front-page hero rows, logo rows and screenshot rows.
 - The media library grid and its list rows.
 - The media picker's grid and its rows.
 

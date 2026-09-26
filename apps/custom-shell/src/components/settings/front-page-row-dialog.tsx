@@ -36,6 +36,7 @@ import {
   type PublicDevice,
 } from "@/lib/pages/public-device"
 import {
+  FRONT_PAGE_HERO_LINK_MESSAGE,
   FRONT_PAGE_ROW_HEADING_MESSAGE,
   FRONT_PAGE_ROW_KIND_HINTS,
   FRONT_PAGE_ROW_KIND_LABELS,
@@ -45,6 +46,7 @@ import {
   FRONT_PAGE_ROW_LAYOUTS,
   MAX_FRONT_PAGE_ROW_HEADING_LENGTH,
   MAX_FRONT_PAGE_ROW_INTRO_LENGTH,
+  normalizeFrontPageHeroHref,
   type FrontPageRow,
   type FrontPageRowDraft,
   type FrontPageFaqItem,
@@ -76,6 +78,12 @@ export function FrontPageRowDialog({
   const [layout, setLayout] = React.useState<FrontPageRowLayout>("wide")
   const [hidden, setHidden] = React.useState(false)
   const [device, setDevice] = React.useState<PublicDevice>("all")
+  const [heroImage, setHeroImage] = React.useState("")
+  const [heroAlt, setHeroAlt] = React.useState("")
+  const [heroButtonLabel, setHeroButtonLabel] = React.useState("")
+  const [heroButtonHref, setHeroButtonHref] = React.useState("")
+  const [heroNote, setHeroNote] = React.useState("")
+  const [heroStars, setHeroStars] = React.useState(0)
   const [testimonials, setTestimonials] = React.useState<
     FrontPageTestimonial[]
   >([])
@@ -97,6 +105,12 @@ export function FrontPageRowDialog({
     setLayout(row?.layout ?? "wide")
     setHidden(row?.hidden ?? false)
     setDevice(row?.device ?? "all")
+    setHeroImage(row?.kind === "hero" ? row.image : "")
+    setHeroAlt(row?.kind === "hero" ? row.alt : "")
+    setHeroButtonLabel(row?.kind === "hero" ? row.buttonLabel : "")
+    setHeroButtonHref(row?.kind === "hero" ? row.buttonHref : "")
+    setHeroNote(row?.kind === "hero" ? row.note : "")
+    setHeroStars(row?.kind === "hero" ? row.stars : 0)
     setTestimonials(row?.kind === "testimonials" ? row.items : [])
     setFaqItems(row?.kind === "faq" ? row.items : [])
     setLogos(row?.kind === "logos" ? row.items : [])
@@ -113,6 +127,7 @@ export function FrontPageRowDialog({
     screenshots
   )
   const savedItems = row && row.kind === kind && "items" in row ? row.items : []
+  const savedHero = row?.kind === "hero" ? row : null
   const dirty =
     heading !== (row?.heading ?? "") ||
     intro !== (row?.intro ?? "") ||
@@ -120,6 +135,12 @@ export function FrontPageRowDialog({
     layout !== (row?.layout ?? "wide") ||
     hidden !== (row?.hidden ?? false) ||
     device !== (row?.device ?? "all") ||
+    heroImage !== (savedHero?.image ?? "") ||
+    heroAlt !== (savedHero?.alt ?? "") ||
+    heroButtonLabel !== (savedHero?.buttonLabel ?? "") ||
+    heroButtonHref !== (savedHero?.buttonHref ?? "") ||
+    heroNote !== (savedHero?.note ?? "") ||
+    heroStars !== (savedHero?.stars ?? 0) ||
     JSON.stringify(currentItems) !== JSON.stringify(savedItems)
   const headingInvalid =
     !heading.trim() && (headingTouched || submitted)
@@ -133,6 +154,8 @@ export function FrontPageRowDialog({
 
     const contentProblem = getContentProblem(
       kind,
+      heroButtonLabel,
+      heroButtonHref,
       testimonials,
       faqItems,
       logos,
@@ -152,6 +175,12 @@ export function FrontPageRowDialog({
         layout,
         hidden,
         device,
+        heroImage,
+        heroAlt: heroAlt.trim(),
+        heroButtonLabel: heroButtonLabel.trim(),
+        heroButtonHref: heroButtonHref.trim(),
+        heroNote: heroNote.trim(),
+        heroStars,
         testimonials,
         faqItems,
         logos,
@@ -312,11 +341,23 @@ export function FrontPageRowDialog({
 
             <FrontPageRowContentEditor
               kind={kind}
+              heroImage={heroImage}
+              heroAlt={heroAlt}
+              heroButtonLabel={heroButtonLabel}
+              heroButtonHref={heroButtonHref}
+              heroNote={heroNote}
+              heroStars={heroStars}
               testimonials={testimonials}
               faqItems={faqItems}
               logos={logos}
               screenshots={screenshots}
               submitted={submitted}
+              onHeroImageChange={setHeroImage}
+              onHeroAltChange={setHeroAlt}
+              onHeroButtonLabelChange={setHeroButtonLabel}
+              onHeroButtonHrefChange={setHeroButtonHref}
+              onHeroNoteChange={setHeroNote}
+              onHeroStarsChange={setHeroStars}
               onTestimonialsChange={setTestimonials}
               onFaqItemsChange={setFaqItems}
               onLogosChange={setLogos}
@@ -353,11 +394,27 @@ function itemsForKind(
 
 function getContentProblem(
   kind: FrontPageRowKind,
+  heroButtonLabel: string,
+  heroButtonHref: string,
   testimonials: FrontPageTestimonial[],
   faqItems: FrontPageFaqItem[],
   logos: FrontPageLogo[],
   screenshots: FrontPageScreenshot[]
 ) {
+  if (kind === "hero") {
+    if (heroButtonLabel.trim() && !heroButtonHref.trim()) {
+      return "Give the hero button a link, or clear its wording."
+    }
+    if (heroButtonHref.trim() && !heroButtonLabel.trim()) {
+      return "Give the hero button its wording, or clear its link."
+    }
+    if (
+      heroButtonHref.trim() &&
+      normalizeFrontPageHeroHref(heroButtonHref) !== heroButtonHref.trim()
+    ) {
+      return FRONT_PAGE_HERO_LINK_MESSAGE
+    }
+  }
   if (kind === "testimonials") {
     if (!testimonials.length) return "Add at least one testimonial."
     if (testimonials.some((item) => !item.name.trim() || !item.quote.trim())) {
@@ -392,6 +449,12 @@ function buildDraft({
   layout,
   hidden,
   device,
+  heroImage,
+  heroAlt,
+  heroButtonLabel,
+  heroButtonHref,
+  heroNote,
+  heroStars,
   testimonials,
   faqItems,
   logos,
@@ -403,12 +466,30 @@ function buildDraft({
   layout: FrontPageRowLayout
   hidden: boolean
   device: PublicDevice
+  heroImage: string
+  heroAlt: string
+  heroButtonLabel: string
+  heroButtonHref: string
+  heroNote: string
+  heroStars: number
   testimonials: FrontPageTestimonial[]
   faqItems: FrontPageFaqItem[]
   logos: FrontPageLogo[]
   screenshots: FrontPageScreenshot[]
 }): FrontPageRowDraft {
   const base = { heading, intro, layout, hidden, device }
+  if (kind === "hero") {
+    return {
+      ...base,
+      kind,
+      image: heroImage,
+      alt: heroAlt,
+      buttonLabel: heroButtonLabel,
+      buttonHref: heroButtonHref,
+      note: heroNote,
+      stars: heroStars,
+    }
+  }
   if (kind === "testimonials") return { ...base, kind, items: testimonials }
   if (kind === "faq") return { ...base, kind, items: faqItems }
   if (kind === "logos") return { ...base, kind, items: logos }

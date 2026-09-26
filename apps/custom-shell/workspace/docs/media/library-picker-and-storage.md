@@ -44,9 +44,9 @@ settings record has safely changed.
 Account images such as avatars must resolve to an owned image record. A pasted
 external address cannot bypass media ownership checks.
 
-Pictures selected for testimonials, logo strips, and screenshots on the public
-front page pass the same ownership check before settings save. Existing saved
-pictures remain editable by another admin without transferring file ownership.
+Pictures selected for heroes, testimonials, logo strips, and screenshots on the
+public front page pass the same ownership check before settings save. Existing
+saved pictures remain editable by another admin without transferring file ownership.
 
 The app logo also starts with an owned image, and it is the browser tab icon
 too. When Settings saves that choice, the server reads the original from R2 and

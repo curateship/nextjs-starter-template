@@ -406,11 +406,19 @@ uses the same fallback rules as the public page, so clearing a field shows what
 a visitor will get before the settings save.
 
 Public Pages also holds the app-wide front page row editor. An admin can add up
-to six plain-text, plans, testimonial, FAQ, logo-strip, or screenshot rows. Each
-row has a heading, an optional introduction, full or narrow width, and a fixed
-set of fields for its kind. The editor accepts up to six testimonials or
-screenshots and up to twelve FAQ entries or logos in one row. It uses the media
-library for every picture and keeps the picker inside the row window.
+to six plain-text, hero, plans, testimonial, FAQ, logo-strip, or screenshot
+rows. Each row has a heading, an optional introduction, full or narrow width,
+and a fixed set of fields for its kind. The editor accepts up to six
+testimonials or screenshots and up to twelve FAQ entries or logos in one row.
+It uses the media library for every picture and keeps the picker inside the row
+window.
+
+A hero row is the top of a page. Its heading and introduction are its words,
+and the card beneath them adds a button, a short line under the button with up
+to five stars beside it, and an optional picture. With a picture the words sit
+on the left and the picture on the right; without one the words run across the
+page. The button needs both its wording and its link, or it is not drawn, and
+the link has to start with `/`, `https://`, `mailto:` or `tel:`.
 
 A heading and at least one complete entry are required for content rows. The
 server removes incomplete saved entries and refuses a newly selected image that
@@ -437,8 +445,17 @@ takes a 6-digit hex value and stays the same colour in light and dark. A canvas
 colour saved before this picker existed reads as a custom colour, so the site
 looks the same as it did.
 
-Public Styling has the same spacing, border, divider, header and modal cards as
-the Platform Styling tab, and they work the same way:
+Public Styling is five cards, plus Presets above them: Brand, Page frame,
+Spacing & borders, Header & footer and Modal. Settings that belong to the same
+subject sit in one card under their own headings rather than in a card each,
+which is what Tyler asked for on 26 Sep 2026. Brand holds the brand colour,
+Fonts and Buttons. Page frame holds the width, canvas, header and footer rules
+and Background pattern. Spacing & borders holds content spacing, card borders,
+corner rounding and Divider lines. Modal holds the window and the cards inside
+it.
+
+The spacing, border, divider, header and modal settings match the Platform
+Styling tab's and work the same way:
 
 - **Spacing & borders.** Content spacing is the space at the sides of public
   content and between its blocks, from 0 to 48 pixels. The space above and
@@ -447,14 +464,15 @@ the Platform Styling tab, and they work the same way:
   corners and the gaps between them, and the card border control switches off
   because nothing would draw it. Card border sets that border's thickness from
   0 to 3 pixels, with its own colour.
-- **Divider lines.** The thin lines inside public cards and tables, the rule
+  Corner rounding and Divider lines sit in the same card, Divider lines under
+  their own heading: the thin lines inside public cards and tables, the rule
   under the header and the rule above the footer.
 - **Header & footer.** The background of the public header bar and the footer.
   A chosen colour is drawn solid, the way the signed-in sidebar and sticky bar
   are, instead of the slightly see-through bar the theme default draws.
-- **Modal** and **Cards inside modals.** Backdrop dimming, inner spacing,
-  background, border width and border colour for windows that open over a
-  public page. Nothing on the public site opens one yet. The settings exist so
+- **Modal.** Backdrop dimming, inner spacing, background, border width and
+  border colour for windows that open over a public page, with the same set for
+  the cards inside one under its own heading. Nothing on the public site opens one yet. The settings exist so
   the first public window arrives already wearing the site's look.
 
 Every one of those cards has a live preview that draws the values as they are
@@ -469,18 +487,33 @@ onto the public frame and onto the document root only while a public page is on
 screen, and they are removed when it leaves, so an admin who visits a public
 page and returns to the app finds the app's own colours.
 
-The Background pattern card can leave the canvas plain or draw dots or a grid
+The Background pattern heading on the Page frame card can leave the canvas
+plain or draw dots or a grid
 over it. Small, medium, and large sizes control the spacing. Pattern opacity
 starts at 8% and cannot exceed 20%, which keeps the texture behind the content
 instead of competing with it. None and 0% draw no pattern at all.
 
-The Buttons card changes public buttons without changing controls inside the
+The Buttons heading on the Brand card changes public buttons without changing
+controls inside the
 signed-in app. Solid is the default primary style. Outline gives primary
 buttons a brand-coloured border and transparent fill. Labels can stay as
 written or display in capitals. Destructive, ghost, and deliberately secondary
 button styles keep their own treatment.
 
-The Type & corners card accepts one app-wide WOFF2 font up to 1 MB. Uploading a
+The Fonts heading on the Brand card holds two font choices. Font is the face the whole
+public site reads in. Heading font is the face every heading on the public
+frontend uses, from the hero down to a card title, a written page's subheadings
+and the sign-in screen. Its default, Same as the body, leaves headings on the
+Font choice, and the other choices are Libre Baskerville, Inter, Serif and
+Mono. The signed-in app follows neither setting and stays on Inter.
+
+Libre Baskerville and Inter are served from this app's own `public/fonts`
+folder, so choosing one sends no request to Google and downloads nothing until
+a site asks for it. A site on Libre Baskerville asks for the file in the page
+head, the same as a site on Inter, so its headings are not drawn twice while
+the file arrives.
+
+The same heading accepts one app-wide WOFF2 font up to 1 MB. Uploading a
 font selects it for the public site and adds its filename to the Font menu. The
 built-in font choice stays saved underneath it. Selecting a built-in font keeps
 the upload available for later, while removing the upload deletes its stored

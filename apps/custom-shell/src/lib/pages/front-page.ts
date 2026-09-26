@@ -1,3 +1,4 @@
+import { isSafeWrittenPageLink } from "@/lib/pages/written-page-body"
 import {
   normalizePublicDevice,
   type PublicDevice,
@@ -5,6 +6,7 @@ import {
 
 export const FRONT_PAGE_ROW_KINDS = [
   "text",
+  "hero",
   "plans",
   "testimonials",
   "faq",
@@ -16,6 +18,7 @@ export type FrontPageRowKind = (typeof FRONT_PAGE_ROW_KINDS)[number]
 
 export const FRONT_PAGE_ROW_KIND_LABELS: Record<FrontPageRowKind, string> = {
   text: "Plain text",
+  hero: "Hero",
   plans: "Plans",
   testimonials: "Testimonials",
   faq: "FAQ",
@@ -25,6 +28,7 @@ export const FRONT_PAGE_ROW_KIND_LABELS: Record<FrontPageRowKind, string> = {
 
 export const FRONT_PAGE_ROW_KIND_HINTS: Record<FrontPageRowKind, string> = {
   text: "A heading and one short introduction line.",
+  hero: "A large heading, a line beneath it, a button, and an optional picture beside them.",
   plans: "The app's current public plans beneath the row heading.",
   testimonials: "Customer quotes with a name, role, and optional picture.",
   faq: "Questions and answers shown together.",
@@ -68,8 +72,14 @@ export const MAX_FRONT_PAGE_FAQ_ANSWER_LENGTH = 2_000
 export const MAX_FRONT_PAGE_IMAGE_ALT_LENGTH = 160
 export const MAX_FRONT_PAGE_SCREENSHOT_CAPTION_LENGTH = 300
 export const MAX_FRONT_PAGE_IMAGE_URL_LENGTH = 2_048
+export const MAX_FRONT_PAGE_HERO_BUTTON_LABEL_LENGTH = 60
+export const MAX_FRONT_PAGE_HERO_BUTTON_HREF_LENGTH = 2_048
+export const MAX_FRONT_PAGE_HERO_NOTE_LENGTH = 160
+export const MAX_FRONT_PAGE_HERO_STARS = 5
 
 export const FRONT_PAGE_ROW_HEADING_MESSAGE = "Give the row a heading."
+export const FRONT_PAGE_HERO_LINK_MESSAGE =
+  "A button link starts with /, https://, mailto: or tel:."
 export const FRONT_PAGE_ROWS_FULL_MESSAGE =
   `A front page can have ${MAX_FRONT_PAGE_ROWS} rows. Delete one before adding another.`
 
@@ -116,6 +126,18 @@ export type FrontPageScreenshot = {
 
 export type FrontPageRow =
   | (FrontPageRowBase & { kind: "text" | "plans" })
+  | (FrontPageRowBase & {
+      kind: "hero"
+      /** Empty draws the hero as one column across the page. */
+      image: string
+      alt: string
+      buttonLabel: string
+      buttonHref: string
+      /** The short line of proof under the button, such as a customer count. */
+      note: string
+      /** 0 to 5. Drawn before the note, and 0 draws none. */
+      stars: number
+    })
   | (FrontPageRowBase & {
       kind: "testimonials"
       items: FrontPageTestimonial[]
@@ -166,6 +188,20 @@ export function normalizeFrontPageImageUrl(value: unknown) {
   } catch {
     return ""
   }
+}
+
+/**
+ * A hero button may point at a page in this app or at another site. Anything
+ * else, `javascript:` above all, is dropped rather than handed to a browser.
+ */
+export function normalizeFrontPageHeroHref(value: unknown) {
+  const href = cleanText(value, MAX_FRONT_PAGE_HERO_BUTTON_HREF_LENGTH)
+  return href && isSafeWrittenPageLink(href) ? href : ""
+}
+
+function normalizeFrontPageHeroStars(value: unknown) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return 0
+  return Math.min(MAX_FRONT_PAGE_HERO_STARS, Math.max(0, Math.round(value)))
 }
 
 function normalizeTestimonials(value: unknown): FrontPageTestimonial[] {
@@ -314,7 +350,25 @@ export function normalizeFrontPageRows(value: unknown): FrontPageRow[] {
       ? (source.kind as FrontPageRowKind)
       : "text"
 
-    if (kind === "testimonials") {
+    if (kind === "hero") {
+      const buttonHref = normalizeFrontPageHeroHref(source.buttonHref)
+      const buttonLabel = cleanText(
+        source.buttonLabel,
+        MAX_FRONT_PAGE_HERO_BUTTON_LABEL_LENGTH
+      )
+      rows.push({
+        ...rowBase(),
+        kind,
+        image: normalizeFrontPageImageUrl(source.image),
+        alt: cleanText(source.alt, MAX_FRONT_PAGE_IMAGE_ALT_LENGTH),
+        // A button with only half its pair drawn would be a word nobody can
+        // press, or a press with no word on it, so both go or neither does.
+        buttonLabel: buttonHref ? buttonLabel : "",
+        buttonHref: buttonLabel ? buttonHref : "",
+        note: cleanText(source.note, MAX_FRONT_PAGE_HERO_NOTE_LENGTH),
+        stars: normalizeFrontPageHeroStars(source.stars),
+      })
+    } else if (kind === "testimonials") {
       const items = normalizeTestimonials(source.items)
       if (items.length) rows.push({ ...rowBase(), kind, items })
     } else if (kind === "faq") {
@@ -351,6 +405,9 @@ export function frontPageHasPlans(rows: readonly FrontPageRow[]) {
 
 export function frontPageRowImageUrls(rows: readonly FrontPageRow[]) {
   return rows.flatMap((row) => {
+    if (row.kind === "hero") {
+      return row.image ? [row.image] : []
+    }
     if (row.kind === "testimonials") {
       return row.items.flatMap((item) => (item.picture ? [item.picture] : []))
     }

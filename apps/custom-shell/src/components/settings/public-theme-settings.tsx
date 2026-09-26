@@ -9,6 +9,7 @@ import { toast } from "sonner"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { SettingsSwitchRow } from "@/components/settings/settings-switch-row"
+import { SettingsCardSection } from "@/components/settings/settings-card-section"
 import { SettingsSliderRow } from "@/components/settings/settings-slider-row"
 import { PublicThemePresetsCard } from "@/components/settings/public-theme-presets-card"
 import {
@@ -54,6 +55,8 @@ import {
   PUBLIC_CONTENT_ALIGNMENTS,
   PUBLIC_THEME_FONTS,
   PUBLIC_THEME_FONT_LABELS,
+  PUBLIC_THEME_HEADING_FONTS,
+  PUBLIC_THEME_HEADING_FONT_LABELS,
   isPublicBrandColor,
   normalizePublicBrandOverrides,
   type PublicBackgroundPattern,
@@ -65,6 +68,7 @@ import {
   type PublicContentAlignment,
   type PublicTheme,
   type PublicThemeFont,
+  type PublicThemeHeadingFont,
 } from "@/lib/public-theme"
 import {
   MAX_CARD_BORDER_WIDTH,
@@ -249,8 +253,8 @@ export function PublicThemeSettings({
 
       <CollapsibleSettingsCard
         storageId="public-styling-brand-colour"
-        title="Brand colour"
-        description="Choose one colour for public buttons, links, and focus rings. The shell builds the related shades automatically."
+        title="Brand"
+        description="The colour, the faces and the button treatment a visitor reads this site in."
         contentClassName="space-y-4"
       >
         <div className="grid gap-2">
@@ -356,12 +360,189 @@ export function PublicThemeSettings({
             />
           </div>
         ) : null}
+
+        <SettingsCardSection
+          title="Fonts"
+          description="The faces the public frontend reads in. The signed-in app keeps its own."
+        >
+          <div className="space-y-6">
+          <div className="grid gap-2">
+            <FieldLabel
+              htmlFor="public-theme-font"
+              hint="Built-in choices use the device or this app. An uploaded font is served through this app too."
+            >
+              Font
+            </FieldLabel>
+            <Select
+              value={theme.useCustomFont && publicFont ? "custom" : theme.font}
+              onValueChange={changeFont}
+            >
+              <SelectTrigger id="public-theme-font" className="w-full sm:w-fit">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PUBLIC_THEME_FONTS.map((font) => (
+                  <SelectItem key={font} value={font}>
+                    {PUBLIC_THEME_FONT_LABELS[font]}
+                  </SelectItem>
+                ))}
+                {publicFont ? (
+                  <SelectItem value="custom">{publicFont.name}</SelectItem>
+                ) : null}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="grid gap-2">
+            <FieldLabel
+              htmlFor="public-theme-heading-font"
+              hint="The face headings use. Same as the body leaves them on the font above."
+            >
+              Heading font
+            </FieldLabel>
+            <Select
+              value={theme.headingFont}
+              onValueChange={(headingFont) =>
+                update({ headingFont: headingFont as PublicThemeHeadingFont })
+              }
+            >
+              <SelectTrigger
+                id="public-theme-heading-font"
+                className="w-full sm:w-fit"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PUBLIC_THEME_HEADING_FONTS.map((font) => (
+                  <SelectItem key={font} value={font}>
+                    {PUBLIC_THEME_HEADING_FONT_LABELS[font]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="grid gap-2">
+            <FieldLabel
+              htmlFor={fontInputId}
+              hint="WOFF2 only, up to 1 MB. One file supplies the public site's regular typeface."
+            >
+              Uploaded font
+            </FieldLabel>
+            <input
+              ref={fontInputRef}
+              id={fontInputId}
+              className="sr-only"
+              type="file"
+              accept={PUBLIC_FONT_ACCEPT}
+              disabled={fontBusy !== null}
+              onChange={(event) => void handleFontUpload(event)}
+            />
+            <div className="flex flex-wrap items-center gap-2">
+              {publicFont ? (
+                <span className="min-w-0 truncate text-sm text-muted-foreground">
+                  {publicFont.name}
+                </span>
+              ) : null}
+              <Button
+                type="button"
+                variant="outline"
+                disabled={fontBusy !== null}
+                onClick={() => fontInputRef.current?.click()}
+              >
+                {fontBusy === "upload" ? (
+                  <Loader2Icon className="size-4 animate-spin" />
+                ) : (
+                  <UploadIcon className="size-4" />
+                )}
+                {publicFont ? "Replace font" : "Upload font"}
+              </Button>
+              {publicFont ? (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  disabled={fontBusy !== null}
+                  onClick={() => setRemoveFontOpen(true)}
+                >
+                  <Trash2Icon className="size-4" />
+                  Remove font
+                </Button>
+              ) : null}
+            </div>
+          </div>
+          </div>
+        </SettingsCardSection>
+
+        <SettingsCardSection
+          title="Buttons"
+          description="The default public button treatment and label casing."
+        >
+          <div className="space-y-4">
+          <div className="grid gap-2">
+            <FieldLabel
+              htmlFor="public-theme-button-style"
+              hint="Changes primary public buttons. Destructive, ghost, and deliberately secondary buttons keep their own style."
+            >
+              Default style
+            </FieldLabel>
+            <Select
+              value={theme.buttonStyle}
+              onValueChange={(buttonStyle) =>
+                update({ buttonStyle: buttonStyle as PublicButtonStyle })
+              }
+            >
+              <SelectTrigger
+                id="public-theme-button-style"
+                className="w-full sm:w-fit"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PUBLIC_BUTTON_STYLES.map((style) => (
+                  <SelectItem key={style} value={style}>
+                    {style === "solid" ? "Solid" : "Outline"}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="grid gap-2">
+            <FieldLabel
+              htmlFor="public-theme-button-casing"
+              hint="Changes button labels only. Headings and body text stay as written."
+            >
+              Label casing
+            </FieldLabel>
+            <Select
+              value={theme.buttonCasing}
+              onValueChange={(buttonCasing) =>
+                update({ buttonCasing: buttonCasing as PublicButtonCasing })
+              }
+            >
+              <SelectTrigger
+                id="public-theme-button-casing"
+                className="w-full sm:w-fit"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PUBLIC_BUTTON_CASINGS.map((casing) => (
+                  <SelectItem key={casing} value={casing}>
+                    {casing === "as-written" ? "As written" : "Capitals"}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          </div>
+        </SettingsCardSection>
       </CollapsibleSettingsCard>
 
       <CollapsibleSettingsCard
         storageId="public-styling-page-frame"
         title="Page frame"
-        description="Set the shared width, canvas, borders, and spacing around every public page."
+        description="The shared width, canvas, borders, spacing and background texture behind every public page."
         contentClassName="space-y-6"
       >
         <div className="grid gap-2">
@@ -484,12 +665,106 @@ export function PublicThemeSettings({
             label="Show the line above the public footer"
           />
         </div>
+
+        <SettingsCardSection
+          title="Background pattern"
+          description="Add a faint dot or grid texture over the public canvas."
+        >
+          <div className="space-y-4">
+          <div className="grid gap-2">
+            <FieldLabel
+              htmlFor="public-theme-background-pattern"
+              hint="None leaves the canvas exactly as it is today."
+            >
+              Pattern
+            </FieldLabel>
+            <Select
+              value={theme.backgroundPattern}
+              onValueChange={(backgroundPattern) =>
+                update({
+                  backgroundPattern: backgroundPattern as PublicBackgroundPattern,
+                })
+              }
+            >
+              <SelectTrigger
+                id="public-theme-background-pattern"
+                className="w-full sm:w-fit"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PUBLIC_BACKGROUND_PATTERNS.map((pattern) => (
+                  <SelectItem key={pattern} value={pattern}>
+                    {pattern === "none"
+                      ? "None"
+                      : pattern === "dots"
+                        ? "Dots"
+                        : "Grid"}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {theme.backgroundPattern !== "none" ? (
+            <>
+              <div className="grid gap-2">
+                <FieldLabel
+                  htmlFor="public-theme-background-pattern-size"
+                  hint="Sets the space between dots or grid lines."
+                >
+                  Pattern size
+                </FieldLabel>
+                <Select
+                  value={theme.backgroundPatternSize}
+                  onValueChange={(backgroundPatternSize) =>
+                    update({
+                      backgroundPatternSize:
+                        backgroundPatternSize as PublicBackgroundPatternSize,
+                    })
+                  }
+                >
+                  <SelectTrigger
+                    id="public-theme-background-pattern-size"
+                    className="w-full sm:w-fit"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PUBLIC_BACKGROUND_PATTERN_SIZES.map((size) => (
+                      <SelectItem key={size} value={size}>
+                        {size === "small"
+                          ? "Small"
+                          : size === "medium"
+                            ? "Medium"
+                            : "Large"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <SettingsSliderRow
+                label="Pattern opacity"
+                value={theme.backgroundPatternOpacity}
+                min={0}
+                max={MAX_PUBLIC_BACKGROUND_PATTERN_OPACITY}
+                valueLabel={`${theme.backgroundPatternOpacity}%`}
+                onChange={(backgroundPatternOpacity) =>
+                  update({ backgroundPatternOpacity })
+                }
+                help={`${DEFAULT_PUBLIC_BACKGROUND_PATTERN_OPACITY}% is the default. 0% hides the pattern without changing the saved pattern or size.`}
+              />
+            </>
+          ) : null}
+          </div>
+        </SettingsCardSection>
       </CollapsibleSettingsCard>
 
       <CollapsibleSettingsCard
         storageId="public-styling-spacing"
         title="Spacing & borders"
-        description="The space around public content and the borders its cards draw. Changes save automatically."
+        description="The space around public content, the borders and corners its cards draw, and the divider lines between things. Changes save automatically."
         contentClassName="space-y-6"
       >
         <SettingsSliderRow
@@ -538,38 +813,48 @@ export function PublicThemeSettings({
           />
         </FieldGroup>
 
-        <PublicContentPreview theme={theme} />
-      </CollapsibleSettingsCard>
-
-      <CollapsibleSettingsCard
-        storageId="public-styling-divider"
-        title="Divider lines"
-        description="The thin lines inside public cards and tables, the rule under the header, and the rule above the footer."
-        contentClassName="space-y-6"
-      >
-        <BackgroundField
-          idPrefix="public-theme-divider"
-          value={theme.dividerColor}
-          defaultHint="Uses the theme's own divider color (adapts to light and dark)."
-          onChange={(patch) => updateBackground("dividerColor", patch)}
+        <SettingsSliderRow
+          label="Corner rounding"
+          value={theme.radius}
+          min={0}
+          max={MAX_PUBLIC_RADIUS}
+          valueLabel={theme.radius === 0 ? "Square" : `${theme.radius}px`}
+          help="10px is the app default. 0 makes corners square."
+          onChange={(radius) => update({ radius })}
         />
 
-        <FieldGroup label="Preview" className="gap-2">
-          <div
-            className="max-w-lg overflow-hidden rounded-lg border"
-            style={dividerPreviewStyle(theme.dividerColor)}
-          >
-            <div className="border-b bg-muted/30 px-4 py-2 text-sm font-medium">
-              Section header
+        <SettingsCardSection
+          title="Divider lines"
+          description="The thin lines inside public cards and tables, the rule under the header, and the rule above the footer."
+        >
+          <div className="space-y-6">
+          <BackgroundField
+            idPrefix="public-theme-divider"
+            value={theme.dividerColor}
+            defaultHint="Uses the theme's own divider color (adapts to light and dark)."
+            onChange={(patch) => updateBackground("dividerColor", patch)}
+          />
+
+          <FieldGroup label="Preview" className="gap-2">
+            <div
+              className="max-w-lg overflow-hidden rounded-lg border"
+              style={dividerPreviewStyle(theme.dividerColor)}
+            >
+              <div className="border-b bg-muted/30 px-4 py-2 text-sm font-medium">
+                Section header
+              </div>
+              <div className="border-b px-4 py-2 text-sm text-muted-foreground">
+                A row, separated by a divider.
+              </div>
+              <div className="px-4 py-2 text-sm text-muted-foreground">
+                The last row has no divider under it.
+              </div>
             </div>
-            <div className="border-b px-4 py-2 text-sm text-muted-foreground">
-              A row, separated by a divider.
-            </div>
-            <div className="px-4 py-2 text-sm text-muted-foreground">
-              The last row has no divider under it.
-            </div>
+          </FieldGroup>
           </div>
-        </FieldGroup>
+        </SettingsCardSection>
+
+        <PublicContentPreview theme={theme} />
       </CollapsibleSettingsCard>
 
       <CollapsibleSettingsCard
@@ -582,258 +867,6 @@ export function PublicThemeSettings({
           value={theme.chrome}
           defaultHint="Uses the page background, slightly see-through behind the header."
           onChange={(patch) => updateBackground("chrome", patch)}
-        />
-      </CollapsibleSettingsCard>
-
-      <CollapsibleSettingsCard
-        storageId="public-styling-background-pattern"
-        title="Background pattern"
-        description="Add a faint dot or grid texture over the public canvas."
-        contentClassName="space-y-4"
-      >
-        <div className="grid gap-2">
-          <FieldLabel
-            htmlFor="public-theme-background-pattern"
-            hint="None leaves the canvas exactly as it is today."
-          >
-            Pattern
-          </FieldLabel>
-          <Select
-            value={theme.backgroundPattern}
-            onValueChange={(backgroundPattern) =>
-              update({
-                backgroundPattern: backgroundPattern as PublicBackgroundPattern,
-              })
-            }
-          >
-            <SelectTrigger
-              id="public-theme-background-pattern"
-              className="w-full sm:w-fit"
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {PUBLIC_BACKGROUND_PATTERNS.map((pattern) => (
-                <SelectItem key={pattern} value={pattern}>
-                  {pattern === "none"
-                    ? "None"
-                    : pattern === "dots"
-                      ? "Dots"
-                      : "Grid"}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {theme.backgroundPattern !== "none" ? (
-          <>
-            <div className="grid gap-2">
-              <FieldLabel
-                htmlFor="public-theme-background-pattern-size"
-                hint="Sets the space between dots or grid lines."
-              >
-                Pattern size
-              </FieldLabel>
-              <Select
-                value={theme.backgroundPatternSize}
-                onValueChange={(backgroundPatternSize) =>
-                  update({
-                    backgroundPatternSize:
-                      backgroundPatternSize as PublicBackgroundPatternSize,
-                  })
-                }
-              >
-                <SelectTrigger
-                  id="public-theme-background-pattern-size"
-                  className="w-full sm:w-fit"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PUBLIC_BACKGROUND_PATTERN_SIZES.map((size) => (
-                    <SelectItem key={size} value={size}>
-                      {size === "small"
-                        ? "Small"
-                        : size === "medium"
-                          ? "Medium"
-                          : "Large"}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <SettingsSliderRow
-              label="Pattern opacity"
-              value={theme.backgroundPatternOpacity}
-              min={0}
-              max={MAX_PUBLIC_BACKGROUND_PATTERN_OPACITY}
-              valueLabel={`${theme.backgroundPatternOpacity}%`}
-              onChange={(backgroundPatternOpacity) =>
-                update({ backgroundPatternOpacity })
-              }
-              help={`${DEFAULT_PUBLIC_BACKGROUND_PATTERN_OPACITY}% is the default. 0% hides the pattern without changing the saved pattern or size.`}
-            />
-          </>
-        ) : null}
-      </CollapsibleSettingsCard>
-
-      <CollapsibleSettingsCard
-        storageId="public-styling-buttons"
-        title="Buttons"
-        description="Choose the default public button treatment and label casing."
-        contentClassName="space-y-4"
-      >
-        <div className="grid gap-2">
-          <FieldLabel
-            htmlFor="public-theme-button-style"
-            hint="Changes primary public buttons. Destructive, ghost, and deliberately secondary buttons keep their own style."
-          >
-            Default style
-          </FieldLabel>
-          <Select
-            value={theme.buttonStyle}
-            onValueChange={(buttonStyle) =>
-              update({ buttonStyle: buttonStyle as PublicButtonStyle })
-            }
-          >
-            <SelectTrigger
-              id="public-theme-button-style"
-              className="w-full sm:w-fit"
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {PUBLIC_BUTTON_STYLES.map((style) => (
-                <SelectItem key={style} value={style}>
-                  {style === "solid" ? "Solid" : "Outline"}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="grid gap-2">
-          <FieldLabel
-            htmlFor="public-theme-button-casing"
-            hint="Changes button labels only. Headings and body text stay as written."
-          >
-            Label casing
-          </FieldLabel>
-          <Select
-            value={theme.buttonCasing}
-            onValueChange={(buttonCasing) =>
-              update({ buttonCasing: buttonCasing as PublicButtonCasing })
-            }
-          >
-            <SelectTrigger
-              id="public-theme-button-casing"
-              className="w-full sm:w-fit"
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {PUBLIC_BUTTON_CASINGS.map((casing) => (
-                <SelectItem key={casing} value={casing}>
-                  {casing === "as-written" ? "As written" : "Capitals"}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </CollapsibleSettingsCard>
-
-      <CollapsibleSettingsCard
-        storageId="public-styling-type-corners"
-        title="Type & corners"
-        description="Choose the public frontend's typeface and how rounded its controls and cards are."
-        contentClassName="space-y-6"
-      >
-        <div className="grid gap-2">
-          <FieldLabel
-            htmlFor="public-theme-font"
-            hint="Built-in choices use the device or this app. An uploaded font is served through this app too."
-          >
-            Font
-          </FieldLabel>
-          <Select
-            value={theme.useCustomFont && publicFont ? "custom" : theme.font}
-            onValueChange={changeFont}
-          >
-            <SelectTrigger id="public-theme-font" className="w-full sm:w-fit">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {PUBLIC_THEME_FONTS.map((font) => (
-                <SelectItem key={font} value={font}>
-                  {PUBLIC_THEME_FONT_LABELS[font]}
-                </SelectItem>
-              ))}
-              {publicFont ? (
-                <SelectItem value="custom">{publicFont.name}</SelectItem>
-              ) : null}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="grid gap-2">
-          <FieldLabel
-            htmlFor={fontInputId}
-            hint="WOFF2 only, up to 1 MB. One file supplies the public site's regular typeface."
-          >
-            Uploaded font
-          </FieldLabel>
-          <input
-            ref={fontInputRef}
-            id={fontInputId}
-            className="sr-only"
-            type="file"
-            accept={PUBLIC_FONT_ACCEPT}
-            disabled={fontBusy !== null}
-            onChange={(event) => void handleFontUpload(event)}
-          />
-          <div className="flex flex-wrap items-center gap-2">
-            {publicFont ? (
-              <span className="min-w-0 truncate text-sm text-muted-foreground">
-                {publicFont.name}
-              </span>
-            ) : null}
-            <Button
-              type="button"
-              variant="outline"
-              disabled={fontBusy !== null}
-              onClick={() => fontInputRef.current?.click()}
-            >
-              {fontBusy === "upload" ? (
-                <Loader2Icon className="size-4 animate-spin" />
-              ) : (
-                <UploadIcon className="size-4" />
-              )}
-              {publicFont ? "Replace font" : "Upload font"}
-            </Button>
-            {publicFont ? (
-              <Button
-                type="button"
-                variant="destructive"
-                disabled={fontBusy !== null}
-                onClick={() => setRemoveFontOpen(true)}
-              >
-                <Trash2Icon className="size-4" />
-                Remove font
-              </Button>
-            ) : null}
-          </div>
-        </div>
-
-        <SettingsSliderRow
-          label="Corner rounding"
-          value={theme.radius}
-          min={0}
-          max={MAX_PUBLIC_RADIUS}
-          valueLabel={theme.radius === 0 ? "Square" : `${theme.radius}px`}
-          help="10px is the app default. 0 makes corners square."
-          onChange={(radius) => update({ radius })}
         />
       </CollapsibleSettingsCard>
 
@@ -892,47 +925,49 @@ export function PublicThemeSettings({
           />
         </FieldGroup>
 
-        <ModalPreview modal={modal} />
-      </CollapsibleSettingsCard>
+        <SettingsCardSection
+          title="Cards inside the modal"
+          description="The bordered sections within a public modal."
+        >
+          <div className="space-y-6">
+            <FieldGroup label="Card background">
+              <BackgroundField
+                idPrefix="public-theme-modal-card-bg"
+                value={modal.cardBackground}
+                defaultHint="Uses the theme's card surface."
+                onChange={(patch) =>
+                  updateModalBackground("cardBackground", patch)
+                }
+              />
+            </FieldGroup>
 
-      <CollapsibleSettingsCard
-        storageId="public-styling-modal-cards"
-        title="Cards inside modals"
-        description="The bordered sections within a public modal."
-        contentClassName="space-y-6"
-      >
-        <FieldGroup label="Background">
-          <BackgroundField
-            idPrefix="public-theme-modal-card-bg"
-            value={modal.cardBackground}
-            defaultHint="Uses the theme's card surface."
-            onChange={(patch) => updateModalBackground("cardBackground", patch)}
-          />
-        </FieldGroup>
+            <SettingsSliderRow
+              label="Card border"
+              value={modal.cardBorderWidth}
+              min={0}
+              max={MAX_CARD_BORDER_WIDTH}
+              valueLabel={
+                modal.cardBorderWidth === 0
+                  ? "Off"
+                  : `${modal.cardBorderWidth}px`
+              }
+              onChange={(cardBorderWidth) => updateModal({ cardBorderWidth })}
+              help="Border thickness of cards inside the modal. 0 removes it."
+            />
 
-        <SettingsSliderRow
-          label="Border"
-          value={modal.cardBorderWidth}
-          min={0}
-          max={MAX_CARD_BORDER_WIDTH}
-          valueLabel={
-            modal.cardBorderWidth === 0 ? "Off" : `${modal.cardBorderWidth}px`
-          }
-          onChange={(cardBorderWidth) => updateModal({ cardBorderWidth })}
-          help="Border thickness of cards inside the modal. 0 removes it."
-        />
-
-        <FieldGroup label="Border color">
-          <BackgroundField
-            idPrefix="public-theme-modal-card-border"
-            value={modal.cardBorderColor}
-            disabled={modal.cardBorderWidth === 0}
-            defaultHint="A subtle default border."
-            onChange={(patch) =>
-              updateModalBackground("cardBorderColor", patch)
-            }
-          />
-        </FieldGroup>
+            <FieldGroup label="Card border color">
+              <BackgroundField
+                idPrefix="public-theme-modal-card-border"
+                value={modal.cardBorderColor}
+                disabled={modal.cardBorderWidth === 0}
+                defaultHint="A subtle default border."
+                onChange={(patch) =>
+                  updateModalBackground("cardBorderColor", patch)
+                }
+              />
+            </FieldGroup>
+          </div>
+        </SettingsCardSection>
 
         <ModalPreview modal={modal} />
       </CollapsibleSettingsCard>

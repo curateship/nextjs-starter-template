@@ -19,6 +19,16 @@ import {
 export const PUBLIC_THEME_FONTS = ["system", "inter", "serif", "mono"] as const
 export type PublicThemeFont = (typeof PUBLIC_THEME_FONTS)[number]
 
+export const PUBLIC_THEME_HEADING_FONTS = [
+  "match",
+  "baskerville",
+  "inter",
+  "serif",
+  "mono",
+] as const
+export type PublicThemeHeadingFont =
+  (typeof PUBLIC_THEME_HEADING_FONTS)[number]
+
 export const PUBLIC_COLOR_SCHEMES = ["system", "light", "dark"] as const
 export type PublicColorScheme = (typeof PUBLIC_COLOR_SCHEMES)[number]
 
@@ -92,6 +102,8 @@ export type PublicTheme = {
   /** Uses the uploaded app-wide font while keeping `font` as its fallback. */
   useCustomFont: boolean
   font: PublicThemeFont
+  /** The face headings use. `match` leaves them on the body font. */
+  headingFont: PublicThemeHeadingFont
   radius: number
 }
 
@@ -114,6 +126,27 @@ export const PUBLIC_THEME_FONT_STACKS: Record<PublicThemeFont, string> = {
   inter: '"Inter", ui-sans-serif, system-ui, sans-serif',
   serif: 'ui-serif, Georgia, "Times New Roman", serif',
   mono: 'ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace',
+}
+
+export const PUBLIC_THEME_HEADING_FONT_LABELS: Record<
+  PublicThemeHeadingFont,
+  string
+> = {
+  match: "Same as the body",
+  baskerville: "Libre Baskerville",
+  inter: "Inter",
+  serif: "Serif",
+  mono: "Mono",
+}
+
+export const PUBLIC_THEME_HEADING_FONT_STACKS: Record<
+  Exclude<PublicThemeHeadingFont, "match">,
+  string
+> = {
+  baskerville: '"Libre Baskerville", ui-serif, Georgia, serif',
+  inter: PUBLIC_THEME_FONT_STACKS.inter,
+  serif: PUBLIC_THEME_FONT_STACKS.serif,
+  mono: PUBLIC_THEME_FONT_STACKS.mono,
 }
 
 export const DEFAULT_PUBLIC_RADIUS = 10
@@ -195,6 +228,7 @@ export function createDefaultPublicTheme(): PublicTheme {
     colorScheme: "system",
     useCustomFont: false,
     font: "system",
+    headingFont: "match",
     radius: DEFAULT_PUBLIC_RADIUS,
   }
 }
@@ -548,6 +582,11 @@ export function normalizePublicTheme(
     font: PUBLIC_THEME_FONTS.includes(theme.font as PublicThemeFont)
       ? (theme.font as PublicThemeFont)
       : fallback.font,
+    headingFont: PUBLIC_THEME_HEADING_FONTS.includes(
+      theme.headingFont as PublicThemeHeadingFont
+    )
+      ? (theme.headingFont as PublicThemeHeadingFont)
+      : fallback.headingFont,
     radius: normalizeWholeNumber(
       theme.radius,
       fallback.radius,
@@ -687,6 +726,9 @@ export function publicThemeOverrides(
       ? { useCustomFont: theme.useCustomFont }
       : {}),
     ...(theme.font !== baseline.font ? { font: theme.font } : {}),
+    ...(theme.headingFont !== baseline.headingFont
+      ? { headingFont: theme.headingFont }
+      : {}),
     ...(theme.radius !== baseline.radius ? { radius: theme.radius } : {}),
   }
 }
@@ -761,6 +803,10 @@ export function publicThemeStyle(
       ? `"Custom public font", ${PUBLIC_THEME_FONT_STACKS[theme.font]}`
       : PUBLIC_THEME_FONT_STACKS[theme.font]
     style.fontFamily = "var(--app-font-sans)"
+  }
+  if (theme.headingFont !== "match") {
+    style["--app-font-heading"] =
+      PUBLIC_THEME_HEADING_FONT_STACKS[theme.headingFont]
   }
   if (
     theme.backgroundPattern !== "none" &&

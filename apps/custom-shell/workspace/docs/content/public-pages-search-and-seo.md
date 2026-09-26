@@ -349,6 +349,21 @@ use the configured public page width, while narrow rows stop at 768px and still
 follow the site's content alignment. The first row owns the page's main
 heading, and later rows use section headings.
 
+A hero row is the page's opening block. Its heading is drawn large, in the
+site's heading font, and its introduction sits under it at reading size. Under
+those come a button, and a short line of proof with up to five stars beside it.
+A chosen picture puts all of that in a left column and the picture in a right
+one. Without a picture the words run across the page and stop at 768px so the
+lines stay readable. On a screen narrower than 768px the columns stack and the
+words come first, which is also the order they sit in the page source, so a
+screen reader reads the heading before it reaches the picture.
+
+A hero button needs both its wording and its link, and a row saved with only
+one of them keeps neither. The link has to start with `/`, `https://`,
+`mailto:` or `tel:`, so a saved `javascript:` address never reaches a browser.
+A link inside this app is drawn as the router's own link, so pressing it does
+not reload the page.
+
 Testimonials, FAQ, logo-strip, and screenshot rows add fixed marketing content
 without allowing arbitrary page blocks. Testimonials hold a required quote and
 name plus an optional role and picture. FAQ entries require a question and

@@ -34,14 +34,67 @@
 }
 
 /*
+ * Libre Baskerville, self-hosted the same way. It is only ever the heading
+ * face, so a site that leaves headings alone never downloads it. Four files:
+ * regular and bold, each in plain latin and the accented latin-ext range.
+ * The family is under the SIL Open Font License, see public/fonts/README.md.
+ */
+@font-face {
+    font-family: "Libre Baskerville";
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url("/fonts/libre-baskerville-latin.woff2") format("woff2");
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
+        U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122,
+        U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+    font-family: "Libre Baskerville";
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url("/fonts/libre-baskerville-latin-ext.woff2") format("woff2");
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7,
+        U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F,
+        U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+        U+A720-A7FF;
+}
+
+@font-face {
+    font-family: "Libre Baskerville";
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url("/fonts/libre-baskerville-700-latin.woff2") format("woff2");
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
+        U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122,
+        U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+    font-family: "Libre Baskerville";
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url("/fonts/libre-baskerville-700-latin-ext.woff2") format("woff2");
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7,
+        U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F,
+        U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+        U+A720-A7FF;
+}
+
+/*
  * The font utilities point at a plain custom property rather than a literal
  * stack, so the value can still be swapped at runtime. That is what lets the
  * signed-in pages switch to Inter while the public pages keep the system font
- * — see the .app-font rule below. Headings share the property deliberately;
- * point --font-heading somewhere else if they ever need their own face.
+ * — see the .app-font rule below. Headings follow the body font until a
+ * public theme sets --app-font-heading, which is the Heading font choice in
+ * Settings > Public > Styling.
  */
 @theme inline {
-    --font-heading: var(--app-font-sans);
+    --font-heading: var(--app-font-heading, var(--app-font-sans));
     --font-sans: var(--app-font-sans);
     --color-sidebar-ring: var(--sidebar-ring);
     --color-sidebar-border: var(--sidebar-border);
@@ -199,6 +252,24 @@
 body.app-font {
     --app-font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
     font-family: var(--app-font-sans);
+}
+
+/*
+ * Every heading follows the Heading font choice, not only the ones a component
+ * marked with the font-heading utility. The variable is set on <html> by the
+ * public theme, so this reaches the header, the footer, cards, written pages
+ * and anything a dialog portals out to <body>. A signed-in page sets no
+ * variable, so its headings resolve to the same font as its body text and
+ * nothing there moves. A component that names its own font in a class still
+ * wins, because a class beats an element.
+ */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    font-family: var(--app-font-heading, var(--app-font-sans));
 }
 
 html[data-public-brand] [data-slot="button"][data-variant="default"]:hover {

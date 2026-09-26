@@ -356,6 +356,7 @@ function RootDocument({
   const wantsInter =
     signedInPage ||
     (publicTheme?.font === "inter" && !publicTheme.useCustomFont)
+  const wantsBaskerville = publicTheme?.headingFont === "baskerville"
   const faviconLinks = publicFaviconLinks({
     favicon,
     faviconDark,
@@ -394,6 +395,20 @@ function RootDocument({
           <link
             rel="preload"
             href="/fonts/inter-latin.woff2"
+            as="font"
+            type="font/woff2"
+            crossOrigin="anonymous"
+          />
+        ) : null}
+        {/*
+         * The heading face, asked for early for the same reason: headings are
+         * the largest words on the page, so a late swap is the one a visitor
+         * cannot miss.
+         */}
+        {wantsBaskerville ? (
+          <link
+            rel="preload"
+            href="/fonts/libre-baskerville-latin.woff2"
             as="font"
             type="font/woff2"
             crossOrigin="anonymous"

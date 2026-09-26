@@ -31,6 +31,10 @@ import {
   MAX_FRONT_PAGE_FAQ_ANSWER_LENGTH,
   MAX_FRONT_PAGE_FAQ_ITEMS,
   MAX_FRONT_PAGE_FAQ_QUESTION_LENGTH,
+  MAX_FRONT_PAGE_HERO_BUTTON_HREF_LENGTH,
+  MAX_FRONT_PAGE_HERO_BUTTON_LABEL_LENGTH,
+  MAX_FRONT_PAGE_HERO_NOTE_LENGTH,
+  MAX_FRONT_PAGE_HERO_STARS,
   MAX_FRONT_PAGE_IMAGE_ALT_LENGTH,
   MAX_FRONT_PAGE_IMAGE_URL_LENGTH,
   MAX_FRONT_PAGE_ITEM_NAME_LENGTH,
@@ -45,6 +49,7 @@ import {
   MAX_FRONT_PAGE_TESTIMONIAL_QUOTE_LENGTH,
   MAX_FRONT_PAGE_TESTIMONIALS,
   frontPageRowImageUrls,
+  normalizeFrontPageHeroHref,
   normalizeFrontPageImageUrl,
   normalizeFrontPageRows,
 } from "@/lib/pages/front-page"
@@ -85,6 +90,7 @@ import {
   PUBLIC_COLOR_SCHEMES,
   PUBLIC_CONTENT_ALIGNMENTS,
   PUBLIC_THEME_FONTS,
+  PUBLIC_THEME_HEADING_FONTS,
   normalizePublicBrandTheme,
   publicThemeForAppWideSave,
   publicThemeOverrides,
@@ -329,6 +335,7 @@ const publicThemeSchema = z.object({
   colorScheme: z.enum(PUBLIC_COLOR_SCHEMES),
   useCustomFont: z.boolean(),
   font: z.enum(PUBLIC_THEME_FONTS),
+  headingFont: z.enum(PUBLIC_THEME_HEADING_FONTS),
   radius: z.number().int().min(0).max(MAX_PUBLIC_RADIUS),
 })
 
@@ -370,6 +377,25 @@ const frontPageRowsSchema = z
     z.discriminatedUnion("kind", [
       z.object({ ...frontPageRowBaseShape, kind: z.literal("text") }),
       z.object({ ...frontPageRowBaseShape, kind: z.literal("plans") }),
+      z.object({
+        ...frontPageRowBaseShape,
+        kind: z.literal("hero"),
+        image: frontPageImageSchema,
+        alt: z.string().max(MAX_FRONT_PAGE_IMAGE_ALT_LENGTH),
+        buttonLabel: z
+          .string()
+          .max(MAX_FRONT_PAGE_HERO_BUTTON_LABEL_LENGTH),
+        buttonHref: z
+          .string()
+          .trim()
+          .max(MAX_FRONT_PAGE_HERO_BUTTON_HREF_LENGTH)
+          .refine(
+            (value) => !value || normalizeFrontPageHeroHref(value) === value,
+            "A button link starts with /, https://, mailto: or tel:."
+          ),
+        note: z.string().max(MAX_FRONT_PAGE_HERO_NOTE_LENGTH),
+        stars: z.number().int().min(0).max(MAX_FRONT_PAGE_HERO_STARS),
+      }),
       z.object({
         ...frontPageRowBaseShape,
         kind: z.literal("testimonials"),

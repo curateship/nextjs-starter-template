@@ -101,7 +101,7 @@ function UserAvatar({ user }: { user: PublicUser }) {
  * An address an admin typed, as something to click: the router's link for a
  * page on this site, a plain one for anywhere else.
  */
-function SavedLink({
+export function SavedLink({
   href,
   ...props
 }: { href: string } & Omit<React.ComponentProps<"a">, "href">) {

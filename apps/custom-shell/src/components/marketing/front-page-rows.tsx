@@ -1,5 +1,6 @@
 import {
   FrontPageFaq,
+  FrontPageHero,
   FrontPageLogos,
   FrontPageScreenshots,
   FrontPageTestimonials,
@@ -56,21 +57,38 @@ export function FrontPageRows({
             data-front-page-layout={row.layout}
             data-front-page-device={row.device}
           >
-            <header className="grid gap-1">
-              <Heading
-                className={cn(
-                  "font-semibold",
-                  index === 0 ? "text-2xl" : "text-xl"
-                )}
-              >
-                {row.heading}
-              </Heading>
-              {row.intro ? (
-                <p className="text-sm text-muted-foreground">{row.intro}</p>
-              ) : null}
-            </header>
+            {/* A hero draws its own heading, at its own size and beside the
+                picture. Every other row puts the heading above its content. */}
+            {row.kind === "hero" ? null : (
+              <header className="grid gap-1">
+                <Heading
+                  className={cn(
+                    "font-semibold",
+                    index === 0 ? "text-2xl" : "text-xl"
+                  )}
+                >
+                  {row.heading}
+                </Heading>
+                {row.intro ? (
+                  <p className="text-sm text-muted-foreground">{row.intro}</p>
+                ) : null}
+              </header>
+            )}
 
-            {row.kind === "plans" ? (
+            {row.kind === "hero" ? (
+              <FrontPageHero
+                heading={row.heading}
+                intro={row.intro}
+                image={row.image}
+                alt={row.alt}
+                buttonLabel={row.buttonLabel}
+                buttonHref={row.buttonHref}
+                note={row.note}
+                stars={row.stars}
+                headingLevel={index === 0 ? "h1" : "h2"}
+                eager={eager}
+              />
+            ) : row.kind === "plans" ? (
               billingEnabled ? (
                 <PricingTable
                   plans={plans}
