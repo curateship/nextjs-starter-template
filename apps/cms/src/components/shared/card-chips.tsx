@@ -1,3 +1,5 @@
+import { StarIcon } from "lucide-react"
+
 import { cn } from "@/lib/utils"
 
 /**
@@ -34,6 +36,35 @@ export function CategoryPill({
       )}
     >
       {name}
+    </span>
+  )
+}
+
+/**
+ * The rating over a photo: a star and the number, in a dark pill.
+ *
+ * It is the only place a card with a photo prints the rating, so it is read out
+ * rather than hidden — the star is decoration and the number is the rating, so
+ * a screen reader is given the words the star stands for.
+ */
+export function RatingChip({
+  rating,
+  className,
+}: {
+  rating: number
+  className?: string
+}) {
+  return (
+    <span
+      className={cn(
+        "flex shrink-0 items-center gap-1 rounded-full bg-foreground px-2.5 py-1 text-xs font-medium text-background",
+        className
+      )}
+    >
+      <StarIcon aria-hidden="true" className="size-3 fill-current" />
+      <span className="sr-only">Rated </span>
+      {rating}
+      <span className="sr-only"> out of 5</span>
     </span>
   )
 }

@@ -6,6 +6,8 @@ import {
 } from "@/components/directory/public/directory-breadcrumbs"
 import { DirectoryRouteError } from "@/components/directory/public/directory-error"
 import { DirectoryFrame } from "@/components/directory/public/directory-frame"
+import { FeaturedBadge } from "@/components/directory/public/featured-badge"
+import { PublicTitleBand } from "@/components/shared/public-title-band"
 import { JsonLd } from "@/components/directory/public/json-ld"
 import { pageGutter } from "@/lib/layout/shell-gutter"
 import { ListingCustomSections } from "@/components/directory/public/listing-custom-sections"
@@ -185,7 +187,19 @@ function ListingRoute() {
   )
 
   return (
-    <DirectoryFrame>
+    <DirectoryFrame
+      hero={
+        <PublicTitleBand
+          crumbs={<DirectoryBreadcrumbs crumbs={crumbs} inBand />}
+          title={listing.title}
+          // The Featured badge sits under the name. The rating does not: it is
+          // the chip over the listing's photo, where the directory's own cards
+          // print it. A listing with no photo has nowhere to hang that chip, so
+          // its card keeps the stars.
+          intro={listing.featured ? <FeaturedBadge /> : undefined}
+        />
+      }
+    >
       <JsonLd
         data={listingJsonLd({
           siteName: site.name,
@@ -203,8 +217,6 @@ function ListingRoute() {
           updatedAt: listing.updatedAt,
         })}
       />
-
-      <DirectoryBreadcrumbs crumbs={crumbs} />
 
       {/* Two columns on a wide screen, the narrow card on the right. */}
       {hasMain ? (

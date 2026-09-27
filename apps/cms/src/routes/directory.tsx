@@ -4,7 +4,7 @@ import { DirectoryRouteError } from "@/components/directory/public/directory-err
 import { DirectoryFrame } from "@/components/directory/public/directory-frame"
 import { DirectoryPagination } from "@/components/directory/public/directory-pagination"
 import { CategoryGrid } from "@/components/directory/public/category-grid"
-import { DirectoryFilterRail } from "@/components/directory/public/directory-filter-rail"
+import { DirectoryFilterBar } from "@/components/directory/public/directory-filter-bar"
 import { DirectoryHero } from "@/components/directory/public/directory-hero"
 import { DirectoryResultsHeader } from "@/components/directory/public/directory-results-header"
 import { ListingGrid } from "@/components/directory/public/listing-grid"
@@ -15,6 +15,7 @@ import {
 } from "@/lib/api/directory/public"
 import { DIRECTORY_VIEWS } from "@/lib/directory/listing-map"
 import { plural } from "@/lib/format/plural"
+import { pageGutter } from "@/lib/layout/shell-gutter"
 import { requirePageVisible } from "@/lib/api/content/pages"
 import {
   DEFAULT_DIRECTORY_NEAR_RADIUS_KM,
@@ -184,7 +185,9 @@ function DirectoryRoute() {
       {counted}
       {current.q ? <> matching “{current.q}”</> : null}
       {tickedNames.length ? <> in {tickedNames.join(", ")}</> : null}
-      {current.minRating ? <> rated {current.minRating.toFixed(1)} and up</> : null}
+      {current.minRating ? (
+        <> rated {current.minRating.toFixed(1)} and up</>
+      ) : null}
       {current.near && !current.q && !tickedNames.length ? <> nearby</> : null}
     </>
   ) : null
@@ -201,8 +204,8 @@ function DirectoryRoute() {
       page: undefined,
     })
 
-  const rail = (
-    <DirectoryFilterRail
+  const filters = (
+    <DirectoryFilterBar
       groups={filterGroups}
       selected={ticked}
       minRating={current.minRating}
@@ -217,7 +220,6 @@ function DirectoryRoute() {
       onMinRatingChange={(minRating) =>
         setListSearch({ minRating, page: undefined })
       }
-      onClearAll={anythingApplied ? clearAll : undefined}
     />
   )
 
@@ -282,74 +284,71 @@ function DirectoryRoute() {
       ) : null}
 
       {/*
-       * The rail and the results, side by side above 1024px and stacked below
-       * it. The rail is a fixed 16rem rather than a fraction, because a column
-       * of tick boxes does not want to grow with the window and the listings
-       * do.
+       * The results have the whole width. The filters used to run down a
+       * 16rem column on the left; Tyler moved them into the line above the
+       * cards on 27 Sep 2026, where they take a line rather than a column.
        */}
-      <div className="grid items-start gap-4 lg:grid-cols-[16rem_minmax(0,1fr)] lg:gap-8">
-        {rail}
+      <div className="flex min-w-0 flex-col" style={{ gap: pageGutter }}>
+        <DirectoryResultsHeader
+          count={
+            searchSummary ?? (
+              <>
+                {total} {plural(total, "listing", "listings")} on {site.name}
+              </>
+            )
+          }
+          filters={filters}
+          onClearAll={anythingApplied ? clearAll : undefined}
+          sort={sort}
+          current={current}
+          mapAvailable={mapAvailable}
+          nearNote={
+            current.near ? (
+              <>
+                Showing nearest listings within {radius} km of{" "}
+                {current.place ?? "your location"}. Listings without a map
+                location follow the nearby results.
+              </>
+            ) : undefined
+          }
+          onSortChange={(value: DirectorySort) =>
+            setListSearch({ sort: value, page: undefined })
+          }
+        />
 
-        <div className="flex min-w-0 flex-col gap-2 md:gap-3">
-          <DirectoryResultsHeader
-            count={
-              searchSummary ?? (
-                <>
-                  {total} {plural(total, "listing", "listings")} on {site.name}
-                </>
-              )
-            }
-            sort={sort}
-            current={current}
-            mapAvailable={mapAvailable}
-            nearNote={
-              current.near ? (
-                <>
-                  Showing nearest listings within {radius} km of{" "}
-                  {current.place ?? "your location"}. Listings without a map
-                  location follow the nearby results.
-                </>
-              ) : undefined
-            }
-            onSortChange={(value: DirectorySort) =>
-              setListSearch({ sort: value, page: undefined })
-            }
-          />
+        {/*
+         * The map replaces the grid rather than sitting beside it, and it
+         * replaces the pager with it: the map holds every matching listing it
+         * is allowed to draw at once, so page 2 of it would mean nothing.
+         *
+         * `map` is null whenever the site has no map to give — switched off, no
+         * key, or an address that was hand-edited to `view=map` on a site that
+         * never offered one — and the grid is what a visitor gets in every one
+         * of those cases.
+         */}
+        {map ? (
+          <ListingMap apiKey={map.apiKey} pins={map.pins} total={map.total} />
+        ) : (
+          <>
+            <ListingGrid
+              listings={listings}
+              emptyMessage={
+                current.near
+                  ? "Nothing is within that distance. Try a wider distance or a different location."
+                  : anythingApplied
+                    ? "Nothing matches that. Try fewer filters or a different search."
+                    : "There is nothing in this directory yet."
+              }
+            />
 
-          {/*
-           * The map replaces the grid rather than sitting beside it, and it
-           * replaces the pager with it: the map holds every matching listing it
-           * is allowed to draw at once, so page 2 of it would mean nothing.
-           *
-           * `map` is null whenever the site has no map to give — switched off, no
-           * key, or an address that was hand-edited to `view=map` on a site that
-           * never offered one — and the grid is what a visitor gets in every one
-           * of those cases.
-           */}
-          {map ? (
-            <ListingMap apiKey={map.apiKey} pins={map.pins} total={map.total} />
-          ) : (
-            <>
-              <ListingGrid
-                listings={listings}
-                emptyMessage={
-                  current.near
-                    ? "Nothing is within that distance. Try a wider distance or a different location."
-                    : anythingApplied
-                      ? "Nothing matches that. Try fewer filters or a different search."
-                      : "There is nothing in this directory yet."
-                }
-              />
-
-              <DirectoryPagination
-                page={page}
-                pageSize={pageSize}
-                total={total}
-                hrefForPage={(next) => directoryPageHref(current, next)}
-              />
-            </>
-          )}
-        </div>
+            <DirectoryPagination
+              page={page}
+              pageSize={pageSize}
+              total={total}
+              hrefForPage={(next) => directoryPageHref(current, next)}
+            />
+          </>
+        )}
       </div>
     </DirectoryFrame>
   )
@@ -359,8 +358,7 @@ function directoryPageHref(search: DirectoryBrowseSearch, page: number) {
   const parameters = new URLSearchParams()
   if (search.q) parameters.set("q", search.q)
   if (search.category) parameters.set("category", search.category)
-  if (search.minRating)
-    parameters.set("minRating", String(search.minRating))
+  if (search.minRating) parameters.set("minRating", String(search.minRating))
   if (search.sort) parameters.set("sort", search.sort)
   if (search.near) parameters.set("near", search.near)
   if (search.place) parameters.set("place", search.place)
