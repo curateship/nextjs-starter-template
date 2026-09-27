@@ -30,7 +30,7 @@ Prove the requested behavior in the runtime users actually interact with.
 5. Capture a screenshot only when visual evidence helps review the result.
 6. Close sessions opened for the task and remove only temporary artifacts created during validation.
 
-Use the available browser controller or `playwright-cli`; do not require a specific browser tool when another supported tool can prove the behavior.
+Use the available browser controller or `playwright-cli`; do not require a specific browser tool when another supported tool can prove the behavior. In this repo that choice is already made. "This Repo" below says Playwright and says why.
 
 ## Authentication
 
@@ -89,6 +89,13 @@ proved the requested behavior.
 - **Use Playwright, not the Chrome extension.** The extension times out and
   leaves you guessing, and a guess about a layout costs a whole conversation.
   Playwright always answers, and it answers with numbers.
+- **`chrome://start-page/<uuid>` with "This site can't be reached" and
+  `ERR_INVALID_URL` is an empty Chrome tab being loaded as though it were a
+  page.** That URL is a placeholder an empty tab holds, not an address, so
+  navigating to it or reloading it fails every time. Never pass a tab's current
+  URL back to `navigate`. Reaching this screen means the check went through the
+  extension. Stop there and use Playwright against `http://localhost:<port>`
+  from `local-apps.json`.
 - **Import Playwright by path.** It is installed at the repo root but only under
   `node_modules/.pnpm/`, so a bare `import "playwright"` fails even from the
   root:
