@@ -1,5 +1,9 @@
 import { and, asc, eq, inArray } from "drizzle-orm"
 
+import {
+  normalizeFrontPageRows,
+  type FrontPageRow,
+} from "@/lib/pages/front-page"
 import { normalizeShareImage } from "@/lib/pages/public-metadata"
 import {
   createDefaultTopRightNavigation,
@@ -445,6 +449,16 @@ export type WorkspaceSettings = {
   publicNavigation: PublicNavigationItem[]
   publicFooter: PublicNavigationLink[]
   publicFooterCopyright: string
+  /**
+   * The rows this site's front page is built from.
+   *
+   * Per site for the same reason as the menu and the footer above it: an app
+   * serving several websites has a front page per website, and one app-wide set
+   * of rows would open every one of them with the first one's hero. A one-site
+   * app never reads this — its rows stay in the app-wide row, the same way its
+   * menu does.
+   */
+  frontPageRows: FrontPageRow[]
   /** The brand colour used by this site's signed-out pages. */
   publicTheme: PublicBrandTheme
   topRightNavigation: ShellTopRightNavigationItem[]
@@ -2582,6 +2596,7 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
       publicFooterCopyright: cleanPublicFooterCopyright(
         settings.publicFooterCopyright
       ),
+      frontPageRows: normalizeFrontPageRows(settings.frontPageRows),
       publicTheme: normalizePublicBrandTheme(
         settings.publicTheme,
         settings.accentColor
@@ -2640,6 +2655,7 @@ function cleanWorkspaceSettings(
     publicFooterCopyright: cleanPublicFooterCopyright(
       settings.publicFooterCopyright
     ),
+    frontPageRows: normalizeFrontPageRows(settings.frontPageRows),
     publicTheme: normalizePublicBrandTheme(settings.publicTheme),
     topRightNavigation: Array.isArray(settings.topRightNavigation)
       ? settings.topRightNavigation
@@ -2731,6 +2747,9 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
     publicNavigation: createDefaultPublicNavigation(),
     publicFooter: [],
     publicFooterCopyright: "",
+    // A new site has no front page until somebody builds one, and a site with
+    // no rows draws its header and its footer with nothing between them.
+    frontPageRows: [],
     publicTheme: normalizePublicBrandTheme(undefined),
     topRightNavigation: createDefaultTopRightNavigation(),
     sections: createDefaultWorkspaceSections(),

@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  APP_FRONT_PAGE_ROW_KIND,
   FRONT_PAGE_ROW_KINDS,
   FRONT_PAGE_ROW_LAYOUTS,
+  MAX_APP_FRONT_PAGE_ROW_SETTINGS_LENGTH,
   MAX_FRONT_PAGE_FAQ_ITEMS,
   MAX_FRONT_PAGE_LOGOS,
   MAX_FRONT_PAGE_ROWS,
@@ -355,5 +357,57 @@ describe("front page rows", () => {
       MAX_FRONT_PAGE_LOGOS,
       MAX_FRONT_PAGE_SCREENSHOTS,
     ])
+  })
+
+  /**
+   * A row of a kind an app added. The shell keeps the app's key and its
+   * settings and reads neither, so an app can change what its own rows hold
+   * without the shell knowing.
+   */
+  it("keeps a row of a kind the app added, settings and all", () => {
+    const rows = normalizeFrontPageRows([
+      {
+        id: "listings",
+        heading: "New this week",
+        kind: APP_FRONT_PAGE_ROW_KIND,
+        appKind: "listings",
+        settings: { category: "cafes", count: 8, featuredOnly: true },
+      },
+    ])
+
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({
+      kind: APP_FRONT_PAGE_ROW_KIND,
+      appKind: "listings",
+      settings: { category: "cafes", count: 8, featuredOnly: true },
+    })
+  })
+
+  it("drops an app row whose key or settings are not what they should be", () => {
+    const rows = normalizeFrontPageRows([
+      {
+        id: "shouty",
+        heading: "Shouty",
+        kind: APP_FRONT_PAGE_ROW_KIND,
+        appKind: "Listings",
+        settings: {},
+      },
+      {
+        id: "listy",
+        heading: "A list, not an object",
+        kind: APP_FRONT_PAGE_ROW_KIND,
+        appKind: "listings",
+        settings: ["nope"],
+      },
+      {
+        id: "huge",
+        heading: "Too much",
+        kind: APP_FRONT_PAGE_ROW_KIND,
+        appKind: "listings",
+        settings: { blob: "x".repeat(MAX_APP_FRONT_PAGE_ROW_SETTINGS_LENGTH) },
+      },
+    ])
+
+    expect(rows).toEqual([])
   })
 })

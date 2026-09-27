@@ -1,6 +1,14 @@
 import * as React from "react"
 
+import { appFrontPageRowKinds } from "@/lib/app-options"
+import { AppFrontPageRowEditor } from "@/components/settings/app-front-page-row-editor"
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
+
+/**
+ * What an app kind looks like in the one list of kinds. The prefix is what
+ * keeps an app's key from ever colliding with one of the shell's own names.
+ */
+const APP_KIND_PREFIX = "app:"
 import { FrontPageRowContentEditor } from "@/components/settings/front-page-row-content-editor"
 import { Button } from "@/components/ui/button"
 import { SettingsSwitchRow } from "@/components/settings/settings-switch-row"
@@ -38,6 +46,7 @@ import {
   FRONT_PAGE_ROW_HEADING_MESSAGE,
   FRONT_PAGE_ROW_KIND_HINTS,
   FRONT_PAGE_ROW_KIND_LABELS,
+  APP_FRONT_PAGE_ROW_KIND,
   FRONT_PAGE_ROW_KINDS,
   FRONT_PAGE_ROW_LAYOUT_HINTS,
   FRONT_PAGE_ROW_LAYOUT_LABELS,
@@ -47,6 +56,7 @@ import {
   normalizeFrontPageHeroHref,
   type FrontPageRow,
   type FrontPageRowAlignment,
+  type AppFrontPageRowSettings,
   type FrontPageRowDraft,
   type FrontPageFaqItem,
   type FrontPageLogo,
@@ -73,7 +83,13 @@ export function FrontPageRowDialog({
 }) {
   const [heading, setHeading] = React.useState("")
   const [intro, setIntro] = React.useState("")
-  const [kind, setKind] = React.useState<FrontPageRowKind>("text")
+  // The chosen kind as the list holds it: one of the shell's own names, or
+  // `app:<key>` for a kind this app added. One value rather than two pieces of
+  // state, so the select cannot disagree with itself.
+  const [kindChoice, setKindChoice] = React.useState<string>("text")
+  const [appSettings, setAppSettings] = React.useState<AppFrontPageRowSettings>(
+    {}
+  )
   const [layout, setLayout] = React.useState<FrontPageRowLayout>("wide")
   const [alignment, setAlignment] =
     React.useState<FrontPageRowAlignment>("inherit")
@@ -114,7 +130,12 @@ export function FrontPageRowDialog({
     setLoadedFor(key)
     setHeading(row?.heading ?? "")
     setIntro(row?.intro ?? "")
-    setKind(row?.kind ?? "text")
+    setKindChoice(
+      row?.kind === APP_FRONT_PAGE_ROW_KIND
+        ? `${APP_KIND_PREFIX}${row.appKind}`
+        : (row?.kind ?? "text")
+    )
+    setAppSettings(row?.kind === APP_FRONT_PAGE_ROW_KIND ? row.settings : {})
     setLayout(row?.layout ?? "wide")
     setAlignment(row?.alignment ?? "inherit")
     setHidden(row?.hidden ?? false)
@@ -144,6 +165,23 @@ export function FrontPageRowDialog({
     setSubmitted(false)
   }
 
+  const appKinds = appFrontPageRowKinds()
+  const appKindKey = kindChoice.startsWith(APP_KIND_PREFIX)
+    ? kindChoice.slice(APP_KIND_PREFIX.length)
+    : null
+  const appKind = appKindKey
+    ? (appKinds.find((entry) => entry.key === appKindKey) ?? null)
+    : null
+  // An app row has none of the shell's own content, so the shell's half of the
+  // window falls back to the plainest kind while the app's panel does the rest.
+  const kind: FrontPageRowKind = appKindKey
+    ? "text"
+    : (kindChoice as FrontPageRowKind)
+  const savedChoice =
+    row?.kind === APP_FRONT_PAGE_ROW_KIND
+      ? `${APP_KIND_PREFIX}${row.appKind}`
+      : (row?.kind ?? "text")
+
   const currentItems = itemsForKind(
     kind,
     testimonials,
@@ -156,7 +194,9 @@ export function FrontPageRowDialog({
   const dirty =
     heading !== (row?.heading ?? "") ||
     intro !== (row?.intro ?? "") ||
-    kind !== (row?.kind ?? "text") ||
+    kindChoice !== savedChoice ||
+    JSON.stringify(appSettings) !==
+      JSON.stringify(row?.kind === APP_FRONT_PAGE_ROW_KIND ? row.settings : {}) ||
     layout !== (row?.layout ?? "wide") ||
     alignment !== (row?.alignment ?? "inherit") ||
     hidden !== (row?.hidden ?? false) ||
@@ -186,6 +226,23 @@ export function FrontPageRowDialog({
     setSubmitted(true)
     if (!heading.trim()) {
       showErrorToast(FRONT_PAGE_ROW_HEADING_MESSAGE)
+      return
+    }
+
+    if (appKindKey) {
+      dismissErrorToast()
+      onSaved(
+        buildAppDraft({
+          heading: heading.trim(),
+          intro: intro.trim(),
+          appKind: appKindKey,
+          settings: appSettings,
+          layout,
+          alignment,
+          hidden,
+          device,
+        })
+      )
       return
     }
 
@@ -263,16 +320,11 @@ export function FrontPageRowDialog({
                 <div className="grid gap-2">
                   <FieldLabel
                     htmlFor="front-page-row-kind"
-                    hint={FRONT_PAGE_ROW_KIND_HINTS[kind]}
+                    hint={appKind ? appKind.hint : FRONT_PAGE_ROW_KIND_HINTS[kind]}
                   >
                     Row type
                   </FieldLabel>
-                  <Select
-                    value={kind}
-                    onValueChange={(value) =>
-                      setKind(value as FrontPageRowKind)
-                    }
-                  >
+                  <Select value={kindChoice} onValueChange={setKindChoice}>
                     <SelectTrigger
                       id="front-page-row-kind"
                       className="w-full sm:w-fit"
@@ -283,6 +335,16 @@ export function FrontPageRowDialog({
                       {FRONT_PAGE_ROW_KINDS.map((value) => (
                         <SelectItem key={value} value={value}>
                           {FRONT_PAGE_ROW_KIND_LABELS[value]}
+                        </SelectItem>
+                      ))}
+                      {/* The app's own kinds, after the shell's, in the order
+                          the app wrote them. */}
+                      {appKinds.map((entry) => (
+                        <SelectItem
+                          key={entry.key}
+                          value={`${APP_KIND_PREFIX}${entry.key}`}
+                        >
+                          {entry.label}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -408,8 +470,16 @@ export function FrontPageRowDialog({
                 </div>
             </CollapsibleSettingsCard>
 
+            {appKind ? (
+              <AppFrontPageRowEditor
+                kind={appKind}
+                settings={appSettings}
+                onChange={setAppSettings}
+              />
+            ) : null}
+
             <FrontPageRowContentEditor
-              kind={kind}
+              kind={appKind ? "text" : kind}
               heroAction={heroAction}
               heroImage={heroImage}
               heroAlt={heroAlt}
@@ -606,6 +676,51 @@ function getContentProblem(
     }
   }
   return null
+}
+
+/** One row of a kind the app added, in the one shape the shell stores. */
+function buildAppDraft({
+  heading,
+  intro,
+  appKind,
+  settings,
+  layout,
+  alignment,
+  hidden,
+  device,
+}: {
+  heading: string
+  intro: string
+  appKind: string
+  settings: AppFrontPageRowSettings
+  layout: FrontPageRowLayout
+  alignment: FrontPageRowAlignment
+  hidden: boolean
+  device: PublicDevice
+}): FrontPageRowDraft {
+  return {
+    heading,
+    intro,
+    kind: APP_FRONT_PAGE_ROW_KIND,
+    appKind,
+    settings,
+    layout,
+    alignment,
+    hidden,
+    device,
+    // The shell's own "show this part" switches belong to the shell's own
+    // kinds. An app row draws what its component draws.
+    showHeading: true,
+    showIntro: true,
+    showImage: true,
+    showAction: true,
+    showStars: true,
+    showNote: true,
+    showPictures: true,
+    showRoles: true,
+    showNumbers: true,
+    showCaptions: true,
+  }
 }
 
 function buildDraft({

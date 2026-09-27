@@ -1,4 +1,5 @@
 import { appServerOptions } from "@/app/server-options"
+import type { AppFrontPageRowData } from "@/lib/pages/front-page"
 import type { SiteSearchResult } from "@/lib/pages/site-search"
 import type { AutomationExecutor } from "@/server/automations/executors"
 import type { CustomShellDb } from "@/server/db"
@@ -20,6 +21,7 @@ import type { CustomShellDb } from "@/server/db"
  * than a quiet fork.
  */
 export type AppServerOptions = {
+  pages?: PagesServerOptions
   automations?: AutomationServerOptions
   background?: BackgroundServerOptions
   security?: SecurityServerOptions
@@ -78,6 +80,47 @@ export type SitemapChunkFile = {
   path: string
   /** The most recent change among the addresses inside it, when known. */
   updatedAt?: Date
+}
+
+/** One front page row of an app's own kind, as its reader is handed it. */
+export type AppFrontPageRowRequest = {
+  /** The row's stable id, which is also the key its answer comes back under. */
+  id: string
+  heading: string
+  intro: string
+  /** The fields the app's own editor saved on this row. */
+  settings: Record<string, unknown>
+  /** The site whose address was visited, resolved from the Host header. */
+  workspaceId: string
+}
+
+/**
+ * What an app fills one of its own front page rows with, or `null` to leave the
+ * row off the page entirely — a row of records with no records in it is a
+ * heading over an empty space.
+ */
+export type AppFrontPageRowReader = (
+  request: AppFrontPageRowRequest
+) => Promise<AppFrontPageRowData | null>
+
+type PagesServerOptions = {
+  /**
+   * What fills each kind of front page row this app added, by the same key the
+   * kind carries in `src/app/options.ts`.
+   *
+   * A row of an app's own records is a database read, so it cannot happen in
+   * the browser half of the options. The workspace id comes from the request's
+   * Host header, never from the browser, and the settings come from the saved
+   * row rather than from anything a visitor sent — a reader must still treat
+   * them as untrusted, because they are stored values an admin typed.
+   *
+   * Answering `null` drops the row from the page. That is how "nothing is
+   * coming up" and "this visitor may not see the Events page" are said.
+   *
+   * An app kind with no reader here draws with no data, which is right for a
+   * row that only holds words.
+   */
+  frontPageRowReaders?: Record<string, AppFrontPageRowReader>
 }
 
 type SitemapServerOptions = {
@@ -231,6 +274,17 @@ type AutomationServerOptions = {
  * option still means today's behaviour — written this way so that check keeps
  * working inside an app that has set the option.
  */
+/**
+ * The app's reader for one of its front page row kinds, or null when it has
+ * none. Asked per row while a front page is being answered.
+ */
+export function appFrontPageRowReader(
+  appKind: string,
+  options: AppServerOptions = appServerOptions
+): AppFrontPageRowReader | null {
+  return options.pages?.frontPageRowReaders?.[appKind] ?? null
+}
+
 export function appAutomationExecutors(
   options: AppServerOptions = appServerOptions
 ): Record<string, AutomationExecutor> {

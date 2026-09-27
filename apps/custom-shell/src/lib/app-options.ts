@@ -13,6 +13,7 @@ import {
   normalizePublicTheme,
   type PublicTheme,
 } from "@/lib/public-theme"
+import type { AppFrontPageRowSettings } from "@/lib/pages/front-page"
 import type { AppSettingsTab } from "@/lib/settings-tab"
 
 /**
@@ -297,6 +298,71 @@ type PagesOptions = {
    * quietly overruled by a page nobody remembers claiming.
    */
   catchAll?: CatchAllPage
+
+  /**
+   * Extra kinds of row this app adds to the front page builder.
+   *
+   * The shell's own kinds — text, hero, plans, testimonials, FAQ, questions,
+   * logos, screenshots — are always there; these are added to them, and they
+   * show up in the row window's "What the row shows" list like any other.
+   *
+   * Each one brings the two halves a row needs: the panel that edits its own
+   * fields, and the component that draws it. What *fills* it is the third half
+   * and it is server-side: the reader goes in `src/app/server-options.ts` under
+   * the same `key`, because a row of an app's own records is a database read
+   * and the browser must not be trusted to say which records.
+   *
+   * A row of an app kind is stored as one shape — the shell's own row fields,
+   * the app's key, and a bag of settings the shell keeps and never reads. So
+   * the shell's list of kinds stays closed, and an app can never take a name
+   * the shell later wants.
+   *
+   * Two kinds sharing a key are refused out loud.
+   */
+  frontPageRowKinds?: readonly AppFrontPageRowKind[]
+
+
+}
+
+/** What the shell hands an app's editor for one of its own front page rows. */
+export type AppFrontPageRowEditorProps = {
+  /** This row's saved fields, or an empty object on a new row. */
+  settings: AppFrontPageRowSettings
+  /** True while the settings window is saving. */
+  disabled: boolean
+  onChange: (settings: AppFrontPageRowSettings) => void
+}
+
+/** What the shell hands an app's component when it draws one of its rows. */
+export type AppFrontPageRowProps = {
+  heading: string
+  intro: string
+  /** This row's saved fields. */
+  settings: AppFrontPageRowSettings
+  /**
+   * What the app's server-side reader filled for this row on this request.
+   * `null` when the app has no reader for this kind, or the page was drawn
+   * without asking for one.
+   */
+  data: unknown
+}
+
+/** One kind of front page row an app adds to the shell's builder. */
+export type AppFrontPageRowKind = {
+  /** Lower-case letters, numbers and dashes, unique within the app. */
+  key: string
+  /** What the row window calls it, such as "Listings". */
+  label: string
+  /** The line under that name, saying what the row shows. */
+  hint: string
+  /** The panel that edits this kind's own fields. */
+  panel: () => Promise<{
+    default: ComponentType<AppFrontPageRowEditorProps>
+  }>
+  /** What draws the row on the public page. */
+  component: () => Promise<{
+    default: ComponentType<AppFrontPageRowProps>
+  }>
 }
 
 type AutomationOptions = {
@@ -526,6 +592,46 @@ export function appHeaderLeftContentForRole(
   const action = options.header?.leftContent
   if (!action || (action.roles && !action.roles.includes(role))) return null
   return action
+}
+
+/**
+ * The kinds of front page row this app adds, in the order it wrote them.
+ *
+ * Two kinds sharing a key would draw one of them twice under one name and both
+ * answer to the same saved rows, so that is said out loud on the first read
+ * rather than shipped as a builder that misbehaves. A key that is not a plain
+ * lower-case name is refused for the same reason: it is stored in a settings
+ * row and read back by pattern.
+ */
+export function appFrontPageRowKinds(
+  options: AppOptions = appOptions
+): readonly AppFrontPageRowKind[] {
+  const kinds = options.pages?.frontPageRowKinds ?? []
+
+  const seen = new Set<string>()
+  for (const kind of kinds) {
+    if (!/^[a-z0-9][a-z0-9-]*$/.test(kind.key)) {
+      throw new Error(
+        `"${kind.key}" is not a front page row key. Use lower-case letters, numbers and dashes.`
+      )
+    }
+    if (seen.has(kind.key)) {
+      throw new Error(
+        `Two front page row kinds both call themselves "${kind.key}". Each one needs its own key.`
+      )
+    }
+    seen.add(kind.key)
+  }
+
+  return kinds
+}
+
+/** One of the app's row kinds by its key, or null when the app has no such kind. */
+export function appFrontPageRowKind(
+  key: string,
+  options: AppOptions = appOptions
+): AppFrontPageRowKind | null {
+  return appFrontPageRowKinds(options).find((kind) => kind.key === key) ?? null
 }
 
 /**

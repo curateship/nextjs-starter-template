@@ -216,7 +216,8 @@ describe("public site branding", () => {
     const branding = await readBranding(database as unknown as CustomShellDb)
 
     expect(branding.publicNavigation).toEqual([
-      { type: "search", visible: true },
+      // The search item left the public menu for the header's Action items row
+      // in 32c6c98fa, so a saved menu holds only what the admin put in it.
       { label: "About", href: "/about" },
     ])
     expect(branding.publicFooter).toEqual([
@@ -542,4 +543,47 @@ describe("public site branding", () => {
       radius: 4,
     })
   })
+
+  /**
+   * The front page belongs to the site whose address was visited, the same as
+   * the menu and the footer. One app-wide set of rows would open every site
+   * with the first one's hero.
+   */
+  it("gives each site its own front page rows", async () => {
+    const timestamp = now()
+    await database.insert(customShellSettings).values({
+      key: DEFAULT_SETTINGS_KEY,
+      settings: {
+        frontPageRows: [
+          { id: "app-wide", heading: "The deployment's own", kind: "text" },
+        ],
+      },
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+    await insertWorkspace(database, {
+      name: "Alpha",
+      subdomain: "alpha",
+      settings: {
+        frontPageRows: [
+          { id: "alpha-hero", heading: "Alpha's hero", kind: "text" },
+        ],
+      },
+    })
+    await insertWorkspace(database, { name: "Beta", subdomain: "beta" })
+
+    request.host = "alpha.localhost:3002"
+    const alpha = await readBranding(database as unknown as CustomShellDb)
+    expect(alpha.frontPageRows.map((row) => row.heading)).toEqual([
+      "Alpha's hero",
+    ])
+
+    // Beta has built none, so it has no front page of its own rather than
+    // Alpha's or the deployment's.
+    request.host = "beta.localhost:3002"
+    const beta = await readBranding(database as unknown as CustomShellDb)
+    expect(beta.frontPageRows).toEqual([])
+  })
+
+
 })

@@ -35,6 +35,29 @@ Three things, and nothing else:
 
 Everything else in the repo belongs to the shell.
 
+## What a site owns, and what the deployment owns
+
+An app can serve one website or many, and `CUSTOM_SHELL_WORKSPACE_BASE_DOMAIN`
+is what says which. With it unset — Trade, Video, Custom Shell itself — there is
+one public website and its settings are the app-wide ones. With it set, every
+site is reached on its own address and these belong to the site whose address
+was visited:
+
+- its name, favicon, logo, dark logo and share image, through
+  `workspaces.siteBranding`
+- its brand colour, in `publicTheme`
+- its public menu, its public footer and the footer's copyright line
+- **its front page rows**, from 27 Sep 2026. They were app-wide until then, so
+  a second website opened with the first one's hero. A site that has built none
+  draws its header and its footer with nothing between them — never the
+  deployment's own sign-up block, which on somebody else's website is an advert
+  for software they did not come for. That block still draws on the
+  deployment's own address and in a one-site app, where it is the right answer.
+
+Everything else on a public page — the header's layout, the breadcrumbs, the
+footer's social accounts, the SEO fields, the fonts — is one answer for the
+whole deployment.
+
 ## App options
 
 One file holds an app's answers:
@@ -74,6 +97,15 @@ the guess that one might:
   keeps only differences from the app default, so an unrelated save does not
   freeze inherited values.
 - `landing.page` — replace `/` outright: loader, `<head>` and component together
+- `pages.frontPageRowKinds` — extra kinds of row in the front page builder, each
+  carrying its label, its hint, a pointer to the panel that edits its own fields
+  and a pointer to the component that draws it, paired with
+- `pages.frontPageRowReaders` (server) — what fills one of those rows for the
+  site being answered, keyed by the same `key`. Answering `null` leaves the row
+  off the page, which is how "nothing is coming up" and "this visitor may not
+  see that page" are said. A row of an app kind is stored as the shell's own row
+  fields plus the app's key and a bag of settings the shell keeps and never
+  reads, so the shell's own list of kinds stays closed
 - `automations.nodes` — extra steps in the automation palette, each carrying its
   own icon and a pointer to its settings panel, paired with
 - `automations.executors` (server) — what those steps do when a flow reaches

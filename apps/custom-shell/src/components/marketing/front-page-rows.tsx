@@ -5,6 +5,7 @@ import {
   FrontPageScreenshots,
   FrontPageTestimonials,
 } from "@/components/marketing/front-page-content-blocks"
+import { AppFrontPageRow } from "@/components/marketing/app-front-page-row"
 import {
   publicContentAlignmentGridClassName,
   publicContentAlignmentJustifyClassNames,
@@ -14,7 +15,10 @@ import {
 import { PricingTable } from "@/components/shared/pricing-table"
 import type { PlanOption } from "@/lib/api/billing/billing"
 import type { BillingInterval } from "@/lib/billing/pricing-choice"
-import type { FrontPageRow } from "@/lib/pages/front-page"
+import {
+  APP_FRONT_PAGE_ROW_KIND,
+  type FrontPageRow,
+} from "@/lib/pages/front-page"
 import { publicDeviceRowClassName } from "@/lib/pages/public-device"
 import { cn } from "@/lib/utils"
 
@@ -25,6 +29,7 @@ export function FrontPageRows({
   interval,
   onIntervalChange,
   onSelectPlan,
+  appRowData,
 }: {
   rows: FrontPageRow[]
   plans: PlanOption[]
@@ -32,6 +37,12 @@ export function FrontPageRows({
   interval: BillingInterval
   onIntervalChange: (interval: BillingInterval) => void
   onSelectPlan: (plan: PlanOption, interval: BillingInterval) => void
+  /**
+   * What the app's own reader filled for each of its rows, by row id. A page
+   * drawn without asking the app — a preview, or an app with no such rows —
+   * passes none, and every app row is handed `null`.
+   */
+  appRowData?: Record<string, unknown>
 }) {
   return (
     <div
@@ -73,7 +84,9 @@ export function FrontPageRows({
           >
             {/* A hero draws its own heading, at its own size and beside the
                 picture. Every other row puts the heading above its content. */}
-            {row.kind === "hero" || (!showHeading && !showIntro) ? null : (
+            {row.kind === APP_FRONT_PAGE_ROW_KIND ||
+            row.kind === "hero" ||
+            (!showHeading && !showIntro) ? null : (
               <header className="grid gap-2">
                 {showHeading ? (
                   <Heading
@@ -95,7 +108,17 @@ export function FrontPageRows({
               </header>
             )}
 
-            {row.kind === "hero" ? (
+            {row.kind === APP_FRONT_PAGE_ROW_KIND ? (
+              // The app draws its own heading with its content, the same as a
+              // hero does, because only the app knows what belongs above it.
+              <AppFrontPageRow
+                appKind={row.appKind}
+                heading={row.heading}
+                intro={row.intro}
+                settings={row.settings}
+                data={appRowData?.[row.id] ?? null}
+              />
+            ) : row.kind === "hero" ? (
               <FrontPageHero
                 heading={row.heading}
                 intro={row.intro}

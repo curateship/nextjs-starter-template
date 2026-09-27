@@ -24,7 +24,9 @@ import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { PUBLIC_DEVICE_LABELS } from "@/lib/pages/public-device"
+import { appFrontPageRowKind } from "@/lib/app-options"
 import {
+  APP_FRONT_PAGE_ROW_KIND,
   FRONT_PAGE_ROW_ALIGNMENT_LABELS,
   FRONT_PAGE_ROW_KIND_LABELS,
   FRONT_PAGE_ROW_LAYOUT_LABELS,
@@ -196,7 +198,12 @@ function FrontPageSettingsRow({
         <span className="truncate text-sm font-medium">{row.heading}</span>
         <span className="truncate text-xs text-muted-foreground">
           {[
-            FRONT_PAGE_ROW_KIND_LABELS[row.kind],
+            // An app's own kinds are named by the app, and a kind the app has
+            // since stopped offering still has to read as something rather
+            // than as nothing at all.
+            row.kind === APP_FRONT_PAGE_ROW_KIND
+              ? (appFrontPageRowKind(row.appKind)?.label ?? row.appKind)
+              : FRONT_PAGE_ROW_KIND_LABELS[row.kind],
             FRONT_PAGE_ROW_LAYOUT_LABELS[row.layout],
             row.alignment === "inherit"
               ? null
