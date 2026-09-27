@@ -47,7 +47,6 @@ import {
   FRONT_PAGE_ROW_KIND_HINTS,
   FRONT_PAGE_ROW_KIND_LABELS,
   APP_FRONT_PAGE_ROW_KIND,
-  FRONT_PAGE_ROW_KINDS,
   FRONT_PAGE_ROW_LAYOUT_HINTS,
   FRONT_PAGE_ROW_LAYOUT_LABELS,
   FRONT_PAGE_ROW_LAYOUTS,
@@ -73,11 +72,18 @@ import {
 export function FrontPageRowDialog({
   open,
   row,
+  newKind,
   onClose,
   onSaved,
 }: {
   open: boolean
   row: FrontPageRow | null
+  /**
+   * What a new row was picked as in the Add row window, such as `hero` or
+   * `app:listings`. Ignored when an existing row is being edited, because a
+   * saved row keeps the kind it was made with.
+   */
+  newKind?: string | null
   onClose: () => void
   onSaved: (row: FrontPageRowDraft) => void
 }) {
@@ -133,7 +139,7 @@ export function FrontPageRowDialog({
     setKindChoice(
       row?.kind === APP_FRONT_PAGE_ROW_KIND
         ? `${APP_KIND_PREFIX}${row.appKind}`
-        : (row?.kind ?? "text")
+        : (row?.kind ?? newKind ?? "text")
     )
     setAppSettings(row?.kind === APP_FRONT_PAGE_ROW_KIND ? row.settings : {})
     setLayout(row?.layout ?? "wide")
@@ -180,7 +186,7 @@ export function FrontPageRowDialog({
   const savedChoice =
     row?.kind === APP_FRONT_PAGE_ROW_KIND
       ? `${APP_KIND_PREFIX}${row.appKind}`
-      : (row?.kind ?? "text")
+      : (row?.kind ?? newKind ?? "text")
 
   const currentItems = itemsForKind(
     kind,
@@ -317,38 +323,16 @@ export function FrontPageRowDialog({
               description="Every row uses a fixed shape, so the front page stays consistent on phones and larger screens."
               contentClassName="grid gap-4"
             >
-                <div className="grid gap-2">
-                  <FieldLabel
-                    htmlFor="front-page-row-kind"
-                    hint={appKind ? appKind.hint : FRONT_PAGE_ROW_KIND_HINTS[kind]}
-                  >
-                    Row type
-                  </FieldLabel>
-                  <Select value={kindChoice} onValueChange={setKindChoice}>
-                    <SelectTrigger
-                      id="front-page-row-kind"
-                      className="w-full sm:w-fit"
-                    >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {FRONT_PAGE_ROW_KINDS.map((value) => (
-                        <SelectItem key={value} value={value}>
-                          {FRONT_PAGE_ROW_KIND_LABELS[value]}
-                        </SelectItem>
-                      ))}
-                      {/* The app's own kinds, after the shell's, in the order
-                          the app wrote them. */}
-                      {appKinds.map((entry) => (
-                        <SelectItem
-                          key={entry.key}
-                          value={`${APP_KIND_PREFIX}${entry.key}`}
-                        >
-                          {entry.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                {/* The kind is chosen once, in the Add row window, and shown
+                    here as a fact. Changing it on a saved row would leave the
+                    fields of one kind under the name of another. */}
+                <div className="grid gap-1">
+                  <p className="text-sm font-medium">Row type</p>
+                  <p className="text-sm text-muted-foreground">
+                    {appKind ? appKind.label : FRONT_PAGE_ROW_KIND_LABELS[kind]}
+                    {". "}
+                    {appKind ? appKind.hint : FRONT_PAGE_ROW_KIND_HINTS[kind]}
+                  </p>
                 </div>
 
                 <div className="grid gap-2">

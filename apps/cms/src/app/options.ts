@@ -1,4 +1,11 @@
 import { redirect } from "@tanstack/react-router"
+import {
+  CalendarDaysIcon,
+  NewspaperIcon,
+  ShapesIcon,
+  StoreIcon,
+  TagIcon,
+} from "lucide-react"
 
 import { defineCatchAllPage, type AppOptions } from "@/lib/app-options"
 import type { DirectoryFrontPageAnswer } from "@/lib/directory/front-page"
@@ -72,6 +79,15 @@ const ROW_PANELS = {
   posts: "PostsRowPanel",
 } as const
 
+/** The picture on each kind's card in the shell's Add row window. */
+const ROW_ICONS = {
+  listings: StoreIcon,
+  categories: ShapesIcon,
+  events: CalendarDaysIcon,
+  deals: TagIcon,
+  posts: NewspaperIcon,
+} as const
+
 const ROW_CONTENT = {
   listings: "ListingsRowContent",
   categories: "CategoriesRowContent",
@@ -118,6 +134,7 @@ export const appOptions: AppOptions = {
       key,
       label: CMS_FRONT_PAGE_ROW_LABELS[key],
       hint: CMS_FRONT_PAGE_ROW_HINTS[key],
+      icon: ROW_ICONS[key],
       panel: () =>
         import("@/components/directory/front-page-row-panels").then(
           (module) => ({ default: module[ROW_PANELS[key]] })

@@ -85,6 +85,12 @@ whole number of pixels from 0 to 400 and only applies from 1024px up, where the
 menu words are in the bar. The front page can open with a hero row, its blocks
 share one vertical spacing, and the plan cards and the FAQ are the shell's.
 
+Add row opens a window of cards, one per kind of row, with CMS's own five,
+Listings, Category cards, Upcoming events, Current deals and Latest posts,
+under their own heading and each with its own icon named in `src/app/options.ts`.
+Picking a card makes the row and opens it. A row then keeps the kind it was
+made with: the row window states the kind and offers no way to change it.
+
 Each front page row chooses where it sits across the page and which of its
 parts a visitor sees. Alignment offers Follow the site, Left, Centred and
 Right, and Follow the site reads CMS's own Content alignment setting, so no

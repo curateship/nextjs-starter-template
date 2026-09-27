@@ -3,6 +3,7 @@ import type { ComponentType, ReactNode } from "react"
 import { appOptions } from "@/app/options"
 import type {
   AutomationNodeDescriptor,
+  AutomationNodeIcon,
   AutomationPaletteGroup,
 } from "@/lib/automations/node-descriptor"
 import type {
@@ -355,6 +356,14 @@ export type AppFrontPageRowKind = {
   label: string
   /** The line under that name, saying what the row shows. */
   hint: string
+  /**
+   * The picture on this kind's card in the Add row window. Any Lucide icon
+   * goes straight through, the same as an automation step's icon and for the
+   * same reason: a list of allowed names would live in a shell file, and an
+   * app may not edit one. Left out, the card draws the shell's plain block
+   * icon.
+   */
+  icon?: AutomationNodeIcon
   /** The panel that edits this kind's own fields. */
   panel: () => Promise<{
     default: ComponentType<AppFrontPageRowEditorProps>
