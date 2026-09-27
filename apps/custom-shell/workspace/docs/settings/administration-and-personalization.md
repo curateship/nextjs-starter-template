@@ -451,6 +451,14 @@ offers no way to change it, because changing it would leave the fields of one
 kind under the name of another: an FAQ's questions do not become a hero's
 button. A row of the wrong kind is deleted and picked again.
 
+**Space between rows** is a slider under the list, from 0 to 160 pixels, and it
+is the gap between two blocks as a desktop draws them. The default is 80px. A
+phone draws 70% of whatever it says, because a gap that separates two blocks on
+a desktop is most of a phone screen, so the default gives a phone 56px. Flat
+mode, which is a page gutter of 0, still collapses both to nothing. The number
+is saved with the public styling rather than with the rows, so a site that sets
+its own public look sets its own spacing too.
+
 A heading and at least one complete entry are required for content rows. The
 server removes incomplete saved entries and refuses a newly selected image that
 does not belong to the current admin's media library. Dragging changes the

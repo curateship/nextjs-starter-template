@@ -297,6 +297,13 @@ export function SettingsPage({
               onRowsChange={(frontPageRows) =>
                 onConfigChange({ ...config, frontPageRows })
               }
+              rowGap={config.publicTheme.frontPageRowGap}
+              onRowGapChange={(frontPageRowGap) =>
+                onConfigChange({
+                  ...config,
+                  publicTheme: { ...config.publicTheme, frontPageRowGap },
+                })
+              }
             />
             <PublicSystemPagesSettings
               config={config}

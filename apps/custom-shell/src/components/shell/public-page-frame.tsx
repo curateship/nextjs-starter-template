@@ -1,9 +1,9 @@
 import * as React from "react"
-import { useLocation } from "@tanstack/react-router"
 
 import { AnnouncementBanner } from "@/components/shell/announcement-banner"
 import { publicContentAlignmentClassNames } from "@/components/shell/public-content-alignment"
 import { PublicBreadcrumbs } from "@/components/shell/public-breadcrumbs"
+import { usePaintedPathname } from "@/lib/hooks/use-painted-pathname"
 import { usePublicBreadcrumbTrail } from "@/lib/hooks/use-public-breadcrumb-trail"
 import { PublicFooter } from "@/components/shell/public-footer"
 import { PublicNavigation } from "@/components/shell/public-navigation"
@@ -33,9 +33,11 @@ import {
 import { loadVisitorAnnouncements } from "@/lib/api/content/announcements"
 import { pageForPath } from "@/lib/pages/page-registry"
 import {
+  DEFAULT_PUBLIC_FRONT_PAGE_ROW_GAP,
   DEFAULT_PUBLIC_GUTTER,
   DEFAULT_PUBLIC_MAIN_SPACING,
   DEFAULT_PUBLIC_PAGE_WIDTH,
+  PUBLIC_FRONT_PAGE_ROW_GAP_PHONE_SHARE,
   publicShellStyling,
   type PublicTheme,
 } from "@/lib/public-theme"
@@ -85,7 +87,8 @@ export function PublicPageFrame({
   const theme = usePublicTheme()
   usePublicStyleVars(theme)
   const breadcrumbTrail = usePublicBreadcrumbTrail()
-  const pathname = useLocation({ select: (location) => location.pathname })
+  // The page on screen, not the one being fetched. See the hook.
+  const pathname = usePaintedPathname()
   const [visitorAnnouncements, setVisitorAnnouncements] = React.useState<
     VisitorAnnouncement[]
   >([])
@@ -161,9 +164,23 @@ export function PublicPageFrame({
     ...mainSpacingStyle,
     ...edgeStyle,
   }
+  // The gap between front page blocks travels as two CSS variables rather than
+  // a class, because theme.css owns those rules: flat mode collapses them and
+  // a phone draws less than a desktop. Left at the default, nothing is written
+  // and theme.css keeps its own numbers.
+  const rowGapStyle =
+    theme.frontPageRowGap === DEFAULT_PUBLIC_FRONT_PAGE_ROW_GAP
+      ? undefined
+      : ({
+          "--shell-front-page-row-gap": `${theme.frontPageRowGap}px`,
+          "--shell-front-page-row-gap-phone": `${Math.round(
+            theme.frontPageRowGap * PUBLIC_FRONT_PAGE_ROW_GAP_PHONE_SHARE
+          )}px`,
+        } as React.CSSProperties)
   const contentStyle = {
     ...pageWidthStyle,
     ...(gutterChanged ? { gap: theme.gutter } : {}),
+    ...rowGapStyle,
   }
   // Content alignment is for pages built out of blocks: the front page, the
   // pricing page and search. A card page is one box in the middle of the

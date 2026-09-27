@@ -88,6 +88,13 @@ export type PublicTheme = {
   pageWidth: number
   /** Top and bottom padding around public page content in pixels. */
   mainSpacing: number
+  /**
+   * The space between two blocks on the public front page, in pixels, as a
+   * desktop screen draws it. A phone draws 70% of it, because a gap wide
+   * enough to tell two blocks apart on a desktop is most of a phone screen.
+   * Flat mode still collapses both to nothing.
+   */
+  frontPageRowGap: number
   /** Horizontal alignment for the main content on every public page. */
   contentAlignment: PublicContentAlignment
   /** Optional texture drawn over the public canvas. */
@@ -165,6 +172,12 @@ export const DEFAULT_PUBLIC_PAGE_WIDTH = 1152
 export const MAX_PUBLIC_PAGE_WIDTH = 1600
 export const DEFAULT_PUBLIC_MAIN_SPACING = 40
 export const MAX_PUBLIC_MAIN_SPACING = 96
+
+/** The 5rem in theme.css, in pixels. A phone's 3.5rem is 70% of it. */
+export const DEFAULT_PUBLIC_FRONT_PAGE_ROW_GAP = 80
+export const MAX_PUBLIC_FRONT_PAGE_ROW_GAP = 160
+/** What a phone draws, as a share of the desktop gap. */
+export const PUBLIC_FRONT_PAGE_ROW_GAP_PHONE_SHARE = 0.7
 /**
  * 12px is `md:gap-3`, the desktop gap the public column has always used. A
  * theme still on this number keeps the responsive `gap-2 md:gap-3` classes, so
@@ -226,6 +239,7 @@ export function createDefaultPublicTheme(): PublicTheme {
     modal: createDefaultPublicModalStyling(),
     pageWidth: DEFAULT_PUBLIC_PAGE_WIDTH,
     mainSpacing: DEFAULT_PUBLIC_MAIN_SPACING,
+    frontPageRowGap: DEFAULT_PUBLIC_FRONT_PAGE_ROW_GAP,
     contentAlignment: "center",
     backgroundPattern: "none",
     backgroundPatternSize: "medium",
@@ -541,6 +555,12 @@ export function normalizePublicTheme(
       0,
       MAX_PUBLIC_MAIN_SPACING
     ),
+    frontPageRowGap: normalizeWholeNumber(
+      theme.frontPageRowGap,
+      fallback.frontPageRowGap,
+      0,
+      MAX_PUBLIC_FRONT_PAGE_ROW_GAP
+    ),
     contentAlignment: PUBLIC_CONTENT_ALIGNMENTS.includes(
       theme.contentAlignment as PublicContentAlignment
     )
@@ -710,6 +730,9 @@ export function publicThemeOverrides(
     ...(theme.mainSpacing !== baseline.mainSpacing
       ? { mainSpacing: theme.mainSpacing }
       : {}),
+    ...(theme.frontPageRowGap !== baseline.frontPageRowGap
+      ? { frontPageRowGap: theme.frontPageRowGap }
+      : {}),
     ...(theme.contentAlignment !== baseline.contentAlignment
       ? { contentAlignment: theme.contentAlignment }
       : {}),
@@ -856,6 +879,7 @@ export function hasCustomPublicTheme(theme: PublicTheme): boolean {
     modalStylingChanged(theme.modal, starting.modal) ||
     theme.pageWidth !== DEFAULT_PUBLIC_PAGE_WIDTH ||
     theme.mainSpacing !== DEFAULT_PUBLIC_MAIN_SPACING ||
+    theme.frontPageRowGap !== DEFAULT_PUBLIC_FRONT_PAGE_ROW_GAP ||
     theme.contentAlignment !== "center" ||
     (theme.backgroundPattern !== "none" &&
       theme.backgroundPatternOpacity > 0) ||
