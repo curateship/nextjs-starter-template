@@ -1,12 +1,9 @@
-import { Link } from "@tanstack/react-router"
-
 import { CategoryGrid } from "@/components/directory/public/category-grid"
 import { ListingGrid } from "@/components/directory/public/listing-grid"
 import { ListingMap } from "@/components/directory/public/listing-map"
 import { EventCardGrid } from "@/components/events/public/event-card"
 import { PostGrid } from "@/components/posts/public/post-grid"
 import { DealGrid } from "@/components/promotions/public/deal-grid"
-import { Button } from "@/components/ui/button"
 import type { AppFrontPageRowProps } from "@/lib/app-options"
 import type {
   CategoriesRowData,
@@ -56,26 +53,17 @@ export function ListingsRowContent({ data }: AppFrontPageRowProps) {
         )
       : []
 
-  return (
-    <div className="grid w-full gap-2 md:gap-3">
-      {row.layout === "map" && row.mapApiKey ? (
-        <ListingMap apiKey={row.mapApiKey} pins={pins} total={pins.length} />
-      ) : (
-        <ListingGrid
-          listings={row.listings}
-          layout={row.layout === "list" ? "list" : "grid"}
-          // Never seen: a row with no listings is left off the page.
-          emptyMessage="There are no listings to show yet."
-        />
-      )}
-      <div>
-        <Button asChild variant="outline">
-          <Link to="/directory" search={row.browse} preload="intent">
-            See them all
-          </Link>
-        </Button>
-      </div>
-    </div>
+  // The way to the whole list is the button beside the heading, drawn by the
+  // shell from what the reader filled this row with.
+  return row.layout === "map" && row.mapApiKey ? (
+    <ListingMap apiKey={row.mapApiKey} pins={pins} total={pins.length} />
+  ) : (
+    <ListingGrid
+      listings={row.listings}
+      layout={row.layout === "list" ? "list" : "grid"}
+      // Never seen: a row with no listings is left off the page.
+      emptyMessage="There are no listings to show yet."
+    />
   )
 }
 
@@ -105,17 +93,6 @@ export function EventsRowContent({ data }: AppFrontPageRowProps) {
         events={row.events.map((event) => ({ ...event, ended: false }))}
         emptyMessage="Nothing is coming up yet."
       />
-      <div>
-        <Button asChild variant="outline">
-          <Link
-            to="/events"
-            search={row.categorySlug ? { category: row.categorySlug } : {}}
-            preload="intent"
-          >
-            See all events
-          </Link>
-        </Button>
-      </div>
     </div>
   )
 }
@@ -124,22 +101,7 @@ export function DealsRowContent({ data }: AppFrontPageRowProps) {
   if (noData(data)) return null
   const row = data as DealsRowData
 
-  return (
-    <div className="grid w-full gap-2 md:gap-3">
-      <DealGrid deals={row.deals} />
-      <div>
-        <Button asChild variant="outline">
-          <Link
-            to="/deals"
-            search={row.categorySlug ? { category: row.categorySlug } : {}}
-            preload="intent"
-          >
-            See all deals
-          </Link>
-        </Button>
-      </div>
-    </div>
-  )
+  return <DealGrid deals={row.deals} />
 }
 
 export function PostsRowContent({ data }: AppFrontPageRowProps) {
@@ -147,19 +109,10 @@ export function PostsRowContent({ data }: AppFrontPageRowProps) {
   const row = data as PostsRowData
 
   return (
-    <div className="grid w-full gap-2 md:gap-3">
-      <PostGrid
-        posts={row.posts}
-        siteName={row.siteName}
-        emptyMessage="Nothing has been posted yet."
-      />
-      <div>
-        <Button asChild variant="outline">
-          <Link to="/posts" preload="intent">
-            See all posts
-          </Link>
-        </Button>
-      </div>
-    </div>
+    <PostGrid
+      posts={row.posts}
+      siteName={row.siteName}
+      emptyMessage="Nothing has been posted yet."
+    />
   )
 }

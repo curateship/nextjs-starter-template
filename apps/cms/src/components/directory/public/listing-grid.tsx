@@ -1,10 +1,10 @@
 import { Link } from "@tanstack/react-router"
-import { MapPinIcon, StarIcon, TagIcon } from "lucide-react"
+import { MapPinIcon, TagIcon } from "lucide-react"
 
 import { ClaimedBadge } from "@/components/directory/public/claimed-badge"
 import { FeaturedBadge } from "@/components/directory/public/featured-badge"
 import { SaveDropdown } from "@/components/directory/public/save-dropdown"
-import { CategoryPill } from "@/components/shared/card-chips"
+import { CategoryPill, RatingChip } from "@/components/shared/card-chips"
 import { ListingRating } from "@/components/directory/listing-rating"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
@@ -50,7 +50,9 @@ export function ListingGrid({
   return (
     <ul
       className={
-        layout === "list" ? "grid" : "grid sm:grid-cols-2 lg:grid-cols-3"
+        layout === "list"
+          ? "grid"
+          : "grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
       }
       // The space between cards is the site's own gutter from Settings →
       // Styling, the same value `CardGroup` puts between stacked cards. A fixed
@@ -71,23 +73,6 @@ export function ListingGrid({
 }
 
 /**
- * The rating over the top-right of the photo. The stars themselves stay under
- * the title, so this chip is decoration over a picture and is hidden from a
- * screen reader rather than read out twice.
- */
-function RatingChip({ rating }: { rating: number }) {
-  return (
-    <span
-      aria-hidden="true"
-      className="flex shrink-0 items-center gap-1 rounded-full bg-foreground px-2.5 py-1 text-xs font-medium text-background"
-    >
-      <StarIcon className="size-3 fill-current" />
-      {rating}
-    </span>
-  )
-}
-
-/**
  * Exported so the map's pin card is this card, not a second half-copy of it.
  * A pin that opened a card missing the rating or the claimed tick would be one
  * more thing to keep in step by hand.
@@ -102,6 +87,11 @@ export function ListingCard({ listing }: { listing: PublicListingCard }) {
   // it, so it falls back to the row of tags above the title rather than
   // vanishing.
   const categoryInBadges = !listing.featuredImage && listing.category
+  // The chip over the photo is the rating on a card that has one. A card with
+  // no photo has nowhere to put the chip, so it keeps the row of stars under
+  // the name instead — one copy either way, never two.
+  const ratingOnPhoto =
+    Boolean(listing.featuredImage) && listing.rating !== null
   const hasBadges =
     listing.featured ||
     listing.dealHeadline ||
@@ -219,7 +209,7 @@ export function ListingCard({ listing }: { listing: PublicListingCard }) {
             {listing.title}
           </Link>
         </h2>
-        <ListingRating rating={listing.rating} />
+        {ratingOnPhoto ? null : <ListingRating rating={listing.rating} />}
         {listing.metaDescription ? (
           <p className="line-clamp-2 text-sm text-muted-foreground">
             {listing.metaDescription}

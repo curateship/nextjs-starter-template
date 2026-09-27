@@ -36,7 +36,10 @@ export function PublicHeroBand({ children }: { children: React.ReactNode }) {
       // spacing between the band and what follows, and adding 24px on top of
       // that left the chip row stranded 52px under the band and 12px above the
       // cards it filters.
-      className="self-center border-b bg-muted/60 py-10 text-left md:py-14"
+      // 24px of air above and below on a phone and 32px from 768px up. It was
+      // 40 and 56 until 27 Sep 2026, which left a band holding two words taller
+      // than the first row of what the page is for.
+      className="self-center border-b bg-muted/60 px-4 py-6 text-left md:py-8"
       style={{
         width: bleed,
         // The page's top spacing, cancelled, so the band starts where the
@@ -52,7 +55,11 @@ export function PublicHeroBand({ children }: { children: React.ReactNode }) {
         backgroundSize: "16px 16px",
       }}
     >
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4">
+      {/* The padding is on the band rather than on this column, so the words
+          in it start where the header's logo and the page's cards start. With
+          it here the column was inset a further 16px and everything in the
+          band sat off the page's own left edge. */}
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-4">
         {children}
       </div>
     </section>

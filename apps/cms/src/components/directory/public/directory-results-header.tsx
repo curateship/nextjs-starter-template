@@ -2,6 +2,8 @@ import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import { LayoutGridIcon, MapIcon } from "lucide-react"
 
+import { Button } from "@/components/ui/button"
+import { Separator } from "@/components/ui/separator"
 import {
   Select,
   SelectContent,
@@ -23,15 +25,18 @@ import { focusRing } from "@/lib/layout/focus-ring"
 import { cn } from "@/lib/utils"
 
 /**
- * The line above the results: how many there are on the left, how they are
- * ordered on the right, and the phone's Filters button between them.
+ * The line above the results: how many there are on the left, then the filter
+ * buttons, then how they are ordered.
  *
  * The count sits here rather than under the page's title because it is about
  * the list, and it changes every time a box is ticked. A number that moves
- * belongs beside the thing that moved it.
+ * belongs beside the thing that moved it. The filters joined it on 27 Sep 2026,
+ * when they came out of the column down the left of the page.
  */
 export function DirectoryResultsHeader({
   count,
+  filters,
+  onClearAll,
   sort,
   current,
   mapAvailable,
@@ -40,6 +45,10 @@ export function DirectoryResultsHeader({
 }: {
   /** "8 listings", or the sentence a search or a category makes. */
   count: React.ReactNode
+  /** The row of filter buttons, drawn between the count and the order. */
+  filters: React.ReactNode
+  /** Absent when there is nothing to clear, so no dead control is drawn. */
+  onClearAll?: (() => void) | undefined
   sort: DirectorySort
   current: DirectoryBrowseSearch
   /** This site offers a map and has a key for it. No switch when it does not. */
@@ -53,15 +62,29 @@ export function DirectoryResultsHeader({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-2">
-        <p className="text-sm font-medium">{count}</p>
+        <p className="mr-auto text-sm font-medium">{count}</p>
+        {onClearAll ? (
+          <Button type="button" variant="ghost" size="sm" onClick={onClearAll}>
+            Clear all
+          </Button>
+        ) : null}
+        {filters}
         {mapAvailable ? (
-          <div className="ml-auto shrink-0">
+          <div className="shrink-0">
             <ViewSwitch current={current} />
           </div>
         ) : null}
+        {/* The order is the last thing in the line and reads as a different
+            kind of control from the filters beside it, so a hairline stands
+            between them. */}
+        <Separator
+          orientation="vertical"
+          className="hidden h-6 sm:block"
+          aria-hidden="true"
+        />
         {/* `shrink-0` because the trigger is only as wide as its own words —
             without it the row squeezes it down to the arrow alone. */}
-        <div className={cn("shrink-0", mapAvailable ? "" : "ml-auto")}>
+        <div className="shrink-0">
           <Select
             value={sort}
             onValueChange={(value) => onSortChange(value as DirectorySort)}

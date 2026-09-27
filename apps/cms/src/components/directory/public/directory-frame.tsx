@@ -1,6 +1,7 @@
 import * as React from "react"
 
 import { PublicPageFrame } from "@/components/shell/public-page-frame"
+import { pageGutter } from "@/lib/layout/shell-gutter"
 
 /**
  * The column every public directory page is drawn in.
@@ -76,8 +77,14 @@ export function DirectoryFrame({
        * follow Settings → Public → Styling → Content alignment.
        */}
       <div
-        className="group/public-content mx-auto flex w-full max-w-6xl flex-col gap-2 text-left md:gap-3"
+        className="group/public-content mx-auto flex w-full max-w-6xl flex-col text-left"
         data-content-alignment="left"
+        // The space between a page's cards is the site's own, from Settings →
+        // Public → Styling → Spacing, the same value the grids of cards inside
+        // them use. A fixed gap here left the page's own blocks closer
+        // together than the cards within them on a site that widened its
+        // spacing.
+        style={{ gap: pageGutter }}
       >
         {children}
       </div>

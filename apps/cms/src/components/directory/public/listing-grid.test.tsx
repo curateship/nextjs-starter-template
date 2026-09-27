@@ -47,9 +47,10 @@ describe("listing card", () => {
 
     expect(markup).toContain("Barbecue")
     expect(markup).toContain("lucide-star")
-    // The stars under the title carry the readable name, so the chip over the
-    // photo is hidden rather than saying "4.4" a second time.
-    expect(markup).toContain('aria-label="4.4 out of 5"')
+    // The chip is the only place a card with a photo prints the rating, so it
+    // is the one that reads out. The row of stars under the name is gone.
+    expect(markup).toContain("Rated ")
+    expect(markup).not.toContain('aria-label="4.4 out of 5"')
     expect(markup).toContain("1216 Dufferin St, Toronto, ON")
     expect(markup).toContain("Dovercourt Village")
   })
@@ -68,6 +69,16 @@ describe("listing card", () => {
 
     expect(markup).not.toContain("out of 5")
     expect(markup).toContain("Barbecue")
+  })
+
+  it("keeps the stars under the name when there is no photo", () => {
+    // Nowhere to hang the chip, so the card falls back to the stars rather
+    // than dropping the rating.
+    const markup = renderToStaticMarkup(
+      <ListingCard listing={{ ...base, featuredImage: "" }} />
+    )
+
+    expect(markup).toContain('aria-label="4.4 out of 5"')
   })
 
   it("keeps the category above the title when there is no photo", () => {

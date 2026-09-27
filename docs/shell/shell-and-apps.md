@@ -119,7 +119,11 @@ the guess that one might:
   off the page, which is how "nothing is coming up" and "this visitor may not
   see that page" are said. A row of an app kind is stored as the shell's own row
   fields plus the app's key and a bag of settings the shell keeps and never
-  reads, so the shell's own list of kinds stays closed
+  reads, so the shell's own list of kinds stays closed. The one thing the shell
+  does read in what a reader returns is `action: { label, href }`, which it
+  draws as a button beside the row's heading — the way to the whole list a row
+  shows a handful of, named and addressed by the app because only the app knows
+  where its own list lives
 - `automations.nodes` — extra steps in the automation palette, each carrying its
   own icon and a pointer to its settings panel, paired with
 - `automations.executors` (server) — what those steps do when a flow reaches

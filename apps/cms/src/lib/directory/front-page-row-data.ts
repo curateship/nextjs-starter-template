@@ -18,14 +18,21 @@ import type {
   DirectoryFrontPagePost,
 } from "@/lib/directory/front-page"
 import type { DirectoryFrontPageLayout } from "@/lib/directory/front-page"
-import type { DirectorySort } from "@/lib/directory/public-search"
 import type { DealCardView } from "@/lib/promotions/deal-content"
 
+/**
+ * The way to the whole list, drawn by the shell beside the row's heading.
+ *
+ * A row shows a handful of many, so it carries the button that leads to all of
+ * them. It travels with the row's contents rather than being built in the
+ * browser, because the address depends on what the row was filtered to.
+ */
+export type FrontPageRowAction = { label: string; href: string }
+
 export type ListingsRowData = {
+  action: FrontPageRowAction
   listings: DirectoryFrontPageListing[]
   layout: DirectoryFrontPageLayout
-  /** What the row's "see them all" link carries. */
-  browse: { category?: string; sort?: DirectorySort }
   /**
    * The site's browser map key, and only on a row that actually draws a map, so
    * a page with no map never carries the key at all.
@@ -38,19 +45,19 @@ export type CategoriesRowData = {
 }
 
 export type EventsRowData = {
+  action: FrontPageRowAction
   events: DirectoryFrontPageEvent[]
   /** "Eastern Time", the zone the times are in. */
   zone: string
-  /** The chosen category's address, for "See all events" to carry. */
-  categorySlug: string | null
 }
 
 export type DealsRowData = {
+  action: FrontPageRowAction
   deals: DealCardView[]
-  categorySlug: string | null
 }
 
 export type PostsRowData = {
+  action: FrontPageRowAction
   posts: DirectoryFrontPagePost[]
   /** The site's own name, printed under each card where a byline would be. */
   siteName: string

@@ -21,16 +21,24 @@ built from the shell and are documented once in the repo's `docs/shell/`.
 - **Category cards.** A card per category with its photo and how many listings
   sit under it.
 - **Upcoming events.** The soonest events that are not over yet, as event
-  cards, with a "See all events" button.
+  cards.
 - **Current deals.** The newest deals that are not over yet, with their
   headlines.
-- **Latest posts.** The newest published posts, as post cards, with a "See all
-  posts" button.
+- **Latest posts.** The newest published posts, as post cards.
 
 Upcoming events, Current deals and Latest posts are set up the same way: a
 category or "every one of them", and how many, 1 to 12. Listings adds an order
 and an arrangement; Category cards picks its categories instead of filtering by
 one.
+
+## The button beside the heading
+
+Every one of these rows shows a handful of a longer list, so each carries the
+way to all of it: **Browse directory**, **Browse events**, **Browse deals** and
+**Browse posts**. The shell draws it as the page's main button at the end of the
+row's heading line, and it carries the row's own filter — a row narrowed to
+Cafés opens the browse page on Cafés. Category cards have none: every card on
+that row is already a way in.
 
 ## Rules that hold for every one of them
 

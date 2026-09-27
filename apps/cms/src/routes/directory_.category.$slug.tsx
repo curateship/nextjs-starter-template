@@ -4,9 +4,10 @@ import {
   DirectoryBreadcrumbs,
   type Crumb,
 } from "@/components/directory/public/directory-breadcrumbs"
-import { DirectoryFilterRail } from "@/components/directory/public/directory-filter-rail"
+import { DirectoryFilterBar } from "@/components/directory/public/directory-filter-bar"
 import { DirectoryRouteError } from "@/components/directory/public/directory-error"
 import { DirectoryFrame } from "@/components/directory/public/directory-frame"
+import { PublicTitleBand } from "@/components/shared/public-title-band"
 import { DirectoryPagination } from "@/components/directory/public/directory-pagination"
 import { JsonLd } from "@/components/directory/public/json-ld"
 import { ListingGrid } from "@/components/directory/public/listing-grid"
@@ -14,6 +15,7 @@ import { DealGrid } from "@/components/promotions/public/deal-grid"
 import { CategoryGrid } from "@/components/directory/public/category-grid"
 import { EventCardGrid } from "@/components/events/public/event-card"
 import { PostGrid } from "@/components/posts/public/post-grid"
+import { Button } from "@/components/ui/button"
 import { loadDirectoryCategory } from "@/lib/api/directory/public"
 import { requirePageVisible } from "@/lib/api/content/pages"
 import {
@@ -22,7 +24,9 @@ import {
   directoryHead,
   directoryTitle,
 } from "@/lib/directory/public-seo"
+import { plural } from "@/lib/format/plural"
 import { focusRing } from "@/lib/layout/focus-ring"
+import { pageGutter } from "@/lib/layout/shell-gutter"
 import {
   formatDirectoryCategories,
   readDirectoryCategories,
@@ -132,7 +136,24 @@ function CategoryRoute() {
   ]
 
   return (
-    <DirectoryFrame>
+    <DirectoryFrame
+      hero={
+        <PublicTitleBand
+          crumbs={<DirectoryBreadcrumbs crumbs={crumbs} inBand />}
+          title={category.name}
+          intro={category.description ?? undefined}
+          picture={
+            category.featuredImage ? (
+              <img
+                src={category.featuredImage}
+                alt=""
+                className="aspect-[4/3] w-full max-w-xs rounded-xl object-cover"
+              />
+            ) : undefined
+          }
+        />
+      }
+    >
       <JsonLd
         data={categoryJsonLd({
           siteName: site.name,
@@ -146,38 +167,6 @@ function CategoryRoute() {
             : category.description,
         })}
       />
-
-      <DirectoryBreadcrumbs crumbs={crumbs} />
-
-      {/*
-       * Picture beside the words rather than a band across the top, which is
-       * how the old site draws a neighbourhood. A category with no picture
-       * keeps the plain heading — a lone column of text in the right-hand 60%
-       * of the page would look like a mistake.
-       */}
-      <header
-        className={
-          category.featuredImage
-            ? "grid items-start gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] md:gap-8"
-            : "flex flex-col gap-1"
-        }
-      >
-        {category.featuredImage ? (
-          <img
-            src={category.featuredImage}
-            alt=""
-            className="aspect-[4/3] w-full rounded-xl object-cover"
-          />
-        ) : null}
-        <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-semibold">{category.name}</h1>
-          {category.description ? (
-            <p className="text-sm text-muted-foreground">
-              {category.description}
-            </p>
-          ) : null}
-        </div>
-      </header>
 
       {children.length ? (
         <section className="grid gap-2 md:gap-3" aria-labelledby="explore">
@@ -198,59 +187,69 @@ function CategoryRoute() {
       ) : null}
 
       {/*
-       * The same rail as the browse page, minus this category's own group:
+       * The same filters as the browse page, minus this category's own group:
        * every listing here is already in this category, so a box for it could
-       * only narrow the page to itself or empty it.
+       * only narrow the page to itself or empty it. They sit in the line above
+       * the cards, where the browse page keeps its own.
        */}
-      <div className="grid items-start gap-4 lg:grid-cols-[16rem_minmax(0,1fr)] lg:gap-8">
-        <DirectoryFilterRail
-          groups={filterGroups}
-          selected={ticked}
-          minRating={current.minRating}
-          onToggleCategory={(slug) =>
-            setListSearch({
-              category: toggleDirectoryCategory(current.category, slug),
-              page: undefined,
-            })
-          }
-          onMinRatingChange={(minRating) =>
-            setListSearch({ minRating, page: undefined })
-          }
-          onClearAll={
-            ticked.length || current.minRating
-              ? () =>
-                  setListSearch({
-                    category: undefined,
-                    minRating: undefined,
-                    page: undefined,
-                  })
-              : undefined
-          }
-        />
-
-        <div className="flex min-w-0 flex-col gap-2 md:gap-3">
-          {/* A category holding only posts or events skips the "nothing here"
-              card, which would be untrue with them right below it. */}
-          {listings.length || (!posts.length && !events.length) ? (
-            <ListingGrid
-              listings={listings}
-              emptyMessage={
-                ticked.length || current.minRating
-                  ? "Nothing here matches those filters. Try fewer of them."
-                  : children.length
-                    ? "Choose a subcategory above to see its listings."
-                    : `There is nothing in ${category.name} yet.`
+      <div className="flex min-w-0 flex-col" style={{ gap: pageGutter }}>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="mr-auto text-sm font-medium">
+            {total} {plural(total, "listing", "listings")} in {category.name}
+          </p>
+          {ticked.length || current.minRating ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() =>
+                setListSearch({
+                  category: undefined,
+                  minRating: undefined,
+                  page: undefined,
+                })
               }
-            />
+            >
+              Clear all
+            </Button>
           ) : null}
-
-          <DirectoryPagination
-            page={page}
-            pageSize={pageSize}
-            total={total}
-            hrefForPage={(next) => categoryPageHref(category.slug, current, next)}
+          <DirectoryFilterBar
+            groups={filterGroups}
+            selected={ticked}
+            minRating={current.minRating}
+            onToggleCategory={(slug) =>
+              setListSearch({
+                category: toggleDirectoryCategory(current.category, slug),
+                page: undefined,
+              })
+            }
+            onMinRatingChange={(minRating) =>
+              setListSearch({ minRating, page: undefined })
+            }
           />
         </div>
+
+        {/* A category holding only posts or events skips the "nothing here"
+            card, which would be untrue with them right below it. */}
+        {listings.length || (!posts.length && !events.length) ? (
+          <ListingGrid
+            listings={listings}
+            emptyMessage={
+              ticked.length || current.minRating
+                ? "Nothing here matches those filters. Try fewer of them."
+                : children.length
+                  ? "Choose a subcategory above to see its listings."
+                  : `There is nothing in ${category.name} yet.`
+            }
+          />
+        ) : null}
+
+        <DirectoryPagination
+          page={page}
+          pageSize={pageSize}
+          total={total}
+          hrefForPage={(next) => categoryPageHref(category.slug, current, next)}
+        />
       </div>
 
       {upcomingEvents && events.length ? (

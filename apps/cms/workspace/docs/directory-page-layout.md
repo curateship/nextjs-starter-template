@@ -6,11 +6,21 @@ draws and the rules behind the parts that are not obvious from looking.
 
 ## A listing's page
 
-Two columns above 1024px wide, one column below it. The whole page is 1152px
-at its widest.
+The band, then two columns above 1024px wide and one column below it. The whole
+page is 1152px at its widest.
 
-- **The narrow column, on the right**, holds the listing's card: photo, the
-  page's `h1`, the stars, and one row per way of reaching the business — the
+- **It opens with the same band as the directory and a category**: the trail,
+  the listing's name as the page's `h1`, and the Featured badge under it. The
+  name sat on the card beside the photo until 27 Sep 2026, when Tyler asked for
+  every directory page to open the same way.
+- **The rating is the chip over the photo**, at its top left, the same chip a
+  listing card draws in the directory. A listing with no photo has nowhere to
+  hang it and keeps the stars, on the card's top line beside its social links.
+  Either way the rating is printed once.
+- **The photo is flush with the top of the card.** The card drops its top
+  padding for a photo, or a strip of card shows above it.
+- **The narrow column, on the right**, holds the listing's card: photo, and
+  one row per way of reaching the business — the
   address, the phone number, the website, the email, directions, "Is this your
   business?" and "Report a problem". The rows run the full width of the card so
   the whole line lights up under the pointer.
@@ -42,6 +52,31 @@ comes from the reader's clock, so the card draws the plain week on the server
 and moves today up once it is in the browser. A server in one timezone must not
 decide what Thursday means for a reader in another.
 
+## The trail at the top of a page
+
+Every public directory page but the browse page opens with the trail that says
+where it sits: **Eat Drink Toronto › Directory › Chinese › Lantern House**. It
+is the same trail the shell draws on its own public pages, and it is meant to
+look it — grey words at the page's own size, a chevron between the steps, and
+the page you are on in black. The last step is not a link back to where you
+already are.
+
+- **It sits 16px under the header**, its own gap, not the site's page spacing
+  from Settings → Styling → Spacing. A site with 40px of page spacing put a
+  field of empty background above three grey words and pushed the page's real
+  first line twice as far down as the trail was tall. Everything below the
+  trail still gets the site's spacing. Tyler asked for this on 27 Sep 2026.
+- **The Events page is the exception**, because it draws its trail inside the
+  band at the top, which cancels the page's spacing and adds its own.
+
+## The gaps between a page's blocks
+
+A listing's cards, its two columns and the blocks down each of them are spaced
+by the site's own **Spacing** setting, the same number the grids of cards
+inside them use. They were a fixed 8 or 12 pixels until 27 Sep 2026, which left
+a page's own blocks closer together than the cards within them on a site that
+widened its spacing.
+
 ## Directory pages always read from the left
 
 A site's Styling settings can centre its public text, which suits a page of
@@ -50,8 +85,7 @@ centred record puts a field's name over its value and a phone number over an
 address. Anything that genuinely belongs in the middle — an empty list, the
 pager — says so on itself and is unaffected.
 
-That override covers the buttons and rows as well as the text, from 27 Sep
-2026. It used to cover only the text, so a site set to Centre drew a hero's
+That override covers the buttons and rows as well as the text, from 27 Sep 2026. It used to cover only the text, so a site set to Centre drew a hero's
 heading on the left with its button, its stars and its line of proof in the
 middle of the page. The frame declares its own content alignment of "left" and
 every row inside reads that one.
@@ -97,11 +131,18 @@ its row under another listing.
 
 ## The browse page
 
-The page is a band, then two columns. The band holds the directory's name and
-one bar carrying the search box, the town box, the "use my location" button,
-the distance and the Search button. Under it the filters run down the left at
-16rem and the listings fill the rest, with the count on the left of the line
-above them and the order on the right.
+The page is a band, then one column of listings. The band holds the directory's
+name and one bar carrying the search box, the town box, the "use my location"
+button, the distance and the Search button. Under it is one line — how many
+listings there are on the left, then a button per group of filters, then the
+order — and the cards fill the whole width below it, four across on a wide
+screen.
+
+The filters ran down a 16rem column on the left of the page until 27 Sep 2026,
+when Tyler asked for them to sit at the top in buttons that drop down. A column
+of tick boxes was the first thing on the page and the listings had two thirds
+of the width; now the results are what a visitor sees, and the tools for
+narrowing them take a line.
 
 - **The band runs the whole width of the window** and starts where the header
   ends, with a dotted pattern over it. It is drawn inside the page's 1152px
@@ -128,10 +169,22 @@ above them and the order on the right.
 - **The search bar carries a soft shadow** and sits a size above the controls
   inside it, so it reads as the thing the page is for. The controls in it are
   the app's standard 32px; the bar's own padding gives it its height.
-- **Below 1024px the filters become a Filters button** that opens the same
-  controls in a sheet, with the number that are on written on the button. A
-  column of tick boxes above the results would otherwise be most of the first
-  screen on a phone.
+- **The words in the band start where the page's cards start.** The band runs
+  the whole width of the window, and its padding is on the band rather than on
+  the column inside it, or the title would sit 16px further in than the header's
+  logo and the cards below it.
+- **One button per group, and one for the rating**, each opening a panel of the
+  same tick boxes. A button carries how many of its boxes are on, in brackets
+  after its name, and is drawn in full contrast while any of them are, so the
+  row says which filters are doing something without opening any of them.
+- **A panel ends with Clear and Done.** Clear empties that group alone; Done
+  shuts the panel. Nothing waits to be applied — a tick changes the page and
+  the address straight away, and Done is only the way out.
+- **A panel's list scrolls at 288px**, with the height on the scrolling box
+  rather than the frame around it. A height on the frame clips the options past
+  it with no way to reach them.
+- **The same buttons on a phone**, wrapped onto as many lines as they need.
+  They were a Filters button opening a sheet while the filters were a column.
 - **A group of filters is a parent category.** "Cuisine" and "Neighbourhood"
   are not settings anybody fills in. Any category that has children becomes a
   group and its children are the boxes, in the order an admin arranged them.
@@ -143,11 +196,10 @@ above them and the order on the right.
   other boxes. Toronto's Etobicoke says 197 while the list above says 8,
   because the number answers "how much is there" rather than "how much is
   left", and recounting every box on every keystroke would be a query per box.
-- **Eight boxes, then "Show all N +"**, which expands the group where it
-  stands. A group with more than eight also gets a search box that filters its
-  own options, never the listings. A ticked box stays in view even when it
-  does not match what is typed there, or unticking it would mean clearing the
-  search first to find it again.
+- **A group of more than eight gets a search box** that filters its own
+  options, never the listings. A ticked box stays in view even when it does not
+  match what is typed there, or unticking it would mean clearing the search
+  first to find it again.
 - **Ticking two boxes in one group means either of them. Ticking across two
   groups means both.** Italian or Portuguese, in the Annex. The address is one
   key holding a comma-separated list, `?category=italian,portuguese`, so every
@@ -155,6 +207,13 @@ above them and the order on the right.
   meant, and the server decides which group each slug belongs to.
 - **Rating is Any, 4.0+ or 4.5+.** A listing nobody has scored is out when a
   minimum is asked for: a place with no rating is not a place rated 4 and over.
+- **Clear all** sits beside the count, and only while something is on.
+- **A category page opens with the same band as the browse page**, without the
+  search bar: the trail, the category's name at the page's largest size, the
+  line under it, and its picture beside the words where it has one. It was
+  plain text on white until 27 Sep 2026, when Tyler asked for the two pages to
+  open the same way. `PublicTitleBand` is the band with the search taken out,
+  and any page that is a name and a line can use it.
 - **A category page carries the same filters, without its own group.** Every
   listing on the Italian page is already Italian, so a Cuisine box there could
   only narrow the page to itself or empty it. The Neighbourhood boxes still
@@ -167,17 +226,20 @@ above them and the order on the right.
 
 - **A listing card is read in three parts.** Over the photo sit the category,
   in a pill on the left, and the rating, in a chip on the right. Under the
-  photo come the name, the stars and two lines of the description. Below a
+  photo come the name and two lines of the description. Below a
   dividing line come the address and the neighbourhood label. A visitor
   scanning the page learns what a place is and how good it is from the photo
   alone, without reading a word.
 - **The same card is used everywhere a listing is drawn.** The browse page,
   category pages, a home page row and behind a map pin all draw it, so the four
   cannot drift apart.
+- **The rating is printed once.** On a card with a photo that is the chip over
+  it; the row of stars under the name was the same thing said twice and was
+  taken out on 27 Sep 2026. A card with no photo has nowhere to put the chip,
+  so it keeps the stars instead. Whichever is drawn is the one a screen reader
+  is given.
 - **A listing with no photo keeps its category** in the row of tags above the
-  name, and shows no rating chip. The stars under the name are the rating in
-  that case, and they are the rating everywhere: the chip over the photo is
-  decoration and a screen reader is never told it twice.
+  name.
 - **Saving a listing is the bookmark at the bottom right of the photo.** It
   moved there because the rating chip owns the top right. It appears on hover
   on a desktop and is always there on a phone.
@@ -208,9 +270,9 @@ above them and the order on the right.
   same value stacked cards use. It is not a fixed 8 or 12 pixels.
 - **The browse page keeps its search box, its sort and its near-me row.** The
   old site had none of them; they are worth more than matching it exactly.
-- **A category's picture sits beside its name**, at 40% of the width, and
-  stacks above it on a phone. A category with no picture keeps a plain
-  heading.
+- **A category's picture sits beside its name** in the band, capped so the
+  words stay the biggest thing on the page, and stacks under them on a phone. A
+  category with no picture keeps the name alone.
 - **Categories stay at `/directory/category/<slug>`.** The old site used
   `/categories/<slug>` and the addresses were deliberately not moved.
 
