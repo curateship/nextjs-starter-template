@@ -112,7 +112,7 @@ describe("per-device header menu items", () => {
     ])
     // "Everywhere" is the absence of a choice, so the key is never written.
     expect(menu.map((item) => ("device" in item ? item.device : "absent"))).toEqual(
-      ["absent", "absent", "desktop", "phone", "desktop"]
+      ["absent", "desktop", "phone", "desktop"]
     )
   })
 
@@ -128,14 +128,6 @@ describe("per-device header menu items", () => {
     ])
   })
 
-  it("keeps Search in both lists, whatever else is chosen", () => {
-    expect(publicNavigationForDevice(menu, "desktop")[0]).toMatchObject({
-      type: "search",
-    })
-    expect(publicNavigationForDevice(menu, "phone")[0]).toMatchObject({
-      type: "search",
-    })
-  })
 })
 
 describe("hiding every row", () => {

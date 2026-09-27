@@ -77,6 +77,26 @@ export const MAX_FRONT_PAGE_HERO_BUTTON_HREF_LENGTH = 2_048
 export const MAX_FRONT_PAGE_HERO_NOTE_LENGTH = 160
 export const MAX_FRONT_PAGE_HERO_STARS = 5
 
+/** What the hero asks a visitor to do. */
+export const FRONT_PAGE_HERO_ACTIONS = ["button", "email"] as const
+export type FrontPageHeroAction = (typeof FRONT_PAGE_HERO_ACTIONS)[number]
+
+export const FRONT_PAGE_HERO_ACTION_LABELS: Record<
+  FrontPageHeroAction,
+  string
+> = {
+  button: "A button",
+  email: "An email form",
+}
+
+export const FRONT_PAGE_HERO_ACTION_HINTS: Record<
+  FrontPageHeroAction,
+  string
+> = {
+  button: "One button with its own wording and link.",
+  email: "A box for an address with the button beside it.",
+}
+
 export const FRONT_PAGE_ROW_HEADING_MESSAGE = "Give the row a heading."
 export const FRONT_PAGE_HERO_LINK_MESSAGE =
   "A button link starts with /, https://, mailto: or tel:."
@@ -128,6 +148,8 @@ export type FrontPageRow =
   | (FrontPageRowBase & { kind: "text" | "plans" })
   | (FrontPageRowBase & {
       kind: "hero"
+      /** A button to somewhere, or a box that takes an address. */
+      action: FrontPageHeroAction
       /** Empty draws the hero as one column across the page. */
       image: string
       alt: string
@@ -351,20 +373,29 @@ export function normalizeFrontPageRows(value: unknown): FrontPageRow[] {
       : "text"
 
     if (kind === "hero") {
+      const action = FRONT_PAGE_HERO_ACTIONS.includes(
+        source.action as FrontPageHeroAction
+      )
+        ? (source.action as FrontPageHeroAction)
+        : "button"
       const buttonHref = normalizeFrontPageHeroHref(source.buttonHref)
       const buttonLabel = cleanText(
         source.buttonLabel,
         MAX_FRONT_PAGE_HERO_BUTTON_LABEL_LENGTH
       )
+      // An email form needs only its wording; its address box is the link.
+      // A button with only half its pair would be a word nobody can press, or
+      // a press with no word on it, so there both go or neither does.
+      const pairedLabel =
+        action === "email" ? buttonLabel : buttonHref ? buttonLabel : ""
       rows.push({
         ...rowBase(),
         kind,
+        action,
         image: normalizeFrontPageImageUrl(source.image),
         alt: cleanText(source.alt, MAX_FRONT_PAGE_IMAGE_ALT_LENGTH),
-        // A button with only half its pair drawn would be a word nobody can
-        // press, or a press with no word on it, so both go or neither does.
-        buttonLabel: buttonHref ? buttonLabel : "",
-        buttonHref: buttonLabel ? buttonHref : "",
+        buttonLabel: pairedLabel,
+        buttonHref: action === "email" ? "" : buttonLabel ? buttonHref : "",
         note: cleanText(source.note, MAX_FRONT_PAGE_HERO_NOTE_LENGTH),
         stars: normalizeFrontPageHeroStars(source.stars),
       })

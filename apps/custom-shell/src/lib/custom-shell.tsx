@@ -46,6 +46,10 @@ import type { PublicFontAsset } from "@/lib/public-font"
 import type { FrontPageRow } from "@/lib/pages/front-page"
 import type { PublicSocialLink } from "@/lib/pages/public-social"
 import {
+  createDefaultPublicHeaderActions,
+  type PublicHeaderAction,
+} from "@/lib/pages/public-header-actions"
+import {
   DEFAULT_FAVICON_MODE,
   type FaviconMode,
   type PublicFaviconSet,
@@ -498,6 +502,8 @@ export type ShellConfig = {
   /** App-wide on one-site apps; saved per workspace when domains enable multisite. */
   publicFooter: PublicNavigationLink[]
   publicFooterSocial: PublicSocialLink[]
+  /** The order of the controls at the right of the public header. */
+  publicHeaderActions: PublicHeaderAction[]
   /** The short line shown beneath the public footer links. */
   publicFooterCopyright: string
   /** App-wide layout choices for the signed-out header. */
@@ -792,6 +798,7 @@ export function createDefaultShellConfig(): ShellConfig {
     publicNavigation: createDefaultPublicNavigation(),
     publicFooter: [],
     publicFooterSocial: [],
+    publicHeaderActions: createDefaultPublicHeaderActions(),
     publicFooterCopyright: "",
     publicHeader: createDefaultPublicHeader(),
     publicBreadcrumbs: createDefaultPublicBreadcrumbs(),

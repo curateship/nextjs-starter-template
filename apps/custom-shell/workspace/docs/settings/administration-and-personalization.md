@@ -319,12 +319,20 @@ written pages, Search, and Pricing. Every switch starts off, so nothing on the
 public site changes until one is turned on. The trail itself is described in
 [Public pages, search, and SEO](../content/public-pages-search-and-seo.md).
 
-The Public menu section treats Search as a built-in draggable item. Its position
-among the link chips is the order visitors see in the desktop header. The phone
-menu puts a Search entry in the same order and opens the full search page.
-The Visible checkbox hides Search from both headers but leaves its chip in the
-editor so it can be switched on again. Search also disappears from the public
-header when the Search page is switched off.
+The Header layout card holds an Action items row: the three controls at the
+right-hand end of the public header, as draggable chips. They are Search, the
+light and dark switch, and the account corner, and the order they sit in is the
+order a visitor reads them in. Unticking a chip leaves that control out. The
+account corner has no tick, because it is how somebody signs in.
+
+Search used to be a chip in the Public menu, beside the page links. It is an
+action item now, so it draws at the right of the header with the other
+controls rather than among the links. A menu saved with the old Search entry
+simply stops listing it, and the entry goes for good the next time that menu is
+saved. On a phone the panel still opens with a Search entry at the top, which
+opens the full search page rather than showing a second box. Search also
+disappears from the header when the Search page is switched off, and on the
+search page itself, where a second box would be a duplicate.
 
 The same Public menu card can add a direct link or a named dropdown group.
 Opening a group edits its name and ordered links in one window. Group-link

@@ -16,11 +16,6 @@ export type PublicNavigationLink = {
   device?: PublicDevice
 }
 
-export type PublicNavigationSearchItem = {
-  type: "search"
-  visible: boolean
-}
-
 export type PublicNavigationGroup = {
   type: "group"
   label: string
@@ -31,7 +26,6 @@ export type PublicNavigationGroup = {
 
 export type PublicNavigationItem =
   | PublicNavigationLink
-  | PublicNavigationSearchItem
   | PublicNavigationGroup
 
 export const MAX_PUBLIC_FOOTER_LINKS = 20
@@ -40,13 +34,7 @@ export const MAX_PUBLIC_NAVIGATION_HREF_LENGTH = 2_048
 export const MAX_PUBLIC_FOOTER_COPYRIGHT_LENGTH = 300
 
 export function createDefaultPublicNavigation(): PublicNavigationItem[] {
-  return [{ type: "search", visible: true }]
-}
-
-export function isPublicNavigationSearchItem(
-  item: PublicNavigationItem
-): item is PublicNavigationSearchItem {
-  return "type" in item && item.type === "search"
+  return []
 }
 
 export function isPublicNavigationLink(
@@ -81,23 +69,17 @@ export function cleanPublicNavigationItems(
 ): PublicNavigationItem[] {
   if (!Array.isArray(value)) return createDefaultPublicNavigation()
 
-  let hasSearch = false
   const items: PublicNavigationItem[] = []
 
   for (const item of value) {
+    // A menu saved before search moved to the header's action items still
+    // carries an entry for it. It is not a menu item any more, so it goes.
     if (
       item &&
       typeof item === "object" &&
       !Array.isArray(item) &&
       (item as { type?: unknown }).type === "search"
     ) {
-      if (!hasSearch) {
-        items.push({
-          type: "search",
-          visible: (item as { visible?: unknown }).visible !== false,
-        })
-        hasSearch = true
-      }
       continue
     }
 
@@ -131,7 +113,6 @@ export function cleanPublicNavigationItems(
     }
   }
 
-  if (!hasSearch) items.unshift({ type: "search", visible: true })
   return items
 }
 
@@ -149,14 +130,12 @@ export function publicNavigationForDevice(
   items: PublicNavigationItem[],
   drawing: "desktop" | "phone"
 ): PublicNavigationItem[] {
-  return items.filter(
-    (item) =>
-      isPublicNavigationSearchItem(item) ||
-      showsOnDevice(normalizePublicDevice(item.device), drawing)
+  return items.filter((item) =>
+    showsOnDevice(normalizePublicDevice(item.device), drawing)
   )
 }
 
-/** Direct links and each group's links in menu order, with Search left out. */
+/** Direct links and each group's links, in menu order. */
 export function flattenPublicNavigationLinks(
   items: PublicNavigationItem[]
 ): PublicNavigationLink[] {

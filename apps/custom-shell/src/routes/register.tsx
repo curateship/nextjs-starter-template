@@ -58,9 +58,11 @@ export const Route = createFileRoute("/register")({
 
 function RegisterRoute() {
   const { siteKey, google, linkExpiry } = Route.useLoaderData()
-  const { ref: referralCode } = Route.useSearch()
+  const { ref: referralCode, email: carriedEmail } = Route.useSearch()
   const [name, setName] = React.useState("")
-  const [email, setEmail] = React.useState("")
+  // Seeded once. A visitor who types over it must not have it put back on the
+  // next render, and the address is already in the page's own address bar.
+  const [email, setEmail] = React.useState(carriedEmail ?? "")
   const [password, setPassword] = React.useState("")
   const [loading, setLoading] = React.useState(false)
   const [registered, setRegistered] = React.useState(false)

@@ -11,15 +11,15 @@ import {
   GripVertical,
   Loader2Icon,
   PlusIcon,
-  SearchIcon,
   Trash2Icon,
 } from "lucide-react"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
+import { PublicHeaderActionsEditor } from "@/components/settings/public-header-actions-editor"
 import { PublicSocialEditor } from "@/components/settings/public-social-editor"
 import { SettingsCardSection } from "@/components/settings/settings-card-section"
 import { SettingsSwitchRow } from "@/components/settings/settings-switch-row"
-import { PublicUserPanelSettings } from "@/components/settings/public-user-panel-settings"
+import { PublicUserPanelDialog } from "@/components/settings/public-user-panel-settings"
 import {
   DRAG_HANDLE_CLASS,
   createShellId,
@@ -27,7 +27,6 @@ import {
   useSortableRow,
 } from "@/components/settings/nav-editor-shared"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
 import {
   Card,
   CardContent,
@@ -97,12 +96,17 @@ import {
   MAX_PUBLIC_NAVIGATION_LABEL_LENGTH,
   isPublicNavigationGroup,
   isPublicNavigationLink,
-  isPublicNavigationSearchItem,
   type PublicNavigationGroup,
   type PublicNavigationItem,
   type PublicNavigationLink,
 } from "@/lib/pages/public-navigation"
 import type { PublicSocialLink } from "@/lib/pages/public-social"
+import type { PublicHeaderAction } from "@/lib/pages/public-header-actions"
+import {
+  PUBLIC_THEME_CHROME_FONTS,
+  PUBLIC_THEME_HEADING_FONT_LABELS,
+  type PublicThemeChromeFont,
+} from "@/lib/public-theme"
 import type { PublicUserPanel } from "@/lib/pages/public-user-panel"
 import { isSafeWrittenPageLink } from "@/lib/pages/written-page-body"
 import { showErrorToast } from "@/lib/toast/error-toast"
@@ -116,6 +120,9 @@ type PublicSiteSettingsProps = {
   publicHeader: PublicHeader
   /** Styling's page width, which the header follows until it has its own. */
   pageWidth: number
+  /** Styling's face for the header and footer, set from this card. */
+  chromeFont: PublicThemeChromeFont
+  headerActions: PublicHeaderAction[]
   publicUserPanel: PublicUserPanel
   publicBreadcrumbs: PublicBreadcrumbs
   onNavigationChange: (items: PublicNavigationItem[]) => void
@@ -123,6 +130,8 @@ type PublicSiteSettingsProps = {
   onFooterSocialChange: (links: PublicSocialLink[]) => void
   onFooterCopyrightChange: (copyright: string) => void
   onPublicHeaderChange: (header: PublicHeader) => void
+  onChromeFontChange: (font: PublicThemeChromeFont) => void
+  onHeaderActionsChange: (actions: PublicHeaderAction[]) => void
   onPublicUserPanelChange: (panel: PublicUserPanel) => void
   onPublicBreadcrumbsChange: (breadcrumbs: PublicBreadcrumbs) => void
   onSaveConfig: () => Promise<boolean>
@@ -138,6 +147,8 @@ export function PublicSiteSettings({
   footerCopyright,
   publicHeader,
   pageWidth,
+  chromeFont,
+  headerActions,
   publicUserPanel,
   publicBreadcrumbs,
   onNavigationChange,
@@ -145,10 +156,14 @@ export function PublicSiteSettings({
   onFooterSocialChange,
   onFooterCopyrightChange,
   onPublicHeaderChange,
+  onChromeFontChange,
+  onHeaderActionsChange,
   onPublicUserPanelChange,
   onPublicBreadcrumbsChange,
   onSaveConfig,
 }: PublicSiteSettingsProps) {
+  const [editingUserPanel, setEditingUserPanel] = React.useState(false)
+
   return (
     // Three cards, one per part of a public page: the header, the trail under
     // it, and the footer. They were six until 25 Sep 2026; the menu and the
@@ -157,22 +172,30 @@ export function PublicSiteSettings({
       <PublicHeaderSettings
         header={publicHeader}
         pageWidth={pageWidth}
+        chromeFont={chromeFont}
         onChange={onPublicHeaderChange}
+        onChromeFontChange={onChromeFontChange}
       >
         <PublicLinkEditor
           id="public-menu"
           title="Public menu"
-          description="Drag search, links, and dropdown groups into the order they should appear beside the site name."
+          description="Drag links and dropdown groups into the order they should appear beside the site name."
           links={navigation}
           onLinksChange={onNavigationChange}
           onSaveConfig={onSaveConfig}
           allowGroups
           asSection
         />
-        <PublicUserPanelSettings
-          panel={publicUserPanel}
-          onChange={onPublicUserPanelChange}
-        />
+        <SettingsCardSection
+          title="Action items"
+          description="The controls at the right-hand end of the header. Drag them into the order they should appear, and untick one to leave it out. The account corner opens its own settings."
+        >
+          <PublicHeaderActionsEditor
+            actions={headerActions}
+            onActionsChange={onHeaderActionsChange}
+            onEditUserPanel={() => setEditingUserPanel(true)}
+          />
+        </SettingsCardSection>
       </PublicHeaderSettings>
       <PublicBreadcrumbSettings
         breadcrumbs={publicBreadcrumbs}
@@ -214,6 +237,17 @@ export function PublicSiteSettings({
           </div>
         </SettingsCardSection>
       </PublicLinkEditor>
+
+      {editingUserPanel ? (
+        <PublicUserPanelDialog
+          panel={publicUserPanel}
+          onClose={() => setEditingUserPanel(false)}
+          onSave={(next) => {
+            onPublicUserPanelChange(next)
+            setEditingUserPanel(false)
+          }}
+        />
+      ) : null}
     </CardGroup>
   )
 }
@@ -257,12 +291,16 @@ function PublicBreadcrumbSettings({
 function PublicHeaderSettings({
   header,
   pageWidth,
+  chromeFont,
   onChange,
+  onChromeFontChange,
   children,
 }: {
   header: PublicHeader
   pageWidth: number
+  chromeFont: PublicThemeChromeFont
   onChange: (header: PublicHeader) => void
+  onChromeFontChange: (font: PublicThemeChromeFont) => void
   /** The menu and the user panel, drawn as sections under the layout fields. */
   children?: React.ReactNode
 }) {
@@ -276,6 +314,32 @@ function PublicHeaderSettings({
       description="Choose how the full public header behaves on every public page."
       contentClassName="grid gap-4"
     >
+      <div className="grid gap-2">
+        <FieldLabel
+          htmlFor="public-header-font"
+          hint="The face the public header and footer read in. Same as the body leaves them on the site's own font."
+        >
+          Navigation &amp; footer font
+        </FieldLabel>
+        <Select
+          value={chromeFont}
+          onValueChange={(font) =>
+            onChromeFontChange(font as PublicThemeChromeFont)
+          }
+        >
+          <SelectTrigger id="public-header-font" className="w-full sm:w-fit">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {PUBLIC_THEME_CHROME_FONTS.map((font) => (
+              <SelectItem key={font} value={font}>
+                {PUBLIC_THEME_HEADING_FONT_LABELS[font]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
       <SettingsSwitchRow
         id="public-header-sticky"
         checked={header.sticky}
@@ -440,7 +504,6 @@ function PublicLinkEditor<T extends PublicNavigationItem>({
   >(null)
   const sensors = useNavSensors()
   const itemIds = links.map((item, index) => {
-    if (isPublicNavigationSearchItem(item)) return `${id}-search`
     return isPublicNavigationGroup(item)
       ? `${id}-group-${index}`
       : `${id}-link-${index}`
@@ -456,16 +519,6 @@ function PublicLinkEditor<T extends PublicNavigationItem>({
     const newIndex = itemIds.indexOf(String(event.over.id))
     if (oldIndex === -1 || newIndex === -1) return
     onLinksChange(arrayMove(links, oldIndex, newIndex))
-  }
-
-  const changeSearchVisibility = (index: number, visible: boolean) => {
-    onLinksChange(
-      links.map((item, at) =>
-        at === index && isPublicNavigationSearchItem(item)
-          ? { ...item, visible }
-          : item
-      ) as T[]
-    )
   }
 
   const changeGroup = (index: number, group: PublicNavigationGroup) => {
@@ -517,16 +570,7 @@ function PublicLinkEditor<T extends PublicNavigationItem>({
       >
         <div className="flex flex-wrap items-center gap-2">
           {links.map((item, index) =>
-            isPublicNavigationSearchItem(item) ? (
-              <PublicSearchChip
-                key={itemIds[index]}
-                id={itemIds[index]}
-                visible={item.visible}
-                onVisibleChange={(visible) =>
-                  changeSearchVisibility(index, visible)
-                }
-              />
-            ) : isPublicNavigationGroup(item) ? (
+            isPublicNavigationGroup(item) ? (
               <PublicGroupChip
                 key={itemIds[index]}
                 id={itemIds[index]}
@@ -1102,53 +1146,6 @@ function publicGroupDraftIsDirty(
         link.label !== group.links[index]?.label ||
         link.href !== group.links[index]?.href
     )
-  )
-}
-
-function PublicSearchChip({
-  id,
-  visible,
-  onVisibleChange,
-}: {
-  id: string
-  visible: boolean
-  onVisibleChange: (visible: boolean) => void
-}) {
-  const { attributes, listeners, setNodeRef, style } = useSortableRow(id, true)
-
-  return (
-    <div ref={setNodeRef} style={style} className={CHIP_CLASS}>
-      <div className="flex max-w-full items-center gap-1">
-        <button
-          type="button"
-          {...attributes}
-          {...listeners}
-          className={DRAG_HANDLE_CLASS}
-          aria-label="Reorder Search"
-        >
-          <GripVertical className="h-4 w-4" />
-        </button>
-        <span className="flex h-8 max-w-56 items-center gap-2 px-3 text-sm font-medium">
-          <SearchIcon className="h-4 w-4 shrink-0" />
-          Search
-          {!visible ? (
-            <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-              Hidden
-            </span>
-          ) : null}
-        </span>
-        <label
-          className="flex size-8 shrink-0 items-center justify-center rounded-md"
-          title={visible ? "Visible" : "Hidden"}
-        >
-          <Checkbox
-            checked={visible}
-            onCheckedChange={(checked) => onVisibleChange(checked === true)}
-          />
-          <span className="sr-only">Show Search</span>
-        </label>
-      </div>
-    </div>
   )
 }
 

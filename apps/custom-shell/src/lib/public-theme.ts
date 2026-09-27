@@ -29,6 +29,13 @@ export const PUBLIC_THEME_HEADING_FONTS = [
 export type PublicThemeHeadingFont =
   (typeof PUBLIC_THEME_HEADING_FONTS)[number]
 
+/**
+ * The header and footer choose from the same faces as headings do, so the list
+ * is shared rather than written twice and left to drift apart.
+ */
+export const PUBLIC_THEME_CHROME_FONTS = PUBLIC_THEME_HEADING_FONTS
+export type PublicThemeChromeFont = PublicThemeHeadingFont
+
 export const PUBLIC_COLOR_SCHEMES = ["system", "light", "dark"] as const
 export type PublicColorScheme = (typeof PUBLIC_COLOR_SCHEMES)[number]
 
@@ -104,6 +111,8 @@ export type PublicTheme = {
   font: PublicThemeFont
   /** The face headings use. `match` leaves them on the body font. */
   headingFont: PublicThemeHeadingFont
+  /** The face the public header and footer use. */
+  chromeFont: PublicThemeChromeFont
   radius: number
 }
 
@@ -229,6 +238,7 @@ export function createDefaultPublicTheme(): PublicTheme {
     useCustomFont: false,
     font: "system",
     headingFont: "match",
+    chromeFont: "match",
     radius: DEFAULT_PUBLIC_RADIUS,
   }
 }
@@ -587,6 +597,11 @@ export function normalizePublicTheme(
     )
       ? (theme.headingFont as PublicThemeHeadingFont)
       : fallback.headingFont,
+    chromeFont: PUBLIC_THEME_CHROME_FONTS.includes(
+      theme.chromeFont as PublicThemeChromeFont
+    )
+      ? (theme.chromeFont as PublicThemeChromeFont)
+      : fallback.chromeFont,
     radius: normalizeWholeNumber(
       theme.radius,
       fallback.radius,
@@ -729,6 +744,9 @@ export function publicThemeOverrides(
     ...(theme.headingFont !== baseline.headingFont
       ? { headingFont: theme.headingFont }
       : {}),
+    ...(theme.chromeFont !== baseline.chromeFont
+      ? { chromeFont: theme.chromeFont }
+      : {}),
     ...(theme.radius !== baseline.radius ? { radius: theme.radius } : {}),
   }
 }
@@ -807,6 +825,10 @@ export function publicThemeStyle(
   if (theme.headingFont !== "match") {
     style["--app-font-heading"] =
       PUBLIC_THEME_HEADING_FONT_STACKS[theme.headingFont]
+  }
+  if (theme.chromeFont !== "match") {
+    style["--app-font-chrome"] =
+      PUBLIC_THEME_HEADING_FONT_STACKS[theme.chromeFont]
   }
   if (
     theme.backgroundPattern !== "none" &&

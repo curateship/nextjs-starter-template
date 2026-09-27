@@ -31,6 +31,7 @@ import {
   MAX_FRONT_PAGE_FAQ_ANSWER_LENGTH,
   MAX_FRONT_PAGE_FAQ_ITEMS,
   MAX_FRONT_PAGE_FAQ_QUESTION_LENGTH,
+  FRONT_PAGE_HERO_ACTIONS,
   MAX_FRONT_PAGE_HERO_BUTTON_HREF_LENGTH,
   MAX_FRONT_PAGE_HERO_BUTTON_LABEL_LENGTH,
   MAX_FRONT_PAGE_HERO_NOTE_LENGTH,
@@ -61,6 +62,10 @@ import {
   normalizePublicSocialLinks,
   normalizePublicSocialUrl,
 } from "@/lib/pages/public-social"
+import {
+  PUBLIC_HEADER_ACTION_IDS,
+  normalizePublicHeaderActions,
+} from "@/lib/pages/public-header-actions"
 import {
   cleanPublicFooterCopyright,
   cleanPublicNavigationItems,
@@ -98,6 +103,7 @@ import {
   PUBLIC_COLOR_SCHEMES,
   PUBLIC_CONTENT_ALIGNMENTS,
   PUBLIC_THEME_FONTS,
+  PUBLIC_THEME_CHROME_FONTS,
   PUBLIC_THEME_HEADING_FONTS,
   normalizePublicBrandTheme,
   publicThemeForAppWideSave,
@@ -293,6 +299,16 @@ const publicFooterSocialSchema = z
   .max(MAX_PUBLIC_SOCIAL_LINKS)
   .transform(normalizePublicSocialLinks)
 
+const publicHeaderActionsSchema = z
+  .array(
+    z.object({
+      id: z.enum(PUBLIC_HEADER_ACTION_IDS),
+      hidden: z.boolean(),
+    })
+  )
+  .max(PUBLIC_HEADER_ACTION_IDS.length)
+  .transform(normalizePublicHeaderActions)
+
 const publicBrandOverridesSchema = z.object(
   Object.fromEntries(
     PUBLIC_BRAND_OVERRIDE_KEYS.map((key) => [
@@ -361,6 +377,7 @@ const publicThemeSchema = z.object({
   useCustomFont: z.boolean(),
   font: z.enum(PUBLIC_THEME_FONTS),
   headingFont: z.enum(PUBLIC_THEME_HEADING_FONTS),
+  chromeFont: z.enum(PUBLIC_THEME_CHROME_FONTS),
   radius: z.number().int().min(0).max(MAX_PUBLIC_RADIUS),
 })
 
@@ -405,6 +422,7 @@ const frontPageRowsSchema = z
       z.object({
         ...frontPageRowBaseShape,
         kind: z.literal("hero"),
+        action: z.enum(FRONT_PAGE_HERO_ACTIONS),
         image: frontPageImageSchema,
         alt: z.string().max(MAX_FRONT_PAGE_IMAGE_ALT_LENGTH),
         buttonLabel: z
@@ -559,6 +577,7 @@ const shellConfigSchema = z.object({
   publicNavigation: publicNavigationSchema,
   publicFooter: publicFooterSchema,
   publicFooterSocial: publicFooterSocialSchema,
+  publicHeaderActions: publicHeaderActionsSchema,
   publicFooterCopyright: z
     .string()
     .max(MAX_PUBLIC_FOOTER_COPYRIGHT_LENGTH)

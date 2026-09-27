@@ -37,6 +37,7 @@ import {
 } from "@/lib/pages/public-device"
 import {
   FRONT_PAGE_HERO_LINK_MESSAGE,
+  type FrontPageHeroAction,
   FRONT_PAGE_ROW_HEADING_MESSAGE,
   FRONT_PAGE_ROW_KIND_HINTS,
   FRONT_PAGE_ROW_KIND_LABELS,
@@ -78,6 +79,8 @@ export function FrontPageRowDialog({
   const [layout, setLayout] = React.useState<FrontPageRowLayout>("wide")
   const [hidden, setHidden] = React.useState(false)
   const [device, setDevice] = React.useState<PublicDevice>("all")
+  const [heroAction, setHeroAction] =
+    React.useState<FrontPageHeroAction>("button")
   const [heroImage, setHeroImage] = React.useState("")
   const [heroAlt, setHeroAlt] = React.useState("")
   const [heroButtonLabel, setHeroButtonLabel] = React.useState("")
@@ -105,6 +108,7 @@ export function FrontPageRowDialog({
     setLayout(row?.layout ?? "wide")
     setHidden(row?.hidden ?? false)
     setDevice(row?.device ?? "all")
+    setHeroAction(row?.kind === "hero" ? row.action : "button")
     setHeroImage(row?.kind === "hero" ? row.image : "")
     setHeroAlt(row?.kind === "hero" ? row.alt : "")
     setHeroButtonLabel(row?.kind === "hero" ? row.buttonLabel : "")
@@ -135,6 +139,7 @@ export function FrontPageRowDialog({
     layout !== (row?.layout ?? "wide") ||
     hidden !== (row?.hidden ?? false) ||
     device !== (row?.device ?? "all") ||
+    heroAction !== (savedHero?.action ?? "button") ||
     heroImage !== (savedHero?.image ?? "") ||
     heroAlt !== (savedHero?.alt ?? "") ||
     heroButtonLabel !== (savedHero?.buttonLabel ?? "") ||
@@ -154,6 +159,7 @@ export function FrontPageRowDialog({
 
     const contentProblem = getContentProblem(
       kind,
+      heroAction,
       heroButtonLabel,
       heroButtonHref,
       testimonials,
@@ -175,6 +181,7 @@ export function FrontPageRowDialog({
         layout,
         hidden,
         device,
+        heroAction,
         heroImage,
         heroAlt: heroAlt.trim(),
         heroButtonLabel: heroButtonLabel.trim(),
@@ -341,6 +348,7 @@ export function FrontPageRowDialog({
 
             <FrontPageRowContentEditor
               kind={kind}
+              heroAction={heroAction}
               heroImage={heroImage}
               heroAlt={heroAlt}
               heroButtonLabel={heroButtonLabel}
@@ -352,6 +360,7 @@ export function FrontPageRowDialog({
               logos={logos}
               screenshots={screenshots}
               submitted={submitted}
+              onHeroActionChange={setHeroAction}
               onHeroImageChange={setHeroImage}
               onHeroAltChange={setHeroAlt}
               onHeroButtonLabelChange={setHeroButtonLabel}
@@ -394,6 +403,7 @@ function itemsForKind(
 
 function getContentProblem(
   kind: FrontPageRowKind,
+  heroAction: FrontPageHeroAction,
   heroButtonLabel: string,
   heroButtonHref: string,
   testimonials: FrontPageTestimonial[],
@@ -401,7 +411,12 @@ function getContentProblem(
   logos: FrontPageLogo[],
   screenshots: FrontPageScreenshot[]
 ) {
-  if (kind === "hero") {
+  if (kind === "hero" && heroAction === "email") {
+    if (!heroButtonLabel.trim()) {
+      return "Give the email form's button its wording."
+    }
+  }
+  if (kind === "hero" && heroAction === "button") {
     if (heroButtonLabel.trim() && !heroButtonHref.trim()) {
       return "Give the hero button a link, or clear its wording."
     }
@@ -449,6 +464,7 @@ function buildDraft({
   layout,
   hidden,
   device,
+  heroAction,
   heroImage,
   heroAlt,
   heroButtonLabel,
@@ -466,6 +482,7 @@ function buildDraft({
   layout: FrontPageRowLayout
   hidden: boolean
   device: PublicDevice
+  heroAction: FrontPageHeroAction
   heroImage: string
   heroAlt: string
   heroButtonLabel: string
@@ -482,6 +499,7 @@ function buildDraft({
     return {
       ...base,
       kind,
+      action: heroAction,
       image: heroImage,
       alt: heroAlt,
       buttonLabel: heroButtonLabel,

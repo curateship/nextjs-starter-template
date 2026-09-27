@@ -39,38 +39,28 @@ describe("public navigation settings", () => {
 })
 
 describe("public navigation items", () => {
-  it("starts with search as a draggable menu item", () => {
-    expect(createDefaultPublicNavigation()).toEqual([
-      { type: "search", visible: true },
-    ])
+  it("starts empty and keeps the links it is given", () => {
+    expect(createDefaultPublicNavigation()).toEqual([])
     expect(
       cleanPublicNavigationItems([{ label: "About", href: "/about" }])
-    ).toEqual([
-      { type: "search", visible: true },
-      { label: "About", href: "/about" },
-    ])
+    ).toEqual([{ label: "About", href: "/about" }])
   })
 
-  it("keeps search order, safe links, and only one search item", () => {
+  it("drops a saved search entry and keeps the safe links around it", () => {
+    // Search is a header action item now, so a menu saved when it was a menu
+    // entry loses that entry rather than drawing something nothing reads.
     expect(
       cleanPublicNavigationItems([
         { label: "About", href: "/about" },
         { type: "search" },
         { label: "Unsafe", href: "javascript:alert(1)" },
-        { type: "search" },
+        { type: "search", visible: false },
         { label: "Contact", href: "/contact" },
       ])
     ).toEqual([
       { label: "About", href: "/about" },
-      { type: "search", visible: true },
       { label: "Contact", href: "/contact" },
     ])
-  })
-
-  it("keeps a hidden search item available to turn back on", () => {
-    expect(
-      cleanPublicNavigationItems([{ type: "search", visible: false }])
-    ).toEqual([{ type: "search", visible: false }])
   })
 
   it("keeps old flat menus unchanged and accepts more than twenty links", () => {
@@ -79,10 +69,7 @@ describe("public navigation items", () => {
       href: `/page-${index + 1}`,
     }))
 
-    expect(cleanPublicNavigationItems(links)).toEqual([
-      { type: "search", visible: true },
-      ...links,
-    ])
+    expect(cleanPublicNavigationItems(links)).toEqual(links)
   })
 
   it("keeps one level of named groups and refuses unsafe nested links", () => {
@@ -106,7 +93,6 @@ describe("public navigation items", () => {
     ])
 
     expect(menu).toEqual([
-      { type: "search", visible: true },
       { label: "About", href: "/about" },
       {
         type: "group",

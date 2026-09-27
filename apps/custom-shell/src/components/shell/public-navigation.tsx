@@ -14,6 +14,7 @@ import {
 
 import { BrandLogo } from "@/components/shell/brand-logo"
 import { ThemeToggle } from "@/components/shell/theme-toggle"
+import type { PublicHeaderActionId } from "@/lib/pages/public-header-actions"
 import { DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
 import { SiteSearchForm } from "@/components/shared/site-search-form"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -37,7 +38,6 @@ import type {
 } from "@/lib/pages/public-header"
 import {
   isPublicNavigationGroup,
-  isPublicNavigationSearchItem,
   publicNavigationForDevice,
   type PublicNavigationItem,
   type PublicNavigationLink,
@@ -204,6 +204,8 @@ export function PublicNavigation({
   userPanel,
   chromeBackground,
   showThemeToggle,
+  headerActions,
+  showSearch,
 }: {
   appName: string
   logo: string
@@ -232,6 +234,10 @@ export function PublicNavigation({
   /** Public styling's header and footer colour, or undefined for the theme's. */
   chromeBackground: string | undefined
   showThemeToggle: boolean
+  /** The right-hand controls, in the order an admin dragged them into. */
+  headerActions: PublicHeaderActionId[]
+  /** Whether this page has a search box worth drawing. */
+  showSearch: boolean
 }) {
   const pathname = useLocation({ select: (location) => location.pathname })
   const headerRef = React.useRef<HTMLElement>(null)
@@ -467,13 +473,9 @@ export function PublicNavigation({
 
   const desktopNavigation = desktopItems.length ? (
     <nav aria-label="Main navigation" className="hidden lg:block">
-      <ul className="flex items-center gap-8 text-sm font-medium">
+      <ul className="flex items-center gap-8 text-base font-medium">
         {desktopItems.map((item, index) =>
-          isPublicNavigationSearchItem(item) ? (
-            <li key="search" className="w-40 xl:w-56">
-              {searchField}
-            </li>
-          ) : isPublicNavigationGroup(item) ? (
+          isPublicNavigationGroup(item) ? (
             <li key={`${item.label}-group-${index}`} className="relative">
               <DesktopMenuGroup label={item.label} links={item.links} />
             </li>
@@ -507,6 +509,21 @@ export function PublicNavigation({
     </button>
   ) : null
 
+  const phoneSearch =
+    showSearch && headerActions.includes("search") ? (
+      <li key="search">
+        <Link
+          to="/search"
+          search={{ q: "" }}
+          onClick={closeMenu}
+          className={cn("flex items-center gap-2 rounded-md", menuWord, focusRing)}
+        >
+          <SearchIcon className="size-4" />
+          Search
+        </Link>
+      </li>
+    ) : null
+
   const phoneMenu = phoneItems.length ? (
     <nav
       id="public-phone-menu"
@@ -515,28 +532,9 @@ export function PublicNavigation({
       className="mb-6 hidden w-full space-y-8 rounded-3xl border bg-background p-6 shadow-2xl in-data-[state=active]:block lg:hidden"
     >
       <ul className="space-y-6 text-base">
+        {phoneSearch}
         {phoneItems.map((item, index) =>
-          isPublicNavigationSearchItem(item) ? (
-            <li key="search">
-              {/* The panel is full width, but a second search box beside the
-                  one already on the search page reads as a duplicate. The
-                  saved position becomes an entry that opens the search page
-                  instead, which is what the desktop chip order promises. */}
-              <Link
-                to="/search"
-                search={{ q: "" }}
-                onClick={closeMenu}
-                className={cn(
-                  "flex items-center gap-2 rounded-md",
-                  menuWord,
-                  focusRing
-                )}
-              >
-                <SearchIcon className="size-4" />
-                Search
-              </Link>
-            </li>
-          ) : isPublicNavigationGroup(item) ? (
+          isPublicNavigationGroup(item) ? (
             <li key={`${item.label}-group-${index}`}>
               <p className="mb-2 font-medium text-foreground">{item.label}</p>
               <ul className="ml-4 space-y-2">
@@ -603,8 +601,19 @@ export function PublicNavigation({
                 centeredMenu ? "lg:w-full lg:min-w-0" : "lg:ml-auto"
               )}
             >
-              {showThemeToggle ? <ThemeToggle /> : null}
-              {accountActions}
+              {headerActions.map((action) =>
+                action === "search" && showSearch ? (
+                  <div key="search" className="hidden w-40 lg:block xl:w-56">
+                    {searchField}
+                  </div>
+                ) : action === "theme" && showThemeToggle ? (
+                  <ThemeToggle key="theme" />
+                ) : action === "user-panel" ? (
+                  <React.Fragment key="user-panel">
+                    {accountActions}
+                  </React.Fragment>
+                ) : null
+              )}
               {menuButton}
             </div>
             {phoneMenu}

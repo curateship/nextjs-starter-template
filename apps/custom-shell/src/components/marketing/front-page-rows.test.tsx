@@ -147,6 +147,48 @@ describe("front page content blocks", () => {
     expect(markup).not.toContain("<img")
   })
 
+  it("draws an email form in place of a button when the hero asks for one", () => {
+    const rows = normalizeFrontPageRows([
+      {
+        id: "hero",
+        heading: "Open your shop this week",
+        kind: "hero",
+        action: "email",
+        buttonLabel: "Subscribe",
+        // An email form has no link of its own: its box is the action.
+        buttonHref: "https://example.test/ignored",
+      },
+    ])
+    const markup = renderToStaticMarkup(
+      <FrontPageRows
+        rows={rows}
+        plans={[]}
+        trialUsed={false}
+        interval="monthly"
+        onIntervalChange={vi.fn()}
+        onSelectPlan={vi.fn()}
+      />
+    )
+
+    expect(rows[0]).toMatchObject({
+      action: "email",
+      buttonLabel: "Subscribe",
+      buttonHref: "",
+    })
+    expect(markup).toContain('type="email"')
+    expect(markup).toContain("Enter your email")
+    expect(markup).toContain("Subscribe")
+    expect(markup).not.toContain("<a")
+  })
+
+  it("asks for a button unless the hero says otherwise", () => {
+    const [saved] = normalizeFrontPageRows([
+      { id: "hero", heading: "A", kind: "hero" },
+    ])
+
+    expect(saved).toMatchObject({ action: "button" })
+  })
+
   it("drops a hero button that has only half its pair, and an unsafe link", () => {
     const [labelOnly, hrefOnly, unsafe] = normalizeFrontPageRows([
       { id: "a", heading: "A", kind: "hero", buttonLabel: "Press" },

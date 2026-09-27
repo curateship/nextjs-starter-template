@@ -1,3 +1,5 @@
+import * as React from "react"
+import { useNavigate } from "@tanstack/react-router"
 import { StarIcon } from "lucide-react"
 
 import { MediaThumbnail } from "@/components/media/media-thumbnail"
@@ -8,13 +10,57 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import {
+  MAX_CARRIED_EMAIL_LENGTH,
+} from "@/lib/billing/pricing-choice"
+import {
   MAX_FRONT_PAGE_HERO_STARS,
+  type FrontPageHeroAction,
   type FrontPageFaqItem,
   type FrontPageLogo,
   type FrontPageScreenshot,
   type FrontPageTestimonial,
 } from "@/lib/pages/front-page"
 import { cn } from "@/lib/utils"
+
+/**
+ * The hero's address box: one pill holding the box and its button.
+ *
+ * Nothing is stored here. The address travels to the register page and lands
+ * in its email box, so somebody who typed it on the front page does not type
+ * it again. Registering is what creates the person.
+ */
+function HeroEmailForm({ buttonLabel }: { buttonLabel: string }) {
+  const navigate = useNavigate()
+  const [email, setEmail] = React.useState("")
+
+  return (
+    <form
+      className="flex w-full max-w-md items-center gap-2 rounded-full border border-foreground/15 bg-background py-1.5 pr-1.5 pl-5"
+      onSubmit={(event) => {
+        event.preventDefault()
+        void navigate({ to: "/register", search: { email } })
+      }}
+    >
+      <input
+        type="email"
+        required
+        value={email}
+        onChange={(event) => setEmail(event.target.value)}
+        placeholder="Enter your email"
+        aria-label="Your email address"
+        maxLength={MAX_CARRIED_EMAIL_LENGTH}
+        className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+      />
+      <Button
+        type="submit"
+        size="lg"
+        className="h-11 shrink-0 rounded-full px-6 text-base"
+      >
+        {buttonLabel}
+      </Button>
+    </form>
+  )
+}
 
 /**
  * The top of a front page: a large heading, a line beneath it, a button, and a
@@ -25,6 +71,7 @@ import { cn } from "@/lib/utils"
 export function FrontPageHero({
   heading,
   intro,
+  action,
   image,
   alt,
   buttonLabel,
@@ -36,6 +83,7 @@ export function FrontPageHero({
 }: {
   heading: string
   intro: string
+  action: FrontPageHeroAction
   image: string
   alt: string
   buttonLabel: string
@@ -71,11 +119,13 @@ export function FrontPageHero({
         ) : null}
       </div>
 
-      {buttonLabel && buttonHref ? (
-        <div
-          className={cn("flex w-full", publicContentAlignmentRowClassName)}
-        >
-          <Button asChild size="lg">
+      {action === "email" && buttonLabel ? (
+        <div className={cn("flex w-full", publicContentAlignmentRowClassName)}>
+          <HeroEmailForm buttonLabel={buttonLabel} />
+        </div>
+      ) : action === "button" && buttonLabel && buttonHref ? (
+        <div className={cn("flex w-full", publicContentAlignmentRowClassName)}>
+          <Button asChild size="lg" className="h-11 px-6 text-base">
             <SavedLink href={buttonHref}>{buttonLabel}</SavedLink>
           </Button>
         </div>

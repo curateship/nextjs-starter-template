@@ -5,9 +5,8 @@ import {
   arrayMove,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
-import { GripVertical, PlusIcon, SettingsIcon, Trash2Icon } from "lucide-react"
+import { GripVertical, PlusIcon, Trash2Icon } from "lucide-react"
 
-import { SettingsCardSection } from "@/components/settings/settings-card-section"
 import {
   DRAG_HANDLE_CLASS,
   createShellId,
@@ -71,65 +70,7 @@ const BUTTON_TITLES: Record<PublicUserPanelButtonKey, string> = {
  * Register buttons a signed-out visitor sees, and the links a signed-in
  * visitor finds under their photo. Copied from the directory app's User Panel.
  */
-export function PublicUserPanelSettings({
-  panel,
-  onChange,
-}: {
-  panel: PublicUserPanel
-  onChange: (panel: PublicUserPanel) => void
-}) {
-  const [editing, setEditing] = React.useState(false)
-  const linkCount = panel.links.length
-
-  const summary = (
-    <div className="flex flex-wrap items-center justify-between gap-4">
-      <ul className="grid gap-1 text-sm text-muted-foreground">
-          {PUBLIC_USER_PANEL_BUTTON_KEYS.map((key) => (
-            <li key={key}>
-              <span className="font-medium text-foreground">
-                {panel[key].label}
-              </span>{" "}
-              {panel[key].href ? `goes to ${panel[key].href}` : "is hidden"}
-            </li>
-          ))}
-          <li>
-            {linkCount
-              ? `${linkCount} ${linkCount === 1 ? "link" : "links"} in the signed-in menu`
-              : "No extra links in the signed-in menu"}
-          </li>
-        </ul>
-      <Button type="button" variant="outline" onClick={() => setEditing(true)}>
-        <SettingsIcon />
-        Edit user panel
-      </Button>
-    </div>
-  )
-
-  const title = "User panel"
-  const description =
-    "The Sign in and Register buttons at the right of the public header, and the links a signed-in visitor sees under their photo."
-
-  return (
-    <>
-      <SettingsCardSection title={title} description={description}>
-        {summary}
-      </SettingsCardSection>
-
-      {editing ? (
-        <PublicUserPanelDialog
-          panel={panel}
-          onClose={() => setEditing(false)}
-          onSave={(next) => {
-            onChange(next)
-            setEditing(false)
-          }}
-        />
-      ) : null}
-    </>
-  )
-}
-
-function PublicUserPanelDialog({
+export function PublicUserPanelDialog({
   panel,
   onClose,
   onSave,

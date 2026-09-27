@@ -66,6 +66,10 @@ import {
   type PublicSocialLink,
 } from "@/lib/pages/public-social"
 import {
+  normalizePublicHeaderActions,
+  type PublicHeaderAction,
+} from "@/lib/pages/public-header-actions"
+import {
   normalizeFrontPageRows,
   visibleFrontPageRows,
   type FrontPageRow,
@@ -161,6 +165,7 @@ export async function readBranding(
   >["publicNavigation"]
   publicFooter: ReturnType<typeof parseWorkspaceSettings>["publicFooter"]
   publicFooterSocial: PublicSocialLink[]
+  publicHeaderActions: PublicHeaderAction[]
   publicFooterCopyright: string
   publicSearchEnabled: boolean
   publicFont: PublicFontAsset | null
@@ -211,6 +216,7 @@ export async function readBranding(
         : globals.publicNavigation,
       publicFooter: workspaceDomainsEnabled ? [] : globals.publicFooter,
       publicFooterSocial: globals.publicFooterSocial,
+      publicHeaderActions: globals.publicHeaderActions,
       publicFooterCopyright: workspaceDomainsEnabled
         ? ""
         : globals.publicFooterCopyright,
@@ -257,6 +263,7 @@ export async function readBranding(
     publicNavigation: workspaceSettings.publicNavigation,
     publicFooter: workspaceSettings.publicFooter,
     publicFooterSocial: globals.publicFooterSocial,
+    publicHeaderActions: globals.publicHeaderActions,
     publicFooterCopyright: workspaceSettings.publicFooterCopyright,
     publicSearchEnabled:
       searchPage !== null &&
@@ -425,6 +432,9 @@ export function parseShellGlobals(value: unknown) {
         : cleanPublicNavigationItems(settings.publicNavigation),
     publicFooter: cleanPublicNavigationLinks(settings.publicFooter),
     publicFooterSocial: normalizePublicSocialLinks(settings.publicFooterSocial),
+    publicHeaderActions: normalizePublicHeaderActions(
+      settings.publicHeaderActions
+    ),
     publicFooterCopyright: cleanPublicFooterCopyright(
       settings.publicFooterCopyright
     ),
@@ -522,6 +532,7 @@ export function pickShellGlobals(
     | "publicNavigation"
     | "publicFooter"
     | "publicFooterSocial"
+    | "publicHeaderActions"
     | "publicFooterCopyright"
     | "publicHeader"
     | "publicBreadcrumbs"
@@ -562,6 +573,9 @@ export function pickShellGlobals(
     publicNavigation: cleanPublicNavigationItems(settings.publicNavigation),
     publicFooter: cleanPublicNavigationLinks(settings.publicFooter),
     publicFooterSocial: normalizePublicSocialLinks(settings.publicFooterSocial),
+    publicHeaderActions: normalizePublicHeaderActions(
+      settings.publicHeaderActions
+    ),
     publicFooterCopyright: cleanPublicFooterCopyright(
       settings.publicFooterCopyright
     ),

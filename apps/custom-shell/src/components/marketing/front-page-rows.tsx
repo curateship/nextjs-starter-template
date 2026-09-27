@@ -10,7 +10,6 @@ import { PricingTable } from "@/components/shared/pricing-table"
 import type { PlanOption } from "@/lib/api/billing/billing"
 import type { BillingInterval } from "@/lib/billing/pricing-choice"
 import type { FrontPageRow } from "@/lib/pages/front-page"
-import { pageGutter } from "@/lib/layout/shell-gutter"
 import { publicDeviceRowClassName } from "@/lib/pages/public-device"
 import { cn } from "@/lib/utils"
 
@@ -31,8 +30,9 @@ export function FrontPageRows({
 }) {
   return (
     <div
+      // The gap between rows is set in theme.css, so flat mode can collapse it
+      // and a phone and a desktop can have different ones.
       className={cn("grid w-full", publicContentAlignmentGridClassName)}
-      style={{ gap: pageGutter }}
       data-front-page-rows=""
     >
       {rows.map((row, index) => {
@@ -81,6 +81,7 @@ export function FrontPageRows({
               <FrontPageHero
                 heading={row.heading}
                 intro={row.intro}
+                action={row.action}
                 image={row.image}
                 alt={row.alt}
                 buttonLabel={row.buttonLabel}

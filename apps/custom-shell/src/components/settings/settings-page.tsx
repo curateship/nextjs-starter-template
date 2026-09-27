@@ -235,6 +235,8 @@ export function SettingsPage({
             footerCopyright={config.publicFooterCopyright}
             publicHeader={config.publicHeader}
             pageWidth={config.publicTheme.pageWidth}
+            chromeFont={config.publicTheme.chromeFont}
+            headerActions={config.publicHeaderActions}
             publicUserPanel={config.publicUserPanel}
             publicBreadcrumbs={config.publicBreadcrumbs}
             onNavigationChange={(publicNavigation) =>
@@ -251,6 +253,15 @@ export function SettingsPage({
             }
             onPublicHeaderChange={(publicHeader) =>
               onConfigChange({ ...config, publicHeader })
+            }
+            onChromeFontChange={(chromeFont) =>
+              onConfigChange({
+                ...config,
+                publicTheme: { ...config.publicTheme, chromeFont },
+              })
+            }
+            onHeaderActionsChange={(publicHeaderActions) =>
+              onConfigChange({ ...config, publicHeaderActions })
             }
             onPublicUserPanelChange={(publicUserPanel) =>
               onConfigChange({ ...config, publicUserPanel })

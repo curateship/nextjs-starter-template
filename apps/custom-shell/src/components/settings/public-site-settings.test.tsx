@@ -11,6 +11,7 @@ vi.mock("@/lib/toast/error-toast", () => ({
 }))
 
 import { PublicSiteSettings } from "@/components/settings/public-site-settings"
+import { createDefaultPublicHeaderActions } from "@/lib/pages/public-header-actions"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { createDefaultPublicHeader } from "@/lib/pages/public-header"
 import { createDefaultPublicBreadcrumbs } from "@/lib/pages/public-breadcrumbs"
@@ -56,12 +57,14 @@ describe("PublicSiteSettings dropdown group validation", () => {
       root.render(
         <TooltipProvider>
           <PublicSiteSettings
-            navigation={[{ type: "search", visible: true }]}
+            navigation={[{ label: "Pricing", href: "/pricing" }]}
             footer={[]}
             footerSocial={[]}
             footerCopyright=""
             publicHeader={createDefaultPublicHeader()}
             pageWidth={1152}
+            chromeFont="match"
+            headerActions={createDefaultPublicHeaderActions()}
             publicUserPanel={createDefaultPublicUserPanel()}
             publicBreadcrumbs={createDefaultPublicBreadcrumbs()}
             onNavigationChange={onNavigationChange}
@@ -69,6 +72,8 @@ describe("PublicSiteSettings dropdown group validation", () => {
             onFooterSocialChange={vi.fn()}
             onFooterCopyrightChange={vi.fn()}
             onPublicHeaderChange={vi.fn()}
+            onChromeFontChange={vi.fn()}
+            onHeaderActionsChange={vi.fn()}
             onPublicUserPanelChange={vi.fn()}
             onPublicBreadcrumbsChange={vi.fn()}
             onSaveConfig={vi.fn(async () => true)}
@@ -149,6 +154,8 @@ describe("PublicSiteSettings menu link window", () => {
             footerCopyright=""
             publicHeader={createDefaultPublicHeader()}
             pageWidth={1152}
+            chromeFont="match"
+            headerActions={createDefaultPublicHeaderActions()}
             publicUserPanel={createDefaultPublicUserPanel()}
             publicBreadcrumbs={createDefaultPublicBreadcrumbs()}
             onNavigationChange={onNavigationChange}
@@ -156,6 +163,8 @@ describe("PublicSiteSettings menu link window", () => {
             onFooterSocialChange={vi.fn()}
             onFooterCopyrightChange={vi.fn()}
             onPublicHeaderChange={vi.fn()}
+            onChromeFontChange={vi.fn()}
+            onHeaderActionsChange={vi.fn()}
             onPublicUserPanelChange={vi.fn()}
             onPublicBreadcrumbsChange={vi.fn()}
             onSaveConfig={onSaveConfig}

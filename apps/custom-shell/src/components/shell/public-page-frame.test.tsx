@@ -33,6 +33,7 @@ const publicSite = vi.hoisted(() => ({
   copyright: "Copyright",
   description: "A short line about the site.",
   social: [] as { platform: string; url: string }[],
+  headerActions: ["search", "theme", "user-panel"] as string[],
 }))
 const publicHeader = vi.hoisted(() => ({
   current: {
@@ -107,6 +108,7 @@ vi.mock("@/lib/branding", () => ({
   usePublicFooterCopyright: () => publicSite.copyright,
   usePublicSiteDescription: () => publicSite.description,
   usePublicFooterSocial: () => publicSite.social,
+  usePublicHeaderActions: () => publicSite.headerActions,
   usePublicSearchEnabled: () => publicSearch.enabled,
   usePublicHeader: () => publicHeader.current,
   usePublicUserPanel: () => publicUserPanel.current,
@@ -145,9 +147,9 @@ describe("PublicPageFrame navigation", () => {
     publicSearch.enabled = true
     publicSite.navigation = [
       { label: "Pricing", href: "/pricing" },
-      { type: "search", visible: true },
       { label: "Elsewhere", href: "https://example.com" },
     ]
+    publicSite.headerActions = ["search", "theme", "user-panel"]
     publicSite.footer = [
       { label: "About", href: "/about?from=footer#team" },
     ]
@@ -627,7 +629,7 @@ describe("PublicPageFrame navigation", () => {
     await act(async () => root.unmount())
   })
 
-  it("renders search in its saved position on desktop and in the phone menu", async () => {
+  it("draws search in the header's action row, not in the menu", async () => {
     const host = document.createElement("div")
     document.body.appendChild(host)
     const root = createRoot(host)
@@ -636,14 +638,20 @@ describe("PublicPageFrame navigation", () => {
       root.render(<PublicPageFrame>Page</PublicPageFrame>)
     })
 
-    const desktopItems = Array.from(
-      host.querySelectorAll('nav[aria-label="Main navigation"] li')
-    )
-    expect(desktopItems[0]?.textContent).toContain("Pricing")
+    // The menu holds the links an admin typed. Search sits with the other
+    // header controls instead.
     expect(
-      desktopItems[1]?.querySelector('input[aria-label="Search this site"]')
+      Array.from(
+        host.querySelectorAll(
+          'nav[aria-label="Main navigation"]:not(#public-phone-menu) li'
+        )
+      ).map((item) => item.textContent?.trim())
+    ).toEqual(["Pricing", "Elsewhere"])
+    expect(
+      host
+        .querySelector("[data-public-header-actions]")
+        ?.querySelector('input[aria-label="Search this site"]')
     ).not.toBeNull()
-    expect(desktopItems[2]?.textContent).toContain("Elsewhere")
 
     const trigger = host.querySelector<HTMLButtonElement>(
       'button[aria-label="Open navigation menu"]'
@@ -653,14 +661,13 @@ describe("PublicPageFrame navigation", () => {
       Array.from(host.querySelectorAll("#public-phone-menu a")).map((item) =>
         item.textContent?.trim()
       )
-    ).toEqual(["Pricing", "Search", "Elsewhere"])
+    ).toEqual(["Search", "Pricing", "Elsewhere"])
 
     await act(async () => root.unmount())
   })
 
   it("opens a grouped menu by keyboard and shows the group as a phone section", async () => {
     publicSite.navigation = [
-      { type: "search", visible: true },
       {
         type: "group",
         label: "Resources",
@@ -734,12 +741,8 @@ describe("PublicPageFrame navigation", () => {
     await act(async () => root.unmount())
   })
 
-  it("keeps menu links but removes a hidden search item", async () => {
-    publicSite.navigation = [
-      { label: "Pricing", href: "/pricing" },
-      { type: "search", visible: false },
-      { label: "Elsewhere", href: "https://example.com" },
-    ]
+  it("drops search from the header when its action item is switched off", async () => {
+    publicSite.headerActions = ["theme", "user-panel"]
     const host = document.createElement("div")
     document.body.appendChild(host)
     const root = createRoot(host)

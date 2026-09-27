@@ -6,6 +6,11 @@ import type {
 } from "@/lib/pages/public-navigation"
 import type { PublicSocialLink } from "@/lib/pages/public-social"
 import {
+  normalizePublicHeaderActions,
+  visiblePublicHeaderActions,
+  type PublicHeaderActionId,
+} from "@/lib/pages/public-header-actions"
+import {
   normalizePublicHeader,
   type PublicHeader,
 } from "@/lib/pages/public-header"
@@ -107,6 +112,19 @@ export function usePublicFooterSocial(): PublicSocialLink[] {
     from: rootRouteId,
     select: (data) => data.publicFooterSocial ?? [],
   })
+}
+
+/** The order of the controls at the right of the public header. */
+export function usePublicHeaderActions(): PublicHeaderActionId[] {
+  const saved = useLoaderData({
+    from: rootRouteId,
+    select: (data) => data.publicHeaderActions,
+  })
+
+  return React.useMemo(
+    () => visiblePublicHeaderActions(normalizePublicHeaderActions(saved)),
+    [saved]
+  )
 }
 
 export function usePublicFooterCopyright() {

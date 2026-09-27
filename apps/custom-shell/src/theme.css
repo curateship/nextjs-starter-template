@@ -263,13 +263,49 @@ body.app-font {
  * nothing there moves. A component that names its own font in a class still
  * wins, because a class beats an element.
  */
-h1,
-h2,
-h3,
-h4,
-h5,
-h6 {
-    font-family: var(--app-font-heading, var(--app-font-sans));
+@layer base {
+    /*
+     * The public header and footer read in the Navigation & footer font. They
+     * are named rather than left to inherit, so the chrome around a page can
+     * differ from the words inside it. In @layer base for the same reason the
+     * heading rule is: a component that names its own face still wins.
+     */
+    [data-public-canvas] header[data-menu-alignment],
+    [data-public-canvas] footer {
+        font-family: var(--app-font-chrome, var(--app-font-sans));
+    }
+}
+
+@layer base {
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
+        font-family: var(--app-font-heading, var(--app-font-sans));
+    }
+}
+
+/*
+ * The space between two blocks on a front page. It is its own number rather
+ * than the page's side edge: a gap wide enough to tell two blocks apart is far
+ * too much padding at the sides of a phone, which is what sharing one number
+ * produced. Flat mode still collapses it, the same as it collapses card
+ * borders and corners.
+ */
+[data-front-page-rows] {
+    gap: 3.5rem;
+}
+
+@media (min-width: 768px) {
+    [data-front-page-rows] {
+        gap: 5rem;
+    }
+}
+
+[data-flat="true"] [data-front-page-rows] {
+    gap: 0;
 }
 
 html[data-public-brand] [data-slot="button"][data-variant="default"]:hover {
