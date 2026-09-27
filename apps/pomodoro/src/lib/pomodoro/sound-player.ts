@@ -14,6 +14,7 @@ export type SoundPlayerState = {
 
 export type SoundPlayerEvent =
   | { type: "hydrate"; selected: SoundReference | null; label: string | null; volume: number; muted: boolean; completionAlerts: boolean }
+  | { type: "choose"; reference: SoundReference; label: string }
   | { type: "select"; reference: SoundReference; label: string }
   | { type: "clear" }
   | { type: "media-playing" }
@@ -55,6 +56,10 @@ export function soundPlayerReducer(state: SoundPlayerState, event: SoundPlayerEv
         completionAlerts: event.completionAlerts === true,
         notice: null,
       }
+    // Choosing a sound only chooses it. Playing it is the header's play
+    // button or the timer starting, never the picking itself.
+    case "choose":
+      return { ...state, selected: event.reference, label: event.label, status: "paused", notice: null }
     case "select":
       return { ...state, selected: event.reference, label: event.label, status: "loading", notice: null }
     case "clear":

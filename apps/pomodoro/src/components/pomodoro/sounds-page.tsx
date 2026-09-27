@@ -1,5 +1,5 @@
 import * as React from "react"
-import { LockIcon, PauseIcon, PlayIcon } from "lucide-react"
+import { CheckIcon, LockIcon, PauseIcon, PlayIcon } from "lucide-react"
 
 import { Card, CardContent } from "@/components/ui/card"
 import {
@@ -16,9 +16,13 @@ import { MediaGeneratorSection } from "@/components/pomodoro/media-generator-sec
 
 /**
  * The sounds page: the eight curated loops as cards. Four are free, four
- * are Pro; a locked card says why instead of going dead. Picking one plays
- * it and saves the choice; picking the one already playing pauses it. The
- * player itself sits in the header and follows the timer.
+ * are Pro; a locked card says why instead of going dead.
+ *
+ * Picking a card chooses that loop and saves the choice. It does not start
+ * it: the sound begins when the timer starts, or when you press play, on
+ * the header's player or on the chosen card itself. Only the chosen card
+ * carries a play button, so a picture never plays a sound by being
+ * clicked.
  */
 export function SoundsPage() {
   const player = useSoundPlayer()
@@ -39,8 +43,8 @@ export function SoundsPage() {
         <header>
           <h2 className="text-2xl font-bold tracking-tight">Sounds</h2>
           <p className="text-sm text-muted-foreground">
-            A loop for the background. It starts with the timer and pauses with
-            it.
+            A loop for the background. Pick one here; it starts when the
+            timer does, or when you press play.
           </p>
         </header>
         {state.notice ? (
@@ -68,9 +72,11 @@ export function SoundsPage() {
                   aria-label={
                     locked
                       ? `${sound.label} — ${PRO_PERKS.premiumMedia.lockedReason}`
-                      : playing
-                        ? `Pause ${sound.label}`
-                        : `Play ${sound.label}`
+                      : !selected
+                        ? `Choose ${sound.label}`
+                        : playing
+                          ? `Pause ${sound.label}`
+                          : `Play ${sound.label}`
                   }
                   onClick={() => {
                     if (!locked) player.selectSound(reference, sound.label)
@@ -97,8 +103,13 @@ export function SoundsPage() {
                           className="size-6 text-white drop-shadow"
                           aria-hidden="true"
                         />
-                      ) : (
+                      ) : selected ? (
                         <PlayIcon
+                          className="size-6 text-white drop-shadow"
+                          aria-hidden="true"
+                        />
+                      ) : (
+                        <CheckIcon
                           className="size-6 text-white opacity-0 drop-shadow transition-opacity group-hover:opacity-100"
                           aria-hidden="true"
                         />

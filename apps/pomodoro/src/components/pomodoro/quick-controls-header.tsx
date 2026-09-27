@@ -493,10 +493,20 @@ function ThemeQuickControl() {
                     selected && quickRowSelectedClass
                   )}
                   aria-pressed={selected}
+                  aria-label={
+                    !selected
+                      ? `Choose ${sound.label}`
+                      : playing
+                        ? `Pause ${sound.label}`
+                        : `Play ${sound.label}`
+                  }
                   onClick={() => player.selectSound(reference, sound.label)}
                 >
+                  {/* Only the chosen sound carries a play control, because
+                      picking one of the others chooses it without playing
+                      it. The empty circle keeps every row the same width. */}
                   <span className="grid size-7 shrink-0 place-items-center rounded-full bg-foreground/5 ring-1 ring-foreground/15">
-                    {playing ? (
+                    {!selected ? null : playing ? (
                       <PauseIcon
                         className="size-3 fill-current"
                         aria-hidden="true"

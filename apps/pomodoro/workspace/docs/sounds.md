@@ -4,6 +4,23 @@ Eight ambient loops on `/sounds` — Lofi beats, Rain, Café ambience and Brown
 noise free; Forest birds, Ocean waves, Fireplace and Soft piano for Pro —
 with the player itself in the header, where it survives page changes.
 
+## Picking one never starts it
+
+Tyler's rule, 27 September 2026: "when I select a theme, it shouldnt play
+right away. It should jsut be selected and the play happens when I press
+play on the big button."
+
+So picking a loop, on `/sounds`, in the header's Theme popover or from your
+own uploads, only picks it. The sound starts when the timer starts, or when
+you press play in the header's player. Picking a different loop while one
+is playing stops the one playing, because the sound that is playing is
+always the sound that is chosen.
+
+Picking the loop that is already chosen is not a choice, so that one
+toggles play and pause, and only the chosen card and row carry a play
+button. Every other card shows a tick as you hover it, not a play arrow,
+because clicking it will not play anything.
+
 ## The engine
 
 The audio lives outside React, in `src/lib/pomodoro/sound-engine.ts`: two
@@ -23,6 +40,9 @@ the timer all talk to the same module. React reads it through
   `pomodoro:timer-running` window events. Start fades the selected loop in,
   pause or stop fades it out; only genuine edges count, so navigating (which
   remounts the timer hook) never fights a manual pause.
+- **Choosing is silent:** `selectSound` dispatches `choose`, which leaves
+  the status paused. `select`, the event that means "start this one", comes
+  only from the header's play button and from the timer's running edge.
 - **A reload never autoplays.** The player hydrates paused; a browser that
   blocks playback shows "Your browser paused the sound. Press play to
   resume."
