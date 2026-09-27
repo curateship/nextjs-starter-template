@@ -1,15 +1,9 @@
 import * as React from "react"
 
+import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { FrontPageRowContentEditor } from "@/components/settings/front-page-row-content-editor"
 import { Button } from "@/components/ui/button"
 import { SettingsSwitchRow } from "@/components/settings/settings-switch-row"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
 import {
   DialogBody,
   DialogContent,
@@ -37,6 +31,9 @@ import {
 } from "@/lib/pages/public-device"
 import {
   FRONT_PAGE_HERO_LINK_MESSAGE,
+  FRONT_PAGE_ROW_ALIGNMENT_HINTS,
+  FRONT_PAGE_ROW_ALIGNMENT_LABELS,
+  FRONT_PAGE_ROW_ALIGNMENTS,
   type FrontPageHeroAction,
   FRONT_PAGE_ROW_HEADING_MESSAGE,
   FRONT_PAGE_ROW_KIND_HINTS,
@@ -49,6 +46,7 @@ import {
   MAX_FRONT_PAGE_ROW_INTRO_LENGTH,
   normalizeFrontPageHeroHref,
   type FrontPageRow,
+  type FrontPageRowAlignment,
   type FrontPageRowDraft,
   type FrontPageFaqItem,
   type FrontPageLogo,
@@ -77,7 +75,19 @@ export function FrontPageRowDialog({
   const [intro, setIntro] = React.useState("")
   const [kind, setKind] = React.useState<FrontPageRowKind>("text")
   const [layout, setLayout] = React.useState<FrontPageRowLayout>("wide")
+  const [alignment, setAlignment] =
+    React.useState<FrontPageRowAlignment>("inherit")
   const [hidden, setHidden] = React.useState(false)
+  const [showHeading, setShowHeading] = React.useState(true)
+  const [showIntro, setShowIntro] = React.useState(true)
+  const [showImage, setShowImage] = React.useState(true)
+  const [showAction, setShowAction] = React.useState(true)
+  const [showStars, setShowStars] = React.useState(true)
+  const [showNote, setShowNote] = React.useState(true)
+  const [showPictures, setShowPictures] = React.useState(true)
+  const [showRoles, setShowRoles] = React.useState(true)
+  const [showNumbers, setShowNumbers] = React.useState(true)
+  const [showCaptions, setShowCaptions] = React.useState(true)
   const [device, setDevice] = React.useState<PublicDevice>("all")
   const [heroAction, setHeroAction] =
     React.useState<FrontPageHeroAction>("button")
@@ -106,7 +116,18 @@ export function FrontPageRowDialog({
     setIntro(row?.intro ?? "")
     setKind(row?.kind ?? "text")
     setLayout(row?.layout ?? "wide")
+    setAlignment(row?.alignment ?? "inherit")
     setHidden(row?.hidden ?? false)
+    setShowHeading(row?.showHeading ?? true)
+    setShowIntro(row?.showIntro ?? true)
+    setShowImage(row?.showImage ?? true)
+    setShowAction(row?.showAction ?? true)
+    setShowStars(row?.showStars ?? true)
+    setShowNote(row?.showNote ?? true)
+    setShowPictures(row?.showPictures ?? true)
+    setShowRoles(row?.showRoles ?? true)
+    setShowNumbers(row?.showNumbers ?? true)
+    setShowCaptions(row?.showCaptions ?? true)
     setDevice(row?.device ?? "all")
     setHeroAction(row?.kind === "hero" ? row.action : "button")
     setHeroImage(row?.kind === "hero" ? row.image : "")
@@ -137,7 +158,18 @@ export function FrontPageRowDialog({
     intro !== (row?.intro ?? "") ||
     kind !== (row?.kind ?? "text") ||
     layout !== (row?.layout ?? "wide") ||
+    alignment !== (row?.alignment ?? "inherit") ||
     hidden !== (row?.hidden ?? false) ||
+    showHeading !== (row?.showHeading ?? true) ||
+    showIntro !== (row?.showIntro ?? true) ||
+    showImage !== (row?.showImage ?? true) ||
+    showAction !== (row?.showAction ?? true) ||
+    showStars !== (row?.showStars ?? true) ||
+    showNote !== (row?.showNote ?? true) ||
+    showPictures !== (row?.showPictures ?? true) ||
+    showRoles !== (row?.showRoles ?? true) ||
+    showNumbers !== (row?.showNumbers ?? true) ||
+    showCaptions !== (row?.showCaptions ?? true) ||
     device !== (row?.device ?? "all") ||
     heroAction !== (savedHero?.action ?? "button") ||
     heroImage !== (savedHero?.image ?? "") ||
@@ -179,7 +211,18 @@ export function FrontPageRowDialog({
         intro: intro.trim(),
         kind,
         layout,
+        alignment,
         hidden,
+        showHeading,
+        showIntro,
+        showImage,
+        showAction,
+        showStars,
+        showNote,
+        showPictures,
+        showRoles,
+        showNumbers,
+        showCaptions,
         device,
         heroAction,
         heroImage,
@@ -210,15 +253,13 @@ export function FrontPageRowDialog({
             </DialogDescription>
           </DialogHeader>
           <DialogBody>
-            <Card size="sm">
-              <CardHeader>
-                <CardTitle>Row content</CardTitle>
-                <CardDescription>
-                  Every row uses a fixed shape, so the front page stays
-                  consistent on phones and larger screens.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="grid gap-4">
+            <CollapsibleSettingsCard
+              size="sm"
+              storageId="front-page-row-content"
+              title="Row content"
+              description="Every row uses a fixed shape, so the front page stays consistent on phones and larger screens."
+              contentClassName="grid gap-4"
+            >
                 <div className="grid gap-2">
                   <FieldLabel
                     htmlFor="front-page-row-kind"
@@ -310,6 +351,35 @@ export function FrontPageRowDialog({
 
                 <div className="grid gap-2">
                   <FieldLabel
+                    htmlFor="front-page-row-alignment"
+                    hint={FRONT_PAGE_ROW_ALIGNMENT_HINTS[alignment]}
+                  >
+                    Alignment
+                  </FieldLabel>
+                  <Select
+                    value={alignment}
+                    onValueChange={(value) =>
+                      setAlignment(value as FrontPageRowAlignment)
+                    }
+                  >
+                    <SelectTrigger
+                      id="front-page-row-alignment"
+                      className="w-full sm:w-fit"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {FRONT_PAGE_ROW_ALIGNMENTS.map((value) => (
+                        <SelectItem key={value} value={value}>
+                          {FRONT_PAGE_ROW_ALIGNMENT_LABELS[value]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="grid gap-2">
+                  <FieldLabel
                     htmlFor="front-page-row-device"
                     hint={PUBLIC_DEVICE_HINTS[device]}
                   >
@@ -336,15 +406,7 @@ export function FrontPageRowDialog({
                     </SelectContent>
                   </Select>
                 </div>
-
-                <SettingsSwitchRow
-                  id="front-page-row-hidden"
-                  checked={hidden}
-                  onCheckedChange={setHidden}
-                  label="Hide this row from visitors"
-                />
-              </CardContent>
-            </Card>
+            </CollapsibleSettingsCard>
 
             <FrontPageRowContentEditor
               kind={kind}
@@ -372,6 +434,95 @@ export function FrontPageRowDialog({
               onLogosChange={setLogos}
               onScreenshotsChange={setScreenshots}
             />
+
+            <CollapsibleSettingsCard
+              size="sm"
+              storageId="front-page-row-visibility"
+              title="Visibility"
+              description="Switch off a part of the row to leave it out of the public page. The part keeps whatever you typed into it, so switching it back on brings the same words back."
+              contentClassName="grid gap-4"
+            >
+              <SettingsSwitchRow
+                id="front-page-row-hidden"
+                checked={hidden}
+                onCheckedChange={setHidden}
+                label="Hide this row from visitors"
+                hint="The whole row is left out of the page, words and all, so nothing in it can be read out of the page source."
+              />
+              <SettingsSwitchRow
+                id="front-page-row-show-heading"
+                checked={showHeading}
+                onCheckedChange={setShowHeading}
+                label="Show the heading"
+              />
+              <SettingsSwitchRow
+                id="front-page-row-show-intro"
+                checked={showIntro}
+                onCheckedChange={setShowIntro}
+                label="Show the introduction line"
+              />
+              {kind === "hero" ? (
+                <>
+                  <SettingsSwitchRow
+                    id="front-page-row-show-image"
+                    checked={showImage}
+                    onCheckedChange={setShowImage}
+                    label="Show the picture"
+                    hint="With the picture off, the words run across the page instead of sitting in one column."
+                  />
+                  <SettingsSwitchRow
+                    id="front-page-row-show-action"
+                    checked={showAction}
+                    onCheckedChange={setShowAction}
+                    label="Show the button or email box"
+                  />
+                  <SettingsSwitchRow
+                    id="front-page-row-show-stars"
+                    checked={showStars}
+                    onCheckedChange={setShowStars}
+                    label="Show the stars"
+                  />
+                  <SettingsSwitchRow
+                    id="front-page-row-show-note"
+                    checked={showNote}
+                    onCheckedChange={setShowNote}
+                    label="Show the line under the button"
+                  />
+                </>
+              ) : null}
+              {kind === "testimonials" ? (
+                <>
+                  <SettingsSwitchRow
+                    id="front-page-row-show-pictures"
+                    checked={showPictures}
+                    onCheckedChange={setShowPictures}
+                    label="Show each person's picture"
+                  />
+                  <SettingsSwitchRow
+                    id="front-page-row-show-roles"
+                    checked={showRoles}
+                    onCheckedChange={setShowRoles}
+                    label="Show each person's role"
+                  />
+                </>
+              ) : null}
+              {kind === "faq" ? (
+                <SettingsSwitchRow
+                  id="front-page-row-show-numbers"
+                  checked={showNumbers}
+                  onCheckedChange={setShowNumbers}
+                  label="Number the questions"
+                />
+              ) : null}
+              {kind === "screenshots" ? (
+                <SettingsSwitchRow
+                  id="front-page-row-show-captions"
+                  checked={showCaptions}
+                  onCheckedChange={setShowCaptions}
+                  label="Show the captions"
+                />
+              ) : null}
+            </CollapsibleSettingsCard>
           </DialogBody>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={requestClose}>
@@ -462,7 +613,18 @@ function buildDraft({
   intro,
   kind,
   layout,
+  alignment,
   hidden,
+  showHeading,
+  showIntro,
+  showImage,
+  showAction,
+  showStars,
+  showNote,
+  showPictures,
+  showRoles,
+  showNumbers,
+  showCaptions,
   device,
   heroAction,
   heroImage,
@@ -480,7 +642,18 @@ function buildDraft({
   intro: string
   kind: FrontPageRowKind
   layout: FrontPageRowLayout
+  alignment: FrontPageRowAlignment
   hidden: boolean
+  showHeading: boolean
+  showIntro: boolean
+  showImage: boolean
+  showAction: boolean
+  showStars: boolean
+  showNote: boolean
+  showPictures: boolean
+  showRoles: boolean
+  showNumbers: boolean
+  showCaptions: boolean
   device: PublicDevice
   heroAction: FrontPageHeroAction
   heroImage: string
@@ -494,7 +667,24 @@ function buildDraft({
   logos: FrontPageLogo[]
   screenshots: FrontPageScreenshot[]
 }): FrontPageRowDraft {
-  const base = { heading, intro, layout, hidden, device }
+  const base = {
+    heading,
+    intro,
+    layout,
+    alignment,
+    hidden,
+    showHeading,
+    showIntro,
+    showImage,
+    showAction,
+    showStars,
+    showNote,
+    showPictures,
+    showRoles,
+    showNumbers,
+    showCaptions,
+    device,
+  }
   if (kind === "hero") {
     return {
       ...base,

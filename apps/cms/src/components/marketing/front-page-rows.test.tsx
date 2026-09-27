@@ -219,4 +219,62 @@ describe("front page content blocks", () => {
       ])[0]
     ).toMatchObject({ buttonLabel: "Press", buttonHref: "/register" })
   })
+
+  it("gives a row its own alignment and leaves switched-off parts out", () => {
+    const rows = normalizeFrontPageRows([
+      {
+        id: "hero",
+        heading: "Open your shop this week",
+        intro: "Nobody should read this line.",
+        kind: "hero",
+        alignment: "center",
+        image: "https://media.example.test/shop.png",
+        alt: "The shop",
+        buttonLabel: "Press",
+        buttonHref: "/register",
+        note: "Trusted by 200 shops",
+        stars: 4,
+        showIntro: false,
+        showImage: false,
+        showAction: false,
+        showStars: false,
+        showNote: false,
+      },
+      {
+        id: "faq",
+        heading: "Common questions",
+        kind: "faq",
+        showNumbers: false,
+        items: [
+          {
+            id: "price",
+            question: "How much does it cost?",
+            answer: "Choose the plan that fits.",
+          },
+        ],
+      },
+    ])
+    const markup = renderToStaticMarkup(
+      <FrontPageRows
+        rows={rows}
+        plans={[]}
+        trialUsed={false}
+        interval="monthly"
+        onIntervalChange={vi.fn()}
+        onSelectPlan={vi.fn()}
+      />
+    )
+
+    expect(rows[0]).toMatchObject({ alignment: "center", showImage: false })
+    expect(rows[1]).toMatchObject({ alignment: "inherit", showNumbers: false })
+    expect(markup).toContain('data-front-page-alignment="center"')
+    expect(markup).toContain("justify-self-center")
+    expect(markup).toContain("Open your shop this week")
+    expect(markup).not.toContain("Nobody should read this line.")
+    expect(markup).not.toContain("The shop")
+    expect(markup).not.toContain("Press")
+    expect(markup).not.toContain("Trusted by 200 shops")
+    expect(markup).not.toContain("Q1")
+    expect(markup).toContain("How much does it cost?")
+  })
 })

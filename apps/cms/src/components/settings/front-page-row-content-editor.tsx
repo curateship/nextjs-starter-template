@@ -1,15 +1,9 @@
 import type { ReactNode } from "react"
 import { PlusIcon, Trash2Icon } from "lucide-react"
 
+import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { ImageUpload } from "@/components/shared/image-upload"
 import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
@@ -87,23 +81,32 @@ export function FrontPageRowContentEditor(
   return null
 }
 
+/**
+ * Every card in the row window collapses, so a row with a long list of
+ * testimonials or FAQ entries can be folded away while its settings above are
+ * edited. The open or closed choice is remembered per card in this browser.
+ */
 function EditorCard({
+  storageId,
   title,
   description,
   children,
 }: {
+  storageId: string
   title: string
   description: string
   children: ReactNode
 }) {
   return (
-    <Card size="sm">
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-4">{children}</CardContent>
-    </Card>
+    <CollapsibleSettingsCard
+      size="sm"
+      storageId={storageId}
+      title={title}
+      description={description}
+      contentClassName="grid gap-4"
+    >
+      {children}
+    </CollapsibleSettingsCard>
   )
 }
 
@@ -188,6 +191,7 @@ function HeroEditor({
 }: FrontPageRowContentEditorProps) {
   return (
     <EditorCard
+      storageId="front-page-row-hero"
       title="Hero"
       description="The heading and introduction above are the hero's words. Everything here sits under them."
     >
@@ -330,6 +334,7 @@ function TestimonialsEditor({
 }: FrontPageRowContentEditorProps) {
   return (
     <EditorCard
+      storageId="front-page-row-testimonials"
       title="Testimonials"
       description="Add customer quotes. A name and quote are required; the role and picture are optional."
     >
@@ -452,6 +457,7 @@ function FaqEditor({
 }: FrontPageRowContentEditorProps) {
   return (
     <EditorCard
+      storageId="front-page-row-faq-entries"
       title="FAQ entries"
       description="Each entry needs both a question and its answer."
     >
@@ -534,6 +540,7 @@ function LogosEditor({
 }: FrontPageRowContentEditorProps) {
   return (
     <EditorCard
+      storageId="front-page-row-logos"
       title="Logos"
       description="Choose each logo from the media library and give it a name for screen readers."
     >
@@ -618,6 +625,7 @@ function ScreenshotsEditor({
 }: FrontPageRowContentEditorProps) {
   return (
     <EditorCard
+      storageId="front-page-row-screenshots"
       title="Screenshots"
       description="Choose product images from the media library and explain each one with a caption."
     >

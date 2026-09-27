@@ -65,6 +65,16 @@ whole number of pixels from 0 to 400 and only applies from 1024px up, where the
 menu words are in the bar. The front page can open with a hero row, its blocks
 share one vertical spacing, and the plan cards and the FAQ are the shell's.
 
+Each front page row chooses where it sits across the page and which of its
+parts a visitor sees. Alignment offers Follow the site, Left, Centred and
+Right, and Follow the site reads CMS's own Content alignment setting, so no
+row moved when this arrived. The row window is three cards that all fold away,
+Row content, the card for the row's kind, then Visibility at the bottom, and
+Visibility holds Hide this row from visitors plus a switch for the heading, the
+introduction, and the parts that belong to that kind. These are the shell's
+app-wide front page rows, not the per-site directory rows, which have their own
+editor and are untouched by this.
+
 The public site can read its headings in Libre Baskerville. The face is
 self-hosted in `public/fonts/`, alongside Inter, under the SIL Open Font
 License, and `src/theme.css` declares it. A shell merge that changes the fonts
