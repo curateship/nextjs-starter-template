@@ -53,6 +53,8 @@ was visited:
   deployment's own sign-up block, which on somebody else's website is an advert
   for software they did not come for. That block still draws on the
   deployment's own address and in a one-site app, where it is the right answer.
+  There is no limit on how many rows a front page has, from the same day: only
+  the stored list's own bound of 500, which nobody meets by adding rows.
 
 Everything else on a public page — the header's layout, the breadcrumbs, the
 footer's social accounts, the SEO fields, the fonts — is one answer for the

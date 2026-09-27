@@ -90,7 +90,17 @@ export const FRONT_PAGE_ROW_ALIGNMENT_HINTS: Record<
   right: "This row sits on the right, whatever the site setting says.",
 }
 
-export const MAX_FRONT_PAGE_ROWS = 6
+/**
+ * How many rows one settings save may carry, which is not a limit on how many
+ * a front page has — there is none. A page held six until 27 Sep 2026, when
+ * Tyler took the cap off: drawing a row costs nothing, and the only thing the
+ * number guarded was how much the page reads, which each row's own limits
+ * already hold down.
+ *
+ * Left as a bound on one request and on one stored list, so neither can be any
+ * length at all.
+ */
+export const MAX_FRONT_PAGE_ROWS = 500
 export const MAX_FRONT_PAGE_ROW_ID_LENGTH = 96
 export const MAX_FRONT_PAGE_ROW_HEADING_LENGTH = 120
 export const MAX_FRONT_PAGE_ROW_INTRO_LENGTH = 500
@@ -134,8 +144,6 @@ export const FRONT_PAGE_HERO_ACTION_HINTS: Record<
 export const FRONT_PAGE_ROW_HEADING_MESSAGE = "Give the row a heading."
 export const FRONT_PAGE_HERO_LINK_MESSAGE =
   "A button link starts with /, https://, mailto: or tel:."
-export const FRONT_PAGE_ROWS_FULL_MESSAGE =
-  `A front page can have ${MAX_FRONT_PAGE_ROWS} rows. Delete one before adding another.`
 
 type FrontPageRowBase = {
   id: string

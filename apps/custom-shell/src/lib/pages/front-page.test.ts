@@ -149,25 +149,35 @@ describe("front page rows", () => {
     expect(new Set(rows.map((row) => row.id)).size).toBe(2)
   })
 
-  it("keeps at most six usable rows", () => {
+  /**
+   * A front page held six rows until 27 Sep 2026, when Tyler took the cap off.
+   * A row with no heading is still dropped, and the stored list is still
+   * bounded so a hand-edited settings row cannot be any length at all.
+   */
+  it("keeps every usable row, and drops the ones with no heading", () => {
     const rows = normalizeFrontPageRows([
       { heading: "" },
-      ...Array.from({ length: MAX_FRONT_PAGE_ROWS + 2 }, (_, index) => ({
+      ...Array.from({ length: 10 }, (_, index) => ({
         id: `row-${index}`,
         heading: `Row ${index}`,
       })),
     ])
 
-    expect(rows).toHaveLength(MAX_FRONT_PAGE_ROWS)
-    expect(rows.map((row) => row.heading)).toEqual([
-      "Row 0",
-      "Row 1",
-      "Row 2",
-      "Row 3",
-      "Row 4",
-      "Row 5",
-    ])
+    expect(rows.map((row) => row.heading)).toEqual(
+      Array.from({ length: 10 }, (_, index) => `Row ${index}`)
+    )
     expect(frontPageHasPlans(rows)).toBe(false)
+  })
+
+  it("stops at the stored list's own bound", () => {
+    const rows = normalizeFrontPageRows(
+      Array.from({ length: MAX_FRONT_PAGE_ROWS + 5 }, (_, index) => ({
+        id: `row-${index}`,
+        heading: `Row ${index}`,
+      }))
+    )
+
+    expect(rows).toHaveLength(MAX_FRONT_PAGE_ROWS)
   })
 
   it("normalizes every fixed content kind and keeps its entry order", () => {

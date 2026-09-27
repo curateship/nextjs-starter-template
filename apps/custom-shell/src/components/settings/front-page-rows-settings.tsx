@@ -22,7 +22,6 @@ import {
 } from "@/components/settings/nav-editor-shared"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import { DisabledReason } from "@/components/ui/disabled-reason"
 import { PUBLIC_DEVICE_LABELS } from "@/lib/pages/public-device"
 import { appFrontPageRowKind } from "@/lib/app-options"
 import {
@@ -30,8 +29,6 @@ import {
   FRONT_PAGE_ROW_ALIGNMENT_LABELS,
   FRONT_PAGE_ROW_KIND_LABELS,
   FRONT_PAGE_ROW_LAYOUT_LABELS,
-  FRONT_PAGE_ROWS_FULL_MESSAGE,
-  MAX_FRONT_PAGE_ROWS,
   type FrontPageRow,
   type FrontPageRowDraft,
 } from "@/lib/pages/front-page"
@@ -50,7 +47,6 @@ export function FrontPageRowsSettings({
   const [pendingDelete, setPendingDelete] =
     React.useState<FrontPageRow | null>(null)
   const ids = rows.map((row) => row.id)
-  const full = rows.length >= MAX_FRONT_PAGE_ROWS
 
   const handleDragEnd = (event: DragEndEvent) => {
     if (!event.over || event.active.id === event.over.id) return
@@ -115,17 +111,14 @@ export function FrontPageRowsSettings({
         )}
 
         <div>
-          <DisabledReason disabled={full} reason={FRONT_PAGE_ROWS_FULL_MESSAGE}>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={full}
-              onClick={() => setEditing(null)}
-            >
-              <PlusIcon className="size-4" />
-              Add row
-            </Button>
-          </DisabledReason>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setEditing(null)}
+          >
+            <PlusIcon className="size-4" />
+            Add row
+          </Button>
         </div>
       </CollapsibleSettingsCard>
 
