@@ -27,6 +27,7 @@ import {
 } from "@/lib/brand-image"
 import { FAVICON_MODES, type PublicFaviconSet } from "@/lib/favicon"
 import {
+  FRONT_PAGE_ROW_ALIGNMENTS,
   FRONT_PAGE_ROW_LAYOUTS,
   MAX_FRONT_PAGE_FAQ_ANSWER_LENGTH,
   MAX_FRONT_PAGE_FAQ_ITEMS,
@@ -400,7 +401,20 @@ const frontPageRowBaseShape = {
   heading: z.string().max(MAX_FRONT_PAGE_ROW_HEADING_LENGTH),
   intro: z.string().max(MAX_FRONT_PAGE_ROW_INTRO_LENGTH),
   layout: z.enum(FRONT_PAGE_ROW_LAYOUTS),
+  // Defaulted so a settings tab opened before these existed still saves, and
+  // saves the row as it already looked.
+  alignment: z.enum(FRONT_PAGE_ROW_ALIGNMENTS).default("inherit"),
   hidden: z.boolean(),
+  showHeading: z.boolean().default(true),
+  showIntro: z.boolean().default(true),
+  showImage: z.boolean().default(true),
+  showAction: z.boolean().default(true),
+  showStars: z.boolean().default(true),
+  showNote: z.boolean().default(true),
+  showPictures: z.boolean().default(true),
+  showRoles: z.boolean().default(true),
+  showNumbers: z.boolean().default(true),
+  showCaptions: z.boolean().default(true),
   device: z.enum(PUBLIC_DEVICES),
 }
 

@@ -5,7 +5,12 @@ import {
   FrontPageScreenshots,
   FrontPageTestimonials,
 } from "@/components/marketing/front-page-content-blocks"
-import { publicContentAlignmentGridClassName } from "@/components/shell/public-content-alignment"
+import {
+  publicContentAlignmentGridClassName,
+  publicContentAlignmentJustifyClassNames,
+  publicContentAlignmentRowClassName,
+  publicContentAlignmentSelfClassNames,
+} from "@/components/shell/public-content-alignment"
 import { PricingTable } from "@/components/shared/pricing-table"
 import type { PlanOption } from "@/lib/api/billing/billing"
 import type { BillingInterval } from "@/lib/billing/pricing-choice"
@@ -40,6 +45,15 @@ export function FrontPageRows({
         // The first row is what a visitor sees before scrolling, so its
         // pictures load with the page. Every row after it waits to be reached.
         const eager = index === 0
+        // A row either follows the site's content alignment, in which case its
+        // children read it off the public content column, or it sets its own,
+        // in which case it places itself in that column too.
+        const alignment = row.alignment === "inherit" ? null : row.alignment
+        const alignClassName = alignment
+          ? publicContentAlignmentJustifyClassNames[alignment]
+          : publicContentAlignmentRowClassName
+        const showHeading = row.showHeading
+        const showIntro = Boolean(row.intro) && row.showIntro
 
         return (
           <section
@@ -49,27 +63,31 @@ export function FrontPageRows({
               // one, so they sit further apart than the lines inside either.
               "flex w-full flex-col gap-6 md:gap-8",
               row.layout === "narrow" && "max-w-3xl",
+              alignment ? publicContentAlignmentSelfClassNames[alignment] : null,
               publicDeviceRowClassName(row.device)
             )}
             data-front-page-row={row.kind}
             data-front-page-layout={row.layout}
             data-front-page-device={row.device}
+            data-front-page-alignment={row.alignment}
           >
             {/* A hero draws its own heading, at its own size and beside the
                 picture. Every other row puts the heading above its content. */}
-            {row.kind === "hero" ? null : (
+            {row.kind === "hero" || (!showHeading && !showIntro) ? null : (
               <header className="grid gap-2">
-                <Heading
-                  className={cn(
-                    "font-semibold tracking-tight text-balance",
-                    index === 0
-                      ? "text-3xl md:text-4xl"
-                      : "text-2xl md:text-3xl"
-                  )}
-                >
-                  {row.heading}
-                </Heading>
-                {row.intro ? (
+                {showHeading ? (
+                  <Heading
+                    className={cn(
+                      "font-semibold tracking-tight text-balance",
+                      index === 0
+                        ? "text-3xl md:text-4xl"
+                        : "text-2xl md:text-3xl"
+                    )}
+                  >
+                    {row.heading}
+                  </Heading>
+                ) : null}
+                {showIntro ? (
                   <p className="text-base text-muted-foreground md:text-lg">
                     {row.intro}
                   </p>
@@ -82,7 +100,7 @@ export function FrontPageRows({
                 heading={row.heading}
                 intro={row.intro}
                 action={row.action}
-                image={row.image}
+                image={row.showImage ? row.image : ""}
                 alt={row.alt}
                 buttonLabel={row.buttonLabel}
                 buttonHref={row.buttonHref}
@@ -90,6 +108,12 @@ export function FrontPageRows({
                 stars={row.stars}
                 headingLevel={index === 0 ? "h1" : "h2"}
                 eager={eager}
+                alignClassName={alignClassName}
+                showHeading={showHeading}
+                showIntro={showIntro}
+                showAction={row.showAction}
+                showStars={row.showStars}
+                showNote={row.showNote}
               />
             ) : row.kind === "plans" ? (
               <PricingTable
@@ -101,13 +125,27 @@ export function FrontPageRows({
                 actionLabel="Get started"
               />
             ) : row.kind === "testimonials" ? (
-              <FrontPageTestimonials items={row.items} />
+              <FrontPageTestimonials
+                items={row.items}
+                alignClassName={alignClassName}
+                showPictures={row.showPictures}
+                showRoles={row.showRoles}
+              />
             ) : row.kind === "faq" ? (
-              <FrontPageFaq items={row.items} />
+              <FrontPageFaq items={row.items} showNumbers={row.showNumbers} />
             ) : row.kind === "logos" ? (
-              <FrontPageLogos items={row.items} eager={eager} />
+              <FrontPageLogos
+                items={row.items}
+                eager={eager}
+                alignClassName={alignClassName}
+              />
             ) : row.kind === "screenshots" ? (
-              <FrontPageScreenshots items={row.items} eager={eager} />
+              <FrontPageScreenshots
+                items={row.items}
+                eager={eager}
+                alignClassName={alignClassName}
+                showCaptions={row.showCaptions}
+              />
             ) : null}
           </section>
         )

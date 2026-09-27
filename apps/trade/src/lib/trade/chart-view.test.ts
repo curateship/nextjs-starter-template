@@ -42,6 +42,25 @@ describe("reading what the chart is showing", () => {
     expect(now?.marginBottom).toBeCloseTo(5 / 30, 5)
   })
 
+  it("measures the same squash on a chart turned upside down", () => {
+    // The same chart flipped: $85 is now at the top edge and $115 at the
+    // bottom, with the $90 low the nearest candle price to the top. The
+    // shares of the height are the ones the upright chart read.
+    const flipped = viewOf({
+      ...showing,
+      top: 85,
+      bottom: 115,
+      inverted: true,
+    })
+    expect(flipped?.marginTop).toBeCloseTo(5 / 30, 5)
+    expect(flipped?.marginBottom).toBeCloseTo(5 / 30, 5)
+    expect(flipped?.bars).toBe(100)
+  })
+
+  it("refuses a flipped reading taken the upright way round", () => {
+    expect(viewOf({ ...showing, inverted: true })).toBeNull()
+  })
+
   it("notices being scrolled back through history", () => {
     expect(viewOf({ ...showing, range: { from: 349, to: 449 } })?.gap).toBe(50)
   })

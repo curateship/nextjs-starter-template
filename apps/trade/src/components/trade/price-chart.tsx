@@ -383,6 +383,11 @@ export function PriceChart({
       })
     }
     volumeSeriesRef.current?.applyOptions({ visible: options.volume })
+    // The flip. On the price scale rather than the series, so every layer
+    // asking the surface where a price lands gets the flipped answer without
+    // knowing the chart is flipped at all. Volume keeps its own scale and so
+    // keeps growing up from the bottom.
+    chart.applyOptions({ rightPriceScale: { invertScale: options.invert } })
     // The clock. Applied in place like everything else here — a chart rebuilt
     // to change a label would throw away the zoom somebody set.
     chart.applyOptions(clockOptions(options.zone))
@@ -494,6 +499,7 @@ export function PriceChart({
       bottom,
       high: extent.high,
       low: extent.low,
+      inverted: optionsRef.current.invert,
     })
   }, [])
   React.useEffect(() => {
@@ -599,7 +605,10 @@ export function PriceChart({
               ? CrosshairMode.Normal
               : CrosshairMode.Hidden,
           },
-          rightPriceScale: { borderColor: colors.border },
+          rightPriceScale: {
+            borderColor: colors.border,
+            invertScale: optionsRef.current.invert,
+          },
           timeScale: { borderColor: colors.border, timeVisible: true },
         })
         // The clock the times on it are read against. Applied here as well as in

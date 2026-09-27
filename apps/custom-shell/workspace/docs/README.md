@@ -42,6 +42,7 @@ local setup docs.
 - [Public pages, search, and SEO](content/public-pages-search-and-seo.md)
 - [Public page load errors](content/public-page-load-errors.md)
 - [Hiding a row, and choosing its screens](content/showing-and-hiding-public-things.md)
+- [Alignment and parts of a front page row](content/front-page-row-alignment-and-parts.md)
 
 ## Email and notifications
 
