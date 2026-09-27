@@ -22,6 +22,7 @@ import {
   DashboardPanels,
   type DashboardBlock,
 } from "@/components/shared/dashboard/dashboard-panels"
+import { dashboardCardTabClassName } from "@/components/shared/dashboard-card-header"
 import { CardHeaderRow, CardTop, EmptyRow, FeedCard } from "@/components/shared/feed-card"
 import { ActivityCard } from "@/components/shared/dashboard/activity-card"
 import { SampleValue } from "@/components/shared/dashboard/sample-figure"
@@ -46,8 +47,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Tabs, TabsContent } from "@/components/ui/tabs"
-import { UnderlineTab, UnderlineTabsList } from "@/components/ui/underline-tabs"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 import {
   AUTOMATION_RUNS_CAPTION,
@@ -76,7 +76,6 @@ import {
 } from "@/lib/billing/membership-figures"
 import { cancellationReasonLabel } from "@/lib/billing/cancellation"
 import { percentChange } from "@/lib/format/percent-change"
-import { plural } from "@/lib/format/plural"
 import { cn } from "@/lib/utils"
 
 /**
@@ -244,10 +243,6 @@ function buildOverviewFigures({
       changeCaption: "vs last week",
       changeNote: "None the week before",
       trend: feeds.feedback.last30Days,
-      footer: `${feeds.feedback.noReply.toLocaleString()} with no reply`,
-      // Feedback nobody has answered is the one thing on this row waiting on
-      // the admin, so it stands out while there is any.
-      footerTone: feeds.feedback.noReply > 0 ? "warning" : undefined,
     },
   ]
 }
@@ -284,8 +279,6 @@ function PeopleCard({
   className?: string
 }) {
   const [tab, setTab] = React.useState<PeopleTab>("joining")
-  const { membership } = overview
-  const everyone = membership.revenue.totalUsers
   const current = PEOPLE_TABS.find((entry) => entry.value === tab) ?? PEOPLE_TABS[0]
 
   return (
@@ -295,31 +288,18 @@ function PeopleCard({
         value={tab}
         onValueChange={(value) => setTab(value as PeopleTab)}
       >
-        <CardHeaderRow
-          icon={current.icon}
-          title={current.title}
-          // Dropped rather than truncating the heading once the tabs and this
-          // count no longer both fit — which is most widths in this column.
-          metaClassName="hidden 2xl:flex"
-          meta={
-            tab === "joining"
-              ? `${membership.newLastMonth.toLocaleString()} last month`
-              : tab === "leaving"
-                ? `${overview.scheduledCancellations.length.toLocaleString()} shown`
-              : `${everyone.toLocaleString()} ${plural(everyone, "account")} in all`
-          }
-        >
-          {/* `-mb-px` so the line under the chosen tab lands on the card's own
-              hairline rather than a pixel above it. */}
-          <UnderlineTabsList className="-mb-px">
+        <CardHeaderRow icon={current.icon} title={current.title}>
+          <TabsList>
             {PEOPLE_TABS.map((entry) => (
-              <UnderlineTab
+              <TabsTrigger
                 key={entry.value}
                 value={entry.value}
-                label={entry.tab}
-              />
+                className={dashboardCardTabClassName}
+              >
+                {entry.tab}
+              </TabsTrigger>
             ))}
-          </UnderlineTabsList>
+          </TabsList>
         </CardHeaderRow>
 
         <TabsContent value="joining" className="flex min-h-0 flex-col">
@@ -653,7 +633,6 @@ function AutomationsCard({
       <CardTop
         icon={WorkflowIcon}
         title="Automations"
-        meta={`${automations.length} in all`}
         action={
           <Button asChild variant="outline">
             <Link to="/admin/automations">Manage</Link>

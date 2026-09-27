@@ -76,7 +76,7 @@ export function MediaThumbnail({
         <>
           <video
             src={videoPosterSrc(url)}
-            className={cn("h-full w-full", fitClass)}
+            className={cn("h-full min-h-0 w-full", fitClass)}
             preload="metadata"
             muted
             playsInline
@@ -94,7 +94,10 @@ export function MediaThumbnail({
           srcSet={sizes ? mediaImageSrcSet(url) : undefined}
           sizes={sizes}
           alt={alt}
-          className={cn("h-full w-full", fitClass)}
+          // `min-h-0` because a grid item's own minimum height is the
+          // picture's natural height. A tall picture in a wide box would
+          // otherwise push past the box and get cut off instead of fitting.
+          className={cn("h-full min-h-0 w-full", fitClass)}
           // A grid of these is mostly below the fold. Left to itself the browser
           // starts every original at once; asked to wait, it fetches a tile when
           // the tile is scrolled to. The box is already sized by its caller, so

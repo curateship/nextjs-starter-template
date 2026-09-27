@@ -98,6 +98,11 @@ afterAll(() => {
 })
 
 describe("public site branding", () => {
+  /**
+   * A site is branded with one picture, the way the app is. Its tab icon, its
+   * dark version and its sizes are made from that logo when it is saved, so
+   * there is no separate favicon to set and none to read.
+   */
   it("keeps each site's images when the app enables site branding", async () => {
     workspaceOptions.siteBranding = true
     const timestamp = now()
@@ -110,7 +115,6 @@ describe("public site branding", () => {
     await insertWorkspace(database, {
       name: "Alpha", subdomain: "alpha",
       settings: {
-        favicon: "https://media.example.test/alpha-icon.png",
         logo: "https://media.example.test/alpha.png",
         logoDark: "https://media.example.test/alpha-dark.png",
         shareImage: "https://media.example.test/alpha-share.png",
@@ -119,21 +123,25 @@ describe("public site branding", () => {
     await insertWorkspace(database, { name: "Beta", subdomain: "beta" })
     request.host = "alpha.localhost:3002"
     expect(await readBranding(database as unknown as CustomShellDb)).toMatchObject({
-      favicon: "https://media.example.test/alpha-icon.png",
+      // The logo is the tab picture too.
+      favicon: "https://media.example.test/alpha.png",
       faviconSet: null,
       logo: "https://media.example.test/alpha.png",
       logoDark: "https://media.example.test/alpha-dark.png",
       shareImage: "https://media.example.test/alpha-share.png",
     })
+    // Beta has uploaded nothing, so it is drawn with its name rather than with
+    // the deployment's logo. That picture belongs to the sign-in pages at the
+    // platform's own address, and a website nobody branded is not the place for
+    // somebody else's brand.
     request.host = "beta.localhost:3002"
     expect(await readBranding(database as unknown as CustomShellDb)).toMatchObject({
-      logo: "https://media.example.test/default.png",
-      logoDark: "", shareImage: "",
+      logo: "", logoDark: "", favicon: "", shareImage: "",
     })
   })
 
 
-  it("carries the app-wide public header layout into public branding", async () => {
+  it("carries the app-wide public header layout and user panel into public branding", async () => {
     const timestamp = now()
     await database.insert(customShellSettings).values({
       key: DEFAULT_SETTINGS_KEY,
@@ -142,6 +150,10 @@ describe("public site branding", () => {
           sticky: true,
           menuAlignment: "center",
           logoSize: "small",
+        },
+        publicUserPanel: {
+          login: { label: "Log in", href: "/login", style: "ghost" },
+          links: [{ id: "profile", label: "Profile", href: "/account" }],
         },
       },
       createdAt: timestamp,
@@ -154,7 +166,19 @@ describe("public site branding", () => {
       sticky: true,
       menuAlignment: "center",
       logoSize: "small",
+      fullWidth: false,
+      width: null,
+      blur: "medium",
+      logoGap: 0,
     })
+    expect(branding.publicUserPanel.login).toMatchObject({
+      label: "Log in",
+      style: "ghost",
+    })
+    expect(branding.publicUserPanel.register.label).toBe("Create an account")
+    expect(branding.publicUserPanel.links).toEqual([
+      { id: "profile", label: "Profile", href: "/account", icon: "" },
+    ])
     expect(
       shellGlobalsForWrite({
         publicHeader: {
@@ -167,6 +191,10 @@ describe("public site branding", () => {
       sticky: true,
       menuAlignment: "center",
       logoSize: "large",
+      fullWidth: false,
+      width: null,
+      blur: "medium",
+      logoGap: 0,
     })
   })
 
@@ -196,7 +224,8 @@ describe("public site branding", () => {
     const branding = await readBranding(database as unknown as CustomShellDb)
 
     expect(branding.publicNavigation).toEqual([
-      { type: "search", visible: true },
+      // The search item left the public menu for the header's Action items row
+      // in 32c6c98fa, so a saved menu holds only what the admin put in it.
       { label: "About", href: "/about" },
     ])
     expect(branding.publicFooter).toEqual([
@@ -522,4 +551,47 @@ describe("public site branding", () => {
       radius: 4,
     })
   })
+
+  /**
+   * The front page belongs to the site whose address was visited, the same as
+   * the menu and the footer. One app-wide set of rows would open every site
+   * with the first one's hero.
+   */
+  it("gives each site its own front page rows", async () => {
+    const timestamp = now()
+    await database.insert(customShellSettings).values({
+      key: DEFAULT_SETTINGS_KEY,
+      settings: {
+        frontPageRows: [
+          { id: "app-wide", heading: "The deployment's own", kind: "text" },
+        ],
+      },
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+    await insertWorkspace(database, {
+      name: "Alpha",
+      subdomain: "alpha",
+      settings: {
+        frontPageRows: [
+          { id: "alpha-hero", heading: "Alpha's hero", kind: "text" },
+        ],
+      },
+    })
+    await insertWorkspace(database, { name: "Beta", subdomain: "beta" })
+
+    request.host = "alpha.localhost:3002"
+    const alpha = await readBranding(database as unknown as CustomShellDb)
+    expect(alpha.frontPageRows.map((row) => row.heading)).toEqual([
+      "Alpha's hero",
+    ])
+
+    // Beta has built none, so it has no front page of its own rather than
+    // Alpha's or the deployment's.
+    request.host = "beta.localhost:3002"
+    const beta = await readBranding(database as unknown as CustomShellDb)
+    expect(beta.frontPageRows).toEqual([])
+  })
+
+
 })

@@ -733,7 +733,7 @@ describe("stripe webhooks", () => {
               {
                 price: { id: "price_pro_monthly" },
                 current_period_end: Math.floor(
-                  new Date("2026-09-01").getTime() / 1_000
+                  new Date("2099-01-01").getTime() / 1_000
                 ),
               },
             ],
@@ -1386,7 +1386,7 @@ describe("billing history", () => {
               {
                 price: { id: price },
                 current_period_end: Math.floor(
-                  new Date("2026-09-01").getTime() / 1_000
+                  new Date("2099-01-01").getTime() / 1_000
                 ),
               },
             ],

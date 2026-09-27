@@ -39,8 +39,6 @@ export type StatFigure = {
   trend?: number[]
   /** The small facts under the dashed line. Several sit side by side. */
   footer?: React.ReactNode | React.ReactNode[]
-  /** Colours the facts, for a figure that is asking for someone to act. */
-  footerTone?: "warning"
 }
 
 /**
@@ -172,14 +170,7 @@ function StatFigureCell({
       ) : null}
 
       {hasFooter ? (
-        <div
-          className={cn(
-            "mt-4 flex min-w-0 flex-wrap gap-x-4 gap-y-1 border-t border-dashed pt-4 text-sm",
-            figure.footerTone === "warning"
-              ? "text-orange-700 dark:text-orange-400"
-              : "text-foreground/80"
-          )}
-        >
+        <div className="mt-4 flex min-w-0 flex-wrap gap-x-4 gap-y-1 border-t border-dashed pt-4 text-sm text-foreground/80">
           {footer.map((item, index) =>
             item == null || item === "" ? null : (
               <span key={index} className="whitespace-nowrap">

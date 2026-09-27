@@ -25,6 +25,10 @@ import {
   type PublicBreadcrumbs,
 } from "@/lib/pages/public-breadcrumbs"
 import {
+  createDefaultPublicUserPanel,
+  type PublicUserPanel,
+} from "@/lib/pages/public-user-panel"
+import {
   createDefaultPublicSeo,
   createDefaultPublicSystemCopy,
   DEFAULT_SOCIAL_CARD_TYPE,
@@ -32,10 +36,19 @@ import {
   type PublicSystemCopy,
   type SocialCardType,
 } from "@/lib/pages/public-metadata"
-import { createDefaultPublicTheme, type PublicTheme } from "@/lib/public-theme"
+import {
+  createDefaultPublicTheme,
+  publicThemeColorProblem,
+  type PublicTheme,
+} from "@/lib/public-theme"
 import type { PublicThemePreset } from "@/lib/public-theme-presets"
 import type { PublicFontAsset } from "@/lib/public-font"
 import type { FrontPageRow } from "@/lib/pages/front-page"
+import type { PublicSocialLink } from "@/lib/pages/public-social"
+import {
+  createDefaultPublicHeaderActions,
+  type PublicHeaderAction,
+} from "@/lib/pages/public-header-actions"
 import {
   DEFAULT_FAVICON_MODE,
   type FaviconMode,
@@ -446,9 +459,8 @@ export type ShellConfig = {
   /** App-wide browser-tab image selected from the media library. */
   favicon: string
   /** Image overrides for the current site. Empty uses app-wide branding. */
-  workspaceFavicon: string
+  /** The one picture this site is branded with, or empty to use the app's. */
   workspaceLogo: string
-  workspaceLogoDark: string
   workspaceShareImage: string
   /** Optional app-wide browser-tab image for dark browser chrome. */
   faviconDark: string
@@ -488,12 +500,17 @@ export type ShellConfig = {
   publicNavigation: PublicNavigationItem[]
   /** App-wide on one-site apps; saved per workspace when domains enable multisite. */
   publicFooter: PublicNavigationLink[]
+  publicFooterSocial: PublicSocialLink[]
+  /** The order of the controls at the right of the public header. */
+  publicHeaderActions: PublicHeaderAction[]
   /** The short line shown beneath the public footer links. */
   publicFooterCopyright: string
   /** App-wide layout choices for the signed-out header. */
   publicHeader: PublicHeader
   /** Which kinds of public page show the "Home / Page" trail. */
   publicBreadcrumbs: PublicBreadcrumbs
+  /** The public header's Sign in and Register buttons and signed-in links. */
+  publicUserPanel: PublicUserPanel
   /** Public font and corners, plus the active public site's brand colour. */
   publicTheme: PublicTheme
   /** The admin's own saved public looks, applied from the Styling tab. */
@@ -649,7 +666,8 @@ export function normalizeAutomationPause(value: unknown): ShellAutomationPause {
 
 
 // ---------------------------------------------------------------------------
-// Session policy (Settings → Security). App-wide like maintenance mode, and
+// Session policy (the Sessions card on General settings). App-wide like
+// maintenance mode, and
 // written only by its own confirmed save (server/auth/session-policy.ts) — never by
 // the settings page's auto-save, so a stale page cannot quietly loosen it.
 
@@ -725,6 +743,30 @@ export function createDefaultTopRightNavigation(
   ]
 }
 
+/**
+ * Why the settings auto-save is refusing to write, worded as the end of the
+ * header's "Not saved" line, or null when it will write. Two things stop it: a
+ * workspace name the server rejects, and a half-typed colour the public site
+ * could not render. Both are edited on one tab and break saving on every tab,
+ * so the header is the only warning that reaches the person who broke it.
+ */
+export function shellConfigSaveRefusal(config: ShellConfig): string | null {
+  if (!config.workspaceName.trim()) {
+    return "add a workspace name"
+  }
+  const colour = publicThemeColorProblem(config.publicTheme)
+  return colour ? `fix the ${colour} on Public \u2192 Styling` : null
+}
+
+/**
+ * The same refusal turned into its own sentence, for a toast on a button whose
+ * work depended on that save. A button that ran, spun and changed nothing is
+ * worse than one that says why.
+ */
+export function shellConfigSaveRefusalSentence(refusal: string): string {
+  return `${refusal.charAt(0).toUpperCase()}${refusal.slice(1)} first.`
+}
+
 export function createDefaultShellConfig(): ShellConfig {
   return {
     appName: "",
@@ -736,9 +778,7 @@ export function createDefaultShellConfig(): ShellConfig {
     adminRoute: "",
     memberHomeRoute: "",
     favicon: "",
-    workspaceFavicon: "",
     workspaceLogo: "",
-    workspaceLogoDark: "",
     workspaceShareImage: "",
     faviconDark: "",
     faviconSet: null,
@@ -754,9 +794,12 @@ export function createDefaultShellConfig(): ShellConfig {
     frontPageRows: [],
     publicNavigation: createDefaultPublicNavigation(),
     publicFooter: [],
+    publicFooterSocial: [],
+    publicHeaderActions: createDefaultPublicHeaderActions(),
     publicFooterCopyright: "",
     publicHeader: createDefaultPublicHeader(),
     publicBreadcrumbs: createDefaultPublicBreadcrumbs(),
+    publicUserPanel: createDefaultPublicUserPanel(),
     publicTheme: createDefaultPublicTheme(),
     publicThemePresets: [],
     publicFont: null,

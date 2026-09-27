@@ -19,12 +19,57 @@ import {
 export const PUBLIC_THEME_FONTS = ["system", "inter", "serif", "mono"] as const
 export type PublicThemeFont = (typeof PUBLIC_THEME_FONTS)[number]
 
+export const PUBLIC_THEME_HEADING_FONTS = [
+  "match",
+  "baskerville",
+  "inter",
+  "serif",
+  "mono",
+] as const
+export type PublicThemeHeadingFont =
+  (typeof PUBLIC_THEME_HEADING_FONTS)[number]
+
+/**
+ * The header and footer choose from the same faces as headings do, so the list
+ * is shared rather than written twice and left to drift apart.
+ */
+export const PUBLIC_THEME_CHROME_FONTS = PUBLIC_THEME_HEADING_FONTS
+export type PublicThemeChromeFont = PublicThemeHeadingFont
+
 export const PUBLIC_COLOR_SCHEMES = ["system", "light", "dark"] as const
 export type PublicColorScheme = (typeof PUBLIC_COLOR_SCHEMES)[number]
 
 export const PUBLIC_CONTENT_ALIGNMENTS = ["left", "center", "right"] as const
 export type PublicContentAlignment =
   (typeof PUBLIC_CONTENT_ALIGNMENTS)[number]
+
+/**
+ * Where the public footer sits, on its own rather than following the page.
+ *
+ * `inherit` is what every site saved before this choice existed reads as, and
+ * it keeps the footer following Content alignment, including a site that set
+ * that to right. The two named choices are the ones a footer actually wants.
+ */
+export const PUBLIC_FOOTER_ALIGNMENTS = ["inherit", "left", "center"] as const
+export type PublicFooterAlignment = (typeof PUBLIC_FOOTER_ALIGNMENTS)[number]
+
+export const PUBLIC_FOOTER_ALIGNMENT_LABELS: Record<
+  PublicFooterAlignment,
+  string
+> = {
+  inherit: "Follow the site",
+  left: "Left",
+  center: "Centred",
+}
+
+export const PUBLIC_FOOTER_ALIGNMENT_HINTS: Record<
+  PublicFooterAlignment,
+  string
+> = {
+  inherit: "Uses Styling > Page frame > Content alignment, as it always has.",
+  left: "The logo, the links and the copyright line sit on the left.",
+  center: "The logo, the links and the copyright line sit in the middle.",
+}
 
 export const PUBLIC_BACKGROUND_PATTERNS = ["none", "dots", "grid"] as const
 export type PublicBackgroundPattern =
@@ -71,8 +116,17 @@ export type PublicTheme = {
   pageWidth: number
   /** Top and bottom padding around public page content in pixels. */
   mainSpacing: number
+  /**
+   * The space between two blocks on the public front page, in pixels, as a
+   * desktop screen draws it. A phone draws 70% of it, because a gap wide
+   * enough to tell two blocks apart on a desktop is most of a phone screen.
+   * Flat mode still collapses both to nothing.
+   */
+  frontPageRowGap: number
   /** Horizontal alignment for the main content on every public page. */
   contentAlignment: PublicContentAlignment
+  /** Where the footer sits, or `inherit` to follow `contentAlignment`. */
+  footerAlignment: PublicFooterAlignment
   /** Optional texture drawn over the public canvas. */
   backgroundPattern: PublicBackgroundPattern
   /** Distance between the pattern's dots or grid lines. */
@@ -92,6 +146,10 @@ export type PublicTheme = {
   /** Uses the uploaded app-wide font while keeping `font` as its fallback. */
   useCustomFont: boolean
   font: PublicThemeFont
+  /** The face headings use. `match` leaves them on the body font. */
+  headingFont: PublicThemeHeadingFont
+  /** The face the public header and footer use. */
+  chromeFont: PublicThemeChromeFont
   radius: number
 }
 
@@ -116,6 +174,27 @@ export const PUBLIC_THEME_FONT_STACKS: Record<PublicThemeFont, string> = {
   mono: 'ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace',
 }
 
+export const PUBLIC_THEME_HEADING_FONT_LABELS: Record<
+  PublicThemeHeadingFont,
+  string
+> = {
+  match: "Same as the body",
+  baskerville: "Libre Baskerville",
+  inter: "Inter",
+  serif: "Serif",
+  mono: "Mono",
+}
+
+export const PUBLIC_THEME_HEADING_FONT_STACKS: Record<
+  Exclude<PublicThemeHeadingFont, "match">,
+  string
+> = {
+  baskerville: '"Libre Baskerville", ui-serif, Georgia, serif',
+  inter: PUBLIC_THEME_FONT_STACKS.inter,
+  serif: PUBLIC_THEME_FONT_STACKS.serif,
+  mono: PUBLIC_THEME_FONT_STACKS.mono,
+}
+
 export const DEFAULT_PUBLIC_RADIUS = 10
 export const MAX_PUBLIC_RADIUS = 24
 export const MIN_PUBLIC_PAGE_WIDTH = 640
@@ -123,6 +202,12 @@ export const DEFAULT_PUBLIC_PAGE_WIDTH = 1152
 export const MAX_PUBLIC_PAGE_WIDTH = 1600
 export const DEFAULT_PUBLIC_MAIN_SPACING = 40
 export const MAX_PUBLIC_MAIN_SPACING = 96
+
+/** The 5rem in theme.css, in pixels. A phone's 3.5rem is 70% of it. */
+export const DEFAULT_PUBLIC_FRONT_PAGE_ROW_GAP = 80
+export const MAX_PUBLIC_FRONT_PAGE_ROW_GAP = 160
+/** What a phone draws, as a share of the desktop gap. */
+export const PUBLIC_FRONT_PAGE_ROW_GAP_PHONE_SHARE = 0.7
 /**
  * 12px is `md:gap-3`, the desktop gap the public column has always used. A
  * theme still on this number keeps the responsive `gap-2 md:gap-3` classes, so
@@ -184,6 +269,8 @@ export function createDefaultPublicTheme(): PublicTheme {
     modal: createDefaultPublicModalStyling(),
     pageWidth: DEFAULT_PUBLIC_PAGE_WIDTH,
     mainSpacing: DEFAULT_PUBLIC_MAIN_SPACING,
+    frontPageRowGap: DEFAULT_PUBLIC_FRONT_PAGE_ROW_GAP,
+    footerAlignment: "inherit",
     contentAlignment: "center",
     backgroundPattern: "none",
     backgroundPatternSize: "medium",
@@ -195,6 +282,8 @@ export function createDefaultPublicTheme(): PublicTheme {
     colorScheme: "system",
     useCustomFont: false,
     font: "system",
+    headingFont: "match",
+    chromeFont: "match",
     radius: DEFAULT_PUBLIC_RADIUS,
   }
 }
@@ -259,21 +348,32 @@ function publicBrandOverrideChanges(
 }
 
 /**
- * Every colour an admin can type on the Public styling tab, so the auto-save
- * can wait until a half-typed hex is finished. A colour on "Theme default" or
- * "Muted" has no hex to get wrong.
+ * Every canvas colour an admin can type on the Public styling tab, paired with
+ * the name that tab gives it and listed in the order that tab shows them. The
+ * header names the field to fix when the auto-save refuses a half-typed hex, so
+ * the label lives beside the value it belongs to. A colour left on "Theme
+ * default" or "Muted" has no hex to get wrong.
  */
-function publicThemeBackgrounds(theme: PublicTheme): ShellBackground[] {
+function publicThemeBackgroundFields(
+  theme: PublicTheme
+): readonly (readonly [ShellBackground, string])[] {
   return [
-    theme.canvasColor,
-    theme.chrome,
-    theme.cardBorderColor,
-    theme.dividerColor,
-    theme.modal.background,
-    theme.modal.borderColor,
-    theme.modal.cardBackground,
-    theme.modal.cardBorderColor,
+    [theme.canvasColor, "canvas colour"],
+    [theme.cardBorderColor, "border colour"],
+    [theme.dividerColor, "divider colour"],
+    [theme.chrome, "header and footer colour"],
+    [theme.modal.background, "modal background"],
+    [theme.modal.borderColor, "modal border colour"],
+    [theme.modal.cardBackground, "modal card background"],
+    [theme.modal.cardBorderColor, "modal card border colour"],
   ]
+}
+
+const PUBLIC_BRAND_OVERRIDE_LABELS: Record<PublicBrandOverrideKey, string> = {
+  hoverColor: "hover colour",
+  softColor: "soft tint",
+  foregroundColor: "button text colour",
+  darkColor: "dark-mode brand colour",
 }
 
 function isPublicBackgroundValid(background: ShellBackground): boolean {
@@ -283,18 +383,30 @@ function isPublicBackgroundValid(background: ShellBackground): boolean {
   )
 }
 
-export function isPublicThemeInputValid(theme: PublicTheme) {
-  return (
-    isPublicBrandColor(theme.brandColor) &&
-    publicThemeBackgrounds(theme).every(isPublicBackgroundValid) &&
-    PUBLIC_BRAND_OVERRIDE_KEYS.every((key) => {
-      if (!Object.prototype.hasOwnProperty.call(theme.brandOverrides, key)) {
-        return true
-      }
-      const value = theme.brandOverrides[key]
-      return typeof value === "string" && PUBLIC_BRAND_COLOR_PATTERN.test(value)
-    })
-  )
+/**
+ * The first half-typed colour on the Public styling tab, named as that tab
+ * names it, or null when every colour is a finished 6-digit hex. The auto-save
+ * refuses a theme with one of these in it, so this is what the header names.
+ */
+export function publicThemeColorProblem(theme: PublicTheme): string | null {
+  if (!isPublicBrandColor(theme.brandColor)) {
+    return "brand colour"
+  }
+  for (const key of PUBLIC_BRAND_OVERRIDE_KEYS) {
+    if (!Object.prototype.hasOwnProperty.call(theme.brandOverrides, key)) {
+      continue
+    }
+    const value = theme.brandOverrides[key]
+    if (typeof value !== "string" || !PUBLIC_BRAND_COLOR_PATTERN.test(value)) {
+      return PUBLIC_BRAND_OVERRIDE_LABELS[key]
+    }
+  }
+  for (const [background, label] of publicThemeBackgroundFields(theme)) {
+    if (!isPublicBackgroundValid(background)) {
+      return label
+    }
+  }
+  return null
 }
 
 /**
@@ -474,11 +586,22 @@ export function normalizePublicTheme(
       0,
       MAX_PUBLIC_MAIN_SPACING
     ),
+    frontPageRowGap: normalizeWholeNumber(
+      theme.frontPageRowGap,
+      fallback.frontPageRowGap,
+      0,
+      MAX_PUBLIC_FRONT_PAGE_ROW_GAP
+    ),
     contentAlignment: PUBLIC_CONTENT_ALIGNMENTS.includes(
       theme.contentAlignment as PublicContentAlignment
     )
       ? (theme.contentAlignment as PublicContentAlignment)
       : fallback.contentAlignment,
+    footerAlignment: PUBLIC_FOOTER_ALIGNMENTS.includes(
+      theme.footerAlignment as PublicFooterAlignment
+    )
+      ? (theme.footerAlignment as PublicFooterAlignment)
+      : fallback.footerAlignment,
     backgroundPattern: PUBLIC_BACKGROUND_PATTERNS.includes(
       theme.backgroundPattern as PublicBackgroundPattern
     )
@@ -525,6 +648,16 @@ export function normalizePublicTheme(
     font: PUBLIC_THEME_FONTS.includes(theme.font as PublicThemeFont)
       ? (theme.font as PublicThemeFont)
       : fallback.font,
+    headingFont: PUBLIC_THEME_HEADING_FONTS.includes(
+      theme.headingFont as PublicThemeHeadingFont
+    )
+      ? (theme.headingFont as PublicThemeHeadingFont)
+      : fallback.headingFont,
+    chromeFont: PUBLIC_THEME_CHROME_FONTS.includes(
+      theme.chromeFont as PublicThemeChromeFont
+    )
+      ? (theme.chromeFont as PublicThemeChromeFont)
+      : fallback.chromeFont,
     radius: normalizeWholeNumber(
       theme.radius,
       fallback.radius,
@@ -633,8 +766,14 @@ export function publicThemeOverrides(
     ...(theme.mainSpacing !== baseline.mainSpacing
       ? { mainSpacing: theme.mainSpacing }
       : {}),
+    ...(theme.frontPageRowGap !== baseline.frontPageRowGap
+      ? { frontPageRowGap: theme.frontPageRowGap }
+      : {}),
     ...(theme.contentAlignment !== baseline.contentAlignment
       ? { contentAlignment: theme.contentAlignment }
+      : {}),
+    ...(theme.footerAlignment !== baseline.footerAlignment
+      ? { footerAlignment: theme.footerAlignment }
       : {}),
     ...(theme.backgroundPattern !== baseline.backgroundPattern
       ? { backgroundPattern: theme.backgroundPattern }
@@ -664,6 +803,12 @@ export function publicThemeOverrides(
       ? { useCustomFont: theme.useCustomFont }
       : {}),
     ...(theme.font !== baseline.font ? { font: theme.font } : {}),
+    ...(theme.headingFont !== baseline.headingFont
+      ? { headingFont: theme.headingFont }
+      : {}),
+    ...(theme.chromeFont !== baseline.chromeFont
+      ? { chromeFont: theme.chromeFont }
+      : {}),
     ...(theme.radius !== baseline.radius ? { radius: theme.radius } : {}),
   }
 }
@@ -739,6 +884,14 @@ export function publicThemeStyle(
       : PUBLIC_THEME_FONT_STACKS[theme.font]
     style.fontFamily = "var(--app-font-sans)"
   }
+  if (theme.headingFont !== "match") {
+    style["--app-font-heading"] =
+      PUBLIC_THEME_HEADING_FONT_STACKS[theme.headingFont]
+  }
+  if (theme.chromeFont !== "match") {
+    style["--app-font-chrome"] =
+      PUBLIC_THEME_HEADING_FONT_STACKS[theme.chromeFont]
+  }
   if (
     theme.backgroundPattern !== "none" &&
     theme.backgroundPatternOpacity > 0
@@ -765,7 +918,9 @@ export function hasCustomPublicTheme(theme: PublicTheme): boolean {
     modalStylingChanged(theme.modal, starting.modal) ||
     theme.pageWidth !== DEFAULT_PUBLIC_PAGE_WIDTH ||
     theme.mainSpacing !== DEFAULT_PUBLIC_MAIN_SPACING ||
+    theme.frontPageRowGap !== DEFAULT_PUBLIC_FRONT_PAGE_ROW_GAP ||
     theme.contentAlignment !== "center" ||
+    theme.footerAlignment !== "inherit" ||
     (theme.backgroundPattern !== "none" &&
       theme.backgroundPatternOpacity > 0) ||
     theme.buttonStyle !== "solid" ||

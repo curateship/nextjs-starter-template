@@ -141,7 +141,12 @@ describe("starting a workspace from an existing one", () => {
       createdAt: at,
       updatedAt: at,
     }
-    await database.insert(customShellWrittenPages).values(sourcePage)
+    // Compared as stored, so a column added to written pages later does not
+    // look like a change the rollback failed to undo.
+    const [storedPage] = await database
+      .insert(customShellWrittenPages)
+      .values(sourcePage)
+      .returning()
 
     await expect(
       copyUserWorkspace(
@@ -159,7 +164,7 @@ describe("starting a workspace from an existing one", () => {
       source,
     ])
     await expect(database.select().from(customShellWrittenPages)).resolves.toEqual([
-      sourcePage,
+      storedPage,
     ])
   })
 

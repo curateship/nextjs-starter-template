@@ -34,7 +34,7 @@ import { answerForRequest } from "@/server/workspaces/host"
  * only becomes a guess on a deployment with several sites where nobody is
  * pointed anywhere and the domain says nothing, and something has to be read.
  */
-async function onlyWorkspaceId(database: CustomShellDb) {
+export async function onlyWorkspaceId(database: CustomShellDb = db) {
   const [oldest] = await database
     .select({ id: customShellWorkspaces.id })
     .from(customShellWorkspaces)

@@ -35,7 +35,7 @@ import {
 async function loadPricingLandingData() {
   return (await pricingLandingPage.loader?.()) as {
     frontPageRows: typeof api.rows
-    billingEnabled: boolean
+    plans: unknown[]
   }
 }
 
@@ -57,7 +57,7 @@ describe("front page row loading", () => {
     const data = await loadPricingLandingData()
 
     expect(data.frontPageRows).toEqual([])
-    expect(data.billingEnabled).toBe(true)
+    expect(data.plans).toEqual([])
     expect(api.loadCurrentUser).toHaveBeenCalledOnce()
     expect(api.loadPublicPricing).toHaveBeenCalledOnce()
   })
@@ -106,7 +106,18 @@ describe("front page row loading", () => {
         intro: "Start here.",
         kind: "text" as const,
         layout: "narrow" as const,
+        alignment: "inherit" as const,
         hidden: false,
+        showHeading: true,
+        showIntro: true,
+        showImage: true,
+        showAction: true,
+        showStars: true,
+        showNote: true,
+        showPictures: true,
+        showRoles: true,
+        showNumbers: true,
+        showCaptions: true,
         device: "all" as const,
       },
     ]

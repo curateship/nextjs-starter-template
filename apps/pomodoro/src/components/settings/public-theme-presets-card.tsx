@@ -30,6 +30,7 @@ import {
   publicThemePresetSwatches,
   type PublicThemePreset,
 } from "@/lib/public-theme-presets"
+import { shellConfigSaveRefusalSentence } from "@/lib/custom-shell"
 import type { PublicTheme } from "@/lib/public-theme"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
@@ -48,11 +49,18 @@ export function PublicThemePresetsCard({
   presets,
   onApply,
   onPresetsChange,
+  saveRefusal,
 }: {
   theme: PublicTheme
   presets: PublicThemePreset[]
   onApply: (theme: PublicTheme) => void
   onPresetsChange: (presets: PublicThemePreset[]) => void
+  /**
+   * Why the settings auto-save is refusing to write, or null when it will. A
+   * preset is saved and deleted by that same save, so while it is refused this
+   * card must not say "Preset saved." for a list the reload throws away.
+   */
+  saveRefusal: string | null
 }) {
   const nameId = React.useId()
   const nameInputRef = React.useRef<HTMLInputElement>(null)
@@ -78,6 +86,11 @@ export function PublicThemePresetsCard({
       showErrorToast(problem)
       return
     }
+    if (saveRefusal) {
+      const fix = shellConfigSaveRefusalSentence(saveRefusal)
+      showErrorToast(`The preset was not saved. ${fix}`)
+      return
+    }
 
     onPresetsChange([
       ...presets,
@@ -94,6 +107,11 @@ export function PublicThemePresetsCard({
   }
 
   const deletePreset = (preset: PublicThemePreset) => {
+    if (saveRefusal) {
+      const fix = shellConfigSaveRefusalSentence(saveRefusal)
+      showErrorToast(`The preset was not deleted. ${fix}`)
+      return
+    }
     onPresetsChange(presets.filter((entry) => entry.id !== preset.id))
     setDeleting(null)
     toast.success("Preset deleted.")

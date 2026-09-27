@@ -30,7 +30,14 @@ import { useSidebar } from "@/components/ui/sidebar"
 import { cn } from "@/lib/utils"
 import type { ShellTopRightNavigationItem } from "@/lib/custom-shell"
 
-export type SaveStatus = "idle" | "saving" | "saved" | "blocked"
+/**
+ * Auto-save state for the shared header. A refused save carries its own reason,
+ * because the header is the only warning that reaches the person, and "Not
+ * saved" on its own leaves them hunting for the field. The reason finishes the
+ * sentence "Not saved — ", so write it as an instruction: "add a workspace
+ * name".
+ */
+export type SaveStatus = "idle" | "saving" | "saved" | { blocked: string }
 
 /** Who an admin is viewing the app as, and who they really are. */
 export type ViewingAsSummary = {
@@ -385,9 +392,10 @@ function ViewAsBadge({ viewingAs }: { viewingAs: ViewingAsSummary }) {
 
 // Auto-save status for the settings page, surfaced in the shared header so the
 // settings page itself needs no save button or header. Renders nothing unless a
-// save is in flight, just finished, or was refused. "blocked" is visible from
+// save is in flight, just finished, or was refused. A refusal is visible from
 // every settings tab, which is the only warning you get when the edit that
-// broke the save happened on a different tab.
+// broke the save happened on a different tab, and it names the field to fix
+// because the tab in front of you may not be the tab that holds it.
 function SaveStatusIndicator({ status }: { status?: SaveStatus }) {
   if (status === "saving") {
     return <span className="text-sm text-muted-foreground">Saving…</span>
@@ -403,7 +411,7 @@ function SaveStatusIndicator({ status }: { status?: SaveStatus }) {
       </span>
     )
   }
-  if (status === "blocked") {
+  if (status && typeof status === "object") {
     return (
       <span
         role="status"
@@ -411,7 +419,7 @@ function SaveStatusIndicator({ status }: { status?: SaveStatus }) {
       >
         <TriangleAlertIcon className="h-4 w-4" />
         <span className="sr-only sm:not-sr-only">
-          Not saved — add a workspace name
+          Not saved — {status.blocked}
         </span>
       </span>
     )

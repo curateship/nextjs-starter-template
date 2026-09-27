@@ -185,9 +185,10 @@ export function AppSidebar({
           // in.
           brand={{
             name: config.workspaceName,
-            favicon: config.workspaceFavicon,
-            // The one uploaded logo stands in when the site has no icon of its
-            // own, which is every app that is not multisite.
+            // The site's own logo when it has one, and the app's when it does
+            // not, which is every app that is not multisite. One picture either
+            // way: the tab icon is cut from it rather than uploaded beside it.
+            favicon: config.workspaceLogo,
             logo: config.logo,
             logoDark: config.logoDark,
           }}

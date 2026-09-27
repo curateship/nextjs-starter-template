@@ -4,6 +4,12 @@ import type {
   PublicNavigationItem,
   PublicNavigationLink,
 } from "@/lib/pages/public-navigation"
+import type { PublicSocialLink } from "@/lib/pages/public-social"
+import {
+  normalizePublicHeaderActions,
+  visiblePublicHeaderActions,
+  type PublicHeaderActionId,
+} from "@/lib/pages/public-header-actions"
 import {
   normalizePublicHeader,
   type PublicHeader,
@@ -12,6 +18,10 @@ import {
   normalizePublicBreadcrumbs,
   type PublicBreadcrumbs,
 } from "@/lib/pages/public-breadcrumbs"
+import {
+  normalizePublicUserPanel,
+  type PublicUserPanel,
+} from "@/lib/pages/public-user-panel"
 import {
   normalizePublicSystemCopy,
   type PublicSystemCopy,
@@ -88,6 +98,35 @@ export function usePublicFooter(): PublicNavigationLink[] {
   })
 }
 
+/** The site's one-line description, shared with search engines. */
+export function usePublicSiteDescription() {
+  return useLoaderData({
+    from: rootRouteId,
+    select: (data) => data.publicSeo?.siteDescription ?? "",
+  })
+}
+
+/** The social accounts drawn as buttons in the public footer. */
+export function usePublicFooterSocial(): PublicSocialLink[] {
+  return useLoaderData({
+    from: rootRouteId,
+    select: (data) => data.publicFooterSocial ?? [],
+  })
+}
+
+/** The order of the controls at the right of the public header. */
+export function usePublicHeaderActions(): PublicHeaderActionId[] {
+  const saved = useLoaderData({
+    from: rootRouteId,
+    select: (data) => data.publicHeaderActions,
+  })
+
+  return React.useMemo(
+    () => visiblePublicHeaderActions(normalizePublicHeaderActions(saved)),
+    [saved]
+  )
+}
+
 export function usePublicFooterCopyright() {
   return useLoaderData({
     from: rootRouteId,
@@ -113,6 +152,16 @@ export function usePublicBreadcrumbs(): PublicBreadcrumbs {
   })
 
   return React.useMemo(() => normalizePublicBreadcrumbs(saved), [saved])
+}
+
+/** The public header's account buttons and signed-in menu links. */
+export function usePublicUserPanel(): PublicUserPanel {
+  const saved = useLoaderData({
+    from: rootRouteId,
+    select: (data) => data.publicUserPanel,
+  })
+
+  return React.useMemo(() => normalizePublicUserPanel(saved), [saved])
 }
 
 /** Whether the site's public search page may be offered to visitors. */

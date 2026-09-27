@@ -2,10 +2,8 @@ import * as React from "react"
 import { Loader2Icon } from "lucide-react"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
-import { useShellRuntime } from "@/components/shell/shell-layout"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { CardGroup } from "@/components/ui/card"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { ErrorRow } from "@/components/ui/error-row"
 import { FieldLabel } from "@/components/ui/field-label"
@@ -22,7 +20,7 @@ import {
 } from "@/lib/api/storage"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
-import type { SaveStatus } from "@/components/shell/sticky-header/sticky-header"
+import { useReportedSaveStatus } from "@/components/settings/use-reported-save-status"
 
 // An edit saves itself this long after the last keystroke; leaving the field
 // (or pressing Enter) saves straight away. Same rhythm as the Payments tab.
@@ -64,15 +62,15 @@ const FIELDS: { id: PlainField; label: string; placeholder: string; hint: string
   ]
 
 /**
- * Settings → Storage. Where uploaded files are kept, app-wide, saved through
- * server/media/storage-settings.ts. The secret is scrambled before it is
- * stored and the browser only ever sees its last four characters.
+ * The Cloudflare R2 card on General settings. Where uploaded files are kept,
+ * app-wide, saved through server/media/storage-settings.ts. The secret is
+ * scrambled before it is stored and the browser only ever sees its last four
+ * characters.
  *
  * Saving is automatic and reports through the sticky header's Saving…/Saved
  * indicator, like every other auto-save in the app.
  */
 export function StorageSettings() {
-  const { reportSaveStatus } = useShellRuntime()
   const [status, setStatus] = React.useState<StorageSettingsStatus | null>(null)
   const [loadError, setLoadError] = React.useState<string | null>(null)
   const [reloads, setReloads] = React.useState(0)
@@ -90,18 +88,9 @@ export function StorageSettings() {
   const [confirmingClear, setConfirmingClear] = React.useState(false)
   const [runClear, clearBusy] = useAsyncAction(getStorageErrorMessage)
 
-  const [saveStatus, setSaveStatus] = React.useState<SaveStatus>("idle")
-  React.useEffect(() => {
-    reportSaveStatus(saveStatus)
-  }, [reportSaveStatus, saveStatus])
-  React.useEffect(() => {
-    return () => reportSaveStatus(null)
-  }, [reportSaveStatus])
-  React.useEffect(() => {
-    if (saveStatus !== "saved") return
-    const timer = setTimeout(() => setSaveStatus("idle"), 2000)
-    return () => clearTimeout(timer)
-  }, [saveStatus])
+  // The auto-save's outcome, shown in the shared sticky header like every
+  // other settings save.
+  const setSaveStatus = useReportedSaveStatus()
 
   const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   React.useEffect(() => {
@@ -217,7 +206,7 @@ export function StorageSettings() {
     !secret && !editingSecret && Boolean(status?.secretConfigured)
 
   return (
-    <CardGroup>
+    <>
       <CollapsibleSettingsCard
         storageId="storage-bucket"
         title={
@@ -355,7 +344,7 @@ export function StorageSettings() {
         loading={clearBusy}
         onConfirm={() => void clear()}
       />
-    </CardGroup>
+    </>
   )
 }
 

@@ -63,3 +63,6 @@ cover this one.
   may upload, the FFmpeg re-encode, and where the files live.
 - [AI backgrounds and soundscapes](ai-generation.md) — the prompt box, the
   monthly credits, and the rule that a failed generation is refunded.
+- [Pomodoro and Custom Shell](shell-integration.md) — what the shell gives
+  this app, the three things `src/app/` claims, and what the 27 Sep 2026 merge
+  brought.

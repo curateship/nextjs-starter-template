@@ -1,10 +1,15 @@
 import * as React from "react"
 import { ImageUpload } from "@/components/shared/image-upload"
+import { AiSettings } from "@/components/settings/ai-settings"
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
+import { NotificationSettings } from "@/components/settings/notification-settings"
+import { SettingsSwitchRow } from "@/components/settings/settings-switch-row"
+import { SecuritySettings } from "@/components/settings/security-settings"
+import { StorageSettings } from "@/components/settings/storage-settings"
 import { CardGroup } from "@/components/ui/card"
-import { Checkbox } from "@/components/ui/checkbox"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Input } from "@/components/ui/input"
+import { appUsesSiteBranding } from "@/lib/app-options"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Label } from "@/components/ui/label"
 import { NumberField } from "@/components/ui/number-field"
@@ -20,6 +25,7 @@ import {
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
   type ShellConfig,
   type ShellMaintenance,
+  type ShellSessionPolicy,
 } from "@/lib/custom-shell"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { MAX_TOAST_SECONDS, MIN_TOAST_SECONDS } from "@/lib/toast/toast-seconds"
@@ -34,17 +40,36 @@ type MaintenanceProps = {
   maintenanceBusy: boolean
 }
 
+type SessionPolicyProps = {
+  onSessionPolicyChange: (policy: ShellSessionPolicy) => Promise<boolean>
+  sessionPolicyBusy: boolean
+}
+
+/**
+ * General settings — the one screen for everything app-wide that is not
+ * navigation, widgets, styling, email or payments.
+ *
+ * Security, Notifications, Storage and AI were four more rows in the settings
+ * rail until 25 Sep 2026. Each was a single card, so each is a card here. They
+ * keep their own files; this screen only decides the order they sit in.
+ */
 export function GeneralSettings({
   config,
   onConfigChange,
   onMaintenanceChange,
   maintenanceBusy,
-}: GeneralSettingsProps & MaintenanceProps) {
+  onSessionPolicyChange,
+  sessionPolicyBusy,
+}: GeneralSettingsProps & MaintenanceProps & SessionPolicyProps) {
   // The auto-save refuses a blank workspace name (saveConfigNow in
   // shell-layout.tsx), so say so on blur rather than letting the edit sit on
   // screen looking saved.
 
   const workspaceNameMissing = !config.workspaceName.trim()
+  // An app that serves one website has one logo and nothing to choose between.
+  // An app that serves several gives each site its own, and the app-wide one
+  // below is the fallback for a site that has uploaded none.
+  const siteBranding = appUsesSiteBranding()
 
   return (
     <CardGroup>
@@ -180,16 +205,48 @@ export function GeneralSettings({
           }
         />
 
+        {/*
+          One logo box, never two. On an app that serves several websites the
+          picture belongs to the site you are in, the way its menu and its
+          footer do; the app-wide picture is the deployment's own, for its
+          sign-in pages, and a site never borrows it. On a one-site app there is
+          only the app-wide one, and this is it.
+        */}
         <ImageUpload
           label="Logo"
-          value={config.logo}
-          onChange={(url) => onConfigChange({ ...config, logo: url })}
+          value={siteBranding ? config.workspaceLogo : config.logo}
+          onChange={(url) =>
+            onConfigChange(
+              siteBranding
+                ? { ...config, workspaceLogo: url }
+                : { ...config, logo: url }
+            )
+          }
           aspect="square"
           fit="contain"
           emptyLabel="Select logo"
-          hint="One picture for the whole app: the logo above the signed-out pages, the icon beside the site name in the sidebar, and the icon in the browser tab. Upload a PNG or an SVG. The app makes the dark-mode version itself, by turning the image's dark tones light and its light tones dark, and cuts the browser-tab sizes from both. Leave it empty for the app name on its own."
+          hint={
+            siteBranding
+              ? "One picture for the site you are in: the logo on its public pages, the icon beside its name in the sidebar and switcher, and the icon in the browser tab. The app makes the dark-mode version and cuts the browser-tab sizes from it. Leave it empty and the site's name is shown instead."
+              : "One picture for the whole app: the logo above the signed-out pages, the icon beside the site name in the sidebar, and the icon in the browser tab. Upload a PNG or an SVG. The app makes the dark-mode version itself, by turning the image's dark tones light and its light tones dark, and cuts the browser-tab sizes from both. Leave it empty for the app name on its own."
+          }
           className="max-w-24"
         />
+
+        {siteBranding ? (
+          <ImageUpload
+            label="Share image"
+            value={config.workspaceShareImage}
+            onChange={(url) =>
+              onConfigChange({ ...config, workspaceShareImage: url })
+            }
+            aspect="video"
+            fit="cover"
+            emptyLabel="Select share image"
+            hint="The picture shown when one of this site's pages is shared. Leave it empty to use the one in Public → SEO."
+            className="max-w-48"
+          />
+        ) : null}
 
         <div className="grid gap-2">
           <FieldLabel
@@ -218,25 +275,17 @@ export function GeneralSettings({
         </div>
       </CollapsibleSettingsCard>
 
-      <CollapsibleSettingsCard
-        storageId="live-notifications"
-        title="Live notifications"
-        description="Light the bell up the moment something happens. Turn it off and the bell still updates — just on its own check, up to a minute later."
-        contentClassName="space-y-6"
-      >
-        <div className="flex items-center gap-2">
-          <Checkbox
-            id="live-notifications"
-            checked={config.liveNotifications}
-            onCheckedChange={(value) =>
-              onConfigChange({ ...config, liveNotifications: value === true })
-            }
-          />
-          <Label htmlFor="live-notifications" className="font-normal">
-            Update the bell as things happen
-          </Label>
-        </div>
-      </CollapsibleSettingsCard>
+      <NotificationSettings config={config} onConfigChange={onConfigChange} />
+
+      <SecuritySettings
+        config={config}
+        onSessionPolicyChange={onSessionPolicyChange}
+        sessionPolicyBusy={sessionPolicyBusy}
+      />
+
+      <StorageSettings />
+
+      <AiSettings />
 
       <MaintenanceSettingsCard
         config={config}
@@ -270,23 +319,19 @@ function MaintenanceSettingsCard({
       description="Close the app to everyone but admins while you work on it."
       contentClassName="space-y-6"
     >
-      <div className="flex items-center gap-2">
-        <Checkbox
-          id="maintenance-enabled"
-          checked={maintenance.enabled}
-          disabled={maintenanceBusy}
-          onCheckedChange={(value) => {
-            if (value === true) {
-              setConfirmOpen(true)
-              return
-            }
-            void onMaintenanceChange({ ...maintenance, enabled: false })
-          }}
-        />
-        <Label htmlFor="maintenance-enabled" className="font-normal">
-          Close the app to members
-        </Label>
-      </div>
+      <SettingsSwitchRow
+        id="maintenance-enabled"
+        checked={maintenance.enabled}
+        disabled={maintenanceBusy}
+        onCheckedChange={(on) => {
+          if (on) {
+            setConfirmOpen(true)
+            return
+          }
+          void onMaintenanceChange({ ...maintenance, enabled: false })
+        }}
+        label="Close the app to members"
+      />
 
       <ConfirmDialog
         open={confirmOpen}

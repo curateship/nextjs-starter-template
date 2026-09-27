@@ -9,10 +9,18 @@ import {
   createDefaultPublicTheme,
   type PublicTheme,
 } from "@/lib/public-theme"
+import {
+  createDefaultPublicUserPanel,
+  type PublicUserPanel,
+} from "@/lib/pages/public-user-panel"
 
 const router = vi.hoisted(() => ({
   navigate: vi.fn(),
   pathname: "/",
+  /** "pending" while a clicked link's page is still loading. */
+  status: "idle" as "idle" | "pending",
+  /** The page on screen while that one loads. */
+  resolvedPathname: undefined as string | undefined,
   matches: [] as { routeId: string; status?: string; loaderData?: unknown }[],
 }))
 const publicBreadcrumbs = vi.hoisted(() => ({
@@ -27,13 +35,22 @@ const publicSite = vi.hoisted(() => ({
   ] as PublicNavigationItem[],
   footer: [{ label: "About", href: "/about?from=footer#team" }],
   copyright: "Copyright",
+  description: "A short line about the site.",
+  social: [] as { platform: string; url: string }[],
+  headerActions: ["search", "theme", "user-panel"] as string[],
 }))
 const publicHeader = vi.hoisted(() => ({
   current: {
     sticky: false,
     menuAlignment: "left" as "left" | "center",
     logoSize: "standard" as "small" | "standard" | "large",
+    fullWidth: false,
+    width: null as number | null,
+    blur: "medium" as "none" | "light" | "medium" | "heavy",
   },
+}))
+const publicUserPanel = vi.hoisted(() => ({
+  current: null as unknown as PublicUserPanel,
 }))
 const publicTheme = vi.hoisted(() => ({
   current: null as unknown as PublicTheme,
@@ -76,12 +93,18 @@ vi.mock("@tanstack/react-router", () => ({
     select,
   }: {
     select: (state: {
+      status: string
       location: { pathname: string }
+      resolvedLocation?: { pathname: string }
       matches: typeof router.matches
     }) => unknown
   }) =>
     select({
+      status: router.status,
       location: { pathname: router.pathname },
+      resolvedLocation: router.resolvedPathname
+        ? { pathname: router.resolvedPathname }
+        : undefined,
       matches: router.matches,
     }),
 }))
@@ -93,8 +116,12 @@ vi.mock("@/lib/branding", () => ({
   usePublicNavigation: () => publicSite.navigation,
   usePublicFooter: () => publicSite.footer,
   usePublicFooterCopyright: () => publicSite.copyright,
+  usePublicSiteDescription: () => publicSite.description,
+  usePublicFooterSocial: () => publicSite.social,
+  usePublicHeaderActions: () => publicSite.headerActions,
   usePublicSearchEnabled: () => publicSearch.enabled,
   usePublicHeader: () => publicHeader.current,
+  usePublicUserPanel: () => publicUserPanel.current,
   usePublicTheme: () => publicTheme.current,
   usePublicBreadcrumbs: () => publicBreadcrumbs.current,
 }))
@@ -130,9 +157,9 @@ describe("PublicPageFrame navigation", () => {
     publicSearch.enabled = true
     publicSite.navigation = [
       { label: "Pricing", href: "/pricing" },
-      { type: "search", visible: true },
       { label: "Elsewhere", href: "https://example.com" },
     ]
+    publicSite.headerActions = ["search", "theme", "user-panel"]
     publicSite.footer = [
       { label: "About", href: "/about?from=footer#team" },
     ]
@@ -141,8 +168,12 @@ describe("PublicPageFrame navigation", () => {
       sticky: false,
       menuAlignment: "left",
       logoSize: "standard",
+      fullWidth: false,
+      width: null,
+      blur: "medium",
     }
     publicTheme.current = createDefaultPublicTheme()
+    publicUserPanel.current = createDefaultPublicUserPanel()
     router.matches = []
     publicBreadcrumbs.current = {
       written: false,
@@ -286,6 +317,9 @@ describe("PublicPageFrame navigation", () => {
       sticky: true,
       menuAlignment: "center",
       logoSize: "large",
+      fullWidth: false,
+      width: null,
+      blur: "medium",
     }
     const host = document.createElement("div")
     document.body.appendChild(host)
@@ -322,6 +356,9 @@ describe("PublicPageFrame navigation", () => {
       sticky: true,
       menuAlignment: "center",
       logoSize: "large",
+      fullWidth: false,
+      width: null,
+      blur: "medium",
     }
     const host = document.createElement("div")
     document.body.appendChild(host)
@@ -375,8 +412,10 @@ describe("PublicPageFrame navigation", () => {
 
     expect(frame?.style.backgroundColor).toBe("rgb(171, 205, 239)")
     expect(main?.className).toContain("place-items-center")
-    expect(main?.firstElementChild?.className).toContain("items-end")
-    expect(main?.firstElementChild?.className).toContain("text-right")
+    // The site says right, but a card page is one box in the middle of the
+    // screen and stays centred whatever the site chose.
+    expect(main?.firstElementChild?.className).toContain("items-center")
+    expect(main?.firstElementChild?.className).toContain("text-center")
     expect(main?.style.paddingBlock).toBe("24px")
     expect(
       widthElements.every((element) => element?.style.maxWidth === "800px")
@@ -385,6 +424,76 @@ describe("PublicPageFrame navigation", () => {
     expect(host.querySelector("footer")?.className).not.toContain("border-t")
     expect(host.textContent).not.toContain("Choose colour mode")
 
+    await act(async () => root.unmount())
+  })
+
+  it("keeps the site's alignment on a page built from blocks", async () => {
+    router.pathname = "/"
+    publicTheme.current = { ...publicTheme.current, contentAlignment: "right" }
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(<PublicPageFrame>Page</PublicPageFrame>)
+    })
+
+    const column = host.querySelector("main")?.firstElementChild
+    expect(column?.className).toContain("items-end")
+    expect(column?.className).toContain("text-right")
+    expect(column?.getAttribute("data-content-alignment")).toBe("right")
+
+    await act(async () => root.unmount())
+  })
+
+  it("keeps the page it is drawing while the next page loads", async () => {
+    // What a click from the front page into the admin looks like: the router
+    // is already at the dashboard, the front page is still on the screen.
+    router.status = "pending"
+    router.pathname = "/admin/dashboard"
+    router.resolvedPathname = "/"
+    publicTheme.current = { ...publicTheme.current, contentAlignment: "right" }
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(<PublicPageFrame>Page</PublicPageFrame>)
+    })
+
+    const column = host.querySelector("main")?.firstElementChild
+    expect(column?.getAttribute("data-content-alignment")).toBe("right")
+    expect(column?.className).toContain("text-right")
+
+    router.status = "idle"
+    router.resolvedPathname = undefined
+    await act(async () => root.unmount())
+  })
+
+  it("lets the footer sit where it is told, whatever the page does", async () => {
+    router.pathname = "/"
+    publicTheme.current = {
+      ...publicTheme.current,
+      contentAlignment: "right",
+      footerAlignment: "center",
+    }
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(<PublicPageFrame>Page</PublicPageFrame>)
+    })
+
+    // The page keeps the site's alignment; only the footer moves.
+    expect(
+      host.querySelector("main")?.firstElementChild?.className
+    ).toContain("items-end")
+    const footerColumn = host.querySelector("footer > div")?.firstElementChild
+    expect(footerColumn?.className).toContain("items-center")
+    expect(footerColumn?.className).toContain("text-center")
+
+    publicTheme.current = { ...publicTheme.current, footerAlignment: "inherit" }
     await act(async () => root.unmount())
   })
 
@@ -418,6 +527,14 @@ describe("PublicPageFrame navigation", () => {
     expect(frame?.style.getPropertyValue("--border")).toBe("#445566")
     expect(frame?.style.getPropertyValue("--shell-gutter")).toBe("24px")
     expect(main?.style.paddingInline).toBe("24px")
+    // One edge for the whole page: the bar above the content and the footer
+    // below it take the same padding main does.
+    expect(
+      (host.querySelector("header") as HTMLElement | null)?.style.paddingInline
+    ).toBe("24px")
+    expect(
+      (host.querySelector("footer") as HTMLElement | null)?.style.paddingInline
+    ).toBe("24px")
     expect(column?.style.gap).toBe("24px")
     expect(column?.className).not.toContain("gap-2")
     expect(host.querySelector("header")?.style.backgroundColor).toBe(
@@ -456,6 +573,12 @@ describe("PublicPageFrame navigation", () => {
     expect(frame?.getAttribute("data-flat")).toBe("true")
     expect(main?.style.paddingInline).toBe("0px")
     expect(main?.className).not.toContain("px-4")
+    expect(
+      (host.querySelector("header") as HTMLElement | null)?.style.paddingInline
+    ).toBe("0px")
+    expect(
+      (host.querySelector("footer") as HTMLElement | null)?.style.paddingInline
+    ).toBe("0px")
 
     await act(async () => root.unmount())
   })
@@ -474,6 +597,8 @@ describe("PublicPageFrame navigation", () => {
 
     expect(main?.className).toContain("px-4")
     expect(main?.style.paddingInline).toBe("")
+    expect(host.querySelector("header")?.className).toContain("px-4")
+    expect(host.querySelector("footer")?.className).toContain("px-4")
     expect(column?.className).toContain("gap-2 md:gap-3")
     expect(column?.style.gap).toBe("")
 
@@ -565,7 +690,7 @@ describe("PublicPageFrame navigation", () => {
     await act(async () => root.unmount())
   })
 
-  it("renders search in its saved position on desktop and in the phone menu", async () => {
+  it("draws search in the header's action row, not in the menu", async () => {
     const host = document.createElement("div")
     document.body.appendChild(host)
     const root = createRoot(host)
@@ -574,14 +699,20 @@ describe("PublicPageFrame navigation", () => {
       root.render(<PublicPageFrame>Page</PublicPageFrame>)
     })
 
-    const desktopItems = Array.from(
-      host.querySelectorAll('nav[aria-label="Main navigation"] li')
-    )
-    expect(desktopItems[0]?.textContent).toContain("Pricing")
+    // The menu holds the links an admin typed. Search sits with the other
+    // header controls instead.
     expect(
-      desktopItems[1]?.querySelector('input[aria-label="Search this site"]')
+      Array.from(
+        host.querySelectorAll(
+          'nav[aria-label="Main navigation"]:not(#public-phone-menu) li'
+        )
+      ).map((item) => item.textContent?.trim())
+    ).toEqual(["Pricing", "Elsewhere"])
+    expect(
+      host
+        .querySelector("[data-public-header-actions]")
+        ?.querySelector('input[aria-label="Search this site"]')
     ).not.toBeNull()
-    expect(desktopItems[2]?.textContent).toContain("Elsewhere")
 
     const trigger = host.querySelector<HTMLButtonElement>(
       'button[aria-label="Open navigation menu"]'
@@ -591,14 +722,13 @@ describe("PublicPageFrame navigation", () => {
       Array.from(host.querySelectorAll("#public-phone-menu a")).map((item) =>
         item.textContent?.trim()
       )
-    ).toEqual(["Pricing", "Search", "Elsewhere"])
+    ).toEqual(["Search", "Pricing", "Elsewhere"])
 
     await act(async () => root.unmount())
   })
 
   it("opens a grouped menu by keyboard and shows the group as a phone section", async () => {
     publicSite.navigation = [
-      { type: "search", visible: true },
       {
         type: "group",
         label: "Resources",
@@ -672,12 +802,8 @@ describe("PublicPageFrame navigation", () => {
     await act(async () => root.unmount())
   })
 
-  it("keeps menu links but removes a hidden search item", async () => {
-    publicSite.navigation = [
-      { label: "Pricing", href: "/pricing" },
-      { type: "search", visible: false },
-      { label: "Elsewhere", href: "https://example.com" },
-    ]
+  it("drops search from the header when its action item is switched off", async () => {
+    publicSite.headerActions = ["theme", "user-panel"]
     const host = document.createElement("div")
     document.body.appendChild(host)
     const root = createRoot(host)
@@ -699,6 +825,89 @@ describe("PublicPageFrame navigation", () => {
         item.textContent?.trim()
       )
     ).toEqual(["Pricing", "Elsewhere"])
+
+    await act(async () => root.unmount())
+  })
+
+  it("follows the page width until the header has its own, and blurs as chosen", async () => {
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    const root = createRoot(host)
+    const render = () =>
+      act(async () => {
+        root.render(<PublicPageFrame>Page</PublicPageFrame>)
+      })
+    const header = () => host.querySelector("header")
+    const inner = () => host.querySelector<HTMLElement>("header > nav > div")
+
+    await render()
+    expect(inner()?.style.maxWidth).toBe("")
+    expect(header()?.className).toContain("backdrop-blur-xl")
+
+    publicHeader.current = { ...publicHeader.current, width: 900, blur: "none" }
+    await render()
+    expect(inner()?.style.maxWidth).toBe("900px")
+    expect(header()?.className).not.toContain("backdrop-blur")
+
+    publicHeader.current = {
+      ...publicHeader.current,
+      fullWidth: true,
+      blur: "heavy",
+    }
+    await render()
+    expect(inner()?.style.maxWidth).toBe("none")
+    expect(header()?.className).toContain("backdrop-blur-3xl")
+
+    await act(async () => root.unmount())
+  })
+
+  it("draws the saved sign-in buttons and hides one with no address", async () => {
+    const defaults = createDefaultPublicUserPanel()
+    publicUserPanel.current = {
+      ...defaults,
+      login: { ...defaults.login, label: "Log in", href: "/auth?tab=login" },
+      register: { ...defaults.register, href: "" },
+    }
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(<PublicPageFrame>Page</PublicPageFrame>)
+    })
+
+    const actions = host.querySelector("[data-public-header-actions]")
+    expect(
+      actions?.querySelector('a[href="/auth?tab=login"]')?.textContent
+    ).toBe("Log in")
+    expect(actions?.textContent).not.toContain("Create an account")
+    expect(
+      actions?.querySelector('button[aria-label="Open account menu"]')
+    ).not.toBeNull()
+
+    await act(async () => root.unmount())
+  })
+
+  it("drops the phone account button when no sign-in button shows on phones", async () => {
+    const defaults = createDefaultPublicUserPanel()
+    publicUserPanel.current = {
+      ...defaults,
+      login: { ...defaults.login, showOnPhone: false },
+      register: { ...defaults.register, showOnPhone: false },
+    }
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(<PublicPageFrame>Page</PublicPageFrame>)
+    })
+
+    const actions = host.querySelector("[data-public-header-actions]")
+    expect(actions?.textContent).toContain("Sign in")
+    expect(
+      actions?.querySelector('button[aria-label="Open account menu"]')
+    ).toBeNull()
 
     await act(async () => root.unmount())
   })

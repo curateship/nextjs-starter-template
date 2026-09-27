@@ -27,10 +27,19 @@ import {
 } from "@/lib/brand-image"
 import { FAVICON_MODES, type PublicFaviconSet } from "@/lib/favicon"
 import {
+  FRONT_PAGE_ROW_ALIGNMENTS,
   FRONT_PAGE_ROW_LAYOUTS,
   MAX_FRONT_PAGE_FAQ_ANSWER_LENGTH,
   MAX_FRONT_PAGE_FAQ_ITEMS,
   MAX_FRONT_PAGE_FAQ_QUESTION_LENGTH,
+  FRONT_PAGE_HERO_ACTIONS,
+  MAX_FRONT_PAGE_HERO_BUTTON_HREF_LENGTH,
+  MAX_FRONT_PAGE_HERO_BUTTON_LABEL_LENGTH,
+  MAX_FRONT_PAGE_HERO_NOTE_LENGTH,
+  APP_FRONT_PAGE_ROW_KIND,
+  MAX_APP_FRONT_PAGE_ROW_KEY_LENGTH,
+  MAX_APP_FRONT_PAGE_ROW_SETTINGS_LENGTH,
+  MAX_FRONT_PAGE_HERO_STARS,
   MAX_FRONT_PAGE_IMAGE_ALT_LENGTH,
   MAX_FRONT_PAGE_IMAGE_URL_LENGTH,
   MAX_FRONT_PAGE_ITEM_NAME_LENGTH,
@@ -45,9 +54,22 @@ import {
   MAX_FRONT_PAGE_TESTIMONIAL_QUOTE_LENGTH,
   MAX_FRONT_PAGE_TESTIMONIALS,
   frontPageRowImageUrls,
+  normalizeFrontPageHeroHref,
   normalizeFrontPageImageUrl,
   normalizeFrontPageRows,
 } from "@/lib/pages/front-page"
+import {
+  MAX_PUBLIC_SOCIAL_LINKS,
+  MAX_PUBLIC_SOCIAL_URL_LENGTH,
+  PUBLIC_SOCIAL_PLATFORMS,
+  PUBLIC_SOCIAL_URL_MESSAGE,
+  normalizePublicSocialLinks,
+  normalizePublicSocialUrl,
+} from "@/lib/pages/public-social"
+import {
+  PUBLIC_HEADER_ACTION_IDS,
+  normalizePublicHeaderActions,
+} from "@/lib/pages/public-header-actions"
 import {
   cleanPublicFooterCopyright,
   cleanPublicNavigationItems,
@@ -58,14 +80,22 @@ import {
   MAX_PUBLIC_NAVIGATION_LABEL_LENGTH,
 } from "@/lib/pages/public-navigation"
 import {
+  MAX_PUBLIC_HEADER_LOGO_GAP,
+  MAX_PUBLIC_HEADER_WIDTH,
+  MIN_PUBLIC_HEADER_LOGO_GAP,
+  MIN_PUBLIC_HEADER_WIDTH,
+  PUBLIC_HEADER_BLURS,
   PUBLIC_HEADER_LOGO_SIZES,
   PUBLIC_HEADER_MENU_ALIGNMENTS,
 } from "@/lib/pages/public-header"
 import { normalizePublicBreadcrumbs } from "@/lib/pages/public-breadcrumbs"
+import { normalizePublicUserPanel } from "@/lib/pages/public-user-panel"
 import { PUBLIC_DEVICES } from "@/lib/pages/public-device"
 import { NOTIFICATION_TYPES } from "@/lib/notification-types"
 import {
   MAX_PUBLIC_BACKGROUND_PATTERN_OPACITY,
+  DEFAULT_PUBLIC_FRONT_PAGE_ROW_GAP,
+  MAX_PUBLIC_FRONT_PAGE_ROW_GAP,
   MAX_PUBLIC_MAIN_SPACING,
   MAX_PUBLIC_PAGE_WIDTH,
   MAX_PUBLIC_RADIUS,
@@ -78,7 +108,10 @@ import {
   PUBLIC_BUTTON_STYLES,
   PUBLIC_COLOR_SCHEMES,
   PUBLIC_CONTENT_ALIGNMENTS,
+  PUBLIC_FOOTER_ALIGNMENTS,
   PUBLIC_THEME_FONTS,
+  PUBLIC_THEME_CHROME_FONTS,
+  PUBLIC_THEME_HEADING_FONTS,
   normalizePublicBrandTheme,
   publicThemeForAppWideSave,
   publicThemeOverrides,
@@ -126,7 +159,6 @@ import { adminPost, userPost } from "@/server/guards"
 import { now } from "@/server/auth/security"
 
 const shellIconSchema = z.string().trim().min(1).max(2048)
-const faviconSourceSchema = z.string().trim().max(2048)
 const publicFontAssetSchema = z
   .object({
     name: z.string().trim().min(1).max(255),
@@ -256,6 +288,33 @@ const publicFooterSchema = z
   .max(MAX_PUBLIC_FOOTER_LINKS)
   .transform(cleanPublicNavigationLinks)
 
+const publicFooterSocialSchema = z
+  .array(
+    z.object({
+      platform: z.enum(PUBLIC_SOCIAL_PLATFORMS),
+      url: z
+        .string()
+        .trim()
+        .max(MAX_PUBLIC_SOCIAL_URL_LENGTH)
+        .refine(
+          (value) => normalizePublicSocialUrl(value) === value,
+          PUBLIC_SOCIAL_URL_MESSAGE
+        ),
+    })
+  )
+  .max(MAX_PUBLIC_SOCIAL_LINKS)
+  .transform(normalizePublicSocialLinks)
+
+const publicHeaderActionsSchema = z
+  .array(
+    z.object({
+      id: z.enum(PUBLIC_HEADER_ACTION_IDS),
+      hidden: z.boolean(),
+    })
+  )
+  .max(PUBLIC_HEADER_ACTION_IDS.length)
+  .transform(normalizePublicHeaderActions)
+
 const publicBrandOverridesSchema = z.object(
   Object.fromEntries(
     PUBLIC_BRAND_OVERRIDE_KEYS.map((key) => [
@@ -308,7 +367,18 @@ const publicThemeSchema = z.object({
     .min(MIN_PUBLIC_PAGE_WIDTH)
     .max(MAX_PUBLIC_PAGE_WIDTH),
   mainSpacing: z.number().int().min(0).max(MAX_PUBLIC_MAIN_SPACING),
+  // Defaulted so a settings tab opened before this setting existed still
+  // saves, and saves the gap the page already had.
+  frontPageRowGap: z
+    .number()
+    .int()
+    .min(0)
+    .max(MAX_PUBLIC_FRONT_PAGE_ROW_GAP)
+    .default(DEFAULT_PUBLIC_FRONT_PAGE_ROW_GAP),
   contentAlignment: z.enum(PUBLIC_CONTENT_ALIGNMENTS),
+  // Defaulted so a settings tab opened before this choice existed still saves,
+  // and saves the footer as it already sat.
+  footerAlignment: z.enum(PUBLIC_FOOTER_ALIGNMENTS).default("inherit"),
   backgroundPattern: z.enum(PUBLIC_BACKGROUND_PATTERNS),
   backgroundPatternSize: z.enum(PUBLIC_BACKGROUND_PATTERN_SIZES),
   backgroundPatternOpacity: z
@@ -323,6 +393,8 @@ const publicThemeSchema = z.object({
   colorScheme: z.enum(PUBLIC_COLOR_SCHEMES),
   useCustomFont: z.boolean(),
   font: z.enum(PUBLIC_THEME_FONTS),
+  headingFont: z.enum(PUBLIC_THEME_HEADING_FONTS),
+  chromeFont: z.enum(PUBLIC_THEME_CHROME_FONTS),
   radius: z.number().int().min(0).max(MAX_PUBLIC_RADIUS),
 })
 
@@ -345,7 +417,20 @@ const frontPageRowBaseShape = {
   heading: z.string().max(MAX_FRONT_PAGE_ROW_HEADING_LENGTH),
   intro: z.string().max(MAX_FRONT_PAGE_ROW_INTRO_LENGTH),
   layout: z.enum(FRONT_PAGE_ROW_LAYOUTS),
+  // Defaulted so a settings tab opened before these existed still saves, and
+  // saves the row as it already looked.
+  alignment: z.enum(FRONT_PAGE_ROW_ALIGNMENTS).default("inherit"),
   hidden: z.boolean(),
+  showHeading: z.boolean().default(true),
+  showIntro: z.boolean().default(true),
+  showImage: z.boolean().default(true),
+  showAction: z.boolean().default(true),
+  showStars: z.boolean().default(true),
+  showNote: z.boolean().default(true),
+  showPictures: z.boolean().default(true),
+  showRoles: z.boolean().default(true),
+  showNumbers: z.boolean().default(true),
+  showCaptions: z.boolean().default(true),
   device: z.enum(PUBLIC_DEVICES),
 }
 
@@ -362,8 +447,51 @@ const frontPageImageSchema = z
 const frontPageRowsSchema = z
   .array(
     z.discriminatedUnion("kind", [
+      z.object({
+        ...frontPageRowBaseShape,
+        kind: z.literal(APP_FRONT_PAGE_ROW_KIND),
+        appKind: z
+          .string()
+          .max(MAX_APP_FRONT_PAGE_ROW_KEY_LENGTH)
+          .regex(/^[a-z0-9][a-z0-9-]*$/),
+        /**
+         * The app's own fields, kept as they arrive. The shell does not know
+         * what they mean, so it checks only that they are a plain object and
+         * that they are small enough to travel inside every visitor's page.
+         * Whatever reads them treats them as untrusted, the same as any other
+         * stored value.
+         */
+        settings: z
+          .record(z.string(), z.unknown())
+          .refine(
+            (value) =>
+              JSON.stringify(value).length <=
+              MAX_APP_FRONT_PAGE_ROW_SETTINGS_LENGTH,
+            "That row holds too much to save."
+          ),
+      }),
       z.object({ ...frontPageRowBaseShape, kind: z.literal("text") }),
       z.object({ ...frontPageRowBaseShape, kind: z.literal("plans") }),
+      z.object({
+        ...frontPageRowBaseShape,
+        kind: z.literal("hero"),
+        action: z.enum(FRONT_PAGE_HERO_ACTIONS),
+        image: frontPageImageSchema,
+        alt: z.string().max(MAX_FRONT_PAGE_IMAGE_ALT_LENGTH),
+        buttonLabel: z
+          .string()
+          .max(MAX_FRONT_PAGE_HERO_BUTTON_LABEL_LENGTH),
+        buttonHref: z
+          .string()
+          .trim()
+          .max(MAX_FRONT_PAGE_HERO_BUTTON_HREF_LENGTH)
+          .refine(
+            (value) => !value || normalizeFrontPageHeroHref(value) === value,
+            "A button link starts with /, https://, mailto: or tel:."
+          ),
+        note: z.string().max(MAX_FRONT_PAGE_HERO_NOTE_LENGTH),
+        stars: z.number().int().min(0).max(MAX_FRONT_PAGE_HERO_STARS),
+      }),
       z.object({
         ...frontPageRowBaseShape,
         kind: z.literal("testimonials"),
@@ -462,9 +590,7 @@ const shellConfigSchema = z.object({
   ),
   adminRoute: z.string().catch(""),
   memberHomeRoute: z.string().catch(""),
-  workspaceFavicon: faviconSourceSchema,
   workspaceLogo: z.string().trim().max(2048),
-  workspaceLogoDark: z.string().trim().max(2048),
   workspaceShareImage: z.string().trim().max(2048),
   // The one brand image. It is the signed-out logo and the browser-tab icon,
   // and its dark-mode twin is made on the way in — so the dark logo, the dark
@@ -501,6 +627,8 @@ const shellConfigSchema = z.object({
   frontPageRows: frontPageRowsSchema,
   publicNavigation: publicNavigationSchema,
   publicFooter: publicFooterSchema,
+  publicFooterSocial: publicFooterSocialSchema,
+  publicHeaderActions: publicHeaderActionsSchema,
   publicFooterCopyright: z
     .string()
     .max(MAX_PUBLIC_FOOTER_COPYRIGHT_LENGTH)
@@ -509,11 +637,30 @@ const shellConfigSchema = z.object({
     sticky: z.boolean(),
     menuAlignment: z.enum(PUBLIC_HEADER_MENU_ALIGNMENTS),
     logoSize: z.enum(PUBLIC_HEADER_LOGO_SIZES),
+    // Defaulted so a settings tab opened before these three existed still
+    // saves, and saves the header as it already looked.
+    fullWidth: z.boolean().default(false),
+    width: z
+      .number()
+      .int()
+      .min(MIN_PUBLIC_HEADER_WIDTH)
+      .max(MAX_PUBLIC_HEADER_WIDTH)
+      .nullable()
+      .default(null),
+    blur: z.enum(PUBLIC_HEADER_BLURS).default("medium"),
+    logoGap: z
+      .number()
+      .int()
+      .min(MIN_PUBLIC_HEADER_LOGO_GAP)
+      .max(MAX_PUBLIC_HEADER_LOGO_GAP)
+      .default(0),
   }),
   // Checked by the same function the reader uses, so an unknown or missing
   // value saves as "every kind off" rather than refusing the whole settings
   // save — which is what a tab left open across this change would send.
   publicBreadcrumbs: z.unknown().transform(normalizePublicBreadcrumbs),
+  // Same reason. The reader drops unsafe addresses, so the save can use it too.
+  publicUserPanel: z.unknown().transform(normalizePublicUserPanel),
   publicFont: publicFontAssetSchema,
   publicTheme: publicThemeSchema,
   publicThemePresets: publicThemePresetsSchema,
@@ -557,8 +704,36 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
     }
 
     const generatedFaviconSet: PublicFaviconSet = {}
+    const siteFaviconSet: PublicFaviconSet = {}
     const startingGlobals = await readShellGlobals()
     const logo = data.logo.trim()
+    const siteLogo = normalizeShareImage(data.workspaceLogo)
+
+    // A site's own logo goes through exactly what the app-wide one goes
+    // through: the dark version is drawn from it and the browser-tab sizes are
+    // cut from both. A site used to upload its favicon and its dark logo by
+    // hand, which is three pictures for what one does, and set its own favicon
+    // lost the cut sizes altogether.
+    if (siteLogo && !brandImagesAreCurrent(siteLogo, workspaceSettings)) {
+      const media = await findOwnedImageByUrl(context.user.id, siteLogo)
+      if (!media) {
+        throw new Error(
+          "That site logo is no longer in your media library. Pick another one."
+        )
+      }
+      try {
+        siteFaviconSet.light = await createFaviconVariant(media, "light")
+        siteFaviconSet.dark = await createDarkBrandVariant(media)
+      } catch (error) {
+        await deleteReplacedFaviconFiles(siteFaviconSet, null).catch(
+          () => undefined
+        )
+        console.error("The site's brand image could not be converted", error)
+        throw new Error(
+          "The dark version of that site logo could not be made. Try a PNG or an SVG."
+        )
+      }
+    }
 
     // Nothing is drawn when the saved pictures already match this logo, which
     // is every save that is not a logo change — a rename, a colour, a menu
@@ -597,9 +772,11 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
           name: workspaceName.slice(0, 255),
           settings: {
             ...workspaceSettings,
-            favicon: data.workspaceFavicon,
-            logo: normalizeShareImage(data.workspaceLogo),
-            logoDark: normalizeShareImage(data.workspaceLogoDark),
+            ...brandImagesForLockedSave(
+              siteLogo,
+              workspaceSettings,
+              siteFaviconSet
+            ),
             shareImage: normalizeShareImage(data.workspaceShareImage),
             publicTheme: normalizePublicBrandTheme(data.publicTheme),
             publicNavigation: workspaceDomainsEnabled
@@ -611,6 +788,9 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
             publicFooterCopyright: workspaceDomainsEnabled
               ? data.publicFooterCopyright
               : workspaceSettings.publicFooterCopyright,
+            frontPageRows: workspaceDomainsEnabled
+              ? data.frontPageRows
+              : workspaceSettings.frontPageRows,
             topRightNavigation: data.topRightNavigation,
             sections: data.sections,
             styling: data.styling,
@@ -654,8 +834,15 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
         )
       }
 
+      // Compared against the rows this save is replacing, which on a multisite
+      // app are the site's own. Comparing against the app-wide rows there would
+      // ask an admin to re-own a picture their site has been drawing for months.
       const savedFrontPageImages = new Set(
-        frontPageRowImageUrls(existingGlobals.frontPageRows)
+        frontPageRowImageUrls(
+          workspaceDomainsEnabled
+            ? workspaceSettings.frontPageRows
+            : existingGlobals.frontPageRows
+        )
       )
       for (const image of new Set(frontPageRowImageUrls(data.frontPageRows))) {
         if (
@@ -699,6 +886,9 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
           publicFooterCopyright: workspaceDomainsEnabled
             ? existingGlobals.publicFooterCopyright
             : data.publicFooterCopyright,
+          frontPageRows: workspaceDomainsEnabled
+            ? existingGlobals.frontPageRows
+            : data.frontPageRows,
           // A dedicated upload action owns the stored font. A stale settings
           // tab may choose whether to use it, but cannot replace its identity.
           publicFont: existingGlobals.publicFont,

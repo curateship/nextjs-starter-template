@@ -10,6 +10,24 @@ export type PricingChoice = {
 export type RegistrationChoice = PricingChoice & {
   ref?: string
   invalidReferral?: true
+  /** An address typed on a public page, carried over to save retyping it. */
+  email?: string
+}
+
+export const MAX_CARRIED_EMAIL_LENGTH = 254
+
+/**
+ * The address as it will be dropped into the register form's email box. It is
+ * checked for shape only, the way a browser checks an email input, because the
+ * register form and the server both check it again before anything is made.
+ */
+export function readCarriedEmail(value: unknown) {
+  const email = typeof value === "string" ? value.trim() : ""
+  return email.length > 0 &&
+    email.length <= MAX_CARRIED_EMAIL_LENGTH &&
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+    ? email
+    : undefined
 }
 
 /** Keeps only plan choices the pricing and registration routes understand. */
@@ -37,9 +55,11 @@ export function readRegistrationChoice(
   const pricing = readPricingChoice(search)
   const ref = readReferralCode(search.ref) ?? undefined
   const hasReferral = Object.prototype.hasOwnProperty.call(search, "ref")
+  const email = readCarriedEmail(search.email)
   return {
     ...pricing,
     ...(ref ? { ref } : {}),
+    ...(email ? { email } : {}),
     ...(hasReferral && !ref ? { invalidReferral: true as const } : {}),
   }
 }

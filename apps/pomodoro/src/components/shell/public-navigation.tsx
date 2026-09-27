@@ -14,6 +14,7 @@ import {
 
 import { BrandLogo } from "@/components/shell/brand-logo"
 import { ThemeToggle } from "@/components/shell/theme-toggle"
+import type { PublicHeaderActionId } from "@/lib/pages/public-header-actions"
 import { DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
 import { SiteSearchForm } from "@/components/shared/site-search-form"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -27,19 +28,24 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { loadCurrentUser, logout } from "@/lib/api/auth/auth"
+import { renderShellIcon } from "@/lib/custom-shell"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { isInternalHref, toLinkProps } from "@/lib/nav/nav-href"
 import type {
+  PublicHeaderBlur,
   PublicHeaderLogoSize,
   PublicHeaderMenuAlignment,
 } from "@/lib/pages/public-header"
 import {
   isPublicNavigationGroup,
-  isPublicNavigationSearchItem,
   publicNavigationForDevice,
   type PublicNavigationItem,
   type PublicNavigationLink,
 } from "@/lib/pages/public-navigation"
+import {
+  PUBLIC_USER_PANEL_BUTTON_KEYS,
+  type PublicUserPanel,
+} from "@/lib/pages/public-user-panel"
 import { cn } from "@/lib/utils"
 
 /**
@@ -49,9 +55,20 @@ import { cn } from "@/lib/utils"
  * panel inside the page instead of a floating list.
  *
  * Every Custom Shell setting still reaches it — sticky or scrolling, left or
- * centred menu, logo size, header border, page width, the Search item and its
- * saved position, and dropdown groups.
+ * centred menu, logo size, header border, its own width or the page width,
+ * blur, the Search item and its saved position, and dropdown groups.
  */
+
+/**
+ * The blur behind the see-through bar. Medium is the `backdrop-blur-xl` the
+ * header always had. Written out in full so Tailwind finds each class.
+ */
+const HEADER_BLUR_CLASS: Record<PublicHeaderBlur, string | undefined> = {
+  none: undefined,
+  light: "backdrop-blur-sm",
+  medium: "backdrop-blur-xl",
+  heavy: "backdrop-blur-3xl",
+}
 
 type PublicUser = {
   name: string
@@ -80,6 +97,31 @@ function UserAvatar({ user }: { user: PublicUser }) {
   )
 }
 
+/**
+ * An address an admin typed, as something to click: the router's link for a
+ * page on this site, a plain one for anywhere else.
+ */
+export function SavedLink({
+  href,
+  ...props
+}: { href: string } & Omit<React.ComponentProps<"a">, "href">) {
+  return isInternalHref(href) ? (
+    <Link {...props} {...toLinkProps(href)} />
+  ) : (
+    <a {...props} href={href} />
+  )
+}
+
+/** A saved label with its saved icon before it, when it has one. */
+function IconLabel({ icon, label }: { icon: string; label: string }) {
+  return (
+    <>
+      {icon ? renderShellIcon(icon, "size-4") : null}
+      {label}
+    </>
+  )
+}
+
 /** A menu word: full-contrast text that dims on hover. */
 const menuWord = "text-foreground duration-150 hover:opacity-80"
 
@@ -98,18 +140,10 @@ export function PublicMenuLink({
     className
   )
 
-  if (isInternalHref(link.href)) {
-    return (
-      <Link {...props} {...toLinkProps(link.href)} className={linkClassName}>
-        {link.label}
-      </Link>
-    )
-  }
-
   return (
-    <a {...props} href={link.href} className={linkClassName}>
+    <SavedLink {...props} href={link.href} className={linkClassName}>
       {link.label}
-    </a>
+    </SavedLink>
   )
 }
 
@@ -159,26 +193,51 @@ export function PublicNavigation({
   logo,
   logoDark,
   logoSize,
+  logoGap,
   navigation,
   sticky,
   menuAlignment,
   headerBorder,
-  pageWidthStyle,
+  widthStyle,
+  edgeStyle,
+  blur,
+  userPanel,
   chromeBackground,
   showThemeToggle,
+  headerActions,
+  showSearch,
 }: {
   appName: string
   logo: string
   logoDark: string
   logoSize: PublicHeaderLogoSize
+  /**
+   * Empty space after the logo in pixels, which is how far along the bar the
+   * menu words start. Desktop only, because the phone menu is behind its
+   * button.
+   */
+  logoGap: number
   navigation: PublicNavigationItem[]
   sticky: boolean
   menuAlignment: PublicHeaderMenuAlignment
   headerBorder: boolean
-  pageWidthStyle: { maxWidth: number } | undefined
+  /** Caps the header's contents; undefined keeps the built-in 1152px. */
+  widthStyle: { maxWidth: number | "none" } | undefined
+  /**
+   * The page's left and right padding, from the frame. Undefined keeps the
+   * `px-4` default. The header never picks its own, or the logo stops lining
+   * up with the content below it.
+   */
+  edgeStyle: { paddingInline: number } | undefined
+  blur: PublicHeaderBlur
+  userPanel: PublicUserPanel
   /** Public styling's header and footer colour, or undefined for the theme's. */
   chromeBackground: string | undefined
   showThemeToggle: boolean
+  /** The right-hand controls, in the order an admin dragged them into. */
+  headerActions: PublicHeaderActionId[]
+  /** Whether this page has a search box worth drawing. */
+  showSearch: boolean
 }) {
   const pathname = useLocation({ select: (location) => location.pathname })
   const headerRef = React.useRef<HTMLElement>(null)
@@ -295,6 +354,13 @@ export function PublicNavigation({
           ) : null}
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        {userPanel.links.map((link) => (
+          <DropdownMenuItem key={link.id} asChild>
+            <SavedLink href={link.href}>
+              <IconLabel icon={link.icon} label={link.label} />
+            </SavedLink>
+          </DropdownMenuItem>
+        ))}
         <DropdownMenuItem asChild>
           <Link to="/home">Dashboard</Link>
         </DropdownMenuItem>
@@ -315,20 +381,30 @@ export function PublicNavigation({
     </DropdownMenu>
   ) : null
 
-  // Signed out, desktop has room for both words. On a phone the same two
-  // choices live behind one round button, the way the directory app does it,
-  // so they never squeeze the logo.
-  const guestButtons = (
+  // Signed out, desktop has room for both buttons. On a phone the ones set to
+  // show there live behind one round button, the way the directory app does
+  // it, so they never squeeze the logo. A button with no address is hidden
+  // everywhere, and with nothing to list the round button goes too.
+  const guestActions = PUBLIC_USER_PANEL_BUTTON_KEYS.map(
+    (key) => ({ key, ...userPanel[key] })
+  ).filter((action) => action.href)
+  const phoneGuestActions = guestActions.filter((action) => action.showOnPhone)
+  const guestButtons = guestActions.length ? (
     <div className="flex items-center gap-2">
-      <Button asChild variant="outline" size="sm">
-        <Link to="/login">Sign in</Link>
-      </Button>
-      <Button asChild size="sm">
-        <Link to="/register">Create an account</Link>
-      </Button>
+      {guestActions.map((action) => (
+        <Button
+          key={action.key}
+          asChild
+          variant={action.style === "primary" ? "default" : action.style}
+        >
+          <SavedLink href={action.href}>
+            <IconLabel icon={action.icon} label={action.label} />
+          </SavedLink>
+        </Button>
+      ))}
     </div>
-  )
-  const guestCompactMenu = (
+  ) : null
+  const guestCompactMenu = phoneGuestActions.length ? (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <Button
@@ -342,17 +418,18 @@ export function PublicNavigation({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-52">
-        <DropdownMenuItem asChild>
-          <Link to="/login">Sign in</Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link to="/register">Create an account</Link>
-        </DropdownMenuItem>
+        {phoneGuestActions.map((action) => (
+          <DropdownMenuItem key={action.key} asChild>
+            <SavedLink href={action.href}>
+              <IconLabel icon={action.icon} label={action.label} />
+            </SavedLink>
+          </DropdownMenuItem>
+        ))}
       </DropdownMenuContent>
     </DropdownMenu>
-  )
+  ) : null
   // The photo is the same control at every width, so it is mounted once. Only
-  // the signed-out pair differs: two words on desktop, one round button on a
+  // the signed-out buttons differ: buttons on desktop, one round button on a
   // phone, and CSS picks which of those two is drawn.
   const accountActions = !authResolved ? null : signedInMenu ? (
     signedInMenu
@@ -369,8 +446,18 @@ export function PublicNavigation({
       aria-label="Go to the home page"
       className={cn(
         "flex min-w-0 shrink-0 items-center gap-2 rounded-md",
+        // The space is drawn from a variable rather than an inline
+        // `paddingRight`, so it can be held back until the width where the
+        // menu is actually in the bar. On a phone the same padding would only
+        // squeeze the logo against the account button.
+        logoGap > 0 && "lg:pr-[var(--public-logo-gap)]",
         focusRing
       )}
+      style={
+        logoGap > 0
+          ? ({ "--public-logo-gap": `${logoGap}px` } as React.CSSProperties)
+          : undefined
+      }
     >
       <BrandLogo
         src={logo}
@@ -378,21 +465,25 @@ export function PublicNavigation({
         appName={appName}
         size={logoSize}
       />
-      <span className="truncate text-sm font-medium text-foreground">
-        {appName}
-      </span>
+      {/*
+        The name is only drawn when there is no logo. A logo is the name
+        written the way its owner wants it written, so printing the words
+        beside it says the same thing twice. Tyler asked for this on
+        27 Sep 2026, pointing at "EDT" with "Eat Drink Toronto" next to it.
+      */}
+      {logo ? null : (
+        <span className="truncate text-sm font-medium text-foreground">
+          {appName}
+        </span>
+      )}
     </Link>
   )
 
   const desktopNavigation = desktopItems.length ? (
     <nav aria-label="Main navigation" className="hidden lg:block">
-      <ul className="flex items-center gap-8 text-sm font-medium">
+      <ul className="flex items-center gap-8 text-base font-medium">
         {desktopItems.map((item, index) =>
-          isPublicNavigationSearchItem(item) ? (
-            <li key="search" className="w-40 xl:w-56">
-              {searchField}
-            </li>
-          ) : isPublicNavigationGroup(item) ? (
+          isPublicNavigationGroup(item) ? (
             <li key={`${item.label}-group-${index}`} className="relative">
               <DesktopMenuGroup label={item.label} links={item.links} />
             </li>
@@ -426,6 +517,21 @@ export function PublicNavigation({
     </button>
   ) : null
 
+  const phoneSearch =
+    showSearch && headerActions.includes("search") ? (
+      <li key="search">
+        <Link
+          to="/search"
+          search={{ q: "" }}
+          onClick={closeMenu}
+          className={cn("flex items-center gap-2 rounded-md", menuWord, focusRing)}
+        >
+          <SearchIcon className="size-4" />
+          Search
+        </Link>
+      </li>
+    ) : null
+
   const phoneMenu = phoneItems.length ? (
     <nav
       id="public-phone-menu"
@@ -434,28 +540,9 @@ export function PublicNavigation({
       className="mb-6 hidden w-full space-y-8 rounded-3xl border bg-background p-6 shadow-2xl in-data-[state=active]:block lg:hidden"
     >
       <ul className="space-y-6 text-base">
+        {phoneSearch}
         {phoneItems.map((item, index) =>
-          isPublicNavigationSearchItem(item) ? (
-            <li key="search">
-              {/* The panel is full width, but a second search box beside the
-                  one already on the search page reads as a duplicate. The
-                  saved position becomes an entry that opens the search page
-                  instead, which is what the desktop chip order promises. */}
-              <Link
-                to="/search"
-                search={{ q: "" }}
-                onClick={closeMenu}
-                className={cn(
-                  "flex items-center gap-2 rounded-md",
-                  menuWord,
-                  focusRing
-                )}
-              >
-                <SearchIcon className="size-4" />
-                Search
-              </Link>
-            </li>
-          ) : isPublicNavigationGroup(item) ? (
+          isPublicNavigationGroup(item) ? (
             <li key={`${item.label}-group-${index}`}>
               <p className="mb-2 font-medium text-foreground">{item.label}</p>
               <ul className="ml-4 space-y-2">
@@ -489,20 +576,22 @@ export function PublicNavigation({
       ref={headerRef}
       data-menu-alignment={menuAlignment}
       className={cn(
-        "z-40 w-full backdrop-blur-xl",
+        "z-40 w-full",
+        edgeStyle ? undefined : "px-4",
+        HEADER_BLUR_CLASS[blur],
         // A chosen colour is drawn solid, the way the signed-in sidebar and
         // sticky bar are, so the header reads the same over any page content.
         chromeBackground ? undefined : "bg-background/90",
         headerBorder && "border-b",
         sticky && "sticky top-0"
       )}
-      style={chromeBackground ? { backgroundColor: chromeBackground } : undefined}
+      style={{
+        ...(chromeBackground ? { backgroundColor: chromeBackground } : {}),
+        ...edgeStyle,
+      }}
     >
       <nav data-state={menuState ? "active" : undefined} className="w-full">
-        <div
-          className="mx-auto w-full max-w-6xl px-5 sm:px-4 lg:px-6"
-          style={pageWidthStyle}
-        >
+        <div className="mx-auto w-full max-w-6xl" style={widthStyle}>
           <div
             className={cn(
               "relative flex flex-wrap items-center justify-between gap-6 py-3 lg:py-4",
@@ -520,8 +609,19 @@ export function PublicNavigation({
                 centeredMenu ? "lg:w-full lg:min-w-0" : "lg:ml-auto"
               )}
             >
-              {showThemeToggle ? <ThemeToggle /> : null}
-              {accountActions}
+              {headerActions.map((action) =>
+                action === "search" && showSearch ? (
+                  <div key="search" className="hidden w-40 lg:block xl:w-56">
+                    {searchField}
+                  </div>
+                ) : action === "theme" && showThemeToggle ? (
+                  <ThemeToggle key="theme" />
+                ) : action === "user-panel" ? (
+                  <React.Fragment key="user-panel">
+                    {accountActions}
+                  </React.Fragment>
+                ) : null
+              )}
               {menuButton}
             </div>
             {phoneMenu}

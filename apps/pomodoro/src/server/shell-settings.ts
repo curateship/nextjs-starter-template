@@ -40,6 +40,10 @@ import {
   type PublicBreadcrumbs,
 } from "@/lib/pages/public-breadcrumbs"
 import {
+  normalizePublicUserPanel,
+  type PublicUserPanel,
+} from "@/lib/pages/public-user-panel"
+import {
   normalizeFaviconMode,
   normalizePublicFaviconSet,
   type FaviconMode,
@@ -57,6 +61,14 @@ import {
   normalizePublicFontAsset,
   type PublicFontAsset,
 } from "@/lib/public-font"
+import {
+  normalizePublicSocialLinks,
+  type PublicSocialLink,
+} from "@/lib/pages/public-social"
+import {
+  normalizePublicHeaderActions,
+  type PublicHeaderAction,
+} from "@/lib/pages/public-header-actions"
 import {
   normalizeFrontPageRows,
   visibleFrontPageRows,
@@ -147,10 +159,13 @@ export async function readBranding(
   frontPageRows: FrontPageRow[]
   publicHeader: PublicHeader
   publicBreadcrumbs: PublicBreadcrumbs
+  publicUserPanel: PublicUserPanel
   publicNavigation: ReturnType<
     typeof parseWorkspaceSettings
   >["publicNavigation"]
   publicFooter: ReturnType<typeof parseWorkspaceSettings>["publicFooter"]
+  publicFooterSocial: PublicSocialLink[]
+  publicHeaderActions: PublicHeaderAction[]
   publicFooterCopyright: string
   publicSearchEnabled: boolean
   publicFont: PublicFontAsset | null
@@ -162,6 +177,18 @@ export async function readBranding(
    * stranger's address is worse than answering nothing.
    */
   hostIsUnknown: boolean
+  /**
+   * True when the address belongs to one of this deployment's sites.
+   *
+   * The front page reads it to decide what "no rows" means. On a site it means
+   * the site has not built a front page yet, and the honest answer is the
+   * site's header and footer with nothing between them — never the
+   * deployment's own sign-up block, which on somebody's restaurant directory
+   * is an advert for software they did not come for. On the deployment's own
+   * address, and in a one-site app, that block is exactly right and still
+   * draws.
+   */
+  hostIsSite: boolean
 }> {
   const globals = await readShellGlobals(database)
   const answer = await answerForRequest(database)
@@ -195,10 +222,13 @@ export async function readBranding(
       frontPageRows: visibleFrontPageRows(globals.frontPageRows),
       publicHeader: globals.publicHeader,
       publicBreadcrumbs: globals.publicBreadcrumbs,
+      publicUserPanel: globals.publicUserPanel,
       publicNavigation: workspaceDomainsEnabled
         ? []
         : globals.publicNavigation,
       publicFooter: workspaceDomainsEnabled ? [] : globals.publicFooter,
+      publicFooterSocial: globals.publicFooterSocial,
+      publicHeaderActions: globals.publicHeaderActions,
       publicFooterCopyright: workspaceDomainsEnabled
         ? ""
         : globals.publicFooterCopyright,
@@ -210,6 +240,7 @@ export async function readBranding(
         ? { publicTheme: appWidePublicTheme }
         : {}),
       hostIsUnknown: answer.kind === "unknown",
+      hostIsSite: false,
     }
   }
 
@@ -221,14 +252,29 @@ export async function readBranding(
   )
   const searchPage = pageForPath("/search")
 
+  // On an app that brands each site, the site's own picture is the only one it
+  // is ever drawn with — its menu and its footer work the same way. A site that
+  // has uploaded none shows its name, rather than borrowing the deployment's
+  // logo off the sign-in pages, which is a brand nobody on that website asked
+  // for. Tyler's call on 27 Sep 2026, after the second logo box read as a
+  // duplicate of the first.
+  //
+  // Its whole chain travels together: the dark version and the browser-tab
+  // icons are cut from that logo when it is saved, exactly as the app-wide ones
+  // are, so a site never wears one brand in the tab and another on the page.
+  const siteBrand = siteBranding
+
   return {
     appName: answer.workspace.name || globals.appName,
-    favicon: (siteBranding && workspaceSettings.favicon) || globals.favicon,
-    faviconDark: siteBranding && workspaceSettings.favicon ? "" : globals.faviconDark,
-    faviconSet: siteBranding && workspaceSettings.favicon ? null : globals.faviconSet,
+    // The site's own logo is the tab picture, not a second upload beside it.
+    // Read from the logo rather than from the saved `favicon` so a site branded
+    // before the two were joined still shows its picture in the tab.
+    favicon: siteBrand ? workspaceSettings.logo : globals.favicon,
+    faviconDark: siteBrand ? workspaceSettings.faviconDark : globals.faviconDark,
+    faviconSet: siteBrand ? workspaceSettings.faviconSet : globals.faviconSet,
     faviconMode: globals.faviconMode,
-    logo: (siteBranding && workspaceSettings.logo) || globals.logo,
-    logoDark: (siteBranding && workspaceSettings.logoDark) || globals.logoDark,
+    logo: siteBrand ? workspaceSettings.logo : globals.logo,
+    logoDark: siteBrand ? workspaceSettings.logoDark : globals.logoDark,
     shareImage: (siteBranding && workspaceSettings.shareImage) || versionedShareImage(
       globals.shareImage,
       globals.shareImageVersion
@@ -238,11 +284,17 @@ export async function readBranding(
     publicOrigin: currentPublicOrigin(),
     publicSeo: globals.publicSeo,
     publicSystemCopy: globals.publicSystemCopy,
-    frontPageRows: visibleFrontPageRows(globals.frontPageRows),
+    // This site's own rows, like the menu and the footer below. A one-site app
+    // never reaches here: its front page is answered by the branch above, from
+    // the app-wide row.
+    frontPageRows: visibleFrontPageRows(workspaceSettings.frontPageRows),
     publicHeader: globals.publicHeader,
     publicBreadcrumbs: globals.publicBreadcrumbs,
+    publicUserPanel: globals.publicUserPanel,
     publicNavigation: workspaceSettings.publicNavigation,
     publicFooter: workspaceSettings.publicFooter,
+    publicFooterSocial: globals.publicFooterSocial,
+    publicHeaderActions: globals.publicHeaderActions,
     publicFooterCopyright: workspaceSettings.publicFooterCopyright,
     publicSearchEnabled:
       searchPage !== null &&
@@ -250,6 +302,7 @@ export async function readBranding(
     publicFont: globals.publicFont,
     ...(hasCustomPublicTheme(publicTheme) ? { publicTheme } : {}),
     hostIsUnknown: false,
+    hostIsSite: true,
   }
 }
 
@@ -327,11 +380,15 @@ export async function readShellSettings(
     // The site's own name, not the app-wide value — that is only the fallback
     // for somebody who is in no site at all.
     workspaceName: workspace?.name ?? globals.workspaceName,
-    workspaceFavicon: workspaceSettings.favicon,
+    // One picture per site, like the app-wide logo above it. The favicon and
+    // the dark version are made from it when it is saved, so neither is a field
+    // an admin fills in.
     workspaceLogo: workspaceSettings.logo,
-    workspaceLogoDark: workspaceSettings.logoDark,
     workspaceShareImage: workspaceSettings.shareImage,
     sidebarWidth: await sidebarWidthFor(user.id, database),
+    frontPageRows: workspaceDomainsEnabled
+      ? workspaceSettings.frontPageRows
+      : globals.frontPageRows,
     publicNavigation: workspaceDomainsEnabled
       ? workspaceSettings.publicNavigation
       : globals.publicNavigation,
@@ -410,11 +467,16 @@ export function parseShellGlobals(value: unknown) {
         ? fallback.publicNavigation
         : cleanPublicNavigationItems(settings.publicNavigation),
     publicFooter: cleanPublicNavigationLinks(settings.publicFooter),
+    publicFooterSocial: normalizePublicSocialLinks(settings.publicFooterSocial),
+    publicHeaderActions: normalizePublicHeaderActions(
+      settings.publicHeaderActions
+    ),
     publicFooterCopyright: cleanPublicFooterCopyright(
       settings.publicFooterCopyright
     ),
     publicHeader: normalizePublicHeader(settings.publicHeader),
     publicBreadcrumbs: normalizePublicBreadcrumbs(settings.publicBreadcrumbs),
+    publicUserPanel: normalizePublicUserPanel(settings.publicUserPanel),
     publicFont: normalizePublicFontAsset(settings.publicFont),
     publicTheme: normalizePublicTheme(
       settings.publicTheme,
@@ -505,9 +567,12 @@ export function pickShellGlobals(
     | "frontPageRows"
     | "publicNavigation"
     | "publicFooter"
+    | "publicFooterSocial"
+    | "publicHeaderActions"
     | "publicFooterCopyright"
     | "publicHeader"
     | "publicBreadcrumbs"
+    | "publicUserPanel"
     | "publicFont"
     | "publicTheme"
     | "publicThemePresets"
@@ -543,11 +608,16 @@ export function pickShellGlobals(
     frontPageRows: normalizeFrontPageRows(settings.frontPageRows),
     publicNavigation: cleanPublicNavigationItems(settings.publicNavigation),
     publicFooter: cleanPublicNavigationLinks(settings.publicFooter),
+    publicFooterSocial: normalizePublicSocialLinks(settings.publicFooterSocial),
+    publicHeaderActions: normalizePublicHeaderActions(
+      settings.publicHeaderActions
+    ),
     publicFooterCopyright: cleanPublicFooterCopyright(
       settings.publicFooterCopyright
     ),
     publicHeader: normalizePublicHeader(settings.publicHeader),
     publicBreadcrumbs: normalizePublicBreadcrumbs(settings.publicBreadcrumbs),
+    publicUserPanel: normalizePublicUserPanel(settings.publicUserPanel),
     publicFont: normalizePublicFontAsset(settings.publicFont),
     publicTheme: normalizePublicTheme(settings.publicTheme),
     publicThemePresets: normalizePublicThemePresets(

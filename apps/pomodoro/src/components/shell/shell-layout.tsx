@@ -34,6 +34,7 @@ import {
   normalizeTopLeftNavLimit,
   normalizeTopRightNavigation,
   renderShellIcon,
+  shellConfigSaveRefusal,
   type ShellConfig,
   type ShellItem,
   type ShellMaintenance,
@@ -60,6 +61,7 @@ import {
 import { normalizePageOverrides } from "@/lib/pages/page-visibility"
 import { normalizePublicHeader } from "@/lib/pages/public-header"
 import { normalizePublicBreadcrumbs } from "@/lib/pages/public-breadcrumbs"
+import { normalizePublicUserPanel } from "@/lib/pages/public-user-panel"
 import {
   normalizePublicSeo,
   normalizePublicSystemCopy,
@@ -68,11 +70,10 @@ import {
   normalizeSocialHandle,
 } from "@/lib/pages/public-metadata"
 import { normalizeNotificationTypeVisibility } from "@/lib/notification-types"
-import {
-  isPublicThemeInputValid,
-  normalizePublicTheme,
-} from "@/lib/public-theme"
+import { normalizePublicTheme } from "@/lib/public-theme"
 import { normalizePublicFontAsset } from "@/lib/public-font"
+import { normalizePublicSocialLinks } from "@/lib/pages/public-social"
+import { normalizePublicHeaderActions } from "@/lib/pages/public-header-actions"
 import { normalizeFrontPageRows } from "@/lib/pages/front-page"
 import { resolveAppName } from "@/lib/branding"
 import {
@@ -261,10 +262,12 @@ export function ShellLayout({
   // the cookie from the request directly — that's the reliable gate.
 
   // Persists the freshest config immediately, cancelling any pending debounce.
-  // The server rejects an empty workspace name, so skip the request — but say
-  // "Not saved" in the header instead of dropping the edit in silence. The
-  // header is the only warning that reaches you when the edit that emptied the
-  // name happened on another settings tab (e.g. the sidebar's Reset).
+  // The server rejects an empty workspace name and a half-typed colour would
+  // reach the public site, so skip the request — but say "Not saved" in the
+  // header, and name the field, instead of dropping the edit in silence. The
+  // header is the only warning that reaches you when the edit that broke the
+  // save happened on another settings tab (e.g. the sidebar's Reset, or a hex
+  // code left half-typed on Public → Styling).
   // Returns whether it saved.
   const saveConfigNow = React.useCallback(async () => {
     if (configSaveTimerRef.current) {
@@ -273,12 +276,9 @@ export function ShellLayout({
     }
 
     const snapshot = latestConfigRef.current
-    if (!snapshot.workspaceName.trim()) {
-      setSaveStatus("blocked")
-      return false
-    }
-    if (!isPublicThemeInputValid(snapshot.publicTheme)) {
-      setSaveStatus("idle")
+    const refusal = shellConfigSaveRefusal(snapshot)
+    if (refusal) {
+      setSaveStatus({ blocked: refusal })
       return false
     }
 
@@ -479,10 +479,7 @@ export function ShellLayout({
         clearTimeout(configSaveTimerRef.current)
         configSaveTimerRef.current = null
         const snapshot = latestConfigRef.current
-        if (
-          snapshot.workspaceName.trim() &&
-          isPublicThemeInputValid(snapshot.publicTheme)
-        ) {
+        if (!shellConfigSaveRefusal(snapshot)) {
           void saveShellSettings(snapshot).catch(() => undefined)
         }
       }
@@ -753,10 +750,9 @@ function normalizeConfig(
     ),
     adminRoute: settings.adminRoute ?? fallback.adminRoute,
     memberHomeRoute: settings.memberHomeRoute ?? fallback.memberHomeRoute,
-    workspaceFavicon: settings.workspaceFavicon ?? fallback.workspaceFavicon,
     workspaceLogo: settings.workspaceLogo ?? fallback.workspaceLogo,
-    workspaceLogoDark: settings.workspaceLogoDark ?? fallback.workspaceLogoDark,
-    workspaceShareImage: settings.workspaceShareImage ?? fallback.workspaceShareImage,
+    workspaceShareImage:
+      settings.workspaceShareImage ?? fallback.workspaceShareImage,
     favicon: settings.favicon ?? fallback.favicon,
     faviconDark: settings.faviconDark ?? fallback.faviconDark,
     faviconSet: normalizePublicFaviconSet(settings.faviconSet),
@@ -779,10 +775,15 @@ function normalizeConfig(
     publicFooter: Array.isArray(settings.publicFooter)
       ? settings.publicFooter
       : fallback.publicFooter,
+    publicFooterSocial: normalizePublicSocialLinks(settings.publicFooterSocial),
+    publicHeaderActions: normalizePublicHeaderActions(
+      settings.publicHeaderActions
+    ),
     publicFooterCopyright:
       settings.publicFooterCopyright ?? fallback.publicFooterCopyright,
     publicHeader: normalizePublicHeader(settings.publicHeader),
     publicBreadcrumbs: normalizePublicBreadcrumbs(settings.publicBreadcrumbs),
+    publicUserPanel: normalizePublicUserPanel(settings.publicUserPanel),
     publicFont: normalizePublicFontAsset(settings.publicFont),
     publicTheme: normalizePublicTheme(settings.publicTheme),
     publicThemePresets: normalizePublicThemePresets(

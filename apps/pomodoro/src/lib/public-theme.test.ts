@@ -15,11 +15,11 @@ import {
   createDefaultPublicTheme,
   hasCustomPublicTheme,
   isPublicBrandColor,
-  isPublicThemeInputValid,
   noFlashThemeScript,
   normalizePublicBrandTheme,
   normalizePublicBrandOverrides,
   normalizePublicTheme,
+  publicThemeColorProblem,
   publicThemeForAppWideSave,
   publicThemeForSite,
   publicShellStyling,
@@ -161,11 +161,11 @@ describe("public theme", () => {
       })
     ).toBe(true)
     expect(
-      isPublicThemeInputValid({
+      publicThemeColorProblem({
         ...createDefaultPublicTheme(),
         canvasColor: { mode: "custom", strength: 60, color: "blue" },
       })
-    ).toBe(false)
+    ).toBe("canvas colour")
   })
 
   it("reads a canvas colour saved before the mode picker existed", () => {
@@ -252,26 +252,79 @@ describe("public theme", () => {
     const theme = createDefaultPublicTheme()
 
     expect(
-      isPublicThemeInputValid({
+      publicThemeColorProblem({
         ...theme,
         chrome: { mode: "custom", strength: 27, color: "#ab" },
       })
-    ).toBe(false)
+    ).toBe("header and footer colour")
     expect(
-      isPublicThemeInputValid({
+      publicThemeColorProblem({
         ...theme,
         modal: {
           ...theme.modal,
           cardBorderColor: { mode: "custom", strength: 6, color: "#abc" },
         },
       })
-    ).toBe(false)
+    ).toBe("modal card border colour")
     expect(
-      isPublicThemeInputValid({
+      publicThemeColorProblem({
         ...theme,
         chrome: { mode: "custom", strength: 27, color: "#abcdef" },
       })
-    ).toBe(true)
+    ).toBeNull()
+  })
+
+  it("names the first half-typed colour as the styling tab names it", () => {
+    const theme = createDefaultPublicTheme()
+
+    expect(publicThemeColorProblem(theme)).toBeNull()
+    expect(publicThemeColorProblem({ ...theme, brandColor: "#12" })).toBe(
+      "brand colour"
+    )
+    expect(
+      publicThemeColorProblem({
+        ...theme,
+        brandOverrides: { softColor: "#12345" },
+      })
+    ).toBe("soft tint")
+    expect(
+      publicThemeColorProblem({
+        ...theme,
+        chrome: { mode: "custom", strength: 27, color: "#ab" },
+      })
+    ).toBe("header and footer colour")
+    expect(
+      publicThemeColorProblem({
+        ...theme,
+        modal: {
+          ...theme.modal,
+          cardBorderColor: { mode: "custom", strength: 6, color: "#abc" },
+        },
+      })
+    ).toBe("modal card border colour")
+  })
+
+  it("names the brand colour before a later one", () => {
+    const theme = createDefaultPublicTheme()
+
+    expect(
+      publicThemeColorProblem({
+        ...theme,
+        brandColor: "#12",
+        dividerColor: { mode: "custom", strength: 10, color: "#3" },
+      })
+    ).toBe("brand colour")
+  })
+
+  it("ignores a half-typed colour the mode is not using", () => {
+    const theme = createDefaultPublicTheme()
+
+    expect(
+      publicThemeColorProblem({
+        ...theme,
+        canvasColor: { mode: "default", strength: 60, color: "#ab" },
+      })
+    ).toBeNull()
   })
 
   it("reads the public theme as the styling shape the frame applies", () => {
@@ -452,19 +505,19 @@ describe("public theme", () => {
     }
 
     expect(
-      isPublicThemeInputValid({
+      publicThemeColorProblem({
         ...createDefaultPublicTheme(),
         brandColor: "#3b82f6",
         brandOverrides,
       })
-    ).toBe(false)
+    ).toBe("soft tint")
     expect(
-      isPublicThemeInputValid({
+      publicThemeColorProblem({
         ...createDefaultPublicTheme(),
         brandColor: "",
         brandOverrides: normalizePublicBrandOverrides(brandOverrides),
       })
-    ).toBe(true)
+    ).toBeNull()
   })
 
   it("keeps site colours out of a multi-site app's global settings", () => {
