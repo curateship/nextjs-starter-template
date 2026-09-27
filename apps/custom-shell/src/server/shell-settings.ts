@@ -252,14 +252,23 @@ export async function readBranding(
   )
   const searchPage = pageForPath("/search")
 
+  // A site's own logo brings its whole chain with it — the dark version and the
+  // browser-tab icons are cut from that logo when it is saved, exactly as the
+  // app-wide ones are. All of it or none of it: a site with its own logo and the
+  // app's tab icons would put one brand in the tab and another on the page.
+  const siteBrand = siteBranding && Boolean(workspaceSettings.logo)
+
   return {
     appName: answer.workspace.name || globals.appName,
-    favicon: (siteBranding && workspaceSettings.favicon) || globals.favicon,
-    faviconDark: siteBranding && workspaceSettings.favicon ? "" : globals.faviconDark,
-    faviconSet: siteBranding && workspaceSettings.favicon ? null : globals.faviconSet,
+    // The site's own logo is the tab picture, not a second upload beside it.
+    // Read from the logo rather than from the saved `favicon` so a site branded
+    // before the two were joined still shows its picture in the tab.
+    favicon: siteBrand ? workspaceSettings.logo : globals.favicon,
+    faviconDark: siteBrand ? workspaceSettings.faviconDark : globals.faviconDark,
+    faviconSet: siteBrand ? workspaceSettings.faviconSet : globals.faviconSet,
     faviconMode: globals.faviconMode,
-    logo: (siteBranding && workspaceSettings.logo) || globals.logo,
-    logoDark: (siteBranding && workspaceSettings.logoDark) || globals.logoDark,
+    logo: siteBrand ? workspaceSettings.logo : globals.logo,
+    logoDark: siteBrand ? workspaceSettings.logoDark : globals.logoDark,
     shareImage: (siteBranding && workspaceSettings.shareImage) || versionedShareImage(
       globals.shareImage,
       globals.shareImageVersion
@@ -365,9 +374,10 @@ export async function readShellSettings(
     // The site's own name, not the app-wide value — that is only the fallback
     // for somebody who is in no site at all.
     workspaceName: workspace?.name ?? globals.workspaceName,
-    workspaceFavicon: workspaceSettings.favicon,
+    // One picture per site, like the app-wide logo above it. The favicon and
+    // the dark version are made from it when it is saved, so neither is a field
+    // an admin fills in.
     workspaceLogo: workspaceSettings.logo,
-    workspaceLogoDark: workspaceSettings.logoDark,
     workspaceShareImage: workspaceSettings.shareImage,
     sidebarWidth: await sidebarWidthFor(user.id, database),
     frontPageRows: workspaceDomainsEnabled

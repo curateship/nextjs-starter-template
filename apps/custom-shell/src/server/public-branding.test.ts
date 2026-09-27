@@ -98,6 +98,11 @@ afterAll(() => {
 })
 
 describe("public site branding", () => {
+  /**
+   * A site is branded with one picture, the way the app is. Its tab icon, its
+   * dark version and its sizes are made from that logo when it is saved, so
+   * there is no separate favicon to set and none to read.
+   */
   it("keeps each site's images when the app enables site branding", async () => {
     workspaceOptions.siteBranding = true
     const timestamp = now()
@@ -110,7 +115,6 @@ describe("public site branding", () => {
     await insertWorkspace(database, {
       name: "Alpha", subdomain: "alpha",
       settings: {
-        favicon: "https://media.example.test/alpha-icon.png",
         logo: "https://media.example.test/alpha.png",
         logoDark: "https://media.example.test/alpha-dark.png",
         shareImage: "https://media.example.test/alpha-share.png",
@@ -119,7 +123,8 @@ describe("public site branding", () => {
     await insertWorkspace(database, { name: "Beta", subdomain: "beta" })
     request.host = "alpha.localhost:3002"
     expect(await readBranding(database as unknown as CustomShellDb)).toMatchObject({
-      favicon: "https://media.example.test/alpha-icon.png",
+      // The logo is the tab picture too.
+      favicon: "https://media.example.test/alpha.png",
       faviconSet: null,
       logo: "https://media.example.test/alpha.png",
       logoDark: "https://media.example.test/alpha-dark.png",

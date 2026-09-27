@@ -4,6 +4,10 @@ import {
   normalizeFrontPageRows,
   type FrontPageRow,
 } from "@/lib/pages/front-page"
+import {
+  normalizePublicFaviconSet,
+  type PublicFaviconSet,
+} from "@/lib/favicon"
 import { normalizeShareImage } from "@/lib/pages/public-metadata"
 import {
   createDefaultTopRightNavigation,
@@ -442,7 +446,22 @@ export const NAVIGATION_VERSION = 19
 
 export type WorkspaceSettings = {
   icon: IconKey
+  /**
+   * This site's brand pictures, all made from the one logo an admin uploads.
+   *
+   * The app-wide ones work the same way: you give it a logo, it makes the
+   * dark-mode version and cuts the browser-tab icons from both. A site used to
+   * ask for a favicon and a dark logo of its own as well, which was three
+   * uploads for what one now does, and a site that set its own favicon lost the
+   * cut-to-size icons entirely. Tyler called it redundant on 27 Sep 2026.
+   *
+   * `favicon` and `faviconDark` are the pictures the browser tab is cut from,
+   * and `faviconSet` is the cut sizes. A site that has uploaded no logo has all
+   * of them empty and falls back to the app-wide ones.
+   */
   favicon: string
+  faviconDark: string
+  faviconSet: PublicFaviconSet | null
   logo: string
   logoDark: string
   shareImage: string
@@ -2585,6 +2604,11 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
         typeof settings.favicon === "string"
           ? settings.favicon
           : fallback.favicon,
+      faviconDark:
+        typeof settings.faviconDark === "string"
+          ? settings.faviconDark
+          : fallback.faviconDark,
+      faviconSet: normalizePublicFaviconSet(settings.faviconSet),
       logo: normalizeShareImage(settings.logo),
       logoDark: normalizeShareImage(settings.logoDark),
       shareImage: normalizeShareImage(settings.shareImage),
@@ -2644,6 +2668,11 @@ function cleanWorkspaceSettings(
       : fallback.icon,
     favicon:
       typeof settings.favicon === "string" ? settings.favicon : fallback.favicon,
+    faviconDark:
+      typeof settings.faviconDark === "string"
+        ? settings.faviconDark
+        : fallback.faviconDark,
+    faviconSet: normalizePublicFaviconSet(settings.faviconSet),
     logo: normalizeShareImage(settings.logo),
     logoDark: normalizeShareImage(settings.logoDark),
     shareImage: normalizeShareImage(settings.shareImage),
@@ -2741,6 +2770,8 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
   return {
     icon: DEFAULT_WORKSPACE_ICON,
     favicon: "",
+    faviconDark: "",
+    faviconSet: null,
     logo: "",
     logoDark: "",
     shareImage: "",

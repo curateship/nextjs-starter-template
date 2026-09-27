@@ -156,7 +156,6 @@ import { adminPost, userPost } from "@/server/guards"
 import { now } from "@/server/auth/security"
 
 const shellIconSchema = z.string().trim().min(1).max(2048)
-const faviconSourceSchema = z.string().trim().max(2048)
 const publicFontAssetSchema = z
   .object({
     name: z.string().trim().min(1).max(255),
@@ -577,9 +576,7 @@ const shellConfigSchema = z.object({
   ),
   adminRoute: z.string().catch(""),
   memberHomeRoute: z.string().catch(""),
-  workspaceFavicon: faviconSourceSchema,
   workspaceLogo: z.string().trim().max(2048),
-  workspaceLogoDark: z.string().trim().max(2048),
   workspaceShareImage: z.string().trim().max(2048),
   // The one brand image. It is the signed-out logo and the browser-tab icon,
   // and its dark-mode twin is made on the way in — so the dark logo, the dark
@@ -693,8 +690,36 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
     }
 
     const generatedFaviconSet: PublicFaviconSet = {}
+    const siteFaviconSet: PublicFaviconSet = {}
     const startingGlobals = await readShellGlobals()
     const logo = data.logo.trim()
+    const siteLogo = normalizeShareImage(data.workspaceLogo)
+
+    // A site's own logo goes through exactly what the app-wide one goes
+    // through: the dark version is drawn from it and the browser-tab sizes are
+    // cut from both. A site used to upload its favicon and its dark logo by
+    // hand, which is three pictures for what one does, and set its own favicon
+    // lost the cut sizes altogether.
+    if (siteLogo && !brandImagesAreCurrent(siteLogo, workspaceSettings)) {
+      const media = await findOwnedImageByUrl(context.user.id, siteLogo)
+      if (!media) {
+        throw new Error(
+          "That site logo is no longer in your media library. Pick another one."
+        )
+      }
+      try {
+        siteFaviconSet.light = await createFaviconVariant(media, "light")
+        siteFaviconSet.dark = await createDarkBrandVariant(media)
+      } catch (error) {
+        await deleteReplacedFaviconFiles(siteFaviconSet, null).catch(
+          () => undefined
+        )
+        console.error("The site's brand image could not be converted", error)
+        throw new Error(
+          "The dark version of that site logo could not be made. Try a PNG or an SVG."
+        )
+      }
+    }
 
     // Nothing is drawn when the saved pictures already match this logo, which
     // is every save that is not a logo change — a rename, a colour, a menu
@@ -733,9 +758,11 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
           name: workspaceName.slice(0, 255),
           settings: {
             ...workspaceSettings,
-            favicon: data.workspaceFavicon,
-            logo: normalizeShareImage(data.workspaceLogo),
-            logoDark: normalizeShareImage(data.workspaceLogoDark),
+            ...brandImagesForLockedSave(
+              siteLogo,
+              workspaceSettings,
+              siteFaviconSet
+            ),
             shareImage: normalizeShareImage(data.workspaceShareImage),
             publicTheme: normalizePublicBrandTheme(data.publicTheme),
             publicNavigation: workspaceDomainsEnabled

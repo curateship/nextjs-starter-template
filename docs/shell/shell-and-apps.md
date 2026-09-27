@@ -43,8 +43,13 @@ one public website and its settings are the app-wide ones. With it set, every
 site is reached on its own address and these belong to the site whose address
 was visited:
 
-- its name, favicon, logo, dark logo and share image, through
-  `workspaces.siteBranding`
+- its name, its one logo and its share image, through `workspaces.siteBranding`.
+  The logo is the only picture an admin uploads: the dark version and the
+  browser-tab sizes are cut from it when it is saved, exactly as they are from
+  the app-wide logo. A site used to upload a favicon and a dark logo of its own
+  as well, which was three pictures for what one does, and a site that set its
+  own favicon lost the cut sizes entirely. Tyler called that redundant on
+  27 Sep 2026
 - its brand colour, in `publicTheme`
 - its public menu, its public footer and the footer's copyright line
 - **its front page rows**, from 27 Sep 2026. They were app-wide until then, so
