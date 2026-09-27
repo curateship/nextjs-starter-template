@@ -4,6 +4,12 @@ import type {
   PublicNavigationItem,
   PublicNavigationLink,
 } from "@/lib/pages/public-navigation"
+import type { PublicSocialLink } from "@/lib/pages/public-social"
+import {
+  normalizePublicHeaderActions,
+  visiblePublicHeaderActions,
+  type PublicHeaderActionId,
+} from "@/lib/pages/public-header-actions"
 import {
   normalizePublicHeader,
   type PublicHeader,
@@ -90,6 +96,35 @@ export function usePublicFooter(): PublicNavigationLink[] {
     from: rootRouteId,
     select: (data) => data.publicFooter ?? [],
   })
+}
+
+/** The site's one-line description, shared with search engines. */
+export function usePublicSiteDescription() {
+  return useLoaderData({
+    from: rootRouteId,
+    select: (data) => data.publicSeo?.siteDescription ?? "",
+  })
+}
+
+/** The social accounts drawn as buttons in the public footer. */
+export function usePublicFooterSocial(): PublicSocialLink[] {
+  return useLoaderData({
+    from: rootRouteId,
+    select: (data) => data.publicFooterSocial ?? [],
+  })
+}
+
+/** The order of the controls at the right of the public header. */
+export function usePublicHeaderActions(): PublicHeaderActionId[] {
+  const saved = useLoaderData({
+    from: rootRouteId,
+    select: (data) => data.publicHeaderActions,
+  })
+
+  return React.useMemo(
+    () => visiblePublicHeaderActions(normalizePublicHeaderActions(saved)),
+    [saved]
+  )
 }
 
 export function usePublicFooterCopyright() {

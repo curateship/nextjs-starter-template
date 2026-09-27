@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils"
 import {
   createDefaultShellConfig,
   createDefaultTopRightNavigation,
+  shellConfigSaveRefusal,
   type ShellConfig,
   type ShellMaintenance,
   type ShellSessionPolicy,
@@ -230,9 +231,12 @@ export function SettingsPage({
           <PublicSiteSettings
             navigation={config.publicNavigation}
             footer={config.publicFooter}
+            footerSocial={config.publicFooterSocial}
             footerCopyright={config.publicFooterCopyright}
             publicHeader={config.publicHeader}
             pageWidth={config.publicTheme.pageWidth}
+            chromeFont={config.publicTheme.chromeFont}
+            headerActions={config.publicHeaderActions}
             publicUserPanel={config.publicUserPanel}
             publicBreadcrumbs={config.publicBreadcrumbs}
             onNavigationChange={(publicNavigation) =>
@@ -241,11 +245,23 @@ export function SettingsPage({
             onFooterChange={(publicFooter) =>
               onConfigChange({ ...config, publicFooter })
             }
+            onFooterSocialChange={(publicFooterSocial) =>
+              onConfigChange({ ...config, publicFooterSocial })
+            }
             onFooterCopyrightChange={(publicFooterCopyright) =>
               onConfigChange({ ...config, publicFooterCopyright })
             }
             onPublicHeaderChange={(publicHeader) =>
               onConfigChange({ ...config, publicHeader })
+            }
+            onChromeFontChange={(chromeFont) =>
+              onConfigChange({
+                ...config,
+                publicTheme: { ...config.publicTheme, chromeFont },
+              })
+            }
+            onHeaderActionsChange={(publicHeaderActions) =>
+              onConfigChange({ ...config, publicHeaderActions })
             }
             onPublicUserPanelChange={(publicUserPanel) =>
               onConfigChange({ ...config, publicUserPanel })
@@ -271,6 +287,7 @@ export function SettingsPage({
               onConfigChange({ ...config, publicTheme, publicFont })
             }
             onSaveConfig={onSaveConfig}
+            saveRefusal={shellConfigSaveRefusal(config)}
           />
         ) : null}
         {shellDraws(activeTab, "public-pages") ? (

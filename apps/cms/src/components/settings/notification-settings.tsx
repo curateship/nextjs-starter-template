@@ -1,6 +1,5 @@
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Label } from "@/components/ui/label"
+import { SettingsSwitchRow } from "@/components/settings/settings-switch-row"
 import type { ShellConfig } from "@/lib/custom-shell"
 import {
   NOTIFICATION_TYPES,
@@ -43,18 +42,14 @@ export function NotificationSettings({
       description="Which kinds appear in the notification bell and on member home screens, and whether the bell lights up the moment something happens."
       contentClassName="space-y-4"
     >
-      <div className="flex items-center gap-2">
-        <Checkbox
-          id="live-notifications"
-          checked={config.liveNotifications}
-          onCheckedChange={(value) =>
-            onConfigChange({ ...config, liveNotifications: value === true })
-          }
-        />
-        <Label htmlFor="live-notifications" className="font-normal">
-          Update the bell as things happen
-        </Label>
-      </div>
+      <SettingsSwitchRow
+        id="live-notifications"
+        checked={config.liveNotifications}
+        onCheckedChange={(liveNotifications) =>
+          onConfigChange({ ...config, liveNotifications })
+        }
+        label="Update the bell as things happen"
+      />
 
       {/* Edge to edge, so the line does not read as broken: pulled out to the
           card's own 16px inset and the content put back inside it. */}
@@ -62,24 +57,21 @@ export function NotificationSettings({
         {NOTIFICATION_TYPES.map((type) => {
           const id = `notification-type-${type}`
           return (
-            <div key={type} className="flex items-center gap-2">
-              <Checkbox
-                id={id}
-                checked={config.notificationTypes[type]}
-                onCheckedChange={(checked) =>
-                  onConfigChange({
-                    ...config,
-                    notificationTypes: {
-                      ...config.notificationTypes,
-                      [type]: checked === true,
-                    },
-                  })
-                }
-              />
-              <Label htmlFor={id} className="font-normal">
-                {notificationSettingLabels[type]}
-              </Label>
-            </div>
+            <SettingsSwitchRow
+              key={type}
+              id={id}
+              checked={config.notificationTypes[type]}
+              onCheckedChange={(checked) =>
+                onConfigChange({
+                  ...config,
+                  notificationTypes: {
+                    ...config.notificationTypes,
+                    [type]: checked,
+                  },
+                })
+              }
+              label={notificationSettingLabels[type]}
+            />
           )
         })}
       </div>

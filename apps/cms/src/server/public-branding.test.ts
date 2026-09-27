@@ -161,6 +161,7 @@ describe("public site branding", () => {
       fullWidth: false,
       width: null,
       blur: "medium",
+      logoGap: 0,
     })
     expect(branding.publicUserPanel.login).toMatchObject({
       label: "Log in",
@@ -185,6 +186,7 @@ describe("public site branding", () => {
       fullWidth: false,
       width: null,
       blur: "medium",
+      logoGap: 0,
     })
   })
 

@@ -31,6 +31,11 @@ import {
   MAX_FRONT_PAGE_FAQ_ANSWER_LENGTH,
   MAX_FRONT_PAGE_FAQ_ITEMS,
   MAX_FRONT_PAGE_FAQ_QUESTION_LENGTH,
+  FRONT_PAGE_HERO_ACTIONS,
+  MAX_FRONT_PAGE_HERO_BUTTON_HREF_LENGTH,
+  MAX_FRONT_PAGE_HERO_BUTTON_LABEL_LENGTH,
+  MAX_FRONT_PAGE_HERO_NOTE_LENGTH,
+  MAX_FRONT_PAGE_HERO_STARS,
   MAX_FRONT_PAGE_IMAGE_ALT_LENGTH,
   MAX_FRONT_PAGE_IMAGE_URL_LENGTH,
   MAX_FRONT_PAGE_ITEM_NAME_LENGTH,
@@ -45,9 +50,22 @@ import {
   MAX_FRONT_PAGE_TESTIMONIAL_QUOTE_LENGTH,
   MAX_FRONT_PAGE_TESTIMONIALS,
   frontPageRowImageUrls,
+  normalizeFrontPageHeroHref,
   normalizeFrontPageImageUrl,
   normalizeFrontPageRows,
 } from "@/lib/pages/front-page"
+import {
+  MAX_PUBLIC_SOCIAL_LINKS,
+  MAX_PUBLIC_SOCIAL_URL_LENGTH,
+  PUBLIC_SOCIAL_PLATFORMS,
+  PUBLIC_SOCIAL_URL_MESSAGE,
+  normalizePublicSocialLinks,
+  normalizePublicSocialUrl,
+} from "@/lib/pages/public-social"
+import {
+  PUBLIC_HEADER_ACTION_IDS,
+  normalizePublicHeaderActions,
+} from "@/lib/pages/public-header-actions"
 import {
   cleanPublicFooterCopyright,
   cleanPublicNavigationItems,
@@ -58,7 +76,9 @@ import {
   MAX_PUBLIC_NAVIGATION_LABEL_LENGTH,
 } from "@/lib/pages/public-navigation"
 import {
+  MAX_PUBLIC_HEADER_LOGO_GAP,
   MAX_PUBLIC_HEADER_WIDTH,
+  MIN_PUBLIC_HEADER_LOGO_GAP,
   MIN_PUBLIC_HEADER_WIDTH,
   PUBLIC_HEADER_BLURS,
   PUBLIC_HEADER_LOGO_SIZES,
@@ -83,6 +103,8 @@ import {
   PUBLIC_COLOR_SCHEMES,
   PUBLIC_CONTENT_ALIGNMENTS,
   PUBLIC_THEME_FONTS,
+  PUBLIC_THEME_CHROME_FONTS,
+  PUBLIC_THEME_HEADING_FONTS,
   normalizePublicBrandTheme,
   publicThemeForAppWideSave,
   publicThemeOverrides,
@@ -260,6 +282,33 @@ const publicFooterSchema = z
   .max(MAX_PUBLIC_FOOTER_LINKS)
   .transform(cleanPublicNavigationLinks)
 
+const publicFooterSocialSchema = z
+  .array(
+    z.object({
+      platform: z.enum(PUBLIC_SOCIAL_PLATFORMS),
+      url: z
+        .string()
+        .trim()
+        .max(MAX_PUBLIC_SOCIAL_URL_LENGTH)
+        .refine(
+          (value) => normalizePublicSocialUrl(value) === value,
+          PUBLIC_SOCIAL_URL_MESSAGE
+        ),
+    })
+  )
+  .max(MAX_PUBLIC_SOCIAL_LINKS)
+  .transform(normalizePublicSocialLinks)
+
+const publicHeaderActionsSchema = z
+  .array(
+    z.object({
+      id: z.enum(PUBLIC_HEADER_ACTION_IDS),
+      hidden: z.boolean(),
+    })
+  )
+  .max(PUBLIC_HEADER_ACTION_IDS.length)
+  .transform(normalizePublicHeaderActions)
+
 const publicBrandOverridesSchema = z.object(
   Object.fromEntries(
     PUBLIC_BRAND_OVERRIDE_KEYS.map((key) => [
@@ -327,6 +376,8 @@ const publicThemeSchema = z.object({
   colorScheme: z.enum(PUBLIC_COLOR_SCHEMES),
   useCustomFont: z.boolean(),
   font: z.enum(PUBLIC_THEME_FONTS),
+  headingFont: z.enum(PUBLIC_THEME_HEADING_FONTS),
+  chromeFont: z.enum(PUBLIC_THEME_CHROME_FONTS),
   radius: z.number().int().min(0).max(MAX_PUBLIC_RADIUS),
 })
 
@@ -368,6 +419,26 @@ const frontPageRowsSchema = z
     z.discriminatedUnion("kind", [
       z.object({ ...frontPageRowBaseShape, kind: z.literal("text") }),
       z.object({ ...frontPageRowBaseShape, kind: z.literal("plans") }),
+      z.object({
+        ...frontPageRowBaseShape,
+        kind: z.literal("hero"),
+        action: z.enum(FRONT_PAGE_HERO_ACTIONS),
+        image: frontPageImageSchema,
+        alt: z.string().max(MAX_FRONT_PAGE_IMAGE_ALT_LENGTH),
+        buttonLabel: z
+          .string()
+          .max(MAX_FRONT_PAGE_HERO_BUTTON_LABEL_LENGTH),
+        buttonHref: z
+          .string()
+          .trim()
+          .max(MAX_FRONT_PAGE_HERO_BUTTON_HREF_LENGTH)
+          .refine(
+            (value) => !value || normalizeFrontPageHeroHref(value) === value,
+            "A button link starts with /, https://, mailto: or tel:."
+          ),
+        note: z.string().max(MAX_FRONT_PAGE_HERO_NOTE_LENGTH),
+        stars: z.number().int().min(0).max(MAX_FRONT_PAGE_HERO_STARS),
+      }),
       z.object({
         ...frontPageRowBaseShape,
         kind: z.literal("testimonials"),
@@ -505,6 +576,8 @@ const shellConfigSchema = z.object({
   frontPageRows: frontPageRowsSchema,
   publicNavigation: publicNavigationSchema,
   publicFooter: publicFooterSchema,
+  publicFooterSocial: publicFooterSocialSchema,
+  publicHeaderActions: publicHeaderActionsSchema,
   publicFooterCopyright: z
     .string()
     .max(MAX_PUBLIC_FOOTER_COPYRIGHT_LENGTH)
@@ -524,6 +597,12 @@ const shellConfigSchema = z.object({
       .nullable()
       .default(null),
     blur: z.enum(PUBLIC_HEADER_BLURS).default("medium"),
+    logoGap: z
+      .number()
+      .int()
+      .min(MIN_PUBLIC_HEADER_LOGO_GAP)
+      .max(MAX_PUBLIC_HEADER_LOGO_GAP)
+      .default(0),
   }),
   // Checked by the same function the reader uses, so an unknown or missing
   // value saves as "every kind off" rather than refusing the whole settings

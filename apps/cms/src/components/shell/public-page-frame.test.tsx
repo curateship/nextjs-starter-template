@@ -31,6 +31,9 @@ const publicSite = vi.hoisted(() => ({
   ] as PublicNavigationItem[],
   footer: [{ label: "About", href: "/about?from=footer#team" }],
   copyright: "Copyright",
+  description: "A short line about the site.",
+  social: [] as { platform: string; url: string }[],
+  headerActions: ["search", "theme", "user-panel"] as string[],
 }))
 const publicHeader = vi.hoisted(() => ({
   current: {
@@ -103,6 +106,9 @@ vi.mock("@/lib/branding", () => ({
   usePublicNavigation: () => publicSite.navigation,
   usePublicFooter: () => publicSite.footer,
   usePublicFooterCopyright: () => publicSite.copyright,
+  usePublicSiteDescription: () => publicSite.description,
+  usePublicFooterSocial: () => publicSite.social,
+  usePublicHeaderActions: () => publicSite.headerActions,
   usePublicSearchEnabled: () => publicSearch.enabled,
   usePublicHeader: () => publicHeader.current,
   usePublicUserPanel: () => publicUserPanel.current,
@@ -141,9 +147,9 @@ describe("PublicPageFrame navigation", () => {
     publicSearch.enabled = true
     publicSite.navigation = [
       { label: "Pricing", href: "/pricing" },
-      { type: "search", visible: true },
       { label: "Elsewhere", href: "https://example.com" },
     ]
+    publicSite.headerActions = ["search", "theme", "user-panel"]
     publicSite.footer = [
       { label: "About", href: "/about?from=footer#team" },
     ]
@@ -396,8 +402,10 @@ describe("PublicPageFrame navigation", () => {
 
     expect(frame?.style.backgroundColor).toBe("rgb(171, 205, 239)")
     expect(main?.className).toContain("place-items-center")
-    expect(main?.firstElementChild?.className).toContain("items-end")
-    expect(main?.firstElementChild?.className).toContain("text-right")
+    // The site says right, but a card page is one box in the middle of the
+    // screen and stays centred whatever the site chose.
+    expect(main?.firstElementChild?.className).toContain("items-center")
+    expect(main?.firstElementChild?.className).toContain("text-center")
     expect(main?.style.paddingBlock).toBe("24px")
     expect(
       widthElements.every((element) => element?.style.maxWidth === "800px")
@@ -405,6 +413,25 @@ describe("PublicPageFrame navigation", () => {
     expect(host.querySelector("header")?.className).not.toContain("border-b")
     expect(host.querySelector("footer")?.className).not.toContain("border-t")
     expect(host.textContent).not.toContain("Choose colour mode")
+
+    await act(async () => root.unmount())
+  })
+
+  it("keeps the site's alignment on a page built from blocks", async () => {
+    router.pathname = "/"
+    publicTheme.current = { ...publicTheme.current, contentAlignment: "right" }
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(<PublicPageFrame>Page</PublicPageFrame>)
+    })
+
+    const column = host.querySelector("main")?.firstElementChild
+    expect(column?.className).toContain("items-end")
+    expect(column?.className).toContain("text-right")
+    expect(column?.getAttribute("data-content-alignment")).toBe("right")
 
     await act(async () => root.unmount())
   })
@@ -439,6 +466,14 @@ describe("PublicPageFrame navigation", () => {
     expect(frame?.style.getPropertyValue("--border")).toBe("#445566")
     expect(frame?.style.getPropertyValue("--shell-gutter")).toBe("24px")
     expect(main?.style.paddingInline).toBe("24px")
+    // One edge for the whole page: the bar above the content and the footer
+    // below it take the same padding main does.
+    expect(
+      (host.querySelector("header") as HTMLElement | null)?.style.paddingInline
+    ).toBe("24px")
+    expect(
+      (host.querySelector("footer") as HTMLElement | null)?.style.paddingInline
+    ).toBe("24px")
     expect(column?.style.gap).toBe("24px")
     expect(column?.className).not.toContain("gap-2")
     expect(host.querySelector("header")?.style.backgroundColor).toBe(
@@ -477,6 +512,12 @@ describe("PublicPageFrame navigation", () => {
     expect(frame?.getAttribute("data-flat")).toBe("true")
     expect(main?.style.paddingInline).toBe("0px")
     expect(main?.className).not.toContain("px-4")
+    expect(
+      (host.querySelector("header") as HTMLElement | null)?.style.paddingInline
+    ).toBe("0px")
+    expect(
+      (host.querySelector("footer") as HTMLElement | null)?.style.paddingInline
+    ).toBe("0px")
 
     await act(async () => root.unmount())
   })
@@ -495,6 +536,8 @@ describe("PublicPageFrame navigation", () => {
 
     expect(main?.className).toContain("px-4")
     expect(main?.style.paddingInline).toBe("")
+    expect(host.querySelector("header")?.className).toContain("px-4")
+    expect(host.querySelector("footer")?.className).toContain("px-4")
     expect(column?.className).toContain("gap-2 md:gap-3")
     expect(column?.style.gap).toBe("")
 
@@ -586,7 +629,7 @@ describe("PublicPageFrame navigation", () => {
     await act(async () => root.unmount())
   })
 
-  it("renders search in its saved position on desktop and in the phone menu", async () => {
+  it("draws search in the header's action row, not in the menu", async () => {
     const host = document.createElement("div")
     document.body.appendChild(host)
     const root = createRoot(host)
@@ -595,14 +638,20 @@ describe("PublicPageFrame navigation", () => {
       root.render(<PublicPageFrame>Page</PublicPageFrame>)
     })
 
-    const desktopItems = Array.from(
-      host.querySelectorAll('nav[aria-label="Main navigation"] li')
-    )
-    expect(desktopItems[0]?.textContent).toContain("Pricing")
+    // The menu holds the links an admin typed. Search sits with the other
+    // header controls instead.
     expect(
-      desktopItems[1]?.querySelector('input[aria-label="Search this site"]')
+      Array.from(
+        host.querySelectorAll(
+          'nav[aria-label="Main navigation"]:not(#public-phone-menu) li'
+        )
+      ).map((item) => item.textContent?.trim())
+    ).toEqual(["Pricing", "Elsewhere"])
+    expect(
+      host
+        .querySelector("[data-public-header-actions]")
+        ?.querySelector('input[aria-label="Search this site"]')
     ).not.toBeNull()
-    expect(desktopItems[2]?.textContent).toContain("Elsewhere")
 
     const trigger = host.querySelector<HTMLButtonElement>(
       'button[aria-label="Open navigation menu"]'
@@ -612,14 +661,13 @@ describe("PublicPageFrame navigation", () => {
       Array.from(host.querySelectorAll("#public-phone-menu a")).map((item) =>
         item.textContent?.trim()
       )
-    ).toEqual(["Pricing", "Search", "Elsewhere"])
+    ).toEqual(["Search", "Pricing", "Elsewhere"])
 
     await act(async () => root.unmount())
   })
 
   it("opens a grouped menu by keyboard and shows the group as a phone section", async () => {
     publicSite.navigation = [
-      { type: "search", visible: true },
       {
         type: "group",
         label: "Resources",
@@ -693,12 +741,8 @@ describe("PublicPageFrame navigation", () => {
     await act(async () => root.unmount())
   })
 
-  it("keeps menu links but removes a hidden search item", async () => {
-    publicSite.navigation = [
-      { label: "Pricing", href: "/pricing" },
-      { type: "search", visible: false },
-      { label: "Elsewhere", href: "https://example.com" },
-    ]
+  it("drops search from the header when its action item is switched off", async () => {
+    publicSite.headerActions = ["theme", "user-panel"]
     const host = document.createElement("div")
     document.body.appendChild(host)
     const root = createRoot(host)

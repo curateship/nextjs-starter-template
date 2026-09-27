@@ -13,10 +13,24 @@ import {
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { createShellId } from "@/components/settings/nav-editor-shared"
 import {
+  FRONT_PAGE_HERO_ACTION_HINTS,
+  FRONT_PAGE_HERO_ACTION_LABELS,
+  FRONT_PAGE_HERO_ACTIONS,
   MAX_FRONT_PAGE_FAQ_ANSWER_LENGTH,
+  MAX_FRONT_PAGE_HERO_BUTTON_HREF_LENGTH,
+  MAX_FRONT_PAGE_HERO_BUTTON_LABEL_LENGTH,
+  MAX_FRONT_PAGE_HERO_NOTE_LENGTH,
+  MAX_FRONT_PAGE_HERO_STARS,
   MAX_FRONT_PAGE_FAQ_ITEMS,
   MAX_FRONT_PAGE_FAQ_QUESTION_LENGTH,
   MAX_FRONT_PAGE_IMAGE_ALT_LENGTH,
@@ -28,6 +42,7 @@ import {
   MAX_FRONT_PAGE_TESTIMONIAL_QUOTE_LENGTH,
   MAX_FRONT_PAGE_TESTIMONIALS,
   type FrontPageFaqItem,
+  type FrontPageHeroAction,
   type FrontPageLogo,
   type FrontPageRowKind,
   type FrontPageScreenshot,
@@ -36,11 +51,25 @@ import {
 
 type FrontPageRowContentEditorProps = {
   kind: FrontPageRowKind
+  heroAction: FrontPageHeroAction
+  heroImage: string
+  heroAlt: string
+  heroButtonLabel: string
+  heroButtonHref: string
+  heroNote: string
+  heroStars: number
   testimonials: FrontPageTestimonial[]
   faqItems: FrontPageFaqItem[]
   logos: FrontPageLogo[]
   screenshots: FrontPageScreenshot[]
   submitted: boolean
+  onHeroActionChange: (action: FrontPageHeroAction) => void
+  onHeroImageChange: (image: string) => void
+  onHeroAltChange: (alt: string) => void
+  onHeroButtonLabelChange: (label: string) => void
+  onHeroButtonHrefChange: (href: string) => void
+  onHeroNoteChange: (note: string) => void
+  onHeroStarsChange: (stars: number) => void
   onTestimonialsChange: (items: FrontPageTestimonial[]) => void
   onFaqItemsChange: (items: FrontPageFaqItem[]) => void
   onLogosChange: (items: FrontPageLogo[]) => void
@@ -50,6 +79,7 @@ type FrontPageRowContentEditorProps = {
 export function FrontPageRowContentEditor(
   props: FrontPageRowContentEditorProps
 ) {
+  if (props.kind === "hero") return <HeroEditor {...props} />
   if (props.kind === "testimonials") return <TestimonialsEditor {...props} />
   if (props.kind === "faq") return <FaqEditor {...props} />
   if (props.kind === "logos") return <LogosEditor {...props} />
@@ -137,6 +167,159 @@ function AddItemButton({
         </Button>
       </DisabledReason>
     </div>
+  )
+}
+
+function HeroEditor({
+  heroAction,
+  heroImage,
+  heroAlt,
+  heroButtonLabel,
+  heroButtonHref,
+  heroNote,
+  heroStars,
+  onHeroActionChange,
+  onHeroImageChange,
+  onHeroAltChange,
+  onHeroButtonLabelChange,
+  onHeroButtonHrefChange,
+  onHeroNoteChange,
+  onHeroStarsChange,
+}: FrontPageRowContentEditorProps) {
+  return (
+    <EditorCard
+      title="Hero"
+      description="The heading and introduction above are the hero's words. Everything here sits under them."
+    >
+      <div className="grid gap-2">
+        <FieldLabel
+          htmlFor="front-page-hero-action"
+          hint={FRONT_PAGE_HERO_ACTION_HINTS[heroAction]}
+        >
+          What it asks for
+        </FieldLabel>
+        <Select
+          value={heroAction}
+          onValueChange={(value) =>
+            onHeroActionChange(value as FrontPageHeroAction)
+          }
+        >
+          <SelectTrigger id="front-page-hero-action" className="w-full sm:w-fit">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {FRONT_PAGE_HERO_ACTIONS.map((value) => (
+              <SelectItem key={value} value={value}>
+                {FRONT_PAGE_HERO_ACTION_LABELS[value]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-2">
+          <FieldLabel
+            htmlFor="front-page-hero-button-label"
+            hint={
+              heroAction === "email"
+                ? "The wording on the button beside the address box."
+                : "Leave both button fields empty to draw no button."
+            }
+          >
+            Button wording
+          </FieldLabel>
+          <Input
+            id="front-page-hero-button-label"
+            value={heroButtonLabel}
+            maxLength={MAX_FRONT_PAGE_HERO_BUTTON_LABEL_LENGTH}
+            placeholder={heroAction === "email" ? "Subscribe" : "Get started"}
+            onChange={(event) => onHeroButtonLabelChange(event.target.value)}
+          />
+        </div>
+        {heroAction === "button" ? (
+          <div className="grid gap-2">
+            <FieldLabel
+              htmlFor="front-page-hero-button-href"
+              hint="A page on this site starts with /. Another site starts with https://."
+            >
+              Button link
+            </FieldLabel>
+            <Input
+              id="front-page-hero-button-href"
+              value={heroButtonHref}
+              maxLength={MAX_FRONT_PAGE_HERO_BUTTON_HREF_LENGTH}
+              placeholder="/register"
+              onChange={(event) => onHeroButtonHrefChange(event.target.value)}
+            />
+          </div>
+        ) : null}
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-2">
+          <FieldLabel
+            htmlFor="front-page-hero-note"
+            hint="One short line under the button, such as how many customers there are."
+          >
+            Line under the button
+          </FieldLabel>
+          <Input
+            id="front-page-hero-note"
+            value={heroNote}
+            maxLength={MAX_FRONT_PAGE_HERO_NOTE_LENGTH}
+            placeholder="Trusted by 850 customers"
+            onChange={(event) => onHeroNoteChange(event.target.value)}
+          />
+        </div>
+        <div className="grid gap-2">
+          <FieldLabel
+            htmlFor="front-page-hero-stars"
+            hint="Stars drawn before that line. None draws no stars."
+          >
+            Stars
+          </FieldLabel>
+          <Select
+            value={String(heroStars)}
+            onValueChange={(value) => onHeroStarsChange(Number(value))}
+          >
+            <SelectTrigger
+              id="front-page-hero-stars"
+              className="w-full sm:w-fit"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {Array.from(
+                { length: MAX_FRONT_PAGE_HERO_STARS + 1 },
+                (_, count) => (
+                  <SelectItem key={count} value={String(count)}>
+                    {count === 0 ? "None" : String(count)}
+                  </SelectItem>
+                )
+              )}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <ImageUpload
+        label="Picture"
+        hint="Optional. With a picture the hero is two columns; without one the words run across the page."
+        value={heroImage}
+        aspect="square"
+        fit="cover"
+        inlinePicker
+        emptyLabel="Add picture"
+        className="max-w-24"
+        onChange={(image, altText) => {
+          onHeroImageChange(image)
+          // The library's own name for the picture becomes what a screen
+          // reader says, so there is no field here to fill in by hand.
+          if (!heroAlt && altText) onHeroAltChange(altText)
+        }}
+      />
+    </EditorCard>
   )
 }
 

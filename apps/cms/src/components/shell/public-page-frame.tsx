@@ -13,6 +13,9 @@ import {
   useBrandLogoDark,
   usePublicFooter,
   usePublicFooterCopyright,
+  usePublicFooterSocial,
+  usePublicHeaderActions,
+  usePublicSiteDescription,
   usePublicHeader,
   usePublicUserPanel,
   usePublicNavigation,
@@ -21,7 +24,6 @@ import {
 } from "@/lib/branding"
 import {
   isPublicNavigationGroup,
-  isPublicNavigationSearchItem,
 } from "@/lib/pages/public-navigation"
 import {
   isVisitorAnnouncementDismissed,
@@ -72,6 +74,9 @@ export function PublicPageFrame({
   const navigation = usePublicNavigation()
   const footer = usePublicFooter()
   const footerCopyright = usePublicFooterCopyright()
+  const siteDescription = usePublicSiteDescription()
+  const footerSocial = usePublicFooterSocial()
+  const headerActions = usePublicHeaderActions()
   const publicHeader = usePublicHeader()
   const userPanel = usePublicUserPanel()
   const brandedPublicSearchEnabled = usePublicSearchEnabled()
@@ -147,24 +152,34 @@ export function PublicPageFrame({
     // rather than the 24px fallback meant for content inside a modal.
     "--shell-gutter": `${theme.gutter}px`,
   } as React.CSSProperties
+  // The one left and right edge for the whole page. The header and the footer
+  // sit outside `<main>`, so they are handed the same value rather than
+  // carrying padding of their own, which is what used to leave the logo and
+  // the footer links further in than the content between them.
+  const edgeStyle = gutterChanged ? { paddingInline: theme.gutter } : undefined
   const mainStyle = {
     ...mainSpacingStyle,
-    ...(gutterChanged ? { paddingInline: theme.gutter } : {}),
+    ...edgeStyle,
   }
   const contentStyle = {
     ...pageWidthStyle,
     ...(gutterChanged ? { gap: theme.gutter } : {}),
   }
+  // Content alignment is for pages built out of blocks: the front page, the
+  // pricing page and search. A card page is one box in the middle of the
+  // screen, and pushing that box to one side leaves it stranded beside an
+  // empty half, so it stays centred whatever the site chose.
+  const contentAlignment = marketing ? theme.contentAlignment : "center"
   const mainLayoutClass = marketing
     ? "items-start justify-items-center"
     : "place-items-center"
   const visitorCanChooseTheme = theme.colorScheme === "system"
-  const visibleNavigation = navigation.filter((item) => {
-    if (isPublicNavigationSearchItem(item)) {
-      return item.visible && publicSearchEnabled && pathname !== "/search"
-    }
-    return !isPublicNavigationGroup(item) || item.links.length > 0
-  })
+  const visibleNavigation = navigation.filter(
+    (item) => !isPublicNavigationGroup(item) || item.links.length > 0
+  )
+  // A second search box beside the one already on the search page reads as a
+  // duplicate, and a site with no search page has nothing to search.
+  const showSearch = publicSearchEnabled && pathname !== "/search"
 
   function dismissVisitorAnnouncement(announcement: VisitorAnnouncement) {
     rememberVisitorAnnouncementDismissal(localStorage, announcement)
@@ -198,15 +213,19 @@ export function PublicPageFrame({
         logo={logo}
         logoDark={logoDark}
         logoSize={publicHeader.logoSize}
+        logoGap={publicHeader.logoGap}
         navigation={visibleNavigation}
         sticky={publicHeader.sticky}
         menuAlignment={publicHeader.menuAlignment}
         headerBorder={theme.headerBorder}
         widthStyle={headerWidthStyle}
+        edgeStyle={edgeStyle}
         blur={publicHeader.blur}
         userPanel={userPanel}
         chromeBackground={chromeBackground}
         showThemeToggle={visitorCanChooseTheme}
+        headerActions={headerActions}
+        showSearch={showSearch}
       />
       <main
         className={cn(
@@ -221,9 +240,9 @@ export function PublicPageFrame({
           className={cn(
             "group/public-content flex w-full max-w-6xl flex-col",
             gutterChanged ? undefined : "gap-2 md:gap-3",
-            publicContentAlignmentClassNames[theme.contentAlignment]
+            publicContentAlignmentClassNames[contentAlignment]
           )}
-          data-content-alignment={theme.contentAlignment}
+          data-content-alignment={contentAlignment}
           style={contentStyle}
         >
           <PublicBreadcrumbs trail={breadcrumbTrail} />
@@ -236,10 +255,13 @@ export function PublicPageFrame({
         logoDark={logoDark}
         logoSize={publicHeader.logoSize}
         links={footer}
-        socialLinks={[]}
+        socialLinks={footerSocial}
         copyright={footerCopyright}
+        description={siteDescription}
+        contentAlignment={theme.contentAlignment}
         footerBorder={theme.footerBorder}
         pageWidthStyle={pageWidthStyle}
+        edgeStyle={edgeStyle}
         chromeBackground={chromeBackground}
       />
     </div>

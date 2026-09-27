@@ -25,6 +25,14 @@ Member Navigation groups the member editors separately. Sidebar sections use
 16px gaps to match their card inset, and menu actions stay inside their cards.
 CMS-specific settings remain under This app.
 
+Public Navigation is three cards, one per part of a public page: Header layout,
+which holds the Public menu and the Action items row, then Breadcrumbs, then
+Public footer, which holds Social accounts and Copyright. Public Styling is
+five cards: Brand, Page frame, Spacing and borders, Header and footer, and
+Modal. Every on-or-off setting in the shell's settings screens is the same
+switch row, and a save the server refuses names the field it is waiting for
+instead of reporting a save that did not happen.
+
 The shell's optional app-owned left header content keeps the standard sidebar
 links as its fallback. CMS leaves this option unset. Worker builds expand the
 page registry so CMS's page declarations remain available outside Vite.
@@ -47,6 +55,27 @@ CMS also inherits the shell's public header, footer and breadcrumbs, public
 styling presets, resized public pictures, the page loading bar, per-page search
 engine controls and the bell that clears its number without marking notices
 read.
+
+One container owns a public page's left and right edge. `public-page-frame.tsx`
+works that padding out once and hands it to the header, the content column and
+the footer, so the logo, the cards and the footer links line up at every window
+width, and Settings > Styling > Spacing and borders moves all three together.
+Space after the logo, in Settings > Public > Navigation > Header layout, is a
+whole number of pixels from 0 to 400 and only applies from 1024px up, where the
+menu words are in the bar. The front page can open with a hero row, its blocks
+share one vertical spacing, and the plan cards and the FAQ are the shell's.
+
+The public site can read its headings in Libre Baskerville. The face is
+self-hosted in `public/fonts/`, alongside Inter, under the SIL Open Font
+License, and `src/theme.css` declares it. A shell merge that changes the fonts
+has to copy `public/fonts/` as well as `src/`, or the heading font falls back
+silently.
+
+CMS keeps one shell file forked on purpose.
+`src/components/pages/site-search-page.tsx` uses `publicCardHover` from
+`src/lib/layout/card-hover.ts` instead of the shell's `hover:bg-accent/40`, so
+search results lift and cast a shadow like every other CMS card. It stays a
+fork until that hover moves into the shell.
 
 The current shell includes database migrations through
 `0081_custom_shell_per_page_index_controls.sql`. CMS numbers its own migrations

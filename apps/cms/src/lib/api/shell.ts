@@ -18,6 +18,7 @@ import type { PlanSummary } from "@/lib/api/billing/billing"
 import type { ShellConfig } from "@/lib/custom-shell"
 import type { PublicFontAsset } from "@/lib/public-font"
 import type { FrontPageRow } from "@/lib/pages/front-page"
+import { createDefaultPublicHeaderActions } from "@/lib/pages/public-header-actions"
 import { createDefaultPublicNavigation } from "@/lib/pages/public-navigation"
 import {
   createDefaultPublicHeader,
@@ -198,6 +199,8 @@ const loadBrandingFn = createServerFn({ method: "GET" }).handler(
     publicUserPanel: PublicUserPanel
     publicNavigation: ShellConfig["publicNavigation"]
     publicFooter: ShellConfig["publicFooter"]
+    publicFooterSocial: ShellConfig["publicFooterSocial"]
+    publicHeaderActions: ShellConfig["publicHeaderActions"]
     publicFooterCopyright: string
     publicSearchEnabled: boolean
     publicFont: PublicFontAsset | null
@@ -232,6 +235,8 @@ const loadBrandingFn = createServerFn({ method: "GET" }).handler(
         publicUserPanel: createDefaultPublicUserPanel(),
         publicNavigation: createDefaultPublicNavigation(),
         publicFooter: [],
+        publicFooterSocial: [],
+        publicHeaderActions: createDefaultPublicHeaderActions(),
         publicFooterCopyright: "",
         publicSearchEnabled: true,
         publicFont: null,

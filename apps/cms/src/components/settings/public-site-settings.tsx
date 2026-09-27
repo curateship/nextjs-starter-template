@@ -9,13 +9,17 @@ import {
 import {
   ChevronDownIcon,
   GripVertical,
+  Loader2Icon,
   PlusIcon,
-  SearchIcon,
   Trash2Icon,
 } from "lucide-react"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
-import { PublicUserPanelSettings } from "@/components/settings/public-user-panel-settings"
+import { PublicHeaderActionsEditor } from "@/components/settings/public-header-actions-editor"
+import { PublicSocialEditor } from "@/components/settings/public-social-editor"
+import { SettingsCardSection } from "@/components/settings/settings-card-section"
+import { SettingsSwitchRow } from "@/components/settings/settings-switch-row"
+import { PublicUserPanelDialog } from "@/components/settings/public-user-panel-settings"
 import {
   DRAG_HANDLE_CLASS,
   createShellId,
@@ -23,7 +27,6 @@ import {
   useSortableRow,
 } from "@/components/settings/nav-editor-shared"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
 import {
   Card,
   CardContent,
@@ -34,7 +37,6 @@ import {
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import {
-  Dialog,
   DialogBody,
   DialogContent,
   DialogDescription,
@@ -67,7 +69,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
 import {
   PUBLIC_BREADCRUMB_HINTS,
   PUBLIC_BREADCRUMB_KINDS,
@@ -75,7 +76,9 @@ import {
   type PublicBreadcrumbs,
 } from "@/lib/pages/public-breadcrumbs"
 import {
+  MAX_PUBLIC_HEADER_LOGO_GAP,
   MAX_PUBLIC_HEADER_WIDTH,
+  MIN_PUBLIC_HEADER_LOGO_GAP,
   MIN_PUBLIC_HEADER_WIDTH,
   PUBLIC_HEADER_BLUR_LABELS,
   PUBLIC_HEADER_BLURS,
@@ -93,11 +96,17 @@ import {
   MAX_PUBLIC_NAVIGATION_LABEL_LENGTH,
   isPublicNavigationGroup,
   isPublicNavigationLink,
-  isPublicNavigationSearchItem,
   type PublicNavigationGroup,
   type PublicNavigationItem,
   type PublicNavigationLink,
 } from "@/lib/pages/public-navigation"
+import type { PublicSocialLink } from "@/lib/pages/public-social"
+import type { PublicHeaderAction } from "@/lib/pages/public-header-actions"
+import {
+  PUBLIC_THEME_CHROME_FONTS,
+  PUBLIC_THEME_HEADING_FONT_LABELS,
+  type PublicThemeChromeFont,
+} from "@/lib/public-theme"
 import type { PublicUserPanel } from "@/lib/pages/public-user-panel"
 import { isSafeWrittenPageLink } from "@/lib/pages/written-page-body"
 import { showErrorToast } from "@/lib/toast/error-toast"
@@ -106,16 +115,23 @@ import { cn } from "@/lib/utils"
 type PublicSiteSettingsProps = {
   navigation: PublicNavigationItem[]
   footer: PublicNavigationLink[]
+  footerSocial: PublicSocialLink[]
   footerCopyright: string
   publicHeader: PublicHeader
   /** Styling's page width, which the header follows until it has its own. */
   pageWidth: number
+  /** Styling's face for the header and footer, set from this card. */
+  chromeFont: PublicThemeChromeFont
+  headerActions: PublicHeaderAction[]
   publicUserPanel: PublicUserPanel
   publicBreadcrumbs: PublicBreadcrumbs
   onNavigationChange: (items: PublicNavigationItem[]) => void
   onFooterChange: (links: PublicNavigationLink[]) => void
+  onFooterSocialChange: (links: PublicSocialLink[]) => void
   onFooterCopyrightChange: (copyright: string) => void
   onPublicHeaderChange: (header: PublicHeader) => void
+  onChromeFontChange: (font: PublicThemeChromeFont) => void
+  onHeaderActionsChange: (actions: PublicHeaderAction[]) => void
   onPublicUserPanelChange: (panel: PublicUserPanel) => void
   onPublicBreadcrumbsChange: (breadcrumbs: PublicBreadcrumbs) => void
   onSaveConfig: () => Promise<boolean>
@@ -127,39 +143,60 @@ const CHIP_CLASS =
 export function PublicSiteSettings({
   navigation,
   footer,
+  footerSocial,
   footerCopyright,
   publicHeader,
   pageWidth,
+  chromeFont,
+  headerActions,
   publicUserPanel,
   publicBreadcrumbs,
   onNavigationChange,
   onFooterChange,
+  onFooterSocialChange,
   onFooterCopyrightChange,
   onPublicHeaderChange,
+  onChromeFontChange,
+  onHeaderActionsChange,
   onPublicUserPanelChange,
   onPublicBreadcrumbsChange,
   onSaveConfig,
 }: PublicSiteSettingsProps) {
+  const [editingUserPanel, setEditingUserPanel] = React.useState(false)
+
   return (
+    // Three cards, one per part of a public page: the header, the trail under
+    // it, and the footer. They were six until 25 Sep 2026; the menu and the
+    // user panel are the header, and the copyright line is the footer.
     <CardGroup>
-      <PublicLinkEditor
-        id="public-menu"
-        title="Public menu"
-        description="Drag search, links, and dropdown groups into the order they should appear beside the site name."
-        links={navigation}
-        onLinksChange={onNavigationChange}
-        onSaveConfig={onSaveConfig}
-        allowGroups
-      />
       <PublicHeaderSettings
         header={publicHeader}
         pageWidth={pageWidth}
+        chromeFont={chromeFont}
         onChange={onPublicHeaderChange}
-      />
-      <PublicUserPanelSettings
-        panel={publicUserPanel}
-        onChange={onPublicUserPanelChange}
-      />
+        onChromeFontChange={onChromeFontChange}
+      >
+        <PublicLinkEditor
+          id="public-menu"
+          title="Public menu"
+          description="Drag links and dropdown groups into the order they should appear beside the site name."
+          links={navigation}
+          onLinksChange={onNavigationChange}
+          onSaveConfig={onSaveConfig}
+          allowGroups
+          asSection
+        />
+        <SettingsCardSection
+          title="Action items"
+          description="The controls at the right-hand end of the header. Drag them into the order they should appear, and untick one to leave it out. The account corner opens its own settings."
+        >
+          <PublicHeaderActionsEditor
+            actions={headerActions}
+            onActionsChange={onHeaderActionsChange}
+            onEditUserPanel={() => setEditingUserPanel(true)}
+          />
+        </SettingsCardSection>
+      </PublicHeaderSettings>
       <PublicBreadcrumbSettings
         breadcrumbs={publicBreadcrumbs}
         onChange={onPublicBreadcrumbsChange}
@@ -171,25 +208,46 @@ export function PublicSiteSettings({
         links={footer}
         onLinksChange={onFooterChange}
         onSaveConfig={onSaveConfig}
-      />
-      <CollapsibleSettingsCard
-        storageId="public-footer-copyright"
-        title="Copyright"
-        description="One short copyright line shown beneath the footer links. Leave it empty to show nothing."
       >
-        <div className="grid gap-2">
-          <FieldLabel htmlFor="public-footer-copyright-input">
-            Copyright
-          </FieldLabel>
-          <Input
-            id="public-footer-copyright-input"
-            value={footerCopyright}
-            maxLength={MAX_PUBLIC_FOOTER_COPYRIGHT_LENGTH}
-            placeholder="© Your site name"
-            onChange={(event) => onFooterCopyrightChange(event.target.value)}
+        <SettingsCardSection
+          title="Social accounts"
+          description="Drawn as buttons under the site's description. Drag them into the order they should appear."
+        >
+          <PublicSocialEditor
+            links={footerSocial}
+            onLinksChange={onFooterSocialChange}
+            onSaveConfig={onSaveConfig}
           />
-        </div>
-      </CollapsibleSettingsCard>
+        </SettingsCardSection>
+        <SettingsCardSection
+          title="Copyright"
+          description="One short copyright line shown beneath the footer links. Leave it empty to show nothing."
+        >
+          <div className="grid gap-2">
+            <FieldLabel htmlFor="public-footer-copyright-input">
+              Copyright
+            </FieldLabel>
+            <Input
+              id="public-footer-copyright-input"
+              value={footerCopyright}
+              maxLength={MAX_PUBLIC_FOOTER_COPYRIGHT_LENGTH}
+              placeholder="© Your site name"
+              onChange={(event) => onFooterCopyrightChange(event.target.value)}
+            />
+          </div>
+        </SettingsCardSection>
+      </PublicLinkEditor>
+
+      {editingUserPanel ? (
+        <PublicUserPanelDialog
+          panel={publicUserPanel}
+          onClose={() => setEditingUserPanel(false)}
+          onSave={(next) => {
+            onPublicUserPanelChange(next)
+            setEditingUserPanel(false)
+          }}
+        />
+      ) : null}
     </CardGroup>
   )
 }
@@ -215,21 +273,16 @@ function PublicBreadcrumbSettings({
       contentClassName="grid gap-4"
     >
       {PUBLIC_BREADCRUMB_KINDS.map((kind) => (
-        <div key={kind} className="flex items-center justify-between gap-4">
-          <FieldLabel
-            htmlFor={`public-breadcrumbs-${kind}`}
-            hint={PUBLIC_BREADCRUMB_HINTS[kind]}
-          >
-            {PUBLIC_BREADCRUMB_LABELS[kind]}
-          </FieldLabel>
-          <Switch
-            id={`public-breadcrumbs-${kind}`}
-            checked={breadcrumbs[kind]}
-            onCheckedChange={(checked) =>
-              onChange({ ...breadcrumbs, [kind]: checked })
-            }
-          />
-        </div>
+        <SettingsSwitchRow
+          key={kind}
+          id={`public-breadcrumbs-${kind}`}
+          checked={breadcrumbs[kind]}
+          onCheckedChange={(checked) =>
+            onChange({ ...breadcrumbs, [kind]: checked })
+          }
+          label={PUBLIC_BREADCRUMB_LABELS[kind]}
+          hint={PUBLIC_BREADCRUMB_HINTS[kind]}
+        />
       ))}
     </CollapsibleSettingsCard>
   )
@@ -238,11 +291,18 @@ function PublicBreadcrumbSettings({
 function PublicHeaderSettings({
   header,
   pageWidth,
+  chromeFont,
   onChange,
+  onChromeFontChange,
+  children,
 }: {
   header: PublicHeader
   pageWidth: number
+  chromeFont: PublicThemeChromeFont
   onChange: (header: PublicHeader) => void
+  onChromeFontChange: (font: PublicThemeChromeFont) => void
+  /** The menu and the user panel, drawn as sections under the layout fields. */
+  children?: React.ReactNode
 }) {
   const update = (patch: Partial<PublicHeader>) =>
     onChange({ ...header, ...patch })
@@ -254,19 +314,60 @@ function PublicHeaderSettings({
       description="Choose how the full public header behaves on every public page."
       contentClassName="grid gap-4"
     >
-      <div className="flex items-center justify-between gap-4">
+      <div className="grid gap-2">
         <FieldLabel
-          htmlFor="public-header-sticky"
-          hint="Keeps the header at the top while a visitor scrolls."
+          htmlFor="public-header-font"
+          hint="The face the public header and footer read in. Same as the body leaves them on the site's own font."
         >
-          Sticky header
+          Navigation &amp; footer font
         </FieldLabel>
-        <Switch
-          id="public-header-sticky"
-          checked={header.sticky}
-          onCheckedChange={(sticky) => update({ sticky })}
-        />
+        <Select
+          value={chromeFont}
+          onValueChange={(font) =>
+            onChromeFontChange(font as PublicThemeChromeFont)
+          }
+        >
+          <SelectTrigger id="public-header-font" className="w-full sm:w-fit">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {PUBLIC_THEME_CHROME_FONTS.map((font) => (
+              <SelectItem key={font} value={font}>
+                {PUBLIC_THEME_HEADING_FONT_LABELS[font]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
+
+      <SettingsSwitchRow
+        id="public-header-sticky"
+        checked={header.sticky}
+        onCheckedChange={(sticky) => update({ sticky })}
+        label="Sticky header"
+        hint="Keeps the header at the top while a visitor scrolls."
+      />
+
+      <SettingsSwitchRow
+        id="public-header-full-width"
+        checked={header.fullWidth}
+        onCheckedChange={(fullWidth) => update({ fullWidth })}
+        label="Full width"
+        hint="Spreads the logo, menu and buttons across the whole window instead of stopping at a set width."
+      />
+
+      {header.fullWidth ? null : (
+        <NumberField
+          id="public-header-width"
+          label="Navigation width"
+          hint={`The widest the logo, menu and buttons spread, in pixels, from ${MIN_PUBLIC_HEADER_WIDTH} to ${MAX_PUBLIC_HEADER_WIDTH}. It follows the page width in Styling until you type a number here.`}
+          value={header.width ?? pageWidth}
+          min={MIN_PUBLIC_HEADER_WIDTH}
+          max={MAX_PUBLIC_HEADER_WIDTH}
+          inputClassName="w-full sm:w-32"
+          onChange={(width) => update({ width })}
+        />
+      )}
 
       <div className="grid gap-2">
         <FieldLabel
@@ -332,32 +433,16 @@ function PublicHeaderSettings({
         </Select>
       </div>
 
-      <div className="flex items-center justify-between gap-4">
-        <FieldLabel
-          htmlFor="public-header-full-width"
-          hint="Spreads the logo, menu and buttons across the whole window instead of stopping at a set width."
-        >
-          Full width
-        </FieldLabel>
-        <Switch
-          id="public-header-full-width"
-          checked={header.fullWidth}
-          onCheckedChange={(fullWidth) => update({ fullWidth })}
-        />
-      </div>
-
-      {header.fullWidth ? null : (
-        <NumberField
-          id="public-header-width"
-          label="Navigation width"
-          hint={`The widest the logo, menu and buttons spread, in pixels, from ${MIN_PUBLIC_HEADER_WIDTH} to ${MAX_PUBLIC_HEADER_WIDTH}. It follows the page width in Styling until you type a number here.`}
-          value={header.width ?? pageWidth}
-          min={MIN_PUBLIC_HEADER_WIDTH}
-          max={MAX_PUBLIC_HEADER_WIDTH}
-          inputClassName="w-full sm:w-32"
-          onChange={(width) => update({ width })}
-        />
-      )}
+      <NumberField
+        id="public-header-logo-gap"
+        label="Space after the logo"
+        hint={`Empty space between the logo and the first menu word, in pixels, from ${MIN_PUBLIC_HEADER_LOGO_GAP} to ${MAX_PUBLIC_HEADER_LOGO_GAP}. It moves the menu along the bar on screens 1024px and wider. Phones are unchanged, because the menu is behind the menu button there.`}
+        value={header.logoGap}
+        min={MIN_PUBLIC_HEADER_LOGO_GAP}
+        max={MAX_PUBLIC_HEADER_LOGO_GAP}
+        inputClassName="w-full sm:w-32"
+        onChange={(logoGap) => update({ logoGap })}
+      />
 
       <div className="grid gap-2">
         <FieldLabel
@@ -382,6 +467,8 @@ function PublicHeaderSettings({
           </SelectContent>
         </Select>
       </div>
+
+      {children}
     </CollapsibleSettingsCard>
   )
 }
@@ -394,6 +481,8 @@ function PublicLinkEditor<T extends PublicNavigationItem>({
   onLinksChange,
   onSaveConfig,
   allowGroups = false,
+  asSection = false,
+  children,
 }: {
   id: string
   title: string
@@ -402,15 +491,19 @@ function PublicLinkEditor<T extends PublicNavigationItem>({
   onLinksChange: (links: T[]) => void
   onSaveConfig: () => Promise<boolean>
   allowGroups?: boolean
+  /** Drawn inside another card rather than as a card of its own. */
+  asSection?: boolean
+  /** Further sections inside this editor's card, under its links. */
+  children?: React.ReactNode
 }) {
   const [openIndex, setOpenIndex] = React.useState<number | null>(null)
   const [creatingGroup, setCreatingGroup] = React.useState(false)
+  const [creatingLink, setCreatingLink] = React.useState(false)
   const [pendingDeleteIndex, setPendingDeleteIndex] = React.useState<
     number | null
   >(null)
   const sensors = useNavSensors()
   const itemIds = links.map((item, index) => {
-    if (isPublicNavigationSearchItem(item)) return `${id}-search`
     return isPublicNavigationGroup(item)
       ? `${id}-group-${index}`
       : `${id}-link-${index}`
@@ -428,26 +521,6 @@ function PublicLinkEditor<T extends PublicNavigationItem>({
     onLinksChange(arrayMove(links, oldIndex, newIndex))
   }
 
-  const changeLink = (index: number, patch: Partial<PublicNavigationLink>) => {
-    onLinksChange(
-      links.map((item, at) =>
-        at === index && isPublicNavigationLink(item)
-          ? { ...item, ...patch }
-          : item
-      ) as T[]
-    )
-  }
-
-  const changeSearchVisibility = (index: number, visible: boolean) => {
-    onLinksChange(
-      links.map((item, at) =>
-        at === index && isPublicNavigationSearchItem(item)
-          ? { ...item, visible }
-          : item
-      ) as T[]
-    )
-  }
-
   const changeGroup = (index: number, group: PublicNavigationGroup) => {
     onLinksChange(
       links.map((item, at) =>
@@ -456,11 +529,24 @@ function PublicLinkEditor<T extends PublicNavigationItem>({
     )
   }
 
-  const addLink = () => {
-    const nextIndex = links.length
-    onLinksChange([...links, { label: "", href: "" } as T])
-    setOpenIndex(nextIndex)
+  /**
+   * Writes the menu and waits for the settings save, so the link window knows
+   * whether it may close. A refused save puts the menu back as it was: nothing
+   * reached the server, so the list must not keep a link the reload would not
+   * show, and pressing Done again must not add a second copy of it. The header
+   * says why the save was refused.
+   */
+  const saveLinks = async (nextLinks: T[]) => {
+    onLinksChange(nextLinks)
+    const saved = await onSaveConfig()
+    if (!saved) onLinksChange(links)
+    return saved
   }
+
+  const saveLink = (index: number, link: PublicNavigationLink) =>
+    saveLinks(links.map((item, at) => (at === index ? (link as T) : item)))
+
+  const addLink = () => setCreatingLink(true)
 
   const pendingDeleteItem =
     pendingDeleteIndex === null ? null : links[pendingDeleteIndex]
@@ -471,108 +557,110 @@ function PublicLinkEditor<T extends PublicNavigationItem>({
       ? pendingDeleteItem
       : null
 
+  const editor = (
+    <DndContext
+      id={`custom-shell-${id}`}
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragEnd={handleDragEnd}
+    >
+      <SortableContext
+        items={itemIds}
+        strategy={horizontalListSortingStrategy}
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          {links.map((item, index) =>
+            isPublicNavigationGroup(item) ? (
+              <PublicGroupChip
+                key={itemIds[index]}
+                id={itemIds[index]}
+                group={item}
+                dialogOpen={openIndex === index}
+                onDialogOpenChange={(open) =>
+                  setOpenIndex(open ? index : null)
+                }
+                onChange={(group) => changeGroup(index, group)}
+                onDelete={() => setPendingDeleteIndex(index)}
+              />
+            ) : (
+              <PublicLinkChip
+                key={itemIds[index]}
+                id={itemIds[index]}
+                link={item}
+                linkNoun={linkNoun}
+                // The header menu is the one editor that allows groups
+                // and the one that chooses screens. Two facts, one flag,
+                // because only the header has either.
+                perDevice={allowGroups}
+                dialogOpen={openIndex === index}
+                onDialogOpenChange={(open) =>
+                  setOpenIndex(open ? index : null)
+                }
+                onSave={(nextLink) => saveLink(index, nextLink)}
+                onDelete={() => setPendingDeleteIndex(index)}
+              />
+            )
+          )}
+          {allowGroups ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="flex size-13 shrink-0 items-center justify-center rounded-lg border bg-background transition-colors hover:border-muted-foreground/50 hover:bg-accent"
+                  aria-label="Add item to public menu"
+                  title="Add menu item"
+                >
+                  <PlusIcon className="h-4 w-4" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="min-w-44">
+                <DropdownMenuItem onSelect={addLink}>
+                  Add link
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setCreatingGroup(true)}>
+                  Add dropdown group
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <DisabledReason
+              disabled={footerAtLimit}
+              reason={`A ${title.toLowerCase()} can have up to ${MAX_PUBLIC_FOOTER_LINKS} links.`}
+            >
+              <button
+                type="button"
+                disabled={footerAtLimit}
+                onClick={addLink}
+                className="flex size-13 shrink-0 items-center justify-center rounded-lg border bg-background transition-colors hover:border-muted-foreground/50 hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+                aria-label={`Add link to ${title.toLowerCase()}`}
+                title="Add link"
+              >
+                <PlusIcon className="h-4 w-4" />
+              </button>
+            </DisabledReason>
+          )}
+        </div>
+      </SortableContext>
+    </DndContext>
+  )
+
   return (
     <>
-      <CollapsibleSettingsCard
-        storageId={id}
-        title={title}
-        description={description}
-      >
-        <DndContext
-          id={`custom-shell-${id}`}
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleDragEnd}
+      {asSection ? (
+        <SettingsCardSection title={title} description={description}>
+          {editor}
+        </SettingsCardSection>
+      ) : (
+        <CollapsibleSettingsCard
+          storageId={id}
+          title={title}
+          description={description}
+          contentClassName="space-y-4"
         >
-          <SortableContext
-            items={itemIds}
-            strategy={horizontalListSortingStrategy}
-          >
-            <div className="flex flex-wrap items-center gap-2">
-              {links.map((item, index) =>
-                isPublicNavigationSearchItem(item) ? (
-                  <PublicSearchChip
-                    key={itemIds[index]}
-                    id={itemIds[index]}
-                    visible={item.visible}
-                    onVisibleChange={(visible) =>
-                      changeSearchVisibility(index, visible)
-                    }
-                  />
-                ) : isPublicNavigationGroup(item) ? (
-                  <PublicGroupChip
-                    key={itemIds[index]}
-                    id={itemIds[index]}
-                    group={item}
-                    dialogOpen={openIndex === index}
-                    onDialogOpenChange={(open) =>
-                      setOpenIndex(open ? index : null)
-                    }
-                    onChange={(group) => changeGroup(index, group)}
-                    onDelete={() => setPendingDeleteIndex(index)}
-                  />
-                ) : (
-                  <PublicLinkChip
-                    key={itemIds[index]}
-                    id={itemIds[index]}
-                    link={item}
-                    linkNoun={linkNoun}
-                    // The header menu is the one editor that allows groups
-                    // and the one that chooses screens. Two facts, one flag,
-                    // because only the header has either.
-                    perDevice={allowGroups}
-                    dialogOpen={openIndex === index}
-                    onDialogOpenChange={(open) =>
-                      setOpenIndex(open ? index : null)
-                    }
-                    onChange={(patch) => changeLink(index, patch)}
-                    onDelete={() => setPendingDeleteIndex(index)}
-                    onSaveConfig={onSaveConfig}
-                  />
-                )
-              )}
-              {allowGroups ? (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      type="button"
-                      className="flex size-13 shrink-0 items-center justify-center rounded-lg border bg-background transition-colors hover:border-muted-foreground/50 hover:bg-accent"
-                      aria-label="Add item to public menu"
-                      title="Add menu item"
-                    >
-                      <PlusIcon className="h-4 w-4" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="min-w-44">
-                    <DropdownMenuItem onSelect={addLink}>
-                      Add link
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => setCreatingGroup(true)}>
-                      Add dropdown group
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              ) : (
-                <DisabledReason
-                  disabled={footerAtLimit}
-                  reason={`A ${title.toLowerCase()} can have up to ${MAX_PUBLIC_FOOTER_LINKS} links.`}
-                >
-                  <button
-                    type="button"
-                    disabled={footerAtLimit}
-                    onClick={addLink}
-                    className="flex size-13 shrink-0 items-center justify-center rounded-lg border bg-background transition-colors hover:border-muted-foreground/50 hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
-                    aria-label={`Add link to ${title.toLowerCase()}`}
-                    title="Add link"
-                  >
-                    <PlusIcon className="h-4 w-4" />
-                  </button>
-                </DisabledReason>
-              )}
-            </div>
-          </SortableContext>
-        </DndContext>
-      </CollapsibleSettingsCard>
+          {editor}
+          {children}
+        </CollapsibleSettingsCard>
+      )}
 
       <ConfirmDialog
         open={Boolean(pendingDeleteEntry)}
@@ -606,6 +694,15 @@ function PublicLinkEditor<T extends PublicNavigationItem>({
             onLinksChange([...links, group] as T[])
             setCreatingGroup(false)
           }}
+        />
+      ) : null}
+
+      {creatingLink ? (
+        <PublicLinkDialog
+          linkNoun={linkNoun}
+          perDevice={allowGroups}
+          onClose={() => setCreatingLink(false)}
+          onSave={(link) => saveLinks([...links, link as T])}
         />
       ) : null}
     </>
@@ -1052,53 +1149,6 @@ function publicGroupDraftIsDirty(
   )
 }
 
-function PublicSearchChip({
-  id,
-  visible,
-  onVisibleChange,
-}: {
-  id: string
-  visible: boolean
-  onVisibleChange: (visible: boolean) => void
-}) {
-  const { attributes, listeners, setNodeRef, style } = useSortableRow(id, true)
-
-  return (
-    <div ref={setNodeRef} style={style} className={CHIP_CLASS}>
-      <div className="flex max-w-full items-center gap-1">
-        <button
-          type="button"
-          {...attributes}
-          {...listeners}
-          className={DRAG_HANDLE_CLASS}
-          aria-label="Reorder Search"
-        >
-          <GripVertical className="h-4 w-4" />
-        </button>
-        <span className="flex h-8 max-w-56 items-center gap-2 px-3 text-sm font-medium">
-          <SearchIcon className="h-4 w-4 shrink-0" />
-          Search
-          {!visible ? (
-            <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-              Hidden
-            </span>
-          ) : null}
-        </span>
-        <label
-          className="flex size-8 shrink-0 items-center justify-center rounded-md"
-          title={visible ? "Visible" : "Hidden"}
-        >
-          <Checkbox
-            checked={visible}
-            onCheckedChange={(checked) => onVisibleChange(checked === true)}
-          />
-          <span className="sr-only">Show Search</span>
-        </label>
-      </div>
-    </div>
-  )
-}
-
 function PublicLinkChip({
   id,
   link,
@@ -1106,9 +1156,8 @@ function PublicLinkChip({
   perDevice,
   dialogOpen,
   onDialogOpenChange,
-  onChange,
+  onSave,
   onDelete,
-  onSaveConfig,
 }: {
   id: string
   link: PublicNavigationLink
@@ -1117,15 +1166,11 @@ function PublicLinkChip({
   perDevice: boolean
   dialogOpen: boolean
   onDialogOpenChange: (open: boolean) => void
-  onChange: (patch: Partial<PublicNavigationLink>) => void
+  onSave: (link: PublicNavigationLink) => Promise<boolean>
   onDelete: () => void
-  onSaveConfig: () => Promise<boolean>
 }) {
-  const labelInputRef = React.useRef<HTMLInputElement>(null)
-  const [addressTouched, setAddressTouched] = React.useState(false)
   const label = link.label.trim()
   const itemName = label || linkNoun
-  const addressProblem = getPublicAddressProblem(link.href, Boolean(label))
   const { attributes, listeners, setNodeRef, style } = useSortableRow(id, true)
 
   return (
@@ -1168,20 +1213,112 @@ function PublicLinkChip({
         </Button>
       </div>
 
-      <Dialog open={dialogOpen} onOpenChange={onDialogOpenChange}>
+      {dialogOpen ? (
+        <PublicLinkDialog
+          link={link}
+          linkNoun={linkNoun}
+          perDevice={perDevice}
+          onClose={() => onDialogOpenChange(false)}
+          onSave={onSave}
+          onDelete={() => {
+            onDialogOpenChange(false)
+            onDelete()
+          }}
+        />
+      ) : null}
+    </div>
+  )
+}
+
+/**
+ * One menu link, edited as a draft.
+ *
+ * The window holds its own copy until Done, for the reason PublicGroupDialog
+ * does: Escape and a click outside must leave the saved menu exactly as it was.
+ * Done then checks the draft against the same rule the save applies
+ * (`isSafeWrittenPageLink`, through getPublicAddressProblem) and stays open
+ * on a problem, because the save silently drops a link with no label or an
+ * unsafe address, and a window that closed on "Saved" and lost the link is the
+ * bug this replaces.
+ */
+function PublicLinkDialog({
+  link,
+  linkNoun,
+  perDevice,
+  onClose,
+  onSave,
+  onDelete,
+}: {
+  /** The saved link being edited, or nothing for a link being added. */
+  link?: PublicNavigationLink
+  linkNoun: string
+  perDevice: boolean
+  onClose: () => void
+  /** Puts the link in the menu and waits for the settings save. */
+  onSave: (link: PublicNavigationLink) => Promise<boolean>
+  onDelete?: () => void
+}) {
+  const id = React.useId()
+  const [draft, setDraft] = React.useState<PublicNavigationLink>(
+    () => link ?? { label: "", href: "" }
+  )
+  const [attempted, setAttempted] = React.useState(false)
+  const [labelTouched, setLabelTouched] = React.useState(false)
+  const [addressTouched, setAddressTouched] = React.useState(false)
+  const [saving, setSaving] = React.useState(false)
+  const labelInputRef = React.useRef<HTMLInputElement>(null)
+  const addressInputRef = React.useRef<HTMLInputElement>(null)
+  const labelErrorId = `${id}-label-error`
+  const label = draft.label.trim()
+  const named = Boolean(label)
+  const addressProblem = getPublicAddressProblem(draft.href, true)
+  const labelInvalid = (attempted || labelTouched) && !named
+  const addressInvalid = Boolean(
+    (attempted || addressTouched) && addressProblem
+  )
+  const dirty = publicLinkDraftIsDirty(draft, link)
+
+  const save = async () => {
+    setAttempted(true)
+    if (!named) {
+      labelInputRef.current?.focus()
+      return
+    }
+    if (addressProblem) {
+      showErrorToast(addressProblem)
+      addressInputRef.current?.focus()
+      return
+    }
+
+    setSaving(true)
+    try {
+      const saved = await onSave({
+        ...draft,
+        label,
+        href: draft.href.trim(),
+      })
+      if (saved) onClose()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <FormDialog open dirty={dirty} busy={saving} onClose={onClose}>
+      {(requestClose) => (
         <DialogContent
           variant="admin"
           className="sm:max-w-lg"
           onOpenAutoFocus={(event) => {
-            if (label) return
+            if (named) return
             event.preventDefault()
             labelInputRef.current?.focus()
           }}
         >
           <DialogHeader>
-            <DialogTitle>{label || linkNoun}</DialogTitle>
+            <DialogTitle>{link?.label.trim() || linkNoun}</DialogTitle>
             <DialogDescription>
-              Edit this public {linkNoun}.
+              {link ? `Edit this public ${linkNoun}.` : `Add a ${linkNoun}.`}
             </DialogDescription>
           </DialogHeader>
           <DialogBody>
@@ -1195,28 +1332,41 @@ function PublicLinkChip({
                   <Input
                     ref={labelInputRef}
                     id={`${id}-label`}
-                    value={link.label}
+                    value={draft.label}
                     maxLength={MAX_PUBLIC_NAVIGATION_LABEL_LENGTH}
                     placeholder="About"
+                    disabled={saving}
+                    aria-invalid={labelInvalid || undefined}
+                    aria-describedby={labelInvalid ? labelErrorId : undefined}
                     onChange={(event) =>
-                      onChange({ label: event.target.value })
+                      setDraft((current) => ({
+                        ...current,
+                        label: event.target.value,
+                      }))
                     }
+                    onBlur={() => setLabelTouched(true)}
                   />
+                  {labelInvalid ? (
+                    <InlineError id={labelErrorId} className="text-xs">
+                      Label is required.
+                    </InlineError>
+                  ) : null}
                 </div>
                 <div className="grid gap-2">
                   <FieldLabel htmlFor={`${id}-href`}>Address</FieldLabel>
                   <Input
+                    ref={addressInputRef}
                     id={`${id}-href`}
-                    value={link.href}
+                    value={draft.href}
                     maxLength={MAX_PUBLIC_NAVIGATION_HREF_LENGTH}
                     placeholder="/about"
-                    aria-invalid={
-                      addressProblem && (link.href || addressTouched)
-                        ? true
-                        : undefined
-                    }
+                    disabled={saving}
+                    aria-invalid={addressInvalid || undefined}
                     onChange={(event) =>
-                      onChange({ href: event.target.value })
+                      setDraft((current) => ({
+                        ...current,
+                        href: event.target.value,
+                      }))
                     }
                     onBlur={() => {
                       setAddressTouched(true)
@@ -1227,38 +1377,55 @@ function PublicLinkChip({
                 {perDevice ? (
                   <PublicDeviceField
                     id={`${id}-device`}
-                    device={link.device}
-                    onChange={(device) => onChange({ device })}
+                    device={draft.device}
+                    onChange={(device) =>
+                      setDraft((current) => ({ ...current, device }))
+                    }
                   />
                 ) : null}
               </CardContent>
             </Card>
           </DialogBody>
           <DialogFooter>
+            {onDelete ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="mr-auto"
+                disabled={saving}
+                onClick={onDelete}
+              >
+                Delete link
+              </Button>
+            ) : null}
             <Button
               type="button"
               variant="outline"
-              className="mr-auto"
-              onClick={() => {
-                onDialogOpenChange(false)
-                onDelete()
-              }}
+              disabled={saving}
+              onClick={requestClose}
             >
-              Delete link
+              Cancel
             </Button>
-            <Button
-              type="button"
-              onClick={async () => {
-                await onSaveConfig()
-                onDialogOpenChange(false)
-              }}
-            >
+            <Button type="button" disabled={saving} onClick={() => void save()}>
+              {saving ? <Loader2Icon className="size-4 animate-spin" /> : null}
               Done
             </Button>
           </DialogFooter>
         </DialogContent>
-      </Dialog>
-    </div>
+      )}
+    </FormDialog>
+  )
+}
+
+function publicLinkDraftIsDirty(
+  draft: PublicNavigationLink,
+  link?: PublicNavigationLink
+) {
+  const saved = link ?? { label: "", href: "" }
+  return (
+    draft.label !== saved.label ||
+    draft.href !== saved.href ||
+    normalizePublicDevice(draft.device) !== normalizePublicDevice(saved.device)
   )
 }
 

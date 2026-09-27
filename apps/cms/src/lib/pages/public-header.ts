@@ -24,6 +24,10 @@ export const PUBLIC_HEADER_BLUR_LABELS: Record<PublicHeaderBlur, string> = {
 export const MIN_PUBLIC_HEADER_WIDTH = 320
 export const MAX_PUBLIC_HEADER_WIDTH = 2560
 
+/** How far the menu can be pushed away from the logo, in pixels. */
+export const MIN_PUBLIC_HEADER_LOGO_GAP = 0
+export const MAX_PUBLIC_HEADER_LOGO_GAP = 400
+
 export type PublicHeader = {
   /** Keeps the full public header at the top while the visitor scrolls. */
   sticky: boolean
@@ -41,6 +45,13 @@ export type PublicHeader = {
   width: number | null
   /** Medium is the blur the header always had. */
   blur: PublicHeaderBlur
+  /**
+   * Empty space after the logo, in pixels, which is what moves the menu words
+   * along the bar. Zero is the spacing the header always had. It applies from
+   * 1024px up, where the menu is in the bar; below that the menu is behind its
+   * button and there is nothing for the space to move.
+   */
+  logoGap: number
 }
 
 export function createDefaultPublicHeader(): PublicHeader {
@@ -51,6 +62,7 @@ export function createDefaultPublicHeader(): PublicHeader {
     fullWidth: false,
     width: null,
     blur: "medium",
+    logoGap: 0,
   }
 }
 
@@ -60,6 +72,15 @@ function isPublicHeaderWidth(value: unknown): value is number {
     Number.isInteger(value) &&
     value >= MIN_PUBLIC_HEADER_WIDTH &&
     value <= MAX_PUBLIC_HEADER_WIDTH
+  )
+}
+
+function isPublicHeaderLogoGap(value: unknown): value is number {
+  return (
+    typeof value === "number" &&
+    Number.isInteger(value) &&
+    value >= MIN_PUBLIC_HEADER_LOGO_GAP &&
+    value <= MAX_PUBLIC_HEADER_LOGO_GAP
   )
 }
 
@@ -91,5 +112,8 @@ export function normalizePublicHeader(value: unknown): PublicHeader {
     blur: PUBLIC_HEADER_BLURS.includes(header.blur as PublicHeaderBlur)
       ? (header.blur as PublicHeaderBlur)
       : fallback.blur,
+    logoGap: isPublicHeaderLogoGap(header.logoGap)
+      ? header.logoGap
+      : fallback.logoGap,
   }
 }

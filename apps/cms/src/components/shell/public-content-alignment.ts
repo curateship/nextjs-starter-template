@@ -9,6 +9,19 @@ export const publicContentAlignmentClassNames: Record<
   right: "items-end text-right",
 }
 
+/**
+ * For a row outside the public content column, such as the footer, where the
+ * `group-data` classes have no group to read.
+ */
+export const publicContentAlignmentJustifyClassNames: Record<
+  PublicContentAlignment,
+  string
+> = {
+  left: "justify-start",
+  center: "justify-center",
+  right: "justify-end",
+}
+
 export const publicContentAlignmentRowClassName =
   "group-data-[content-alignment=left]/public-content:justify-start group-data-[content-alignment=center]/public-content:justify-center group-data-[content-alignment=right]/public-content:justify-end"
 
