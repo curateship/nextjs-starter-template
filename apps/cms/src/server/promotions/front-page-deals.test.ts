@@ -175,7 +175,7 @@ describe("a home page row of deals", () => {
 
     const row = await dealsRow({ categoryId: pizza.id, count: 6 })
     expect(row?.deals.map((each) => each.title)).toEqual(["Pizza deal"])
-    expect(row?.categorySlug).toBe(pizza.slug)
+    expect(row?.action.href).toBe(`/deals?category=${pizza.slug}`)
   })
 
   it("is dropped with no live deal, and when the visitor may not see Deals", async () => {

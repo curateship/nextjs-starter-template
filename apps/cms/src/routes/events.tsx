@@ -119,6 +119,7 @@ function EventsRoute() {
         <EventsHero
           crumbs={
             <DirectoryBreadcrumbs
+              inBand
               crumbs={[
                 { label: data.site.name, home: true },
                 { label: "Events" },

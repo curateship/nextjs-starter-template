@@ -276,14 +276,18 @@ export async function readListingsRow(
       ? await directoryMapDisplayKey(workspaceId, database)
       : null
   const browseSort = browseSortForFrontPageSort(row.sort)
+  const browse = new URLSearchParams({
+    ...(shape.slug ? { category: shape.slug } : {}),
+    ...(browseSort ? { sort: browseSort } : {}),
+  }).toString()
 
   return {
+    action: {
+      label: "Browse directory",
+      href: browse ? `/directory?${browse}` : "/directory",
+    },
     listings: shape.listings,
     layout: row.layout === "map" && !mapApiKey ? "grid" : row.layout,
-    browse: {
-      ...(shape.slug ? { category: shape.slug } : {}),
-      ...(browseSort ? { sort: browseSort } : {}),
-    },
     mapApiKey,
   }
 }
@@ -347,10 +351,14 @@ export async function readEventsRow(
   const events = upcoming.events.slice(0, row.count)
   if (events.length === 0) return null
 
+  const slug = await categorySlug(workspaceId, row.categoryId, database)
   return {
+    action: {
+      label: "Browse events",
+      href: slug ? `/events?category=${encodeURIComponent(slug)}` : "/events",
+    },
     events,
     zone: timeZoneLabel(timeZone),
-    categorySlug: await categorySlug(workspaceId, row.categoryId, database),
   }
 }
 
@@ -380,9 +388,13 @@ export async function readDealsRow(
   )
   if (deals.length === 0) return null
 
+  const slug = await categorySlug(workspaceId, row.categoryId, database)
   return {
+    action: {
+      label: "Browse deals",
+      href: slug ? `/deals?category=${encodeURIComponent(slug)}` : "/deals",
+    },
     deals,
-    categorySlug: await categorySlug(workspaceId, row.categoryId, database),
   }
 }
 
@@ -406,5 +418,9 @@ export async function readPostsRow(
   )
   if (posts.length === 0) return null
 
-  return { posts, siteName: site.name }
+  return {
+    action: { label: "Browse posts", href: "/posts" },
+    posts,
+    siteName: site.name,
+  }
 }

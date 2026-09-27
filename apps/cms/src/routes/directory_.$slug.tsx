@@ -7,6 +7,7 @@ import {
 import { DirectoryRouteError } from "@/components/directory/public/directory-error"
 import { DirectoryFrame } from "@/components/directory/public/directory-frame"
 import { JsonLd } from "@/components/directory/public/json-ld"
+import { pageGutter } from "@/lib/layout/shell-gutter"
 import { ListingCustomSections } from "@/components/directory/public/listing-custom-sections"
 import { ListingEventsBox } from "@/components/directory/public/listing-events"
 import { ListingDealsBox } from "@/components/promotions/public/listing-deals"
@@ -207,7 +208,14 @@ function ListingRoute() {
 
       {/* Two columns on a wide screen, the narrow card on the right. */}
       {hasMain ? (
-        <div className="grid items-start gap-2 md:gap-3 lg:grid-cols-[minmax(0,1.36fr)_minmax(16rem,0.64fr)]">
+        <div
+          className="grid items-start lg:grid-cols-[minmax(0,1.36fr)_minmax(16rem,0.64fr)]"
+          // The space between the cards is the site's own, from Settings →
+          // Public → Styling → Spacing, like every other gap on a public page.
+          // A fixed Tailwind gap here ignored a site that widened or tightened
+          // its spacing, so the page's columns sat closer than its grids.
+          style={{ gap: pageGutter }}
+        >
           {/* First in the page, and second on a wide screen. On a phone that
               puts the photo, the name and the phone number at the top, which
               is what the page was opened for; `order` moves the wide column
@@ -215,15 +223,24 @@ function ListingRoute() {
 
               Sticks while the wide column scrolls past it. `top-4` keeps it
               clear of the top of the window rather than touching it. */}
-          <div className="grid content-start gap-2 md:gap-3 lg:sticky lg:top-4 lg:order-2">
+          <div
+            className="grid content-start lg:sticky lg:top-4 lg:order-2"
+            style={{ gap: pageGutter }}
+          >
             {sidebar}
           </div>
-          <div className="grid content-start gap-2 md:gap-3 lg:order-1">
+          <div
+            className="grid content-start lg:order-1"
+            style={{ gap: pageGutter }}
+          >
             {main}
           </div>
         </div>
       ) : (
-        <div className="grid content-start gap-2 md:gap-3 lg:max-w-md">
+        <div
+          className="grid content-start lg:max-w-md"
+          style={{ gap: pageGutter }}
+        >
           {sidebar}
         </div>
       )}

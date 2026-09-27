@@ -42,6 +42,31 @@ comes from the reader's clock, so the card draws the plain week on the server
 and moves today up once it is in the browser. A server in one timezone must not
 decide what Thursday means for a reader in another.
 
+## The trail at the top of a page
+
+Every public directory page but the browse page opens with the trail that says
+where it sits: **Eat Drink Toronto › Directory › Chinese › Lantern House**. It
+is the same trail the shell draws on its own public pages, and it is meant to
+look it — grey words at the page's own size, a chevron between the steps, and
+the page you are on in black. The last step is not a link back to where you
+already are.
+
+- **It sits 16px under the header**, its own gap, not the site's page spacing
+  from Settings → Styling → Spacing. A site with 40px of page spacing put a
+  field of empty background above three grey words and pushed the page's real
+  first line twice as far down as the trail was tall. Everything below the
+  trail still gets the site's spacing. Tyler asked for this on 27 Sep 2026.
+- **The Events page is the exception**, because it draws its trail inside the
+  band at the top, which cancels the page's spacing and adds its own.
+
+## The gaps between a page's blocks
+
+A listing's cards, its two columns and the blocks down each of them are spaced
+by the site's own **Spacing** setting, the same number the grids of cards
+inside them use. They were a fixed 8 or 12 pixels until 27 Sep 2026, which left
+a page's own blocks closer together than the cards within them on a site that
+widened its spacing.
+
 ## Directory pages always read from the left
 
 A site's Styling settings can centre its public text, which suits a page of
@@ -50,8 +75,7 @@ centred record puts a field's name over its value and a phone number over an
 address. Anything that genuinely belongs in the middle — an empty list, the
 pager — says so on itself and is unaffected.
 
-That override covers the buttons and rows as well as the text, from 27 Sep
-2026. It used to cover only the text, so a site set to Centre drew a hero's
+That override covers the buttons and rows as well as the text, from 27 Sep 2026. It used to cover only the text, so a site set to Centre drew a hero's
 heading on the left with its button, its stars and its line of proof in the
 middle of the page. The frame declares its own content alignment of "left" and
 every row inside reads that one.

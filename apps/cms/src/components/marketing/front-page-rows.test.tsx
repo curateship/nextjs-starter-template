@@ -277,4 +277,56 @@ describe("front page content blocks", () => {
     expect(markup).not.toContain("Q1")
     expect(markup).toContain("How much does it cost?")
   })
+
+  /**
+   * A row of an app's own kind can carry the way to the whole list it shows a
+   * handful of. The shell draws it beside the heading, so an app does not have
+   * to draw a heading of its own to hang a button on, and a row that names none
+   * gets a plain heading.
+   */
+  it("puts an app row's own button beside its heading", () => {
+    const rows = normalizeFrontPageRows([
+      {
+        id: "listings",
+        heading: "Listings",
+        kind: "app",
+        appKind: "listings",
+        settings: {},
+      },
+      {
+        id: "cards",
+        heading: "Categories",
+        kind: "app",
+        appKind: "categories",
+        settings: {},
+      },
+    ])
+    const markup = renderToStaticMarkup(
+      <FrontPageRows
+        rows={rows}
+        appRowData={{
+          // A full address rather than a path, because a path is drawn with
+          // the router's own Link and this renders without a router.
+          listings: {
+            action: {
+              label: "Browse directory",
+              href: "https://example.test/directory",
+            },
+          },
+          cards: { cards: [] },
+        }}
+        plans={[]}
+        trialUsed={false}
+        interval="monthly"
+        onIntervalChange={vi.fn()}
+        onSelectPlan={vi.fn()}
+      />
+    )
+
+    expect(markup).toContain("Browse directory")
+    expect(markup).toContain('href="https://example.test/directory"')
+    // The row that named none has its heading and nothing else.
+    expect(markup).toContain("Categories")
+    expect(markup.match(/Browse directory/g)).toHaveLength(1)
+  })
 })
