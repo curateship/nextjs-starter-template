@@ -61,6 +61,12 @@ export function readChartView(value: unknown): ChartView | null {
  * plot; `high` and `low` are the highest and lowest prices among the candles
  * on screen. The two together are what turn a price window into a share of the
  * height.
+ *
+ * `inverted` says the chart is flipped, so the price at the top edge is the
+ * lower of the two and the candle nearest the top is the low rather than the
+ * high. Both margins stay what they have always been: the share of the screen
+ * above and below the candles, which is what gets applied again on the way
+ * back in, flipped or not.
  */
 export function viewOf(input: {
   range: { from: number; to: number }
@@ -69,22 +75,24 @@ export function viewOf(input: {
   bottom: number
   high: number
   low: number
+  inverted?: boolean
 }): ChartView | null {
-  const { range, barCount, top, bottom, high, low } = input
+  const { range, barCount, top, bottom, high, low, inverted = false } = input
   const bars = range.to - range.from
   if (!Number.isFinite(bars) || bars < MIN_BARS || bars > MAX_BARS) return null
   const gap = barCount - 1 - range.to
   if (!Number.isFinite(gap) || Math.abs(gap) > MAX_BARS) return null
 
   const height = top - bottom
-  if (!(height > 0) || !Number.isFinite(high) || !Number.isFinite(low)) {
-    return null
-  }
+  if (!Number.isFinite(high) || !Number.isFinite(low)) return null
+  if (inverted ? !(height < 0) : !(height > 0)) return null
+  const nearTop = inverted ? low : high
+  const nearBottom = inverted ? high : low
   return {
     bars,
     gap,
-    marginTop: clampMargin((top - high) / height),
-    marginBottom: clampMargin((low - bottom) / height),
+    marginTop: clampMargin((top - nearTop) / height),
+    marginBottom: clampMargin((nearBottom - bottom) / height),
   }
 }
 

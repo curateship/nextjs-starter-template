@@ -31,6 +31,12 @@ export const chartOptionsSchema = z.object({
   grid: z.boolean(),
   volume: z.boolean(),
   crosshair: z.boolean(),
+  /**
+   * Flip the price scale: the highest price sits at the bottom and the chart
+   * is the mirror image of itself. What it is for is seeing the same market
+   * the other way round, the way a short trade sees it.
+   */
+  invert: z.boolean().default(false),
   orderArrows: z.boolean(),
   orderArrowTrades: z.number().int().positive().nullable(),
   drawings: z.boolean(),
@@ -70,6 +76,7 @@ export const DEFAULT_CHART_OPTIONS: ChartOptions = {
   grid: true,
   volume: true,
   crosshair: true,
+  invert: false,
   orderArrows: true,
   orderArrowTrades: null,
   drawings: true,

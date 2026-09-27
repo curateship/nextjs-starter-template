@@ -135,6 +135,9 @@ screen: anything not written there has not been agreed yet.
   exit the hand-placed orders share, buying more, selling part, leverage, the
   one rule for the money beside each grid line, and which chart line wins an
   overlap.
+- `upside-down-chart.md` — the corner button that flips the price scale, what
+  follows it and what does not, where the choice is kept, and why the
+  remembered zoom needs to know.
 - `timezone.md` — the one clock the chart is on, where it is set, and why it is
   stored as a place rather than as an offset.
 - `loading.md` — which candles arrive with a dashboard, when a chart asks on

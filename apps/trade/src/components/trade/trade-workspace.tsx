@@ -27,6 +27,7 @@ import {
   WalletSettingsDialog,
 } from "@/components/trade/wallet-dialogs"
 import { ChartFullscreenButton } from "@/components/trade/chart-fullscreen-button"
+import { ChartInvertButton } from "@/components/trade/chart-invert-button"
 import { ChartToolsMenu } from "@/components/trade/chart-tools-menu"
 import {
   ChartPanel,
@@ -1182,10 +1183,21 @@ export function TradeWorkspace({
             onClearShownTrade={() => setShownTrade(null)}
             onOlderBars={setOlderBars}
             cornerControl={
-              <ChartFullscreenButton
-                active={chartFullscreen}
-                onToggle={toggleChartFullscreen}
-              />
+              <div className="flex items-center gap-2">
+                <ChartInvertButton
+                  active={chartOptions.options.invert}
+                  onToggle={() =>
+                    chartOptions.setOption(
+                      "invert",
+                      !chartOptions.options.invert
+                    )
+                  }
+                />
+                <ChartFullscreenButton
+                  active={chartFullscreen}
+                  onToggle={toggleChartFullscreen}
+                />
+              </div>
             }
             // The gate: the chart is on that row's coin AND the traded wallet
             // is that row's wallet. Until both are true this stays null and
