@@ -84,9 +84,7 @@ export function FrontPageRows({
           >
             {/* A hero draws its own heading, at its own size and beside the
                 picture. Every other row puts the heading above its content. */}
-            {row.kind === APP_FRONT_PAGE_ROW_KIND ||
-            row.kind === "hero" ||
-            (!showHeading && !showIntro) ? null : (
+            {row.kind === "hero" || (!showHeading && !showIntro) ? null : (
               <header className="grid gap-2">
                 {showHeading ? (
                   <Heading
@@ -109,8 +107,9 @@ export function FrontPageRows({
             )}
 
             {row.kind === APP_FRONT_PAGE_ROW_KIND ? (
-              // The app draws its own heading with its content, the same as a
-              // hero does, because only the app knows what belongs above it.
+              // The heading above it is the shell's, like every other kind but
+              // a hero, so an app row answers to the same Visibility switches
+              // and the same alignment as the rows around it.
               <AppFrontPageRow
                 appKind={row.appKind}
                 heading={row.heading}
