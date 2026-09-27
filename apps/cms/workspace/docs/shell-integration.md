@@ -94,6 +94,12 @@ whole number of pixels from 0 to 400 and only applies from 1024px up, where the
 menu words are in the bar. The front page can open with a hero row, its blocks
 share one vertical spacing, and the plan cards and the FAQ are the shell's.
 
+Every draggable chip in Settings drags from any part of itself, not only from
+the six-dot grip on its left: the public menu's links and dropdown groups, the
+action items, the social accounts and the signed-in top-right menu. The cursor
+is an open hand over a chip and an arrow over its name, and a click on the name
+still opens that chip's window.
+
 Add row opens a window of cards, one per kind of row, with CMS's own five,
 Listings, Category cards, Upcoming events, Current deals and Latest posts,
 under their own heading and each with its own icon named in `src/app/options.ts`.
