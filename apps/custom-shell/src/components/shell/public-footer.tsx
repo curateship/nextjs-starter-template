@@ -177,9 +177,12 @@ export function PublicFooter({
               appName={appName}
               size={logoSize}
             />
-            <span className="text-lg font-semibold text-foreground">
-              {appName}
-            </span>
+            {/* The name only when there is no logo, as in the header above. */}
+            {logo ? null : (
+              <span className="text-lg font-semibold text-foreground">
+                {appName}
+              </span>
+            )}
           </Link>
 
           {description ? (

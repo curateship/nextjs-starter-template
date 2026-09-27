@@ -252,11 +252,17 @@ export async function readBranding(
   )
   const searchPage = pageForPath("/search")
 
-  // A site's own logo brings its whole chain with it — the dark version and the
-  // browser-tab icons are cut from that logo when it is saved, exactly as the
-  // app-wide ones are. All of it or none of it: a site with its own logo and the
-  // app's tab icons would put one brand in the tab and another on the page.
-  const siteBrand = siteBranding && Boolean(workspaceSettings.logo)
+  // On an app that brands each site, the site's own picture is the only one it
+  // is ever drawn with — its menu and its footer work the same way. A site that
+  // has uploaded none shows its name, rather than borrowing the deployment's
+  // logo off the sign-in pages, which is a brand nobody on that website asked
+  // for. Tyler's call on 27 Sep 2026, after the second logo box read as a
+  // duplicate of the first.
+  //
+  // Its whole chain travels together: the dark version and the browser-tab
+  // icons are cut from that logo when it is saved, exactly as the app-wide ones
+  // are, so a site never wears one brand in the tab and another on the page.
+  const siteBrand = siteBranding
 
   return {
     appName: answer.workspace.name || globals.appName,

@@ -130,10 +130,13 @@ describe("public site branding", () => {
       logoDark: "https://media.example.test/alpha-dark.png",
       shareImage: "https://media.example.test/alpha-share.png",
     })
+    // Beta has uploaded nothing, so it is drawn with its name rather than with
+    // the deployment's logo. That picture belongs to the sign-in pages at the
+    // platform's own address, and a website nobody branded is not the place for
+    // somebody else's brand.
     request.host = "beta.localhost:3002"
     expect(await readBranding(database as unknown as CustomShellDb)).toMatchObject({
-      logo: "https://media.example.test/default.png",
-      logoDark: "", shareImage: "",
+      logo: "", logoDark: "", favicon: "", shareImage: "",
     })
   })
 

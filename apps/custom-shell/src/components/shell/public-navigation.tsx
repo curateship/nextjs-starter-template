@@ -465,9 +465,17 @@ export function PublicNavigation({
         appName={appName}
         size={logoSize}
       />
-      <span className="truncate text-sm font-medium text-foreground">
-        {appName}
-      </span>
+      {/*
+        The name is only drawn when there is no logo. A logo is the name
+        written the way its owner wants it written, so printing the words
+        beside it says the same thing twice. Tyler asked for this on
+        27 Sep 2026, pointing at "EDT" with "Eat Drink Toronto" next to it.
+      */}
+      {logo ? null : (
+        <span className="truncate text-sm font-medium text-foreground">
+          {appName}
+        </span>
+      )}
     </Link>
   )
 

@@ -49,7 +49,13 @@ was visited:
   the app-wide logo. A site used to upload a favicon and a dark logo of its own
   as well, which was three pictures for what one does, and a site that set its
   own favicon lost the cut sizes entirely. Tyler called that redundant on
-  27 Sep 2026
+  27 Sep 2026.
+
+  **A site does not borrow the app's logo**, the same way it does not borrow its
+  menu. A site with none shows its name, and the app-wide picture is the
+  deployment's own — its sign-in pages, and every page of a one-site app. So
+  General settings shows one logo box, not two: the site's on a multisite app,
+  the app's on a one-site one
 - its brand colour, in `publicTheme`
 - its public menu, its public footer and the footer's copyright line
 - **its front page rows**, from 27 Sep 2026. They were app-wide until then, so
