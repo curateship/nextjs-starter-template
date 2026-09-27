@@ -6,6 +6,8 @@ import {
   FrontPageTestimonials,
 } from "@/components/marketing/front-page-content-blocks"
 import { AppFrontPageRow } from "@/components/marketing/app-front-page-row"
+import { SavedLink } from "@/components/shell/public-navigation"
+import { Button } from "@/components/ui/button"
 import {
   publicContentAlignmentGridClassName,
   publicContentAlignmentJustifyClassNames,
@@ -21,6 +23,30 @@ import {
 } from "@/lib/pages/front-page"
 import { publicDeviceRowClassName } from "@/lib/pages/public-device"
 import { cn } from "@/lib/utils"
+
+/**
+ * The button an app's row puts beside its heading, when it named one.
+ *
+ * What an app fills its row with is opaque to the shell — it hands it to the
+ * app's own component and never opens it — with this one exception, so the
+ * button sits in the shell's header beside the heading rather than each app
+ * drawing a heading of its own to hang it on. An app that names none gets a
+ * plain heading, which is every row that is not a handful of a longer list.
+ */
+function frontPageRowAction(
+  data: unknown
+): { label: string; href: string } | null {
+  if (!data || typeof data !== "object") return null
+  const action = (data as { action?: unknown }).action
+  if (!action || typeof action !== "object") return null
+  const { label, href } = action as { label?: unknown; href?: unknown }
+  return typeof label === "string" &&
+    label.trim() &&
+    typeof href === "string" &&
+    href.trim()
+    ? { label, href }
+    : null
+}
 
 export function FrontPageRows({
   rows,
@@ -65,6 +91,13 @@ export function FrontPageRows({
           : publicContentAlignmentRowClassName
         const showHeading = row.showHeading
         const showIntro = Boolean(row.intro) && row.showIntro
+        // The way to everything this row shows a handful of, drawn beside the
+        // heading. An app names it in what it fills the row with, because only
+        // the app knows where its own list lives and what it is called.
+        const rowAction =
+          row.kind === APP_FRONT_PAGE_ROW_KIND
+            ? frontPageRowAction(appRowData?.[row.id])
+            : null
 
         return (
           <section
@@ -84,24 +117,42 @@ export function FrontPageRows({
           >
             {/* A hero draws its own heading, at its own size and beside the
                 picture. Every other row puts the heading above its content. */}
-            {row.kind === "hero" || (!showHeading && !showIntro) ? null : (
-              <header className="grid gap-2">
-                {showHeading ? (
-                  <Heading
-                    className={cn(
-                      "font-semibold tracking-tight text-balance",
-                      index === 0
-                        ? "text-3xl md:text-4xl"
-                        : "text-2xl md:text-3xl"
-                    )}
-                  >
-                    {row.heading}
-                  </Heading>
-                ) : null}
-                {showIntro ? (
-                  <p className="text-base text-muted-foreground md:text-lg">
-                    {row.intro}
-                  </p>
+            {row.kind === "hero" ||
+            (!showHeading && !showIntro && !rowAction) ? null : (
+              <header
+                className={cn(
+                  "flex w-full flex-wrap items-end justify-between gap-4",
+                  // The button sits at the end of the heading's line, so the
+                  // row reads as one band: what it is on the left, the way to
+                  // all of it on the right.
+                  rowAction ? null : "block"
+                )}
+              >
+                <div className="grid gap-2">
+                  {showHeading ? (
+                    <Heading
+                      className={cn(
+                        "font-semibold tracking-tight text-balance",
+                        index === 0
+                          ? "text-3xl md:text-4xl"
+                          : "text-2xl md:text-3xl"
+                      )}
+                    >
+                      {row.heading}
+                    </Heading>
+                  ) : null}
+                  {showIntro ? (
+                    <p className="text-base text-muted-foreground md:text-lg">
+                      {row.intro}
+                    </p>
+                  ) : null}
+                </div>
+                {rowAction ? (
+                  <Button asChild className="shrink-0">
+                    <SavedLink href={rowAction.href}>
+                      {rowAction.label}
+                    </SavedLink>
+                  </Button>
                 ) : null}
               </header>
             )}
