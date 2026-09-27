@@ -21,9 +21,11 @@ import { SettingsCardSection } from "@/components/settings/settings-card-section
 import { SettingsSwitchRow } from "@/components/settings/settings-switch-row"
 import { PublicUserPanelDialog } from "@/components/settings/public-user-panel-settings"
 import {
+  DRAG_GRIP_CLASS,
   DRAG_HANDLE_CLASS,
   createShellId,
   useNavSensors,
+  useSortableChip,
   useSortableRow,
 } from "@/components/settings/nav-editor-shared"
 import { Button } from "@/components/ui/button"
@@ -733,20 +735,14 @@ function PublicGroupChip({
   onDelete: () => void
 }) {
   const label = group.label.trim()
-  const { attributes, listeners, setNodeRef, style } = useSortableRow(id, true)
+  const chip = useSortableChip(id, label || "dropdown group")
 
   return (
-    <div ref={setNodeRef} style={style} className={CHIP_CLASS}>
+    <div {...chip} className={cn(CHIP_CLASS, chip.className)}>
       <div className="flex max-w-full items-center gap-1">
-        <button
-          type="button"
-          {...attributes}
-          {...listeners}
-          className={DRAG_HANDLE_CLASS}
-          aria-label={`Reorder ${label || "dropdown group"}`}
-        >
+        <span className={DRAG_GRIP_CLASS} aria-hidden="true">
           <GripVertical className="h-4 w-4" />
-        </button>
+        </span>
         <Button
           type="button"
           variant="ghost"
@@ -1171,20 +1167,14 @@ function PublicLinkChip({
 }) {
   const label = link.label.trim()
   const itemName = label || linkNoun
-  const { attributes, listeners, setNodeRef, style } = useSortableRow(id, true)
+  const chip = useSortableChip(id, itemName)
 
   return (
-    <div ref={setNodeRef} style={style} className={CHIP_CLASS}>
+    <div {...chip} className={cn(CHIP_CLASS, chip.className)}>
       <div className="flex max-w-full items-center gap-1">
-        <button
-          type="button"
-          {...attributes}
-          {...listeners}
-          className={DRAG_HANDLE_CLASS}
-          aria-label={`Reorder ${itemName}`}
-        >
+        <span className={DRAG_GRIP_CLASS} aria-hidden="true">
           <GripVertical className="h-4 w-4" />
-        </button>
+        </span>
         <Button
           type="button"
           variant="ghost"

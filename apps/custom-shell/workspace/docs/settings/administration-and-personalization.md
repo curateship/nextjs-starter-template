@@ -319,6 +319,19 @@ written pages, Search, and Pricing. Every switch starts off, so nothing on the
 public site changes until one is turned on. The trail itself is described in
 [Public pages, search, and SEO](../content/public-pages-search-and-seo.md).
 
+**A chip is picked up anywhere on it.** Every draggable chip in Settings, the
+public menu links and dropdown groups, the action items, the social accounts
+and the signed-in top-right menu, drags from any part of itself, not only from
+the six-dot grip on its left. The grip stays as the picture that says a chip
+moves. Tyler reported on 27 Sep 2026 that a chip would not stick where he
+dragged it: grabbing a chip by its name, which is the biggest thing on it, did
+nothing at all, because only the grip listened. A click on the name still opens
+that chip's window, because a pointer has to travel 8px before it counts as a
+drag. The pointer is an open hand over the chip and an arrow over the name, so
+the two things a chip does are both visible before either is tried. The
+keyboard still reorders: tab to a chip, space to lift it, the arrows to move
+it, space to drop it.
+
 The Header layout card holds an Action items row: the three controls at the
 right-hand end of the public header, as draggable chips. They are Search, the
 light and dark switch, and the account corner, and the order they sit in is the

@@ -13,11 +13,12 @@ import {
 } from "lucide-react"
 
 import {
-  DRAG_HANDLE_CLASS,
+  DRAG_GRIP_CLASS,
   useNavSensors,
-  useSortableRow,
+  useSortableChip,
 } from "@/components/settings/nav-editor-shared"
 import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   PUBLIC_HEADER_ACTION_HINTS,
@@ -107,23 +108,17 @@ function ActionChip({
   onEdit?: () => void
   onVisibleChange: (visible: boolean) => void
 }) {
-  const { attributes, listeners, setNodeRef, style } = useSortableRow(id, true)
   const label = PUBLIC_HEADER_ACTION_LABELS[action.id]
   const Icon = ACTION_ICONS[action.id]
   const canHide = action.id !== "user-panel"
+  const chip = useSortableChip(id, label)
 
   return (
-    <div ref={setNodeRef} style={style} className={CHIP_CLASS}>
+    <div {...chip} className={cn(CHIP_CLASS, chip.className)}>
       <div className="flex max-w-full items-center gap-1">
-        <button
-          type="button"
-          {...attributes}
-          {...listeners}
-          className={DRAG_HANDLE_CLASS}
-          aria-label={`Reorder ${label}`}
-        >
+        <span className={DRAG_GRIP_CLASS} aria-hidden="true">
           <GripVertical className="h-4 w-4" />
-        </button>
+        </span>
         {onEdit ? (
           <Button
             type="button"
