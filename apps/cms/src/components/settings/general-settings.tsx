@@ -9,6 +9,7 @@ import { StorageSettings } from "@/components/settings/storage-settings"
 import { CardGroup } from "@/components/ui/card"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Input } from "@/components/ui/input"
+import { appUsesSiteBranding } from "@/lib/app-options"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Label } from "@/components/ui/label"
 import { NumberField } from "@/components/ui/number-field"
@@ -65,6 +66,10 @@ export function GeneralSettings({
   // screen looking saved.
 
   const workspaceNameMissing = !config.workspaceName.trim()
+  // An app that serves one website has one logo and nothing to choose between.
+  // An app that serves several gives each site its own, and the app-wide one
+  // below is the fallback for a site that has uploaded none.
+  const siteBranding = appUsesSiteBranding()
 
   return (
     <CardGroup>
@@ -200,16 +205,50 @@ export function GeneralSettings({
           }
         />
 
+        {siteBranding ? (
+          <ImageUpload
+            label="This site's logo"
+            value={config.workspaceLogo}
+            onChange={(url) =>
+              onConfigChange({ ...config, workspaceLogo: url })
+            }
+            aspect="square"
+            fit="contain"
+            emptyLabel="Select logo"
+            hint="One picture for the site you are in: the logo on its public pages, the icon beside its name in the sidebar and switcher, and the icon in the browser tab. The app makes the dark-mode version and cuts the browser-tab sizes from it, the same as the app-wide logo below. Leave it empty to use that one."
+            className="max-w-24"
+          />
+        ) : null}
+
         <ImageUpload
-          label="Logo"
+          label={siteBranding ? "App logo" : "Logo"}
           value={config.logo}
           onChange={(url) => onConfigChange({ ...config, logo: url })}
           aspect="square"
           fit="contain"
           emptyLabel="Select logo"
-          hint="One picture for the whole app: the logo above the signed-out pages, the icon beside the site name in the sidebar, and the icon in the browser tab. Upload a PNG or an SVG. The app makes the dark-mode version itself, by turning the image's dark tones light and its light tones dark, and cuts the browser-tab sizes from both. Leave it empty for the app name on its own."
+          hint={
+            siteBranding
+              ? "The picture every site without one of its own is drawn with, and the one the sign-in pages use. The app makes the dark-mode version itself and cuts the browser-tab sizes from both."
+              : "One picture for the whole app: the logo above the signed-out pages, the icon beside the site name in the sidebar, and the icon in the browser tab. Upload a PNG or an SVG. The app makes the dark-mode version itself, by turning the image's dark tones light and its light tones dark, and cuts the browser-tab sizes from both. Leave it empty for the app name on its own."
+          }
           className="max-w-24"
         />
+
+        {siteBranding ? (
+          <ImageUpload
+            label="This site's share image"
+            value={config.workspaceShareImage}
+            onChange={(url) =>
+              onConfigChange({ ...config, workspaceShareImage: url })
+            }
+            aspect="video"
+            fit="cover"
+            emptyLabel="Select share image"
+            hint="The picture shown when one of this site's pages is shared. Leave it empty to use the app-wide one in Public → SEO."
+            className="max-w-48"
+          />
+        ) : null}
 
         <div className="grid gap-2">
           <FieldLabel

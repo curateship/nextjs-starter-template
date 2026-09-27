@@ -153,11 +153,6 @@ export const appOptions: AppOptions = {
   settings: {
     tabs: [
       {
-        id: "site-identity",
-        label: "Site identity",
-        panel: () => import("@/components/settings/cms-settings"),
-      },
-      {
         id: "directory",
         label: "Directory",
         panel: () =>

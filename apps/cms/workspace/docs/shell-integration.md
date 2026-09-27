@@ -4,17 +4,26 @@ CMS uses the shared Custom Shell code for accounts, billing, automations,
 navigation, public pages and settings. Directory routes, tables, migrations,
 imports and app options belong to CMS.
 
-The CMS settings tabs are registered in `src/app/options.ts`. Site identity,
-Directory and Listing badges load their own panels through the shell's settings
-tab extension. Adding a CMS setting does not require editing the shared settings
+The CMS settings tabs are registered in `src/app/options.ts`. Directory and
+Listing badges load their own panels through the shell's settings tab
+extension. Adding a CMS setting does not require editing the shared settings
 page.
 
-CMS enables `workspaces.siteBranding`. A site's favicon, logo, dark logo and
-share image stay in that site's workspace settings. Public requests read the
-site selected by the domain. Empty image fields use the app-wide images.
-The Site identity panel edits those fields through the shell's guarded settings
-endpoint. The site's accent colour uses `publicTheme.brandColor`, including
-existing colours converted by migration `0075_custom_shell_public_brand_color`.
+CMS enables `workspaces.siteBranding`. A site is branded with **one picture**:
+its logo, saved on that site, from which the app makes the dark version and
+cuts the browser-tab icons. A site that has uploaded none is drawn with the
+app's logo instead. Its share image sits beside it, and both are edited in
+Platform settings → General settings, which shows them above the app-wide logo
+whenever an app has site branding on.
+
+CMS had a Site identity tab of its own until 27 Sep 2026, with a favicon, a
+logo, a dark logo, a share image, the site name and an accent colour. The name
+and the colour were second copies of General settings and Public → Styling, and
+the favicon and dark logo were two uploads the app now makes itself. Tyler
+called it redundant; the tab is gone and nothing it did is lost. The site's
+accent colour is Public → Styling → Brand, on `publicTheme.brandColor`,
+including colours converted by migration
+`0075_custom_shell_public_brand_color`.
 
 The shell's site-branding contract is documented once in the repo's
 `docs/shell/shell-and-apps.md`.

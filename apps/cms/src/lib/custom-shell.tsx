@@ -459,9 +459,8 @@ export type ShellConfig = {
   /** App-wide browser-tab image selected from the media library. */
   favicon: string
   /** Image overrides for the current site. Empty uses app-wide branding. */
-  workspaceFavicon: string
+  /** The one picture this site is branded with, or empty to use the app's. */
   workspaceLogo: string
-  workspaceLogoDark: string
   workspaceShareImage: string
   /** Optional app-wide browser-tab image for dark browser chrome. */
   faviconDark: string
@@ -779,9 +778,7 @@ export function createDefaultShellConfig(): ShellConfig {
     adminRoute: "",
     memberHomeRoute: "",
     favicon: "",
-    workspaceFavicon: "",
     workspaceLogo: "",
-    workspaceLogoDark: "",
     workspaceShareImage: "",
     faviconDark: "",
     faviconSet: null,

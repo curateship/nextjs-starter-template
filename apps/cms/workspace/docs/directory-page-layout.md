@@ -244,5 +244,6 @@ pages.
 Three things a page needs are not here, because they belong to the shell rather
 than to this app: the site's home page, which is built in Public → Pages →
 Front page out of rows this app adds kinds to (`home-page-rows.md`), who may see
-a page at all, also in Public → Pages, and the site's own name, logo and
-colours, in Site identity.
+a page at all, also in Public → Pages, and the site's own name, its one logo
+and its share image, in Platform settings → General settings, with its colours
+in Public → Styling.
