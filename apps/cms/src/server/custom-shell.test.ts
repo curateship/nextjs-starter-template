@@ -1126,8 +1126,10 @@ describe("custom shell workspaces", () => {
     })
 
     expect(parseShellGlobals(saved)).toMatchObject({
+      // No search item: it moved out of the public menu into the header's
+      // Action items row in 32c6c98fa, so a saved menu is only what the admin
+      // put in it.
       publicNavigation: [
-        { type: "search", visible: true },
         { label: "About", href: "/about" },
         {
           type: "group",
@@ -1202,7 +1204,6 @@ describe("custom shell workspaces", () => {
         testDb
       )
       expect(singleSiteConfig.publicNavigation).toEqual([
-        { type: "search", visible: true },
         { label: "App menu", href: "/app" },
       ])
       expect(singleSiteConfig.publicFooter).toEqual([
@@ -1237,7 +1238,6 @@ describe("custom shell workspaces", () => {
         testDb
       )
       expect(multiSiteConfig.publicNavigation).toEqual([
-        { type: "search", visible: true },
         { label: "Workspace menu", href: "/workspace" },
       ])
       expect(multiSiteConfig.publicFooter).toEqual([
@@ -1691,7 +1691,6 @@ describe("custom shell workspaces", () => {
     })
 
     expect(saved.publicNavigation).toEqual([
-      { type: "search", visible: true },
       { label: "About", href: "/about" },
     ])
     expect(saved.publicFooter).toEqual([])

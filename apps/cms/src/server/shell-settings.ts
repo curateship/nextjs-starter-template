@@ -177,6 +177,18 @@ export async function readBranding(
    * stranger's address is worse than answering nothing.
    */
   hostIsUnknown: boolean
+  /**
+   * True when the address belongs to one of this deployment's sites.
+   *
+   * The front page reads it to decide what "no rows" means. On a site it means
+   * the site has not built a front page yet, and the honest answer is the
+   * site's header and footer with nothing between them — never the
+   * deployment's own sign-up block, which on somebody's restaurant directory
+   * is an advert for software they did not come for. On the deployment's own
+   * address, and in a one-site app, that block is exactly right and still
+   * draws.
+   */
+  hostIsSite: boolean
 }> {
   const globals = await readShellGlobals(database)
   const answer = await answerForRequest(database)
@@ -228,6 +240,7 @@ export async function readBranding(
         ? { publicTheme: appWidePublicTheme }
         : {}),
       hostIsUnknown: answer.kind === "unknown",
+      hostIsSite: false,
     }
   }
 
@@ -256,7 +269,10 @@ export async function readBranding(
     publicOrigin: currentPublicOrigin(),
     publicSeo: globals.publicSeo,
     publicSystemCopy: globals.publicSystemCopy,
-    frontPageRows: visibleFrontPageRows(globals.frontPageRows),
+    // This site's own rows, like the menu and the footer below. A one-site app
+    // never reaches here: its front page is answered by the branch above, from
+    // the app-wide row.
+    frontPageRows: visibleFrontPageRows(workspaceSettings.frontPageRows),
     publicHeader: globals.publicHeader,
     publicBreadcrumbs: globals.publicBreadcrumbs,
     publicUserPanel: globals.publicUserPanel,
@@ -271,6 +287,7 @@ export async function readBranding(
     publicFont: globals.publicFont,
     ...(hasCustomPublicTheme(publicTheme) ? { publicTheme } : {}),
     hostIsUnknown: false,
+    hostIsSite: true,
   }
 }
 
@@ -353,6 +370,9 @@ export async function readShellSettings(
     workspaceLogoDark: workspaceSettings.logoDark,
     workspaceShareImage: workspaceSettings.shareImage,
     sidebarWidth: await sidebarWidthFor(user.id, database),
+    frontPageRows: workspaceDomainsEnabled
+      ? workspaceSettings.frontPageRows
+      : globals.frontPageRows,
     publicNavigation: workspaceDomainsEnabled
       ? workspaceSettings.publicNavigation
       : globals.publicNavigation,

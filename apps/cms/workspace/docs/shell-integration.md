@@ -19,6 +19,23 @@ existing colours converted by migration `0075_custom_shell_public_brand_color`.
 The shell's site-branding contract is documented once in the repo's
 `docs/shell/shell-and-apps.md`.
 
+Settings → Public pages → Front page belongs to the site you are in, from
+27 Sep 2026. It was one set of rows for the whole deployment until then, which
+is why a second website would have opened with the first one's hero. Rows saved
+app-wide before that date are still in the app-wide record and are no longer
+read or shown here: on Tyler's call every site starts with none and is built
+from scratch. A site with no rows draws its header and its footer with nothing
+between them, rather than the deployment's own sign-up block. There is no limit
+on how many rows a page has.
+
+The shell can also take kinds of row from an app, through
+`pages.frontPageRowKinds` and its server half `pages.frontPageRowReaders`. CMS
+does not use them yet: its listings, category cards, events, deals and posts
+rows are still its own builder in Settings → Directory → Home page, and moving
+them across is `workspace/tasks/home-rows/04-one-builder.md`. Until that
+happens a site's `/` is answered by CMS's own home page whenever it has rows,
+so the shell's per-site front page only draws for a site that has none.
+
 Platform Navigation combines the sidebar and top right menu editors. Top left
 max items sits inside the sidebar card and keeps the existing saved limit.
 Member Navigation groups the member editors separately. Sidebar sections use

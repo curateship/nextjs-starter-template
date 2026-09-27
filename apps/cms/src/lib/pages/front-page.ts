@@ -90,7 +90,17 @@ export const FRONT_PAGE_ROW_ALIGNMENT_HINTS: Record<
   right: "This row sits on the right, whatever the site setting says.",
 }
 
-export const MAX_FRONT_PAGE_ROWS = 6
+/**
+ * How many rows one settings save may carry, which is not a limit on how many
+ * a front page has — there is none. A page held six until 27 Sep 2026, when
+ * Tyler took the cap off: drawing a row costs nothing, and the only thing the
+ * number guarded was how much the page reads, which each row's own limits
+ * already hold down.
+ *
+ * Left as a bound on one request and on one stored list, so neither can be any
+ * length at all.
+ */
+export const MAX_FRONT_PAGE_ROWS = 500
 export const MAX_FRONT_PAGE_ROW_ID_LENGTH = 96
 export const MAX_FRONT_PAGE_ROW_HEADING_LENGTH = 120
 export const MAX_FRONT_PAGE_ROW_INTRO_LENGTH = 500
@@ -134,8 +144,6 @@ export const FRONT_PAGE_HERO_ACTION_HINTS: Record<
 export const FRONT_PAGE_ROW_HEADING_MESSAGE = "Give the row a heading."
 export const FRONT_PAGE_HERO_LINK_MESSAGE =
   "A button link starts with /, https://, mailto: or tel:."
-export const FRONT_PAGE_ROWS_FULL_MESSAGE =
-  `A front page can have ${MAX_FRONT_PAGE_ROWS} rows. Delete one before adding another.`
 
 type FrontPageRowBase = {
   id: string
@@ -201,7 +209,59 @@ export type FrontPageScreenshot = {
   caption: string
 }
 
+/**
+ * The stored kind of a row an app added, as opposed to one of the shell's own.
+ *
+ * One value for all of them, with the app's own key beside it, so the shell's
+ * list of kinds stays closed and an app can never take a name the shell later
+ * wants. What the row holds is the app's business: the shell keeps it, hands it
+ * back to the app's editor and to the app's component, and never reads it.
+ */
+export const APP_FRONT_PAGE_ROW_KIND = "app"
+
+export const MAX_APP_FRONT_PAGE_ROW_KEY_LENGTH = 64
+
+/** 4,000 characters of JSON per row, which is a page of settings, not a page. */
+export const MAX_APP_FRONT_PAGE_ROW_SETTINGS_LENGTH = 4_000
+
+/**
+ * What an app row's settings may hold: anything that survives being written to
+ * the settings row as JSON and read back out of it. Spelled out rather than
+ * `unknown` because that is what it is — a date, a function or a class does not
+ * come back as itself, so none of them belongs in a saved row.
+ */
+export type AppFrontPageRowValue =
+  | string
+  | number
+  | boolean
+  | null
+  | AppFrontPageRowValue[]
+  | { [key: string]: AppFrontPageRowValue }
+
+export type AppFrontPageRowSettings = { [key: string]: AppFrontPageRowValue }
+
+/**
+ * What an app's server-side reader fills one of its rows with.
+ *
+ * The same values as a row's settings, plus a date, because the answer travels
+ * through the shell's own serializer rather than through the settings row and
+ * that one carries dates. Anything else — a function, a class, a database
+ * handle — is not page data.
+ */
+export type AppFrontPageRowData =
+  | AppFrontPageRowValue
+  | Date
+  | AppFrontPageRowData[]
+  | { [key: string]: AppFrontPageRowData }
+
 export type FrontPageRow =
+  | (FrontPageRowBase & {
+      kind: typeof APP_FRONT_PAGE_ROW_KIND
+      /** Which of the app's kinds this is, from its own options. */
+      appKind: string
+      /** The app's own fields, untouched and unread by the shell. */
+      settings: AppFrontPageRowSettings
+    })
   | (FrontPageRowBase & { kind: "text" | "plans" })
   | (FrontPageRowBase & {
       kind: "hero"
@@ -387,6 +447,23 @@ function normalizeScreenshots(value: unknown): FrontPageScreenshot[] {
 }
 
 /**
+ * An app row's settings, or null when they are not a plain object this app
+ * could have written. Kept as they are — the shell has no idea what they mean —
+ * but bounded, because they travel to every visitor inside the page's data.
+ */
+function appRowSettings(value: unknown): AppFrontPageRowSettings | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null
+  let json: string
+  try {
+    json = JSON.stringify(value)
+  } catch {
+    return null
+  }
+  if (json.length > MAX_APP_FRONT_PAGE_ROW_SETTINGS_LENGTH) return null
+  return JSON.parse(json) as AppFrontPageRowSettings
+}
+
+/**
  * Reads the app-wide rows field by field. A row without its required heading
  * is left out, so incomplete or hand-edited settings never leave a blank strip
  * on the public page.
@@ -440,6 +517,21 @@ export function normalizeFrontPageRows(value: unknown): FrontPageRow[] {
       id: safeId(source.id, `front-page-row-${index + 1}`, usedIds),
       ...base,
     })
+    if (source.kind === APP_FRONT_PAGE_ROW_KIND) {
+      const appKind = cleanText(
+        source.appKind,
+        MAX_APP_FRONT_PAGE_ROW_KEY_LENGTH
+      )
+      // A row whose app kind is not a plain key, or whose settings are not a
+      // plain object, is dropped rather than drawn: the app is handed what it
+      // saved or nothing at all, never something half-read.
+      if (!/^[a-z0-9][a-z0-9-]*$/.test(appKind)) continue
+      const settings = appRowSettings(source.settings)
+      if (!settings) continue
+      rows.push({ ...rowBase(), kind: APP_FRONT_PAGE_ROW_KIND, appKind, settings })
+      continue
+    }
+
     const kind = FRONT_PAGE_ROW_KINDS.includes(source.kind as FrontPageRowKind)
       ? (source.kind as FrontPageRowKind)
       : "text"

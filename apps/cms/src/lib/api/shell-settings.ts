@@ -36,6 +36,9 @@ import {
   MAX_FRONT_PAGE_HERO_BUTTON_HREF_LENGTH,
   MAX_FRONT_PAGE_HERO_BUTTON_LABEL_LENGTH,
   MAX_FRONT_PAGE_HERO_NOTE_LENGTH,
+  APP_FRONT_PAGE_ROW_KIND,
+  MAX_APP_FRONT_PAGE_ROW_KEY_LENGTH,
+  MAX_APP_FRONT_PAGE_ROW_SETTINGS_LENGTH,
   MAX_FRONT_PAGE_HERO_STARS,
   MAX_FRONT_PAGE_IMAGE_ALT_LENGTH,
   MAX_FRONT_PAGE_IMAGE_URL_LENGTH,
@@ -431,6 +434,29 @@ const frontPageImageSchema = z
 const frontPageRowsSchema = z
   .array(
     z.discriminatedUnion("kind", [
+      z.object({
+        ...frontPageRowBaseShape,
+        kind: z.literal(APP_FRONT_PAGE_ROW_KIND),
+        appKind: z
+          .string()
+          .max(MAX_APP_FRONT_PAGE_ROW_KEY_LENGTH)
+          .regex(/^[a-z0-9][a-z0-9-]*$/),
+        /**
+         * The app's own fields, kept as they arrive. The shell does not know
+         * what they mean, so it checks only that they are a plain object and
+         * that they are small enough to travel inside every visitor's page.
+         * Whatever reads them treats them as untrusted, the same as any other
+         * stored value.
+         */
+        settings: z
+          .record(z.string(), z.unknown())
+          .refine(
+            (value) =>
+              JSON.stringify(value).length <=
+              MAX_APP_FRONT_PAGE_ROW_SETTINGS_LENGTH,
+            "That row holds too much to save."
+          ),
+      }),
       z.object({ ...frontPageRowBaseShape, kind: z.literal("text") }),
       z.object({ ...frontPageRowBaseShape, kind: z.literal("plans") }),
       z.object({
@@ -721,6 +747,9 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
             publicFooterCopyright: workspaceDomainsEnabled
               ? data.publicFooterCopyright
               : workspaceSettings.publicFooterCopyright,
+            frontPageRows: workspaceDomainsEnabled
+              ? data.frontPageRows
+              : workspaceSettings.frontPageRows,
             topRightNavigation: data.topRightNavigation,
             sections: data.sections,
             styling: data.styling,
@@ -764,8 +793,15 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
         )
       }
 
+      // Compared against the rows this save is replacing, which on a multisite
+      // app are the site's own. Comparing against the app-wide rows there would
+      // ask an admin to re-own a picture their site has been drawing for months.
       const savedFrontPageImages = new Set(
-        frontPageRowImageUrls(existingGlobals.frontPageRows)
+        frontPageRowImageUrls(
+          workspaceDomainsEnabled
+            ? workspaceSettings.frontPageRows
+            : existingGlobals.frontPageRows
+        )
       )
       for (const image of new Set(frontPageRowImageUrls(data.frontPageRows))) {
         if (
@@ -809,6 +845,9 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
           publicFooterCopyright: workspaceDomainsEnabled
             ? existingGlobals.publicFooterCopyright
             : data.publicFooterCopyright,
+          frontPageRows: workspaceDomainsEnabled
+            ? existingGlobals.frontPageRows
+            : data.frontPageRows,
           // A dedicated upload action owns the stored font. A stale settings
           // tab may choose whether to use it, but cannot replace its identity.
           publicFont: existingGlobals.publicFont,

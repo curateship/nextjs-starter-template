@@ -38,7 +38,10 @@ export const Route = createFileRoute("/")({
     loadFrontPageRoute(appPage, async () => {
       if (appLandingPage) return appLandingPage.loader?.()
       const branding = (await parentMatchPromise).loaderData
-      return loadPricingLandingData(branding?.frontPageRows ?? [])
+      return loadPricingLandingData(
+        branding?.frontPageRows ?? [],
+        branding?.hostIsSite ?? false
+      )
     }),
   errorComponent: visitorRouteErrorComponent(getVisitorPageErrorMessage),
   // `head` is handed what the loader returned, so a page whose title depends on
