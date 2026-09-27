@@ -428,6 +428,16 @@ on the left and the picture on the right; without one the words run across the
 page. The button needs both its wording and its link, or it is not drawn, and
 the link has to start with `/`, `https://`, `mailto:` or `tel:`.
 
+Add row opens a window of cards, one per kind of row, each with its icon, its
+name and the line that says what it shows. The shell's own kinds come first and
+the app's own kinds after them, under their own heading. Picking a card makes
+the row and opens it, so one click gets from Add row to typing.
+
+**A row keeps the kind it was made with.** The row window states the kind and
+offers no way to change it, because changing it would leave the fields of one
+kind under the name of another: an FAQ's questions do not become a hero's
+button. A row of the wrong kind is deleted and picked again.
+
 A heading and at least one complete entry are required for content rows. The
 server removes incomplete saved entries and refuses a newly selected image that
 does not belong to the current admin's media library. Dragging changes the

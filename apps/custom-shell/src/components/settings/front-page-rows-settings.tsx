@@ -13,6 +13,7 @@ import {
 } from "lucide-react"
 
 import { FrontPageRowDialog } from "@/components/settings/front-page-row-dialog"
+import { FrontPageRowPicker } from "@/components/settings/front-page-row-picker"
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import {
   DRAG_HANDLE_CLASS,
@@ -46,6 +47,11 @@ export function FrontPageRowsSettings({
   )
   const [pendingDelete, setPendingDelete] =
     React.useState<FrontPageRow | null>(null)
+  // The kind a new row was picked as, held while its window is open. A row's
+  // kind is chosen once, in the picker, so this is the only place a new row's
+  // kind ever comes from.
+  const [newKind, setNewKind] = React.useState<string | null>(null)
+  const [picking, setPicking] = React.useState(false)
   const ids = rows.map((row) => row.id)
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -70,6 +76,12 @@ export function FrontPageRowsSettings({
       ])
     }
     setEditing(undefined)
+    setNewKind(null)
+  }
+
+  const closeRowWindow = () => {
+    setEditing(undefined)
+    setNewKind(null)
   }
 
   return (
@@ -114,7 +126,7 @@ export function FrontPageRowsSettings({
           <Button
             type="button"
             variant="outline"
-            onClick={() => setEditing(null)}
+            onClick={() => setPicking(true)}
           >
             <PlusIcon className="size-4" />
             Add row
@@ -122,10 +134,21 @@ export function FrontPageRowsSettings({
         </div>
       </CollapsibleSettingsCard>
 
+      <FrontPageRowPicker
+        open={picking}
+        onOpenChange={setPicking}
+        onPick={(choice) => {
+          setPicking(false)
+          setNewKind(choice)
+          setEditing(null)
+        }}
+      />
+
       <FrontPageRowDialog
         open={editing !== undefined}
         row={editing ?? null}
-        onClose={() => setEditing(undefined)}
+        newKind={newKind}
+        onClose={closeRowWindow}
         onSaved={saveRow}
       />
 

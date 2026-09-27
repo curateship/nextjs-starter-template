@@ -100,7 +100,8 @@ the guess that one might:
   freeze inherited values.
 - `landing.page` — replace `/` outright: loader, `<head>` and component together
 - `pages.frontPageRowKinds` — extra kinds of row in the front page builder, each
-  carrying its label, its hint, a pointer to the panel that edits its own fields
+  carrying its label, its hint, an optional icon for its card in the Add row
+  window, a pointer to the panel that edits its own fields
   and a pointer to the component that draws it, paired with
 - `pages.frontPageRowReaders` (server) — what fills one of those rows for the
   site being answered, keyed by the same `key`. Answering `null` leaves the row
