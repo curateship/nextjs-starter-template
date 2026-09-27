@@ -295,12 +295,12 @@ body.app-font {
  * borders and corners.
  */
 [data-front-page-rows] {
-    gap: 3.5rem;
+    gap: var(--shell-front-page-row-gap-phone, 3.5rem);
 }
 
 @media (min-width: 768px) {
     [data-front-page-rows] {
-        gap: 5rem;
+        gap: var(--shell-front-page-row-gap, 5rem);
     }
 }
 

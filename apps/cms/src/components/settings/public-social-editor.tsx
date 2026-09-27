@@ -8,11 +8,12 @@ import {
 import { GripVertical, PlusIcon, Trash2Icon } from "lucide-react"
 
 import {
-  DRAG_HANDLE_CLASS,
+  DRAG_GRIP_CLASS,
   useNavSensors,
-  useSortableRow,
+  useSortableChip,
 } from "@/components/settings/nav-editor-shared"
 import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 import {
   Card,
   CardContent,
@@ -198,20 +199,14 @@ function SocialChip({
   onDelete: () => void
 }) {
   const label = PUBLIC_SOCIAL_PLATFORM_LABELS[link.platform]
-  const { attributes, listeners, setNodeRef, style } = useSortableRow(id, true)
+  const chip = useSortableChip(id, label)
 
   return (
-    <div ref={setNodeRef} style={style} className={CHIP_CLASS}>
+    <div {...chip} className={cn(CHIP_CLASS, chip.className)}>
       <div className="flex max-w-full items-center gap-1">
-        <button
-          type="button"
-          {...attributes}
-          {...listeners}
-          className={DRAG_HANDLE_CLASS}
-          aria-label={`Reorder ${label}`}
-        >
+        <span className={DRAG_GRIP_CLASS} aria-hidden="true">
           <GripVertical className="h-4 w-4" />
-        </button>
+        </span>
         <Button
           type="button"
           variant="ghost"

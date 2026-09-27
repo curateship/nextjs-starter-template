@@ -233,6 +233,7 @@ export function SettingsPage({
             footer={config.publicFooter}
             footerSocial={config.publicFooterSocial}
             footerCopyright={config.publicFooterCopyright}
+            footerAlignment={config.publicTheme.footerAlignment}
             publicHeader={config.publicHeader}
             pageWidth={config.publicTheme.pageWidth}
             chromeFont={config.publicTheme.chromeFont}
@@ -247,6 +248,12 @@ export function SettingsPage({
             }
             onFooterSocialChange={(publicFooterSocial) =>
               onConfigChange({ ...config, publicFooterSocial })
+            }
+            onFooterAlignmentChange={(footerAlignment) =>
+              onConfigChange({
+                ...config,
+                publicTheme: { ...config.publicTheme, footerAlignment },
+              })
             }
             onFooterCopyrightChange={(publicFooterCopyright) =>
               onConfigChange({ ...config, publicFooterCopyright })
@@ -296,6 +303,13 @@ export function SettingsPage({
               rows={config.frontPageRows}
               onRowsChange={(frontPageRows) =>
                 onConfigChange({ ...config, frontPageRows })
+              }
+              rowGap={config.publicTheme.frontPageRowGap}
+              onRowGapChange={(frontPageRowGap) =>
+                onConfigChange({
+                  ...config,
+                  publicTheme: { ...config.publicTheme, frontPageRowGap },
+                })
               }
             />
             <PublicSystemPagesSettings

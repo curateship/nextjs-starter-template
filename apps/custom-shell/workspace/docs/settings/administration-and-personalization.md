@@ -451,6 +451,14 @@ offers no way to change it, because changing it would leave the fields of one
 kind under the name of another: an FAQ's questions do not become a hero's
 button. A row of the wrong kind is deleted and picked again.
 
+**Space between rows** is a slider under the list, from 0 to 160 pixels, and it
+is the gap between two blocks as a desktop draws them. The default is 80px. A
+phone draws 70% of whatever it says, because a gap that separates two blocks on
+a desktop is most of a phone screen, so the default gives a phone 56px. Flat
+mode, which is a page gutter of 0, still collapses both to nothing. The number
+is saved with the public styling rather than with the rows, so a site that sets
+its own public look sets its own spacing too.
+
 A heading and at least one complete entry are required for content rows. The
 server removes incomplete saved entries and refuses a newly selected image that
 does not belong to the current admin's media library. Dragging changes the
@@ -478,9 +486,20 @@ takes a 6-digit hex value and stays the same colour in light and dark. A canvas
 colour saved before this picker existed reads as a custom colour, so the site
 looks the same as it did.
 
-The Public footer card holds three things: the footer links, the social
-accounts and the copyright line. An account is a platform and the full address
-of its page. The platform is a fixed list, X, LinkedIn, Facebook, Instagram,
+The Public footer card holds four things: the footer's alignment, the footer
+links, the social accounts and the copyright line.
+
+**Alignment** offers Follow the site, Left and Centred, and moves the whole
+footer together: the logo, the description, the social buttons, the links and
+the copyright line. Follow the site is the default and is what every site saved
+before this choice existed reads as, so nothing moved. Follow the site means
+Styling > Page frame > Content alignment, including a site that set that to
+right. The
+two named choices are the ones a footer wants, which is why right is not
+offered as one of them. The choice is saved with the public styling, so a site
+with its own look sets its own footer.
+
+An account is a platform and the full address of its page. The platform is a fixed list, X, LinkedIn, Facebook, Instagram,
 Threads, YouTube, TikTok, GitHub, Medium and Substack, because each one is
 drawn with its own mark and a name nobody typed could not be drawn at all. A
 footer shows up to eight, dragging changes the order the public footer draws

@@ -21,9 +21,15 @@ import {
   useNavSensors,
   useSortableRow,
 } from "@/components/settings/nav-editor-shared"
+import { SettingsSliderRow } from "@/components/settings/settings-slider-row"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { PUBLIC_DEVICE_LABELS } from "@/lib/pages/public-device"
+import {
+  DEFAULT_PUBLIC_FRONT_PAGE_ROW_GAP,
+  MAX_PUBLIC_FRONT_PAGE_ROW_GAP,
+  PUBLIC_FRONT_PAGE_ROW_GAP_PHONE_SHARE,
+} from "@/lib/public-theme"
 import { appFrontPageRowKind } from "@/lib/app-options"
 import {
   APP_FRONT_PAGE_ROW_KIND,
@@ -37,9 +43,14 @@ import {
 export function FrontPageRowsSettings({
   rows,
   onRowsChange,
+  rowGap,
+  onRowGapChange,
 }: {
   rows: FrontPageRow[]
   onRowsChange: (rows: FrontPageRow[]) => void
+  /** The space between two blocks on the page, as a desktop draws it. */
+  rowGap: number
+  onRowGapChange: (rowGap: number) => void
 }) {
   const sensors = useNavSensors()
   const [editing, setEditing] = React.useState<FrontPageRow | null | undefined>(
@@ -132,6 +143,23 @@ export function FrontPageRowsSettings({
             Add row
           </Button>
         </div>
+
+        <SettingsSliderRow
+          label="Space between rows"
+          value={rowGap}
+          min={0}
+          max={MAX_PUBLIC_FRONT_PAGE_ROW_GAP}
+          step={4}
+          valueLabel={
+            rowGap === DEFAULT_PUBLIC_FRONT_PAGE_ROW_GAP
+              ? `${rowGap}px · Default`
+              : `${rowGap}px`
+          }
+          onChange={onRowGapChange}
+          help={`The gap between two blocks on the public front page. A phone draws ${Math.round(
+            PUBLIC_FRONT_PAGE_ROW_GAP_PHONE_SHARE * 100
+          )}% of it, because a gap that separates two blocks on a desktop is most of a phone screen. Flat mode collapses both.`}
+        />
       </CollapsibleSettingsCard>
 
       <FrontPageRowPicker

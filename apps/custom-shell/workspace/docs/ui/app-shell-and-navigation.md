@@ -116,6 +116,16 @@ opens as a panel inside the page rather than as a floating list, and the footer
 follows the site's content alignment. [Public pages, search, and
 SEO](../content/public-pages-search-and-seo.md) describes that look in full.
 
+**A page being left behind keeps its own layout until its replacement
+arrives.** The router moves to the new address the moment a link is clicked,
+while the page on screen stays put for as long as the next one takes to load.
+Anything that decides how the current page is drawn reads
+`usePaintedPathname()` rather than `useLocation()`, or the page on screen
+redraws itself as the page arriving. Tyler saw that on 27 Sep 2026: clicking
+from the public front page into the admin centred the hero for about half a
+second, because the public frame asked whether `/admin/dashboard` was a
+marketing page while the front page was still on the screen.
+
 An error that escapes a route's own handling uses a smaller public frame rather
 than the signed-in shell. The fallback shows the root logo and app name, applies
 the public canvas and fixed light or dark choice, and offers retry and front-page

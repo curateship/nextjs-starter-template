@@ -17,6 +17,10 @@ import {
 const router = vi.hoisted(() => ({
   navigate: vi.fn(),
   pathname: "/",
+  /** "pending" while a clicked link's page is still loading. */
+  status: "idle" as "idle" | "pending",
+  /** The page on screen while that one loads. */
+  resolvedPathname: undefined as string | undefined,
   matches: [] as { routeId: string; status?: string; loaderData?: unknown }[],
 }))
 const publicBreadcrumbs = vi.hoisted(() => ({
@@ -89,12 +93,18 @@ vi.mock("@tanstack/react-router", () => ({
     select,
   }: {
     select: (state: {
+      status: string
       location: { pathname: string }
+      resolvedLocation?: { pathname: string }
       matches: typeof router.matches
     }) => unknown
   }) =>
     select({
+      status: router.status,
       location: { pathname: router.pathname },
+      resolvedLocation: router.resolvedPathname
+        ? { pathname: router.resolvedPathname }
+        : undefined,
       matches: router.matches,
     }),
 }))
@@ -433,6 +443,57 @@ describe("PublicPageFrame navigation", () => {
     expect(column?.className).toContain("text-right")
     expect(column?.getAttribute("data-content-alignment")).toBe("right")
 
+    await act(async () => root.unmount())
+  })
+
+  it("keeps the page it is drawing while the next page loads", async () => {
+    // What a click from the front page into the admin looks like: the router
+    // is already at the dashboard, the front page is still on the screen.
+    router.status = "pending"
+    router.pathname = "/admin/dashboard"
+    router.resolvedPathname = "/"
+    publicTheme.current = { ...publicTheme.current, contentAlignment: "right" }
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(<PublicPageFrame>Page</PublicPageFrame>)
+    })
+
+    const column = host.querySelector("main")?.firstElementChild
+    expect(column?.getAttribute("data-content-alignment")).toBe("right")
+    expect(column?.className).toContain("text-right")
+
+    router.status = "idle"
+    router.resolvedPathname = undefined
+    await act(async () => root.unmount())
+  })
+
+  it("lets the footer sit where it is told, whatever the page does", async () => {
+    router.pathname = "/"
+    publicTheme.current = {
+      ...publicTheme.current,
+      contentAlignment: "right",
+      footerAlignment: "center",
+    }
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(<PublicPageFrame>Page</PublicPageFrame>)
+    })
+
+    // The page keeps the site's alignment; only the footer moves.
+    expect(
+      host.querySelector("main")?.firstElementChild?.className
+    ).toContain("items-end")
+    const footerColumn = host.querySelector("footer > div")?.firstElementChild
+    expect(footerColumn?.className).toContain("items-center")
+    expect(footerColumn?.className).toContain("text-center")
+
+    publicTheme.current = { ...publicTheme.current, footerAlignment: "inherit" }
     await act(async () => root.unmount())
   })
 
