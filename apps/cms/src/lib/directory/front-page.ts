@@ -13,8 +13,20 @@ import type {
   DirectoryCategoryCard,
   DirectoryCategorySource,
 } from "@/lib/directory/category-cards"
+import type { PlanOption } from "@/lib/api/billing/billing"
 import type { DirectorySort } from "@/lib/directory/public-search"
 import type { EventWhen } from "@/lib/events/event-time"
+import {
+  FRONT_PAGE_HERO_ACTIONS,
+  FRONT_PAGE_HERO_LINK_MESSAGE,
+  MAX_FRONT_PAGE_HERO_NOTE_LENGTH,
+  MAX_FRONT_PAGE_HERO_BUTTON_LABEL_LENGTH,
+  MAX_FRONT_PAGE_HERO_STARS,
+  MAX_FRONT_PAGE_IMAGE_ALT_LENGTH,
+  normalizeFrontPageHeroHref,
+  normalizeFrontPageImageUrl,
+  type FrontPageHeroAction,
+} from "@/lib/pages/front-page"
 import type { DealCardView } from "@/lib/promotions/deal-content"
 
 /**
@@ -50,6 +62,8 @@ export const DIRECTORY_FRONT_PAGE_KINDS = [
   "events",
   "deals",
   "posts",
+  "hero",
+  "plans",
 ] as const
 
 export type DirectoryFrontPageKind = (typeof DIRECTORY_FRONT_PAGE_KINDS)[number]
@@ -63,6 +77,8 @@ export const DIRECTORY_FRONT_PAGE_KIND_LABELS: Record<
   events: "Upcoming events",
   deals: "Current deals",
   posts: "Latest posts",
+  hero: "Hero",
+  plans: "Plans",
 }
 
 export const DIRECTORY_FRONT_PAGE_KIND_HINTS: Record<
@@ -78,6 +94,109 @@ export const DIRECTORY_FRONT_PAGE_KIND_HINTS: Record<
     "The newest deals that are not over yet, as cards with their headlines. Left off the page while there are none.",
   posts:
     "The newest published posts, as cards with their cover photo and how long each takes to read. Left off the page while there are none.",
+  hero: "A large heading, a line beneath it, a button or an email box, and an optional picture beside them.",
+  plans:
+    "The deployment's public plans, as the cards the platform's own front page draws.",
+}
+
+/**
+ * A hero row's own fields, named the way the shell's hero component takes them
+ * so a row can be handed straight to it.
+ *
+ * Every other kind of row stores the empty one. The wording, the link, the
+ * picture and the stars are all checked by the shell's own normalizers, so a
+ * site's hero and the platform's hero refuse exactly the same things.
+ */
+export type DirectoryFrontPageHero = {
+  /** A button to somewhere, or a box that takes an email address. */
+  action: FrontPageHeroAction
+  /** Empty draws the hero as one column across the page. */
+  image: string
+  alt: string
+  buttonLabel: string
+  buttonHref: string
+  /** The short line of proof under the button, such as a customer count. */
+  note: string
+  /** 0 to 5. Drawn before the note, and 0 draws none. */
+  stars: number
+}
+
+export const EMPTY_DIRECTORY_FRONT_PAGE_HERO: DirectoryFrontPageHero = {
+  action: "button",
+  image: "",
+  alt: "",
+  buttonLabel: "",
+  buttonHref: "",
+  note: "",
+  stars: 0,
+}
+
+/**
+ * A hero row's fields, cleaned the way the platform's own hero is cleaned.
+ *
+ * The two halves of the button go together or neither does: a word nobody can
+ * press, and a press with no word on it, are both worse than no button. An
+ * email form needs only its wording, because its address box is the link.
+ */
+export function cleanDirectoryFrontPageHero(
+  raw: Partial<DirectoryFrontPageHero> | null | undefined
+): DirectoryFrontPageHero {
+  if (!raw) return EMPTY_DIRECTORY_FRONT_PAGE_HERO
+  const action = (FRONT_PAGE_HERO_ACTIONS as readonly string[]).includes(
+    raw.action ?? ""
+  )
+    ? (raw.action as FrontPageHeroAction)
+    : "button"
+  const buttonHref = normalizeFrontPageHeroHref(raw.buttonHref)
+  const buttonLabel = (raw.buttonLabel ?? "")
+    .trim()
+    .slice(0, MAX_FRONT_PAGE_HERO_BUTTON_LABEL_LENGTH)
+  const paired =
+    action === "email" ? buttonLabel : buttonHref ? buttonLabel : ""
+
+  return {
+    action,
+    image: normalizeFrontPageImageUrl(raw.image),
+    alt: (raw.alt ?? "").trim().slice(0, MAX_FRONT_PAGE_IMAGE_ALT_LENGTH),
+    buttonLabel: paired,
+    buttonHref: action === "email" ? "" : paired ? buttonHref : "",
+    note: (raw.note ?? "").trim().slice(0, MAX_FRONT_PAGE_HERO_NOTE_LENGTH),
+    stars:
+      typeof raw.stars === "number" && Number.isFinite(raw.stars)
+        ? Math.min(
+            MAX_FRONT_PAGE_HERO_STARS,
+            Math.max(0, Math.round(raw.stars))
+          )
+        : 0,
+  }
+}
+
+/**
+ * What is wrong with a hero as it was typed, or null when nothing is.
+ *
+ * Said rather than quietly fixed, because `cleanDirectoryFrontPageHero` above
+ * would drop half a button without a word about it, and an admin who typed a
+ * link and watched it vanish has no way to know why. The admin window and the
+ * save both read this, so they refuse the same things.
+ */
+export function directoryFrontPageHeroProblem(
+  hero: DirectoryFrontPageHero
+): string | null {
+  if (hero.action === "email") {
+    return hero.buttonLabel.trim()
+      ? null
+      : "Give the email form's button its wording."
+  }
+  const label = hero.buttonLabel.trim()
+  const href = hero.buttonHref.trim()
+  if (label && !href)
+    return "Give the hero button a link, or clear its wording."
+  if (href && !label)
+    return "Give the hero button its wording, or clear its link."
+  if (href && normalizeFrontPageHeroHref(href) !== href) {
+    return FRONT_PAGE_HERO_LINK_MESSAGE
+  }
+  return null
 }
 
 export function isDirectoryFrontPageKind(
@@ -137,11 +256,16 @@ export const DIRECTORY_FRONT_PAGE_LAYOUT_LABELS: Record<
 }
 
 /**
- * Six rows of twelve is 72 listings, which is a home page. Seven rows of
- * twelve is somebody discovering by accident that the front page can fetch
- * four hundred records.
+ * How many rows one save may rearrange, which is not a limit on how many rows a
+ * home page has — there is none. A home page held six until 27 Sep 2026, when
+ * Tyler took the cap off: drawing a row costs nothing, and the only thing the
+ * number ever guarded was how many records the first visit reads, which the
+ * per-row count of 1 to 12 already holds down.
+ *
+ * This is left as a bound on one request's list of ids, so a rearrange cannot
+ * be sent a list of any length at all.
  */
-export const MAX_DIRECTORY_FRONT_PAGE_SECTIONS = 6
+export const MAX_DIRECTORY_FRONT_PAGE_ORDER_IDS = 500
 
 export const DIRECTORY_FRONT_PAGE_COUNT_MIN = 1
 export const DIRECTORY_FRONT_PAGE_COUNT_MAX = 12
@@ -149,9 +273,6 @@ export const DIRECTORY_FRONT_PAGE_COUNT_DEFAULT = 8
 
 export const DIRECTORY_FRONT_PAGE_HEADING_MAX = 120
 export const DIRECTORY_FRONT_PAGE_INTRO_MAX = 500
-
-/** The sentence said when a seventh row is asked for, in one place. */
-export const DIRECTORY_FRONT_PAGE_FULL_MESSAGE = `A home page can have ${MAX_DIRECTORY_FRONT_PAGE_SECTIONS} rows. Delete one before adding another.`
 
 /** "cards" rather than "listings": a row of categories is counted the same way. */
 export const DIRECTORY_FRONT_PAGE_COUNT_MESSAGE = `A row shows between ${DIRECTORY_FRONT_PAGE_COUNT_MIN} and ${DIRECTORY_FRONT_PAGE_COUNT_MAX} cards.`
@@ -190,6 +311,10 @@ export type DirectoryFrontPageSection = {
   sort: DirectoryFrontPageSort
   listingCount: number
   layout: DirectoryFrontPageLayout
+  /** Hero rows only. Every other kind holds the empty hero. */
+  hero: DirectoryFrontPageHero
+  /** This row's words and buttons sit in the middle rather than on the left. */
+  centred: boolean
 }
 
 /**
@@ -222,6 +347,8 @@ export type DirectoryFrontPageRow =
       id: string
       heading: string
       intro: string
+      /** Drawn in the middle of the page rather than against its left edge. */
+      centred: boolean
       layout: DirectoryFrontPageLayout
       /** What the row's "see them all" link should carry. */
       browse: { category?: string; sort?: DirectorySort }
@@ -232,6 +359,8 @@ export type DirectoryFrontPageRow =
       id: string
       heading: string
       intro: string
+      /** Drawn in the middle of the page rather than against its left edge. */
+      centred: boolean
       cards: DirectoryCategoryCard[]
     }
   | {
@@ -239,6 +368,8 @@ export type DirectoryFrontPageRow =
       id: string
       heading: string
       intro: string
+      /** Drawn in the middle of the page rather than against its left edge. */
+      centred: boolean
       /** How many to show, the row's own count. */
       count: number
       /** Only events filed under this category, or null for every event. */
@@ -255,6 +386,8 @@ export type DirectoryFrontPageRow =
       id: string
       heading: string
       intro: string
+      /** Drawn in the middle of the page rather than against its left edge. */
+      centred: boolean
       /** How many to show, the row's own count. */
       count: number
       /** Only deals at listings filed under this category, or null for all. */
@@ -269,6 +402,8 @@ export type DirectoryFrontPageRow =
       id: string
       heading: string
       intro: string
+      /** Drawn in the middle of the page rather than against its left edge. */
+      centred: boolean
       /** How many to show, the row's own count. */
       count: number
       /** Only posts filed under this category, or null for every post. */
@@ -279,6 +414,24 @@ export type DirectoryFrontPageRow =
       posts: DirectoryFrontPagePost[]
       /** The site's own name, printed under each card where a byline would be. */
       siteName: string
+    }
+  | {
+      kind: "hero"
+      id: string
+      heading: string
+      intro: string
+      /** Drawn in the middle of the page rather than against its left edge. */
+      centred: boolean
+      /** The heading and the introduction above are the hero's own words. */
+      hero: DirectoryFrontPageHero
+    }
+  | {
+      kind: "plans"
+      id: string
+      heading: string
+      intro: string
+      /** Drawn in the middle of the page rather than against its left edge. */
+      centred: boolean
     }
 
 /**
@@ -337,6 +490,23 @@ export type DirectoryFrontPageListing = {
   /** Present only on a row that draws a map, where a pin needs both. */
   latitude?: number
   longitude?: number
+}
+
+/**
+ * A site's home page with the plans a row of plans needs.
+ *
+ * The plans are the deployment's own, not the site's: there is one set of public
+ * plans for the whole platform, so they are read once for the page rather than
+ * once per row. A page with no plans row carries none of this, and a deployment
+ * that sells nothing has no plans to carry, which is what drops the row.
+ *
+ * `signedIn` decides where a plan card leads, the same as on the platform's own
+ * front page: a visitor goes to the register form and a member to `/pricing`.
+ */
+export type DirectoryFrontPageView = DirectoryFrontPageData & {
+  plans: PlanOption[]
+  trialUsed: boolean
+  signedIn: boolean
 }
 
 /** The complete browser-safe answer for a site's listings home page. */

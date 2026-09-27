@@ -12,7 +12,8 @@ paging. Choosing a picture closes that window and puts the picture on the field
 behind it. Nothing is saved until the editing window itself is saved.
 
 - **Where:** the event window, the listing window and its photo gallery, the
-  post window and the deal window.
+  post window, the deal window and the home page row window in Settings →
+  Directory → Home page, whose hero has a picture.
 - **Why it is not drawn inside the field.** The shell's field can also open the
   library in place of itself, which is what these five did until 25 Sep 2026.
   Inside a window that scrolls, the library opens below the fold and nothing

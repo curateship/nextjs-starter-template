@@ -233,7 +233,7 @@ directly.
   `src/server/directory/public.ts` says so), and the task said to match events.
   The task file had assumed a parent page shows its children's; it does not.
 - **A home page row of deals** is a fourth row kind, "Current deals", added in
-  Settings → Directory → Front page with a count and an optional category,
+  Settings → Directory → Home page with a count and an optional category,
   like the events row. It shows the newest live deals as cards and "See all
   deals". `drizzle/0099_cms_front_page_deals_row.sql` widened the kind check.
 - **Filled after the cache** by `fillFrontPageDeals` in

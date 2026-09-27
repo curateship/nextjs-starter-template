@@ -5,8 +5,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import { DIRECTORY_CATEGORY_PICK_MESSAGE } from "@/lib/directory/category-cards"
 import {
   DIRECTORY_FRONT_PAGE_COUNT_MESSAGE,
-  DIRECTORY_FRONT_PAGE_FULL_MESSAGE,
-  MAX_DIRECTORY_FRONT_PAGE_SECTIONS,
 } from "@/lib/directory/front-page"
 import { uuid } from "@/server/auth/security"
 import {
@@ -96,16 +94,20 @@ describe("home page rows", () => {
     expect(await listFrontPageSections(siteId, database)).toHaveLength(0)
   })
 
-  it("refuses the seventh row before it is saved", async () => {
-    for (let index = 0; index < MAX_DIRECTORY_FRONT_PAGE_SECTIONS; index += 1) {
+  /**
+   * A home page held six rows until 27 Sep 2026. Tyler took the cap off, so ten
+   * is allowed, they all come back, and they come back in the order they were
+   * added rather than in whatever order the database felt like.
+   */
+  it("takes as many rows as a site adds", async () => {
+    for (let index = 0; index < 10; index += 1) {
       await createFrontPageSection(siteId, { heading: `Row ${index}` }, database)
     }
 
-    await expect(
-      createFrontPageSection(siteId, { heading: "One too many" }, database)
-    ).rejects.toThrow(DIRECTORY_FRONT_PAGE_FULL_MESSAGE)
-    expect(await listFrontPageSections(siteId, database)).toHaveLength(
-      MAX_DIRECTORY_FRONT_PAGE_SECTIONS
+    const rows = await listFrontPageSections(siteId, database)
+    expect(rows).toHaveLength(10)
+    expect(rows.map((row) => row.heading)).toEqual(
+      Array.from({ length: 10 }, (_, index) => `Row ${index}`)
     )
   })
 
@@ -294,5 +296,144 @@ describe("home page rows", () => {
       categorySource: "picked",
       pickedCategoryIds: [cafes],
     })
+  })
+
+  it("saves a hero's own fields, and pairs its button", async () => {
+    const row = await createFrontPageSection(
+      siteId,
+      {
+        heading: "Find somewhere to eat",
+        kind: "hero",
+        hero: {
+          action: "button",
+          image: "https://example.com/a.jpg",
+          alt: "A cafe",
+          buttonLabel: "Browse",
+          buttonHref: "/directory",
+          note: "850 places",
+          stars: 5,
+        },
+      },
+      database
+    )
+
+    expect(row.hero).toEqual({
+      action: "button",
+      image: "https://example.com/a.jpg",
+      alt: "A cafe",
+      buttonLabel: "Browse",
+      buttonHref: "/directory",
+      note: "850 places",
+      stars: 5,
+    })
+  })
+
+  /**
+   * Half a button is a word nobody can press, and the window says so rather
+   * than saving it. The save refuses it too, because the window is not the only
+   * way in.
+   */
+  it("refuses a hero whose button has wording and no link", async () => {
+    await expect(
+      createFrontPageSection(
+        siteId,
+        {
+          heading: "Find somewhere to eat",
+          kind: "hero",
+          hero: {
+            action: "button",
+            image: "",
+            alt: "",
+            buttonLabel: "Browse",
+            buttonHref: "",
+            note: "",
+            stars: 0,
+          },
+        },
+        database
+      )
+    ).rejects.toThrow("Give the hero button a link, or clear its wording.")
+  })
+
+  it("clears the hero when a row stops being one", async () => {
+    const row = await createFrontPageSection(
+      siteId,
+      {
+        heading: "Find somewhere to eat",
+        kind: "hero",
+        hero: {
+          action: "email",
+          image: "",
+          alt: "",
+          buttonLabel: "Subscribe",
+          buttonHref: "",
+          note: "",
+          stars: 3,
+        },
+      },
+      database
+    )
+    expect(row.hero.buttonLabel).toBe("Subscribe")
+
+    const saved = await updateFrontPageSection(
+      siteId,
+      row.id,
+      { kind: "listings" },
+      database
+    )
+    expect(saved.hero).toEqual({
+      action: "button",
+      image: "",
+      alt: "",
+      buttonLabel: "",
+      buttonHref: "",
+      note: "",
+      stars: 0,
+    })
+  })
+
+  it("stores a row of plans with nothing of its own", async () => {
+    const row = await createFrontPageSection(
+      siteId,
+      { heading: "Pricing", kind: "plans" },
+      database
+    )
+
+    expect(row.kind).toBe("plans")
+    expect(row.hero).toEqual({
+      action: "button",
+      image: "",
+      alt: "",
+      buttonLabel: "",
+      buttonHref: "",
+      note: "",
+      stars: 0,
+    })
+  })
+
+  it("remembers a row that was asked to be centred", async () => {
+    const row = await createFrontPageSection(
+      siteId,
+      { heading: "Find somewhere to eat", kind: "listings", centred: true },
+      database
+    )
+    expect(row.centred).toBe(true)
+
+    const saved = await updateFrontPageSection(
+      siteId,
+      row.id,
+      { centred: false },
+      database
+    )
+    expect(saved.centred).toBe(false)
+  })
+
+  it("leaves a new row reading from the left", async () => {
+    const row = await createFrontPageSection(
+      siteId,
+      { heading: "New this week" },
+      database
+    )
+    expect(row.centred).toBe(false)
   })
 })

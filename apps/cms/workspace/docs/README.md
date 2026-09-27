@@ -19,7 +19,8 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - `listing-view-counts.md` — where a listing's view figures come from and what
   each column counts.
 - `directory-page-layout.md` — how the browse page, a category page and a
-  listing are laid out, the search band and the filters down the left of the
+  listing are laid out, which card in Settings → Directory holds each page's
+  settings, the search band and the filters down the left of the
   browse page, what ticking two boxes means, what a day with two services
   stores, and where neighbourhood labels come from.
 - `import-eatdrinktoronto.md` — the one-off command that copies one old
@@ -33,8 +34,9 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - `directory-search-suggestions.md` — the listings and categories the public
   search box offers as a visitor types, its keyboard, and how often it asks the
   server.
-- `home-page-rows.md` — the rows a site builds its own home page from, the five
-  kinds, and the rules that hold for every one of them.
+- `home-page-rows.md` — the rows a site builds its own home page from, the seven
+  kinds including the hero and the plans copied from the shell's landing page,
+  and the rules that hold for every one of them.
 - `image-fields.md` — what happens when an image field is clicked, and why the
   picker opens as a window inside an editing window.
 - `posts.md` — each site's Posts page: writing posts, listing cards in a post, and

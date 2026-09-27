@@ -13,9 +13,18 @@ import {
   DIRECTORY_FRONT_PAGE_KINDS,
   DIRECTORY_FRONT_PAGE_LAYOUTS,
   DIRECTORY_FRONT_PAGE_SORTS,
-  MAX_DIRECTORY_FRONT_PAGE_SECTIONS,
+  MAX_DIRECTORY_FRONT_PAGE_ORDER_IDS,
   type DirectoryFrontPageSection,
 } from "@/lib/directory/front-page"
+import {
+  FRONT_PAGE_HERO_ACTIONS,
+  MAX_FRONT_PAGE_HERO_BUTTON_HREF_LENGTH,
+  MAX_FRONT_PAGE_HERO_BUTTON_LABEL_LENGTH,
+  MAX_FRONT_PAGE_HERO_NOTE_LENGTH,
+  MAX_FRONT_PAGE_HERO_STARS,
+  MAX_FRONT_PAGE_IMAGE_ALT_LENGTH,
+  MAX_FRONT_PAGE_IMAGE_URL_LENGTH,
+} from "@/lib/pages/front-page"
 import { adminGet, adminPost } from "@/server/guards"
 import {
   createFrontPageSection,
@@ -74,6 +83,23 @@ const sectionInput = z.object({
     .min(DIRECTORY_FRONT_PAGE_COUNT_MIN)
     .max(DIRECTORY_FRONT_PAGE_COUNT_MAX),
   layout: z.enum(DIRECTORY_FRONT_PAGE_LAYOUTS),
+  /**
+   * A hero row's own fields. Sent by every kind of row, the same as `sort` and
+   * `layout` are, and thrown away for the kinds that are not a hero. The
+   * lengths here are the shell's own hero limits, so a site's hero cannot hold
+   * what the platform's own hero would refuse.
+   */
+  hero: z.object({
+    action: z.enum(FRONT_PAGE_HERO_ACTIONS),
+    image: z.string().max(MAX_FRONT_PAGE_IMAGE_URL_LENGTH),
+    alt: z.string().max(MAX_FRONT_PAGE_IMAGE_ALT_LENGTH),
+    buttonLabel: z.string().max(MAX_FRONT_PAGE_HERO_BUTTON_LABEL_LENGTH),
+    buttonHref: z.string().max(MAX_FRONT_PAGE_HERO_BUTTON_HREF_LENGTH),
+    note: z.string().max(MAX_FRONT_PAGE_HERO_NOTE_LENGTH),
+    stars: z.number().int().min(0).max(MAX_FRONT_PAGE_HERO_STARS),
+  }),
+  /** This row's words and buttons sit in the middle rather than on the left. */
+  centred: z.boolean(),
 })
 
 export type FrontPageSectionInput = z.infer<typeof sectionInput>
@@ -123,7 +149,7 @@ const reorderFrontPageSectionsFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(
     z.object({
-      ids: z.array(idInput).min(1).max(MAX_DIRECTORY_FRONT_PAGE_SECTIONS),
+      ids: z.array(idInput).min(1).max(MAX_DIRECTORY_FRONT_PAGE_ORDER_IDS),
     })
   )
   .handler(async ({ data, context }): Promise<void> => {

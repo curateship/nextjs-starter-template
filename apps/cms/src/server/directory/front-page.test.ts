@@ -513,4 +513,47 @@ describe("directory listings front page", () => {
     const fresh = await readDirectoryFrontPage(site, database)
     expect(listingsRow(fresh?.rows[0]).listings).toHaveLength(2)
   })
+
+  /**
+   * A hero and a row of plans are their own content, so neither is fetched and
+   * neither can come back empty. A page of nothing but a hero is still a page.
+   */
+  it("draws a hero and a row of plans with no listings behind them", async () => {
+    await browseSettings()
+    await createFrontPageSection(
+      site.id,
+      {
+        heading: "Find somewhere to eat",
+        intro: "Every place worth going to.",
+        kind: "hero",
+        hero: {
+          action: "button",
+          image: "https://example.com/a.jpg",
+          alt: "A cafe",
+          buttonLabel: "Browse",
+          buttonHref: "/directory",
+          note: "850 places",
+          stars: 5,
+        },
+      },
+      database
+    )
+    await createFrontPageSection(
+      site.id,
+      { heading: "Pricing", kind: "plans" },
+      database
+    )
+
+    const page = await readDirectoryFrontPage(site, database)
+    expect(page?.rows.map((row) => row.kind)).toEqual(["hero", "plans"])
+    const hero = page?.rows[0]
+    expect(hero?.kind === "hero" ? hero.hero : null).toMatchObject({
+      action: "button",
+      image: "https://example.com/a.jpg",
+      buttonLabel: "Browse",
+      buttonHref: "/directory",
+      note: "850 places",
+      stars: 5,
+    })
+  })
 })

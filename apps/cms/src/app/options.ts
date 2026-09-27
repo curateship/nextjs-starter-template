@@ -5,6 +5,7 @@ import { defineCatchAllPage, type AppOptions } from "@/lib/app-options"
 import type {
   DirectoryFrontPageAnswer,
   DirectoryFrontPageData,
+  DirectoryFrontPageView,
 } from "@/lib/directory/front-page"
 import { draftEventsNode } from "@/lib/events/draft-events-step"
 
@@ -36,10 +37,10 @@ const DirectoryFrontPageComponent = lazy(() =>
  * lands. It also sends a member to the member home rather than to an admin page
  * they cannot open.
  *
- * `load` is a parameter only so the tests can drive it. The dynamic import is
- * the rule for this file, written at the top of `appOptions` below: reaching an
- * endpoint module while this one is still being read catches the server's
- * guards half-built.
+ * `load` and `loadPlans` are parameters only so the tests can drive them. The
+ * dynamic import is the rule for this file, written at the top of `appOptions`
+ * below: reaching an endpoint module while this one is still being read catches
+ * the server's guards half-built.
  */
 export async function loadDirectoryFrontPageOverride(
   path: string,
@@ -47,19 +48,97 @@ export async function loadDirectoryFrontPageOverride(
     const { loadDirectoryFrontPage } =
       await import("@/lib/api/directory/public")
     return loadDirectoryFrontPage()
-  }
+  },
+  loadPlans: () => Promise<PlanBoard> = readPlanBoard
 ) {
   if (path !== "/") return null
 
   const answer = await load()
-  if (answer.host === "site") return answer.page
+  if (answer.host === "site") {
+    return answer.page ? withPlans(answer.page, loadPlans) : null
+  }
 
   // Replace, never push. This address only forwards now, so leaving it in the
   // history turns Back into a bounce straight back out of it.
   throw redirect({ to: answer.signedIn ? "/home" : "/login", replace: true })
 }
 
-const directoryFrontPage = defineCatchAllPage<DirectoryFrontPageData>({
+/** The public plans and who is reading them, for a row of plans. */
+type PlanBoard = {
+  plans: DirectoryFrontPageView["plans"]
+  trialUsed: boolean
+  signedIn: boolean
+}
+
+const NO_PLANS: PlanBoard = { plans: [], trialUsed: false, signedIn: false }
+
+/**
+ * The deployment's public plans, for a home page with a row of plans on it.
+ *
+ * Read here rather than with the page because the plans belong to the
+ * deployment and the page is cached per site, and because a price pasted a
+ * minute ago should reach the next visitor. Read once however many rows of
+ * plans are on the page.
+ *
+ * Never allowed to fail. This is a public home page, and a billing call that
+ * fell over has to leave the visitor on the rest of their page with the plans
+ * row dropped, not on an error page.
+ */
+async function readPlanBoard(): Promise<PlanBoard> {
+  try {
+    const [{ loadCurrentUser }, billing] = await Promise.all([
+      import("@/lib/api/auth/auth"),
+      import("@/lib/api/billing/billing"),
+    ])
+    const [user, pricing] = await Promise.all([
+      loadCurrentUser(),
+      billing.loadPublicPricing(),
+    ])
+    // These cards promise a free trial, so a signed-in reader who has already
+    // spent theirs is told here too, the same as on the platform's own front
+    // page. Only asked for when there is somebody to ask about.
+    const overview = user
+      ? await billing.loadBillingOverview().catch(() => null)
+      : null
+    // Payments switched off means nothing can be bought however the cards are
+    // drawn, so the row comes off the page rather than showing prices with a
+    // dead button under each one.
+    return pricing.billingEnabled
+      ? {
+          plans: pricing.plans,
+          trialUsed: Boolean(overview?.trialUsed),
+          signedIn: Boolean(user),
+        }
+      : NO_PLANS
+  } catch {
+    return NO_PLANS
+  }
+}
+
+/**
+ * A site's home page with what a row of plans needs, or null when the page has
+ * nothing left to draw.
+ *
+ * A deployment that sells nothing has no plans, so a row of plans there is
+ * dropped the same way an empty row of listings is — and a page that was only
+ * that row falls through to the platform's own front page.
+ */
+async function withPlans(
+  page: DirectoryFrontPageData,
+  loadPlans: () => Promise<PlanBoard>
+): Promise<DirectoryFrontPageView | null> {
+  if (!page.rows.some((row) => row.kind === "plans")) {
+    return { ...page, ...NO_PLANS }
+  }
+
+  const board = await loadPlans()
+  if (board.plans.length > 0) return { ...page, ...board }
+
+  const rows = page.rows.filter((row) => row.kind !== "plans")
+  return rows.length ? { ...page, rows, ...NO_PLANS } : null
+}
+
+const directoryFrontPage = defineCatchAllPage<DirectoryFrontPageView>({
   loader: ({ path }) => loadDirectoryFrontPageOverride(path),
   head: ({ data }) => ({
     meta: [

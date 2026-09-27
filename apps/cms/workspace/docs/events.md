@@ -7,7 +7,7 @@ published event has its own page at `/events/<address>`.
 
 - **Every site starts on Toronto time.** Chosen on 23 Sep 2026. Old sites and
   new ones both get `America/Toronto` until an admin changes it in
-  Settings → Directory → Time zone.
+  Settings → Directory → Events and deals pages.
 - **The end time is optional.** With no end time, the page shows only the start
   time, and the event counts as over once its day is over in the site's time
   zone.
@@ -347,7 +347,7 @@ under it.
 ### A home page row
 
 A home page row can be a third kind, "Upcoming events", next to Listings and
-Category cards, in Settings → Directory → Front page.
+Category cards, in Settings → Directory → Home page.
 
 - **Its settings:** a heading, an introduction, a category or "Every event",
   and how many, 1 to 12. Order and arrangement do not apply: it is always the
@@ -647,7 +647,8 @@ them. Tapping "Today" after that gives tonight's events within 10 km.
   longitude drops the filter. A distance the picker does not offer, like
   `radius=7`, is read as 10 km.
 - **Place search needs the site's key.** "Search place" uses "Google Maps API
-  key" on the Near me search card in Settings → Directory, the same key the
+  key" under Search by town or postcode, on the Directory page card in
+  Settings → Directory, the same key the
   directory uses. Without it the page says "Place search is not available on
   this site yet. Use your location instead." "Use my location" works either
   way.

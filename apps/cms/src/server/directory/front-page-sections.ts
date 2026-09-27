@@ -7,18 +7,21 @@ import {
 } from "@/lib/directory/category-cards"
 import { checkedPickedCategoryIds } from "@/server/directory/category-cards"
 import {
+  cleanDirectoryFrontPageHero,
+  directoryFrontPageHeroProblem,
   DIRECTORY_FRONT_PAGE_COUNT_DEFAULT,
   DIRECTORY_FRONT_PAGE_COUNT_MAX,
   DIRECTORY_FRONT_PAGE_COUNT_MESSAGE,
   DIRECTORY_FRONT_PAGE_COUNT_MIN,
-  DIRECTORY_FRONT_PAGE_FULL_MESSAGE,
   DIRECTORY_FRONT_PAGE_HEADING_MAX,
   DIRECTORY_FRONT_PAGE_HEADING_MESSAGE,
   DIRECTORY_FRONT_PAGE_INTRO_MAX,
   isDirectoryFrontPageKind,
   isDirectoryFrontPageLayout,
   isDirectoryFrontPageSort,
-  MAX_DIRECTORY_FRONT_PAGE_SECTIONS,
+  EMPTY_DIRECTORY_FRONT_PAGE_HERO,
+  MAX_DIRECTORY_FRONT_PAGE_ORDER_IDS,
+  type DirectoryFrontPageHero,
   type DirectoryFrontPageKind,
   type DirectoryFrontPageLayout,
   type DirectoryFrontPageSection,
@@ -66,6 +69,50 @@ function toSection(row: SectionRowWithCategory): DirectoryFrontPageSection {
     sort: isDirectoryFrontPageSort(row.sort) ? row.sort : "newest",
     listingCount: clampCount(row.listingCount),
     layout: isDirectoryFrontPageLayout(row.layout) ? row.layout : "grid",
+    hero: cleanDirectoryFrontPageHero({
+      action: row.heroAction as DirectoryFrontPageHero["action"],
+      image: row.heroImage,
+      alt: row.heroAlt,
+      buttonLabel: row.heroButtonLabel,
+      buttonHref: row.heroButtonHref,
+      note: row.heroNote,
+      stars: row.heroStars,
+    }),
+    centred: row.centred,
+  }
+}
+
+/**
+ * The hero to store for this row: the cleaned one on a hero row, and the empty
+ * one on every other kind. A row that stopped being a hero leaves nothing
+ * behind it, the same as a row that stopped hand-picking its categories.
+ */
+function heroFor(
+  kind: DirectoryFrontPageKind,
+  hero: DirectoryFrontPageHero | undefined
+): DirectoryFrontPageHero {
+  if (kind !== "hero") return EMPTY_DIRECTORY_FRONT_PAGE_HERO
+  // Judged as it was typed, not as it would be stored. Cleaning drops half a
+  // button on its own, so checking afterwards would find nothing wrong with a
+  // hero whose link had just been thrown away.
+  const problem = directoryFrontPageHeroProblem({
+    ...EMPTY_DIRECTORY_FRONT_PAGE_HERO,
+    ...hero,
+  })
+  if (problem) throw new Error(problem)
+  return cleanDirectoryFrontPageHero(hero)
+}
+
+/** The seven `hero_*` columns, written from one object. */
+function heroColumns(hero: DirectoryFrontPageHero) {
+  return {
+    heroAction: hero.action,
+    heroImage: hero.image,
+    heroAlt: hero.alt,
+    heroButtonLabel: hero.buttonLabel,
+    heroButtonHref: hero.buttonHref,
+    heroNote: hero.note,
+    heroStars: hero.stars,
   }
 }
 
@@ -112,7 +159,10 @@ async function checkedCategoryId(
     .select({ id: categories.id })
     .from(categories)
     .where(
-      and(eq(categories.id, categoryId), eq(categories.workspaceId, workspaceId))
+      and(
+        eq(categories.id, categoryId),
+        eq(categories.workspaceId, workspaceId)
+      )
     )
     .limit(1)
   if (!row) throw new Error("That category is not on this site.")
@@ -149,7 +199,10 @@ export async function listFrontPageSections(
       categoryName: categories.name,
     })
     .from(directoryFrontPageSections)
-    .leftJoin(categories, eq(categories.id, directoryFrontPageSections.categoryId))
+    .leftJoin(
+      categories,
+      eq(categories.id, directoryFrontPageSections.categoryId)
+    )
     .where(eq(directoryFrontPageSections.workspaceId, workspaceId))
     // The id breaks ties so the order is the same on every read — two rows
     // added in the same second must not swap places between page loads.
@@ -185,6 +238,8 @@ type FrontPageSectionInput = {
   sort?: DirectoryFrontPageSort
   listingCount?: number
   layout?: DirectoryFrontPageLayout
+  hero?: DirectoryFrontPageHero
+  centred?: boolean
 }
 
 export async function createFrontPageSection(
@@ -193,16 +248,12 @@ export async function createFrontPageSection(
   database: CustomShellDb = db
 ): Promise<DirectoryFrontPageSection> {
   const heading = cleanHeading(input.heading)
+  // Counted for the new row's place at the bottom, not to refuse it: a home
+  // page may have as many rows as a site wants one.
   const existing = await database
     .select({ id: directoryFrontPageSections.id })
     .from(directoryFrontPageSections)
     .where(eq(directoryFrontPageSections.workspaceId, workspaceId))
-
-  // Refused before anything is written, so the seventh row never exists even
-  // for the moment it would take to notice and delete it again.
-  if (existing.length >= MAX_DIRECTORY_FRONT_PAGE_SECTIONS) {
-    throw new Error(DIRECTORY_FRONT_PAGE_FULL_MESSAGE)
-  }
 
   const categoryId = await checkedCategoryId(
     workspaceId,
@@ -219,7 +270,9 @@ export async function createFrontPageSection(
       // looking. Nothing renumbers, so the existing order does not move.
       displayOrder: existing.length,
       heading,
-      intro: (input.intro ?? "").trim().slice(0, DIRECTORY_FRONT_PAGE_INTRO_MAX),
+      intro: (input.intro ?? "")
+        .trim()
+        .slice(0, DIRECTORY_FRONT_PAGE_INTRO_MAX),
       kind: input.kind ?? "listings",
       categorySource: input.categorySource ?? "top-level",
       pickedCategoryIds: await pickedCategoryIdsFor(
@@ -235,6 +288,8 @@ export async function createFrontPageSection(
         input.listingCount ?? DIRECTORY_FRONT_PAGE_COUNT_DEFAULT
       ),
       layout: input.layout ?? "grid",
+      ...heroColumns(heroFor(input.kind ?? "listings", input.hero)),
+      centred: input.centred ?? false,
       createdAt: at,
       updatedAt: at,
     })
@@ -300,6 +355,16 @@ export async function updateFrontPageSection(
     values.listingCount = checkedCount(input.listingCount)
   }
   if (input.layout !== undefined) values.layout = input.layout
+  if (input.centred !== undefined) values.centred = input.centred
+  // Re-checked whenever the kind moves as well as when the hero itself does,
+  // because a row that has just become a hero has to hold a hero that draws,
+  // and one that has just stopped being a hero holds none.
+  if (input.kind !== undefined || input.hero !== undefined) {
+    Object.assign(
+      values,
+      heroColumns(heroFor(kind, input.hero ?? current.hero))
+    )
+  }
 
   const [row] = await database
     .update(directoryFrontPageSections)
@@ -329,7 +394,7 @@ export async function reorderFrontPageSections(
   ids: string[],
   database: CustomShellDb = db
 ): Promise<void> {
-  const wanted = [...new Set(ids)].slice(0, MAX_DIRECTORY_FRONT_PAGE_SECTIONS)
+  const wanted = [...new Set(ids)].slice(0, MAX_DIRECTORY_FRONT_PAGE_ORDER_IDS)
   if (!wanted.length) return
 
   const existing = await database

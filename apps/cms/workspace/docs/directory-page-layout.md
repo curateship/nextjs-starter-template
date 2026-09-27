@@ -50,6 +50,19 @@ centred record puts a field's name over its value and a phone number over an
 address. Anything that genuinely belongs in the middle — an empty list, the
 pager — says so on itself and is unaffected.
 
+That override covers the buttons and rows as well as the text, from 27 Sep
+2026. It used to cover only the text, so a site set to Centre drew a hero's
+heading on the left with its button, its stars and its line of proof in the
+middle of the page. The frame declares its own content alignment of "left" and
+every row inside reads that one.
+
+**The header and the footer are not inside it**, so they still follow Settings
+→ Public → Styling → **Content alignment**. A site set to Centre has a centred
+footer above left-read pages, and the one dropdown is what changes it.
+
+One row of the home page can be centred on its own, through **Centre this row**
+in its window. `home-page-rows.md` says what moves and what does not.
+
 ## Opening hours, and a day with two services
 
 A day holds an opening time, a closing time, and optionally a **second**
@@ -68,7 +81,7 @@ afternoon, and open again for dinner.
 ## Neighbourhood labels
 
 A site can name one parent category as the one that holds its neighbourhoods,
-in Settings → Directory → Neighbourhood labels. Whichever of a listing's
+in Settings → Directory → Listing pages. Whichever of a listing's
 categories is a child of that one is drawn as a small label on its card and on
 its row under another listing.
 
@@ -206,3 +219,28 @@ rows — photo, name, description, stars, address, neighbourhood — rather than
 cards. Somebody at the bottom of a listing is comparing five places, and a row
 fits each fact on one line. The grid of cards stays on the pages where a
 visitor is looking rather than comparing.
+
+## Where these settings are
+
+Settings → Directory holds one card per public page, and everything that
+changes a page is in that page's card. Every card folds away, and so does every
+titled block inside one, and this browser remembers which you left shut. Tyler asked for this on 27 Sep 2026,
+after the settings had grown into nine cards named after features rather than
+pages.
+
+- **Home page** — the rows the site's home page is built from. `home-page-rows.md`
+  explains them.
+- **Directory page** — this page: its title, its introduction, how many
+  listings a page holds, the order they start in, the row of category cards at
+  the top, the map, and the search by town or postcode. The map and the search
+  each need their own Google key, and each section says which.
+- **Listing pages** — the category that names this site's neighbourhoods, which
+  is the small label on a listing's card.
+- **Events and deals pages** — the site's time zone, which is what their times
+  are read in and what decides when one is over.
+- **Every public page** — the button that forgets this site's saved public
+  pages.
+
+Two things a page needs are not here, because they belong to the shell rather
+than to this app: who may see a page at all, in Public → Pages, and the site's
+own name, logo and colours, in Site identity.

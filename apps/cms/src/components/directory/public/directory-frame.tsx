@@ -59,8 +59,26 @@ export function DirectoryFrame({
        * over its value. A directory page is a record either way, so it reads
        * from the left whatever the site chose. Anything that genuinely is
        * centred — an empty list, the pager — still says so on itself.
+       *
+       * The pair below says the same thing to the rows that align themselves
+       * rather than their text — a hero's button, its stars, the line under
+       * it. They carry the shell's `group-data-[content-alignment=…]` classes,
+       * and this column is the ancestor that answers "left" for them. Without
+       * it a centred site drew a heading on the left with its button in the
+       * middle, which is how Tyler found it on 27 Sep 2026.
+       *
+       * Those classes match **any** ancestor rather than the nearest one, and
+       * `justify-start` wins when two of them match, so a row that wants the
+       * middle cannot get it by declaring a nearer group. That is why a centred
+       * home page row overrules them itself, in `app/directory-front-page.tsx`.
+       *
+       * The shell's own group is untouched, so the header and the footer still
+       * follow Settings → Public → Styling → Content alignment.
        */}
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-2 text-left md:gap-3">
+      <div
+        className="group/public-content mx-auto flex w-full max-w-6xl flex-col gap-2 text-left md:gap-3"
+        data-content-alignment="left"
+      >
         {children}
       </div>
     </PublicPageFrame>

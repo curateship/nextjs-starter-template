@@ -597,13 +597,16 @@ export const directoryFrontPageSections = pgTable(
     heading: varchar("heading", { length: 120 }).notNull(),
     intro: varchar("intro", { length: 500 }).notNull().default(""),
     /**
-     * 'listings', 'categories' or 'events' — which of the three kinds of row
-     * this is. 'events' is from `drizzle/0088_cms_front_page_events_row.sql`.
+     * Which kind of row this is, out of the seven in
+     * `lib/directory/front-page.ts`. 'events' came with
+     * `drizzle/0088_cms_front_page_events_row.sql`, 'deals' with 0099, 'posts'
+     * with 0105, and 'hero' and 'plans' with 0106.
      *
      * A listings row uses `categoryId`, `sort` and `layout` below; a categories
-     * row uses `categorySource` and `pickedCategoryIds` instead; an events row
-     * uses `categoryId` only. All three use `listingCount`, which is how many
-     * things the row shows whichever kind it is.
+     * row uses `categorySource` and `pickedCategoryIds` instead; an events,
+     * deals or posts row uses `categoryId` and `listingCount`; a hero row uses
+     * the `hero*` columns; a plans row uses none of them, because the plans
+     * belong to the deployment rather than to the row.
      */
     kind: varchar("kind", { length: 20 }).notNull().default("listings"),
     /** Categories rows only: 'top-level' or 'picked'. */
@@ -632,6 +635,37 @@ export const directoryFrontPageSections = pgTable(
     listingCount: integer("listing_count").notNull().default(8),
     /** Listings rows only: 'grid', 'list' or 'map' — how this row draws. */
     layout: varchar("layout", { length: 20 }).notNull().default("grid"),
+    /**
+     * Hero rows only, from `drizzle/0106_cms_front_page_hero_plans_rows.sql`.
+     * Seven columns rather than one JSON field, because the lengths are what
+     * refuse an over-long link or caption and a JSON field refuses nothing.
+     *
+     * 'button' or 'email' — a button to somewhere, or a box that takes an
+     * address.
+     */
+    heroAction: varchar("hero_action", { length: 20 })
+      .notNull()
+      .default("button"),
+    /** Empty draws the hero as one column across the page. */
+    heroImage: varchar("hero_image", { length: 2048 }).notNull().default(""),
+    heroAlt: varchar("hero_alt", { length: 160 }).notNull().default(""),
+    heroButtonLabel: varchar("hero_button_label", { length: 60 })
+      .notNull()
+      .default(""),
+    heroButtonHref: varchar("hero_button_href", { length: 2048 })
+      .notNull()
+      .default(""),
+    /** The short line of proof under the button. */
+    heroNote: varchar("hero_note", { length: 160 }).notNull().default(""),
+    /** 0 to 5, drawn before the note. 0 draws none. */
+    heroStars: integer("hero_stars").notNull().default(0),
+    /**
+     * This row's words and buttons sit in the middle of the page rather than
+     * against its left edge, from
+     * `drizzle/0107_cms_front_page_row_centred.sql`. Per row, so a centred hero
+     * can sit above a left-read row of listings.
+     */
+    centred: boolean("centred").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -654,7 +688,15 @@ export const directoryFrontPageSections = pgTable(
     ),
     check(
       "directory_front_page_sections_kind_check",
-      sql`${table.kind} IN ('listings', 'categories', 'events', 'deals')`
+      sql`${table.kind} IN ('listings', 'categories', 'events', 'deals', 'posts', 'hero', 'plans')`
+    ),
+    check(
+      "directory_front_page_sections_hero_action_check",
+      sql`${table.heroAction} IN ('button', 'email')`
+    ),
+    check(
+      "directory_front_page_sections_hero_stars_check",
+      sql`${table.heroStars} BETWEEN 0 AND 5`
     ),
     check(
       "directory_front_page_sections_category_source_check",

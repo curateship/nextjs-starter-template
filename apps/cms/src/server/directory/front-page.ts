@@ -3,12 +3,13 @@ import { sql } from "drizzle-orm"
 import { cleanContactLinks } from "@/lib/directory/contact-links"
 import {
   browseSortForFrontPageSort,
+  cleanDirectoryFrontPageHero,
   DIRECTORY_FRONT_PAGE_COUNT_MAX,
   isDirectoryFrontPageKind,
   isDirectoryFrontPageLayout,
   isDirectoryFrontPageSort,
-  MAX_DIRECTORY_FRONT_PAGE_SECTIONS,
   type DirectoryFrontPageData,
+  type DirectoryFrontPageHero,
   type DirectoryFrontPageListing,
   type DirectoryFrontPageRow,
 } from "@/lib/directory/front-page"
@@ -43,6 +44,14 @@ type FrontPageRow = {
   layout: string
   categoryId: string | null
   categorySlug: string | null
+  heroAction: string
+  heroImage: string
+  heroAlt: string
+  heroButtonLabel: string
+  heroButtonHref: string
+  heroNote: string
+  heroStars: number
+  centred: boolean
   id: string | null
   title: string | null
   slug: string | null
@@ -116,6 +125,14 @@ async function readFrontPageRows(
           WHEN section.layout = 'map' THEN 'grid'
           ELSE section.layout
         END AS layout,
+        section.hero_action,
+        section.hero_image,
+        section.hero_alt,
+        section.hero_button_label,
+        section.hero_button_href,
+        section.hero_note,
+        section.hero_stars,
+        section.centred,
         category.slug AS category_slug
       FROM directory_front_page_sections section
       CROSS JOIN config
@@ -124,7 +141,6 @@ async function readFrontPageRows(
        AND category.workspace_id = ${site.id}
       WHERE section.workspace_id = ${site.id}
       ORDER BY section.display_order ASC, section.id ASC
-      LIMIT ${MAX_DIRECTORY_FRONT_PAGE_SECTIONS}
     ),
     active_feature AS (
       SELECT fe.listing_id, max(fp.priority)::int AS priority
@@ -155,6 +171,14 @@ async function readFrontPageRows(
       sections.layout,
       sections.category_id AS "categoryId",
       sections.category_slug AS "categorySlug",
+      sections.hero_action AS "heroAction",
+      sections.hero_image AS "heroImage",
+      sections.hero_alt AS "heroAlt",
+      sections.hero_button_label AS "heroButtonLabel",
+      sections.hero_button_href AS "heroButtonHref",
+      sections.hero_note AS "heroNote",
+      sections.hero_stars AS "heroStars",
+      sections.centred,
       chosen.id,
       chosen.title,
       chosen.slug,
@@ -281,6 +305,7 @@ async function readFrontPageRows(
           id: row.sectionId,
           heading: row.sectionHeading,
           intro: row.sectionIntro,
+          centred: row.centred,
           count: row.listingCount,
           categoryId: row.categoryId,
           categorySlug: row.categorySlug,
@@ -295,6 +320,7 @@ async function readFrontPageRows(
           id: row.sectionId,
           heading: row.sectionHeading,
           intro: row.sectionIntro,
+          centred: row.centred,
           count: row.listingCount,
           categoryId: row.categoryId,
           categorySlug: row.categorySlug,
@@ -308,11 +334,32 @@ async function readFrontPageRows(
           id: row.sectionId,
           heading: row.sectionHeading,
           intro: row.sectionIntro,
+          centred: row.centred,
           count: row.listingCount,
           categoryId: row.categoryId,
           categorySlug: row.categorySlug,
           posts: [],
           siteName: site.name,
+        }
+      } else if (kind === "hero") {
+        section = {
+          kind: "hero",
+          id: row.sectionId,
+          heading: row.sectionHeading,
+          intro: row.sectionIntro,
+          centred: row.centred,
+          hero: heroFromRow(row),
+        }
+      } else if (kind === "plans") {
+        // Nothing to fetch here. The plans belong to the deployment, not to the
+        // site, and the page's loader reads them once for however many rows of
+        // plans are on it.
+        section = {
+          kind: "plans",
+          id: row.sectionId,
+          heading: row.sectionHeading,
+          intro: row.sectionIntro,
+          centred: row.centred,
         }
       } else if (kind === "categories") {
         section = {
@@ -320,6 +367,7 @@ async function readFrontPageRows(
           id: row.sectionId,
           heading: row.sectionHeading,
           intro: row.sectionIntro,
+          centred: row.centred,
           cards: [],
         }
         categoryRows.push({ id: row.sectionId, row })
@@ -331,6 +379,7 @@ async function readFrontPageRows(
           id: row.sectionId,
           heading: row.sectionHeading,
           intro: row.sectionIntro,
+          centred: row.centred,
           layout: isDirectoryFrontPageLayout(row.layout) ? row.layout : "grid",
           browse: {
             ...(row.categorySlug ? { category: row.categorySlug } : {}),
@@ -378,14 +427,33 @@ async function readFrontPageRows(
     // A heading over nothing is worse than one row fewer, so an empty row is
     // not drawn at all — whichever kind of row it is. A row of events is kept
     // here and judged once it is filled.
+    // A hero and a row of plans are their own content, so neither can come
+    // back empty. A row of plans on a deployment that sells nothing is dropped
+    // by the page's loader, which is the only place that knows.
     rows: [...byId.values()].filter((row) =>
-      row.kind === "events" || row.kind === "deals" || row.kind === "posts"
+      row.kind === "events" ||
+      row.kind === "deals" ||
+      row.kind === "posts" ||
+      row.kind === "hero" ||
+      row.kind === "plans"
         ? true
         : row.kind === "categories"
           ? row.cards.length > 0
           : row.listings.length > 0
     ),
   }
+}
+
+function heroFromRow(row: FrontPageRow): DirectoryFrontPageHero {
+  return cleanDirectoryFrontPageHero({
+    action: row.heroAction as DirectoryFrontPageHero["action"],
+    image: row.heroImage,
+    alt: row.heroAlt,
+    buttonLabel: row.heroButtonLabel,
+    buttonHref: row.heroButtonHref,
+    note: row.heroNote,
+    stars: Number(row.heroStars),
+  })
 }
 
 function toListing(
