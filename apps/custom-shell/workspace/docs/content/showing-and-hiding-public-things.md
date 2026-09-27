@@ -5,7 +5,9 @@ public menu item. They answer different questions and work in different ways.
 
 ## Hidden: kept out of the page
 
-**Hide this row from visitors** is a switch in the row window. A hidden row is
+**Hide this row from visitors** is the first switch in the row window's
+Visibility card, above the switches that turn one part of the row off. A hidden
+row is
 dropped from what the server sends a visitor, in the same pass that already
 drops a row with no heading. It is not in the page, not in the page's data, and
 not in the page source, so a row can be built over several sittings without
@@ -14,6 +16,10 @@ anyone reading it half-finished.
 The Settings editor still lists it, with **Hidden** on its second line beside
 the kind and the width. Flipping the switch back puts it on the public page on
 the next load. Nothing else about the row changes while it is hidden.
+
+Hiding the whole row and switching off its parts are different jobs. The parts
+are in
+[Alignment and parts of a front page row](front-page-row-alignment-and-parts.md).
 
 Only front page rows have this. A menu item has no equivalent, because a menu
 item nobody should see is a menu item to delete.

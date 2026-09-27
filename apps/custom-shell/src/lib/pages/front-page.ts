@@ -56,6 +56,40 @@ export const FRONT_PAGE_ROW_LAYOUT_HINTS: Record<
   narrow: "Caps the row at 768px and follows the site's content alignment.",
 }
 
+/**
+ * Where a row's words and content sit across the page. `inherit` follows
+ * Settings > Styling > Content alignment, which is what every row saved before
+ * this choice existed does.
+ */
+export const FRONT_PAGE_ROW_ALIGNMENTS = [
+  "inherit",
+  "left",
+  "center",
+  "right",
+] as const
+
+export type FrontPageRowAlignment = (typeof FRONT_PAGE_ROW_ALIGNMENTS)[number]
+
+export const FRONT_PAGE_ROW_ALIGNMENT_LABELS: Record<
+  FrontPageRowAlignment,
+  string
+> = {
+  inherit: "Follow the site",
+  left: "Left",
+  center: "Centred",
+  right: "Right",
+}
+
+export const FRONT_PAGE_ROW_ALIGNMENT_HINTS: Record<
+  FrontPageRowAlignment,
+  string
+> = {
+  inherit: "Uses the site's own content alignment setting.",
+  left: "This row sits on the left, whatever the site setting says.",
+  center: "This row is centred, whatever the site setting says.",
+  right: "This row sits on the right, whatever the site setting says.",
+}
+
 export const MAX_FRONT_PAGE_ROWS = 6
 export const MAX_FRONT_PAGE_ROW_ID_LENGTH = 96
 export const MAX_FRONT_PAGE_ROW_HEADING_LENGTH = 120
@@ -108,6 +142,29 @@ type FrontPageRowBase = {
   heading: string
   intro: string
   layout: FrontPageRowLayout
+  /** Where this row sits across the page, or `inherit` to follow the site. */
+  alignment: FrontPageRowAlignment
+  /**
+   * Which parts of the row are drawn. Only an explicit `false` switches a part
+   * off, so a row saved before one of these switches existed keeps showing it.
+   */
+  showHeading: boolean
+  showIntro: boolean
+  /** Hero only: the picture beside the words. */
+  showImage: boolean
+  /** Hero only: the button, or the email box and its button. */
+  showAction: boolean
+  /** Hero only. */
+  showStars: boolean
+  showNote: boolean
+  /** Testimonials only: the face beside each name. */
+  showPictures: boolean
+  /** Testimonials only: the line under each name. */
+  showRoles: boolean
+  /** FAQ only: the Q1, Q2 badges. */
+  showNumbers: boolean
+  /** Screenshots only: the caption under each picture. */
+  showCaptions: boolean
   /**
    * Kept out of the public page entirely, so a row can be built over several
    * sittings without visitors watching it take shape. The editor still lists
@@ -359,6 +416,21 @@ export function normalizeFrontPageRows(value: unknown): FrontPageRow[] {
       )
         ? (source.layout as FrontPageRowLayout)
         : "wide",
+      alignment: FRONT_PAGE_ROW_ALIGNMENTS.includes(
+        source.alignment as FrontPageRowAlignment
+      )
+        ? (source.alignment as FrontPageRowAlignment)
+        : "inherit",
+      showHeading: source.showHeading !== false,
+      showIntro: source.showIntro !== false,
+      showImage: source.showImage !== false,
+      showAction: source.showAction !== false,
+      showStars: source.showStars !== false,
+      showNote: source.showNote !== false,
+      showPictures: source.showPictures !== false,
+      showRoles: source.showRoles !== false,
+      showNumbers: source.showNumbers !== false,
+      showCaptions: source.showCaptions !== false,
       // Only an explicit true hides a row. Every row saved before this switch
       // existed has no value at all and has to stay on the page.
       hidden: source.hidden === true,
@@ -434,6 +506,12 @@ export function frontPageHasPlans(rows: readonly FrontPageRow[]) {
   return rows.some((row) => row.kind === "plans")
 }
 
+/**
+ * Every picture a row has stored, whether or not it is drawn. The save checks
+ * these against the admin's own media library, so a picture switched off in the
+ * Visibility card still has to be theirs. Switching it back on must never be a
+ * way to show a file that was never checked.
+ */
 export function frontPageRowImageUrls(rows: readonly FrontPageRow[]) {
   return rows.flatMap((row) => {
     if (row.kind === "hero") {

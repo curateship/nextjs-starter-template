@@ -80,6 +80,12 @@ export function FrontPageHero({
   stars,
   headingLevel,
   eager = false,
+  alignClassName = publicContentAlignmentRowClassName,
+  showHeading = true,
+  showIntro = true,
+  showAction = true,
+  showStars = true,
+  showNote = true,
 }: {
   heading: string
   intro: string
@@ -92,8 +98,17 @@ export function FrontPageHero({
   stars: number
   headingLevel: "h1" | "h2"
   eager?: boolean
+  /** How the row lines up its own children. See `FrontPageRows`. */
+  alignClassName?: string
+  showHeading?: boolean
+  showIntro?: boolean
+  showAction?: boolean
+  showStars?: boolean
+  showNote?: boolean
 }) {
   const Heading = headingLevel
+  const shownStars = showStars ? stars : 0
+  const shownNote = showNote ? note : ""
   const words = (
     <div
       className={cn(
@@ -104,46 +119,48 @@ export function FrontPageHero({
       )}
     >
       <div className="grid gap-4">
-        <Heading
-          className={cn(
-            "font-normal tracking-tight text-balance",
-            image
-              ? "text-3xl leading-[1.1] md:text-5xl"
-              : "text-4xl leading-[1.05] md:text-6xl"
-          )}
-        >
-          {heading}
-        </Heading>
-        {intro ? (
+        {showHeading ? (
+          <Heading
+            className={cn(
+              "font-normal tracking-tight text-balance",
+              image
+                ? "text-3xl leading-[1.1] md:text-5xl"
+                : "text-4xl leading-[1.05] md:text-6xl"
+            )}
+          >
+            {heading}
+          </Heading>
+        ) : null}
+        {intro && showIntro ? (
           <p className="text-base text-muted-foreground md:text-lg">{intro}</p>
         ) : null}
       </div>
 
-      {action === "email" && buttonLabel ? (
-        <div className={cn("flex w-full", publicContentAlignmentRowClassName)}>
+      {!showAction ? null : action === "email" && buttonLabel ? (
+        <div className={cn("flex w-full", alignClassName)}>
           <HeroEmailForm buttonLabel={buttonLabel} />
         </div>
       ) : action === "button" && buttonLabel && buttonHref ? (
-        <div className={cn("flex w-full", publicContentAlignmentRowClassName)}>
+        <div className={cn("flex w-full", alignClassName)}>
           <Button asChild size="lg" className="h-11 px-6 text-base">
             <SavedLink href={buttonHref}>{buttonLabel}</SavedLink>
           </Button>
         </div>
       ) : null}
 
-      {stars > 0 || note ? (
+      {shownStars > 0 || shownNote ? (
         <div
           className={cn(
             "flex w-full flex-wrap items-center gap-2",
-            publicContentAlignmentRowClassName
+            alignClassName
           )}
         >
-          {stars > 0 ? (
+          {shownStars > 0 ? (
             <span
               className="flex items-center gap-0.5"
-              aria-label={`Rated ${stars} out of ${MAX_FRONT_PAGE_HERO_STARS}`}
+              aria-label={`Rated ${shownStars} out of ${MAX_FRONT_PAGE_HERO_STARS}`}
             >
-              {Array.from({ length: stars }, (_, index) => (
+              {Array.from({ length: shownStars }, (_, index) => (
                 <StarIcon
                   key={index}
                   aria-hidden="true"
@@ -152,8 +169,8 @@ export function FrontPageHero({
               ))}
             </span>
           ) : null}
-          {note ? (
-            <span className="text-sm text-muted-foreground">{note}</span>
+          {shownNote ? (
+            <span className="text-sm text-muted-foreground">{shownNote}</span>
           ) : null}
         </div>
       ) : null}
@@ -181,15 +198,18 @@ export function FrontPageHero({
 
 export function FrontPageTestimonials({
   items,
+  alignClassName = publicContentAlignmentRowClassName,
+  showPictures = true,
+  showRoles = true,
 }: {
   items: FrontPageTestimonial[]
+  alignClassName?: string
+  showPictures?: boolean
+  showRoles?: boolean
 }) {
   return (
     <div
-      className={cn(
-        "flex w-full flex-wrap gap-2 md:gap-3",
-        publicContentAlignmentRowClassName
-      )}
+      className={cn("flex w-full flex-wrap gap-2 md:gap-3", alignClassName)}
     >
       {items.map((item) => (
         <Card
@@ -202,26 +222,25 @@ export function FrontPageTestimonials({
               <p>{item.quote}</p>
             </blockquote>
             <div
-              className={cn(
-                "flex items-center gap-2 self-end",
-                publicContentAlignmentRowClassName
-              )}
+              className={cn("flex items-center gap-2 self-end", alignClassName)}
             >
-              <Avatar size="lg">
-                {item.picture ? (
-                  // No `srcSet` here, deliberately. `AvatarImage` decides
-                  // whether to show the initial instead by loading `src` on a
-                  // bare `new Image()` first, and that pre-load cannot read a
-                  // `srcSet`. Offering one downloads the uploaded file and
-                  // then a smaller copy as well, which is worse than the
-                  // uploaded file on its own.
-                  <AvatarImage src={item.picture} alt={item.name} />
-                ) : null}
-                <AvatarFallback>{item.name.slice(0, 1)}</AvatarFallback>
-              </Avatar>
+              {showPictures ? (
+                <Avatar size="lg">
+                  {item.picture ? (
+                    // No `srcSet` here, deliberately. `AvatarImage` decides
+                    // whether to show the initial instead by loading `src` on a
+                    // bare `new Image()` first, and that pre-load cannot read a
+                    // `srcSet`. Offering one downloads the uploaded file and
+                    // then a smaller copy as well, which is worse than the
+                    // uploaded file on its own.
+                    <AvatarImage src={item.picture} alt={item.name} />
+                  ) : null}
+                  <AvatarFallback>{item.name.slice(0, 1)}</AvatarFallback>
+                </Avatar>
+              ) : null}
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">{item.name}</p>
-                {item.role ? (
+                {item.role && showRoles ? (
                   <p className="truncate text-xs text-muted-foreground">
                     {item.role}
                   </p>
@@ -245,7 +264,13 @@ export function FrontPageTestimonials({
  * dark mode. A site that also sets its canvas to muted at full strength will
  * see less separation between the two.
  */
-export function FrontPageFaq({ items }: { items: FrontPageFaqItem[] }) {
+export function FrontPageFaq({
+  items,
+  showNumbers = true,
+}: {
+  items: FrontPageFaqItem[]
+  showNumbers?: boolean
+}) {
   return (
     <dl className="grid w-full gap-4 sm:grid-cols-2 md:gap-6 lg:grid-cols-3">
       {items.map((item, index) => (
@@ -253,9 +278,11 @@ export function FrontPageFaq({ items }: { items: FrontPageFaqItem[] }) {
           key={item.id}
           className="grid content-start gap-3 rounded-xl bg-muted p-6 md:p-7"
         >
-          <Badge variant="outline" className="bg-background">
-            Q{index + 1}
-          </Badge>
+          {showNumbers ? (
+            <Badge variant="outline" className="bg-background">
+              Q{index + 1}
+            </Badge>
+          ) : null}
           <dt className="font-medium">{item.question}</dt>
           <dd className="text-sm leading-relaxed whitespace-pre-wrap text-muted-foreground">
             {item.answer}
@@ -269,17 +296,16 @@ export function FrontPageFaq({ items }: { items: FrontPageFaqItem[] }) {
 export function FrontPageLogos({
   items,
   eager = false,
+  alignClassName = publicContentAlignmentRowClassName,
 }: {
   items: FrontPageLogo[]
   eager?: boolean
+  alignClassName?: string
 }) {
   return (
     <Card size="sm" className="w-full">
       <CardContent
-        className={cn(
-          "flex flex-wrap items-center gap-4",
-          publicContentAlignmentRowClassName
-        )}
+        className={cn("flex flex-wrap items-center gap-4", alignClassName)}
       >
         {items.map((item) => (
           <MediaThumbnail
@@ -301,16 +327,17 @@ export function FrontPageLogos({
 export function FrontPageScreenshots({
   items,
   eager = false,
+  alignClassName = publicContentAlignmentRowClassName,
+  showCaptions = true,
 }: {
   items: FrontPageScreenshot[]
   eager?: boolean
+  alignClassName?: string
+  showCaptions?: boolean
 }) {
   return (
     <div
-      className={cn(
-        "flex w-full flex-wrap gap-2 md:gap-3",
-        publicContentAlignmentRowClassName
-      )}
+      className={cn("flex w-full flex-wrap gap-2 md:gap-3", alignClassName)}
     >
       {items.map((item) => (
         <Card
@@ -331,9 +358,11 @@ export function FrontPageScreenshots({
               sizes="(min-width: 768px) 50vw, 100vw"
               eager={eager}
             />
-            <figcaption className="px-3 text-sm text-muted-foreground">
-              {item.caption}
-            </figcaption>
+            {showCaptions ? (
+              <figcaption className="px-3 text-sm text-muted-foreground">
+                {item.caption}
+              </figcaption>
+            ) : null}
           </figure>
         </Card>
       ))}

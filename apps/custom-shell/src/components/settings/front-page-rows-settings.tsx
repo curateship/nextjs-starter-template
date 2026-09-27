@@ -25,6 +25,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { PUBLIC_DEVICE_LABELS } from "@/lib/pages/public-device"
 import {
+  FRONT_PAGE_ROW_ALIGNMENT_LABELS,
   FRONT_PAGE_ROW_KIND_LABELS,
   FRONT_PAGE_ROW_LAYOUT_LABELS,
   FRONT_PAGE_ROWS_FULL_MESSAGE,
@@ -173,7 +174,10 @@ function FrontPageSettingsRow({
     <li
       ref={setNodeRef}
       style={style}
-      className="flex min-w-0 items-center gap-2 rounded-md border bg-background p-2"
+      // The hover tint belongs to the whole row, not to the middle button, so
+      // pointing at the handle, the words or the icons at the end all light the
+      // same strip.
+      className="flex min-w-0 items-center gap-2 rounded-md border bg-background p-2 hover:bg-muted"
     >
       <button
         type="button"
@@ -186,7 +190,7 @@ function FrontPageSettingsRow({
       </button>
       <button
         type="button"
-        className="grid min-w-0 flex-1 gap-1 rounded-md px-2 py-1 text-left hover:bg-muted"
+        className="grid min-w-0 flex-1 gap-1 rounded-md px-2 py-1 text-left"
         onClick={onEdit}
       >
         <span className="truncate text-sm font-medium">{row.heading}</span>
@@ -194,6 +198,9 @@ function FrontPageSettingsRow({
           {[
             FRONT_PAGE_ROW_KIND_LABELS[row.kind],
             FRONT_PAGE_ROW_LAYOUT_LABELS[row.layout],
+            row.alignment === "inherit"
+              ? null
+              : FRONT_PAGE_ROW_ALIGNMENT_LABELS[row.alignment],
             // Only worth a word when it is not the everyday answer, so the
             // line stays short on the rows that behave normally.
             row.device === "all" ? null : PUBLIC_DEVICE_LABELS[row.device],

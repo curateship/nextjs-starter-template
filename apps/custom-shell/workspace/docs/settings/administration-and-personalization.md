@@ -434,9 +434,11 @@ does not belong to the current admin's media library. Dragging changes the
 public order. Removing every row brings back the built-in pricing front page,
 so an untouched app does not change.
 
-Each row also has a Hidden switch and a Shown on choice, and a header menu item
-has the same Shown on choice. They have their own doc:
-[Hiding a row, and choosing its screens](../content/showing-and-hiding-public-things.md).
+Each row also chooses its own alignment, has a Visibility card of switches, and
+has a Shown on choice that a header menu item shares. They have their own docs:
+[Hiding a row, and choosing its screens](../content/showing-and-hiding-public-things.md)
+and
+[Alignment and parts of a front page row](../content/front-page-row-alignment-and-parts.md).
 
 The Page frame card controls the widest public content width, the canvas
 colour, the space above and below main content, and the divider lines under the
