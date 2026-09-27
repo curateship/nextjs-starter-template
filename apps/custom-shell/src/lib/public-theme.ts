@@ -43,6 +43,34 @@ export const PUBLIC_CONTENT_ALIGNMENTS = ["left", "center", "right"] as const
 export type PublicContentAlignment =
   (typeof PUBLIC_CONTENT_ALIGNMENTS)[number]
 
+/**
+ * Where the public footer sits, on its own rather than following the page.
+ *
+ * `inherit` is what every site saved before this choice existed reads as, and
+ * it keeps the footer following Content alignment, including a site that set
+ * that to right. The two named choices are the ones a footer actually wants.
+ */
+export const PUBLIC_FOOTER_ALIGNMENTS = ["inherit", "left", "center"] as const
+export type PublicFooterAlignment = (typeof PUBLIC_FOOTER_ALIGNMENTS)[number]
+
+export const PUBLIC_FOOTER_ALIGNMENT_LABELS: Record<
+  PublicFooterAlignment,
+  string
+> = {
+  inherit: "Follow the site",
+  left: "Left",
+  center: "Centred",
+}
+
+export const PUBLIC_FOOTER_ALIGNMENT_HINTS: Record<
+  PublicFooterAlignment,
+  string
+> = {
+  inherit: "Uses Styling > Page frame > Content alignment, as it always has.",
+  left: "The logo, the links and the copyright line sit on the left.",
+  center: "The logo, the links and the copyright line sit in the middle.",
+}
+
 export const PUBLIC_BACKGROUND_PATTERNS = ["none", "dots", "grid"] as const
 export type PublicBackgroundPattern =
   (typeof PUBLIC_BACKGROUND_PATTERNS)[number]
@@ -97,6 +125,8 @@ export type PublicTheme = {
   frontPageRowGap: number
   /** Horizontal alignment for the main content on every public page. */
   contentAlignment: PublicContentAlignment
+  /** Where the footer sits, or `inherit` to follow `contentAlignment`. */
+  footerAlignment: PublicFooterAlignment
   /** Optional texture drawn over the public canvas. */
   backgroundPattern: PublicBackgroundPattern
   /** Distance between the pattern's dots or grid lines. */
@@ -240,6 +270,7 @@ export function createDefaultPublicTheme(): PublicTheme {
     pageWidth: DEFAULT_PUBLIC_PAGE_WIDTH,
     mainSpacing: DEFAULT_PUBLIC_MAIN_SPACING,
     frontPageRowGap: DEFAULT_PUBLIC_FRONT_PAGE_ROW_GAP,
+    footerAlignment: "inherit",
     contentAlignment: "center",
     backgroundPattern: "none",
     backgroundPatternSize: "medium",
@@ -566,6 +597,11 @@ export function normalizePublicTheme(
     )
       ? (theme.contentAlignment as PublicContentAlignment)
       : fallback.contentAlignment,
+    footerAlignment: PUBLIC_FOOTER_ALIGNMENTS.includes(
+      theme.footerAlignment as PublicFooterAlignment
+    )
+      ? (theme.footerAlignment as PublicFooterAlignment)
+      : fallback.footerAlignment,
     backgroundPattern: PUBLIC_BACKGROUND_PATTERNS.includes(
       theme.backgroundPattern as PublicBackgroundPattern
     )
@@ -736,6 +772,9 @@ export function publicThemeOverrides(
     ...(theme.contentAlignment !== baseline.contentAlignment
       ? { contentAlignment: theme.contentAlignment }
       : {}),
+    ...(theme.footerAlignment !== baseline.footerAlignment
+      ? { footerAlignment: theme.footerAlignment }
+      : {}),
     ...(theme.backgroundPattern !== baseline.backgroundPattern
       ? { backgroundPattern: theme.backgroundPattern }
       : {}),
@@ -881,6 +920,7 @@ export function hasCustomPublicTheme(theme: PublicTheme): boolean {
     theme.mainSpacing !== DEFAULT_PUBLIC_MAIN_SPACING ||
     theme.frontPageRowGap !== DEFAULT_PUBLIC_FRONT_PAGE_ROW_GAP ||
     theme.contentAlignment !== "center" ||
+    theme.footerAlignment !== "inherit" ||
     (theme.backgroundPattern !== "none" &&
       theme.backgroundPatternOpacity > 0) ||
     theme.buttonStyle !== "solid" ||

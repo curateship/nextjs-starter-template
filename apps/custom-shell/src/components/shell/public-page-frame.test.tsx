@@ -470,6 +470,33 @@ describe("PublicPageFrame navigation", () => {
     await act(async () => root.unmount())
   })
 
+  it("lets the footer sit where it is told, whatever the page does", async () => {
+    router.pathname = "/"
+    publicTheme.current = {
+      ...publicTheme.current,
+      contentAlignment: "right",
+      footerAlignment: "center",
+    }
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(<PublicPageFrame>Page</PublicPageFrame>)
+    })
+
+    // The page keeps the site's alignment; only the footer moves.
+    expect(
+      host.querySelector("main")?.firstElementChild?.className
+    ).toContain("items-end")
+    const footerColumn = host.querySelector("footer > div")?.firstElementChild
+    expect(footerColumn?.className).toContain("items-center")
+    expect(footerColumn?.className).toContain("text-center")
+
+    publicTheme.current = { ...publicTheme.current, footerAlignment: "inherit" }
+    await act(async () => root.unmount())
+  })
+
   it("carries the spacing, border and chrome settings onto the public frame", async () => {
     publicTheme.current = {
       ...publicTheme.current,

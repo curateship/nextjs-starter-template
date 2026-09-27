@@ -187,6 +187,13 @@ export function PublicPageFrame({
   // screen, and pushing that box to one side leaves it stranded beside an
   // empty half, so it stays centred whatever the site chose.
   const contentAlignment = marketing ? theme.contentAlignment : "center"
+  // The footer sits where it is told, or follows the page when it is not. It
+  // reads the site's own alignment rather than the page's, because a card page
+  // centring its one box says nothing about where the footer belongs.
+  const footerAlignment =
+    theme.footerAlignment === "inherit"
+      ? theme.contentAlignment
+      : theme.footerAlignment
   const mainLayoutClass = marketing
     ? "items-start justify-items-center"
     : "place-items-center"
@@ -275,7 +282,7 @@ export function PublicPageFrame({
         socialLinks={footerSocial}
         copyright={footerCopyright}
         description={siteDescription}
-        contentAlignment={theme.contentAlignment}
+        contentAlignment={footerAlignment}
         footerBorder={theme.footerBorder}
         pageWidthStyle={pageWidthStyle}
         edgeStyle={edgeStyle}

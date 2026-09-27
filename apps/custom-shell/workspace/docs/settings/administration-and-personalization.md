@@ -486,9 +486,20 @@ takes a 6-digit hex value and stays the same colour in light and dark. A canvas
 colour saved before this picker existed reads as a custom colour, so the site
 looks the same as it did.
 
-The Public footer card holds three things: the footer links, the social
-accounts and the copyright line. An account is a platform and the full address
-of its page. The platform is a fixed list, X, LinkedIn, Facebook, Instagram,
+The Public footer card holds four things: the footer's alignment, the footer
+links, the social accounts and the copyright line.
+
+**Alignment** offers Follow the site, Left and Centred, and moves the whole
+footer together: the logo, the description, the social buttons, the links and
+the copyright line. Follow the site is the default and is what every site saved
+before this choice existed reads as, so nothing moved. Follow the site means
+Styling > Page frame > Content alignment, including a site that set that to
+right. The
+two named choices are the ones a footer wants, which is why right is not
+offered as one of them. The choice is saved with the public styling, so a site
+with its own look sets its own footer.
+
+An account is a platform and the full address of its page. The platform is a fixed list, X, LinkedIn, Facebook, Instagram,
 Threads, YouTube, TikTok, GitHub, Medium and Substack, because each one is
 drawn with its own mark and a name nobody typed could not be drawn at all. A
 footer shows up to eight, dragging changes the order the public footer draws
