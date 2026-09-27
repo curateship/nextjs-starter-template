@@ -37,6 +37,8 @@ cover this one.
   the secret address that serves it, and what revoking does.
 - [Sounds](sounds.md) — the eight ambient loops, the header player that
   survives navigation, the sleep timer and the completion chime.
+- [The dark mode shade](dark-mode-shade.md) — the four steps from near black
+  to soft grey in Settings → Appearance, which greys move and which stay.
 - [Backgrounds](backgrounds.md) — the eight scenes and the backdrop every
   member screen draws behind its content.
 - [Focus history](history.md) — the four-range report: stats, heatmap,

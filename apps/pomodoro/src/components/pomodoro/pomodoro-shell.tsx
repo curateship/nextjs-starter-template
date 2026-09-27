@@ -32,6 +32,9 @@ import { useTabCountdown } from "@/lib/pomodoro/use-tab-countdown"
 // graph, so the admin screens load none of it.
 import "@/components/pomodoro/theme.css"
 import "@/components/pomodoro/fonts"
+// Puts the chosen dark shade (Settings → Appearance) on <html>, where
+// theme.css reads it next to the .dark class.
+import "@/lib/pomodoro/dark-shade"
 
 /**
  * The product's own shell, matched to the old app's geometry side by side:
@@ -94,10 +97,67 @@ function TomatoMark({ className }: { className?: string }) {
   )
 }
 
-/** The old app's dark-mode pill: a moon-or-sun knob, dark by default. */
+const KNOB_TRAVEL = 24
+
+/**
+ * The old app's dark-mode pill: a moon-or-sun knob, dark by default. The
+ * knob slides the 24px between the two ends while the moon and the sun turn
+ * past each other, so the switch reads as one movement rather than a jump.
+ * Both icons are always on the page; a swap on arrival would have nothing to
+ * fade from.
+ *
+ * The movement runs through `element.animate()` rather than a CSS
+ * transition. The shell's theme provider drops
+ * `*{transition:none!important}` over the whole page for two frames while it
+ * flips the class, so that the page does not cross-fade, and a CSS
+ * transition on this knob is caught by that rule and never plays. The rule
+ * says nothing about animations, so a keyframe animation still runs.
+ * Someone who has asked their machine for less movement gets no animation at
+ * all: the styles below are the resting state either way.
+ */
 function ThemeTogglePill() {
   const { theme, setTheme } = useTheme()
   const dark = theme !== "light"
+  const knob = React.useRef<HTMLSpanElement>(null)
+  const wasDark = React.useRef(dark)
+
+  React.useLayoutEffect(() => {
+    if (wasDark.current === dark) return
+    wasDark.current = dark
+    const element = knob.current
+    if (!element) return
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return
+    const from = dark ? KNOB_TRAVEL : 0
+    const to = dark ? 0 : KNOB_TRAVEL
+    const timing = { duration: 300, easing: "ease-out" } as const
+    element.animate(
+      [
+        { transform: `translateX(${from}px)` },
+        { transform: `translateX(${to}px)` },
+      ],
+      timing
+    )
+    const icons = element.querySelectorAll("svg")
+    for (const [index, icon] of icons.entries()) {
+      // The moon comes first, so it is the one showing in dark mode.
+      const showing = index === 0 ? dark : !dark
+      const turn = index === 0 ? -90 : 90
+      icon.animate(
+        [
+          {
+            opacity: showing ? 0 : 1,
+            transform: `rotate(${showing ? turn : 0}deg)`,
+          },
+          {
+            opacity: showing ? 1 : 0,
+            transform: `rotate(${showing ? 0 : turn}deg)`,
+          },
+        ],
+        timing
+      )
+    }
+  }, [dark])
+
   return (
     <button
       className="relative flex h-8 w-14 items-center rounded-full border border-[rgba(var(--p-fg-rgb),0.14)] bg-[rgba(var(--p-fg-rgb),0.07)] px-1"
@@ -107,16 +167,26 @@ function ThemeTogglePill() {
       onClick={() => setTheme(dark ? "light" : "dark")}
     >
       <span
-        className={cn(
-          "grid size-6 place-items-center rounded-full bg-[var(--p-surface)] transition-transform",
-          dark ? "translate-x-0" : "translate-x-6"
-        )}
+        ref={knob}
+        className="grid size-6 place-items-center rounded-full bg-[var(--p-surface)]"
+        style={{ transform: `translateX(${dark ? 0 : KNOB_TRAVEL}px)` }}
       >
-        {dark ? (
-          <MoonIcon className="size-3.5" aria-hidden="true" />
-        ) : (
-          <SunIcon className="size-3.5" aria-hidden="true" />
-        )}
+        <MoonIcon
+          className="col-start-1 row-start-1 size-3.5"
+          style={{
+            opacity: dark ? 1 : 0,
+            transform: dark ? "rotate(0deg)" : "rotate(-90deg)",
+          }}
+          aria-hidden="true"
+        />
+        <SunIcon
+          className="col-start-1 row-start-1 size-3.5"
+          style={{
+            opacity: dark ? 0 : 1,
+            transform: dark ? "rotate(90deg)" : "rotate(0deg)",
+          }}
+          aria-hidden="true"
+        />
       </span>
     </button>
   )

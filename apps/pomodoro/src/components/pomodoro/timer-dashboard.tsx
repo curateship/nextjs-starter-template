@@ -42,6 +42,80 @@ function modeHint(mode: TimerMode, sessionsBeforeLongBreak: number) {
 const circumference = 2 * Math.PI * 132
 
 /**
+ * The three mode tabs, with the orange chip sliding from one to the next
+ * instead of blinking out and in. The chip is one absolutely positioned
+ * layer behind the labels; its left and width are measured from the live
+ * buttons, because the three labels are different widths and the font
+ * arrives after the first paint. A ResizeObserver re-measures when the row
+ * reflows, and the chip only animates once it has been placed, so the first
+ * paint does not slide it in from the left edge.
+ */
+function ModeTabs({
+  mode,
+  onSelect,
+}: {
+  mode: TimerMode
+  onSelect: (mode: TimerMode) => void
+}) {
+  const row = React.useRef<HTMLDivElement>(null)
+  const [chip, setChip] = React.useState<{ left: number; width: number } | null>(
+    null
+  )
+
+  React.useLayoutEffect(() => {
+    const element = row.current
+    if (!element) return
+    const measure = () => {
+      const active = element.querySelector<HTMLElement>('[aria-selected="true"]')
+      if (!active) return
+      const next = { left: active.offsetLeft, width: active.offsetWidth }
+      // Same numbers, same object: a re-render on every observer callback
+      // would be wasted work, and the observer fires on every reflow.
+      setChip((chip) =>
+        chip && chip.left === next.left && chip.width === next.width
+          ? chip
+          : next
+      )
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [mode])
+
+  return (
+    <div
+      ref={row}
+      className="relative inline-flex gap-1 rounded-full border border-[rgba(var(--p-fg-rgb),0.07)] bg-[var(--p-canvas)] p-1"
+      role="tablist"
+      aria-label="Timer mode"
+    >
+      {chip ? (
+        <span
+          className="absolute inset-y-1 rounded-full bg-[rgba(255,90,60,0.14)] transition-[left,width] duration-300 ease-out motion-reduce:transition-none"
+          style={{ left: chip.left, width: chip.width }}
+          aria-hidden="true"
+        />
+      ) : null}
+      {(Object.keys(MODE_LABELS) as TimerMode[]).map((key) => (
+        <button
+          key={key}
+          role="tab"
+          aria-selected={mode === key}
+          className={cn(
+            "relative rounded-full px-5 py-[9px] text-[13.5px] font-semibold text-muted-foreground transition-colors duration-300",
+            mode === key && "text-[var(--p-accent-2)]"
+          )}
+          onClick={() => onSelect(key)}
+        >
+          {MODE_LABELS[key]}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/**
  * The timer, matched to the old app's dashboard side by side: the 300px
  * ring floating on the hero image with the muted mono digits and the dark
  * Start pill inside it, the pill-shaped mode tabs with the orange active
@@ -148,27 +222,7 @@ export function TimerDashboard() {
           </div>
         </div>
 
-        <div
-          className="inline-flex gap-1 rounded-full border border-[rgba(var(--p-fg-rgb),0.07)] bg-[var(--p-canvas)] p-1"
-          role="tablist"
-          aria-label="Timer mode"
-        >
-          {(Object.keys(MODE_LABELS) as TimerMode[]).map((mode) => (
-            <button
-              key={mode}
-              role="tab"
-              aria-selected={pomodoro.timer.mode === mode}
-              className={cn(
-                "rounded-full px-5 py-[9px] text-[13.5px] font-semibold text-muted-foreground",
-                pomodoro.timer.mode === mode &&
-                  "bg-[rgba(255,90,60,0.14)] text-[var(--p-accent-2)]"
-              )}
-              onClick={() => requestMode(mode)}
-            >
-              {MODE_LABELS[mode]}
-            </button>
-          ))}
-        </div>
+        <ModeTabs mode={pomodoro.timer.mode} onSelect={requestMode} />
 
         <div
           className="flex min-h-[42px] max-w-[min(520px,calc(100vw-36px))] items-center gap-2.5 rounded-[14px] border border-[rgba(var(--p-fg-rgb),0.1)] bg-[rgba(var(--p-canvas-rgb),0.75)] py-2 pl-3.5 pr-2.5"

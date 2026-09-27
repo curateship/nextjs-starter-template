@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router"
 
+import AppearanceSettingsPanel from "@/components/pomodoro/appearance-settings-panel"
 import TimerSettingsPanel from "@/components/pomodoro/timer-settings-panel"
 import ProfileSettingsPanel from "@/components/pomodoro/profile-settings-panel"
 import { Button } from "@/components/ui/button"
@@ -22,6 +23,7 @@ export function SettingsPage() {
         </p>
       </header>
       <TimerSettingsPanel />
+      <AppearanceSettingsPanel />
       {authenticated ? (
         <ProfileSettingsPanel />
       ) : (

@@ -12,7 +12,24 @@ that fades into the canvas on every edge. Pages overlap the hero's lower
 half (the shell's -mt-40), which is what makes the timer ring float on
 the image exactly like the old dashboard. **The product is dark by
 default**: a first visit with no saved colour choice starts dark, and the
-toggle still offers light.
+toggle still offers light. How dark the dark is belongs to Settings →
+Appearance; see [The dark mode shade](dark-mode-shade.md).
+
+## The colour toggle's knob
+
+The moon-knob slides the 24px between its two ends over 300ms while the
+moon and the sun turn past each other. Both icons are always on the page,
+because a swap on arrival would have nothing to fade from.
+
+The movement runs through `element.animate()`, not a CSS transition. The
+shell's theme provider
+(`src/components/shell/sticky-header/light-dark-switcher.tsx`) drops
+`*{transition:none!important}` over the whole page for two frames while it
+flips the class, so that nothing on the page cross-fades its colours, and
+any CSS transition on the knob is caught by that rule and never plays. The
+rule says nothing about animations, so a keyframe animation still runs.
+That file belongs to the shell and is never edited from here, which is why
+the knob works around it rather than turning the rule off.
 
 ## Collapsing the sidebar
 

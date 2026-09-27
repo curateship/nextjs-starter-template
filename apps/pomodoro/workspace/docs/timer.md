@@ -13,6 +13,15 @@ orange selection bar).
 
 - **Three modes** — Focus, Short break and Long break — as segmented tabs.
   Lengths come from the saved preferences (defaults 25/5/15 minutes).
+- **The orange chip slides** from one tab to the next over 300ms instead of
+  blinking out and in. The chip is one layer behind the labels, and its
+  position and width are measured from the live buttons
+  (`ModeTabs` in `src/components/pomodoro/timer-dashboard.tsx`), because the
+  three labels are different widths and the font arrives after the first
+  paint. A ResizeObserver re-measures when the row reflows, and the chip is
+  not drawn at all until it has been placed, so it never slides in from the
+  left edge on load. Anyone who has asked their machine for less movement
+  gets the jump.
 - **The cycle:** every finished focus leads to a short break, the focus that
   reaches the rhythm's number leads to the long break, and every break leads
   back to focus. The number is part of the saved rhythm, 4 in the classic
