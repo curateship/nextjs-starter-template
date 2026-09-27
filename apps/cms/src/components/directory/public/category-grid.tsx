@@ -31,7 +31,9 @@ export function CategoryGrid({
 
   return (
     <ul
-      className="grid sm:grid-cols-2 lg:grid-cols-3"
+      // Four across on a wide screen, like the listing cards under them, so a
+      // page of categories and a page of listings read as the same grid.
+      className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
       style={{ gap: pageGutter }}
     >
       {categories.map((category) => (
@@ -44,11 +46,7 @@ export function CategoryGrid({
 }
 
 /** One card. Not exported: nothing has wanted a category card on its own. */
-function CategoryCard({
-  category,
-}: {
-  category: DirectoryCategoryCard
-}) {
+function CategoryCard({ category }: { category: DirectoryCategoryCard }) {
   return (
     <Card className={`group/card relative w-full ${publicCardHover}`}>
       {category.featuredImage ? (

@@ -113,6 +113,14 @@ function CategoryRoute() {
   const current = Route.useSearch()
   const navigate = Route.useNavigate()
   const ticked = readDirectoryCategories(current.category)
+  // A category that only groups others: it has children, and nothing is
+  // published under it directly. Nothing is narrowed down here, so a total of
+  // nought is the category's own and not what a filter left behind.
+  const groupingOnly =
+    children.length > 0 &&
+    total === 0 &&
+    ticked.length === 0 &&
+    current.minRating === undefined
   const setListSearch = (patch: {
     category?: string
     minRating?: number
@@ -187,70 +195,78 @@ function CategoryRoute() {
       ) : null}
 
       {/*
+       * A category that only groups others — "Type", holding Bar and Italian
+       * restaurant — has no list of its own, so it gets no count, no filters
+       * and no empty card telling a visitor to choose one of the cards they
+       * are already looking at. Tyler found that on 27 Sep 2026. A parent that
+       * does hold listings of its own keeps all three.
+       *
        * The same filters as the browse page, minus this category's own group:
        * every listing here is already in this category, so a box for it could
        * only narrow the page to itself or empty it. They sit in the line above
        * the cards, where the browse page keeps its own.
        */}
-      <div className="flex min-w-0 flex-col" style={{ gap: pageGutter }}>
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="mr-auto text-sm font-medium">
-            {total} {plural(total, "listing", "listings")} in {category.name}
-          </p>
-          {ticked.length || current.minRating ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() =>
+      {groupingOnly ? null : (
+        <div className="flex min-w-0 flex-col" style={{ gap: pageGutter }}>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="mr-auto text-sm font-medium">
+              {total} {plural(total, "listing", "listings")} in {category.name}
+            </p>
+            {ticked.length || current.minRating ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() =>
+                  setListSearch({
+                    category: undefined,
+                    minRating: undefined,
+                    page: undefined,
+                  })
+                }
+              >
+                Clear all
+              </Button>
+            ) : null}
+            <DirectoryFilterBar
+              groups={filterGroups}
+              selected={ticked}
+              minRating={current.minRating}
+              onToggleCategory={(slug) =>
                 setListSearch({
-                  category: undefined,
-                  minRating: undefined,
+                  category: toggleDirectoryCategory(current.category, slug),
                   page: undefined,
                 })
               }
-            >
-              Clear all
-            </Button>
+              onMinRatingChange={(minRating) =>
+                setListSearch({ minRating, page: undefined })
+              }
+            />
+          </div>
+
+          {/* A category holding only posts or events skips the "nothing here"
+              card, which would be untrue with them right below it. */}
+          {listings.length || (!posts.length && !events.length) ? (
+            <ListingGrid
+              listings={listings}
+              emptyMessage={
+                ticked.length || current.minRating
+                  ? "Nothing here matches those filters. Try fewer of them."
+                  : `There is nothing in ${category.name} yet.`
+              }
+            />
           ) : null}
-          <DirectoryFilterBar
-            groups={filterGroups}
-            selected={ticked}
-            minRating={current.minRating}
-            onToggleCategory={(slug) =>
-              setListSearch({
-                category: toggleDirectoryCategory(current.category, slug),
-                page: undefined,
-              })
-            }
-            onMinRatingChange={(minRating) =>
-              setListSearch({ minRating, page: undefined })
+
+          <DirectoryPagination
+            page={page}
+            pageSize={pageSize}
+            total={total}
+            hrefForPage={(next) =>
+              categoryPageHref(category.slug, current, next)
             }
           />
         </div>
-
-        {/* A category holding only posts or events skips the "nothing here"
-            card, which would be untrue with them right below it. */}
-        {listings.length || (!posts.length && !events.length) ? (
-          <ListingGrid
-            listings={listings}
-            emptyMessage={
-              ticked.length || current.minRating
-                ? "Nothing here matches those filters. Try fewer of them."
-                : children.length
-                  ? "Choose a subcategory above to see its listings."
-                  : `There is nothing in ${category.name} yet.`
-            }
-          />
-        ) : null}
-
-        <DirectoryPagination
-          page={page}
-          pageSize={pageSize}
-          total={total}
-          hrefForPage={(next) => categoryPageHref(category.slug, current, next)}
-        />
-      </div>
+      )}
 
       {upcomingEvents && events.length ? (
         <section className="grid gap-2 md:gap-3" aria-labelledby="events">

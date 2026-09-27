@@ -214,6 +214,12 @@ narrowing them take a line.
   plain text on white until 27 Sep 2026, when Tyler asked for the two pages to
   open the same way. `PublicTitleBand` is the band with the search taken out,
   and any page that is a name and a line can use it.
+- **A category that only groups others shows its children and nothing else.**
+  "Type" holds Bar and Italian restaurant and has nothing published under it
+  directly, so the page is its band and its cards: no count, no filter buttons,
+  and no empty card telling a visitor to choose one of the cards in front of
+  them. A parent that does hold listings of its own keeps all three. Tyler
+  found this on 27 Sep 2026.
 - **A category page carries the same filters, without its own group.** Every
   listing on the Italian page is already Italian, so a Cuisine box there could
   only narrow the page to itself or empty it. The Neighbourhood boxes still
@@ -273,6 +279,9 @@ narrowing them take a line.
 - **A category's picture sits beside its name** in the band, capped so the
   words stay the biggest thing on the page, and stacks under them on a phone. A
   category with no picture keeps the name alone.
+- **Category cards run four across** above 1280px, three from 1024px and two on
+  a tablet — the same grid as the listing cards under them, so a page of
+  categories and a page of listings read the same.
 - **Categories stay at `/directory/category/<slug>`.** The old site used
   `/categories/<slug>` and the addresses were deliberately not moved.
 
