@@ -12,8 +12,7 @@ paging. Choosing a picture closes that window and puts the picture on the field
 behind it. Nothing is saved until the editing window itself is saved.
 
 - **Where:** the event window, the listing window and its photo gallery, the
-  post window, the deal window and the home page row window in Settings →
-  Directory → Home page, whose hero has a picture.
+  post window and the deal window.
 - **Why it is not drawn inside the field.** The shell's field can also open the
   library in place of itself, which is what these five did until 25 Sep 2026.
   Inside a window that scrolls, the library opens below the fold and nothing
@@ -25,7 +24,8 @@ behind it. Nothing is saved until the editing window itself is saved.
   row window in Settings → Public pages. Its picker opens 568 pixels below the
   bottom of a 950-pixel screen, so its Picture, Logo image and Screenshot image
   fields still grow into an empty box. An app never edits a shell file, so this
-  waits for Custom Shell.
+  waits for Custom Shell — and it matters more since 27 Sep 2026, because a
+  site's home page is built in that window now.
 - **The Feedback window is not in that list.** Its body is short, so its picker
   does open in view, with a tall empty dashed box above it. Untidy, not
   broken.

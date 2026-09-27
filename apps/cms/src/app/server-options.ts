@@ -4,6 +4,13 @@ import {
   directorySitemapEntries,
 } from "@/server/directory/sitemap"
 import { directorySearchResults } from "@/server/directory/public"
+import {
+  readCategoriesRow,
+  readDealsRow,
+  readEventsRow,
+  readListingsRow,
+  readPostsRow,
+} from "@/server/directory/front-page-row-readers"
 import { runFeaturedRenewalReminders } from "@/server/directory/featured"
 import { copyDirectoryWorkspace } from "@/server/directory/workspace-copy"
 import { executeDraftEventsStep } from "@/server/events/ai-drafts"
@@ -28,6 +35,24 @@ import { DRAFT_EVENTS_KIND } from "@/lib/events/draft-events-step"
  * door nobody is told about.
  */
 export const appServerOptions: AppServerOptions = {
+  pages: {
+    /**
+     * What fills each of this app's own front page rows, keyed by the same
+     * names `options.ts` registers. Answering null leaves the row off the page,
+     * which is how an empty category, nothing coming up, no deals on, no posts
+     * yet, and a visitor who may not see the page behind the row are all said.
+     */
+    frontPageRowReaders: {
+      listings: ({ settings, workspaceId }) =>
+        readListingsRow(workspaceId, settings),
+      categories: ({ settings, workspaceId }) =>
+        readCategoriesRow(workspaceId, settings),
+      events: ({ settings, workspaceId }) =>
+        readEventsRow(workspaceId, settings),
+      deals: ({ settings, workspaceId }) => readDealsRow(workspaceId, settings),
+      posts: ({ settings, workspaceId }) => readPostsRow(workspaceId, settings),
+    },
+  },
   automations: {
     executors: { [DRAFT_EVENTS_KIND]: executeDraftEventsStep },
   },

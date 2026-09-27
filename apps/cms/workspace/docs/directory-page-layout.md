@@ -60,8 +60,10 @@ every row inside reads that one.
 → Public → Styling → **Content alignment**. A site set to Centre has a centred
 footer above left-read pages, and the one dropdown is what changes it.
 
-One row of the home page can be centred on its own, through **Centre this row**
-in its window. `home-page-rows.md` says what moves and what does not.
+A home page row sets where it sits across the page with the shell's own
+**Alignment** choice in the row window: Follow the site, Left, Centred or Right.
+CMS had a "Centre this row" switch of its own until 27 Sep 2026, and a row that
+was centred came across as Centred.
 
 ## Opening hours, and a day with two services
 
@@ -228,8 +230,6 @@ titled block inside one, and this browser remembers which you left shut. Tyler a
 after the settings had grown into nine cards named after features rather than
 pages.
 
-- **Home page** — the rows the site's home page is built from. `home-page-rows.md`
-  explains them.
 - **Directory page** — this page: its title, its introduction, how many
   listings a page holds, the order they start in, the row of category cards at
   the top, the map, and the search by town or postcode. The map and the search
@@ -241,6 +241,8 @@ pages.
 - **Every public page** — the button that forgets this site's saved public
   pages.
 
-Two things a page needs are not here, because they belong to the shell rather
-than to this app: who may see a page at all, in Public → Pages, and the site's
-own name, logo and colours, in Site identity.
+Three things a page needs are not here, because they belong to the shell rather
+than to this app: the site's home page, which is built in Public → Pages →
+Front page out of rows this app adds kinds to (`home-page-rows.md`), who may see
+a page at all, also in Public → Pages, and the site's own name, logo and
+colours, in Site identity.

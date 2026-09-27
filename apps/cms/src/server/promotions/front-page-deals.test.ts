@@ -3,14 +3,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { createCategory } from "@/server/directory/categories"
 import { setContentCategories } from "@/server/directory/content-categories"
-import {
-  fillFrontPageDeals,
-  readDirectoryFrontPage,
-} from "@/server/directory/front-page"
-import {
-  createFrontPageSection,
-  listFrontPageSections,
-} from "@/server/directory/front-page-sections"
+import { readDealsRow } from "@/server/directory/front-page-row-readers"
+import { setPageVisibility } from "@/server/content/pages"
 import { createListing, updateListing } from "@/server/directory/listings"
 import type { VisitorSite } from "@/server/directory/public"
 import { resetPublicDirectoryCacheForTests } from "@/server/directory/public-cache"
@@ -68,7 +62,11 @@ async function place(title: string, categoryIds: string[] = []) {
   return listing.id
 }
 
-async function deal(title: string, listingId: string, endDate: string | null = null) {
+async function deal(
+  title: string,
+  listingId: string,
+  endDate: string | null = null
+) {
   const made = await createPromotion(
     site.id,
     userId,
@@ -93,9 +91,18 @@ async function deal(title: string, listingId: string, endDate: string | null = n
   return made
 }
 
-async function frontPage(visible = true) {
-  const page = await readDirectoryFrontPage(site, database)
-  return page ? fillFrontPageDeals(site, page, visible, database, at) : null
+/**
+ * One front page row of deals, filled the way the shell asks for it: the row's
+ * own settings and the site it is on, and null when the row should be left off
+ * the page.
+ */
+function dealsRow(settings: { categoryId?: string | null; count: number }) {
+  return readDealsRow(
+    site.id,
+    { categoryId: settings.categoryId ?? null, count: settings.count },
+    database,
+    at
+  )
 }
 
 describe("deals on a category page", () => {
@@ -119,9 +126,19 @@ describe("deals on a category page", () => {
       { categoryId: pizza.id, limit: 6 },
       database
     )
-    expect(shown.map((row) => row.title)).toEqual(["Newer pizza", "Older pizza"])
+    expect(shown.map((row) => row.title)).toEqual([
+      "Newer pizza",
+      "Older pizza",
+    ])
     expect(
-      (await readNewestDeals(site, now, { categoryId: pizza.id, limit: 1 }, database)).length
+      (
+        await readNewestDeals(
+          site,
+          now,
+          { categoryId: pizza.id, limit: 1 },
+          database
+        )
+      ).length
     ).toBe(1)
   })
 
@@ -129,67 +146,53 @@ describe("deals on a category page", () => {
     const tacos = await createCategory(site.id, { name: "Tacos" }, database)
     await place("Taqueria", [tacos.id])
     expect(
-      await readNewestDeals(site, now, { categoryId: tacos.id, limit: 6 }, database)
+      await readNewestDeals(
+        site,
+        now,
+        { categoryId: tacos.id, limit: 6 },
+        database
+      )
     ).toEqual([])
   })
 })
 
 describe("a home page row of deals", () => {
-  it("is saved as its own kind", async () => {
-    await createFrontPageSection(
-      site.id,
-      { heading: "Deals", kind: "deals", listingCount: 4 },
-      database
-    )
-    const [section] = await listFrontPageSections(site.id, database)
-    expect(section).toMatchObject({ kind: "deals", listingCount: 4 })
-  })
-
-  it("fills after the cache with the newest deals, as many as it asks for", async () => {
-    await createFrontPageSection(
-      site.id,
-      { heading: "Deals", kind: "deals", listingCount: 2 },
-      database
-    )
+  it("fills with the newest deals, as many as it asks for", async () => {
     const napoli = await place("Napoli")
     await deal("First", napoli)
     await deal("Second", napoli)
     await deal("Third", napoli)
 
-    const [row] = (await frontPage())?.rows ?? []
-    expect(row?.kind).toBe("deals")
-    expect(
-      row?.kind === "deals" ? row.deals.map((each) => each.title) : []
-    ).toEqual(["Third", "Second"])
-    expect(row?.kind === "deals" ? row.deals[0]?.nowText : null).toBe("On now")
+    const row = await dealsRow({ count: 2 })
+    expect(row?.deals.map((each) => each.title)).toEqual(["Third", "Second"])
+    expect(row?.deals[0]?.nowText).toBe("On now")
   })
 
   it("keeps to its category when it has one", async () => {
     const pizza = await createCategory(site.id, { name: "Pizza" }, database)
-    await createFrontPageSection(
-      site.id,
-      { heading: "Pizza deals", kind: "deals", categoryId: pizza.id, listingCount: 6 },
-      database
-    )
     await deal("Pizza deal", await place("Napoli", [pizza.id]))
     await deal("Book deal", await place("Books"))
-    const [row] = (await frontPage())?.rows ?? []
-    expect(
-      row?.kind === "deals" ? row.deals.map((each) => each.title) : []
-    ).toEqual(["Pizza deal"])
-    expect(row?.kind === "deals" ? row.categorySlug : null).toBe(pizza.slug)
+
+    const row = await dealsRow({ categoryId: pizza.id, count: 6 })
+    expect(row?.deals.map((each) => each.title)).toEqual(["Pizza deal"])
+    expect(row?.categorySlug).toBe(pizza.slug)
   })
 
   it("is dropped with no live deal, and when the visitor may not see Deals", async () => {
-    await createFrontPageSection(
-      site.id,
-      { heading: "Deals", kind: "deals", listingCount: 6 },
-      database
-    )
-    expect(await frontPage()).toBeNull()
+    expect(await dealsRow({ count: 6 })).toBeNull()
+
     await deal("Live", await place("Napoli"))
     resetPublicDirectoryCacheForTests()
-    expect(await frontPage(false)).toBeNull()
-    expect((await frontPage())?.rows).toHaveLength(1)
+    expect((await dealsRow({ count: 6 }))?.deals).toHaveLength(1)
+
+    // Every card on the row leads to the Deals page, so a visitor who may not
+    // see that page is shown no row rather than a set of closed doors.
+    await setPageVisibility(
+      site.id,
+      { path: "/deals", visibility: "members" },
+      database
+    )
+    resetPublicDirectoryCacheForTests()
+    expect(await dealsRow({ count: 6 })).toBeNull()
   })
 })

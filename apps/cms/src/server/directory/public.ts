@@ -163,7 +163,20 @@ export async function visitorSite(
   // page can never disagree about which site they are on.
   const id = await visitorWorkspaceId(database)
   if (!id) return null
+  return siteById(id, database)
+}
 
+/**
+ * One site by its id, in the shape a public page is told about it.
+ *
+ * For a read that has already been told which site it is for — a front page row
+ * the shell hands the site with — rather than one working it out from the
+ * address again.
+ */
+export async function siteById(
+  id: string,
+  database: CustomShellDb = db
+): Promise<VisitorSite | null> {
   const [row] = await database
     .select({
       id: customShellWorkspaces.id,

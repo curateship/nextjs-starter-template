@@ -9,10 +9,6 @@ import {
   updateCustomSection,
 } from "@/server/directory/custom-sections"
 import {
-  createFrontPageSection,
-  listFrontPageSections,
-} from "@/server/directory/front-page-sections"
-import {
   directorySettingsFor,
   saveDirectoryBrowseCategories,
   saveDirectoryNeighbourhoodCategory,
@@ -50,6 +46,60 @@ beforeEach(async () => {
 afterEach(async () => {
   await client.close()
 })
+
+/** One of this app's rows, in the one shape the shell stores. */
+function appRow(
+  appKind: string,
+  heading: string,
+  settings: Record<string, unknown>
+) {
+  return {
+    id: `front-page-row-${heading.toLowerCase().replaceAll(" ", "-")}`,
+    kind: "app",
+    appKind,
+    heading,
+    intro: "",
+    settings,
+    layout: "wide",
+    alignment: "inherit",
+    hidden: false,
+    device: "all",
+  }
+}
+
+/** Writes the source site's front page, which the shell's copy carries over. */
+async function saveSourceFrontPageRows(
+  workspaceId: string,
+  rows: ReturnType<typeof appRow>[]
+) {
+  const [row] = await database
+    .select({ settings: customShellWorkspaces.settings })
+    .from(customShellWorkspaces)
+    .where(eq(customShellWorkspaces.id, workspaceId))
+    .limit(1)
+  await database
+    .update(customShellWorkspaces)
+    .set({
+      settings: {
+        ...((row?.settings as Record<string, unknown>) ?? {}),
+        frontPageRows: rows,
+      },
+    })
+    .where(eq(customShellWorkspaces.id, workspaceId))
+}
+
+/** This app's own rows on a site's front page, in the order they are drawn. */
+async function frontPageRowsOf(workspaceId: string) {
+  const [row] = await database
+    .select({ settings: customShellWorkspaces.settings })
+    .from(customShellWorkspaces)
+    .where(eq(customShellWorkspaces.id, workspaceId))
+    .limit(1)
+  const settings = row?.settings as {
+    frontPageRows?: { heading: string; settings: Record<string, unknown> }[]
+  }
+  return settings?.frontPageRows ?? []
+}
 
 describe("copying CMS site content", () => {
   it("copies the category tree and leaves listings out by default", async () => {
@@ -176,7 +226,13 @@ describe("copying CMS site content", () => {
     expect(listing?.longitude).toBe(-74)
   })
 
-  it("carries the home page rows, pointed at the copy's own categories", async () => {
+  /**
+   * The front page itself is the shell's and comes across with the site's
+   * settings. What this app owns is the category inside one of its own rows,
+   * and an id left pointing at the source site would filter to a category the
+   * copy cannot see, so the row would come back empty and vanish.
+   */
+  it("points the copied front page rows at the copy's own categories", async () => {
     const { ownerId, sourceId } = await seedSourceSite()
 
     const copied = await copyUserWorkspace(
@@ -187,30 +243,31 @@ describe("copying CMS site content", () => {
       database
     )
 
-    const rows = await listFrontPageSections(copied.id, database)
+    const rows = await frontPageRowsOf(copied.id)
     expect(rows.map((row) => row.heading)).toEqual([
       "New this week",
       "Start somewhere",
       "Restaurants",
     ])
-    expect(rows[0]).toMatchObject({ categoryId: null, sort: "newest" })
+    expect(rows[0]?.settings).toMatchObject({
+      categoryId: null,
+      sort: "newest",
+    })
 
     const copiedCategories = await listCategories(copied.id, database)
     const restaurants = copiedCategories.find(
       (category) => category.name === "Restaurants"
     )
-    // The copy's own category, not the original's — a row that still pointed at
-    // the source site would filter to a category this site cannot see.
-    expect(rows[2]?.categoryId).toBe(restaurants?.id)
-    expect(rows[2]).toMatchObject({ sort: "rating", layout: "list" })
+    expect(rows[2]?.settings).toMatchObject({
+      categoryId: restaurants?.id,
+      sort: "rating",
+      layout: "list",
+    })
 
-    // The hand-picked cards are re-pointed too, and keep their order. Ids left
-    // pointing at the original would filter to categories this site cannot see,
-    // and the copied row would silently draw nothing.
+    // The hand-picked cards are re-pointed too, and keep their order.
     const food = copiedCategories.find((category) => category.name === "Food")
-    expect(rows[1]).toMatchObject({
-      kind: "categories",
-      categorySource: "picked",
+    expect(rows[1]?.settings).toMatchObject({
+      source: "picked",
       pickedCategoryIds: [restaurants?.id, food?.id],
     })
 
@@ -295,21 +352,25 @@ async function seedSourceSite() {
     },
     database
   )
-  await createFrontPageSection(
-    workspace.id,
-    { heading: "New this week", listingCount: 3 },
-    database
-  )
-  await createFrontPageSection(
-    workspace.id,
-    {
-      heading: "Start somewhere",
-      kind: "categories",
-      categorySource: "picked",
+  await saveSourceFrontPageRows(workspace.id, [
+    appRow("listings", "New this week", {
+      categoryId: null,
+      sort: "newest",
+      count: 3,
+      layout: "grid",
+    }),
+    appRow("categories", "Start somewhere", {
+      source: "picked",
       pickedCategoryIds: [child.id, parent.id],
-    },
-    database
-  )
+      count: 8,
+    }),
+    appRow("listings", "Restaurants", {
+      categoryId: child.id,
+      sort: "rating",
+      count: 8,
+      layout: "list",
+    }),
+  ])
   await saveDirectoryBrowseCategories(
     workspace.id,
     {
@@ -320,16 +381,6 @@ async function seedSourceSite() {
     database
   )
   await saveDirectoryNeighbourhoodCategory(workspace.id, parent.id, database)
-  await createFrontPageSection(
-    workspace.id,
-    {
-      heading: "Restaurants",
-      categoryId: child.id,
-      sort: "rating",
-      layout: "list",
-    },
-    database
-  )
   await setListingCategories(
     workspace.id,
     listing.id,
@@ -338,9 +389,17 @@ async function seedSourceSite() {
     database
   )
 
+  // Re-read, because the front page rows above were written straight onto the
+  // row after it was made. The test that proves the source is only read
+  // compares against this, so it has to be the row as it now stands.
+  const [saved] = await database
+    .select()
+    .from(customShellWorkspaces)
+    .where(eq(customShellWorkspaces.id, workspace.id))
+
   return {
     ownerId: owner.id,
     sourceId: workspace.id,
-    sourceRows: { workspace, parentId: parent.id },
+    sourceRows: { workspace: saved ?? workspace, parentId: parent.id },
   }
 }

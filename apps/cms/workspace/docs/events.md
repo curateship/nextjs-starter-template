@@ -347,7 +347,7 @@ under it.
 ### A home page row
 
 A home page row can be a third kind, "Upcoming events", next to Listings and
-Category cards, in Settings → Directory → Home page.
+Category cards, in Settings → Public pages → Front page.
 
 - **Its settings:** a heading, an introduction, a category or "Every event",
   and how many, 1 to 12. Order and arrangement do not apply: it is always the

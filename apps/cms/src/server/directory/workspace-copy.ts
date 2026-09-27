@@ -7,11 +7,19 @@ import {
   categories,
   categoryRelationships,
   directoryCustomSections,
-  directoryFrontPageSections,
   directoryListings,
   directorySettings,
   LISTING_CONTENT_TYPE,
 } from "@/server/directory/schema"
+import type { CustomShellDb } from "@/server/db"
+import { customShellWorkspaces } from "@/server/schema"
+import { parseWorkspaceSettings } from "@/server/people/workspaces"
+import {
+  cleanCategoriesRowSettings,
+  cleanListingsRowSettings,
+  cleanPickedRowSettings,
+  isCmsFrontPageRowKey,
+} from "@/lib/directory/front-page-kinds"
 
 /** Copies this app's directory content inside the shell's workspace transaction. */
 export async function copyDirectoryWorkspace({
@@ -75,54 +83,13 @@ export async function copyDirectoryWorkspace({
     )
   }
 
-  // The home page's rows come across whether or not the listings do, for the
-  // same reason the invented fields above do: they are part of what the site
-  // *is*, and a copy made to start a second site from wants the same home page
-  // shape waiting for it. Each row's category is re-pointed at the copy's own,
-  // so a row filtered to "Cafés" filters to the new site's Cafés.
-  const sourceRows = await database
-    .select()
-    .from(directoryFrontPageSections)
-    .where(eq(directoryFrontPageSections.workspaceId, sourceWorkspaceId))
-  if (sourceRows.length) {
-    await database.insert(directoryFrontPageSections).values(
-      sourceRows.map((row) => ({
-        id: uuid(),
-        workspaceId: newWorkspaceId,
-        displayOrder: row.displayOrder,
-        heading: row.heading,
-        intro: row.intro,
-        categoryId: row.categoryId
-          ? (categoryIds.get(row.categoryId) ?? null)
-          : null,
-        kind: row.kind,
-        categorySource: row.categorySource,
-        // Re-pointed at the copy's own categories, the same as the single
-        // category above. An id left pointing at the original would filter to a
-        // category this site cannot see, so a copied row of cards would come
-        // back empty and the row would silently vanish.
-        pickedCategoryIds: cleanPickedCategoryIds(
-          row.pickedCategoryIds
-        ).flatMap((id) => {
-          const copied = categoryIds.get(id)
-          return copied ? [copied] : []
-        }),
-        sort: row.sort,
-        listingCount: row.listingCount,
-        layout: row.layout,
-        heroAction: row.heroAction,
-        heroImage: row.heroImage,
-        heroAlt: row.heroAlt,
-        heroButtonLabel: row.heroButtonLabel,
-        heroButtonHref: row.heroButtonHref,
-        heroNote: row.heroNote,
-        heroStars: row.heroStars,
-        centred: row.centred,
-        createdAt: at,
-        updatedAt: at,
-      }))
-    )
-  }
+  // The home page's rows came across in this table until 27 Sep 2026, when
+  // they moved onto the shell's front page, which the shell's own copy carries
+  // with the rest of the site's settings. What is left for this app is the
+  // category inside one of its own rows: an id left pointing at the original
+  // would filter to a category the copy cannot see, so the row would come back
+  // empty and vanish off the page.
+  await repointFrontPageRows(newWorkspaceId, categoryIds, database)
 
   // The browse page's own row of category cards, and which category names a
   // neighbourhood. Only this app's category-shaped columns are carried: the
@@ -232,4 +199,70 @@ export async function copyDirectoryWorkspace({
   if (copiedLinks.length) {
     await database.insert(categoryRelationships).values(copiedLinks)
   }
+}
+
+/**
+ * Points every one of this app's front page rows at the copy's own categories.
+ *
+ * The shell copies a site's settings wholesale, rows and all, and it has no
+ * idea that the bag of fields inside one of this app's rows holds a category
+ * id. So the ids are swapped here, in the same transaction, and a row whose
+ * category did not come across is widened to every category rather than left
+ * pointing at a stranger's.
+ */
+async function repointFrontPageRows(
+  newWorkspaceId: string,
+  categoryIds: Map<string, string>,
+  database: CustomShellDb
+): Promise<void> {
+  const [row] = await database
+    .select({ settings: customShellWorkspaces.settings })
+    .from(customShellWorkspaces)
+    .where(eq(customShellWorkspaces.id, newWorkspaceId))
+    .limit(1)
+  if (!row) return
+
+  const settings = parseWorkspaceSettings(row.settings)
+  const copiedId = (id: string | null) =>
+    id ? (categoryIds.get(id) ?? null) : null
+
+  let changed = false
+  const rows = settings.frontPageRows.map((front) => {
+    if (front.kind !== "app" || !isCmsFrontPageRowKey(front.appKind)) {
+      return front
+    }
+    changed = true
+
+    if (front.appKind === "listings") {
+      const own = cleanListingsRowSettings(front.settings)
+      return {
+        ...front,
+        settings: { ...own, categoryId: copiedId(own.categoryId) },
+      }
+    }
+    if (front.appKind === "categories") {
+      const own = cleanCategoriesRowSettings(front.settings)
+      return {
+        ...front,
+        settings: {
+          ...own,
+          pickedCategoryIds: own.pickedCategoryIds.flatMap((id) => {
+            const copied = categoryIds.get(id)
+            return copied ? [copied] : []
+          }),
+        },
+      }
+    }
+    const own = cleanPickedRowSettings(front.settings)
+    return {
+      ...front,
+      settings: { ...own, categoryId: copiedId(own.categoryId) },
+    }
+  })
+
+  if (!changed) return
+  await database
+    .update(customShellWorkspaces)
+    .set({ settings: { ...settings, frontPageRows: rows }, updatedAt: now() })
+    .where(eq(customShellWorkspaces.id, newWorkspaceId))
 }

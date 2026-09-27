@@ -88,8 +88,7 @@ A published post appears in all of these and a draft in none of them.
   alongside the category pages.
 - **Whole-site search:** matches the title, summary and body words, labelled
   "Post".
-- **A home page row:** "Latest posts" in Admin → Directory settings → Home
-  page, beside Listings, Category cards, Upcoming events and Current deals. It
+- **A home page row:** "Latest posts" in Settings → Public pages → Front page, beside Listings, Category cards, Upcoming events and Current deals. It
   takes a heading, an introduction, a category or "Every post", and how many,
   1 to 12. The newest come first, and the row carries a "See all posts" button.
   It is left off the page while there are no posts, and while this visitor may

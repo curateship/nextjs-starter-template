@@ -1,46 +1,39 @@
-import { lazy } from "react"
 import { redirect } from "@tanstack/react-router"
 
 import { defineCatchAllPage, type AppOptions } from "@/lib/app-options"
-import type {
-  DirectoryFrontPageAnswer,
-  DirectoryFrontPageData,
-  DirectoryFrontPageView,
-} from "@/lib/directory/front-page"
+import type { DirectoryFrontPageAnswer } from "@/lib/directory/front-page"
+import {
+  CMS_FRONT_PAGE_ROW_HINTS,
+  CMS_FRONT_PAGE_ROW_KEYS,
+  CMS_FRONT_PAGE_ROW_LABELS,
+} from "@/lib/directory/front-page-kinds"
 import { draftEventsNode } from "@/lib/events/draft-events-step"
 
-const DirectoryFrontPageComponent = lazy(() =>
-  import("./directory-front-page").then((module) => ({
-    default: module.DirectoryFrontPage,
-  }))
-)
-
 /**
- * The front page, which is two different pages depending on who is being asked.
+ * The deployment's own address, and nothing else.
  *
- * **A site's address gets that site's home page**, or nothing when it has none
- * and the shell's own front page should draw instead. That fall-through is the
- * reason the answer names the host rather than the page alone: a site with no
- * home page, and one whose rows all came back empty, both answer "no page", and
- * neither of them is the platform.
- *
- * **The deployment's own address is the admin's front door and nothing else.**
- * It used to draw the shell's marketing page, which is the right answer for an
- * app that sells itself and the wrong one here: every site CMS serves has its
- * own address, so nobody reaches the platform's root except the person who runs
- * it. Tyler's call on 25 Sep 2026. It forwards rather than drawing a form of
- * its own, because `/login` already knows how to carry a `?redirect=` and how
- * to send a signed-in reader onward.
+ * **The platform's root is the admin's front door.** It used to draw the
+ * shell's marketing page, which is the right answer for an app that sells
+ * itself and the wrong one here: every site CMS serves has its own address, so
+ * nobody reaches the platform's root except the person who runs it. Tyler's
+ * call on 25 Sep 2026. It forwards rather than drawing a form of its own,
+ * because `/login` already knows how to carry a `?redirect=` and how to send a
+ * signed-in reader onward.
  *
  * `/home` rather than `/admin` on purpose: it is the signpost that reads the
  * Admin home route setting, so changing that setting still decides where this
  * lands. It also sends a member to the member home rather than to an admin page
  * they cannot open.
  *
- * `load` and `loadPlans` are parameters only so the tests can drive them. The
- * dynamic import is the rule for this file, written at the top of `appOptions`
- * below: reaching an endpoint module while this one is still being read catches
- * the server's guards half-built.
+ * **A site's own address answers "not mine"**, and the shell's front page draws
+ * that site's rows. Those rows were a builder of CMS's own until 27 Sep 2026,
+ * when they moved onto the shell's — one builder, one place, and a site with
+ * none draws its header and its footer with nothing between them.
+ *
+ * `load` is a parameter only so the tests can drive it. The dynamic import is
+ * the rule for this file, written at the top of `appOptions` below: reaching an
+ * endpoint module while this one is still being read catches the server's
+ * guards half-built.
  */
 export async function loadDirectoryFrontPageOverride(
   path: string,
@@ -48,113 +41,44 @@ export async function loadDirectoryFrontPageOverride(
     const { loadDirectoryFrontPage } =
       await import("@/lib/api/directory/public")
     return loadDirectoryFrontPage()
-  },
-  loadPlans: () => Promise<PlanBoard> = readPlanBoard
+  }
 ) {
   if (path !== "/") return null
 
   const answer = await load()
-  if (answer.host === "site") {
-    return answer.page ? withPlans(answer.page, loadPlans) : null
-  }
+  if (answer.host === "site") return null
 
   // Replace, never push. This address only forwards now, so leaving it in the
   // history turns Back into a bounce straight back out of it.
   throw redirect({ to: answer.signedIn ? "/home" : "/login", replace: true })
 }
 
-/** The public plans and who is reading them, for a row of plans. */
-type PlanBoard = {
-  plans: DirectoryFrontPageView["plans"]
-  trialUsed: boolean
-  signedIn: boolean
-}
-
-const NO_PLANS: PlanBoard = { plans: [], trialUsed: false, signedIn: false }
-
 /**
- * The deployment's public plans, for a home page with a row of plans on it.
- *
- * Read here rather than with the page because the plans belong to the
- * deployment and the page is cached per site, and because a price pasted a
- * minute ago should reach the next visitor. Read once however many rows of
- * plans are on the page.
- *
- * Never allowed to fail. This is a public home page, and a billing call that
- * fell over has to leave the visitor on the rest of their page with the plans
- * row dropped, not on an error page.
+ * The app's answer for `/`. It claims the address only to forward the
+ * deployment's own root; a site's root is answered with "not mine", so the
+ * shell's front page draws the site's own rows.
  */
-async function readPlanBoard(): Promise<PlanBoard> {
-  try {
-    const [{ loadCurrentUser }, billing] = await Promise.all([
-      import("@/lib/api/auth/auth"),
-      import("@/lib/api/billing/billing"),
-    ])
-    const [user, pricing] = await Promise.all([
-      loadCurrentUser(),
-      billing.loadPublicPricing(),
-    ])
-    // These cards promise a free trial, so a signed-in reader who has already
-    // spent theirs is told here too, the same as on the platform's own front
-    // page. Only asked for when there is somebody to ask about.
-    const overview = user
-      ? await billing.loadBillingOverview().catch(() => null)
-      : null
-    // Payments switched off means nothing can be bought however the cards are
-    // drawn, so the row comes off the page rather than showing prices with a
-    // dead button under each one.
-    return pricing.billingEnabled
-      ? {
-          plans: pricing.plans,
-          trialUsed: Boolean(overview?.trialUsed),
-          signedIn: Boolean(user),
-        }
-      : NO_PLANS
-  } catch {
-    return NO_PLANS
-  }
-}
-
-/**
- * A site's home page with what a row of plans needs, or null when the page has
- * nothing left to draw.
- *
- * A deployment that sells nothing has no plans, so a row of plans there is
- * dropped the same way an empty row of listings is — and a page that was only
- * that row falls through to the platform's own front page.
- */
-async function withPlans(
-  page: DirectoryFrontPageData,
-  loadPlans: () => Promise<PlanBoard>
-): Promise<DirectoryFrontPageView | null> {
-  if (!page.rows.some((row) => row.kind === "plans")) {
-    return { ...page, ...NO_PLANS }
-  }
-
-  const board = await loadPlans()
-  if (board.plans.length > 0) return { ...page, ...board }
-
-  const rows = page.rows.filter((row) => row.kind !== "plans")
-  return rows.length ? { ...page, rows, ...NO_PLANS } : null
-}
-
-const directoryFrontPage = defineCatchAllPage<DirectoryFrontPageView>({
+const directoryFrontPage = defineCatchAllPage<never>({
   loader: ({ path }) => loadDirectoryFrontPageOverride(path),
-  head: ({ data }) => ({
-    meta: [
-      { title: `${data.heading} · ${data.siteName}` } as Record<string, string>,
-      ...(data.intro
-        ? [
-            {
-              name: "description",
-              content: data.intro,
-            } as Record<string, string>,
-          ]
-        : []),
-    ],
-  }),
-  Component: DirectoryFrontPageComponent,
+  Component: () => null,
 })
+
+/** Which panel edits each of this app's row kinds, and which component draws it. */
+const ROW_PANELS = {
+  listings: "ListingsRowPanel",
+  categories: "CategoriesRowPanel",
+  events: "EventsRowPanel",
+  deals: "DealsRowPanel",
+  posts: "PostsRowPanel",
+} as const
+
+const ROW_CONTENT = {
+  listings: "ListingsRowContent",
+  categories: "CategoriesRowContent",
+  events: "EventsRowContent",
+  deals: "DealsRowContent",
+  posts: "PostsRowContent",
+} as const
 
 /**
  * What this app changes about the shell.
@@ -174,7 +98,36 @@ const directoryFrontPage = defineCatchAllPage<DirectoryFrontPageView>({
  * endpoint **inside a loader**, where it is fetched at request time.
  */
 export const appOptions: AppOptions = {
-  pages: { catchAll: directoryFrontPage },
+  pages: {
+    catchAll: directoryFrontPage,
+    /**
+     * The five kinds of row this app adds to the shell's front page builder:
+     * its listings, its category cards, its events, its deals and its posts.
+     *
+     * Each one is a label, a line saying what it shows, the panel that edits
+     * its own fields and the component that draws it. What fills one is the
+     * other half and it is server-side, under the same key in
+     * `server-options.ts`, because a row of this app's records is a database
+     * read that also decides whether the row is drawn at all.
+     *
+     * Both pointers are dynamic on purpose. An app's screens are not in the
+     * bundle of a page that has no such row, and this file may not reach an
+     * endpoint module while it is still being read.
+     */
+    frontPageRowKinds: CMS_FRONT_PAGE_ROW_KEYS.map((key) => ({
+      key,
+      label: CMS_FRONT_PAGE_ROW_LABELS[key],
+      hint: CMS_FRONT_PAGE_ROW_HINTS[key],
+      panel: () =>
+        import("@/components/directory/front-page-row-panels").then(
+          (module) => ({ default: module[ROW_PANELS[key]] })
+        ),
+      component: () =>
+        import("@/components/directory/public/front-page-row-content").then(
+          (module) => ({ default: module[ROW_CONTENT[key]] })
+        ),
+    })),
+  },
   automations: {
     // What it does is `server/events/ai-drafts.ts`, registered under the same
     // kind in `server-options.ts`.

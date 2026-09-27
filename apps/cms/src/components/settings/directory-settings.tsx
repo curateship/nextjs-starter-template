@@ -3,7 +3,6 @@ import { Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { CategoryPicker } from "@/components/directory/category-picker"
-import { FrontPageSectionsPanel } from "@/components/directory/front-page-sections-panel"
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { CollapsibleSettingsSection } from "@/components/directory/collapsible-settings-section"
 import { Button } from "@/components/ui/button"
@@ -164,16 +163,6 @@ export function DirectorySettings() {
 
   return (
     <CardGroup>
-      <CollapsibleSettingsCard
-        storageId="directory-front-page"
-        title="Home page"
-        description="The rows this website's home page is made of. Drag them to change their order. The first row is the top of the page, with nothing above it: listings, category cards, events, deals, posts, a hero or the plans on sale. Settings → Public pages is the deployment's own landing page, not this."
-      >
-        <FrontPageSectionsPanel
-          mapAvailable={settings.mapEnabled && settings.hasMapKey}
-        />
-      </CollapsibleSettingsCard>
-
       <CollapsibleSettingsCard
         storageId="directory-browse"
         title="Directory page"

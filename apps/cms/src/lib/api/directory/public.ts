@@ -24,12 +24,6 @@ import {
   type PublicListingCard,
   type PublicListingPage,
 } from "@/server/directory/public"
-import {
-  fillFrontPageDeals,
-  fillFrontPageEvents,
-  fillFrontPagePosts,
-  readDirectoryFrontPage,
-} from "@/server/directory/front-page"
 import type { DirectoryFrontPageAnswer } from "@/lib/directory/front-page"
 import { answerForRequest } from "@/server/workspaces/host"
 import { geocodeDirectoryPlace } from "@/server/directory/geocode"
@@ -50,7 +44,6 @@ import {
   readUpcomingEvents,
   type PublicEventCard,
 } from "@/server/events/public"
-import { postsAccessFor } from "@/server/posts/cards"
 
 import { createErrorMessage } from "../error-message"
 
@@ -302,61 +295,63 @@ export type ListingEvents = {
 
 const readDirectoryListingFn = createServerFn({ method: "GET" })
   .inputValidator(z.object({ slug: slugInput }))
-  .handler(async ({
-    data,
-  }): Promise<
-    | (PublicListingPage & {
-        whatsOn: ListingEvents | null
-        /** "Deals here": its live deals, or null while Deals is closed to this visitor. */
-        dealsHere: ListedDeal[] | null
+  .handler(
+    async ({
+      data,
+    }): Promise<
+      | (PublicListingPage & {
+          whatsOn: ListingEvents | null
+          /** "Deals here": its live deals, or null while Deals is closed to this visitor. */
+          dealsHere: ListedDeal[] | null
+        })
+      | null
+    > => {
+      const site = await visitorSite()
+      if (!site) return null
+
+      // Who is reading, when they happen to be signed in. Read on the server from
+      // the session, never sent by the page — and used only to tell somebody
+      // where their *own* claim stands. A signed-out visitor gets the same page
+      // with nothing personal in it.
+      const viewer = await findCurrentUser().catch(() => null)
+
+      const page = await readPublicListing(site, data.slug, {
+        viewerId: viewer?.id ?? null,
       })
-    | null
-  > => {
-    const site = await visitorSite()
-    if (!site) return null
+      if (!page) return null
 
-    // Who is reading, when they happen to be signed in. Read on the server from
-    // the session, never sent by the page — and used only to tell somebody
-    // where their *own* claim stands. A signed-out visitor gets the same page
-    // with nothing personal in it.
-    const viewer = await findCurrentUser().catch(() => null)
+      // Read after the listing's two-minute cache, by the site's clock, and only
+      // when this visitor may see the Deals page, the switch every deal follows.
+      const dealsNow = await dealsClockFor(site.id, async () => Boolean(viewer))
+      const dealsHere = dealsNow
+        ? listedDealsAt(
+            await readListingDeals(site, page.listing.id, dealsNow),
+            dealsNow
+          )
+        : null
 
-    const page = await readPublicListing(site, data.slug, {
-      viewerId: viewer?.id ?? null,
-    })
-    if (!page) return null
-
-    // Read after the listing's two-minute cache, by the site's clock, and only
-    // when this visitor may see the Deals page, the switch every deal follows.
-    const dealsNow = await dealsClockFor(site.id, async () => Boolean(viewer))
-    const dealsHere = dealsNow
-      ? listedDealsAt(
-          await readListingDeals(site, page.listing.id, dealsNow),
-          dealsNow
-        )
-      : null
-
-    // The same for events, with the Events page's own switch.
-    const access = await eventsAccessFor(site.id, async () => Boolean(viewer))
-    if (!access) return { ...page, whatsOn: null, dealsHere }
-    const timeZone = await siteTimeZone(site.id)
-    const upcoming = await readUpcomingEvents(
-      site,
-      1,
-      wallClockAt(timeZone, new Date()),
-      undefined,
-      { placeId: page.listing.id }
-    )
-    return {
-      ...page,
-      dealsHere,
-      whatsOn: {
-        events: upcoming.events.slice(0, EVENTS_ON_A_LISTING),
-        total: upcoming.total,
-        zone: timeZoneLabel(timeZone),
-      },
+      // The same for events, with the Events page's own switch.
+      const access = await eventsAccessFor(site.id, async () => Boolean(viewer))
+      if (!access) return { ...page, whatsOn: null, dealsHere }
+      const timeZone = await siteTimeZone(site.id)
+      const upcoming = await readUpcomingEvents(
+        site,
+        1,
+        wallClockAt(timeZone, new Date()),
+        undefined,
+        { placeId: page.listing.id }
+      )
+      return {
+        ...page,
+        dealsHere,
+        whatsOn: {
+          events: upcoming.events.slice(0, EVENTS_ON_A_LISTING),
+          total: upcoming.total,
+          zone: timeZoneLabel(timeZone),
+        },
+      }
     }
-  })
+  )
 
 /** One published listing by its address, or null if there is not one. */
 export function loadDirectoryListing(slug: string) {
@@ -378,65 +373,67 @@ const readDirectoryCategoryFn = createServerFn({ method: "GET" })
       minRating: minRatingInput,
     })
   )
-  .handler(async ({
-    data,
-  }): Promise<
-    | (PublicCategoryPage & {
-        upcomingEvents: ListingEvents | null
-        /** The newest live deals at its listings, on its first page only. */
-        categoryDeals: ListedDeal[]
+  .handler(
+    async ({
+      data,
+    }): Promise<
+      | (PublicCategoryPage & {
+          upcomingEvents: ListingEvents | null
+          /** The newest live deals at its listings, on its first page only. */
+          categoryDeals: ListedDeal[]
+        })
+      | null
+    > => {
+      const site = await visitorSite()
+      if (!site) return null
+
+      const cached = await readPublicCategory(site, data.slug, {
+        page: data.page ?? 1,
+        categories: readDirectoryCategories(data.category),
+        minRating: readDirectoryMinRating(data.minRating),
       })
-    | null
-  > => {
-    const site = await visitorSite()
-    if (!site) return null
+      if (!cached) return null
+      const isSignedIn = async () =>
+        Boolean(await findCurrentUser().catch(() => null))
+      const dealsNow =
+        (data.page ?? 1) === 1 ? await dealsClockFor(site.id, isSignedIn) : null
+      const page = {
+        ...cached,
+        listings: await withDealTags(site.id, cached.listings),
+        categoryDeals: dealsNow
+          ? listedDealsAt(
+              await readNewestDeals(site, dealsNow, {
+                categoryId: cached.category.id,
+                limit: DEALS_ON_A_CATEGORY,
+              }),
+              dealsNow
+            )
+          : [],
+      }
 
-    const cached = await readPublicCategory(site, data.slug, {
-      page: data.page ?? 1,
-      categories: readDirectoryCategories(data.category),
-      minRating: readDirectoryMinRating(data.minRating),
-    })
-    if (!cached) return null
-    const isSignedIn = async () =>
-      Boolean(await findCurrentUser().catch(() => null))
-    const dealsNow =
-      (data.page ?? 1) === 1 ? await dealsClockFor(site.id, isSignedIn) : null
-    const page = {
-      ...cached,
-      listings: await withDealTags(site.id, cached.listings),
-      categoryDeals: dealsNow
-        ? listedDealsAt(
-            await readNewestDeals(site, dealsNow, {
-              categoryId: cached.category.id,
-              limit: DEALS_ON_A_CATEGORY,
-            }),
-            dealsNow
-          )
-        : [],
+      // Read after the category's cache, by the site's clock, and only when this
+      // visitor may see the Events page, the same as a listing's "What's on
+      // here".
+      const access = await eventsAccessFor(site.id, isSignedIn)
+      if (!access) return { ...page, upcomingEvents: null }
+      const timeZone = await siteTimeZone(site.id)
+      const upcoming = await readUpcomingEvents(
+        site,
+        1,
+        wallClockAt(timeZone, new Date()),
+        undefined,
+        { categoryId: page.category.id }
+      )
+      return {
+        ...page,
+        upcomingEvents: {
+          events: upcoming.events.slice(0, EVENTS_ON_A_CATEGORY),
+          total: upcoming.total,
+          zone: timeZoneLabel(timeZone),
+        },
+      }
     }
-
-    // Read after the category's cache, by the site's clock, and only when this
-    // visitor may see the Events page, the same as a listing's "What's on
-    // here".
-    const access = await eventsAccessFor(site.id, isSignedIn)
-    if (!access) return { ...page, upcomingEvents: null }
-    const timeZone = await siteTimeZone(site.id)
-    const upcoming = await readUpcomingEvents(
-      site,
-      1,
-      wallClockAt(timeZone, new Date()),
-      undefined,
-      { categoryId: page.category.id }
-    )
-    return {
-      ...page,
-      upcomingEvents: {
-        events: upcoming.events.slice(0, EVENTS_ON_A_CATEGORY),
-        total: upcoming.total,
-        zone: timeZoneLabel(timeZone),
-      },
-    }
-  })
+  )
 
 /** One category, its subcategories and one page of its listings. */
 export function loadDirectoryCategory(input: {
@@ -452,65 +449,27 @@ const readDirectoryFrontPageFn = createServerFn({ method: "GET" }).handler(
   async (): Promise<DirectoryFrontPageAnswer> => {
     const answer = await answerForRequest()
     // The platform's own address is not a site, and its root belongs to
-    // whoever runs it. Every other host falls through as "site", an address
-    // nobody has taken included, so it keeps behaving exactly as it did.
+    // whoever runs it. Every other host answers "site", an address nobody has
+    // taken included, so it keeps behaving exactly as it did.
     if (answer.kind === "platform") {
       return {
         host: "platform",
         signedIn: Boolean(await findCurrentUser().catch(() => null)),
       }
     }
-    if (answer.kind !== "workspace") return { host: "site", page: null }
-
-    const page = await readDirectoryFrontPage({
-      id: answer.workspace.id,
-      name: answer.workspace.name,
-    })
-    if (!page) return { host: "site", page: null }
-    const hasEvents = page.rows.some((row) => row.kind === "events")
-    const hasDeals = page.rows.some((row) => row.kind === "deals")
-    const hasPosts = page.rows.some((row) => row.kind === "posts")
-    if (!hasEvents && !hasDeals && !hasPosts) return { host: "site", page }
-
-    // A row of events follows the Events page's own switch, a row of deals the
-    // Deals page's, and a row of posts the Posts page's, for this visitor.
-    // Every card on each of them leads to that page.
-    const site = await visitorSite()
-    if (!site) return { host: "site", page: null }
-    const isSignedIn = async () =>
-      Boolean(await findCurrentUser().catch(() => null))
-    const withEvents = hasEvents
-      ? await fillFrontPageEvents(
-          site,
-          page,
-          (await eventsAccessFor(site.id, isSignedIn)) !== null
-        )
-      : page
-    if (!withEvents) return { host: "site", page: null }
-    const withDeals = hasDeals
-      ? await fillFrontPageDeals(
-          site,
-          withEvents,
-          (await dealsAccessFor(site.id, isSignedIn)) !== null
-        )
-      : withEvents
-    if (!withDeals || !hasPosts) {
-      return { host: "site", page: withDeals ?? null }
-    }
-    return {
-      host: "site",
-      page: await fillFrontPagePosts(
-        site,
-        withDeals,
-        (await postsAccessFor(site.id, isSignedIn)) !== null
-      ),
-    }
+    return { host: "site" }
   }
 )
 
 /**
- * What `/` is for the host that asked: the visited site's home page, or the
- * word that this is the platform's own address and who is reading it.
+ * Which of the two `/` is for the host that asked: one of this deployment's
+ * sites, whose front page the shell draws from that site's own rows, or the
+ * platform's own address, which forwards and carries whether the reader is
+ * signed in.
+ *
+ * It answered a whole home page until 27 Sep 2026, when CMS's rows moved onto
+ * the shell's front page builder. `page` is always null now and is kept so the
+ * answer still says which of the two a host is.
  */
 export function loadDirectoryFrontPage() {
   return readDirectoryFrontPageFn()
@@ -529,4 +488,3 @@ export type {
   PublicListingCard,
   PublicMapPin,
 } from "@/server/directory/public"
-export type { DirectoryFrontPageData } from "@/lib/directory/front-page"

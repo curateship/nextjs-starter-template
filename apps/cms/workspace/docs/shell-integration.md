@@ -28,13 +28,16 @@ from scratch. A site with no rows draws its header and its footer with nothing
 between them, rather than the deployment's own sign-up block. There is no limit
 on how many rows a page has.
 
-The shell can also take kinds of row from an app, through
-`pages.frontPageRowKinds` and its server half `pages.frontPageRowReaders`. CMS
-does not use them yet: its listings, category cards, events, deals and posts
-rows are still its own builder in Settings → Directory → Home page, and moving
-them across is `workspace/tasks/home-rows/04-one-builder.md`. Until that
-happens a site's `/` is answered by CMS's own home page whenever it has rows,
-so the shell's per-site front page only draws for a site that has none.
+The shell also takes kinds of row from an app, through
+`pages.frontPageRowKinds` and its server half `pages.frontPageRowReaders`, and
+CMS registers five: listings, category cards, upcoming events, current deals and
+latest posts. That is the whole of the old Settings → Directory → Home page
+builder, which is gone along with its table. `workspace/docs/home-page-rows.md`
+says what the five hold and what fills them.
+
+A site's `/` is the shell's front page now. This app still claims that address
+in its options, but only to forward the deployment's own root to sign-in; a
+site's root is answered "not mine" so the shell draws it.
 
 Platform Navigation combines the sidebar and top right menu editors. Top left
 max items sits inside the sidebar card and keeps the existing saved limit.
