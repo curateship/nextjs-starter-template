@@ -243,7 +243,7 @@ function TimerQuickControl() {
             htmlFor="quick-auto-start"
             className="mr-auto text-sm font-normal text-muted-foreground"
           >
-            Auto-start next
+            Auto-start the next timer
           </Label>
           <Switch
             id="quick-auto-start"

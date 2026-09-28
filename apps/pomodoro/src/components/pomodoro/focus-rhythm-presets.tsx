@@ -510,7 +510,7 @@ function PresetEditor({
           checked={autoStart}
           onCheckedChange={(state) => setAutoStart(state === true)}
         />
-        <Label htmlFor={`preset-auto-${preset.id}`}>Auto-start next</Label>
+        <Label htmlFor={`preset-auto-${preset.id}`}>Auto-start the next timer</Label>
       </div>
       <div className="flex justify-end gap-2">
         <Button

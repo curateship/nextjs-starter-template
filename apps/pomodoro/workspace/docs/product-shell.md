@@ -54,7 +54,7 @@ that opened it, the way the old app placed them, and shifts inward only
 when the window is too narrow to hold it.
 
 - **Timer** is the settings panel: Start or Pause and Reset, a minute
-  stepper for each of the three phases, Auto-start next, and the preset
+  stepper for each of the three phases, Auto-start the next timer, and the preset
   list with the one in use filled in. The steppers and the presets go
   dead while a timer runs, because changing a length mid-session would
   change what the countdown means. The pill itself shows the countdown

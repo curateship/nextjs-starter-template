@@ -282,7 +282,9 @@ function SortableTaskRow({
             className="flex min-w-0 flex-1 items-center gap-2 py-2 text-left disabled:cursor-default"
             disabled={!pomodoro.canSelectTask}
             aria-pressed={selected}
-            onClick={() => pomodoro.selectTask(task.id)}
+            // Tapping the chosen task again clears it, the same as the
+            // dashboard's own list.
+            onClick={() => pomodoro.selectTask(selected ? null : task.id)}
           >
             <span className="truncate text-sm">{task.title}</span>
             {task.repeatWeekdays !== null ? (

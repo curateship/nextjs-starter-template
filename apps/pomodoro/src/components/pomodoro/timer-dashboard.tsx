@@ -3,6 +3,8 @@ import { Link } from "@tanstack/react-router"
 import {
   CheckIcon,
   MaximizeIcon,
+  MinusIcon,
+  PencilIcon,
   PlusIcon,
   RotateCcwIcon,
   XIcon,
@@ -11,8 +13,14 @@ import {
 import { useDiscardFocusConfirm } from "@/components/pomodoro/discard-focus-confirm"
 import { SessionNotePrompt } from "@/components/pomodoro/session-note-prompt"
 import { ZenMode } from "@/components/pomodoro/zen-mode"
+import { Button } from "@/components/ui/button"
 import { InlineError } from "@/components/ui/inline-error"
 import { Label } from "@/components/ui/label"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { Switch } from "@/components/ui/switch"
 import {
@@ -27,17 +35,11 @@ import {
   MODE_LABELS,
   type TimerMode,
 } from "@/lib/pomodoro/timer"
-import { usePomodoro } from "@/lib/pomodoro/use-pomodoro"
-
-// The old app's own words, kept letter for letter. The long break's line said
-// "the next block of four", which is now whatever the rhythm says.
-function modeHint(mode: TimerMode, sessionsBeforeLongBreak: number) {
-  if (mode === "focus")
-    return "Silence the noise. One task, nothing else, until the ring closes."
-  if (mode === "short")
-    return "Step away from the screen. Stretch, breathe, refill the glass."
-  return `You earned it. A proper pause before the next block of ${sessionsBeforeLongBreak}.`
-}
+import {
+  DAILY_GOAL_MAX,
+  DAILY_GOAL_MIN,
+  usePomodoro,
+} from "@/lib/pomodoro/use-pomodoro"
 
 const circumference = 2 * Math.PI * 132
 
@@ -112,6 +114,69 @@ function ModeTabs({
         </button>
       ))}
     </div>
+  )
+}
+
+/**
+ * The pencil beside the goal bar: how many focus sessions today is meant to
+ * hold. It is a stepper in a popover rather than a typed field, because the
+ * number only ever moves by one and a typed field on the dashboard would
+ * need its own saving and error line. Changing it saves straight away and
+ * never touches the countdown, so it works while the timer runs.
+ */
+function DailyGoalEditor({
+  goal,
+  onChange,
+}: {
+  goal: number
+  onChange: (sessions: number) => void
+}) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="size-6 rounded-full text-muted-foreground hover:text-foreground"
+          aria-label="Edit the daily session goal"
+        >
+          <PencilIcon className="size-3" aria-hidden="true" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="center" className="w-60 gap-3 p-4">
+        <strong className="text-sm font-semibold">Daily session goal</strong>
+        <div className="flex items-center gap-2.5">
+          <span className="mr-auto text-sm text-muted-foreground">Sessions</span>
+          <Button
+            variant="outline"
+            size="icon-sm"
+            className="rounded-full"
+            disabled={goal <= DAILY_GOAL_MIN}
+            onClick={() => onChange(goal - 1)}
+            aria-label="One session fewer"
+          >
+            <MinusIcon aria-hidden="true" />
+          </Button>
+          <b className="w-8 text-center font-mono text-[13px] font-normal tabular-nums">
+            {goal}
+          </b>
+          <Button
+            variant="outline"
+            size="icon-sm"
+            className="rounded-full"
+            disabled={goal >= DAILY_GOAL_MAX}
+            onClick={() => onChange(goal + 1)}
+            aria-label="One session more"
+          >
+            <PlusIcon aria-hidden="true" />
+          </Button>
+        </div>
+        <p className="text-[11.5px] leading-relaxed text-muted-foreground">
+          What the bar above is measured against. Settings &rsaquo; Timer has
+          the same number.
+        </p>
+      </PopoverContent>
+    </Popover>
   )
 }
 
@@ -224,42 +289,8 @@ export function TimerDashboard() {
 
         <ModeTabs mode={pomodoro.timer.mode} onSelect={requestMode} />
 
-        <div
-          className="flex min-h-[42px] max-w-[min(520px,calc(100vw-36px))] items-center gap-2.5 rounded-[14px] border border-[rgba(var(--p-fg-rgb),0.1)] bg-[rgba(var(--p-canvas-rgb),0.75)] py-2 pl-3.5 pr-2.5"
-          aria-live="polite"
-        >
-          <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-            {pomodoro.timer.mode === "focus" ? "Focus task" : "Next focus task"}
-          </span>
-          {pomodoro.selectedTask ? (
-            <>
-              <strong className="min-w-0 truncate text-[13.5px]">
-                {pomodoro.selectedTask.title}
-              </strong>
-              <button
-                className="ml-auto grid size-7 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-[rgba(var(--p-fg-rgb),0.08)] hover:text-foreground disabled:cursor-not-allowed disabled:opacity-35"
-                disabled={!pomodoro.canSelectTask}
-                onClick={() => pomodoro.selectTask(null)}
-                aria-label={`Clear selected task ${pomodoro.selectedTask.title}`}
-              >
-                <XIcon className="size-[13px]" aria-hidden="true" />
-              </button>
-            </>
-          ) : (
-            <Link
-              to="/tasks"
-              className="text-[13.5px] font-bold text-[var(--p-accent-2)]"
-            >
-              Choose a task
-            </Link>
-          )}
-        </div>
-
         <SessionNotePrompt pomodoro={pomodoro} />
 
-        <p className="max-w-[380px] text-center text-[15.5px] leading-[1.55] text-[rgba(var(--p-text-rgb),0.65)]">
-          {modeHint(pomodoro.timer.mode, pomodoro.sessionsBeforeLongBreak)}
-        </p>
         {pomodoro.syncError ? (
           <InlineError className="text-center">
             {pomodoro.syncError}
@@ -288,8 +319,12 @@ export function TimerDashboard() {
             </span>
             <span className="font-mono text-xs text-muted-foreground">
               {pomodoro.todayFocusSessions} of {pomodoro.dailyGoalSessions}{" "}
-              completed today{goalReached ? " · Goal reached" : ""}
+              sessions completed today{goalReached ? " · Goal reached" : ""}
             </span>
+            <DailyGoalEditor
+              goal={pomodoro.dailyGoalSessions}
+              onChange={pomodoro.setDailyGoal}
+            />
           </div>
           {/* Where this rhythm's long break is. Same mono treatment as the
               goal and streak lines, and the same words the room cards use. */}
@@ -309,7 +344,7 @@ export function TimerDashboard() {
               checked={pomodoro.autoStart}
               onCheckedChange={pomodoro.setAutoStart}
             />
-            <Label htmlFor="auto-start">Auto-start next phase</Label>
+            <Label htmlFor="auto-start">Auto-start the next timer</Label>
           </div>
         </div>
       </section>
@@ -376,7 +411,10 @@ export function TimerDashboard() {
                   className="flex min-w-0 flex-1 items-center gap-3 py-1 text-left disabled:cursor-default"
                   disabled={task.completed || !pomodoro.canSelectTask}
                   aria-pressed={selected}
-                  onClick={() => pomodoro.selectTask(task.id)}
+                  // Tapping the chosen task again clears it. It is the only
+                  // way to focus on nothing now that the FOCUS TASK pill
+                  // and its clear button are gone.
+                  onClick={() => pomodoro.selectTask(selected ? null : task.id)}
                 >
                   <span
                     className={cn(

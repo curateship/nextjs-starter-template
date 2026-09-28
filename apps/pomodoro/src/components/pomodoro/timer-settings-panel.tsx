@@ -274,7 +274,7 @@ export default function TimerSettingsPanel() {
                   checked={autoStart}
                   onCheckedChange={setAutoStart}
                 />
-                <Label htmlFor="timer-auto-start">Auto-start next phase</Label>
+                <Label htmlFor="timer-auto-start">Auto-start the next timer</Label>
               </div>
             </>
           ) : null}
