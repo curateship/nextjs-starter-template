@@ -1,5 +1,6 @@
 import * as React from "react"
 
+import { mediaImageSrcSet } from "@/lib/media/image-sizes"
 import type { PublicHeaderLogoSize } from "@/lib/pages/public-header"
 import { cn } from "@/lib/utils"
 
@@ -7,6 +8,13 @@ const LOGO_SIZE_CLASS_NAMES: Record<PublicHeaderLogoSize, string> = {
   small: "h-8 max-w-40",
   standard: "h-12 max-w-56",
   large: "h-16 max-w-48 sm:max-w-72",
+}
+
+/** The widest each size above can ever be drawn, which is its `max-w`. */
+const LOGO_SIZES: Record<PublicHeaderLogoSize, string> = {
+  small: "160px",
+  standard: "224px",
+  large: "288px",
 }
 
 /**
@@ -96,6 +104,11 @@ function LogoImage({
     <img
       ref={imageRef}
       src={src}
+      // A logo uploaded straight off a design tool is often several thousand
+      // pixels wide for a box under 300. An SVG logo has no smaller copies and
+      // needs none, so `mediaImageSrcSet` returns nothing for it.
+      srcSet={mediaImageSrcSet(src)}
+      sizes={LOGO_SIZES[size]}
       alt={appName}
       className={cn(LOGO_SIZE_CLASS_NAMES[size], "object-contain", className)}
       onError={() => setFailedSrc(src)}

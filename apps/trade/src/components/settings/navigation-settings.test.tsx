@@ -10,6 +10,12 @@ vi.mock("@tanstack/react-router", () => ({
   Link: ({ children }: { children: React.ReactNode }) => <a>{children}</a>,
   useRouterState: () => "/admin/settings/navigation",
 }))
+// General settings now holds the Storage bucket and AI provider keys cards,
+// and both put their Saving…/Saved state in the sticky header through the
+// shell runtime. There is no ShellLayout above the page in a test.
+vi.mock("@/components/shell/shell-layout", () => ({
+  useShellRuntime: () => ({ reportSaveStatus: vi.fn() }),
+}))
 
 import {
   SettingsPage,
@@ -50,6 +56,27 @@ describe("Navigation settings", () => {
     expect(getSettingsTabFromPath("/admin/settings/navigation")).toBe(
       "navigation"
     )
+  })
+
+  it("puts the rail in two cards, and everything claimable in the app's", () => {
+    const html = markup("general")
+    expect(html).toContain("Platform settings")
+    expect(html).toContain("App settings")
+    // Members and Public are blocks of the App settings card. The rows under
+    // them keep short names; the heading is what says whose Navigation it is.
+    expect(html).toContain(">Members<")
+    expect(html).toContain(">Public<")
+    // Platform settings ends at Payments, so the Public rows sit after the
+    // App settings title rather than before it.
+    const platform = html.indexOf("Platform settings")
+    const appCard = html.indexOf("App settings")
+    expect(platform).toBeLessThan(appCard)
+    expect(appCard).toBeLessThan(html.indexOf(">Public<"))
+    // The four that became cards on General settings are no longer rows.
+    expect(html).toContain("AI provider keys")
+    expect(html).toContain("Cloudflare R2")
+    expect(html).toContain("Sessions")
+    expect(html).toContain("Notifications")
   })
 
   it("keeps the member editors together and separate from admin navigation", () => {

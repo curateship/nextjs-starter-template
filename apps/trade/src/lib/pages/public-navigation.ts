@@ -1,24 +1,31 @@
+import {
+  normalizePublicDevice,
+  showsOnDevice,
+  type PublicDevice,
+} from "@/lib/pages/public-device"
 import { isSafeWrittenPageLink } from "@/lib/pages/written-page-body"
 
 export type PublicNavigationLink = {
   label: string
   href: string
-}
-
-export type PublicNavigationSearchItem = {
-  type: "search"
-  visible: boolean
+  /**
+   * Which screens a header menu item is drawn on. Only the header reads it;
+   * footer links never carry it, because the footer is one list at every
+   * width.
+   */
+  device?: PublicDevice
 }
 
 export type PublicNavigationGroup = {
   type: "group"
   label: string
   links: PublicNavigationLink[]
+  /** Applies to the whole group; its own links follow it. */
+  device?: PublicDevice
 }
 
 export type PublicNavigationItem =
   | PublicNavigationLink
-  | PublicNavigationSearchItem
   | PublicNavigationGroup
 
 export const MAX_PUBLIC_FOOTER_LINKS = 20
@@ -27,13 +34,7 @@ export const MAX_PUBLIC_NAVIGATION_HREF_LENGTH = 2_048
 export const MAX_PUBLIC_FOOTER_COPYRIGHT_LENGTH = 300
 
 export function createDefaultPublicNavigation(): PublicNavigationItem[] {
-  return [{ type: "search", visible: true }]
-}
-
-export function isPublicNavigationSearchItem(
-  item: PublicNavigationItem
-): item is PublicNavigationSearchItem {
-  return "type" in item && item.type === "search"
+  return []
 }
 
 export function isPublicNavigationLink(
@@ -68,23 +69,17 @@ export function cleanPublicNavigationItems(
 ): PublicNavigationItem[] {
   if (!Array.isArray(value)) return createDefaultPublicNavigation()
 
-  let hasSearch = false
   const items: PublicNavigationItem[] = []
 
   for (const item of value) {
+    // A menu saved before search moved to the header's action items still
+    // carries an entry for it. It is not a menu item any more, so it goes.
     if (
       item &&
       typeof item === "object" &&
       !Array.isArray(item) &&
       (item as { type?: unknown }).type === "search"
     ) {
-      if (!hasSearch) {
-        items.push({
-          type: "search",
-          visible: (item as { visible?: unknown }).visible !== false,
-        })
-        hasSearch = true
-      }
       continue
     }
 
@@ -94,28 +89,53 @@ export function cleanPublicNavigationItems(
       !Array.isArray(item) &&
       (item as { type?: unknown }).type === "group"
     ) {
-      const group = item as { label?: unknown; links?: unknown }
+      const group = item as {
+        label?: unknown
+        links?: unknown
+        device?: unknown
+      }
       const label = cleanPublicNavigationLabel(group.label)
       const links = Array.isArray(group.links)
         ? group.links.flatMap((link) => cleanPublicNavigationLink(link) ?? [])
         : []
       if (label && links.length) {
-        items.push({ type: "group", label, links })
+        items.push({ type: "group", label, links, ...savedDevice(group.device) })
       }
       continue
     }
 
     const link = cleanPublicNavigationLink(item)
     if (link) {
-      items.push(link)
+      items.push({
+        ...link,
+        ...savedDevice((item as { device?: unknown }).device),
+      })
     }
   }
 
-  if (!hasSearch) items.unshift({ type: "search", visible: true })
   return items
 }
 
-/** Direct links and each group's links in menu order, with Search left out. */
+/**
+ * The menu items to draw in one of the header's two lists.
+ *
+ * The header already builds its desktop row and its phone panel separately, so
+ * the choice is a filter on each list rather than a class on each item. Both
+ * lists are still in the page at every width, hidden from the wrong one by the
+ * header's own `lg` classes, so this does not keep a menu item's words out of
+ * the page source. The Hidden switch on a front page row is the only thing
+ * here that does that.
+ */
+export function publicNavigationForDevice(
+  items: PublicNavigationItem[],
+  drawing: "desktop" | "phone"
+): PublicNavigationItem[] {
+  return items.filter((item) =>
+    showsOnDevice(normalizePublicDevice(item.device), drawing)
+  )
+}
+
+/** Direct links and each group's links, in menu order. */
 export function flattenPublicNavigationLinks(
   items: PublicNavigationItem[]
 ): PublicNavigationLink[] {
@@ -123,6 +143,16 @@ export function flattenPublicNavigationLinks(
     if (isPublicNavigationLink(item)) return [item]
     return isPublicNavigationGroup(item) ? item.links : []
   })
+}
+
+/**
+ * The device choice, or nothing when it is the everyday answer. Writing
+ * "everywhere" onto every menu item would grow every saved menu to say what
+ * its absence already says, so only a real choice is kept.
+ */
+function savedDevice(value: unknown): { device?: PublicDevice } {
+  const device = normalizePublicDevice(value)
+  return device === "all" ? {} : { device }
 }
 
 function cleanPublicNavigationLink(

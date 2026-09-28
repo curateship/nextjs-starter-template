@@ -1,5 +1,5 @@
 import path from "node:path"
-import { defineConfig } from "vitest/config"
+import { configDefaults, defineConfig } from "vitest/config"
 
 import { DEV_APP_PORT } from "./app-port"
 
@@ -25,5 +25,9 @@ export default defineConfig({
     // each time. The setup really does take that long under load; the tests
     // themselves are unaffected and keep the default limit.
     hookTimeout: 60_000,
+    // The build scripts' tests are written for `node --test`, because the
+    // scripts run under plain Node. `npm run test` runs them that way after
+    // this suite; picked up here they are empty files and fail.
+    exclude: [...configDefaults.exclude, "scripts/**/*.test.mjs"],
   },
 })

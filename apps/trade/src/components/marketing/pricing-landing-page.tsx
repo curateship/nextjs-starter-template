@@ -4,7 +4,6 @@ import { Link, useNavigate } from "@tanstack/react-router"
 import { publicContentAlignmentRowClassName } from "@/components/shell/public-content-alignment"
 import { FrontPageRows } from "@/components/marketing/front-page-rows"
 import { PublicPageFrame } from "@/components/shell/public-page-frame"
-import { PaymentsOffCard } from "@/components/shared/payments-off-card"
 import { PricingTable } from "@/components/shared/pricing-table"
 import { Button } from "@/components/ui/button"
 import { definePublicPage } from "@/lib/app-options"
@@ -14,21 +13,25 @@ import {
   loadPublicPricing,
   type PlanOption,
 } from "@/lib/api/billing/billing"
-import { loadBranding } from "@/lib/api/shell"
+import { loadAppFrontPageRows, loadBranding } from "@/lib/api/shell"
 import { useAppName } from "@/lib/branding"
 import type { BillingInterval } from "@/lib/billing/pricing-choice"
 import {
+  APP_FRONT_PAGE_ROW_KIND,
   frontPageHasPlans,
   type FrontPageRow,
 } from "@/lib/pages/front-page"
 
 type LandingData = {
   frontPageRows: FrontPageRow[]
+  /** True when this address is one of the deployment's own sites. */
+  hostIsSite: boolean
   signedIn: boolean
   userRole: string | null
   plans: PlanOption[]
-  billingEnabled: boolean
   trialUsed: boolean
+  /** What the app's own rows hold on this request, by row id. */
+  appRowData: Record<string, unknown>
 }
 
 /**
@@ -52,19 +55,45 @@ export const pricingLandingPage = definePublicPage({
 })
 
 export async function loadPricingLandingData(
-  rootFrontPageRows?: FrontPageRow[]
+  rootFrontPageRows?: FrontPageRow[],
+  rootHostIsSite?: boolean
 ): Promise<LandingData> {
-  const frontPageRows =
-    rootFrontPageRows ?? (await loadBranding()).frontPageRows
+  // Branding is read only when the caller has not already read it. The root
+  // route has, and reading it twice on the front page is the round trip this
+  // argument exists to save.
+  const branding = rootFrontPageRows === undefined ? await loadBranding() : null
+  const savedRows = rootFrontPageRows ?? branding?.frontPageRows ?? []
+  const hostIsSite = rootHostIsSite ?? branding?.hostIsSite ?? false
 
-  if (frontPageRows.length > 0 && !frontPageHasPlans(frontPageRows)) {
+  // Asked for only when the page has a row of the app's own on it, and the
+  // rows it answers about are the saved ones, read again on the server — never
+  // the list the browser is holding.
+  const fills = savedRows.some((row) => row.kind === APP_FRONT_PAGE_ROW_KIND)
+    ? await loadAppFrontPageRows().catch(() => null)
+    : null
+  const dropped = new Set(fills?.dropped ?? [])
+  // A row the app answered "nothing" for comes off the page, the same as one
+  // whose category has nothing published in it.
+  const frontPageRows = savedRows.filter((row) => !dropped.has(row.id))
+  const appRowData = fills?.data ?? {}
+
+  // A site that has not built a front page gets its header and its footer with
+  // nothing between them. Tyler's call on 27 Sep 2026: the block below is the
+  // deployment selling itself, and on somebody else's website that is an advert
+  // for software they did not come for. The deployment's own address, and a
+  // one-site app, still get it.
+  if (
+    (frontPageRows.length > 0 && !frontPageHasPlans(frontPageRows)) ||
+    (frontPageRows.length === 0 && hostIsSite)
+  ) {
     return {
       frontPageRows,
+      hostIsSite,
       signedIn: false,
       userRole: null,
       plans: [],
-      billingEnabled: false,
       trialUsed: false,
+      appRowData,
     }
   }
 
@@ -88,22 +117,24 @@ export async function loadPricingLandingData(
 
   return {
     frontPageRows,
+    hostIsSite,
     signedIn: Boolean(user),
     userRole: user?.role ?? null,
     plans: pricing.plans,
-    billingEnabled: pricing.billingEnabled,
     trialUsed: Boolean(overview?.trialUsed),
+    appRowData,
   }
 }
 
 function PricingLanding({ data }: { data: LandingData }) {
   const {
     frontPageRows,
+    hostIsSite,
     signedIn,
     userRole,
     plans,
-    billingEnabled,
     trialUsed,
+    appRowData,
   } = data
   const appName = useAppName()
   const navigate = useNavigate()
@@ -126,13 +157,19 @@ function PricingLanding({ data }: { data: LandingData }) {
     [navigate, signedIn]
   )
 
+  // Nothing between the header and the footer, which is what a site with no
+  // rows of its own is.
+  if (frontPageRows.length === 0 && hostIsSite) {
+    return <PublicPageFrame>{null}</PublicPageFrame>
+  }
+
   if (frontPageRows.length > 0) {
     return (
       <PublicPageFrame>
         <FrontPageRows
           rows={frontPageRows}
+          appRowData={appRowData}
           plans={plans}
-          billingEnabled={billingEnabled}
           trialUsed={trialUsed}
           interval={interval}
           onIntervalChange={setInterval}
@@ -173,18 +210,14 @@ function PricingLanding({ data }: { data: LandingData }) {
           </div>
         </header>
 
-        {billingEnabled ? (
-          <PricingTable
-            plans={plans}
-            interval={interval}
-            onIntervalChange={setInterval}
-            onSelect={handleSelect}
-            trialUsed={trialUsed}
-            actionLabel="Get started"
-          />
-        ) : (
-          <PaymentsOffCard />
-        )}
+        <PricingTable
+          plans={plans}
+          interval={interval}
+          onIntervalChange={setInterval}
+          onSelect={handleSelect}
+          trialUsed={trialUsed}
+          actionLabel="Get started"
+        />
       </div>
     </PublicPageFrame>
   )

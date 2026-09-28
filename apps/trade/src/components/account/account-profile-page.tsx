@@ -123,7 +123,9 @@ export function AccountProfilePage({
               }}
               aspect="square"
               emptyLabel="Add photo"
-              inlinePicker
+              // Its own window over the account window. Drawn inline, the
+              // picker stretched this 80px square across the card and pushed
+              // the Name field down to a sliver.
               className="max-w-20"
             />
             <div className="grid gap-2 sm:flex-1">

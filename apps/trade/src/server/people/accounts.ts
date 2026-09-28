@@ -855,7 +855,6 @@ export async function grantManualPlan(
 
 export type RevenueSummary = {
   totalUsers: number
-  verifiedUsers: number
   paidSubscribers: number
   trialing: number
   cancelling: number
@@ -883,10 +882,7 @@ export async function loadRevenueSummary(
   database: CustomShellDb = db
 ): Promise<RevenueSummary> {
   const [userTotals] = await database
-    .select({
-      total: count(),
-      verified: sql<number>`count(${customShellUsers.emailVerifiedAt})`,
-    })
+    .select({ total: count() })
     .from(customShellUsers)
 
   const rows = await database
@@ -945,7 +941,6 @@ export async function loadRevenueSummary(
 
   return {
     totalUsers: userTotals?.total ?? 0,
-    verifiedUsers: Number(userTotals?.verified ?? 0),
     paidSubscribers,
     trialing,
     cancelling,

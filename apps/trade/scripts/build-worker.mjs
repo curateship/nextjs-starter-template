@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url"
 import { copyFile } from "node:fs/promises"
 
 import { build } from "esbuild"
+import { workerFileUrls } from "./worker-file-urls.mjs"
 import { workerPageRegistry } from "./worker-page-registry.mjs"
 import { workerDropCss } from "./worker-drop-css.mjs"
 
@@ -50,7 +51,11 @@ const buildStamp = {
 }
 
 await build({
-  plugins: [workerPageRegistry(root), workerDropCss()],
+  plugins: [
+    workerPageRegistry(root),
+    workerFileUrls(root, outdir),
+    workerDropCss(),
+  ],
   entryPoints: {
     worker: path.join(root, "worker/src/worker.ts"),
     health: path.join(root, "worker/src/health.ts"),

@@ -12,6 +12,13 @@ export type PublicStructuredDataInput = {
     url?: string | null
     description?: string | null
   }
+  /**
+   * The visible breadcrumb trail, front page first, when one is shown. The
+   * same list the page draws, so what a search engine reads and what a visitor
+   * sees cannot say two different things. A step with no address is the page
+   * itself, which `BreadcrumbList` allows.
+   */
+  breadcrumbs?: readonly { name?: string | null; url?: string | null }[]
 }
 
 /** Describes the site and one public page without inventing missing details. */
@@ -31,10 +38,42 @@ export function publicStructuredData(
   addUrl(page, "url", input.page.url)
   addText(page, "description", input.page.description)
 
+  const graph: StructuredDataNode[] = [organization, page]
+
+  const breadcrumbs = breadcrumbList(input.breadcrumbs ?? [])
+  if (breadcrumbs) graph.push(breadcrumbs)
+
   return {
     "@context": "https://schema.org",
-    "@graph": [organization, page],
+    "@graph": graph,
   }
+}
+
+/**
+ * The trail as a `BreadcrumbList`, or null when there is nothing to describe.
+ *
+ * One step is not a trail, so it is left out rather than published as a list
+ * of one. A step whose name is blank drops the whole list: positions have to
+ * run 1, 2, 3 without a hole in them.
+ */
+function breadcrumbList(
+  steps: readonly { name?: string | null; url?: string | null }[]
+) {
+  if (steps.length < 2) return null
+
+  const items: StructuredDataNode[] = []
+  for (const step of steps) {
+    const item: StructuredDataNode = {
+      "@type": "ListItem",
+      position: items.length + 1,
+    }
+    addText(item, "name", step.name)
+    if (!item.name) return null
+    addUrl(item, "item", step.url)
+    items.push(item)
+  }
+
+  return { "@type": "BreadcrumbList", itemListElement: items }
 }
 
 /** Safe raw text for an application/ld+json script element. */

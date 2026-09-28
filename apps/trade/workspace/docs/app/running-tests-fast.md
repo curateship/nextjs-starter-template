@@ -34,6 +34,20 @@ that setup was most of the suite's running time.
   shell's settings without excluding its tests. The shell's `test-support.ts`
   and `vitest.config.ts` stay untouched, so the shell merge stays clean.
 
+## The build scripts' tests
+
+`scripts/worker-page-registry.test.mjs`, `scripts/worker-file-urls.test.mjs`
+and `scripts/worker-drop-css.test.mjs` are written for `node --test`, because
+the scripts they check run under plain Node with no vitest around them. Vitest
+reads them as empty files and fails them, so both Trade configs exclude
+`scripts/worker-*.test.mjs` and `npm run test` runs them itself with
+`node --test` after vitest finishes.
+
+The pattern names the worker scripts rather than every `scripts/*.test.mjs`,
+which is what the shell excludes. Trade has one more file there,
+`scripts/deploy-trade.test.mjs`, and that one is a vitest file: excluding it
+would stop it running anywhere.
+
 ## Who decides when to run a full suite
 
 Only Tyler chooses when to run `npm run test:app` or the full `npm run test`.

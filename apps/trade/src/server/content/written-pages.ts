@@ -1,5 +1,6 @@
 import { asc, eq, ne, and } from "drizzle-orm"
 
+import { normalizeCanonicalUrl } from "@/lib/pages/page-indexing"
 import { pageForPath } from "@/lib/pages/page-registry"
 import {
   cleanWrittenPageBody,
@@ -25,6 +26,13 @@ export type WrittenPage = {
   path: string
   title: string
   body: WrittenPageNode
+  /**
+   * Keeps the page out of search results: it carries `noindex` and is left
+   * out of the sitemap. The link still works for anyone who has it.
+   */
+  hiddenFromSearch: boolean
+  /** The address that counts when the same words answer on two addresses. */
+  canonicalUrl: string
   createdAt: Date
   updatedAt: Date
 }
@@ -86,6 +94,8 @@ function toWrittenPage(row: {
   path: string
   title: string
   body: unknown
+  hiddenFromSearch: boolean
+  canonicalUrl: string
   createdAt: Date
   updatedAt: Date
 }): WrittenPage {
@@ -97,6 +107,10 @@ function toWrittenPage(row: {
     // is allowed, or have been edited straight in the database, and this is
     // the last point before the words reach a public page.
     body: cleanWrittenPageBody(row.body),
+    hiddenFromSearch: row.hiddenFromSearch,
+    // Cleaned on the way out for the same reason the body is, and it is the
+    // last point before the address reaches a canonical tag.
+    canonicalUrl: normalizeCanonicalUrl(row.canonicalUrl),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }
@@ -114,7 +128,13 @@ export async function listWrittenPages(
   return rows.map(toWrittenPage)
 }
 
-/** The two columns the sitemap needs, without loading every page's body. */
+/**
+ * The two columns the sitemap needs, without loading every page's body.
+ *
+ * A page hidden from search never reaches the list. Leaving it in would hand a
+ * search engine the exact address the `noindex` tag on it is asking them to
+ * forget, which is the one thing that makes the switch look broken.
+ */
 export async function listWrittenPageSitemapEntries(
   workspaceId: string,
   database: CustomShellDb = db
@@ -125,7 +145,12 @@ export async function listWrittenPageSitemapEntries(
       updatedAt: customShellWrittenPages.updatedAt,
     })
     .from(customShellWrittenPages)
-    .where(eq(customShellWrittenPages.workspaceId, workspaceId))
+    .where(
+      and(
+        eq(customShellWrittenPages.workspaceId, workspaceId),
+        eq(customShellWrittenPages.hiddenFromSearch, false)
+      )
+    )
     .orderBy(asc(customShellWrittenPages.path))
 }
 
@@ -177,7 +202,13 @@ async function pathIsTaken(
 
 export async function createWrittenPage(
   workspaceId: string,
-  input: { path: string; title: string; body: unknown },
+  input: {
+    path: string
+    title: string
+    body: unknown
+    hiddenFromSearch?: boolean
+    canonicalUrl?: string
+  },
   database: CustomShellDb = db
 ): Promise<WrittenPage> {
   const path = normalizeWrittenPagePath(input.path)
@@ -200,6 +231,8 @@ export async function createWrittenPage(
       path,
       title,
       body: cleanWrittenPageBody(input.body),
+      hiddenFromSearch: input.hiddenFromSearch ?? false,
+      canonicalUrl: normalizeCanonicalUrl(input.canonicalUrl),
       createdAt: at,
       updatedAt: at,
     })
@@ -212,7 +245,13 @@ export async function createWrittenPage(
 export async function updateWrittenPage(
   workspaceId: string,
   id: string,
-  input: { path?: string; title?: string; body?: unknown },
+  input: {
+    path?: string
+    title?: string
+    body?: unknown
+    hiddenFromSearch?: boolean
+    canonicalUrl?: string
+  },
   database: CustomShellDb = db
 ): Promise<WrittenPage> {
   const values: Record<string, unknown> = { updatedAt: now() }
@@ -234,6 +273,16 @@ export async function updateWrittenPage(
   }
 
   if (input.body !== undefined) values.body = cleanWrittenPageBody(input.body)
+
+  if (input.hiddenFromSearch !== undefined) {
+    values.hiddenFromSearch = input.hiddenFromSearch
+  }
+
+  // An address that does not survive the normalizer is stored as empty, which
+  // is the page having no opinion, the same as never having filled it in.
+  if (input.canonicalUrl !== undefined) {
+    values.canonicalUrl = normalizeCanonicalUrl(input.canonicalUrl)
+  }
 
   const [row] = await database
     .update(customShellWrittenPages)

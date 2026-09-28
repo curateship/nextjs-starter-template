@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  APP_FRONT_PAGE_ROW_KIND,
   FRONT_PAGE_ROW_KINDS,
   FRONT_PAGE_ROW_LAYOUTS,
+  MAX_APP_FRONT_PAGE_ROW_SETTINGS_LENGTH,
   MAX_FRONT_PAGE_FAQ_ITEMS,
   MAX_FRONT_PAGE_LOGOS,
   MAX_FRONT_PAGE_ROWS,
@@ -39,6 +41,19 @@ describe("front page rows", () => {
         intro: "Start here.",
         kind: "text",
         layout: "narrow",
+        alignment: "inherit",
+        hidden: false,
+        showHeading: true,
+        showIntro: true,
+        showImage: true,
+        showAction: true,
+        showStars: true,
+        showNote: true,
+        showPictures: true,
+        showRoles: true,
+        showNumbers: true,
+        showCaptions: true,
+        device: "all",
       },
       {
         id: "pricing",
@@ -46,6 +61,19 @@ describe("front page rows", () => {
         intro: "Pick one.",
         kind: "plans",
         layout: "wide",
+        alignment: "inherit",
+        hidden: false,
+        showHeading: true,
+        showIntro: true,
+        showImage: true,
+        showAction: true,
+        showStars: true,
+        showNote: true,
+        showPictures: true,
+        showRoles: true,
+        showNumbers: true,
+        showCaptions: true,
+        device: "all",
       },
     ])
     expect(frontPageHasPlans(rows)).toBe(true)
@@ -70,6 +98,19 @@ describe("front page rows", () => {
         intro: "",
         kind: FRONT_PAGE_ROW_KINDS[0],
         layout: FRONT_PAGE_ROW_LAYOUTS[0],
+        alignment: "inherit",
+        hidden: false,
+        showHeading: true,
+        showIntro: true,
+        showImage: true,
+        showAction: true,
+        showStars: true,
+        showNote: true,
+        showPictures: true,
+        showRoles: true,
+        showNumbers: true,
+        showCaptions: true,
+        device: "all",
       },
       {
         id: "front-page-row-2-2",
@@ -77,6 +118,19 @@ describe("front page rows", () => {
         intro: "",
         kind: "text",
         layout: "wide",
+        alignment: "inherit",
+        hidden: false,
+        showHeading: true,
+        showIntro: true,
+        showImage: true,
+        showAction: true,
+        showStars: true,
+        showNote: true,
+        showPictures: true,
+        showRoles: true,
+        showNumbers: true,
+        showCaptions: true,
+        device: "all",
       },
     ])
   })
@@ -95,25 +149,35 @@ describe("front page rows", () => {
     expect(new Set(rows.map((row) => row.id)).size).toBe(2)
   })
 
-  it("keeps at most six usable rows", () => {
+  /**
+   * A front page held six rows until 27 Sep 2026, when Tyler took the cap off.
+   * A row with no heading is still dropped, and the stored list is still
+   * bounded so a hand-edited settings row cannot be any length at all.
+   */
+  it("keeps every usable row, and drops the ones with no heading", () => {
     const rows = normalizeFrontPageRows([
       { heading: "" },
-      ...Array.from({ length: MAX_FRONT_PAGE_ROWS + 2 }, (_, index) => ({
+      ...Array.from({ length: 10 }, (_, index) => ({
         id: `row-${index}`,
         heading: `Row ${index}`,
       })),
     ])
 
-    expect(rows).toHaveLength(MAX_FRONT_PAGE_ROWS)
-    expect(rows.map((row) => row.heading)).toEqual([
-      "Row 0",
-      "Row 1",
-      "Row 2",
-      "Row 3",
-      "Row 4",
-      "Row 5",
-    ])
+    expect(rows.map((row) => row.heading)).toEqual(
+      Array.from({ length: 10 }, (_, index) => `Row ${index}`)
+    )
     expect(frontPageHasPlans(rows)).toBe(false)
+  })
+
+  it("stops at the stored list's own bound", () => {
+    const rows = normalizeFrontPageRows(
+      Array.from({ length: MAX_FRONT_PAGE_ROWS + 5 }, (_, index) => ({
+        id: `row-${index}`,
+        heading: `Row ${index}`,
+      }))
+    )
+
+    expect(rows).toHaveLength(MAX_FRONT_PAGE_ROWS)
   })
 
   it("normalizes every fixed content kind and keeps its entry order", () => {
@@ -229,6 +293,19 @@ describe("front page rows", () => {
         intro: "",
         kind: "testimonials",
         layout: "wide",
+        alignment: "inherit",
+        hidden: false,
+        showHeading: true,
+        showIntro: true,
+        showImage: true,
+        showAction: true,
+        showStars: true,
+        showNote: true,
+        showPictures: true,
+        showRoles: true,
+        showNumbers: true,
+        showCaptions: true,
+        device: "all",
         items: [
           {
             id: "front-page-testimonial-1",
@@ -290,5 +367,57 @@ describe("front page rows", () => {
       MAX_FRONT_PAGE_LOGOS,
       MAX_FRONT_PAGE_SCREENSHOTS,
     ])
+  })
+
+  /**
+   * A row of a kind an app added. The shell keeps the app's key and its
+   * settings and reads neither, so an app can change what its own rows hold
+   * without the shell knowing.
+   */
+  it("keeps a row of a kind the app added, settings and all", () => {
+    const rows = normalizeFrontPageRows([
+      {
+        id: "listings",
+        heading: "New this week",
+        kind: APP_FRONT_PAGE_ROW_KIND,
+        appKind: "listings",
+        settings: { category: "cafes", count: 8, featuredOnly: true },
+      },
+    ])
+
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({
+      kind: APP_FRONT_PAGE_ROW_KIND,
+      appKind: "listings",
+      settings: { category: "cafes", count: 8, featuredOnly: true },
+    })
+  })
+
+  it("drops an app row whose key or settings are not what they should be", () => {
+    const rows = normalizeFrontPageRows([
+      {
+        id: "shouty",
+        heading: "Shouty",
+        kind: APP_FRONT_PAGE_ROW_KIND,
+        appKind: "Listings",
+        settings: {},
+      },
+      {
+        id: "listy",
+        heading: "A list, not an object",
+        kind: APP_FRONT_PAGE_ROW_KIND,
+        appKind: "listings",
+        settings: ["nope"],
+      },
+      {
+        id: "huge",
+        heading: "Too much",
+        kind: APP_FRONT_PAGE_ROW_KIND,
+        appKind: "listings",
+        settings: { blob: "x".repeat(MAX_APP_FRONT_PAGE_ROW_SETTINGS_LENGTH) },
+      },
+    ])
+
+    expect(rows).toEqual([])
   })
 })

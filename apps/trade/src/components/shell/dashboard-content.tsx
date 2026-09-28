@@ -1,7 +1,10 @@
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
-import { resolveBackground, type ShellStyling } from "@/lib/custom-shell"
+import {
+  resolveBackground,
+  type ShellStyling,
+} from "@/lib/layout/styling-values"
 import { DASHBOARD_CARD_HEADER_HEIGHT_PX } from "@/lib/layout/dashboard-card-header"
 import { pageGutter } from "@/lib/layout/shell-gutter"
 
@@ -23,7 +26,7 @@ export function DashboardContent({
         data-scroll-restoration-id="dashboard-content"
         tabIndex={-1}
         className={cn(
-          "flex min-w-0 w-full flex-1 flex-col overflow-auto bg-muted/60 outline-none",
+          "shell-canvas flex min-w-0 w-full flex-1 flex-col overflow-auto outline-none",
           className
         )}
         style={{
@@ -39,7 +42,6 @@ export function DashboardContent({
     )
   }
 
-  const background = resolveBackground(styling.content)
   const borderColor = resolveBackground(styling.cardBorderColor, {
     base: "--muted-foreground",
   })
@@ -53,9 +55,11 @@ export function DashboardContent({
       data-content-styling=""
       data-flat={isFlat ? "true" : undefined}
       className={cn(
-        "flex min-w-0 w-full flex-1 flex-col overflow-auto outline-none",
-        // Only fall back to the muted canvas when no explicit color is resolved.
-        background ? undefined : "bg-muted/60",
+        // The page colour comes from the theme's --shell-canvas, which is a
+        // shade under --card in both modes so a card always reads as raised.
+        // `styling.content` is deliberately not read here; see the note on the
+        // field in lib/layout/styling-values.ts.
+        "shell-canvas flex min-w-0 w-full flex-1 flex-col overflow-auto outline-none",
         className
       )}
       style={{
@@ -67,7 +71,6 @@ export function DashboardContent({
         "--dashboard-card-header-height": `${DASHBOARD_CARD_HEADER_HEIGHT_PX}px`,
         padding: "var(--shell-gutter)",
         gap: "var(--shell-gutter)",
-        backgroundColor: background,
         // Consumed by the scoped card rules in theme.css.
         "--shell-card-border-width": String(styling.cardBorderWidth),
         ...(borderColor ? { "--shell-card-border-color": borderColor } : {}),

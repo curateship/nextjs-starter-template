@@ -100,20 +100,33 @@ export function WorkspaceSwitcher({
   // workspaces table prints the same thing.
   const addressOf = (workspace: WorkspaceItem) =>
     workspaceListedAddress(workspace, baseDomain).text
+  /**
+   * Where this row's Open button goes.
+   *
+   * **A workspace's own domain is used only from a deployment.** On a
+   * developer's machine the site being edited is the one on this machine, and
+   * `joes.com` points at the live server. Opening it from localhost showed the
+   * live site to somebody who had opened this menu to look at their own edits.
+   * Local goes to `joes.localhost:3002` instead, which browsers resolve here
+   * with no hosts file. The row still prints the real domain, because that is
+   * the site's address whatever machine somebody is reading it on.
+   */
   const publicUrlOf = (workspace: WorkspaceItem) => {
-    const address = addressOf(workspace)
-    if (!baseDomain && !workspace.customDomain) return "/"
-
     const currentOrigin = browserOrigin ? new URL(browserOrigin) : null
-    const protocol = workspace.customDomain
-      ? "https:"
-      : (currentOrigin?.protocol ??
-        (baseDomain === "localhost" ? "http:" : "https:"))
-    const port =
-      !workspace.customDomain && currentOrigin?.port
-        ? `:${currentOrigin.port}`
-        : ""
-    return `${protocol}//${address}${port}`
+    const local = currentOrigin?.hostname.endsWith("localhost") ?? false
+
+    if (!local && workspace.customDomain) {
+      return `https://${workspace.customDomain}`
+    }
+    // No base domain means one deployment serves one site, so there is no
+    // second address to send anybody to.
+    if (!baseDomain) return "/"
+
+    const protocol =
+      currentOrigin?.protocol ??
+      (baseDomain === "localhost" ? "http:" : "https:")
+    const port = currentOrigin?.port ? `:${currentOrigin.port}` : ""
+    return `${protocol}//${workspace.subdomain}.${baseDomain}${port}`
   }
   const [createOpen, setCreateOpen] = React.useState(false)
   // The switch itself lives in `useSwitchWorkspace`, because the workspaces
@@ -231,7 +244,13 @@ export function WorkspaceSwitcher({
                       const busy = busyWorkspaceId === workspace.id
 
                       return (
-                        <div key={workspace.id} className="flex items-center">
+                        // The shading is on the row rather than on the name,
+                        // so the pointer anywhere along it lights the whole
+                        // row up, the Open button included.
+                        <div
+                          key={workspace.id}
+                          className="flex items-center rounded-md hover:bg-accent hover:text-accent-foreground"
+                        >
                           <DropdownMenuItem
                             disabled={Boolean(busyWorkspaceId)}
                             onSelect={() => void handleSwitch(workspace.id)}

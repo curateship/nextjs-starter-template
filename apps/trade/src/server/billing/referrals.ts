@@ -19,6 +19,8 @@ import {
   customShellReferrals,
   customShellSubscriptions,
   customShellUsers,
+  type CustomShellPlan,
+  type CustomShellSubscription,
   type CustomShellUser,
 } from "@/server/schema"
 
@@ -354,6 +356,38 @@ const stripeInvoicePaymentApi: ReferralInvoicePaymentApi = {
   },
 }
 
+/**
+ * The credit a reward adds right now: one month of the referrer's live Stripe
+ * plan, in that plan's currency. Null when there is no paid Stripe bill to take
+ * a month off. The admin list shows this amount before the grant, and the grant
+ * charges it, so the two cannot drift apart.
+ */
+function freeMonthFor(
+  subscription: CustomShellSubscription | null,
+  plan: CustomShellPlan | null
+) {
+  if (
+    !subscription ||
+    !plan ||
+    subscription.source !== "stripe" ||
+    !subscription.stripeCustomerId ||
+    !subscriptionIsLive(subscription)
+  ) {
+    return null
+  }
+  const amountCents = freeMonthCreditCents({
+    interval: subscription.interval,
+    priceMonthlyCents: plan.priceMonthlyCents,
+    priceYearlyCents: plan.priceYearlyCents,
+  })
+  if (!amountCents) return null
+  return {
+    amountCents,
+    currency: plan.currency.toLowerCase(),
+    customerId: subscription.stripeCustomerId,
+  }
+}
+
 /** Applies one pending free-month reward to the referrer's next Stripe bill. */
 export async function grantReferralReward(
   referralId: string,
@@ -403,25 +437,10 @@ export async function grantReferralReward(
     if (row.referral.rewardStatus !== "pending") {
       throw new Error("REWARD_NOT_PENDING")
     }
-    if (
-      !row.subscription ||
-      !row.plan ||
-      row.subscription.source !== "stripe" ||
-      !row.subscription.stripeCustomerId ||
-      !subscriptionIsLive(row.subscription)
-    ) {
-      throw new Error("REFERRER_NOT_BILLABLE")
-    }
+    const reward = freeMonthFor(row.subscription, row.plan)
+    if (!reward) throw new Error("REFERRER_NOT_BILLABLE")
 
-    const amountCents = freeMonthCreditCents({
-      interval: row.subscription.interval,
-      priceMonthlyCents: row.plan.priceMonthlyCents,
-      priceYearlyCents: row.plan.priceYearlyCents,
-    })
-    if (!amountCents) throw new Error("REFERRER_NOT_BILLABLE")
-
-    const customerId = row.subscription.stripeCustomerId
-    const currency = row.plan.currency.toLowerCase()
+    const { amountCents, currency, customerId } = reward
     const balanceTransactionId = await api.adjust({
       customerId,
       amountCents: -amountCents,
@@ -630,6 +649,11 @@ export type AdminReferralItem = {
   revokedAt: string | null
   rewardAmountCents: number | null
   rewardCurrency: string | null
+  /**
+   * What "Add free month" would credit today, for a waiting reward. Null when
+   * the reward is not waiting or the referrer has no paid Stripe plan.
+   */
+  freeMonth: { amountCents: number; currency: string } | null
 }
 
 export type AdminReferralSummary = {
@@ -656,8 +680,20 @@ export async function loadAdminReferrals(
       })
       .from(customShellReferrals),
     database
-      .select()
+      .select({
+        referral: customShellReferrals,
+        subscription: customShellSubscriptions,
+        plan: customShellPlans,
+      })
       .from(customShellReferrals)
+      .leftJoin(
+        customShellSubscriptions,
+        eq(customShellSubscriptions.userId, customShellReferrals.referrerUserId)
+      )
+      .leftJoin(
+        customShellPlans,
+        eq(customShellPlans.id, customShellSubscriptions.planId)
+      )
       .orderBy(desc(customShellReferrals.createdAt))
       .limit(ADMIN_REFERRALS_SHOWN),
   ])
@@ -671,23 +707,32 @@ export async function loadAdminReferrals(
 
   return {
     ...count,
-    items: rows.map((row) => ({
-      id: row.id,
-      referrerUserId: row.referrerUserId,
-      referredUserId: row.referredUserId,
-      referrerName: row.referrerName,
-      referrerEmail: row.referrerEmail,
-      referredName: row.referredName,
-      referredEmail: row.referredEmail,
-      status: referralStatus(row.status),
-      rewardStatus: referralRewardStatus(row.rewardStatus),
-      createdAt: row.createdAt.toISOString(),
-      joinedAt: row.joinedAt?.toISOString() ?? null,
-      convertedAt: row.convertedAt?.toISOString() ?? null,
-      grantedAt: row.grantedAt?.toISOString() ?? null,
-      revokedAt: row.revokedAt?.toISOString() ?? null,
-      rewardAmountCents: row.rewardAmountCents,
-      rewardCurrency: row.rewardCurrency,
-    })),
+    items: rows.map(({ referral, subscription, plan }) => {
+      const rewardStatus = referralRewardStatus(referral.rewardStatus)
+      const freeMonth =
+        rewardStatus === "pending" ? freeMonthFor(subscription, plan) : null
+      return {
+        id: referral.id,
+        referrerUserId: referral.referrerUserId,
+        referredUserId: referral.referredUserId,
+        referrerName: referral.referrerName,
+        referrerEmail: referral.referrerEmail,
+        referredName: referral.referredName,
+        referredEmail: referral.referredEmail,
+        status: referralStatus(referral.status),
+        rewardStatus,
+        createdAt: referral.createdAt.toISOString(),
+        joinedAt: referral.joinedAt?.toISOString() ?? null,
+        convertedAt: referral.convertedAt?.toISOString() ?? null,
+        grantedAt: referral.grantedAt?.toISOString() ?? null,
+        revokedAt: referral.revokedAt?.toISOString() ?? null,
+        rewardAmountCents: referral.rewardAmountCents,
+        rewardCurrency: referral.rewardCurrency,
+        // The Stripe customer stays on the server; the admin sees the amount.
+        freeMonth: freeMonth
+          ? { amountCents: freeMonth.amountCents, currency: freeMonth.currency }
+          : null,
+      }
+    }),
   }
 }

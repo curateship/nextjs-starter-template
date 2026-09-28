@@ -13,6 +13,7 @@ import {
 } from "lucide-react"
 
 import { FrontPageRowDialog } from "@/components/settings/front-page-row-dialog"
+import { FrontPageRowPicker } from "@/components/settings/front-page-row-picker"
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import {
   DRAG_HANDLE_CLASS,
@@ -20,14 +21,21 @@ import {
   useNavSensors,
   useSortableRow,
 } from "@/components/settings/nav-editor-shared"
+import { SettingsSliderRow } from "@/components/settings/settings-slider-row"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import { DisabledReason } from "@/components/ui/disabled-reason"
+import { PUBLIC_DEVICE_LABELS } from "@/lib/pages/public-device"
 import {
+  DEFAULT_PUBLIC_FRONT_PAGE_ROW_GAP,
+  MAX_PUBLIC_FRONT_PAGE_ROW_GAP,
+  PUBLIC_FRONT_PAGE_ROW_GAP_PHONE_SHARE,
+} from "@/lib/public-theme"
+import { appFrontPageRowKind } from "@/lib/app-options"
+import {
+  APP_FRONT_PAGE_ROW_KIND,
+  FRONT_PAGE_ROW_ALIGNMENT_LABELS,
   FRONT_PAGE_ROW_KIND_LABELS,
   FRONT_PAGE_ROW_LAYOUT_LABELS,
-  FRONT_PAGE_ROWS_FULL_MESSAGE,
-  MAX_FRONT_PAGE_ROWS,
   type FrontPageRow,
   type FrontPageRowDraft,
 } from "@/lib/pages/front-page"
@@ -35,9 +43,14 @@ import {
 export function FrontPageRowsSettings({
   rows,
   onRowsChange,
+  rowGap,
+  onRowGapChange,
 }: {
   rows: FrontPageRow[]
   onRowsChange: (rows: FrontPageRow[]) => void
+  /** The space between two blocks on the page, as a desktop draws it. */
+  rowGap: number
+  onRowGapChange: (rowGap: number) => void
 }) {
   const sensors = useNavSensors()
   const [editing, setEditing] = React.useState<FrontPageRow | null | undefined>(
@@ -45,8 +58,12 @@ export function FrontPageRowsSettings({
   )
   const [pendingDelete, setPendingDelete] =
     React.useState<FrontPageRow | null>(null)
+  // The kind a new row was picked as, held while its window is open. A row's
+  // kind is chosen once, in the picker, so this is the only place a new row's
+  // kind ever comes from.
+  const [newKind, setNewKind] = React.useState<string | null>(null)
+  const [picking, setPicking] = React.useState(false)
   const ids = rows.map((row) => row.id)
-  const full = rows.length >= MAX_FRONT_PAGE_ROWS
 
   const handleDragEnd = (event: DragEndEvent) => {
     if (!event.over || event.active.id === event.over.id) return
@@ -70,6 +87,12 @@ export function FrontPageRowsSettings({
       ])
     }
     setEditing(undefined)
+    setNewKind(null)
+  }
+
+  const closeRowWindow = () => {
+    setEditing(undefined)
+    setNewKind(null)
   }
 
   return (
@@ -111,24 +134,49 @@ export function FrontPageRowsSettings({
         )}
 
         <div>
-          <DisabledReason disabled={full} reason={FRONT_PAGE_ROWS_FULL_MESSAGE}>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={full}
-              onClick={() => setEditing(null)}
-            >
-              <PlusIcon className="size-4" />
-              Add row
-            </Button>
-          </DisabledReason>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setPicking(true)}
+          >
+            <PlusIcon className="size-4" />
+            Add row
+          </Button>
         </div>
+
+        <SettingsSliderRow
+          label="Space between rows"
+          value={rowGap}
+          min={0}
+          max={MAX_PUBLIC_FRONT_PAGE_ROW_GAP}
+          step={4}
+          valueLabel={
+            rowGap === DEFAULT_PUBLIC_FRONT_PAGE_ROW_GAP
+              ? `${rowGap}px · Default`
+              : `${rowGap}px`
+          }
+          onChange={onRowGapChange}
+          help={`The gap between two blocks on the public front page. A phone draws ${Math.round(
+            PUBLIC_FRONT_PAGE_ROW_GAP_PHONE_SHARE * 100
+          )}% of it, because a gap that separates two blocks on a desktop is most of a phone screen. Flat mode collapses both.`}
+        />
       </CollapsibleSettingsCard>
+
+      <FrontPageRowPicker
+        open={picking}
+        onOpenChange={setPicking}
+        onPick={(choice) => {
+          setPicking(false)
+          setNewKind(choice)
+          setEditing(null)
+        }}
+      />
 
       <FrontPageRowDialog
         open={editing !== undefined}
         row={editing ?? null}
-        onClose={() => setEditing(undefined)}
+        newKind={newKind}
+        onClose={closeRowWindow}
         onSaved={saveRow}
       />
 
@@ -172,7 +220,10 @@ function FrontPageSettingsRow({
     <li
       ref={setNodeRef}
       style={style}
-      className="flex min-w-0 items-center gap-2 rounded-md border bg-background p-2"
+      // The hover tint belongs to the whole row, not to the middle button, so
+      // pointing at the handle, the words or the icons at the end all light the
+      // same strip.
+      className="flex min-w-0 items-center gap-2 rounded-md border bg-background p-2 hover:bg-muted"
     >
       <button
         type="button"
@@ -185,13 +236,29 @@ function FrontPageSettingsRow({
       </button>
       <button
         type="button"
-        className="grid min-w-0 flex-1 gap-1 rounded-md px-2 py-1 text-left hover:bg-muted"
+        className="grid min-w-0 flex-1 gap-1 rounded-md px-2 py-1 text-left"
         onClick={onEdit}
       >
         <span className="truncate text-sm font-medium">{row.heading}</span>
         <span className="truncate text-xs text-muted-foreground">
-          {FRONT_PAGE_ROW_KIND_LABELS[row.kind]} ·{" "}
-          {FRONT_PAGE_ROW_LAYOUT_LABELS[row.layout]}
+          {[
+            // An app's own kinds are named by the app, and a kind the app has
+            // since stopped offering still has to read as something rather
+            // than as nothing at all.
+            row.kind === APP_FRONT_PAGE_ROW_KIND
+              ? (appFrontPageRowKind(row.appKind)?.label ?? row.appKind)
+              : FRONT_PAGE_ROW_KIND_LABELS[row.kind],
+            FRONT_PAGE_ROW_LAYOUT_LABELS[row.layout],
+            row.alignment === "inherit"
+              ? null
+              : FRONT_PAGE_ROW_ALIGNMENT_LABELS[row.alignment],
+            // Only worth a word when it is not the everyday answer, so the
+            // line stays short on the rows that behave normally.
+            row.device === "all" ? null : PUBLIC_DEVICE_LABELS[row.device],
+            row.hidden ? "Hidden" : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
         </span>
       </button>
       <Button

@@ -279,7 +279,7 @@ describe("Stripe member events", () => {
               {
                 price: { id: "price_member_event" },
                 current_period_end: Math.floor(
-                  new Date("2026-09-01").getTime() / 1_000
+                  new Date("2099-01-01").getTime() / 1_000
                 ),
               },
             ],
@@ -355,7 +355,7 @@ describe("Stripe member events", () => {
             data: [
               {
                 current_period_end: Math.floor(
-                  new Date("2026-09-01").getTime() / 1_000
+                  new Date("2099-01-01").getTime() / 1_000
                 ),
               },
             ],

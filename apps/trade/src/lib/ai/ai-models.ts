@@ -1,9 +1,10 @@
 /**
  * The one list of AI providers and the models an admin can pick from —
- * shared by the key store (server/ai/keys.ts), the Settings → AI card, and
- * the automation canvas's AI step. A fixed dropdown rather than free text so
- * the cost of every flow stays knowable; add a model here when a new one
- * should be offered. The usage-recording task extends this file with prices.
+ * shared by the key store (server/ai/keys.ts), the AI provider keys card on
+ * General settings, and the automation canvas's AI step. A fixed dropdown
+ * rather than free text so the cost of every flow stays knowable; add a model
+ * here when a new one should be offered. The usage-recording task extends
+ * this file with prices.
  */
 
 export const AI_PROVIDERS = [

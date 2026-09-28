@@ -67,6 +67,44 @@ export function useSortableRow(id: string, translateOnly = false) {
   return { attributes, listeners, setNodeRef, style, isDragging }
 }
 
+/**
+ * A chip you can pick up anywhere on it, not only by its grip.
+ *
+ * The grip used to be the only drag target, and a chip is a box with a name in
+ * the middle of it: grabbing the name, which is the biggest thing on it and the
+ * obvious handle, did nothing at all and the chip stayed where it was. Tyler
+ * reported that on 27 Sep 2026. The whole chip listens now, and the grip stays
+ * as the picture that says the chip can be moved.
+ *
+ * The chip takes `role="group"` rather than the `button` dnd-kit gives a
+ * draggable, because a chip holds its own buttons and a button inside a button
+ * is not a thing. It keeps the tab stop and the keyboard drag, so space still
+ * picks a chip up and the arrows still move it.
+ *
+ * A click inside the chip still works: the pointer has to travel 8px before it
+ * counts as a drag, which is what `useNavSensors` already says.
+ */
+export function useSortableChip(id: string, name: string) {
+  const { attributes, listeners, setNodeRef, style } = useSortableRow(id, true)
+
+  return {
+    ref: setNodeRef,
+    style,
+    ...attributes,
+    ...listeners,
+    role: "group",
+    "aria-label": `Reorder ${name}`,
+    // The hand says what the chip does. It is on the whole chip because the
+    // whole chip drags, including over the name, which also opens the chip's
+    // window on a plain click.
+    className: "cursor-grab active:cursor-grabbing",
+  } as const
+}
+
+/** The grip inside such a chip: a picture, because the whole chip drags. */
+export const DRAG_GRIP_CLASS =
+  "flex h-8 w-8 items-center justify-center text-muted-foreground"
+
 export function createShellId(prefix: string) {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return `${prefix}-${crypto.randomUUID()}`

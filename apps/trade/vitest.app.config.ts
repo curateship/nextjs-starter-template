@@ -59,6 +59,12 @@ export default defineConfig({
   },
   test: {
     ...base.test,
-    exclude: [...configDefaults.exclude, ...shellOriginTests()],
+    exclude: [
+      ...configDefaults.exclude,
+      // The shell's build-script tests run under `node --test`, not vitest.
+      // Trade's own `deploy-trade.test.mjs` is a vitest file and stays in.
+      "scripts/worker-*.test.mjs",
+      ...shellOriginTests(),
+    ],
   },
 })

@@ -9,6 +9,30 @@ export function formatMoney(cents: number, currency = "usd") {
   }).format(amount)
 }
 
+/** Stripe uses whole units for these currencies. ISK and UGX still use
+ * hundredths in the API. https://docs.stripe.com/currencies#zero-decimal
+ */
+export function formatStripeMoney(amount: number, currency: string) {
+  const wholeUnits = [
+    "bif",
+    "clp",
+    "djf",
+    "gnf",
+    "jpy",
+    "kmf",
+    "krw",
+    "mga",
+    "pyg",
+    "rwf",
+    "vnd",
+    "vuv",
+    "xaf",
+    "xof",
+    "xpf",
+  ].includes(currency.toLowerCase())
+  return formatMoney(wholeUnits ? amount * 100 : amount, currency)
+}
+
 /**
  * A plan price cell. Zero means two different things: a plan with no price at
  * all is genuinely free (the default plan is required to be — see

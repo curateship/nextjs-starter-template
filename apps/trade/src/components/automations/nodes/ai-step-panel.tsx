@@ -72,7 +72,7 @@ export default function AiStepFields({
         <FieldLabel
           htmlFor={`ai-step-${node.id}-provider`}
           className="text-xs"
-          hint="Whose AI answers this step. It runs with the key saved for that provider in Settings → AI."
+          hint="Whose AI answers this step. It runs with the key saved for that provider on Settings → General settings, under AI provider keys."
         >
           Provider
         </FieldLabel>
@@ -103,11 +103,10 @@ export default function AiStepFields({
           <InspectorNote className="mt-1">
             No {AI_PROVIDER_NAMES[provider]} key is saved yet. Add one in{" "}
             <Link
-              to="/admin/settings/$tab"
-              params={{ tab: "ai" }}
+              to="/admin/settings"
               className="underline underline-offset-2 hover:text-foreground"
             >
-              Settings → AI
+              Settings → General settings → AI provider keys
             </Link>{" "}
             before this flow runs.
           </InspectorNote>

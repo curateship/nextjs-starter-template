@@ -24,7 +24,6 @@ export function CardTop({
   icon: Icon,
   title,
   meta,
-  metaClassName,
   iconClassName,
   action,
   sample = false,
@@ -32,8 +31,6 @@ export function CardTop({
   icon: React.ComponentType<{ className?: string }>
   title: string
   meta?: string
-  /** For hiding the count on widths where it would squeeze the title. */
-  metaClassName?: string
   iconClassName?: string
   action?: React.ReactNode
   /** This card's figures are stand-ins, not yet read from anything real. */
@@ -49,11 +46,7 @@ export function CardTop({
         </span>
       }
       meta={
-        meta ? (
-          <span className={cn("shrink-0 font-normal", metaClassName)}>
-            {meta}
-          </span>
-        ) : null
+        meta ? <span className="shrink-0 font-normal">{meta}</span> : null
       }
       action={action}
     />
@@ -78,17 +71,16 @@ function SampleBadge({ className }: { className?: string }) {
 }
 
 /**
- * A card header whose right-hand side is a tab strip. `CardTop` centres what
- * it is handed, and an underline tab needs the full height of the row for its
- * line to land on the card's hairline — so this is the same header laid out to
- * stretch instead. Same icon, heading, count and gutters, so a row of cards
- * still lines up whether or not its header carries tabs.
+ * A card header whose right-hand side is a tab strip, drawn as the same pill
+ * tabs every other tab group uses, in the card-header tab font. The count
+ * beside the heading truncates rather than pushing the tabs off the card.
+ * Same icon, heading and gutters as `CardTop`, so a row of cards still lines
+ * up whether or not its header carries tabs.
  */
 export function CardHeaderRow({
   icon: Icon,
   title,
   meta,
-  metaClassName,
   iconClassName,
   children,
   className,
@@ -96,15 +88,17 @@ export function CardHeaderRow({
   icon: React.ComponentType<{ className?: string }>
   title: string
   meta?: string
-  /** For hiding the count on widths where it would squeeze the tabs. */
-  metaClassName?: string
   iconClassName?: string
   /** The right-hand side — the tab strip. */
   children: React.ReactNode
   className?: string
 }) {
   return (
-    <DashboardCardHeader className={cn("items-stretch gap-2.5", className)}>
+    // On a phone the tabs take a row of their own under the title. Beside it,
+    // four pills leave the title two letters wide.
+    <DashboardCardHeader
+      className={cn("flex-wrap gap-2.5 sm:flex-nowrap", className)}
+    >
       <span
         className={cn(
           "flex shrink-0 items-center text-muted-foreground",
@@ -123,16 +117,13 @@ export function CardHeaderRow({
         {title}
       </h2>
       {meta ? (
-        <div
-          className={cn(
-            "flex min-w-0 items-center truncate text-xs text-muted-foreground",
-            metaClassName
-          )}
-        >
+        <div className="flex min-w-0 items-center truncate text-xs text-muted-foreground">
           {meta}
         </div>
       ) : null}
-      <div className="ml-auto flex shrink-0 items-stretch">{children}</div>
+      <div className="flex w-full shrink-0 items-center sm:ml-auto sm:w-auto">
+        {children}
+      </div>
     </DashboardCardHeader>
   )
 }

@@ -131,7 +131,7 @@ export function RecipeEditor({
     const serialized = serialize(snapshot.name, snapshot.graph)
     if (serialized === lastSavedRef.current) return true
     if (!snapshot.name.trim()) {
-      setSaveStatus("blocked")
+      setSaveStatus({ blocked: "name this recipe" })
       return false
     }
 
