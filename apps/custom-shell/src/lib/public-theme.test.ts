@@ -336,6 +336,7 @@ describe("public theme", () => {
 
     expect(publicShellStyling(theme)).toEqual({
       gutter: 20,
+      darkShade: "black",
       cardBorderWidth: theme.cardBorderWidth,
       cardBorderColor: theme.cardBorderColor,
       dividerColor: theme.dividerColor,

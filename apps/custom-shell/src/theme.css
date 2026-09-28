@@ -154,6 +154,16 @@
     --shell-sidebar-ring: oklch(0.708 0 0);
     --background: oklch(1 0 0);
     --foreground: oklch(0.145 0 0);
+    /* The page behind the cards. Its own colour rather than --muted, which is
+       a fill for badges and quiet buttons and only lands below --card by luck
+       in light mode. Three tiers, darkest first: the page, then the sidebar
+       rail and sticky bar, then the cards. Each pair is about five steps out
+       of 255 apart, in both palettes. */
+    --shell-canvas: oklch(0.970 0 0);
+    /* The rail and the sticky bar, halfway between the page and a card, so
+       they read as off white here and off black in the dark block without
+       either being set by hand twice. */
+    --shell-rail: color-mix(in oklab, var(--card) 50%, var(--shell-canvas));
     --card: oklch(1 0 0);
     --card-foreground: oklch(0.145 0 0);
     --popover: oklch(1 0 0);
@@ -180,7 +190,7 @@
     --chart-4: oklch(0.371 0 0);
     --chart-5: oklch(0.269 0 0);
     --radius: 0.625rem;
-    --sidebar: oklch(0.985 0 0);
+    --sidebar: var(--shell-rail);
     --sidebar-foreground: oklch(0.145 0 0);
     --sidebar-primary: var(--shell-sidebar-primary);
     --sidebar-primary-foreground: var(--shell-sidebar-primary-foreground);
@@ -190,7 +200,22 @@
     --sidebar-ring: var(--shell-sidebar-ring);
 }
 
+/*
+ * How dark the dark mode is. Every grey surface below is its own lightness
+ * plus `--shell-dark-lift`, so one number lifts the whole dark palette
+ * together. Settings -> Styling -> Dark mode writes that number onto <html>
+ * as an inline style, which beats this rule because both sit on the same
+ * element. The lift is 0 here, so a workspace that has never chosen a shade
+ * keeps the near-black canvas it has always had.
+ *
+ * Only the greys move. The text, the accent, the destructive red, the chart
+ * colours and both border alphas are the same at every shade, so nothing
+ * loses contrast as the canvas lifts. `--muted-foreground` is the one
+ * exception: it rises at about a third of the lift, because the same grey on
+ * a lighter canvas would read as washed out.
+ */
 .dark {
+    --shell-dark-lift: 0;
     --shell-primary: var(--shell-public-primary-dark, oklch(0.922 0 0));
     --shell-primary-foreground: var(
       --shell-public-primary-foreground-dark,
@@ -201,22 +226,27 @@
     --shell-ring: var(--shell-public-primary-dark, oklch(0.556 0 0));
     --shell-sidebar-primary: oklch(0.488 0.243 264.376);
     --shell-sidebar-primary-foreground: oklch(0.985 0 0);
-    --shell-sidebar-accent: oklch(0.269 0 0);
+    --shell-sidebar-accent: oklch(calc(0.269 + var(--shell-dark-lift, 0)) 0 0);
     --shell-sidebar-accent-foreground: oklch(0.985 0 0);
     --shell-sidebar-ring: oklch(0.556 0 0);
-    --background: oklch(0.145 0 0);
+    --background: oklch(calc(0.145 + var(--shell-dark-lift, 0)) 0 0);
     --foreground: oklch(0.985 0 0);
-    --card: oklch(0.205 0 0);
+    /* A shade under --card, so the cards read as raised here exactly as they
+       do in light mode. It carries the shade lift like every other grey, and
+       --shell-rail is derived from it, so all three tiers lift together. */
+    --shell-canvas: oklch(calc(0.162 + var(--shell-dark-lift, 0)) 0 0);
+    --shell-rail: color-mix(in oklab, var(--card) 50%, var(--shell-canvas));
+    --card: oklch(calc(0.205 + var(--shell-dark-lift, 0)) 0 0);
     --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.205 0 0);
+    --popover: oklch(calc(0.205 + var(--shell-dark-lift, 0)) 0 0);
     --popover-foreground: oklch(0.985 0 0);
     --primary: var(--shell-primary);
     --primary-foreground: var(--shell-primary-foreground);
-    --secondary: oklch(0.269 0 0);
+    --secondary: oklch(calc(0.269 + var(--shell-dark-lift, 0)) 0 0);
     --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
+    --muted: oklch(calc(0.269 + var(--shell-dark-lift, 0)) 0 0);
+    --muted-foreground: oklch(calc(0.708 + var(--shell-dark-lift, 0) * 0.35) 0 0);
+    --accent: oklch(calc(0.269 + var(--shell-dark-lift, 0)) 0 0);
     --accent-foreground: oklch(0.985 0 0);
     --destructive: oklch(0.704 0.191 22.216);
     --border: oklch(1 0 0 / 10%);
@@ -228,7 +258,7 @@
     --chart-3: oklch(0.439 0 0);
     --chart-4: oklch(0.371 0 0);
     --chart-5: oklch(0.269 0 0);
-    --sidebar: oklch(0.205 0 0);
+    --sidebar: var(--shell-rail);
     --sidebar-foreground: oklch(0.985 0 0);
     --sidebar-primary: var(--shell-sidebar-primary);
     --sidebar-primary-foreground: var(--shell-sidebar-primary-foreground);
@@ -719,4 +749,16 @@ body:has(
       --shell-modal-card-border-color,
       color-mix(in oklab, var(--foreground) 10%, transparent)
     );
+}
+
+@layer base {
+  /*
+   * The app canvas: the flat colour behind a page's cards, and the ground the
+   * whole shell sits on. A class rather than a Tailwind arbitrary value so the
+   * three elements that need it share one rule and the colour cannot be missed
+   * by Tailwind's class scanner.
+   */
+  .shell-canvas {
+    background-color: var(--shell-canvas);
+  }
 }

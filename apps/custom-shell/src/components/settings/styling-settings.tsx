@@ -15,8 +15,18 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { type ShellConfig } from "@/lib/custom-shell"
 import {
+  DARK_SHADES,
+  darkShade,
+  isDarkShadeId,
   MAX_CARD_BORDER_WIDTH,
   MAX_CONTENT_GUTTER,
   MAX_MODAL_PADDING,
@@ -26,7 +36,6 @@ import {
   type ShellModalStyling,
   type ShellStyling,
 } from "@/lib/layout/styling-values"
-import { cn } from "@/lib/utils"
 
 type StylingSettingsProps = {
   config: ShellConfig
@@ -39,13 +48,10 @@ export function StylingSettings({
 }: StylingSettingsProps) {
   const styling = config.styling
   const isFlat = styling.gutter === 0
+  const shade = darkShade(styling.darkShade)
 
   const update = (patch: Partial<ShellStyling>) =>
     onConfigChange({ ...config, styling: { ...styling, ...patch } })
-  const updateContent = (patch: Partial<ShellBackground>) =>
-    update({ content: { ...styling.content, ...patch } })
-  const updateChrome = (patch: Partial<ShellBackground>) =>
-    update({ chrome: { ...styling.chrome, ...patch } })
   const updateBorderColor = (patch: Partial<ShellBackground>) =>
     update({ cardBorderColor: { ...styling.cardBorderColor, ...patch } })
   const updateDividerColor = (patch: Partial<ShellBackground>) =>
@@ -63,7 +69,6 @@ export function StylingSettings({
   const updateModalCardBorderColor = (patch: Partial<ShellBackground>) =>
     updateModal({ cardBorderColor: { ...modal.cardBorderColor, ...patch } })
 
-  const contentBackground = resolveBackground(styling.content)
   const borderColor = resolveBackground(styling.cardBorderColor, {
     base: "--muted-foreground",
   })
@@ -122,15 +127,11 @@ export function StylingSettings({
           <div
             data-content-styling=""
             data-flat={isFlat ? "true" : undefined}
-            className={cn(
-              "flex max-w-lg flex-col overflow-hidden rounded-lg border border-border",
-              contentBackground ? undefined : "bg-muted/60"
-            )}
+            className="shell-canvas flex max-w-lg flex-col overflow-hidden rounded-lg border border-border"
             style={
               {
                 padding: styling.gutter,
                 gap: styling.gutter,
-                backgroundColor: contentBackground,
                 "--shell-card-border-width": String(styling.cardBorderWidth),
                 ...(borderColor
                   ? { "--shell-card-border-color": borderColor }
@@ -186,29 +187,41 @@ export function StylingSettings({
       </CollapsibleSettingsCard>
 
       <CollapsibleSettingsCard
-        storageId="styling-content"
-        title="Main content area"
-        description="The background behind your pages and cards."
+        storageId="styling-dark-mode"
+        title="Dark mode"
+        description="How dark the dark screens are. Light mode is not affected."
+        contentClassName="space-y-3"
       >
-        <BackgroundField
-          idPrefix="content-bg"
-          value={styling.content}
-          defaultHint="Uses the standard muted canvas (adapts to light and dark)."
-          onChange={updateContent}
-        />
-      </CollapsibleSettingsCard>
-
-      <CollapsibleSettingsCard
-        storageId="styling-chrome"
-        title="Sidebar & sticky bar"
-        description="The background of the sidebar rail and the sticky top bar."
-      >
-        <BackgroundField
-          idPrefix="chrome-bg"
-          value={styling.chrome}
-          defaultHint="Uses the theme's sidebar color (adapts to light and dark)."
-          onChange={updateChrome}
-        />
+        <FieldGroup
+          label="Shade"
+          description="Every grey surface lifts together, so the text keeps the same contrast at all four steps."
+        >
+          <Select
+            value={styling.darkShade}
+            onValueChange={(value) => {
+              if (isDarkShadeId(value)) update({ darkShade: value })
+            }}
+          >
+            <SelectTrigger id="dark-shade" aria-label="Dark mode shade">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {DARK_SHADES.map((option) => (
+                <SelectItem key={option.id} value={option.id}>
+                  <span className="flex items-center gap-2.5">
+                    <span
+                      className="size-4 shrink-0 rounded-full border border-border"
+                      style={{ background: option.swatch }}
+                      aria-hidden="true"
+                    />
+                    {option.label}
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FieldGroup>
+        <p className="text-sm text-muted-foreground">{shade.help}</p>
       </CollapsibleSettingsCard>
 
       <CollapsibleSettingsCard

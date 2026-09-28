@@ -127,6 +127,8 @@ import {
   MAX_CONTENT_GUTTER,
   MAX_MODAL_PADDING,
   MIN_CONTENT_GUTTER,
+  DARK_SHADE_IDS,
+  DEFAULT_DARK_SHADE,
   SHELL_BACKGROUND_MODES,
 } from "@/lib/layout/styling-values"
 import { MAX_TOAST_SECONDS, MIN_TOAST_SECONDS } from "@/lib/toast/toast-seconds"
@@ -248,6 +250,9 @@ const shellModalStylingSchema = z.object({
 
 const shellStylingSchema = z.object({
   gutter: z.number().int().min(0).max(48),
+  // Defaulted so a Styling tab opened before dark shades existed still saves,
+  // and saves the near-black dark mode it was already showing.
+  darkShade: z.enum(DARK_SHADE_IDS).default(DEFAULT_DARK_SHADE),
   cardBorderWidth: z.number().int().min(0).max(3),
   cardBorderColor: shellBackgroundSchema,
   dividerColor: shellBackgroundSchema,

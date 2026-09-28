@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react"
 
 import {
+  DEFAULT_DARK_SHADE,
   MAX_CARD_BORDER_WIDTH,
   MAX_CONTENT_GUTTER,
   MAX_MODAL_PADDING,
@@ -939,6 +940,9 @@ export function hasCustomPublicTheme(theme: PublicTheme): boolean {
 export function publicShellStyling(theme: PublicTheme): ShellStyling {
   return {
     gutter: theme.gutter,
+    // The public pages have no dark-shade control of their own, so they keep
+    // the near-black dark mode whatever the signed-in app is set to.
+    darkShade: DEFAULT_DARK_SHADE,
     cardBorderWidth: theme.cardBorderWidth,
     cardBorderColor: theme.cardBorderColor,
     dividerColor: theme.dividerColor,
