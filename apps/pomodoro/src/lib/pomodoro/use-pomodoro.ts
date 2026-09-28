@@ -697,6 +697,42 @@ export function setAutoStart(autoStart: boolean) {
   setState({ autoStart })
 }
 
+export const DAILY_GOAL_MIN = 1
+export const DAILY_GOAL_MAX = 20
+
+/**
+ * The daily session goal, from the small edit button on the goal bar or
+ * from Settings → Timer. It changes nothing about the countdown, only what
+ * the bar is measured against, so it saves while the timer runs, the same
+ * as auto-start does. Out-of-range numbers are clamped rather than
+ * refused, because the only way in is a stepper that cannot leave the
+ * range anyway.
+ */
+export function setDailyGoal(sessions: number) {
+  if (!Number.isFinite(sessions)) return
+  const dailyGoalSessions = Math.min(
+    DAILY_GOAL_MAX,
+    Math.max(DAILY_GOAL_MIN, Math.round(sessions))
+  )
+  if (dailyGoalSessions === state.dailyGoalSessions) return
+  if (!isAuthed()) {
+    setState({ dailyGoalSessions })
+    persistGuest()
+    return
+  }
+  void updatePreferences({
+    focusMinutes: state.durations.focus,
+    shortBreakMinutes: state.durations.short,
+    longBreakMinutes: state.durations.long,
+    dailyGoalSessions,
+    sessionsBeforeLongBreak: state.sessionsBeforeLongBreak,
+    autoStart: state.autoStart,
+  }).then(clearSyncError, () =>
+    setSyncError("The daily goal could not be saved.")
+  )
+  setState({ dailyGoalSessions })
+}
+
 /**
  * The quick controls' duration steppers and preset buttons. Applies only
  * while the timer is fully idle, returning false otherwise — the caller
@@ -1182,6 +1218,7 @@ export function usePomodoro() {
     toggleTimer,
     reset: resetPomodoroTimer,
     setAutoStart,
+    setDailyGoal,
     applyDurations,
     addTask,
     toggleTask,

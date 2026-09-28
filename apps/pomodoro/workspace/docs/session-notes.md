@@ -7,7 +7,7 @@ intro".
 ## Writing one
 
 When a focus session completes, a "Session note" field appears on `/timer`,
-under the focus task pill. Type a line, press the tick or Enter, and it is
+under the mode tabs. Type a line, press the tick or Enter, and it is
 saved to that session.
 
 Everything about it is built to be ignorable, because the break has already

@@ -4,10 +4,18 @@ The main screen, at `/` and `/timer`. A 300px SVG ring counts a focus or
 break down, orange at rest and green while running — matched to the old
 dashboard side by side: muted mono digits and the dark Start pill inside
 the ring, which floats over the hero image; the pill mode tabs with the
-orange active chip; the FOCUS TASK pill; the centred hint; the thin goal
-bar with its mono label; and the rounded Tasks card on the plain canvas
+orange active chip; the thin goal bar with its mono label; and the rounded Tasks card on the plain canvas
 below (its own row style with the circle complete button and the inset
 orange selection bar).
+
+## What is not on it
+
+Tyler had the FOCUS TASK pill and the line of encouragement under it
+removed on 27 September 2026. The dashboard no longer names the task the
+focus is on, and there is no "Choose a task" link on it. The task is
+chosen in the Tasks card below and on `/tasks`: tapping a task chooses it
+and tapping the chosen one again clears it, which is what the pill's cross
+used to do. Zen mode still shows the name.
 
 ## How it behaves
 
@@ -48,20 +56,30 @@ orange selection bar).
   the dashboard, and Reset in the header's Timer popover. The minutes are
   frozen when the question is asked so the sentence does not climb while it is
   being read.
-- **Auto-start** (the switch under the goal bar) moves to the next phase on
-  its own and opens the next server session itself.
+- **Auto-start the next timer** (the switch under the goal bar) starts
+  whatever comes next, a break or a focus, on its own, and opens the next
+  server session itself. It is worded that way on the dashboard, in
+  Settings → Timer and in the preset editor because it is not only focuses
+  that it starts. Tyler, 27 September 2026: "Auto start next phase is
+  wrong".
 - **The countdown runs in the browser** on a 250ms tick against a wall-clock
   end moment, so a throttled background tab still shows the right time
   (`src/lib/pomodoro/timer.ts`).
+- **The pencil beside the goal bar edits the goal**, as a stepper in a
+  popover: one tap a session, 1 to 20, saved the moment it moves. It never
+  touches the countdown, so it works while the timer runs, and Settings >
+  Timer edits the same number. `setDailyGoal` in
+  `src/lib/pomodoro/use-pomodoro.ts` is the one saver for both.
 - **The goal bar** shows finished focus sessions today against the daily goal
-  (default 4, 1-20, saved per user), with "Goal reached" once passed, and
+  (default 4, 1-20, saved per user). Its label says "0 of 4 sessions
+  completed today", naming what was counted, with "Goal reached" once passed, and
   under it the streak line: consecutive days with at least one finished
   focus, current and best. The day math runs in JS on yyyy-mm-dd strings in
   the user's own timezone (`calculateFocusStreaks`, unit-tested in
   `src/server/pomodoro/productivity.test.ts`); yesterday's streak stays
   current until today ends without a focus.
-- **When a focus finishes, a one-line note field appears** under the focus
-  task pill, for what that session was for. It never takes keyboard focus and
+- **When a focus finishes, a one-line note field appears** under the mode
+  tabs, for what that session was for. It never takes keyboard focus and
   never touches the countdown, so a running break keeps running while it is on
   screen. See [Session notes](session-notes.md).
 

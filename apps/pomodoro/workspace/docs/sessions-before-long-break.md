@@ -26,8 +26,6 @@ fifty-minute blocks before a proper rest is the thing people give up on.
 - **The dashboard says where you are:** "Session 2 of 2 before the long break"
   while focusing, "Next: session 1 of 2 before the long break" on a break. The
   wording comes from `cycleSessionLabel` in `src/lib/pomodoro/timer.ts`.
-- **The long break's own hint follows the number.** The old app's line ended
-  "before the next block of four"; it now ends with whatever the rhythm says.
 - **Changing the number works the position out again** from today's finished
   focuses against the new number, because a count of three under a rhythm of
   four is past the end of a rhythm of two. Three focuses done and a new rhythm

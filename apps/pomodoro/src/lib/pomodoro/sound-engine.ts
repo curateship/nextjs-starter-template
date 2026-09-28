@@ -254,14 +254,23 @@ export function soundEngineState(): Snapshot {
   return state
 }
 
+/**
+ * Picks a sound. Tyler's rule, 27 Sep 2026: "when I select a theme, it
+ * shouldn't play right away. It should just be selected and the play
+ * happens when I press play on the big button." So a new sound arrives
+ * chosen and silent, and anything already playing stops.
+ *
+ * Picking the sound that is already chosen is not a choice, it is the
+ * play/pause control on its own card, so that one toggles.
+ */
 export function selectSound(reference: SoundReference, label: string) {
   const active = ensureFader()
-  if (sameSoundReference(state.selected, reference) && state.status === "playing") {
-    active?.fadeOutPause()
+  if (sameSoundReference(state.selected, reference)) {
+    togglePlayback()
     return
   }
-  dispatch({ type: "select", reference, label })
-  active?.playSource(soundSourceUrl(reference))
+  active?.fadeOutStop()
+  dispatch({ type: "choose", reference, label })
 }
 
 export function togglePlayback() {
