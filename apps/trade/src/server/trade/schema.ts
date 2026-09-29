@@ -38,6 +38,8 @@ import type { TradeFlowRunSpec, TradeFlowRunStatus } from "@/lib/trade/flow-run"
 import type { FlowHold, FlowWaitReason } from "@/lib/trade/flow-waiting"
 import type { GridParams } from "@/lib/trade/grid"
 import type { MarketPanelRows } from "@/lib/trade/market-folders"
+import type { SocialPlatform } from "@/lib/trade/social/creator"
+import type { SocialLink } from "@/lib/trade/social/x-profile"
 import type { OrderStyle } from "@/lib/trade/order-style"
 import type { TradePanelLayouts } from "@/lib/trade/panel-layout"
 import type { PriceAlertDirection } from "@/lib/trade/price-alerts"
@@ -2164,5 +2166,119 @@ export const tradeCopyFeeApprovals = pgTable(
       columns: [table.userId, table.walletId],
       foreignColumns: [tradeWallets.userId, tradeWallets.id],
     }).onDelete("cascade"),
+  ]
+)
+
+/**
+ * One X account this member is tracking.
+ *
+ * Owned by a member, not shared: two members tracking @cryptosam get a row
+ * each, and each keeps its own copy of his posts. Sharing one copy would mean
+ * one member's import deciding what another member sees, and one member's
+ * account deletion taking the other's posts with it.
+ */
+export const tradeSocialCreators = pgTable(
+  "trade_social_creators",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    /** Only "x" today. Tyler chose X only, permanently. */
+    platform: varchar("platform", { length: 10 })
+      .$type<SocialPlatform>()
+      .notNull()
+      .default("x"),
+    handle: varchar("handle", { length: 40 }).notNull(),
+    displayName: varchar("display_name", { length: 80 }),
+    picture: text("picture"),
+    /**
+     * Followers at the source. Null until a reader supplies it, which is
+     * different from zero: a dash says nobody has told us, a zero would say
+     * nobody follows them.
+     */
+    followers: integer("followers"),
+    followersAt: timestamp("followers_at", { withTimezone: true }),
+    /** The website and bio links from their profile, in the order X lists them. */
+    links: jsonb("links").$type<SocialLink[]>().notNull().default([]),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    // Case-folded, because @CryptoSam and @cryptosam are one account on X.
+    uniqueIndex("trade_social_creators_handle_idx").on(
+      table.userId,
+      table.platform,
+      sql`lower(${table.handle})`
+    ),
+  ]
+)
+
+/**
+ * One post held for one creator.
+ *
+ * `source_id` is the post's own id at X, which is what makes a second import
+ * of the same block an update rather than a duplicate. The pasted-text reader
+ * has no such id, so it works one out from the creator, the date and the
+ * words, which is stable for the same block pasted twice.
+ */
+export const tradeSocialPosts = pgTable(
+  "trade_social_posts",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    creatorId: varchar("creator_id", { length: 36 })
+      .notNull()
+      .references(() => tradeSocialCreators.id, { onDelete: "cascade" }),
+    sourceId: varchar("source_id", { length: 64 }).notNull(),
+    postedAt: timestamp("posted_at", { withTimezone: true }).notNull(),
+    text: text("text").notNull(),
+    url: text("url"),
+    /** How many people saw it. Null when the source did not say. */
+    seen: integer("seen"),
+    likes: integer("likes"),
+    replies: integer("replies"),
+    reposts: integer("reposts"),
+    /** The post this one replies to, at the source. Null for a top-level post. */
+    replyToId: varchar("reply_to_id", { length: 64 }),
+    /** The coins the post names, as X tags them. Uppercase, no dollar sign. */
+    markets: jsonb("markets").$type<string[]>().notNull().default([]),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("trade_social_posts_source_idx").on(
+      table.creatorId,
+      table.sourceId
+    ),
+    index("trade_social_posts_recent_idx").on(table.creatorId, table.postedAt),
+    index("trade_social_posts_markets_idx").using("gin", table.markets),
+  ]
+)
+
+/** One import: which creator, which reader answered, and how many arrived. */
+export const tradeSocialReads = pgTable(
+  "trade_social_reads",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    creatorId: varchar("creator_id", { length: 36 })
+      .notNull()
+      .references(() => tradeSocialCreators.id, { onDelete: "cascade" }),
+    reader: varchar("reader", { length: 20 }).notNull(),
+    readAt: timestamp("read_at", { withTimezone: true }).notNull().defaultNow(),
+    posts: integer("posts").notNull().default(0),
+  },
+  (table) => [
+    index("trade_social_reads_creator_idx").on(table.creatorId, table.readAt),
   ]
 )

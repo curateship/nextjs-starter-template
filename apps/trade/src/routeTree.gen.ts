@@ -37,6 +37,7 @@ import { Route as AuthenticatedFlowRunsRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedFollowingRouteImport } from './routes/_authenticated/following'
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
 import { Route as AuthenticatedPnlRouteImport } from './routes/_authenticated/pnl'
+import { Route as AuthenticatedSocialRouteImport } from './routes/_authenticated/social'
 import { Route as AuthenticatedTradeRouteImport } from './routes/_authenticated/trade'
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
@@ -93,6 +94,7 @@ import { Route as AuthenticatedProtocolsLighterRouteImport } from './routes/_aut
 import { Route as AuthenticatedProtocolsPhemexRouteImport } from './routes/_authenticated/protocols/phemex'
 import { Route as AuthenticatedProtocolsRobinhoodRouteImport } from './routes/_authenticated/protocols/robinhood'
 import { Route as AuthenticatedProtocolsSolanaRouteImport } from './routes/_authenticated/protocols/solana'
+import { Route as AuthenticatedSocialHandleRouteImport } from './routes/_authenticated/social_.$handle'
 import { Route as ApiAuthGoogleRouteImport } from './routes/api/auth/google'
 import { Route as ApiWebhooksResendRouteImport } from './routes/api/webhooks/resend'
 import { Route as ApiWebhooksStripeRouteImport } from './routes/api/webhooks/stripe'
@@ -254,6 +256,11 @@ const AuthenticatedHomeRoute = AuthenticatedHomeRouteImport.update({
 const AuthenticatedPnlRoute = AuthenticatedPnlRouteImport.update({
   id: '/pnl',
   path: '/pnl',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedSocialRoute = AuthenticatedSocialRouteImport.update({
+  id: '/social',
+  path: '/social',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedTradeRoute = AuthenticatedTradeRouteImport.update({
@@ -576,6 +583,12 @@ const AuthenticatedProtocolsSolanaRoute =
     path: '/protocols/solana',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedSocialHandleRoute =
+  AuthenticatedSocialHandleRouteImport.update({
+    id: '/social_/$handle',
+    path: '/social/$handle',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const ApiAuthGoogleRoute = ApiAuthGoogleRouteImport.update({
   id: '/api/auth/google',
   path: '/api/auth/google',
@@ -734,6 +747,7 @@ export interface FileRoutesByFullPath {
   '/following': typeof AuthenticatedFollowingRoute
   '/home': typeof AuthenticatedHomeRoute
   '/pnl': typeof AuthenticatedPnlRoute
+  '/social': typeof AuthenticatedSocialRoute
   '/trade': typeof AuthenticatedTradeRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/health': typeof ApiHealthRoute
@@ -788,6 +802,7 @@ export interface FileRoutesByFullPath {
   '/protocols/phemex': typeof AuthenticatedProtocolsPhemexRoute
   '/protocols/robinhood': typeof AuthenticatedProtocolsRobinhoodRoute
   '/protocols/solana': typeof AuthenticatedProtocolsSolanaRoute
+  '/social/$handle': typeof AuthenticatedSocialHandleRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
@@ -840,6 +855,7 @@ export interface FileRoutesByTo {
   '/following': typeof AuthenticatedFollowingRoute
   '/home': typeof AuthenticatedHomeRoute
   '/pnl': typeof AuthenticatedPnlRoute
+  '/social': typeof AuthenticatedSocialRoute
   '/trade': typeof AuthenticatedTradeRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/health': typeof ApiHealthRoute
@@ -894,6 +910,7 @@ export interface FileRoutesByTo {
   '/protocols/phemex': typeof AuthenticatedProtocolsPhemexRoute
   '/protocols/robinhood': typeof AuthenticatedProtocolsRobinhoodRoute
   '/protocols/solana': typeof AuthenticatedProtocolsSolanaRoute
+  '/social/$handle': typeof AuthenticatedSocialHandleRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
@@ -950,6 +967,7 @@ export interface FileRoutesById {
   '/_authenticated/following': typeof AuthenticatedFollowingRoute
   '/_authenticated/home': typeof AuthenticatedHomeRoute
   '/_authenticated/pnl': typeof AuthenticatedPnlRoute
+  '/_authenticated/social': typeof AuthenticatedSocialRoute
   '/_authenticated/trade': typeof AuthenticatedTradeRoute
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/health': typeof ApiHealthRoute
@@ -1004,6 +1022,7 @@ export interface FileRoutesById {
   '/_authenticated/protocols/phemex': typeof AuthenticatedProtocolsPhemexRoute
   '/_authenticated/protocols/robinhood': typeof AuthenticatedProtocolsRobinhoodRoute
   '/_authenticated/protocols/solana': typeof AuthenticatedProtocolsSolanaRoute
+  '/_authenticated/social_/$handle': typeof AuthenticatedSocialHandleRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
@@ -1060,6 +1079,7 @@ export interface FileRouteTypes {
     | '/following'
     | '/home'
     | '/pnl'
+    | '/social'
     | '/trade'
     | '/workspaces'
     | '/api/health'
@@ -1114,6 +1134,7 @@ export interface FileRouteTypes {
     | '/protocols/phemex'
     | '/protocols/robinhood'
     | '/protocols/solana'
+    | '/social/$handle'
     | '/api/auth/google'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
@@ -1166,6 +1187,7 @@ export interface FileRouteTypes {
     | '/following'
     | '/home'
     | '/pnl'
+    | '/social'
     | '/trade'
     | '/workspaces'
     | '/api/health'
@@ -1220,6 +1242,7 @@ export interface FileRouteTypes {
     | '/protocols/phemex'
     | '/protocols/robinhood'
     | '/protocols/solana'
+    | '/social/$handle'
     | '/api/auth/google'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
@@ -1275,6 +1298,7 @@ export interface FileRouteTypes {
     | '/_authenticated/following'
     | '/_authenticated/home'
     | '/_authenticated/pnl'
+    | '/_authenticated/social'
     | '/_authenticated/trade'
     | '/_authenticated/workspaces'
     | '/api/health'
@@ -1329,6 +1353,7 @@ export interface FileRouteTypes {
     | '/_authenticated/protocols/phemex'
     | '/_authenticated/protocols/robinhood'
     | '/_authenticated/protocols/solana'
+    | '/_authenticated/social_/$handle'
     | '/api/auth/google'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
@@ -1591,6 +1616,13 @@ declare module '@tanstack/react-router' {
       path: '/pnl'
       fullPath: '/pnl'
       preLoaderRoute: typeof AuthenticatedPnlRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/social': {
+      id: '/_authenticated/social'
+      path: '/social'
+      fullPath: '/social'
+      preLoaderRoute: typeof AuthenticatedSocialRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/trade': {
@@ -1985,6 +2017,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedProtocolsSolanaRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/social_/$handle': {
+      id: '/_authenticated/social_/$handle'
+      path: '/social/$handle'
+      fullPath: '/social/$handle'
+      preLoaderRoute: typeof AuthenticatedSocialHandleRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/api/auth/google': {
       id: '/api/auth/google'
       path: '/api/auth/google'
@@ -2308,6 +2347,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedFollowingRoute: typeof AuthenticatedFollowingRoute
   AuthenticatedHomeRoute: typeof AuthenticatedHomeRoute
   AuthenticatedPnlRoute: typeof AuthenticatedPnlRoute
+  AuthenticatedSocialRoute: typeof AuthenticatedSocialRoute
   AuthenticatedTradeRoute: typeof AuthenticatedTradeRoute
   AuthenticatedWorkspacesRoute: typeof AuthenticatedWorkspacesRoute
   AuthenticatedBacktestsGroupIdRoute: typeof AuthenticatedBacktestsGroupIdRoute
@@ -2323,6 +2363,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedProtocolsPhemexRoute: typeof AuthenticatedProtocolsPhemexRoute
   AuthenticatedProtocolsRobinhoodRoute: typeof AuthenticatedProtocolsRobinhoodRoute
   AuthenticatedProtocolsSolanaRoute: typeof AuthenticatedProtocolsSolanaRoute
+  AuthenticatedSocialHandleRoute: typeof AuthenticatedSocialHandleRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
@@ -2334,6 +2375,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedFollowingRoute: AuthenticatedFollowingRoute,
   AuthenticatedHomeRoute: AuthenticatedHomeRoute,
   AuthenticatedPnlRoute: AuthenticatedPnlRoute,
+  AuthenticatedSocialRoute: AuthenticatedSocialRoute,
   AuthenticatedTradeRoute: AuthenticatedTradeRoute,
   AuthenticatedWorkspacesRoute: AuthenticatedWorkspacesRoute,
   AuthenticatedBacktestsGroupIdRoute: AuthenticatedBacktestsGroupIdRoute,
@@ -2350,6 +2392,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedProtocolsPhemexRoute: AuthenticatedProtocolsPhemexRoute,
   AuthenticatedProtocolsRobinhoodRoute: AuthenticatedProtocolsRobinhoodRoute,
   AuthenticatedProtocolsSolanaRoute: AuthenticatedProtocolsSolanaRoute,
+  AuthenticatedSocialHandleRoute: AuthenticatedSocialHandleRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
