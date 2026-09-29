@@ -118,6 +118,44 @@ window sits open, and the animation's own frames run at about 16ms throughout.
   - **Data-surface load failures** (a list or page section that could not fetch) use `ErrorBanner`, with `onRetry` wherever a reload exists.
   - **Live while-you-type validation and page-state text** (a password-mismatch hint, a dead verification link) use `InlineError` next to the field or in the page body — these are not click-failures, so they stay in place.
 
+## Tabs and the colour-mode switcher
+
+Both are segmented controls, and both move the same way, from
+`src/lib/hooks/use-sliding-pill.ts`.
+
+- Every tab strip is `src/components/ui/tabs.tsx` and the three colour modes are
+  `src/components/ui/theme-switcher.tsx`. Do not build a second one of either.
+- The raised white background is a single pill sitting behind the buttons, not
+  a background on the chosen button. Choosing another one slides the pill across
+  and grows or shrinks it to the new button's width over 300ms on
+  `cubic-bezier(0.4, 0, 0.2, 1)`, the same movement Luma's switcher uses. The
+  labels change colour on the same curve, so nothing snaps.
+- The pill is measured from the chosen button with `offsetLeft` and
+  `offsetWidth`, because tabs are as wide as their words and "Overview" is wider
+  than "AI". `getBoundingClientRect` is wrong here: a control inside a dialog is
+  first measured while the dialog is still scaling up, and the rect would come
+  back shrunk.
+- The first placement jumps, and only later moves slide. Without that, the pill
+  flies in from the left edge every time a screen with tabs opens.
+- The server cannot measure anything, so until the browser has placed the pill
+  the track says `data-pill="pending"` and the chosen button wears the raised
+  background itself. Without that the tabs sat on screen with nothing raised for
+  about two seconds on a dev build while the page finished loading.
+- A machine set to reduce motion gets the pill in the right place with no slide,
+  through `motion-reduce:transition-none`.
+- The pill follows a button that changes width on its own, such as a count badge
+  going from 9 to 10, through a `ResizeObserver` on the track and on each button.
+- A theme change freezes every transition on the page for two frames, so the
+  page does not fade from light to dark one colour at a time
+  (`disableTransitionsTemporarily` in
+  `src/components/shell/sticky-header/light-dark-switcher.tsx`). The pill is the
+  one thing exempt, through `data-keep-motion`, because choosing a colour mode
+  moves the pill and repaints the page in the same instant. Without the
+  exemption the pill jumped and the switcher looked untouched.
+- A new segmented control uses the hook rather than copying the markup. It needs
+  `relative` on the track, `relative z-10` on the buttons, and a selector that
+  names the chosen one, such as `[data-state="active"]` or `[aria-pressed="true"]`.
+
 ## Tables
 
 - Use the shadcn table primitives from `src/components/ui/table`.

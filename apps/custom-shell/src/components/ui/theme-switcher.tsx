@@ -1,5 +1,9 @@
 import { MonitorIcon, MoonIcon, SunIcon } from "lucide-react"
 
+import {
+  slidingPillMotionClassName,
+  useSlidingPill,
+} from "@/lib/hooks/use-sliding-pill"
 import { cn } from "@/lib/utils"
 
 export type ThemeMode = "light" | "dark" | "system"
@@ -21,6 +25,9 @@ const MODES = [
  * Controlled, and it stores nothing. Whoever draws it holds the choice, which
  * is what lets the same pill sit on a signed-in header and a public page
  * without either of them agreeing about where a theme is kept.
+ *
+ * The white circle behind the chosen mode is one element that slides between
+ * the three, the same movement the tab strips use.
  */
 export function ThemeSwitcher({
   value,
@@ -31,8 +38,17 @@ export function ThemeSwitcher({
   onChange: (mode: ThemeMode) => void
   className?: string
 }) {
+  const { trackRef, trackProps, pillProps } = useSlidingPill<HTMLDivElement>({
+    selected: '[aria-pressed="true"]',
+    observe: "button",
+    attributes: ["aria-pressed"],
+    className: "rounded-full",
+  })
+
   return (
     <div
+      ref={trackRef}
+      {...trackProps}
       role="group"
       aria-label="Colour mode"
       className={cn(
@@ -40,6 +56,7 @@ export function ThemeSwitcher({
         className
       )}
     >
+      <span data-slot="theme-switcher-pill" {...pillProps} />
       {MODES.map(({ key, icon: Icon, label }) => (
         <button
           key={key}
@@ -48,9 +65,13 @@ export function ThemeSwitcher({
           aria-pressed={value === key}
           onClick={() => onChange(key)}
           className={cn(
-            "relative size-6 rounded-full text-muted-foreground transition-colors",
+            "relative z-10 size-6 rounded-full text-muted-foreground transition-colors",
+            slidingPillMotionClassName,
             "hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-            value === key && "bg-background text-foreground shadow-sm"
+            // Before the pill is measured, the chosen mode carries the
+            // raised background itself. See `use-sliding-pill.ts`.
+            value === key &&
+              "text-foreground in-data-[pill=pending]:bg-background in-data-[pill=pending]:shadow-sm"
           )}
         >
           <Icon aria-hidden className="m-auto size-3.5" />
