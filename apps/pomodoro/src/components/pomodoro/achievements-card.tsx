@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { loadAchievements } from "@/lib/api/pomodoro/achievements"
 import {
   ACHIEVEMENTS,
-  remainingLabel,
+  achievementProgress,
+  type Achievement,
   type AchievementCounters,
 } from "@/lib/pomodoro/achievements"
 import { browserTimezone } from "@/lib/pomodoro/timer"
@@ -108,9 +109,7 @@ export function AchievementsCard() {
                         : badge.description}
                     </small>
                     {earnedAt ? null : (
-                      <small className="font-mono text-[10px] text-muted-foreground">
-                        {remainingLabel(badge, state.counters)}
-                      </small>
+                      <BadgeProgress badge={badge} counters={state.counters} />
                     )}
                   </div>
                 </li>
@@ -120,6 +119,40 @@ export function AchievementsCard() {
         ) : null}
       </CardContent>
     </Card>
+  )
+}
+
+/**
+ * How far a locked badge has got: the count against what it takes, and a bar
+ * showing the same thing. Both come from `achievementProgress`, so the words and
+ * the bar can never disagree with the rule.
+ *
+ * The bar is decoration. The count beside it is the real answer, because
+ * progress must never be carried by a drawing alone.
+ */
+function BadgeProgress({
+  badge,
+  counters,
+}: {
+  badge: Achievement
+  counters: AchievementCounters
+}) {
+  const progress = achievementProgress(badge, counters)
+  return (
+    <>
+      <small className="font-mono text-[10px] text-muted-foreground">
+        {progress.label}
+      </small>
+      <i
+        aria-hidden="true"
+        className="mt-0.5 block h-1 overflow-hidden rounded-full bg-[rgba(var(--p-fg-rgb),0.08)]"
+      >
+        <b
+          className="block h-full rounded-full bg-[var(--p-accent)]"
+          style={{ width: `${Math.round(progress.ratio * 100)}%` }}
+        />
+      </i>
+    </>
   )
 }
 

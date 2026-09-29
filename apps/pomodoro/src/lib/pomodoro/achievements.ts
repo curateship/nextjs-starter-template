@@ -133,30 +133,64 @@ export function earnedAchievementIds(counters: AchievementCounters) {
   ).map((badge) => badge.id)
 }
 
+export type AchievementProgress = {
+  /** How far the account has got, never past the threshold. */
+  value: number
+  threshold: number
+  /** 0 to 1, for the bar's width. */
+  ratio: number
+  /** How far along, in the plainest words the counter allows. */
+  label: string
+}
+
 /**
- * What a locked badge still takes, in the plainest words the counter allows.
+ * How far a badge has got, for the panel to print and draw. The rule and the
+ * progress read the same threshold from the same badge, which is why this lives
+ * beside the rules instead of in the component: the two can never disagree.
+ *
+ * The value is capped at the threshold. A counter can sit past a threshold
+ * while the badge still reads as locked, because the award row is written after
+ * the counter moves and a failed award is retried by the next finished session.
+ * "105 of 100" under a locked badge reads as a bug, so the panel says "100 of
+ * 100" and fills the bar.
+ *
  * A streak says how far you have got rather than how many days are left,
- * because the days left are not a thing you can do today.
+ * because the days left are not something you can do today.
  */
-export function remainingLabel(
+export function achievementProgress(
   badge: Achievement,
   counters: AchievementCounters
-) {
-  const value = counters[badge.counter]
-  const missing = Math.max(0, badge.threshold - value)
+): AchievementProgress {
+  const value = Math.min(Math.max(0, counters[badge.counter]), badge.threshold)
+  const progress = {
+    value,
+    threshold: badge.threshold,
+    ratio: badge.threshold > 0 ? value / badge.threshold : 1,
+  }
   switch (badge.counter) {
     case "focusSessions":
-      return `${missing} ${missing === 1 ? "session" : "sessions"} to go`
+      return { ...progress, label: `${value} of ${badge.threshold} sessions` }
     case "tasksCompleted":
-      return `${missing} ${missing === 1 ? "task" : "tasks"} to go`
+      return { ...progress, label: `${value} of ${badge.threshold} tasks` }
     case "focusSeconds":
-      return `${formatHours(value)} of ${formatHours(badge.threshold)}`
+      return {
+        ...progress,
+        label: `${formatHours(value)} of ${formatHours(badge.threshold)}`,
+      }
     case "bestStreak":
-      return value === 0
-        ? "no streak yet"
-        : `best so far: ${value} ${value === 1 ? "day" : "days"}`
+      return {
+        ...progress,
+        label: value
+          ? `best so far: ${value} of ${badge.threshold} days`
+          : "no streak yet",
+      }
     case "roomsHosted":
-      return "no rooms hosted yet"
+      return {
+        ...progress,
+        label: value
+          ? `${value} of ${badge.threshold} rooms`
+          : "no rooms hosted yet",
+      }
   }
 }
 

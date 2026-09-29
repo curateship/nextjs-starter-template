@@ -35,6 +35,80 @@
   The palette, run list and broadcast block list follow the same gutter, so the
   body never steps inward when the header ends.
 
+## Windows opening and closing
+
+Three things move when a window opens, and they move together. A window that
+changes only one of them reads as a flash rather than as something arriving.
+
+- **The window fades and grows at the same time.** It starts at 95% size and
+  fully transparent, and reaches full size and fully solid over 150ms on an
+  ease-out curve. Growing without fading is what makes a window look stamped
+  onto the page instead of opening. `DialogContent` in
+  `src/components/ui/dialog.tsx` carries both.
+- **The backdrop fades over the same 150ms.** The backdrop covers the whole
+  screen, so it is the first thing the eye catches. Switching it on in one
+  frame is a flash, and no amount of easing on the window itself hides that.
+  `DialogOverlay` and `SheetOverlay` carry the same fade, because a sheet is a
+  window that arrives from the side.
+- **The page behind blurs over the same 150ms.** `src/theme.css` blurs the app
+  canvas to 4px while a window is open, easing rather than switching, so it
+  moves with the other two instead of snapping ahead of them. The transition
+  lives on `[data-slot="app-canvas"]` itself, not inside the `:has()` rule that
+  sets the blur, so closing a window unblurs on the same curve. It is switched
+  off under `prefers-reduced-motion: reduce`.
+- **Closing takes 100ms, opening takes 150ms.** Leaving is not worth as much
+  time as arriving, and a window that takes as long to go as it did to come
+  feels like it is holding the person up.
+- **Every floating layer fades.** Popovers, dropdowns, selects and tooltips
+  already did. The window was the only one that did not, which is how the
+  missing fade went unnoticed. A new floating layer copies the pattern rather
+  than inventing its own timing.
+
+### A window that feels slow locally is React running everything twice
+
+The lag is never the animation. React has to build the window's whole contents
+before any of the movement above can start, so the person clicks, waits through
+that build, and only then sees anything move. Shortening the animation cannot
+help, because the animation has not started yet.
+
+On the dev server that build runs **twice**, for every window. React StrictMode
+mounts each component, throws it away and mounts it again, and runs every
+effect twice, as a way of catching code that misbehaves when it runs more than
+once. TanStack Start switches it on: the app has no `src/client.tsx`, so it
+gets the framework's default entry, which wraps the whole app in
+`<StrictMode>`. Writing an `src/client.tsx` without it is what turns it off,
+and that costs the warnings.
+
+Measured on the running dev server, in a real browser, opening the "New
+feedback" window on `/admin/feedback`:
+
+| What | Time after the click |
+| --- | --- |
+| The window enters the page | 166ms |
+| The window is fully solid | 256ms |
+
+That window holds 72 nodes, which is small. 166ms of nothing before a small
+window even appears is the double mount, not the window's own size. A bigger
+window costs more on top of that, but this is the floor underneath every one of
+them.
+
+When measuring this, check that the button actually opens a window before
+trusting the number. Several buttons that read like window triggers are not,
+and timing one of those produces a fast number that means nothing.
+
+How the cause was found, for whoever checks this next: a CPU profile of the
+click puts `recursivelyTraverseAndDoubleInvokeEffectsInDEV` at the top of the
+inclusive time, and reading React's `mode` bits off any fiber in the page
+returns `strictEffects: true`.
+
+**This is not measured against a production build.** React does not double-mount
+in production, so the deployed app should not carry this cost, but nobody has
+put a number on it. Measure the deployed app before repeating the claim.
+
+Two things ruled out by measurement, so they do not need re-testing: the blur
+on the page behind costs about 50ms of the wait and nothing at all while the
+window sits open, and the animation's own frames run at about 16ms throughout.
+
 ## Forms
 
 - Use shadcn form controls for inputs and interactions.
@@ -43,6 +117,44 @@
   - **Anything that fails when the user clicks** (submit, save, delete, vote, upload, validation on submit) reports through `showErrorToast` (`src/lib/error-toast.ts`) — a red toast in the same fixed spot as the success toasts. It stays until dismissed, a repeat failure replaces it instead of stacking, and `dismissErrorToast()` runs when a new attempt starts so a stale failure never outlives its retry. Never `toast.error` directly; the shared helper owns the one-slot behavior.
   - **Data-surface load failures** (a list or page section that could not fetch) use `ErrorBanner`, with `onRetry` wherever a reload exists.
   - **Live while-you-type validation and page-state text** (a password-mismatch hint, a dead verification link) use `InlineError` next to the field or in the page body — these are not click-failures, so they stay in place.
+
+## Tabs and the colour-mode switcher
+
+Both are segmented controls, and both move the same way, from
+`src/lib/hooks/use-sliding-pill.ts`.
+
+- Every tab strip is `src/components/ui/tabs.tsx` and the three colour modes are
+  `src/components/ui/theme-switcher.tsx`. Do not build a second one of either.
+- The raised white background is a single pill sitting behind the buttons, not
+  a background on the chosen button. Choosing another one slides the pill across
+  and grows or shrinks it to the new button's width over 300ms on
+  `cubic-bezier(0.4, 0, 0.2, 1)`, the same movement Luma's switcher uses. The
+  labels change colour on the same curve, so nothing snaps.
+- The pill is measured from the chosen button with `offsetLeft` and
+  `offsetWidth`, because tabs are as wide as their words and "Overview" is wider
+  than "AI". `getBoundingClientRect` is wrong here: a control inside a dialog is
+  first measured while the dialog is still scaling up, and the rect would come
+  back shrunk.
+- The first placement jumps, and only later moves slide. Without that, the pill
+  flies in from the left edge every time a screen with tabs opens.
+- The server cannot measure anything, so until the browser has placed the pill
+  the track says `data-pill="pending"` and the chosen button wears the raised
+  background itself. Without that the tabs sat on screen with nothing raised for
+  about two seconds on a dev build while the page finished loading.
+- A machine set to reduce motion gets the pill in the right place with no slide,
+  through `motion-reduce:transition-none`.
+- The pill follows a button that changes width on its own, such as a count badge
+  going from 9 to 10, through a `ResizeObserver` on the track and on each button.
+- A theme change freezes every transition on the page for two frames, so the
+  page does not fade from light to dark one colour at a time
+  (`disableTransitionsTemporarily` in
+  `src/components/shell/sticky-header/light-dark-switcher.tsx`). The pill is the
+  one thing exempt, through `data-keep-motion`, because choosing a colour mode
+  moves the pill and repaints the page in the same instant. Without the
+  exemption the pill jumped and the switcher looked untouched.
+- A new segmented control uses the hook rather than copying the markup. It needs
+  `relative` on the track, `relative z-10` on the buttons, and a selector that
+  names the chosen one, such as `[data-state="active"]` or `[aria-pressed="true"]`.
 
 ## Tables
 

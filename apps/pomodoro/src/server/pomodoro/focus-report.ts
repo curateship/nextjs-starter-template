@@ -1,7 +1,12 @@
 import { and, desc, eq, gte, lt, lte, sql } from "drizzle-orm"
 
 import { db } from "@/server/db"
-import { resolveReportRange, shiftLocalDate, type ReportRange } from "@/lib/pomodoro/focus-history"
+import {
+  resolveReportRange,
+  shiftLocalDate,
+  startOfWeek,
+  type ReportRange,
+} from "@/lib/pomodoro/focus-history"
 import { localDateFor } from "@/server/pomodoro/productivity"
 import {
   dailyFocusStats,
@@ -60,12 +65,24 @@ function reportWindow(range: ReportRange, todayLocalDate: string, timezone: stri
   }
 }
 
+const HOURS_IN_DAY = 24
+
+/**
+ * The 24 hour buckets, every hour present whether it holds sessions or not, so
+ * the chart always draws the same axis. The bucket is the local hour the
+ * session finished in.
+ */
+function fillHours(rows: readonly { hour: number; sessions: number; focusSeconds: number }[]) {
+  const byHour = new Map(rows.map((row) => [row.hour, row]))
+  return Array.from({ length: HOURS_IN_DAY }, (_, hour) => byHour.get(hour) ?? { hour, sessions: 0, focusSeconds: 0 })
+}
+
 export async function loadFocusReport(userId: string, range: ReportRange, todayLocalDate: string, timezone: string, page = 0) {
   const { startDate, endDate, startsAt, endsBefore } = reportWindow(range, todayLocalDate, timezone)
   const filter = completedFocusWithin(userId, startsAt, endsBefore)
   const offset = Math.max(0, page) * REPORT_SESSION_PAGE_SIZE
 
-  const [days, topTasks, topProjects, sessionRows, [sessionCount]] = await Promise.all([
+  const [days, topTasks, topProjects, hourRows, sessionRows, [sessionCount]] = await Promise.all([
     db
       .select({ localDate: dailyFocusStats.localDate, focusSeconds: dailyFocusStats.focusSeconds, focusSessions: dailyFocusStats.focusSessions, tasksCompleted: dailyFocusStats.tasksCompleted })
       .from(dailyFocusStats)
@@ -94,6 +111,17 @@ export async function loadFocusReport(userId: string, range: ReportRange, todayL
       .groupBy(tasks.projectId)
       .orderBy(desc(sql`sum(${focusSessions.accumulatedSeconds})`))
       .limit(8),
+    // The hour of day each focus finished in, in the profile's timezone. This
+    // one date calculation runs in SQL rather than JS because the alternative
+    // is fetching every session row in the range only to count them, and
+    // Postgres and Intl read the same IANA zone names. The zone is a bound
+    // parameter, and it is only ever a zone `validTimezone` accepted.
+    db
+      .select({ hour: sql<number>`extract(hour from ${focusSessions.completedAt} at time zone ${timezone}::text)::int`, sessions: sql<number>`count(*)::int`, focusSeconds: sql<number>`coalesce(sum(${focusSessions.accumulatedSeconds}), 0)::int` })
+      .from(focusSessions)
+      .where(filter)
+      // The first selected column, so the hour expression is written once.
+      .groupBy(sql`1`),
     db
       .select({ id: focusSessions.id, completedAt: focusSessions.completedAt, plannedSeconds: focusSessions.plannedSeconds, accumulatedSeconds: focusSessions.accumulatedSeconds, taskTitle: tasks.title, note: focusSessions.note })
       .from(focusSessions)
@@ -121,6 +149,7 @@ export async function loadFocusReport(userId: string, range: ReportRange, todayL
     totals,
     topTasks,
     topProjects,
+    hours: fillHours(hourRows),
     sessions: {
       rows: sessionRows.map((row) => {
         const completedAt = row.completedAt ?? new Date(0)
@@ -151,5 +180,79 @@ export async function loadFocusReportSessions(userId: string, range: ReportRange
       const completedAt = row.completedAt ?? new Date(0)
       return { localDate: localDateFor(timezone, completedAt), localTime: localTimeFor(timezone, completedAt), taskTitle: row.taskTitle, note: row.note, plannedSeconds: row.plannedSeconds, accumulatedSeconds: row.accumulatedSeconds }
     }),
+  }
+}
+
+/**
+ * This week against last week, the best day of this week, and the project that
+ * took the most of this week's focus.
+ *
+ * Both weeks come from one read of `daily_focus_stats` over the fourteen-day
+ * window and are split by date in JS, so the comparison never costs two
+ * queries. The week runs Monday to Sunday (`startOfWeek`).
+ *
+ * "There is no last week" means the account had recorded nothing at all before
+ * last Monday. That is one row read through the per-account date index, not a
+ * scan of the whole history. An account that was quiet last week but active
+ * before it has a last week of zero, which is a real comparison and is shown
+ * as one.
+ */
+export async function loadWeekReview(userId: string, todayLocalDate: string, timezone: string) {
+  const weekStart = startOfWeek(todayLocalDate)
+  const lastWeekStart = shiftLocalDate(weekStart, -7)
+  const weekStartsAt = localDateStartInstant(timezone, weekStart)
+  const weekEndsBefore = localDateStartInstant(timezone, shiftLocalDate(todayLocalDate, 1))
+
+  const [rows, earlier, topProjects] = await Promise.all([
+    db
+      .select({ localDate: dailyFocusStats.localDate, focusSeconds: dailyFocusStats.focusSeconds })
+      .from(dailyFocusStats)
+      .where(and(eq(dailyFocusStats.userId, userId), gte(dailyFocusStats.localDate, lastWeekStart), lte(dailyFocusStats.localDate, todayLocalDate)))
+      .orderBy(dailyFocusStats.localDate),
+    db
+      .select({ localDate: dailyFocusStats.localDate })
+      .from(dailyFocusStats)
+      .where(and(eq(dailyFocusStats.userId, userId), lt(dailyFocusStats.localDate, lastWeekStart)))
+      .orderBy(desc(dailyFocusStats.localDate))
+      .limit(1),
+    // The project that took the most of this week, reached the same way the
+    // report's own project split reaches one: through the session's task. A
+    // session on no task, or on a task in no project, is the "No project" row
+    // rather than a dropped row.
+    db
+      .select({ projectId: tasks.projectId, name: sql<string | null>`max(${pomodoroProjects.name})`, focusSeconds: sql<number>`coalesce(sum(${focusSessions.accumulatedSeconds}), 0)::int` })
+      .from(focusSessions)
+      .leftJoin(tasks, eq(tasks.id, focusSessions.taskId))
+      .leftJoin(pomodoroProjects, eq(pomodoroProjects.id, tasks.projectId))
+      .where(completedFocusWithin(userId, weekStartsAt, weekEndsBefore))
+      .groupBy(tasks.projectId)
+      .orderBy(desc(sql`sum(${focusSessions.accumulatedSeconds})`))
+      .limit(1),
+  ])
+
+  let thisWeekSeconds = 0
+  let lastWeekSeconds = 0
+  let lastWeekDays = 0
+  let bestDay: { localDate: string; focusSeconds: number } | null = null
+  for (const row of rows) {
+    if (row.localDate < weekStart) {
+      lastWeekSeconds += row.focusSeconds
+      lastWeekDays += 1
+      continue
+    }
+    thisWeekSeconds += row.focusSeconds
+    if (row.focusSeconds > 0 && (!bestDay || row.focusSeconds > bestDay.focusSeconds))
+      bestDay = { localDate: row.localDate, focusSeconds: row.focusSeconds }
+  }
+
+  const [topProject] = topProjects
+  return {
+    weekStart,
+    endDate: todayLocalDate,
+    thisWeekSeconds,
+    lastWeekSeconds,
+    hasLastWeek: lastWeekDays > 0 || earlier.length > 0,
+    bestDay,
+    topProject: topProject && topProject.focusSeconds > 0 ? { name: topProject.name, focusSeconds: topProject.focusSeconds } : null,
   }
 }

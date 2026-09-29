@@ -57,3 +57,51 @@ export function formatFocusDuration(totalSeconds: number) {
   const minutes = Math.floor((totalSeconds % 3_600) / 60)
   return hours > 0 ? `${hours}h ${String(minutes).padStart(2, "0")}m` : `${minutes}m`
 }
+
+/**
+ * The Monday of the week a local date falls in. The week runs Monday to
+ * Sunday, the same first day the History heatmap's rows already start on, so
+ * the week review and the calendar never disagree about which days a week
+ * holds.
+ */
+export function startOfWeek(localDate: string) {
+  const weekday = new Date(`${localDate}T00:00:00Z`).getUTCDay()
+  if (Number.isNaN(weekday)) throw new Error("INVALID_LOCAL_DATE")
+  return shiftLocalDate(localDate, -((weekday + 6) % 7))
+}
+
+/**
+ * A span of focus in hours and minutes, with the zero part left out: "2h 10m",
+ * "2h", "10m". `formatFocusDuration` always prints the minutes because its
+ * numbers sit in columns that have to line up. This one goes inside a
+ * sentence, where "2h 00m more than last week" reads wrong.
+ */
+export function formatFocusSpan(totalSeconds: number) {
+  const hours = Math.floor(totalSeconds / 3_600)
+  const minutes = Math.floor((totalSeconds % 3_600) / 60)
+  if (!hours) return `${minutes}m`
+  return minutes ? `${hours}h ${minutes}m` : `${hours}h`
+}
+
+/**
+ * This week against last week in plain words. Hours and minutes only, never a
+ * percentage: a percentage change from a week of zero means nothing, and two
+ * stacked percentages cannot be checked by hand.
+ *
+ * The two weeks are compared as whole minutes, so a week that differs by a few
+ * seconds reads as the same week rather than claiming a 0m difference.
+ */
+export function weekComparisonLabel(
+  thisWeekSeconds: number,
+  lastWeekSeconds: number,
+  hasLastWeek: boolean
+) {
+  if (!hasLastWeek) return "This is your first week, so there is nothing to compare to yet."
+  const difference =
+    Math.round(thisWeekSeconds / 60) * 60 - Math.round(lastWeekSeconds / 60) * 60
+  if (difference === 0) return "The same as last week."
+  const span = formatFocusSpan(Math.abs(difference))
+  return difference > 0
+    ? `${span} more than last week.`
+    : `${span} less than last week.`
+}

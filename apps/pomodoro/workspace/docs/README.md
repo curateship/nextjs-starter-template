@@ -41,10 +41,12 @@ cover this one.
   to soft grey in Settings → Appearance, which greys move and which stay.
 - [Backgrounds](backgrounds.md) — the eight scenes and the backdrop every
   member screen draws behind its content.
-- [Focus history](history.md) — the four-range report: stats, heatmap,
-  trend, top tasks, sessions table and CSV export.
+- [Focus history](history.md) — the four-range report: the week review,
+  stats, heatmap, the hour-of-day chart, trend, top tasks, sessions table and
+  CSV export.
 - [Achievements](achievements.md) — the ten badges, the panel above the
-  focus report, and why a badge can only ever be awarded once.
+  focus report with each locked badge's progress, and why a badge can only
+  ever be awarded once.
 - [Guest mode and the one-time import](guest-mode.md) — the whole product
   without an account, and the first sign-in copying it over exactly once.
 - [The front page](landing-page.md) — `/` is the timer, for guests and
