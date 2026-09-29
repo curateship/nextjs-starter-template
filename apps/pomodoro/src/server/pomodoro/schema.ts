@@ -344,6 +344,64 @@ export const pomodoroProfiles = pgTable(
   ]
 )
 
+/**
+ * A private focus group: a name, an owner and the secret in its invite link.
+ *
+ * There is no ranking stored here. A group board is the leaderboard query
+ * filtered to this group's members (`src/server/pomodoro/leaderboard.ts`), so
+ * the figures on a group board and the global one can never disagree.
+ *
+ * The token is never null, unlike the streak badge's: a group always has a
+ * link. Replacing it is what kills a leaked one.
+ */
+export const pomodoroGroups = pgTable(
+  "pomodoro_groups",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ownerUserId: varchar("owner_user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 60 }).notNull(),
+    joinToken: varchar("join_token", { length: 64 }).notNull().unique(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [index("pomodoro_groups_owner_idx").on(table.ownerUserId)]
+)
+
+/**
+ * One row per person in a group, the owner included.
+ *
+ * The unique pair is what makes "in a group once" true, so following an invite
+ * link twice leaves one row rather than two entries on the board.
+ */
+export const pomodoroGroupMembers = pgTable(
+  "pomodoro_group_members",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => pomodoroGroups.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    joinedAt: timestamp("joined_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    unique("pomodoro_group_members_group_user_unique").on(
+      table.groupId,
+      table.userId
+    ),
+    index("pomodoro_group_members_user_idx").on(table.userId),
+  ]
+)
+
 export const userTimerPresets = pgTable(
   "user_timer_presets",
   {
@@ -397,6 +455,8 @@ export type PomodoroTaskRepeat = typeof pomodoroTaskRepeats.$inferSelect
 export type UserTimerPreset = typeof userTimerPresets.$inferSelect
 export type PomodoroProfile = typeof pomodoroProfiles.$inferSelect
 export type PomodoroAchievement = typeof pomodoroAchievements.$inferSelect
+export type PomodoroGroup = typeof pomodoroGroups.$inferSelect
+export type PomodoroGroupMember = typeof pomodoroGroupMembers.$inferSelect
 
 export const rooms = pgTable(
   "rooms",
