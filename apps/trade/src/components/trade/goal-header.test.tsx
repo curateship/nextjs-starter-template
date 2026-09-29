@@ -10,7 +10,10 @@ import { MADE_MONEY } from "@/lib/trade/money-tone"
 vi.mock("@/lib/api/trade/goal", () => ({ loadDailyGoal: vi.fn() }))
 vi.mock("@/lib/trade/hide-pnl", () => ({ useHiddenPnlClass: () => undefined }))
 
-it("colours $8/$24 as profit and clears the colour when the next read fails", async () => {
+// A failed refresh keeps the figures it last had rather than blanking the
+// button to dashes (Tyler, 29 Sep 2026). The spoken name says the read failed,
+// and the panel behind the button offers Try again.
+it("colours $8/$24 as profit and keeps it when the next read fails", async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   vi.useFakeTimers()
   const host = document.createElement("div")
@@ -39,10 +42,10 @@ it("colours $8/$24 as profit and clears the colour when the next read fails", as
     expect(host.querySelector("button")?.getAttribute("aria-label")).toBe(
       "Today's goal could not be read"
     )
-    expect(host.querySelector("button span")?.textContent).toBe("—/—")
+    expect(host.querySelector("button span")?.textContent).toBe("$8/$24")
     for (const name of MADE_MONEY.split(" "))
       expect(host.querySelector("button span")?.classList.contains(name)).toBe(
-        false
+        true
       )
   } finally {
     await act(async () => root.unmount())

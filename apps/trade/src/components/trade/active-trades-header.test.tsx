@@ -163,6 +163,36 @@ describe("the Active Trades header", () => {
     expect(host.querySelector(".blur-\\[5px\\]")).toBeNull()
   })
 
+  it("keeps the last figures when an exchange stops answering", async () => {
+    vi.useFakeTimers()
+    try {
+      await act(async () => root.render(<ActiveTradesHeader role="admin" />))
+      const trigger = host.querySelector<HTMLButtonElement>(
+        "[data-active-trades-header-trigger]"
+      )
+      expect(trigger?.textContent).toContain("$1,250")
+
+      // The next read comes back with the exchange missing, which has no
+      // total to draw. The button holds the one it had rather than blanking
+      // to dashes (Tyler, 29 Sep 2026).
+      loadActiveTradesHeader.mockResolvedValue({
+        snapshot: {
+          readAt: 2,
+          activeTrades: [],
+          activeTradesUnavailable: ["Hyperliquid"],
+          watchingOrders: [],
+        },
+      })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(15_000)
+      })
+      expect(trigger?.textContent).toContain("$1,250")
+      expect(trigger?.textContent).toContain("-$42")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it("has no eye button of its own any more", async () => {
     // One switch, in the header's settings cog, for every figure in the app.
     await act(async () => root.render(<ActiveTradesHeader role="admin" />))

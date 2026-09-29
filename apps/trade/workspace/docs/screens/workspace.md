@@ -155,10 +155,12 @@ these as well as an admin, and sees only their own wallets and orders there —
   hand-placed prices still waiting. A draggable divider changes their heights and the account
   remembers the split. When the column is collapsed, a bot icon opens both
   panels in one dropdown. Dragging the right divider open returns both panels.
-  The dropdown is as wide as the side
-  panel and grows with its rows until it reaches the available screen height;
-  longer tables scroll inside it. Hovering the bot icon opens the dropdown.
-  The dropdown icon has no hover message.
+  The dropdown is as wide as the side panel and is a fixed 32rem tall, or the
+  screen height when that is smaller. It is split in half, Smart orders over
+  Manual orders, and each half scrolls on its own. A panel sized to its rows
+  instead ran past the bottom of the dropdown, so the rows below the fold could
+  not be reached and no scrollbar appeared (Tyler, 29 Sep 2026). Hovering the
+  bot icon opens the dropdown. The dropdown icon has no hover message.
 - **Bottom, what you are holding.** Positions, open orders and fills, as tabs.
 
 **Every workspace panel header uses `DashboardCardHeader`.** The header is 57px

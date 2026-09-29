@@ -92,11 +92,13 @@ export default function GoalHeader() {
   const hiddenPnl = useHiddenPnlClass()
   const [open, setOpen] = React.useState(false)
 
-  // **A read that failed shows dashes, never the figures it last had.** The
-  // button is money as it stands now; a minute-old total drawn as if it were
-  // live is the one thing every figure in this app refuses to do.
+  // **A read that failed keeps the figures it last had** (Tyler, 29 Sep 2026).
+  // The button used to blank every figure to a dash the moment one read did
+  // not answer, which flickered empty every few minutes. The panel behind it
+  // still says the read failed and offers Try again, so the age of the figures
+  // is never hidden.
   const goal = read?.goal ?? null
-  const progress = read ? (failed ? unread(read.progress) : read.progress) : null
+  const progress = read?.progress ?? null
   const tone = progress ? goalTone(progress) : null
   const label = progress ? goalLabel(progress) : null
 
@@ -264,17 +266,6 @@ function Figure({
       </span>
     </div>
   )
-}
-
-/** Every figure blanked, for a read that did not answer. */
-function unread(progress: GoalProgress): GoalProgress {
-  return {
-    ...progress,
-    made: null,
-    target: null,
-    walletsWorth: null,
-    openProfit: null,
-  }
 }
 
 /** Whole dollars, or a dash when the figure never arrived. */

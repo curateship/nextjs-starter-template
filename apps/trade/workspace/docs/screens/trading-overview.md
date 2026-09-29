@@ -167,8 +167,13 @@ menu. The eye beside Filter hides the profit or loss from the header button and
 changes to a crossed eye. The value held stays visible, so the button still
 opens and the crossed eye can show the profit or loss again. The table keeps
 its P/L column either way. A wallet that misses a read keeps its last known
-rows, and the header uses dashes rather than claiming a partial account-wide
-total.
+rows.
+
+**The header button keeps the figures it last had until better ones arrive**
+(Tyler, 29 Sep 2026). A read with a wallet missing has no account-wide total to
+draw, and blanking both figures to dashes for a few seconds made the button
+flicker empty every refresh while nothing was wrong with the trades. Dashes are
+now only the first read of a fresh page, before any total has ever landed.
 
 The header reads the wallet list and then the open positions that supply its
 menu and total. It does not ask every exchange for a full account balance first.

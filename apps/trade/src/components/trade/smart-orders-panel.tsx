@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/popover"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { ErrorRow } from "@/components/ui/error-row"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import {
   Table,
@@ -225,9 +225,9 @@ export function SmartOrdersPanel({
       }}
       className={cn(
         "min-h-0 gap-0 overflow-hidden bg-card",
-        compact
-          ? "max-h-[var(--radix-popover-content-available-height)]"
-          : "flex-1"
+        // In the dropdown the panel fills the half it was given and scrolls
+        // inside it, the same way it does in its own column.
+        compact ? "h-full" : "flex-1"
       )}
     >
       <DashboardCardTabsHeader>
@@ -245,16 +245,13 @@ export function SmartOrdersPanel({
 
       <TabsContent
         value="smart"
-        className={cn(
-          "flex min-h-0 flex-col",
-          compact ? "flex-none" : "flex-1"
-        )}
+        className="flex min-h-0 flex-1 flex-col"
       >
-        <SmartOrdersView {...smartOrdersProps} compact={compact} />
+        <SmartOrdersView {...smartOrdersProps} />
       </TabsContent>
       <TabsContent
         value="bots"
-        className={cn("min-h-0", compact ? "flex-none" : "flex-1")}
+        className="min-h-0 flex-1"
       >
         <BotsView
           bots={bots}
@@ -263,7 +260,6 @@ export function SmartOrdersPanel({
           busy={botsBusy}
           onRetry={() => void refreshBots()}
           onRefresh={refreshBots}
-          compact={compact}
         />
       </TabsContent>
     </Tabs>
@@ -277,7 +273,6 @@ function BotsView({
   busy,
   onRetry,
   onRefresh,
-  compact,
 }: {
   bots: readonly RunningBot[]
   error: string | null
@@ -285,7 +280,6 @@ function BotsView({
   busy: boolean
   onRetry: () => void
   onRefresh: () => Promise<void>
-  compact: boolean
 }) {
   const [stopping, setStopping] = React.useState<RunningBot | null>(null)
   const [actingId, setActingId] = React.useState<string | null>(null)
@@ -312,13 +306,13 @@ function BotsView({
     return (
       <LoadingRow
         label="Reading your running bots"
-        className={compact ? undefined : "h-full"}
+        className="h-full"
       />
     )
   }
 
   if (!known && error) {
-    return <ErrorRow message={error} onRetry={onRetry} className={!compact ? "h-full" : undefined} />
+    return <ErrorRow message={error} onRetry={onRetry} className="h-full" />
   }
 
   const refreshError = error ? (
@@ -332,7 +326,7 @@ function BotsView({
 
   if (bots.length === 0) {
     return (
-      <div className={cn("flex flex-col", !compact && "h-full")}>
+      <div className="flex h-full flex-col">
         {refreshError}
         <p className="flex flex-1 items-center justify-center p-6 text-center text-sm text-muted-foreground">
           No bot is running on this exchange. Switch one on from its automation
@@ -344,13 +338,7 @@ function BotsView({
 
   return (
     <>
-      <ScrollArea
-        className={
-          compact
-            ? "max-h-[calc(var(--radix-popover-content-available-height)-3.5rem)]"
-            : "h-full"
-        }
-      >
+      <ScrollArea className="min-h-0 flex-1">
         {refreshError}
         <ul>
           {bots.map((bot) => (
@@ -555,8 +543,7 @@ function SmartOrdersView({
   onRetry,
   onResumeSmartOrder,
   onSelectMarket,
-  compact,
-}: SmartOrdersViewProps & { compact: boolean }) {
+}: SmartOrdersViewProps) {
   const [cached, setCached] = React.useState<ReturnType<
     typeof readSmartOrdersCache
   >>(null)
@@ -719,13 +706,7 @@ function SmartOrdersView({
           place one — a flow&rsquo;s orders live on its own dashboard.
         </p>
       ) : (
-        <ScrollArea
-          className={
-            compact
-              ? "max-h-[calc(var(--radix-popover-content-available-height)-3.5rem)]"
-              : "min-h-0 flex-1"
-          }
-        >
+        <ScrollArea className="min-h-0 flex-1">
           <Table
             className="table-fixed [&_tbody_tr:first-child_td]:pt-2 [&_tbody_tr:last-child_td]:pb-2 [&_td:first-child]:pl-4 [&_td:last-child]:pr-4 [&_th:first-child]:pl-4 [&_th:last-child]:pr-4"
             containerClassName={cn(
@@ -865,6 +846,7 @@ function SmartOrdersView({
               )}
             </TableBody>
           </Table>
+          <ScrollBar orientation="horizontal" />
         </ScrollArea>
       )}
     </>

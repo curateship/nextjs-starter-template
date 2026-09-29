@@ -34,9 +34,13 @@ room it took.
 - **Positive dollars are green before the target is met**, using the colour
   in `reading-the-figures.md`. A displayed loss is red. A displayed $0 is neutral.
   For example, $8/$24 is green. Missing figures stay neutral.
-- **A figure that never arrived is a dash**, never the last number drawn as if
-  it were live. A read that fails blanks both figures to dashes rather than
-  leaving the last ones on screen, and the panel says so with a Try again.
+- **A figure that never arrived is a dash.** Dashes mean no figure has landed
+  yet, which is the first read on a fresh page and nothing else.
+- **A read that fails keeps the figures it last had** (Tyler, 29 Sep 2026). The
+  button used to blank both figures to dashes the moment one read did not
+  answer, so it flickered empty every few minutes on a slow exchange. The
+  figures now stay put and the panel behind the button says the read failed and
+  offers Try again, so their age is never hidden.
 - **The member and admin headers always show the goal control.** Before the
   first answer it says "Set goal" while loading. When the goal is switched off,
   opening it points to Settings → Goals instead of hiding the control.

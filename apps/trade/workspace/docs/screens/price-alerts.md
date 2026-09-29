@@ -13,8 +13,14 @@ tab, it is the tab the dropdown opens on, and it holds the 100 most recent
 lines that already went off (Tyler, 13 Sep 2026). **Alert** is the second tab
 and holds the lines that are still waiting. Fired needs no press to fill: the
 fired list is read when the screen loads and again every two seconds. Each label has the same rounded count badge used by the
-Positions tab. The siren itself gets a red count badge whenever fired price or
-drawing alerts are waiting in Fired.
+Positions tab. The siren itself gets a red count badge for price and drawing
+alerts that have fired since it was last opened.
+
+**Opening the dropdown takes the red count off the siren** (Tyler, 29 Sep
+2026). The fired rows stay in the Fired tab until they are binned or cleared,
+so the count is what has fired since the last look, not how many rows the tab
+holds. Anything that fires afterwards brings the count back, and a count is
+never left behind by an alert that fired while the dropdown was open.
 Selecting a row in either tab opens that market and leaves the dropdown open.
 Clicking a fired row also clears that fired entry and reduces the red count.
 Drawing alerts follow the same rule, while their drawings stay on the chart.

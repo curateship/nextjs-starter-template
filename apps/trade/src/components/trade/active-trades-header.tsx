@@ -47,7 +47,16 @@ function useActiveTradesHeader() {
   const [snapshot, setSnapshot] = React.useState<ActiveTradesSnapshot | null>(
     null
   )
+  // **The button keeps the figures it last had until better ones arrive**
+  // (Tyler, 29 Sep 2026). A read where one exchange does not answer has no
+  // total to draw, and blanking both figures to dashes for a few seconds made
+  // the button flicker empty while nothing was wrong with the trades. Dashes
+  // are now only the first read, before any total has ever landed.
+  const [figures, setFigures] = React.useState<ReturnType<
+    typeof headerFigures
+  > | null>(null)
   const [failed, setFailed] = React.useState(false)
+  const snapshotRef = React.useRef<ActiveTradesSnapshot | null>(null)
   const requestRef = React.useRef<Promise<void> | null>(null)
 
   const refresh = React.useCallback(() => {
@@ -55,9 +64,14 @@ function useActiveTradesHeader() {
     const request = (async () => {
       try {
         const fresh = await loadActiveTradesHeader()
-        setSnapshot((was) =>
-          was ? mergeActiveTradesSnapshot(was, fresh.snapshot) : fresh.snapshot
-        )
+        const was = snapshotRef.current
+        const merged = was
+          ? mergeActiveTradesSnapshot(was, fresh.snapshot)
+          : fresh.snapshot
+        snapshotRef.current = merged
+        setSnapshot(merged)
+        const next = headerFigures(merged)
+        if (next) setFigures(next)
         setFailed(false)
       } catch {
         setFailed(true)
@@ -106,16 +120,15 @@ function useActiveTradesHeader() {
     }
   }, [refresh])
 
-  return { snapshot, failed, refresh }
+  return { snapshot, figures, failed, refresh }
 }
 
 function ActiveTradesHeaderContent() {
-  const { snapshot, failed, refresh } = useActiveTradesHeader()
+  const { snapshot, figures, failed, refresh } = useActiveTradesHeader()
   const hiddenPnl = useHiddenPnlClass()
   const [open, setOpen] = React.useState(false)
   const closeTimer = React.useRef<number | null>(null)
   const hoverOpen = React.useRef(false)
-  const figures = snapshot ? headerFigures(snapshot) : null
 
   const cancelClose = React.useCallback(() => {
     if (closeTimer.current !== null) window.clearTimeout(closeTimer.current)

@@ -79,7 +79,7 @@ afterEach(async () => {
 
 describe("the alerts menu", () => {
   it.each([false, true])(
-    "clicking a fired alert clears its badge and restores it if saving fails, failure=%s",
+    "clicking a fired alert opens its market, and a delete that fails puts the row back, failure=%s",
     async (fails) => {
       const select = vi.fn()
       if (fails) api.removeFired.mockRejectedValue(new Error("refused"))
@@ -119,13 +119,48 @@ describe("the alerts menu", () => {
       expect(api.removeFired).toHaveBeenCalledWith(
         "00000000-0000-4000-8000-000000000002"
       )
-      expect(
-        button(fails ? "Open alerts, 1 fired" : "Open alerts")
-      ).not.toBeNull()
+      // Opening the menu already counted the alert as seen, so the red count
+      // is off the siren either way (Tyler, 29 Sep 2026).
+      expect(button("Open alerts")).not.toBeNull()
       expect(document.body.textContent?.includes("ETH")).toBe(fails)
       if (fails) expect(errors.show).toHaveBeenCalledWith("Delete failed.")
     }
   )
+
+  it("takes the red count off the siren once the menu has been opened", async () => {
+    await act(async () => {
+      root.render(
+        <TooltipProvider>
+          <PriceAlertsMenu
+            alerts={[]}
+            error={null}
+            onRetry={() => {}}
+            onSelectMarket={() => {}}
+            onDelete={() => {}}
+            lines={{
+              armed: [],
+              fired: [],
+              error: null,
+              onRetry: () => {},
+              onSelect: () => {},
+              onSwitchOff: () => {},
+            }}
+            onCleared={async () => {}}
+          />
+        </TooltipProvider>
+      )
+    })
+
+    await vi.waitFor(() => {
+      expect(button("Open alerts, 1 fired")).not.toBeNull()
+    })
+    await act(async () => button("Open alerts, 1 fired").click())
+    // The fired alert is still in the list. Only the count on the siren goes,
+    // because it now means "fired since you last looked" (Tyler, 29 Sep 2026).
+    await act(async () => button("Open alerts").click())
+    expect(button("Open alerts")).not.toBeNull()
+    expect(button("Open alerts").textContent).not.toContain("1")
+  })
 
   it("shows the fired badge and clears only the visible tab", async () => {
     const onCleared = vi.fn().mockResolvedValue(undefined)
@@ -207,7 +242,9 @@ describe("the alerts menu", () => {
     expect(api.clear).toHaveBeenLastCalledWith("active")
     expect(onCleared).toHaveBeenCalledTimes(1)
 
-    await act(async () => button("Open alerts, 1 fired").click())
+    // Opening the menu once counts the fired alert as seen, so the red count
+    // is off the siren from then on (Tyler, 29 Sep 2026).
+    await act(async () => button("Open alerts").click())
     const firedTab = Array.from(
       document.body.querySelectorAll<HTMLButtonElement>('[role="tab"]')
     ).find((candidate) => candidate.textContent?.includes("Fired"))

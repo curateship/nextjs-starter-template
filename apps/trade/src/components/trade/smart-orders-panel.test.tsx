@@ -261,10 +261,18 @@ describe("the Smart orders panel", () => {
     )
 
     expect(smartTab?.className).toContain("flex-col")
-    expect(smartTab?.querySelector('[data-slot="scroll-area"]')).not.toBeNull()
+    const scroller = smartTab?.querySelector('[data-slot="scroll-area"]')
+    expect(scroller).not.toBeNull()
+    // It fills the tab rather than growing with its rows, so the rows past
+    // the fold are reached by scrolling.
+    expect(scroller?.className.split(/\s+/)).toContain("flex-1")
+    expect(scroller?.className.split(/\s+/)).toContain("min-h-0")
   })
 
-  it("sizes its dropdown mode to the current rows instead of a fixed height", () => {
+  // The dropdown gives the panel half its height and clips what does not fit,
+  // so a panel sized to its rows put the last ones out of reach with no
+  // scrollbar (Tyler, 29 Sep 2026). It now fills the half and scrolls inside.
+  it("fills the box the dropdown gives it instead of growing with its rows", () => {
     const host = document.createElement("div")
     host.innerHTML = renderToStaticMarkup(
       <SmartOrdersPanel
@@ -277,11 +285,12 @@ describe("the Smart orders panel", () => {
     )
 
     const tabs = host.querySelector<HTMLElement>('[data-slot="tabs"]')!
-    expect(tabs.className).toContain(
+    expect(tabs.className.split(/\s+/)).toContain("h-full")
+    expect(tabs.className.split(/\s+/)).toContain("min-h-0")
+    expect(tabs.className).not.toContain(
       "max-h-[var(--radix-popover-content-available-height)]"
     )
-    expect(tabs.className.split(/\s+/)).not.toContain("h-full")
-    expect(tabs.className.split(/\s+/)).not.toContain("flex-1")
+
   })
 
   it("says nothing is working only once both halves have answered", () => {

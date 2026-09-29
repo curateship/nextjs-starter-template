@@ -980,7 +980,6 @@ export function TradeWorkspace({
 
   const manualOrdersPanel = (
     <ManualOrdersPanel
-      compact={desktop && smartOrdersCollapsed}
       orders={trading.watchOrders}
       positions={trading.positions}
       smartOrders={trading.smartOrders}
@@ -1112,7 +1111,12 @@ export function TradeWorkspace({
               {walletManagement}
               {desktop && smartOrdersCollapsed && !chartFullscreen ? (
                 <SmartOrdersMenu>
-                  <div className="grid max-h-[var(--radix-popover-content-available-height)] grid-rows-2 overflow-hidden">
+                  {/* Two halves that can each shrink to nothing, so a long
+                      list scrolls inside its half instead of running past the
+                      menu's bottom edge where its rows could not be reached.
+                      Short lists still hug their rows, because the height is a
+                      cap rather than a fixed size. */}
+                  <div className="grid max-h-[min(32rem,var(--radix-popover-content-available-height))] grid-rows-[minmax(0,1fr)_minmax(0,1fr)] overflow-hidden">
                     {smartOrdersPanel}
                     <div className="min-h-0 border-t">{manualOrdersPanel}</div>
                   </div>

@@ -47,7 +47,21 @@ export function PriceAlertsMenu({
     "active" | "fired" | null
   >(null)
   const fired = useFiredPriceAlerts()
-  const firedCount = fired.alerts.length + lines.fired.length
+  // **Opening the menu clears the red count** (Tyler, 29 Sep 2026). The fired
+  // alerts stay in the list until they are cleared or binned, so the count on
+  // the siren is what has fired since it was last looked at, not how many rows
+  // the Fired tab holds. Anything that fires afterwards brings it back.
+  const [seen, setSeen] = React.useState<readonly string[]>([])
+  const firedIds = React.useMemo(
+    () => [
+      ...fired.alerts.map((alert) => alert.id),
+      ...lines.fired.map((alert) => alert.id),
+    ],
+    [fired.alerts, lines.fired]
+  )
+  const firedCount = open
+    ? 0
+    : firedIds.filter((id) => !seen.includes(id)).length
   const clear = React.useCallback(
     async (kind: "active" | "fired") => {
       if (clearing) return
@@ -65,7 +79,17 @@ export function PriceAlertsMenu({
   )
   return (
     <>
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover
+        open={open}
+        onOpenChange={(next) => {
+          // Both ways round. Opening counts what is on screen as seen, and
+          // closing catches anything that fired while the menu was up. Only
+          // ids still in the fired list are kept, so the list cannot grow
+          // without end as old alerts are binned.
+          setSeen(firedIds)
+          setOpen(next)
+        }}
+      >
         <PopoverTrigger asChild>
           <Button
             type="button"
