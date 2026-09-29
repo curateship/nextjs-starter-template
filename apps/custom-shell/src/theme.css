@@ -655,6 +655,30 @@ body:has(
   filter: blur(4px);
 }
 
+/*
+ * The blur eases in instead of switching on, so it moves with the overlay fade
+ * and the window's own entrance rather than snapping ahead of them. Spreading
+ * it over the same 150ms also spreads the paint cost across those frames
+ * instead of landing it on one.
+ *
+ * It is not what makes a slow window feel slow. Measured with the processor
+ * slowed to a quarter speed, the blur costs about 50ms of the wait before a
+ * window appears and nothing at all while the window sits open. See
+ * "Windows opening and closing" in docs/shell/user-interface.md for what does.
+ *
+ * The transition lives on the canvas rather than inside the :has() rule above
+ * so that closing a window un-blurs on the same curve.
+ */
+[data-slot="app-canvas"] {
+  transition: filter 150ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-slot="app-canvas"] {
+    transition: none;
+  }
+}
+
 [data-slot="dialog-content"] {
   background-color: var(--shell-modal-bg, var(--popover));
   --tw-ring-shadow: 0 0 #0000;
