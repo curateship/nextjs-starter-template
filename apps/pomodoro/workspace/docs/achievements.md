@@ -63,9 +63,22 @@ stacked up would bury the screen, so past two they become one line.
 ## The panel
 
 Earned badges carry the day they were earned and a filled orange disc. Locked
-ones stay on screen with an empty ring, the rule in plain words, and what they
-still take: "40 sessions to go", "best so far: 1 day", "6h 20m of 10h". A
-locked badge is never hidden, so the next one is always visible.
+ones stay on screen with an empty ring, the rule in plain words, and how far
+they have got: "62 of 100 sessions", "best so far: 4 of 7 days", "6h 20m of
+10h", with a small bar showing the same thing. A locked badge is never hidden,
+so the next one is always visible.
+
+The count and the bar both come from `achievementProgress` in
+`src/lib/pomodoro/achievements.ts`, beside the rules rather than in the panel,
+so the rule and the progress read the same threshold and can never disagree.
+The count beside the bar is the real answer, because progress must never be
+carried by a drawing alone.
+
+The count never reads past what the badge takes. A counter can sit past a
+threshold while the badge still reads as locked, because the award row is
+written after the counter moves and a failed award waits for the next finished
+session. "105 of 100" under a locked badge reads as a bug, so the panel says
+"100 of 100" and fills the bar.
 
 Earned and locked differ by shape as well as colour, and each carries a
 screen-reader-only "Earned" or "Locked", because state must never be carried

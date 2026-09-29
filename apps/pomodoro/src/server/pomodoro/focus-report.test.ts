@@ -2,9 +2,9 @@ import { PGlite } from "@electric-sql/pglite"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { type CustomShellDb } from "@/server/db"
-import { loadFocusReport } from "@/server/pomodoro/focus-report"
+import { loadFocusReport, loadWeekReview } from "@/server/pomodoro/focus-report"
 import { createProject, setProjectArchived } from "@/server/pomodoro/projects"
-import { focusSessions, tasks } from "@/server/pomodoro/schema"
+import { dailyFocusStats, focusSessions, tasks } from "@/server/pomodoro/schema"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 
 /**
@@ -163,5 +163,161 @@ describe("the per-project split", () => {
       sessions: 1,
       focusSeconds: 1500,
     })
+  })
+})
+
+
+/** One finished focus of `minutes`, completed at the given instant. */
+async function addFocusAt(instant: string, minutes: number, taskId: string | null = null) {
+  const seconds = minutes * 60
+  await db.insert(focusSessions).values({
+    userId,
+    taskId,
+    mode: "focus",
+    status: "completed",
+    plannedSeconds: seconds,
+    accumulatedSeconds: seconds,
+    completedAt: new Date(instant),
+    idempotencyKey: `key-${Math.random()}`,
+  })
+}
+
+async function addDay(localDate: string, minutes: number, sessions = 1) {
+  await db.insert(dailyFocusStats).values({
+    userId,
+    localDate,
+    focusSessions: sessions,
+    focusSeconds: minutes * 60,
+    tasksCompleted: 0,
+  })
+}
+
+const hoursWithSessions = (report: Awaited<ReturnType<typeof loadFocusReport>>) =>
+  report.hours.filter((hour) => hour.sessions > 0).map((hour) => hour.hour)
+
+describe("the hour-of-day split", () => {
+  it("always answers with all 24 hours, so the chart's axis never moves", async () => {
+    const report = await loadFocusReport(userId, "7d", TODAY, UTC)
+    expect(report.hours).toHaveLength(24)
+    expect(report.hours.map((hour) => hour.hour)).toEqual(
+      Array.from({ length: 24 }, (_, index) => index)
+    )
+    expect(hoursWithSessions(report)).toEqual([])
+  })
+
+  it("puts a 9am and a 2pm focus in those two hours and nowhere else", async () => {
+    await addFocusAt(`${TODAY}T09:15:00Z`, 25)
+    await addFocusAt(`${TODAY}T09:45:00Z`, 25)
+    await addFocusAt(`${TODAY}T14:05:00Z`, 50)
+
+    const report = await loadFocusReport(userId, "7d", TODAY, UTC)
+    expect(hoursWithSessions(report)).toEqual([9, 14])
+    expect(report.hours[9]).toMatchObject({ sessions: 2, focusSeconds: 3000 })
+    expect(report.hours[14]).toMatchObject({ sessions: 1, focusSeconds: 3000 })
+  })
+
+  it("counts the hour in the profile's timezone, not in UTC", async () => {
+    // 01:30 UTC is 21:30 the evening before in New York, so an evening focus
+    // must read as the evening rather than as the small hours.
+    await addFocusAt("2026-09-25T01:30:00Z", 25)
+
+    const report = await loadFocusReport(userId, "7d", TODAY, "America/New_York")
+    expect(hoursWithSessions(report)).toEqual([21])
+  })
+
+  it("counts every session in the range exactly once", async () => {
+    await addFocusAt(`${TODAY}T09:15:00Z`, 25)
+    await addFocusAt(`${TODAY}T11:00:00Z`, 25)
+    await addFocusAt("2026-09-23T16:00:00Z", 25)
+
+    const report = await loadFocusReport(userId, "7d", TODAY, UTC)
+    const counted = report.hours.reduce((sum, hour) => sum + hour.sessions, 0)
+    expect(counted).toBe(report.sessions.totalRows)
+    expect(counted).toBe(3)
+  })
+
+  it("leaves out a session outside the range", async () => {
+    await addFocusAt("2026-08-01T09:00:00Z", 25)
+
+    const report = await loadFocusReport(userId, "7d", TODAY, UTC)
+    expect(hoursWithSessions(report)).toEqual([])
+  })
+})
+
+/**
+ * The week review. TODAY (25 Sep 2026) is a Friday, so this week starts Monday
+ * 21 Sep and last week starts Monday 14 Sep.
+ */
+describe("the week review", () => {
+  it("starts the week on the Monday before today", async () => {
+    const review = await loadWeekReview(userId, TODAY, UTC)
+    expect(review.weekStart).toBe("2026-09-21")
+  })
+
+  it("starts the week on the same day when today is that Monday", async () => {
+    const review = await loadWeekReview(userId, "2026-09-21", UTC)
+    expect(review.weekStart).toBe("2026-09-21")
+  })
+
+  it("says six hours against four, and names the best day", async () => {
+    await addDay("2026-09-21", 120)
+    await addDay("2026-09-23", 240, 2)
+    await addDay("2026-09-16", 240)
+
+    const review = await loadWeekReview(userId, TODAY, UTC)
+    expect(review.thisWeekSeconds).toBe(6 * 3_600)
+    expect(review.lastWeekSeconds).toBe(4 * 3_600)
+    expect(review.hasLastWeek).toBe(true)
+    expect(review.bestDay).toEqual({
+      localDate: "2026-09-23",
+      focusSeconds: 4 * 3_600,
+    })
+  })
+
+  it("has no last week on an account that has never recorded a day before it", async () => {
+    await addDay("2026-09-22", 90)
+
+    const review = await loadWeekReview(userId, TODAY, UTC)
+    expect(review.hasLastWeek).toBe(false)
+    expect(review.lastWeekSeconds).toBe(0)
+  })
+
+  // A quiet week is a real comparison, and it is not the first week.
+  it("has a last week of zero when the account was active before it", async () => {
+    await addDay("2026-09-01", 120)
+    await addDay("2026-09-22", 90)
+
+    const review = await loadWeekReview(userId, TODAY, UTC)
+    expect(review.hasLastWeek).toBe(true)
+    expect(review.lastWeekSeconds).toBe(0)
+  })
+
+  it("has no best day and no project on an empty week", async () => {
+    const review = await loadWeekReview(userId, TODAY, UTC)
+    expect(review.bestDay).toBeNull()
+    expect(review.topProject).toBeNull()
+    expect(review.thisWeekSeconds).toBe(0)
+  })
+
+  it("names the project that took the most of this week only", async () => {
+    const clientA = await createProject(userId, "Client A")
+    const thesis = await createProject(userId, "Thesis")
+    const clientTask = await addTask(clientA.id)
+    const thesisTask = await addTask(thesis.id)
+    await addFocusAt("2026-09-22T10:00:00Z", 25, clientTask.id)
+    await addFocusAt("2026-09-23T10:00:00Z", 25, clientTask.id)
+    await addFocusAt("2026-09-24T10:00:00Z", 60, thesisTask.id)
+    // Last week's much longer session must not win this week's row.
+    await addFocusAt("2026-09-16T10:00:00Z", 600, clientTask.id)
+
+    const review = await loadWeekReview(userId, TODAY, UTC)
+    expect(review.topProject).toEqual({ name: "Thesis", focusSeconds: 3600 })
+  })
+
+  it("names no project when this week's focus was on no task", async () => {
+    await addFocusAt("2026-09-22T10:00:00Z", 25)
+
+    const review = await loadWeekReview(userId, TODAY, UTC)
+    expect(review.topProject).toEqual({ name: null, focusSeconds: 1500 })
   })
 })

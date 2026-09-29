@@ -26,13 +26,19 @@ import {
 } from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
-import { exportFocusHistory, loadFocusHistory } from "@/lib/api/pomodoro/history"
+import {
+  exportFocusHistory,
+  loadFocusHistory,
+  loadFocusWeekReview,
+} from "@/lib/api/pomodoro/history"
 import {
   formatFocusDuration,
+  formatFocusSpan,
   isLongRangeReport,
   reportRangeLabels,
   reportRanges,
   shiftLocalDate,
+  weekComparisonLabel,
   type ReportRange,
 } from "@/lib/pomodoro/focus-history"
 import { useProductAuth } from "@/lib/pomodoro/auth-state"
@@ -40,6 +46,7 @@ import { browserTimezone } from "@/lib/pomodoro/timer"
 
 type FocusHistoryResult = Awaited<ReturnType<typeof loadFocusHistory>>
 type ReportDay = FocusHistoryResult["days"][number]
+type WeekReview = Awaited<ReturnType<typeof loadFocusWeekReview>>
 
 function dayLabel(localDate: string, options: Intl.DateTimeFormatOptions) {
   return new Date(`${localDate}T12:00:00`).toLocaleDateString(undefined, options)
@@ -267,6 +274,242 @@ function TrendCard({
         />
       </CardContent>
     </Card>
+  )
+}
+
+/** "9am", "12pm", "11pm" — the plainest name for an hour of the day. */
+function hourLabel(hour: number) {
+  if (hour === 0) return "12am"
+  if (hour === 12) return "12pm"
+  return hour < 12 ? `${hour}am` : `${hour - 12}pm`
+}
+
+const hourConfig = {
+  sessions: { label: "Sessions finished", color: "var(--p-accent)" },
+} satisfies ChartConfig
+
+/**
+ * Which hours of the day the person actually finishes focus sessions in, in
+ * their own timezone. The bars count finished sessions rather than minutes,
+ * because the question is when work gets done, not how long each one ran.
+ *
+ * The axis is always all 24 hours so its shape never moves between ranges. A
+ * range with nothing in it says so instead of drawing 24 empty bars.
+ */
+function HourOfDayCard({ hours }: { hours: FocusHistoryResult["hours"] }) {
+  const total = hours.reduce((sum, hour) => sum + hour.sessions, 0)
+  const busiest = hours.reduce(
+    (best, hour) => (hour.sessions > best.sessions ? hour : best),
+    hours[0]
+  )
+  const bars = hours.map((hour) => ({
+    ...hour,
+    label: hourLabel(hour.hour),
+  }))
+  return (
+    <Card>
+      <CardHeader className="flex-row items-baseline justify-between">
+        <CardTitle>When you focus</CardTitle>
+        <span className="text-xs text-muted-foreground">
+          {total
+            ? `busiest hour ${hourLabel(busiest.hour)} · ${total} ${total === 1 ? "session" : "sessions"}`
+            : "by hour of day"}
+        </span>
+      </CardHeader>
+      <CardContent>
+        {total ? (
+          <>
+            <div className="h-40" aria-hidden="true">
+              <ChartContainer config={hourConfig} className="h-full w-full">
+                <BarChart data={bars}>
+                  <CartesianGrid strokeDasharray="0" vertical={false} />
+                  <XAxis
+                    dataKey="label"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 10 }}
+                    dy={6}
+                    interval={2}
+                  />
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 10, dx: -5 }}
+                    width={36}
+                    allowDecimals={false}
+                  />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Bar
+                    dataKey="sessions"
+                    fill="var(--color-sessions)"
+                    radius={[3, 3, 0, 0]}
+                    maxBarSize={18}
+                  />
+                </BarChart>
+              </ChartContainer>
+            </div>
+            {/* Screen-reader equivalent of the bars above. */}
+            <table className="sr-only">
+              <caption>Focus sessions finished by hour of day</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Hour</th>
+                  <th scope="col">Sessions</th>
+                  <th scope="col">Focus time</th>
+                </tr>
+              </thead>
+              <tbody>
+                {bars
+                  .filter((hour) => hour.sessions > 0)
+                  .map((hour) => (
+                    <tr key={hour.hour}>
+                      <th scope="row">{hour.label}</th>
+                      <td>{hour.sessions}</td>
+                      <td>{formatFocusDuration(hour.focusSeconds)}</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Finish a focus session and the hour it ended in shows up here.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+/**
+ * This week against last week, at the top of the page.
+ *
+ * It ignores the range tabs, because it is always this week against last week,
+ * which is why it loads on its own rather than arriving with the report. The
+ * week runs Monday to Sunday, the same first day the calendar's rows start on.
+ */
+function WeekReviewCard() {
+  const [review, setReview] = React.useState<WeekReview | null>(null)
+  const [error, setError] = React.useState("")
+  const [loading, setLoading] = React.useState(true)
+
+  React.useEffect(() => {
+    let live = true
+    loadFocusWeekReview(browserTimezone())
+      .then((result) => {
+        if (live) setReview(result)
+      })
+      .catch(() => {
+        if (live) setError("Your week could not be loaded.")
+      })
+      .finally(() => {
+        if (live) setLoading(false)
+      })
+    return () => {
+      live = false
+    }
+  }, [])
+
+  return (
+    <Card>
+      <CardHeader className="flex-row items-baseline justify-between">
+        <CardTitle>Your week</CardTitle>
+        {review ? (
+          <span className="text-xs text-muted-foreground">
+            {dayLabel(review.weekStart, { month: "short", day: "numeric" })} –{" "}
+            {dayLabel(review.endDate, { month: "short", day: "numeric" })}
+          </span>
+        ) : null}
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3">
+        {loading ? (
+          <span
+            role="status"
+            className="flex items-center gap-1 text-sm text-muted-foreground"
+          >
+            <Loader2Icon className="size-3 animate-spin" aria-hidden="true" />
+            Loading…
+          </span>
+        ) : null}
+        {error ? (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
+        ) : null}
+        {review ? (
+          <>
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+              <strong className="text-2xl">
+                {formatFocusSpan(review.thisWeekSeconds)}
+              </strong>
+              <span className="text-sm text-muted-foreground">
+                {weekComparisonLabel(
+                  review.thisWeekSeconds,
+                  review.lastWeekSeconds,
+                  review.hasLastWeek
+                )}
+              </span>
+            </div>
+            <dl className="grid gap-3 sm:grid-cols-2">
+              <WeekFact
+                label="Best day"
+                value={
+                  review.bestDay
+                    ? dayLabel(review.bestDay.localDate, {
+                        weekday: "long",
+                        day: "numeric",
+                        month: "short",
+                      })
+                    : "No focus yet this week"
+                }
+                hint={
+                  review.bestDay
+                    ? formatFocusDuration(review.bestDay.focusSeconds)
+                    : null
+                }
+              />
+              <WeekFact
+                label="Most time on"
+                value={
+                  review.topProject
+                    ? (review.topProject.name ?? "No project")
+                    : "No focus yet this week"
+                }
+                hint={
+                  review.topProject
+                    ? formatFocusDuration(review.topProject.focusSeconds)
+                    : null
+                }
+              />
+            </dl>
+          </>
+        ) : null}
+      </CardContent>
+    </Card>
+  )
+}
+
+function WeekFact({
+  label,
+  value,
+  hint,
+}: {
+  label: string
+  value: string
+  hint: string | null
+}) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <dt className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+        {label}
+      </dt>
+      <dd className="text-sm">
+        {value}
+        {hint ? (
+          <span className="text-muted-foreground"> · {hint}</span>
+        ) : null}
+      </dd>
+    </div>
   )
 }
 
@@ -625,9 +868,11 @@ export function HistoryPage() {
           <p className="text-sm text-muted-foreground">{rangeSummary}</p>
         </header>
 
-        {/* Milestones on the numbers below, so they sit above them. The panel
-            reads lifetime totals and ignores the range tabs, which is why it
-            is outside the block the range redraws. */}
+        {/* This week, then the milestones, then the numbers for the chosen
+            range. Both of these read their own fixed period and ignore the
+            range tabs, which is why they sit outside the block the range
+            redraws. */}
+        <WeekReviewCard />
         <AchievementsCard />
 
         <div className="flex flex-wrap items-center gap-3">
@@ -776,6 +1021,7 @@ export function HistoryPage() {
             ) : (
               <>
                 <HeatmapCard days={days} today={today} />
+                <HourOfDayCard hours={report.hours} />
                 <TrendCard range={report.range} days={days} />
                 {/* Side by side on desktop: the same focus time by task and
                     by project, so one glance compares them. */}
