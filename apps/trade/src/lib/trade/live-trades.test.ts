@@ -461,8 +461,71 @@ describe("tradeFillMarks", () => {
 
     expect(tradeFillMarks(trade).map((mark) => mark.label)).toEqual([
       "Enter rung 1 - for $100.00",
-      "Exit rung 1 - profit $9.00",
+      "Grid run ended - profit $9.00",
     ])
+  })
+
+  it("gives the last grid arrow the whole run, not the rung it closed", () => {
+    // Two rungs, and the dearer one is still holding when the cheaper sells.
+    // The last sale carries that dearer rung's loss on its own; the run did
+    // not. Tyler's USELESS grid, 29 September 2026.
+    const [trade] = buildLiveTrades(
+      [
+        fill({
+          fillId: "in-1",
+          orderId: "in-1",
+          side: "buy",
+          px: 100,
+          sz: 1,
+          at: 0,
+          grid: true,
+          gridDirection: "long",
+          gridRung: 1,
+        }),
+        fill({
+          fillId: "in-2",
+          orderId: "in-2",
+          side: "buy",
+          px: 80,
+          sz: 1,
+          at: MINUTE,
+          grid: true,
+          gridDirection: "long",
+          gridRung: 2,
+        }),
+        fill({
+          fillId: "out-2",
+          orderId: "out-2",
+          side: "sell",
+          px: 90,
+          sz: 1,
+          at: MINUTE * 2,
+          closedPnl: 0,
+          grid: true,
+          gridDirection: "long",
+        }),
+        fill({
+          fillId: "out-1",
+          orderId: "out-1",
+          side: "sell",
+          px: 90,
+          sz: 1,
+          at: MINUTE * 3,
+          closedPnl: 0,
+          grid: true,
+          gridDirection: "long",
+        }),
+      ],
+      noTriggers
+    )
+
+    const marks = tradeFillMarks(trade)
+    // Rung 2 bought at 80 and sold at 90, so it made $10 on its own coins.
+    expect(marks[2].label).toBe("Exit rung 2 - profit $10.00")
+    // Rung 1 bought at 100 and sold at 90, which is $10 lost on its own. The
+    // run bought at 100 and 80 and sold both at 90, so the run is flat.
+    expect(marks[3].label).toBe("Grid run ended - profit $0.00")
+    expect(trade.pnl).toBe(0)
   })
 })
 

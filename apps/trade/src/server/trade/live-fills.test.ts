@@ -692,6 +692,137 @@ describe("live fill storage", () => {
     expect(notice.level).toBe("info")
   })
 
+  it("counts the same coins in a grid sale's dollars and its money", async () => {
+    // One sale, delivered in two pieces, and one of those pieces is not in the
+    // history any more. The money is worked out on the coins that are, so the
+    // dollars in the headline have to name those same coins. On 29 Sep 2026 a
+    // USELESS notice read "$262 of USELESS … made $8.12" when $8.12 was 815 of
+    // the 1,086 coins that $262 counted.
+    const user = await insertUser(database)
+    const wallet: TradeWallet = {
+      id: crypto.randomUUID(),
+      label: "HL1 - GRID",
+      kind: "live",
+      status: "active",
+      protocol: "hyperliquid",
+      network: "mainnet",
+      startingBalance: 0,
+      address: "0x5555555555555555555555555555555555555555",
+      hasKey: true,
+      keyValidUntil: null,
+    }
+    await database.insert(tradeWallets).values({
+      userId: user.id,
+      id: wallet.id,
+      label: wallet.label,
+      kind: wallet.kind,
+      status: wallet.status,
+      protocol: wallet.protocol,
+      network: wallet.network,
+      startingBalance: 0,
+      address: wallet.address,
+    })
+    const BTC = "hyperliquid:mainnet:BTC"
+    const now = Date.now()
+    await database.insert(tradeSmartLadders).values({
+      userId: user.id,
+      id: "grid-2",
+      walletId: wallet.id,
+      marketKey: BTC,
+      status: "active",
+      kind: "grid",
+      plan: {} as never,
+      createdAt: new Date(now - 60_000),
+      updatedAt: new Date(now - 60_000),
+    })
+    await database.insert(tradeGridOrderRungs).values(
+      [
+        ["buy-rung-1", 1],
+        ["buy-rung-2", 2],
+        ["sell-rung-2", 2],
+      ].map(([orderId, rung]) => ({
+        userId: user.id,
+        walletId: wallet.id,
+        orderId: orderId as string,
+        ladderId: "grid-2",
+        marketKey: BTC,
+        direction: "long" as const,
+        rung: rung as number,
+      }))
+    )
+    await database.insert(tradeLiveFills).values([
+      {
+        userId: user.id,
+        walletId: wallet.id,
+        fillId: "buy-1",
+        orderId: "buy-rung-1",
+        marketKey: BTC,
+        side: "buy" as const,
+        px: 1,
+        sz: 100,
+        at: now - 50_000,
+        closedPnl: 0,
+        fee: 0,
+        dir: "Open Long",
+        liquidation: false,
+      },
+      {
+        userId: user.id,
+        walletId: wallet.id,
+        fillId: "buy-2",
+        orderId: "buy-rung-2",
+        marketKey: BTC,
+        side: "buy" as const,
+        px: 0.9,
+        sz: 50,
+        at: now - 40_000,
+        closedPnl: 0,
+        fee: 0,
+        dir: "Open Long",
+        liquidation: false,
+      },
+      // The other piece of the sale, taken out of the history.
+      {
+        userId: user.id,
+        walletId: wallet.id,
+        fillId: "sell-hidden",
+        orderId: "sell-rung-2",
+        marketKey: BTC,
+        side: "sell" as const,
+        px: 0.95,
+        sz: 50,
+        at: now,
+        closedPnl: 0,
+        fee: 0,
+        dir: "Close Long",
+        liquidation: false,
+        hidden: true,
+      },
+    ])
+
+    await recordLiveFills(user.id, wallet, [
+      {
+        fillId: "sell-2",
+        orderId: "sell-rung-2",
+        marketId: "BTC",
+        side: "sell",
+        px: 0.95,
+        sz: 50,
+        at: now,
+        closedPnl: 0,
+        fee: 0,
+        dir: "Close Long",
+        liquidation: false,
+      },
+    ])
+
+    const [notice] = vi.mocked(writeTradeNotice).mock.calls[0]
+    // 50 coins at $0.95 is $47.50, and $2.50 is what those 50 made over the
+    // $0.90 they cost. The hidden 50 are in neither figure.
+    expect(notice.title).toContain("$47.50 of BTC at $0.95")
+    expect(notice.body).toContain("Made $2.50 on this close")
+  })
+
   it("says the whole run when a sale leaves a grid with no coins", async () => {
     // On 24 Sep a USELESS grid was closed and the bell said "Lost $87.36",
     // measured against the dearest rungs still holding, while the Journal

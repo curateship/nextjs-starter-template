@@ -70,6 +70,17 @@ August 2026 and no further.
   only states a trade's money when the whole position closes, the sales
   before that carry no figure yet. The tile says "plus 11 fills the exchange
   has not priced" and the money shown is the priced part alone.
+- **A grid's round trip is counted once, on the sale.** The rung's sale
+  carries the whole trip after both fees, and the buy that opened the rung
+  carries nothing. Charged on the buy as well, the entry fee came off twice
+  and a finished run read lower here than its Journal row: the USELESS run
+  that ended on 29 September 2026 was $18.34 down on this page and $17.80
+  down in the Journal. The fee is not lost, it lands on the day the rung
+  sells, with the rest of that round trip.
+- **A grid run can straddle two days, and each day keeps its own sales.** The
+  same USELESS run banked $9.55 on the 28th and lost $27.35 on the 29th, so
+  the 29th's tile is worse than the run was. The run's own total is the
+  Journal row.
 - **The trade count is finished trades that closed that day.**
 - **The same grid draws a public profile's month**, told where that
   record begins, because a profile keeps trades from before 20 August 2026.
