@@ -568,21 +568,28 @@ export function tradeFillMarks(trade: LiveTrade): LiveFillMark[] {
     // between the row and the chart is a reason to trust neither. An earlier
     // part-close still speaks only for itself, which is all it can say.
     //
-    // A grid exit always says what THAT RUNG made, including the exit that
-    // leaves the whole position flat. The Journal row still carries the whole
-    // trade total; an arrow names the one rung under the pointer.
+    // A grid exit in the MIDDLE of a run says what that rung made. The last
+    // one says the whole run, because it is the same arrow as the Journal
+    // row's ending and the bell's "grid run ended" notice, and those two
+    // already say the run. Tyler's rule, 29 September 2026: a USELESS grid
+    // whose run lost $17.80 had its closing arrow reading a $50.08 loss, the
+    // dearest rungs it was still holding, and no screen agreed with another.
     const matchedLevel = levels.get(fill.fillId)
     const level = fill === last ? undefined : matchedLevel
     const money =
-      !opening && matchedLevel
-        ? matchedLevel.money
-        : !opening && fill === last
+      !opening && fill === last
         ? trade.pnl
-        : (level?.money ?? fill.closedPnl - fill.fee)
+        : !opening && matchedLevel
+          ? matchedLevel.money
+          : (level?.money ?? fill.closedPnl - fill.fee)
     const amount = money$(fill.px * fill.sz)
     const gridRung = opening ? fill.gridRung : matchedLevel?.rung
     const label =
-      fill.grid && gridRung !== undefined
+      fill.grid && !opening && fill === last
+        ? `Grid run ended - ${
+            money >= 0 ? "profit" : "loss"
+          } ${money$(Math.abs(money))}`
+        : fill.grid && gridRung !== undefined
         ? opening
           ? `Enter rung ${gridRung} - for ${amount}`
           : `Exit rung ${gridRung} - ${

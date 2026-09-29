@@ -98,6 +98,14 @@ screen: anything not written there has not been agreed yet.
   permanent record binning and deleting cannot touch, the ownership check
   and what "checked by Trade" means, how far back each exchange goes, the
   figures and the leaderboard minimums.
+- `every-creator.md` — the list at `/social`: what each row says, what the
+  search reads, what the three filters mean, why "gone quiet" is 30 days, and
+  why the list and a creator's dashboard are two screens.
+- `social-dashboard.md` — the creator dashboard at `/social/<handle>`: the
+  three panels, adding a creator from an address or a handle, where the
+  follower count and the links come from, what Sync profile reads off the
+  public X page, how the coins a post names are counted, and why posts are
+  held once per member.
 - `copy-a-trader.md` — following and copying a trader: who can be copied, how
   a trade is heard and copied, every skip and pause rule, the 0.1% fee and the
   trader's half, the fee on each exchange with its source, the fee record and

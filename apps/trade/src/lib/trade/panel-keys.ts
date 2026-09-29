@@ -26,6 +26,13 @@ export const tradePanelLayoutKey = {
   pnlHorizontal: "trade-pnl-horizontal",
   /** P&L's right column: the month grid above, the three cards below. */
   pnlVertical: "trade-pnl-vertical",
+  /**
+   * One creator's dashboard: figures | posts | markets, across the workspace.
+   *
+   * One key, because there is one group. Nothing on that screen earns a
+   * bottom row, so there is no vertical group to remember.
+   */
+  socialHorizontal: "trade-social-horizontal",
 } as const
 
 export type TradePanelLayoutKey =
@@ -48,4 +55,5 @@ export const tradePanelIds: Record<TradePanelLayoutKey, readonly string[]> = {
   [tradePanelLayoutKey.flowRunVertical]: ["workspace", "trades"],
   [tradePanelLayoutKey.pnlHorizontal]: ["journal", "figures"],
   [tradePanelLayoutKey.pnlVertical]: ["months", "cards"],
+  [tradePanelLayoutKey.socialHorizontal]: ["figures", "posts", "markets"],
 }

@@ -239,6 +239,15 @@ does not close the position immediately.
   "Enter rung 1 - for $50.00". The matching close says
   "Exit rung 1 - profit $4.28". The words do not change between a buying grid
   and a selling grid.
+- **The arrow that ends the run says the run, not the rung.** It reads "Grid
+  run ended - loss $17.80", the whole trade after fees, which is the Journal
+  row's figure and the bell's. Tyler's rule, 29 September 2026: a USELESS
+  grid whose run lost $17.80 had a closing arrow reading a $50.08 loss,
+  because that last sale carried the dearest rungs the grid was still
+  holding. The arrows before it still speak for their own rung, so they are
+  not a running total of the last one: the same USELESS run showed +$9.55,
+  +$10.81 and +$11.91 on its earlier sales, and the rung the last sale closed
+  had lost $50.08 on its own.
 - **Nothing is announced when it works.** No toast for placing an order and
   none for cancelling one: the line appearing and the line disappearing is the
   answer, and a toast on every click of a trading screen is noise. Refusals

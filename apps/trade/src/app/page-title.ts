@@ -5,7 +5,12 @@ import { useTradeSounds } from "@/components/trade/trade-sounds"
 import { resolveAppName, useAppName } from "@/lib/branding"
 import { marketSymbol, parseMarketKey } from "@/lib/protocols/contracts"
 
-type TitleMatch = {
+/**
+ * The one match a title needs to read. Exported so a route with a `$param`
+ * can name it: leaving `head`'s argument to be inferred there makes the
+ * route's own loader type circular, and TypeScript answers `undefined`.
+ */
+export type TitleMatch = {
   routeId: string
   loaderData?: unknown
   search?: unknown

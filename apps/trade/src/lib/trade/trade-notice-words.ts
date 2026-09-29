@@ -239,6 +239,17 @@ export type GridSaleMoney = {
   entryPx: number
   /** Counted from one. Absent when the sale closed coins of several rungs. */
   rung?: number
+  /**
+   * The coins this money covers, and what they went at.
+   *
+   * The notice says both, rather than the totals it read a moment later. An
+   * exchange hands one sale over in pieces, and a body worked out from three
+   * of them under a headline counting four is one notice saying two things: on
+   * 29 Sep 2026 a USELESS sale read "$262 … made $8.12" when the 1,086 coins in
+   * that headline had made $10.81 and the $8.12 was 815 of them.
+   */
+  sz: number
+  px: number
 }
 
 /**

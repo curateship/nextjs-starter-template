@@ -177,14 +177,20 @@ export async function rememberGridOrderRung(
 export async function stampGridFills(
   userId: string,
   walletIds: readonly string[],
-  fills: LiveFill[]
+  fills: LiveFill[],
+  /**
+   * The transaction to read in, when the caller already holds one. Its own
+   * connection, the default, deadlocks a caller that is inside a transaction
+   * and holding the pool's last one.
+   */
+  database: CustomShellDb = db
 ): Promise<LiveFill[]> {
   if (walletIds.length === 0 || fills.length === 0) return fills
   const marketKeys = [...new Set(fills.map((fill) => fill.marketKey))]
 
   const orderIds = [...new Set(fills.map((fill) => fill.orderId))]
   const [rows, exactRows] = await Promise.all([
-    db
+    database
       .select({
         walletId: tradeSmartLadders.walletId,
         marketKey: tradeSmartLadders.marketKey,
@@ -202,7 +208,7 @@ export async function stampGridFills(
           eq(tradeSmartLadders.kind, "grid")
         )
       ),
-    db
+    database
       .select({
         walletId: tradeGridOrderRungs.walletId,
         orderId: tradeGridOrderRungs.orderId,
