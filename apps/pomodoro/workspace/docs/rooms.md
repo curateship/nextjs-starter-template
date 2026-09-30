@@ -22,6 +22,16 @@ the phases, and the server is the only clock.
   unlisted, three durations, auto-start. One room per person; hosting
   again or joining another room closes the old one so nobody is stranded
   hostless.
+- **The dialog's three minute boxes are the shared ones**,
+  `RhythmMinutesFields`, the same component the Settings card and a custom
+  preset use. [Timer settings](timer-settings.md) has what they do. Two
+  things this fixed here: clearing a box used to read
+  `event.target.valueAsNumber` with no guard, which killed the Create room
+  button with no message; and the boxes' ids were built from their labels, so
+  `room-Focus minutes` had a space in it and the label above pointed at
+  nothing. The ids are now `room-focus`, `room-short` and `room-long`.
+- **Create room is pressable with a box empty.** The field keeps the last good
+  number, so the press creates the room with that rather than going dead.
 - **Invite links** live at `/rooms/$slug` (the `rooms_` route file keeps
   it from nesting under the browse page — the old routing trap) with the
   old seven states: checking, failed, not found, closed, banned, already a

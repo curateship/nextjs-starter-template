@@ -37,8 +37,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { focusRing } from "@/lib/layout/focus-ring"
+import { PAUSE_TO_CHOOSE_REASON } from "@/lib/pomodoro/disabled-reasons"
 import { useProductAuth } from "@/lib/pomodoro/auth-state"
 import type { usePomodoro } from "@/lib/pomodoro/use-pomodoro"
 import {
@@ -181,7 +182,7 @@ export function TodayTaskList({ pomodoro }: { pomodoro: PomodoroApi }) {
       {completedTasks.map((task) => (
         <div
           key={task.id}
-          className="flex min-h-11 items-center gap-3 rounded-lg border bg-card/50 px-3"
+          className="flex min-h-9 items-center gap-3 rounded-lg border bg-card/50 px-3"
         >
           <Checkbox
             checked
@@ -238,7 +239,7 @@ function SortableTaskRow({
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={cn(
-        "flex min-h-11 items-center gap-2 rounded-lg border bg-card px-2",
+        "flex min-h-9 items-center gap-2 rounded-lg border bg-card px-2",
         selected && "border-l-2 border-l-primary",
         isDragging && "z-10 opacity-80 shadow-lg"
       )}
@@ -263,9 +264,16 @@ function SortableTaskRow({
         />
       ) : (
         <>
+          {/* 28px, the rulebook's small control. It had no size or padding
+              class at all, so it was a 16px icon to aim at and nothing showed
+              when a keyboard landed on it — even though the keyboard
+              reordering behind it already worked. */}
           <button
             ref={setActivatorNodeRef}
-            className="cursor-grab touch-none text-muted-foreground hover:text-foreground"
+            className={cn(
+              "grid size-7 shrink-0 cursor-grab touch-none place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground",
+              focusRing
+            )}
             {...attributes}
             {...listeners}
             aria-label={`Reorder ${task.title}`}
@@ -278,8 +286,16 @@ function SortableTaskRow({
             onCheckedChange={() => pomodoro.toggleTask(task.id)}
             aria-label={`Complete ${task.title}`}
           />
+          <DisabledReason
+            className="min-w-0 flex-1"
+            disabled={!pomodoro.canSelectTask}
+            reason={PAUSE_TO_CHOOSE_REASON}
+          >
           <button
-            className="flex min-w-0 flex-1 items-center gap-2 py-2 text-left disabled:cursor-default"
+            className={cn(
+              "flex min-w-0 flex-1 items-center gap-2 rounded-lg py-2 text-left",
+              focusRing
+            )}
             disabled={!pomodoro.canSelectTask}
             aria-pressed={selected}
             // Tapping the chosen task again clears it, the same as the
@@ -287,18 +303,20 @@ function SortableTaskRow({
             onClick={() => pomodoro.selectTask(selected ? null : task.id)}
           >
             <span className="truncate text-sm">{task.title}</span>
+            {/* The repeat rule is in the button's own name rather than in a
+                tooltip. The tooltip hung off a bare `<svg>`, which nothing
+                can focus, so the rule was mouse-only; a focusable trigger
+                inside this button would not be valid HTML either. */}
             {task.repeatWeekdays !== null ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <RepeatIcon
-                    className="size-3 shrink-0 text-muted-foreground"
-                    aria-label={`Repeats ${describeWeekdaySet(task.repeatWeekdays)}`}
-                  />
-                </TooltipTrigger>
-                <TooltipContent>
-                  Repeats {describeWeekdaySet(task.repeatWeekdays)}
-                </TooltipContent>
-              </Tooltip>
+              <>
+                <RepeatIcon
+                  className="size-3 shrink-0 text-muted-foreground"
+                  aria-hidden="true"
+                />
+                <span className="sr-only">
+                  . Repeats {describeWeekdaySet(task.repeatWeekdays)}
+                </span>
+              </>
             ) : null}
             {task.projectName ? (
               <b className="max-w-28 truncate text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -321,6 +339,7 @@ function SortableTaskRow({
               {taskProgressLabel(task)}
             </small>
           </button>
+          </DisabledReason>
           <Button
             variant="ghost"
             size="icon-sm"

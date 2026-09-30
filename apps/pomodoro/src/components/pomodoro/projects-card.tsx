@@ -124,7 +124,7 @@ function ProjectRowItem({
   onRenamingChange: (renaming: boolean) => void
 }) {
   return (
-    <div className="flex min-h-11 items-center gap-2 rounded-lg border bg-card px-2">
+    <div className="flex min-h-9 items-center gap-2 rounded-lg border bg-card px-2">
       {renaming ? (
         // Mounted only while renaming, so the field starts from the current
         // name every time without an effect copying the prop into state.

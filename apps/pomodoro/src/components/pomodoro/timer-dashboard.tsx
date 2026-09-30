@@ -14,6 +14,7 @@ import { useDiscardFocusConfirm } from "@/components/pomodoro/discard-focus-conf
 import { SessionNotePrompt } from "@/components/pomodoro/session-note-prompt"
 import { ZenMode } from "@/components/pomodoro/zen-mode"
 import { Button } from "@/components/ui/button"
+import { DisabledReason } from "@/components/ui/disabled-reason"
 import { InlineError } from "@/components/ui/inline-error"
 import { Label } from "@/components/ui/label"
 import {
@@ -23,12 +24,18 @@ import {
 } from "@/components/ui/popover"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { Switch } from "@/components/ui/switch"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { focusRing } from "@/lib/layout/focus-ring"
 import { cn } from "@/lib/utils"
+import {
+  PAUSE_TO_CHOOSE_REASON,
+  REOPEN_TO_FOCUS_REASON,
+} from "@/lib/pomodoro/disabled-reasons"
 import { taskProgressLabel } from "@/lib/pomodoro/tasks"
 import {
   cycleSessionLabel,
@@ -44,13 +51,14 @@ import {
 const circumference = 2 * Math.PI * 132
 
 /**
- * The three mode tabs, with the orange chip sliding from one to the next
- * instead of blinking out and in. The chip is one absolutely positioned
- * layer behind the labels; its left and width are measured from the live
- * buttons, because the three labels are different widths and the font
- * arrives after the first paint. A ResizeObserver re-measures when the row
- * reflows, and the chip only animates once it has been placed, so the first
- * paint does not slide it in from the left edge.
+ * The three mode tabs.
+ *
+ * This is the shared segmented `Tabs`, the same control History's range strip
+ * uses. The hand-rolled version before it claimed `role="tablist"` while
+ * behaving like three unrelated buttons: every pill was its own tab stop and
+ * the arrow keys did nothing. Radix brings the roving focus and the left and
+ * right arrows with it, so the strip now behaves the way it already said it
+ * did.
  */
 function ModeTabs({
   mode,
@@ -59,63 +67,26 @@ function ModeTabs({
   mode: TimerMode
   onSelect: (mode: TimerMode) => void
 }) {
-  const row = React.useRef<HTMLDivElement>(null)
-  const [chip, setChip] = React.useState<{ left: number; width: number } | null>(
-    null
-  )
-
-  React.useLayoutEffect(() => {
-    const element = row.current
-    if (!element) return
-    const measure = () => {
-      const active = element.querySelector<HTMLElement>('[aria-selected="true"]')
-      if (!active) return
-      const next = { left: active.offsetLeft, width: active.offsetWidth }
-      // Same numbers, same object: a re-render on every observer callback
-      // would be wasted work, and the observer fires on every reflow.
-      setChip((chip) =>
-        chip && chip.left === next.left && chip.width === next.width
-          ? chip
-          : next
-      )
-    }
-    measure()
-    const observer = new ResizeObserver(measure)
-    observer.observe(element)
-    return () => observer.disconnect()
-  }, [mode])
-
   return (
-    <div
-      ref={row}
-      className="relative inline-flex gap-1 rounded-full border border-[rgba(var(--p-fg-rgb),0.07)] bg-[var(--p-canvas)] p-1"
-      role="tablist"
-      aria-label="Timer mode"
-    >
-      {chip ? (
-        <span
-          className="absolute inset-y-1 rounded-full bg-[rgba(255,90,60,0.14)] transition-[left,width] duration-300 ease-out motion-reduce:transition-none"
-          style={{ left: chip.left, width: chip.width }}
-          aria-hidden="true"
-        />
-      ) : null}
-      {(Object.keys(MODE_LABELS) as TimerMode[]).map((key) => (
-        <button
-          key={key}
-          role="tab"
-          aria-selected={mode === key}
-          className={cn(
-            "relative rounded-full px-5 py-[9px] text-[13.5px] font-semibold text-muted-foreground transition-colors duration-300",
-            mode === key && "text-[var(--p-accent-2)]"
-          )}
-          onClick={() => onSelect(key)}
-        >
-          {MODE_LABELS[key]}
-        </button>
-      ))}
-    </div>
+    <Tabs value={mode} onValueChange={(value) => onSelect(value as TimerMode)}>
+      <TabsList aria-label="Timer mode">
+        {(Object.keys(MODE_LABELS) as TimerMode[]).map((key) => (
+          <TabsTrigger key={key} value={key}>
+            {MODE_LABELS[key]}
+          </TabsTrigger>
+        ))}
+      </TabsList>
+    </Tabs>
   )
 }
+
+/**
+ * The two round buttons under Start. 36px, the largest height the rulebook
+ * allows, because they sit inside the ring where a 32px control looks lost;
+ * they were 44px, which is not one of the four.
+ */
+const ringIconButtonClass =
+  "rounded-full border-[rgba(var(--p-fg-rgb),0.14)] bg-transparent text-muted-foreground hover:border-[rgba(var(--p-fg-rgb),0.3)] hover:bg-transparent hover:text-foreground dark:border-[rgba(var(--p-fg-rgb),0.14)] dark:bg-transparent dark:hover:bg-transparent"
 
 /**
  * The pencil beside the goal bar: how many focus sessions today is meant to
@@ -256,32 +227,42 @@ export function TimerDashboard() {
               {String(minutes).padStart(2, "0")}:
               {String(seconds).padStart(2, "0")}
             </time>
-            <button
-              className="mt-1.5 rounded-full border border-[rgba(var(--p-fg-rgb),0.14)] bg-[var(--p-canvas)] px-[30px] py-3 text-[14.5px] font-bold hover:bg-[var(--p-surface-2)]"
+            {/* The shared Button at its 36px size, which is where the
+                Pomoder pill already sat; the skin is the `--p-*` tokens on
+                top of it. Shared rather than hand-rolled so the keyboard
+                focus ring is the one every other button draws. */}
+            <Button
+              size="lg"
+              variant="outline"
+              className="mt-1.5 rounded-full border-[rgba(var(--p-fg-rgb),0.14)] bg-[var(--p-canvas)] px-[30px] text-[14.5px] font-bold hover:bg-[var(--p-surface-2)] dark:border-[rgba(var(--p-fg-rgb),0.14)] dark:bg-[var(--p-canvas)] dark:hover:bg-[var(--p-surface-2)]"
               onClick={pomodoro.toggleTimer}
             >
               {pomodoro.timer.running ? "Pause" : "Start"}
-            </button>
+            </Button>
             <div className="flex items-center gap-2.5">
-              <button
-                className="grid size-11 place-items-center rounded-full border border-[rgba(var(--p-fg-rgb),0.14)] text-muted-foreground hover:border-[rgba(var(--p-fg-rgb),0.3)] hover:text-foreground"
+              <Button
+                variant="outline"
+                size="icon-lg"
+                className={ringIconButtonClass}
                 onClick={requestReset}
                 aria-label="Reset timer"
               >
                 <RotateCcwIcon className="size-[17px]" aria-hidden="true" />
-              </button>
+              </Button>
               {/* The one icon on this screen whose picture does not say what
                   it does, so it keeps a tooltip while Reset does not. */}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <button
+                  <Button
                     ref={zenButton}
-                    className="grid size-11 place-items-center rounded-full border border-[rgba(var(--p-fg-rgb),0.14)] text-muted-foreground hover:border-[rgba(var(--p-fg-rgb),0.3)] hover:text-foreground"
+                    variant="outline"
+                    size="icon-lg"
+                    className={ringIconButtonClass}
                     onClick={() => setZen(true)}
                     aria-label="Enter zen mode"
                   >
                     <MaximizeIcon className="size-[17px]" aria-hidden="true" />
-                  </button>
+                  </Button>
                 </TooltipTrigger>
                 <TooltipContent>
                   Zen mode: fullscreen, just the ring and the task
@@ -395,6 +376,7 @@ export function TimerDashboard() {
                 <button
                   className={cn(
                     "grid size-6 shrink-0 place-items-center rounded-full disabled:cursor-not-allowed disabled:opacity-50",
+                    focusRing,
                     task.completed
                       ? "bg-[var(--p-success)] text-[var(--p-on-accent)]"
                       : "border-[1.5px] border-[rgba(var(--p-fg-rgb),0.25)] text-transparent"
@@ -411,8 +393,25 @@ export function TimerDashboard() {
                     />
                   ) : null}
                 </button>
+                {/* Faded with no word was the commonest reason someone
+                    thought the list was broken, so the reason rides with the
+                    button. Wrapped only while it is off, and the wrapper is
+                    what a keyboard lands on, because a disabled button cannot
+                    take focus. */}
+                <DisabledReason
+                  className="min-w-0 flex-1"
+                  disabled={task.completed || !pomodoro.canSelectTask}
+                  reason={
+                    task.completed
+                      ? REOPEN_TO_FOCUS_REASON
+                      : PAUSE_TO_CHOOSE_REASON
+                  }
+                >
                 <button
-                  className="flex min-w-0 flex-1 items-center gap-3 py-1 text-left disabled:cursor-default"
+                  className={cn(
+                    "flex min-w-0 flex-1 items-center gap-3 rounded-lg py-1 text-left",
+                    focusRing
+                  )}
                   disabled={task.completed || !pomodoro.canSelectTask}
                   aria-pressed={selected}
                   // Tapping the chosen task again clears it. It is the only
@@ -433,14 +432,17 @@ export function TimerDashboard() {
                     {taskProgressLabel(task)}
                   </small>
                 </button>
-                <button
-                  className="grid size-[30px] shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-[rgba(var(--p-fg-rgb),0.08)] hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                </DisabledReason>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="shrink-0 rounded-full text-muted-foreground hover:bg-[rgba(var(--p-fg-rgb),0.08)] hover:text-foreground"
                   disabled={busy}
                   onClick={() => pomodoro.removeTask(task.id)}
                   aria-label={`Remove ${task.title}`}
                 >
                   <XIcon className="size-[13px]" aria-hidden="true" />
-                </button>
+                </Button>
               </div>
             )
           })}
@@ -460,7 +462,10 @@ export function TimerDashboard() {
             maxLength={160}
             placeholder="Add a task, press Enter…"
             aria-label="New task"
-            className="min-w-0 flex-1 border-0 bg-transparent py-2 text-[14.5px] text-foreground outline-none"
+            className={cn(
+              "h-8 min-w-0 flex-1 rounded-lg border-0 bg-transparent px-1 text-[14.5px] text-foreground",
+              focusRing
+            )}
           />
         </form>
       </section>

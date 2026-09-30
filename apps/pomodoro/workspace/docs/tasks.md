@@ -45,6 +45,27 @@ optional project ([Projects](projects.md)).
 - **The focus task:** clicking a row's title picks it, only while the timer
   is fully idle. The next focus session carries its id, and completing that
   focus adds one to the task's count (`completeProductivitySession`).
+- **A row you cannot pick says why.** While a focus is counting down the title
+  button is off and reads "Pause or finish the focus to choose a different
+  task"; a finished row reads "Reopen this task to focus on it again". The
+  sentences come from `src/lib/pomodoro/disabled-reasons.ts` so the dashboard
+  and this page cannot word the same rule differently.
+
+## Using the list by keyboard
+
+- **The reason on a greyed-out row is reachable by Tab**, not only by mouse.
+  A disabled button cannot take focus, so `ui/disabled-reason.tsx` puts the
+  tooltip on a wrapper that can.
+- **The drag handle is a 28px target with a visible focus ring.** It had no
+  size or padding class at all, so it was a 16px icon to aim at and nothing
+  showed when a keyboard landed on it — even though the keyboard reordering
+  behind it already worked. Space or Enter picks a task up, the arrows move
+  it, Space or Enter drops it, Escape cancels.
+- **The repeat rule is part of the row's name, not a tooltip.** The old
+  tooltip hung off a bare `<svg>`, which nothing can focus, so the rule was
+  mouse-only; a focusable trigger inside the title button would not be valid
+  HTML either. A screen reader now reads "Chapter three. Repeats Monday to
+  Friday" as one name, and the small repeat icon stays as the visual cue.
 
 ## Where things live
 
@@ -68,7 +89,8 @@ over (orange) or Abandoned (grey).
 
 A task can come back every day, Monday to Friday, or on days you tick. The
 repeat is set in the task's own editor, next to the project, and a repeating
-task shows a small repeat icon after its title whose tooltip says which days.
+task shows a small repeat icon after its title, and which days it repeats on
+is read out as part of the row's name.
 
 - **The rule is a row of its own**, `pomodoro_task_repeats` (migration
   `0093_pomodoro_task_repeats.sql`), not a column on the task. A task belongs

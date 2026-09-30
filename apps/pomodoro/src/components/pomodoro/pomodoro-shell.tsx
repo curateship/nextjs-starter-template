@@ -413,12 +413,15 @@ export function PomodoroShell({
                 >
                   Log in
                 </Link>
-                <Link
-                  to="/register"
-                  className="rounded-full bg-[var(--p-accent)] px-[22px] py-[11px] text-[14.5px] font-bold text-[var(--p-on-accent)] hover:bg-[var(--p-accent-2)]"
+                {/* 41px before (px-[22px] py-[11px]), beside a 32px theme
+                    toggle. The shared Button's default size is the 32px the
+                    rulebook asks for; only the colours are the app's. */}
+                <Button
+                  asChild
+                  className="rounded-full bg-[var(--p-accent)] px-5 text-[14.5px] font-bold text-[var(--p-on-accent)] hover:bg-[var(--p-accent-2)]"
                 >
-                  Register
-                </Link>
+                  <Link to="/register">Register</Link>
+                </Button>
               </>
             )}
           </div>
