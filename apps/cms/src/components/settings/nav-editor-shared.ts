@@ -4,6 +4,7 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
+  type DraggableSyntheticListeners,
 } from "@dnd-kit/core"
 import {
   sortableKeyboardCoordinates,
@@ -68,6 +69,43 @@ export function useSortableRow(id: string, translateOnly = false) {
 }
 
 /**
+ * The chip's drag listeners, deaf to anything that did not happen on the chip.
+ *
+ * A chip holds the window that edits it, and that window's box is drawn in
+ * `document.body` rather than inside the chip. React sends an event up the
+ * component tree it wrote, not the boxes on screen, so every key and every
+ * press inside the open window still arrived at the chip's own listeners.
+ * dnd-kit reads a space as "pick this chip up" and stops the key doing anything
+ * else, which is why a space could not be typed into a link's name: the space
+ * never reached the box, it started a drag. Holding the mouse down in a field
+ * armed one too.
+ *
+ * So each listener checks where the event happened first and ignores it unless
+ * that place is inside the chip. The window is outside the chip, so its typing
+ * is its own again, and the whole chip still drags because every part of the
+ * chip is inside it.
+ */
+function listenersOnTheChipOnly(listeners: DraggableSyntheticListeners) {
+  const onTheChip: Record<string, (event: React.SyntheticEvent) => void> = {}
+
+  for (const [name, listener] of Object.entries(listeners ?? {})) {
+    // dnd-kit types its listener map as `Record<string, Function>`, so the
+    // event type is asserted here rather than inferred.
+    const handler = listener as (event: React.SyntheticEvent) => void
+    onTheChip[name] = (event) => {
+      // `currentTarget` is the chip, because that is where the listener sits.
+      const chip = event.currentTarget
+      const where = event.target
+      if (!(chip instanceof Node) || !(where instanceof Node)) return
+      if (!chip.contains(where)) return
+      handler(event)
+    }
+  }
+
+  return onTheChip
+}
+
+/**
  * A chip you can pick up anywhere on it, not only by its grip.
  *
  * The grip used to be the only drag target, and a chip is a box with a name in
@@ -82,7 +120,8 @@ export function useSortableRow(id: string, translateOnly = false) {
  * picks a chip up and the arrows still move it.
  *
  * A click inside the chip still works: the pointer has to travel 8px before it
- * counts as a drag, which is what `useNavSensors` already says.
+ * counts as a drag, which is what `useNavSensors` already says. Typing inside
+ * the chip's own window works too; see `listenersOnTheChipOnly`.
  */
 export function useSortableChip(id: string, name: string) {
   const { attributes, listeners, setNodeRef, style } = useSortableRow(id, true)
@@ -91,7 +130,7 @@ export function useSortableChip(id: string, name: string) {
     ref: setNodeRef,
     style,
     ...attributes,
-    ...listeners,
+    ...listenersOnTheChipOnly(listeners),
     role: "group",
     "aria-label": `Reorder ${name}`,
     // The hand says what the chip does. It is on the whole chip because the
@@ -183,6 +222,16 @@ const itemNumbers = new WeakMap<object, number>()
 let lastItemNumber = 0
 
 /**
+ * The list each editor was last asked about, and the ids it was given, so an
+ * item that comes back as a new object can be recognised as the one that used
+ * to stand in its place. One entry per editor, replaced on every render.
+ */
+const lastItemLists = new Map<
+  string,
+  { items: readonly object[]; ids: readonly string[] }
+>()
+
+/**
  * One id per item that stays with that item while the list is reordered.
  *
  * A list whose ids are its positions, `menu-link-0` then `menu-link-1`, has no
@@ -193,15 +242,40 @@ let lastItemNumber = 0
  * here and held against the item object, which `arrayMove` keeps as it
  * reorders.
  *
- * An item edited in its window is a new object and gets a new id. That is a
- * remount, not a drag, and nothing is moving at the time.
+ * An id also has to survive the item being edited. Pressing Done in a chip's
+ * window replaces that link with a new object, and the id is what React keys
+ * the chip on, so a new id there threw the chip away and built another one —
+ * taking the open window with it and drawing a second one in its place, which
+ * is the double flash Tyler reported on 30 Sep 2026 when a window closed. An
+ * item with no id of its own therefore inherits the id of whatever object stood
+ * in its place last time, as long as that object has really left the list. A
+ * deletion shortens the list and every survivor keeps its own id, and an added
+ * item stands where nothing stood before, so neither inherits anything.
  */
 export function stableItemIds(items: readonly object[], prefix: string) {
+  const previous = lastItemLists.get(prefix)
+  const stillHere = new Set(items)
   const taken = new Set<string>()
 
-  return items.map((item) => {
+  const ids = items.map((item, at) => {
     const number = itemNumbers.get(item)
     let id = number === undefined ? undefined : `${prefix}-${number}`
+
+    if (id === undefined && previous) {
+      const before = previous.items[at]
+      const beforeId = previous.ids[at]
+      const beforeNumber = before ? itemNumbers.get(before) : undefined
+      const replacedInPlace =
+        before !== undefined &&
+        !stillHere.has(before) &&
+        beforeNumber !== undefined &&
+        !taken.has(beforeId)
+
+      if (replacedInPlace) {
+        itemNumbers.set(item, beforeNumber)
+        id = beforeId
+      }
+    }
 
     // The same object twice in one list would hand dnd-kit two chips with one
     // id, and it would drag both. The second copy gets an id of its own.
@@ -214,4 +288,7 @@ export function stableItemIds(items: readonly object[], prefix: string) {
     taken.add(id)
     return id
   })
+
+  lastItemLists.set(prefix, { items: [...items], ids })
+  return ids
 }

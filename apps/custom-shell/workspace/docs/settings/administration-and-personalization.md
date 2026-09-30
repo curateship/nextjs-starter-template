@@ -332,6 +332,20 @@ the two things a chip does are both visible before either is tried. The
 keyboard still reorders: tab to a chip, space to lift it, the arrows to move
 it, space to drop it.
 
+**A chip's own window types normally.** The window that edits a chip is drawn in
+`document.body`, outside the chip, but React sends its keys and presses up the
+component tree, so they arrived at the chip's drag listeners as though they had
+happened on the chip. dnd-kit reads a space as "lift this chip" and stops the
+key doing anything else, so a space could not be typed into a link's name or any
+other box in the window, and holding the mouse down in a box armed a drag. Tyler
+reported the missing space on 30 Sep 2026. Each of the chip's listeners now
+checks where the event happened and ignores anything that did not happen inside
+the chip itself, which is why the window types normally while the whole chip
+still drags. The rule lives in `useSortableChip` in
+`src/components/settings/nav-editor-shared.ts`, and
+`nav-editor-shared.test.tsx` holds both halves: a space in the window is left
+alone, and a space on the chip still lifts it.
+
 **A dropped chip slides into its new place.** The public menu chips, the public
 footer links and the footer's social accounts settle the way the action items
 and the top-right chips already did, instead of snapping to the new order the
@@ -342,6 +356,19 @@ that, slot one was always slot one and only the words inside it changed, which
 no animation can cover. Nothing is saved differently: the id lives in the
 browser for as long as the settings page is open and is never written to the
 site's settings.
+
+**A window closes once.** That id has to outlive the link being edited. Pressing
+Done hands the row a new object for that link, and the id is what the browser
+keys the chip on, so a fresh id threw the chip away and built another one in its
+place. The open window went with it and a second window was drawn and then
+closed, which is the double flash Tyler reported on 30 Sep 2026. A link with no
+id of its own now inherits the id of whatever stood in its place on the last
+draw, as long as that object has really left the row, so the chip and its window
+survive the save. Deleting a link shortens the row and every chip left keeps its
+own id, and a new link stands where nothing stood before, so neither inherits
+anything. Measured through the settings screen: pressing Done used to attach a
+second window box and take two away, and now attaches none and takes one away,
+and no chip in the row is rebuilt at all.
 
 The Header layout card holds an Action items row: the three controls at the
 right-hand end of the public header, as draggable chips. They are Search, the

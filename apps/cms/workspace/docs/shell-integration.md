@@ -98,7 +98,14 @@ Every draggable chip in Settings drags from any part of itself, not only from
 the six-dot grip on its left: the public menu's links and dropdown groups, the
 action items, the social accounts and the signed-in top-right menu. The cursor
 is an open hand over a chip and an arrow over its name, and a click on the name
-still opens that chip's window.
+still opens that chip's window. A chip's window types normally: its box is drawn
+outside the chip but React sent its keys up to the chip's drag listeners, where a
+space meant "lift this chip" and never reached the box, so a public menu link's
+name could not contain a space. The chip's listeners now ignore anything that
+did not happen inside the chip itself. Pressing Done in that window also closes
+it once: the id a chip is keyed on now survives the link being edited, where
+before the edited link got a new id, the chip was rebuilt, and the window it
+held was drawn a second time before closing.
 
 Add row opens a window of cards, one per kind of row, with CMS's own five,
 Listings, Category cards, Upcoming events, Current deals and Latest posts,
