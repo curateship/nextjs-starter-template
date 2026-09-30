@@ -19,6 +19,26 @@ delete a message, remove a person or ban them.
   the room's channel, and the SSE snapshot redraws the list for everyone at
   once. The last hundred messages are what a snapshot carries.
 
+## How the panel shares the height
+
+Both boxes in the room panel are capped, and the caps are in one place at the
+top of `room-chat.tsx`.
+
+- **The list of names scrolls inside itself**: six people on a phone, ten on a
+  desktop, the rest one flick away. It used to have no cap at all, so a room of
+  thirty ran to 1108px and pushed the conversation off the bottom of the screen.
+- **The chat takes what the window has left** rather than a fixed 260px. It
+  stops shrinking at 140px, about two messages, and stops growing at 512px. On
+  a 1440x900 screen it is 327px, where it used to be 260px.
+- **The message box and Send are outside the scrolling box**, so they are always
+  on screen inside the panel. They are the reason the panel is there.
+- **On a phone the chat comes first and the names second.** Side by side on a
+  desktop, the names are the 240px left column they always were. The chat is
+  written first in the page and the list of names takes its column back with
+  `md:order-first`.
+- **Both boxes are `ScrollArea`**, never a native `overflow-auto`, so the
+  scrollbar is the app's thin one.
+
 ## Reactions
 
 - **Five emoji, fixed**: 👍 💪 🔥 ❤️ 😄, from

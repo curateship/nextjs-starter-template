@@ -955,13 +955,9 @@ function ActiveRoomPanel({
         ) : null}
 
         <div className="grid gap-4 md:grid-cols-[240px_minmax(0,1fr)]">
-          <RoomMemberList
-            members={members}
-            isHost={isHost}
-            busy={pending !== ""}
-            onRemove={confirmRemoveMember}
-            onBan={confirmBanMember}
-          />
+          {/* The chat is written first so a phone reads it first. The member
+              list takes the left column back on desktop with `md:order-first`,
+              so the two-column layout is unchanged. */}
           <RoomChatPanel
             slug={room.slug}
             messages={messages}
@@ -974,6 +970,13 @@ function ActiveRoomPanel({
             onDeleteMessage={confirmDeleteMessage}
             onError={onActionError}
             onNotice={setPanelNotice}
+          />
+          <RoomMemberList
+            members={members}
+            isHost={isHost}
+            busy={pending !== ""}
+            onRemove={confirmRemoveMember}
+            onBan={confirmBanMember}
           />
         </div>
         {confirm ? (

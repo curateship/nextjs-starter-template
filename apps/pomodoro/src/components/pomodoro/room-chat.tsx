@@ -35,6 +35,23 @@ type RoomMember = RoomSnapshotClient["members"][number]
 type RoomMessage = RoomSnapshotClient["messages"][number]
 
 /**
+ * How tall the two scrolling boxes in the room panel are allowed to get.
+ *
+ * A member row is 28px with an 8px gap, so the phone cap is six people and the
+ * desktop cap is ten. Everybody after that is one flick away, which is the
+ * point: the list of names is not what you joined the room for.
+ *
+ * The chat takes what the window has left instead of a fixed 260px. `34rem` is
+ * everything above it on a phone — the page header, the room's own heading, the
+ * host's buttons and the capped member list — so the box is never taller than
+ * the room it has to fit in. It stops shrinking at 140px, about two messages,
+ * and stops growing at 32rem, past which a chat column reads as a page of its
+ * own. `dvh` rather than `vh` because a phone's address bar slides away.
+ */
+const MEMBER_LIST_HEIGHT = "max-h-[13rem] md:max-h-[22rem]"
+const CHAT_HEIGHT = "max-h-[clamp(140px,calc(100dvh-34rem),32rem)]"
+
+/**
  * The room's chat and the host's moderation, ported from the old app: the
  * member column on the left with the host's menu, the message list on the
  * right with reaction chips, and the composer under it.
@@ -59,49 +76,57 @@ export function RoomMemberList({
   onBan: (member: RoomMember) => void
 }) {
   return (
-    <section className="flex flex-col gap-3" aria-label="People in the room">
+    // Second on a phone and first on desktop. Stacked, the conversation is
+    // what the room is for, so the names go under it rather than in front of
+    // it; side by side, the names are the left column they always were.
+    <section
+      className="flex flex-col gap-3 md:order-first"
+      aria-label="People in the room"
+    >
       <h3 className="font-mono text-[10px] font-semibold uppercase tracking-[0.13em] text-muted-foreground">
         In the room
       </h3>
-      <ul className="flex flex-col gap-2">
-        {members.map((member) => (
-          <li key={member.id} className="flex items-center gap-2 text-sm">
-            <InitialsAvatar name={member.name} className="size-7" />
-            <span className="truncate">{member.name}</span>
-            {member.role === "host" ? (
-              <b className="rounded-full border border-primary/60 px-2 py-px font-mono text-[9px] font-bold text-[var(--p-accent-2)]">
-                HOST
-              </b>
-            ) : null}
-            {isHost && member.role !== "host" ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    className="ml-auto"
-                    disabled={busy}
-                    aria-label={`Moderate ${member.name}`}
-                  >
-                    <MoreVerticalIcon aria-hidden="true" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onSelect={() => onRemove(member)}>
-                    Remove from room
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    variant="destructive"
-                    onSelect={() => onBan(member)}
-                  >
-                    Ban from room
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : null}
-          </li>
-        ))}
-      </ul>
+      <ScrollArea className={MEMBER_LIST_HEIGHT}>
+        <ul className="flex flex-col gap-2">
+          {members.map((member) => (
+            <li key={member.id} className="flex items-center gap-2 text-sm">
+              <InitialsAvatar name={member.name} className="size-7" />
+              <span className="truncate">{member.name}</span>
+              {member.role === "host" ? (
+                <b className="rounded-full border border-primary/60 px-2 py-px font-mono text-[9px] font-bold text-[var(--p-accent-2)]">
+                  HOST
+                </b>
+              ) : null}
+              {isHost && member.role !== "host" ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="ml-auto"
+                      disabled={busy}
+                      aria-label={`Moderate ${member.name}`}
+                    >
+                      <MoreVerticalIcon aria-hidden="true" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onSelect={() => onRemove(member)}>
+                      Remove from room
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      variant="destructive"
+                      onSelect={() => onBan(member)}
+                    >
+                      Ban from room
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      </ScrollArea>
     </section>
   )
 }
@@ -171,7 +196,7 @@ export function RoomChatPanel({
       className="flex min-w-0 flex-col overflow-hidden rounded-xl border"
       aria-label="Room chat"
     >
-      <ScrollArea className="max-h-[260px] flex-1">
+      <ScrollArea className={cn("flex-1", CHAT_HEIGHT)}>
         <div ref={listRef} className="flex flex-col gap-3 p-4">
           {messages.map((entry) =>
             entry.deleted ? (

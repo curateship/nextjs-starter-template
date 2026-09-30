@@ -1,6 +1,6 @@
 import * as React from "react"
-import { getRouteApi } from "@tanstack/react-router"
-import { TimerIcon, XIcon } from "lucide-react"
+import { getRouteApi, Link } from "@tanstack/react-router"
+import { ListChecksIcon, TimerIcon, XIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -10,18 +10,23 @@ import {
   SelectItem,
   SelectValue,
 } from "@/components/ui/select"
-import { TableCell, TableRow } from "@/components/ui/table"
+import { TableCell, TableHead, TableRow } from "@/components/ui/table"
 import {
   DashboardToolbarSearch,
   DashboardToolbarSelectTrigger,
 } from "@/components/shared/dashboard-toolbar"
 import type { TableHeaderColumn } from "@/components/shared/sortable-table-header"
-import { AdminListTable, useAdminList } from "@/components/pomodoro/admin-list"
+import {
+  AdminSelectCell,
+  AdminListTable,
+  useAdminList,
+} from "@/components/pomodoro/admin-list"
 import {
   listPomodoroSessions,
   type AdminSessionRow,
 } from "@/lib/api/pomodoro/admin"
 import { formatDateTime, formatDuration } from "@/lib/format/format-time"
+import { useSelection } from "@/lib/hooks/use-selection"
 import {
   useListSearchNavigate,
   useListSort,
@@ -88,6 +93,8 @@ export function AdminSessionsDashboard({
     [setListSearch]
   )
 
+  const selection = useSelection()
+
   const [searchText, setSearchText] = useSearchBoxText(query, (text) =>
     setListSearch({ q: text.trim() ? text : undefined, page: undefined })
   )
@@ -117,6 +124,10 @@ export function AdminSessionsDashboard({
   const toggleSort = useListSort<SortColumn>({ sort, direction }, (column) =>
     column === "person" ? "asc" : "desc"
   )
+  const rowIds = React.useMemo(
+    () => list.rows.map((row) => row.id),
+    [list.rows]
+  )
 
   // Whose sessions these are, taken off the first row rather than fetched: the
   // filter is an account id, and every row it can return belongs to them.
@@ -131,6 +142,8 @@ export function AdminSessionsDashboard({
       sort={sort}
       direction={direction}
       onSort={toggleSort}
+      trailing={<TableHead column="meta">Actions</TableHead>}
+      selection={{ noun: "sessions", rowIds, state: selection }}
       list={list}
       page={page}
       onPageChange={setPage}
@@ -203,6 +216,11 @@ export function AdminSessionsDashboard({
     >
       {list.rows.map((row) => (
         <TableRow key={row.id}>
+          <AdminSelectCell
+            selection={selection}
+            id={row.id}
+            label={`Select the ${MODE_LABELS[row.mode] ?? row.mode} run by ${row.userName}`}
+          />
           <TableCell column="main">
             <div className="min-w-0">
               <span className="block max-w-96 truncate" title={row.userEmail}>
@@ -236,6 +254,19 @@ export function AdminSessionsDashboard({
           </TableCell>
           <TableCell column="mutedMeta" className="hidden lg:table-cell">
             {formatDateTime(row.createdAt)}
+          </TableCell>
+          <TableCell column="actions">
+            {/* Focus data leads here, and this leads on to what the member was
+                working through, which closes the loop the three pages make. */}
+            <Button type="button" variant="ghost" size="icon" asChild>
+              <Link
+                to="/admin/pomodoro-tasks"
+                search={{ user: row.userId }}
+                aria-label={`Tasks for ${row.userName}`}
+              >
+                <ListChecksIcon className="size-4" />
+              </Link>
+            </Button>
           </TableCell>
         </TableRow>
       ))}
