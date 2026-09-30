@@ -64,6 +64,7 @@ import {
   RoomGroupEmpty,
   RoomGroupHeading,
 } from "@/components/pomodoro/room-card"
+import { RhythmMinutesFields } from "@/components/pomodoro/rhythm-minutes-fields"
 import {
   MAX_ROOM_INVITES,
   parseInviteEmails,
@@ -415,9 +416,6 @@ function HostRoomDialog({
   const [invitesTyped, setInvitesTyped] = React.useState("")
   const [creating, setCreating] = React.useState(false)
   const [error, setError] = React.useState("")
-  const validDurations = [focusMinutes, shortBreakMinutes, longBreakMinutes].every(
-    (value) => Number.isInteger(value) && value >= 1 && value <= 90
-  )
   const invites = parseInviteEmails(invitesTyped)
   // The dialog checks the same rules the endpoint does, so the problem is
   // named beside the field instead of arriving as a failed save. The server
@@ -540,27 +538,19 @@ function HostRoomDialog({
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-3 gap-2">
-              {(
-                [
-                  ["Focus minutes", focusMinutes, setFocusMinutes],
-                  ["Short break", shortBreakMinutes, setShortBreakMinutes],
-                  ["Long break", longBreakMinutes, setLongBreakMinutes],
-                ] as const
-              ).map(([label, value, setValue]) => (
-                <div key={label} className="grid gap-2">
-                  <Label htmlFor={`room-${label}`}>{label}</Label>
-                  <Input
-                    id={`room-${label}`}
-                    type="number"
-                    min={1}
-                    max={90}
-                    value={value}
-                    onChange={(event) => setValue(event.target.valueAsNumber)}
-                  />
-                </div>
-              ))}
-            </div>
+            {/* The ids used to be built from the label, which put spaces in
+                them — `room-Focus minutes` — and a `htmlFor` with a space in
+                it matches nothing. The shared field names its own. */}
+            <RhythmMinutesFields
+              idPrefix="room"
+              className="grid grid-cols-3 gap-2"
+              focusMinutes={focusMinutes}
+              shortBreakMinutes={shortBreakMinutes}
+              longBreakMinutes={longBreakMinutes}
+              onFocusMinutes={setFocusMinutes}
+              onShortBreakMinutes={setShortBreakMinutes}
+              onLongBreakMinutes={setLongBreakMinutes}
+            />
             <div className="flex items-center gap-2">
               <Checkbox
                 id="room-auto-start"
@@ -657,11 +647,7 @@ function HostRoomDialog({
           >
             Cancel
           </Button>
-          <Button
-            type="submit"
-            form="host-room-form"
-            disabled={creating || !validDurations}
-          >
+          <Button type="submit" form="host-room-form" disabled={creating}>
             {creating
               ? startMode === "later"
                 ? "Booking…"

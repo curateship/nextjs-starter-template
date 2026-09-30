@@ -24,7 +24,7 @@ export function LeaderboardRows({ leaders }: { leaders: readonly BoardLeader[] }
         <article
           key={`${index}-${leader.name}`}
           className={cn(
-            "flex min-h-11 items-center gap-3 rounded-lg border px-3",
+            "flex min-h-9 items-center gap-3 rounded-lg border px-3",
             leader.isYou &&
               "border-[rgba(255,90,60,0.4)] bg-[rgba(255,90,60,0.08)]"
           )}

@@ -211,7 +211,7 @@ export const FREE_TOOLS: readonly FreeTool[] = [
     summary: "What any Hyperliquid wallet really made and lost.",
     group: "wallets",
     path: "/tools/wallet-checker",
-    shipped: false,
+    shipped: true,
   },
   {
     id: "watch-wallet",

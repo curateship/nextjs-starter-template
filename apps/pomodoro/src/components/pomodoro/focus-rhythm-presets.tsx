@@ -1,11 +1,16 @@
 import * as React from "react"
 import { Loader2Icon, PlusIcon, SettingsIcon, Trash2Icon } from "lucide-react"
+import { toast } from "sonner"
 
+import { RhythmMinutesFields } from "@/components/pomodoro/rhythm-minutes-fields"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { ErrorRow } from "@/components/ui/error-row"
+import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { NumberField } from "@/components/ui/number-field"
 import {
   Select,
   SelectContent,
@@ -27,6 +32,7 @@ import {
   writeGuestJson,
 } from "@/lib/pomodoro/guest-storage"
 import { normalizeCustomTimerPresets } from "@/lib/pomodoro/timer-presets"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import {
   builtinTimerPresets,
   matchTimerPreset,
@@ -36,8 +42,6 @@ import {
   SESSIONS_BEFORE_LONG_BREAK_MIN,
   TIMER_PRESET_LIMIT,
   TIMER_PRESET_NAME_MAX,
-  validPresetMinutes,
-  validSessionsBeforeLongBreak,
   type CustomTimerPreset,
   type TimerPresetValues,
 } from "@/lib/pomodoro/timer-presets"
@@ -72,8 +76,9 @@ export function FocusRhythmPresets({
   onApplyLocally: (values: TimerPresetValues) => boolean
 }) {
   const [presets, setPresets] = React.useState<CustomTimerPreset[]>([])
-  const [notice, setNotice] = React.useState("")
-  const [error, setError] = React.useState("")
+  const [listFailed, setListFailed] = React.useState(false)
+  // Bumped by Try again, which is what re-runs the list load below.
+  const [attempt, setAttempt] = React.useState(0)
   const [busy, setBusy] = React.useState("")
   const [newName, setNewName] = React.useState("")
   const [editingId, setEditingId] = React.useState<string | null>(null)
@@ -94,16 +99,17 @@ export function FocusRhythmPresets({
     let cancelled = false
     void listTimerPresets()
       .then((rows) => {
-        if (!cancelled) setPresets(rows)
+        if (cancelled) return
+        setListFailed(false)
+        setPresets(rows)
       })
       .catch(() => {
-        if (!cancelled)
-          setError("Your presets could not be loaded. Reload to try again.")
+        if (!cancelled) setListFailed(true)
       })
     return () => {
       cancelled = true
     }
-  }, [authenticated])
+  }, [authenticated, attempt])
 
   const replaceGuestPresets = (next: CustomTimerPreset[]) => {
     setPresets(next)
@@ -112,18 +118,17 @@ export function FocusRhythmPresets({
 
   const matched = matchTimerPreset(current, presets)
   const allPresets = [...builtinTimerPresets, ...presets]
-  const clearMessages = () => {
-    setError("")
-    setNotice("")
-  }
+  // A new attempt puts the old failure away, so a red toast never outlives
+  // the press that fixed it.
+  const clearMessages = dismissErrorToast
 
   const apply = async (preset: { name: string } & TimerPresetValues) => {
     clearMessages()
     if (!authenticated) {
       const applied = onApplyLocally(preset)
-      if (applied) setNotice(`${preset.name} applied and saved locally.`)
+      if (applied) toast.success(`${preset.name} applied and saved locally.`)
       else
-        setError(
+        showErrorToast(
           "Presets can't change a running timer — pause or finish it first."
         )
       return
@@ -139,9 +144,9 @@ export function FocusRhythmPresets({
         dailyGoalSessions,
       })
       onApplied(preset, preset.name)
-      setNotice(`${preset.name} applied.`)
+      toast.success(`${preset.name} applied.`)
     } catch (cause) {
-      setError(failureMessage(cause, "The preset could not be applied."))
+      showErrorToast(failureMessage(cause, "The preset could not be applied."))
     } finally {
       setBusy("")
     }
@@ -164,13 +169,13 @@ export function FocusRhythmPresets({
     if (!name) return
     clearMessages()
     if (presets.length >= TIMER_PRESET_LIMIT) {
-      setError(
+      showErrorToast(
         `You can keep up to ${TIMER_PRESET_LIMIT} custom presets. Delete one to add another.`
       )
       return
     }
     if (nameConflicts(name)) {
-      setError("You already have a preset with that name.")
+      showErrorToast("You already have a preset with that name.")
       return
     }
     if (!authenticated) {
@@ -179,7 +184,7 @@ export function FocusRhythmPresets({
         { id: crypto.randomUUID(), name, ...current },
       ])
       setNewName("")
-      setNotice(`${name} saved locally.`)
+      toast.success(`${name} saved locally.`)
       return
     }
     setBusy("create")
@@ -187,9 +192,9 @@ export function FocusRhythmPresets({
       const created = await createTimerPreset({ name, ...current })
       setPresets((rows) => [...rows, created])
       setNewName("")
-      setNotice(`${name} saved.`)
+      toast.success(`${name} saved.`)
     } catch (cause) {
-      setError(failureMessage(cause, "The preset could not be saved."))
+      showErrorToast(failureMessage(cause, "The preset could not be saved."))
     } finally {
       setBusy("")
     }
@@ -201,7 +206,7 @@ export function FocusRhythmPresets({
   ) => {
     clearMessages()
     if (nameConflicts(values.name, presetId)) {
-      setError("You already have a preset with that name.")
+      showErrorToast("You already have a preset with that name.")
       return
     }
     if (!authenticated) {
@@ -209,7 +214,7 @@ export function FocusRhythmPresets({
         presets.map((row) => (row.id === presetId ? { ...row, ...values } : row))
       )
       setEditingId(null)
-      setNotice(`${values.name} updated locally.`)
+      toast.success(`${values.name} updated locally.`)
       return
     }
     setBusy(`save:${presetId}`)
@@ -219,9 +224,9 @@ export function FocusRhythmPresets({
         rows.map((row) => (row.id === presetId ? updated : row))
       )
       setEditingId(null)
-      setNotice(`${values.name} updated.`)
+      toast.success(`${values.name} updated.`)
     } catch (cause) {
-      setError(failureMessage(cause, "The preset could not be updated."))
+      showErrorToast(failureMessage(cause, "The preset could not be updated."))
     } finally {
       setBusy("")
     }
@@ -231,7 +236,7 @@ export function FocusRhythmPresets({
     clearMessages()
     if (!authenticated) {
       replaceGuestPresets(presets.filter((row) => row.id !== preset.id))
-      setNotice(`${preset.name} deleted.`)
+      toast.success(`${preset.name} deleted.`)
       setDeleting(null)
       return
     }
@@ -239,10 +244,10 @@ export function FocusRhythmPresets({
     try {
       await deleteTimerPreset(preset.id)
       setPresets((rows) => rows.filter((row) => row.id !== preset.id))
-      setNotice(`${preset.name} deleted.`)
+      toast.success(`${preset.name} deleted.`)
       setDeleting(null)
     } catch {
-      setError("The preset could not be deleted.")
+      showErrorToast("The preset could not be deleted.")
     } finally {
       setBusy("")
     }
@@ -251,7 +256,16 @@ export function FocusRhythmPresets({
   return (
     <div className="flex flex-col gap-3">
       <div className="grid gap-2">
-        <Label htmlFor="rhythm-preset">Preset</Label>
+        <FieldLabel
+          htmlFor="rhythm-preset"
+          hint={
+            matched
+              ? `Matches ${matched.name} (focus · short break · long break minutes · focuses before the long break).`
+              : "Your current values don't match a preset — save them below to reuse them."
+          }
+        >
+          Preset
+        </FieldLabel>
         <Select
           value={matched?.id ?? ""}
           onValueChange={(id) => {
@@ -270,20 +284,39 @@ export function FocusRhythmPresets({
                 {preset.name} · {presetSummary(preset)}
               </SelectItem>
             ))}
-            {presets.map((preset) => (
+            {/* A dismissed toast must not leave the block silently empty, so the
+          failure stays here too. ErrorRow raises the shared toast itself. */}
+      {listFailed ? (
+        <ErrorRow
+          message="Your presets could not be loaded."
+          onRetry={() => {
+            dismissErrorToast()
+            setListFailed(false)
+            setAttempt((count) => count + 1)
+          }}
+        />
+      ) : null}
+      {presets.map((preset) => (
               <SelectItem key={preset.id} value={preset.id}>
                 {preset.name} · {presetSummary(preset)}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
-        <span className="text-xs text-muted-foreground">
-          {matched
-            ? `Matches ${matched.name} (focus · short break · long break minutes · focuses before the long break).`
-            : "Your current values don't match a preset — save them below to reuse them."}
-        </span>
       </div>
 
+      {/* A dismissed toast must not leave the block silently empty, so the
+          failure stays here too. ErrorRow raises the shared toast itself. */}
+      {listFailed ? (
+        <ErrorRow
+          message="Your presets could not be loaded."
+          onRetry={() => {
+            dismissErrorToast()
+            setListFailed(false)
+            setAttempt((count) => count + 1)
+          }}
+        />
+      ) : null}
       {presets.map((preset) =>
         editingId === preset.id ? (
           <PresetEditor
@@ -368,16 +401,6 @@ export function FocusRhythmPresets({
         </span>
       )}
 
-      {error ? (
-        <p className="text-sm text-destructive" role="alert">
-          {error}
-        </p>
-      ) : null}
-      {notice ? (
-        <p className="text-sm text-muted-foreground" role="status">
-          {notice}
-        </p>
-      ) : null}
       <ConfirmDialog
         open={deleting !== null}
         onOpenChange={(open) => {
@@ -419,28 +442,24 @@ function PresetEditor({
   )
   const [autoStart, setAutoStart] = React.useState(preset.autoStart)
   const cleanName = normalizePresetName(name)
-  const cycleValid = validSessionsBeforeLongBreak(sessionsBeforeLongBreak)
-  const valid =
-    Boolean(cleanName) &&
-    cycleValid &&
-    [focusMinutes, shortBreakMinutes, longBreakMinutes].every(
-      validPresetMinutes
-    )
 
   return (
     <form
       className="flex flex-col gap-3 rounded-lg border p-3"
       onSubmit={(event) => {
         event.preventDefault()
-        if (cleanName && valid)
-          onSave({
-            name: cleanName,
-            focusMinutes,
-            shortBreakMinutes,
-            longBreakMinutes,
-            sessionsBeforeLongBreak,
-            autoStart,
-          })
+        if (!cleanName) {
+          showErrorToast("Give the preset a name before saving it.")
+          return
+        }
+        onSave({
+          name: cleanName,
+          focusMinutes,
+          shortBreakMinutes,
+          longBreakMinutes,
+          sessionsBeforeLongBreak,
+          autoStart,
+        })
       }}
     >
       <div className="grid gap-2">
@@ -453,57 +472,26 @@ function PresetEditor({
           onChange={(event) => setName(event.target.value)}
         />
       </div>
-      <div className="grid grid-cols-3 gap-2">
-        {(
-          [
-            ["Focus", focusMinutes, setFocusMinutes],
-            ["Short break", shortBreakMinutes, setShortBreakMinutes],
-            ["Long break", longBreakMinutes, setLongBreakMinutes],
-          ] as const
-        ).map(([label, value, setValue]) => (
-          <div key={label} className="grid gap-2">
-            <Label htmlFor={`preset-${label}-${preset.id}`}>{label}</Label>
-            <Input
-              id={`preset-${label}-${preset.id}`}
-              type="number"
-              min={1}
-              max={90}
-              value={value}
-              aria-invalid={validPresetMinutes(value) ? undefined : true}
-              onChange={(event) => setValue(event.target.valueAsNumber)}
-            />
-          </div>
-        ))}
-      </div>
-      <div className="grid gap-2">
-        <Label htmlFor={`preset-cycle-${preset.id}`}>
-          Sessions before long break
-        </Label>
-        <Input
-          id={`preset-cycle-${preset.id}`}
-          type="number"
-          min={SESSIONS_BEFORE_LONG_BREAK_MIN}
-          max={SESSIONS_BEFORE_LONG_BREAK_MAX}
-          value={
-            Number.isFinite(sessionsBeforeLongBreak)
-              ? sessionsBeforeLongBreak
-              : ""
-          }
-          aria-describedby={`preset-cycle-help-${preset.id}`}
-          aria-invalid={cycleValid ? undefined : true}
-          onChange={(event) =>
-            setSessionsBeforeLongBreak(event.target.valueAsNumber)
-          }
-          className="sm:max-w-40"
-        />
-        <span
-          id={`preset-cycle-help-${preset.id}`}
-          className="text-xs text-muted-foreground"
-        >
-          How many focuses earn the long break. {SESSIONS_BEFORE_LONG_BREAK_MIN}{" "}
-          to {SESSIONS_BEFORE_LONG_BREAK_MAX}, four in the classic pattern.
-        </span>
-      </div>
+      <RhythmMinutesFields
+        idPrefix={`preset-${preset.id}`}
+        className="grid grid-cols-3 gap-2"
+        focusMinutes={focusMinutes}
+        shortBreakMinutes={shortBreakMinutes}
+        longBreakMinutes={longBreakMinutes}
+        onFocusMinutes={setFocusMinutes}
+        onShortBreakMinutes={setShortBreakMinutes}
+        onLongBreakMinutes={setLongBreakMinutes}
+      />
+      <NumberField
+        id={`preset-cycle-${preset.id}`}
+        label="Sessions before long break"
+        hint={`How many focuses earn the long break. ${SESSIONS_BEFORE_LONG_BREAK_MIN} to ${SESSIONS_BEFORE_LONG_BREAK_MAX}, four in the classic pattern.`}
+        value={sessionsBeforeLongBreak}
+        min={SESSIONS_BEFORE_LONG_BREAK_MIN}
+        max={SESSIONS_BEFORE_LONG_BREAK_MAX}
+        onChange={setSessionsBeforeLongBreak}
+        inputClassName="sm:max-w-40"
+      />
       <div className="flex items-center gap-2">
         <Checkbox
           id={`preset-auto-${preset.id}`}
@@ -521,7 +509,7 @@ function PresetEditor({
         >
           Cancel
         </Button>
-        <Button type="submit" disabled={saving || !valid}>
+        <Button type="submit" disabled={saving}>
           {saving ? "Saving…" : "Save changes"}
         </Button>
       </div>

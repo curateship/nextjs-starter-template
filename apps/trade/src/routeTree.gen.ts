@@ -45,6 +45,7 @@ import { Route as THandleRouteImport } from './routes/t.$handle'
 import { Route as ToolsCompoundGrowthRouteImport } from './routes/tools_.compound-growth'
 import { Route as ToolsConvertRouteImport } from './routes/tools_.convert'
 import { Route as ToolsFeeComparisonRouteImport } from './routes/tools_.fee-comparison'
+import { Route as ToolsWalletCheckerRouteImport } from './routes/tools_.wallet-checker'
 import { Route as ToolsWhatIfRouteImport } from './routes/tools_.what-if'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedAdminAiRouteImport } from './routes/_authenticated/admin/ai'
@@ -296,6 +297,11 @@ const ToolsConvertRoute = ToolsConvertRouteImport.update({
 const ToolsFeeComparisonRoute = ToolsFeeComparisonRouteImport.update({
   id: '/tools_/fee-comparison',
   path: '/tools/fee-comparison',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ToolsWalletCheckerRoute = ToolsWalletCheckerRouteImport.update({
+  id: '/tools_/wallet-checker',
+  path: '/tools/wallet-checker',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ToolsWhatIfRoute = ToolsWhatIfRouteImport.update({
@@ -755,6 +761,7 @@ export interface FileRoutesByFullPath {
   '/tools/compound-growth': typeof ToolsCompoundGrowthRoute
   '/tools/convert': typeof ToolsConvertRoute
   '/tools/fee-comparison': typeof ToolsFeeComparisonRoute
+  '/tools/wallet-checker': typeof ToolsWalletCheckerRoute
   '/tools/what-if': typeof ToolsWhatIfRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
@@ -863,6 +870,7 @@ export interface FileRoutesByTo {
   '/tools/compound-growth': typeof ToolsCompoundGrowthRoute
   '/tools/convert': typeof ToolsConvertRoute
   '/tools/fee-comparison': typeof ToolsFeeComparisonRoute
+  '/tools/wallet-checker': typeof ToolsWalletCheckerRoute
   '/tools/what-if': typeof ToolsWhatIfRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
@@ -975,6 +983,7 @@ export interface FileRoutesById {
   '/tools_/compound-growth': typeof ToolsCompoundGrowthRoute
   '/tools_/convert': typeof ToolsConvertRoute
   '/tools_/fee-comparison': typeof ToolsFeeComparisonRoute
+  '/tools_/wallet-checker': typeof ToolsWalletCheckerRoute
   '/tools_/what-if': typeof ToolsWhatIfRoute
   '/_authenticated/admin/ai': typeof AuthenticatedAdminAiRoute
   '/_authenticated/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
@@ -1087,6 +1096,7 @@ export interface FileRouteTypes {
     | '/tools/compound-growth'
     | '/tools/convert'
     | '/tools/fee-comparison'
+    | '/tools/wallet-checker'
     | '/tools/what-if'
     | '/admin/ai'
     | '/admin/ai-usage'
@@ -1195,6 +1205,7 @@ export interface FileRouteTypes {
     | '/tools/compound-growth'
     | '/tools/convert'
     | '/tools/fee-comparison'
+    | '/tools/wallet-checker'
     | '/tools/what-if'
     | '/admin/ai'
     | '/admin/ai-usage'
@@ -1306,6 +1317,7 @@ export interface FileRouteTypes {
     | '/tools_/compound-growth'
     | '/tools_/convert'
     | '/tools_/fee-comparison'
+    | '/tools_/wallet-checker'
     | '/tools_/what-if'
     | '/_authenticated/admin/ai'
     | '/_authenticated/admin/ai-usage'
@@ -1407,6 +1419,7 @@ export interface RootRouteChildren {
   ToolsCompoundGrowthRoute: typeof ToolsCompoundGrowthRoute
   ToolsConvertRoute: typeof ToolsConvertRoute
   ToolsFeeComparisonRoute: typeof ToolsFeeComparisonRoute
+  ToolsWalletCheckerRoute: typeof ToolsWalletCheckerRoute
   ToolsWhatIfRoute: typeof ToolsWhatIfRoute
   ApiAuthGoogleRoute: typeof ApiAuthGoogleRoute
   ApiWebhooksResendRoute: typeof ApiWebhooksResendRoute
@@ -1672,6 +1685,13 @@ declare module '@tanstack/react-router' {
       path: '/tools/fee-comparison'
       fullPath: '/tools/fee-comparison'
       preLoaderRoute: typeof ToolsFeeComparisonRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tools_/wallet-checker': {
+      id: '/tools_/wallet-checker'
+      path: '/tools/wallet-checker'
+      fullPath: '/tools/wallet-checker'
+      preLoaderRoute: typeof ToolsWalletCheckerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/tools_/what-if': {
@@ -2425,6 +2445,7 @@ const rootRouteChildren: RootRouteChildren = {
   ToolsCompoundGrowthRoute: ToolsCompoundGrowthRoute,
   ToolsConvertRoute: ToolsConvertRoute,
   ToolsFeeComparisonRoute: ToolsFeeComparisonRoute,
+  ToolsWalletCheckerRoute: ToolsWalletCheckerRoute,
   ToolsWhatIfRoute: ToolsWhatIfRoute,
   ApiAuthGoogleRoute: ApiAuthGoogleRoute,
   ApiWebhooksResendRoute: ApiWebhooksResendRoute,

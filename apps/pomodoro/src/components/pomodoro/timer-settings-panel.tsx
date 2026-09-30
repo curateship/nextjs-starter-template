@@ -1,11 +1,14 @@
 import * as React from "react"
+import { toast } from "sonner"
 
 import { FocusRhythmPresets } from "@/components/pomodoro/focus-rhythm-presets"
+import { RhythmMinutesFields } from "@/components/pomodoro/rhythm-minutes-fields"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
+import { ErrorRow } from "@/components/ui/error-row"
 import { Label } from "@/components/ui/label"
 import { LoadingRow } from "@/components/ui/loading-row"
+import { NumberField } from "@/components/ui/number-field"
 import { Switch } from "@/components/ui/switch"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -15,13 +18,12 @@ import {
 import { useProductAuth } from "@/lib/pomodoro/auth-state"
 import { enableCompletionAlerts } from "@/lib/pomodoro/completion-alerts"
 import { browserTimezone } from "@/lib/pomodoro/timer"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import {
   normalizeSessionsBeforeLongBreak,
   SESSIONS_BEFORE_LONG_BREAK_DEFAULT,
   SESSIONS_BEFORE_LONG_BREAK_MAX,
   SESSIONS_BEFORE_LONG_BREAK_MIN,
-  validPresetMinutes,
-  validSessionsBeforeLongBreak,
 } from "@/lib/pomodoro/timer-presets"
 import {
   applyDurations,
@@ -51,8 +53,11 @@ export default function TimerSettingsPanel() {
   const [cycle, setCycle] = React.useState(SESSIONS_BEFORE_LONG_BREAK_DEFAULT)
   const [autoStart, setAutoStart] = React.useState(false)
   const [loaded, setLoaded] = React.useState(false)
-  const [notice, setNotice] = React.useState("")
-  const [error, setError] = React.useState("")
+  // Only the load failure is held in state, because it decides whether the
+  // boxes are drawn at all. Saves report themselves through the toasts.
+  const [loadFailed, setLoadFailed] = React.useState(false)
+  // Bumped by Try again, which is what re-runs the load below.
+  const [attempt, setAttempt] = React.useState(0)
   const [saving, setSaving] = React.useState(false)
 
   React.useEffect(() => {
@@ -86,13 +91,13 @@ export default function TimerSettingsPanel() {
         setLoaded(true)
       })
       .catch(() => {
-        if (!cancelled)
-          setError("Your timer settings could not be loaded. Reload to retry.")
+        if (!cancelled) setLoadFailed(true)
       })
     return () => {
       cancelled = true
     }
   }, [
+    attempt,
     known,
     authenticated,
     loaded,
@@ -102,23 +107,14 @@ export default function TimerSettingsPanel() {
     pomodoro.autoStart,
   ])
 
-  const valid =
-    [focus, short, long].every(validPresetMinutes) &&
-    Number.isInteger(dailyGoal) &&
-    dailyGoal >= 1 &&
-    dailyGoal <= 20 &&
-    validSessionsBeforeLongBreak(cycle)
-
   const save = async () => {
-    setNotice("")
-    setError("")
     if (!authenticated) {
       const applied = applyDurations({ focus, short, long }, autoStart, {
         dailyGoalSessions: dailyGoal,
         sessionsBeforeLongBreak: cycle,
       })
-      if (applied) setNotice("Focus rhythm saved locally.")
-      else setError("Reset or finish the timer first.")
+      if (applied) toast.success("Focus rhythm saved locally.")
+      else showErrorToast("Reset or finish the timer first.")
       return
     }
     setSaving(true)
@@ -135,9 +131,9 @@ export default function TimerSettingsPanel() {
       // read straight back. Without it the cycle would keep the old number
       // until some other screen mounted and reloaded it.
       void reloadPomodoroData()
-      setNotice("Focus rhythm saved.")
+      toast.success("Focus rhythm saved.")
     } catch {
-      setError("The focus rhythm could not be saved.")
+      showErrorToast("The focus rhythm could not be saved.")
     } finally {
       setSaving(false)
     }
@@ -152,8 +148,22 @@ export default function TimerSettingsPanel() {
         <CardContent className="grid gap-4">
           {/* Until the saved row is here there is nothing true to put in the
               boxes, and three empty boxes read as a rhythm of nothing. */}
-          {!loaded && !error ? (
+          {!loaded && !loadFailed ? (
             <LoadingRow label="Loading your focus rhythm…" />
+          ) : null}
+          {/* The failure stays in the card as well as in the toast. A toast
+              can be dismissed, and a card with nothing in it and no word about
+              why is the state this used to fall into. ErrorRow raises the
+              shared toast itself, so nothing here fires a second one. */}
+          {loadFailed ? (
+            <ErrorRow
+              message="Your timer settings could not be loaded."
+              onRetry={() => {
+                dismissErrorToast()
+                setLoadFailed(false)
+                setAttempt((count) => count + 1)
+              }}
+            />
           ) : null}
           {loaded ? (
             <FocusRhythmPresets
@@ -201,73 +211,35 @@ export default function TimerSettingsPanel() {
           ) : null}
           {loaded ? (
             <>
-              <div className="grid gap-4 sm:grid-cols-3">
-                {(
-                  [
-                    ["Focus minutes", "timer-focus", focus, setFocus, 90],
-                    ["Short break", "timer-short", short, setShort, 90],
-                    ["Long break", "timer-long", long, setLong, 90],
-                  ] as const
-                ).map(([label, id, value, setValue, max]) => (
-                  <div key={id} className="grid gap-2">
-                    <Label htmlFor={id}>{label}</Label>
-                    <Input
-                      id={id}
-                      type="number"
-                      min={1}
-                      max={max}
-                      value={Number.isFinite(value) ? value : ""}
-                      aria-invalid={validPresetMinutes(value) ? undefined : true}
-                      onChange={(event) => setValue(event.target.valueAsNumber)}
-                    />
-                  </div>
-                ))}
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="timer-goal">Daily session goal</Label>
-                <Input
-                  id="timer-goal"
-                  type="number"
-                  min={1}
-                  max={20}
-                  value={Number.isFinite(dailyGoal) ? dailyGoal : ""}
-                  aria-describedby="timer-goal-help"
-                  aria-invalid={
-                    Number.isInteger(dailyGoal) && dailyGoal >= 1 && dailyGoal <= 20
-                      ? undefined
-                      : true
-                  }
-                  onChange={(event) => setDailyGoal(event.target.valueAsNumber)}
-                  className="sm:max-w-40"
-                />
-                <span id="timer-goal-help" className="text-xs text-muted-foreground">
-                  Only completed focus sessions count toward your daily goal and
-                  streak.
-                </span>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="timer-long-break-cycle">
-                  Sessions before long break
-                </Label>
-                <Input
-                  id="timer-long-break-cycle"
-                  type="number"
-                  min={SESSIONS_BEFORE_LONG_BREAK_MIN}
-                  max={SESSIONS_BEFORE_LONG_BREAK_MAX}
-                  value={Number.isFinite(cycle) ? cycle : ""}
-                  aria-describedby="timer-long-break-cycle-help"
-                  aria-invalid={validSessionsBeforeLongBreak(cycle) ? undefined : true}
-                  onChange={(event) => setCycle(event.target.valueAsNumber)}
-                  className="sm:max-w-40"
-                />
-                <span
-                  id="timer-long-break-cycle-help"
-                  className="text-xs text-muted-foreground"
-                >
-                  How many focuses earn the long break. Four is the classic
-                  pattern; a 50-minute rhythm usually wants two.
-                </span>
-              </div>
+              <RhythmMinutesFields
+                idPrefix="timer"
+                focusMinutes={focus}
+                shortBreakMinutes={short}
+                longBreakMinutes={long}
+                onFocusMinutes={setFocus}
+                onShortBreakMinutes={setShort}
+                onLongBreakMinutes={setLong}
+              />
+              <NumberField
+                id="timer-goal"
+                label="Daily session goal"
+                hint="Only completed focus sessions count toward your daily goal and streak."
+                value={dailyGoal}
+                min={1}
+                max={20}
+                onChange={setDailyGoal}
+                inputClassName="sm:max-w-40"
+              />
+              <NumberField
+                id="timer-long-break-cycle"
+                label="Sessions before long break"
+                hint="How many focuses earn the long break. Four is the classic pattern; a 50-minute rhythm usually wants two."
+                value={cycle}
+                min={SESSIONS_BEFORE_LONG_BREAK_MIN}
+                max={SESSIONS_BEFORE_LONG_BREAK_MAX}
+                onChange={setCycle}
+                inputClassName="sm:max-w-40"
+              />
               <div className="flex items-center gap-2">
                 <Switch
                   id="timer-auto-start"
@@ -314,19 +286,9 @@ export default function TimerSettingsPanel() {
             </span>
           </div>
           <div className="flex items-center gap-3">
-            <Button disabled={!valid || saving || !loaded} onClick={() => void save()}>
+            <Button disabled={saving || !loaded} onClick={() => void save()}>
               {saving ? "Saving…" : "Save focus rhythm"}
             </Button>
-            {notice ? (
-              <span role="status" className="text-sm text-muted-foreground">
-                {notice}
-              </span>
-            ) : null}
-            {error ? (
-              <span role="alert" className="text-sm text-destructive">
-                {error}
-              </span>
-            ) : null}
           </div>
         </CardContent>
       </Card>

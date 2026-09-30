@@ -162,6 +162,15 @@ let state: PomodoroState = initialState
 const listeners = new Set<() => void>()
 let ticker: number | null = null
 let hydrating = false
+/**
+ * When the last load landed, so a second consumer mounting on the same
+ * navigation does not fetch the same rows again.
+ *
+ * Only a load that worked sets this. A failed one leaves it alone, so the
+ * next screen retries straight away instead of sitting on a failure for the
+ * length of the window.
+ */
+let lastLoadedAt = 0
 let completing = false
 
 function emit() {
@@ -422,9 +431,32 @@ function hydrateGuest() {
     }, 60_000)
 }
 
-/** Fresh tasks, preferences and summary; the ticking timer is left alone. */
-export function reloadPomodoroData() {
+/**
+ * How long a finished load counts as current, for the mount refresh only.
+ *
+ * Five seconds. Long enough to cover one navigation — the header's quick
+ * controls and the page under them both mount and both ask — and short enough
+ * that a change made in another tab is back before you have finished switching
+ * to this one. Nothing the timer itself writes waits on this: those writes go
+ * straight into the store.
+ */
+export const RELOAD_FRESH_MS = 5_000
+
+/**
+ * Fresh tasks, preferences and summary; the ticking timer is left alone.
+ *
+ * `maxAgeMs` makes the call a refresh rather than a demand: a load that
+ * finished less than that long ago is left alone. Only the mount refresh
+ * passes it. Every explicit caller — a saved setting, a rejected reorder, the
+ * guest import — passes nothing and always reloads, because each of those
+ * knows the rows just changed.
+ */
+export function reloadPomodoroData({
+  maxAgeMs,
+}: { maxAgeMs?: number } = {}) {
   if (typeof window === "undefined" || hydrating) return Promise.resolve()
+  if (maxAgeMs !== undefined && Date.now() - lastLoadedAt < maxAgeMs)
+    return Promise.resolve()
   if (!productAuth().known) return Promise.resolve()
   if (!isAuthed()) {
     hydrateGuest()
@@ -487,6 +519,7 @@ export function reloadPomodoroData() {
         syncError: "",
         loadFailed: false,
       })
+      lastLoadedAt = Date.now()
     })
     .catch(() => {
       setState({
@@ -1196,9 +1229,13 @@ export function usePomodoro() {
     pomodoroEngineState,
     () => serverSnapshot
   )
-  // Every consumer mount refreshes the data; the running timer is untouched.
+  // A consumer mount refreshes the data; the running timer is untouched.
+  // Every member screen mounts two of these — the header's quick controls and
+  // the page under them — so the refresh skips a load that is already in
+  // flight or that landed in the last few seconds, and one navigation asks
+  // the server once.
   React.useEffect(() => {
-    void reloadPomodoroData()
+    void reloadPomodoroData({ maxAgeMs: RELOAD_FRESH_MS })
   }, [])
 
   const timerIdle = timerIsIdle(snapshot)

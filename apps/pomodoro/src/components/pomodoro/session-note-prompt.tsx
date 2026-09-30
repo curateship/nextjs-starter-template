@@ -1,6 +1,8 @@
 import * as React from "react"
 import { CheckIcon, XIcon } from "lucide-react"
 
+import { Button } from "@/components/ui/button"
+
 import { SESSION_NOTE_MAX_LENGTH } from "@/lib/pomodoro/session-notes"
 import type { usePomodoro } from "@/lib/pomodoro/use-pomodoro"
 
@@ -51,10 +53,17 @@ function SessionNoteField({
 
   return (
     <form
-      className="flex min-h-[42px] w-full max-w-[min(520px,calc(100vw-36px))] flex-wrap items-center gap-2.5 rounded-[14px] border border-[rgba(var(--p-fg-rgb),0.1)] bg-[rgba(var(--p-canvas-rgb),0.75)] py-2 pl-3.5 pr-2.5"
+      className="flex min-h-9 w-full max-w-[min(520px,calc(100vw-36px))] flex-wrap items-center gap-2.5 rounded-[14px] border border-[rgba(var(--p-fg-rgb),0.1)] bg-[rgba(var(--p-canvas-rgb),0.75)] py-2 pl-3.5 pr-2.5"
       onSubmit={(event) => {
         event.preventDefault()
-        if (busy || !dirty) return
+        if (busy) return
+        // Nothing typed since the last save, so there is nothing to send.
+        // Saying so beats a dead Save button: the rulebook keeps the action
+        // pressable and answers on the press.
+        if (!dirty) {
+          setConfirmed(true)
+          return
+        }
         setBusy(true)
         setConfirmed(false)
         void onSave(note).then((ok) => {
@@ -90,22 +99,29 @@ function SessionNoteField({
           {trimmed ? "Saved" : "Cleared"}
         </small>
       ) : null}
-      <button
+      {/* Enabled with nothing typed. "Nothing has changed" is not a reason
+          worth greying a button out for, and a faded Save with no word is the
+          exact thing the rest of this screen stopped doing. */}
+      <Button
         type="submit"
-        disabled={busy || !dirty}
-        className="grid size-7 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-[rgba(var(--p-fg-rgb),0.08)] hover:text-foreground disabled:cursor-not-allowed disabled:opacity-35"
+        variant="ghost"
+        size="icon-sm"
+        disabled={busy}
+        className="shrink-0 rounded-full text-muted-foreground hover:bg-[rgba(var(--p-fg-rgb),0.08)] hover:text-foreground"
         aria-label="Save this session note"
       >
         <CheckIcon className="size-[13px]" aria-hidden="true" />
-      </button>
-      <button
+      </Button>
+      <Button
         type="button"
+        variant="ghost"
+        size="icon-sm"
         onClick={onDismiss}
-        className="grid size-7 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-[rgba(var(--p-fg-rgb),0.08)] hover:text-foreground"
+        className="shrink-0 rounded-full text-muted-foreground hover:bg-[rgba(var(--p-fg-rgb),0.08)] hover:text-foreground"
         aria-label="Skip the note for this session"
       >
         <XIcon className="size-[13px]" aria-hidden="true" />
-      </button>
+      </Button>
     </form>
   )
 }

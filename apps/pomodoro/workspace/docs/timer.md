@@ -1,12 +1,73 @@
 # The timer
 
 The main screen, at `/` and `/timer`. A 300px SVG ring counts a focus or
-break down, orange at rest and green while running — matched to the old
+break down, orange at rest and green while running, shrinking to fit a window
+narrower than that — matched to the old
 dashboard side by side: muted mono digits and the dark Start pill inside
-the ring, which floats over the hero image; the pill mode tabs with the
-orange active chip; the thin goal bar with its mono label; and the rounded Tasks card on the plain canvas
+the ring, which floats over the hero image; the mode tabs, which are the
+shared segmented control; the thin goal bar with its mono label; and the rounded Tasks card on the plain canvas
 below (its own row style with the circle complete button and the inset
 orange selection bar).
+
+## The ring on a narrow window
+
+The ring is 300px wide at most and the width of the page at least, whichever is
+smaller, so it stays a whole circle on a phone instead of running off the side.
+A 375px window gives it the full 300px; a 320px window gives it 272px.
+
+The cap is a percentage of the content column, not of the window, so the ring
+follows the page's left and right edge without repeating that number. The SVG
+inside it keeps its `viewBox` of 300 units, so every coordinate and the stroke
+width are still written at the size they were drawn for and only the drawn
+result scales.
+
+Zen mode sizes its own ring against the window instead
+(`min(380px, 100vw - 48px, 100vh - 260px)`), which is the right measure there
+because zen mode covers the window and must not be scrolled.
+
+## Using it by keyboard
+
+Every stop on this screen shows where it is. The dashboard's buttons are the
+shared `Button`, so they draw the one focus ring the rest of the app draws
+(`src/lib/layout/focus-ring.ts`); before this they were bare `<button>`
+elements with hover styles only, and zen mode was the only part of the timer
+you could see your way around.
+
+- **The mode strip takes one Tab stop, not three.** Left and right move
+  between Focus, Short break and Long break. It is `ui/tabs.tsx`, so the
+  roving focus comes with the component rather than being written here.
+  Measured: one Tab reaches it, ArrowRight moves Focus to Short break and
+  ArrowLeft moves it back.
+- **Tab order runs down the screen** from the ring's Start, Reset and Zen
+  mode, through the mode strip, to the tasks card and the "Add a task" field
+  at the bottom.
+- **A control that is switched off is still reachable.** A disabled button
+  cannot take focus, so the reason sits on a wrapper that can
+  (`ui/disabled-reason.tsx`). Tab on to a greyed-out task row and the reason
+  appears, the same sentence the mouse gets on hover.
+
+## Controls that have gone dead say why
+
+A faded button with no explanation is the commonest reason someone decides an
+app is broken, so every control the timer switches off names the thing that
+would switch it back on. The sentences are written as the action, not the
+state — "Pause or finish the focus to choose a different task", never "Timer
+is running" — and they live together in
+`src/lib/pomodoro/disabled-reasons.ts`, because the same rule greys controls
+out on three screens and three copies of one sentence drift apart.
+
+- **Picking a task** is off while a focus is counting down: "Pause or finish
+  the focus to choose a different task." A finished task reads "Reopen this
+  task to focus on it again."
+- **The header's minute steppers and preset rows** are off for the same
+  reason: "Reset or finish the timer to change durations or presets." That
+  sentence used to sit in a loose paragraph at the bottom of the popover with
+  nothing tying it to the rows it was about. The paragraph is gone. What is
+  left in its place is "Current values are custom", which is a fact about the
+  numbers rather than a reason a control is off.
+- **The session note's Save is never off for want of a change.** Pressing it
+  with nothing typed says "Saved" instead of doing nothing, because "nothing
+  has changed" is not worth greying a button out for.
 
 ## What is not on it
 
@@ -103,6 +164,32 @@ used to do. Zen mode still shows the name.
   have none. "Loading your tasks…" stands in the Tasks card until the list
   lands (`loading` on the engine's state, true until the first load settles
   either way).
+
+## When the app reads your data
+
+Opening a member screen fetches your tasks, preferences and today's summary
+once. Two things ask for it on every screen — the header's quick controls and
+the page underneath them — and the store in `src/lib/pomodoro/use-pomodoro.ts`
+answers both from one request.
+
+- **A load already in flight is never duplicated.** The second asker gets the
+  one that is running.
+- **A load that finished less than five seconds ago is skipped**
+  (`RELOAD_FRESH_MS`). Five seconds covers one navigation, and it is short
+  enough that a change made in another tab is back before you have finished
+  switching to this one. Measured on the dev server: moving between the timer
+  and the tasks page fires one `loadProductivity` request when the last one is
+  older than that and none when it is not.
+- **A save never waits on that window.** Every explicit reload — a saved
+  setting, a rejected reorder, the guest import — asks for fresh rows and
+  always gets them. Only the refresh a screen does on mount is allowed to skip.
+- **A failed load does not count as fresh**, so the next screen retries at
+  once instead of sitting on the failure for five seconds.
+- **The timer's own writes never go near this.** They go straight into the
+  store, so the countdown and today's count are current whatever the window
+  says.
+- **A guest never fetches at all.** Those rows come out of the browser's own
+  storage.
 
 ## What the server records
 

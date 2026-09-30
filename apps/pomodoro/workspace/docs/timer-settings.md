@@ -34,6 +34,48 @@ rhythm presets. The long-break number has its own doc,
 The tab edits the same `user_preferences` row the dashboard reads on load,
 so the next visit to `/timer` picks the new rhythm up.
 
+## The number boxes
+
+The three minute boxes are one component, `RhythmMinutesFields` in
+`src/components/pomodoro/rhythm-minutes-fields.tsx`, used here, in a custom
+preset's editor and in the host-a-room dialog. The same triple was copied into
+all three before, and the copies drifted: two guarded a cleared box and one
+did not, so clearing the same field showed an empty box on one screen and the
+word `NaN` on another.
+
+Each box is `src/components/ui/number-field.tsx`, and every number box in the
+Settings card is — the daily goal and the long-break count too.
+
+- **A cleared box is a half-typed state, not an error.** Select the 25, delete
+  it, type 30: the box is briefly empty, which is fine, and it never says
+  `NaN`.
+- **Save stays pressable while a box is empty.** The field only hands back a
+  whole number inside its limits, so the form keeps the last good value and
+  saves that. The rulebook's rule is to keep the action enabled and answer on
+  the press, never to grey it out.
+- **The box marks itself** with `aria-invalid` while what is in it is not a
+  usable number, and leaving it says what a usable number would be.
+
+## How a save reports itself
+
+Every save in Settings reports the same way, through the shared toasts. Three
+cards on this one page used to report the same event three different ways and
+two of them never cleared, so "Focus rhythm saved." sat beside the button for
+the rest of the visit.
+
+- **A save that worked raises a success toast** (`toast.success`), which
+  clears itself.
+- **A save that failed raises the shared error toast**
+  (`src/lib/toast/error-toast.ts`), which stays until it is dismissed, because
+  a failure you did not see is a failure you think did not happen.
+- **No inline notice sits beside a Save button.** The `notice` and `error`
+  state behind those lines is gone rather than kept alongside the toasts.
+- **A load that failed is not a save that failed.** It still decides whether
+  the fields are drawn at all, so it keeps a piece of state of its own and
+  also says so in the error toast.
+- **Validation that stops a save before it is sent stays in the form**, marked
+  with `aria-invalid` on the field it belongs to.
+
 ## While it is loading
 
 The card shows "Loading your focus rhythm…" in place of the preset picker and

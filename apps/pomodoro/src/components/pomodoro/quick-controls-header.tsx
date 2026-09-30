@@ -15,6 +15,7 @@ import {
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { DisabledReason } from "@/components/ui/disabled-reason"
 import { Label } from "@/components/ui/label"
 import {
   Popover,
@@ -23,6 +24,7 @@ import {
 } from "@/components/ui/popover"
 import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/utils"
+import { RESET_TO_CHANGE_RHYTHM_REASON } from "@/lib/pomodoro/disabled-reasons"
 import { loadLeaderboard } from "@/lib/api/pomodoro/leaderboard"
 import { listTimerPresets } from "@/lib/api/pomodoro/timer-presets"
 import { useDiscardFocusConfirm } from "@/components/pomodoro/discard-focus-confirm"
@@ -64,9 +66,29 @@ const modeLabels: Array<[TimerMode, string]> = [
  * links to the full pages. The timer lives in the module engine, so these
  * controls work identically on every page.
  */
-/** The old app's glassy header pill. */
+/**
+ * The old app's glassy header pill, at the rulebook's 32px control height so
+ * the row of them lines up with the colour-mode switcher and the Register
+ * button beside it. It was 42px, which is not one of the four allowed
+ * heights, and the switcher next to it was 32px.
+ *
+ * Narrow, the label inside it is hidden and the padding goes even, so the pill
+ * is the icon in a circle rather than an icon pushed to one side of a pill with
+ * a hole where the words were. Every one of these buttons carries its own
+ * `aria-label`, so hiding the words costs the button no name.
+ */
 export const quickPillClass =
-  "flex h-[42px] items-center gap-2 whitespace-nowrap rounded-full border border-[rgba(var(--p-fg-rgb),0.14)] bg-[rgba(var(--p-fg-rgb),0.07)] py-0 pl-3.5 pr-[18px] text-[13.5px] font-semibold text-foreground backdrop-blur-[12px] hover:bg-[rgba(var(--p-fg-rgb),0.16)]"
+  "flex h-8 items-center gap-2 whitespace-nowrap rounded-full border border-[rgba(var(--p-fg-rgb),0.14)] bg-[rgba(var(--p-fg-rgb),0.07)] py-0 pl-3 pr-3.5 text-[13.5px] font-semibold text-foreground backdrop-blur-[12px] hover:bg-[rgba(var(--p-fg-rgb),0.16)] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none max-md:px-2.5"
+
+/**
+ * A pill's words: on from 768px up, gone below it.
+ *
+ * 768 rather than 640 because 640 was measured and does not fit: with the
+ * labels back on, a 640px window still scrolled sideways by 61px.
+ */
+function QuickPillLabel({ children }: { children: React.ReactNode }) {
+  return <span className="max-md:hidden">{children}</span>
+}
 
 /**
  * A heading inside a quick popover: small mono capitals over a full-width
@@ -169,7 +191,7 @@ function TimerQuickControl() {
           {pomodoro.timer.running || !pomodoro.timerIdle ? (
             <span className="font-mono text-xs tabular-nums">{countdown}</span>
           ) : (
-            "Timer"
+            <QuickPillLabel>Timer</QuickPillLabel>
           )}
         </button>
       </PopoverTrigger>
@@ -205,7 +227,15 @@ function TimerQuickControl() {
           </Button>
         </div>
 
-        <div className="flex flex-col gap-2.5">
+        {/* One wrapper for all three rows rather than six wrappers around six
+            steppers: the rule that switches them off is the same rule, and
+            the reader only needs to be told once. */}
+        <DisabledReason
+          className="w-full"
+          disabled={!pomodoro.timerIdle}
+          reason={RESET_TO_CHANGE_RHYTHM_REASON}
+        >
+        <div className="flex w-full flex-col gap-2.5">
           {modeLabels.map(([key, label]) => (
             <div key={key} className="flex items-center gap-2.5">
               <span className="mr-auto text-sm text-muted-foreground">
@@ -237,6 +267,7 @@ function TimerQuickControl() {
             </div>
           ))}
         </div>
+        </DisabledReason>
 
         <div className="flex items-center gap-2.5 border-t pt-3.5">
           <Label
@@ -253,7 +284,12 @@ function TimerQuickControl() {
         </div>
 
         <QuickSectionHeading>Presets</QuickSectionHeading>
-        <div className="flex flex-col gap-1">
+        <DisabledReason
+          className="w-full"
+          disabled={!pomodoro.timerIdle}
+          reason={RESET_TO_CHANGE_RHYTHM_REASON}
+        >
+        <div className="flex w-full flex-col gap-1">
           {[...builtinTimerPresets, ...presets].map((preset) => {
             const selected = matched?.id === preset.id
             return (
@@ -294,11 +330,12 @@ function TimerQuickControl() {
             )
           })}
         </div>
-        {!pomodoro.timerIdle ? (
-          <p className="text-[11.5px] leading-relaxed text-muted-foreground">
-            Reset or finish the timer to change durations or presets.
-          </p>
-        ) : !matched ? (
+        </DisabledReason>
+        {/* The loose paragraph that used to explain the greyed-out rows is
+            gone: the reason now rides on the controls it is about. What is
+            left is not a disabled reason, it is a fact about the current
+            values, so it stays a line of its own. */}
+        {pomodoro.timerIdle && !matched ? (
           <p className="text-[11.5px] leading-relaxed text-muted-foreground">
             Current values are custom.
           </p>
@@ -324,7 +361,7 @@ function QuickActions({
   thing: "sound" | "background"
 }) {
   const base =
-    "flex h-[34px] flex-1 items-center justify-center gap-[7px] rounded-full text-[12.5px] font-semibold"
+    "flex h-8 flex-1 items-center justify-center gap-[7px] rounded-full text-[12.5px] font-semibold focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
   return (
     <div className="flex gap-2">
       <Link
@@ -394,7 +431,7 @@ function LeaderboardQuickControl() {
       <PopoverTrigger asChild>
         <button className={quickPillClass} aria-label="Leaderboard">
           <BarChart3Icon className="size-[17px]" aria-hidden="true" />
-          Leaderboard
+          <QuickPillLabel>Leaderboard</QuickPillLabel>
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-[290px] gap-3 p-4">
@@ -468,7 +505,7 @@ function ThemeQuickControl() {
       <PopoverTrigger asChild>
         <button className={quickPillClass} aria-label="Theme quick controls">
           <PaletteIcon className="size-[17px]" aria-hidden="true" />
-          Theme
+          <QuickPillLabel>Theme</QuickPillLabel>
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-80 gap-3.5 p-4">
