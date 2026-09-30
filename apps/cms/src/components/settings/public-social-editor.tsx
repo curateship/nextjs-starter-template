@@ -9,9 +9,9 @@ import { GripVertical, PlusIcon, Trash2Icon } from "lucide-react"
 
 import {
   DRAG_GRIP_CLASS,
-  stableItemIds,
   useNavSensors,
   useSortableChip,
+  stableItemIds,
 } from "@/components/settings/nav-editor-shared"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"

@@ -24,10 +24,10 @@ import {
   DRAG_GRIP_CLASS,
   DRAG_HANDLE_CLASS,
   createShellId,
-  stableItemIds,
   useNavSensors,
   useSortableChip,
   useSortableRow,
+  stableItemIds,
 } from "@/components/settings/nav-editor-shared"
 import { Button } from "@/components/ui/button"
 import {
@@ -106,8 +106,12 @@ import {
 import type { PublicSocialLink } from "@/lib/pages/public-social"
 import type { PublicHeaderAction } from "@/lib/pages/public-header-actions"
 import {
+  PUBLIC_FOOTER_ALIGNMENT_HINTS,
+  PUBLIC_FOOTER_ALIGNMENT_LABELS,
+  PUBLIC_FOOTER_ALIGNMENTS,
   PUBLIC_THEME_CHROME_FONTS,
   PUBLIC_THEME_HEADING_FONT_LABELS,
+  type PublicFooterAlignment,
   type PublicThemeChromeFont,
 } from "@/lib/public-theme"
 import type { PublicUserPanel } from "@/lib/pages/public-user-panel"
@@ -120,6 +124,8 @@ type PublicSiteSettingsProps = {
   footer: PublicNavigationLink[]
   footerSocial: PublicSocialLink[]
   footerCopyright: string
+  /** Where the public footer sits, or `inherit` to follow the page. */
+  footerAlignment: PublicFooterAlignment
   publicHeader: PublicHeader
   /** Styling's page width, which the header follows until it has its own. */
   pageWidth: number
@@ -132,6 +138,7 @@ type PublicSiteSettingsProps = {
   onFooterChange: (links: PublicNavigationLink[]) => void
   onFooterSocialChange: (links: PublicSocialLink[]) => void
   onFooterCopyrightChange: (copyright: string) => void
+  onFooterAlignmentChange: (alignment: PublicFooterAlignment) => void
   onPublicHeaderChange: (header: PublicHeader) => void
   onChromeFontChange: (font: PublicThemeChromeFont) => void
   onHeaderActionsChange: (actions: PublicHeaderAction[]) => void
@@ -148,6 +155,7 @@ export function PublicSiteSettings({
   footer,
   footerSocial,
   footerCopyright,
+  footerAlignment,
   publicHeader,
   pageWidth,
   chromeFont,
@@ -158,6 +166,7 @@ export function PublicSiteSettings({
   onFooterChange,
   onFooterSocialChange,
   onFooterCopyrightChange,
+  onFooterAlignmentChange,
   onPublicHeaderChange,
   onChromeFontChange,
   onHeaderActionsChange,
@@ -212,6 +221,39 @@ export function PublicSiteSettings({
         onLinksChange={onFooterChange}
         onSaveConfig={onSaveConfig}
       >
+        <SettingsCardSection
+          title="Footer alignment"
+          description="Where the logo, the description, the social buttons, the links and the copyright line sit."
+        >
+          <div className="grid gap-2">
+            <FieldLabel
+              htmlFor="public-footer-alignment"
+              hint={PUBLIC_FOOTER_ALIGNMENT_HINTS[footerAlignment]}
+            >
+              Alignment
+            </FieldLabel>
+            <Select
+              value={footerAlignment}
+              onValueChange={(value) =>
+                onFooterAlignmentChange(value as PublicFooterAlignment)
+              }
+            >
+              <SelectTrigger
+                id="public-footer-alignment"
+                className="w-full sm:w-fit"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PUBLIC_FOOTER_ALIGNMENTS.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {PUBLIC_FOOTER_ALIGNMENT_LABELS[value]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </SettingsCardSection>
         <SettingsCardSection
           title="Social accounts"
           description="Drawn as buttons under the site's description. Drag them into the order they should appear."

@@ -94,6 +94,8 @@ import { PUBLIC_DEVICES } from "@/lib/pages/public-device"
 import { NOTIFICATION_TYPES } from "@/lib/notification-types"
 import {
   MAX_PUBLIC_BACKGROUND_PATTERN_OPACITY,
+  DEFAULT_PUBLIC_FRONT_PAGE_ROW_GAP,
+  MAX_PUBLIC_FRONT_PAGE_ROW_GAP,
   MAX_PUBLIC_MAIN_SPACING,
   MAX_PUBLIC_PAGE_WIDTH,
   MAX_PUBLIC_RADIUS,
@@ -106,6 +108,7 @@ import {
   PUBLIC_BUTTON_STYLES,
   PUBLIC_COLOR_SCHEMES,
   PUBLIC_CONTENT_ALIGNMENTS,
+  PUBLIC_FOOTER_ALIGNMENTS,
   PUBLIC_THEME_FONTS,
   PUBLIC_THEME_CHROME_FONTS,
   PUBLIC_THEME_HEADING_FONTS,
@@ -124,6 +127,8 @@ import {
   MAX_CONTENT_GUTTER,
   MAX_MODAL_PADDING,
   MIN_CONTENT_GUTTER,
+  DARK_SHADE_IDS,
+  DEFAULT_DARK_SHADE,
   SHELL_BACKGROUND_MODES,
 } from "@/lib/layout/styling-values"
 import { MAX_TOAST_SECONDS, MIN_TOAST_SECONDS } from "@/lib/toast/toast-seconds"
@@ -245,6 +250,9 @@ const shellModalStylingSchema = z.object({
 
 const shellStylingSchema = z.object({
   gutter: z.number().int().min(0).max(48),
+  // Defaulted so a Styling tab opened before dark shades existed still saves,
+  // and saves the near-black dark mode it was already showing.
+  darkShade: z.enum(DARK_SHADE_IDS).default(DEFAULT_DARK_SHADE),
   cardBorderWidth: z.number().int().min(0).max(3),
   cardBorderColor: shellBackgroundSchema,
   dividerColor: shellBackgroundSchema,
@@ -364,7 +372,18 @@ const publicThemeSchema = z.object({
     .min(MIN_PUBLIC_PAGE_WIDTH)
     .max(MAX_PUBLIC_PAGE_WIDTH),
   mainSpacing: z.number().int().min(0).max(MAX_PUBLIC_MAIN_SPACING),
+  // Defaulted so a settings tab opened before this setting existed still
+  // saves, and saves the gap the page already had.
+  frontPageRowGap: z
+    .number()
+    .int()
+    .min(0)
+    .max(MAX_PUBLIC_FRONT_PAGE_ROW_GAP)
+    .default(DEFAULT_PUBLIC_FRONT_PAGE_ROW_GAP),
   contentAlignment: z.enum(PUBLIC_CONTENT_ALIGNMENTS),
+  // Defaulted so a settings tab opened before this choice existed still saves,
+  // and saves the footer as it already sat.
+  footerAlignment: z.enum(PUBLIC_FOOTER_ALIGNMENTS).default("inherit"),
   backgroundPattern: z.enum(PUBLIC_BACKGROUND_PATTERNS),
   backgroundPatternSize: z.enum(PUBLIC_BACKGROUND_PATTERN_SIZES),
   backgroundPatternOpacity: z

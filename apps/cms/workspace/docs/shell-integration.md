@@ -122,11 +122,62 @@ License, and `src/theme.css` declares it. A shell merge that changes the fonts
 has to copy `public/fonts/` as well as `src/`, or the heading font falls back
 silently.
 
-CMS keeps one shell file forked on purpose.
+Dark mode has a shade setting. Settings > Styling > Dark mode offers Near
+black, Charcoal, Graphite and Soft grey, and every grey surface lifts together
+so the text keeps the same contrast at all four. A workspace that has never
+chosen one reads as Near black, which is the dark mode CMS always had. The
+public pages have no shade control and stay near black whatever the signed-in
+app is set to.
+
+A page now has three tiers of grey, darkest first: the page behind the cards,
+then the sidebar rail and the sticky bar, then the cards. The page is
+`--shell-canvas` in `src/theme.css` and the rail is halfway between it and a
+card, so a card reads as raised in both light and dark. Styling's old "Main
+content area" and "Sidebar & sticky bar" colour pickers are gone, because
+`styling.content` blended toward `--muted`, which sits below a card in light
+mode and above it in dark, so one saved number turned the page darker than the
+cards in one mode and lighter in the other. Both fields stay in the saved row
+and the public side still reads them.
+
+Tab strips and the colour-mode switcher move one pill. The raised white
+background is a single element behind the buttons rather than a background on
+the chosen one, so switching slides it across instead of blinking it from one
+place to the next, and `src/lib/hooks/use-sliding-pill.ts` measures it from
+whichever button is selected. Flipping light to dark freezes every transition
+for two frames so the page does not fade one colour at a time, and anything
+carrying `data-keep-motion` is exempt, which is how the switcher's own pill
+still slides while the page repaints.
+
+A window's backdrop fades in over the same 150ms as the window, and the blurred
+page behind it eases rather than switching on.
+
+A public page keeps the page it is drawing while the next one loads.
+`src/lib/hooks/use-painted-pathname.ts` reads the address on screen rather than
+the one being fetched, so clicking into the admin no longer re-aligns the front
+page for the half second before it goes.
+
+The public footer sits where it is told. Settings > Public > Navigation >
+Public footer > Footer alignment offers Follow the site, Left and Centred, and
+Follow the site reads Styling > Page frame > Content alignment, which is what
+every site saved before the choice existed reads as. The footer reads the
+site's own alignment rather than the page's, so a card page centring its one
+box says nothing about where the footer belongs.
+
+The front page has its own row spacing. Settings > Public pages > Front page >
+Space between rows is a whole number of pixels up to 160, a phone draws 70% of
+it because a desktop-sized gap is most of a phone screen, and flat mode still
+collapses both. The default is 80px, which is the 5rem `src/theme.css` always
+drew.
+
+CMS keeps two shell files forked on purpose.
 `src/components/pages/site-search-page.tsx` uses `publicCardHover` from
 `src/lib/layout/card-hover.ts` instead of the shell's `hover:bg-accent/40`, so
 search results lift and cast a shadow like every other CMS card. It stays a
 fork until that hover moves into the shell.
+`src/lib/format/bulk-result.ts` counts a third pile, the records that were
+already the way the button would set them, which "Change many at once" needs
+and the shell's copy does not have. A shell merge must not overwrite it. Both
+forks end when the shell takes the same change.
 
 The current shell includes database migrations through
 `0081_custom_shell_per_page_index_controls.sql`. CMS numbers its own migrations

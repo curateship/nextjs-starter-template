@@ -44,7 +44,9 @@ import {
 import { normalizePublicThemePresets } from "@/lib/public-theme-presets"
 import {
   BORDER_STYLE_VAR_NAMES,
+  DARK_SHADE_VAR_NAMES,
   getBorderStyleVars,
+  getDarkShadeVars,
   getModalStyleVars,
   MODAL_STYLE_VAR_NAMES,
   normalizeStyling,
@@ -234,6 +236,7 @@ export function ShellLayout({
   )
   useModalStyleVars(config.styling.modal)
   useBorderStyleVars(config.styling)
+  useDarkShadeVars(config.styling)
 
   React.useEffect(() => {
     if (lastSettingsRef.current === settings) {
@@ -563,11 +566,10 @@ export function ShellLayout({
     ]
   )
 
-  // Recolors both the sidebar rail and the sticky header (both use bg-sidebar).
-  // Opaque so the two render the same color regardless of what sits behind them.
-  const chromeBackground = resolveBackground(config.styling.chrome, {
-    opaque: true,
-  })
+  // The sidebar rail and the sticky header follow the theme's own --sidebar,
+  // which sits between the page and a card in both modes.
+  // `config.styling.chrome` is deliberately not read here; see the note on the
+  // field in lib/layout/styling-values.ts.
   // Divider lines resolve to the theme --border token; overriding it (and the
   // sidebar edge) on this wrapper recolors the rules inside cards and tables plus
   // the sidebar border across the whole shell at once.
@@ -575,7 +577,6 @@ export function ShellLayout({
     base: "--muted-foreground",
   })
   const rootStyle = {
-    ...(chromeBackground ? { "--sidebar": chromeBackground } : {}),
     ...(dividerColor
       ? { "--border": dividerColor, "--sidebar-border": dividerColor }
       : {}),
@@ -589,7 +590,7 @@ export function ShellLayout({
 
   return (
     <ShellRuntimeContext.Provider value={runtime}>
-      <div className="min-h-screen bg-muted/60" style={rootStyle}>
+      <div className="shell-canvas min-h-screen" style={rootStyle}>
         <SidebarProvider
           className="h-screen"
           sidebarWidth={config.sidebarWidth}
@@ -845,49 +846,57 @@ function stripRetiredAccountEntries(sections: ShellSection[]): ShellSection[] {
     .filter((section) => section.entries.length > 0)
 }
 
+// Writes a set of CSS variables onto the document root and returns the cleanup
+// that takes them off again, so a styling value reaches content that portals to
+// document.body — dialogs, popovers, dropdown menus, selects, sheets, toasts —
+// outside the shell subtree. A name the caller resolved to "default" is absent
+// from `vars` and gets removed, so the theme's own token shows through.
+function applyRootStyleVars(
+  names: readonly string[],
+  vars: Record<string, string>
+) {
+  const root = document.documentElement
+  for (const name of names) {
+    const value = vars[name]
+    if (value === undefined) {
+      root.style.removeProperty(name)
+    } else {
+      root.style.setProperty(name, value)
+    }
+  }
+  return () => {
+    for (const name of names) {
+      root.style.removeProperty(name)
+    }
+  }
+}
+
 // The dialog portals to document.body, outside the shell subtree, so modal
 // styling is applied as CSS variables on the document root where it can reach.
 function useModalStyleVars(modal: ShellModalStyling) {
-  React.useEffect(() => {
-    const root = document.documentElement
-    const vars = getModalStyleVars(modal)
-    for (const name of MODAL_STYLE_VAR_NAMES) {
-      const value = vars[name]
-      if (value === undefined) {
-        root.style.removeProperty(name)
-      } else {
-        root.style.setProperty(name, value)
-      }
-    }
-    return () => {
-      for (const name of MODAL_STYLE_VAR_NAMES) {
-        root.style.removeProperty(name)
-      }
-    }
-  }, [modal])
+  React.useEffect(
+    () => applyRootStyleVars(MODAL_STYLE_VAR_NAMES, getModalStyleVars(modal)),
+    [modal]
+  )
 }
 
 // Popovers, dropdown menus, selects, sheets, and toasts also portal to
-// document.body, so the border settings are applied the same way: as CSS
-// variables on the document root, where the portaled layers can see them.
+// document.body, so the border settings are applied the same way.
 function useBorderStyleVars(styling: ShellStyling) {
-  React.useEffect(() => {
-    const root = document.documentElement
-    const vars = getBorderStyleVars(styling)
-    for (const name of BORDER_STYLE_VAR_NAMES) {
-      const value = vars[name]
-      if (value === undefined) {
-        root.style.removeProperty(name)
-      } else {
-        root.style.setProperty(name, value)
-      }
-    }
-    return () => {
-      for (const name of BORDER_STYLE_VAR_NAMES) {
-        root.style.removeProperty(name)
-      }
-    }
-  }, [styling])
+  React.useEffect(
+    () => applyRootStyleVars(BORDER_STYLE_VAR_NAMES, getBorderStyleVars(styling)),
+    [styling]
+  )
+}
+
+// How dark the dark mode is. The greys in theme.css are written as their own
+// lightness plus --shell-dark-lift, so setting that one variable on the
+// document root lifts the whole dark palette, including the portaled layers.
+function useDarkShadeVars(styling: ShellStyling) {
+  React.useEffect(
+    () => applyRootStyleVars(DARK_SHADE_VAR_NAMES, getDarkShadeVars(styling)),
+    [styling]
+  )
 }
 
 // The root route puts the saved app name in the tab title when the page loads.
