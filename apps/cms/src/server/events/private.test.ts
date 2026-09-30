@@ -214,6 +214,7 @@ describe("the events table", () => {
     "server/events/schema.ts",
     "server/events/share-image.ts", // One event's card, found by its address.
     "server/events/sign-ups.ts", // One event's sign-up box, found by its id.
+    "server/events/waiting-list.ts", // One event at a time, by id, for the queue behind it.
   ]
 
   it("is read only by the admin, the public reads and the share card", () => {

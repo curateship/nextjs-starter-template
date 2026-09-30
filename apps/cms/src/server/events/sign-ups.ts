@@ -1,4 +1,4 @@
-import { and, asc, count, eq, exists, sql } from "drizzle-orm"
+import { and, asc, count, eq, exists, inArray, lt, or, sql } from "drizzle-orm"
 
 import { eventHasStarted } from "@/lib/events/event-time"
 import {
@@ -29,6 +29,9 @@ import { eventSignUps, siteEvents } from "@/server/events/schema"
  * - **Removing someone** marks their row cancelled. That frees the seat, and
  *   the same email can sign up again while a seat is free. Tyler chose that
  *   on 24 Sep 2026.
+ * - **A full event offers the waiting list instead.** The same box joins a
+ *   queue, and `server/events/waiting-list.ts` holds everything that happens
+ *   after that. A waiting row takes no seat; an offered one does.
  *
  * Each date of a repeating event is its own event, so it has its own seats and
  * its own list. Every read and write takes the site first.
@@ -43,10 +46,32 @@ export type SignUpBox = {
   full: boolean
   /** The event has started, so nobody new can sign up. */
   closed: boolean
+  /** Full, but the box takes names for the waiting list. */
+  waitingList: boolean
 }
 
-/** Holds a seat. A cancelled row is a record, not a seat. */
-const holdsSeat = eq(eventSignUps.status, "confirmed")
+/**
+ * Holds a seat: somebody who is coming, or somebody a seat is being held for
+ * while they claim it. A seat under offer has to count, or the next visitor
+ * would take it out from under the person who was just emailed.
+ */
+const holdsSeat = inArray(eventSignUps.status, ["confirmed", "offered"])
+
+/** Coming, as opposed to waiting or holding an unclaimed offer. */
+const isComing = eq(eventSignUps.status, "confirmed")
+
+/** In the queue, holding no seat yet. */
+const isWaiting = eq(eventSignUps.status, "waiting")
+
+/**
+ * On the list in any live sense. The database's unique index uses the same
+ * three, so this is what "already signed up" means.
+ */
+const onTheList = inArray(eventSignUps.status, [
+  "confirmed",
+  "waiting",
+  "offered",
+])
 
 async function seatsTaken(
   eventId: string,
@@ -90,19 +115,59 @@ export async function signUpBoxFor(
 
   const taken = await seatsTaken(eventId, database)
   const left = event.seats === null ? null : Math.max(0, event.seats - taken)
+  const closed = eventHasStarted(event, timeZone, at)
   return {
     seats: event.seats,
     left,
     full: left === 0,
-    closed: eventHasStarted(event, timeZone, at),
+    closed,
+    // Only a full event that has not started: with seats free there is
+    // nothing to wait for, and once it has started nothing can free up in
+    // time to matter.
+    waitingList: left === 0 && !closed,
   }
 }
 
+/**
+ * Somebody's place in the queue, counting from 1. Worked out from the times
+ * rather than stored, so removing the person in front moves everybody behind
+ * them up without a second write.
+ */
+async function queuePlace(
+  eventId: string,
+  person: { id: string; createdAt: Date },
+  database: CustomShellDb
+): Promise<number> {
+  const [row] = await database
+    .select({ ahead: count() })
+    .from(eventSignUps)
+    .where(
+      and(
+        eq(eventSignUps.eventId, eventId),
+        isWaiting,
+        // The same order the offers go out in, ties and all, so the number a
+        // person is told is the number of offers that have to happen first.
+        or(
+          lt(eventSignUps.createdAt, person.createdAt),
+          and(
+            eq(eventSignUps.createdAt, person.createdAt),
+            lt(eventSignUps.id, person.id)
+          )
+        )
+      )
+    )
+  return (row?.ahead ?? 0) + 1
+}
+
 type SignUpOutcome =
-  { outcome: "signed-up" } | { outcome: "refused"; problem: string }
+  | { outcome: "signed-up" }
+  /** On the waiting list, at `place`, counting from 1. */
+  | { outcome: "waiting"; place: number }
+  /** A seat is already being held for this email, and the link is in an inbox. */
+  | { outcome: "offered" }
+  | { outcome: "refused"; problem: string }
 
 export const SIGN_UPS_CLOSED = "Sign-ups have closed. The event has started."
-export const EVENT_FULL = "Sorry, this event is full."
 const NOT_TAKING = "This event is not taking sign-ups."
 
 /**
@@ -169,35 +234,60 @@ export async function signUpForEvent(
     }
 
     const [already] = await tx
-      .select({ id: eventSignUps.id })
+      .select({
+        id: eventSignUps.id,
+        status: eventSignUps.status,
+        createdAt: eventSignUps.createdAt,
+      })
       .from(eventSignUps)
       .where(
         and(
           eq(eventSignUps.eventId, eventId),
           eq(eventSignUps.email, email),
-          holdsSeat
+          onTheList
         )
       )
       .limit(1)
-    // The same answer as a new sign-up, so nobody learns who is going.
-    if (already) return { outcome: "signed-up" as const }
-
-    if (
-      event.seats !== null &&
-      (await seatsTaken(eventId, tx)) >= event.seats
-    ) {
-      return { outcome: "refused" as const, problem: EVENT_FULL }
+    if (already) {
+      // The same answer as a new sign-up would get, so nobody learns who is
+      // going by typing somebody else's address. Nothing is written either
+      // way.
+      //
+      // The waiting list bends that a little, on purpose: it answers with
+      // the real place, so typing somebody else's address on a full event
+      // does say they are on the queue. Telling a real person a made-up
+      // place would send them to an event they have no seat at, and that is
+      // the worse of the two.
+      if (already.status === "confirmed")
+        return { outcome: "signed-up" as const }
+      if (already.status === "offered") return { outcome: "offered" as const }
+      return {
+        outcome: "waiting" as const,
+        place: await queuePlace(eventId, already, tx),
+      }
     }
 
+    const full =
+      event.seats !== null && (await seatsTaken(eventId, tx)) >= event.seats
+
+    const id = uuid()
     await tx.insert(eventSignUps).values({
-      id: uuid(),
+      id,
       workspaceId: siteId,
       eventId,
       name,
       email,
+      status: full ? "waiting" : "confirmed",
       createdAt: at,
     })
-    return { outcome: "signed-up" as const }
+    // Written first, then counted, so the answer includes this row and the
+    // first person to join a queue is told they are 1st, not 0th.
+    return full
+      ? {
+          outcome: "waiting" as const,
+          place: await queuePlace(eventId, { id, createdAt: at }, tx),
+        }
+      : { outcome: "signed-up" as const }
   })
 }
 
@@ -227,13 +317,51 @@ export async function listSignUps(
       and(
         eq(eventSignUps.workspaceId, workspaceId),
         eq(eventSignUps.eventId, eventId),
-        holdsSeat
+        isComing
       )
     )
     .orderBy(asc(eventSignUps.createdAt), asc(eventSignUps.id))
 }
 
-/** Takes somebody off the list, which frees their seat. */
+/** Somebody in the queue, for the Sign-ups card in Admin → Events. */
+export type EventWaitingPerson = EventSignUp & {
+  /** When the seat being held for them passes on, or null while they wait. */
+  offerExpiresAt: Date | null
+}
+
+/**
+ * The queue for one event, front first. The person holding an offer is first,
+ * because the offer went to whoever was at the front.
+ */
+export async function listWaitingList(
+  workspaceId: string,
+  eventId: string,
+  database: CustomShellDb = db
+): Promise<EventWaitingPerson[]> {
+  return database
+    .select({
+      id: eventSignUps.id,
+      name: eventSignUps.name,
+      email: eventSignUps.email,
+      createdAt: eventSignUps.createdAt,
+      offerExpiresAt: eventSignUps.offerExpiresAt,
+    })
+    .from(eventSignUps)
+    .where(
+      and(
+        eq(eventSignUps.workspaceId, workspaceId),
+        eq(eventSignUps.eventId, eventId),
+        inArray(eventSignUps.status, ["waiting", "offered"])
+      )
+    )
+    .orderBy(asc(eventSignUps.createdAt), asc(eventSignUps.id))
+}
+
+/**
+ * Takes somebody off, wherever they were: coming, waiting, or holding an
+ * offer. Removing one of the first two frees a seat that the background pass
+ * then offers to the front of the queue.
+ */
 export async function removeSignUp(
   workspaceId: string,
   signUpId: string,
@@ -241,12 +369,15 @@ export async function removeSignUp(
 ): Promise<void> {
   const removed = await database
     .update(eventSignUps)
+    // Their claim link stops working at once: only an 'offered' row can be
+    // claimed. The token is kept so the link says what happened rather than
+    // pretending it was never sent.
     .set({ status: "cancelled", cancelledAt: new Date() })
     .where(
       and(
         eq(eventSignUps.id, signUpId),
         eq(eventSignUps.workspaceId, workspaceId),
-        holdsSeat
+        onTheList
       )
     )
     .returning({ id: eventSignUps.id })
@@ -256,14 +387,14 @@ export async function removeSignUp(
 }
 
 /**
- * An event that somebody is signed up for. Changing a repeat keeps such a
- * date rather than deleting it, so nobody's place is thrown away.
+ * An event somebody is signed up for or waiting for. Changing a repeat keeps
+ * such a date rather than deleting it, so nobody's place is thrown away.
  */
 export function holdsSignUps(database: CustomShellDb) {
   return exists(
     database
       .select({ one: sql`1` })
       .from(eventSignUps)
-      .where(and(eq(eventSignUps.eventId, siteEvents.id), holdsSeat))
+      .where(and(eq(eventSignUps.eventId, siteEvents.id), onTheList))
   )
 }

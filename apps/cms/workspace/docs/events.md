@@ -1278,8 +1278,9 @@ event's page to take a seat. It is for something like a cooking class with 20
 places: twenty people sign up, the twenty-first sees "Full", and the host has
 the list of names on the day.
 
-There is no payment, no email and no waiting list yet. Those are tasks 25, 28
-and 32.
+A full event takes names for a waiting list, which "The waiting list" below
+describes. There is no payment and no confirmation email yet. Those are tasks
+32 and 25.
 
 ### Switching it on
 
@@ -1301,7 +1302,9 @@ buttons and above the body. Its four states:
 - **Open with seats:** "12 of 20 seats left", then a Name box, an Email box and
   "Sign up".
 - **Open with no limit:** "Free. Add your name to the list." and the same form.
-- **Full:** headed "Full", saying "Every seat is taken." There is no form.
+- **Full:** headed "Full", saying "Every seat is taken. Join the waiting list
+  and we'll email you if one frees up.", with the same two boxes and a "Join
+  the waiting list" button.
 - **Closed:** "Sign-ups have closed." once the event's start time has come by
   the site's clock. It stays that way after the event is over.
 
@@ -1317,7 +1320,7 @@ read on every visit, after the page cache, so the count is never stale.
 
 - **Two people racing for the last seat can't both get it.** A sign-up locks
   the event's row before it counts the seats, so the second waits for the
-  first to finish, counts again, and is told "Sorry, this event is full."
+  first to finish, counts again, and joins the waiting list instead.
 - **One live sign-up per email per event.** The email is stored in lower case,
   and the database refuses a second live row for the same email. Signing up
   again writes nothing and answers "You're on the list", the same as the first
@@ -1339,7 +1342,9 @@ read on every visit, after the page cache, so the count is never stale.
 ### Who's coming
 
 - **Where:** under the switch and seats in the event's Sign-ups card, as "Who's
-  coming" with "3 of 20 seats taken", or "3 signed up" with no limit.
+  coming" with "3 of 20 seats taken", or "3 signed up" with no limit. A seat
+  under offer counts as taken and the line says so: "4 of 20 seats taken,
+  1 held".
 - **Each person:** their name, their email and when they signed up, first to
   sign up first.
 - **Remove:** the bin button asks first, then takes the person off at once,
@@ -1378,6 +1383,147 @@ Deleting an event deletes its sign-ups with it.
   one transaction at a time, so its race test shows the outcome but cannot
   show the lock at work. The lock was also checked against the real local
   Postgres with ten sign-ups sent at once for one seat.
+
+## The waiting list
+
+When every seat is taken, a visitor joins a queue instead of being turned
+away. When a seat frees up, the person at the front is emailed a link that
+claims it, and the seat is held for them until the link runs out. A popular
+class fills in an hour, two people drop out, and the first two on the list get
+their seats.
+
+The seat is offered, never given. Nobody is put into an event they did not
+click for.
+
+### Joining
+
+- **When it appears:** the sign-up box turns into the waiting list the moment
+  the event is full, and only then. An event with no seat limit is never full,
+  so it never has one.
+- **What the visitor sees:** the heading stays "Full", the words become "Every
+  seat is taken. Join the waiting list and we'll email you if one frees up.",
+  and the button says "Join the waiting list".
+- **After joining:** "You're 3rd on the waiting list, Sam. We'll email you if a
+  seat frees up."
+- **Once the event has started** there is no waiting list, only "Sign-ups have
+  closed."
+- **The same name and email** as a sign-up, and the same hidden box, the same
+  eight an hour from one address, and the same one live row per email.
+- **Joining twice** writes nothing and answers with the place they already
+  have, so the number a person is told is always the number of offers that
+  have to happen before theirs.
+- **The trade-off in that.** A sign-up for a seat answers the same whether or
+  not that email was already on the list, so nobody can find out who is going.
+  A waiting-list answer carries a number, so typing somebody else's address on
+  a full event does say they are on the queue. Telling a real person a made-up
+  place would send them to an event they have no seat at, which is worse.
+- **Somebody whose seat is already being offered** is told "A seat has already
+  come free for you. The link to claim it is in your email." rather than being
+  queued again.
+
+### Offering a freed seat
+
+- **How long a seat is held:** a day, or until two hours before the event
+  starts, whichever comes first. Tyler chose that on 29 Sep 2026.
+- **Inside the last two hours** nothing is offered at all. A seat that frees
+  then goes straight back on the event page for anybody to take, because a
+  hold nobody has time to answer would leave the seat empty on the night.
+- **A held seat counts as taken.** The page still says "Full" while an offer is
+  open, which is the point: the next visitor cannot take the seat out from
+  under the person who was just emailed.
+- **Two seats freed at once go to two different people.** Each offer is
+  written inside the same locked pass that counted the free seats, so the
+  second offer already sees the first one's seat as gone.
+- **What frees a seat:** an admin removing somebody who was coming, an admin
+  raising the seat count, or a hold running out. All three end the same way,
+  because the background pass asks "which events have somebody waiting and a
+  free seat" rather than being told.
+- **Sign-ups switched off, or the event unpublished or deleted:** no offers.
+  Everybody stays on the list, so switching sign-ups back on picks the queue
+  up where it was.
+- **An email that fails** puts the person back at their old place in the
+  queue and the next pass tries again. Nobody loses their turn to a mail
+  problem.
+
+### The email and the claim link
+
+- **The email** says a seat has come free, names the event, says when the hold
+  runs out on the site's clock, and carries one "Claim your seat" button. It
+  is the directory's plain message, the same one a "confirm your email" link
+  arrives in.
+- **The link** is `/api/event-seat?token=…`. It is not signed in and not
+  origin-checked: the unguessable token is what proves the link is one this
+  app sent to that address, exactly as the directory's confirmation link
+  works.
+- **Why a GET is safe here.** Claiming is the one thing the person opening the
+  link wanted, so a mail client that fetches links early does the harmless
+  half. There is no link that gives a seat up, which is the one that would
+  have made an early fetch a problem.
+- **The page it lands on** is a plain self-contained page that renders with no
+  JavaScript and no session, with five answers: the seat is yours, you already
+  have your seat, that offer is no longer open, that event has already started,
+  and we do not recognise that link.
+- **The token is kept** after the offer is claimed or runs out, so a second
+  click, a late click, and a click by somebody an admin removed each get a
+  sentence saying what happened rather than the shrug an invented token gets.
+  Only a row that is still offered can be claimed, so a kept token opens
+  nothing.
+
+### A hold that runs out
+
+- **The person comes off the list**, and the seat goes to the next one. Tyler
+  chose that on 29 Sep 2026: an offer nobody answers is an answer.
+- **They can sign up again** from the event page while a seat is free, because
+  a run-out row is not a live one.
+- **There is no way to leave the list yourself.** Only the site's admins take
+  somebody off. Tyler chose that on 29 Sep 2026.
+
+### In Admin → Events
+
+- **Where:** a "Waiting list" section under "Who's coming" in the event's
+  Sign-ups card, front of the queue first.
+- **Each person:** their name, their email, and either "2nd in line" or "Seat
+  held until Oct 2, 6:00 PM".
+- **Remove:** the bin button asks first. Removing somebody who is holding an
+  offer frees that seat, and it is offered to the next person within fifteen
+  seconds.
+- **The count** beside "Who's coming" includes held seats, so it never reads
+  lower than the number of seats a visitor cannot have.
+
+### The background pass
+
+The waiting list has no visitor-facing trigger. The shell's background pass
+calls `runWaitingListPass` every fifteen seconds and it does two things in
+order: clear the holds that have run out, then offer every free seat on every
+event that has somebody waiting. One broken event never stops the rest, and a
+server that died mid-pass changes nothing, because the next pass asks the same
+question again.
+
+### Repeating events
+
+Each date of a repeat has its own queue, the same way each has its own seats.
+A date with anybody waiting is never deleted by a change to the repeat, the
+same as a date with somebody signed up.
+
+### Where it lives
+
+- **The rules:** `src/server/events/waiting-list.ts`. The two ways in are
+  `runWaitingListPass`, which the background pass calls, and
+  `claimOfferedSeat`, which the link calls. Inside them, `offerFreeSeats`
+  takes the seats, `holdUntil` says how long a hold lasts, and `expireHolds`
+  clears the ones that ran out.
+- **Joining** is still `signUpForEvent` in `src/server/events/sign-ups.ts`,
+  which writes a waiting row when the event is full.
+- **The link's page:** `src/server/events/seat-link.ts`, behind the route
+  `src/routes/api/event-seat.ts`. It draws itself with
+  `src/server/directory/plain-page.ts`, which the directory's confirmation
+  link uses too.
+- **The pass is registered** in `src/app/server-options.ts`, beside the
+  repeating-events top-up.
+- **The columns:** `status` gains 'waiting', 'offered' and 'expired', plus
+  `offer_token_hash` and `offer_expires_at`, from
+  `drizzle/0109_cms_event_waiting_list.sql`.
+- **The tests:** `src/server/events/waiting-list.test.ts`.
 
 ## View counts
 
@@ -1420,6 +1566,6 @@ already keeps, so nothing new is recorded and no visitor is identified.
 
 ## Not built yet
 
-These are later tasks in `workspace/tasks/events/`: emails for sign-ups, a
-waiting list, and a free or paid filter once paid tickets exist. Task 07, the site's own extra fields, is not built either. When
+These are later tasks in `workspace/tasks/events/`: confirmation and reminder
+emails for sign-ups, and a free or paid filter once paid tickets exist. Task 07, the site's own extra fields, is not built either. When
 it is, those fields need copying to a repeating event's dates like the rest.

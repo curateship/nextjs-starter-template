@@ -18,6 +18,31 @@ export const MAX_EVENT_SEATS = 100_000
 /** The hidden box a person never sees. A bot fills every box it finds. */
 export const SIGN_UP_TRAP = "homepage"
 
+/**
+ * How long a freed seat is held for the person it was offered to: a day, or
+ * until two hours before the event starts, whichever comes first. Tyler chose
+ * that on 29 Sep 2026. The second half matters on the day itself, where a hold
+ * of a day would outlive the event it is for.
+ */
+export const OFFER_HOLD_HOURS = 24
+export const OFFER_ENDS_BEFORE_START_HOURS = 2
+
+/** "1st", "2nd", "3rd", "4th" — the place a person has in the queue. */
+export function placeInQueue(place: number): string {
+  const lastTwo = place % 100
+  if (lastTwo >= 11 && lastTwo <= 13) return `${place}th`
+  switch (place % 10) {
+    case 1:
+      return `${place}st`
+    case 2:
+      return `${place}nd`
+    case 3:
+      return `${place}rd`
+    default:
+      return `${place}th`
+  }
+}
+
 // Tabs, line breaks and the invisible characters below space. The database
 // refuses some of them outright.
 // eslint-disable-next-line no-control-regex

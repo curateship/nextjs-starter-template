@@ -36,7 +36,12 @@ import {
 } from "@/server/events/events"
 import { saveEventAndDates } from "@/server/events/repeats"
 import { EVENT_CONTENT_TYPE } from "@/server/events/schema"
-import { listSignUps, type EventSignUp } from "@/server/events/sign-ups"
+import {
+  listSignUps,
+  listWaitingList,
+  type EventSignUp,
+  type EventWaitingPerson,
+} from "@/server/events/sign-ups"
 import {
   listingChoice,
   listingChoicesForBody,
@@ -46,7 +51,7 @@ import { workspaceIdForRequest } from "@/server/workspaces/for-request"
 
 import { getListingErrorMessage } from "../directory/listings"
 
-export type { EventSeries, EventSignUp, EventSummary }
+export type { EventSeries, EventSignUp, EventSummary, EventWaitingPerson }
 
 /**
  * The Events screen's doors. All admin-only, and all work on the site the
@@ -131,6 +136,8 @@ export type EventForEdit = {
   paidSpot: { endsAt: Date; buyerEmail: string } | null
   /** Who is coming, first to sign up first. */
   signUps: EventSignUp[]
+  /** Who is waiting for a seat, front of the queue first. */
+  waitingList: EventWaitingPerson[]
 }
 
 const loadEventForEditFn = createServerFn({ method: "GET" })
@@ -143,16 +150,24 @@ const loadEventForEditFn = createServerFn({ method: "GET" })
       categoryIdsFor(site, EVENT_CONTENT_TYPE, data.id),
     ])
     if (!event) return null
-    const [listings, series, placeListing, lookupKey, paidSpot, signUps] =
-      await Promise.all([
-        listingChoicesForBody(site, event.body),
-        seriesForEdit(site, event),
-        event.listingId ? listingChoice(site, event.listingId) : null,
-        // Only whether there is one; the key itself never leaves the server.
-        directoryGeocodingKey(site).catch(() => null),
-        activeEventSpot(site, event.id),
-        listSignUps(site, event.id),
-      ])
+    const [
+      listings,
+      series,
+      placeListing,
+      lookupKey,
+      paidSpot,
+      signUps,
+      waitingList,
+    ] = await Promise.all([
+      listingChoicesForBody(site, event.body),
+      seriesForEdit(site, event),
+      event.listingId ? listingChoice(site, event.listingId) : null,
+      // Only whether there is one; the key itself never leaves the server.
+      directoryGeocodingKey(site).catch(() => null),
+      activeEventSpot(site, event.id),
+      listSignUps(site, event.id),
+      listWaitingList(site, event.id),
+    ])
     return {
       event,
       categoryIds,
@@ -162,6 +177,7 @@ const loadEventForEditFn = createServerFn({ method: "GET" })
       canLocate: Boolean(lookupKey),
       paidSpot,
       signUps,
+      waitingList,
     }
   })
 
@@ -218,7 +234,11 @@ const updateEventFn = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }): Promise<SavedEvent> => {
     const { id, ...rest } = data
-    return saveEventAndDates(await workspaceIdForRequest(context.user.id), id, rest)
+    return saveEventAndDates(
+      await workspaceIdForRequest(context.user.id),
+      id,
+      rest
+    )
   })
 
 /**

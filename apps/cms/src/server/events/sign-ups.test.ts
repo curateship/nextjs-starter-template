@@ -13,7 +13,6 @@ import {
 import { saveEventAndDates } from "@/server/events/repeats"
 import { eventSignUps, siteEvents } from "@/server/events/schema"
 import {
-  EVENT_FULL,
   SIGN_UPS_CLOSED,
   listSignUps,
   removeSignUp,
@@ -177,7 +176,9 @@ describe("seats", () => {
     expect(results.filter((each) => each.outcome === "signed-up")).toHaveLength(
       1
     )
-    expect(results).toContainEqual({ outcome: "refused", problem: EVENT_FULL })
+    // The one who lost the race joins the queue rather than being turned
+    // away. `waiting-list.test.ts` follows what happens to them.
+    expect(results).toContainEqual({ outcome: "waiting", place: 1 })
     expect(await listSignUps(siteId, event.id, database)).toHaveLength(1)
   })
 
@@ -187,8 +188,8 @@ describe("seats", () => {
       await signUp(event.id, `cook${i}@example.com`)
     }
     expect(await signUp(event.id, "cook21@example.com")).toEqual({
-      outcome: "refused",
-      problem: EVENT_FULL,
+      outcome: "waiting",
+      place: 1,
     })
   })
 
@@ -202,6 +203,7 @@ describe("seats", () => {
       left: null,
       full: false,
       closed: false,
+      waitingList: false,
     })
   })
 
@@ -224,6 +226,7 @@ describe("the sign-up box", () => {
       left: 2,
       full: false,
       closed: false,
+      waitingList: false,
     })
 
     await signUp(event.id, "a@example.com")
@@ -310,9 +313,7 @@ describe("who's coming", () => {
   it("frees the seat when somebody is removed, and lets them sign up again", async () => {
     const event = await cookingClass(1)
     await signUp(event.id, "ana@example.com", { name: "Ana" })
-    expect(await signUp(event.id, "bo@example.com")).toMatchObject({
-      outcome: "refused",
-    })
+    expect(await box(event.id)).toMatchObject({ left: 0, full: true })
 
     const [ana] = await listSignUps(siteId, event.id, database)
     await removeSignUp(siteId, ana!.id, database)
