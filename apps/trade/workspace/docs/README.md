@@ -132,6 +132,10 @@ screen: anything not written there has not been agreed yet.
 - `what-if-i-had-bought.md` — `/tools/what-if`: which coins are offered, how
   far back, the nightly fill, how missing days and stock splits are named, and
   why the stocks are switched off.
+- `wallet-checker.md` — `/tools/wallet-checker`: where any Hyperliquid
+  wallet's history comes from, how far back Hyperliquid will go, the counting
+  it shares with the P&L page, and the limits that keep it off the trading's
+  request budget.
 
 ## charts/ — the chart itself
 
