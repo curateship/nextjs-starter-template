@@ -193,6 +193,19 @@ function ThemeTogglePill() {
 }
 
 /**
+ * The page's left and right edge, used by the header and by the content under
+ * it. One constant because the two were `px-10` and `px-6 sm:px-12` before, so
+ * the brand sat 8px inside the first heading on desktop and 16px outside it on
+ * a phone, and neither number moved when the other did.
+ *
+ * 40px is the header's old number rather than the content's 48px, because the
+ * header's row of controls fits a 1024px window with 40px of edge and needs a
+ * second line with 48px. Eight pixels of edge is not worth a two-line header on
+ * a small laptop.
+ */
+const pageGutterClass = "px-6 sm:px-10"
+
+/**
  * One row in the sidebar: a nav link or the collapse button. Both are the
  * same pill so the column reads down one edge, and both keep their icon in
  * the same place when the sidebar narrows.
@@ -329,7 +342,29 @@ export function PomodoroShell({
           collapsed && "lg:pl-[76px]"
         )}
       >
-        <header className="sticky top-0 z-20 flex min-h-[86px] items-center gap-6 px-10 py-[22px]">
+        {/* The row takes a second line rather than running off the side, at
+            every width rather than under a breakpoint. Measured on the dev
+            server from 320px to 1440px: before this, every width up to 768
+            scrolled sideways, by 62px at 768 and 383px at 320, and a signed-out
+            window with a sound playing still scrolled at 1100.
+
+            How much room the row needs depends on what is in it — the sound
+            player only exists while a sound is chosen, and Log in plus Register
+            is wider than Log out — so no single breakpoint covers every case.
+            `flex-wrap` does, because it asks the question at the width the
+            window actually is. One line stays one line: from about 1100px up it
+            never wraps in any state, and `min-h-[86px]` holds the old height.
+
+            Below 768px a second line is still not enough, so the quick pills
+            drop their labels and the sound player folds behind one control. 640px
+            was measured with the labels on and still scrolled sideways by 61px,
+            which is why that line sits at `md` and not at `sm`. */}
+        <header
+          className={cn(
+            "sticky top-0 z-20 flex min-h-[86px] flex-wrap items-center gap-2 py-[22px] md:gap-6",
+            pageGutterClass
+          )}
+        >
           <Button
             variant="ghost"
             size="icon-sm"
@@ -400,7 +435,7 @@ export function PomodoroShell({
               shading="hero"
             />
           </div>
-          <div className="relative z-[4] -mt-40 px-6 pb-20 sm:px-12">
+          <div className={cn("relative z-[4] -mt-40 pb-20", pageGutterClass)}>
             {children}
           </div>
         </main>

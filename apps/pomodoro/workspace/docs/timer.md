@@ -1,12 +1,29 @@
 # The timer
 
 The main screen, at `/` and `/timer`. A 300px SVG ring counts a focus or
-break down, orange at rest and green while running — matched to the old
+break down, orange at rest and green while running, shrinking to fit a window
+narrower than that — matched to the old
 dashboard side by side: muted mono digits and the dark Start pill inside
 the ring, which floats over the hero image; the pill mode tabs with the
 orange active chip; the thin goal bar with its mono label; and the rounded Tasks card on the plain canvas
 below (its own row style with the circle complete button and the inset
 orange selection bar).
+
+## The ring on a narrow window
+
+The ring is 300px wide at most and the width of the page at least, whichever is
+smaller, so it stays a whole circle on a phone instead of running off the side.
+A 375px window gives it the full 300px; a 320px window gives it 272px.
+
+The cap is a percentage of the content column, not of the window, so the ring
+follows the page's left and right edge without repeating that number. The SVG
+inside it keeps its `viewBox` of 300 units, so every coordinate and the stroke
+width are still written at the size they were drawn for and only the drawn
+result scales.
+
+Zen mode sizes its own ring against the window instead
+(`min(380px, 100vw - 48px, 100vh - 260px)`), which is the right measure there
+because zen mode covers the window and must not be scrolled.
 
 ## What is not on it
 
