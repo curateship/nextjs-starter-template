@@ -332,6 +332,17 @@ the two things a chip does are both visible before either is tried. The
 keyboard still reorders: tab to a chip, space to lift it, the arrows to move
 it, space to drop it.
 
+**A dropped chip slides into its new place.** The public menu chips, the public
+footer links and the footer's social accounts settle the way the action items
+and the top-right chips already did, instead of snapping to the new order the
+moment the mouse is let go. Tyler reported the snap on 29 Sep 2026. Each chip
+in those three rows is now tracked by an id of its own rather than by the slot
+it sits in, so the browser keeps the chip you dragged and moves it. Before
+that, slot one was always slot one and only the words inside it changed, which
+no animation can cover. Nothing is saved differently: the id lives in the
+browser for as long as the settings page is open and is never written to the
+site's settings.
+
 The Header layout card holds an Action items row: the three controls at the
 right-hand end of the public header, as draggable chips. They are Search, the
 light and dark switch, and the account corner, and the order they sit in is the

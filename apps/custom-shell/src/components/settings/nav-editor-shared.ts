@@ -173,3 +173,45 @@ export function useCheckedAddress(href: string | undefined, isNamed: boolean) {
     },
   }
 }
+
+/**
+ * A number for every item ever handed to `stableItemIds`, kept against the
+ * item object itself. A WeakMap forgets an item as soon as the list drops it,
+ * so nothing is left behind.
+ */
+const itemNumbers = new WeakMap<object, number>()
+let lastItemNumber = 0
+
+/**
+ * One id per item that stays with that item while the list is reordered.
+ *
+ * A list whose ids are its positions, `menu-link-0` then `menu-link-1`, has no
+ * way to animate: dropping a chip leaves every id where it was and only the
+ * labels swap, so the chips jump to their new places instead of sliding. The
+ * top-right chips and the front page rows carry ids of their own and slide
+ * properly. The public menu's items are saved without one, so the id is minted
+ * here and held against the item object, which `arrayMove` keeps as it
+ * reorders.
+ *
+ * An item edited in its window is a new object and gets a new id. That is a
+ * remount, not a drag, and nothing is moving at the time.
+ */
+export function stableItemIds(items: readonly object[], prefix: string) {
+  const taken = new Set<string>()
+
+  return items.map((item) => {
+    const number = itemNumbers.get(item)
+    let id = number === undefined ? undefined : `${prefix}-${number}`
+
+    // The same object twice in one list would hand dnd-kit two chips with one
+    // id, and it would drag both. The second copy gets an id of its own.
+    if (id === undefined || taken.has(id)) {
+      lastItemNumber += 1
+      itemNumbers.set(item, lastItemNumber)
+      id = `${prefix}-${lastItemNumber}`
+    }
+
+    taken.add(id)
+    return id
+  })
+}
