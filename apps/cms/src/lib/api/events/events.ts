@@ -9,6 +9,13 @@ import {
 } from "@/lib/events/event-sort"
 import type { RepeatRule } from "@/lib/events/event-repeat"
 import { MAX_EVENT_SEATS } from "@/lib/events/sign-up-fields"
+import {
+  bulkIdsInput,
+  categoryChangeInput,
+  featuredChangeInput,
+  statusChangeInput,
+} from "@/lib/api/bulk-change-input"
+import type { BulkChange, BulkRecordChange } from "@/lib/bulk-change"
 import { adminGet, adminPost } from "@/server/guards"
 import {
   activeEventSpot,
@@ -27,6 +34,7 @@ import {
   MAX_PLACE_ADDRESS,
   MAX_PLACE_NAME,
   seriesForEdit,
+  setEventsFeatured,
   type EventSeries,
   type EventStatus,
   type EventSummary,
@@ -34,7 +42,10 @@ import {
   type EventWhenInput,
   type SiteEvent,
 } from "@/server/events/events"
-import { saveEventAndDates } from "@/server/events/repeats"
+import {
+  changeEventsAndDates,
+  saveEventAndDates,
+} from "@/server/events/repeats"
 import { EVENT_CONTENT_TYPE } from "@/server/events/schema"
 import {
   listSignUps,
@@ -306,4 +317,42 @@ const deleteEventsFn = createServerFn({ method: "POST" })
 /** One request for the whole selection; the result counts honestly. */
 export function removeEvents(ids: string[]) {
   return deleteEventsFn({ data: { ids } })
+}
+
+/**
+ * The Events screen's action bar: one request for the whole selection, one field
+ * changed on every main event in it, and an honest count back.
+ *
+ * A status or category change is copied onto the future dates of a repeating
+ * event, because those dates follow their main event. The featured flag is not:
+ * a date has no flag of its own and reads its main event's.
+ */
+const changeEventsFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(
+    z.object({
+      ids: bulkIdsInput,
+      change: z.discriminatedUnion("kind", [
+        statusChangeInput,
+        categoryChangeInput,
+        featuredChangeInput,
+      ]),
+    })
+  )
+  .handler(async ({ data, context }): Promise<BulkChange> => {
+    const site = await workspaceIdForRequest(context.user.id)
+    const change = data.change
+    if (change.kind === "featured") {
+      return setEventsFeatured(site, data.ids, change.featured)
+    }
+    // The change and the copy onto a repeat's future dates go together or not at
+    // all, which is `changeEventsAndDates`' whole job.
+    return changeEventsAndDates(site, data.ids, change)
+  })
+
+export function changeEvents(
+  ids: string[],
+  change: BulkRecordChange
+): Promise<BulkChange> {
+  return changeEventsFn({ data: { ids, change } })
 }

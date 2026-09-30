@@ -51,11 +51,16 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   reporting a problem on an event, free sign-ups with a seat limit, the
   waiting list that offers a freed seat to the front of the queue by email,
   and the view counts on Admin → Events and on an owner's own events.
+- `changing-many-records.md` — the Change button beside Delete on Listings,
+  Events, Posts and Promotions: which of the four actions each screen offers and
+  why, what "add" and "replace" do to a record's categories, how a part-done
+  batch is counted and reported, and why featuring a listing is not among them.
 - `the-root-address.md` — what `/` is on a site's address and on the
   deployment's own, and why "no page" never means "send them to sign in".
 - `record-windows.md` — what the listing, event, post and deal windows share:
-  the link to the public page, the categories combobox, the square cover image,
-  and why a weekday's opening hours are one stretch and no longer two.
+  the link to the public page, the categories combobox, the listing picker, the
+  square cover image, and why a weekday's opening hours are one stretch and no
+  longer two.
 - `promotions.md` — each site's deals: writing them in Admin → Promotions,
   the Deals page and each deal's page, deal types and headlines, the times
   of day a deal runs and how "On now" is worked out, the rules Tyler set, how

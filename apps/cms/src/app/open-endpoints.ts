@@ -29,6 +29,8 @@
  * behind the door is safe for anyone to read.
  */
 export const appOpenEndpoints: Record<string, string> = {
+  "shell.ts:loadAppFrontPageRowsFn":
+    "A site's front page is the most public thing this app has, and the rows the app adds to it have to be readable by somebody with no account. It takes nothing from the browser at all: there is no input to send, the site is the one whose address was visited, and every row reader scopes its queries to that site and returns published records only. Each reader also asks the page's own on/off and members-only switch first, through eventsAccessFor, dealsAccessFor and postsAccessFor, so a row for a page a site keeps for members returns nothing to a signed-out reader.",
   "directory/public.ts:readDirectoryBrowseFn":
     "The directory a site publishes is a public page, so its list of published listings has to be readable by somebody with no account.",
   "directory/public.ts:readDirectoryMapFn":

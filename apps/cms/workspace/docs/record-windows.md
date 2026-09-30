@@ -27,9 +27,10 @@ that record's public page in a new tab. Tyler asked for it on 25 Sep 2026.
 
 Categories are chosen in a combobox: a box holding one chip per chosen
 category, and a list that typing narrows.
-`src/components/directory/category-combobox.tsx` draws it in all three windows
-that file things under categories, which are listings, posts and events. It
-replaced a column of checkboxes on 25 Sep 2026.
+`src/components/directory/category-combobox.tsx` draws it in every window that
+files things under categories, which is the listing, post and event windows and
+the Set a category window behind the dashboards' Change button. It replaced a
+column of checkboxes on 25 Sep 2026.
 
 - **Why it changed.** Eat Drink Toronto has 144 categories. As checkboxes that
   was a screen and a half of ticks to scroll past to reach the fields below,
@@ -46,6 +47,10 @@ replaced a column of checkboxes on 25 Sep 2026.
 - **Nothing about the saved data changed.** The same `category_relationships`
   rows are written, and the listing window's Primary category still has to be
   one of the chosen ones.
+- **The wheel works in here because the shell makes it work.** A window cancels
+  every wheel turn outside its own content, and this list is a popover, so
+  `PopoverContent` scrolls its own lists. It is the shell's behaviour, for every
+  app, and the repo's `docs/shell/user-interface.md` explains it.
 
 ## The cover image
 

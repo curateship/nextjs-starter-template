@@ -8,6 +8,16 @@ import {
   type ListingStatusFilter,
   type ListingViewRange,
 } from "@/lib/directory/listing-sort"
+import {
+  bulkIdsInput,
+  categoryChangeInput,
+  statusChangeInput,
+} from "@/lib/api/bulk-change-input"
+import {
+  withoutFeatured,
+  type BulkChange,
+  type BulkRecordChange,
+} from "@/lib/bulk-change"
 import { adminGet, adminPost } from "@/server/guards"
 import { workspaceIdForRequest } from "@/server/workspaces/for-request"
 import { claimImpactForListings } from "@/server/directory/claims"
@@ -23,11 +33,13 @@ import {
   createListing,
   deleteListings,
   duplicateListing,
+  fileListingsUnderCategory,
   findListing,
   listingDeleteImpact,
   listListings,
   MAX_LISTING_TITLE,
   setListingCategories,
+  setListingsStatus,
   updateListing,
   type DirectoryListing,
   type ListingSummary,
@@ -317,4 +329,43 @@ const deleteListingsFn = createServerFn({ method: "POST" })
 /** One request for the whole selection; the result counts honestly. */
 export function removeListings(ids: string[]) {
   return deleteListingsFn({ data: { ids } })
+}
+
+/**
+ * The Listings screen's action bar: one request for the whole selection, one
+ * field changed on every record in it, and an honest count back.
+ *
+ * Splitting the change into its own object rather than a flag per action keeps
+ * the four dashboards asking the same shape, and means a category change cannot
+ * be sent without saying whether it adds or replaces.
+ */
+const changeListingsFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(
+    z.object({
+      ids: bulkIdsInput,
+      change: z.discriminatedUnion("kind", [
+        statusChangeInput,
+        categoryChangeInput,
+      ]),
+    })
+  )
+  .handler(async ({ data, context }): Promise<BulkChange> => {
+    const site = await workspaceIdForRequest(context.user.id)
+    if (data.change.kind === "status") {
+      return setListingsStatus(site, data.ids, data.change.status)
+    }
+    return fileListingsUnderCategory(
+      site,
+      data.ids,
+      data.change.categoryId,
+      data.change.mode
+    )
+  })
+
+export function changeListings(
+  ids: string[],
+  change: BulkRecordChange
+): Promise<BulkChange> {
+  return changeListingsFn({ data: { ids, change: withoutFeatured(change) } })
 }

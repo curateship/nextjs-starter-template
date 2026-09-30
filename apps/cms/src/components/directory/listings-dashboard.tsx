@@ -10,6 +10,7 @@ import {
 import { toast } from "sonner"
 
 import { ListingDialog } from "@/components/directory/listing-dialog"
+import { BulkChangeMenu } from "@/components/shared/bulk-change-menu"
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import {
   DashboardToolbarButton,
@@ -34,6 +35,7 @@ import { TableCell, TableHead, TableRow } from "@/components/ui/table"
 import type { Category } from "@/lib/api/directory/categories"
 import type { CustomSection } from "@/lib/directory/custom-fields"
 import {
+  changeListings,
   copyListing,
   getListingErrorMessage,
   loadListingDeleteImpact,
@@ -53,6 +55,7 @@ import {
 } from "@/lib/directory/listing-sort"
 import { forgetListings, prefetchListing } from "@/lib/directory/listing-cache"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { useBulkChange } from "@/lib/hooks/use-bulk-change"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { describeBulkResult } from "@/lib/format/bulk-result"
@@ -186,6 +189,24 @@ export function ListingsDashboard({
     [setOpen]
   )
 
+  /** What every change to the list needs afterwards: drop the cached records
+      the window filled, then let the loader read again. */
+  const refreshList = React.useCallback(async () => {
+    forgetListings()
+    await router.invalidate()
+  }, [router])
+
+  const bulk = useBulkChange({
+    one: "listing",
+    many: "listings",
+    rows: data.listings,
+    categories,
+    send: changeListings,
+    describeError: getListingErrorMessage,
+    onChanged: refreshList,
+    setSelected: selection.setSelected,
+  })
+
   const [copy, copying] = useAsyncAction(getListingErrorMessage)
   /** A copy to start from: same content, a free address, always a draft. */
   const duplicate = React.useCallback(
@@ -228,8 +249,7 @@ export function ListingsDashboard({
     if (!confirm) return
     await run(async () => {
       const { done, kept } = await removeListings(confirm.ids)
-      forgetListings()
-      await router.invalidate()
+      await refreshList()
       // Anything that would not go stays ticked, so the rows still on screen
       // are the ones the count is talking about.
       selection.setSelected(new Set(kept))
@@ -250,7 +270,7 @@ export function ListingsDashboard({
       )
       setConfirm(null)
     })
-  }, [confirm, router, run, selection])
+  }, [confirm, refreshList, run, selection])
 
   const totalPages = Math.max(1, Math.ceil(data.total / data.pageSize))
 
@@ -266,6 +286,14 @@ export function ListingsDashboard({
         onClearSelection={selection.clear}
         controls={
           <>
+            <BulkChangeMenu
+              count={selectedIds.size}
+              one="listing"
+              many="listings"
+              busy={bulk.busy}
+              categories={categories}
+              onRun={(change) => bulk.run([...selectedIds], change)}
+            />
             {selectedIds.size ? (
               <DashboardToolbarButton
                 type="button"
@@ -481,8 +509,7 @@ export function ListingsDashboard({
         onSaved={() => {
           // What was fetched for the window is a full record, so a save makes
           // every copy of it here wrong.
-          forgetListings()
-          void router.invalidate()
+          void refreshList()
         }}
       />
 

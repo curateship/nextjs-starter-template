@@ -31,6 +31,11 @@ import {
   promotionSortDirection,
   type PromotionSortColumn,
 } from "@/lib/promotions/promotion-sort"
+import {
+  countBulkChange,
+  noBulkChange,
+  type BulkChange,
+} from "@/lib/bulk-change"
 import { now, uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
 import { clearPublicDirectoryCache } from "@/server/directory/public-cache"
@@ -196,7 +201,9 @@ export function cleanDealHeadline(input: {
   }
   const headline = input.headline.trim()
   if (!headline) {
-    throw new Error("Type the headline, the few words a card shows in big type.")
+    throw new Error(
+      "Type the headline, the few words a card shows in big type."
+    )
   }
   if (headline.length > MAX_DEAL_HEADLINE) {
     throw new Error(`Keep the headline to ${MAX_DEAL_HEADLINE} characters.`)
@@ -300,7 +307,9 @@ export function cleanDealContent(input: DealContentInput) {
     times: cleanDealTimes(input.times),
     takesClaims: Boolean(input.takesClaims),
     // Only while claims are on: a leftover typo in a hidden box never stops a save.
-    claimLimit: input.takesClaims ? readClaimLimit(input.claimLimit ?? "") : null,
+    claimLimit: input.takesClaims
+      ? readClaimLimit(input.claimLimit ?? "")
+      : null,
   }
 }
 
@@ -620,4 +629,64 @@ export async function reopenPromotion(
     .returning({ id: sitePromotions.id })
   if (!row) throw new Error("That deal no longer exists.")
   clearPublicDirectoryCache(workspaceId)
+}
+
+/**
+ * Publishes or unpublishes a whole selection from Admin → Promotions. A deal's
+ * first publish dates it, the same rule a single save follows.
+ *
+ * Publishing a deal whose listing is still a draft is allowed and is not a
+ * refusal. The Deals page only shows deals at published listings, so the deal
+ * waits for its listing; the row already says "Listing is a draft", and the
+ * usual order of work is to publish the deals and then the listing.
+ */
+export async function setPromotionsStatus(
+  workspaceId: string,
+  ids: string[],
+  status: PromotionStatus,
+  database: CustomShellDb = db
+): Promise<BulkChange> {
+  if (ids.length === 0) return noBulkChange()
+
+  const found = await database
+    .select({ id: sitePromotions.id, status: sitePromotions.status })
+    .from(sitePromotions)
+    .where(
+      and(
+        eq(sitePromotions.workspaceId, workspaceId),
+        inArray(sitePromotions.id, ids)
+      )
+    )
+  const same = found.filter((row) => row.status === status).map((row) => row.id)
+  const toChange = found
+    .filter((row) => row.status !== status)
+    .map((row) => row.id)
+
+  const at = now()
+  const changed = toChange.length
+    ? await database
+        .update(sitePromotions)
+        .set({
+          status,
+          updatedAt: at,
+          ...(status === "published"
+            ? {
+                publishedAt: sql`coalesce(${sitePromotions.publishedAt}, ${at.toISOString()}::timestamptz)`,
+              }
+            : {}),
+        })
+        .where(
+          and(
+            eq(sitePromotions.workspaceId, workspaceId),
+            inArray(sitePromotions.id, toChange)
+          )
+        )
+        .returning({ id: sitePromotions.id })
+    : []
+  if (changed.length) clearPublicDirectoryCache(workspaceId)
+  return countBulkChange(
+    ids,
+    changed.map((row) => row.id),
+    same
+  )
 }

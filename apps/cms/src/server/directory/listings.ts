@@ -48,6 +48,11 @@ import {
   emptyWrittenPageBody,
   type WrittenPageNode,
 } from "@/lib/pages/written-page-body"
+import {
+  countBulkChange,
+  noBulkChange,
+  type BulkChange,
+} from "@/lib/bulk-change"
 import { db, type CustomShellDb } from "@/server/db"
 import { now, uuid } from "@/server/auth/security"
 import {
@@ -62,6 +67,7 @@ import {
   listingViewJoin,
   listingViewTotal,
 } from "@/server/directory/views"
+import { fileContentUnderCategory } from "@/server/directory/content-categories"
 import { clearPublicDirectoryCache } from "@/server/directory/public-cache"
 import { keepListingPlaceOnEvents } from "@/server/events/events"
 import { customShellTrafficDailyFacts } from "@/server/schema"
@@ -804,4 +810,89 @@ async function writeListingCategories(
       .set({ isPrimary: true })
       .where(and(...listingRows, eq(categoryRelationships.categoryId, primary)))
   }
+}
+
+/**
+ * Publishes or unpublishes a whole selection from the Listings screen's action
+ * bar. Listings already on that status are read and left alone, so the result
+ * can tell an admin the difference between "changed" and "was already like
+ * that".
+ */
+export async function setListingsStatus(
+  workspaceId: string,
+  ids: string[],
+  status: ListingStatus,
+  database: CustomShellDb = db
+): Promise<BulkChange> {
+  if (ids.length === 0) return noBulkChange()
+
+  const found = await database
+    .select({ id: directoryListings.id, status: directoryListings.status })
+    .from(directoryListings)
+    .where(
+      and(
+        eq(directoryListings.workspaceId, workspaceId),
+        inArray(directoryListings.id, ids)
+      )
+    )
+  const same = found.filter((row) => row.status === status).map((row) => row.id)
+  const toChange = found
+    .filter((row) => row.status !== status)
+    .map((row) => row.id)
+
+  const changed = toChange.length
+    ? await database
+        .update(directoryListings)
+        .set({ status, updatedAt: now() })
+        .where(
+          and(
+            eq(directoryListings.workspaceId, workspaceId),
+            inArray(directoryListings.id, toChange)
+          )
+        )
+        .returning({ id: directoryListings.id })
+    : []
+  if (changed.length) clearPublicDirectoryCache(workspaceId)
+  return countBulkChange(
+    ids,
+    changed.map((row) => row.id),
+    same
+  )
+}
+
+/**
+ * Files a whole selection under one category, added to the ones each listing
+ * already has or in place of them. A listing already filed that way is counted
+ * as unchanged.
+ */
+export async function fileListingsUnderCategory(
+  workspaceId: string,
+  ids: string[],
+  categoryId: string,
+  mode: "add" | "replace",
+  database: CustomShellDb = db
+): Promise<BulkChange> {
+  if (ids.length === 0) return noBulkChange()
+
+  const found = await database
+    .select({ id: directoryListings.id })
+    .from(directoryListings)
+    .where(
+      and(
+        eq(directoryListings.workspaceId, workspaceId),
+        inArray(directoryListings.id, ids)
+      )
+    )
+  const { done, same } = await fileContentUnderCategory({
+    workspaceId,
+    contentType: LISTING_CONTENT_TYPE,
+    contentIds: found.map((row) => row.id),
+    categoryId,
+    mode,
+    // A listing's category rows carry a primary marker; a post's and an
+    // event's do not.
+    markPrimary: true,
+    database,
+  })
+  return countBulkChange(ids, done, same)
 }

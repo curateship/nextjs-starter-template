@@ -10,11 +10,17 @@ import {
 } from "@/lib/posts/post-body"
 import type { PostSortColumn } from "@/lib/posts/post-sort"
 import { readMinutes } from "@/lib/posts/read-time"
+import {
+  countBulkChange,
+  noBulkChange,
+  type BulkChange,
+} from "@/lib/bulk-change"
 import { now, uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
 import {
   categoryNamesFor,
   deleteCategoryRowsFor,
+  fileContentUnderCategory,
 } from "@/server/directory/content-categories"
 import { clearPublicDirectoryCache } from "@/server/directory/public-cache"
 import { directoryListings } from "@/server/directory/schema"
@@ -399,4 +405,83 @@ export async function listingChoicesForBody(
       )
     )
   return rows.map(toChoice)
+}
+
+/**
+ * Publishes or unpublishes a whole selection from the Posts screen's action
+ * bar. A post's first publish dates it, the same rule a single save follows.
+ */
+export async function setPostsStatus(
+  workspaceId: string,
+  ids: string[],
+  status: PostStatus,
+  database: CustomShellDb = db
+): Promise<BulkChange> {
+  if (ids.length === 0) return noBulkChange()
+
+  const found = await database
+    .select({ id: sitePosts.id, status: sitePosts.status })
+    .from(sitePosts)
+    .where(
+      and(eq(sitePosts.workspaceId, workspaceId), inArray(sitePosts.id, ids))
+    )
+  const same = found.filter((row) => row.status === status).map((row) => row.id)
+  const toChange = found
+    .filter((row) => row.status !== status)
+    .map((row) => row.id)
+
+  const at = now()
+  const changed = toChange.length
+    ? await database
+        .update(sitePosts)
+        .set({
+          status,
+          updatedAt: at,
+          ...(status === "published"
+            ? {
+                publishedAt: sql`coalesce(${sitePosts.publishedAt}, ${at.toISOString()}::timestamptz)`,
+              }
+            : {}),
+        })
+        .where(
+          and(
+            eq(sitePosts.workspaceId, workspaceId),
+            inArray(sitePosts.id, toChange)
+          )
+        )
+        .returning({ id: sitePosts.id })
+    : []
+  if (changed.length) clearPublicDirectoryCache(workspaceId)
+  return countBulkChange(
+    ids,
+    changed.map((row) => row.id),
+    same
+  )
+}
+
+/** Files a whole selection under one category, added to or in place of theirs. */
+export async function filePostsUnderCategory(
+  workspaceId: string,
+  ids: string[],
+  categoryId: string,
+  mode: "add" | "replace",
+  database: CustomShellDb = db
+): Promise<BulkChange> {
+  if (ids.length === 0) return noBulkChange()
+
+  const found = await database
+    .select({ id: sitePosts.id })
+    .from(sitePosts)
+    .where(
+      and(eq(sitePosts.workspaceId, workspaceId), inArray(sitePosts.id, ids))
+    )
+  const { done, same } = await fileContentUnderCategory({
+    workspaceId,
+    contentType: POST_CONTENT_TYPE,
+    contentIds: found.map((row) => row.id),
+    categoryId,
+    mode,
+    database,
+  })
+  return countBulkChange(ids, done, same)
 }

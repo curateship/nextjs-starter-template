@@ -13,6 +13,7 @@ vi.mock("@tanstack/react-router", () => ({
 }))
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 vi.mock("@/lib/api/events/events", () => ({
+  changeEvents: vi.fn(),
   copyEvent: vi.fn(),
   removeEvents: vi.fn(),
   getEventErrorMessage: (error: unknown) => String(error),

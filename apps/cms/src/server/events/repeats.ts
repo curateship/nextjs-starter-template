@@ -1,4 +1,14 @@
-import { and, asc, count, eq, gte, isNotNull, not, sql } from "drizzle-orm"
+import {
+  and,
+  asc,
+  count,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+  not,
+  sql,
+} from "drizzle-orm"
 
 import {
   addDays,
@@ -10,6 +20,7 @@ import {
   type RepeatRule,
 } from "@/lib/events/event-repeat"
 import { wallClockAt } from "@/lib/events/event-time"
+import type { BulkChange } from "@/lib/bulk-change"
 import { now, uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
 import {
@@ -21,9 +32,12 @@ import { clearPublicDirectoryCache } from "@/server/directory/public-cache"
 import { categoryRelationships } from "@/server/directory/schema"
 import { siteTimeZone } from "@/server/directory/settings"
 import {
+  fileEventsUnderCategory,
   firstFreeEventSlug,
   positionForSave,
+  setEventsStatus,
   updateEvent,
+  type EventStatus,
   type SiteEvent,
 } from "@/server/events/events"
 import {
@@ -485,4 +499,75 @@ export async function runRepeatTopUps(): Promise<void> {
   if (Date.now() - lastTopUp < TOP_UP_EVERY_MS) return
   lastTopUp = Date.now()
   await topUpEverySeries()
+}
+
+/**
+ * Copies these main events onto their future dates, after a change made from
+ * the Events screen's action bar rather than from an event's window.
+ *
+ * Only the status and the categories need it. The featured flag lives on the
+ * main event alone and its dates read it from there. A date saved by itself,
+ * and every date already past, stays as it is — the same rule editing the main
+ * event in its window follows.
+ */
+async function copyMainsToDates(
+  workspaceId: string,
+  ids: string[],
+  database: CustomShellDb = db,
+  at: Date = new Date()
+): Promise<void> {
+  if (ids.length === 0) return
+  const mains = await database
+    .select()
+    .from(siteEvents)
+    .where(
+      and(
+        eq(siteEvents.workspaceId, workspaceId),
+        inArray(siteEvents.id, ids),
+        isNotNull(siteEvents.repeatRule)
+      )
+    )
+  if (mains.length === 0) return
+  const today = await siteToday(workspaceId, database, at)
+  for (const main of mains) {
+    await copyMainToDates(main, today, database)
+  }
+}
+
+/**
+ * Changes a whole selection of main events from the Events screen's action bar
+ * and copies the change onto their repeats' future dates. Both or neither.
+ *
+ * The two halves cannot be allowed to come apart. If the copy failed on its own,
+ * the main events would be changed and their dates left behind, and pressing the
+ * button again would not repair it: the mains already match, so nothing would
+ * count as changed and there would be nothing to copy. One transaction is the
+ * same promise saving a single event in its window already makes.
+ *
+ * Featuring does not come through here. The flag lives on the main event alone
+ * and its dates read it from there, so there is nothing to copy.
+ */
+export async function changeEventsAndDates(
+  workspaceId: string,
+  ids: string[],
+  change:
+    | { kind: "status"; status: EventStatus }
+    | { kind: "category"; categoryId: string; mode: "add" | "replace" },
+  database: CustomShellDb = db,
+  at: Date = new Date()
+): Promise<BulkChange> {
+  return database.transaction(async (tx) => {
+    const result =
+      change.kind === "status"
+        ? await setEventsStatus(workspaceId, ids, change.status, tx)
+        : await fileEventsUnderCategory(
+            workspaceId,
+            ids,
+            change.categoryId,
+            change.mode,
+            tx
+          )
+    await copyMainsToDates(workspaceId, result.done, tx, at)
+    return result
+  })
 }

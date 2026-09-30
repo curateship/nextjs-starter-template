@@ -11,6 +11,7 @@ import { toast } from "sonner"
 
 import { EventDialog } from "@/components/events/event-dialog"
 import { DashboardTable } from "@/components/shared/dashboard-table"
+import { BulkChangeMenu } from "@/components/shared/bulk-change-menu"
 import {
   DashboardToolbarButton,
   DashboardToolbarSearch,
@@ -35,6 +36,7 @@ import type { Category } from "@/lib/api/directory/categories"
 import {
   copyEvent,
   getEventErrorMessage,
+  changeEvents,
   removeEvents,
   type EventsPage,
   type EventSummary,
@@ -57,6 +59,7 @@ import { formatEventStart } from "@/lib/events/event-time"
 import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatDate } from "@/lib/format/format-time"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { useBulkChange } from "@/lib/hooks/use-bulk-change"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
 import { useSelection } from "@/lib/hooks/use-selection"
 import {
@@ -171,6 +174,17 @@ export function EventsDashboard({
   )
   const openEditor = (event: EventSummary) => setOpen(event.id)
 
+  const bulk = useBulkChange({
+    one: "event",
+    many: "events",
+    rows: data.events,
+    categories,
+    send: changeEvents,
+    describeError: getEventErrorMessage,
+    onChanged: () => router.invalidate(),
+    setSelected: selection.setSelected,
+  })
+
   const [copy, copying] = useAsyncAction(getEventErrorMessage)
   /** A draft copy, opened at once so the admin can change the date. */
   const duplicate = (event: EventSummary) => {
@@ -220,6 +234,17 @@ export function EventsDashboard({
         onClearSelection={selection.clear}
         controls={
           <>
+            <BulkChangeMenu
+              count={selectedIds.size}
+              one="event"
+              many="events"
+              busy={bulk.busy}
+              categories={categories}
+              // The only kind with a free featured switch. A listing owner's
+              // paid spot is a separate record and nothing here touches it.
+              canFeature
+              onRun={(change) => bulk.run([...selectedIds], change)}
+            />
             {selectedIds.size ? (
               <DashboardToolbarButton
                 type="button"

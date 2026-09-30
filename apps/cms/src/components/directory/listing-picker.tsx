@@ -99,6 +99,10 @@ export function ListingPicker({
                 : "This site has no listings yet."}
             </p>
           ) : (
+            // The height caps the frame and the viewport inherits it through
+            // `size-full`, so the rows scroll. The wheel is handled by
+            // `PopoverContent`, which scrolls its own lists while a window holds
+            // the page's scrolling.
             <ScrollArea className="max-h-64">
               <ul className="grid gap-1">
                 {results.map((listing) => (

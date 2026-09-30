@@ -28,12 +28,18 @@ import {
   emptyPostBody,
   type PostBody,
 } from "@/lib/posts/post-body"
+import {
+  countBulkChange,
+  noBulkChange,
+  type BulkChange,
+} from "@/lib/bulk-change"
 import { now, uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
 import {
   categoryIdsFor,
   categoryNamesFor,
   deleteCategoryRowsFor,
+  fileContentUnderCategory,
 } from "@/server/directory/content-categories"
 import { locateAddress } from "@/server/directory/geocode"
 import { eventIsFeatured, moveEventSpotEnd } from "@/server/directory/featured"
@@ -921,4 +927,133 @@ export async function deleteEvents(
   if (done.length) clearPublicDirectoryCache(workspaceId)
   const doneSet = new Set(done)
   return { done, kept: ids.filter((id) => !doneSet.has(id)) }
+}
+
+/**
+ * The Events screen lists main events only, so every action-bar change works
+ * on main events. Naming that in the query keeps a stray id from flipping one
+ * date of a repeat behind its main event's back.
+ */
+function mainEventsOnSite(workspaceId: string, ids: string[]) {
+  return and(
+    eq(siteEvents.workspaceId, workspaceId),
+    inArray(siteEvents.id, ids),
+    isNull(siteEvents.seriesId)
+  )
+}
+
+/**
+ * Publishes or unpublishes a whole selection from the Events screen's action
+ * bar. An event's first publish dates it, the same rule a single save follows.
+ *
+ * The future dates of a repeating event follow their main event. Copying the
+ * change onto them belongs to `changeEventsAndDates`, which does both halves in
+ * one transaction; nothing should call this on its own.
+ */
+export async function setEventsStatus(
+  workspaceId: string,
+  ids: string[],
+  status: EventStatus,
+  database: CustomShellDb = db
+): Promise<BulkChange> {
+  if (ids.length === 0) return noBulkChange()
+
+  const found = await database
+    .select({ id: siteEvents.id, status: siteEvents.status })
+    .from(siteEvents)
+    .where(mainEventsOnSite(workspaceId, ids))
+  const same = found.filter((row) => row.status === status).map((row) => row.id)
+  const toChange = found
+    .filter((row) => row.status !== status)
+    .map((row) => row.id)
+
+  const at = now()
+  const changed = toChange.length
+    ? await database
+        .update(siteEvents)
+        .set({
+          status,
+          updatedAt: at,
+          ...(status === "published"
+            ? {
+                publishedAt: sql`coalesce(${siteEvents.publishedAt}, ${at.toISOString()}::timestamptz)`,
+              }
+            : {}),
+        })
+        .where(mainEventsOnSite(workspaceId, toChange))
+        .returning({ id: siteEvents.id })
+    : []
+  if (changed.length) clearPublicDirectoryCache(workspaceId)
+  return countBulkChange(
+    ids,
+    changed.map((row) => row.id),
+    same
+  )
+}
+
+/**
+ * Switches the admin's free featured flag on or off for a whole selection.
+ *
+ * This is the free switch and nothing else. A listing owner's paid spot is a
+ * separate record in `directory_featured_entitlements`, and nothing here reads,
+ * writes or ends one, so no money changes hands from this screen. A date of a
+ * repeat has no flag of its own either: it reads its main event's.
+ */
+export async function setEventsFeatured(
+  workspaceId: string,
+  ids: string[],
+  featured: boolean,
+  database: CustomShellDb = db
+): Promise<BulkChange> {
+  if (ids.length === 0) return noBulkChange()
+
+  const found = await database
+    .select({ id: siteEvents.id, featured: siteEvents.featured })
+    .from(siteEvents)
+    .where(mainEventsOnSite(workspaceId, ids))
+  const same = found
+    .filter((row) => row.featured === featured)
+    .map((row) => row.id)
+  const toChange = found
+    .filter((row) => row.featured !== featured)
+    .map((row) => row.id)
+
+  const changed = toChange.length
+    ? await database
+        .update(siteEvents)
+        .set({ featured, updatedAt: now() })
+        .where(mainEventsOnSite(workspaceId, toChange))
+        .returning({ id: siteEvents.id })
+    : []
+  if (changed.length) clearPublicDirectoryCache(workspaceId)
+  return countBulkChange(
+    ids,
+    changed.map((row) => row.id),
+    same
+  )
+}
+
+/** Files a whole selection under one category, added to or in place of theirs. */
+export async function fileEventsUnderCategory(
+  workspaceId: string,
+  ids: string[],
+  categoryId: string,
+  mode: "add" | "replace",
+  database: CustomShellDb = db
+): Promise<BulkChange> {
+  if (ids.length === 0) return noBulkChange()
+
+  const found = await database
+    .select({ id: siteEvents.id })
+    .from(siteEvents)
+    .where(mainEventsOnSite(workspaceId, ids))
+  const { done, same } = await fileContentUnderCategory({
+    workspaceId,
+    contentType: EVENT_CONTENT_TYPE,
+    contentIds: found.map((row) => row.id),
+    categoryId,
+    mode,
+    database,
+  })
+  return countBulkChange(ids, done, same)
 }

@@ -13,6 +13,12 @@ import {
   PROMOTION_SORT_COLUMNS,
   type PromotionSortColumn,
 } from "@/lib/promotions/promotion-sort"
+import { bulkIdsInput, statusChangeInput } from "@/lib/api/bulk-change-input"
+import {
+  statusOnly,
+  type BulkChange,
+  type BulkRecordChange,
+} from "@/lib/bulk-change"
 import { adminGet, adminPost } from "@/server/guards"
 import {
   createPromotion,
@@ -21,6 +27,7 @@ import {
   listingHoursForDeal,
   listPromotions,
   reopenPromotion,
+  setPromotionsStatus,
   updatePromotion,
   type PromotionForEdit,
   type PromotionInput,
@@ -215,4 +222,26 @@ const reopenFn = createServerFn({ method: "POST" })
 /** Undoes "End now", at once. */
 export function reopenEndedPromotion(id: string) {
   return reopenFn({ data: { id } })
+}
+
+/**
+ * Admin → Promotions' action bar. A deal has no categories and no free featured
+ * flag, so publishing and unpublishing are the whole of it.
+ */
+const changePromotionsFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ ids: bulkIdsInput, change: statusChangeInput }))
+  .handler(async ({ data, context }): Promise<BulkChange> => {
+    return setPromotionsStatus(
+      await workspaceIdForRequest(context.user.id),
+      data.ids,
+      data.change.status
+    )
+  })
+
+export function changePromotions(
+  ids: string[],
+  change: BulkRecordChange
+): Promise<BulkChange> {
+  return changePromotionsFn({ data: { ids, change: statusOnly(change) } })
 }

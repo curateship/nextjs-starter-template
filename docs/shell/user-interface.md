@@ -64,6 +64,40 @@ changes only one of them reads as a flash rather than as something arriving.
   missing fade went unnoticed. A new floating layer copies the pattern rather
   than inventing its own timing.
 
+### A list inside a popover inside a window scrolls itself
+
+A window lets nothing on the page scroll but its own content. `DialogContent`
+wraps itself in `react-remove-scroll`, naming that one element, and every wheel
+turn anywhere else is cancelled. A popover renders at the end of the body rather
+than inside the window, so until 30 Sep 2026 no list in a popover over a window
+could be scrolled with the wheel at all. The scrollbar and the keyboard worked,
+which is why it read as a height bug for months: CMS had a 4608px column of
+categories in a 256px box that the wheel could not touch.
+
+- **`PopoverContent` scrolls its own lists.** `src/components/ui/popover.tsx`
+  carries an `onWheel` that finds the box under the pointer and sets its
+  `scrollTop`, which the cancelled wheel does not affect. Any app, any popover,
+  no call site has to know.
+- **It does nothing unless it has to.** It returns when the body has no
+  `data-scroll-locked`, the marker `react-remove-scroll` writes while a window
+  holds the page, so on an ordinary page the browser scrolls as it always did. It
+  returns again when the popover turns out to be inside
+  `[data-slot="dialog-content"]`, where the browser is already doing the job, so
+  there is never a second push on top of a native scroll.
+- **It picks the box the browser would have picked**, walking up from whatever
+  the pointer is over to the first ancestor that overflows the way the wheel is
+  pointing. That covers a `ScrollArea` viewport and a plain scrolling box alike,
+  in both directions, and a wheel that reports lines or pages instead of pixels
+  is converted so a trackpad does not crawl.
+- **A caller's own `onWheel` runs first**, and calling `preventDefault` on the
+  event turns this off for that popover.
+- **Rendering the popover inside the window does not work**, which is the
+  obvious fix and the reason this one looks roundabout. The window carries a
+  transform, which makes it the containing block for the popover's fixed
+  positioning, and `overflow-hidden` on the admin variant then clips anything
+  reaching past the window's edge. A dropdown under a field near the bottom does
+  exactly that.
+
 ### A window that feels slow locally is React running everything twice
 
 The lag is never the animation. React has to build the window's whole contents

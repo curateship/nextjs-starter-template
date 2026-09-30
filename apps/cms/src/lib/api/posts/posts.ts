@@ -3,6 +3,16 @@ import { z } from "zod"
 
 import { LISTING_STATUS_FILTERS } from "@/lib/directory/listing-sort"
 import { POST_SORT_COLUMNS, type PostSortColumn } from "@/lib/posts/post-sort"
+import {
+  bulkIdsInput,
+  categoryChangeInput,
+  statusChangeInput,
+} from "@/lib/api/bulk-change-input"
+import {
+  withoutFeatured,
+  type BulkChange,
+  type BulkRecordChange,
+} from "@/lib/bulk-change"
 import { adminGet, adminPost } from "@/server/guards"
 import {
   categoryIdsFor,
@@ -11,12 +21,14 @@ import {
 import {
   createPost,
   deletePosts,
+  filePostsUnderCategory,
   findPost,
   listingChoicesForBody,
   listPosts,
   MAX_POST_SUMMARY,
   MAX_POST_TITLE,
   searchListingChoices,
+  setPostsStatus,
   updatePost,
   type SitePost,
   type ListingChoice,
@@ -194,4 +206,39 @@ const searchListingChoicesFn = createServerFn({ method: "GET" })
 /** This site's listings matching a title, for the editor's card picker. */
 export function findListingChoices(search: string) {
   return searchListingChoicesFn({ data: { search } })
+}
+
+/**
+ * The Posts screen's action bar: one request for the whole selection, one field
+ * changed on every record in it, and an honest count back.
+ */
+const changePostsFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(
+    z.object({
+      ids: bulkIdsInput,
+      change: z.discriminatedUnion("kind", [
+        statusChangeInput,
+        categoryChangeInput,
+      ]),
+    })
+  )
+  .handler(async ({ data, context }): Promise<BulkChange> => {
+    const site = await workspaceIdForRequest(context.user.id)
+    if (data.change.kind === "status") {
+      return setPostsStatus(site, data.ids, data.change.status)
+    }
+    return filePostsUnderCategory(
+      site,
+      data.ids,
+      data.change.categoryId,
+      data.change.mode
+    )
+  })
+
+export function changePosts(
+  ids: string[],
+  change: BulkRecordChange
+): Promise<BulkChange> {
+  return changePostsFn({ data: { ids, change: withoutFeatured(change) } })
 }

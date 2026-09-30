@@ -11,6 +11,7 @@ import { toast } from "sonner"
 
 import { PromotionDialog } from "@/components/promotions/promotion-dialog"
 import { DashboardTable } from "@/components/shared/dashboard-table"
+import { BulkChangeMenu } from "@/components/shared/bulk-change-menu"
 import {
   DashboardToolbarButton,
   DashboardToolbarSearch,
@@ -33,6 +34,7 @@ import {
 import { TableCell, TableHead, TableRow } from "@/components/ui/table"
 import {
   getPromotionErrorMessage,
+  changePromotions,
   removePromotions,
   type PromotionsPage,
   type PromotionSummary,
@@ -45,6 +47,7 @@ import {
 import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatDate } from "@/lib/format/format-time"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { useBulkChange } from "@/lib/hooks/use-bulk-change"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
 import { useSelection } from "@/lib/hooks/use-selection"
 import {
@@ -149,6 +152,19 @@ export function PromotionsDashboard({
   )
   const openEditor = (promotion: PromotionSummary) => setOpen(promotion.id)
 
+  const bulk = useBulkChange({
+    one: "deal",
+    many: "deals",
+    rows: data.promotions,
+    // A deal is filed under its listing, not under the site's categories, so
+    // the action bar here is publishing and nothing else.
+    categories: null,
+    send: changePromotions,
+    describeError: getPromotionErrorMessage,
+    onChanged: () => router.invalidate(),
+    setSelected: selection.setSelected,
+  })
+
   const confirmDelete = async () => {
     if (!confirm) return
     await run(async () => {
@@ -187,6 +203,14 @@ export function PromotionsDashboard({
         onClearSelection={selection.clear}
         controls={
           <>
+            <BulkChangeMenu
+              count={selectedIds.size}
+              one="deal"
+              many="deals"
+              busy={bulk.busy}
+              categories={null}
+              onRun={(change) => bulk.run([...selectedIds], change)}
+            />
             {selectedIds.size ? (
               <DashboardToolbarButton
                 type="button"

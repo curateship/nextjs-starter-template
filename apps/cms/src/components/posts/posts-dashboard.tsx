@@ -5,6 +5,7 @@ import { toast } from "sonner"
 
 import { PostDialog } from "@/components/posts/post-dialog"
 import { DashboardTable } from "@/components/shared/dashboard-table"
+import { BulkChangeMenu } from "@/components/shared/bulk-change-menu"
 import {
   DashboardToolbarButton,
   DashboardToolbarSearch,
@@ -28,6 +29,7 @@ import { TableCell, TableHead, TableRow } from "@/components/ui/table"
 import type { Category } from "@/lib/api/directory/categories"
 import {
   getPostErrorMessage,
+  changePosts,
   removePosts,
   type PostsPage,
   type PostSummary,
@@ -40,6 +42,7 @@ import {
 import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatDate } from "@/lib/format/format-time"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { useBulkChange } from "@/lib/hooks/use-bulk-change"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
 import { useSelection } from "@/lib/hooks/use-selection"
 import {
@@ -132,6 +135,17 @@ export function PostsDashboard({
   )
   const openEditor = (post: PostSummary) => setOpen(post.id)
 
+  const bulk = useBulkChange({
+    one: "post",
+    many: "posts",
+    rows: data.posts,
+    categories,
+    send: changePosts,
+    describeError: getPostErrorMessage,
+    onChanged: () => router.invalidate(),
+    setSelected: selection.setSelected,
+  })
+
   const confirmDelete = async () => {
     if (!confirm) return
     await run(async () => {
@@ -170,6 +184,14 @@ export function PostsDashboard({
         onClearSelection={selection.clear}
         controls={
           <>
+            <BulkChangeMenu
+              count={selectedIds.size}
+              one="post"
+              many="posts"
+              busy={bulk.busy}
+              categories={categories}
+              onRun={(change) => bulk.run([...selectedIds], change)}
+            />
             {selectedIds.size ? (
               <DashboardToolbarButton
                 type="button"

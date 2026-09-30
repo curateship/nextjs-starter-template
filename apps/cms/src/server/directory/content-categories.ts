@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, notInArray } from "drizzle-orm"
+import { and, asc, eq, inArray, ne, notInArray } from "drizzle-orm"
 
 import { now, uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
@@ -149,4 +149,141 @@ export async function deleteCategoryRowsFor(
         inArray(categoryRelationships.contentId, contentIds)
       )
     )
+}
+
+/**
+ * Files these posts, events or listings under one category: added to the ones
+ * they already have, or in place of them.
+ *
+ * `contentIds` is the records that were found on this site, so everything here
+ * exists; the caller counts the ones that are gone. A record already filed the
+ * asked-for way comes back in `same` and nothing is written to it.
+ *
+ * `markPrimary` is for listings, whose category rows carry a primary marker. A
+ * listing with one category row has no other candidate, so that row is its
+ * primary; the same holds for a listing that had none before.
+ */
+export async function fileContentUnderCategory({
+  workspaceId,
+  contentType,
+  contentIds,
+  categoryId,
+  mode,
+  markPrimary = false,
+  database = db,
+}: {
+  workspaceId: string
+  contentType: string
+  contentIds: string[]
+  categoryId: string
+  mode: "add" | "replace"
+  markPrimary?: boolean
+  database?: CustomShellDb
+}): Promise<{ done: string[]; same: string[] }> {
+  if (contentIds.length === 0) return { done: [], same: [] }
+
+  const [category] = await database
+    .select({ id: categories.id })
+    .from(categories)
+    .where(
+      and(
+        eq(categories.workspaceId, workspaceId),
+        eq(categories.id, categoryId)
+      )
+    )
+    .limit(1)
+  if (!category) {
+    throw new Error("That category is not on this site any more.")
+  }
+
+  const links = await database
+    .select({
+      contentId: categoryRelationships.contentId,
+      categoryId: categoryRelationships.categoryId,
+    })
+    .from(categoryRelationships)
+    .where(
+      and(
+        eq(categoryRelationships.workspaceId, workspaceId),
+        eq(categoryRelationships.contentType, contentType),
+        inArray(categoryRelationships.contentId, contentIds)
+      )
+    )
+
+  const filedUnder = new Map<string, Set<string>>()
+  for (const link of links) {
+    const set = filedUnder.get(link.contentId) ?? new Set<string>()
+    set.add(link.categoryId)
+    filedUnder.set(link.contentId, set)
+  }
+
+  const same: string[] = []
+  const done: string[] = []
+  for (const contentId of contentIds) {
+    const current = filedUnder.get(contentId) ?? new Set<string>()
+    const already =
+      mode === "add"
+        ? current.has(categoryId)
+        : current.size === 1 && current.has(categoryId)
+    if (already) same.push(contentId)
+    else done.push(contentId)
+  }
+  if (done.length === 0) return { done, same }
+
+  const needsRow = done.filter(
+    (contentId) => !filedUnder.get(contentId)?.has(categoryId)
+  )
+  // A replace leaves one row, and an add to a record that had none makes its
+  // first: either way that row is the only candidate for primary.
+  const needsPrimary = markPrimary
+    ? done.filter(
+        (contentId) => mode === "replace" || !filedUnder.get(contentId)?.size
+      )
+    : []
+
+  // All of it or none of it. A replace that dropped the old rows and then
+  // failed to write the new one would leave records filed under nothing.
+  await database.transaction(async (tx) => {
+    if (mode === "replace") {
+      await tx
+        .delete(categoryRelationships)
+        .where(
+          and(
+            eq(categoryRelationships.workspaceId, workspaceId),
+            eq(categoryRelationships.contentType, contentType),
+            inArray(categoryRelationships.contentId, done),
+            ne(categoryRelationships.categoryId, categoryId)
+          )
+        )
+    }
+    if (needsRow.length) {
+      const at = now()
+      await tx.insert(categoryRelationships).values(
+        needsRow.map((contentId) => ({
+          id: uuid(),
+          workspaceId,
+          categoryId,
+          contentType,
+          contentId,
+          isPrimary: false,
+          createdAt: at,
+        }))
+      )
+    }
+    if (needsPrimary.length) {
+      await tx
+        .update(categoryRelationships)
+        .set({ isPrimary: true })
+        .where(
+          and(
+            eq(categoryRelationships.workspaceId, workspaceId),
+            eq(categoryRelationships.contentType, contentType),
+            inArray(categoryRelationships.contentId, needsPrimary),
+            eq(categoryRelationships.categoryId, categoryId)
+          )
+        )
+    }
+  })
+  clearPublicDirectoryCache(workspaceId)
+  return { done, same }
 }
