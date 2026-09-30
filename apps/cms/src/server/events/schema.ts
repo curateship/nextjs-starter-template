@@ -267,7 +267,8 @@ export const eventSubmissions = pgTable(
 export type EventSubmissionRow = typeof eventSubmissions.$inferSelect
 
 /**
- * People who signed up for an event, from `drizzle/0094_cms_event_sign_ups.sql`.
+ * People who signed up for an event, from `drizzle/0094_cms_event_sign_ups.sql`,
+ * plus the waiting list from `drizzle/0109_cms_event_waiting_list.sql`.
  * Removing someone marks the row cancelled, which frees the seat and lets the
  * same email sign up again.
  */
@@ -284,27 +285,49 @@ export const eventSignUps = pgTable(
     name: varchar("name", { length: 120 }).notNull(),
     /** Stored in lower case, so one person is one email. */
     email: varchar("email", { length: 255 }).notNull(),
-    /** 'confirmed' or 'cancelled'. Only a confirmed one holds a seat. */
+    /**
+     * 'confirmed', 'waiting', 'offered', 'expired' or 'cancelled'. A confirmed
+     * row and an offered row each hold a seat; the other three hold none.
+     */
     status: varchar("status", { length: 20 }).notNull().default("confirmed"),
+    /**
+     * The claim link's secret, hashed. Kept after the offer is claimed or
+     * runs out, so an old link in an inbox is answered with what happened
+     * rather than "we do not recognise this link". Only an 'offered' row can
+     * be claimed.
+     */
+    offerTokenHash: varchar("offer_token_hash", { length: 64 }),
+    /** When the held seat passes to the next person. Set with the token. */
+    offerExpiresAt: timestamp("offer_expires_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
   },
   (table) => [
     uniqueIndex("ux_event_sign_ups_live_email")
       .on(table.eventId, table.email)
-      .where(sql`${table.status} = 'confirmed'`),
+      .where(sql`${table.status} IN ('confirmed', 'waiting', 'offered')`),
     index("ix_event_sign_ups_event").on(
       table.eventId,
       table.status,
       table.createdAt
     ),
+    index("ix_event_sign_ups_offer_expiry")
+      .on(table.offerExpiresAt)
+      .where(sql`${table.status} = 'offered'`),
+    index("ix_event_sign_ups_waiting")
+      .on(table.eventId, table.createdAt)
+      .where(sql`${table.status} = 'waiting'`),
     check(
       "event_sign_ups_status_check",
-      sql`${table.status} IN ('confirmed', 'cancelled')`
+      sql`${table.status} IN ('confirmed', 'waiting', 'offered', 'expired', 'cancelled')`
     ),
     check(
       "event_sign_ups_cancelled_check",
       sql`(${table.status} = 'cancelled') = (${table.cancelledAt} IS NOT NULL)`
+    ),
+    check(
+      "event_sign_ups_offer_check",
+      sql`(${table.offerTokenHash} IS NULL) = (${table.offerExpiresAt} IS NULL) AND (${table.status} <> 'offered' OR ${table.offerTokenHash} IS NOT NULL)`
     ),
   ]
 )

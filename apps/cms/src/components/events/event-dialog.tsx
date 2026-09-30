@@ -47,6 +47,7 @@ import {
   saveNewEvent,
   type EventForEdit,
   type EventSignUp,
+  type EventWaitingPerson,
 } from "@/lib/api/events/events"
 import type { ListingChoice } from "@/lib/api/posts/posts"
 import { categoryTreeOrder } from "@/lib/directory/category-tree"
@@ -235,6 +236,10 @@ export function EventDialog({
   const [picked, setPicked] = React.useState<ListingChoice | null>(null)
   /** Who is coming. Removing somebody changes it without a save. */
   const [signUps, setSignUps] = React.useState<EventSignUp[]>([])
+  /** Who is waiting for a seat. It changes the same way. */
+  const [waitingList, setWaitingList] = React.useState<EventWaitingPerson[]>(
+    []
+  )
   const [basicsOpen, setBasicsOpen, basicsNoFlash] = useRememberedCollapse(
     collapseStorageKey.settingsCard("event-basics")
   )
@@ -301,9 +306,11 @@ export function EventDialog({
       setListings(new Map())
       setPicked(null)
       setSignUps([])
+      setWaitingList([])
     } else if (loaded && seedKey === loaded.forId) {
       setFields(fieldsFrom(loaded.data))
       setSignUps(loaded.data.signUps)
+      setWaitingList(loaded.data.waitingList)
       setPicked(loaded.data.placeListing)
       setListings(new Map(loaded.data.listings.map((row) => [row.id, row])))
     }
@@ -859,13 +866,17 @@ export function EventDialog({
                   seats={fields.seats}
                   savedSeats={loaded?.data.event.seats ?? null}
                   signUps={signUps}
+                  waitingList={waitingList}
                   disabled={saving}
                   seatsInvalid={
                     tried && fields.takesSignUps && !seatsReadable(fields.seats)
                   }
                   onTakesSignUpsChange={(on) => update("takesSignUps", on)}
                   onSeatsChange={(typed) => update("seats", typed)}
-                  onSignUpsChange={setSignUps}
+                  onListsChange={(lists) => {
+                    setSignUps(lists.signUps)
+                    setWaitingList(lists.waitingList)
+                  }}
                 />
 
                 {series?.dates.length ? (

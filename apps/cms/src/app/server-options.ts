@@ -16,6 +16,7 @@ import { copyDirectoryWorkspace } from "@/server/directory/workspace-copy"
 import { executeDraftEventsStep } from "@/server/events/ai-drafts"
 import { eventSearchResults, eventSitemapEntries } from "@/server/events/public"
 import { runRepeatTopUps } from "@/server/events/repeats"
+import { runWaitingListPass } from "@/server/events/waiting-list"
 import { postSearchResults, postSitemapEntries } from "@/server/posts/public"
 import { DRAFT_EVENTS_KIND } from "@/lib/events/draft-events-step"
 
@@ -85,6 +86,13 @@ export const appServerOptions: AppServerOptions = {
       {
         name: "repeating events top-up",
         tick: runRepeatTopUps,
+      },
+      {
+        // Every pass, not throttled: it is two small indexed reads when
+        // nobody is waiting anywhere, and a seat freed by an admin should
+        // reach the next person in seconds rather than minutes.
+        name: "event waiting list",
+        tick: runWaitingListPass,
       },
     ],
   },

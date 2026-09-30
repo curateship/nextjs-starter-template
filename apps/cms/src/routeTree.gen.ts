@@ -44,6 +44,7 @@ import { Route as AuthenticatedSavedListingsRouteImport } from './routes/_authen
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
 import { Route as ApiDirectoryOutreachUnsubscribeRouteImport } from './routes/api/directory-outreach-unsubscribe'
 import { Route as ApiDirectoryVerifyRouteImport } from './routes/api/directory-verify'
+import { Route as ApiEventSeatRouteImport } from './routes/api/event-seat'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as DealsSlugRouteImport } from './routes/deals_.$slug'
 import { Route as DirectorySitemapsChunkRouteImport } from './routes/directory-sitemaps.$chunk'
@@ -283,6 +284,11 @@ const ApiDirectoryOutreachUnsubscribeRoute =
 const ApiDirectoryVerifyRoute = ApiDirectoryVerifyRouteImport.update({
   id: '/api/directory-verify',
   path: '/api/directory-verify',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiEventSeatRoute = ApiEventSeatRouteImport.update({
+  id: '/api/event-seat',
+  path: '/api/event-seat',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiHealthRoute = ApiHealthRouteImport.update({
@@ -680,6 +686,7 @@ export interface FileRoutesByFullPath {
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/directory-outreach-unsubscribe': typeof ApiDirectoryOutreachUnsubscribeRoute
   '/api/directory-verify': typeof ApiDirectoryVerifyRoute
+  '/api/event-seat': typeof ApiEventSeatRoute
   '/api/health': typeof ApiHealthRoute
   '/deals/$slug': typeof DealsSlugRoute
   '/directory-sitemaps/$chunk': typeof DirectorySitemapsChunkRoute
@@ -778,6 +785,7 @@ export interface FileRoutesByTo {
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/directory-outreach-unsubscribe': typeof ApiDirectoryOutreachUnsubscribeRoute
   '/api/directory-verify': typeof ApiDirectoryVerifyRoute
+  '/api/event-seat': typeof ApiEventSeatRoute
   '/api/health': typeof ApiHealthRoute
   '/deals/$slug': typeof DealsSlugRoute
   '/directory-sitemaps/$chunk': typeof DirectorySitemapsChunkRoute
@@ -880,6 +888,7 @@ export interface FileRoutesById {
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/directory-outreach-unsubscribe': typeof ApiDirectoryOutreachUnsubscribeRoute
   '/api/directory-verify': typeof ApiDirectoryVerifyRoute
+  '/api/event-seat': typeof ApiEventSeatRoute
   '/api/health': typeof ApiHealthRoute
   '/deals_/$slug': typeof DealsSlugRoute
   '/directory-sitemaps/$chunk': typeof DirectorySitemapsChunkRoute
@@ -982,6 +991,7 @@ export interface FileRouteTypes {
     | '/workspaces'
     | '/api/directory-outreach-unsubscribe'
     | '/api/directory-verify'
+    | '/api/event-seat'
     | '/api/health'
     | '/deals/$slug'
     | '/directory-sitemaps/$chunk'
@@ -1080,6 +1090,7 @@ export interface FileRouteTypes {
     | '/workspaces'
     | '/api/directory-outreach-unsubscribe'
     | '/api/directory-verify'
+    | '/api/event-seat'
     | '/api/health'
     | '/deals/$slug'
     | '/directory-sitemaps/$chunk'
@@ -1181,6 +1192,7 @@ export interface FileRouteTypes {
     | '/_authenticated/workspaces'
     | '/api/directory-outreach-unsubscribe'
     | '/api/directory-verify'
+    | '/api/event-seat'
     | '/api/health'
     | '/deals_/$slug'
     | '/directory-sitemaps/$chunk'
@@ -1276,6 +1288,7 @@ export interface RootRouteChildren {
   VerifyEmailRoute: typeof VerifyEmailRoute
   ApiDirectoryOutreachUnsubscribeRoute: typeof ApiDirectoryOutreachUnsubscribeRoute
   ApiDirectoryVerifyRoute: typeof ApiDirectoryVerifyRoute
+  ApiEventSeatRoute: typeof ApiEventSeatRoute
   ApiHealthRoute: typeof ApiHealthRoute
   DealsSlugRoute: typeof DealsSlugRoute
   DirectorySitemapsChunkRoute: typeof DirectorySitemapsChunkRoute
@@ -1542,6 +1555,13 @@ declare module '@tanstack/react-router' {
       path: '/api/directory-verify'
       fullPath: '/api/directory-verify'
       preLoaderRoute: typeof ApiDirectoryVerifyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/event-seat': {
+      id: '/api/event-seat'
+      path: '/api/event-seat'
+      fullPath: '/api/event-seat'
+      preLoaderRoute: typeof ApiEventSeatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/health': {
@@ -2201,6 +2221,7 @@ const rootRouteChildren: RootRouteChildren = {
   VerifyEmailRoute: VerifyEmailRoute,
   ApiDirectoryOutreachUnsubscribeRoute: ApiDirectoryOutreachUnsubscribeRoute,
   ApiDirectoryVerifyRoute: ApiDirectoryVerifyRoute,
+  ApiEventSeatRoute: ApiEventSeatRoute,
   ApiHealthRoute: ApiHealthRoute,
   DealsSlugRoute: DealsSlugRoute,
   DirectorySitemapsChunkRoute: DirectorySitemapsChunkRoute,
