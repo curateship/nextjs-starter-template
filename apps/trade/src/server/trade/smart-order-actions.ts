@@ -74,8 +74,12 @@ export function updateGridStopPlan(
 
 export function setGridFollowPlan(
   plan: GridPlan,
-  input: { follow: boolean; followDown?: boolean }
+  input: { follow: boolean; followDown?: boolean; pairOut?: boolean }
 ): void {
+  // Switchable on a grid already running, unlike the range and the sizing.
+  // Bag holding is something you find out about halfway down, so a grid that
+  // is already deep is exactly the one that needs this turned on.
+  if (input.pairOut !== undefined) plan.pairOut = input.pairOut
   const turnsIntoLossOn =
     plan.direction === "long"
       ? input.followDown === true && !plan.followDown

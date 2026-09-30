@@ -33,6 +33,7 @@ const tradeGridParamsSchema = gridParamsSchema
     manualRungPcts: true,
     follow: true,
     followDown: true,
+    pairOut: true,
   })
   .extend({
     stopLoss: gridParamsSchema.shape.stopLoss.unwrap().pick({ underPct: true }),
@@ -84,6 +85,7 @@ export function defaultTradeGridSettings(): TradeGridSettings {
       manualRungPcts: defaults.manualRungPcts,
       follow: defaults.follow,
       followDown: defaults.followDown,
+      pairOut: defaults.pairOut,
       stopLoss: {
         underPct: defaults.stopLoss?.underPct ?? DEFAULT_GRID_STOP_UNDER_PCT,
       },

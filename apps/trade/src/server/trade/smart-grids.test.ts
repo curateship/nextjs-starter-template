@@ -725,6 +725,193 @@ describe("the recycle", () => {
   })
 })
 
+describe("pairing an old buy out with every sale", () => {
+  /**
+   * The bag-holding shape: money weighted to the deep end, so the buy at the
+   * bottom of the range is worth four times the buy at the top. Rows read the
+   * top of the range first, so 10/20/30/40 puts $800 at $80 and $200 at $110.
+   */
+  async function placePairing(over: Partial<GridParams> = {}) {
+    return await place({
+      pairOut: true,
+      manualSizing: true,
+      manualRungPcts: [10, 20, 30, 40],
+      ...over,
+    })
+  }
+
+  it("sells the buy furthest into the loss alongside the level that closed", async () => {
+    await placePairing()
+    // Straight to the bottom: all four levels buy.
+    await priceTo(79)
+    let grid = await onlyGrid()
+    expect(grid.plan.levels.map((one) => one.status)).toEqual([
+      "holding",
+      "holding",
+      "holding",
+      "holding",
+    ])
+    const holdingAtBottom = (await positions())[0].szi
+
+    // Back to $90, which is the $80 level's own sell. That sale made money,
+    // so the $110 buy — the one furthest under water — leaves with it.
+    await priceTo(90)
+    grid = await onlyGrid()
+    // The level that sold recycles as it always did.
+    expect(grid.plan.levels[0]).toMatchObject({
+      buyPx: 80,
+      status: "waiting",
+      heldSz: 0,
+    })
+    // The buy it paid for is finished for the run. Not "waiting": a
+    // paired-out level never buys again.
+    expect(grid.plan.levels[3]).toMatchObject({
+      buyPx: 110,
+      status: "cancelled",
+      heldSz: 0,
+      armed: false,
+    })
+    // The middle two are untouched, still holding, still with their own sells.
+    expect(grid.plan.levels[1].status).toBe("holding")
+    expect(grid.plan.levels[2].status).toBe("holding")
+
+    // Two lots left the position on one pass, not one.
+    const held = (await positions())[0].szi
+    const sold = holdingAtBottom - held
+    const bottomLot = grid.plan.levels[0].sz
+    expect(sold).toBeGreaterThan(bottomLot * 1.1)
+  })
+
+  it("leaves a buy alone once it is worth more than the price", async () => {
+    await placePairing()
+    await priceTo(79)
+    // $90 pairs the $80 sale with the $110 buy.
+    await priceTo(90)
+    // $100 is the $90 level's sell. The buys still held are $90 and $100, and
+    // neither is under water at $100, so there is nothing left to rescue and
+    // the unwinding stops here — in the middle of the range, by itself.
+    await priceTo(100)
+
+    const grid = await onlyGrid()
+    expect(grid.plan.levels[2]).toMatchObject({
+      buyPx: 100,
+      status: "holding",
+    })
+    expect(grid.plan.levels[1]).toMatchObject({
+      buyPx: 90,
+      status: "waiting",
+      heldSz: 0,
+    })
+  })
+
+  it("changes nothing when the switch is off", async () => {
+    await placePairing({ pairOut: false })
+    await priceTo(79)
+    await priceTo(90)
+
+    const grid = await onlyGrid()
+    expect(grid.plan.levels[0].status).toBe("waiting")
+    // The whole complaint: the $110 buy is still sitting there, waiting for
+    // price to climb back past $120.
+    expect(grid.plan.levels[3]).toMatchObject({
+      buyPx: 110,
+      status: "holding",
+    })
+    expect(grid.plan.levels[3].heldSz).toBeGreaterThan(0)
+  })
+
+  it("pairs the outer levels and leaves the middle two to sell on their own", async () => {
+    // Four levels at $80, $90, $100 and $110. The $80 level sells at $90 and
+    // takes the $110 buy. The $90 level sells at $100, and the only buy left
+    // is the $100 one, which is not under water at $100, so the pairing stops
+    // there: one pair out of what looks like two.
+    await placePairing()
+    await priceTo(79)
+    await priceTo(90)
+    await priceTo(100)
+
+    const grid = await onlyGrid()
+    expect(
+      grid.plan.levels.map((one) => `${one.buyPx} ${one.status}`)
+    ).toEqual(["80 waiting", "90 waiting", "100 holding", "110 cancelled"])
+  })
+
+  it("sells one old buy per sale, never two", async () => {
+    await placePairing()
+    await priceTo(79)
+    await priceTo(90)
+
+    const grid = await onlyGrid()
+    const cancelled = grid.plan.levels.filter(
+      (one) => one.status === "cancelled"
+    )
+    expect(cancelled).toHaveLength(1)
+  })
+
+  it("takes a carried buy before one still in the range", async () => {
+    // Following down walks the range away from the buys at the top and leaves
+    // them behind as carried levels. Those are the worst bags the grid has,
+    // so they go first.
+    await placePairing({ followDown: true })
+    await priceTo(79)
+    // Through the bottom, so the range slides down and the levels at the top
+    // are carried off still holding their coins.
+    await priceTo(69)
+    let grid = await onlyGrid()
+    const carried = grid.plan.carriedLevels
+    expect(carried.length).toBeGreaterThan(0)
+    // The dearest carried buy is the one Pair Out has to take first.
+    const dearest = Math.max(...carried.map((one) => one.buyPx))
+    const stillInRange = grid.plan.levels.filter(
+      (one) => one.status === "holding"
+    )
+    expect(stillInRange.length).toBeGreaterThan(0)
+    expect(dearest).toBeGreaterThan(
+      Math.max(...stillInRange.map((one) => one.buyPx))
+    )
+
+    // The first sale on the way back up takes that carried buy, and leaves
+    // every buy still inside the range alone.
+    await priceTo(80)
+    grid = await onlyGrid()
+    expect(grid.plan.carriedLevels.map((one) => one.buyPx)).not.toContain(
+      dearest
+    )
+    expect(grid.plan.carriedLevels.length).toBe(carried.length - 1)
+  })
+
+  it("holds less at $100 than the same grid with the switch off", async () => {
+    // The whole point, as one number. Price falls through the range and comes
+    // back to the middle of it. With the switch on the only buy left is the
+    // $100 one, worth $400 at $100, which is 4 coins.
+    await placePairing()
+    await priceTo(79)
+    await priceTo(90)
+    await priceTo(100)
+    const paired = (await positions())[0].szi
+    expect(paired).toBeCloseTo(4, 3)
+
+    // With the switch off the $110 buy is still there too, and it only sells
+    // if price climbs past $120. The second grid is sized off the account as
+    // it stands after the first one traded, so what matters is which levels
+    // are still holding rather than the exact coins.
+    await database.delete(tradeSmartLadders)
+    await database.delete(tradePaperPositions)
+    marks.set("BTC", 200)
+    await placePairing({ pairOut: false })
+    await priceTo(79)
+    await priceTo(90)
+    await priceTo(100)
+    const bagged = await onlyGrid()
+    expect(
+      bagged.plan.levels
+        .filter((one) => one.status === "holding")
+        .map((one) => one.buyPx)
+    ).toEqual([100, 110])
+    expect((await positions())[0].szi).toBeGreaterThan(paired)
+  })
+})
+
 describe("running out of the range", () => {
   it("keeps running above the top when there is no take profit", async () => {
     // Out of the top is not the end of a grid. It has simply sold everything

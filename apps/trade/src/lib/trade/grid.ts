@@ -184,6 +184,22 @@ export function readyWhen(
   return direction === "long" ? mark > px : mark < px
 }
 
+/**
+ * Would a buy made at `buyPx` be closed at a loss at `px`?
+ *
+ * The same question as `readyWhen` asked the other way round, named for what
+ * Pair Out uses it for: a buy still further into the loss than the price on
+ * offer. One copy, because the engine and the placement window both have to
+ * agree about which buys are worth rescuing.
+ */
+export function underWater(
+  direction: GridDirection,
+  buyPx: number,
+  px: number
+): boolean {
+  return readyWhen(direction, buyPx, px)
+}
+
 /** Whichever of two prices is further into a win. */
 export function winningSide(
   direction: GridDirection,
@@ -243,6 +259,14 @@ export const GRID_SPACING_LABELS: Record<GridSpacing, string> = {
 
 export const GRID_SPACING_HINT =
   "Dollars apart: $100, $90, $80 — equal gaps on the chart. Percent apart at 10%: $100, $90, $81 — every cycle the same % move."
+
+/**
+ * What Pair Out does, in the words the window and the settings window both
+ * use. One copy, because two wordings for one switch is how a switch ends up
+ * meaning two different things.
+ */
+export const GRID_PAIR_OUT_HINT =
+  "Every time one of the grid's sells goes through, the grid also sells the buy furthest into the loss, at that same price. The buy near the top of the range leaves with the buy near the bottom, so you end up out near the middle instead of waiting for price to climb all the way back. The buy it sells is finished for the run and does not buy again. It only pays when the deep buys are much bigger than the early ones, so set the Rungs by hand."
 
 /** The gap between rungs the window opens on before one has been saved. */
 export const DEFAULT_GRID_RUNG_GAP_PCT = 2
@@ -505,6 +529,25 @@ export const gridParamsSchema = z.object({
   /** Keep adding one new lower level as price falls through the bottom. */
   followDown: z.boolean().default(false),
   /**
+   * Sell the oldest buy still held alongside every level that closes.
+   *
+   * Without it a level sells one step above its own buy and nothing else, so
+   * a grid that fell through its whole range holds the buys it made near the
+   * top until price climbs all the way back to them. With it on, a level's
+   * sale also closes the buy furthest into the loss, at the same price and on
+   * the same pass. The position then unwinds from both ends at once and the
+   * grid can finish near the middle of its range.
+   *
+   * The pair makes money when the closing buy is enough bigger than the old
+   * one, which is what the hand-set rungs are for. `gridPairOutWorstUsd`
+   * answers what the weakest pair of a drawn grid would make, and the window
+   * says so before the grid is placed.
+   *
+   * ADDITIVE, and deliberately a new field rather than a new value in an
+   * existing enum. See the note beside `manualSizing`.
+   */
+  pairOut: z.boolean().default(false),
+  /**
    * How far ABOVE the price the top of the range sits, in percent.
    *
    * The range is set as two percentages rather than two prices because a
@@ -583,6 +626,7 @@ export function defaultGridParams(): GridParams {
     anchor: "price",
     follow: false,
     followDown: false,
+    pairOut: false,
     abovePct: DEFAULT_GRID_ABOVE_PCT,
     rangePct: DEFAULT_GRID_BELOW_PCT,
     baseDetection: baseStopDetection(),
@@ -1138,6 +1182,60 @@ export function gridOrderPlan(input: {
   }
 }
 
+/**
+ * What the weakest pair of a Pair Out grid would make, in dollars, or null
+ * when there is nothing to pair.
+ *
+ * Pair Out closes the buy furthest into the loss alongside a level that
+ * sells, so the level nearest the losing edge is paid for by the level
+ * nearest the market, the next one in by the next one in, and so on until
+ * they meet in the middle. Each of those pairs is worked out here at the
+ * price the closing level sells at, which is the moment the pair happens.
+ *
+ * **Only the pairs the engine will really make are counted.** A level's sell
+ * price IS the next level's buy price, so the two levels either side of the
+ * middle never pair: the buy that would be rescued is worth exactly the price
+ * it would be sold at, and the engine leaves a buy alone once it is not under
+ * water. Six levels therefore make two pairs, not three, and the innermost
+ * two levels simply sell on their own steps. Null when a shape makes no pairs
+ * at all, which is every grid of two levels.
+ *
+ * **A pair can lose money.** The closing level moves one step and the old buy
+ * is several steps away, so an evenly split grid pairs at a loss every time.
+ * Hand-set rungs that put much more money at the far end turn it round: a
+ * grid doubling each level down holds 32 times as much at the sixth level as
+ * at the first, and only needs about 3 times to break even. The window reads
+ * this before the grid is placed and says which it is.
+ *
+ * Gross, with no fee taken off. The number is there to separate a shape that
+ * works from one that cannot, and fees do not move that line.
+ */
+export function gridPairOutWorstUsd(
+  levels: readonly { buyPx: number; sellPx: number; dollars: number }[],
+  direction: GridDirection
+): number | null {
+  let worst: number | null = null
+  for (let step = 0; step < Math.floor(levels.length / 2); step += 1) {
+    // Levels are priced lowest first. A buying grid closes from the bottom up
+    // and rescues from the top down; a selling grid does the mirror.
+    const near = levels.length - 1 - step
+    const closing = direction === "long" ? levels[step] : levels[near]
+    const rescued = direction === "long" ? levels[near] : levels[step]
+    // The engine's own rule, so the window cannot promise a pair the engine
+    // will not make.
+    if (!underWater(direction, rescued.buyPx, closing.sellPx)) continue
+    const won =
+      (closing.dollars * Math.abs(closing.sellPx - closing.buyPx)) /
+      closing.buyPx
+    const lost =
+      (rescued.dollars * Math.abs(rescued.buyPx - closing.sellPx)) /
+      rescued.buyPx
+    const net = won - lost
+    worst = worst === null ? net : Math.min(worst, net)
+  }
+  return worst
+}
+
 // ----- A placed grid, as it lives in its row -------------------------------
 
 /**
@@ -1439,6 +1537,14 @@ const gridPlanSchema = z.object({
   follow: z.boolean().default(false),
   /** Slide the range down one level per pass after price leaves the bottom. */
   followDown: z.boolean().default(false),
+  /**
+   * Close the buy furthest into the loss alongside every level that sells.
+   * See the field of the same name on `gridParamsSchema`.
+   *
+   * ADDITIVE: an older reader strips it and runs the grid the way it always
+   * did, which is the only safe kind of plan change.
+   */
+  pairOut: z.boolean().default(false),
   /**
    * Whether price has ever been at or under the top of the range — whether
    * the range has actually been in play. Follow may only slide a range price

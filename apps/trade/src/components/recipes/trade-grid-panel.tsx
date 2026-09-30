@@ -27,6 +27,7 @@ import {
   type TradeGridSettings,
 } from "@/lib/recipes/trade-grid"
 import {
+  GRID_PAIR_OUT_HINT,
   GRID_SPACING_HINT,
   GRID_SPACING_LABELS,
   GRID_SPACINGS,
@@ -317,6 +318,22 @@ export default function TradeGridFields({
             hint="When price reaches the bottom, the range walks down one rung and keeps trading. This is the risky direction while the EMA has the grid buying."
           >
             Follow price down
+          </FieldLabel>
+        </div>
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id={`grid-${node.id}-pair-out`}
+            checked={settings.grid.pairOut}
+            onCheckedChange={(checked) =>
+              setGrid({ pairOut: checked === true })
+            }
+          />
+          <FieldLabel
+            htmlFor={`grid-${node.id}-pair-out`}
+            className="text-xs"
+            hint={GRID_PAIR_OUT_HINT}
+          >
+            Pair out old buys
           </FieldLabel>
         </div>
         <InspectorNote>

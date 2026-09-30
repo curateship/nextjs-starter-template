@@ -347,6 +347,32 @@ export type LiveFillMark = {
 export type GridRoundTrip = { money: number; entryPx: number; rung?: number }
 
 /**
+ * Which lot a closing grid fill is priced against.
+ *
+ * Newest first, which is what a grid does: the level nearest the losing edge
+ * is the last one to open and the first one to close, so its own coins are on
+ * top of the pile.
+ *
+ * **Unless the fill names its rung.** Pair Out closes the OLDEST buy
+ * alongside the newest one, at the bottom of the pile, and pricing that sale
+ * against the newest lot would put the wrong entry price on the chart's
+ * arrow and leave every later rung reading against coins it never bought. An
+ * ordinary grid exit names its rung too, and for those the two rules pick the
+ * same lot, so nothing else moves.
+ */
+function gridLotFor(
+  lots: readonly { rung?: number }[],
+  rung: number | undefined
+): number {
+  if (rung !== undefined) {
+    for (let at = lots.length - 1; at >= 0; at -= 1) {
+      if (lots[at].rung === rung) return at
+    }
+  }
+  return lots.length - 1
+}
+
+/**
  * What each grid sell made on its OWN buy, rather than on the position average.
  *
  * **Why the exchange's figure is the wrong one for a grid.** A venue holds one
@@ -373,6 +399,12 @@ export type GridRoundTrip = { money: number; entryPx: number; rung?: number }
  * mirror: the highest level open is the one sold most recently, and it is the
  * first to reach its buy-back. So popping the newest lot is not an accounting
  * convention here. It is the level that actually closed.
+ *
+ * **Pair Out is the one exception, and it says so on the fill.** That switch
+ * closes the OLDEST buy alongside the newest, so its sale is not the newest
+ * lot. A grid exit names the rung it closed, and `gridLotFor` prices the sale
+ * against that rung's lot when it does. An ordinary exit names the newest one
+ * anyway, so the two rules agree everywhere else.
  *
  * A ladder is deliberately left out. Its exits take a share off one blended
  * position, so the average IS its story and last-in-first-out would tell a
@@ -428,7 +460,8 @@ export function gridRoundTrips(
     let matchedDollars = 0
     const matchedRungs = new Set<number>()
     while (left > DUST && stack.length > 0) {
-      const lot = stack[stack.length - 1]
+      const at = gridLotFor(stack, fill.gridRung)
+      const lot = stack[at]
       const part = Math.min(left, lot.sz)
       const share = lot.sz > 0 ? part / lot.sz : 0
       // A buying level makes the rise; a selling level makes the fall.
@@ -439,7 +472,7 @@ export function gridRoundTrips(
       if (lot.rung !== undefined) matchedRungs.add(lot.rung)
       lot.fee -= lot.fee * share
       lot.sz -= part
-      if (lot.sz <= DUST) stack.pop()
+      if (lot.sz <= DUST) stack.splice(at, 1)
       left -= part
       matched += part
     }
@@ -507,22 +540,26 @@ export function gridHoldingFees(
   if (mine.length === 0) return null
 
   const opens = grid.plan.direction === "long" ? "buy" : "sell"
-  const lots: { sz: number; fee: number }[] = []
+  const lots: { sz: number; fee: number; rung?: number }[] = []
   for (const fill of mine) {
     if (fill.side === opens) {
-      lots.push({ sz: fill.sz, fee: fill.fee })
+      lots.push({ sz: fill.sz, fee: fill.fee, rung: fill.gridRung })
       continue
     }
 
     let left = fill.sz
     while (left > DUST && lots.length > 0) {
-      const lot = lots[lots.length - 1]
+      // The same lot `gridRoundTrips` would price this sale against, so the
+      // fees still attached to what is held and the money on the arrows are
+      // always talking about the same coins.
+      const at = gridLotFor(lots, fill.gridRung)
+      const lot = lots[at]
       const part = Math.min(left, lot.sz)
       const share = part / lot.sz
       lot.fee -= lot.fee * share
       lot.sz -= part
       left -= part
-      if (lot.sz <= DUST) lots.pop()
+      if (lot.sz <= DUST) lots.splice(at, 1)
     }
   }
 

@@ -730,6 +730,113 @@ a round trip would no longer clear the trading fee three times over, the grid
 parks instead of following price into trades that lose money slowly. Levels
 spread the same percent apart never thin, so those follow without that limit.
 
+## Pairing an old buy out with every sale
+
+A level sells one step above its own buy and nothing else, so a grid that falls
+through its whole range keeps the buys it made near the top until price climbs
+all the way back to them. On a coin that halves, that is a bag held for months.
+**Pair out old buys** is the switch that stops it.
+
+Switched on, every time one of the grid's levels sells, the grid also sells the
+buy furthest into the loss, at that same price and on that same engine pass.
+The deepest buy leaves with the dearest one, the next deepest with the next
+dearest, and the position unwinds from both ends towards the middle of the
+range. **Six buys make two pairs, not three.** A level's sell price is the next
+level's buy price, so the two levels either side of the middle never pair: the
+buy that would be rescued is worth exactly the price it would be sold at. Those
+two innermost levels sell on their own steps instead, which they were always
+going to do, because their own sells are one step away.
+
+Tyler's words, 29 September 2026: "Rung 6 sales rung 1, rung 5 sales rung 2."
+And on why: "if I reach rung 6 and then price goes to rung 5 then the problem
+becomes that getting back to rung 1 to exit is now too far."
+
+### The pair has to make money, and that is the sizing
+
+The level that sells has moved one step. The old buy it pays for is several
+steps away, so **an evenly split grid pairs at a loss every single time**. The
+deep buys have to be much bigger than the early ones, which is what the Rungs
+card is for.
+
+Worked, on six levels at $100, $95, $90, $85, $80 and $75:
+
+- Split evenly, $100 each. The $75 buy sold at $80 makes $6.67. The $100 buy
+  sold at $80 loses $20. The pair loses **$13.33**.
+- Doubled down the range, $700 in all, so $11.11 at the top and $355.56 at the
+  bottom. The $75 buy makes $23.70, the $100 buy loses $2.22. The pair keeps
+  **$21.48**.
+
+That is the first pair, which is the best of them. The second pair sells the $80
+buy at $85 for $11.11 and the $95 buy at $85 for a $2.34 loss, so it keeps
+**$8.77**. The window reads the weakest pair, so on this grid it says $8.77, not
+$21.48. Every pair after the first earns less, because the closing buy is
+smaller and the buy it rescues is nearer the price it was bought at.
+
+The rule underneath it: the deep buy has to be bigger than the old one by more
+than the ratio of the two moves. Here the winner moves 6.67% and the loser 20%,
+so the deep buy needs to be three times the early one. Doubling makes it
+thirty-two times, so there is room to spare.
+
+**The window says which it is before the grid is placed.** With the switch on,
+a line under it reads "Worst pair as drawn: makes $8.77" or "loses $2.10", and
+the losing wording says to put more of the money on the far rungs. On a shape
+that makes no pairs at all, which is every grid of two levels, it says the
+switch would do nothing. The number is gross of fees, because fees do not move
+the line between a shape that works and one that cannot.
+
+### Which buy goes, and when nothing goes
+
+**Carried buys first.** A range that followed price down leaves the levels at
+the top behind, still holding their coins, with their own sells sitting where
+price may never return. Those are the worst bags the grid has, so Pair Out
+clears them before it touches anything still inside the range. After those, the
+dearest buy still in the range.
+
+**A buy already worth more than the sale price is left alone.** It is in profit
+and its own sell is one step away, so it does not need rescuing. This is also
+what ends the unwinding by itself: once the pairs have met in the middle of the
+range there is nothing under water left to take, and the grid goes back to
+ordinary recycling. It is also why a two-level grid can never pair at all, and
+why the window says the switch would do nothing on that shape.
+
+**One old buy per sale, never two.** A level that closes has earned one step of
+profit and can carry one old buy. Taking two would close the second out of a
+win that was never made.
+
+**The whole buy goes, and it is finished for the run.** A paired-out level does
+not go back to watching and never buys again. Half a buy would leave half a
+bag, which is the thing being removed, and a level left holding would block
+every later pair behind it.
+
+### Where the switch lives
+
+- The placement window, under Follow price down, with the worst-pair line
+  beneath it.
+- The settings window of a grid already running, in the same place. Bag holding
+  is something you find out about halfway down, so a grid that is already deep
+  is exactly the one that needs this switched on. The window says how many buys
+  are under today's price and therefore waiting to be paired out.
+- The Grid recipe step, for backtests.
+
+Both directions. A selling grid buys back from the top of the range down and
+rescues the shorts it made at the bottom, and for that the money has to sit at
+the top instead. A reversal carries the switch, because it is a rule about how
+the grid closes rather than a price.
+
+### What the figures say
+
+A paired sale carries the rung of the buy it closed, not the rung of the level
+that paid for it, so the chart arrow is drawn on the line the coins were bought
+at. On a real wallet and in a backtest the sale is priced against that same
+lot, so the arrow's entry price and the money on it are about the coins that
+actually left.
+
+**On a practice wallet it is not.** A practice fill carries no rung, so the
+per-arrow money falls back to newest-lot-first and a paired sale reads against
+the wrong lot. The run total, the Journal row and the bell are unaffected,
+because those are sums. Fixing it needs the rung written down against a
+practice fill, which needs a new column.
+
 ## Reversing a grid
 
 A grid can turn around: everything it holds is closed at market, the grid ends,
