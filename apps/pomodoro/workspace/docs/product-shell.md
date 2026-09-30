@@ -45,6 +45,43 @@ phone the sidebar is a drawer that is either open or gone, so a
 half-width state would mean nothing there. The choice is not saved: it
 lasts as long as the page does, the same as the old app.
 
+## One page edge, and a header that fits a phone
+
+**The header and the content under it take their left and right edge from one
+value**, 24px under 640px wide and 40px from there up. Before this they were
+`px-10` and `px-6 sm:px-12`, so the brand sat 8px inside the first heading on a
+desktop and 16px outside it on a phone. 40px is the header's old number rather
+than the content's 48px, because the row of controls fits a 1024px window with
+40px of edge and needs a second line with 48px.
+
+**The header row is allowed a second line.** It holds the menu button, the
+brand, three pills, the whole sound player, the colour toggle and either Log out
+or Log in plus Register, and how much room that needs depends on what is in it:
+the sound player only exists while a sound is chosen, and Log in plus Register is
+wider than Log out. So no single breakpoint covers every case, and the row wraps
+instead. A window wide enough for one line is unchanged, and the header's resting
+height is still 86px.
+
+**Below 768px a second line is not enough either**, so two things change:
+
+- The three glassy pills drop their words and become their icons in a circle.
+  The Timer pill keeps its countdown, because that is the reason to look at it.
+  Every pill already carries its own `aria-label`, so hiding the words costs no
+  name and the popovers are unchanged.
+- The sound player folds behind one pill of the same kind. The pill says whether
+  the sound is playing and names it, and the popover behind it holds the same
+  six controls the wide row shows: play or pause, the name, mute, the volume
+  slider, the sleep timer and stop. Nothing is removed on a phone, and from
+  768px up the player is the inline row again.
+
+768 and not 640 because 640 was measured: with the words back on, a 640px window
+still scrolled sideways by 61px. The one place this needs JavaScript rather than
+a media query is the sound player, where the two shapes are different markup
+rather than one styled two ways, and `useNarrowScreen`
+(`src/lib/pomodoro/narrow-screen.ts`) answers that. It starts wide so the server
+and the browser draw the same first render, then measures before the browser
+paints, so a phone never shows the wide shape in a frame anyone sees.
+
 ## The three header popovers
 
 The glassy pills in the header each open a popover, and all three are

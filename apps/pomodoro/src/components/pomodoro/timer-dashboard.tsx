@@ -214,13 +214,17 @@ export function TimerDashboard() {
   return (
     <div className="flex flex-col gap-8">
       <section className="mx-auto flex w-full max-w-[860px] flex-col items-center gap-9">
-        <div className="relative size-[300px]">
-          <svg
-            width="300"
-            height="300"
-            viewBox="0 0 300 300"
-            aria-hidden="true"
-          >
+        {/* The ring takes the smaller of 300px and the width the page
+            actually has, so it stays whole on a narrow phone instead of
+            running off the side. The percentage is of the content column, not
+            the window, so it follows the page gutter without repeating its
+            number. `aspect-square` keeps it a circle once the width is
+            capped, and the `viewBox` keeps every coordinate below at the
+            300-unit scale they were drawn for. Zen mode does the same thing
+            against the window, which is the right measure there because it
+            covers the window. */}
+        <div className="relative aspect-square w-[min(300px,100%)]">
+          <svg className="size-full" viewBox="0 0 300 300" aria-hidden="true">
             <circle
               cx="150"
               cy="150"

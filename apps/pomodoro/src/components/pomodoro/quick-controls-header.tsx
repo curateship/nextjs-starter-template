@@ -64,9 +64,26 @@ const modeLabels: Array<[TimerMode, string]> = [
  * links to the full pages. The timer lives in the module engine, so these
  * controls work identically on every page.
  */
-/** The old app's glassy header pill. */
+/**
+ * The old app's glassy header pill.
+ *
+ * Narrow, the label inside it is hidden and the padding goes even, so the pill
+ * is the icon in a circle rather than an icon pushed to one side of a pill with
+ * a hole where the words were. Every one of these buttons carries its own
+ * `aria-label`, so hiding the words costs the button no name.
+ */
 export const quickPillClass =
-  "flex h-[42px] items-center gap-2 whitespace-nowrap rounded-full border border-[rgba(var(--p-fg-rgb),0.14)] bg-[rgba(var(--p-fg-rgb),0.07)] py-0 pl-3.5 pr-[18px] text-[13.5px] font-semibold text-foreground backdrop-blur-[12px] hover:bg-[rgba(var(--p-fg-rgb),0.16)]"
+  "flex h-[42px] items-center gap-2 whitespace-nowrap rounded-full border border-[rgba(var(--p-fg-rgb),0.14)] bg-[rgba(var(--p-fg-rgb),0.07)] py-0 pl-3.5 pr-[18px] text-[13.5px] font-semibold text-foreground backdrop-blur-[12px] hover:bg-[rgba(var(--p-fg-rgb),0.16)] max-md:px-3"
+
+/**
+ * A pill's words: on from 768px up, gone below it.
+ *
+ * 768 rather than 640 because 640 was measured and does not fit: with the
+ * labels back on, a 640px window still scrolled sideways by 61px.
+ */
+function QuickPillLabel({ children }: { children: React.ReactNode }) {
+  return <span className="max-md:hidden">{children}</span>
+}
 
 /**
  * A heading inside a quick popover: small mono capitals over a full-width
@@ -169,7 +186,7 @@ function TimerQuickControl() {
           {pomodoro.timer.running || !pomodoro.timerIdle ? (
             <span className="font-mono text-xs tabular-nums">{countdown}</span>
           ) : (
-            "Timer"
+            <QuickPillLabel>Timer</QuickPillLabel>
           )}
         </button>
       </PopoverTrigger>
@@ -394,7 +411,7 @@ function LeaderboardQuickControl() {
       <PopoverTrigger asChild>
         <button className={quickPillClass} aria-label="Leaderboard">
           <BarChart3Icon className="size-[17px]" aria-hidden="true" />
-          Leaderboard
+          <QuickPillLabel>Leaderboard</QuickPillLabel>
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-[290px] gap-3 p-4">
@@ -468,7 +485,7 @@ function ThemeQuickControl() {
       <PopoverTrigger asChild>
         <button className={quickPillClass} aria-label="Theme quick controls">
           <PaletteIcon className="size-[17px]" aria-hidden="true" />
-          Theme
+          <QuickPillLabel>Theme</QuickPillLabel>
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-80 gap-3.5 p-4">
