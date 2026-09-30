@@ -6,12 +6,17 @@ import { Button } from "@/components/ui/button"
 import { TableCell, TableHead, TableRow } from "@/components/ui/table"
 import { DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
 import type { TableHeaderColumn } from "@/components/shared/sortable-table-header"
-import { AdminListTable, useAdminList } from "@/components/pomodoro/admin-list"
+import {
+  AdminSelectCell,
+  AdminListTable,
+  useAdminList,
+} from "@/components/pomodoro/admin-list"
 import {
   listPomodoroFocusUsers,
   type AdminFocusRow,
 } from "@/lib/api/pomodoro/admin"
 import { formatDuration, formatUtcDate } from "@/lib/format/format-time"
+import { useSelection } from "@/lib/hooks/use-selection"
 import {
   useListSearchNavigate,
   useListSort,
@@ -65,6 +70,8 @@ export function AdminFocusDashboard({
     [setListSearch]
   )
 
+  const selection = useSelection()
+
   const [searchText, setSearchText] = useSearchBoxText(query, (text) =>
     setListSearch({ q: text.trim() ? text : undefined, page: undefined })
   )
@@ -91,6 +98,10 @@ export function AdminFocusDashboard({
   const toggleSort = useListSort<SortColumn>({ sort, direction }, (column) =>
     column === "name" ? "asc" : "desc"
   )
+  const rowIds = React.useMemo(
+    () => list.rows.map((row) => row.userId),
+    [list.rows]
+  )
 
   return (
     <AdminListTable
@@ -102,6 +113,7 @@ export function AdminFocusDashboard({
       direction={direction}
       onSort={toggleSort}
       trailing={<TableHead column="meta">Actions</TableHead>}
+      selection={{ noun: "members", rowIds, state: selection }}
       list={list}
       page={page}
       onPageChange={setPage}
@@ -117,6 +129,11 @@ export function AdminFocusDashboard({
     >
       {list.rows.map((row) => (
         <TableRow key={row.userId}>
+          <AdminSelectCell
+            selection={selection}
+            id={row.userId}
+            label={`Select ${row.name}`}
+          />
           <TableCell column="main">
             <div className="min-w-0">
               <span className="block max-w-96 truncate" title={row.name}>
@@ -149,7 +166,6 @@ export function AdminFocusDashboard({
               <Link
                 to="/admin/pomodoro-sessions"
                 search={{ user: row.userId }}
-                title={`Focus sessions for ${row.name}`}
                 aria-label={`Focus sessions for ${row.name}`}
               >
                 <TimerIcon className="size-4" />

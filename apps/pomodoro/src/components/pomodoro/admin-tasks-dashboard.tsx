@@ -1,23 +1,29 @@
 import * as React from "react"
-import { getRouteApi } from "@tanstack/react-router"
-import { ListChecksIcon } from "lucide-react"
+import { getRouteApi, Link } from "@tanstack/react-router"
+import { ListChecksIcon, TimerIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectValue,
 } from "@/components/ui/select"
-import { TableCell, TableRow } from "@/components/ui/table"
+import { TableCell, TableHead, TableRow } from "@/components/ui/table"
 import {
   DashboardToolbarSearch,
   DashboardToolbarSelectTrigger,
 } from "@/components/shared/dashboard-toolbar"
 import type { TableHeaderColumn } from "@/components/shared/sortable-table-header"
-import { AdminListTable, useAdminList } from "@/components/pomodoro/admin-list"
+import {
+  AdminSelectCell,
+  AdminListTable,
+  useAdminList,
+} from "@/components/pomodoro/admin-list"
 import { listPomodoroTasks, type AdminTaskRow } from "@/lib/api/pomodoro/admin"
 import { formatDate, formatUtcDate } from "@/lib/format/format-time"
+import { useSelection } from "@/lib/hooks/use-selection"
 import {
   useListSearchNavigate,
   useListSort,
@@ -78,6 +84,8 @@ export function AdminTasksDashboard({
     [setListSearch]
   )
 
+  const selection = useSelection()
+
   const [searchText, setSearchText] = useSearchBoxText(query, (text) =>
     setListSearch({ q: text.trim() ? text : undefined, page: undefined })
   )
@@ -108,6 +116,10 @@ export function AdminTasksDashboard({
       ? "desc"
       : "asc"
   )
+  const rowIds = React.useMemo(
+    () => list.rows.map((row) => row.id),
+    [list.rows]
+  )
 
   return (
     <AdminListTable
@@ -118,6 +130,8 @@ export function AdminTasksDashboard({
       sort={sort}
       direction={direction}
       onSort={toggleSort}
+      trailing={<TableHead column="meta">Actions</TableHead>}
+      selection={{ noun: "tasks", rowIds, state: selection }}
       list={list}
       page={page}
       onPageChange={setPage}
@@ -155,6 +169,11 @@ export function AdminTasksDashboard({
     >
       {list.rows.map((row) => (
         <TableRow key={row.id}>
+          <AdminSelectCell
+            selection={selection}
+            id={row.id}
+            label={`Select ${row.title}`}
+          />
           <TableCell column="main">
             <span className="block max-w-96 truncate" title={row.title}>
               {row.title}
@@ -174,6 +193,19 @@ export function AdminTasksDashboard({
           <TableCell column="meta">{row.pomodoroCount}</TableCell>
           <TableCell column="mutedMeta" className="hidden lg:table-cell">
             {formatDate(row.createdAt)}
+          </TableCell>
+          <TableCell column="actions">
+            {/* A task on its own says little. The runs behind it are the next
+                question, so the row leads to that member's timer runs. */}
+            <Button type="button" variant="ghost" size="icon" asChild>
+              <Link
+                to="/admin/pomodoro-sessions"
+                search={{ user: row.userId }}
+                aria-label={`Focus sessions for ${row.userName}`}
+              >
+                <TimerIcon className="size-4" />
+              </Link>
+            </Button>
           </TableCell>
         </TableRow>
       ))}

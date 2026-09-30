@@ -1,11 +1,15 @@
 import * as React from "react"
 
+import { Checkbox } from "@/components/ui/checkbox"
+import { TableCell } from "@/components/ui/table"
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import {
+  SelectAllTableHead,
   SortableTableHeader,
   type TableHeaderColumn,
 } from "@/components/shared/sortable-table-header"
 import { getPomodoroAdminErrorMessage } from "@/lib/api/pomodoro/admin"
+import type { useSelection } from "@/lib/hooks/use-selection"
 
 /**
  * The plumbing every pomodoro operator list shares: hold the rows the loader
@@ -22,6 +26,15 @@ import { getPomodoroAdminErrorMessage } from "@/lib/api/pomodoro/admin"
 const REFETCH_DELAY_MS = 250
 
 export type AdminListResult<Row> = { rows: Row[]; total: number }
+
+/** Row ticking, as every operator list hands it to the table below. */
+export type AdminListSelection = {
+  /** Plural, lower case: "reports". Used in the header checkbox's name. */
+  noun: string
+  /** The ids of the rows on screen, in the order they are drawn. */
+  rowIds: string[]
+  state: ReturnType<typeof useSelection>
+}
 
 export function useAdminList<Row>({
   initial,
@@ -120,6 +133,7 @@ export function AdminListTable<Row, Sort extends string>({
   onSort,
   trailing,
   controls,
+  selection,
   list,
   page,
   onPageChange,
@@ -136,11 +150,21 @@ export function AdminListTable<Row, Sort extends string>({
   /** The last, unsortable heading, when the rows carry a control. */
   trailing?: React.ReactNode
   controls?: React.ReactNode
+  /** Row ticking. Leave it out and the table has no selection column. */
+  selection?: AdminListSelection
   list: ReturnType<typeof useAdminList<Row>>
   page: number
   onPageChange: (page: number) => void
   children: React.ReactNode
 }) {
+  // Only the ticks on the page on screen are counted or acted on. A tick on
+  // page 1 is remembered so paging back finds it still ticked, but it must not
+  // show up in the count beside a heading that cannot see it, and a bulk action
+  // must never touch a row the operator is no longer looking at.
+  const selectedOnPage = selection
+    ? selection.rowIds.filter((id) => selection.state.selected.has(id))
+    : []
+
   return (
     <DashboardTable
       title={title}
@@ -153,18 +177,32 @@ export function AdminListTable<Row, Sort extends string>({
           : null
       }
       controls={controls}
+      selectedCount={selectedOnPage.length}
+      onClearSelection={selection ? selection.state.clear : undefined}
       header={
         <SortableTableHeader
           columns={columns}
           sort={sort}
           direction={direction}
           onSort={onSort}
+          leading={
+            selection ? (
+              <SelectAllTableHead
+                noun={selection.noun}
+                checked={selection.state.selectAllState(selection.rowIds)}
+                disabled={selection.rowIds.length === 0}
+                onCheckedChange={() =>
+                  selection.state.toggleVisible(selection.rowIds)
+                }
+              />
+            ) : undefined
+          }
           trailing={trailing}
         />
       }
       isEmpty={!list.loading && list.rows.length === 0}
       emptyText={`No ${noun} match those filters.`}
-      emptyColSpan={columns.length + (trailing ? 1 : 0)}
+      emptyColSpan={columns.length + (trailing ? 1 : 0) + (selection ? 1 : 0)}
       footer={{
         type: "pagination",
         page,
@@ -180,5 +218,32 @@ export function AdminListTable<Row, Sort extends string>({
     >
       {children}
     </DashboardTable>
+  )
+}
+
+/**
+ * One row's tick box, first cell in the row.
+ *
+ * `label` names the row rather than saying "Select row", because a screen
+ * reader running down the column would otherwise hear the same three words
+ * twenty-five times.
+ */
+export function AdminSelectCell({
+  selection,
+  id,
+  label,
+}: {
+  selection: AdminListSelection["state"]
+  id: string
+  label: string
+}) {
+  return (
+    <TableCell column="select">
+      <Checkbox
+        aria-label={label}
+        checked={selection.selected.has(id)}
+        onCheckedChange={() => selection.toggle(id)}
+      />
+    </TableCell>
   )
 }

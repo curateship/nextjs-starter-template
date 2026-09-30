@@ -26,7 +26,7 @@ import {
   listAdminSessions,
   listAdminTasks,
   loadAdminMediaUsage,
-  reviewRoomReport,
+  reviewRoomReports,
   type AdminFocusRow,
   type AdminMediaUsage,
   type AdminReportRow,
@@ -54,7 +54,8 @@ export type {
 
 export const getPomodoroAdminErrorMessage = createErrorMessage(
   {
-    REPORT_NOT_FOUND: "That report no longer exists.",
+    REPORT_UNCHANGED:
+      "That report had already been decided, or is no longer there. The list has been refreshed.",
   },
   "That did not work. Please try again."
 )
@@ -186,16 +187,21 @@ const loadMediaUsageFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .handler(() => loadAdminMediaUsage())
 
-const reviewReportFn = createServerFn({ method: "POST" })
+/**
+ * One press, whether it came from a row's own button or from the toolbar over a
+ * ticked selection. The ceiling matches the largest page an operator can ask
+ * for, so a hand-written call cannot rewrite the whole queue in one request.
+ */
+const reviewReportsFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(
     z.object({
-      reportId: z.string().uuid(),
+      reportIds: z.array(z.string().uuid()).min(1).max(ADMIN_PAGE_SIZE_MAX),
       decision: z.enum(REPORT_STATUSES),
     })
   )
   .handler(({ data, context }) =>
-    reviewRoomReport({ ...data, actorUserId: context.user.id })
+    reviewRoomReports({ ...data, actorUserId: context.user.id })
   )
 
 export const listPomodoroFocusUsers = (data: PomodoroFocusQuery) =>
@@ -230,7 +236,7 @@ export const loadPomodoroReportsPage = (
 
 export const loadPomodoroMediaUsage = () => loadMediaUsageFn()
 
-export const reviewPomodoroReport = (
-  reportId: string,
+export const reviewPomodoroReports = (
+  reportIds: string[],
   decision: ReportStatus
-) => reviewReportFn({ data: { reportId, decision } })
+) => reviewReportsFn({ data: { reportIds, decision } })

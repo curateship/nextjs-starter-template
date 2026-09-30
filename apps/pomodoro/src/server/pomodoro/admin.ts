@@ -5,6 +5,8 @@ import {
   desc,
   eq,
   ilike,
+  inArray,
+  ne,
   or,
   sql,
   type SQL,
@@ -45,7 +47,7 @@ import type {
 /**
  * What the operator pages under /admin read.
  *
- * Every list here is read-only except `reviewRoomReport`, which is the one
+ * Every list here is read-only except `reviewRoomReports`, which is the one
  * thing an operator changes: a report's standing. The pages browse the app's
  * own rows — focus totals, tasks, sessions, rooms, media choices — so nothing
  * in this file writes to a member's data.
@@ -480,19 +482,24 @@ export async function listAdminReports(
 }
 
 /**
- * Move a report to pending, resolved or dismissed.
+ * Move one or more reports to pending, resolved or dismissed.
  *
  * Reopening clears the reviewer, because the last decision no longer stands
  * and leaving a name on it would say somebody signed off on the open report.
  * The audit row is written in the same transaction as the change, so the log
  * can never disagree with the report's standing.
+ *
+ * A report already at the asked-for standing is skipped rather than written
+ * again, so a bulk Resolve over a mixed selection does not restamp the reviewer
+ * and the date on decisions somebody else already made. `skipped` also holds
+ * any id that is no longer a report at all.
  */
-export async function reviewRoomReport({
-  reportId,
+export async function reviewRoomReports({
+  reportIds,
   decision,
   actorUserId,
 }: {
-  reportId: string
+  reportIds: string[]
   decision: ReportStatus
   actorUserId: string
 }) {
@@ -505,19 +512,30 @@ export async function reviewRoomReport({
         reviewedByUserId: reopening ? null : actorUserId,
         reviewedAt: reopening ? null : new Date(),
       })
-      .where(eq(roomReports.id, reportId))
+      .where(
+        and(
+          inArray(roomReports.id, reportIds),
+          ne(roomReports.status, decision)
+        )
+      )
       .returning({ id: roomReports.id })
 
-    if (!updated.length) throw new Error("REPORT_NOT_FOUND")
+    const reviewed = updated.map((row) => row.id)
+    const changed = new Set(reviewed)
+    const skipped = reportIds.filter((id) => !changed.has(id))
 
-    await tx.insert(pomodoroAuditLogs).values({
-      actorUserId,
-      action: `review_report_${decision}`,
-      resource: "reports",
-      recordIds: [reportId],
-    })
+    // Nothing moved, so there is nothing to log. One audit row covers the whole
+    // press, with every id that actually changed on it.
+    if (reviewed.length) {
+      await tx.insert(pomodoroAuditLogs).values({
+        actorUserId,
+        action: `review_report_${decision}`,
+        resource: "reports",
+        recordIds: reviewed,
+      })
+    }
 
-    return { id: reportId, status: decision }
+    return { reviewed, skipped }
   })
 }
 

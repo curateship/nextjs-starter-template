@@ -45,7 +45,7 @@ A member reports somebody's message inside a focus room, and the report lands
 here as **Waiting**. The row carries the reason, the reported message as it was
 written, who wrote it, who reported it, and the room.
 
-Three buttons and three standings:
+Three buttons and three standings, on a row or over a ticked selection:
 
 - **Resolve** means the report was fair and has been dealt with. The operator's
   name and the time go in the Status column.
@@ -54,17 +54,68 @@ Three buttons and three standings:
   last decision no longer stands and leaving a name on an open report would say
   somebody had signed off on it.
 
+### Deciding several at once
+
+Tick the rows and the toolbar grows a **Resolve**, **Dismiss** and **Reopen**
+button, each carrying the count. One press is one request over every ticked row
+on the page, and the line afterwards says what happened: "4 reports resolved."
+or "2 reports reopened, 1 could not be reopened."
+
+A report already at the standing being asked for is left alone rather than
+written again, so a bulk Resolve over a mixed selection never restamps somebody
+else's decision with a new reviewer and a new date. Those rows are the ones
+counted as "could not be". Only the rows on the page on screen are touched: a
+tick on page 1 is remembered if you page back, but a press can never reach a row
+the operator is no longer looking at.
+
+A row's own buttons stay exactly where they are while the server answers. The
+pressed button's icon becomes the spinner and both buttons grey out, so the cell
+keeps its width and the rows below it do not shift. Swapping the pair for a bare
+spinner collapsed the cell to the width of the spinner and moved every row under
+it.
+
 A message the host already deleted is still shown here in full. The body stays
 in `room_messages` for exactly this reason, and the room itself only ever saw
 "Message removed by the host". A report whose message row is gone, because the
 room was deleted, says "The reported message is no longer on record." rather
 than showing a blank line.
 
-Each decision writes one row to `pomodoro_audit_logs` in the same transaction as
+Each press writes one row to `pomodoro_audit_logs` in the same transaction as
 the change, with the action `review_report_resolved`, `review_report_pending` or
-`review_report_dismissed` and the resource `reports`. Either both rows commit or
-neither does, so the log can never disagree with the report's standing. Room
-moderation by a host writes to the same table.
+`review_report_dismissed`, the resource `reports`, and every report id that
+actually moved in `record_ids`. Either both rows commit or neither does, so the
+log can never disagree with the report's standing. A press that changed nothing
+writes no log row at all. Room moderation by a host writes to the same table.
+
+## The shape of every table
+
+All five list pages have the shape every other admin table in the monorepo has:
+a selection checkbox first, sortable data columns, and an actions column last.
+
+- **The header checkbox** ticks every row on the page and shows the half-ticked
+  state when only some are ticked. It is dead on an empty table, because there
+  is nothing to tick.
+- **Only Room reports does anything with a selection.** The other four are
+  read-only, so there is no bulk action to offer. They keep the checkbox because
+  one shape for every table in the monorepo is worth more than four screens each
+  deciding for themselves, and because the count beside the heading is a useful
+  way to keep a place in a long list.
+- **The actions column is the last column on all five.** On Room reports it is
+  the three decision buttons. On the read-only four it is a way to the list that
+  answers the next question, which is the only row action a read-only page can
+  honestly have:
+
+  - Focus data and Tasks lead to that member's focus sessions.
+  - Focus sessions leads to that member's tasks.
+  - Focus rooms leads to the report queue searched on that room's name.
+
+Media is the exception on both counts: it has no selection column and no actions
+column. Its rows are the fixed catalogue in code, not database records, so there
+is nothing to tick and nothing to do to one.
+
+One file owns all of it. `admin-list.tsx` draws the selection column, the header
+checkbox, the empty row's width and the toolbar's "Clear N selected" chip, so a
+sixth page would get the lot by passing one `selection` prop.
 
 ## Media
 
@@ -81,9 +132,8 @@ again.
 
 Every page except Room reports is read-only, and that is deliberate. A member's
 plan for their day, their timer history and their rooms are theirs; an operator
-is here to see them, not to rewrite them. The tables therefore have no selection
-checkboxes and no delete, which is the one place they step away from the repo's
-table standard. The old app let an operator create and edit rows in every
+is here to see them, not to rewrite them. There is no create, no edit and no
+delete on any of them. The old app let an operator do all three in every
 section, and none of that came across.
 
 Users, plans, billing and AI usage are not here either. The shell already owns
@@ -98,7 +148,8 @@ copy would give an operator two places to look.
   them, and the table draws its headings from them. The lists sit here rather
   than beside the queries so a route can import one without dragging the
   database driver into the browser bundle.
-- `src/server/pomodoro/admin.ts` — the queries and `reviewRoomReport`. A report
+- `src/server/pomodoro/admin.ts` — the queries and `reviewRoomReports`, which
+  takes one id or many so a row button and the toolbar cannot drift apart. A report
   can name three different people, so the accounts table is joined three times
   under three names: `report_reporter`, `report_message_author` and
   `report_reviewer`.

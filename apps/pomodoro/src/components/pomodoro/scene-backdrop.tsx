@@ -1,4 +1,13 @@
+import * as React from "react"
+
 import type { BackgroundReference } from "@/lib/pomodoro/background-catalog"
+import { usePrefersReducedMotion } from "@/lib/pomodoro/use-reduced-motion"
+
+/** The lofi scene is the only built-in one that is a film rather than a photo. */
+const LOFI_VIDEO = "/backgrounds/uploads-265816_small.mp4"
+const LOFI_STILL = "/backgrounds/thumbs-lofi_girl.png"
+
+const MEDIA_CLASS = "absolute inset-0 size-full object-cover"
 
 /**
  * The chosen scene, drawn behind whatever sits on top of it.
@@ -11,6 +20,10 @@ import type { BackgroundReference } from "@/lib/pomodoro/background-catalog"
  *
  * The media itself is identical in both, so entering zen mode never swaps the
  * picture, restarts a video, or refetches an upload.
+ *
+ * Nobody who has asked their computer for less movement gets a looping film
+ * here. They get the same scene held still, and if they change their mind the
+ * picture starts or stops without a reload.
  */
 export function SceneBackdrop({
   background,
@@ -21,42 +34,61 @@ export function SceneBackdrop({
   onMediaError: () => void
   shading: "hero" | "zen"
 }) {
+  const stillOnly = usePrefersReducedMotion()
+
+  // The address of a film that would not load. Held rather than counted, so a
+  // second scene chosen afterwards is tried properly instead of inheriting the
+  // first one's failure.
+  const [brokenVideo, setBrokenVideo] = React.useState<string | null>(null)
+
   return (
     <>
       {background.type === "scene" ? (
         background.key === "lofi" ? (
-          <video
-            className="absolute inset-0 size-full object-cover"
-            src="/backgrounds/uploads-265816_small.mp4"
-            poster="/backgrounds/thumbs-lofi_girl.png"
-            autoPlay
-            muted
-            loop
-            playsInline
-          />
+          // The lofi film's own first frame ships as a file, so falling back to
+          // it is the scene held still rather than a black rectangle. Asking
+          // the background store for the default would do nothing at all here:
+          // lofi *is* the default, and the store ignores a fallback to the
+          // scene already showing.
+          stillOnly || brokenVideo === LOFI_VIDEO ? (
+            <img
+              className={MEDIA_CLASS}
+              src={LOFI_STILL}
+              alt=""
+              onError={onMediaError}
+            />
+          ) : (
+            <SceneVideo
+              src={LOFI_VIDEO}
+              poster={LOFI_STILL}
+              still={false}
+              onFailed={() => setBrokenVideo(LOFI_VIDEO)}
+            />
+          )
         ) : (
           <img
-            className="absolute inset-0 size-full object-cover"
+            className={MEDIA_CLASS}
             src={`/backgrounds/thumbs-${background.key}.png`}
             alt=""
             onError={onMediaError}
           />
         )
       ) : background.mediaKind === "video" ? (
-        <video
-          key={background.mediaId}
-          className="absolute inset-0 size-full object-cover"
+        // An upload has no separate still to show, so the film itself is held
+        // on its first frame: loaded far enough to paint, never started. The
+        // key changes with the setting so the element is rebuilt, because an
+        // already-playing video does not stop just because `autoPlay` turned
+        // false.
+        <SceneVideo
+          key={`${background.mediaId}:${stillOnly ? "still" : "playing"}`}
           src={background.mediaUrl}
-          autoPlay
-          muted
-          loop
-          playsInline
-          onError={onMediaError}
+          still={stillOnly}
+          onFailed={onMediaError}
         />
       ) : (
         <img
           key={background.mediaId}
-          className="absolute inset-0 size-full object-cover"
+          className={MEDIA_CLASS}
           src={background.mediaUrl}
           alt=""
           onError={onMediaError}
@@ -93,5 +125,44 @@ export function SceneBackdrop({
         />
       )}
     </>
+  )
+}
+
+/**
+ * A film behind the timer, and the one place that notices it did not load.
+ *
+ * `onError` alone missed the common case. The server sends the tag, the browser
+ * gives up on the file during hydration, and the error is over before React has
+ * a listener on the element, so the page sat on a dead video for ever. The
+ * element keeps its own `error`, so the ref asks it once on the way in, which
+ * catches both the early failure and, through `onError`, a later one.
+ */
+function SceneVideo({
+  src,
+  poster,
+  still,
+  onFailed,
+}: {
+  src: string | undefined
+  poster?: string
+  /** Hold the first frame instead of playing it. */
+  still: boolean
+  onFailed: () => void
+}) {
+  return (
+    <video
+      className={MEDIA_CLASS}
+      src={src}
+      poster={poster}
+      autoPlay={!still}
+      loop={!still}
+      preload={still ? "metadata" : undefined}
+      muted
+      playsInline
+      onError={onFailed}
+      ref={(element) => {
+        if (element?.error) onFailed()
+      }}
+    />
   )
 }
