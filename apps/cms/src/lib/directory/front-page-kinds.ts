@@ -30,6 +30,7 @@ import {
   type DirectoryFrontPageLayout,
   type DirectoryFrontPageSort,
 } from "@/lib/directory/front-page"
+import { cleanPublicGridColumns } from "@/lib/layout/grid-columns"
 
 /** The five keys, as they are stored on a row and read back by the app. */
 export const CMS_FRONT_PAGE_ROW_KEYS = [
@@ -75,6 +76,8 @@ export type ListingsRowSettings = {
   sort: DirectoryFrontPageSort
   count: number
   layout: DirectoryFrontPageLayout
+  /** Cards on one line at full width, 1 to 4. 0 is the grid's own. */
+  columns: number
 }
 
 /** A row of category cards: where the categories come from, and how many. */
@@ -85,11 +88,13 @@ export type CategoriesRowSettings = {
   count: number
 }
 
-/** Events, deals and posts are all a category and a count. */
+/** Events, deals and posts are all a category, a count and a column count. */
 export type PickedRowSettings = {
   /** Null is every one of them. */
   categoryId: string | null
   count: number
+  /** Cards on one line at full width, 1 to 4. 0 is the grid's own. */
+  columns: number
 }
 
 export type CmsFrontPageRowSettings =
@@ -118,6 +123,7 @@ export function cleanListingsRowSettings(
     sort: isDirectoryFrontPageSort(value?.sort) ? value.sort : "newest",
     count: cleanCount(value?.count),
     layout: isDirectoryFrontPageLayout(value?.layout) ? value.layout : "grid",
+    columns: cleanPublicGridColumns(value?.columns),
   }
 }
 
@@ -139,6 +145,7 @@ export function cleanPickedRowSettings(
   return {
     categoryId: cleanId(value?.categoryId),
     count: cleanCount(value?.count),
+    columns: cleanPublicGridColumns(value?.columns),
   }
 }
 

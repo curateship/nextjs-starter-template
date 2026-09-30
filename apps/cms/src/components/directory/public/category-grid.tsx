@@ -33,7 +33,7 @@ export function CategoryGrid({
     <ul
       // Four across on a wide screen, like the listing cards under them, so a
       // page of categories and a page of listings read as the same grid.
-      className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+      className="grid w-full sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
       style={{ gap: pageGutter }}
     >
       {categories.map((category) => (

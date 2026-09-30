@@ -11,6 +11,7 @@ import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import type { PublicListingCard } from "@/lib/api/directory/public"
 import { publicCardHover } from "@/lib/layout/card-hover"
 import { focusRing } from "@/lib/layout/focus-ring"
+import { publicGridColumnsClassName } from "@/lib/layout/grid-columns"
 import { pageGutter } from "@/lib/layout/shell-gutter"
 import { formatDirectoryDistance } from "@/lib/directory/public-search"
 import { mediaImageSrcSet } from "@/lib/media/image-sizes"
@@ -25,9 +26,12 @@ export function ListingGrid({
   listings,
   emptyMessage,
   layout = "grid",
+  columns,
 }: {
   listings: PublicListingCard[]
   emptyMessage: string
+  /** A home page row's own column count. Browse and a category name none. */
+  columns?: number
   /**
    * `list` is one card per line all the way up. It exists because a home page
    * row of three listings reads better stacked than as a third of a grid, and
@@ -49,11 +53,17 @@ export function ListingGrid({
 
   return (
     <ul
-      className={
+      // `w-full` because a home page row lines its children up from the left,
+      // so a grid that did not ask for it stopped short of its own heading.
+      className={cn(
+        "grid w-full",
         layout === "list"
-          ? "grid"
-          : "grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
-      }
+          ? null
+          : publicGridColumnsClassName(
+              columns,
+              "sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+            )
+      )}
       // The space between cards is the site's own gutter from Settings →
       // Styling, the same value `CardGroup` puts between stacked cards. A fixed
       // gap here would ignore a site that widened or tightened its spacing.

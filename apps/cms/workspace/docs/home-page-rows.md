@@ -27,9 +27,28 @@ built from the shell and are documented once in the repo's `docs/shell/`.
 - **Latest posts.** The newest published posts, as post cards.
 
 Upcoming events, Current deals and Latest posts are set up the same way: a
-category or "every one of them", and how many, 1 to 12. Listings adds an order
-and an arrangement; Category cards picks its categories instead of filtering by
-one.
+category or "every one of them", how many, 1 to 12, and how many columns.
+Listings adds an order and an arrangement; Category cards picks its categories
+instead of filtering by one.
+
+## How many columns
+
+Every row that draws a grid of cards has a **Columns** box: **Fit the screen**,
+or 1, 2, 3 or 4.
+
+- **The number is a ceiling, not a promise.** A phone always draws one card per
+  line whatever the row asked for, because four cards across a 390px screen is
+  four slivers. The number is reached on a desktop, and a row asking for 4 goes
+  1, then 2, then 3, then 4 as the window widens.
+- **Fit the screen is what every row did before the box existed**, and it is
+  what a row saved before then still does. Listings and Category cards fit four
+  across at their widest; events, deals and posts fit three.
+- **A row that is one card per line, or a map, has no Columns box.** The
+  arrangement already decided. A number typed before switching to one of those
+  is kept, so switching back to a grid brings it back.
+- **The number never changes which records are read.** It travels with the
+  row's saved fields to the browser rather than through the server's reader, so
+  changing it does not clear the two-minute memory of what the row holds.
 
 ## The button beside the heading
 
@@ -42,6 +61,9 @@ that row is already a way in.
 
 ## Rules that hold for every one of them
 
+- **A row fills the width of the page.** A row lines its contents up from the
+  left, so a grid that did not ask for the whole width stopped short of the
+  heading above it. Every public grid asks for it.
 - **A row with nothing in it is dropped**, never drawn as a heading over an
   empty space. The app answers "nothing" and the shell leaves the row off.
 - **A row follows the page it leads to.** A row of events is left off for a
@@ -61,6 +83,8 @@ that row is already a way in.
 
 ## Where the code is
 
+`src/lib/layout/grid-columns.ts` turns a column count into the classes a grid
+draws with, and holds the rule that a phone gets one card.
 `src/lib/directory/front-page-kinds.ts` decides what one of these rows may
 hold, and the editor panel, the public component and the server's reader all
 clean what they are given through it. `src/app/options.ts` registers the five

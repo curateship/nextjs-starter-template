@@ -26,6 +26,10 @@ import {
   DIRECTORY_FRONT_PAGE_SORT_LABELS,
   DIRECTORY_FRONT_PAGE_SORTS,
 } from "@/lib/directory/front-page"
+import {
+  PUBLIC_GRID_COLUMNS_AUTO,
+  PUBLIC_GRID_COLUMNS_MAX,
+} from "@/lib/layout/grid-columns"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
@@ -44,6 +48,9 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 
 /** Every category is the empty filter, and a select cannot hold an empty value. */
 const EVERY = "all"
+
+/** "The grid decides" is stored as 0, and a select cannot hold a number. */
+const AUTO_COLUMNS = "auto"
 
 /**
  * This site's categories, loaded once per window rather than once per panel.
@@ -94,6 +101,57 @@ function CountField({
         disabled={disabled}
         onChange={(event) => onChange(Number(event.target.value))}
       />
+    </div>
+  )
+}
+
+/**
+ * How many cards the row puts on one line. Offered on every row that draws a
+ * grid of cards, because a row of three posts and a row of three listings
+ * under it should be able to line up.
+ */
+function ColumnsField({
+  id,
+  value,
+  disabled,
+  onChange,
+}: {
+  id: string
+  value: number
+  disabled: boolean
+  onChange: (columns: number) => void
+}) {
+  return (
+    <div className="grid gap-2">
+      <FieldLabel
+        htmlFor={id}
+        hint="At most this many on one line. A phone always draws one card per line, whatever this says."
+      >
+        Columns
+      </FieldLabel>
+      <Select
+        value={
+          value === PUBLIC_GRID_COLUMNS_AUTO ? AUTO_COLUMNS : String(value)
+        }
+        disabled={disabled}
+        onValueChange={(next) =>
+          onChange(
+            next === AUTO_COLUMNS ? PUBLIC_GRID_COLUMNS_AUTO : Number(next)
+          )
+        }
+      >
+        <SelectTrigger id={id} className="w-full sm:w-fit">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={AUTO_COLUMNS}>Fit the screen</SelectItem>
+          {Array.from({ length: PUBLIC_GRID_COLUMNS_MAX }, (_, index) => (
+            <SelectItem key={index + 1} value={String(index + 1)}>
+              {index + 1}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   )
 }
@@ -228,6 +286,18 @@ export function ListingsRowPanel({
           </SelectContent>
         </Select>
       </div>
+
+      {/* One card per line and a map have no columns, so the box is left out
+          rather than sitting there greyed. The saved number is kept either
+          way, so switching back to a grid brings it back. */}
+      {row.layout === "grid" ? (
+        <ColumnsField
+          id="front-page-row-listings-columns"
+          value={row.columns}
+          disabled={disabled}
+          onChange={(columns) => onChange({ ...row, columns })}
+        />
+      ) : null}
     </>
   )
 }
@@ -302,6 +372,12 @@ function PickedRowPanel({
         disabled={disabled}
         hint={`At most this many ${plural}, between ${DIRECTORY_FRONT_PAGE_COUNT_MIN} and ${DIRECTORY_FRONT_PAGE_COUNT_MAX}.`}
         onChange={(count) => onChange({ ...row, count })}
+      />
+      <ColumnsField
+        id={`${idPrefix}-columns`}
+        value={row.columns}
+        disabled={disabled}
+        onChange={(columns) => onChange({ ...row, columns })}
       />
     </>
   )

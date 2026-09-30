@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import type { PublicPostCard } from "@/lib/api/posts/public"
 import { formatUtcDate } from "@/lib/format/format-time"
 import { focusRing } from "@/lib/layout/focus-ring"
+import { publicGridColumnsClassName } from "@/lib/layout/grid-columns"
 import { publicCardHover } from "@/lib/layout/card-hover"
 import { pageGutter } from "@/lib/layout/shell-gutter"
 import { mediaImageSrcSet } from "@/lib/media/image-sizes"
@@ -21,11 +22,14 @@ export function PostGrid({
   posts,
   siteName,
   emptyMessage,
+  columns,
 }: {
   posts: PublicPostCard[]
   /** Printed under each card, where a byline would be. Posts have no author. */
   siteName: string
   emptyMessage: string
+  /** A home page row's own column count. The Posts page names none. */
+  columns?: number
 }) {
   if (posts.length === 0) {
     return (
@@ -41,7 +45,12 @@ export function PostGrid({
 
   return (
     <ul
-      className="grid sm:grid-cols-2 lg:grid-cols-3"
+      // `w-full` because a home page row lines its children up from the left,
+      // so a grid that did not ask for it stopped short of its own heading.
+      className={cn(
+        "grid w-full",
+        publicGridColumnsClassName(columns, "sm:grid-cols-2 lg:grid-cols-3")
+      )}
       // The site's own gutter from Settings → Styling, the same as every other
       // public grid.
       style={{ gap: pageGutter }}
@@ -81,7 +90,17 @@ function PostCard({
       )}
     >
       {post.coverImage ? (
-        <div className="relative">
+        // The link is the card, not the title inside it. Everything on the
+        // photo sits in a positioned box at the bottom, and that box is what
+        // an overlay on the title was measured against, so the click only
+        // worked on a strip two lines tall. Wrapped this way the photo, the
+        // shade and the chips are all inside the one link, and the link is
+        // what they are positioned against.
+        <Link
+          to="/posts/$slug"
+          params={{ slug: post.slug }}
+          className={`relative block ${focusRing}`}
+        >
           <img
             src={post.coverImage}
             srcSet={mediaImageSrcSet(post.coverImage)}
@@ -107,28 +126,21 @@ function PostCard({
           </div>
           <div className="absolute inset-x-0 bottom-0 grid gap-3 p-4">
             <h2 className="text-lg leading-snug font-semibold text-white">
-              {/* The whole card is the link, the same as a listing card. */}
-              <Link
-                to="/posts/$slug"
-                params={{ slug: post.slug }}
-                className={`after:absolute after:inset-0 ${focusRing}`}
-              >
-                {post.title}
-              </Link>
+              {post.title}
             </h2>
             {/* The dividing line and the two labels sit on the picture rather
-                than under it, which is what the design does. The line names a
-                shade because it is drawn on a photograph: the Divider lines
-                setting is for lines on the page's own background, and at its
-                default this one would be invisible against the shade. */}
-            <div className="flex items-baseline justify-between gap-2 border-t border-white/25 pt-3 text-sm text-white/80">
+                than under it, which is what the design does. The line is a
+                plain `border-t` with no colour, so it takes `--border` and
+                follows Settings → Styling → Divider lines like every other
+                line on the site. */}
+            <div className="flex items-baseline justify-between gap-2 border-t pt-3 text-sm text-white/80">
               <span className="min-w-0 truncate">{siteName}</span>
               <time dateTime={post.publishedAt.toISOString()}>
                 {formatUtcDate(post.publishedAt)}
               </time>
             </div>
           </div>
-        </div>
+        </Link>
       ) : (
         <CardContent className="grid gap-1">
           {/* A post with no photo has nowhere for the two chips, so they go

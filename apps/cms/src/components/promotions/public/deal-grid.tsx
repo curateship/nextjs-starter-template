@@ -6,7 +6,9 @@ import { formatDirectoryDistance } from "@/lib/directory/public-search"
 import { shownHeadline } from "@/lib/promotions/deal-headline"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { publicCardHover } from "@/lib/layout/card-hover"
+import { publicGridColumnsClassName } from "@/lib/layout/grid-columns"
 import { pageGutter } from "@/lib/layout/shell-gutter"
+import { cn } from "@/lib/utils"
 
 /**
  * One group of cards on the Deals page. Each card shows the deal's cover, or
@@ -19,10 +21,22 @@ import { pageGutter } from "@/lib/layout/shell-gutter"
  * server and the browser print the same words and the page never redraws
  * itself after loading.
  */
-export function DealGrid({ deals }: { deals: DealCardView[] }) {
+export function DealGrid({
+  deals,
+  columns,
+}: {
+  deals: DealCardView[]
+  /** A home page row's own column count. The Deals page names none. */
+  columns?: number
+}) {
   return (
     <ul
-      className="grid sm:grid-cols-2 lg:grid-cols-3"
+      // `w-full` because a home page row lines its children up from the left,
+      // so a grid that did not ask for it stopped short of its own heading.
+      className={cn(
+        "grid w-full",
+        publicGridColumnsClassName(columns, "sm:grid-cols-2 lg:grid-cols-3")
+      )}
       style={{ gap: pageGutter }}
     >
       {deals.map((deal) => {

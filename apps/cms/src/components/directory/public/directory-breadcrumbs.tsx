@@ -10,10 +10,20 @@ import { focusRing } from "@/lib/layout/focus-ring"
  * The trail is a label for the page, not a part of it, so it keeps a small
  * fixed gap of its own instead of the site's page spacing — 40px of air above
  * two words read as a mistake, and pushed the page's real first line down
- * twice as far as the line under it. What follows the trail still gets the
- * site's own spacing, because the column's gap is unchanged.
+ * twice as far as the line under it.
  */
 const BREADCRUMB_TOP_SPACE = 16
+
+/**
+ * How far above the page's first line the trail sits.
+ *
+ * The column's own gap is the site's Spacing setting, 12px by default, and the
+ * trail has already been pulled up towards the header. A trail 12px above a
+ * heading reads as part of the heading, so 24px is the floor. A site with
+ * wider spacing than this keeps what it chose, and flat mode, which is a
+ * spacing of 0 and means no gaps anywhere, gets none of it.
+ */
+const BREADCRUMB_BOTTOM_SPACE = 24
 
 /**
  * Where a page sits: site home → Directory → its category → itself, or site
@@ -44,20 +54,26 @@ export function DirectoryBreadcrumbs({
   inBand?: boolean
 }) {
   const theme = usePublicTheme()
-  // The page's top spacing, cancelled down to the trail's own gap. Read from
-  // the site's settings rather than written here, so a site that widened its
-  // spacing does not get a field of empty background above three words. Never
-  // positive: a site with less spacing than this keeps what it chose.
-  const lift = inBand
+  // Both gaps are worked out from the site's own settings rather than written
+  // here, so a site that widened its spacing does not get a field of empty
+  // background above three words, and one that tightened it still gets a
+  // readable gap under them. The top is never positive and the bottom is never
+  // negative: each only corrects the column's gap towards the trail's own.
+  const spacing = inBand
     ? undefined
-    : { marginTop: Math.min(0, BREADCRUMB_TOP_SPACE - theme.mainSpacing) }
+    : {
+        marginTop: Math.min(0, BREADCRUMB_TOP_SPACE - theme.mainSpacing),
+        marginBottom: theme.gutter
+          ? Math.max(0, BREADCRUMB_BOTTOM_SPACE - theme.gutter)
+          : 0,
+      }
 
   return (
     // The same trail the shell draws on its own public pages: a chevron
     // between the steps rather than a slash, the words at the page's own size,
     // and the page you are on in full black. One look for every public page,
     // whichever half of the app drew it.
-    <nav aria-label="Breadcrumb" className="w-full" style={lift}>
+    <nav aria-label="Breadcrumb" className="w-full" style={spacing}>
       <ol className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-muted-foreground">
         {crumbs.map((crumb, index) => {
           const last = index === crumbs.length - 1

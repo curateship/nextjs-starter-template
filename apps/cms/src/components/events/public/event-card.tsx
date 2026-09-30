@@ -11,6 +11,7 @@ import { formatDirectoryDistance } from "@/lib/directory/public-search"
 import { eventCardTimesText, eventDateChip } from "@/lib/events/event-time"
 import { publicCardHover } from "@/lib/layout/card-hover"
 import { focusRing } from "@/lib/layout/focus-ring"
+import { publicGridColumnsClassName } from "@/lib/layout/grid-columns"
 import { pageGutter } from "@/lib/layout/shell-gutter"
 import { mediaImageSrcSet } from "@/lib/media/image-sizes"
 import { cn } from "@/lib/utils"
@@ -26,9 +27,12 @@ import { cn } from "@/lib/utils"
 export function EventCardGrid({
   events,
   emptyMessage,
+  columns,
 }: {
   events: ListedEvent[]
   emptyMessage: string
+  /** A home page row's own column count. The Events page names none. */
+  columns?: number
 }) {
   if (events.length === 0) {
     return (
@@ -44,7 +48,12 @@ export function EventCardGrid({
 
   return (
     <ul
-      className="grid sm:grid-cols-2 lg:grid-cols-3"
+      // `w-full` because a home page row lines its children up from the left,
+      // so a grid that did not ask for it stopped short of its own heading.
+      className={cn(
+        "grid w-full",
+        publicGridColumnsClassName(columns, "sm:grid-cols-2 lg:grid-cols-3")
+      )}
       // The site's own gutter from Settings → Styling, the same as every other
       // public grid.
       style={{ gap: pageGutter }}

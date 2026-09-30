@@ -64,8 +64,13 @@ already are.
 - **It sits 16px under the header**, its own gap, not the site's page spacing
   from Settings → Styling → Spacing. A site with 40px of page spacing put a
   field of empty background above three grey words and pushed the page's real
-  first line twice as far down as the trail was tall. Everything below the
-  trail still gets the site's spacing. Tyler asked for this on 27 Sep 2026.
+  first line twice as far down as the trail was tall. Tyler asked for this on
+  27 Sep 2026.
+- **It keeps at least 24px above the page's first line.** The site's Spacing
+  setting is 12px by default, and 12px between the trail and the heading under
+  it read as one block rather than two. A site with wider spacing than 24px
+  keeps what it chose, and flat mode, which is a spacing of 0 and means no gaps
+  anywhere, gets none of it.
 - **The Events page is the exception**, because it draws its trail inside the
   band at the top, which cancels the page's spacing and adds its own.
 

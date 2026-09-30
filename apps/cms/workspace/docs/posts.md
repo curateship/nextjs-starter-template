@@ -103,6 +103,12 @@ The same card draws on the Posts page, under a category and in a home page row.
   on the right. The category is a pill at the top left and the read time a chip
   at the top right. A shade rises from the bottom of the picture, because a
   pale photo would otherwise swallow the white words.
+- **The whole card opens the post**, not only the title. The card is one link
+  wrapped around the photo, the chips and the words, so a click anywhere on the
+  picture goes to the post and the keyboard reaches it in one tab stop.
+- **The hairline follows Settings → Styling → Divider lines**, like every other
+  line on the site, rather than being a fixed white. Tyler asked for this on
+  30 Sep 2026: a line that stayed white while the setting moved read as broken.
 - **The site's name is where a byline would be.** Posts have no author, and
   Tyler chose the site's name over leaving the line empty on 25 Sep 2026.
 - **A post with no photo** keeps both chips above the title, then its summary,
