@@ -24,6 +24,7 @@ import {
   DRAG_GRIP_CLASS,
   DRAG_HANDLE_CLASS,
   createShellId,
+  stableItemIds,
   useNavSensors,
   useSortableChip,
   useSortableRow,
@@ -505,11 +506,9 @@ function PublicLinkEditor<T extends PublicNavigationItem>({
     number | null
   >(null)
   const sensors = useNavSensors()
-  const itemIds = links.map((item, index) => {
-    return isPublicNavigationGroup(item)
-      ? `${id}-group-${index}`
-      : `${id}-link-${index}`
-  })
+  // Ids that travel with the item, not with its slot, so a dropped chip
+  // slides into place the way the top-right chips do.
+  const itemIds = stableItemIds(links, id)
   const linkNoun = title === "Public footer" ? "footer link" : "menu link"
   const footerAtLimit =
     !allowGroups &&

@@ -9,6 +9,7 @@ import { GripVertical, PlusIcon, Trash2Icon } from "lucide-react"
 
 import {
   DRAG_GRIP_CLASS,
+  stableItemIds,
   useNavSensors,
   useSortableChip,
 } from "@/components/settings/nav-editor-shared"
@@ -76,7 +77,7 @@ export function PublicSocialEditor({
   const [pendingDeleteIndex, setPendingDeleteIndex] = React.useState<
     number | null
   >(null)
-  const ids = links.map((_, index) => `public-footer-social-${index}`)
+  const ids = stableItemIds(links, "public-footer-social")
   const full = links.length >= MAX_PUBLIC_SOCIAL_LINKS
   const pendingDelete =
     pendingDeleteIndex === null ? null : (links[pendingDeleteIndex] ?? null)

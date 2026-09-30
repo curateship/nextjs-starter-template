@@ -297,9 +297,17 @@ export function ShellLayout({
     try {
       const result = await save
       if (version === configSaveVersionRef.current) {
+        // Built on whatever the settings hold *now*, not on the copy that was
+        // sent. A request takes long enough to type in another box, and this
+        // used to put the sent copy back on screen and into the ref, so that
+        // edit vanished and the auto-save it had scheduled then wrote the
+        // older copy to the database. Editing the public menu took the footer
+        // back with it, and an edit that looked saved was gone after a
+        // reload. Only three things in the answer come from the server;
+        // everything else in it is what was sent.
         const savedConfig = normalizeConfig(
           {
-            ...snapshot,
+            ...latestConfigRef.current,
             // The dark logo, the tab icon and its sizes are all made from the
             // one uploaded logo on the server, so they arrive with the answer
             // rather than being guessed at here.
@@ -310,7 +318,10 @@ export function ShellLayout({
         )
         latestConfigRef.current = savedConfig
         setConfig(savedConfig)
-        setSaveStatus("saved")
+        // An edit made while this request was in the air has its own save
+        // waiting on the debounce, so "Saved" would be a lie for the few
+        // hundred milliseconds until it runs.
+        setSaveStatus(configSaveTimerRef.current ? "saving" : "saved")
       }
       return true
     } catch (error) {

@@ -202,6 +202,20 @@ Both are segmented controls, and both move the same way, from
 - Supporting columns stay compact, left-aligned, and should not compete with the primary column.
 - Do not create two wide text columns in the same table.
 
+## Dragging a list into order
+
+- **Every draggable item needs an id that belongs to the item, not to its
+  slot.** A list keyed `menu-link-0`, `menu-link-1` has no way to animate: a
+  drop leaves every id where it was and only the labels swap, so the chips jump
+  to their new places instead of sliding.
+- **An item saved without an id of its own gets one from `stableItemIds`** in
+  `src/components/settings/nav-editor-shared.ts`. It mints a number per item
+  object and holds it in a WeakMap, which `arrayMove` carries along. Nothing
+  new is stored, and an item dropped from the list is forgotten.
+- **The check:** put a `data-` mark on the first chip's element, drag it to
+  third, and read the row back. The mark has to travel with the chip. If it
+  stays in slot one and only the words move, the ids are slots.
+
 ## Refreshing Data After Changes
 
 One approach, two cases:

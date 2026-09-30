@@ -245,6 +245,10 @@ export async function readBranding(
   }
 
   const workspaceSettings = parseWorkspaceSettings(answer.workspace.settings)
+  // Whether a site keeps its own menu, footer, copyright line and front page
+  // rows, or reads the deployment's. The same switch the Settings screen and
+  // the save read, so all three agree about whose menu is whose.
+  const siteOwnsPublicPages = Boolean(workspaceBaseDomain())
   const siteBranding = appUsesSiteBranding()
   const publicTheme = publicThemeForSite(
     appWidePublicTheme,
@@ -284,25 +288,44 @@ export async function readBranding(
     publicOrigin: currentPublicOrigin(),
     publicSeo: globals.publicSeo,
     publicSystemCopy: globals.publicSystemCopy,
-    // This site's own rows, like the menu and the footer below. A one-site app
-    // never reaches here: its front page is answered by the branch above, from
-    // the app-wide row.
-    frontPageRows: visibleFrontPageRows(workspaceSettings.frontPageRows),
+    // This site's own rows, like the menu and the footer below, and only when
+    // the deployment serves several sites. A one-site app whose one site was
+    // given its own domain reaches here too, because a custom domain is
+    // matched without any base domain being set. Reading the site's row there
+    // drew a menu the Settings screen does not edit: the screen and the save
+    // both use the app-wide row while the base domain is unset, so an admin's
+    // edit never appeared on the website. All three read the same switch now.
+    frontPageRows: visibleFrontPageRows(
+      siteOwnsPublicPages
+        ? workspaceSettings.frontPageRows
+        : globals.frontPageRows
+    ),
     publicHeader: globals.publicHeader,
     publicBreadcrumbs: globals.publicBreadcrumbs,
     publicUserPanel: globals.publicUserPanel,
-    publicNavigation: workspaceSettings.publicNavigation,
-    publicFooter: workspaceSettings.publicFooter,
+    publicNavigation: siteOwnsPublicPages
+      ? workspaceSettings.publicNavigation
+      : globals.publicNavigation,
+    publicFooter: siteOwnsPublicPages
+      ? workspaceSettings.publicFooter
+      : globals.publicFooter,
     publicFooterSocial: globals.publicFooterSocial,
     publicHeaderActions: globals.publicHeaderActions,
-    publicFooterCopyright: workspaceSettings.publicFooterCopyright,
+    publicFooterCopyright: siteOwnsPublicPages
+      ? workspaceSettings.publicFooterCopyright
+      : globals.publicFooterCopyright,
     publicSearchEnabled:
       searchPage !== null &&
       pageVisibility(workspaceSettings.pages, searchPage) !== "off",
     publicFont: globals.publicFont,
     ...(hasCustomPublicTheme(publicTheme) ? { publicTheme } : {}),
     hostIsUnknown: false,
-    hostIsSite: true,
+    // Only where a site answers for its own public pages. A one-site app whose
+    // site has its own domain reaches this branch, and there "no rows" has to
+    // mean the same thing it means on the deployment's own address: draw the
+    // deployment's front page, because there is only the one website and those
+    // are its rows.
+    hostIsSite: siteOwnsPublicPages,
   }
 }
 

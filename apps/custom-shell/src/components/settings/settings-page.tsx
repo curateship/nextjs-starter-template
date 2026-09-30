@@ -180,6 +180,20 @@ export function SettingsPage({
   onSessionPolicyChange: (policy: ShellSessionPolicy) => Promise<boolean>
   sessionPolicyBusy: boolean
 }) {
+  // Every handler below builds a whole new config by spreading this one, and
+  // some of them run long after the render that made them. One runs when a
+  // save comes back, another when a font finishes uploading. Spreading the
+  // render's own `config` there rebuilds the settings as they were when the
+  // screen last drew and silently undoes anything typed since. The ref is
+  // always the current one.
+  const latestConfig = React.useRef(config)
+  latestConfig.current = config
+  const changeConfig = React.useCallback(
+    (part: Partial<ShellConfig>) =>
+      onConfigChange({ ...latestConfig.current, ...part }),
+    [onConfigChange]
+  )
+
   const adminHeaderActions = appHeaderRightActionsForRole("admin")
   const memberHeaderActions = appHeaderRightActionsForRole("member")
   const adminHeaderActionIds = adminHeaderActions.map((action) => action.id)
@@ -241,40 +255,38 @@ export function SettingsPage({
             publicUserPanel={config.publicUserPanel}
             publicBreadcrumbs={config.publicBreadcrumbs}
             onNavigationChange={(publicNavigation) =>
-              onConfigChange({ ...config, publicNavigation })
+              changeConfig({ publicNavigation })
             }
             onFooterChange={(publicFooter) =>
-              onConfigChange({ ...config, publicFooter })
+              changeConfig({ publicFooter })
             }
             onFooterSocialChange={(publicFooterSocial) =>
-              onConfigChange({ ...config, publicFooterSocial })
+              changeConfig({ publicFooterSocial })
             }
             onFooterAlignmentChange={(footerAlignment) =>
-              onConfigChange({
-                ...config,
+              changeConfig({
                 publicTheme: { ...config.publicTheme, footerAlignment },
               })
             }
             onFooterCopyrightChange={(publicFooterCopyright) =>
-              onConfigChange({ ...config, publicFooterCopyright })
+              changeConfig({ publicFooterCopyright })
             }
             onPublicHeaderChange={(publicHeader) =>
-              onConfigChange({ ...config, publicHeader })
+              changeConfig({ publicHeader })
             }
             onChromeFontChange={(chromeFont) =>
-              onConfigChange({
-                ...config,
+              changeConfig({
                 publicTheme: { ...config.publicTheme, chromeFont },
               })
             }
             onHeaderActionsChange={(publicHeaderActions) =>
-              onConfigChange({ ...config, publicHeaderActions })
+              changeConfig({ publicHeaderActions })
             }
             onPublicUserPanelChange={(publicUserPanel) =>
-              onConfigChange({ ...config, publicUserPanel })
+              changeConfig({ publicUserPanel })
             }
             onPublicBreadcrumbsChange={(publicBreadcrumbs) =>
-              onConfigChange({ ...config, publicBreadcrumbs })
+              changeConfig({ publicBreadcrumbs })
             }
             onSaveConfig={onSaveConfig}
           />
@@ -285,13 +297,13 @@ export function SettingsPage({
             presets={config.publicThemePresets}
             publicFont={config.publicFont}
             onThemeChange={(publicTheme) =>
-              onConfigChange({ ...config, publicTheme })
+              changeConfig({ publicTheme })
             }
             onPresetsChange={(publicThemePresets) =>
-              onConfigChange({ ...config, publicThemePresets })
+              changeConfig({ publicThemePresets })
             }
             onFontStateChange={(publicTheme, publicFont) =>
-              onConfigChange({ ...config, publicTheme, publicFont })
+              changeConfig({ publicTheme, publicFont })
             }
             onSaveConfig={onSaveConfig}
             saveRefusal={shellConfigSaveRefusal(config)}
@@ -302,12 +314,11 @@ export function SettingsPage({
             <FrontPageRowsSettings
               rows={config.frontPageRows}
               onRowsChange={(frontPageRows) =>
-                onConfigChange({ ...config, frontPageRows })
+                changeConfig({ frontPageRows })
               }
               rowGap={config.publicTheme.frontPageRowGap}
               onRowGapChange={(frontPageRowGap) =>
-                onConfigChange({
-                  ...config,
+                changeConfig({
                   publicTheme: { ...config.publicTheme, frontPageRowGap },
                 })
               }
@@ -338,7 +349,7 @@ export function SettingsPage({
               }
               sections={config.sections}
               onSectionsChange={(sections) =>
-                onConfigChange({ ...config, sections })
+                changeConfig({ sections })
               }
               onSaveConfig={onSaveConfig}
               card={{
@@ -364,7 +375,7 @@ export function SettingsPage({
             <TopRightSettings
               items={config.topRightNavigation}
               onItemsChange={(topRightNavigation) =>
-                onConfigChange({ ...config, topRightNavigation })
+                changeConfig({ topRightNavigation })
               }
               onSaveConfig={onSaveConfig}
               appActions={adminHeaderActions}
@@ -379,8 +390,7 @@ export function SettingsPage({
                 description:
                   "Every built-in button goes back to its starting place and is shown, and every link you added here is deleted. The members' menu is not touched. This cannot be undone.",
                 onReset: () =>
-                  onConfigChange({
-                    ...config,
+                  changeConfig({
                     topRightNavigation: createDefaultTopRightNavigation(
                       adminHeaderActionIds
                     ),
@@ -399,7 +409,7 @@ export function SettingsPage({
             <TopRightSettings
               items={config.memberTopRightNavigation}
               onItemsChange={(memberTopRightNavigation) =>
-                onConfigChange({ ...config, memberTopRightNavigation })
+                changeConfig({ memberTopRightNavigation })
               }
               onSaveConfig={onSaveConfig}
               appActions={memberHeaderActions}
@@ -414,8 +424,7 @@ export function SettingsPage({
                 description:
                   "Every built-in button goes back to its starting place and is shown for members, and every link you added for them is deleted. Your own menu is not touched. This cannot be undone.",
                 onReset: () =>
-                  onConfigChange({
-                    ...config,
+                  changeConfig({
                     memberTopRightNavigation: createDefaultTopRightNavigation(
                       memberHeaderActionIds
                     ),
@@ -428,7 +437,7 @@ export function SettingsPage({
           <WidgetSettings
             layout={config.dashboardWidgets}
             onLayoutChange={(dashboardWidgets) =>
-              onConfigChange({ ...config, dashboardWidgets })
+              changeConfig({ dashboardWidgets })
             }
           />
         ) : null}

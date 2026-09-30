@@ -39,9 +39,13 @@ Everything else in the repo belongs to the shell.
 
 An app can serve one website or many, and `CUSTOM_SHELL_WORKSPACE_BASE_DOMAIN`
 is what says which. With it unset — Trade, Video, Custom Shell itself — there is
-one public website and its settings are the app-wide ones. With it set, every
-site is reached on its own address and these belong to the site whose address
-was visited:
+one public website and its settings are the app-wide ones, **including when
+that one site has been given a domain of its own.** A custom domain is matched
+without any base domain being set, so a page drawn on it used to read the
+site's own row while the Settings screen edited the app-wide one, and an
+admin's menu edit never appeared on the website. With it set, every site is
+reached on its own address and these belong to the site whose address was
+visited:
 
 - its name, its one logo and its share image, through `workspaces.siteBranding`.
   The logo is the only picture an admin uploads: the dark version and the
