@@ -82,6 +82,7 @@ import { Route as AuthenticatedAdminAutomationsTemplatesRouteImport } from './ro
 import { Route as AuthenticatedAdminNewsletterBroadcastIdRouteImport } from './routes/_authenticated/admin/newsletter_.$broadcastId'
 import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
 import { Route as AuthenticatedAdminSystemEmailsKindRouteImport } from './routes/_authenticated/admin/system-emails_.$kind'
+import { Route as PomodoroGroupsJoinTokenRouteImport } from './routes/_pomodoro/groups_.join.$token'
 import { Route as ApiAuthGoogleCallbackRouteImport } from './routes/api/auth/google_.callback'
 import { Route as ApiV1MediaResizedRouteImport } from './routes/api/v1/media/resized'
 import { Route as ApiV1NotificationsStreamRouteImport } from './routes/api/v1/notifications/stream'
@@ -482,6 +483,11 @@ const AuthenticatedAdminSystemEmailsKindRoute =
     path: '/system-emails/$kind',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const PomodoroGroupsJoinTokenRoute = PomodoroGroupsJoinTokenRouteImport.update({
+  id: '/groups_/join/$token',
+  path: '/groups/join/$token',
+  getParentRoute: () => PomodoroRoute,
+} as any)
 const ApiAuthGoogleCallbackRoute = ApiAuthGoogleCallbackRouteImport.update({
   id: '/api/auth/google_/callback',
   path: '/api/auth/google/callback',
@@ -593,6 +599,7 @@ export interface FileRoutesByFullPath {
   '/admin/newsletter/$broadcastId': typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/admin/system-emails/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
+  '/groups/join/$token': typeof PomodoroGroupsJoinTokenRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/v1/media/resized': typeof ApiV1MediaResizedRoute
   '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
@@ -671,6 +678,7 @@ export interface FileRoutesByTo {
   '/admin/newsletter/$broadcastId': typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/admin/system-emails/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
+  '/groups/join/$token': typeof PomodoroGroupsJoinTokenRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/v1/media/resized': typeof ApiV1MediaResizedRoute
   '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
@@ -754,6 +762,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/newsletter_/$broadcastId': typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   '/_authenticated/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/_authenticated/admin/system-emails_/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
+  '/_pomodoro/groups_/join/$token': typeof PomodoroGroupsJoinTokenRoute
   '/api/auth/google_/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/v1/media/resized': typeof ApiV1MediaResizedRoute
   '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
@@ -836,6 +845,7 @@ export interface FileRouteTypes {
     | '/admin/newsletter/$broadcastId'
     | '/admin/settings/$tab'
     | '/admin/system-emails/$kind'
+    | '/groups/join/$token'
     | '/api/auth/google/callback'
     | '/api/v1/media/resized'
     | '/api/v1/notifications/stream'
@@ -914,6 +924,7 @@ export interface FileRouteTypes {
     | '/admin/newsletter/$broadcastId'
     | '/admin/settings/$tab'
     | '/admin/system-emails/$kind'
+    | '/groups/join/$token'
     | '/api/auth/google/callback'
     | '/api/v1/media/resized'
     | '/api/v1/notifications/stream'
@@ -996,6 +1007,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/newsletter_/$broadcastId'
     | '/_authenticated/admin/settings/$tab'
     | '/_authenticated/admin/system-emails_/$kind'
+    | '/_pomodoro/groups_/join/$token'
     | '/api/auth/google_/callback'
     | '/api/v1/media/resized'
     | '/api/v1/notifications/stream'
@@ -1551,6 +1563,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminSystemEmailsKindRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_pomodoro/groups_/join/$token': {
+      id: '/_pomodoro/groups_/join/$token'
+      path: '/groups/join/$token'
+      fullPath: '/groups/join/$token'
+      preLoaderRoute: typeof PomodoroGroupsJoinTokenRouteImport
+      parentRoute: typeof PomodoroRoute
+    }
     '/api/auth/google_/callback': {
       id: '/api/auth/google_/callback'
       path: '/api/auth/google/callback'
@@ -1755,6 +1774,7 @@ interface PomodoroRouteChildren {
   PomodoroTasksRoute: typeof PomodoroTasksRoute
   PomodoroTimerRoute: typeof PomodoroTimerRoute
   PomodoroRoomsSlugRoute: typeof PomodoroRoomsSlugRoute
+  PomodoroGroupsJoinTokenRoute: typeof PomodoroGroupsJoinTokenRoute
 }
 
 const PomodoroRouteChildren: PomodoroRouteChildren = {
@@ -1767,6 +1787,7 @@ const PomodoroRouteChildren: PomodoroRouteChildren = {
   PomodoroTasksRoute: PomodoroTasksRoute,
   PomodoroTimerRoute: PomodoroTimerRoute,
   PomodoroRoomsSlugRoute: PomodoroRoomsSlugRoute,
+  PomodoroGroupsJoinTokenRoute: PomodoroGroupsJoinTokenRoute,
 }
 
 const PomodoroRouteWithChildren = PomodoroRoute._addFileChildren(

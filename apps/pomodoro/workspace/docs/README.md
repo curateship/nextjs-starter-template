@@ -51,8 +51,13 @@ cover this one.
   without an account, and the first sign-in copying it over exactly once.
 - [The front page](landing-page.md) — `/` is the timer, for guests and
   accounts alike.
-- [Leaderboard](leaderboard.md) — the opt-in weekly ranking and your own
-  stat cards.
+- [Leaderboard](leaderboard.md) — the opt-in ranking over three windows and
+  your own stat cards.
+- [Private focus groups](focus-groups.md) — an invite-only board among people
+  you know, the caps, and why being in a group never lists you publicly.
+- [Live figures on the public front page](public-live-figures.md) — the hours
+  and open-rooms rows a visitor sees, and the floor that hides one on a quiet
+  week.
 - [Focus rooms](rooms.md) — shared timers with a host, the fifteen-second
   server clock, SSE snapshots and invite links.
 - [Scheduled rooms](scheduled-rooms.md) — booking a room for later, the

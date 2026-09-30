@@ -4,6 +4,10 @@ import { advanceDueRooms } from "@/server/pomodoro/rooms"
 import { openDueRooms } from "@/server/pomodoro/scheduled-rooms"
 import { processNextMediaUpload } from "@/server/pomodoro/media-worker"
 import { processNextGeneration } from "@/server/pomodoro/generation-worker"
+import {
+  readFocusHoursRow,
+  readOpenRoomsRow,
+} from "@/server/pomodoro/front-page-rows"
 
 /**
  * What this app changes about the shell, on the server side.
@@ -26,6 +30,21 @@ import { processNextGeneration } from "@/server/pomodoro/generation-worker"
  * door nobody is told about.
  */
 export const appServerOptions: AppServerOptions = {
+  pages: {
+    /**
+     * What fills the two public front page rows. Both answer `null` on a week
+     * quieter than the row's floor, which is how the shell is told to leave the
+     * row off the page.
+     *
+     * Neither reads anything per visitor: the figures are held for a window
+     * inside the reader, because this is the signed-out front page and a visit
+     * must not become a query.
+     */
+    frontPageRowReaders: {
+      "focus-hours": readFocusHoursRow,
+      "open-rooms": readOpenRoomsRow,
+    },
+  },
   background: {
     workers: [
       {

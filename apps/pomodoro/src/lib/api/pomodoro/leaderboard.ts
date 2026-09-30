@@ -1,63 +1,55 @@
 import { createServerFn } from "@tanstack/react-start"
-import { and, desc, eq, gte, isNotNull, sql } from "drizzle-orm"
 import { z } from "zod"
 
-import { db } from "@/server/db"
 import { userGet } from "@/server/guards"
-import { dailyFocusStats, pomodoroProfiles } from "@/server/pomodoro/schema"
+import { readLeaderboardRows } from "@/server/pomodoro/leaderboard"
 import { loadOrCreateProfile } from "@/server/pomodoro/profile"
 import { localDateFor } from "@/server/pomodoro/productivity"
-import { shiftLocalDate } from "@/lib/pomodoro/focus-history"
+import {
+  DEFAULT_LEADERBOARD_WINDOW,
+  LEADERBOARD_WINDOWS,
+  leaderboardStartDate,
+  type LeaderboardWindow,
+} from "@/lib/pomodoro/leaderboard-windows"
 
 /**
  * The opt-in global ranking. Only accounts that opted in AND chose a public
- * display name appear — real names and emails never do — and the window
- * really is the last 7 days (the old app said "this week" but summed all
- * time; that bug stops here). Each account's days are its own local dates,
- * and the week's start comes from the viewer's timezone.
+ * display name appear — real names and emails never do.
+ *
+ * The window is one of three words, not a date: This week is the last 7 days,
+ * This month is the calendar month, All time is everything since the app's
+ * floor date. The browser sends the word and the server works the date out
+ * (`leaderboardStartDate`), so no caller can ask for a wider scan than the
+ * three tabs offer. Each account's days are its own local dates, and the
+ * window's start comes from the viewer's timezone.
+ *
+ * The query itself lives in `src/server/pomodoro/leaderboard.ts`, shared with
+ * the private group boards so a figure cannot differ between the two.
  */
 const loadLeaderboardFn = createServerFn({ method: "GET" })
   .middleware([userGet])
-  .inputValidator(z.object({ timezone: z.string().min(1).max(60) }))
+  .inputValidator(
+    z.object({
+      timezone: z.string().min(1).max(60),
+      window: z.enum(LEADERBOARD_WINDOWS).default(DEFAULT_LEADERBOARD_WINDOW),
+    })
+  )
   .handler(async ({ data, context }) => {
     const profile = await loadOrCreateProfile(context.user.id, data.timezone)
     const today = localDateFor(profile.timezone)
-    const weekStart = shiftLocalDate(today, -6)
-    const rows = await db
-      .select({
-        userId: pomodoroProfiles.userId,
-        name: pomodoroProfiles.publicDisplayName,
-        focusSessions: sql<number>`coalesce(sum(${dailyFocusStats.focusSessions}), 0)::int`,
-        focusSeconds: sql<number>`coalesce(sum(${dailyFocusStats.focusSeconds}), 0)::int`,
-      })
-      .from(pomodoroProfiles)
-      .leftJoin(
-        dailyFocusStats,
-        and(
-          eq(dailyFocusStats.userId, pomodoroProfiles.userId),
-          gte(dailyFocusStats.localDate, weekStart)
-        )
-      )
-      .where(
-        and(
-          eq(pomodoroProfiles.leaderboardOptIn, true),
-          isNotNull(pomodoroProfiles.publicDisplayName)
-        )
-      )
-      .groupBy(pomodoroProfiles.userId, pomodoroProfiles.publicDisplayName)
-      .orderBy(desc(sql`coalesce(sum(${dailyFocusStats.focusSeconds}), 0)`))
-      .limit(100)
-    // User ids never leave the server — the viewer's own row is marked
-    // here instead, the same privacy rule the room snapshots follow.
+    const start = leaderboardStartDate(data.window, today)
     return {
-      weekStart,
+      window: data.window,
+      start,
       today,
-      leaders: rows.map(({ userId, ...leader }) => ({
-        ...leader,
-        isYou: userId === context.user.id,
-      })),
+      leaders: await readLeaderboardRows({
+        start,
+        viewerUserId: context.user.id,
+      }),
     }
   })
 
-export const loadLeaderboard = (timezone: string) =>
-  loadLeaderboardFn({ data: { timezone } })
+export const loadLeaderboard = (
+  timezone: string,
+  window: LeaderboardWindow = DEFAULT_LEADERBOARD_WINDOW
+) => loadLeaderboardFn({ data: { timezone, window } })
