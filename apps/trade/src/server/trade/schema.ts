@@ -30,6 +30,7 @@ import type { ChartOptions } from "@/lib/trade/chart-options"
 import type { TradingRules } from "@/lib/trade/trading-rules"
 import type { Goal } from "@/lib/trade/goal"
 import type { ChartView } from "@/lib/trade/chart-view"
+import type { CoinMatchHow } from "@/lib/trade/social/coin-matcher"
 import type { DcaParams, LadderStatus } from "@/lib/trade/dca"
 import type { TradingDashboardWidgetLayout } from "@/lib/trade/dashboard/widgets"
 import type { DrawingAlert, DrawingShape } from "@/lib/trade/drawings"
@@ -2244,8 +2245,15 @@ export const tradeSocialPosts = pgTable(
     reposts: integer("reposts"),
     /** The post this one replies to, at the source. Null for a top-level post. */
     replyToId: varchar("reply_to_id", { length: 64 }),
-    /** The coins the post names, as X tags them. Uppercase, no dollar sign. */
-    markets: jsonb("markets").$type<string[]>().notNull().default([]),
+    /**
+     * When Trade last read the words of this post for coins, or null when it
+     * never has.
+     *
+     * The mark is what makes "a post naming no coin" an answer rather than a
+     * post the backfill pass picks up forever. Cleared for a whole creator when
+     * somebody presses Re-read coins.
+     */
+    coinsReadAt: timestamp("coins_read_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -2259,7 +2267,10 @@ export const tradeSocialPosts = pgTable(
       table.sourceId
     ),
     index("trade_social_posts_recent_idx").on(table.creatorId, table.postedAt),
-    index("trade_social_posts_markets_idx").using("gin", table.markets),
+    // The backfill pass asks for one creator's unread posts.
+    index("trade_social_posts_coins_unread_idx")
+      .on(table.creatorId, table.postedAt)
+      .where(sql`${table.coinsReadAt} is null`),
   ]
 )
 
@@ -2280,5 +2291,47 @@ export const tradeSocialReads = pgTable(
   },
   (table) => [
     index("trade_social_reads_creator_idx").on(table.creatorId, table.readAt),
+  ]
+)
+
+/**
+ * One coin one post names, as Trade read it out of the words.
+ *
+ * One row per coin per post: a post saying "$SOL" three times has one SOL row,
+ * and running the pass again over the same post leaves it at one. The coin is
+ * the venue-free ticker Trade lists it under — "SOL", never
+ * "hyperliquid:mainnet:SOL" — because a post is about the coin and not about
+ * one exchange's market in it.
+ *
+ * `matched_as` and `matched_text` are the record of why the row is here. A
+ * false match is the one thing this can get wrong quietly, and reading back
+ * "matched `sol` as a name" is how somebody sees a bad match for what it is
+ * instead of arguing with the count.
+ */
+export const tradeSocialPostCoins = pgTable(
+  "trade_social_post_coins",
+  {
+    postId: varchar("post_id", { length: 36 })
+      .notNull()
+      .references(() => tradeSocialPosts.id, { onDelete: "cascade" }),
+    /** Carried so the markets panel counts one creator without a join. */
+    creatorId: varchar("creator_id", { length: 36 })
+      .notNull()
+      .references(() => tradeSocialCreators.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    coin: varchar("coin", { length: 20 }).notNull(),
+    matchedAs: varchar("matched_as", { length: 14 })
+      .$type<CoinMatchHow>()
+      .notNull(),
+    matchedText: varchar("matched_text", { length: 60 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.postId, table.coin] }),
+    index("trade_social_post_coins_creator_idx").on(table.creatorId, table.coin),
   ]
 )

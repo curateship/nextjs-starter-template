@@ -33,8 +33,9 @@ moment you drag it wider.
   them, and the links they list. Nothing else. It used to carry eight tiles of counting and Tyler cut
   the lot on 29 Sep 2026: none of them said anything the posts beside them did
   not, and the post count was already in the middle panel's own header.
-- **Middle, their posts**, newest first. When it was posted, the market it
-  names, the words, and how many people saw it. It scrolls, and it pages 50 at
+- **Middle, their posts**, newest first. When it was posted, the coins it names,
+  the words, and how many people saw it. Each coin is a link to its Hyperliquid
+  chart. It scrolls, and it pages 50 at
   a time: 412 posts are never all drawn at once. **Sync profile** is in its
   header.
 - **Right, the coins they name**, most-named first, each with how many of
@@ -126,15 +127,11 @@ time as you keep syncing, rather than all at once.
 
 ## The coins a post names
 
-X tags them itself in the page it serves, and Trade reads its tagging rather
-than hunting for dollar signs in the words. "$5 a share" is not a coin, and
-neither is a price.
-
-It reads two places, because X files them in two: `cashtag_entities` on an
-ordinary post, and the entity set's `symbols` on a long one. The same arrays
-also carry the contract address behind a tag, `solana:Dz9m…`, which is one of
-those coins said a second way rather than another coin, so only ticker-shaped
-entries are kept.
+Trade reads the words of the post and works out which coins it is about, and
+only coins it has a market for can come out of that. `$SOL`, `SOL`, `solana` and
+`sol` are all the SOL market; "apes are buying" names nothing. The three rules,
+the words that are never a coin and what **Re-read coins** does are all in
+`which-coins-a-post-names.md`.
 
 **The counts on the right are over every post held**, not over the fifty on
 screen, and clicking a coin asks the database again rather than sieving the
@@ -172,12 +169,10 @@ only job is to leave the page is a panel wasted. The list gets its own screen.
 
 ## What is not built yet
 
-- **Which market a post names** is read in a later step. Until then the middle
-  panel's market column is blank and the markets panel on the right shows its
-  empty sentence. The panel is built and fills itself the moment that step
-  lands.
-- **Bullish or bearish** is decided in a later step too, and is what groups the
+- **Bullish or bearish** is decided in a later step, and is what groups the
   markets panel.
+- **Correcting a single match by hand.** A coin read out of a post the wrong way
+  can be read again under changed rules, but not overruled on its own.
 - **The menu link.** "Social" is added by hand in Platform → Navigation,
   pointing at `/social`.
 - **Refreshing on a timer.** The profile is read when you open a creator and
@@ -188,7 +183,8 @@ only job is to leave the page is a panel wasted. The list gets its own screen.
 ## Where it lives
 
 - Tables: `trade_social_creators`, `trade_social_posts`, `trade_social_reads`
-  in `src/server/trade/schema.ts`, created by `drizzle/0189_trade_social.sql`.
+  in `src/server/trade/schema.ts`, created by `drizzle/0189_trade_social.sql`,
+  and `trade_social_post_coins` by `drizzle/0193_trade_social_post_coins.sql`.
 - Reading and writing: `src/server/trade/social-creators.ts` and
   `src/server/trade/social-posts.ts`. Every query is filtered by the signed-in
   member's id in the same `where` as the row it looks for.

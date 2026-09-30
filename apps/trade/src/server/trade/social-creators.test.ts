@@ -54,7 +54,6 @@ async function addPosts(
       replies: 1,
       reposts: 2,
       replyToId: null,
-      markets: [],
     }))
   )
 }

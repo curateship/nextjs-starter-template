@@ -34,8 +34,6 @@ export type ParsedSocialPost = {
   replies: number | null
   reposts: number | null
   replyToId: string | null
-  /** The coins the post names, as X tags them. Uppercase, no dollar sign. */
-  markets: string[]
 }
 
 /**
@@ -71,12 +69,6 @@ export type XProfileRead = {
 
 const MAX_LINKS = 10
 const MAX_POSTS = 50
-
-/** One post naming more than this is a list, not an opinion about a coin. */
-const MAX_MARKETS_PER_POST = 12
-
-/** A ticker as X writes it: letters then letters or digits, nothing else. */
-const TICKER = /^[A-Za-z][A-Za-z0-9]{0,14}$/
 
 const EMPTY_X_PROFILE: XProfileRead = {
   found: true,
@@ -216,7 +208,6 @@ function readPosts(html: string, handle: string): ParsedSocialPost[] {
       postedAt: Number(at[1]),
       text: unescapeJs(text[1]).trim(),
       url: `https://x.com/${handle}/status/${id}`,
-      markets: readMarkets(body),
       seen: readNumber(/views:\$R\[\d+\]=\{count:"(\d+)"/.exec(body)),
       likes: readNumber(/favorite_count:(\d+)/.exec(body)),
       replies: readNumber(/reply_count:(\d+)/.exec(body)),
@@ -229,55 +220,6 @@ function readPosts(html: string, handle: string): ParsedSocialPost[] {
   // A pinned post appears twice, once pinned and once in the timeline.
   const byId = new Map(posts.map((post) => [post.sourceId, post]))
   return [...byId.values()].filter((post) => post.text.length > 0)
-}
-
-/**
- * The coins a post names.
- *
- * X tags them itself, in two places: `cashtag_entities` on an ordinary post,
- * and `symbols` inside the entity set of a long one. Reading X's own tagging
- * rather than hunting for dollar signs in the words means "$5 a share" is not
- * a coin and neither is a price.
- *
- * The same arrays also carry the contract address behind a tag, as
- * `solana:Dz9m…`. That is the same coin said a second way, not another coin,
- * so only ticker-shaped entries are kept.
- */
-function readMarkets(body: string): string[] {
-  const found: string[] = []
-  for (const name of ["cashtag_entities", "symbols"]) {
-    for (const block of arraysNamed(body, name)) {
-      for (const one of block.matchAll(/text:"([^"]{1,60})"/g)) {
-        const ticker = one[1].toUpperCase()
-        if (TICKER.test(one[1]) && !found.includes(ticker)) found.push(ticker)
-      }
-    }
-  }
-  return found.slice(0, MAX_MARKETS_PER_POST)
-}
-
-/**
- * Every `name:$R[n]=[ … ]` array in the text, bracket-balanced.
- *
- * Balanced rather than a regex, because each entry holds an `indices:[a,b]`
- * of its own and a lazy `[^\]]*` stops at the first one of those.
- */
-function arraysNamed(body: string, name: string): string[] {
-  const blocks: string[] = []
-  const opener = new RegExp(`${name}:\\$R\\[\\d+\\]=\\[`, "g")
-  for (const start of body.matchAll(opener)) {
-    let depth = 0
-    let at = start.index + start[0].length - 1
-    for (; at < body.length; at += 1) {
-      if (body[at] === "[") depth += 1
-      else if (body[at] === "]") {
-        depth -= 1
-        if (depth === 0) break
-      }
-    }
-    blocks.push(body.slice(start.index, at + 1))
-  }
-  return blocks
 }
 
 function readNumber(found: RegExpExecArray | null): number | null {

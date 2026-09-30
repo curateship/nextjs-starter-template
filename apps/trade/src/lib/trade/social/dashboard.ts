@@ -1,3 +1,4 @@
+import { marketChartHref, marketKey } from "@/lib/protocols/contracts"
 import type { SocialPlatform } from "@/lib/trade/social/creator"
 import type { SocialLink } from "@/lib/trade/social/x-profile"
 
@@ -37,11 +38,15 @@ export type SocialPostRow = {
   text: string
   url: string | null
   seen: number | null
-  /** The coins the post names, as X tags them. Empty when it names none. */
-  markets: string[]
+  /**
+   * The coins this post names, as Trade read them out of the words, in
+   * alphabetical order. Empty when it names none, which is an answer.
+   */
+  coins: string[]
 }
 
 export type SocialMarketRow = {
+  /** The coin's ticker as Trade lists it: "SOL", "kPEPE". */
   market: string
   /** How many of this creator's posts name it, across everything held. */
   posts: number
@@ -67,3 +72,21 @@ export type SocialPostsPage = {
 
 /** How many markets the right-hand panel lists. */
 export const SOCIAL_MARKETS_SHOWN = 60
+
+/**
+ * Where a coin named in a post opens.
+ *
+ * **Always Hyperliquid**, because Hyperliquid's market list is what decided the
+ * word was a coin at all. Pointing a $SOL chip at another exchange would be
+ * Trade naming a venue the post never implied, and picking between venues is
+ * the market picker's job.
+ *
+ * Worked out here rather than stored, so the row in `trade_social_post_coins`
+ * stays venue-free: the post was about the coin, not about one exchange's
+ * market in it.
+ */
+export function coinChartHref(coin: string): string | null {
+  return marketChartHref(
+    marketKey({ protocol: "hyperliquid", network: "mainnet", marketId: coin })
+  )
+}

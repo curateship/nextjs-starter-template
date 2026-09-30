@@ -106,6 +106,10 @@ screen: anything not written there has not been agreed yet.
   follower count and the links come from, what Sync profile reads off the
   public X page, how the coins a post names are counted, and why posts are
   held once per member.
+- `which-coins-a-post-names.md` — how Trade reads a post's words and works out
+  which coins it is about: the three match rules, the words that are never a
+  coin and why each is on that list, why only coins Trade has a market for can
+  be matched, and what Re-read coins does.
 - `copy-a-trader.md` — following and copying a trader: who can be copied, how
   a trade is heard and copied, every skip and pause rule, the 0.1% fee and the
   trader's half, the fee on each exchange with its source, the fee record and

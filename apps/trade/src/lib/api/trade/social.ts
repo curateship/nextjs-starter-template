@@ -22,6 +22,7 @@ import {
   loadSocialPostsPage,
   loadSocialDashboard,
   refreshSocialCreator,
+  rereadCreatorCoins,
 } from "@/server/trade/social-posts"
 
 import { createErrorMessage } from "../error-message"
@@ -57,9 +58,10 @@ const pageSchema = z.object({
   /** The oldest post already on screen. Absent for the first page. */
   before: z.number().int().positive().nullable(),
   /** Only the posts naming this coin. Absent for all of them. */
+  /** A ticker as Trade lists it, "SOL" or "kPEPE". */
   market: z
     .string()
-    .max(15)
+    .max(20)
     .regex(/^[A-Za-z0-9]+$/)
     .nullable(),
 })
@@ -143,6 +145,25 @@ export function refreshCreatorFromX(handle: string, asked: boolean) {
   return refreshSocialCreatorFn({ data: { handle, asked } })
 }
 
+/**
+ * Read every held post of this creator's for coins again.
+ *
+ * A POST because it writes, and its own door rather than part of Sync profile:
+ * syncing reads X, this reads words Trade already has. It exists because the
+ * match rules and the stop list will change and the stored answers have to be
+ * able to catch up.
+ */
+const rereadCoinsFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(handleSchema)
+  .handler(({ data, context }): Promise<{ read: number; waiting: number }> =>
+    rereadCreatorCoins(context.user.id, data.handle)
+  )
+
+export function rereadCreatorCoinsFromWords(handle: string) {
+  return rereadCoinsFn({ data: { handle } })
+}
+
 export function loadSocialPosts(
   creatorId: string,
   before: number | null,
@@ -179,6 +200,8 @@ export const getSocialErrorMessage = createErrorMessage(
     SOCIAL_HANDLE_NOT_X: "Only X accounts can be tracked.",
     SOCIAL_HANDLE_NOT_AN_ACCOUNT:
       "That address is a page on X, not somebody's account.",
+    SOCIAL_COINS_UNAVAILABLE:
+      "The list of coins Trade trades could not be read just now, so nothing was re-read. Try again in a minute.",
     SOCIAL_HANDLE_PRIVATE_ADDRESS:
       "That address points at a private or internal machine, so it was refused.",
   },

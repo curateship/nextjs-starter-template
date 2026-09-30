@@ -73,53 +73,6 @@ describe("the creator's links", () => {
   })
 })
 
-describe("the coins a post names", () => {
-  it("reads X's own tagging, in the order the post names them", () => {
-    const [first] = uni.posts
-
-    expect(first.markets).toEqual([
-      "BONK",
-      "WIF",
-      "FARTCOIN",
-      "PNUT",
-      "MAGA",
-      "DOGEGOV",
-      "DOGE",
-    ])
-  })
-
-  it("reads the tags on a long post too, which X files somewhere else", () => {
-    // A post over the old length limit becomes a `NoteTweet`, and its coins
-    // move from `cashtag_entities` to the entity set's `symbols`.
-    const pons = uni.posts.find((post) => post.text.includes("$PONS"))
-
-    expect(pons?.markets).toContain("PONS")
-  })
-
-  it("leaves a post naming nothing with nothing", () => {
-    const quiet = uni.posts.find((post) => post.markets.length === 0)
-
-    expect(quiet).toBeDefined()
-  })
-
-  it("keeps the contract address out of the coin list", () => {
-    // The same arrays carry `solana:Dz9m…`, which is one of these coins said
-    // a second way rather than another coin.
-    for (const post of uni.posts) {
-      for (const market of post.markets) {
-        expect(market).not.toContain(":")
-        expect(market).toMatch(/^[A-Z0-9]+$/)
-      }
-    }
-  })
-
-  it("names the same coin once however often the post says it", () => {
-    for (const post of uni.posts) {
-      expect(new Set(post.markets).size).toBe(post.markets.length)
-    }
-  })
-})
-
 describe("the posts on the page", () => {
   it("reads them with their words, time and figures", () => {
     expect(elon.posts.length).toBeGreaterThan(0)

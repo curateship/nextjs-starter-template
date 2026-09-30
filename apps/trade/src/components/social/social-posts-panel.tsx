@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router"
 import {
   Loader2Icon,
   MessageSquareTextIcon,
@@ -11,7 +12,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { formatDateTime, formatTimeAgo } from "@/lib/format/format-time"
 import { plural } from "@/lib/format/plural"
-import type { SocialPostRow } from "@/lib/trade/social/dashboard"
+import { coinChartHref, type SocialPostRow } from "@/lib/trade/social/dashboard"
 import { cn } from "@/lib/utils"
 
 /**
@@ -22,7 +23,8 @@ import { cn } from "@/lib/utils"
  * drawn at once, because the middle of a workspace has to stay responsive
  * while somebody drags the divider beside it.
  *
- * The coins are X's own tagging, read out of the page it serves.
+ * The coins are Trade's own reading of the words, and only coins it has a
+ * market for. The three rules are in `src/lib/trade/social/coin-matcher.ts`.
  *
  * **The list draws no line at its top.** The card header above it already
  * draws one, and a `border-t` here lands on that `border-b` and reads as a
@@ -100,7 +102,7 @@ export function SocialPostsPanel({
         ) : (
           <ul className="divide-y">
             {posts.map((post) => (
-              <PostLine key={post.id} post={post} />
+              <PostLine key={post.id} post={post} first={filter} />
             ))}
           </ul>
         )}
@@ -123,22 +125,50 @@ export function SocialPostsPanel({
   )
 }
 
-function PostLine({ post }: { post: SocialPostRow }) {
+/**
+ * How many coins fit on a post's line before the rest become a count. A post
+ * naming twelve coins would otherwise push the views figure off the row.
+ */
+const COINS_ON_A_ROW = 4
+
+function PostLine({
+  post,
+  first,
+}: {
+  post: SocialPostRow
+  /**
+   * The coin the list is narrowed to, drawn before the others. A post naming
+   * twelve coins would otherwise hide the very coin somebody clicked behind the
+   * "+8", and a row with no chip for the coin it was filtered by reads as a
+   * bug.
+   */
+  first: string | null
+}) {
   const posted = new Date(post.postedAt)
+  const coins =
+    first && post.coins.includes(first)
+      ? [first, ...post.coins.filter((coin) => coin !== first)]
+      : post.coins
   return (
     <li className="grid gap-1 px-5 py-3">
       <div className="flex items-baseline gap-2 text-xs text-muted-foreground">
         <span title={formatDateTime(posted)} className="shrink-0 tabular-nums">
           {formatTimeAgo(posted)}
         </span>
-        {post.markets.slice(0, 4).map((market) => (
-          <span
-            key={market}
-            className="shrink-0 rounded-full bg-muted px-2 py-0.5 font-medium text-foreground"
-          >
-            ${market}
-          </span>
+        {coins.slice(0, COINS_ON_A_ROW).map((coin) => (
+          <CoinChip key={coin} coin={coin} />
         ))}
+        {coins.length > COINS_ON_A_ROW ? (
+          // The hidden ones are named on hover. Without it the only way to see
+          // the fifth coin on a post is to widen the panel, and a bare "+1"
+          // beside a row of coins looks like something has gone wrong.
+          <span
+            className="shrink-0"
+            title={coins.slice(COINS_ON_A_ROW).join(", ")}
+          >
+            +{coins.length - COINS_ON_A_ROW}
+          </span>
+        ) : null}
         <span className="ml-auto shrink-0 tabular-nums">
           {post.seen === null ? "—" : `${formatSeen(post.seen)} seen`}
         </span>
@@ -158,6 +188,30 @@ function PostLine({ post }: { post: SocialPostRow }) {
         </a>
       ) : null}
     </li>
+  )
+}
+
+/**
+ * One coin on a post's line, and the way to its chart.
+ *
+ * Every coin here is a Hyperliquid market, because Hyperliquid's own market
+ * list is what decided the word was a coin, so the chip always has somewhere to
+ * go. A coin whose address cannot be built is drawn as plain words rather than
+ * as a link that goes nowhere.
+ */
+function CoinChip({ coin }: { coin: string }) {
+  const chip =
+    "shrink-0 rounded-full bg-muted px-2 py-0.5 font-medium text-foreground"
+  const href = coinChartHref(coin)
+  if (!href) return <span className={chip}>${coin}</span>
+  return (
+    <Link
+      to={href}
+      aria-label={`Open the ${coin} chart`}
+      className={cn(chip, "hover:bg-foreground/10", focusRing)}
+    >
+      ${coin}
+    </Link>
   )
 }
 

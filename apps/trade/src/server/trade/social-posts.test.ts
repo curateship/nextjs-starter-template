@@ -1,7 +1,9 @@
 import { PGlite } from "@electric-sql/pglite"
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { sql } from "drizzle-orm"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { CustomShellDb } from "@/server/db"
+import { buildCoinMatchList } from "@/lib/trade/social/coin-matcher"
 import type { ParsedSocialPost } from "@/lib/trade/social/x-profile"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 import {
@@ -9,13 +11,25 @@ import {
   findSocialCreator,
   SocialCreatorError,
 } from "@/server/trade/social-creators"
+import { fillPostCoinsForCreator } from "@/server/trade/social-post-coins"
 import {
   loadSocialDashboard,
   loadSocialPostsPage,
   refreshSocialCreator,
+  rereadCreatorCoins,
   storeSocialPosts,
   SocialPostsError,
 } from "@/server/trade/social-posts"
+
+/**
+ * The coins Trade has markets for, in these tests. Mocked because the real list
+ * is Hyperliquid's own market list, and a test must not ask an exchange
+ * anything.
+ */
+vi.mock("@/server/trade/social-coin-list", () => ({
+  loadCoinMatchList: async () =>
+    buildCoinMatchList(["BONK", "WIF", "SOL", "ETH"]),
+}))
 
 let client: PGlite
 let database: CustomShellDb
@@ -41,18 +55,24 @@ function fortyPosts(): ParsedSocialPost[] {
     // number can hold exactly, so adding to one gives every post the same id.
     sourceId: `21000000000000000${String(index).padStart(2, "0")}`,
     postedAt: FIRST_POST + index * DAY_MS,
-    text: `post number ${index + 1}`,
+    // The coins are in the words, because that is where Trade reads them from.
+    text:
+      index % 2 === 0
+        ? `post number ${index + 1}: buying $BONK`
+        : `post number ${index + 1}: buying $BONK and $WIF`,
     url: null,
     seen: 1000 + index,
     likes: 10,
     replies: 1,
     reposts: 2,
     replyToId: null,
-    markets: index % 2 === 0 ? ["BONK"] : ["BONK", "WIF"],
   }))
 }
 
-/** Store posts the way a sync stores them. */
+/**
+ * Store posts the way a sync stores them, and read their coins the way a sync
+ * reads them: the two steps `refreshSocialCreator` takes, in the same order.
+ */
 async function store(
   userId: string,
   handle: string,
@@ -61,6 +81,7 @@ async function store(
   const creator = await findSocialCreator(userId, handle)
   if (!creator) throw new Error(`no creator ${handle}`)
   await storeSocialPosts(userId, creator.id, posts)
+  await fillPostCoinsForCreator(userId, creator.id)
 }
 
 async function member() {
@@ -148,19 +169,20 @@ describe("storing what a sync read", () => {
     expect(dashboard.posts[0].seen).toBe(9999)
   })
 
-  it("says the screen should redraw when a post it already held was written over", async () => {
-    // A post can gain views, or coins Trade did not used to read. Counting
-    // only the new ones left the markets panel showing the version before the
-    // write, which is what Tyler saw on 29 Sep 2026.
+  it("reads the coins again when a post's words have been edited", async () => {
+    // A post can gain views, or be edited into naming a coin it did not name
+    // before. Counting only the new ones left the markets panel showing the
+    // version before the write, which is what Tyler saw on 29 Sep 2026.
     const userId = await member()
     await addSocialCreator(userId, "cryptosam")
     const [post] = fortyPosts()
-    await store(userId, "cryptosam", [{ ...post, markets: [] }])
+    await store(userId, "cryptosam", [{ ...post, text: "nothing yet" }])
     const creator = await findSocialCreator(userId, "cryptosam")
 
     await storeSocialPosts(userId, creator!.id, [
-      { ...post, markets: ["BONK"] },
+      { ...post, text: "now naming $BONK" },
     ])
+    await fillPostCoinsForCreator(userId, creator!.id)
 
     const { markets } = await loadSocialDashboard(userId, "cryptosam")
     expect(markets).toEqual([{ market: "BONK", posts: 1 }])
@@ -183,7 +205,7 @@ describe("the markets panel", () => {
 
     const { markets } = await loadSocialDashboard(userId, "cryptosam")
 
-    // Every post names BONK; every second one also names WIF.
+    // Every post names BONK in its words; every second one also names WIF.
     expect(markets).toEqual([
       { market: "BONK", posts: 40 },
       { market: "WIF", posts: 20 },
@@ -212,13 +234,15 @@ describe("the markets panel", () => {
     const page = await loadSocialPostsPage(userId, creator!.id, null, "WIF")
 
     expect(page.posts).toHaveLength(20)
-    for (const post of page.posts) expect(post.markets).toContain("WIF")
+    for (const post of page.posts) expect(post.coins).toContain("WIF")
   })
 
   it("names no coin for a creator whose posts name none", async () => {
     const userId = await member()
     await addSocialCreator(userId, "cryptosam")
-    await store(userId, "cryptosam", [{ ...fortyPosts()[0], markets: [] }])
+    await store(userId, "cryptosam", [
+      { ...fortyPosts()[0], text: "no coin in this one" },
+    ])
 
     const { markets } = await loadSocialDashboard(userId, "cryptosam")
 
@@ -260,5 +284,88 @@ describe("what one member can see of another", () => {
     await expect(loadSocialDashboard(second, "cryptosam")).rejects.toThrow(
       SocialPostsError
     )
+  })
+})
+
+describe("reading the coins out of the words", () => {
+  it("leaves one row per coin however many times a post names it", async () => {
+    const userId = await member()
+    await addSocialCreator(userId, "cryptosam")
+    const [post] = fortyPosts()
+    const text = "$BONK, BONK, bonk, $BONK again"
+
+    await store(userId, "cryptosam", [{ ...post, text }])
+    // The same post arriving a second time, which is every sync.
+    await store(userId, "cryptosam", [{ ...post, text }])
+    await rereadCreatorCoins(userId, "cryptosam")
+
+    const { markets, posts } = await loadSocialDashboard(userId, "cryptosam")
+    expect(markets).toEqual([{ market: "BONK", posts: 1 }])
+    expect(posts[0].coins).toEqual(["BONK"])
+  })
+
+  it("never names a coin Trade has no market for", async () => {
+    const userId = await member()
+    await addSocialCreator(userId, "cryptosam")
+    const [post] = fortyPosts()
+
+    await store(userId, "cryptosam", [
+      { ...post, text: "$LTC and litecoin and LTC, plus $WIF" },
+    ])
+
+    const { markets } = await loadSocialDashboard(userId, "cryptosam")
+    expect(markets).toEqual([{ market: "WIF", posts: 1 }])
+  })
+
+  it("carries on where a part-read pass stopped instead of starting over", async () => {
+    // One pass reads 500 posts, so a creator with more than that is left with
+    // some waiting. Pressing the button again must finish those rather than
+    // forgetting every answer and re-reading the same newest 500 for ever.
+    const userId = await member()
+    await addSocialCreator(userId, "cryptosam")
+    await store(userId, "cryptosam", fortyPosts().slice(0, 3))
+    await database.execute(
+      sql`update trade_social_posts set coins_read_at = null
+          where id = (select id from trade_social_posts
+                      order by posted_at asc limit 1)`
+    )
+
+    const answer = await rereadCreatorCoins(userId, "cryptosam")
+
+    expect(answer).toEqual({ read: 1, waiting: 0 })
+  })
+
+  it("starts over once nothing is waiting", async () => {
+    const userId = await member()
+    await addSocialCreator(userId, "cryptosam")
+    await store(userId, "cryptosam", fortyPosts().slice(0, 3))
+
+    const answer = await rereadCreatorCoins(userId, "cryptosam")
+
+    expect(answer).toEqual({ read: 3, waiting: 0 })
+  })
+
+  it("says how many posts it read and how many are left", async () => {
+    const userId = await member()
+    await addSocialCreator(userId, "cryptosam")
+    await store(userId, "cryptosam", fortyPosts())
+
+    const answer = await rereadCreatorCoins(userId, "cryptosam")
+
+    expect(answer).toEqual({ read: 40, waiting: 0 })
+  })
+
+  it("keeps one member's coins out of another member's posts", async () => {
+    const first = await member()
+    const second = await member()
+    await addSocialCreator(first, "cryptosam")
+    await addSocialCreator(second, "cryptosam")
+    await store(first, "cryptosam", fortyPosts())
+
+    const answer = await rereadCreatorCoins(second, "cryptosam")
+
+    expect(answer).toEqual({ read: 0, waiting: 0 })
+    const page = await loadSocialDashboard(second, "cryptosam")
+    expect(page.posts).toEqual([])
   })
 })

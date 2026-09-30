@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto"
-import { and, desc, eq, lt, sql } from "drizzle-orm"
+import { and, desc, eq, exists, inArray, lt, sql } from "drizzle-orm"
 
 import type { ParsedSocialPost } from "@/lib/trade/social/x-profile"
 import {
@@ -19,7 +19,16 @@ import {
   PROFILE_SOCIAL_READER,
   readSocialPosts,
 } from "@/server/trade/social-readers"
-import { tradeSocialPosts, tradeSocialReads } from "@/server/trade/schema"
+import {
+  countPostsAwaitingCoins,
+  fillPostCoinsForCreator,
+  rereadPostCoinsForCreator,
+} from "@/server/trade/social-post-coins"
+import {
+  tradeSocialPostCoins,
+  tradeSocialPosts,
+  tradeSocialReads,
+} from "@/server/trade/schema"
 
 /**
  * The posts held for one creator: reading them back, and taking an import.
@@ -40,24 +49,25 @@ const POST_COLUMNS = {
   text: tradeSocialPosts.text,
   url: tradeSocialPosts.url,
   seen: tradeSocialPosts.seen,
-  markets: tradeSocialPosts.markets,
 }
 
-function toPost(row: {
-  id: string
-  postedAt: Date
-  text: string
-  url: string | null
-  seen: number | null
-  markets: string[] | null
-}): SocialPostRow {
+function toPost(
+  row: {
+    id: string
+    postedAt: Date
+    text: string
+    url: string | null
+    seen: number | null
+  },
+  coins: string[]
+): SocialPostRow {
   return {
     id: row.id,
     postedAt: row.postedAt.getTime(),
     text: row.text,
     url: row.url,
     seen: row.seen,
-    markets: row.markets ?? [],
+    coins,
   }
 }
 
@@ -82,7 +92,18 @@ async function readPostPage(
         // handful of them that happen to be in the newest 50.
         market === null
           ? undefined
-          : sql`${tradeSocialPosts.markets} @> ${JSON.stringify([market])}::jsonb`
+          : exists(
+              db
+                .select({ one: sql`1` })
+                .from(tradeSocialPostCoins)
+                .where(
+                  and(
+                    eq(tradeSocialPostCoins.userId, userId),
+                    eq(tradeSocialPostCoins.postId, tradeSocialPosts.id),
+                    eq(tradeSocialPostCoins.coin, market)
+                  )
+                )
+            )
       )
     )
     .orderBy(desc(tradeSocialPosts.postedAt), desc(tradeSocialPosts.id))
@@ -90,11 +111,48 @@ async function readPostPage(
     // without a second counting query.
     .limit(SOCIAL_POSTS_PAGE + 1)
 
-  const more = rows.length > SOCIAL_POSTS_PAGE
+  const page = rows.slice(0, SOCIAL_POSTS_PAGE)
+  const coins = await readCoinsFor(
+    userId,
+    page.map((row) => row.id)
+  )
   return {
-    posts: rows.slice(0, SOCIAL_POSTS_PAGE).map(toPost),
-    more,
+    posts: page.map((row) => toPost(row, coins.get(row.id) ?? [])),
+    more: rows.length > SOCIAL_POSTS_PAGE,
   }
+}
+
+/**
+ * The coins named by each post on one page, in one query rather than one per
+ * row. Ordered so a post's chips read the same way every time.
+ */
+async function readCoinsFor(
+  userId: string,
+  postIds: string[]
+): Promise<Map<string, string[]>> {
+  const byPost = new Map<string, string[]>()
+  if (postIds.length === 0) return byPost
+
+  const rows = await db
+    .select({
+      postId: tradeSocialPostCoins.postId,
+      coin: tradeSocialPostCoins.coin,
+    })
+    .from(tradeSocialPostCoins)
+    .where(
+      and(
+        eq(tradeSocialPostCoins.userId, userId),
+        inArray(tradeSocialPostCoins.postId, postIds)
+      )
+    )
+    .orderBy(tradeSocialPostCoins.coin)
+
+  for (const row of rows) {
+    const held = byPost.get(row.postId)
+    if (held) held.push(row.coin)
+    else byPost.set(row.postId, [row.coin])
+  }
+  return byPost
 }
 
 /** A page of this creator's posts, optionally only the ones naming one coin. */
@@ -157,8 +215,8 @@ async function countPostsHeld(
  * their posts name it, counted over everything held rather than over the page
  * on screen.
  *
- * X tags the coins itself in the page it serves, so this is its tagging
- * counted up, not a guess made from the words.
+ * The coins are Trade's own reading of the words, filtered to coins it has a
+ * market for. `src/lib/trade/social/coin-matcher.ts` holds the three rules.
  */
 async function readMarkets(
   userId: string,
@@ -166,19 +224,18 @@ async function readMarkets(
 ): Promise<SocialMarketRow[]> {
   const rows = await db
     .select({
-      market: sql<string>`market`,
+      market: tradeSocialPostCoins.coin,
       posts: sql<number>`count(*)::int`,
     })
-    .from(
-      sql`(select jsonb_array_elements_text(${tradeSocialPosts.markets}) as market
-           from ${tradeSocialPosts}
-           where ${and(
-             eq(tradeSocialPosts.userId, userId),
-             eq(tradeSocialPosts.creatorId, creatorId)
-           )}) as named`
+    .from(tradeSocialPostCoins)
+    .where(
+      and(
+        eq(tradeSocialPostCoins.userId, userId),
+        eq(tradeSocialPostCoins.creatorId, creatorId)
+      )
     )
-    .groupBy(sql`market`)
-    .orderBy(sql`count(*) desc`, sql`market asc`)
+    .groupBy(tradeSocialPostCoins.coin)
+    .orderBy(sql`count(*) desc`, tradeSocialPostCoins.coin)
     .limit(SOCIAL_MARKETS_SHOWN)
 
   return rows.map((row) => ({ market: row.market, posts: row.posts }))
@@ -233,15 +290,22 @@ export async function refreshSocialCreator(
   const creator = await findSocialCreator(userId, handle)
   if (!creator) throw new SocialPostsError("SOCIAL_CREATOR_NOT_TRACKED")
 
+  // Posts stored before Trade could read coins out of the words are caught up
+  // here, and this happens whether or not X is asked anything: it is the app's
+  // own database and the words are already in it.
+  const filled = await catchUpCoins(userId, creator.id)
+
   // Opening the same creator five times in a minute must not be five requests
   // to somebody else's server. The button is a person asking and always reads;
   // the read that happens on its own waits its turn.
-  if (!asked && !readerDue(creator.id)) return { changed: false, added: 0 }
+  if (!asked && !readerDue(creator.id)) {
+    return { changed: filled > 0, added: 0 }
+  }
 
   const read = await readSocialPosts(PROFILE_SOCIAL_READER, {
     handle: creator.handle,
   })
-  if (!read.ok) return { changed: false, added: 0 }
+  if (!read.ok) return { changed: filled > 0, added: 0 }
 
   const details = await saveSocialCreatorDetails(
     userId,
@@ -272,6 +336,10 @@ export async function refreshSocialCreator(
     // So anything written at all is a reason to redraw, and counting only the
     // new ones left the screen showing the version before the write.
     written = true
+    // The posts just written have no coins read yet, and a post whose words
+    // changed has had its old answer forgotten by the write above, so both are
+    // read here.
+    await catchUpCoins(userId, creator.id)
     // Only a read that brought something new is worth a line in the record.
     if (added > 0) {
       await db.insert(tradeSocialReads).values({
@@ -284,7 +352,48 @@ export async function refreshSocialCreator(
     }
   }
 
-  return { changed: details || written, added }
+  return { changed: details || written || filled > 0, added }
+}
+
+/**
+ * Read the coins out of any post of this creator's that has not been read yet.
+ *
+ * **It never fails the caller.** The coin list comes from Hyperliquid's market
+ * list, and an exchange that will not answer must not turn Sync profile into an
+ * error: the posts are stored, the coins are read the next time somebody opens
+ * the creator.
+ */
+async function catchUpCoins(
+  userId: string,
+  creatorId: string
+): Promise<number> {
+  try {
+    return await fillPostCoinsForCreator(userId, creatorId)
+  } catch (error) {
+    console.error("The coins in this creator's posts could not be read", error)
+    return 0
+  }
+}
+
+/**
+ * Read every one of this creator's posts for coins again, replacing the
+ * answers, and say how many were read and how many are still waiting.
+ *
+ * The rules and the stop list will change, so a stored answer has to be able to
+ * catch up. One press reads up to `POSTS_PER_PASS` posts; a creator with more
+ * than that keeps the rest for the next press or the next time their dashboard
+ * is opened, which is what `waiting` is for.
+ */
+export async function rereadCreatorCoins(
+  userId: string,
+  handle: string
+): Promise<{ read: number; waiting: number }> {
+  const creator = await findSocialCreator(userId, handle)
+  if (!creator) throw new SocialPostsError("SOCIAL_CREATOR_NOT_TRACKED")
+
+  const read = await rereadPostCoinsForCreator(userId, creator.id)
+  const waiting = await countPostsAwaitingCoins(userId, creator.id)
+  return { read, waiting }
 }
 
 /** How many rows one insert carries, so a big read is not one giant statement. */
@@ -321,7 +430,6 @@ export async function storeSocialPosts(
           replies: post.replies,
           reposts: post.reposts,
           replyToId: post.replyToId,
-          markets: post.markets,
         }))
       )
       .onConflictDoUpdate({
@@ -335,7 +443,13 @@ export async function storeSocialPosts(
           replies: sql`excluded.replies`,
           reposts: sql`excluded.reposts`,
           replyToId: sql`excluded.reply_to_id`,
-          markets: sql`excluded.markets`,
+          // A post whose words have been edited since needs its coins read
+          // again, and a post that came back unchanged keeps the answer it has.
+          coinsReadAt: sql`case
+            when excluded.text is distinct from ${tradeSocialPosts.text}
+            then null
+            else ${tradeSocialPosts.coinsReadAt}
+          end`,
           updatedAt: new Date(),
         },
       })

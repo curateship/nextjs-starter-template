@@ -19,6 +19,7 @@ import {
   loadSocialPosts,
   loadSocialDashboardData,
   refreshCreatorFromX,
+  rereadCreatorCoinsFromWords,
   type SocialDashboard,
 } from "@/lib/api/trade/social"
 import {
@@ -107,6 +108,7 @@ export function SocialDashboardPage({
 
   const [olderBusy, setOlderBusy] = React.useState(false)
   const [syncing, setSyncing] = React.useState(false)
+  const [rereading, setRereading] = React.useState(false)
 
   /**
    * The posts on screen, and the coin they are narrowed to.
@@ -212,6 +214,31 @@ export function SocialDashboardPage({
   }, [handle, refresh])
 
   /**
+   * Read every held post's words again under today's match rules.
+   *
+   * One press reads up to 500 posts, so a creator with more than that is told
+   * how many are left rather than being left to wonder. Pressing it again
+   * finishes those off rather than starting over, and opening the dashboard
+   * does the same quietly.
+   */
+  const reread = React.useCallback(async () => {
+    setRereading(true)
+    try {
+      const answer = await rereadCreatorCoinsFromWords(handle)
+      await refresh()
+      toast.success(
+        answer.waiting > 0
+          ? `Read ${answer.read} ${plural(answer.read, "post", "posts")}, ${answer.waiting} still to go.`
+          : `Read ${answer.read} ${plural(answer.read, "post", "posts")}.`
+      )
+    } catch (error) {
+      showErrorToast(getSocialErrorMessage(error))
+    } finally {
+      setRereading(false)
+    }
+  }, [handle, refresh])
+
+  /**
    * The same read once when the screen opens, after it has already drawn from
    * what the app knows. `instant-first.md` is the rule: nothing waits on a
    * request to somebody else's server. The server leaves a creator alone for
@@ -255,6 +282,8 @@ export function SocialDashboardPage({
       markets={data.markets}
       selected={market}
       onSelect={(next) => void pickMarket(next)}
+      onReread={() => void reread()}
+      rereading={rereading}
     />
   )
 
