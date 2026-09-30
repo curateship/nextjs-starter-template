@@ -961,6 +961,7 @@ function gridOn(marketKey: string, holding: boolean): SmartGrid {
       cycles: 0,
       follow: false,
       followDown: false,
+      pairOut: false,
       entered: true,
       shifts: 0,
       downShifts: 0,

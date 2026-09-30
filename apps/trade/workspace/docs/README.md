@@ -98,6 +98,14 @@ screen: anything not written there has not been agreed yet.
   permanent record binning and deleting cannot touch, the ownership check
   and what "checked by Trade" means, how far back each exchange goes, the
   figures and the leaderboard minimums.
+- `every-creator.md` — the list at `/social`: what each row says, what the
+  search reads, what the three filters mean, why "gone quiet" is 30 days, and
+  why the list and a creator's dashboard are two screens.
+- `social-dashboard.md` — the creator dashboard at `/social/<handle>`: the
+  three panels, adding a creator from an address or a handle, where the
+  follower count and the links come from, what Sync profile reads off the
+  public X page, how the coins a post names are counted, and why posts are
+  held once per member.
 - `copy-a-trader.md` — following and copying a trader: who can be copied, how
   a trade is heard and copied, every skip and pause rule, the 0.1% fee and the
   trader's half, the fee on each exchange with its source, the fee record and
@@ -173,7 +181,8 @@ screen: anything not written there has not been agreed yet.
   Journal keeps.
 - `grid-orders.md` — chart stop removal, pending and refused saves, testing steps; Lighter resting stops, size reconciliation and the live testing roadmap; the wait message when replacing a grid during cancellation; drawing-alert stop losses with red chart lines and labels, linked-line protection and engine rollout requirements; how a grid recycles, whether it buys the dips or sells the
   rallies, where its range sits, how the money is split between levels, what a
-  sell is worth, and what following price up and down does.
+  sell is worth, what following price up and down does, and pairing an old buy
+  out with every sale so a grid that fell through its range is not bag held.
 - `grid-rung-gap.md` — typing the percent gap between rungs instead of a
   count, how the range decides how many fit, and what is saved.
 - `grid-above-ladder.md` — the one allowed pairing of two smart orders on a

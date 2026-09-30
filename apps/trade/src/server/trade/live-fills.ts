@@ -465,15 +465,6 @@ async function announceFills(
   // made just now is worth a notice.
   const recent = fresh.filter((fill) => fill.at >= cutoff)
   if (recent.length === 0) return
-  const gridSales = await gridSaleMoneyByOrder(userId, wallet, recent).catch(
-    (error) => {
-      recordEngineError("live-fills", "grid sale money read failed", error)
-      return {
-        sales: new Map<string, GridSaleMoney>(),
-        runs: new Map<string, number>(),
-      }
-    }
-  )
   const knownByOrder = await triggerRowsByOrder(
     userId,
     wallet.id,
@@ -493,6 +484,25 @@ async function announceFills(
       )
       .for("update")
     const orders = await loadFillNoticeOrders(tx, userId, wallet, recent)
+    // Priced from the totals, inside the same lock, and never from the fresh
+    // pieces this sweep happened to carry. The money and the dollars in the
+    // headline are then two readings of one set of fills.
+    //
+    // In a savepoint of its own, because a failed read would otherwise take
+    // the whole notice transaction down with it: PostgreSQL refuses every
+    // later statement once one has errored, and a grid figure nobody could
+    // work out is not a reason to lose the sweep's notices.
+    const gridSales = await tx
+      .transaction((priced) =>
+        gridSaleMoneyByOrder(priced, userId, wallet, orders)
+      )
+      .catch((error) => {
+        recordEngineError("live-fills", "grid sale money read failed", error)
+        return {
+          sales: new Map<string, GridSaleMoney>(),
+          runs: new Map<string, number>(),
+        }
+      })
     const rungRows = await tx
       .select({
         orderId: tradeGridOrderRungs.orderId,
@@ -576,6 +586,9 @@ async function announceFills(
             marketId: fill.marketId,
           })
           const practice = wallet.network !== "mainnet"
+          const sale = fill.liquidation
+            ? undefined
+            : gridSales.sales.get(`${key} ${fill.orderId}`)
           await writeTradeNotice({
             userId,
             href: marketChartHref(key),
@@ -593,15 +606,16 @@ async function announceFills(
             ]),
             ...fillNoticeWords({
               marketKey: key,
+              // The dollars name the coins the money was worked out on, so a
+              // sale delivered in pieces cannot say one size and price the
+              // other.
               side: fill.side,
-              px: fill.px,
-              sz: fill.sz,
+              px: sale?.px ?? fill.px,
+              sz: sale?.sz ?? fill.sz,
               closedPnl: fill.closedPnl,
               dir: fill.dir,
               entryPx: averageEntryOf(wallet.protocol, fill),
-              ownRung: fill.liquidation
-                ? null
-                : gridSales.sales.get(`${key} ${fill.orderId}`),
+              ownRung: sale,
               runMoney: fill.liquidation
                 ? null
                 : gridSales.runs.get(`${key} ${fill.orderId}`),
@@ -655,6 +669,7 @@ async function announceFills(
  * long as a grid bought or sold something in the run. See `runEndedWords`.
  */
 async function gridSaleMoneyByOrder(
+  database: CustomShellDb,
   userId: string,
   wallet: TradeWallet,
   fresh: readonly WalletOrderFill[]
@@ -677,7 +692,7 @@ async function gridSaleMoneyByOrder(
   const marketKeys = [...new Set(closes.map((fill) => keyOf(fill.marketId)))]
   // Most fills are a ladder's or a hand's. Only a market that has ever run a
   // grid is worth reading its whole history for.
-  const gridMarkets = await db
+  const gridMarkets = await database
     .selectDistinct({ marketKey: tradeSmartLadders.marketKey })
     .from(tradeSmartLadders)
     .where(
@@ -689,7 +704,7 @@ async function gridSaleMoneyByOrder(
       )
     )
   if (gridMarkets.length === 0) return { sales: out, runs }
-  const rows = await db
+  const rows = await database
     .select()
     .from(tradeLiveFills)
     .where(
@@ -719,7 +734,8 @@ async function gridSaleMoneyByOrder(
       fee: row.fee,
       dir: row.dir,
       liquidation: row.liquidation,
-    }))
+    })),
+    database
   )
   const trips = gridRoundTrips(stamped)
   const wanted = new Set(
@@ -748,6 +764,8 @@ async function gridSaleMoneyByOrder(
           0
         ) / sz,
       rung: rungs.size === 1 ? rung : undefined,
+      sz,
+      px: pieces.reduce((sum, fill) => sum + fill.px * fill.sz, 0) / sz,
     })
   }
   for (const trade of buildLiveTrades(stamped, new Map())) {

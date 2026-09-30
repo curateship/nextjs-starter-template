@@ -25,6 +25,8 @@ import {
   winningSide,
   GRID_REBUY_CLEARANCE_PCT,
   GRID_STEP_FEE_MULTIPLE,
+  underWater,
+  type GridLevelState,
   type GridPlan,
 } from "@/lib/trade/grid"
 import { slippedPx } from "@/lib/trade/paper"
@@ -183,6 +185,116 @@ export type GridRow = {
   /** The exchange reports a fixed stop size that no longer matches the position. */
   stopNeedsResize?: boolean
   lineStopState?: "watching" | "pending"
+}
+
+/**
+ * The buy Pair Out closes alongside a level that has just sold, or null when
+ * the grid has nothing left worth rescuing.
+ *
+ * **Carried buys first.** A carried buy is the worst thing the grid holds:
+ * the range followed price away from it and left it behind, so its own sell
+ * sits where price may never return. After those, the buy furthest into the
+ * loss that is still inside the range.
+ *
+ * A buy already worth more than the price being sold at is left alone. It is
+ * in profit and its own sell is one step away, so it does not need rescuing —
+ * and this is also what ends the unwinding, at the middle of the range, once
+ * the pairs have met. A level's sell price is the next level's buy price, so
+ * the two levels either side of the middle never pair and six levels make two
+ * pairs rather than three. `gridPairOutWorstUsd` counts them the same way, so
+ * the window promises exactly the pairs this makes.
+ */
+function pairOutPartner(
+  plan: GridPlan,
+  candidates: readonly {
+    level: GridLevelState
+    carried: boolean
+    rung: number
+  }[],
+  closing: GridLevelState,
+  mark: number
+): { level: GridLevelState; carried: boolean; rung: number } | null {
+  const rescuable = candidates.filter(
+    ({ level }) =>
+      level !== closing &&
+      level.status === "holding" &&
+      level.heldSz > 0 &&
+      underWater(plan.direction, level.buyPx, mark)
+  )
+  if (rescuable.length === 0) return null
+  rescuable.sort((left, right) => {
+    if (left.carried !== right.carried) return left.carried ? -1 : 1
+    return plan.direction === "long"
+      ? right.level.buyPx - left.level.buyPx
+      : left.level.buyPx - right.level.buyPx
+  })
+  return rescuable[0]
+}
+
+/**
+ * Closes the buy Pair Out has chosen, and retires it.
+ *
+ * Answers the level it closed when that level was a carried one, so the caller
+ * can drop it from `carriedLevels`, and null when nothing was paired.
+ *
+ * ONE buy per sale, deliberately. A level that closes has earned one step of
+ * profit and can carry one old buy; taking two would close the second out of a
+ * win that was never made.
+ */
+function pairOutOneBuy(input: {
+  plan: GridPlan
+  candidates: readonly {
+    level: GridLevelState
+    carried: boolean
+    rung: number
+  }[]
+  closing: GridLevelState
+  mark: number
+  marketKey: string
+  book: WalletBook
+  deps: LadderEngineDeps
+  now: number
+}): GridLevelState | null {
+  const { plan, book, deps, mark } = input
+  const partner = pairOutPartner(plan, input.candidates, input.closing, mark)
+  if (!partner) return null
+
+  // **Read the position again, rather than reusing the pass's snapshot.**
+  // `fill` replaces the book's entry instead of editing it, so the size the
+  // pass started with has already been spent by the sale that paid for this
+  // one. Capping against the stale figure would sell coins that have gone.
+  const remaining = book.positions.get(input.marketKey) ?? null
+  const sz = Math.min(
+    floorSize(partner.level.heldSz, plan.sizeDecimals),
+    remaining ? floorSize(Math.abs(remaining.szi), plan.sizeDecimals) : 0
+  )
+  if (sz > 0) {
+    deps.fill(book, {
+      marketKey: input.marketKey,
+      side: exitSide(plan.direction),
+      px: slippedPx(mark, exitSide(plan.direction), book.costs.slippageRate),
+      sz,
+      feeRate: book.costs.takerFeeRate,
+      leverage: remaining?.leverage ?? 1,
+      maxLeverage: plan.maxLeverage,
+      reduceOnly: true,
+      reason: "order",
+      at: input.now,
+      // Its OWN rung, not the rung of the level that paid for it, so the
+      // chart draws the arrow on the line the coins were bought at.
+      rung: partner.rung,
+    })
+  }
+  // **Retired for the rest of the run, whether or not there were coins left
+  // to sell.** A paired-out buy does not go back to waiting and never buys
+  // again: its rescue has been paid for, and leaving it holding would block
+  // every later pair behind it. Too little left to sell means dust or a
+  // position that has already gone, and both of those are finished too.
+  partner.level.status = "cancelled"
+  partner.level.heldSz = 0
+  partner.level.armed = false
+  delete partner.level.rebuyAbove
+  return partner.carried ? partner.level : null
 }
 
 /**
@@ -477,6 +589,26 @@ export async function advanceGrid(
     holdNearbyEntriesAfterExit(plan, level.sellPx)
     changed = true
     if (carried) closedCarried.add(level)
+
+    // ----- PAIR OUT -------------------------------------------------------
+    // The sale above made money, so spend it on the buy furthest into the
+    // loss. Both sales happen at this one price on this one pass, so the
+    // position unwinds from both ends and the grid can finish near the middle
+    // of its range instead of waiting for price to climb all the way back to
+    // the first buy it made.
+    if (plan.pairOut) {
+      const paired = pairOutOneBuy({
+        plan,
+        candidates: exitLevels,
+        closing: level,
+        mark,
+        marketKey: row.marketKey,
+        book,
+        deps,
+        now,
+      })
+      if (paired) closedCarried.add(paired)
+    }
   }
   if (closedCarried.size > 0) {
     plan.carriedLevels = plan.carriedLevels.filter(

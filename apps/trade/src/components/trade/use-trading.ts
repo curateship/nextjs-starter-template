@@ -600,11 +600,15 @@ export type Trading = {
    * that stop sat past the range.
    */
   reverseGrid: (walletId: string, gridId: string) => Promise<boolean>
-  /** Start or stop a grid following price up or down. */
+  /**
+   * Start or stop a grid following price up or down, and switch Pair Out on
+   * or off. One call because the three sit together in the settings window
+   * and the window saves what changed in one press.
+   */
   setGridFollow: (
     walletId: string,
     gridId: string,
-    following: { up: boolean; down: boolean }
+    following: { up: boolean; down: boolean; pairOut: boolean }
   ) => Promise<boolean>
   /**
    * The other emergency button: every ladder and every grid you placed, stood
@@ -2648,10 +2652,19 @@ export function useTrading(
             gridId,
             follow: following.up,
             followDown: following.down,
+            pairOut: following.pairOut,
           }),
-        following.up || following.down
-          ? "Grid following changed."
-          : "Grid stays where it is."
+        // Both halves, every time. The window saves following and Pair Out in
+        // one press, so a message naming only one of them leaves you to guess
+        // whether the switch you just flipped landed.
+        [
+          following.up || following.down
+            ? "Grid following changed."
+            : "Grid stays where it is.",
+          following.pairOut
+            ? "It sells an old buy with every sale."
+            : "It sells only the level that closed.",
+        ].join(" ")
       )
     },
     [runWith]

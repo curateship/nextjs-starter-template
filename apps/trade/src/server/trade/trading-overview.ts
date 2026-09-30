@@ -253,6 +253,14 @@ export async function loadOverviewFills(
  * exchange has not spoken for as null. The P&L page, the overview, the daily
  * goal and the public profile all price through here, so none of them can
  * count a fill differently. Hand it the buys behind the sales too.
+ *
+ * **A grid's own entry carries no fee of its own**, because the rung's sale
+ * already takes that entry fee off: `gridRoundTrips` prices a round trip after
+ * both fees. Charged on the buy as well, the same fee came off twice, and a
+ * finished run read lower here than its Journal row — the USELESS run of
+ * 29 Sep 2026 was $18.34 down on the P&L page and $17.80 down in the Journal.
+ * The fee is not lost, it is counted on the day the rung sells, which is the
+ * day the rest of that round trip is counted on.
  */
 export async function priceFills(
   userId: string,
@@ -266,12 +274,24 @@ export async function priceFills(
     fills
   )
   const rungs = gridRoundTrips(stamped)
+  const gridEntries = new Set(
+    stamped.flatMap((fill) =>
+      fill.grid &&
+      fill.side === ((fill.gridDirection ?? "long") === "long" ? "buy" : "sell")
+        ? [fill.fillId]
+        : []
+    )
+  )
   const money = new Map<string, number | null>()
   for (const fill of fills) {
     const protocol =
       parseMarketKey(fill.marketKey)?.protocol ??
       walletById.get(fill.walletId)?.protocol
     if (!protocol) continue
+    if (gridEntries.has(fill.fillId)) {
+      money.set(fill.fillId, 0)
+      continue
+    }
     money.set(
       fill.fillId,
       rungs.get(fill.fillId)?.money ??

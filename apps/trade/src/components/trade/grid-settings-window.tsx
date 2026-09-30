@@ -39,6 +39,7 @@ import {
   DEFAULT_GRID_STOP_UNDER_PCT,
   entryWord,
   exitSide,
+  GRID_PAIR_OUT_HINT,
   gridEndPx,
   gridEvenRungPcts,
   gridLevelPctsFromRows,
@@ -52,6 +53,7 @@ import {
   MAX_GRID_LEVELS,
   MAX_GRID_STOP_UNDER_PCT,
   MIN_GRID_LEVELS,
+  underWater,
   type GridPlan,
   type GridStop,
 } from "@/lib/trade/grid"
@@ -153,7 +155,7 @@ export function GridSettingsWindow({
   onSetEnd: (grid: SmartGrid, abovePct: number | null) => Promise<boolean>
   onSetFollow: (
     grid: SmartGrid,
-    following: { up: boolean; down: boolean }
+    following: { up: boolean; down: boolean; pairOut: boolean }
   ) => Promise<boolean>
   onClose: () => void
 }) {
@@ -232,7 +234,7 @@ function StopForm({
   onSetEnd: (grid: SmartGrid, abovePct: number | null) => Promise<boolean>
   onSetFollow: (
     grid: SmartGrid,
-    following: { up: boolean; down: boolean }
+    following: { up: boolean; down: boolean; pairOut: boolean }
   ) => Promise<boolean>
   onClose: () => void
 }) {
@@ -256,6 +258,11 @@ function StopForm({
   const [leverage, setLeverage] = React.useState(String(plan.leverage))
   const [followOn, setFollowOn] = React.useState(plan.follow)
   const [followDownOn, setFollowDownOn] = React.useState(plan.followDown)
+  // Read as a plain boolean. Every stored grid has the field, because the plan
+  // schema defaults it, but a checkbox handed undefined stops being controlled
+  // and then reports its change as undefined rather than as false.
+  const planPairOut = plan.pairOut === true
+  const [pairOutOn, setPairOutOn] = React.useState(planPairOut)
   const [endOn, setEndOn] = React.useState(plan.takeProfitPx !== null)
   const [endPct, setEndPct] = React.useState(
     String(
@@ -358,8 +365,24 @@ function StopForm({
     !badLevels && sliceCount > 0
       ? (plan.topPx - plan.bottomPx) / sliceCount
       : null
+  // What Pair Out would have to work with right now: every buy the grid still
+  // holds that is under water at today's price, carried ones included. The
+  // same `underWater` the engine picks its partner with, so the count cannot
+  // promise a buy the engine would leave alone.
+  const baggedCount =
+    mark === null
+      ? null
+      : [...plan.carriedLevels, ...plan.levels].filter(
+          (level) =>
+            level.status === "holding" &&
+            level.heldSz > 0 &&
+            underWater(plan.direction, level.buyPx, mark)
+        ).length
+
   const followChanged =
-    followOn !== plan.follow || followDownOn !== plan.followDown
+    followOn !== plan.follow ||
+    followDownOn !== plan.followDown ||
+    pairOutOn !== planPairOut
   const parsedEnd = Number(endPct)
   const badEnd =
     endOn && !(Number.isFinite(parsedEnd) && parsedEnd > 0 && parsedEnd <= 999)
@@ -475,6 +498,7 @@ function StopForm({
       const followed = await onSetFollow(grid, {
         up: followOn,
         down: followDownOn,
+        pairOut: pairOutOn,
       })
       if (!followed) return
     }
@@ -890,6 +914,27 @@ function StopForm({
                 Follow price down
               </FieldLabel>
             </div>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="grid-pair-out-on"
+                checked={pairOutOn}
+                disabled={busy}
+                onCheckedChange={(next) => {
+                  setShowValidation(false)
+                  setPairOutOn(next === true)
+                }}
+              />
+              <FieldLabel htmlFor="grid-pair-out-on" hint={GRID_PAIR_OUT_HINT}>
+                Pair out old buys
+              </FieldLabel>
+            </div>
+            {pairOutOn && baggedCount !== null ? (
+              <p className="text-xs text-muted-foreground">
+                {baggedCount === 0
+                  ? "Nothing is under today's price, so there is nothing to pair out yet."
+                  : `${baggedCount} ${baggedCount === 1 ? "buy is" : "buys are"} under today's price. The next ${baggedCount === 1 ? "sale takes it" : "sales take them"} out, one per sale.`}
+              </p>
+            ) : null}
             <p className="text-xs text-muted-foreground">
               {plan.shifts === 0 && plan.downShifts === 0
                 ? "The range has not moved yet."

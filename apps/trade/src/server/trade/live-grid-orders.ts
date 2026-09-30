@@ -314,7 +314,12 @@ export async function cancelLiveGridRest(
 export async function setLiveGridFollow(
   userId: string,
   wallet: TradeWallet,
-  input: { gridId: string; follow: boolean; followDown?: boolean }
+  input: {
+    gridId: string
+    follow: boolean
+    followDown?: boolean
+    pairOut?: boolean
+  }
 ): Promise<void> {
   await serializeLiveWallet(userId, wallet, async () => {
     await reconcileLiveLaddersOnce(userId, wallet)
@@ -589,6 +594,7 @@ export async function reshapeLiveGrid(
           manualRungPcts: split.manualRungPcts,
           follow: plan.follow,
           followDown: plan.followDown,
+          pairOut: plan.pairOut,
           // Only read when the window pre-fills; a re-shape has its own prices.
           anchor: "price",
           abovePct: DEFAULT_GRID_ABOVE_PCT,

@@ -115,6 +115,7 @@ function grid(direction: "long" | "short", holding = true): SmartGrid {
       cycles: 0,
       follow: false,
       followDown: false,
+      pairOut: false,
       entered: true,
       shifts: 0,
       downShifts: 0,

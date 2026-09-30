@@ -381,6 +381,7 @@ export function draftGridOrder(input: GridDraftInput): GridDraft {
     cycles: 0,
     follow: params.follow,
     followDown: params.followDown,
+    pairOut: params.pairOut,
     // Whether the range is in play from the start. A straddling grid is; one
     // hung entirely clear of the price is waiting for a move, and follow must
     // not touch it until price actually comes to it — see the schema.
@@ -762,7 +763,12 @@ export async function updateGridStop(
 export async function setGridFollow(
   userId: string,
   wallet: TradeWallet,
-  input: { gridId: string; follow: boolean; followDown?: boolean }
+  input: {
+    gridId: string
+    follow: boolean
+    followDown?: boolean
+    pairOut?: boolean
+  }
 ): Promise<void> {
   if (!hasWalletPlanWrite(userId, wallet.id)) {
     return await withWalletPlanWrite(userId, wallet.id, () =>
@@ -1096,6 +1102,7 @@ export async function reshapeGrid(
         manualRungPcts: split.manualRungPcts,
         follow: plan.follow,
         followDown: plan.followDown,
+        pairOut: plan.pairOut,
         // Only read when the window pre-fills; a re-shape has its own prices.
         anchor: "price",
         abovePct: DEFAULT_GRID_ABOVE_PCT,

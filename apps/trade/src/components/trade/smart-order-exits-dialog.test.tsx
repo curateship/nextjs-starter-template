@@ -960,8 +960,61 @@ it("does not reset a fixed stop when only following changes", async () => {
   expect(saveFollowing).toHaveBeenCalledWith(fixed, {
     up: false,
     down: true,
+    pairOut: false,
   })
   expect(saveStop).not.toHaveBeenCalled()
+})
+
+it("switches Pair Out on for a grid already running, and counts the bags", async () => {
+  // A grid that fell through its range: the $95 buy is holding and today's
+  // price is $92, so that buy is the one Pair Out would take.
+  const deep = {
+    ...grid,
+    plan: {
+      ...grid.plan,
+      direction: "long",
+      levels: [
+        { status: "waiting", heldSz: 0, buyPx: 90 },
+        { status: "holding", heldSz: 2, buyPx: 95 },
+      ],
+      carriedLevels: [{ status: "holding", heldSz: 1, buyPx: 110 }],
+    },
+  } as unknown as SmartGrid
+  const saveFollowing = vi.fn(async () => true)
+
+  await act(async () => {
+    root.render(
+      <TooltipProvider>
+        <GridSettingsWindow
+          grid={deep}
+          wallet="Test wallet"
+          mark={92}
+          busy={false}
+          onSave={async () => true}
+          onReshape={async () => true}
+          onSetEnd={async () => true}
+          onSetFollow={saveFollowing}
+          onClose={() => undefined}
+        />
+      </TooltipProvider>
+    )
+  })
+
+  await act(async () => control("grid-pair-out-on").click())
+  // The carried $110 buy and the $95 one still in the range are both under
+  // $92... only the two above the price count, and both are.
+  expect(document.body.textContent).toContain("2 buys are under today's price")
+
+  const save = [...document.querySelectorAll<HTMLButtonElement>("button")].find(
+    (button) => button.textContent?.includes("Save changes")
+  )
+  await act(async () => save?.click())
+
+  expect(saveFollowing).toHaveBeenCalledWith(deep, {
+    up: true,
+    down: false,
+    pairOut: true,
+  })
 })
 
 it("keeps the ladder draft when a save is refused", async () => {

@@ -155,6 +155,9 @@ export function buildReversedPlan(input: {
       // The follow switches carry; their directions swap with the grid.
       follow: plan.follow,
       followDown: plan.followDown,
+      // Pair Out carries too. It is a rule about how the grid closes, not a
+      // price, so turning the grid round does not change what it means.
+      pairOut: plan.pairOut,
       // A reversal has its own prices; the anchor fields are never read.
       anchor: "price",
       abovePct: DEFAULT_GRID_ABOVE_PCT,

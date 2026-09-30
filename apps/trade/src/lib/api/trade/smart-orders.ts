@@ -902,6 +902,7 @@ const gridFollowSchema = z.object({
   gridId: z.string().max(36),
   follow: z.boolean(),
   followDown: z.boolean().optional(),
+  pairOut: z.boolean().optional(),
 })
 
 const setGridFollowFn = createServerFn({ method: "POST" })

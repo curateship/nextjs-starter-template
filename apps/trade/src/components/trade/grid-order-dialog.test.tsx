@@ -154,6 +154,51 @@ describe("the grid window's saved settings", () => {
     expect(levels?.value).toBe("9")
   })
 
+  it("warns that an evenly split grid pairs out at a loss, and stops warning once the far rungs are bigger", async () => {
+    vi.mocked(loadSmartGridParams).mockResolvedValue({ params: null })
+    await renderDialog()
+    await openAdvanced()
+
+    const pairOut = host.querySelector<HTMLButtonElement>("#grid-pair-out")
+    expect(pairOut).not.toBeNull()
+    // Nothing is said until the switch is on.
+    expect(host.textContent).not.toContain("Worst pair as drawn")
+
+    await act(async () => pairOut?.click())
+    // An even split is the default, and an even split cannot pay for itself.
+    expect(host.textContent).toContain("Worst pair as drawn")
+    expect(host.textContent).toContain("loses")
+    expect(host.textContent).toContain("Put more of the money on the far rungs")
+
+    // Hand-set rungs with the weight at the far end turn it round. Rows read
+    // the top of the range first, so the last row is the deepest buy.
+    const setValue = (input: HTMLInputElement | null, value: string) => {
+      const set = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value"
+      )?.set
+      set?.call(input, value)
+      input?.dispatchEvent(new Event("input", { bubbles: true }))
+    }
+    await act(async () => {
+      setValue(host.querySelector<HTMLInputElement>("#grid-levels"), "4")
+    })
+    await act(async () => {
+      host.querySelector<HTMLButtonElement>("#grid-rungs")?.click()
+    })
+    await act(async () => {
+      const weights = ["5", "10", "20", "65"]
+      host
+        .querySelectorAll<HTMLInputElement>('input[id^="grid-rung-"]')
+        .forEach((row, index) => setValue(row, weights[index]))
+    })
+
+    expect(host.textContent).toContain("Worst pair as drawn: makes")
+    expect(host.textContent).not.toContain(
+      "Put more of the money on the far rungs"
+    )
+  })
+
   it("does not repeat the Follow down tooltip under its checkbox", async () => {
     vi.mocked(loadSmartGridParams).mockResolvedValue({ params: null })
     await renderDialog()

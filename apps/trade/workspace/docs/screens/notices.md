@@ -137,6 +137,13 @@ always carry the dollars, the price and the wallet's own label:
   same figure the chart arrow, the overview and the P&L page show
   (`gridRoundTrips`). A sale whose buy is not in the stored fills keeps the
   exchange's wording above.
+- **The dollars in the headline are the coins the money was worked out on.**
+  An exchange hands one sale over in pieces, and the two halves of the notice
+  used to be read a moment apart: on 29 September 2026 a USELESS notice said
+  "$262 of USELESS … made $8.12" when $8.12 was 815 of the 1,086 coins that
+  $262 counted. Both halves are now read under the same lock, and a grid
+  sale's size and price come from the pieces its money covers. A piece taken
+  out of the history is in neither figure.
 - **The sale that ends a grid run:** the whole run's total, never the sale
   alone. Tyler's rule, 24 Sep 2026. The title reads "USELESS grid run ended:
   lost $16.43 (HL1 - GRID)" and the body "Sold the last $963 at $0.28735. That

@@ -10,12 +10,20 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart"
-import { cn } from "@/lib/utils"
-import { InitialsAvatar } from "@/components/pomodoro/initials-avatar"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { FocusGroupsCard } from "@/components/pomodoro/focus-groups-card"
+import { LeaderboardRows } from "@/components/pomodoro/leaderboard-rows"
 import { loadProductivity } from "@/lib/api/pomodoro/productivity"
 import { loadLeaderboard } from "@/lib/api/pomodoro/leaderboard"
 import { useProductAuth } from "@/lib/pomodoro/auth-state"
 import { formatFocusDuration } from "@/lib/pomodoro/focus-history"
+import {
+  DEFAULT_LEADERBOARD_WINDOW,
+  LEADERBOARD_WINDOWS,
+  LEADERBOARD_WINDOW_LABELS,
+  LEADERBOARD_WINDOW_NOTES,
+  type LeaderboardWindow,
+} from "@/lib/pomodoro/leaderboard-windows"
 import { browserTimezone } from "@/lib/pomodoro/timer"
 import { usePomodoro } from "@/lib/pomodoro/use-pomodoro"
 
@@ -27,8 +35,12 @@ const chartConfig = {
 } satisfies ChartConfig
 
 /**
- * The leaderboard page: your own stat cards and 7-day sessions chart, and
- * the opt-in global ranking of the last 7 days.
+ * The leaderboard page: your own stat cards and 7-day sessions chart, the opt-in
+ * global ranking, and your private groups' boards.
+ *
+ * One window choice runs both boards. Picking This month moves the global
+ * ranking and every group board with it, because two windows on one screen is
+ * two questions to answer before a figure means anything.
  */
 export function LeaderboardPage() {
   const { authenticated, known } = useProductAuth()
@@ -36,11 +48,14 @@ export function LeaderboardPage() {
   const [board, setBoard] = React.useState<Leaderboard | null>(null)
   const [stats, setStats] = React.useState<Productivity | null>(null)
   const [error, setError] = React.useState("")
+  const [boardWindow, setBoardWindow] = React.useState<LeaderboardWindow>(
+    DEFAULT_LEADERBOARD_WINDOW
+  )
 
   React.useEffect(() => {
     if (!known || !authenticated) return
     let cancelled = false
-    void loadLeaderboard(browserTimezone())
+    void loadLeaderboard(browserTimezone(), boardWindow)
       .then((result) => {
         if (!cancelled) setBoard(result)
       })
@@ -48,6 +63,16 @@ export function LeaderboardPage() {
         if (!cancelled)
           setError("The leaderboard could not be loaded. Reload to try again.")
       })
+    return () => {
+      cancelled = true
+    }
+  }, [known, authenticated, boardWindow])
+
+  // Your own cards and chart are always the last 7 days, so they load once and
+  // a window change does not fetch them again.
+  React.useEffect(() => {
+    if (!known || !authenticated) return
+    let cancelled = false
     void loadProductivity(browserTimezone())
       .then((result) => {
         if (!cancelled) setStats(result)
@@ -179,10 +204,27 @@ export function LeaderboardPage() {
         </CardContent>
       </Card>
 
+      {authenticated ? (
+        <Tabs
+          value={boardWindow}
+          onValueChange={(value) => setBoardWindow(value as LeaderboardWindow)}
+        >
+          <TabsList aria-label="Leaderboard window">
+            {LEADERBOARD_WINDOWS.map((option) => (
+              <TabsTrigger key={option} value={option}>
+                {LEADERBOARD_WINDOW_LABELS[option]}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+      ) : null}
+
       <Card>
         <CardHeader className="flex-row items-baseline justify-between">
           <CardTitle>Global ranking</CardTitle>
-          <span className="text-xs text-muted-foreground">last 7 days</span>
+          <span className="text-xs text-muted-foreground">
+            {LEADERBOARD_WINDOW_NOTES[boardWindow]}
+          </span>
         </CardHeader>
         <CardContent className="flex flex-col gap-2">
           {!authenticated ? (
@@ -201,31 +243,12 @@ export function LeaderboardPage() {
               Settings and pick a display name to be first.
             </p>
           ) : (
-            (board?.leaders ?? []).map((leader, index) => (
-              <article
-                key={`${index}-${leader.name}`}
-                className={cn(
-                  "flex min-h-11 items-center gap-3 rounded-lg border px-3",
-                  leader.isYou &&
-                    "border-[rgba(255,90,60,0.4)] bg-[rgba(255,90,60,0.08)]"
-                )}
-              >
-                <strong className="w-5 text-center font-mono text-xs text-muted-foreground">
-                  {index + 1}
-                </strong>
-                <InitialsAvatar name={leader.name ?? "?"} />
-                <b className="flex-1 truncate text-sm">{leader.name}</b>
-                <span className="font-mono text-xs">
-                  {formatFocusDuration(leader.focusSeconds)}{" "}
-                  <small className="text-muted-foreground">
-                    {leader.focusSessions} sessions
-                  </small>
-                </span>
-              </article>
-            ))
+            <LeaderboardRows leaders={board?.leaders ?? []} />
           )}
         </CardContent>
       </Card>
+
+      {authenticated ? <FocusGroupsCard boardWindow={boardWindow} /> : null}
     </div>
   )
 }

@@ -97,6 +97,8 @@ const OPEN_TO_EVERYONE: Record<string, string> = {
     "Public pages show these banners before a visitor has an account; the domain chooses the site and the query returns only live visitor announcements.",
   "people/view-as.ts:stopFn":
     "While the view is on the app treats the caller as the member, so an admin check here would be a door that locks from the inside. The session row is the guard.",
+  "shell.ts:loadAppFrontPageRowsFn":
+    "The front page is drawn for visitors with no account, and an app's own rows on it have to be filled to be drawn. It takes nothing from the caller: the rows come from the saved front page and the site from the address that was visited, so nobody can ask it about a row that is not on that page.",
   "shell.ts:loadBrandingFn":
     "The app name and logo are on the sign-in page, so they are readable before there is a session.",
   "shell.ts:loadShellBootstrapFn":

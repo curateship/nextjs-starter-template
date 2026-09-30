@@ -57,6 +57,7 @@ import {
   gridEvenRungPcts,
   gridLiquidationPx,
   gridOrderPlan,
+  gridPairOutWorstUsd,
   placeGridParamsSchema,
   gridRangeFromClick,
   gridRangeFromNearRung,
@@ -73,6 +74,7 @@ import {
   GRID_DIRECTION_HINTS,
   GRID_DIRECTION_PICKER_LABELS,
   GRID_DIRECTIONS,
+  GRID_PAIR_OUT_HINT,
   GRID_SPACING_HINT,
   GRID_SPACING_LABELS,
   GRID_SPACINGS,
@@ -313,6 +315,7 @@ export function GridOrderDialog({
   const [followDown, setFollowDown] = React.useState(
     seeded?.followDown ?? false
   )
+  const [pairOut, setPairOut] = React.useState(seeded?.pairOut ?? false)
   const [tpOn, setTpOn] = React.useState(
     seeded ? seeded.takeProfitPct !== null : true
   )
@@ -372,6 +375,7 @@ export function GridOrderDialog({
       setAnchor(params.anchor)
       setFollow(params.follow)
       setFollowDown(params.followDown)
+      setPairOut(params.pairOut)
       setTpOn(params.takeProfitPct !== null)
       setReverseOn(params.reverseWhenStopped)
       setStopOn(params.stopLoss !== null)
@@ -550,6 +554,7 @@ export function GridOrderDialog({
       anchor,
       follow,
       followDown,
+      pairOut,
       // Remembered as depths, so the next grid on another coin opens at the
       // same shape rather than at this coin's prices.
       //
@@ -594,6 +599,7 @@ export function GridOrderDialog({
     anchor,
     follow,
     followDown,
+    pairOut,
     above,
     below,
     tpOn,
@@ -1026,6 +1032,14 @@ export function GridOrderDialog({
   const rungDollars = plan?.levels.map((one) => one.dollars) ?? []
   const smallestUsd = rungDollars.length ? Math.min(...rungDollars) : null
   const largestUsd = rungDollars.length ? Math.max(...rungDollars) : null
+  // What the weakest Pair Out pair would make on the grid as it is drawn.
+  // Below zero the shape cannot work: the deep buys are too close in size to
+  // the early ones to pay for them, and the window says so before the grid is
+  // placed rather than after the first pair has lost money. Null means the
+  // shape makes no pairs at all, which every two-level grid does, because the
+  // only other buy is worth exactly the price it would be rescued at.
+  const pairOutWorstUsd =
+    pairOut && plan ? gridPairOutWorstUsd(plan.levels, direction) : null
   return (
     <FloatingOrderWindow
       label={`Grid on ${market.symbol}`}
@@ -1578,6 +1592,28 @@ export function GridOrderDialog({
                 Follow price down
               </FieldLabel>
             </div>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="grid-pair-out"
+                checked={pairOut}
+                disabled={busy}
+                onCheckedChange={touched((next: boolean | "indeterminate") =>
+                  setPairOut(next === true)
+                )}
+              />
+              <FieldLabel htmlFor="grid-pair-out" hint={GRID_PAIR_OUT_HINT}>
+                Pair out old buys
+              </FieldLabel>
+            </div>
+            {pairOut && plan ? (
+              <p className="text-xs text-muted-foreground">
+                {pairOutWorstUsd === null
+                  ? "This shape makes no pairs, so the switch would do nothing. Use more levels."
+                  : pairOutWorstUsd > 0
+                    ? `Worst pair as drawn: makes ${formatUsd(pairOutWorstUsd)}.`
+                    : `Worst pair as drawn: loses ${formatUsd(Math.abs(pairOutWorstUsd))}. Put more of the money on the far rungs in the Rungs card, or leave this off.`}
+              </p>
+            ) : null}
             <div className="grid gap-2">
               <FieldLabel htmlFor="grid-spacing" hint={GRID_SPACING_HINT}>
                 Levels spread

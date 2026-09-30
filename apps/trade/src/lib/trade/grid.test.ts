@@ -31,6 +31,7 @@ import {
   gridStopAfterWholeMove,
   gridStopBeyond,
   gridStopLegPrices,
+  gridPairOutWorstUsd,
   gridStopPx,
   gridTakeProfitPx,
   isGridStopLeg,
@@ -387,6 +388,7 @@ describe("reading a stored grid back", () => {
     cycles: 0,
     follow: false,
     followDown: false,
+    pairOut: false,
     entered: true,
     shifts: 0,
     downShifts: 0,
@@ -1682,5 +1684,95 @@ describe("what stopping a grid warns it will do", () => {
 
     expect(warning).toContain("1 waiting level is cancelled")
     expect(warning).toContain("its sells keep working")
+  })
+})
+
+describe("what a paired-out grid's weakest pair makes", () => {
+  /** Six levels $5 apart, from $75 up to $100, each selling one step above. */
+  function ladder(dollars: readonly number[]) {
+    return dollars.map((amount, index) => ({
+      buyPx: 75 + index * 5,
+      sellPx: 80 + index * 5,
+      dollars: amount,
+    }))
+  }
+
+  it("loses money when every level holds the same", () => {
+    // The complaint in one number. The $75 buy makes $5 on $100, which is
+    // $6.67, and the $100 buy sold at $80 loses $20 of its $100.
+    const worst = gridPairOutWorstUsd(ladder([100, 100, 100, 100, 100, 100]), "long")
+
+    expect(worst).not.toBeNull()
+    expect(worst as number).toBeCloseTo(100 * (5 / 75) - 100 * (20 / 100), 6)
+    expect(worst as number).toBeLessThan(0)
+  })
+
+  it("makes money when each level down holds twice the one above", () => {
+    // $700 doubled down the range: $11.11 at $100 and $355.56 at $75.
+    const doubled = [355.56, 177.78, 88.89, 44.44, 22.22, 11.11]
+    const worst = gridPairOutWorstUsd(ladder(doubled), "long")
+
+    expect(worst).not.toBeNull()
+    expect(worst as number).toBeGreaterThan(0)
+    // The weaker of the two real pairs: $177.78 bought at $80 and sold at $85
+    // makes $11.11, and $22.22 bought at $95 and sold at $85 loses $2.34.
+    expect(worst as number).toBeCloseTo(
+      177.78 * (5 / 80) - 22.22 * (10 / 95),
+      6
+    )
+  })
+
+  it("counts only the pairs the engine will really make", () => {
+    // A level's sell price is the next level's buy price, so the two levels
+    // either side of the middle never pair: the buy that would be rescued is
+    // worth exactly the price it would be sold at, and the engine leaves a buy
+    // alone once it is not under water. Six levels make two pairs, not three.
+    //
+    // Counting the third made a doubled grid look WORSE than it is, because
+    // that pair rescues nothing and is only the small win of the innermost
+    // level. $88.89 sold one step up from $85 makes $5.23, under the $8.77 of
+    // the weakest pair that really happens.
+    const doubled = ladder([355.56, 177.78, 88.89, 44.44, 22.22, 11.11])
+    const wouldBeThirdPair = 88.89 * (5 / 85)
+
+    expect(gridPairOutWorstUsd(doubled, "long") as number).toBeGreaterThan(
+      wouldBeThirdPair
+    )
+  })
+
+  it("answers null when the shape makes no pairs at all", () => {
+    expect(gridPairOutWorstUsd([], "long")).toBeNull()
+    expect(
+      gridPairOutWorstUsd([{ buyPx: 100, sellPx: 110, dollars: 100 }], "long")
+    ).toBeNull()
+    // Two levels can never pair. The $75 level sells at $80, and $80 is
+    // exactly what the only other buy cost, so nothing is under water.
+    expect(gridPairOutWorstUsd(ladder([100, 100]), "long")).toBeNull()
+  })
+
+  it("mirrors for a grid that sells first", () => {
+    // A selling grid shorts at each level and buys back one step BELOW it, so
+    // its levels are the same prices with their ways out the other way round.
+    // It closes from the top of the range down, so the weight has to sit at
+    // the top to pay for the shorts made at the bottom.
+    const shorts = [11.11, 22.22, 44.44, 88.89, 177.78, 355.56].map(
+      (dollars, index) => ({
+        buyPx: 75 + index * 5,
+        sellPx: 70 + index * 5,
+        dollars,
+      })
+    )
+
+    expect(gridPairOutWorstUsd(shorts, "short") as number).toBeGreaterThan(0)
+    // The same money the other way up cannot pay for itself.
+    expect(
+      gridPairOutWorstUsd(
+        shorts.map((level, index) => ({
+          ...level,
+          dollars: shorts[shorts.length - 1 - index].dollars,
+        })),
+        "short"
+      ) as number
+    ).toBeLessThan(0)
   })
 })
