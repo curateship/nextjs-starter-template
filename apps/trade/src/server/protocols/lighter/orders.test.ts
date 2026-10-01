@@ -848,6 +848,82 @@ describe("pinning protective orders to their position", () => {
     expect(folio.positions[0].slSz).toBe(0.0006)
   }, 60_000)
 
+  it("always asks the exchange for the resting orders", async () => {
+    /**
+     * **The exchange is the only source for this list, and it has to stay
+     * that way.** Lighter's `account_all_orders` channel answered its
+     * subscription with `"orders":{}` while six orders rested on the book
+     * (1 Oct 2026), so the socket could only ever name the orders this app
+     * had touched since connecting. A position's `protectionOrderIds` is
+     * built from this list and `setBrackets` cancels exactly it, so a short
+     * list cancels one leg and adds another — six take-profit orders ended up
+     * on one LIT position that way.
+     *
+     * This does not reproduce that bug: these tests never have a socket, so
+     * the old code reached the same REST read. It guards the invariant
+     * forward, against the read becoming conditional again.
+     */
+    facts.mockResolvedValue({ accountIndex: 5, apiKeyIndex: 2 })
+    privateRead.mockResolvedValue({ code: 200, orders: [] })
+    const account = await import("@/server/protocols/lighter/account")
+    vi.mocked(account.fetchLighterPortfolio).mockResolvedValue({
+      positions: [],
+      orders: [],
+    })
+
+    await fetchLighterOrderPortfolio(
+      "mainnet",
+      "0x887960F1faffbEC960F22f8F95aa4f311F91ff19",
+      () => KEY
+    )
+    expect(
+      privateRead.mock.calls.some(
+        (call) => call[1] === "/api/v1/accountActiveOrders"
+      )
+    ).toBe(true)
+  }, 60_000)
+
+  it("says the orders are unavailable rather than calling them empty", async () => {
+    /**
+     * An answer nobody can parse used to come back as an empty list, which
+     * reads as "this position has no protection" — and a replace then cancels
+     * nothing and places a second stop over the first. The portfolio says it
+     * could not read them instead, which both the engine and the drag refuse
+     * to act on.
+     */
+    facts.mockResolvedValue({ accountIndex: 5, apiKeyIndex: 2 })
+    privateRead.mockResolvedValue({ code: 200, orders: "not a list" })
+    const account = await import("@/server/protocols/lighter/account")
+    vi.mocked(account.fetchLighterPortfolio).mockResolvedValue({
+      positions: [
+        {
+          marketId: "BTC",
+          szi: 0.0006,
+          entryPx: 78_000,
+          leverage: 10,
+          marginUsed: 4,
+          liquidationPx: null,
+          targets: [],
+          tpPx: null,
+          tpSz: null,
+          slPx: null,
+          tpOrderId: null,
+          slOrderId: null,
+          protectionOrderIds: [],
+        },
+      ],
+      orders: [],
+    })
+
+    const folio = await fetchLighterOrderPortfolio(
+      "mainnet",
+      "0x887960F1faffbEC960F22f8F95aa4f311F91ff19",
+      () => KEY
+    )
+    expect(folio.ordersUnavailable).toBe(true)
+    expect(folio.positions[0].protectionOrderIds).toEqual([])
+  }, 60_000)
+
   it("fills in the position's own stop and target from its legs", async () => {
     /**
      * **The disappearing bar.** Only the leg ids were pinned; the stop and

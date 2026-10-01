@@ -60,6 +60,16 @@ a new position the other way round.
 Every exchange the app talks to does this the same way. The list of legs comes
 back with the position on each read, so cancelling them costs no extra request.
 
+**A read that cannot name the legs refuses the change.** The list is the only
+thing standing between a replacement and a second stop on the same position, so
+an exchange that will not give it gets no replacement: the drag, the x and the
+Stop and exit window all answer "The exchange would not list this position's
+stop and exits, so nothing was changed", and the position is left exactly as it
+was. The engine's grid already refused on the same reading. Answering with an
+empty list instead is what let six take-profit orders build up on one Lighter
+position on 1 Oct 2026, each replace cancelling nothing and adding one more —
+`../protocols/lighter.md` has the measurement.
+
 ## A stop you move by hand is written down, not worked out later
 
 Moving a stop tells two things: the exchange, and the smart order working that

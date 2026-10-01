@@ -1258,6 +1258,21 @@ export async function setLiveBrackets(
         : null,
     ])
     if (!rules) throw new Error("LIVE_MARKET")
+    /**
+     * **Never replace protection the exchange would not list.** This call
+     * cancels the legs the read named and then places the new ones, so a read
+     * that could not name them cancels nothing and leaves the old stop and
+     * old exits standing under the new ones. That is how a LIT position on
+     * Lighter came to carry six take-profit orders selling 410 coins when it
+     * held 112.96.
+     *
+     * The same answer the engine's grid already gives on an unreadable order
+     * list — `live-smart-orders.ts` — said here as well, because a drag on
+     * the chart takes exactly the same risk.
+     */
+    if (portfolio.ordersUnavailable) {
+      throw new Error("LIVE_PROTECTION_UNREADABLE")
+    }
     const roundPx = (px: number) =>
       protocol.markets.roundPx(px, rules.sizeDecimals, rules.priceTick)
     const targets = input.targets

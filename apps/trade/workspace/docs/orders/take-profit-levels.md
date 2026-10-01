@@ -49,8 +49,8 @@ exactly as before.
 
 Measured on the real account on 1 Oct 2026: a LIT position on Lighter holding
 112.96 coins carried six take-profit legs, four of them copies at $4.3582,
-selling 410 coins between them. Why six legs: see "A position's legs are read
-short" in `../protocols/lighter.md`.
+selling 410 coins between them. Why six legs, and the socket that caused it:
+see "A position's legs were read short" in `../protocols/lighter.md`.
 
 The Stop and exit window lists every leg the exchange holds, one row each, so
 deleting the stray rows and saving clears them in one go.

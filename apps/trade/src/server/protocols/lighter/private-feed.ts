@@ -33,12 +33,15 @@ import { countLighterSocketSend } from "@/server/protocols/lighter/budget"
  * - `user_stats/{index}` — collateral, portfolio value and available balance.
  *   NO auth. This is where the money figures come from; `account_all` does
  *   not state them.
- * - `account_all_orders/{index}` — the resting orders. This one DOES need
- *   auth, and answers `20001 invalid param : auth field is required` without
- *   it. It is the only part that needs the signer, so a server with no
- *   signing files still shows positions and money — the same rule the REST
- *   path already keeps, and the reason a real position once sat on the
- *   exchange with an empty screen in front of it.
+ *
+ * **There is no resting-orders channel here.** `account_all_orders/{index}`
+ * exists, takes auth, and answers its subscription with `"orders":{}` even
+ * when the account has orders resting — measured on the real account on
+ * 1 Oct 2026 with six of them on the book. It pushes changes from that moment
+ * on, so it can only ever name the orders this app has touched since it
+ * connected, and nothing here can tell that silence from an empty account.
+ * The resting orders are read over REST in `orders.ts`, which is the only
+ * answer that states what is actually there.
  */
 
 /**
@@ -98,14 +101,9 @@ type Account = {
   /** Lighter's own rows, kept raw so `account.ts` does the reading. */
   positions: unknown[]
   stats: Record<string, unknown> | null
-  /** Each market's current resting orders, keyed the way Lighter pushes them. */
-  restingOrders: Record<string, unknown[]> | null
   /** When each part last arrived, so a half-open line is never called fresh. */
   positionsAt: number
   statsAt: number
-  ordersAt: number
-  /** This account's own token supplier, for its orders channel alone. */
-  auth: (() => Promise<string | null>) | null
   seenTrades: Set<string>
   needsRecovery: boolean
 }
@@ -219,11 +217,8 @@ function accountFor(hub: Hub, index: number): Account {
     index,
     positions: [],
     stats: null,
-    restingOrders: null,
     positionsAt: 0,
     statsAt: 0,
-    ordersAt: 0,
-    auth: null,
     seenTrades: new Set(),
     needsRecovery: true,
   }
@@ -242,11 +237,7 @@ function sendCounted(hub: Hub, frame: object): void {
   }
 }
 
-/**
- * Ask for one account's channels. The two public ones go out immediately; the
- * orders channel waits on the token and is simply skipped when there is no
- * signer, which costs positions and money nothing.
- */
+/** Ask for one account's channels. Both are public, so neither needs a token. */
 function subscribe(hub: Hub, account: Account): void {
   sendCounted(hub, {
     type: "subscribe",
@@ -256,32 +247,6 @@ function subscribe(hub: Hub, account: Account): void {
     type: "subscribe",
     channel: `user_stats/${account.index}`,
   })
-  /**
-   * **The token belongs to this account and to no other.** One socket carries
-   * every Lighter wallet on this server, and they belong to different people.
-   * Holding the token supplier on the hub meant whichever wallet connected
-   * last supplied the token for ALL of them — one person's signature asking
-   * for another person's resting orders. Lighter would very likely refuse it,
-   * but tenancy is this app's job to keep, not the exchange's.
-   */
-  const auth = account.auth
-  if (!auth) return
-  const generation = hub.generation
-  void auth()
-    .then((token) => {
-      // A token that arrives after the line was replaced belongs to a socket
-      // that no longer exists; the new line asks for itself.
-      if (!token || generation !== hub.generation) return
-      sendCounted(hub, {
-        type: "subscribe",
-        channel: `account_all_orders/${account.index}`,
-        auth: token,
-      })
-    })
-    .catch(() => {
-      // No token means no resting orders over the socket. The portfolio read
-      // falls back to REST for that half alone, and says so.
-    })
 }
 
 /**
@@ -411,34 +376,6 @@ function apply(hub: Hub, packet: unknown): void {
     }
     return
   }
-  if (type.endsWith("/account_all_orders")) {
-    const orders = frame.orders
-    if (orders && typeof orders === "object") {
-      if (Array.isArray(orders)) {
-        // An unkeyed list says nothing about which markets it covers, so it
-        // can only stand as the whole answer.
-        account.restingOrders = { "": orders }
-      } else {
-        /**
-         * Keyed by market, each key carrying that market's CURRENT list — an
-         * empty one included, which is how a cancelled order leaves. An
-         * update names only the markets it is about (the same delta shape the
-         * positions channel was measured sending on 31 Aug 2026), so its
-         * keys land on the held map rather than becoming the whole of it.
-         */
-        const pushed: Record<string, unknown[]> = {}
-        for (const [key, one] of Object.entries(
-          orders as Record<string, unknown>
-        )) {
-          pushed[key] = Array.isArray(one) ? one : [one]
-        }
-        account.restingOrders = type.startsWith("update")
-          ? { ...(account.restingOrders ?? {}), ...pushed }
-          : pushed
-      }
-      account.ordersAt = now
-    }
-  }
 }
 
 /**
@@ -491,7 +428,6 @@ function teardown(hub: Hub): void {
     account.needsRecovery = true
     account.positionsAt = 0
     account.statsAt = 0
-    account.ordersAt = 0
   }
 }
 
@@ -603,8 +539,7 @@ function connect(hub: Hub): void {
  */
 export function openLighterPrivateFeed(
   network: NetworkId,
-  accountIndex: number,
-  auth?: () => Promise<string | null>
+  accountIndex: number
 ): void {
   // Lighter is mainnet only. Anything else does nothing rather than retrying
   // a refusal forever — the caller falls back to REST and names it once.
@@ -612,7 +547,6 @@ export function openLighterPrivateFeed(
   const hub = hubFor(network)
   const fresh = !hub.accounts.has(accountIndex)
   const account = accountFor(hub, accountIndex)
-  if (auth) account.auth = auth
   /**
    * **This caller is the retry engine, not the watchdog.** The watchdog is
    * created inside a successful connection, so a first attempt that failed
@@ -657,17 +591,6 @@ export function lighterAccountFromFeed(
     account: lighterAccountShape(held.index, held.positions, held.stats),
     ageMs,
   }
-}
-
-/** The resting orders as Lighter last pushed them, or null when unsigned. */
-export function lighterOrdersFromFeed(
-  network: NetworkId,
-  accountIndex: number
-): unknown[] | null {
-  const hub = hubs().get(network)
-  const held = hub?.accounts.get(accountIndex)
-  if (!held || held.restingOrders === null || held.ordersAt === 0) return null
-  return isOpen(hub) ? Object.values(held.restingOrders).flat() : null
 }
 
 /** Whether the line is up. A closed one has already cleared its snapshots. */

@@ -683,6 +683,8 @@ const LIVE_SENTENCES: Record<string, string> = {
     "Type how much margin to add or take back. Zero changes nothing.",
   LIVE_UNREADABLE:
     "The exchange answered with figures that could not be read, so nothing was done.",
+  LIVE_PROTECTION_UNREADABLE:
+    "The exchange would not list this position's stop and exits, so nothing was changed. Changing them without that list would leave the old ones on the position under the new ones. Try again in a moment.",
   SECRET_UNREADABLE:
     "The stored trading key could not be unlocked on this server. Open the wallet's settings and paste the key again.",
   ENCRYPTION_NOT_CONFIGURED:

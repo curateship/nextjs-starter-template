@@ -201,17 +201,22 @@ price socket, because the stage that would have built the rest was still
 unbuilt — and it is the one venue that cannot afford to poll, at sixty a minute
 against Hyperliquid's thousands.
 
-Now it reads three socket channels, and the same tab spends **17 a minute**:
+Three socket channels brought the same tab down to **17 a minute**, measured
+that day. Two of them are left:
 
 - `account_all/{index}` — the positions, and the trades that say the Journal
   should be reconciled. **No auth.**
 - `user_stats/{index}` — collateral, portfolio value and available balance.
   **No auth.** `account_all` does not state the money; this is where it comes
   from.
-- `account_all_orders/{index}` — the resting orders. **This one needs the auth
-  token**, and refuses with `20001 invalid param : auth field is required`
-  without it. It is the only part that needs the signer, so a server with no
-  signing files still shows a position and a balance.
+
+The third, `account_all_orders/{index}`, went on 1 Oct 2026: it is a change
+feed rather than a snapshot and was lying about what the account held — see
+"A position's legs were read short" below. The resting orders are read over REST
+again, held thirty seconds, which puts at most two requests a minute per wallet
+back on that 17. Losing the channel also means nothing on this socket needs the
+auth token, so a server with no signing files loses nothing it was getting
+here.
 
 The pushed rows carry exactly the fields the REST account read already parses,
 so both paths end at the same two converters in `account.ts`. Two readers of
@@ -717,13 +722,14 @@ useful thing the app can say about real money and, for the country block, an
 instruction that can never work. The order path now badges them so the reason
 survives to the screen.
 
-## A position's legs are read short, and that is why they pile up
+## A position's legs were read short, and that is how they piled up
 
-**The exchange holds more protection legs than Trade can see, so a replace
-cancels one and adds another.** Measured on the real account on 1 Oct 2026: the
-LIT position held 112.96 coins and Lighter was carrying six take-profit legs on
-it, four of them copies at $4.3582, selling 410 coins between them. The Stop and
-exit window, reading what the app holds, listed one.
+**Trade saw fewer protection legs than the exchange was holding, so each
+replace cancelled one and added another.** Fixed on 1 Oct 2026; this is what it
+looked like and why. Measured on the real account that day: the LIT position
+held 112.96 coins and Lighter was carrying six take-profit legs on it, four of
+them copies at $4.3582, selling 410 coins between them. The Stop and exit
+window, reading what the app held, listed one.
 
 `setBrackets` cancels the legs the position read gave it and then places the new
 set. Given one id it cancels one leg, so every replace leaves the rest standing.
@@ -740,19 +746,39 @@ $4.1791 leg the status `canceled`, updated at the second of the 00:18:21
 replace, and that cancel was signed with the `order_index` the read hands back.
 So the fault is in what the read sees, not in the number the cancel carries.
 
-The orders channel is the first thing to measure. `lighterOrdersFromFeed`
-answers from the socket's held snapshot whenever the line is up, and an `update`
-frame overwrites a market's whole key with whatever that frame carried. If
-Lighter's updates name only the orders that changed, the held list shrinks to
-them and the REST list is never asked for. Not yet proved: the fix waits on a
-reading of the frames themselves.
+**The socket was the fault, and it is no longer asked.** Subscribing to
+`account_all_orders` on the real account on 1 Oct 2026, with six orders resting
+at that moment, answered:
+
+```json
+{"channel":"account_all_orders:741323","orders":{},"type":"subscribed/account_all_orders"}
+```
+
+An empty map. The channel is a change feed: it says nothing about what is on
+the book when you join and pushes only what moves afterwards, so the held list
+could only ever name the orders this app had touched since it connected — in
+practice the last leg it placed. The portfolio read took that list whenever the
+line was up and never asked the exchange, which is why the app showed one exit
+and Lighter held six. When the line was down the same read fell back to REST and
+showed all six, so the chart flipped between one exit and six depending on the
+socket.
+
+The channel is gone rather than seeded from REST, because nothing here can tell
+a change feed's silence from an account with nothing resting, and a stop that is
+there but unseen is a position the app will protect twice over. `orders.ts`
+reads `/api/v1/accountActiveOrders` and holds the answer for thirty seconds, so
+this costs two requests a minute per wallet at worst, and anything this app
+sends drops the held answer first. Positions, the money figures and the trades
+are still pushed; they come from `account_all` and `user_stats`, which are
+snapshots and need no auth. With the orders channel went the only use for an
+auth token on this socket.
 
 ## The stop and target riding a position
 
 Lighter keeps a position's stop and target as two ordinary orders of its own,
 reduce-only with a trigger price, status "pending" until the mark reaches the
-trigger. Both the resting-orders list and the `account_all_orders` socket
-include them while they wait — measured on a live account on 1 Sep 2026.
+trigger. The resting-orders list includes them while they wait — measured on a
+live account on 1 Sep 2026.
 
 Three things about reading them back were wrong until that day, and together
 they made the stop and target bar vanish from the chart about a minute after
@@ -864,12 +890,6 @@ exchange at all.
 
 ## Still to prove
 
-- **That `account_all_orders` updates are deltas like the positions channel.**
-  The positions channel was measured sending per-market updates on
-  31 Aug 2026 and the orders channel is merged by the same market keys on the
-  strength of it, but an orders update has not been watched during a real
-  order yet. If a full frame ever omits a market whose last order was
-  cancelled, that market's list would linger until the socket reconnects.
 - **A day with all five wallets trading at once**, with Lighter blocked at the
   network on purpose while the other four carry on. That is a real day's
   running, not something a test can stand in for.

@@ -32,8 +32,6 @@ import {
 import {
   forgetLighterHeldReads,
   heldLighterRead,
-  lighterOrdersFromFeed,
-  openLighterPrivateFeed,
 } from "@/server/protocols/lighter/private-feed"
 import {
   fetchLighterPrices,
@@ -830,37 +828,31 @@ export async function fetchLighterOrderPortfolio(
 /**
  * The orders resting on Lighter right now. Needs the account's own
  * signature, so it costs one auth token.
+ *
+ * **Read over REST, never over the socket.** Lighter's `account_all_orders`
+ * channel answers its subscription with `"orders":{}` — measured on the real
+ * account on 1 Oct 2026, with six orders resting at that moment — and then
+ * pushes only what changes afterwards. It is a change feed, not a list of
+ * what is there, so the socket could only ever name the orders this app had
+ * touched since it connected.
+ *
+ * What that cost: the position read builds its `protectionOrderIds` from this
+ * list, and `setBrackets` cancels exactly that list before placing the new
+ * one. Given one leg it cancelled one leg. A LIT position holding 112.96
+ * coins ended up carrying six take-profit orders, four of them copies at
+ * $4.3582, selling 410 coins between them, and the Stop and exit window
+ * listed the single one the socket had last mentioned. The channel is gone
+ * rather than seeded, because nothing here can tell a change feed's silence
+ * from an empty account.
+ *
+ * One REST answer stands for the polls in the next thirty seconds, so this is
+ * two requests a minute per wallet at worst, and anything this app sends
+ * drops the held answer first.
  */
 async function fetchLighterOpenOrders(
   network: NetworkId,
   facts: { accountIndex: number; apiKeyIndex: number }
 ) {
-  /**
-   * The socket first. `account_all_orders` is the one private channel that
-   * needs the auth token, and the feed carries the token in its subscribe
-   * frame — so the orders arrive pushed and this costs nothing per poll.
-   *
-   * **A partly readable answer falls back rather than being shown.** If the
-   * feed names rows and any one of them cannot be read, the REST read runs
-   * instead: showing three resting orders as two is a lie about real money,
-   * where spending one request is only a cost.
-   */
-  openLighterPrivateFeed(network, facts.accountIndex, async () => {
-    try {
-      return (await lighterAuthToken(facts)).token
-    } catch {
-      return null
-    }
-  })
-  const pushed = lighterOrdersFromFeed(network, facts.accountIndex)
-  if (pushed) {
-    const converted = await toLighterOpenOrders(network, pushed)
-    if (converted.length === pushed.length) return converted
-  }
-
-  // Same reasoning as the account read: while the socket is down, one REST
-  // answer stands for the polls in the next few seconds, so the fallback
-  // cannot spend the very allowance that is keeping the socket down.
   return heldLighterRead("orders", network, facts.accountIndex, () =>
     readLighterOpenOrders(network, facts)
   )
@@ -879,11 +871,20 @@ async function readLighterOpenOrders(
     { account_index: facts.accountIndex }
   )
   const parsed = ordersAnswerSchema.safeParse(answer)
-  if (!parsed.success) return []
+  /**
+   * **An answer that cannot be read is not an empty account.** This list is
+   * what a position's protection legs are built from, and `setBrackets`
+   * cancels exactly those legs before placing new ones — so answering
+   * "nothing resting" to a reply nobody could parse takes a stop off the
+   * books in the app's mind while it stands on the exchange, and puts a
+   * second one over the top. Throwing instead leaves the portfolio marked
+   * `ordersUnavailable`, which the engine and the drag both refuse to act on.
+   */
+  if (!parsed.success) throw new Error("LIVE_UNREADABLE")
   return toLighterOpenOrders(network, parsed.data.orders)
 }
 
-/** Lighter's own order rows as this app's, from either the socket or REST. */
+/** Lighter's own order rows as this app's. */
 async function toLighterOpenOrders(
   network: NetworkId,
   raw: readonly unknown[]

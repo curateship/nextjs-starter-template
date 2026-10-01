@@ -1057,6 +1057,49 @@ describe("protecting a position", () => {
     expect(setBrackets).toHaveBeenCalledTimes(1)
   })
 
+  it("refuses to change protection the exchange would not list", async () => {
+    /**
+     * A replace cancels the legs the read named and then places the new ones.
+     * A read that could not name them cancels nothing, so the old stop and
+     * exits stay on the position underneath the new ones — which is how a LIT
+     * position on Lighter came to carry six take-profit orders selling 410
+     * coins while it held 112.96.
+     */
+    const userId = await person()
+    const walletId = await liveWallet(userId)
+    portfolio.mockResolvedValue({
+      ordersUnavailable: true,
+      positions: [
+        {
+          marketId: "BTC",
+          szi: 1,
+          entryPx: 90_000,
+          leverage: 5,
+          marginUsed: 18_000,
+          liquidationPx: null,
+          targets: [],
+          tpPx: null,
+          tpSz: null,
+          slPx: null,
+          tpOrderId: null,
+          slOrderId: null,
+          protectionOrderIds: [],
+        },
+      ],
+      orders: [],
+    })
+
+    await expect(
+      setLiveBrackets(userId, {
+        walletId,
+        marketKey: MARKET,
+        targets: [{ px: 100_000, sz: null }],
+        slPx: null,
+      })
+    ).rejects.toThrow("LIVE_PROTECTION_UNREADABLE")
+    expect(setBrackets).not.toHaveBeenCalled()
+  })
+
   it("still refuses a fourth exit on a tidy position", async () => {
     const userId = await person()
     const walletId = await liveWallet(userId)
