@@ -33,8 +33,10 @@ admin writes them in Admin → Promotions. Visitors see them on the Deals page a
   hours. Chosen on 24 Sep 2026.
 - **"Same as the listing's hours"** is one button in the deal window. Chosen
   on 24 Sep 2026.
-- **The Deals page's first group is "Current deals".** "On now" is only ever
-  a card saying the deal is running this minute. Chosen on 24 Sep 2026.
+- **"On now" is only ever a card saying the deal is running this minute.**
+  Chosen on 24 Sep 2026. The page was two groups, "Current deals" and
+  "Starting soon", until the redesign on 1 Oct 2026 put every deal in one grid
+  and moved that word onto the card.
 - **Every owner deal and every owner change is reviewed.** Approving a new
   deal publishes it, and "End now" is the only thing that doesn't wait.
   Chosen on 25 Sep 2026.
@@ -133,26 +135,62 @@ say when, inside those days, it is on. They came in
 
 ## The Deals page
 
-- **Two groups.** "Current deals" comes first: every deal inside its days,
-  ending soonest first, with no-end deals last. "Starting soon" follows, starting soonest first. Every deal that
-  has not started yet shows there, however far off it is.
-- **Each card** shows the deal's cover photo, or the listing's own photo when
-  the deal has none, then the headline in big type, the title, the listing's
-  name, and a line like
-  "Until Sun, Oct 12", "Today only", "No end date" or "Starts Thu, Oct 1 ·
-  until Wed, Oct 7", then "On now · until 6 PM" or "Next: today at 4 PM".
+The page is built like the directory's browse page and the Events page: a band
+across the top holding the name and one search bar, then a row of chips and
+filter buttons, then one grid of cards. Tyler asked for that shape on
+1 Oct 2026, to a drawing.
+
+- **The band** is `PublicHeroBand`, shared with the directory and the Events
+  page, so a change to one reaches all three. It holds the breadcrumbs, "Deals",
+  the line "Current offers from places on Eat Drink Toronto.", and the bar.
+- **The bar asks one question in three parts**: words, a town or postcode, and
+  how far. Enter searches from whichever box the visitor is in.
+- **One grid, not two groups.** The deals inside their days come first, ending
+  soonest first with no-end deals last, then the ones starting on a later day,
+  soonest first. There are no "Current deals" and "Starting soon" headings any
+  more; each card says where it stands itself.
+- **Each card** is read in three passes. The photo carries the place's
+  category, a tag, and the headline in a dark pill. The middle is the deal's
+  own name and then the place, the neighbourhood and the distance on one line,
+  like "12 Tables · Avenue and Lawrence". The foot is two cells under small grey
+  labels: "Valid" with "Until Mon, Oct 5", "Today only", "No end date" or
+  "Starts Thu, Oct 1 · until Wed, Oct 7", and "Next" with "Tomorrow, 11 AM", or
+  "On now" with "Until 6 PM" while it is running.
+- **The tag over the photo** says "Ending soon" when the last day is today or
+  in the next two days, "Starting soon" before the first day, and "On now" for
+  a deal running this minute. A deal that is none of those is left bare. Ending
+  soon wins over on now, because a deal that is gone on Thursday is the one
+  worth crossing town for today, and the foot already says it is on.
+- **The cover photo, or the listing's own** when the deal has none. A card with
+  no photo at all moves the headline, the category and the tag into a row above
+  the title.
+- **A row of cards shares one bottom edge**, so the two labels in the foot line
+  up across the row.
 - **24 cards a page**, with Previous and Next under them.
 
 ## Filters on the Deals page
 
-Chips and a distance above the cards, all kept in the address so a filtered
-page can be reloaded or sent: `?category=pizza`, `?on=now` or `?on=ending`,
-and `?near=…&radius=…&area=…`. Each chip keeps the other filters and goes back
-to page 1. A mistyped address is ignored rather than refused.
+What a visitor searches by is kept in the address, so a narrowed page can be
+reloaded or sent: `?q=lunch`, `?category=pizza,west-end`, `?on=now` or
+`?on=ending`, and `?near=…&radius=…&area=…`. Everything keeps the other
+filters and goes back to page 1. A mistyped address is ignored rather than
+refused.
 
-- **Category chips** are the categories with a live deal at a listing filed
-  directly under them, in the admin's order (`readDealCategories`). A category
-  whose only deals are drafts, at draft listings or over never gets a chip.
+- **The typed words** match a deal's own name, its headline and the name of the
+  place running it. The small print and the description are left out, because a
+  match a visitor cannot see on the card reads as a wrong result.
+- **Cuisine and Neighbourhood are buttons that drop down**, the same component
+  as the directory's browse page (`DirectoryFilterBar`). A group is a parent
+  category and its children are the tick boxes, so nothing new is stored and a
+  site that adds a third parent gets a third button. Each box carries how many
+  live deals are behind it, and a box with none is left out. Two boxes ticked in
+  one group means either of them; two groups means both.
+- **The "when" chips carry their numbers**: Any time, On now and Ending soon,
+  each with how many deals it would show, counted with the typed words, the
+  ticked boxes and the distance still applied. The list and the numbers are
+  built from the one filter (`dealsNarrowedBy` in
+  `src/server/promotions/public.ts`), so a chip can never promise deals the list
+  will not show.
 - **On now** keeps the deals running at this minute by their times and the
   site's clock, past midnight and 24-hour stretches included. The rule is
   written for the database (`runningAt` in `src/server/promotions/public.ts`)
@@ -162,11 +200,12 @@ to page 1. A mistyped address is ignored rather than refused.
   the next two, which Tyler chose on 25 Sep 2026. A deal with no end day never
   counts.
 - **Near me** uses the same Near and Within picker as the directory and the
-  Events page. It keeps deals whose listing's pin is within the distance, adds
-  "1.9 km away" to each card, and keeps the list in its usual order. A listing
-  with no pin is left out, and the page says so.
+  Events page, and it lives in the band. It keeps deals whose listing's pin is
+  within the distance, adds "1.9 km away" to each card's place line, and keeps
+  the list in its usual order. A listing with no pin is left out, and the band
+  says so under the bar.
 - **Nothing matching** says what it was narrowed by, like "Nothing ending soon
-  in Italian."
+  matching "lunch" in Italian."
 - The home page's deals row carries its category into "See all deals".
 
 ## A deal's page
@@ -460,10 +499,22 @@ listing, the address part and the status.
   The condition is built in `public.ts` and handed over rather than written
   where it is used, because `private.test.ts` keeps the table readable from
   that one file.
+- **The Deals page's own parts** are `src/components/promotions/public/`:
+  `deals-hero.tsx` is the band, `deal-filters.tsx` the "when" chips, and
+  `deal-grid.tsx` the card, which the home page's deals row and a category
+  page's deals draw too. Those two ask for less, so the category, the
+  neighbourhood and the tag are missing rather than empty, and the card leaves
+  out whatever it was not given.
+- **The place's category and neighbourhood come from the directory's own
+  reader** (`categoryForCards` in `src/server/directory/public.ts`), so a deal
+  card and a listing card can never file the same place under two different
+  categories.
 - `src/routes/deals.tsx`, `src/routes/deals_.$slug.tsx` and
   `src/routes/deals_.code.$code.tsx` are the public pages;
   `src/routes/_authenticated/admin/promotions.tsx` is the admin screen.
 
 ## Not built yet
 
-Search, sitemap and feed (08). The task files are in `workspace/tasks/promotions/`.
+Deals in the site's own search box, the sitemap and the feed (08). The Deals
+page's own search box is built; this is about finding a deal from anywhere
+else. The task files are in `workspace/tasks/promotions/`.

@@ -569,16 +569,20 @@ function orderFor(
 
 /**
  * The category each of these listings is shown under: its primary one, or the
- * first by name when nobody marked one.
+ * first by name when nobody marked one, and the neighbourhood it sits in.
  *
  * One query for the whole page rather than one per card — twelve cards used to
  * mean twelve round trips, and the page only ever holds one page of them.
+ *
+ * Exported for the Deals page, whose cards name the same two things about the
+ * place running the deal. One reader, so a deal card and a listing card can
+ * never file the same place under two different categories.
  */
-async function categoryForCards(
+export async function categoryForCards(
   siteId: string,
   listingIds: string[],
   neighbourhoodCategoryId: string,
-  database: CustomShellDb
+  database: CustomShellDb = db
 ): Promise<{
   shownUnder: Map<string, PublicCategoryLink>
   neighbourhood: Map<string, PublicCategoryLink>

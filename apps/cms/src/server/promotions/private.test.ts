@@ -161,8 +161,11 @@ const everyPublicRead: Record<
     notADealRead:
       "Returns a condition on a listing, not deals. Proven on its own below.",
   },
-  readDealCategories: {
+  readDealFilters: {
     notADealRead: "Lists categories, not deals. Proven on its own below.",
+  },
+  readDealWhenCounts: {
+    notADealRead: "Counts deals rather than naming them. Proven on its own below.",
   },
 }
 
@@ -228,18 +231,29 @@ describe("the map's Deals only switch", () => {
   })
 })
 
-describe("the Deals page's category chips", () => {
+describe("the Deals page's filter buttons", () => {
   it("never offer a category whose only deals are hidden", async () => {
     const [open, closed] = listingIds as [string, string]
     const food = await createCategory(site.id, { name: "Food" }, database)
     const secret = await createCategory(site.id, { name: "Secret" }, database)
     await setContentCategories(site.id, LISTING_CONTENT_TYPE, open, [food.id], database)
     await setContentCategories(site.id, LISTING_CONTENT_TYPE, closed, [secret.id], database)
+    const filters = await publicReads.readDealFilters(site.id, now, database)
     expect(
-      (await publicReads.readDealCategories(site.id, now, database)).map(
-        (row) => row.slug
-      )
+      filters.categories
+        .filter((row) => row.dealCount > 0)
+        .map((row) => row.slug)
     ).toEqual([food.slug])
+  })
+
+  it("counts no deal a visitor may not see", async () => {
+    const counts = await publicReads.readDealWhenCounts(
+      site,
+      now,
+      database
+    )
+    // One open deal is live here; every hidden one is left out of the total.
+    expect(counts.anyTime).toBe(1)
   })
 })
 

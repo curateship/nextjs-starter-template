@@ -62,7 +62,8 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   square cover image, and why a weekday's opening hours are one stretch and no
   longer two.
 - `promotions.md` — each site's deals: writing them in Admin → Promotions,
-  the Deals page and each deal's page, deal types and headlines, the times
+  the Deals page with its band, its search, its "when" chips and its Cuisine
+  and Neighbourhood buttons, each deal's page, deal types and headlines, the times
   of day a deal runs and how "On now" is worked out, the rules Tyler set, how
   the site's time zone decides when a deal is over, the deal marker and
   "Deals only" on the directory's map, claiming a deal and using the code at

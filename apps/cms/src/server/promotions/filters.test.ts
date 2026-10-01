@@ -11,7 +11,11 @@ import type { VisitorSite } from "@/server/directory/public"
 import { resetPublicDirectoryCacheForTests } from "@/server/directory/public-cache"
 import { LISTING_CONTENT_TYPE } from "@/server/directory/schema"
 import { createPromotion } from "@/server/promotions/promotions"
-import { readDealCategories, readDeals } from "@/server/promotions/public"
+import {
+  readDealFilters,
+  readDealWhenCounts,
+  readDeals,
+} from "@/server/promotions/public"
 import { sitePromotions } from "@/server/promotions/schema"
 import {
   createTestDatabase,
@@ -206,11 +210,14 @@ describe("a category", () => {
     await deal("Pizza deal", { listing: napoli })
     await deal("Elsewhere")
     await deal("Ended pizza", { listing: quiet, endDate: "2026-10-01" })
-    expect(await titles(`${today}T12:00`, { categoryId: pizza.id })).toEqual([
-      "Pizza deal",
-    ])
     expect(
-      (await readDealCategories(site.id, `${today}T12:00`, database)).map((row) => row.name)
+      await titles(`${today}T12:00`, { categoryGroups: [[pizza.id]] })
+    ).toEqual(["Pizza deal"])
+    const filters = await readDealFilters(site.id, `${today}T12:00`, database)
+    expect(
+      filters.categories
+        .filter((row) => row.dealCount > 0)
+        .map((row) => row.name)
     ).toEqual(["Pizza"])
   })
 })
@@ -232,5 +239,123 @@ describe("near a place", () => {
     expect(list.deals.map((row) => row.title)).toEqual(["Close deal"])
     expect(list.deals[0]?.distanceKm).toBeCloseTo(1.87, 1)
     expect(list.total).toBe(1)
+  })
+})
+
+describe("the typed words", () => {
+  it("match a deal's own name, its headline and the place running it", async () => {
+    const napoli = await place("Napoli Pizza")
+    await deal("Lunch special", { listing: napoli })
+    await deal("Dinner special")
+    expect(await titles(`${today}T12:00`, { q: "lunch" })).toEqual([
+      "Lunch special",
+    ])
+    // The place's name finds a deal whose own name says nothing about pizza.
+    expect(await titles(`${today}T12:00`, { q: "napoli" })).toEqual([
+      "Lunch special",
+    ])
+    // Every deal here is built as "10% off", which is the headline.
+    expect(await titles(`${today}T12:00`, { q: "10%" })).toEqual([
+      "Dinner special",
+      "Lunch special",
+    ])
+    expect(await titles(`${today}T12:00`, { q: "nothing here" })).toEqual([])
+  })
+})
+
+describe("two groups of ticked boxes", () => {
+  it("keeps a deal in either of one group's boxes, and in both groups", async () => {
+    const cuisine = await createCategory(site.id, { name: "Cuisine" }, database)
+    const area = await createCategory(site.id, { name: "Area" }, database)
+    const pizza = await createCategory(
+      site.id,
+      { name: "Pizza", parentId: cuisine.id },
+      database
+    )
+    const sushi = await createCategory(
+      site.id,
+      { name: "Sushi", parentId: cuisine.id },
+      database
+    )
+    const west = await createCategory(
+      site.id,
+      { name: "West", parentId: area.id },
+      database
+    )
+    const napoli = await place("Napoli")
+    const tokyo = await place("Tokyo")
+    await setContentCategories(
+      site.id,
+      LISTING_CONTENT_TYPE,
+      napoli,
+      [pizza.id, west.id],
+      database
+    )
+    await setContentCategories(
+      site.id,
+      LISTING_CONTENT_TYPE,
+      tokyo,
+      [sushi.id],
+      database
+    )
+    await deal("Pizza deal", { listing: napoli })
+    await deal("Sushi deal", { listing: tokyo })
+
+    // Either of them inside one group.
+    expect(
+      await titles(`${today}T12:00`, { categoryGroups: [[pizza.id, sushi.id]] })
+    ).toEqual(["Pizza deal", "Sushi deal"])
+    // Both of them across two groups.
+    expect(
+      await titles(`${today}T12:00`, { categoryGroups: [[pizza.id], [west.id]] })
+    ).toEqual(["Pizza deal"])
+    expect(
+      await titles(`${today}T12:00`, { categoryGroups: [[sushi.id], [west.id]] })
+    ).toEqual([])
+
+    const filters = await readDealFilters(site.id, `${today}T12:00`, database)
+    expect(
+      filters.groups.map((group) => [
+        group.name,
+        group.options.map((option) => `${option.name} ${option.count}`),
+      ])
+      // In the admin's own order, which is display order then name, never
+      // the order the boxes inside them happen to sort in.
+    ).toEqual([
+      ["Area", ["West 1"]],
+      ["Cuisine", ["Pizza 1", "Sushi 1"]],
+    ])
+  })
+})
+
+describe("the numbers on the when chips", () => {
+  it("count what each chip would show, with the other filters still on", async () => {
+    const napoli = await place("Napoli")
+    await deal("Running now", {
+      listing: napoli,
+      times: week(["tuesday"], "09:00", "17:00"),
+    })
+    await deal("Ends tomorrow", { listing: napoli, endDate: "2026-10-07" })
+    await deal("Evening only", {
+      listing: napoli,
+      times: week(["tuesday"], "18:00", "22:00"),
+    })
+    // A deal with no times of its own runs all day, so it is on now.
+    await deal("Elsewhere")
+    resetPublicDirectoryCacheForTests()
+
+    expect(await readDealWhenCounts(site, `${today}T12:00`, database)).toEqual({
+      anyTime: 4,
+      now: 3,
+      ending: 1,
+    })
+    resetPublicDirectoryCacheForTests()
+    // The typed words narrow the numbers too, so a chip can never promise
+    // deals the list will not show.
+    expect(
+      await readDealWhenCounts(site, `${today}T12:00`, database, {
+        q: "napoli",
+      })
+    ).toEqual({ anyTime: 3, now: 2, ending: 1 })
   })
 })

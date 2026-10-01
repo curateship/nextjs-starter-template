@@ -1,6 +1,9 @@
-import { slugProblem } from "@/lib/directory/slugs"
+import {
+  formatDirectoryCategories,
+  readDirectoryCategories,
+} from "@/lib/directory/public-search"
 import { readEventNear, type EventNearSearch } from "@/lib/events/events-page"
-import { readOneOf, readPage } from "@/lib/nav/list-search"
+import { readOneOf, readPage, readSearchText } from "@/lib/nav/list-search"
 
 /**
  * The Deals page's address, read the same way by the route and the endpoint:
@@ -30,7 +33,13 @@ export const DEAL_ON_FILTER_LABELS: Record<DealOnFilter, string> = {
 
 export type DealsPageSearch = EventNearSearch & {
   page?: number
-  /** A category's address. One with no live deal here is ignored. */
+  /** What was typed in the band: a deal, or the place running it. */
+  q?: string
+  /**
+   * The ticked boxes behind the Cuisine and Neighbourhood buttons, as one
+   * comma-separated value, the same as the directory's. A slug with no live
+   * deal behind it is ignored rather than refused.
+   */
   category?: string
   on?: DealOnFilter
 }
@@ -39,15 +48,15 @@ export type DealsPageSearch = EventNearSearch & {
 export function readDealsSearch(
   search: Record<string, unknown>
 ): DealsPageSearch {
-  const category =
-    typeof search.category === "string" &&
-    search.category.length <= 160 &&
-    !slugProblem(search.category)
-      ? search.category
-      : undefined
   const read: DealsPageSearch = {
     page: readPage(search.page),
-    category,
+    q: readSearchText(search.q),
+    // Rewritten from whatever arrived: blanks dropped, duplicates dropped, and
+    // a cap, so a hand-edited address can only ever tick fewer boxes than it
+    // asked for.
+    category: formatDirectoryCategories(
+      readDirectoryCategories(search.category)
+    ),
     on: readOneOf(search.on, DEAL_ON_FILTERS),
     ...readEventNear(search),
   }
@@ -57,10 +66,18 @@ export function readDealsSearch(
   ) as DealsPageSearch
 }
 
-/** "/deals?category=pizza&page=2", keys in one fixed order. */
+/** "/deals?q=lunch&category=pizza&page=2", keys in one fixed order. */
 export function dealsListHref(search: DealsPageSearch): string {
   const params = new URLSearchParams()
-  for (const key of ["category", "on", "near", "radius", "area", "page"] as const) {
+  for (const key of [
+    "q",
+    "category",
+    "on",
+    "near",
+    "radius",
+    "area",
+    "page",
+  ] as const) {
     const value = search[key]
     if (value === undefined || (key === "page" && value === 1)) continue
     params.set(key, String(value))

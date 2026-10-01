@@ -40,9 +40,14 @@ export type DirectoryFilterBarProps = {
   groups: DirectoryFilterGroup[]
   /** The ticked slugs, from the address. */
   selected: string[]
-  minRating: number | undefined
+  /**
+   * Left out by a page with no ratings to filter on, like Deals, which gets
+   * the group buttons alone rather than a Rating button that cannot narrow
+   * anything.
+   */
+  minRating?: number | undefined
   onToggleCategory: (slug: string) => void
-  onMinRatingChange: (rating: number | undefined) => void
+  onMinRatingChange?: (rating: number | undefined) => void
 }
 
 export function DirectoryFilterBar({
@@ -62,10 +67,12 @@ export function DirectoryFilterBar({
           onToggleCategory={onToggleCategory}
         />
       ))}
-      <RatingFilter
-        minRating={minRating}
-        onMinRatingChange={onMinRatingChange}
-      />
+      {onMinRatingChange ? (
+        <RatingFilter
+          minRating={minRating}
+          onMinRatingChange={onMinRatingChange}
+        />
+      ) : null}
     </div>
   )
 }

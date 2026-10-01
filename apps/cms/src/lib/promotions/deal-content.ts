@@ -171,6 +171,17 @@ export type DealCardView = {
   daysText: string
   /** "On now · until 6 PM", "Next: today at 4 PM", or null. */
   nowText: string | null
+  /** The card's foot, right-hand cell: "Next" over "Tomorrow, 11 AM". */
+  nextLine?: { label: string; text: string } | null
+  /** "Ending soon", "On now" or "Starting soon", with the dot's colour. */
+  badge?: { tone: "ending" | "now" | "soon"; text: string } | null
+  /**
+   * What the place running the deal is filed under, and the neighbourhood it
+   * is in. The Deals page asks for both; a home page row does not, so they are
+   * absent there rather than null.
+   */
+  category?: { name: string; slug: string } | null
+  neighbourhood?: { name: string; slug: string } | null
   /** How far away, in kilometres, only while narrowed to a distance. */
   distanceKm?: number
 }

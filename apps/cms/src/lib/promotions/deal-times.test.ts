@@ -8,6 +8,7 @@ import {
 import { wallClockAt } from "@/lib/events/event-time"
 import {
   dealEndsAt,
+  dealNextLine,
   dealNowText,
   dealStage,
   dealTimesLines,
@@ -185,5 +186,32 @@ describe("the times in words", () => {
 
   it("says nothing for a deal that runs all day, every day", () => {
     expect(dealTimesLines(blankListingHours())).toEqual([])
+  })
+})
+
+describe("the card's foot", () => {
+  it("says On now with the hour it closes, then Next with the day", () => {
+    expect(dealNextLine(happyHour, "2026-10-06T16:30")).toEqual({
+      label: "On now",
+      text: "Until 6 PM",
+    })
+    expect(dealNextLine(happyHour, "2026-10-06T19:00")).toEqual({
+      label: "Next",
+      text: "Tomorrow, 4 PM",
+    })
+    // Friday evening, so the next stretch is Monday's.
+    expect(dealNextLine(happyHour, "2026-10-09T19:00")).toEqual({
+      label: "Next",
+      text: "Mon, 4 PM",
+    })
+  })
+
+  it("says nothing for a deal with no times of its own", () => {
+    const allDay: TimedDeal = {
+      startDate: "2026-10-01",
+      endDate: null,
+      times: blankListingHours(),
+    }
+    expect(dealNextLine(allDay, "2026-10-06T16:30")).toBeNull()
   })
 })

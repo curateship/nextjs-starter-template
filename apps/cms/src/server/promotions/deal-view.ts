@@ -1,6 +1,9 @@
 import { wallClockAt } from "@/lib/events/event-time"
+import { ENDING_SOON_DAYS } from "@/lib/promotions/deals-page"
 import { dealCardDaysText, dealDaysText } from "@/lib/promotions/deal-days"
+import { addDays } from "@/lib/promotions/deal-times"
 import {
+  dealNextLine,
   dealNowText,
   dealStage,
   dealTimesLines,
@@ -18,6 +21,13 @@ import type {
  * when it is not, and never shows an ended deal's code.
  */
 
+/** The tag over a card's photo: where the deal stands in one or two words. */
+export type DealBadge = {
+  /** Which of the three it is, so the card can colour its dot. */
+  tone: "ending" | "now" | "soon"
+  text: string
+}
+
 /** A card on the Deals page, with its words for this moment. */
 export type ListedDeal = PublicDealCard & {
   /** Inside its days, or not started. The list never holds an ended one. */
@@ -26,6 +36,10 @@ export type ListedDeal = PublicDealCard & {
   daysText: string
   /** "On now · until 6 PM", "Next: today at 4 PM", or null. */
   nowText: string | null
+  /** The card's foot, right-hand cell: "Next" over "Tomorrow, 11 AM". */
+  nextLine: { label: string; text: string } | null
+  /** "Ending soon", "On now" or "Starting soon", or null while it is neither. */
+  badge: DealBadge | null
 }
 
 export type DealView = {
@@ -55,13 +69,43 @@ export function listedDealsAt(
   return deals.map((deal) => {
     // The read left out every ended deal at this same moment.
     const stage = dealStage(deal, now) === "soon" ? "soon" : "on"
+    const nowText = dealNowText(deal, now)
     return {
       ...deal,
       stage,
       daysText: dealCardDaysText(deal, stage, today),
-      nowText: dealNowText(deal, now),
+      nowText,
+      nextLine: dealNextLine(deal, now),
+      badge: dealBadgeAt(deal, stage, today, nowText),
     }
   })
+}
+
+/**
+ * The tag over a card's photo. **Ending soon wins**, because a deal that is
+ * both on now and gone on Thursday is worth crossing town for today, and the
+ * card already says "On now" in its foot.
+ *
+ * "Ending soon" is its last day today or within the next two, the same three
+ * days the chip counts. A deal that has not started yet says "Starting soon"
+ * whatever its last day is, one running this minute says "On now", and
+ * anything else is left bare rather than tagged with something it is not.
+ */
+function dealBadgeAt(
+  deal: PublicDealCard,
+  stage: "on" | "soon",
+  today: string,
+  nowText: string | null
+): DealBadge | null {
+  // Not started beats ending, because a deal that opens tomorrow and closes
+  // tomorrow is one to come back for, not one about to be lost.
+  if (stage === "soon") return { tone: "soon", text: "Starting soon" }
+  if (deal.endDate && deal.endDate <= addDays(today, ENDING_SOON_DAYS - 1)) {
+    return { tone: "ending", text: "Ending soon" }
+  }
+  // The one line the server already worked out for "is it running this
+  // minute", rather than a second rule here that could answer differently.
+  return nowText?.startsWith("On now") ? { tone: "now", text: "On now" } : null
 }
 
 /** A cached deal page as a visitor sees it at `at`. */

@@ -178,6 +178,37 @@ export function dealNowText(deal: TimedDeal, now: string): string | null {
   return `Next: ${dayWord(next.from.slice(0, 10), now.slice(0, 10))} at ${clockText(next.from.slice(11))}`
 }
 
+/**
+ * The card's right-hand foot: a label and the words under it, so a card can
+ * print "Next" over "Tomorrow, 11 AM" rather than one run-on line.
+ *
+ * "On now" with the hour it closes, or "Next" with the next time it opens.
+ * Null when there is nothing to say: an ended deal, or one with no times of
+ * its own, which runs all day for as long as its days last.
+ */
+export function dealNextLine(
+  deal: TimedDeal,
+  now: string
+): { label: string; text: string } | null {
+  if (dealStage(deal, now) === "ended") return null
+  if (!hasDealTimes(deal.times)) return null
+  const running = runningStretch(deal, now)
+  if (running) {
+    return {
+      label: "On now",
+      text: `Until ${clockText(running.until.slice(11))}`,
+    }
+  }
+  const next = nextStretch(deal, now)
+  if (!next) return null
+  const day = dayWord(next.from.slice(0, 10), now.slice(0, 10))
+  return {
+    label: "Next",
+    // The day leads the line, so it is written as a line's first word is.
+    text: `${day.slice(0, 1).toLocaleUpperCase()}${day.slice(1)}, ${clockText(next.from.slice(11))}`,
+  }
+}
+
 const WEEKDAY_AND_DAY = new Intl.DateTimeFormat("en-US", {
   timeZone: "UTC",
   weekday: "short",

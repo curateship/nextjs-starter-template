@@ -5,6 +5,7 @@ import {
   eq,
   exists,
   gte,
+  ilike,
   inArray,
   isNull,
   lte,
@@ -30,9 +31,19 @@ import {
   weekdayOf,
   type DealTimes,
 } from "@/lib/promotions/deal-times"
+import {
+  directoryFilterGroups,
+  type DirectoryFilterGroup,
+} from "@/lib/directory/filter-groups"
+import { siteSearchPattern } from "@/lib/pages/site-search"
 import { readPageVisibility } from "@/server/content/pages"
 import { db, type CustomShellDb } from "@/server/db"
-import type { PublicSite, VisitorSite } from "@/server/directory/public"
+import {
+  categoryForCards,
+  type PublicCategoryLink,
+  type PublicSite,
+  type VisitorSite,
+} from "@/server/directory/public"
 import { cachedPublicDirectoryRead } from "@/server/directory/public-cache"
 import { distanceKmFrom } from "@/server/directory/distance"
 import {
@@ -41,7 +52,10 @@ import {
   directoryListings,
   LISTING_CONTENT_TYPE,
 } from "@/server/directory/schema"
-import { siteTimeZone } from "@/server/directory/settings"
+import {
+  directorySettingsFor,
+  siteTimeZone,
+} from "@/server/directory/settings"
 import { listingOfPromotion, sitePromotions } from "@/server/promotions/schema"
 
 /**
@@ -76,6 +90,13 @@ export type PublicDealCard = DealDays & {
    * Only while the Deals page is narrowed to a distance.
    */
   distanceKm?: number
+  /**
+   * What the place running the deal is filed under, and the neighbourhood it
+   * is in. The Deals page's cards print both; a home page row's do not ask
+   * for them, so they are absent there rather than null.
+   */
+  category?: PublicCategoryLink | null
+  neighbourhood?: PublicCategoryLink | null
 }
 
 export type PublicDeal = PublicDealCard & {
@@ -221,10 +242,14 @@ function runningAt(now: string) {
   )`
 }
 
-/** At a listing filed directly under this category, not one of its children. */
+/**
+ * At a listing filed directly under this category, not one of its children.
+ * A list of categories means any of them, which is what two boxes ticked in
+ * one group on the Deals page asks for.
+ */
 function atListingIn(
   siteId: string,
-  categoryId: string | SQLWrapper,
+  category: string | string[] | SQLWrapper,
   database: CustomShellDb
 ) {
   return exists(
@@ -236,20 +261,87 @@ function atListingIn(
           eq(categoryRelationships.workspaceId, siteId),
           eq(categoryRelationships.contentType, LISTING_CONTENT_TYPE),
           eq(categoryRelationships.contentId, sitePromotions.listingId),
-          eq(categoryRelationships.categoryId, categoryId)
+          Array.isArray(category)
+            ? inArray(categoryRelationships.categoryId, category)
+            : eq(categoryRelationships.categoryId, category)
         )
       )
   )
 }
 
+/**
+ * The typed words against a deal: its own name, its headline, and the name of
+ * the place running it. The small print and the description are left out,
+ * because a match a visitor cannot see on the card reads as a wrong result.
+ */
+function matchesDealText(query: string) {
+  const pattern = siteSearchPattern(query)
+  return or(
+    ilike(sitePromotions.title, pattern),
+    ilike(sitePromotions.headline, pattern),
+    ilike(directoryListings.title, pattern)
+  )
+}
+
 /** What the Deals page can be narrowed to. Every part is optional. */
 type DealsFilter = {
-  categoryId?: string
+  /** The typed words from the band. */
+  q?: string
+  /**
+   * The ticked boxes, gathered into one list per group, as category ids. Two
+   * ticks in one group means either of them, and two groups means both, the
+   * same rule as the directory's.
+   */
+  categoryGroups?: string[][]
   /** Running right now, or ending within three days by the site's calendar. */
   on?: "now" | "ending"
   /** Only deals at listings with a pin this close, in kilometres. */
   near?: DirectoryNearPoint
   radius?: number
+}
+
+/**
+ * Everything the Deals page narrows by except the "when" chips: the site, the
+ * deals that are not over, the typed words, the ticked boxes and a distance.
+ * The list and the numbers on the chips both build on this one filter, so a
+ * new way of narrowing can never reach one and miss the other and leave a chip
+ * promising deals the list will not show.
+ *
+ * The query has to join `directoryListings` on `listingOfPromotion`.
+ */
+function dealsNarrowedBy(
+  siteId: string,
+  now: string,
+  only: DealsFilter,
+  distanceKm: SQL<number> | null,
+  radius: number | null,
+  database: CustomShellDb
+) {
+  return and(
+    listedDealsOnSite(siteId),
+    dealIsLiveAt(now),
+    only.q ? matchesDealText(only.q) : undefined,
+    ...(only.categoryGroups ?? []).map((ids) =>
+      atListingIn(siteId, ids, database)
+    ),
+    // A listing with no pin measures as null, never within the radius.
+    distanceKm ? sql`${distanceKm} <= ${radius}` : undefined
+  )
+}
+
+/** The "when" chip as a condition, or nothing at all for Any time. */
+function dealIsOnChip(
+  on: DealsFilter["on"],
+  now: string
+): SQL | undefined {
+  if (on === "now") return runningAt(now)
+  if (on === "ending") {
+    return lte(
+      sitePromotions.endDate,
+      addDays(now.slice(0, 10), ENDING_SOON_DAYS - 1)
+    )
+  }
+  return undefined
 }
 
 /**
@@ -277,7 +369,8 @@ export function readDeals(
       site: { name: site.name, url: site.url },
       page,
       now,
-      categoryId: only.categoryId ?? null,
+      q: only.q ?? null,
+      categoryGroups: only.categoryGroups ?? null,
       on: only.on ?? null,
       near: near ? formatDirectoryNearPoint(near) : null,
       radius,
@@ -291,26 +384,19 @@ export function readDeals(
           ).mapWith(Number)
         : null
       const where = and(
-        listedDealsOnSite(site.id),
-        dealIsLiveAt(now),
-        only.categoryId
-          ? atListingIn(site.id, only.categoryId, database)
-          : undefined,
-        only.on === "now" ? runningAt(now) : undefined,
-        only.on === "ending"
-          ? lte(
-              sitePromotions.endDate,
-              addDays(today, ENDING_SOON_DAYS - 1)
-            )
-          : undefined,
-        // A listing with no pin measures as null, never within the radius.
-        distanceKm ? sql`${distanceKm} <= ${radius}` : undefined
+        dealsNarrowedBy(site.id, now, only, distanceKm, radius, database),
+        dealIsOnChip(only.on, now)
       )
       const onNow = sql`${sitePromotions.startDate} <= ${today}::date`
-      const [rows, [countRow]] = await Promise.all([
+      // Which parent category names a neighbourhood here. Asked for beside the
+      // deals rather than after them, so the page costs one round trip rather
+      // than two.
+      const reading = directorySettingsFor(site.id, database)
+      const [rows, [countRow], settings] = await Promise.all([
         database
           .select({
             ...dealCardColumns,
+            listingId: sitePromotions.listingId,
             ...(distanceKm ? { distanceKm } : {}),
           })
           .from(sitePromotions)
@@ -331,16 +417,88 @@ export function readDeals(
           .from(sitePromotions)
           .innerJoin(directoryListings, listingOfPromotion)
           .where(where),
+        reading,
       ])
+      // The place's category and neighbourhood, for the pill over the photo
+      // and the line under the title. One query for the page, through the
+      // directory's own reader, so a deal card and a listing card can never
+      // file the same place under two different categories.
+      const places = await categoryForCards(
+        site.id,
+        [...new Set(rows.map((row) => row.listingId))],
+        settings.neighbourhoodCategoryId,
+        database
+      )
       return {
         site: { name: site.name, url: site.url },
-        deals: rows.map(({ distanceKm: km, ...row }) => ({
+        deals: rows.map(({ distanceKm: km, listingId, ...row }) => ({
           ...withTimes(row),
+          category: places.shownUnder.get(listingId) ?? null,
+          neighbourhood: places.neighbourhood.get(listingId) ?? null,
           ...(km == null ? {} : { distanceKm: km }),
         })),
         total: countRow?.total ?? 0,
         page,
         pageSize: DEALS_PAGE_SIZE,
+      }
+    }
+  )
+}
+
+/** How many deals sit behind each "when" chip, with the rest of the filters on. */
+export type DealWhenCounts = {
+  anyTime: number
+  now: number
+  ending: number
+}
+
+/**
+ * The numbers on the "when" chips: how many deals each would show, with the
+ * typed words, the ticked boxes and the distance still applied. One query for
+ * all three, and it starts from `dealsNarrowedBy`, the same filter the list
+ * does, so a chip can never promise deals the list will not show.
+ */
+export function readDealWhenCounts(
+  site: VisitorSite,
+  now: string,
+  database: CustomShellDb = db,
+  only: DealsFilter = {}
+): Promise<DealWhenCounts> {
+  const near = only.near && only.radius ? only.near : null
+  const radius = near ? only.radius! : null
+  return cachedPublicDirectoryRead(
+    site.id,
+    "deal-when-counts",
+    {
+      now,
+      q: only.q ?? null,
+      categoryGroups: only.categoryGroups ?? null,
+      near: near ? formatDirectoryNearPoint(near) : null,
+      radius,
+    },
+    async () => {
+      const distanceKm = near
+        ? distanceKmFrom(
+            near,
+            directoryListings.latitude,
+            directoryListings.longitude
+          ).mapWith(Number)
+        : null
+      const [row] = await database
+        .select({
+          anyTime: sql<number>`count(*)::int`,
+          now: sql<number>`count(*) filter (where ${runningAt(now)})::int`,
+          ending: sql<number>`count(*) filter (where ${sitePromotions.endDate} <= ${addDays(now.slice(0, 10), ENDING_SOON_DAYS - 1)})::int`,
+        })
+        .from(sitePromotions)
+        .innerJoin(directoryListings, listingOfPromotion)
+        .where(
+          dealsNarrowedBy(site.id, now, only, distanceKm, radius, database)
+        )
+      return {
+        anyTime: row?.anyTime ?? 0,
+        now: row?.now ?? 0,
+        ending: row?.ending ?? 0,
       }
     }
   )
@@ -556,47 +714,93 @@ export function readNewestDeals(
   )
 }
 
-/** A category offered as a filter chip on the Deals page. */
-export type DealCategory = { id: string; name: string; slug: string }
+/** A category on the site, with how many live deals sit in it. */
+export type DealCategory = {
+  id: string
+  name: string
+  slug: string
+  parentId: string | null
+  /** Live deals at listings filed directly under it, never its children's. */
+  dealCount: number
+}
+
+/** The Cuisine and Neighbourhood buttons above the deals, and what fills them. */
+export type DealFilters = {
+  /** Every category on the site, so a ticked slug can be put in its group. */
+  categories: DealCategory[]
+  /** One button per parent category that has something behind it. */
+  groups: DirectoryFilterGroup[]
+}
 
 /**
- * The categories the Deals page offers as filters: every category with a
- * live deal at a listing filed directly under it, in the admin's order. A
- * category holding only drafts, deals at draft listings or ended deals is left
- * out, so a chip never leads to an empty list or gives a hidden deal away.
+ * The buttons above the Deals page and the boxes inside them.
+ *
+ * A group is a parent category and its children are the boxes, the same rule
+ * as the directory's browse page, so "Cuisine" and "Neighbourhood" are not
+ * settings an admin fills in twice. A box with no live deal behind it is left
+ * out, because ticking it could only ever empty the page.
+ *
+ * Two reads: the database counts the live deals in each category, and the
+ * site's categories arrive in the admin's own order. The answer is cached by
+ * the site's clock, like every other public read here.
  */
-export function readDealCategories(
+export function readDealFilters(
   siteId: string,
   now: string,
   database: CustomShellDb = db
-): Promise<DealCategory[]> {
-  return cachedPublicDirectoryRead(siteId, "deal-categories", { now }, () =>
-    database
-      .select({
-        id: categories.id,
-        name: categories.name,
-        slug: categories.slug,
-      })
-      .from(categories)
-      .where(
-        and(
-          eq(categories.workspaceId, siteId),
-          exists(
-            database
-              .select({ one: sql`1` })
-              .from(sitePromotions)
-              .innerJoin(directoryListings, listingOfPromotion)
-              .where(
-                and(
-                  listedDealsOnSite(siteId),
-                  dealIsLiveAt(now),
-                  atListingIn(siteId, categories.id, database)
-                )
-              )
+): Promise<DealFilters> {
+  return cachedPublicDirectoryRead(
+    siteId,
+    "deal-filters",
+    { now },
+    async () => {
+      const [counts, allCategories] = await Promise.all([
+        // One row per category that has a live deal in it, counted by the
+        // database. The deals themselves never travel: a site with a thousand
+        // of them still answers with one row per category.
+        database
+          .select({
+            categoryId: categoryRelationships.categoryId,
+            dealCount: sql<number>`count(*)::int`,
+          })
+          .from(sitePromotions)
+          .innerJoin(directoryListings, listingOfPromotion)
+          .innerJoin(
+            categoryRelationships,
+            and(
+              eq(categoryRelationships.workspaceId, siteId),
+              eq(categoryRelationships.contentType, LISTING_CONTENT_TYPE),
+              eq(categoryRelationships.contentId, sitePromotions.listingId)
+            )
           )
-        )
+          .where(and(listedDealsOnSite(siteId), dealIsLiveAt(now)))
+          .groupBy(categoryRelationships.categoryId),
+        database
+          .select({
+            id: categories.id,
+            name: categories.name,
+            slug: categories.slug,
+            parentId: categories.parentId,
+          })
+          .from(categories)
+          .where(eq(categories.workspaceId, siteId))
+          .orderBy(asc(categories.displayOrder), asc(categories.name)),
+      ])
+
+      const dealCounts = new Map(
+        counts.map((row) => [row.categoryId, row.dealCount])
       )
-      .orderBy(asc(categories.displayOrder), asc(categories.name))
+      const counted = allCategories.map((row) => ({
+        ...row,
+        dealCount: dealCounts.get(row.id) ?? 0,
+      }))
+      return {
+        categories: counted,
+        groups: directoryFilterGroups(
+          counted.map((row) => ({ ...row, listingCount: row.dealCount }))
+        ),
+      }
+    }
   )
 }
 

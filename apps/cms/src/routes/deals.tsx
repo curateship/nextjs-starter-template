@@ -2,10 +2,12 @@ import { createFileRoute, notFound } from "@tanstack/react-router"
 
 import { DirectoryBreadcrumbs } from "@/components/directory/public/directory-breadcrumbs"
 import { DirectoryRouteError } from "@/components/directory/public/directory-error"
+import { DirectoryFilterBar } from "@/components/directory/public/directory-filter-bar"
 import { DirectoryFrame } from "@/components/directory/public/directory-frame"
 import { DirectoryPagination } from "@/components/directory/public/directory-pagination"
-import { DealFilters } from "@/components/promotions/public/deal-filters"
+import { DealWhenFilters } from "@/components/promotions/public/deal-filters"
 import { DealGrid } from "@/components/promotions/public/deal-grid"
+import { DealsHero } from "@/components/promotions/public/deals-hero"
 import { Card, CardContent } from "@/components/ui/card"
 import { requirePageVisible } from "@/lib/api/content/pages"
 import { loadDealsPage } from "@/lib/api/promotions/public"
@@ -16,6 +18,12 @@ import {
   directoryTitle,
 } from "@/lib/directory/public-seo"
 import {
+  DEFAULT_DIRECTORY_NEAR_RADIUS_KM,
+  readDirectoryCategories,
+  toggleDirectoryCategory,
+} from "@/lib/directory/public-search"
+import { pageGutter } from "@/lib/layout/shell-gutter"
+import {
   DEAL_ON_FILTER_LABELS,
   dealsListHref,
   readDealsSearch,
@@ -24,11 +32,16 @@ import {
 } from "@/lib/promotions/deals-page"
 
 /**
- * The Deals page: every deal inside its days, then every deal starting on a
- * later day. Each card says "On now" or when it is next on, worked out by the
- * server from the site's clock. A deal leaves by itself once its last day, or
- * its last night past midnight, is over. It follows its own on/off switch on
- * the Pages screen.
+ * The Deals page: one grid of what is on, the ones inside their days first and
+ * the ones starting later after them. Each card says where it stands, worked
+ * out by the server from the site's clock. A deal leaves by itself once its
+ * last day, or its last night past midnight, is over. It follows its own
+ * on/off switch on the Pages screen.
+ *
+ * The page is built like the directory's browse page and the Events page: a
+ * band at the top holding the name and one search bar, then a row of chips and
+ * filter buttons, then the cards. Tyler asked for that shape on 1 Oct 2026, to
+ * a drawing.
  */
 export const Route = createFileRoute("/deals")({
   validateSearch: readDealsSearch,
@@ -55,30 +68,78 @@ export const Route = createFileRoute("/deals")({
 
 function DealsRoute() {
   const data = Route.useLoaderData()
-  // What the server found, not what was typed: a category that has no live
-  // deal here is left out of every link, the same as it is left out of the
-  // list. Keys in one order, so the server and the browser write the same links.
+  const search = Route.useLoaderDeps()
+  const navigate = Route.useNavigate()
+  // What the server found, not what was typed. Keys in one order, so the
+  // server and the browser write the same links.
   const current: DealsPageSearch = {
-    category: data.category?.slug,
+    q: search.q,
+    category: search.category,
     on: data.on ?? undefined,
     near: data.nearby.near,
     radius: data.nearby.radius,
     area: data.nearby.area,
   }
-  const filtered = Boolean(current.category || current.on || current.near)
-  // A page can hold the end of one group and the start of the next.
-  const currentDeals = data.deals.filter((deal) => deal.stage === "on")
-  const comingUp = data.deals.filter((deal) => deal.stage === "soon")
+  const ticked = readDirectoryCategories(current.category)
+  const filtered = Boolean(
+    current.q || ticked.length || current.on || current.near
+  )
+  // A box in the band or in the row writes to the address and starts the list
+  // again, because page 3 of the old list is nowhere in the new one.
+  const setSearch = (patch: Partial<DealsPageSearch>) =>
+    void navigate({ search: { ...current, page: undefined, ...patch } })
 
   return (
-    <DirectoryFrame>
-      <DirectoryBreadcrumbs
-        crumbs={[{ label: data.site.name, home: true }, { label: "Deals" }]}
-      />
-      <h1 className="text-2xl font-semibold">Deals</h1>
-      <DealFilters current={current} categories={data.categories} />
+    <DirectoryFrame
+      hero={
+        <DealsHero
+          crumbs={
+            <DirectoryBreadcrumbs
+              inBand
+              crumbs={[
+                { label: data.site.name, home: true },
+                { label: "Deals" },
+              ]}
+            />
+          }
+          intro={`Current offers from places on ${data.site.name}.`}
+          current={current}
+          radius={current.radius ?? DEFAULT_DIRECTORY_NEAR_RADIUS_KM}
+          onSearchChange={(value) => setSearch({ q: value || undefined })}
+          onNearChange={(near, area, radius) =>
+            setSearch({ near, radius, area })
+          }
+          onRadiusChange={(radius) => setSearch({ radius })}
+          onNearClear={() =>
+            setSearch({ near: undefined, radius: undefined, area: undefined })
+          }
+        />
+      }
+    >
+      {/*
+       * The chips and the filter buttons sit the same distance from the cards
+       * under them as from the band over them. The band's distance is the
+       * site's own spacing from Settings → Styling, so this reads the same
+       * number and takes off the 12px the page column already puts between
+       * every two blocks.
+       */}
+      <div
+        className="flex flex-wrap items-center justify-between gap-2"
+        style={{ marginBottom: `calc(${pageGutter} - 0.75rem)` }}
+      >
+        <DealWhenFilters current={current} counts={data.whenCounts} />
+        <DirectoryFilterBar
+          groups={data.filterGroups}
+          selected={ticked}
+          onToggleCategory={(slug) =>
+            setSearch({ category: toggleDirectoryCategory(current.category, slug) })
+          }
+        />
+      </div>
 
-      {data.deals.length === 0 ? (
+      {data.deals.length ? (
+        <DealGrid deals={data.deals} />
+      ) : (
         <Card>
           <CardContent>
             <p className="py-6 text-center text-sm text-muted-foreground">
@@ -86,36 +147,17 @@ function DealsRoute() {
               {data.total
                 ? "There are no deals on this page."
                 : filtered
-                  ? nothingMatches(data.category?.name, data.on, eventNearText(current))
+                  ? nothingMatches(
+                      current.q,
+                      data.tickedNames,
+                      data.on,
+                      eventNearText(current)
+                    )
                   : "No deals are on right now. Check back soon."}
             </p>
           </CardContent>
         </Card>
-      ) : null}
-
-      {currentDeals.length ? (
-        <section
-          aria-labelledby="deals-current"
-          className="grid gap-2 md:gap-3"
-        >
-          <h2 id="deals-current" className="text-base font-semibold">
-            Current deals
-          </h2>
-          <DealGrid deals={currentDeals} />
-        </section>
-      ) : null}
-
-      {comingUp.length ? (
-        <section
-          aria-labelledby="deals-coming-up"
-          className="grid gap-2 md:gap-3"
-        >
-          <h2 id="deals-coming-up" className="text-base font-semibold">
-            Starting soon
-          </h2>
-          <DealGrid deals={comingUp} />
-        </section>
-      ) : null}
+      )}
 
       <DirectoryPagination
         page={data.page}
@@ -129,17 +171,20 @@ function DealsRoute() {
 }
 
 /**
- * The empty card's words for a narrowed list, naming what it was narrowed
- * by: "Nothing on now in Pizza within 2 km of your location."
+ * The empty card's words for a narrowed list, naming what it was narrowed by:
+ * "Nothing ending soon matching "lunch" in Pizza within 2 km of your
+ * location."
  */
 function nothingMatches(
-  categoryName: string | undefined,
+  typed: string | undefined,
+  tickedNames: string[],
   on: DealOnFilter | null,
   nearText: string
 ): string {
   return [
     on ? `Nothing ${DEAL_ON_FILTER_LABELS[on].toLowerCase()}` : "No deals",
-    categoryName ? ` in ${categoryName}` : "",
+    typed ? ` matching "${typed}"` : "",
+    tickedNames.length ? ` in ${tickedNames.join(", ")}` : "",
     nearText ? ` ${nearText}` : "",
     ".",
   ].join("")
