@@ -27,6 +27,9 @@ import {
 } from "@/lib/brand-image"
 import { FAVICON_MODES, type PublicFaviconSet } from "@/lib/favicon"
 import {
+  DEFAULT_FRONT_PAGE_DIVIDER_SHADE,
+  FRONT_PAGE_DIVIDER_STYLES,
+  MAX_FRONT_PAGE_DIVIDER_SHADE,
   FRONT_PAGE_ROW_ALIGNMENTS,
   FRONT_PAGE_ROW_LAYOUTS,
   MAX_FRONT_PAGE_FAQ_ANSWER_LENGTH,
@@ -476,6 +479,19 @@ const frontPageRowsSchema = z
           ),
       }),
       z.object({ ...frontPageRowBaseShape, kind: z.literal("text") }),
+      z.object({
+        ...frontPageRowBaseShape,
+        kind: z.literal("divider"),
+        // Defaulted for the same reason as the base's own switches: a settings
+        // tab opened before this field existed still saves the row.
+        dividerStyle: z.enum(FRONT_PAGE_DIVIDER_STYLES).default("line"),
+        dividerShade: z
+          .number()
+          .int()
+          .min(0)
+          .max(MAX_FRONT_PAGE_DIVIDER_SHADE)
+          .default(DEFAULT_FRONT_PAGE_DIVIDER_SHADE),
+      }),
       z.object({ ...frontPageRowBaseShape, kind: z.literal("plans") }),
       z.object({
         ...frontPageRowBaseShape,

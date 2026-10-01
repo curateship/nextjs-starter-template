@@ -20,11 +20,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { DisabledReason } from "@/components/ui/disabled-reason"
 import { FieldLabel } from "@/components/ui/field-label"
 import { ErrorRow } from "@/components/ui/error-row"
 import { FormDialog } from "@/components/ui/form-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { LoadingRow } from "@/components/ui/loading-row"
 import {
   Select,
   SelectContent,
@@ -38,6 +40,7 @@ import {
   countDraftSegment,
   getSegmentErrorMessage,
   getSegmentLoadErrorMessage,
+  getSegmentMembersErrorMessage,
   loadSegmentMembers,
   saveSegment,
   type SegmentItem,
@@ -111,6 +114,15 @@ export function SegmentDialog({
   const [knownEmails, setKnownEmails] = React.useState<Record<string, string>>(
     {}
   )
+  // Whether the segment's existing people have arrived. A save sends the whole
+  // list and the server replaces the segment with it, so saving before they
+  // land would write an empty segment over a full one. It starts at "loading"
+  // rather than being set to it by the effect below, so there is no first
+  // render where the list is empty and Save is open.
+  const [members, setMembers] = React.useState<MembersState>(
+    segment?.kind === "static" ? { status: "loading" } : { status: "loaded" }
+  )
+  const [memberAttempt, setMemberAttempt] = React.useState(0)
 
   // A hand-picked segment's people live in their own table, so the window asks
   // for them once it opens rather than being handed them with the list.
@@ -118,23 +130,43 @@ export function SegmentDialog({
     if (!open || !segment || segment.kind !== "static") return
     let active = true
     loadSegmentMembers(segment.id)
-      .then(({ members }) => {
+      .then(({ members: loaded }) => {
         if (!active) return
-        const ids = members.map((member) => member.id)
-        setChosen(ids)
+        const ids = loaded.map((member) => member.id)
+        // Anyone ticked while the list was in the air is kept: the arriving
+        // list is merged in, never written over the top of those ticks.
+        setChosen((current) => [
+          ...ids,
+          ...current.filter((id) => !ids.includes(id)),
+        ])
         setOpenedWith(ids)
         setKnownEmails((current) => ({
           ...current,
           ...Object.fromEntries(
-            members.map((member) => [member.id, member.email])
+            loaded.map((member) => [member.id, member.email])
           ),
         }))
+        setMembers({ status: "loaded" })
       })
-      .catch((error) => showErrorToast(getSegmentErrorMessage(error)))
+      .catch((error) => {
+        if (!active) return
+        setMembers({
+          status: "failed",
+          message: getSegmentMembersErrorMessage(error),
+        })
+      })
     return () => {
       active = false
     }
-  }, [open, segment])
+  }, [open, memberAttempt, segment])
+
+  const retryMembers = () => {
+    setMembers({ status: "loading" })
+    setMemberAttempt((current) => current + 1)
+  }
+  // Only a hand-picked save writes the member list, so a segment being turned
+  // into a rules one can still be saved while its old people are in the air.
+  const waitingForMembers = kind === "static" && members.status !== "loaded"
 
   const dirty =
     name !== (segment?.name ?? "") ||
@@ -156,6 +188,9 @@ export function SegmentDialog({
       JSON.stringify([...openedWith].sort())
 
   const handleSave = async () => {
+    // The button is already off, so this only catches a submit that got past
+    // it, such as Enter in a field. Either way it never sends an empty list.
+    if (waitingForMembers) return
     dismissErrorToast()
 
     const missingName = !name.trim()
@@ -311,6 +346,8 @@ export function SegmentDialog({
                 <>
                   <ContactPicker
                     chosen={chosen}
+                    members={members}
+                    onRetryMembers={retryMembers}
                     knownEmails={knownEmails}
                     onToggle={(contact) => {
                       setKnownEmails((current) => ({
@@ -324,7 +361,7 @@ export function SegmentDialog({
                       )
                     }}
                   />
-                  <ChosenPeopleCount count={chosen.length} />
+                  <ChosenPeopleCount count={chosen.length} members={members} />
                 </>
               )}
             </DialogBody>
@@ -337,10 +374,19 @@ export function SegmentDialog({
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={saving}>
-                {saving ? <Loader2Icon className="animate-spin" /> : null}
-                {segment ? "Save changes" : "Create segment"}
-              </Button>
+              <DisabledReason
+                reason={
+                  members.status === "failed"
+                    ? "Who is already in this segment could not be loaded, and saving now would empty it. Try again first."
+                    : "Waiting for the people already in this segment, so saving cannot empty it."
+                }
+                disabled={waitingForMembers}
+              >
+                <Button type="submit" disabled={saving || waitingForMembers}>
+                  {saving ? <Loader2Icon className="animate-spin" /> : null}
+                  {segment ? "Save changes" : "Create segment"}
+                </Button>
+              </DisabledReason>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -348,6 +394,12 @@ export function SegmentDialog({
     </FormDialog>
   )
 }
+
+/** Whether the people already in a hand-picked segment have arrived. */
+type MembersState =
+  | { status: "loading" }
+  | { status: "loaded" }
+  | { status: "failed"; message: string }
 
 type LiveCountState =
   | { status: "counting" }
@@ -430,16 +482,36 @@ function SegmentLiveCount({ rules: draft }: { rules: SegmentRules }) {
   )
 }
 
-/** The hand-picked kind needs no server trip: its draft already holds the ids. */
-function ChosenPeopleCount({ count }: { count: number }) {
+/**
+ * The hand-picked kind needs no server trip: its draft already holds the ids.
+ *
+ * Until the segment's existing people land the draft is short of them, so the
+ * count says it is still counting rather than naming a number that is wrong.
+ */
+function ChosenPeopleCount({
+  count,
+  members,
+}: {
+  count: number
+  members: MembersState
+}) {
   return (
     <Card size="sm" aria-live="polite">
       <CardHeader>
         <CardTitle>Live count</CardTitle>
         <CardDescription>
-          {count
-            ? `${count.toLocaleString()} ${plural(count, "person", "people")} chosen right now.`
-            : "Nobody chosen right now."}
+          {members.status === "loading" ? (
+            <span className="flex items-center gap-2">
+              <Loader2Icon className="size-4 animate-spin" />
+              Counting…
+            </span>
+          ) : members.status === "failed" ? (
+            "We could not count who is in this segment right now."
+          ) : count ? (
+            `${count.toLocaleString()} ${plural(count, "person", "people")} chosen right now.`
+          ) : (
+            "Nobody chosen right now."
+          )}
         </CardDescription>
       </CardHeader>
     </Card>
@@ -454,15 +526,23 @@ function ChosenPeopleCount({ count }: { count: number }) {
  * the next person you were reaching for. Anyone already chosen who the current
  * search does not match is listed above it instead, so a search can never
  * quietly drop somebody you had already picked.
+ *
+ * That upper list is also where the segment's own people arrive, so it is where
+ * loading and failure are said. The search below keeps working throughout:
+ * anyone ticked while the list is in the air is merged with it, not replaced.
  */
 function ContactPicker({
   chosen,
+  members,
   knownEmails,
   onToggle,
+  onRetryMembers,
 }: {
   chosen: string[]
+  members: MembersState
   knownEmails: Record<string, string>
   onToggle: (contact: { id: string; email: string }) => void
+  onRetryMembers: () => void
 }) {
   const [search, setSearch] = React.useState("")
   const [results, setResults] = React.useState<ContactItem[]>([])
@@ -503,9 +583,11 @@ function ContactPicker({
       <CardHeader>
         <CardTitle>Who is in it</CardTitle>
         <CardDescription>
-          {chosen.length
-            ? `${chosen.length} ${plural(chosen.length, "person", "people")} chosen. A hand-picked segment stays exactly as you leave it — nobody joins or leaves it on their own.`
-            : "Nobody yet, which is fine — save it empty and fill it from the contacts list, by ticking people there and choosing this segment in the toolbar."}
+          {members.status !== "loaded"
+            ? "A hand-picked segment stays exactly as you leave it. Nobody joins or leaves it on their own."
+            : chosen.length
+              ? `${chosen.length} ${plural(chosen.length, "person", "people")} chosen. A hand-picked segment stays exactly as you leave it — nobody joins or leaves it on their own.`
+              : "Nobody yet, which is fine — save it empty and fill it from the contacts list, by ticking people there and choosing this segment in the toolbar."}
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
@@ -525,6 +607,16 @@ function ContactPicker({
         </div>
 
         <div className="grid gap-2">
+          {members.status === "loading" ? (
+            <LoadingRow label="Loading who is already in it…" className="py-4" />
+          ) : members.status === "failed" ? (
+            <ErrorRow
+              message={members.message}
+              onRetry={onRetryMembers}
+              className="py-4"
+            />
+          ) : null}
+
           {elsewhere.map((id) => (
             <div key={id} className="flex items-center gap-2">
               <Checkbox

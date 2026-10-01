@@ -6,6 +6,7 @@ import {
   MonitorIcon,
   PanelTopIcon,
   QuoteIcon,
+  SeparatorHorizontalIcon,
   TypeIcon,
 } from "lucide-react"
 
@@ -45,6 +46,7 @@ const KIND_ICONS: Record<FrontPageRowKind, AutomationNodeIcon> = {
   faq: HelpCircleIcon,
   logos: ImagesIcon,
   screenshots: MonitorIcon,
+  divider: SeparatorHorizontalIcon,
 }
 
 type Choice = {

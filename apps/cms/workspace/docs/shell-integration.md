@@ -186,6 +186,35 @@ already the way the button would set them, which "Change many at once" needs
 and the shell's copy does not have. A shell merge must not overwrite it. Both
 forks end when the shell takes the same change.
 
+## What the second 30 September 2026 shell merge brought
+
+The first that day was the dark shade and the sliding pill. This one carried the
+shell's `fbfd6c5a7` and `db61e4efa`.
+
+**A Divider front page row.** An eighth shell row kind, beside the five CMS adds
+of its own. It has no words: it draws a thin line, three dots, or nothing at
+all, which leaves a gap between the rows either side of it. Its Heading box is
+labelled Name, because the name only shows in the rows list in Settings. The
+divider carries its own Shade, 0 to 100, and does not read
+Settings > Styling > Divider lines, so one break on a site's front page can be
+stronger than the hairlines inside a card.
+
+**A third Layout, Whole screen.** Full width and Narrow are unchanged and no
+saved row moves. A whole-screen row steps outside the public content column and
+the page's own left and right edge, so it runs from one side of the window to
+the other. `<main>` now carries `overflow-x-clip` so the window never gains a
+sideways scrollbar. Every row kind can use it, CMS's five included.
+
+**A fix to the segment window.** Editing a hand-picked segment used to be able
+to empty it: the window asks the server for its people after it opens, and Save
+was live during the wait, so renaming a segment then deleted everybody in it.
+Save is now held with its reason shown until the people arrive, a failed load
+says so in the card with Try again, and a tick made during the wait is merged
+with the arriving list.
+
+No migration is owed. Front page rows live in the settings JSON, and the
+segment fix is all in the browser.
+
 The current shell includes database migrations through
 `0081_custom_shell_per_page_index_controls.sql`. CMS numbers its own migrations
 past the shell's, so a shell migration takes the next free CMS number and keeps
