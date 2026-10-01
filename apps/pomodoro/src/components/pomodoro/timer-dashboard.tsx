@@ -4,7 +4,9 @@ import {
   CheckIcon,
   MaximizeIcon,
   MinusIcon,
+  PauseIcon,
   PencilIcon,
+  PlayIcon,
   PlusIcon,
   RotateCcwIcon,
   XIcon,
@@ -235,9 +237,15 @@ export function TimerDashboard() {
               size="lg"
               variant="outline"
               className="mt-1.5 rounded-full border-[rgba(var(--p-fg-rgb),0.14)] bg-[var(--p-canvas)] px-[30px] text-[14.5px] font-bold hover:bg-[var(--p-surface-2)] dark:border-[rgba(var(--p-fg-rgb),0.14)] dark:bg-[var(--p-canvas)] dark:hover:bg-[var(--p-surface-2)]"
-              onClick={pomodoro.toggleTimer}
+              onClick={
+                pomodoro.onBreak ? pomodoro.skipBreak : pomodoro.toggleTimer
+              }
             >
-              {pomodoro.timer.running ? "Pause" : "Start"}
+              {pomodoro.onBreak
+                ? "Skip break"
+                : pomodoro.timer.running
+                  ? "Pause"
+                  : "Start"}
             </Button>
             <div className="flex items-center gap-2.5">
               <Button
@@ -249,6 +257,28 @@ export function TimerDashboard() {
               >
                 <RotateCcwIcon className="size-[17px]" aria-hidden="true" />
               </Button>
+              {/* On a break the pill is Skip break, so running and pausing
+                  the break itself moves here. It appears on breaks only, and
+                  the focus screen keeps its two buttons. */}
+              {pomodoro.onBreak ? (
+                <Button
+                  variant="outline"
+                  size="icon-lg"
+                  className={ringIconButtonClass}
+                  onClick={pomodoro.toggleTimer}
+                  aria-label={
+                    pomodoro.timer.running
+                      ? "Pause the break"
+                      : "Start the break"
+                  }
+                >
+                  {pomodoro.timer.running ? (
+                    <PauseIcon className="size-[17px]" aria-hidden="true" />
+                  ) : (
+                    <PlayIcon className="size-[17px]" aria-hidden="true" />
+                  )}
+                </Button>
+              ) : null}
               {/* The one icon on this screen whose picture does not say what
                   it does, so it keeps a tooltip while Reset does not. */}
               <Tooltip>
