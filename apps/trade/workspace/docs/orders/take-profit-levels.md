@@ -25,6 +25,36 @@ targets always carry fixed coin sizes, even though the window asks for dollars.
 The app keeps the old single-target fields filled from the first target during
 the compatibility release.
 
+## When the exchange is holding more than three
+
+The three-exit rule is about what you may ask for, not about what the exchange
+happens to be holding. A venue will hand back more than three: brackets
+attached to an entry order arrive as their own legs, and a replace that fails
+to cancel the old legs leaves them standing.
+
+The chart draws what the exchange holds, so every drag and every x on a line
+sends the whole set back. While the three-exit rule was checked against that
+set, a position carrying more than three exits could not be dragged, added to
+or trimmed by anything on the screen. The request was turned down before the
+app ran, so nothing reached the Journal and the only words on screen were
+"That did not go through. Try it again."
+
+**A request is let through when it asks for no more than the exchange is
+already holding.** It cannot make the position less safe than the exchange has
+already made it, and it is the only way back. Three rules step aside for it:
+the count, the one that wants a size on every exit when there is more than one,
+and the one that refuses exits adding up to more coins than are held. Adding to
+the pile is still refused, and a position whose exits already fit is judged
+exactly as before.
+
+Measured on the real account on 1 Oct 2026: a LIT position on Lighter holding
+112.96 coins carried six take-profit legs, four of them copies at $4.3582,
+selling 410 coins between them. Why six legs: see "A position's legs are read
+short" in `../protocols/lighter.md`.
+
+The Stop and exit window lists every leg the exchange holds, one row each, so
+deleting the stray rows and saving clears them in one go.
+
 ## Replacing live targets
 
 The app creates the new stop and targets before cancelling the old protection.

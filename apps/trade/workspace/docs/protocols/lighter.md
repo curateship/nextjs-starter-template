@@ -717,6 +717,36 @@ useful thing the app can say about real money and, for the country block, an
 instruction that can never work. The order path now badges them so the reason
 survives to the screen.
 
+## A position's legs are read short, and that is why they pile up
+
+**The exchange holds more protection legs than Trade can see, so a replace
+cancels one and adds another.** Measured on the real account on 1 Oct 2026: the
+LIT position held 112.96 coins and Lighter was carrying six take-profit legs on
+it, four of them copies at $4.3582, selling 410 coins between them. The Stop and
+exit window, reading what the app holds, listed one.
+
+`setBrackets` cancels the legs the position read gave it and then places the new
+set. Given one id it cancels one leg, so every replace leaves the rest standing.
+Five replaces over nine hours built the pile:
+
+- 15:30 placed one leg at $4.3582. Still there.
+- 00:08 placed two. The $4.1791 one was cancelled at 00:18:21 and the $4.3582
+  one was not.
+- 00:18:21, :22 and :29 placed four more between them. All four still there,
+  including the call at 00:18:23 that removed every exit and cancelled nothing.
+
+**Cancelling itself works.** Lighter's own inactive-order list gives the
+$4.1791 leg the status `canceled`, updated at the second of the 00:18:21
+replace, and that cancel was signed with the `order_index` the read hands back.
+So the fault is in what the read sees, not in the number the cancel carries.
+
+The orders channel is the first thing to measure. `lighterOrdersFromFeed`
+answers from the socket's held snapshot whenever the line is up, and an `update`
+frame overwrites a market's whole key with whatever that frame carried. If
+Lighter's updates name only the orders that changed, the held list shrinks to
+them and the REST list is never asked for. Not yet proved: the fix waits on a
+reading of the frames themselves.
+
 ## The stop and target riding a position
 
 Lighter keeps a position's stop and target as two ordinary orders of its own,
