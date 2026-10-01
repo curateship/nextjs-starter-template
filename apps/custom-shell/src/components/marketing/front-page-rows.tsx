@@ -255,6 +255,7 @@ export function FrontPageRows({
               <FrontPageDivider
                 style={row.dividerStyle}
                 shade={row.dividerShade}
+                space={row.dividerSpace}
                 alignClassName={alignClassName}
               />
             ) : null}

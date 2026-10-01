@@ -18,8 +18,10 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { createShellId } from "@/components/settings/nav-editor-shared"
 import {
+  DEFAULT_FRONT_PAGE_DIVIDER_SPACE,
   frontPageDividerColor,
   MAX_FRONT_PAGE_DIVIDER_SHADE,
+  MAX_FRONT_PAGE_DIVIDER_SPACE,
   FRONT_PAGE_DIVIDER_STYLE_HINTS,
   FRONT_PAGE_DIVIDER_STYLE_LABELS,
   FRONT_PAGE_DIVIDER_STYLES,
@@ -65,6 +67,7 @@ type FrontPageRowContentEditorProps = {
   screenshots: FrontPageScreenshot[]
   dividerStyle: FrontPageDividerStyle
   dividerShade: number
+  dividerSpace: number
   submitted: boolean
   onHeroActionChange: (action: FrontPageHeroAction) => void
   onHeroImageChange: (image: string) => void
@@ -79,6 +82,7 @@ type FrontPageRowContentEditorProps = {
   onScreenshotsChange: (items: FrontPageScreenshot[]) => void
   onDividerStyleChange: (style: FrontPageDividerStyle) => void
   onDividerShadeChange: (shade: number) => void
+  onDividerSpaceChange: (space: number) => void
 }
 
 export function FrontPageRowContentEditor(
@@ -96,8 +100,10 @@ export function FrontPageRowContentEditor(
 function DividerEditor({
   dividerStyle,
   dividerShade,
+  dividerSpace,
   onDividerStyleChange,
   onDividerShadeChange,
+  onDividerSpaceChange,
 }: FrontPageRowContentEditorProps) {
   return (
     <EditorCard
@@ -134,8 +140,37 @@ function DividerEditor({
         </Select>
       </div>
 
-      {/* A space draws nothing, so there is no shade to set on one. */}
-      {dividerStyle === "space" ? null : (
+      {/* A space draws nothing to shade, and a line or dots have no height of
+          their own, so the two rows below never both apply. */}
+      {dividerStyle === "space" ? (
+        <>
+          <SettingsSliderRow
+            label="Space"
+            value={dividerSpace}
+            min={0}
+            max={MAX_FRONT_PAGE_DIVIDER_SPACE}
+            step={4}
+            valueLabel={
+              dividerSpace === DEFAULT_FRONT_PAGE_DIVIDER_SPACE
+                ? `${dividerSpace}px · Default`
+                : `${dividerSpace}px`
+            }
+            onChange={onDividerSpaceChange}
+            help="How tall this row is on a desktop, on top of the gap the page already puts between two rows. A phone draws 70% of it, the same share as Settings > Styling > Space between rows."
+          />
+          <div className="grid max-w-sm gap-2">
+            <p className="text-sm font-medium">Preview</p>
+            <div className="rounded-md border p-2">
+              <div className="rounded-sm bg-muted" style={{ height: dividerSpace }} />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {dividerSpace === 0
+                ? "Nothing extra. The row adds only the page's own gap."
+                : `${dividerSpace}px here, ${Math.round(dividerSpace * 0.7)}px on a phone.`}
+            </p>
+          </div>
+        </>
+      ) : (
         <>
           <SettingsSliderRow
             label="Shade"

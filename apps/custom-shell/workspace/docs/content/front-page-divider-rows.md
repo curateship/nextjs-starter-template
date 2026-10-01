@@ -8,16 +8,21 @@ Settings > Public Pages > Front page rows > Add row, the same as any other kind.
 
 The divider's own card has one choice, **What it draws**:
 
-- **Line.** One thin rule across the row. It takes its colour from
-  Settings > Styling > Divider lines, so it moves with every other rule on the
-  site rather than staying put when that setting changes.
-- **Dots.** Three small dots, in the same colour as the line and placed by the
-  row's own Alignment. On a left-aligned site they sit on the left.
-- **Space only.** Nothing is drawn. The row is there for the gap it adds, which
-  is 32px on a phone and 64px on a larger screen, on top of the gap the page
-  already puts between two rows.
+- **Line.** One thin rule across the row, as dark as its own **Shade** slider
+  says.
+- **Dots.** Three small dots, at that same Shade, placed by the row's own
+  Alignment. On a left-aligned site they sit on the left.
+- **Space only.** Nothing is drawn. The row is there for the gap it adds, and
+  its **Space** slider sets how big that gap is, 0 to 240px, on top of the gap
+  the page already puts between two rows. 64px is the default. A phone draws
+  70% of whatever you set, the same share Settings > Styling > Space between
+  rows uses, so the app has one rule for that rather than two.
 
 A divider saved before this choice existed reads as Line.
+
+The card shows the one slider the chosen style actually uses: **Shade** for a
+line or dots, **Space** for a space. Both have a preview beside them that
+changes as you drag.
 
 ## Its shade is its own
 
@@ -32,7 +37,7 @@ is, so a divider left alone looks like every other line on the page.
 
 The shade is a share of the page's own grey rather than a colour of its own, so
 it still follows light and dark without anybody setting two values. A Space only
-divider has no slider, because it draws nothing to shade.
+divider has no Shade, because it draws nothing to shade.
 
 ## Making the line run the whole way across
 

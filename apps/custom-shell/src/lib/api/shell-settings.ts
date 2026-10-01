@@ -28,8 +28,10 @@ import {
 import { FAVICON_MODES, type PublicFaviconSet } from "@/lib/favicon"
 import {
   DEFAULT_FRONT_PAGE_DIVIDER_SHADE,
+  DEFAULT_FRONT_PAGE_DIVIDER_SPACE,
   FRONT_PAGE_DIVIDER_STYLES,
   MAX_FRONT_PAGE_DIVIDER_SHADE,
+  MAX_FRONT_PAGE_DIVIDER_SPACE,
   FRONT_PAGE_ROW_ALIGNMENTS,
   FRONT_PAGE_ROW_LAYOUTS,
   MAX_FRONT_PAGE_FAQ_ANSWER_LENGTH,
@@ -491,6 +493,12 @@ const frontPageRowsSchema = z
           .min(0)
           .max(MAX_FRONT_PAGE_DIVIDER_SHADE)
           .default(DEFAULT_FRONT_PAGE_DIVIDER_SHADE),
+        dividerSpace: z
+          .number()
+          .int()
+          .min(0)
+          .max(MAX_FRONT_PAGE_DIVIDER_SPACE)
+          .default(DEFAULT_FRONT_PAGE_DIVIDER_SPACE),
       }),
       z.object({ ...frontPageRowBaseShape, kind: z.literal("plans") }),
       z.object({

@@ -54,6 +54,7 @@ import {
   MAX_FRONT_PAGE_ROW_INTRO_LENGTH,
   normalizeFrontPageHeroHref,
   DEFAULT_FRONT_PAGE_DIVIDER_SHADE,
+  DEFAULT_FRONT_PAGE_DIVIDER_SPACE,
   type FrontPageDividerStyle,
   type FrontPageRow,
   type FrontPageRowAlignment,
@@ -134,6 +135,9 @@ export function FrontPageRowDialog({
   const [dividerShade, setDividerShade] = React.useState(
     DEFAULT_FRONT_PAGE_DIVIDER_SHADE
   )
+  const [dividerSpace, setDividerSpace] = React.useState(
+    DEFAULT_FRONT_PAGE_DIVIDER_SPACE
+  )
   const [headingTouched, setHeadingTouched] = React.useState(false)
   const [submitted, setSubmitted] = React.useState(false)
   const [loadedFor, setLoadedFor] = React.useState<string | null>(null)
@@ -181,6 +185,11 @@ export function FrontPageRowDialog({
       row?.kind === "divider"
         ? row.dividerShade
         : DEFAULT_FRONT_PAGE_DIVIDER_SHADE
+    )
+    setDividerSpace(
+      row?.kind === "divider"
+        ? row.dividerSpace
+        : DEFAULT_FRONT_PAGE_DIVIDER_SPACE
     )
     setHeadingTouched(false)
     setSubmitted(false)
@@ -244,6 +253,10 @@ export function FrontPageRowDialog({
       (row?.kind === "divider"
         ? row.dividerShade
         : DEFAULT_FRONT_PAGE_DIVIDER_SHADE) ||
+    dividerSpace !==
+      (row?.kind === "divider"
+        ? row.dividerSpace
+        : DEFAULT_FRONT_PAGE_DIVIDER_SPACE) ||
     JSON.stringify(currentItems) !== JSON.stringify(savedItems)
   const headingInvalid =
     !heading.trim() && (headingTouched || submitted)
@@ -320,6 +333,7 @@ export function FrontPageRowDialog({
         screenshots,
         dividerStyle,
         dividerShade,
+        dividerSpace,
       })
     )
   }
@@ -510,6 +524,7 @@ export function FrontPageRowDialog({
               screenshots={screenshots}
               dividerStyle={dividerStyle}
               dividerShade={dividerShade}
+              dividerSpace={dividerSpace}
               submitted={submitted}
               onHeroActionChange={setHeroAction}
               onHeroImageChange={setHeroImage}
@@ -524,6 +539,7 @@ export function FrontPageRowDialog({
               onScreenshotsChange={setScreenshots}
               onDividerStyleChange={setDividerStyle}
               onDividerShadeChange={setDividerShade}
+              onDividerSpaceChange={setDividerSpace}
             />
 
             <CollapsibleSettingsCard
@@ -780,6 +796,7 @@ function buildDraft({
   screenshots,
   dividerStyle,
   dividerShade,
+  dividerSpace,
 }: {
   heading: string
   intro: string
@@ -811,6 +828,7 @@ function buildDraft({
   screenshots: FrontPageScreenshot[]
   dividerStyle: FrontPageDividerStyle
   dividerShade: number
+  dividerSpace: number
 }): FrontPageRowDraft {
   const base = {
     heading,
@@ -848,7 +866,7 @@ function buildDraft({
   if (kind === "logos") return { ...base, kind, items: logos }
   if (kind === "screenshots") return { ...base, kind, items: screenshots }
   if (kind === "divider") {
-    return { ...base, kind, dividerStyle, dividerShade }
+    return { ...base, kind, dividerStyle, dividerShade, dividerSpace }
   }
   return { ...base, kind }
 }

@@ -78,6 +78,18 @@ export const FRONT_PAGE_DIVIDER_STYLE_HINTS: Record<
 export const DEFAULT_FRONT_PAGE_DIVIDER_SHADE = 10
 export const MAX_FRONT_PAGE_DIVIDER_SHADE = 100
 
+/**
+ * How tall a Space only divider is on a desktop, in pixels, on top of the gap
+ * the page already puts between two rows. A phone draws the same share of it
+ * that Settings > Styling > Space between rows uses, so the app has one rule
+ * for how much of a desktop gap a phone keeps rather than two.
+ *
+ * 64 is the default, which is what a space divider drew before the number was
+ * anybody's to set.
+ */
+export const DEFAULT_FRONT_PAGE_DIVIDER_SPACE = 64
+export const MAX_FRONT_PAGE_DIVIDER_SPACE = 240
+
 export const FRONT_PAGE_ROW_LAYOUTS = ["wide", "narrow", "full"] as const
 
 export type FrontPageRowLayout = (typeof FRONT_PAGE_ROW_LAYOUTS)[number]
@@ -337,6 +349,8 @@ export type FrontPageRow =
       dividerStyle: FrontPageDividerStyle
       /** How dark the line or the dots are, 0 to 100. */
       dividerShade: number
+      /** A Space only divider's height on a desktop, in pixels. */
+      dividerSpace: number
     })
 
 type WithoutId<T> = T extends unknown ? Omit<T, "id"> : never
@@ -389,11 +403,15 @@ export function normalizeFrontPageHeroHref(value: unknown) {
   return href && isSafeWrittenPageLink(href) ? href : ""
 }
 
-function normalizeFrontPageDividerShade(value: unknown) {
-  if (typeof value !== "number" || !Number.isFinite(value)) {
-    return DEFAULT_FRONT_PAGE_DIVIDER_SHADE
-  }
-  return Math.min(MAX_FRONT_PAGE_DIVIDER_SHADE, Math.max(0, Math.round(value)))
+/**
+ * A stored number that has to land between 0 and a maximum: a whole number
+ * inside the range, or the default when it is not a number at all. Shared by
+ * the three fields that need it, because three copies of the same four lines
+ * is where one of them quietly stops matching the others.
+ */
+function wholeNumberInRange(value: unknown, fallback: number, max: number) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return fallback
+  return Math.min(max, Math.max(0, Math.round(value)))
 }
 
 /**
@@ -403,14 +421,15 @@ function normalizeFrontPageDividerShade(value: unknown) {
  * this follows light and dark without naming a shade of its own.
  */
 export function frontPageDividerColor(shade: number) {
-  return `color-mix(in oklab, var(--muted-foreground) ${normalizeFrontPageDividerShade(
-    shade
+  return `color-mix(in oklab, var(--muted-foreground) ${wholeNumberInRange(
+    shade,
+    DEFAULT_FRONT_PAGE_DIVIDER_SHADE,
+    MAX_FRONT_PAGE_DIVIDER_SHADE
   )}%, transparent)`
 }
 
 function normalizeFrontPageHeroStars(value: unknown) {
-  if (typeof value !== "number" || !Number.isFinite(value)) return 0
-  return Math.min(MAX_FRONT_PAGE_HERO_STARS, Math.max(0, Math.round(value)))
+  return wholeNumberInRange(value, 0, MAX_FRONT_PAGE_HERO_STARS)
 }
 
 function normalizeTestimonials(value: unknown): FrontPageTestimonial[] {
@@ -654,7 +673,16 @@ export function normalizeFrontPageRows(value: unknown): FrontPageRow[] {
         )
           ? (source.dividerStyle as FrontPageDividerStyle)
           : "line",
-        dividerShade: normalizeFrontPageDividerShade(source.dividerShade),
+        dividerShade: wholeNumberInRange(
+          source.dividerShade,
+          DEFAULT_FRONT_PAGE_DIVIDER_SHADE,
+          MAX_FRONT_PAGE_DIVIDER_SHADE
+        ),
+        dividerSpace: wholeNumberInRange(
+          source.dividerSpace,
+          DEFAULT_FRONT_PAGE_DIVIDER_SPACE,
+          MAX_FRONT_PAGE_DIVIDER_SPACE
+        ),
       })
     } else {
       rows.push({ ...rowBase(), kind })

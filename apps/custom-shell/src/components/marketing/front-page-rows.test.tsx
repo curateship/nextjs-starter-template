@@ -408,6 +408,66 @@ describe("front page content blocks", () => {
     expect(markup).not.toContain("bg-border")
   })
 
+  it("gives a space divider the height it was set, and 70% of it on a phone", () => {
+    const rows = normalizeFrontPageRows([
+      { id: "a", heading: "A", kind: "divider", dividerStyle: "space" },
+      {
+        id: "b",
+        heading: "B",
+        kind: "divider",
+        dividerStyle: "space",
+        dividerSpace: 200,
+      },
+    ])
+    const markup = renderToStaticMarkup(
+      <FrontPageRows
+        rows={rows}
+        plans={[]}
+        trialUsed={false}
+        interval="monthly"
+        onIntervalChange={vi.fn()}
+        onSelectPlan={vi.fn()}
+      />
+    )
+
+    // Left alone, a space divider is still the 64px it has always drawn.
+    expect(markup).toContain("--divider-space:64px")
+    expect(markup).toContain("--divider-space-phone:45px")
+    expect(markup).toContain("--divider-space:200px")
+    expect(markup).toContain("--divider-space-phone:140px")
+  })
+
+  it("reads a missing or silly space as 64px", () => {
+    const rows = normalizeFrontPageRows([
+      { id: "none", heading: "None", kind: "divider", dividerStyle: "space" },
+      {
+        id: "high",
+        heading: "High",
+        kind: "divider",
+        dividerStyle: "space",
+        dividerSpace: 9000,
+      },
+      {
+        id: "low",
+        heading: "Low",
+        kind: "divider",
+        dividerStyle: "space",
+        dividerSpace: -40,
+      },
+      {
+        id: "junk",
+        heading: "Junk",
+        kind: "divider",
+        dividerStyle: "space",
+        dividerSpace: "tall",
+      },
+    ])
+
+    expect(
+      rows.map((row) => row.kind === "divider" && row.dividerSpace)
+    ).toEqual([64, 240, 0, 64])
+  })
+
   it("reads a missing or silly shade as the theme's own 10%", () => {
     const rows = normalizeFrontPageRows([
       { id: "none", heading: "None", kind: "divider" },
