@@ -210,6 +210,18 @@ export const MAX_PUBLIC_FRONT_PAGE_ROW_GAP = 160
 /** What a phone draws, as a share of the desktop gap. */
 export const PUBLIC_FRONT_PAGE_ROW_GAP_PHONE_SHARE = 0.7
 /**
+ * The widest gap a phone draws between public blocks and between the cards in
+ * a grid, whatever the Spacing setting says.
+ *
+ * It is the page's own 16px edge. A gap wide enough to tell two blocks apart
+ * on a desktop is a stripe of empty background on a 390px screen, and next to
+ * a 16px edge it reads as a mistake. Tyler asked for the two to match on
+ * 30 Sep 2026. It is a ceiling rather than a number: a site that chose less
+ * keeps what it chose, so a phone is never more spaced out than the desktop
+ * and flat mode needs no exception.
+ */
+export const PUBLIC_GUTTER_PHONE_MAX = 16
+/**
  * 12px is `md:gap-3`, the desktop gap the public column has always used. A
  * theme still on this number keeps the responsive `gap-2 md:gap-3` classes, so
  * phones keep their 8px gap until an admin moves the slider.

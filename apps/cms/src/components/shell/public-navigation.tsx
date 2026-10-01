@@ -199,7 +199,6 @@ export function PublicNavigation({
   menuAlignment,
   headerBorder,
   widthStyle,
-  edgeStyle,
   blur,
   userPanel,
   chromeBackground,
@@ -223,12 +222,6 @@ export function PublicNavigation({
   headerBorder: boolean
   /** Caps the header's contents; undefined keeps the built-in 1152px. */
   widthStyle: { maxWidth: number | "none" } | undefined
-  /**
-   * The page's left and right padding, from the frame. Undefined keeps the
-   * `px-4` default. The header never picks its own, or the logo stops lining
-   * up with the content below it.
-   */
-  edgeStyle: { paddingInline: number } | undefined
   blur: PublicHeaderBlur
   userPanel: PublicUserPanel
   /** Public styling's header and footer colour, or undefined for the theme's. */
@@ -576,8 +569,7 @@ export function PublicNavigation({
       ref={headerRef}
       data-menu-alignment={menuAlignment}
       className={cn(
-        "z-40 w-full",
-        edgeStyle ? undefined : "px-4",
+        "z-40 w-full px-4",
         HEADER_BLUR_CLASS[blur],
         // A chosen colour is drawn solid, the way the signed-in sidebar and
         // sticky bar are, so the header reads the same over any page content.
@@ -585,10 +577,9 @@ export function PublicNavigation({
         headerBorder && "border-b",
         sticky && "sticky top-0"
       )}
-      style={{
-        ...(chromeBackground ? { backgroundColor: chromeBackground } : {}),
-        ...edgeStyle,
-      }}
+      style={
+        chromeBackground ? { backgroundColor: chromeBackground } : undefined
+      }
     >
       <nav data-state={menuState ? "active" : undefined} className="w-full">
         <div className="mx-auto w-full max-w-6xl" style={widthStyle}>
