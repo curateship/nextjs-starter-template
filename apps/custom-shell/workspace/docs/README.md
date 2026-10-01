@@ -43,6 +43,7 @@ local setup docs.
 - [Public page load errors](content/public-page-load-errors.md)
 - [Hiding a row, and choosing its screens](content/showing-and-hiding-public-things.md)
 - [Alignment and parts of a front page row](content/front-page-row-alignment-and-parts.md)
+- [The divider row](content/front-page-divider-rows.md)
 
 ## Email and notifications
 

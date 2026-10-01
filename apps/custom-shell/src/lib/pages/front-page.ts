@@ -12,6 +12,7 @@ export const FRONT_PAGE_ROW_KINDS = [
   "faq",
   "logos",
   "screenshots",
+  "divider",
 ] as const
 
 export type FrontPageRowKind = (typeof FRONT_PAGE_ROW_KINDS)[number]
@@ -24,6 +25,7 @@ export const FRONT_PAGE_ROW_KIND_LABELS: Record<FrontPageRowKind, string> = {
   faq: "FAQ",
   logos: "Logo strip",
   screenshots: "Screenshots",
+  divider: "Divider",
 }
 
 export const FRONT_PAGE_ROW_KIND_HINTS: Record<FrontPageRowKind, string> = {
@@ -34,9 +36,49 @@ export const FRONT_PAGE_ROW_KIND_HINTS: Record<FrontPageRowKind, string> = {
   faq: "Questions and answers shown together.",
   logos: "Customer or partner logos with accessible names.",
   screenshots: "Product images with short captions.",
+  divider: "A break between the rows around it: a line, a row of dots, or a gap.",
 }
 
-export const FRONT_PAGE_ROW_LAYOUTS = ["wide", "narrow"] as const
+/**
+ * What a divider row draws. `line` is the default and what a divider saved
+ * before this choice existed reads as.
+ */
+export const FRONT_PAGE_DIVIDER_STYLES = ["line", "dots", "space"] as const
+
+export type FrontPageDividerStyle = (typeof FRONT_PAGE_DIVIDER_STYLES)[number]
+
+export const FRONT_PAGE_DIVIDER_STYLE_LABELS: Record<
+  FrontPageDividerStyle,
+  string
+> = {
+  line: "Line",
+  dots: "Dots",
+  space: "Space only",
+}
+
+export const FRONT_PAGE_DIVIDER_STYLE_HINTS: Record<
+  FrontPageDividerStyle,
+  string
+> = {
+  line: "One thin rule across the row, at the Shade set below.",
+  dots: "Three small dots at the Shade set below, placed by the row's own alignment.",
+  space: "Nothing is drawn. The row is a gap between the rows either side of it.",
+}
+
+/**
+ * How dark a divider's line or dots are, as a percentage of the page's own
+ * grey. The divider carries its own number rather than reading
+ * Settings > Styling > Divider lines, so one break on the front page can be
+ * stronger or fainter than the hairlines inside a card. Tyler's call on
+ * 30 Sep 2026.
+ *
+ * 10 is the default because it is exactly what the theme's own divider colour
+ * is, so a divider left alone looks like every other line on the page.
+ */
+export const DEFAULT_FRONT_PAGE_DIVIDER_SHADE = 10
+export const MAX_FRONT_PAGE_DIVIDER_SHADE = 100
+
+export const FRONT_PAGE_ROW_LAYOUTS = ["wide", "narrow", "full"] as const
 
 export type FrontPageRowLayout = (typeof FRONT_PAGE_ROW_LAYOUTS)[number]
 
@@ -46,14 +88,16 @@ export const FRONT_PAGE_ROW_LAYOUT_LABELS: Record<
 > = {
   wide: "Full width",
   narrow: "Narrow",
+  full: "Whole screen",
 }
 
 export const FRONT_PAGE_ROW_LAYOUT_HINTS: Record<
   FrontPageRowLayout,
   string
 > = {
-  wide: "Uses the full public content width.",
+  wide: "Uses the full public content width, which is where every other row sits.",
   narrow: "Caps the row at 768px and follows the site's content alignment.",
+  full: "Runs the whole way across the window, past the edges the rest of the page keeps. Words still stop 16px short of the window so they are never against it; a divider has no words, so its line runs the whole way.",
 }
 
 /**
@@ -287,6 +331,13 @@ export type FrontPageRow =
       kind: "screenshots"
       items: FrontPageScreenshot[]
     })
+  | (FrontPageRowBase & {
+      kind: "divider"
+      /** A line, dots, or nothing at all. */
+      dividerStyle: FrontPageDividerStyle
+      /** How dark the line or the dots are, 0 to 100. */
+      dividerShade: number
+    })
 
 type WithoutId<T> = T extends unknown ? Omit<T, "id"> : never
 
@@ -336,6 +387,25 @@ export function normalizeFrontPageImageUrl(value: unknown) {
 export function normalizeFrontPageHeroHref(value: unknown) {
   const href = cleanText(value, MAX_FRONT_PAGE_HERO_BUTTON_HREF_LENGTH)
   return href && isSafeWrittenPageLink(href) ? href : ""
+}
+
+function normalizeFrontPageDividerShade(value: unknown) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return DEFAULT_FRONT_PAGE_DIVIDER_SHADE
+  }
+  return Math.min(MAX_FRONT_PAGE_DIVIDER_SHADE, Math.max(0, Math.round(value)))
+}
+
+/**
+ * The colour a divider draws itself in: its own share of the page's grey, so it
+ * lands on the theme's own divider colour at the default 10 and darkens from
+ * there. `--muted-foreground` is the token the theme builds `--border` from, so
+ * this follows light and dark without naming a shade of its own.
+ */
+export function frontPageDividerColor(shade: number) {
+  return `color-mix(in oklab, var(--muted-foreground) ${normalizeFrontPageDividerShade(
+    shade
+  )}%, transparent)`
 }
 
 function normalizeFrontPageHeroStars(value: unknown) {
@@ -575,6 +645,17 @@ export function normalizeFrontPageRows(value: unknown): FrontPageRow[] {
     } else if (kind === "screenshots") {
       const items = normalizeScreenshots(source.items)
       if (items.length) rows.push({ ...rowBase(), kind, items })
+    } else if (kind === "divider") {
+      rows.push({
+        ...rowBase(),
+        kind,
+        dividerStyle: FRONT_PAGE_DIVIDER_STYLES.includes(
+          source.dividerStyle as FrontPageDividerStyle
+        )
+          ? (source.dividerStyle as FrontPageDividerStyle)
+          : "line",
+        dividerShade: normalizeFrontPageDividerShade(source.dividerShade),
+      })
     } else {
       rows.push({ ...rowBase(), kind })
     }

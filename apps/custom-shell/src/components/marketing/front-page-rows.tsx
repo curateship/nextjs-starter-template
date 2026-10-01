@@ -1,4 +1,5 @@
 import {
+  FrontPageDivider,
   FrontPageFaq,
   FrontPageHero,
   FrontPageLogos,
@@ -70,6 +71,12 @@ export function FrontPageRows({
    */
   appRowData?: Record<string, unknown>
 }) {
+  // A divider has no words, so it is not the row that carries the page's main
+  // heading. Counting past it keeps the h1 on the first row that actually says
+  // something, even when a divider opens the page. -1 when every row is a
+  // divider, which matches no index and leaves the page with no h1 to give.
+  const firstSpeakingRow = rows.findIndex((row) => row.kind !== "divider")
+
   return (
     <div
       // The gap between rows is set in theme.css, so flat mode can collapse it
@@ -78,7 +85,8 @@ export function FrontPageRows({
       data-front-page-rows=""
     >
       {rows.map((row, index) => {
-        const Heading = index === 0 ? "h1" : "h2"
+        const first = index === firstSpeakingRow
+        const Heading = first ? "h1" : "h2"
         // The first row is what a visitor sees before scrolling, so its
         // pictures load with the page. Every row after it waits to be reached.
         const eager = index === 0
@@ -99,6 +107,27 @@ export function FrontPageRows({
             ? frontPageRowAction(appRowData?.[row.id])
             : null
 
+        // A whole-screen row steps outside the public content column and the
+        // page's own left and right edge. The column is centred inside `main`,
+        // so half the window less half the column is exactly the distance to
+        // each edge, and `100vw` is the window. `main` clips what is left so
+        // the window never scrolls sideways.
+        //
+        // `justify-self-center` pins that: the site's content alignment sets
+        // `justify-items` on this grid, and the row has to land in the same
+        // place whichever of the three it is.
+        //
+        // The 16px edge comes back as padding, because a heading that runs
+        // from one side of a 1440px window to the other is not readable. A
+        // divider has no words, so its line keeps the whole width.
+        const whole = row.layout === "full"
+        const wholeClassName = whole
+          ? cn(
+              "w-screen max-w-none justify-self-center mx-[calc(50%-50vw)]",
+              row.kind === "divider" ? null : "px-4"
+            )
+          : null
+
         return (
           <section
             key={row.id}
@@ -108,6 +137,7 @@ export function FrontPageRows({
               "flex w-full flex-col gap-6 md:gap-8",
               row.layout === "narrow" && "max-w-3xl",
               alignment ? publicContentAlignmentSelfClassNames[alignment] : null,
+              wholeClassName,
               publicDeviceRowClassName(row.device)
             )}
             data-front-page-row={row.kind}
@@ -116,8 +146,10 @@ export function FrontPageRows({
             data-front-page-alignment={row.alignment}
           >
             {/* A hero draws its own heading, at its own size and beside the
-                picture. Every other row puts the heading above its content. */}
+                picture. A divider has no words at all. Every other row puts the
+                heading above its content. */}
             {row.kind === "hero" ||
+            row.kind === "divider" ||
             (!showHeading && !showIntro && !rowAction) ? null : (
               <header
                 className={cn(
@@ -133,7 +165,7 @@ export function FrontPageRows({
                     <Heading
                       className={cn(
                         "font-semibold tracking-tight text-balance",
-                        index === 0
+                        first
                           ? "text-3xl md:text-4xl"
                           : "text-2xl md:text-3xl"
                       )}
@@ -179,7 +211,7 @@ export function FrontPageRows({
                 buttonHref={row.buttonHref}
                 note={row.note}
                 stars={row.stars}
-                headingLevel={index === 0 ? "h1" : "h2"}
+                headingLevel={first ? "h1" : "h2"}
                 eager={eager}
                 alignClassName={alignClassName}
                 showHeading={showHeading}
@@ -218,6 +250,12 @@ export function FrontPageRows({
                 eager={eager}
                 alignClassName={alignClassName}
                 showCaptions={row.showCaptions}
+              />
+            ) : row.kind === "divider" ? (
+              <FrontPageDivider
+                style={row.dividerStyle}
+                shade={row.dividerShade}
+                alignClassName={alignClassName}
               />
             ) : null}
           </section>

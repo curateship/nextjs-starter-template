@@ -266,7 +266,16 @@ export function PublicPageFrame({
         showSearch={showSearch}
       />
       <main
-        className={cn("grid flex-1 px-4 py-10", mainLayoutClass, className)}
+        // `overflow-x-clip` is what lets a whole-screen front page row step out
+        // to the window's edge without the window gaining a sideways scrollbar:
+        // `100vw` counts the vertical scrollbar, so the row is a few pixels
+        // wider than the space there is. `clip` rather than `hidden`, because
+        // `hidden` would make this a scroll container and break sticky children.
+        className={cn(
+          "grid flex-1 overflow-x-clip px-4 py-10",
+          mainLayoutClass,
+          className
+        )}
         style={mainStyle}
       >
         <div
