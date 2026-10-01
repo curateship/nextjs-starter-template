@@ -19,7 +19,6 @@ import { formatChange } from "@/lib/trade/format"
 import { moneyTone } from "@/lib/trade/money-tone"
 import { usePinnedMarkets } from "@/lib/trade/use-pinned-markets"
 import { useHidePnlSync } from "@/lib/trade/use-hide-pnl-sync"
-import { PageLoadingBar } from "@/components/trade/page-loading-bar"
 import { PublicProfileDialogHost } from "@/components/social/public-profile-setting"
 
 export default function PinnedMarketsHeader({
@@ -75,9 +74,6 @@ export default function PinnedMarketsHeader({
   */
   return (
     <>
-      {/* Also not about pinned markets: it is here for the same reason as
-          `useHidePnlSync` above, since every signed-in page draws this. */}
-      <PageLoadingBar />
       {/* The settings cog's Public profile window, drawn here because the
           cog's panel closes as the window opens. See the component. */}
       <PublicProfileDialogHost />

@@ -19,6 +19,9 @@ without the line a click on P&L or Backtests looks like it did nothing.
   never catches a click.
 - **Colour:** it takes the theme's main colour, so it follows light mode, dark
   mode and any saved colour.
+- **Every page, signed in or out.** The login page shows it too, from
+  28 September 2026, because it is drawn once from the root route rather than
+  from the signed-in header.
 
 ## What does not show it
 
@@ -26,19 +29,15 @@ without the line a click on P&L or Backtests looks like it did nothing.
   current page's data. The address does not change, so no line appears. Only
   a change of address counts, which includes a change of tab or filter kept in
   the address.
-- **Signed-out pages** such as the login page. The line lives in the signed-in
-  header.
 
 ## Where it lives
 
-- `src/components/trade/page-loading-bar.tsx` draws the line and reads the
-  router's loading state.
-- `src/components/trade/pinned-markets-header.tsx` mounts it. The header is
-  the one app-owned piece the shell draws on every signed-in page, which is
-  also why the Hide profit and loss switch is synced from there.
-- Custom Shell now draws the same line from its root route
-  (`src/components/shell/page-loading-bar.tsx`). Trade keeps its own copy only
-  until the next shell merge brings that one in. The merge must delete
-  `src/components/trade/page-loading-bar.tsx`, its test, its mount in
-  `pinned-markets-header.tsx` and the stub in that file's test. If it doesn't,
-  two lines draw on top of each other.
+- `src/components/shell/page-loading-bar.tsx` is the one that draws it, from
+  the root route at `src/routes/__root.tsx:297`. It is a shell file, so it is
+  never edited here.
+
+Trade had a copy of its own, mounted in `pinned-markets-header.tsx`, from
+before the shell had one. The shell's arrived in the 28 September 2026 merge
+and the two drew on top of each other until 30 September, when Trade's copy,
+its test, its mount and the stub in the header's test were all deleted. There
+is one line again.

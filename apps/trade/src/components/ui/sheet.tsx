@@ -25,7 +25,9 @@ function SheetOverlay({
     <SheetPrimitive.Overlay
       data-slot="sheet-overlay"
       className={cn(
-        "fixed inset-0 z-50 bg-black/10",
+        // Fades with the panel it sits behind, for the same reason the
+        // dialog's does. See the comment on DialogOverlay.
+        "fixed inset-0 z-50 bg-black/10 duration-150 ease-out data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0 data-closed:duration-100",
         className
       )}
       {...props}

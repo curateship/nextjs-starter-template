@@ -53,6 +53,8 @@ import {
   MAX_FRONT_PAGE_ROW_HEADING_LENGTH,
   MAX_FRONT_PAGE_ROW_INTRO_LENGTH,
   normalizeFrontPageHeroHref,
+  DEFAULT_FRONT_PAGE_DIVIDER_SHADE,
+  type FrontPageDividerStyle,
   type FrontPageRow,
   type FrontPageRowAlignment,
   type AppFrontPageRowSettings,
@@ -127,6 +129,11 @@ export function FrontPageRowDialog({
   const [screenshots, setScreenshots] = React.useState<FrontPageScreenshot[]>(
     []
   )
+  const [dividerStyle, setDividerStyle] =
+    React.useState<FrontPageDividerStyle>("line")
+  const [dividerShade, setDividerShade] = React.useState(
+    DEFAULT_FRONT_PAGE_DIVIDER_SHADE
+  )
   const [headingTouched, setHeadingTouched] = React.useState(false)
   const [submitted, setSubmitted] = React.useState(false)
   const [loadedFor, setLoadedFor] = React.useState<string | null>(null)
@@ -134,7 +141,9 @@ export function FrontPageRowDialog({
 
   if (loadedFor !== key) {
     setLoadedFor(key)
-    setHeading(row?.heading ?? "")
+    // A divider's heading never reaches the page, so a new one is named for
+    // the admin straight away rather than making them invent a name for a line.
+    setHeading(row?.heading ?? (newKind === "divider" ? "Divider" : ""))
     setIntro(row?.intro ?? "")
     setKindChoice(
       row?.kind === APP_FRONT_PAGE_ROW_KIND
@@ -167,6 +176,12 @@ export function FrontPageRowDialog({
     setFaqItems(row?.kind === "faq" ? row.items : [])
     setLogos(row?.kind === "logos" ? row.items : [])
     setScreenshots(row?.kind === "screenshots" ? row.items : [])
+    setDividerStyle(row?.kind === "divider" ? row.dividerStyle : "line")
+    setDividerShade(
+      row?.kind === "divider"
+        ? row.dividerShade
+        : DEFAULT_FRONT_PAGE_DIVIDER_SHADE
+    )
     setHeadingTouched(false)
     setSubmitted(false)
   }
@@ -224,6 +239,11 @@ export function FrontPageRowDialog({
     heroButtonHref !== (savedHero?.buttonHref ?? "") ||
     heroNote !== (savedHero?.note ?? "") ||
     heroStars !== (savedHero?.stars ?? 0) ||
+    dividerStyle !== (row?.kind === "divider" ? row.dividerStyle : "line") ||
+    dividerShade !==
+      (row?.kind === "divider"
+        ? row.dividerShade
+        : DEFAULT_FRONT_PAGE_DIVIDER_SHADE) ||
     JSON.stringify(currentItems) !== JSON.stringify(savedItems)
   const headingInvalid =
     !heading.trim() && (headingTouched || submitted)
@@ -298,6 +318,8 @@ export function FrontPageRowDialog({
         faqItems,
         logos,
         screenshots,
+        dividerStyle,
+        dividerShade,
       })
     )
   }
@@ -336,35 +358,46 @@ export function FrontPageRowDialog({
                 </div>
 
                 <div className="grid gap-2">
-                  <FieldLabel htmlFor="front-page-row-heading">
-                    Heading
+                  <FieldLabel
+                    htmlFor="front-page-row-heading"
+                    hint={
+                      kind === "divider"
+                        ? "Only the name this row goes by in the list above. A divider never shows words on the page."
+                        : undefined
+                    }
+                  >
+                    {kind === "divider" ? "Name" : "Heading"}
                   </FieldLabel>
                   <Input
                     id="front-page-row-heading"
                     value={heading}
                     maxLength={MAX_FRONT_PAGE_ROW_HEADING_LENGTH}
-                    placeholder="Welcome to our site"
+                    placeholder={
+                      kind === "divider" ? "Divider" : "Welcome to our site"
+                    }
                     aria-invalid={headingInvalid || undefined}
                     onBlur={() => setHeadingTouched(true)}
                     onChange={(event) => setHeading(event.target.value)}
                   />
                 </div>
 
-                <div className="grid gap-2">
-                  <FieldLabel
-                    htmlFor="front-page-row-intro"
-                    hint="One short line beneath the heading. Leave it empty to show no introduction."
-                  >
-                    Introduction
-                  </FieldLabel>
-                  <Textarea
-                    id="front-page-row-intro"
-                    rows={1}
-                    value={intro}
-                    maxLength={MAX_FRONT_PAGE_ROW_INTRO_LENGTH}
-                    onChange={(event) => setIntro(event.target.value)}
-                  />
-                </div>
+                {kind === "divider" ? null : (
+                  <div className="grid gap-2">
+                    <FieldLabel
+                      htmlFor="front-page-row-intro"
+                      hint="One short line beneath the heading. Leave it empty to show no introduction."
+                    >
+                      Introduction
+                    </FieldLabel>
+                    <Textarea
+                      id="front-page-row-intro"
+                      rows={1}
+                      value={intro}
+                      maxLength={MAX_FRONT_PAGE_ROW_INTRO_LENGTH}
+                      onChange={(event) => setIntro(event.target.value)}
+                    />
+                  </div>
+                )}
 
                 <div className="grid gap-2">
                   <FieldLabel
@@ -475,6 +508,8 @@ export function FrontPageRowDialog({
               faqItems={faqItems}
               logos={logos}
               screenshots={screenshots}
+              dividerStyle={dividerStyle}
+              dividerShade={dividerShade}
               submitted={submitted}
               onHeroActionChange={setHeroAction}
               onHeroImageChange={setHeroImage}
@@ -487,6 +522,8 @@ export function FrontPageRowDialog({
               onFaqItemsChange={setFaqItems}
               onLogosChange={setLogos}
               onScreenshotsChange={setScreenshots}
+              onDividerStyleChange={setDividerStyle}
+              onDividerShadeChange={setDividerShade}
             />
 
             <CollapsibleSettingsCard
@@ -503,18 +540,23 @@ export function FrontPageRowDialog({
                 label="Hide this row from visitors"
                 hint="The whole row is left out of the page, words and all, so nothing in it can be read out of the page source."
               />
-              <SettingsSwitchRow
-                id="front-page-row-show-heading"
-                checked={showHeading}
-                onCheckedChange={setShowHeading}
-                label="Show the heading"
-              />
-              <SettingsSwitchRow
-                id="front-page-row-show-intro"
-                checked={showIntro}
-                onCheckedChange={setShowIntro}
-                label="Show the introduction line"
-              />
+              {/* A divider draws neither, so switching them would do nothing. */}
+              {kind === "divider" ? null : (
+                <>
+                  <SettingsSwitchRow
+                    id="front-page-row-show-heading"
+                    checked={showHeading}
+                    onCheckedChange={setShowHeading}
+                    label="Show the heading"
+                  />
+                  <SettingsSwitchRow
+                    id="front-page-row-show-intro"
+                    checked={showIntro}
+                    onCheckedChange={setShowIntro}
+                    label="Show the introduction line"
+                  />
+                </>
+              )}
               {kind === "hero" ? (
                 <>
                   <SettingsSwitchRow
@@ -736,6 +778,8 @@ function buildDraft({
   faqItems,
   logos,
   screenshots,
+  dividerStyle,
+  dividerShade,
 }: {
   heading: string
   intro: string
@@ -765,6 +809,8 @@ function buildDraft({
   faqItems: FrontPageFaqItem[]
   logos: FrontPageLogo[]
   screenshots: FrontPageScreenshot[]
+  dividerStyle: FrontPageDividerStyle
+  dividerShade: number
 }): FrontPageRowDraft {
   const base = {
     heading,
@@ -801,5 +847,8 @@ function buildDraft({
   if (kind === "faq") return { ...base, kind, items: faqItems }
   if (kind === "logos") return { ...base, kind, items: logos }
   if (kind === "screenshots") return { ...base, kind, items: screenshots }
+  if (kind === "divider") {
+    return { ...base, kind, dividerStyle, dividerShade }
+  }
   return { ...base, kind }
 }

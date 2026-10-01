@@ -2,6 +2,7 @@ import type { ReactNode } from "react"
 import { PlusIcon, Trash2Icon } from "lucide-react"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
+import { SettingsSliderRow } from "@/components/settings/settings-slider-row"
 import { ImageUpload } from "@/components/shared/image-upload"
 import { Button } from "@/components/ui/button"
 import { DisabledReason } from "@/components/ui/disabled-reason"
@@ -17,6 +18,11 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { createShellId } from "@/components/settings/nav-editor-shared"
 import {
+  frontPageDividerColor,
+  MAX_FRONT_PAGE_DIVIDER_SHADE,
+  FRONT_PAGE_DIVIDER_STYLE_HINTS,
+  FRONT_PAGE_DIVIDER_STYLE_LABELS,
+  FRONT_PAGE_DIVIDER_STYLES,
   FRONT_PAGE_HERO_ACTION_HINTS,
   FRONT_PAGE_HERO_ACTION_LABELS,
   FRONT_PAGE_HERO_ACTIONS,
@@ -35,6 +41,7 @@ import {
   MAX_FRONT_PAGE_SCREENSHOTS,
   MAX_FRONT_PAGE_TESTIMONIAL_QUOTE_LENGTH,
   MAX_FRONT_PAGE_TESTIMONIALS,
+  type FrontPageDividerStyle,
   type FrontPageFaqItem,
   type FrontPageHeroAction,
   type FrontPageLogo,
@@ -56,6 +63,8 @@ type FrontPageRowContentEditorProps = {
   faqItems: FrontPageFaqItem[]
   logos: FrontPageLogo[]
   screenshots: FrontPageScreenshot[]
+  dividerStyle: FrontPageDividerStyle
+  dividerShade: number
   submitted: boolean
   onHeroActionChange: (action: FrontPageHeroAction) => void
   onHeroImageChange: (image: string) => void
@@ -68,6 +77,8 @@ type FrontPageRowContentEditorProps = {
   onFaqItemsChange: (items: FrontPageFaqItem[]) => void
   onLogosChange: (items: FrontPageLogo[]) => void
   onScreenshotsChange: (items: FrontPageScreenshot[]) => void
+  onDividerStyleChange: (style: FrontPageDividerStyle) => void
+  onDividerShadeChange: (shade: number) => void
 }
 
 export function FrontPageRowContentEditor(
@@ -78,7 +89,92 @@ export function FrontPageRowContentEditor(
   if (props.kind === "faq") return <FaqEditor {...props} />
   if (props.kind === "logos") return <LogosEditor {...props} />
   if (props.kind === "screenshots") return <ScreenshotsEditor {...props} />
+  if (props.kind === "divider") return <DividerEditor {...props} />
   return null
+}
+
+function DividerEditor({
+  dividerStyle,
+  dividerShade,
+  onDividerStyleChange,
+  onDividerShadeChange,
+}: FrontPageRowContentEditorProps) {
+  return (
+    <EditorCard
+      storageId="front-page-row-divider"
+      title="Divider"
+      description="A divider shows no words. It marks the break between the rows above and below it."
+    >
+      <div className="grid gap-2">
+        <FieldLabel
+          htmlFor="front-page-divider-style"
+          hint={FRONT_PAGE_DIVIDER_STYLE_HINTS[dividerStyle]}
+        >
+          What it draws
+        </FieldLabel>
+        <Select
+          value={dividerStyle}
+          onValueChange={(value) =>
+            onDividerStyleChange(value as FrontPageDividerStyle)
+          }
+        >
+          <SelectTrigger
+            id="front-page-divider-style"
+            className="w-full sm:w-fit"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {FRONT_PAGE_DIVIDER_STYLES.map((value) => (
+              <SelectItem key={value} value={value}>
+                {FRONT_PAGE_DIVIDER_STYLE_LABELS[value]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* A space draws nothing, so there is no shade to set on one. */}
+      {dividerStyle === "space" ? null : (
+        <>
+          <SettingsSliderRow
+            label="Shade"
+            value={dividerShade}
+            min={0}
+            max={MAX_FRONT_PAGE_DIVIDER_SHADE}
+            valueLabel={`${dividerShade}%`}
+            onChange={onDividerShadeChange}
+            help="How dark this divider is. It is this row's own number, not Settings > Styling > Divider lines, so one break can be stronger than the lines inside a card. 10% matches them."
+          />
+          <div className="grid max-w-sm gap-2">
+            <p className="text-sm font-medium">Preview</p>
+            <div className="rounded-md border p-4">
+              {dividerStyle === "dots" ? (
+                <div className="flex items-center gap-3">
+                  {[0, 1, 2].map((dot) => (
+                    <span
+                      key={dot}
+                      className="size-2 rounded-full"
+                      style={{
+                        backgroundColor: frontPageDividerColor(dividerShade),
+                      }}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <hr
+                  className="border-t"
+                  style={{
+                    borderTopColor: frontPageDividerColor(dividerShade),
+                  }}
+                />
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </EditorCard>
+  )
 }
 
 /**

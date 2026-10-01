@@ -113,7 +113,6 @@ export function PublicFooter({
   contentAlignment,
   footerBorder,
   pageWidthStyle,
-  edgeStyle,
   chromeBackground,
 }: {
   appName: string
@@ -128,12 +127,6 @@ export function PublicFooter({
   contentAlignment: PublicContentAlignment
   footerBorder: boolean
   pageWidthStyle: { maxWidth: number } | undefined
-  /**
-   * The page's left and right padding, from the frame. Undefined keeps the
-   * `px-4` default. The footer never picks its own, or its links stop lining
-   * up with the content above them.
-   */
-  edgeStyle: { paddingInline: number } | undefined
   /** Public styling's header and footer colour, or undefined for the theme's. */
   chromeBackground: string | undefined
 }) {
@@ -146,15 +139,13 @@ export function PublicFooter({
   return (
     <footer
       className={cn(
-        "text-foreground",
-        edgeStyle ? undefined : "px-4",
+        "px-4 text-foreground",
         chromeBackground ? undefined : "bg-background",
         footerBorder && "border-t"
       )}
-      style={{
-        ...(chromeBackground ? { backgroundColor: chromeBackground } : {}),
-        ...edgeStyle,
-      }}
+      style={
+        chromeBackground ? { backgroundColor: chromeBackground } : undefined
+      }
     >
       <div className="mx-auto w-full max-w-6xl" style={pageWidthStyle}>
         <div
