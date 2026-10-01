@@ -253,6 +253,7 @@ export function PublicPageFrame({
         logoDark={logoDark}
         logoSize={publicHeader.logoSize}
         logoGap={publicHeader.logoGap}
+        menuFontSize={publicHeader.menuFontSize}
         navigation={visibleNavigation}
         sticky={publicHeader.sticky}
         menuAlignment={publicHeader.menuAlignment}

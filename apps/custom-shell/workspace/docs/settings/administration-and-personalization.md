@@ -293,6 +293,19 @@ on Centre the menu stays in the middle of the page and the space only widens
 the logo's own room: at a 1600px window the centred menu measured 800px from
 the left edge both at 0 and at 200.
 
+Menu text size sets how big the menu words are, from 12 to 24 pixels. Every
+word in the menu follows it, on a phone as well, including the links inside a
+group. 14 is the default, because 14 is what a menu link measured before the
+setting existed.
+
+It had measured 14 by accident rather than by choice. The menu's lists ask for
+16, but `PublicMenuLink` carries the 14 the footer and the missing-page screen
+want, and that won. A group's own word is a button rather than a link, so it
+had no such override and drew at 16: one menu could hold two sizes, 14 for a
+plain link and 16 for the word that opens a group. The setting now decides
+every word in the menu, so they match. On a menu of plain links nothing moves;
+on a menu with groups, the group's word comes down to meet the rest.
+
 Full width spreads the logo, menu and buttons across the whole window. Otherwise
 Navigation width caps them at a number of pixels from 320 to 2560. Until a
 number is typed there, the header follows the page width in Public Styling, so a

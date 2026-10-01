@@ -87,7 +87,10 @@ import {
 import {
   MAX_PUBLIC_HEADER_LOGO_GAP,
   MAX_PUBLIC_HEADER_WIDTH,
+  DEFAULT_PUBLIC_HEADER_MENU_FONT_SIZE,
+  MAX_PUBLIC_HEADER_MENU_FONT_SIZE,
   MIN_PUBLIC_HEADER_LOGO_GAP,
+  MIN_PUBLIC_HEADER_MENU_FONT_SIZE,
   MIN_PUBLIC_HEADER_WIDTH,
   PUBLIC_HEADER_BLURS,
   PUBLIC_HEADER_LOGO_SIZES,
@@ -683,6 +686,12 @@ const shellConfigSchema = z.object({
       .min(MIN_PUBLIC_HEADER_LOGO_GAP)
       .max(MAX_PUBLIC_HEADER_LOGO_GAP)
       .default(0),
+    menuFontSize: z
+      .number()
+      .int()
+      .min(MIN_PUBLIC_HEADER_MENU_FONT_SIZE)
+      .max(MAX_PUBLIC_HEADER_MENU_FONT_SIZE)
+      .default(DEFAULT_PUBLIC_HEADER_MENU_FONT_SIZE),
   }),
   // Checked by the same function the reader uses, so an unknown or missing
   // value saves as "every kind off" rather than refusing the whole settings

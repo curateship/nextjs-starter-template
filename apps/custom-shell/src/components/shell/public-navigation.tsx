@@ -122,8 +122,16 @@ function IconLabel({ icon, label }: { icon: string; label: string }) {
   )
 }
 
-/** A menu word: full-contrast text that dims on hover. */
-const menuWord = "text-foreground duration-150 hover:opacity-80"
+/**
+ * A menu word: full-contrast text that dims on hover.
+ *
+ * `text-[length:inherit]` is what lets the Menu text size setting reach it.
+ * `PublicMenuLink` carries `text-sm` for the footer and the missing-page
+ * screen, and without this that fixed size would win over the size set on the
+ * menu's own list.
+ */
+const menuWord =
+  "text-[length:inherit] text-foreground duration-150 hover:opacity-80"
 
 export function PublicMenuLink({
   link,
@@ -194,6 +202,7 @@ export function PublicNavigation({
   logoDark,
   logoSize,
   logoGap,
+  menuFontSize,
   navigation,
   sticky,
   menuAlignment,
@@ -216,6 +225,8 @@ export function PublicNavigation({
    * button.
    */
   logoGap: number
+  /** The size of the menu words, in pixels. */
+  menuFontSize: number
   navigation: PublicNavigationItem[]
   sticky: boolean
   menuAlignment: PublicHeaderMenuAlignment
@@ -474,7 +485,12 @@ export function PublicNavigation({
 
   const desktopNavigation = desktopItems.length ? (
     <nav aria-label="Main navigation" className="hidden lg:block">
-      <ul className="flex items-center gap-8 text-base font-medium">
+      {/* The size lands on the list, so every word under it inherits: a plain
+          link, the word that opens a group, and the links inside that group. */}
+      <ul
+        className="flex items-center gap-8 font-medium"
+        style={{ fontSize: menuFontSize }}
+      >
         {desktopItems.map((item, index) =>
           isPublicNavigationGroup(item) ? (
             <li key={`${item.label}-group-${index}`} className="relative">
@@ -532,7 +548,7 @@ export function PublicNavigation({
       data-phone-menu=""
       className="mb-6 hidden w-full space-y-8 rounded-3xl border bg-background p-6 shadow-2xl in-data-[state=active]:block lg:hidden"
     >
-      <ul className="space-y-6 text-base">
+      <ul className="space-y-6" style={{ fontSize: menuFontSize }}>
         {phoneSearch}
         {phoneItems.map((item, index) =>
           isPublicNavigationGroup(item) ? (
@@ -543,7 +559,9 @@ export function PublicNavigation({
                   <li key={`${link.label}-${link.href}-${linkIndex}`}>
                     <PublicMenuLink
                       link={link}
-                      className={cn("text-sm", menuWord)}
+                      // The same size as the words above it, which is what a
+                      // link inside a group has always drawn at.
+                      className={menuWord}
                       onClick={closeMenu}
                     />
                   </li>
