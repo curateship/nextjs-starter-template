@@ -329,4 +329,151 @@ describe("front page content blocks", () => {
     expect(markup).toContain("Categories")
     expect(markup.match(/Browse directory/g)).toHaveLength(1)
   })
+
+  it("draws a divider with no words, and leaves the h1 on the first row that has some", () => {
+    const rows = normalizeFrontPageRows([
+      {
+        id: "top",
+        heading: "Top divider",
+        kind: "divider",
+        dividerStyle: "dots",
+      },
+      { id: "welcome", heading: "Welcome", intro: "Start here.", kind: "text" },
+      { id: "rule", heading: "Rule", kind: "divider" },
+      { id: "gap", heading: "Gap", kind: "divider", dividerStyle: "space" },
+    ])
+    const markup = renderToStaticMarkup(
+      <FrontPageRows
+        rows={rows}
+        plans={[]}
+        trialUsed={false}
+        interval="monthly"
+        onIntervalChange={vi.fn()}
+        onSelectPlan={vi.fn()}
+      />
+    )
+
+    // A divider's name is only for the settings list, so none of the three
+    // reaches the page.
+    expect(markup).not.toContain("Top divider")
+    expect(markup).not.toContain("Rule")
+    expect(markup).not.toContain("Gap")
+    // The divider above it does not take the page's main heading.
+    expect(markup).toContain("<h1")
+    expect(markup.match(/<h1/g)).toHaveLength(1)
+    expect(markup).toContain("Welcome")
+    // A line, three dots, and a space that draws nothing.
+    expect(markup).toContain("<hr")
+    expect(markup.match(/border-radius:50%|rounded-full/g)).toHaveLength(3)
+    expect(markup).toContain('data-front-page-row="divider"')
+  })
+
+  it("paints a divider from its own shade, not the site's divider colour", () => {
+    const rows = normalizeFrontPageRows([
+      { id: "faint", heading: "Faint", kind: "divider", dividerShade: 10 },
+      { id: "dark", heading: "Dark", kind: "divider", dividerShade: 80 },
+      {
+        id: "dots",
+        heading: "Dots",
+        kind: "divider",
+        dividerStyle: "dots",
+        dividerShade: 45,
+      },
+    ])
+    const markup = renderToStaticMarkup(
+      <FrontPageRows
+        rows={rows}
+        plans={[]}
+        trialUsed={false}
+        interval="monthly"
+        onIntervalChange={vi.fn()}
+        onSelectPlan={vi.fn()}
+      />
+    )
+
+    // A share of the theme's own grey, so it still follows light and dark.
+    expect(markup).toContain(
+      "color-mix(in oklab, var(--muted-foreground) 10%, transparent)"
+    )
+    expect(markup).toContain(
+      "color-mix(in oklab, var(--muted-foreground) 80%, transparent)"
+    )
+    // Each of the three dots takes the same shade.
+    expect(
+      markup.match(
+        /color-mix\(in oklab, var\(--muted-foreground\) 45%, transparent\)/g
+      )
+    ).toHaveLength(3)
+    // Nothing reads the site-wide divider token any more.
+    expect(markup).not.toContain("bg-border")
+  })
+
+  it("reads a missing or silly shade as the theme's own 10%", () => {
+    const rows = normalizeFrontPageRows([
+      { id: "none", heading: "None", kind: "divider" },
+      { id: "high", heading: "High", kind: "divider", dividerShade: 4000 },
+      { id: "low", heading: "Low", kind: "divider", dividerShade: -20 },
+      { id: "junk", heading: "Junk", kind: "divider", dividerShade: "dark" },
+    ])
+
+    expect(rows.map((row) => row.kind === "divider" && row.dividerShade)).toEqual(
+      [10, 100, 0, 10]
+    )
+  })
+
+  it("reads an unknown divider style as a line", () => {
+    const [row] = normalizeFrontPageRows([
+      { id: "d", heading: "D", kind: "divider", dividerStyle: "sparkles" },
+    ])
+
+    expect(row).toMatchObject({ kind: "divider", dividerStyle: "line" })
+  })
+
+  it("steps a whole-screen row out to the window, and keeps words off its edge", () => {
+    const rows = normalizeFrontPageRows([
+      { id: "rule", heading: "Rule", kind: "divider", layout: "full" },
+      { id: "words", heading: "Words", kind: "text", layout: "full" },
+      { id: "normal", heading: "Normal", kind: "text", layout: "wide" },
+    ])
+    const markup = renderToStaticMarkup(
+      <FrontPageRows
+        rows={rows}
+        plans={[]}
+        trialUsed={false}
+        interval="monthly"
+        onIntervalChange={vi.fn()}
+        onSelectPlan={vi.fn()}
+      />
+    )
+    const classOf = (kind: string, layout: string) =>
+      markup.match(
+        new RegExp(
+          `<section class="([^"]*)"[^>]*data-front-page-row="${kind}"[^>]*data-front-page-layout="${layout}"`
+        )
+      )?.[1] ?? ""
+
+    // Half the window less half the column is the distance to each edge.
+    const rule = classOf("divider", "full")
+    const words = classOf("text", "full")
+    const normal = classOf("text", "wide")
+    for (const stepped of [rule, words]) {
+      expect(stepped).toContain("w-screen")
+      expect(stepped).toContain("mx-[calc(50%-50vw)]")
+    }
+    // A divider has no words, so its line keeps the whole width. A row that
+    // does have words puts the page's own 16px edge back.
+    expect(rule).not.toContain("px-4")
+    expect(words).toContain("px-4")
+    // The row left on Full width did not grow a breakout.
+    expect(normal).not.toContain("w-screen")
+    expect(normal).not.toContain("mx-[calc(50%-50vw)]")
+  })
+
+  it("reads an unknown layout as the usual full width", () => {
+    const [row] = normalizeFrontPageRows([
+      { id: "x", heading: "X", kind: "text", layout: "enormous" },
+    ])
+
+    expect(row).toMatchObject({ layout: "wide" })
+  })
 })

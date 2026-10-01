@@ -13,7 +13,9 @@ import {
   MAX_CARRIED_EMAIL_LENGTH,
 } from "@/lib/billing/pricing-choice"
 import {
+  frontPageDividerColor,
   MAX_FRONT_PAGE_HERO_STARS,
+  type FrontPageDividerStyle,
   type FrontPageHeroAction,
   type FrontPageFaqItem,
   type FrontPageLogo,
@@ -367,5 +369,61 @@ export function FrontPageScreenshots({
         </Card>
       ))}
     </div>
+  )
+}
+
+/**
+ * A break between the rows around it.
+ *
+ * The line and the dots take the row's own Shade, not
+ * Settings > Styling > Divider lines, so one break on the front page can be
+ * stronger or fainter than the hairlines inside a card. The shade is a share of
+ * `--muted-foreground`, the token the theme builds its own divider colour from,
+ * so it still follows light and dark. A space draws nothing at all: the row is
+ * there only for the gap it adds between its neighbours.
+ *
+ * Marked `aria-hidden`, because a divider says nothing a screen reader needs to
+ * hear. The rows either side are already separate sections.
+ */
+export function FrontPageDivider({
+  style,
+  shade,
+  alignClassName = publicContentAlignmentRowClassName,
+}: {
+  style: FrontPageDividerStyle
+  shade: number
+  alignClassName?: string
+}) {
+  if (style === "space") {
+    return <div aria-hidden className="h-8 w-full md:h-16" />
+  }
+
+  const color = frontPageDividerColor(shade)
+
+  if (style === "dots") {
+    return (
+      <div
+        aria-hidden
+        className={cn("flex w-full items-center gap-3", alignClassName)}
+      >
+        {/* Bigger than the hairline is tall, because a dot at the line's own
+            weight all but disappears next to it. */}
+        {[0, 1, 2].map((dot) => (
+          <span
+            key={dot}
+            className="size-2 rounded-full"
+            style={{ backgroundColor: color }}
+          />
+        ))}
+      </div>
+    )
+  }
+
+  return (
+    <hr
+      aria-hidden
+      className="w-full border-t"
+      style={{ borderTopColor: color }}
+    />
   )
 }
