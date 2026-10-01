@@ -10,6 +10,7 @@ import {
   PlayIcon,
   PlusIcon,
   RotateCcwIcon,
+  SkipForwardIcon,
   SparklesIcon,
   UploadIcon,
 } from "lucide-react"
@@ -207,15 +208,42 @@ function TimerQuickControl() {
           <Button
             size="sm"
             className="flex-1 rounded-full"
-            onClick={pomodoro.toggleTimer}
+            onClick={
+              pomodoro.onBreak ? pomodoro.skipBreak : pomodoro.toggleTimer
+            }
           >
-            {pomodoro.timer.running ? (
+            {pomodoro.onBreak ? (
+              <SkipForwardIcon aria-hidden="true" />
+            ) : pomodoro.timer.running ? (
               <PauseIcon aria-hidden="true" />
             ) : (
               <PlayIcon aria-hidden="true" />
             )}
-            {pomodoro.timer.running ? "Pause" : "Start"}
+            {pomodoro.onBreak
+              ? "Skip break"
+              : pomodoro.timer.running
+                ? "Pause"
+                : "Start"}
           </Button>
+          {/* On a break the wide button skips it, so running and pausing the
+              break itself gets this icon beside Reset. */}
+          {pomodoro.onBreak ? (
+            <Button
+              size="sm"
+              variant="outline"
+              className="rounded-full"
+              onClick={pomodoro.toggleTimer}
+              aria-label={
+                pomodoro.timer.running ? "Pause the break" : "Start the break"
+              }
+            >
+              {pomodoro.timer.running ? (
+                <PauseIcon aria-hidden="true" />
+              ) : (
+                <PlayIcon aria-hidden="true" />
+              )}
+            </Button>
+          ) : null}
           <Button
             size="sm"
             variant="outline"

@@ -39,7 +39,7 @@ you could see your way around.
   Measured: one Tab reaches it, ArrowRight moves Focus to Short break and
   ArrowLeft moves it back.
 - **Tab order runs down the screen** from the ring's Start, Reset and Zen
-  mode, through the mode strip, to the tasks card and the "Add a task" field
+  mode (plus the break's own play button on a break), through the mode strip, to the tasks card and the "Add a task" field
   at the bottom.
 - **A control that is switched off is still reachable.** A disabled button
   cannot take focus, so the reason sits on a wrapper that can
@@ -143,6 +143,35 @@ used to do. Zen mode still shows the name.
   tabs, for what that session was for. It never takes keyboard focus and
   never touches the countdown, so a running break keeps running while it is on
   screen. See [Session notes](session-notes.md).
+
+## Skipping a break
+
+On a short or long break the wide pill inside the ring reads **Skip break**
+instead of Start or Pause, and pressing it goes straight to the next focus.
+Tyler asked for it on 1 October 2026: "There is no option to skip breaks at the
+moment. Replace Start with Skip break if its on break."
+
+- **The break is thrown away, not finished.** No chime, and nothing is written
+  to `focus_sessions`: a break that was already running is cancelled the same
+  way Reset cancels one. Only a focus is ever counted, so there is nothing to
+  lose by leaving a break early, and the app does not ask first.
+- **Where the cycle lands is the same as sitting through it.** Skipping a short
+  break keeps the focuses already counted towards the long break, and skipping
+  a long break ends the cycle and starts counting again from one. The rule is
+  the same `advanceCycle` a finished break uses, so the "Session 2 of 4 before
+  the long break" line reads the same either way. `skipBreak` in
+  `src/lib/pomodoro/use-pomodoro.ts`.
+- **Auto-start decides whether the focus is already running.** With the switch
+  on, skipping drops you into a focus that is counting down; with it off, the
+  focus sits at its full length waiting for Start, which is what happens when a
+  break runs out on its own.
+- **The break's own Start and Pause moved to a round icon**, between Reset and
+  Zen mode inside the ring, and into the header's Timer popover beside Reset.
+  It is drawn on breaks only, so the focus screen still has its two buttons.
+  Without it there would be no way to run a break at all with auto-start off.
+- **Zen mode is unchanged.** Tapping its ring still starts and pauses, because
+  the ring is one big target and a stray tap there should not end the break.
+  Leave zen mode to skip.
 
 ## When a save fails
 

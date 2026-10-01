@@ -713,6 +713,44 @@ export function resetPomodoroTimer() {
   persistGuest()
 }
 
+/**
+ * Leaving a break early, from the Skip break button the main pill turns into
+ * while a short or long break is on. The break is thrown away rather than
+ * finished, so there is no chime and nothing is recorded: the only thing it
+ * would have earned is the focus that comes next, and skipping goes straight
+ * there. A skipped short break keeps the focuses already counted towards the
+ * long break, and a skipped long break ends the cycle the same as sitting
+ * through it would. Auto-start decides whether the focus is already running
+ * when it appears, the same as it does when a break runs out on its own.
+ */
+export function skipBreak() {
+  const current = state
+  if (current.timer.mode === "focus") return
+  if (isAuthed() && current.serverSessionId)
+    void cancelFocusSession(current.serverSessionId).catch(() => undefined)
+  const { nextMode, completedFocusSessions } = advanceCycle(
+    current.timer.mode,
+    current.cycleFocusSessions,
+    current.sessionsBeforeLongBreak
+  )
+  const ready = createTimer(nextMode, current.durations[nextMode])
+  const timer = current.autoStart ? startTimer(ready) : ready
+  if (current.autoStart)
+    beginServerSession(
+      nextMode,
+      timer.durationMinutes * 60,
+      resolveSelectedTaskId(current.tasks, current.selectedTaskId)
+    )
+  setState({
+    timer,
+    remainingSeconds: timer.remainingSeconds,
+    serverSessionId: null,
+    cycleFocusSessions: completedFocusSessions,
+  })
+  announceRunning(timer.running)
+  persistGuest()
+}
+
 export function setAutoStart(autoStart: boolean) {
   if (!isAuthed()) {
     setState({ autoStart })
@@ -1253,6 +1291,8 @@ export function usePomodoro() {
     taskBusy: (taskId: string) => snapshot.pendingTaskIds.includes(taskId),
     selectMode,
     toggleTimer,
+    skipBreak,
+    onBreak: snapshot.timer.mode !== "focus",
     reset: resetPomodoroTimer,
     setAutoStart,
     setDailyGoal,
