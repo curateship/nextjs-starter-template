@@ -128,12 +128,14 @@ function PostCard({
             <h2 className="text-lg leading-snug font-semibold text-white">
               {post.title}
             </h2>
-            {/* The dividing line and the two labels sit on the picture rather
-                than under it, which is what the design does. The line is a
-                plain `border-t` with no colour, so it takes `--border` and
-                follows Settings → Styling → Divider lines like every other
-                line on the site. */}
-            <div className="flex items-baseline justify-between gap-2 border-t pt-3 text-sm text-white/80">
+            {/* No line above the name and the date here. Every line on the
+                site follows Settings → Styling → Divider lines, and that
+                setting is a faint tint meant for a flat page background: on a
+                photograph, under white text, it cannot be seen at all. The
+                space does the separating instead. Tyler's call on
+                1 Oct 2026, after seeing it. The card with no photo keeps its
+                line, because there it is drawn on the card itself. */}
+            <div className="flex items-baseline justify-between gap-2 pt-3 text-sm text-white/80">
               <span className="min-w-0 truncate">{siteName}</span>
               <time dateTime={post.publishedAt.toISOString()}>
                 {formatUtcDate(post.publishedAt)}
