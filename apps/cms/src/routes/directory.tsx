@@ -13,7 +13,10 @@ import {
   loadDirectoryBrowse,
   loadDirectoryMap,
 } from "@/lib/api/directory/public"
-import { DIRECTORY_VIEWS } from "@/lib/directory/listing-map"
+import {
+  DIRECTORY_DEAL_FILTERS,
+  DIRECTORY_VIEWS,
+} from "@/lib/directory/listing-map"
 import { plural } from "@/lib/format/plural"
 import { pageGutter } from "@/lib/layout/shell-gutter"
 import { requirePageVisible } from "@/lib/api/content/pages"
@@ -71,6 +74,7 @@ export const Route = createFileRoute("/directory")({
       place: readSearchText(search.place),
       radius: readDirectoryNearRadius(search.radius),
       view: readOneOf(search.view, DIRECTORY_VIEWS),
+      deals: readOneOf(search.deals, DIRECTORY_DEAL_FILTERS),
     }
   },
   loaderDeps: ({ search }) => search,
@@ -104,6 +108,7 @@ export const Route = createFileRoute("/directory")({
             sort: deps.sort,
             near: deps.near,
             radius: deps.radius,
+            deals: deps.deals,
           })
         : Promise.resolve(null),
     ])
@@ -302,6 +307,10 @@ function DirectoryRoute() {
           sort={sort}
           current={current}
           mapAvailable={mapAvailable}
+          // The map's switch, so it is never drawn over the grid, where it
+          // would change nothing. `dealsSwitch` is the server's answer to
+          // whether this visitor may see deals at all.
+          dealsSwitch={Boolean(map?.dealsSwitch)}
           nearNote={
             current.near ? (
               <>
@@ -327,7 +336,12 @@ function DirectoryRoute() {
          * of those cases.
          */}
         {map ? (
-          <ListingMap apiKey={map.apiKey} pins={map.pins} total={map.total} />
+          <ListingMap
+            apiKey={map.apiKey}
+            pins={map.pins}
+            total={map.total}
+            dealsOnly={map.dealsSwitch && current.deals === "only"}
+          />
         ) : (
           <>
             <ListingGrid

@@ -45,6 +45,12 @@ export type GoogleMapsApi = {
     map?: GoogleMap
     title?: string
     clickable?: boolean
+    /**
+     * The marker's image, as a URL. Left out for Google's own red pin. Google
+     * anchors an image at the bottom centre of its intrinsic size, which is why
+     * `DEAL_MARKER_ICON` needs no size or anchor passed with it.
+     */
+    icon?: string
   }) => GoogleMarker
   LatLngBounds: new () => GoogleBounds
   event: {

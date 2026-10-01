@@ -2,13 +2,17 @@ import { readdirSync, readFileSync } from "node:fs"
 import path from "node:path"
 
 import { PGlite } from "@electric-sql/pglite"
+import { and, eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { slugFromTitle } from "@/lib/directory/slugs"
 import { createCategory } from "@/server/directory/categories"
 import { setContentCategories } from "@/server/directory/content-categories"
 import { createListing, updateListing } from "@/server/directory/listings"
-import { LISTING_CONTENT_TYPE } from "@/server/directory/schema"
+import {
+  directoryListings,
+  LISTING_CONTENT_TYPE,
+} from "@/server/directory/schema"
 import type { VisitorSite } from "@/server/directory/public"
 import { resetPublicDirectoryCacheForTests } from "@/server/directory/public-cache"
 import {
@@ -153,6 +157,10 @@ const everyPublicRead: Record<
     return found
   },
   dealsAccessFor: { notADealRead: "Reads the Deals page's switch." },
+  listingHasDealOn: {
+    notADealRead:
+      "Returns a condition on a listing, not deals. Proven on its own below.",
+  },
   readDealCategories: {
     notADealRead: "Lists categories, not deals. Proven on its own below.",
   },
@@ -176,6 +184,48 @@ describe("hidden deals", () => {
       for (const slug of hidden) expect(shown).not.toContain(slug)
     })
   }
+})
+
+describe("the map's Deals only switch", () => {
+  /** The listings the switch would keep, which is what draws a deal marker. */
+  const listingsWithADealOn = async () => {
+    const rows = await database
+      .select({ id: directoryListings.id })
+      .from(directoryListings)
+      .where(
+        and(
+          eq(directoryListings.workspaceId, site.id),
+          publicReads.listingHasDealOn(site.id, now, database)
+        )
+      )
+    return rows.map((row) => row.id)
+  }
+
+  it("keeps the listing whose deal is published and live", async () => {
+    const [open] = listingIds as [string, string]
+    expect(await listingsWithADealOn()).toEqual([open])
+  })
+
+  it("never keeps a draft listing whose own deal is published", async () => {
+    const [, closed] = listingIds as [string, string]
+    expect(await listingsWithADealOn()).not.toContain(closed)
+  })
+
+  it("never keeps a listing whose only deal has not started", async () => {
+    const [open] = listingIds as [string, string]
+    // The same clock, the day before every deal here begins.
+    const theDayBefore = "2026-10-04T15:00"
+    const rows = await database
+      .select({ id: directoryListings.id })
+      .from(directoryListings)
+      .where(
+        and(
+          eq(directoryListings.workspaceId, site.id),
+          publicReads.listingHasDealOn(site.id, theDayBefore, database)
+        )
+      )
+    expect(rows.map((row) => row.id)).not.toContain(open)
+  })
 })
 
 describe("the Deals page's category chips", () => {

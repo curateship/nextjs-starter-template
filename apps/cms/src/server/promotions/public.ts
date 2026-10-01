@@ -438,9 +438,56 @@ export function readListingDeals(
 }
 
 /**
+ * A deal the site is running today: visible to a visitor, not over, and
+ * started. Started is the part that separates this from `dealIsLiveAt`. A deal
+ * beginning next week is live but is not on, and nothing that says "this place
+ * has a deal" may count it.
+ *
+ * One rule, two readers: the Deal tag on a listing's card and the deal marker
+ * on its map pin. They would quietly disagree if each wrote its own.
+ */
+function dealIsOnAt(siteId: string, now: string) {
+  return and(
+    listedDealsOnSite(siteId),
+    dealIsLiveAt(now),
+    lte(sitePromotions.startDate, now.slice(0, 10))
+  )
+}
+
+/**
+ * Whether a listing has a deal on, as a condition on an outer
+ * `directoryListings` row, for the map's "Deals only" switch.
+ *
+ * Built here rather than where the map's query is written because
+ * `private.test.ts` keeps the deals table readable from this file alone.
+ *
+ * The subquery deliberately does not join the listing. With nothing but
+ * `site_promotions` in its FROM, the published check inside `dealIsOnAt` reads
+ * the outer row, which is exactly the listing being decided about.
+ */
+export function listingHasDealOn(
+  siteId: string,
+  now: string,
+  database: CustomShellDb = db
+): SQL {
+  return exists(
+    database
+      .select({ one: sql`1` })
+      .from(sitePromotions)
+      .where(
+        and(
+          dealIsOnAt(siteId, now),
+          eq(sitePromotions.listingId, directoryListings.id)
+        )
+      )
+  )
+}
+
+/**
  * The headline of each listing's newest deal on now, for the Deal tag on
- * listing cards. **One query for the whole page of cards**, whatever its
- * size, and never one per card. Listings with no live deal are left out.
+ * listing cards and the popup behind a map pin. **One query for the whole page
+ * of cards**, whatever its size, and never one per card. Listings with no deal
+ * on are left out.
  */
 export async function dealHeadlinesFor(
   siteId: string,
@@ -458,10 +505,7 @@ export async function dealHeadlinesFor(
     .innerJoin(directoryListings, listingOfPromotion)
     .where(
       and(
-        listedDealsOnSite(siteId),
-        dealIsLiveAt(now),
-        // On now, not merely coming: a tag says the place has a deal today.
-        lte(sitePromotions.startDate, now.slice(0, 10)),
+        dealIsOnAt(siteId, now),
         inArray(sitePromotions.listingId, listingIds)
       )
     )

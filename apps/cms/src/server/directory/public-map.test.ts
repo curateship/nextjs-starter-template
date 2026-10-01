@@ -14,8 +14,11 @@ import {
   saveDirectoryMapDisplayKey,
   saveDirectoryMapEnabled,
 } from "@/server/directory/settings"
+import { listingHasDealOn } from "@/server/promotions/public"
+import { createPromotion } from "@/server/promotions/promotions"
 import {
   createTestDatabase,
+  insertUser,
   insertWorkspace,
   type TestDatabase,
 } from "@/server/test-support"
@@ -333,5 +336,133 @@ describe("the cap", () => {
     const map = await readDirectoryMap(alpha, {}, database)
     expect(map?.pins).toHaveLength(DIRECTORY_MAP_LISTING_LIMIT)
     expect(map?.total).toBe(DIRECTORY_MAP_LISTING_LIMIT + 1)
+  })
+})
+
+describe("Deals only", () => {
+  /*
+   * The switch narrows the map's own query rather than sieving the pins it got
+   * back, and `total` is what proves which of the two happened. Sieving 100
+   * cached pins would leave `total` counting all the mappable listings, and a
+   * site with more than 100 of them would lose the deals that sort past the
+   * hundredth.
+   */
+
+  // 3 PM on the day every deal below starts, the site's wall clock.
+  const now = "2026-10-05T15:00"
+
+  /** A published deal at a listing, starting today and never ending. */
+  async function dealAt(
+    site: { id: string },
+    listingId: string,
+    title: string
+  ) {
+    const userId = (await insertUser(database)).id
+    await createPromotion(
+      site.id,
+      userId,
+      {
+        title,
+        listingId,
+        description: "",
+        coverImage: "",
+        code: "",
+        smallPrint: "",
+        dealType: "percent_off",
+        amount: "20",
+        headline: "",
+        status: "published",
+        startDate: now.slice(0, 10),
+        endDate: null,
+      },
+      database
+    )
+  }
+
+  /** One pinned listing of three, so the two can be told apart. */
+  const pin = (title: string, step: number) =>
+    publish(alpha, {
+      title,
+      slug: title.toLowerCase(),
+      latitude: 43.65 + step / 1_000,
+      longitude: -79.38,
+    })
+
+  /** Three pinned listings, a deal on at the middle one. */
+  async function threePlacesOneDeal() {
+    await siteWithMap(alpha)
+    const first = await pin("First", 0)
+    const second = await pin("Second", 1)
+    await pin("Third", 2)
+    await dealAt(alpha, second.id, "Second's deal")
+    return { first, second }
+  }
+
+  const dealsOnly = () => ({
+    dealsOn: { now, where: listingHasDealOn(alpha.id, now, database) },
+  })
+
+  it("draws only the places with a deal on", async () => {
+    await threePlacesOneDeal()
+
+    const everything = await readDirectoryMap(alpha, {}, database)
+    expect(everything?.pins.map((pin) => pin.slug).sort()).toEqual([
+      "first",
+      "second",
+      "third",
+    ])
+
+    const narrowed = await readDirectoryMap(alpha, dealsOnly(), database)
+    expect(narrowed?.pins.map((pin) => pin.slug)).toEqual(["second"])
+  })
+
+  it("counts the places with a deal on, not every mappable listing", async () => {
+    await threePlacesOneDeal()
+
+    expect((await readDirectoryMap(alpha, {}, database))?.total).toBe(3)
+    expect((await readDirectoryMap(alpha, dealsOnly(), database))?.total).toBe(
+      1
+    )
+  })
+
+  it("keeps the narrowed map and the whole map apart in the cache", async () => {
+    await threePlacesOneDeal()
+
+    // Narrowed first, so a cache that ignored the switch would hand the second
+    // read one pin instead of three.
+    expect(await readDirectoryMap(alpha, dealsOnly(), database)).toHaveProperty(
+      "total",
+      1
+    )
+    expect((await readDirectoryMap(alpha, {}, database))?.total).toBe(3)
+  })
+
+  it("still narrows by the filters the visitor already applied", async () => {
+    const { first } = await threePlacesOneDeal()
+    const cafes = await createCategory(alpha.id, { name: "Cafés" }, database)
+    await setListingCategories(
+      alpha.id,
+      first.id,
+      [cafes.id],
+      cafes.id,
+      database
+    )
+    await dealAt(alpha, first.id, "First's deal")
+
+    // Both have a deal on; only one is a café.
+    expect(
+      (await readDirectoryMap(alpha, dealsOnly(), database))?.pins
+        .map((pin) => pin.slug)
+        .sort()
+    ).toEqual(["first", "second"])
+    expect(
+      (
+        await readDirectoryMap(
+          alpha,
+          { categories: [cafes.slug], ...dealsOnly() },
+          database
+        )
+      )?.pins.map((pin) => pin.slug)
+    ).toEqual(["first"])
   })
 })

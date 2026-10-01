@@ -243,6 +243,48 @@ directly.
 - The read is `readNewestDeals` in `src/server/promotions/public.ts`, newest
   published first.
 
+## Deals on the directory's map
+
+The browse page at `/directory` can be drawn as a map. A pin whose listing has
+a deal on gets its own marker, and the map can be narrowed to those places
+alone.
+
+- **The deal marker** is an indigo pin with a per-cent sign in it, in place of
+  Google's red one. The card that opens when the pin is clicked shows the
+  headline as its Deal tag, the same tag the grid's cards carry, and the pin's
+  hover text is "43 Down, 20% off" so the deal is readable without opening the
+  card.
+- **"Deals only"** is a chip beside the Grid and Map switch, drawn only while
+  the map is showing. It writes `?deals=only` into the address, so a map of
+  tonight's deals downtown can be sent to somebody.
+- **The chip keeps every other filter**, drops the page number, and is drawn
+  only when this visitor may see deals at all. On a site that keeps its deals
+  for members, a signed-out visitor gets no chip, and a hand-typed
+  `?deals=only` draws the whole map rather than an error.
+- **"A deal on" is the same rule as the Deal tag on a card**: published, at a
+  published listing, started, and not over, by the site's clock. `dealIsOnAt`
+  in `src/server/promotions/public.ts` is that rule, and the marker and the tag
+  both read it, so a pin and its card can never disagree.
+- **The switch narrows the map's own query**, not the pins it got back. The map
+  draws at most 100 pins and says so when there are more; narrowing afterwards
+  would cap first and filter second, so a site with 300 mappable listings would
+  lose the deals that happen to sort past the hundredth. The condition is
+  `listingHasDealOn` in `src/server/promotions/public.ts`, handed to
+  `readDirectoryMap` because only that file may read the deals table.
+- **A narrowed map with no pins says so in its own words**: "No place with a
+  deal on is on this map. Switch Deals only off to see every listing here."
+- **The marker's colours are written out, not read from the theme.** This app
+  never asks Google for a dark map, so the tiles stay light whichever colour
+  mode the site is in. A marker in a theme colour would go pale on a pale map
+  the moment somebody switched to dark. `DEAL_MARKER_ICON` in
+  `src/lib/directory/listing-map.ts` holds the drawing, and a test keeps the
+  fixed colours there on purpose.
+- **Nothing about this needs a Google Maps key to check.** No local site has
+  one, so the markers and the narrowing are proven by the tests in
+  `src/server/directory/public-map.test.ts` and
+  `src/lib/directory/listing-map.test.ts`, and the chip and the empty wording
+  are checked in a browser on a site with no map drawn.
+
 ## Report a problem on a deal
 
 A deal's page ends with the same small "Report a problem" link as a listing
@@ -355,6 +397,12 @@ listing, the address part and the status.
   the browser. A door that imports anything from `src/server/promotions/` for
   use outside a handler pulls the password library into the page, and every
   page of the site stops working.
+- **The directory's map reads deals through one condition.**
+  `listingHasDealOn` in `public.ts` returns an `exists` on the deals table that
+  `readDirectoryMap` in `src/server/directory/public.ts` adds to its own query.
+  The condition is built in `public.ts` and handed over rather than written
+  where it is used, because `private.test.ts` keeps the table readable from
+  that one file.
 - `src/routes/deals.tsx` and `src/routes/deals_.$slug.tsx` are the public
   pages; `src/routes/_authenticated/admin/promotions.tsx` is the admin screen.
 

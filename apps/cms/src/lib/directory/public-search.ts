@@ -9,7 +9,10 @@
  * had to be told to ignore.
  */
 
-import type { DirectoryView } from "@/lib/directory/listing-map"
+import type {
+  DirectoryDealFilter,
+  DirectoryView,
+} from "@/lib/directory/listing-map"
 
 /** How a visitor may order the list. The first one is the default. */
 export const DIRECTORY_SORTS = ["order", "newest", "title", "distance"] as const
@@ -81,6 +84,13 @@ export type DirectoryBrowseSearch = {
    * opens as a map, which is the whole reason for having the switch.
    */
   view?: DirectoryView
+  /**
+   * `?deals=only` narrows the map to places with a deal on. In the address for
+   * the same reason as `view`: "the deals downtown tonight" is a page worth
+   * sending. The grid ignores it, and so does a site whose deals a visitor may
+   * not see, so switching back to the map restores what they had.
+   */
+  deals?: DirectoryDealFilter
 }
 
 /**

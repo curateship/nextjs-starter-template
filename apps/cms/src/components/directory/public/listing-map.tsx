@@ -6,8 +6,11 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import type { PublicMapPin } from "@/lib/api/directory/public"
 import {
+  DEAL_MARKER_ICON,
+  DIRECTORY_DEALS_ONLY_LABEL,
   directoryMapCapNotice,
   directoryMapCentre,
+  directoryPinLabel,
 } from "@/lib/directory/listing-map"
 import {
   loadGoogleMaps,
@@ -24,16 +27,25 @@ import { focusRing } from "@/lib/layout/focus-ring"
  * cap is said out loud instead), it does not draw a listing with no
  * coordinates, and it does not fall back to an empty grey square when there is
  * nothing to plot.
+ *
+ * A pin whose listing has a deal on gets the deal marker, and the card behind
+ * it already shows the headline as its Deal tag.
  */
 export function ListingMap({
   apiKey,
   pins,
   total,
+  dealsOnly = false,
 }: {
   apiKey: string
   pins: PublicMapPin[]
   /** Matching listings that have a location, before the cap. */
   total: number
+  /**
+   * The visitor asked for places with a deal on. Only changes what an empty map
+   * says: the pins that arrive have already been narrowed by the server.
+   */
+  dealsOnly?: boolean
 }) {
   const containerRef = React.useRef<HTMLDivElement | null>(null)
   const mapRef = React.useRef<GoogleMap | null>(null)
@@ -124,8 +136,9 @@ export function ListingMap({
         const marker = new maps.Marker({
           position,
           map,
-          title: pin.title,
+          title: directoryPinLabel(pin.title, pin.dealHeadline),
           clickable: true,
+          icon: pin.dealHeadline ? DEAL_MARKER_ICON : undefined,
         })
         marker.addListener("click", () => open(pin.id))
         return marker
@@ -176,8 +189,9 @@ export function ListingMap({
       <Card>
         <CardContent>
           <p className="py-6 text-center text-sm text-muted-foreground">
-            None of these listings have a location yet, so there is nothing to
-            put on a map. Switch back to the grid to see them.
+            {dealsOnly
+              ? `No place with a deal on is on this map. Switch ${DIRECTORY_DEALS_ONLY_LABEL} off to see every listing here.`
+              : "None of these listings have a location yet, so there is nothing to put on a map. Switch back to the grid to see them."}
           </p>
         </CardContent>
       </Card>
@@ -243,7 +257,7 @@ export function ListingMap({
               onClick={() => open(pin.id)}
               className={`sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-20 focus:inline-flex focus:h-8 focus:items-center focus:rounded-md focus:border focus:bg-card focus:px-3 focus:text-sm ${focusRing}`}
             >
-              {pin.title}
+              {directoryPinLabel(pin.title, pin.dealHeadline)}
             </button>
           ))}
         </div>

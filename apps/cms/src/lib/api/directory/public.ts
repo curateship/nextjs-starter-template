@@ -25,6 +25,10 @@ import {
   type PublicListingPage,
 } from "@/server/directory/public"
 import type { DirectoryFrontPageAnswer } from "@/lib/directory/front-page"
+import {
+  DIRECTORY_DEAL_FILTERS,
+  type DirectoryDealFilter,
+} from "@/lib/directory/listing-map"
 import { answerForRequest } from "@/server/workspaces/host"
 import { geocodeDirectoryPlace } from "@/server/directory/geocode"
 import { requireAppOrigin, requestIp } from "@/server/auth/origin"
@@ -35,6 +39,7 @@ import { listedDealsAt, type ListedDeal } from "@/server/promotions/deal-view"
 import {
   dealHeadlinesFor,
   dealsAccessFor,
+  listingHasDealOn,
   readListingDeals,
   readNewestDeals,
 } from "@/server/promotions/public"
@@ -122,7 +127,15 @@ const readDirectoryBrowseFn = createServerFn({ method: "GET" })
       radius: readDirectoryNearRadius(data.radius),
     })
     if (!browse) return null
-    return { ...browse, listings: await withDealTags(site.id, browse.listings) }
+    // Nothing to tag means nothing to ask about: a search with no results reads
+    // no deals clock, which is what it did before the tags existed.
+    const dealsNow = browse.listings.length
+      ? await dealsClockFor(site.id, someoneIsSignedIn)
+      : null
+    return {
+      ...browse,
+      listings: await withDealTags(site.id, browse.listings, dealsNow),
+    }
   })
 
 /** One page of a site's published listings, with the filters above them. */
@@ -140,6 +153,17 @@ export function loadDirectoryBrowse(input: {
   return readDirectoryBrowseFn({ data: input })
 }
 
+/**
+ * The map, plus the one thing only the server can answer about its deals.
+ *
+ * `dealsSwitch` is whether this visitor may see deals at all. The page needs it
+ * to decide whether to draw the "Deals only" switch, and a switch that is drawn
+ * where it can change nothing is worse than no switch.
+ */
+type DirectoryMapAnswer = PublicDirectoryMap & {
+  dealsSwitch: boolean
+}
+
 const readDirectoryMapFn = createServerFn({ method: "GET" })
   .inputValidator(
     z.object({
@@ -149,20 +173,38 @@ const readDirectoryMapFn = createServerFn({ method: "GET" })
       sort: sortInput,
       near: z.string().max(40).optional(),
       radius: z.number().int().optional(),
+      deals: z.enum(DIRECTORY_DEAL_FILTERS).optional(),
     })
   )
-  .handler(async ({ data }): Promise<PublicDirectoryMap | null> => {
+  .handler(async ({ data }): Promise<DirectoryMapAnswer | null> => {
     const site = await visitorSite()
     if (!site) return null
 
-    return readDirectoryMap(site, {
+    // The site's clock, or null while the Deals page is closed to this visitor.
+    // Null means no deal markers and no "Deals only": a hand-edited
+    // `?deals=only` on a site that keeps its deals for members draws the whole
+    // map, which is the same map that address showed before deals existed.
+    const dealsNow = await dealsClockFor(site.id, someoneIsSignedIn)
+
+    const map = await readDirectoryMap(site, {
       search: data.search,
       categories: readDirectoryCategories(data.category),
       minRating: readDirectoryMinRating(data.minRating),
       sort: data.sort,
       near: parseDirectoryNearPoint(data.near) ?? undefined,
       radius: readDirectoryNearRadius(data.radius),
+      dealsOn:
+        data.deals === "only" && dealsNow
+          ? { now: dealsNow, where: listingHasDealOn(site.id, dealsNow) }
+          : undefined,
     })
+    if (!map) return null
+
+    return {
+      ...map,
+      dealsSwitch: Boolean(dealsNow),
+      pins: await withDealTags(site.id, map.pins, dealsNow),
+    }
   })
 
 /**
@@ -176,6 +218,8 @@ export function loadDirectoryMap(input: {
   sort?: DirectorySort
   near?: string
   radius?: number
+  /** "only" leaves out every listing with no deal on. */
+  deals?: DirectoryDealFilter
 }) {
   return readDirectoryMapFn({ data: input })
 }
@@ -255,18 +299,18 @@ async function dealsClockFor(
 
 /**
  * The cards with their Deal tags, read after the page's cache in one query
- * for the whole page, never one per card. Unchanged while the Deals page is
- * closed to this visitor.
+ * for the whole page, never one per card. Unchanged when `now` is null, which
+ * is how a visitor the Deals page is closed to sees no tags at all.
+ *
+ * Generic over the card, because a map pin is a card with two numbers on it
+ * and it needs the same tag to draw its deal marker.
  */
-async function withDealTags(
+async function withDealTags<Card extends PublicListingCard>(
   siteId: string,
-  listings: PublicListingCard[]
-): Promise<PublicListingCard[]> {
-  if (listings.length === 0) return listings
-  const now = await dealsClockFor(siteId, async () =>
-    Boolean(await findCurrentUser().catch(() => null))
-  )
-  if (!now) return listings
+  listings: Card[],
+  now: string | null
+): Promise<Card[]> {
+  if (!now || listings.length === 0) return listings
   const headlines = await dealHeadlinesFor(
     siteId,
     listings.map((listing) => listing.id),
@@ -277,6 +321,10 @@ async function withDealTags(
     return dealHeadline ? { ...listing, dealHeadline } : listing
   })
 }
+
+/** Whether anybody is signed in on this request, for the deals switch. */
+const someoneIsSignedIn = async () =>
+  Boolean(await findCurrentUser().catch(() => null))
 
 /** How many upcoming events a listing's "What's on here" shows. */
 const EVENTS_ON_A_LISTING = 3
@@ -393,20 +441,21 @@ const readDirectoryCategoryFn = createServerFn({ method: "GET" })
         minRating: readDirectoryMinRating(data.minRating),
       })
       if (!cached) return null
-      const isSignedIn = async () =>
-        Boolean(await findCurrentUser().catch(() => null))
-      const dealsNow =
-        (data.page ?? 1) === 1 ? await dealsClockFor(site.id, isSignedIn) : null
+      // One clock for the page. The row of deals above the listings is first
+      // page only; the tags on the cards are every page, so the clock cannot be
+      // the thing that decides which.
+      const dealsNow = await dealsClockFor(site.id, someoneIsSignedIn)
+      const categoryDealsNow = (data.page ?? 1) === 1 ? dealsNow : null
       const page = {
         ...cached,
-        listings: await withDealTags(site.id, cached.listings),
-        categoryDeals: dealsNow
+        listings: await withDealTags(site.id, cached.listings, dealsNow),
+        categoryDeals: categoryDealsNow
           ? listedDealsAt(
-              await readNewestDeals(site, dealsNow, {
+              await readNewestDeals(site, categoryDealsNow, {
                 categoryId: cached.category.id,
                 limit: DEALS_ON_A_CATEGORY,
               }),
-              dealsNow
+              categoryDealsNow
             )
           : [],
       }
@@ -414,7 +463,7 @@ const readDirectoryCategoryFn = createServerFn({ method: "GET" })
       // Read after the category's cache, by the site's clock, and only when this
       // visitor may see the Events page, the same as a listing's "What's on
       // here".
-      const access = await eventsAccessFor(site.id, isSignedIn)
+      const access = await eventsAccessFor(site.id, someoneIsSignedIn)
       if (!access) return { ...page, upcomingEvents: null }
       const timeZone = await siteTimeZone(site.id)
       const upcoming = await readUpcomingEvents(

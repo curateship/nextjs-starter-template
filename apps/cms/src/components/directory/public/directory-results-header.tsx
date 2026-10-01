@@ -2,6 +2,7 @@ import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import { LayoutGridIcon, MapIcon } from "lucide-react"
 
+import { filterChipClass } from "@/components/directory/public/filter-chip"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import {
@@ -18,6 +19,7 @@ import {
   type DirectorySort,
 } from "@/lib/directory/public-search"
 import {
+  DIRECTORY_DEALS_ONLY_LABEL,
   DIRECTORY_VIEWS,
   DIRECTORY_VIEW_LABELS,
 } from "@/lib/directory/listing-map"
@@ -40,6 +42,7 @@ export function DirectoryResultsHeader({
   sort,
   current,
   mapAvailable,
+  dealsSwitch,
   nearNote,
   onSortChange,
 }: {
@@ -53,6 +56,12 @@ export function DirectoryResultsHeader({
   current: DirectoryBrowseSearch
   /** This site offers a map and has a key for it. No switch when it does not. */
   mapAvailable: boolean
+  /**
+   * The map is showing and this visitor may see deals. Both have to be true for
+   * "Deals only" to be drawn: on the grid it would change nothing, and on a
+   * site that keeps deals for members it would be a switch that does nothing.
+   */
+  dealsSwitch: boolean
   /** What the distance filter is doing, when one is on. */
   nearNote?: React.ReactNode
   onSortChange: (value: DirectorySort) => void
@@ -69,6 +78,11 @@ export function DirectoryResultsHeader({
           </Button>
         ) : null}
         {filters}
+        {dealsSwitch ? (
+          <div className="shrink-0">
+            <DealsOnlySwitch current={current} />
+          </div>
+        ) : null}
         {mapAvailable ? (
           <div className="shrink-0">
             <ViewSwitch current={current} />
@@ -109,6 +123,34 @@ export function DirectoryResultsHeader({
         <p className="text-sm text-muted-foreground">{nearNote}</p>
       ) : null}
     </div>
+  )
+}
+
+/**
+ * The map's "Deals only": one chip, the same chip the Deals and Events pages
+ * use for their filters, and a link for the same reason they are links.
+ *
+ * It keeps every other thing the visitor narrowed to, including `view=map`, so
+ * it narrows the map in front of them rather than starting a new search. The
+ * page number is dropped because the map has none, and leaving a stale one in
+ * the address would hand the grid a page that is nowhere in its list.
+ */
+function DealsOnlySwitch({ current }: { current: DirectoryBrowseSearch }) {
+  const active = current.deals === "only"
+  return (
+    <Link
+      to="/directory"
+      search={{
+        ...current,
+        deals: active ? undefined : "only",
+        page: undefined,
+      }}
+      activeOptions={{ exact: true }}
+      aria-current={active ? "page" : undefined}
+      className={filterChipClass(active)}
+    >
+      {DIRECTORY_DEALS_ONLY_LABEL}
+    </Link>
   )
 }
 

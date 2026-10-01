@@ -10,6 +10,7 @@ import {
   ne,
   or,
   sql,
+  type SQL,
 } from "drizzle-orm"
 import { getRequestHeader } from "@tanstack/react-start/server"
 
@@ -307,11 +308,27 @@ export type PublicBrowse = {
   mapAvailable: boolean
 }
 
-/** One listing as a pin: a grid card, plus the two numbers that place it. */
+/**
+ * One listing as a pin: a grid card, plus the two numbers that place it.
+ *
+ * The card's `dealHeadline` is what gives the pin its deal marker, and it is
+ * filled after the cache by the endpoint, the same as a grid card's Deal tag.
+ */
 export type PublicMapPin = PublicListingCard & {
   latitude: number
   longitude: number
 }
+
+/**
+ * Narrowing the map to listings with a deal on.
+ *
+ * The condition is built by `listingHasDealOn` in
+ * `src/server/promotions/public.ts` and handed in, because that file is the
+ * only one allowed to read the deals table and it owns the rule for what
+ * counts as a deal being on. `now` is the site's wall clock behind the
+ * condition, and it is what the cache keys on.
+ */
+export type DirectoryMapDealsOn = { now: string; where: SQL }
 
 /** Everything the map view draws, for the filters the visitor has applied. */
 export type PublicDirectoryMap = {
@@ -1083,6 +1100,7 @@ async function readDirectoryMapUncached(
     sort?: DirectorySort
     near?: DirectoryNearPoint
     radius?: number
+    dealsOn?: DirectoryMapDealsOn
   },
   database: CustomShellDb
 ): Promise<Omit<PublicDirectoryMap, "apiKey"> | null> {
@@ -1114,10 +1132,16 @@ async function readDirectoryMapUncached(
     database
   )
 
+  // The deals filter joins the query rather than being applied to the pins
+  // afterwards. Filtering 100 cached pins down would cap first and narrow
+  // second, so a site with 300 mappable listings would hide the deals that
+  // happen to sort past the hundredth, and the "showing 12 of 300" sentence
+  // would be counting the wrong thing.
   const mappable = and(
     where,
     isNotNull(directoryListings.latitude),
-    isNotNull(directoryListings.longitude)
+    isNotNull(directoryListings.longitude),
+    options.dealsOn?.where
   )
 
   const rows = await database
@@ -1163,6 +1187,7 @@ export async function readDirectoryMap(
     sort?: DirectorySort
     near?: DirectoryNearPoint
     radius?: number
+    dealsOn?: DirectoryMapDealsOn
   },
   database: CustomShellDb = db
 ): Promise<PublicDirectoryMap | null> {
@@ -1182,6 +1207,9 @@ export async function readDirectoryMap(
       sort: resolvedOptions.sort ?? "",
       near: resolvedOptions.near ?? null,
       radius: resolvedOptions.radius ?? null,
+      // The clock, not the condition: an SQL object has no stable shape to key
+      // on, and the clock is what makes two "Deals only" maps different.
+      dealsOn: resolvedOptions.dealsOn?.now ?? null,
     },
     () => readDirectoryMapUncached(site, resolvedOptions, database)
   )

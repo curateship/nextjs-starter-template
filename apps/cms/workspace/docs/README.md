@@ -64,8 +64,9 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - `promotions.md` — each site's deals: writing them in Admin → Promotions,
   the Deals page and each deal's page, deal types and headlines, the times
   of day a deal runs and how "On now" is worked out, the rules Tyler set, how
-  the site's time zone decides when a deal is over, and the one filter every
-  public read goes through.
+  the site's time zone decides when a deal is over, the deal marker and
+  "Deals only" on the directory's map, and the one filter every public read
+  goes through.
 
 ## Adding a doc
 
