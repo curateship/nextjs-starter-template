@@ -1271,24 +1271,54 @@ export async function setLiveBrackets(
     side = held.szi > 0 ? "buy" : "sell"
 
     const long = held.szi > 0
-    if (targets.length > 3) throw new Error("LIVE_TAKE_PROFIT_COUNT")
-    for (const target of targets) {
-      if (!Number.isFinite(target.px) || !(target.px > 0)) {
-        throw new Error("LIVE_PRICE")
-      }
-    }
-    if (targets.length > 1 && targets.some((target) => target.sz === null)) {
-      throw new Error("LIVE_TAKE_PROFIT_LIST_SIZE")
-    }
     const heldSz = Math.abs(held.szi)
     const coveredSz = targets.reduce(
       (sum, target) => sum + (target.sz ?? heldSz),
       0
     )
+    /**
+     * **Tidying up is always allowed.** Three of the rules below stop somebody
+     * giving a position more exits than it can honour. They are not meant to
+     * trap a position that is already in that state, and on 1 Oct 2026 that
+     * is what they did: a LIT position holding 112.96 coins was carrying six
+     * exits selling 410 between them, and every attempt to drag one or take
+     * one off sent the whole six back and was refused. The exits could not be
+     * added to, moved or removed by anything on the screen.
+     *
+     * So when the exchange is already holding exits for more coins than the
+     * position has, a request that asks for no more than those exits is let
+     * through. It cannot make the position any less safe than the exchange
+     * has already made it, and it is the only way back to a sane position.
+     *
+     * `targets` is missing entirely on a venue that holds no exits of its own
+     * — Robinhood and the chain wallets — so a position there has nothing
+     * standing and this never opens.
+     */
+    const standing = held.targets ?? []
+    const standingSz = standing.reduce((sum, one) => sum + (one.sz ?? heldSz), 0)
+    const tidying =
+      standingSz > heldSz * (1 + 1e-6) &&
+      targets.length <= standing.length &&
+      coveredSz <= standingSz * (1 + 1e-6)
+    if (targets.length > 3 && !tidying) {
+      throw new Error("LIVE_TAKE_PROFIT_COUNT")
+    }
+    for (const target of targets) {
+      if (!Number.isFinite(target.px) || !(target.px > 0)) {
+        throw new Error("LIVE_PRICE")
+      }
+    }
+    if (
+      targets.length > 1 &&
+      targets.some((target) => target.sz === null) &&
+      !tidying
+    ) {
+      throw new Error("LIVE_TAKE_PROFIT_LIST_SIZE")
+    }
     if (targets.some((target) => target.sz !== null && !(target.sz > 0))) {
       throw new Error("LIVE_TAKE_PROFIT_SIZE")
     }
-    if (coveredSz > heldSz * (1 + 1e-6)) {
+    if (coveredSz > heldSz * (1 + 1e-6) && !tidying) {
       const targetsUsd = targets.reduce(
         (sum, target) => sum + (target.sz ?? heldSz) * target.px,
         0

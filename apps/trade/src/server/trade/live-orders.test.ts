@@ -978,6 +978,125 @@ describe("protecting a position", () => {
     expect(setBrackets).toHaveBeenCalledTimes(1)
   })
 
+  it("lets a position already carrying too many exits be trimmed", async () => {
+    /**
+     * **The LIT lock-out, 1 Oct 2026.** Lighter was holding six take-profit
+     * legs on a position of 112.96 coins — four of them copies — selling 410
+     * coins between them. The chart draws what the exchange holds, so every
+     * drag and every × sent all six back, and the count, the per-exit size
+     * and the total rules each refused it. There was nothing on the screen
+     * that could take an exit off, and the toast said only "That did not go
+     * through. Try it again."
+     *
+     * A request asking for no more than the exchange is already holding
+     * cannot make the position less safe, so it goes through. Adding to the
+     * pile is still refused.
+     */
+    const userId = await person()
+    const walletId = await liveWallet(userId)
+    const standing = [
+      { px: 4.0029, sz: null, orderId: "1" },
+      { px: 4.1791, sz: 51.02, orderId: "2" },
+      { px: 4.3582, sz: 61.94, orderId: "3" },
+      { px: 4.3582, sz: 61.94, orderId: "4" },
+      { px: 4.3582, sz: 61.94, orderId: "5" },
+      { px: 4.3582, sz: 61.94, orderId: "6" },
+    ]
+    portfolio.mockResolvedValue({
+      positions: [
+        {
+          marketId: "BTC",
+          szi: 112.96,
+          entryPx: 3.9822,
+          leverage: 2,
+          marginUsed: 220,
+          liquidationPx: null,
+          targets: standing,
+          tpPx: 4.0029,
+          tpSz: null,
+          slPx: null,
+          tpOrderId: "1",
+          slOrderId: null,
+          protectionOrderIds: ["1", "2", "3", "4", "5", "6"],
+        },
+      ],
+      orders: [],
+    })
+
+    // Five of the six, which is what the × on one copy sends. The
+    // whole-position row stays in, so the rule that wants a size on every
+    // exit when there is more than one has to stand aside as well.
+    await setLiveBrackets(userId, {
+      walletId,
+      marketKey: MARKET,
+      targets: standing
+        .filter((one) => one.orderId !== "6")
+        .map((one) => ({ px: one.px, sz: one.sz })),
+      slPx: null,
+    })
+    expect(setBrackets).toHaveBeenCalledTimes(1)
+    expect(setBrackets.mock.calls[0][2].targets).toHaveLength(5)
+    expect(
+      setBrackets.mock.calls[0][2].targets.some(
+        (one: { sz: number | null }) => one.sz === null
+      )
+    ).toBe(true)
+
+    // A seventh exit is adding to the pile, not clearing it.
+    await expect(
+      setLiveBrackets(userId, {
+        walletId,
+        marketKey: MARKET,
+        targets: [
+          ...standing.map((one) => ({ px: one.px, sz: one.sz })),
+          { px: 4.5, sz: 10 },
+        ],
+        slPx: null,
+      })
+    ).rejects.toThrow("LIVE_TAKE_PROFIT_COUNT")
+    expect(setBrackets).toHaveBeenCalledTimes(1)
+  })
+
+  it("still refuses a fourth exit on a tidy position", async () => {
+    const userId = await person()
+    const walletId = await liveWallet(userId)
+    portfolio.mockResolvedValue({
+      positions: [
+        {
+          marketId: "BTC",
+          szi: 1,
+          entryPx: 90_000,
+          leverage: 5,
+          marginUsed: 18_000,
+          liquidationPx: null,
+          targets: [],
+          tpPx: null,
+          tpSz: null,
+          slPx: null,
+          tpOrderId: null,
+          slOrderId: null,
+          protectionOrderIds: [],
+        },
+      ],
+      orders: [],
+    })
+
+    await expect(
+      setLiveBrackets(userId, {
+        walletId,
+        marketKey: MARKET,
+        targets: [
+          { px: 100_000, sz: 0.2 },
+          { px: 110_000, sz: 0.2 },
+          { px: 120_000, sz: 0.2 },
+          { px: 130_000, sz: 0.2 },
+        ],
+        slPx: null,
+      })
+    ).rejects.toThrow("LIVE_TAKE_PROFIT_COUNT")
+    expect(setBrackets).not.toHaveBeenCalled()
+  })
+
   it("writes a bracket replacement refusal in plain words", async () => {
     const userId = await person()
     const walletId = await liveWallet(userId)

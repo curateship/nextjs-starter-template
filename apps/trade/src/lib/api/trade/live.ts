@@ -129,10 +129,28 @@ const targetSchema = z.object({
   sz: z.number().positive().finite().nullable(),
 })
 
+/**
+ * How many exits one request may carry.
+ *
+ * **Not three, although three is the rule.** The rule belongs in
+ * `setLiveBrackets`, which can see what the position is already holding; this
+ * number is only a bound on the size of the request. A chart drag sends back
+ * every exit the position carries, and an exchange will hand back more than
+ * three — six stood on one LIT position on 1 Oct 2026. Refused here, the
+ * request died before a single line of the app ran, so nothing was journalled
+ * and the screen could only say "That did not go through. Try it again." The
+ * one way out of a pile of exits was the one thing this number blocked.
+ *
+ * Fifty, because that is the most conditional orders any venue here will hold
+ * on one pair: KuCoin's stated batch limit, above Phemex's twenty. A pile no
+ * exchange could have made is a bad request rather than something to untangle.
+ */
+const MAX_BRACKET_TARGETS = 50
+
 const bracketsSchema = z.object({
   walletId: z.string().max(36),
   marketKey: marketKeySchema,
-  targets: z.array(targetSchema).max(3),
+  targets: z.array(targetSchema).max(MAX_BRACKET_TARGETS),
   slPx: z.number().positive().finite().nullable(),
 })
 
