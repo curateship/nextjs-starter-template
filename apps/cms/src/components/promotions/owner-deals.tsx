@@ -10,6 +10,7 @@ import {
   DealTimesCard,
   DealWordsCard,
 } from "@/components/promotions/deal-fields"
+import { CounterPanel } from "@/components/promotions/counter-panel"
 import { WhoClaimedList } from "@/components/promotions/who-claimed"
 import { CharacterCount } from "@/components/shared/character-count"
 import { ImageUpload } from "@/components/shared/image-upload"
@@ -53,6 +54,7 @@ import {
   dealContentInput,
   type DealContentFields,
 } from "@/lib/promotions/deal-content"
+import { codesUsedText } from "@/lib/promotions/claim-fields"
 import { dealAdminDaysText } from "@/lib/promotions/deal-days"
 import { shownHeadline } from "@/lib/promotions/deal-headline"
 import { hasDealTimes } from "@/lib/promotions/deal-times"
@@ -272,7 +274,7 @@ function OwnerDealRow({
           </Button>
           {live.content.takesClaims ? (
             <Button type="button" variant="ghost" size="sm" onClick={onClaims}>
-              Who claimed
+              At the counter
             </Button>
           ) : null}
         </div>
@@ -493,8 +495,10 @@ function OwnerDealDialog({
 }
 
 /**
- * Who claimed one of the owner's deals, read-only. Only an admin can take a
- * claim away. Read when the window opens, so the list is never stale.
+ * The counter for one of the owner's deals: a code box that marks a code
+ * used, how many codes have been used, and who claimed. Only an admin can
+ * take a claim away. The list is read when the window opens, so it is never
+ * stale.
  */
 function OwnerClaimsDialog({
   deal,
@@ -531,6 +535,7 @@ function OwnerClaimsDialog({
 
   const claims = loaded && loaded.forId === liveId ? loaded.claims : null
   const limit = deal?.live?.content.claimLimit ?? null
+  const title = deal?.live?.content.title ?? "this deal"
   return (
     <Dialog
       open={liveId !== null}
@@ -540,15 +545,25 @@ function OwnerClaimsDialog({
     >
       <DialogContent variant="admin" className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Who claimed</DialogTitle>
+          <DialogTitle>At the counter</DialogTitle>
           <DialogDescription>
             {claims
-              ? `${claims.length} claimed${limit ? ` of ${limit}` : ""} for ${deal?.live?.content.title ?? "this deal"}. Each code is theirs alone.`
-              : `For ${deal?.live?.content.title ?? "this deal"}.`}
+              ? `${codesUsedText(claims)} for ${title}. ${claims.length} claimed${limit ? ` of ${limit}` : ""}, and each code is one person's.`
+              : `For ${title}.`}
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
+          {liveId ? (
+            <CounterPanel
+              promotionId={liveId}
+              dealTitle={title}
+              onClaims={(next) => setLoaded({ forId: liveId, claims: next })}
+            />
+          ) : null}
           <Card size="sm">
+            <CardHeader>
+              <CardTitle>Who claimed</CardTitle>
+            </CardHeader>
             <CardContent>
               {claims ? (
                 <WhoClaimedList claims={claims} />

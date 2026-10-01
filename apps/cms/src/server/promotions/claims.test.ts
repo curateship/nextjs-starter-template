@@ -1,6 +1,7 @@
 import { PGlite } from "@electric-sql/pglite"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
+import { readScannedCode } from "@/lib/promotions/claim-code"
 import { CLAIMS_PER_HOUR } from "@/lib/promotions/claim-fields"
 import { uuid } from "@/server/auth/security"
 import { createListing, updateListing } from "@/server/directory/listings"
@@ -13,18 +14,24 @@ import {
   claimDeal,
   CLAIMS_CLOSED,
   listClaims,
+  markCodeUsed,
   newClaimCode,
+  readClaimPass,
+  readCodeAtCounter,
   removeClaim,
 } from "@/server/promotions/claims"
 import { dealViewAt } from "@/server/promotions/deal-view"
-import { ownerDealClaims } from "@/server/promotions/owner-requests"
+import {
+  ownerDealClaims,
+  ownersDealSite,
+} from "@/server/promotions/owner-requests"
 import {
   createPromotion,
   updatePromotion,
   type PromotionInput,
 } from "@/server/promotions/promotions"
 import { readPublicDeal } from "@/server/promotions/public"
-import { sitePromotions } from "@/server/promotions/schema"
+import { promotionClaims, sitePromotions } from "@/server/promotions/schema"
 import { eq } from "drizzle-orm"
 import {
   createTestDatabase,
@@ -228,6 +235,11 @@ describe("who claimed", () => {
 
     expect((await ownerDealClaims(owner, deal.id, database))?.map((row) => row.name)).toEqual(["Ana"])
     expect(await ownerDealClaims(stranger, deal.id, database)).toBeNull()
+
+    // The counter's doors take the site from here. A stranger gets no site,
+    // so their code never reaches a read at all.
+    expect(await ownersDealSite(owner, deal.id, database)).toBe(site.id)
+    expect(await ownersDealSite(stranger, deal.id, database)).toBeNull()
   })
 })
 
@@ -236,5 +248,142 @@ describe("codes", () => {
     for (let count = 0; count < 200; count += 1) {
       expect(newClaimCode()).not.toMatch(/[01ILO]/)
     }
+  })
+})
+
+describe("at the counter", () => {
+  /** Claims the deal and hands back the one code that was drawn. */
+  async function claimCode(dealId: string, email = "ana@example.com") {
+    const claimed = await claimDeal(
+      site.id,
+      dealId,
+      { name: "Ana", email },
+      visitor(),
+      database
+    )
+    if (claimed.outcome !== "claimed") throw new Error("not claimed")
+    return claimed.code
+  }
+
+  it("marks a code used once, and tells the second phone when the first one did", async () => {
+    const deal = await createPromotion(site.id, userId, input(), database)
+    const code = await claimCode(deal.id)
+    const used = new Date("2026-10-05T18:30:00Z")
+
+    const first = await markCodeUsed(site.id, code, userId, used, database)
+    expect(first.done).toBe(true)
+    expect(first.found?.claim).toMatchObject({ name: "Ana", usedAt: used })
+
+    const later = new Date("2026-10-05T19:00:00Z")
+    const second = await markCodeUsed(site.id, code, userId, later, database)
+    expect(second.done).toBe(false)
+    // The time the first one wrote, never this attempt's.
+    expect(second.found?.claim.usedAt).toEqual(used)
+  })
+
+  it("reads a code typed any of the ways it is handed over", async () => {
+    const deal = await createPromotion(site.id, userId, input(), database)
+    const code = await claimCode(deal.id)
+    for (const handed of [
+      code,
+      code.toLowerCase(),
+      code.replace("-", ""),
+      `https://alpha.example.com/deals/code/${code}`,
+    ]) {
+      expect(readScannedCode(handed)).toBe(code)
+    }
+    expect(
+      (await readCodeAtCounter(site.id, readScannedCode(code), database))?.deal
+    ).toMatchObject({ id: deal.id, title: "Free croissant", ended: false })
+  })
+
+  it("never uses a code whose claim was taken away", async () => {
+    const deal = await createPromotion(site.id, userId, input(), database)
+    const code = await claimCode(deal.id)
+    const [ana] = await listClaims(site.id, deal.id, database)
+    await removeClaim(site.id, ana!.id, database)
+
+    const answer = await markCodeUsed(site.id, code, userId, at, database)
+    expect(answer.done).toBe(false)
+    expect(answer.found?.claim).toMatchObject({ cancelled: true, usedAt: null })
+  })
+
+  it("never takes a used claim away, and says why", async () => {
+    const deal = await createPromotion(site.id, userId, input(), database)
+    const code = await claimCode(deal.id)
+    await markCodeUsed(site.id, code, userId, at, database)
+    const [ana] = await listClaims(site.id, deal.id, database)
+    await expect(removeClaim(site.id, ana!.id, database)).rejects.toThrow(
+      "used at the counter"
+    )
+    expect((await listClaims(site.id, deal.id, database))[0]?.usedAt).toEqual(
+      at
+    )
+  })
+
+  it("belongs to one site: another site's counter never finds the code", async () => {
+    const deal = await createPromotion(site.id, userId, input(), database)
+    const code = await claimCode(deal.id)
+    const beta = await insertWorkspace(database, { name: "Beta" })
+    expect(await readCodeAtCounter(beta.id, code, database)).toBeNull()
+    expect(await markCodeUsed(beta.id, code, userId, at, database)).toEqual({
+      done: false,
+      found: null,
+    })
+    expect((await listClaims(site.id, deal.id, database))[0]?.usedAt).toBeNull()
+  })
+
+  it("keeps a hidden deal's code off the page a customer shows, while the counter still reads it", async () => {
+    const deal = await createPromotion(site.id, userId, input(), database)
+    const code = await claimCode(deal.id)
+    expect(await readClaimPass(site.id, code, database)).not.toBeNull()
+
+    await updatePromotion(
+      site.id,
+      deal.id,
+      { ...input({ status: "draft" }), slug: deal.slug },
+      database
+    )
+    expect(await readClaimPass(site.id, code, database)).toBeNull()
+    expect(await readCodeAtCounter(site.id, code, database)).not.toBeNull()
+
+    await updatePromotion(
+      site.id,
+      deal.id,
+      { ...input({ status: "published" }), slug: deal.slug },
+      database
+    )
+    await updateListing(site.id, listingId, { status: "draft" }, database)
+    expect(await readClaimPass(site.id, code, database)).toBeNull()
+    expect(await readCodeAtCounter(site.id, code, database)).not.toBeNull()
+  })
+
+  it("says the deal has ended, so the counter is told before it honours one", async () => {
+    const over = await createPromotion(
+      site.id,
+      userId,
+      input({ startDate: "2026-09-01", endDate: "2026-09-30" }),
+      database
+    )
+    // The claim is written straight in: claiming closes once a deal is over.
+    const code = newClaimCode()
+    await database.insert(promotionClaims).values({
+      id: uuid(),
+      workspaceId: site.id,
+      promotionId: over.id,
+      name: "Ana",
+      email: "ana@example.com",
+      code,
+      createdAt: at,
+    })
+    expect((await readCodeAtCounter(site.id, code, database))?.deal.ended).toBe(
+      true
+    )
+  })
+
+  it("has no code like that for a code nobody drew", async () => {
+    await createPromotion(site.id, userId, input(), database)
+    expect(await readCodeAtCounter(site.id, "K7QX-P2MD", database)).toBeNull()
+    expect(await readClaimPass(site.id, "K7QX-P2MD", database)).toBeNull()
   })
 })

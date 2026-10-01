@@ -10,6 +10,7 @@ import {
   DealTimesCard,
   DealWordsCard,
 } from "@/components/promotions/deal-fields"
+import { CounterPanel } from "@/components/promotions/counter-panel"
 import { WhoClaimedList } from "@/components/promotions/who-claimed"
 import { ImageUpload } from "@/components/shared/image-upload"
 import { RecordPreviewLink } from "@/components/shared/record-preview-link"
@@ -52,6 +53,7 @@ import {
   type PromotionWindowData,
 } from "@/lib/api/promotions/promotions"
 import { slugFromTitle } from "@/lib/directory/slugs"
+import { codesUsedText } from "@/lib/promotions/claim-fields"
 import { hasDealTimes } from "@/lib/promotions/deal-times"
 import {
   blankDealContent,
@@ -525,17 +527,24 @@ export function PromotionDialog({
                   disabled={saving}
                   tried={tried}
                 />
+                {loaded?.data.promotion.takesClaims && promotionId ? (
+                  <CounterPanel
+                    promotionId={promotionId}
+                    dealTitle={loaded.data.promotion.title}
+                    onClaims={setClaims}
+                  />
+                ) : null}
                 {loaded?.data.promotion.takesClaims ? (
                   <Card size="sm">
                     <CardHeader>
                       <CardTitle>Who claimed</CardTitle>
                       <CardDescription>
-                        {claims.length} claimed
+                        {codesUsedText(claims)}. {claims.length} claimed
                         {loaded.data.promotion.claimLimit
                           ? ` of ${loaded.data.promotion.claimLimit}`
                           : ""}
                         . Taking a claim away frees the place, and the same
-                        email can claim again.
+                        email can claim again, but a code already used stays.
                       </CardDescription>
                     </CardHeader>
                     <CardContent>

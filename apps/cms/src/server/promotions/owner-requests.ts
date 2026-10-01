@@ -891,6 +891,20 @@ export async function decidePromotionRequest(
 }
 
 /**
+ * The site one of this owner's own live deals belongs to, or null when the
+ * deal is not theirs. The counter's doors take the site from here rather than
+ * from the browser, so an owner can only ever work on their own deal.
+ */
+export async function ownersDealSite(
+  userId: string,
+  promotionId: string,
+  database: CustomShellDb = db
+): Promise<string | null> {
+  const found = await ownersDeal(userId, promotionId, database)
+  return found?.deal.workspaceId ?? null
+}
+
+/**
  * Who claimed one of the owner's own deals, for My listings. Only a deal this
  * account sent and whose listing it still looks after; anything else is null.
  */

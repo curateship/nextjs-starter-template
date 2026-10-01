@@ -36,3 +36,14 @@ export function claimsLeftText(box: {
   if (box.limit === null || box.left === null) return null
   return `${box.left} of ${box.limit} left`
 }
+
+/**
+ * "12 of 30 codes used", which is what an owner wants to know: how many of
+ * the people who claimed actually turned up. Counts claims, not places, so a
+ * deal with no limit has a figure too.
+ */
+export function codesUsedText(claims: { usedAt: Date | null }[]): string {
+  const used = claims.filter((claim) => claim.usedAt !== null).length
+  if (claims.length === 0) return "No codes claimed yet"
+  return `${used} of ${claims.length} codes used`
+}

@@ -233,7 +233,8 @@ export const promotionRequests = pgTable(
 /**
  * People who claimed a deal, from `drizzle/0101_cms_promotion_claims.sql`.
  * Each has their own code. Removing someone marks the row cancelled, which
- * frees their place and lets the same email claim again.
+ * frees their place and lets the same email claim again. A code that has been
+ * used at the counter carries `usedAt` and can no longer be taken away.
  */
 export const promotionClaims = pgTable(
   "promotion_claims",
@@ -248,18 +249,36 @@ export const promotionClaims = pgTable(
     name: varchar("name", { length: 120 }).notNull(),
     /** Stored in lower case, so one person is one email. */
     email: varchar("email", { length: 255 }).notNull(),
-    /** Their own code, like "K7QX-P2MD", unique within the deal. */
+    /** Their own code, like "K7QX-P2MD", unique across the site. */
     code: varchar("code", { length: 20 }).notNull(),
     /** 'claimed' or 'cancelled'. Only a claimed one holds a place. */
     status: varchar("status", { length: 20 }).notNull().default("claimed"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    /**
+     * When the code was used at the counter, from
+     * `drizzle/0110_cms_promotion_claim_used.sql`. Null means it has not been
+     * used, and this is the column every other answer reads.
+     */
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    /** The owner or admin who marked it, or null once that account is gone. */
+    usedByUserId: varchar("used_by_user_id", { length: 36 }).references(
+      () => customShellUsers.id,
+      { onDelete: "set null" }
+    ),
   },
   (table) => [
     uniqueIndex("ux_promotion_claims_live_email")
       .on(table.promotionId, table.email)
       .where(sql`${table.status} = 'claimed'`),
-    uniqueIndex("ux_promotion_claims_code").on(table.promotionId, table.code),
+    /**
+     * A code is unique across the site, cancelled ones included, because the
+     * counter page is found by the code alone and no code is ever reissued.
+     */
+    uniqueIndex("ux_promotion_claims_site_code").on(
+      table.workspaceId,
+      table.code
+    ),
     index("ix_promotion_claims_promotion").on(
       table.promotionId,
       table.status,
@@ -272,6 +291,15 @@ export const promotionClaims = pgTable(
     check(
       "promotion_claims_cancelled_check",
       sql`(${table.status} = 'cancelled') = (${table.cancelledAt} IS NOT NULL)`
+    ),
+    check(
+      "promotion_claims_used_check",
+      sql`${table.usedByUserId} IS NULL OR ${table.usedAt} IS NOT NULL`
+    ),
+    /** A used code can never be taken away: that would hand out a second one. */
+    check(
+      "promotion_claims_used_not_cancelled_check",
+      sql`NOT (${table.status} = 'cancelled' AND ${table.usedAt} IS NOT NULL)`
     ),
   ]
 )

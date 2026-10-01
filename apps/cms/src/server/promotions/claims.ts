@@ -1,6 +1,6 @@
 import { randomInt } from "node:crypto"
 
-import { and, asc, count, eq } from "drizzle-orm"
+import { and, asc, count, eq, isNull, type SQL } from "drizzle-orm"
 
 import { cleanListingHours } from "@/lib/directory/listing-details"
 import {
@@ -9,6 +9,10 @@ import {
   signUpProblem,
 } from "@/lib/events/sign-up-fields"
 import { wallClockAt } from "@/lib/events/event-time"
+import {
+  CLAIM_CODE_LETTERS,
+  formatClaimCode,
+} from "@/lib/promotions/claim-code"
 import { CLAIMS_PER_HOUR } from "@/lib/promotions/claim-fields"
 import { dealStage } from "@/lib/promotions/deal-times"
 import { enforceRateLimit, RateLimitError } from "@/server/auth/rate-limit"
@@ -38,6 +42,9 @@ import {
  * - **Claims close when the deal is over**, by the site's clock. A deal that
  *   has not started yet can already be claimed.
  * - **Removing someone** marks their claim cancelled, which frees the place.
+ *   A code already used at the counter can no longer be removed.
+ * - **Using a code at the counter** writes the moment it happened on the
+ *   claim. See the counter section at the foot of this file.
  *
  * Every read and write takes the site first.
  */
@@ -114,17 +121,27 @@ export async function claimBoxFor(
   }
 }
 
-/** Letters and digits nobody misreads: no 0/O, 1/I/L. */
-const CODE_LETTERS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
-
-/** "K7QX-P2MD": eight characters, about a trillion to one against a guess. */
+/**
+ * "K7QX-P2MD": eight characters from the alphabet in
+ * `lib/promotions/claim-code.ts`, which is 850 billion of them, so a code
+ * cannot be guessed at a counter or in a URL. The shape and the letters live
+ * in that file because the counter screen reads them back in the browser.
+ */
 export function newClaimCode(): string {
-  const pick = () =>
-    Array.from(
-      { length: 4 },
-      () => CODE_LETTERS[randomInt(CODE_LETTERS.length)]
-    ).join("")
-  return `${pick()}-${pick()}`
+  const letters = Array.from(
+    { length: 8 },
+    () => CLAIM_CODE_LETTERS[randomInt(CLAIM_CODE_LETTERS.length)]
+  ).join("")
+  return formatClaimCode(letters)
+}
+
+/** The listing's street address out of its contact links, or "". */
+function listingAddressOf(contactLinks: unknown): string {
+  const address =
+    contactLinks && typeof contactLinks === "object"
+      ? (contactLinks as { address?: unknown }).address
+      : undefined
+  return typeof address === "string" ? address.trim() : ""
 }
 
 export const CLAIMS_CLOSED = "Claims have closed. This deal is over."
@@ -137,7 +154,6 @@ type ClaimedDeal = {
   headline: string
   listingTitle: string
   listingAddress: string
-  slug: string
 }
 
 export type ClaimOutcome =
@@ -196,7 +212,6 @@ export async function claimDeal(
         endedAt: sitePromotions.endedAt,
         title: sitePromotions.title,
         headline: sitePromotions.headline,
-        slug: sitePromotions.slug,
         listingTitle: directoryListings.title,
         contactLinks: directoryListings.contactLinks,
       })
@@ -214,16 +229,11 @@ export async function claimDeal(
     if (stage === "ended") {
       return { outcome: "refused" as const, problem: CLAIMS_CLOSED }
     }
-    const address =
-      deal.contactLinks && typeof deal.contactLinks === "object"
-        ? (deal.contactLinks as { address?: unknown }).address
-        : undefined
     const claimed: ClaimedDeal = {
       title: deal.title,
       headline: deal.headline,
       listingTitle: deal.listingTitle,
-      listingAddress: typeof address === "string" ? address.trim() : "",
-      slug: deal.slug,
+      listingAddress: listingAddressOf(deal.contactLinks),
     }
 
     const [already] = await tx
@@ -248,15 +258,16 @@ export async function claimDeal(
       return { outcome: "refused" as const, problem: ALL_CLAIMED }
     }
 
-    // A clash with another claim's code is one in a trillion; a second
-    // draw is the whole answer.
+    // A clash with another code on this site is one in 850 billion; a second
+    // draw is the whole answer. The site, not the deal, because the counter
+    // page is found by the code alone.
     let code = newClaimCode()
     const [clash] = await tx
       .select({ id: promotionClaims.id })
       .from(promotionClaims)
       .where(
         and(
-          eq(promotionClaims.promotionId, promotionId),
+          eq(promotionClaims.workspaceId, siteId),
           eq(promotionClaims.code, code)
         )
       )
@@ -283,6 +294,8 @@ export type DealClaim = {
   email: string
   code: string
   createdAt: Date
+  /** When their code was used at the counter, or null. */
+  usedAt: Date | null
 }
 
 /** Who claimed one deal, first to claim first. */
@@ -298,6 +311,7 @@ export async function listClaims(
       email: promotionClaims.email,
       code: promotionClaims.code,
       createdAt: promotionClaims.createdAt,
+      usedAt: promotionClaims.usedAt,
     })
     .from(promotionClaims)
     .where(
@@ -323,9 +337,203 @@ export async function removeClaim(
       and(
         eq(promotionClaims.id, claimId),
         eq(promotionClaims.workspaceId, workspaceId),
-        holdsPlace
+        holdsPlace,
+        isNull(promotionClaims.usedAt)
       )
     )
     .returning({ id: promotionClaims.id })
-  if (!removed.length) throw new Error("That claim is no longer on the list.")
+  if (removed.length) return
+  // Which of the two it is, so the admin is told the reason rather than being
+  // left to guess at a button that did nothing.
+  const [used] = await database
+    .select({ usedAt: promotionClaims.usedAt })
+    .from(promotionClaims)
+    .where(
+      and(
+        eq(promotionClaims.id, claimId),
+        eq(promotionClaims.workspaceId, workspaceId)
+      )
+    )
+    .limit(1)
+  throw new Error(
+    used?.usedAt
+      ? "That code has been used at the counter, so the claim stays on the list."
+      : "That claim is no longer on the list."
+  )
+}
+
+/**
+ * Using a code at the counter.
+ *
+ * A code is unique across the site, so the page a customer shows is found by
+ * the code alone and nothing else has to be in the link. The listing's owner
+ * or a site admin marks it used, and from then on every reader of that code
+ * is told when it was used, which is what makes "one per customer" hold when
+ * somebody passes a screenshot round.
+ */
+
+/** The deal a code belongs to, as the counter and the code page print it. */
+export type CounterDeal = {
+  id: string
+  title: string
+  headline: string
+  slug: string
+  listingTitle: string
+  listingAddress: string
+  /** Over by the site's clock, so the counter is told before it honours it. */
+  ended: boolean
+}
+
+/** One claim as the counter reads it. */
+export type CounterClaim = {
+  id: string
+  name: string
+  email: string
+  code: string
+  createdAt: Date
+  /** When it was used, or null while it is still good to use. */
+  usedAt: Date | null
+  /** The claim was taken away, so the code is no longer anybody's. */
+  cancelled: boolean
+}
+
+export type CodeAtCounter = { deal: CounterDeal; claim: CounterClaim }
+
+/**
+ * One code on this site, with its deal. `only` narrows which deals count: the
+ * counter reads every deal on the site, and the public code page reads only a
+ * published deal at a published listing.
+ */
+async function codeOnSite(
+  siteId: string,
+  code: string,
+  only: SQL | undefined,
+  database: CustomShellDb
+): Promise<CodeAtCounter | null> {
+  const [row] = await database
+    .select({
+      id: promotionClaims.id,
+      name: promotionClaims.name,
+      email: promotionClaims.email,
+      code: promotionClaims.code,
+      createdAt: promotionClaims.createdAt,
+      usedAt: promotionClaims.usedAt,
+      status: promotionClaims.status,
+      dealId: sitePromotions.id,
+      title: sitePromotions.title,
+      headline: sitePromotions.headline,
+      slug: sitePromotions.slug,
+      startDate: sitePromotions.startDate,
+      endDate: sitePromotions.endDate,
+      times: sitePromotions.times,
+      endedAt: sitePromotions.endedAt,
+      listingTitle: directoryListings.title,
+      contactLinks: directoryListings.contactLinks,
+    })
+    .from(promotionClaims)
+    .innerJoin(
+      sitePromotions,
+      eq(sitePromotions.id, promotionClaims.promotionId)
+    )
+    .innerJoin(directoryListings, listingOfPromotion)
+    .where(
+      and(
+        eq(promotionClaims.workspaceId, siteId),
+        eq(promotionClaims.code, code),
+        only
+      )
+    )
+    .limit(1)
+  if (!row) return null
+  const now = wallClockAt(await siteTimeZone(siteId, database), new Date())
+  return {
+    deal: {
+      id: row.dealId,
+      title: row.title,
+      headline: row.headline,
+      slug: row.slug,
+      listingTitle: row.listingTitle,
+      listingAddress: listingAddressOf(row.contactLinks),
+      ended:
+        dealStage({ ...row, times: cleanListingHours(row.times) }, now) ===
+        "ended",
+    },
+    claim: {
+      id: row.id,
+      name: row.name,
+      email: row.email,
+      code: row.code,
+      createdAt: row.createdAt,
+      usedAt: row.usedAt,
+      cancelled: row.status === "cancelled",
+    },
+  }
+}
+
+/**
+ * One code for the owner's or the admin's counter screen, on their own site.
+ * Every deal on the site counts, including one whose listing has since gone
+ * back to a draft: a customer standing at the counter still claimed it.
+ */
+export function readCodeAtCounter(
+  siteId: string,
+  code: string,
+  database: CustomShellDb = db
+): Promise<CodeAtCounter | null> {
+  return codeOnSite(siteId, code, undefined, database)
+}
+
+/**
+ * One code for the page the customer shows, which anybody holding the code
+ * may open. Only a published deal at a published listing, the same rule as
+ * every other public read of a deal.
+ */
+export function readClaimPass(
+  siteId: string,
+  code: string,
+  database: CustomShellDb = db
+): Promise<CodeAtCounter | null> {
+  return codeOnSite(
+    siteId,
+    code,
+    and(
+      eq(sitePromotions.status, "published"),
+      eq(directoryListings.status, "published")
+    ),
+    database
+  )
+}
+
+/**
+ * Marks a code used, once. The write is the test: two phones marking the same
+ * code at the same moment both run this, and only the one that finds
+ * `used_at` still empty changes anything, so the second is told the time the
+ * first wrote rather than overwriting it.
+ *
+ * A cancelled claim's code is never usable, which the `holdsPlace` condition
+ * does, and `found` then says the claim was taken away.
+ */
+export async function markCodeUsed(
+  siteId: string,
+  code: string,
+  userId: string,
+  at: Date = new Date(),
+  database: CustomShellDb = db
+): Promise<{ done: boolean; found: CodeAtCounter | null }> {
+  const marked = await database
+    .update(promotionClaims)
+    .set({ usedAt: at, usedByUserId: userId })
+    .where(
+      and(
+        eq(promotionClaims.workspaceId, siteId),
+        eq(promotionClaims.code, code),
+        holdsPlace,
+        isNull(promotionClaims.usedAt)
+      )
+    )
+    .returning({ id: promotionClaims.id })
+  return {
+    done: marked.length > 0,
+    found: await readCodeAtCounter(siteId, code, database),
+  }
 }

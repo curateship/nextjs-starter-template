@@ -1,5 +1,5 @@
 import * as React from "react"
-import { useRouter } from "@tanstack/react-router"
+import { Link, useRouter } from "@tanstack/react-router"
 import { Loader2Icon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -12,6 +12,7 @@ import {
 } from "@/lib/api/promotions/claims"
 import type { ClaimBox as ClaimBoxState } from "@/lib/api/promotions/public"
 import { looksLikeEmail } from "@/lib/directory/submission-fields"
+import { focusRing } from "@/lib/layout/focus-ring"
 import {
   SIGN_UP_EMAIL_MAX,
   SIGN_UP_NAME_MAX,
@@ -103,11 +104,22 @@ export function ClaimBox({
       </div>
 
       {done?.code ? (
-        <div className="grid w-fit max-w-full gap-1 rounded-md border px-4 py-3">
-          <span className="text-xs text-muted-foreground">Your code</span>
-          <span className="font-mono text-lg font-semibold break-all select-all">
-            {done.code}
-          </span>
+        <div className="grid w-fit max-w-full gap-2">
+          <div className="grid gap-1 rounded-md border px-4 py-3">
+            <span className="text-xs text-muted-foreground">Your code</span>
+            <span className="font-mono text-lg font-semibold break-all select-all">
+              {done.code}
+            </span>
+          </div>
+          {/* The same page the email links to: the code with a QR for the
+              counter to scan. The link holds the code and nothing else. */}
+          <Link
+            to="/deals/code/$code"
+            params={{ code: done.code }}
+            className={`w-fit rounded-sm text-sm underline-offset-4 hover:underline ${focusRing}`}
+          >
+            Show it at the counter
+          </Link>
         </div>
       ) : null}
 

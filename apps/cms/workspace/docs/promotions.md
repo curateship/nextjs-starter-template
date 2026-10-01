@@ -319,8 +319,8 @@ reviewed like the rest.
   started can already be claimed.
 - **Everyone gets their own code**, like "K7QX-P2MD", eight letters and
   digits with none that are easy to misread. It is shown once on the page and
-  sent by email with the deal and the listing's address. Each is unique within
-  the deal, so a later task can mark it used at the counter.
+  sent by email with the deal and the listing's address. Each is unique across
+  the site, and "Using a code at the counter" below is where it is used.
 - **No shared code while claims are on.** The code in the deal's window is
   never shown, because a shared code can be screenshotted and passed round.
 - **One live claim per email per deal.** Claiming again with the same email
@@ -341,6 +341,63 @@ reviewed like the rest.
 - The rules are `src/server/promotions/claims.ts`, the claims live in
   `promotion_claims` (`drizzle/0101_cms_promotion_claims.sql`), and the door
   is `src/lib/api/promotions/claims.ts`, listed in `open-endpoints.ts`.
+
+## Using a code at the counter
+
+A claimed deal has its own page, `/deals/code/K7QX-P2MD`, linked from the claim
+email and from the deal page right after claiming. It is the code in big
+characters, a QR beside it, and whether it has been used. At the counter the
+owner points a phone camera at the QR, which opens that same page with a
+**Mark used** button on it, or types the code into the counter box instead.
+
+- **The link is the code and nothing else.** No deal address in it, so an admin
+  renaming the deal never breaks a code that is already in somebody's inbox or
+  on their screen. A code is therefore unique across the whole site, not just
+  within its deal (`ux_promotion_claims_site_code`).
+- **A code cannot be guessed.** Eight characters from 31 letters and digits is
+  850 billion of them, and a wrong one costs one of thirty tries an hour from
+  that internet address, while a real one clears the count. A counter working
+  through a queue never meets the limit.
+- **The QR is black on white in both colour modes.** A code drawn in theme
+  colours goes pale in dark mode, which is exactly when a phone at a counter is
+  dimmest. `src/components/shared/qr-code.tsx` writes the two colours out, the
+  same deliberate exception the map's deal marker takes.
+- **Anybody holding the code may open the page**, which is the point: the
+  person who claimed has no account. It shows their name, their code and the
+  used time, never their email, and it is marked noindex.
+- **Only the listing's owner or a site admin sees Mark used**, and the door
+  checks that again for itself rather than trusting the page. An admin works on
+  the site they are in; an owner only on their own deal, through
+  `ownersDealSite`.
+- **Used is written once.** Two phones marking the same code at the same moment
+  both run the same conditional write, and only the one that finds the time
+  still empty changes anything, so the second is told when the first used it
+  rather than overwriting it.
+- **Already used is the whole feature.** A screenshot of a used code says
+  "Already used" with the time, so "one per customer" holds.
+- **No camera code in the browser.** The phone's own camera app opens the link,
+  which works on every phone, and a typed code always works as well. The
+  counter box takes the code as printed, in lower case, without its dash, or
+  the whole link pasted in; `readScannedCode` in
+  `src/lib/promotions/claim-code.ts` is that one reader, and the event tickets
+  in events task 30 can use it rather than writing a second one.
+- **The counter box belongs to one deal.** A real code for a different deal is
+  refused by name instead of being marked used on the deal that happens to be
+  open, the same rule the old app's door screen had for events.
+- **Where it is.** The owner's is "At the counter" on each deal in My listings,
+  which also holds "Who claimed"; the admin's is the same box in the deal's
+  window in Admin → Promotions. Both say "12 of 30 codes used".
+- **A used claim is never taken away.** Freeing the place would let that email
+  claim a second code, so the bin is off with the reason on it, and the
+  database holds the rule too
+  (`promotion_claims_used_not_cancelled_check`).
+- **A deal that has ended still reads at the counter**, and the screen says it
+  has ended rather than refusing: the owner decides whether to honour it.
+- The times live on `promotion_claims.used_at` and `used_by_user_id`
+  (`drizzle/0110_cms_promotion_claim_used.sql`); the rules are the counter
+  section of `src/server/promotions/claims.ts`, and the doors are in
+  `src/lib/api/promotions/claims.ts`, with the public one listed in
+  `open-endpoints.ts`.
 
 ## Owners post, change and end deals
 
@@ -389,7 +446,7 @@ listing, the address part and the status.
   `src/server/promotions/private.test.ts` fails when a new export in
   `public.ts` isn't proven to leave out drafts and deals at draft listings, or
   when a file other than those three reads the table.
-- `src/lib/api/promotions/` holds the doors. The two public ones are listed in
+- `src/lib/api/promotions/` holds the doors. The public ones are listed in
   `src/app/open-endpoints.ts` with the reason they need no sign-in.
 - **The longest each text box may be lives in
   `src/lib/promotions/deal-limits.ts`**, not in the server's files. The doors
@@ -403,8 +460,9 @@ listing, the address part and the status.
   The condition is built in `public.ts` and handed over rather than written
   where it is used, because `private.test.ts` keeps the table readable from
   that one file.
-- `src/routes/deals.tsx` and `src/routes/deals_.$slug.tsx` are the public
-  pages; `src/routes/_authenticated/admin/promotions.tsx` is the admin screen.
+- `src/routes/deals.tsx`, `src/routes/deals_.$slug.tsx` and
+  `src/routes/deals_.code.$code.tsx` are the public pages;
+  `src/routes/_authenticated/admin/promotions.tsx` is the admin screen.
 
 ## Not built yet
 

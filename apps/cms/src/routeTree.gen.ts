@@ -92,6 +92,7 @@ import { Route as AuthenticatedChangelogWhatsNewRouteImport } from './routes/_au
 import { Route as ApiAuthGoogleRouteImport } from './routes/api/auth/google'
 import { Route as ApiWebhooksResendRouteImport } from './routes/api/webhooks/resend'
 import { Route as ApiWebhooksStripeRouteImport } from './routes/api/webhooks/stripe'
+import { Route as DealsCodeCodeRouteImport } from './routes/deals_.code.$code'
 import { Route as DirectoryCategorySlugRouteImport } from './routes/directory_.category.$slug'
 import { Route as DirectoryShareImageSlugRouteImport } from './routes/directory_.share-image.$slug'
 import { Route as EmbedListingListingIdRouteImport } from './routes/embed/listing/$listingId'
@@ -556,6 +557,11 @@ const ApiWebhooksStripeRoute = ApiWebhooksStripeRouteImport.update({
   path: '/api/webhooks/stripe',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DealsCodeCodeRoute = DealsCodeCodeRouteImport.update({
+  id: '/deals_/code/$code',
+  path: '/deals/code/$code',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DirectoryCategorySlugRoute = DirectoryCategorySlugRouteImport.update({
   id: '/directory_/category/$slug',
   path: '/directory/category/$slug',
@@ -732,6 +738,7 @@ export interface FileRoutesByFullPath {
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
+  '/deals/code/$code': typeof DealsCodeCodeRoute
   '/directory/category/$slug': typeof DirectoryCategorySlugRoute
   '/directory/share-image/$slug': typeof DirectoryShareImageSlugRoute
   '/embed/listing/$listingId': typeof EmbedListingListingIdRoute
@@ -831,6 +838,7 @@ export interface FileRoutesByTo {
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
+  '/deals/code/$code': typeof DealsCodeCodeRoute
   '/directory/category/$slug': typeof DirectoryCategorySlugRoute
   '/directory/share-image/$slug': typeof DirectoryShareImageSlugRoute
   '/embed/listing/$listingId': typeof EmbedListingListingIdRoute
@@ -934,6 +942,7 @@ export interface FileRoutesById {
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
+  '/deals_/code/$code': typeof DealsCodeCodeRoute
   '/directory_/category/$slug': typeof DirectoryCategorySlugRoute
   '/directory_/share-image/$slug': typeof DirectoryShareImageSlugRoute
   '/embed/listing/$listingId': typeof EmbedListingListingIdRoute
@@ -1037,6 +1046,7 @@ export interface FileRouteTypes {
     | '/api/auth/google'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
+    | '/deals/code/$code'
     | '/directory/category/$slug'
     | '/directory/share-image/$slug'
     | '/embed/listing/$listingId'
@@ -1136,6 +1146,7 @@ export interface FileRouteTypes {
     | '/api/auth/google'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
+    | '/deals/code/$code'
     | '/directory/category/$slug'
     | '/directory/share-image/$slug'
     | '/embed/listing/$listingId'
@@ -1238,6 +1249,7 @@ export interface FileRouteTypes {
     | '/api/auth/google'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
+    | '/deals_/code/$code'
     | '/directory_/category/$slug'
     | '/directory_/share-image/$slug'
     | '/embed/listing/$listingId'
@@ -1299,6 +1311,7 @@ export interface RootRouteChildren {
   ApiAuthGoogleRoute: typeof ApiAuthGoogleRoute
   ApiWebhooksResendRoute: typeof ApiWebhooksResendRoute
   ApiWebhooksStripeRoute: typeof ApiWebhooksStripeRoute
+  DealsCodeCodeRoute: typeof DealsCodeCodeRoute
   DirectoryCategorySlugRoute: typeof DirectoryCategorySlugRoute
   DirectoryShareImageSlugRoute: typeof DirectoryShareImageSlugRoute
   EmbedListingListingIdRoute: typeof EmbedListingListingIdRoute
@@ -1893,6 +1906,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiWebhooksStripeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/deals_/code/$code': {
+      id: '/deals_/code/$code'
+      path: '/deals/code/$code'
+      fullPath: '/deals/code/$code'
+      preLoaderRoute: typeof DealsCodeCodeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/directory_/category/$slug': {
       id: '/directory_/category/$slug'
       path: '/directory/category/$slug'
@@ -2232,6 +2252,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthGoogleRoute: ApiAuthGoogleRoute,
   ApiWebhooksResendRoute: ApiWebhooksResendRoute,
   ApiWebhooksStripeRoute: ApiWebhooksStripeRoute,
+  DealsCodeCodeRoute: DealsCodeCodeRoute,
   DirectoryCategorySlugRoute: DirectoryCategorySlugRoute,
   DirectoryShareImageSlugRoute: DirectoryShareImageSlugRoute,
   EmbedListingListingIdRoute: EmbedListingListingIdRoute,
