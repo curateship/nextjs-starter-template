@@ -4,6 +4,36 @@ Every front page row answers two questions of its own: where it sits across the
 page, and which of its parts a visitor sees. Both are in the row window in
 Settings > Public Pages > Front page rows.
 
+## Layout: how wide the row is
+
+**Layout** offers three widths, and the difference between the first and the
+third is the one worth knowing.
+
+- **Full width** is the default and where every row sits unless it is told
+  otherwise. It is the full width of the public content column, which is capped
+  at 1152px and centred. On a 1440px window that leaves 144px of empty page on
+  each side.
+- **Narrow** caps the row at 768px inside that same column.
+- **Whole screen** steps the row outside the column and outside the page's own
+  left and right edge, so it runs from one side of the window to the other. On
+  a 1440px window the row is 1440px.
+
+A row set to Whole screen puts the page's 16px edge back as padding, because a
+heading that runs the whole way across a wide window is not readable. A divider
+is the exception: it has no words, so its line really does run from edge to
+edge.
+
+Nothing saved before Whole screen existed moves. A row has to be set to it one
+at a time.
+
+**How the step out works**, since the class looks odd otherwise: the content
+column is centred inside `<main>`, so half the window less half the column is
+exactly the distance to each edge, which is what `mx-[calc(50%-50vw)]` is. The
+`<main>` element carries `overflow-x-clip` so the window never gains a sideways
+scrollbar, because `100vw` counts the vertical scrollbar and the row is a few
+pixels wider than the space there is. `clip` rather than `hidden`, because
+`hidden` would make `<main>` a scroll container and break sticky children.
+
 ## Alignment: one row can ignore the site setting
 
 **Alignment** offers Follow the site, Left, Centred and Right. Follow the site
