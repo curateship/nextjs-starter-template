@@ -525,17 +525,22 @@ describe("PublicPageFrame navigation", () => {
       "#112233"
     )
     expect(frame?.style.getPropertyValue("--border")).toBe("#445566")
-    expect(frame?.style.getPropertyValue("--shell-gutter")).toBe("24px")
-    expect(main?.style.paddingInline).toBe("24px")
-    // One edge for the whole page: the bar above the content and the footer
-    // below it take the same padding main does.
-    expect(
-      (host.querySelector("header") as HTMLElement | null)?.style.paddingInline
-    ).toBe("24px")
-    expect(
-      (host.querySelector("footer") as HTMLElement | null)?.style.paddingInline
-    ).toBe("24px")
-    expect(column?.style.gap).toBe("24px")
+    // The two ends, not the gutter: theme.css picks one at 640px, so a phone
+    // draws the page's own 16px edge as its gap and a desktop draws the
+    // setting.
+    expect(frame?.style.getPropertyValue("--shell-gutter-wide")).toBe("24px")
+    expect(frame?.style.getPropertyValue("--shell-gutter-phone")).toBe("16px")
+    expect(frame?.style.getPropertyValue("--shell-gutter")).toBe("")
+    // Spacing moves the gaps and leaves the edge alone. One edge for the whole
+    // page, 16px, and the bar above the content and the footer below it carry
+    // the same `px-4` rather than being handed a number.
+    expect(main?.style.paddingInline).toBe("")
+    expect(main?.className).toContain("px-4")
+    expect(host.querySelector("header")?.className).toContain("px-4")
+    expect(host.querySelector("footer")?.className).toContain("px-4")
+    // The column reads the gutter rather than carrying the number, so its gap
+    // narrows on a phone with every grid of cards on the page.
+    expect(column?.style.gap).toBe("var(--shell-gutter, 1.5rem)")
     expect(column?.className).not.toContain("gap-2")
     expect(host.querySelector("header")?.style.backgroundColor).toBe(
       "rgb(119, 136, 153)"
@@ -571,14 +576,16 @@ describe("PublicPageFrame navigation", () => {
     const main = host.querySelector("main") as HTMLElement | null
 
     expect(frame?.getAttribute("data-flat")).toBe("true")
-    expect(main?.style.paddingInline).toBe("0px")
-    expect(main?.className).not.toContain("px-4")
-    expect(
-      (host.querySelector("header") as HTMLElement | null)?.style.paddingInline
-    ).toBe("0px")
-    expect(
-      (host.querySelector("footer") as HTMLElement | null)?.style.paddingInline
-    ).toBe("0px")
+    // Flat mode loses its gaps and keeps the wrapper's edge, like every other
+    // spacing. Nothing goes against the glass.
+    expect(main?.style.paddingInline).toBe("")
+    expect(main?.className).toContain("px-4")
+    expect(host.querySelector("header")?.className).toContain("px-4")
+    expect(host.querySelector("footer")?.className).toContain("px-4")
+    // Flat mode needs no exception: both ends are 0, so the gap is 0 at every
+    // width without the ceiling ever coming into it.
+    expect(frame?.style.getPropertyValue("--shell-gutter-wide")).toBe("0px")
+    expect(frame?.style.getPropertyValue("--shell-gutter-phone")).toBe("0px")
 
     await act(async () => root.unmount())
   })

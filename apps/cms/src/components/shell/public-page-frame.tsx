@@ -38,6 +38,7 @@ import {
   DEFAULT_PUBLIC_MAIN_SPACING,
   DEFAULT_PUBLIC_PAGE_WIDTH,
   PUBLIC_FRONT_PAGE_ROW_GAP_PHONE_SHARE,
+  PUBLIC_GUTTER_PHONE_MAX,
   publicShellStyling,
   type PublicTheme,
 } from "@/lib/public-theme"
@@ -48,6 +49,7 @@ import {
   MODAL_STYLE_VAR_NAMES,
   resolveBackground,
 } from "@/lib/layout/styling-values"
+import { pageGutter } from "@/lib/layout/shell-gutter"
 import { cn } from "@/lib/utils"
 
 /**
@@ -151,19 +153,30 @@ export function PublicPageFrame({
       ? { "--shell-card-border-color": cardBorderColor }
       : {}),
     ...(dividerColor ? { "--border": dividerColor } : {}),
+    // The two ends of the gutter, not the gutter itself. theme.css picks
+    // between them at the breakpoint and writes `--shell-gutter`, which is
+    // what every container and every grid of cards reads through `pageGutter`.
+    // It cannot be written here: an inline value beats a media query, so a
+    // number set on this element could never change with the window.
+    //
     // Always set, so a container that reads the gutter gets the public number
     // rather than the 24px fallback meant for content inside a modal.
-    "--shell-gutter": `${theme.gutter}px`,
+    "--shell-gutter-phone": `${Math.min(
+      theme.gutter,
+      PUBLIC_GUTTER_PHONE_MAX
+    )}px`,
+    "--shell-gutter-wide": `${theme.gutter}px`,
   } as React.CSSProperties
-  // The one left and right edge for the whole page. The header and the footer
-  // sit outside `<main>`, so they are handed the same value rather than
-  // carrying padding of their own, which is what used to leave the logo and
-  // the footer links further in than the content between them.
-  const edgeStyle = gutterChanged ? { paddingInline: theme.gutter } : undefined
-  const mainStyle = {
-    ...mainSpacingStyle,
-    ...edgeStyle,
-  }
+  // The left and right edge belongs to the page wrapper, not to the Spacing
+  // setting. `px-4` on `<main>`, on the header and on the footer is the whole
+  // rule, and those three are the only places that may set it, which is what
+  // keeps the logo, the first heading and the first footer link on one line.
+  //
+  // Spacing used to write it as well as the gaps, so moving the slider walked
+  // the whole page in from the window and a spacing of 0 put the content
+  // against the glass. Tyler's call on 30 Sep 2026: the slider is for the gaps
+  // between blocks and inside the grids of cards, and nothing else.
+  const mainStyle = mainSpacingStyle
   // The gap between front page blocks travels as two CSS variables rather than
   // a class, because theme.css owns those rules: flat mode collapses them and
   // a phone draws less than a desktop. Left at the default, nothing is written
@@ -179,7 +192,9 @@ export function PublicPageFrame({
         } as React.CSSProperties)
   const contentStyle = {
     ...pageWidthStyle,
-    ...(gutterChanged ? { gap: theme.gutter } : {}),
+    // The variable rather than the number, so the column's gap narrows on a
+    // phone with everything else.
+    ...(gutterChanged ? { gap: pageGutter } : {}),
     ...rowGapStyle,
   }
   // Content alignment is for pages built out of blocks: the front page, the
@@ -243,7 +258,6 @@ export function PublicPageFrame({
         menuAlignment={publicHeader.menuAlignment}
         headerBorder={theme.headerBorder}
         widthStyle={headerWidthStyle}
-        edgeStyle={edgeStyle}
         blur={publicHeader.blur}
         userPanel={userPanel}
         chromeBackground={chromeBackground}
@@ -252,12 +266,7 @@ export function PublicPageFrame({
         showSearch={showSearch}
       />
       <main
-        className={cn(
-          "grid flex-1 py-10",
-          gutterChanged ? undefined : "px-4",
-          mainLayoutClass,
-          className
-        )}
+        className={cn("grid flex-1 px-4 py-10", mainLayoutClass, className)}
         style={mainStyle}
       >
         <div
@@ -285,7 +294,6 @@ export function PublicPageFrame({
         contentAlignment={footerAlignment}
         footerBorder={theme.footerBorder}
         pageWidthStyle={pageWidthStyle}
-        edgeStyle={edgeStyle}
         chromeBackground={chromeBackground}
       />
     </div>

@@ -65,20 +65,39 @@ components under a `public/` folder.
   or block inside it gets no `px-*`, no `mx-auto`, no `max-w-*`, no
   `container`, and no responsive ramp such as `sm:px-6 lg:px-8`. Vertical
   spacing and gaps are still the block's own. The left and right edge is not.
-- **The header and footer are handed the edge, they do not pick one.** They
-  render outside `<main>`, so the frame passes them its own padding as
-  `edgeStyle` and they put it on their outer element. Their capped box carries
-  no padding at all. A header that sets `px-6` inside a `max-w-6xl` box puts
-  the logo 24px further in than the card below it, which is the stagger
-  visitors notice first.
-- **Read the runtime gutter through `pageGutter`.** The public gutter is a
-  Settings → Styling number. Import `pageGutter` from
+- **The edge is 16px and never moves.** `px-4` on `<main>`, on the header and
+  on the footer, at every width and whatever the settings say. Those three are
+  the only places that may set it.
+- **The Spacing setting does not touch the edge.** It is for the gaps between
+  blocks and inside the grids of cards, and nothing else. It used to write the
+  edge as well, so moving the slider walked the whole page in from the window
+  and a spacing of 0 put the content against the glass. Tyler's call on
+  30 Sep 2026: that spacing belongs to the page wrapper, so the slider ignores
+  it. Flat mode is no exception, and it keeps the 16px while losing its gaps.
+- **The header and footer carry their own `px-4`**, because they render
+  outside `<main>` and it is the same number. Their capped box carries no
+  padding at all. A header that sets `px-6` inside a `max-w-6xl` box puts the
+  logo 24px further in than the card below it, which is the stagger visitors
+  notice first.
+- **Read the runtime gutter through `pageGutter`.** The gaps between blocks
+  are a Settings → Styling number. Import `pageGutter` from
   `src/lib/layout/shell-gutter.ts` instead of writing `var(--shell-gutter)`
-  again, or the fallbacks drift apart file by file.
+  again, or the fallbacks drift apart file by file. It is the gaps, never the
+  edge.
+- **A phone's gap is the 16px edge, or the setting when that is smaller.**
+  Below 640px, where the card grids stop being one per line, the gutter is
+  capped so the gaps match the edge and a phone is never more spaced out than
+  the desktop. Tyler asked for the two to match on 30 Sep 2026. Flat mode needs
+  no exception, because 0 is already under the ceiling.
+- **Never write `--shell-gutter` as an inline number.** An inline value beats a
+  media query, so a number set on the element could never change with the
+  window. `public-page-frame.tsx` sets `--shell-gutter-phone` and
+  `--shell-gutter-wide`, and `theme.css` picks one and writes
+  `--shell-gutter`.
 - **A full-width block pulls out, it never pushes the others in.** A row that
-  must touch the window edge uses a negative margin of the value the frame
-  already set and restores the inset on its own content, the same move as the
-  divider rule. Never a fresh number such as `-mx-6`.
+  must touch the window edge uses `-mx-4`, the value the frame set, and
+  restores the inset on its own content, the same move as the divider rule.
+  Never a fresh number such as `-mx-6`, and never the gutter.
 - **Padding inside a card belongs to the card.** `Card`, `TableSurface` and
   `DashboardCardHeader` bring their own. Adding padding to a page wrapper so a
   card looks right means the wrong component is holding the content.
