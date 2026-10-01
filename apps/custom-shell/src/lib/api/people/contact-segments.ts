@@ -81,6 +81,15 @@ export const getSegmentLoadErrorMessage = createErrorMessage(
   "We could not load your segments. Please try again."
 )
 
+/**
+ * A hand-picked segment's own people failing to arrive, which is its own
+ * sentence because saving is held until they do and the reason has to say why.
+ */
+export const getSegmentMembersErrorMessage = createErrorMessage(
+  segmentErrorMessages,
+  "We could not load who is in this segment. Please try again."
+)
+
 const segmentInputSchema = z.object({
   name: z.string().trim().min(1, "SEGMENT_NAME_REQUIRED").max(MAX_SEGMENT_NAME_LENGTH),
   description: z.string().trim().max(MAX_SEGMENT_DESCRIPTION_LENGTH).default(""),

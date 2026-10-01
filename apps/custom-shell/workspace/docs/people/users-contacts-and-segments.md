@@ -53,3 +53,27 @@ filters into reusable rules.
 Newsletters and automations may depend on a segment. The server refuses to
 delete a segment while another saved record still refers to it. Removing the
 reference first makes the effect explicit.
+
+### A hand-picked segment waits for its people before it can be saved
+
+A hand-picked segment's people live in their own table, so the edit window asks
+the server for them after it opens rather than being handed them with the list.
+A save sends the whole list of people and the server replaces the segment with
+it, so a save that went out before the people arrived would write an empty
+segment over a full one. Renaming a segment would have deleted everybody in it.
+
+The window therefore tracks whether those people have arrived:
+
+- **While they are loading**, the people card shows a loading line where the
+  already-chosen people will appear, the live count says it is counting, and
+  Save is switched off with the reason in a tooltip.
+- **If the load fails**, the card shows the failure in place with a Try again
+  button, and Save stays off. The reason on Save says that saving now would
+  empty the segment.
+- **Anyone ticked while the list is still in the air is kept.** The arriving
+  list is merged with those ticks, never written over the top of them.
+- **Save is only held for a hand-picked segment.** A segment being turned into a
+  rules one can still be saved while its old people are in the air, because
+  saving it drops them on purpose.
+
+Renaming a segment whose people have loaded changes nothing about who is in it.
