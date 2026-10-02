@@ -559,6 +559,12 @@ export const directorySettings = pgTable(
       length: 700,
     }),
     /**
+     * Whether a post's own page draws its cover image. The cards that lead to
+     * the post draw it either way, so turning this off removes one picture
+     * from one page rather than the post's photo.
+     */
+    postCoverImage: boolean("post_cover_image").notNull().default(true),
+    /**
      * The zone an event's clock times are read in, like 'America/Toronto'.
      * Events store "Saturday 6pm", and this says where that 6pm is.
      */

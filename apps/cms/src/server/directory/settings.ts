@@ -68,6 +68,11 @@ export type DirectorySettings = {
   hasMapKey: boolean
   /** The zone every event's clock time is read in, like 'America/Toronto'. */
   timeZone: string
+  /**
+   * Whether a post's own page draws its cover image. The cards that lead to
+   * the post draw it whatever this says.
+   */
+  postCoverImage: boolean
 }
 
 /** The wording a site gets before anybody changes it. */
@@ -93,6 +98,8 @@ export const DIRECTORY_SETTING_DEFAULTS: DirectorySettings = {
   neighbourhoodCategoryId: "",
   hasMapKey: false,
   timeZone: DEFAULT_SITE_TIME_ZONE,
+  // On, because that is what every post page did before this setting existed.
+  postCoverImage: true,
 }
 
 /**
@@ -185,6 +192,7 @@ export async function directorySettingsFor(
     mapEnabled: row.mapEnabled,
     hasMapKey: Boolean(row.mapDisplayKeyEncrypted),
     timeZone: row.timeZone,
+    postCoverImage: row.postCoverImage,
   }
 }
 
@@ -354,6 +362,7 @@ export async function savedDirectorySettings(
         mapEnabled: row.mapEnabled,
         hasMapKey: Boolean(row.mapDisplayKeyEncrypted),
         timeZone: row.timeZone,
+        postCoverImage: row.postCoverImage,
       }
     : {
         claimsEnabled: DIRECTORY_SETTING_DEFAULTS.claimsEnabled,
@@ -376,6 +385,7 @@ export async function savedDirectorySettings(
           DIRECTORY_SETTING_DEFAULTS.browsePickedCategoryIds,
         hasMapKey: DIRECTORY_SETTING_DEFAULTS.hasMapKey,
         timeZone: DIRECTORY_SETTING_DEFAULTS.timeZone,
+        postCoverImage: DIRECTORY_SETTING_DEFAULTS.postCoverImage,
       }
 }
 
@@ -572,6 +582,46 @@ export async function saveDirectoryBadgesEnabled(
     })
 
   return { badgesEnabled }
+}
+
+/**
+ * Whether this site draws a post's cover image on the post's own page.
+ *
+ * Read on its own rather than through `directorySettingsFor`, the same way the
+ * time zone is: a public post page wants one boolean, not every claim message
+ * and browse-page choice on the row.
+ */
+export async function sitePostCoverImage(
+  workspaceId: string,
+  database: CustomShellDb = db
+): Promise<boolean> {
+  const [row] = await database
+    .select({ postCoverImage: directorySettings.postCoverImage })
+    .from(directorySettings)
+    .where(eq(directorySettings.workspaceId, workspaceId))
+    .limit(1)
+  return row?.postCoverImage ?? DIRECTORY_SETTING_DEFAULTS.postCoverImage
+}
+
+/** Changes only whether a post page draws its cover image. */
+export async function saveDirectoryPostCoverImage(
+  workspaceId: string,
+  postCoverImage: boolean,
+  database: CustomShellDb = db
+) {
+  const at = now()
+  await database
+    .insert(directorySettings)
+    .values({ workspaceId, postCoverImage, createdAt: at, updatedAt: at })
+    .onConflictDoUpdate({
+      target: directorySettings.workspaceId,
+      set: { postCoverImage, updatedAt: at },
+    })
+
+  // A post page is remembered for two minutes, so the picture would otherwise
+  // stay up after the switch went off.
+  clearPublicDirectoryCache(workspaceId)
+  return { postCoverImage }
 }
 
 /** The zone this site's event times are read in. */

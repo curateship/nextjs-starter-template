@@ -42,8 +42,9 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   page builder, and the rules that hold for every one of them.
 - `image-fields.md` — what happens when an image field is clicked, and why the
   picker opens as a window inside an editing window.
-- `posts.md` — each site's Posts page: writing posts, listing cards in a post, and
-  where posts appear once published.
+- `posts.md` — each site's Posts page: writing posts, listing cards in a post,
+  how a post's own page is laid out with its contents list, and where posts
+  appear once published.
 - `events.md` — each site's events: writing them, the Events page's list and
   month and its category, date and distance filters, featured events, the site's time zone and why times are stored as a day and a clock
   time, when an event counts as over, the event page, where events appear in

@@ -24,6 +24,7 @@ import {
   type VisitorSite,
 } from "@/server/directory/public"
 import { cachedPublicDirectoryRead } from "@/server/directory/public-cache"
+import { sitePostCoverImage } from "@/server/directory/settings"
 import { categories, categoryRelationships } from "@/server/directory/schema"
 import {
   postsArePublic,
@@ -74,6 +75,15 @@ export type PublicPostPage = {
    * page draws nothing in its place.
    */
   listingCards: PublicListingCard[]
+  /**
+   * Whether this page draws the post's cover image, from Settings → Directory
+   * → Post pages. The cards that lead here draw it whatever this says, so a
+   * site can keep the photo on its lists and leave it off the post itself.
+   *
+   * Named apart from the post's own `coverImage`, which is the picture's
+   * address. This one is only whether the page shows it.
+   */
+  showCoverImage: boolean
 }
 
 async function readPublicPostsUncached(
@@ -130,7 +140,7 @@ async function readPublicPostUncached(
   if (!row) return null
 
   const body = cleanPostBody(row.body)
-  const [categoryRows, directoryVisibility] = await Promise.all([
+  const [categoryRows, directoryVisibility, showCover] = await Promise.all([
     database
       .select({ name: categories.name, slug: categories.slug })
       .from(categoryRelationships)
@@ -147,6 +157,7 @@ async function readPublicPostUncached(
       )
       .orderBy(asc(categories.name)),
     readPageVisibility(site.id, "/directory", database),
+    sitePostCoverImage(site.id, database),
   ])
 
   // A card links to the listing's page, so while the directory is not open to
@@ -165,6 +176,7 @@ async function readPublicPostUncached(
       categories: categoryRows,
     },
     listingCards,
+    showCoverImage: showCover,
   }
 }
 

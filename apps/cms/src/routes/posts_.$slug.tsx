@@ -6,9 +6,10 @@ import { DirectoryRouteError } from "@/components/directory/public/directory-err
 import { DirectoryFrame } from "@/components/directory/public/directory-frame"
 import { JsonLd } from "@/components/directory/public/json-ld"
 import { PostBody } from "@/components/posts/public/post-body"
-import { Card, CardContent } from "@/components/ui/card"
+import { PostContents } from "@/components/posts/public/post-contents"
 import { requirePageVisible } from "@/lib/api/content/pages"
 import { loadPost } from "@/lib/api/posts/public"
+import { usePublicHeader } from "@/lib/branding"
 import {
   directoryDescription,
   directoryHead,
@@ -17,6 +18,8 @@ import {
 } from "@/lib/directory/public-seo"
 import { formatUtcDate } from "@/lib/format/format-time"
 import { focusRing } from "@/lib/layout/focus-ring"
+import { pageGutter } from "@/lib/layout/shell-gutter"
+import { postHeadings } from "@/lib/posts/post-headings"
 
 /**
  * One post's page at /posts/<address>. It follows the Posts page's on/off
@@ -49,7 +52,52 @@ export const Route = createFileRoute("/posts_/$slug")({
 })
 
 function PostRoute() {
-  const { site, post, listingCards } = Route.useLoaderData()
+  const { site, post, listingCards, showCoverImage } = Route.useLoaderData()
+  const headings = postHeadings(post.body)
+  // Where the contents list stops when it sticks. A site that keeps its header
+  // on screen needs the card below it, or its first line is drawn underneath.
+  const stickyTop = usePublicHeader().sticky ? "lg:top-24" : "lg:top-4"
+
+  const article = (
+    <article className="grid gap-4">
+      {showCoverImage && post.coverImage ? (
+        <img
+          src={post.coverImage}
+          alt=""
+          className="aspect-[3/1] w-full rounded-xl object-cover"
+        />
+      ) : null}
+      <header className="grid gap-2">
+        <h1 className="text-3xl font-semibold text-pretty md:text-4xl">
+          {post.title}
+        </h1>
+        {/* Inline text rather than a flex row, so it follows the site's
+            own text alignment like the lines around it. */}
+        <p className="text-xs text-muted-foreground">
+          <time dateTime={post.publishedAt.toISOString()}>
+            {formatUtcDate(post.publishedAt)}
+          </time>
+          {post.categories.map((category) => (
+            <React.Fragment key={category.slug}>
+              {" · "}
+              <Link
+                to="/directory/category/$slug"
+                params={{ slug: category.slug }}
+                search={{}}
+                className={`rounded-sm hover:text-foreground hover:underline ${focusRing}`}
+              >
+                {category.name}
+              </Link>
+            </React.Fragment>
+          ))}
+        </p>
+        {post.summary ? (
+          <p className="text-base text-muted-foreground">{post.summary}</p>
+        ) : null}
+      </header>
+      <PostBody body={post.body} listingCards={listingCards} />
+    </article>
+  )
 
   return (
     <DirectoryFrame>
@@ -74,44 +122,33 @@ function PostRoute() {
         ]}
       />
 
-      <Card>
-        {post.coverImage ? (
-          <img
-            src={post.coverImage}
-            alt=""
-            className="aspect-[3/1] w-full object-cover"
-          />
-        ) : null}
-        <CardContent className="grid gap-4">
-          <header className="grid gap-1">
-            <h1 className="text-2xl font-semibold">{post.title}</h1>
-            {/* Inline text rather than a flex row, so it follows the site's
-                own text alignment like the lines around it. */}
-            <p className="text-xs text-muted-foreground">
-              <time dateTime={post.publishedAt.toISOString()}>
-                {formatUtcDate(post.publishedAt)}
-              </time>
-              {post.categories.map((category) => (
-                <React.Fragment key={category.slug}>
-                  {" · "}
-                  <Link
-                    to="/directory/category/$slug"
-                    params={{ slug: category.slug }}
-                    search={{}}
-                    className={`rounded-sm hover:text-foreground hover:underline ${focusRing}`}
-                  >
-                    {category.name}
-                  </Link>
-                </React.Fragment>
-              ))}
-            </p>
-            {post.summary ? (
-              <p className="text-sm text-muted-foreground">{post.summary}</p>
-            ) : null}
-          </header>
-          <PostBody body={post.body} listingCards={listingCards} />
-        </CardContent>
-      </Card>
+      {/* Two columns on a wide screen, the contents list on the right, the
+          same split and the same ratio as a listing's page. A post with no
+          headings has nothing to put there, so it is one column. */}
+      {headings.length > 0 ? (
+        <div
+          className="grid items-start lg:grid-cols-[minmax(0,1.36fr)_minmax(16rem,0.64fr)]"
+          // The space between the columns is the site's own, from Settings →
+          // Public → Styling → Spacing, like every other gap on a public page.
+          style={{ gap: pageGutter }}
+        >
+          {/* First in the page and second on a wide screen, which is where
+              the old Directory app put it: on a phone the contents list sits
+              above the post, and `order` moves it beside the words once the
+              two fit side by side.
+
+              It sticks while the post scrolls past it, stopping clear of the
+              top of the window rather than touching it. */}
+          <div
+            className={`grid content-start lg:sticky lg:order-2 ${stickyTop}`}
+          >
+            <PostContents headings={headings} />
+          </div>
+          <div className="lg:order-1">{article}</div>
+        </div>
+      ) : (
+        article
+      )}
     </DirectoryFrame>
   )
 }
