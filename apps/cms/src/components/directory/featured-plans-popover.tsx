@@ -2,6 +2,7 @@ import * as React from "react"
 import { Loader2Icon, SparklesIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { DisabledReason } from "@/components/ui/disabled-reason"
 import {
   Popover,
   PopoverContent,
@@ -11,13 +12,13 @@ import {
 } from "@/components/ui/popover"
 import {
   getFeaturedErrorMessage,
-  type FeaturedPlan,
+  type FeaturedPlanOffer,
 } from "@/lib/api/directory/featured"
 import { formatMoney } from "@/lib/format/money"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 type PurchaseState = {
-  plans: FeaturedPlan[]
+  plans: FeaturedPlanOffer[]
   active: boolean
   /** Why it cannot be featured now, in words for the owner. */
   problem?: string | null
@@ -100,40 +101,49 @@ export function FeaturedPlansPopover({
           <p className="text-sm text-muted-foreground">{state.problem}</p>
         ) : state.plans.length ? (
           <div className="grid gap-2">
-            {state.plans.map((plan) => (
-              <Button
-                key={plan.id}
-                type="button"
-                variant="outline"
-                className="h-auto justify-between py-2 text-left"
-                disabled={Boolean(starting)}
-                onClick={() => {
-                  setStarting(plan.id)
-                  void start(plan.id)
-                    .then(({ url }) => window.location.assign(url))
-                    .catch((error) => {
-                      setStarting(null)
-                      showErrorToast(getFeaturedErrorMessage(error))
-                    })
-                }}
-              >
-                <span>
-                  <span className="block font-medium">{plan.name}</span>
-                  <span className="block text-xs text-muted-foreground">
-                    {plan.durationDays === null
-                      ? "Until the event ends"
-                      : `${plan.durationDays} days`}
-                  </span>
-                </span>
-                <span>
-                  {starting === plan.id ? (
-                    <Loader2Icon className="animate-spin" />
-                  ) : (
-                    formatMoney(plan.priceCents, plan.currency)
-                  )}
-                </span>
-              </Button>
-            ))}
+            {state.plans.map((plan) => {
+              const soldOut = plan.spotsLeft === 0
+              return (
+                <DisabledReason
+                  key={plan.id}
+                  disabled={soldOut}
+                  reason={`Every featured spot on ${plan.categoryName} is taken. One frees up when the spot running there ends.`}
+                  className="w-full"
+                >
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-auto w-full justify-between py-2 text-left"
+                    disabled={soldOut || Boolean(starting)}
+                    onClick={() => {
+                      setStarting(plan.id)
+                      void start(plan.id)
+                        .then(({ url }) => window.location.assign(url))
+                        .catch((error) => {
+                          setStarting(null)
+                          showErrorToast(getFeaturedErrorMessage(error))
+                        })
+                    }}
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate font-medium">
+                        {plan.name}
+                      </span>
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {planTerms(plan)}
+                      </span>
+                    </span>
+                    <span className="shrink-0">
+                      {starting === plan.id ? (
+                        <Loader2Icon className="animate-spin" />
+                      ) : (
+                        formatMoney(plan.priceCents, plan.currency)
+                      )}
+                    </span>
+                  </Button>
+                </DisabledReason>
+              )
+            })}
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">
@@ -145,4 +155,26 @@ export function FeaturedPlansPopover({
       </PopoverContent>
     </Popover>
   )
+}
+
+/**
+ * The line under a plan's name: how long it lasts, where it puts the listing,
+ * and whether it can be bought at all.
+ *
+ * Sold out replaces the length rather than sitting beside it. An owner
+ * reading a greyed row wants the reason first, and the length of a spot they
+ * cannot buy is not the reason.
+ */
+function planTerms(plan: FeaturedPlanOffer) {
+  if (plan.spotsLeft === 0) return `Sold out in ${plan.categoryName}`
+  const length =
+    plan.durationDays === null
+      ? "Until the event ends"
+      : `${plan.durationDays} days`
+  if (!plan.categoryName) return length
+  const left =
+    plan.spotsLeft === 1 ? "1 spot left" : `${plan.spotsLeft} spots left`
+  // The category's bare name, because an admin naming the plan "Top of Soup"
+  // would otherwise read "Top of Soup · Top of Soup" on the same row.
+  return `${length} · ${plan.categoryName} · ${left}`
 }

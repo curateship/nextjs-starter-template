@@ -1,3 +1,5 @@
+import { Link } from "@tanstack/react-router"
+
 import { InitialsAvatar } from "@/components/pomodoro/initials-avatar"
 import { cn } from "@/lib/utils"
 import { formatFocusDuration } from "@/lib/pomodoro/focus-history"
@@ -5,6 +7,12 @@ import { formatFocusDuration } from "@/lib/pomodoro/focus-history"
 /** One ranked account, as a board hands it over. Never a user id. */
 export type BoardLeader = {
   name: string | null
+  /**
+   * Set when this person has a public profile that actually reads. Null means
+   * the name draws as plain text, exactly as every name did before profiles
+   * existed, so no row ever links to a 404.
+   */
+  handle?: string | null
   focusSessions: number
   focusSeconds: number
   isYou: boolean
@@ -33,7 +41,19 @@ export function LeaderboardRows({ leaders }: { leaders: readonly BoardLeader[] }
             {index + 1}
           </strong>
           <InitialsAvatar name={leader.name ?? "?"} />
-          <b className="flex-1 truncate text-sm">{leader.name}</b>
+          {/* Initials stay on the boards; a photo belongs to the profile
+              page. The name is the only thing that becomes a link. */}
+          {leader.handle ? (
+            <Link
+              to="/u/$handle"
+              params={{ handle: leader.handle }}
+              className="flex-1 truncate text-sm font-bold underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {leader.name}
+            </Link>
+          ) : (
+            <b className="flex-1 truncate text-sm">{leader.name}</b>
+          )}
           <span className="font-mono text-xs">
             {formatFocusDuration(leader.focusSeconds)}{" "}
             <small className="text-muted-foreground">

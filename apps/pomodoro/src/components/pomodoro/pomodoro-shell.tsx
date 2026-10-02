@@ -13,6 +13,7 @@ import {
   SunIcon,
   TagIcon,
   SettingsIcon,
+  UserIcon,
   Users2Icon,
   XIcon,
 } from "lucide-react"
@@ -56,6 +57,9 @@ const NAV_LINKS = [
   { to: "/backgrounds", label: "Theme", icon: ImageIcon },
   { to: "/sounds", label: "Sounds", icon: Music2Icon },
   { to: "/leaderboard", label: "Leaderboard", icon: BarChart3Icon },
+  // Beside the leaderboard, because both are about other members. Rooms
+  // already holds the two-person icon, so this one takes the single figure.
+  { to: "/users", label: "Users", icon: UserIcon },
   { to: "/history", label: "History", icon: HistoryIcon },
   { to: "/tasks", label: "Tasks", icon: CheckSquareIcon },
 ] as const

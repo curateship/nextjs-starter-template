@@ -78,6 +78,9 @@ const saveFeaturedPlanFn = createServerFn({ method: "POST" })
       currency: z.string().trim().length(3),
       // An event plan has none: its spot lasts until the event ends.
       durationDays: z.number().int().min(1).max(3650).nullable(),
+      // The one category to sell the top of, or null for the whole directory.
+      categoryId: id.nullable().optional(),
+      categorySpots: z.number().int().min(1).max(100).nullable().optional(),
       priority: z.number().int().min(-10_000).max(10_000).optional(),
       active: z.boolean().optional(),
     })
@@ -94,6 +97,8 @@ export function saveFeaturedPlanAction(input: {
   priceCents: number
   currency: string
   durationDays: number | null
+  categoryId?: string | null
+  categorySpots?: number | null
   priority?: number
   active?: boolean
 }) {
@@ -199,4 +204,5 @@ export type {
   FeaturedEntitlement,
   FeaturedPlan,
   FeaturedPlanKind,
+  FeaturedPlanOffer,
 } from "@/server/directory/featured"

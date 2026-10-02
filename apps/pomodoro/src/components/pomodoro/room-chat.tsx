@@ -1,4 +1,5 @@
 import * as React from "react"
+import { Link } from "@tanstack/react-router"
 import { FlagIcon, MoreVerticalIcon, SmilePlusIcon, Trash2Icon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -211,9 +212,21 @@ export function RoomChatPanel({
                 <InitialsAvatar name={entry.authorName} className="size-7" />
                 <div className="flex min-w-0 flex-col gap-1">
                   <p className="flex items-baseline gap-2 text-[11px] text-muted-foreground">
-                    <span className="font-semibold text-foreground">
-                      {entry.authorName}
-                    </span>
+                    {/* A name links to its profile only when that profile
+                        actually reads; otherwise it stays plain text. */}
+                    {entry.handle ? (
+                      <Link
+                        to="/u/$handle"
+                        params={{ handle: entry.handle }}
+                        className="font-semibold text-foreground underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        {entry.authorName}
+                      </Link>
+                    ) : (
+                      <span className="font-semibold text-foreground">
+                        {entry.authorName}
+                      </span>
+                    )}
                     <time dateTime={new Date(entry.createdAt).toISOString()}>
                       {new Date(entry.createdAt).toLocaleTimeString(undefined, {
                         hour: "2-digit",

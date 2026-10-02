@@ -34,6 +34,10 @@ import {
   type AdminSessionRow,
   type AdminTaskRow,
 } from "@/server/pomodoro/admin"
+import {
+  forgetHiddenProfiles,
+  setProfilesHidden,
+} from "@/server/pomodoro/profile-reports"
 import { readDashboardRowsPerPage } from "@/server/shell-settings"
 
 /**
@@ -204,6 +208,32 @@ const reviewReportsFn = createServerFn({ method: "POST" })
     reviewRoomReports({ ...data, actorUserId: context.user.id })
   )
 
+/**
+ * Hide or restore the profiles behind a selection of reports.
+ *
+ * Hide is the only power an operator has over a profile. Tyler's call,
+ * 2 Oct 2026: clearing a field, warning somebody and suspending an account
+ * are three different powers that each need their own decision.
+ */
+const hideProfilesFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(
+    z.object({
+      reportIds: z.array(z.string().uuid()).min(1).max(ADMIN_PAGE_SIZE_MAX),
+      hidden: z.boolean(),
+    })
+  )
+  .handler(async ({ data, context }) => {
+    const result = await setProfilesHidden({
+      ...data,
+      actorUserId: context.user.id,
+    })
+    // A hide has to take effect on the very next request, not when the held
+    // page expires.
+    forgetHiddenProfiles(result.handles ?? [])
+    return { changed: result.changed, skipped: result.skipped }
+  })
+
 export const listPomodoroFocusUsers = (data: PomodoroFocusQuery) =>
   listFocusUsersFn({ data })
 export const loadPomodoroFocusPage = (
@@ -240,3 +270,6 @@ export const reviewPomodoroReports = (
   reportIds: string[],
   decision: ReportStatus
 ) => reviewReportsFn({ data: { reportIds, decision } })
+
+export const hidePomodoroProfiles = (reportIds: string[], hidden: boolean) =>
+  hideProfilesFn({ data: { reportIds, hidden } })

@@ -49,6 +49,24 @@ export const appServerOptions: AppServerOptions = {
             (generations) => generations.videoGenerationTick()
           ),
       },
+      {
+        // Downloads a saved video and has Gemini break it down. Closing the
+        // browser never stops one, and a restart puts an interrupted job back.
+        name: "video-viral-breakdown",
+        tick: () =>
+          import("@/server/video/viral/saved-videos").then((saved) =>
+            saved.viralVideoTick()
+          ),
+      },
+      {
+        // Checks followed creators for new posts every six hours. Does nothing
+        // at all unless VIDEO_WATCH_ENABLED=1, and never downloads a file.
+        name: "video-creator-watch",
+        tick: () =>
+          import("@/server/video/creators/watch").then((watch) =>
+            watch.creatorWatchTick()
+          ),
+      },
     ],
   },
 }

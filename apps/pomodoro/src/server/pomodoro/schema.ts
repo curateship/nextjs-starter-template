@@ -15,6 +15,7 @@ import {
   varchar,
 } from "drizzle-orm/pg-core"
 
+import type { PublicSocialLink } from "@/lib/pages/public-social"
 import { customShellMedia, customShellUsers } from "@/server/schema"
 
 /**
@@ -90,6 +91,15 @@ export const pomodoroProjects = pgTable(
       .notNull()
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
     name: varchar("name", { length: 60 }).notNull(),
+    /**
+     * Whether this project's name and hours may appear on the owner's public
+     * profile. Off for every project that exists and every one made from now
+     * on; a project becomes public only because somebody ticked it.
+     *
+     * A project name is often a client's name, so the default is the whole
+     * safety of it. No migration ever turns one on.
+     */
+    isPublic: boolean("is_public").notNull().default(false),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -313,6 +323,111 @@ export const pomodoroAchievements = pgTable(
   ]
 )
 
+/**
+ * One account blocking another, in one direction.
+ *
+ * A block is checked by `isBlockedBetween` in `@/server/pomodoro/blocks`, and
+ * by nothing else. Every list of people in this app calls that one function,
+ * because a block that holds on the profile page and leaks through the
+ * leaderboard is four separate bugs rather than one.
+ *
+ * There is no cap. Tyler's call, 2 Oct 2026: a block is self-protection and
+ * refusing one has a real cost to the person being harassed.
+ */
+export const pomodoroBlocks = pgTable(
+  "pomodoro_blocks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    blockerUserId: varchar("blocker_user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    blockedUserId: varchar("blocked_user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    // Blocking twice is the same block, decided by the index rather than by a
+    // read-then-write that two tabs could both pass.
+    uniqueIndex("pomodoro_blocks_pair_unique").on(
+      table.blockerUserId,
+      table.blockedUserId
+    ),
+    index("pomodoro_blocks_blocked_idx").on(table.blockedUserId),
+  ]
+)
+
+/**
+ * A one-way follow. No invite, no approval, and nothing for the followed
+ * person to accept.
+ *
+ * Capped at 200 followed accounts. Tyler's call, 2 Oct 2026: far above what
+ * anybody reaches in normal use, and low enough that one account cannot
+ * follow every member to scrape the list.
+ */
+export const pomodoroFollows = pgTable(
+  "pomodoro_follows",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    followerUserId: varchar("follower_user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    followedUserId: varchar("followed_user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    // What makes a double-pressed Follow one row, the way the achievements
+    // index makes a twice-earned badge one row.
+    uniqueIndex("pomodoro_follows_pair_unique").on(
+      table.followerUserId,
+      table.followedUserId
+    ),
+    index("pomodoro_follows_followed_idx").on(table.followedUserId),
+    check(
+      "pomodoro_follows_not_self_check",
+      sql`${table.followerUserId} <> ${table.followedUserId}`
+    ),
+  ]
+)
+
+/**
+ * One cheer: a canned line sent to somebody you follow.
+ *
+ * The row exists to count the daily cap per pair, and to be the thing an
+ * operator could look at if this were ever abused. Nothing here is typed by
+ * anybody, so there is no text to moderate.
+ */
+export const pomodoroCheers = pgTable(
+  "pomodoro_cheers",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    fromUserId: varchar("from_user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    toUserId: varchar("to_user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    /** One of the fixed ids in `@/lib/pomodoro/cheers`, never free text. */
+    cheerId: varchar("cheer_id", { length: 40 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("pomodoro_cheers_pair_created_idx").on(
+      table.fromUserId,
+      table.toUserId,
+      table.createdAt
+    ),
+  ]
+)
+
 export const pomodoroProfiles = pgTable(
   "pomodoro_profiles",
   {
@@ -330,6 +445,80 @@ export const pomodoroProfiles = pgTable(
      * same way.
      */
     streakBadgeToken: varchar("streak_badge_token", { length: 64 }),
+    /**
+     * The one public address for this person, `/u/<handle>`. Null until they
+     * pick one. Always stored lowercase, because a handle is an address and
+     * two addresses differing only in case would be two doors to one page.
+     */
+    handle: varchar("handle", { length: 30 }),
+    /**
+     * Whether `/u/<handle>` answers at all. Off by default, so a handle
+     * reserved today publishes nothing until its owner says so, and switching
+     * it off makes the page 404 exactly as an unknown handle does.
+     */
+    profilePublic: boolean("profile_public").notNull().default(false),
+    /** A few lines about the person. Drawn as text, never as markup. */
+    bio: varchar("bio", { length: 280 }),
+    /**
+     * The person's own social accounts, in the same shape the site-wide
+     * footer setting uses, so `normalizePublicSocialLinks` is the one reader
+     * for both. Re-normalised on the way out as well as in, so a hand-edited
+     * row cannot put a `javascript:` address on a page.
+     */
+    socialLinks: jsonb("social_links")
+      .$type<PublicSocialLink[]>()
+      .notNull()
+      .default([]),
+    /**
+     * The strip behind the name: `scene:<key>` for one of the eight built-in
+     * scenes, `media:<uuid>` for the person's own upload, null for none. The
+     * same spelling `user_preferences.selected_background` uses, parsed by
+     * the same function, so nothing a browser sends can become a URL.
+     */
+    bannerRef: varchar("banner_ref", { length: 80 }),
+    /**
+     * Up to three badge ids drawn larger above the rest. Ids the account has
+     * not earned, and ids that are no longer badges at all, are ignored when
+     * the page is built rather than drawn as a gap.
+     */
+    pinnedBadges: jsonb("pinned_badges")
+      .$type<string[]>()
+      .notNull()
+      .default([]),
+    /**
+     * One switch per publishable section, each off by default. The server
+     * reads a section only when its switch is on, so a section that is off is
+     * never in the page's data for anybody to find in the network tab.
+     *
+     * The bio, the links and the picture have no switch of their own: they
+     * are the profile, and they ride on `profilePublic`.
+     */
+    showFigures: boolean("show_figures").notNull().default(false),
+    showBadges: boolean("show_badges").notNull().default(false),
+    showHeatmap: boolean("show_heatmap").notNull().default(false),
+    showProjects: boolean("show_projects").notNull().default(false),
+    showFocusingNow: boolean("show_focusing_now").notNull().default(false),
+    showRoom: boolean("show_room").notNull().default(false),
+    /**
+     * Whether this profile appears on `/people`. A second switch on top of
+     * `profilePublic`, because "I want a page" and "I want to be in a
+     * directory" are different wishes — the same reasoning that keeps the
+     * group board and the global board apart.
+     */
+    listed: boolean("listed").notNull().default(false),
+    /**
+     * Whether this person accepts cheers. On by default, because a cheer is
+     * one of a fixed set of canned lines from somebody they already allow to
+     * follow them, and off is one press away.
+     */
+    cheersEnabled: boolean("cheers_enabled").notNull().default(true),
+    /**
+     * Set when an operator hides a reported profile. The public read tests
+     * it, so a hidden profile answers 404 exactly as a switched-off one does,
+     * and the owner is told on their own Settings card rather than left
+     * thinking the app broke.
+     */
+    hiddenAt: timestamp("hidden_at", { withTimezone: true }),
     guestImportedAt: timestamp("guest_imported_at", { withTimezone: true }),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
@@ -341,6 +530,17 @@ export const pomodoroProfiles = pgTable(
     uniqueIndex("pomodoro_profiles_streak_badge_token_unique")
       .on(table.streakBadgeToken)
       .where(sql`${table.streakBadgeToken} is not null`),
+    // Same shape, same reason: one handle is one account, and the accounts
+    // with no handle must not all collide on null.
+    uniqueIndex("pomodoro_profiles_handle_unique")
+      .on(table.handle)
+      .where(sql`${table.handle} is not null`),
+    // The database's own last word on the shape, so a handle with a slash or
+    // a NUL byte in it cannot be written even by a hand-run statement.
+    check(
+      "pomodoro_profiles_handle_shape_check",
+      sql`${table.handle} is null or ${table.handle} ~ '^[a-z0-9_-]{3,30}$'`
+    ),
   ]
 )
 
@@ -661,12 +861,30 @@ export const roomReports = pgTable(
   "room_reports",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    roomId: uuid("room_id")
-      .notNull()
-      .references(() => rooms.id, { onDelete: "cascade" }),
-    reporterUserId: varchar("reporter_user_id", { length: 36 })
-      .notNull()
-      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    /**
+     * What is being reported. `message` is a room message, which is every row
+     * written before public profiles existed and the reason this column
+     * defaults to it.
+     */
+    kind: varchar("kind", { length: 20 }).notNull().default("message"),
+    /** Null on a profile report, which belongs to no room. */
+    roomId: uuid("room_id").references(() => rooms.id, {
+      onDelete: "cascade",
+    }),
+    /**
+     * Null when a signed-out reader reported a public profile. The page is
+     * public and most of its readers have no account, so a report that
+     * required one would mostly not be filed.
+     */
+    reporterUserId: varchar("reporter_user_id", { length: 36 }).references(
+      () => customShellUsers.id,
+      { onDelete: "cascade" }
+    ),
+    /** Whose profile was reported. Null on a message report. */
+    profileUserId: varchar("profile_user_id", { length: 36 }).references(
+      () => customShellUsers.id,
+      { onDelete: "cascade" }
+    ),
     messageId: uuid("message_id").references(() => roomMessages.id, {
       onDelete: "set null",
     }),

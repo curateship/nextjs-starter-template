@@ -1,0 +1,19 @@
+# AGENTS.md
+
+The map for this app is `CLAUDE.md`, in this folder. Read it first. It routes to
+the skills in `.agents/skills/`, the shared docs in the repo's `docs/`, and this
+app's own docs in `workspace/docs/`, and it holds nothing that is not a pointer.
+
+Three rules never wait for a file to be opened:
+
+- **Re-read `.agents/skills/unslop/SKILL.md` before every reply**, not once a
+  session, and check your draft against it before sending.
+- **Document what you built in `workspace/docs/`** in the same turn as the code,
+  and add its line to `workspace/docs/README.md`.
+- **Never edit a shell-origin file.** The app's own files, `src/app/`, its
+  `drizzle/` migrations and its `.env` are the whole list of what an app may
+  change. The repo's `docs/shell/shell-and-apps.md` explains what happens when
+  that rule breaks.
+
+The monorepo's root `AGENTS.md` covers the repo shape, the ports and which apps
+are live. The root `CLAUDE.md` covers how to write and how to treat evidence.

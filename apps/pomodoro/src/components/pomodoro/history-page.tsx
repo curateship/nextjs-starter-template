@@ -8,6 +8,10 @@ import {
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
 
 import { AchievementsCard } from "@/components/pomodoro/achievements-card"
+import {
+  FocusHeatmap,
+  FocusHeatmapKey,
+} from "@/components/pomodoro/focus-heatmap"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -89,24 +93,8 @@ function aggregateMonths(days: readonly ReportDay[]) {
   return [...months.values()]
 }
 
-function heatLevel(focusSeconds: number, maxSeconds: number) {
-  if (focusSeconds <= 0 || maxSeconds <= 0) return 0
-  return Math.min(4, Math.max(1, Math.ceil((focusSeconds / maxSeconds) * 4)))
-}
-
-const HEAT_CLASSES = [
-  "bg-[rgba(var(--p-fg-rgb),0.08)]",
-  "bg-[rgba(255,90,60,0.25)]",
-  "bg-[rgba(255,90,60,0.45)]",
-  "bg-[rgba(255,90,60,0.7)]",
-  "bg-[var(--p-accent)]",
-]
-
-const WEEKDAY_LABELS = ["Mon", "", "Wed", "", "Fri", "", "Sun"]
 
 function HeatmapCard({ days, today }: { days: ReportDay[]; today: string }) {
-  const maxSeconds = Math.max(...days.map((day) => day.focusSeconds), 0)
-  const leadingBlanks = (new Date(`${days[0].localDate}T12:00:00`).getDay() + 6) % 7
   return (
     <Card>
       <CardHeader className="flex-row items-baseline justify-between">
@@ -119,41 +107,11 @@ function HeatmapCard({ days, today }: { days: ReportDay[]; today: string }) {
         </span>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
-        <div className="flex gap-2" aria-hidden="true">
-          <div className="grid grid-rows-7 gap-1 font-mono text-[9px] text-muted-foreground">
-            {WEEKDAY_LABELS.map((label, index) => (
-              <span key={index} className="h-3 leading-3">
-                {label}
-              </span>
-            ))}
-          </div>
-          <div className="grid grid-flow-col grid-rows-7 gap-1 overflow-x-auto">
-            {Array.from({ length: leadingBlanks }, (_, index) => (
-              <i key={`blank-${index}`} className="size-3 rounded-[3px]" />
-            ))}
-            {days.map((day) => (
-              <i
-                key={day.localDate}
-                className={cn(
-                  "size-3 rounded-[3px]",
-                  HEAT_CLASSES[heatLevel(day.focusSeconds, maxSeconds)],
-                  day.localDate === today && "ring-1 ring-[var(--p-accent-2)]"
-                )}
-                title={`${dayLabel(day.localDate, { month: "short", day: "numeric" })} · ${formatFocusDuration(day.focusSeconds)} · ${day.focusSessions} ${day.focusSessions === 1 ? "session" : "sessions"}`}
-              />
-            ))}
-          </div>
-        </div>
-        <div
-          className="flex items-center gap-1 text-[10px] text-muted-foreground"
-          aria-hidden="true"
-        >
-          <span>Less</span>
-          {HEAT_CLASSES.map((heat) => (
-            <i key={heat} className={cn("size-3 rounded-[3px]", heat)} />
-          ))}
-          <span>More</span>
-        </div>
+        {/* The same grid a public profile draws, from
+            `focus-heatmap.tsx`, so the two can never disagree square for
+            square on the same day. */}
+        <FocusHeatmap days={days} today={today} />
+        <FocusHeatmapKey />
         <DayTable caption="Daily focus totals" days={days} />
       </CardContent>
     </Card>

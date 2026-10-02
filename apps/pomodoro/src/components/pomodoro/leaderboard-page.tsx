@@ -15,6 +15,8 @@ import { FocusGroupsCard } from "@/components/pomodoro/focus-groups-card"
 import { LeaderboardRows } from "@/components/pomodoro/leaderboard-rows"
 import { loadProductivity } from "@/lib/api/pomodoro/productivity"
 import { loadLeaderboard } from "@/lib/api/pomodoro/leaderboard"
+import { FollowingFeedCard } from "@/components/pomodoro/following-feed-card"
+import { FOLLOWING_EMPTY_MESSAGE } from "@/lib/pomodoro/following"
 import { useProductAuth } from "@/lib/pomodoro/auth-state"
 import { formatFocusDuration } from "@/lib/pomodoro/focus-history"
 import {
@@ -48,6 +50,10 @@ export function LeaderboardPage() {
   const [board, setBoard] = React.useState<Leaderboard | null>(null)
   const [stats, setStats] = React.useState<Productivity | null>(null)
   const [error, setError] = React.useState("")
+  // Which board is shown: everybody who opted in, or just the people you
+  // follow. It is the same ranking query with a filter, so the two can never
+  // disagree about a figure.
+  const [scope, setScope] = React.useState<"global" | "following">("global")
   const [boardWindow, setBoardWindow] = React.useState<LeaderboardWindow>(
     DEFAULT_LEADERBOARD_WINDOW
   )
@@ -55,7 +61,7 @@ export function LeaderboardPage() {
   React.useEffect(() => {
     if (!known || !authenticated) return
     let cancelled = false
-    void loadLeaderboard(browserTimezone(), boardWindow)
+    void loadLeaderboard(browserTimezone(), boardWindow, scope === "following")
       .then((result) => {
         if (!cancelled) setBoard(result)
       })
@@ -66,7 +72,7 @@ export function LeaderboardPage() {
     return () => {
       cancelled = true
     }
-  }, [known, authenticated, boardWindow])
+  }, [known, authenticated, boardWindow, scope])
 
   // Your own cards and chart are always the last 7 days, so they load once and
   // a window change does not fetch them again.
@@ -205,23 +211,40 @@ export function LeaderboardPage() {
       </Card>
 
       {authenticated ? (
-        <Tabs
-          value={boardWindow}
-          onValueChange={(value) => setBoardWindow(value as LeaderboardWindow)}
-        >
-          <TabsList aria-label="Leaderboard window">
-            {LEADERBOARD_WINDOWS.map((option) => (
-              <TabsTrigger key={option} value={option}>
-                {LEADERBOARD_WINDOW_LABELS[option]}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
+        <div className="flex flex-wrap gap-2">
+          <Tabs
+            value={scope}
+            onValueChange={(value) =>
+              setScope(value as "global" | "following")
+            }
+          >
+            <TabsList aria-label="Who is on the board">
+              <TabsTrigger value="global">Everyone</TabsTrigger>
+              <TabsTrigger value="following">Following</TabsTrigger>
+            </TabsList>
+          </Tabs>
+          <Tabs
+            value={boardWindow}
+            onValueChange={(value) =>
+              setBoardWindow(value as LeaderboardWindow)
+            }
+          >
+            <TabsList aria-label="Leaderboard window">
+              {LEADERBOARD_WINDOWS.map((option) => (
+                <TabsTrigger key={option} value={option}>
+                  {LEADERBOARD_WINDOW_LABELS[option]}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+        </div>
       ) : null}
 
       <Card>
         <CardHeader className="flex-row items-baseline justify-between">
-          <CardTitle>Global ranking</CardTitle>
+          <CardTitle>
+            {scope === "following" ? "People you follow" : "Global ranking"}
+          </CardTitle>
           <span className="text-xs text-muted-foreground">
             {LEADERBOARD_WINDOW_NOTES[boardWindow]}
           </span>
@@ -239,8 +262,9 @@ export function LeaderboardPage() {
             </div>
           ) : board && board.leaders.length === 0 ? (
             <p className="py-2 text-sm text-muted-foreground">
-              Nobody has opted in yet. Turn on "Show me on the leaderboard" in
-              Settings and pick a display name to be first.
+              {scope === "following"
+                ? FOLLOWING_EMPTY_MESSAGE
+                : `Nobody has opted in yet. Turn on "Show me on the leaderboard" in Settings and pick a display name to be first.`}
             </p>
           ) : (
             <LeaderboardRows leaders={board?.leaders ?? []} />
@@ -248,6 +272,7 @@ export function LeaderboardPage() {
         </CardContent>
       </Card>
 
+      <FollowingFeedCard />
       {authenticated ? <FocusGroupsCard boardWindow={boardWindow} /> : null}
     </div>
   )

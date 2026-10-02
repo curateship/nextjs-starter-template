@@ -56,6 +56,7 @@ import { Route as AuthenticatedAdminSystemEmailsRouteImport } from './routes/_au
 import { Route as AuthenticatedAdminTrafficRouteImport } from './routes/_authenticated/admin/traffic'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin/users'
 import { Route as AuthenticatedAdminVideoCarouselsRouteImport } from './routes/_authenticated/admin/video-carousels'
+import { Route as AuthenticatedAdminVideoCreatorsRouteImport } from './routes/_authenticated/admin/video-creators'
 import { Route as AuthenticatedAdminVideoEditorRouteImport } from './routes/_authenticated/admin/video-editor'
 import { Route as AuthenticatedAdminVideoExportsRouteImport } from './routes/_authenticated/admin/video-exports'
 import { Route as AuthenticatedAdminVideoViralRouteImport } from './routes/_authenticated/admin/video-viral'
@@ -83,6 +84,7 @@ import { Route as ApiV1TrafficViewRouteImport } from './routes/api/v1/traffic/vi
 import { Route as AuthenticatedAdminAutomationsTemplatesTemplateKeyRouteImport } from './routes/_authenticated/admin/automations_.templates_.$templateKey'
 import { Route as ApiV1MediaMediaIdFileRouteImport } from './routes/api/v1/media/$mediaId/file'
 import { Route as ApiV1VideoActorsActorIdImageRouteImport } from './routes/api/v1/video/actors/$actorId/image'
+import { Route as ApiV1VideoCreatorsCreatorIdAvatarRouteImport } from './routes/api/v1/video/creators/$creatorId/avatar'
 import { Route as ApiV1VideoExportsExportIdCoverRouteImport } from './routes/api/v1/video/exports/$exportId/cover'
 import { Route as ApiV1VideoExportsExportIdFileRouteImport } from './routes/api/v1/video/exports/$exportId/file'
 import { Route as ApiV1VideoMediaMediaIdFilmstripRouteImport } from './routes/api/v1/video/media/$mediaId/filmstrip'
@@ -340,6 +342,12 @@ const AuthenticatedAdminVideoCarouselsRoute =
     path: '/video-carousels',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminVideoCreatorsRoute =
+  AuthenticatedAdminVideoCreatorsRouteImport.update({
+    id: '/video-creators',
+    path: '/video-creators',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminVideoEditorRoute =
   AuthenticatedAdminVideoEditorRouteImport.update({
     id: '/video-editor',
@@ -496,6 +504,12 @@ const ApiV1VideoActorsActorIdImageRoute =
     path: '/api/v1/video/actors/$actorId/image',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiV1VideoCreatorsCreatorIdAvatarRoute =
+  ApiV1VideoCreatorsCreatorIdAvatarRouteImport.update({
+    id: '/api/v1/video/creators/$creatorId/avatar',
+    path: '/api/v1/video/creators/$creatorId/avatar',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiV1VideoExportsExportIdCoverRoute =
   ApiV1VideoExportsExportIdCoverRouteImport.update({
     id: '/api/v1/video/exports/$exportId/cover',
@@ -579,6 +593,7 @@ export interface FileRoutesByFullPath {
   '/admin/traffic': typeof AuthenticatedAdminTrafficRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/admin/video-carousels': typeof AuthenticatedAdminVideoCarouselsRouteWithChildren
+  '/admin/video-creators': typeof AuthenticatedAdminVideoCreatorsRoute
   '/admin/video-editor': typeof AuthenticatedAdminVideoEditorRouteWithChildren
   '/admin/video-exports': typeof AuthenticatedAdminVideoExportsRoute
   '/admin/video-viral': typeof AuthenticatedAdminVideoViralRoute
@@ -607,6 +622,7 @@ export interface FileRoutesByFullPath {
   '/admin/automations/templates/$templateKey': typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
   '/api/v1/video/actors/$actorId/image': typeof ApiV1VideoActorsActorIdImageRoute
+  '/api/v1/video/creators/$creatorId/avatar': typeof ApiV1VideoCreatorsCreatorIdAvatarRoute
   '/api/v1/video/exports/$exportId/cover': typeof ApiV1VideoExportsExportIdCoverRoute
   '/api/v1/video/exports/$exportId/file': typeof ApiV1VideoExportsExportIdFileRoute
   '/api/v1/video/media/$mediaId/filmstrip': typeof ApiV1VideoMediaMediaIdFilmstripRoute
@@ -657,6 +673,7 @@ export interface FileRoutesByTo {
   '/admin/system-emails': typeof AuthenticatedAdminSystemEmailsRoute
   '/admin/traffic': typeof AuthenticatedAdminTrafficRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/admin/video-creators': typeof AuthenticatedAdminVideoCreatorsRoute
   '/admin/video-exports': typeof AuthenticatedAdminVideoExportsRoute
   '/admin/video-viral': typeof AuthenticatedAdminVideoViralRoute
   '/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
@@ -684,6 +701,7 @@ export interface FileRoutesByTo {
   '/admin/automations/templates/$templateKey': typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
   '/api/v1/video/actors/$actorId/image': typeof ApiV1VideoActorsActorIdImageRoute
+  '/api/v1/video/creators/$creatorId/avatar': typeof ApiV1VideoCreatorsCreatorIdAvatarRoute
   '/api/v1/video/exports/$exportId/cover': typeof ApiV1VideoExportsExportIdCoverRoute
   '/api/v1/video/exports/$exportId/file': typeof ApiV1VideoExportsExportIdFileRoute
   '/api/v1/video/media/$mediaId/filmstrip': typeof ApiV1VideoMediaMediaIdFilmstripRoute
@@ -739,6 +757,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/traffic': typeof AuthenticatedAdminTrafficRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/admin/video-carousels': typeof AuthenticatedAdminVideoCarouselsRouteWithChildren
+  '/_authenticated/admin/video-creators': typeof AuthenticatedAdminVideoCreatorsRoute
   '/_authenticated/admin/video-editor': typeof AuthenticatedAdminVideoEditorRouteWithChildren
   '/_authenticated/admin/video-exports': typeof AuthenticatedAdminVideoExportsRoute
   '/_authenticated/admin/video-viral': typeof AuthenticatedAdminVideoViralRoute
@@ -767,6 +786,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/automations_/templates_/$templateKey': typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
   '/api/v1/video/actors/$actorId/image': typeof ApiV1VideoActorsActorIdImageRoute
+  '/api/v1/video/creators/$creatorId/avatar': typeof ApiV1VideoCreatorsCreatorIdAvatarRoute
   '/api/v1/video/exports/$exportId/cover': typeof ApiV1VideoExportsExportIdCoverRoute
   '/api/v1/video/exports/$exportId/file': typeof ApiV1VideoExportsExportIdFileRoute
   '/api/v1/video/media/$mediaId/filmstrip': typeof ApiV1VideoMediaMediaIdFilmstripRoute
@@ -822,6 +842,7 @@ export interface FileRouteTypes {
     | '/admin/traffic'
     | '/admin/users'
     | '/admin/video-carousels'
+    | '/admin/video-creators'
     | '/admin/video-editor'
     | '/admin/video-exports'
     | '/admin/video-viral'
@@ -850,6 +871,7 @@ export interface FileRouteTypes {
     | '/admin/automations/templates/$templateKey'
     | '/api/v1/media/$mediaId/file'
     | '/api/v1/video/actors/$actorId/image'
+    | '/api/v1/video/creators/$creatorId/avatar'
     | '/api/v1/video/exports/$exportId/cover'
     | '/api/v1/video/exports/$exportId/file'
     | '/api/v1/video/media/$mediaId/filmstrip'
@@ -900,6 +922,7 @@ export interface FileRouteTypes {
     | '/admin/system-emails'
     | '/admin/traffic'
     | '/admin/users'
+    | '/admin/video-creators'
     | '/admin/video-exports'
     | '/admin/video-viral'
     | '/changelog/whats-new'
@@ -927,6 +950,7 @@ export interface FileRouteTypes {
     | '/admin/automations/templates/$templateKey'
     | '/api/v1/media/$mediaId/file'
     | '/api/v1/video/actors/$actorId/image'
+    | '/api/v1/video/creators/$creatorId/avatar'
     | '/api/v1/video/exports/$exportId/cover'
     | '/api/v1/video/exports/$exportId/file'
     | '/api/v1/video/media/$mediaId/filmstrip'
@@ -981,6 +1005,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/traffic'
     | '/_authenticated/admin/users'
     | '/_authenticated/admin/video-carousels'
+    | '/_authenticated/admin/video-creators'
     | '/_authenticated/admin/video-editor'
     | '/_authenticated/admin/video-exports'
     | '/_authenticated/admin/video-viral'
@@ -1009,6 +1034,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/automations_/templates_/$templateKey'
     | '/api/v1/media/$mediaId/file'
     | '/api/v1/video/actors/$actorId/image'
+    | '/api/v1/video/creators/$creatorId/avatar'
     | '/api/v1/video/exports/$exportId/cover'
     | '/api/v1/video/exports/$exportId/file'
     | '/api/v1/video/media/$mediaId/filmstrip'
@@ -1046,6 +1072,7 @@ export interface RootRouteChildren {
   ApiV1TrafficViewRoute: typeof ApiV1TrafficViewRoute
   ApiV1MediaMediaIdFileRoute: typeof ApiV1MediaMediaIdFileRoute
   ApiV1VideoActorsActorIdImageRoute: typeof ApiV1VideoActorsActorIdImageRoute
+  ApiV1VideoCreatorsCreatorIdAvatarRoute: typeof ApiV1VideoCreatorsCreatorIdAvatarRoute
   ApiV1VideoExportsExportIdCoverRoute: typeof ApiV1VideoExportsExportIdCoverRoute
   ApiV1VideoExportsExportIdFileRoute: typeof ApiV1VideoExportsExportIdFileRoute
   ApiV1VideoMediaMediaIdFilmstripRoute: typeof ApiV1VideoMediaMediaIdFilmstripRoute
@@ -1385,6 +1412,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminVideoCarouselsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/video-creators': {
+      id: '/_authenticated/admin/video-creators'
+      path: '/video-creators'
+      fullPath: '/admin/video-creators'
+      preLoaderRoute: typeof AuthenticatedAdminVideoCreatorsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/video-editor': {
       id: '/_authenticated/admin/video-editor'
       path: '/video-editor'
@@ -1574,6 +1608,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1VideoActorsActorIdImageRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/v1/video/creators/$creatorId/avatar': {
+      id: '/api/v1/video/creators/$creatorId/avatar'
+      path: '/api/v1/video/creators/$creatorId/avatar'
+      fullPath: '/api/v1/video/creators/$creatorId/avatar'
+      preLoaderRoute: typeof ApiV1VideoCreatorsCreatorIdAvatarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/v1/video/exports/$exportId/cover': {
       id: '/api/v1/video/exports/$exportId/cover'
       path: '/api/v1/video/exports/$exportId/cover'
@@ -1706,6 +1747,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminTrafficRoute: typeof AuthenticatedAdminTrafficRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
   AuthenticatedAdminVideoCarouselsRoute: typeof AuthenticatedAdminVideoCarouselsRouteWithChildren
+  AuthenticatedAdminVideoCreatorsRoute: typeof AuthenticatedAdminVideoCreatorsRoute
   AuthenticatedAdminVideoEditorRoute: typeof AuthenticatedAdminVideoEditorRouteWithChildren
   AuthenticatedAdminVideoExportsRoute: typeof AuthenticatedAdminVideoExportsRoute
   AuthenticatedAdminVideoViralRoute: typeof AuthenticatedAdminVideoViralRoute
@@ -1742,6 +1784,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
   AuthenticatedAdminVideoCarouselsRoute:
     AuthenticatedAdminVideoCarouselsRouteWithChildren,
+  AuthenticatedAdminVideoCreatorsRoute: AuthenticatedAdminVideoCreatorsRoute,
   AuthenticatedAdminVideoEditorRoute:
     AuthenticatedAdminVideoEditorRouteWithChildren,
   AuthenticatedAdminVideoExportsRoute: AuthenticatedAdminVideoExportsRoute,
@@ -1831,6 +1874,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiV1TrafficViewRoute: ApiV1TrafficViewRoute,
   ApiV1MediaMediaIdFileRoute: ApiV1MediaMediaIdFileRoute,
   ApiV1VideoActorsActorIdImageRoute: ApiV1VideoActorsActorIdImageRoute,
+  ApiV1VideoCreatorsCreatorIdAvatarRoute:
+    ApiV1VideoCreatorsCreatorIdAvatarRoute,
   ApiV1VideoExportsExportIdCoverRoute: ApiV1VideoExportsExportIdCoverRoute,
   ApiV1VideoExportsExportIdFileRoute: ApiV1VideoExportsExportIdFileRoute,
   ApiV1VideoMediaMediaIdFilmstripRoute: ApiV1VideoMediaMediaIdFilmstripRoute,

@@ -23,6 +23,7 @@ import {
   createProject as createProjectRequest,
   renameProject as renameProjectRequest,
   setProjectArchived as setProjectArchivedRequest,
+  setProjectPublic as setProjectPublicRequest,
 } from "@/lib/api/pomodoro/projects"
 import { productAuth, subscribeProductAuth } from "@/lib/pomodoro/auth-state"
 import { normalizeSessionNote } from "@/lib/pomodoro/session-notes"
@@ -1155,6 +1156,29 @@ export function renameProject(projectId: string, name: string) {
 }
 
 /**
+ * Ticking a project public lets its name and its hours appear on the owner's
+ * public profile. Off for every project until somebody ticks it, because a
+ * project name is often a client's name.
+ */
+export function setProjectPublic(projectId: string, isPublic: boolean) {
+  if (!isAuthed()) return Promise.resolve()
+  return setProjectPublicRequest(projectId, isPublic)
+    .then((updated) =>
+      setState({
+        projects: orderProjects(
+          state.projects.map((project) =>
+            project.id === projectId ? updated : project
+          )
+        ),
+        syncError: "",
+      })
+    )
+    .catch(() =>
+      setSyncError("The project could not be updated.")
+    )
+}
+
+/**
  * Archiving takes a project out of the picker but changes no task: a task
  * already in it keeps its project, and History keeps its hours.
  */
@@ -1307,6 +1331,7 @@ export function usePomodoro() {
     createProject,
     renameProject,
     setProjectArchived,
+    setProjectPublic,
     liveProjects: snapshot.projects.filter((project) => !project.archivedAt),
     reorderActiveTasks,
     selectTask,

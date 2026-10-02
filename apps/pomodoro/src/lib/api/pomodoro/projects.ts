@@ -7,6 +7,7 @@ import {
   listProjects as listProjectRows,
   renameProject as renameProjectRow,
   setProjectArchived as setProjectArchivedRow,
+  setProjectPublic as setProjectPublicRow,
 } from "@/server/pomodoro/projects"
 
 /**
@@ -44,9 +45,18 @@ const archiveProjectFn = createServerFn({ method: "POST" })
     setProjectArchivedRow(context.user.id, data.projectId, data.archived)
   )
 
+const projectPublicFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(projectIdSchema.extend({ isPublic: z.boolean() }))
+  .handler(async ({ data, context }) =>
+    setProjectPublicRow(context.user.id, data.projectId, data.isPublic)
+  )
+
 export const listProjects = () => listProjectsFn()
 export const createProject = (name: string) => createProjectFn({ data: { name } })
 export const renameProject = (projectId: string, name: string) =>
   renameProjectFn({ data: { projectId, name } })
 export const setProjectArchived = (projectId: string, archived: boolean) =>
   archiveProjectFn({ data: { projectId, archived } })
+export const setProjectPublic = (projectId: string, isPublic: boolean) =>
+  projectPublicFn({ data: { projectId, isPublic } })

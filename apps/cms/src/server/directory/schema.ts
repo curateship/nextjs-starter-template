@@ -651,6 +651,10 @@ export const directorySaveItems = pgTable(
  * row. `kind` says whether it sells spots on listings or on events, from
  * `drizzle/0093_cms_featured_events.sql`. An event's spot lasts until the
  * event ends, so an event plan has no days.
+ *
+ * `categoryId` names the one category the plan puts a listing at the top of,
+ * from `drizzle/0111_cms_featured_category.sql`. Null is the whole directory,
+ * which is what every plan sold before that file.
  */
 export const directoryFeaturedPlans = pgTable(
   "directory_featured_plans",
@@ -667,6 +671,14 @@ export const directoryFeaturedPlans = pgTable(
     currency: varchar("currency", { length: 3 }).notNull().default("usd"),
     /** A listing plan's days. Null on an event plan. */
     durationDays: integer("duration_days"),
+    /**
+     * The one category this plan sells the top of, or null for the whole
+     * directory. No foreign key: see `drizzle/0111_cms_featured_category.sql`
+     * for why a delete must not reach this column.
+     */
+    categoryId: varchar("category_id", { length: 36 }).$type<string | null>(),
+    /** How many spots that category sells at once. Null when there is no category. */
+    categorySpots: integer("category_spots"),
     priority: integer("priority").notNull().default(0),
     active: boolean("active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
@@ -686,6 +698,14 @@ export const directoryFeaturedPlans = pgTable(
     check(
       "directory_featured_plans_kind_check",
       sql`${table.kind} IN ('listing', 'event')`
+    ),
+    index("ix_directory_featured_plans_category").on(
+      table.workspaceId,
+      table.categoryId
+    ),
+    check(
+      "directory_featured_plans_category_check",
+      sql`(${table.categoryId} IS NULL AND ${table.categorySpots} IS NULL) OR (${table.kind} = 'listing' AND ${table.categoryId} IS NOT NULL AND ${table.categorySpots} IS NOT NULL AND ${table.categorySpots} BETWEEN 1 AND 100)`
     ),
   ]
 )
@@ -730,6 +750,12 @@ export const directoryFeaturedCheckouts = pgTable(
     currency: varchar("currency", { length: 3 }).notNull(),
     /** Null for an event, whose spot ends when the event does. */
     durationDays: integer("duration_days"),
+    /**
+     * The category this reservation is holding a spot in, or null for the
+     * whole directory. Copied from the plan when the row is written, so a
+     * later edit to the plan cannot move a payment to another category.
+     */
+    categoryId: varchar("category_id", { length: 36 }).$type<string | null>(),
     productName: varchar("product_name", { length: 400 }).notNull(),
     customerEmail: varchar("customer_email", { length: 255 }).notNull(),
     successUrl: varchar("success_url", { length: 2000 }).notNull(),
@@ -754,6 +780,15 @@ export const directoryFeaturedCheckouts = pgTable(
     check(
       "directory_featured_checkouts_subject_check",
       sql`(${table.listingId} IS NULL) <> (${table.eventId} IS NULL)`
+    ),
+    index("ix_directory_featured_checkouts_category").on(
+      table.workspaceId,
+      table.categoryId,
+      table.createdAt
+    ),
+    check(
+      "directory_featured_checkouts_category_check",
+      sql`${table.categoryId} IS NULL OR ${table.listingId} IS NOT NULL`
     ),
   ]
 )
@@ -790,6 +825,12 @@ export const directoryFeaturedEntitlements = pgTable(
     amountTotal: integer("amount_total").notNull(),
     currency: varchar("currency", { length: 3 }).notNull(),
     status: varchar("status", { length: 20 }).notNull().default("active"),
+    /**
+     * The category this spot was bought for, or null for the whole directory.
+     * Read by every public sort: a category spot leads that category's page
+     * and sorts normally everywhere else.
+     */
+    categoryId: varchar("category_id", { length: 36 }).$type<string | null>(),
     startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
     endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
     reminderThresholdDays: integer("reminder_threshold_days"),
@@ -824,6 +865,16 @@ export const directoryFeaturedEntitlements = pgTable(
     check(
       "directory_featured_entitlements_subject_check",
       sql`(${table.listingId} IS NULL) <> (${table.eventId} IS NULL)`
+    ),
+    index("ix_directory_featured_entitlements_category_active").on(
+      table.workspaceId,
+      table.categoryId,
+      table.status,
+      table.endsAt
+    ),
+    check(
+      "directory_featured_entitlements_category_check",
+      sql`${table.categoryId} IS NULL OR ${table.listingId} IS NOT NULL`
     ),
     check(
       "directory_featured_entitlements_status_check",
