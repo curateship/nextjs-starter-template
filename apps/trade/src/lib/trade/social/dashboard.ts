@@ -85,6 +85,17 @@ export const SOCIAL_MARKETS_SHOWN = 60
  * stays venue-free: the post was about the coin, not about one exchange's
  * market in it.
  */
+/**
+ * "1.2k", "3.1k", "412" — a post's seen count in the shape the platform
+ * itself prints. Shared by the posts panel and the feed, whose rows are the
+ * same line.
+ */
+export function formatSeen(value: number): string {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}m`
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}k`
+  return `${value}`
+}
+
 export function coinChartHref(coin: string): string | null {
   return marketChartHref(
     marketKey({ protocol: "hyperliquid", network: "mainnet", marketId: coin })

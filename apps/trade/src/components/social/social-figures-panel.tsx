@@ -29,7 +29,7 @@ export function SocialFiguresPanel({ creator }: { creator: SocialCreator }) {
         // The way back to the list, in the square an icon would otherwise
         // repeat the title in. This screen is always opened from `/social`,
         // even when the address was pasted.
-        back={{ to: "/social", label: "Back to every creator you track" }}
+        back={{ to: "/social", label: "Back to the feed" }}
         icon={null}
         title={
           // Their picture beside their name, both read from their X page. The

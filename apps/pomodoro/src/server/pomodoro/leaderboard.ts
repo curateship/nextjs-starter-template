@@ -1,8 +1,10 @@
 import { and, desc, eq, gte, inArray, isNotNull, sql } from "drizzle-orm"
 
 import { db } from "@/server/db"
+import { blockedUserIdsFor } from "@/server/pomodoro/blocks"
 import {
   dailyFocusStats,
+  pomodoroFollows,
   pomodoroGroupMembers,
   pomodoroProfiles,
 } from "@/server/pomodoro/schema"
@@ -29,6 +31,15 @@ const BOARD_LIMIT = 100
 
 export type LeaderboardRow = {
   name: string | null
+  /**
+   * The public address of this person's profile, when they have one switched
+   * on. Null means the name draws as plain text exactly as it always has.
+   *
+   * It rides on the row rather than being looked up per name, because one
+   * lookup per row turns a hundred-row board into a hundred and one queries.
+   * The join is to `pomodoro_profiles`, which this query already reads.
+   */
+  handle: string | null
   focusSessions: number
   focusSeconds: number
   /** True on the viewer's own row. The user id it was matched on stays here. */
@@ -49,10 +60,17 @@ export async function readLeaderboardRows({
   start,
   viewerUserId,
   groupId,
+  followedBy,
 }: {
   start: string
   viewerUserId: string
   groupId?: string
+  /**
+   * Limits the board to the accounts this person follows. The Following tab
+   * filters this one query rather than getting a copy of it, so no two boards
+   * can ever disagree about a figure.
+   */
+  followedBy?: string
 }): Promise<LeaderboardRow[]> {
   const whoIsListed = groupId
     ? and(
@@ -65,15 +83,34 @@ export async function readLeaderboardRows({
             .where(eq(pomodoroGroupMembers.groupId, groupId))
         )
       )
-    : and(
-        eq(pomodoroProfiles.leaderboardOptIn, true),
-        isNotNull(pomodoroProfiles.publicDisplayName)
-      )
+    : followedBy
+      ? and(
+          isNotNull(pomodoroProfiles.publicDisplayName),
+          inArray(
+            pomodoroProfiles.userId,
+            db
+              .select({ userId: pomodoroFollows.followedUserId })
+              .from(pomodoroFollows)
+              .where(eq(pomodoroFollows.followerUserId, followedBy))
+          )
+        )
+      : and(
+          eq(pomodoroProfiles.leaderboardOptIn, true),
+          isNotNull(pomodoroProfiles.publicDisplayName)
+        )
+
+  // One extra query for the whole board, not one per row.
+  const blockedPromise = blockedUserIdsFor(viewerUserId)
 
   const rows = await db
     .select({
       userId: pomodoroProfiles.userId,
       name: pomodoroProfiles.publicDisplayName,
+      // Only when the page is actually readable, so a name never links to a
+      // 404. A switched-off or hidden profile sends null and draws as text.
+      handle: sql<string | null>`case
+        when ${pomodoroProfiles.profilePublic} and ${pomodoroProfiles.hiddenAt} is null
+        then ${pomodoroProfiles.handle} end`,
       focusSessions: sql<number>`coalesce(sum(${dailyFocusStats.focusSessions}), 0)::int`,
       focusSeconds: sql<number>`coalesce(sum(${dailyFocusStats.focusSeconds}), 0)::int`,
     })
@@ -86,12 +123,24 @@ export async function readLeaderboardRows({
       )
     )
     .where(whoIsListed)
-    .groupBy(pomodoroProfiles.userId, pomodoroProfiles.publicDisplayName)
+    .groupBy(
+      pomodoroProfiles.userId,
+      pomodoroProfiles.publicDisplayName,
+      pomodoroProfiles.handle,
+      pomodoroProfiles.profilePublic,
+      pomodoroProfiles.hiddenAt
+    )
     .orderBy(desc(sql`coalesce(sum(${dailyFocusStats.focusSeconds}), 0)`))
     .limit(BOARD_LIMIT)
 
-  return rows.map(({ userId, ...leader }) => ({
-    ...leader,
-    isYou: userId === viewerUserId,
-  }))
+  // A blocked account appears on no board either of you reads. Filtered here
+  // rather than in SQL because the set is already in hand and the board is a
+  // hundred rows at most.
+  const blocked = await blockedPromise
+  return rows
+    .filter((row) => !blocked.has(row.userId))
+    .map(({ userId, ...leader }) => ({
+      ...leader,
+      isYou: userId === viewerUserId,
+    }))
 }

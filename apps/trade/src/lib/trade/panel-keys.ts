@@ -33,6 +33,11 @@ export const tradePanelLayoutKey = {
    * bottom row, so there is no vertical group to remember.
    */
   socialHorizontal: "trade-social-horizontal",
+  /**
+   * The social feed: creators in folders | the feed | its coins, across the
+   * workspace. Like the creator's own dashboard, there is no bottom row.
+   */
+  socialFeedHorizontal: "trade-social-feed-horizontal",
 } as const
 
 export type TradePanelLayoutKey =
@@ -56,4 +61,5 @@ export const tradePanelIds: Record<TradePanelLayoutKey, readonly string[]> = {
   [tradePanelLayoutKey.pnlHorizontal]: ["journal", "figures"],
   [tradePanelLayoutKey.pnlVertical]: ["months", "cards"],
   [tradePanelLayoutKey.socialHorizontal]: ["figures", "posts", "markets"],
+  [tradePanelLayoutKey.socialFeedHorizontal]: ["creators", "feed", "coins"],
 }

@@ -47,6 +47,9 @@ screen: anything not written there has not been agreed yet.
 - `market-explorer.md` — Markets across exchanges, live estimates, filters,
   standard table header, saved views, grouping, folder stars, discovery filters,
   pins, map, first-seen migration verification, audit coverage and the Moving now widget.
+- `market-search.md` — the header's search field: every exchange's market list
+  searched at once, what a row says, how the rows are ordered, mainnet only, and
+  what happens when an exchange will not answer.
 - `pnl-page.md` — the P&L page at `/pnl`: the whole Journal read-only, the
   month grid on the Toronto clock, the three period windows, the five pattern
   groupings, what the AI score sends to the model and how long it is kept.
@@ -98,9 +101,13 @@ screen: anything not written there has not been agreed yet.
   permanent record binning and deleting cannot touch, the ownership check
   and what "checked by Trade" means, how far back each exchange goes, the
   figures and the leaderboard minimums.
-- `every-creator.md` — the list at `/social`: what each row says, what the
-  search reads, what the three filters mean, why "gone quiet" is 30 days, and
-  why the list and a creator's dashboard are two screens.
+- `social-feed.md` — the feed at `/social`: three panels, creators in folders
+  on the left, every tracked creator's posts in the middle, the coins they
+  name on the right, the three narrowings and their chips, and the folder
+  rules (Everyone, the eye, a creator in several folders).
+- `every-creator.md` — the table at `/social/manage`: what each row says, what
+  the search reads, what the filters mean, why "gone quiet" is 30 days, and
+  why the table, the feed and a creator's dashboard are separate screens.
 - `social-dashboard.md` — the creator dashboard at `/social/<handle>`: the
   three panels, adding a creator from an address or a handle, where the
   follower count and the links come from, what Sync profile reads off the

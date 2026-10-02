@@ -1,4 +1,4 @@
-import { CandlestickChartIcon, TargetIcon } from "lucide-react"
+import { CandlestickChartIcon, SearchIcon, TargetIcon } from "lucide-react"
 
 import type { AppOptions } from "@/lib/app-options"
 
@@ -32,6 +32,18 @@ export const appOptions: AppOptions = {
       component: () => import("@/components/trade/pinned-markets-header"),
     },
     rightActions: [
+      {
+        /**
+         * One field that searches every exchange's market list at once. It is
+         * first in the row because it is the way into a market by name, and
+         * everybody's own screens, so a member gets it as well as an admin.
+         */
+        id: "market-search",
+        label: "Search markets",
+        icon: SearchIcon,
+        roles: ["member", "admin"],
+        component: () => import("@/components/trade/market-search-header"),
+      },
       {
         id: "active-trades",
         label: "Active trades",

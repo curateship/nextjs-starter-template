@@ -21,6 +21,7 @@ import {
   pomodoroAuditLogs,
   roomMemberships,
   roomMessages,
+  pomodoroProfiles,
   roomReports,
   rooms,
   tasks,
@@ -415,6 +416,8 @@ export async function listAdminReports(
   const reporter = alias(users, "report_reporter")
   const author = alias(users, "report_message_author")
   const reviewer = alias(users, "report_reviewer")
+  // A profile report names whose profile it is, which is a fourth person.
+  const reported = alias(users, "report_profile_owner")
 
   const filters: SQL[] = []
   const search = query.search.trim()
@@ -424,7 +427,10 @@ export async function listAdminReports(
       ilike(roomReports.reason, pattern),
       ilike(rooms.name, pattern),
       ilike(reporter.name, pattern),
-      ilike(reporter.email, pattern)
+      ilike(reporter.email, pattern),
+      // So an operator can find every report about one person by name.
+      ilike(reported.name, pattern),
+      ilike(pomodoroProfiles.handle, pattern)
     )
     if (match) filters.push(match)
   }
@@ -459,10 +465,22 @@ export async function listAdminReports(
         messageDeletedAt: roomMessages.deletedAt,
         messageAuthorName: author.name,
         reviewerName: reviewer.name,
+        kind: roomReports.kind,
+        reportedName: reported.name,
+        reportedHandle: pomodoroProfiles.handle,
+        reportedHiddenAt: pomodoroProfiles.hiddenAt,
       })
       .from(roomReports)
-      .innerJoin(rooms, eq(rooms.id, roomReports.roomId))
-      .innerJoin(reporter, eq(reporter.id, roomReports.reporterUserId))
+      // Left joins throughout: a profile report has no room, and a report
+      // from a signed-out reader has no reporter. Inner joins here dropped
+      // every profile report out of the queue silently.
+      .leftJoin(rooms, eq(rooms.id, roomReports.roomId))
+      .leftJoin(reporter, eq(reporter.id, roomReports.reporterUserId))
+      .leftJoin(reported, eq(reported.id, roomReports.profileUserId))
+      .leftJoin(
+        pomodoroProfiles,
+        eq(pomodoroProfiles.userId, roomReports.profileUserId)
+      )
       .leftJoin(roomMessages, eq(roomMessages.id, roomReports.messageId))
       .leftJoin(author, eq(author.id, roomMessages.userId))
       .leftJoin(reviewer, eq(reviewer.id, roomReports.reviewedByUserId))
@@ -473,8 +491,13 @@ export async function listAdminReports(
     db
       .select({ total: count() })
       .from(roomReports)
-      .innerJoin(rooms, eq(rooms.id, roomReports.roomId))
-      .innerJoin(reporter, eq(reporter.id, roomReports.reporterUserId))
+      .leftJoin(rooms, eq(rooms.id, roomReports.roomId))
+      .leftJoin(reporter, eq(reporter.id, roomReports.reporterUserId))
+      .leftJoin(reported, eq(reported.id, roomReports.profileUserId))
+      .leftJoin(
+        pomodoroProfiles,
+        eq(pomodoroProfiles.userId, roomReports.profileUserId)
+      )
       .where(where),
   ])
 

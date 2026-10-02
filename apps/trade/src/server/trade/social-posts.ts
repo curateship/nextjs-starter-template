@@ -124,9 +124,10 @@ async function readPostPage(
 
 /**
  * The coins named by each post on one page, in one query rather than one per
- * row. Ordered so a post's chips read the same way every time.
+ * row. Ordered so a post's chips read the same way every time. Exported for
+ * the feed, whose pages read their coins the same way.
  */
-async function readCoinsFor(
+export async function readCoinsFor(
   userId: string,
   postIds: string[]
 ): Promise<Map<string, string[]>> {

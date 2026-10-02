@@ -1,6 +1,8 @@
 import * as React from "react"
 import { toast } from "sonner"
 
+import BlockedAccountsCard from "@/components/pomodoro/blocked-accounts-card"
+import PublicProfileSettingsPanel from "@/components/pomodoro/public-profile-settings-panel"
 import StreakBadgeCard from "@/components/pomodoro/streak-badge-card"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -18,10 +20,11 @@ import { browserTimezone } from "@/lib/pomodoro/timer"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
 /**
- * The Profile tab on Settings: the public display name (the only name other
- * users ever see), the timezone that anchors the day boundary for goals and
- * streaks, and the leaderboard opt-in. Account name, email, password and
- * deletion stay with the shell's account dialog.
+ * The Profile tab on Settings: the public display name, the timezone that
+ * anchors the day boundary for goals and streaks, and the leaderboard
+ * opt-in, then the public page and the streak badge in their own cards
+ * below. Account name, email, password and deletion stay with the shell's
+ * account dialog.
  */
 export default function ProfileSettingsPanel() {
   const [displayName, setDisplayName] = React.useState("")
@@ -111,7 +114,7 @@ export default function ProfileSettingsPanel() {
               <div className="grid gap-2">
                 <FieldLabel
                   htmlFor="profile-display-name"
-                  hint="The only name other people ever see. Leave it empty to stay unnamed."
+                  hint="The name other people see on the leaderboard, in rooms and on your public page. Leave it empty and your handle is used instead."
                 >
                   Public display name
                 </FieldLabel>
@@ -160,6 +163,8 @@ export default function ProfileSettingsPanel() {
           </div>
         </CardContent>
       </Card>
+      <PublicProfileSettingsPanel />
+      <BlockedAccountsCard />
       <StreakBadgeCard />
     </div>
   )
