@@ -21,6 +21,8 @@
  * nothing at all leaves what is already stored alone rather than wiping it.
  */
 
+import { unescapeXText } from "@/lib/trade/social/x-text"
+
 /** One post, read and ready to store. */
 export type ParsedSocialPost = {
   /** The post's own id at X. */
@@ -114,7 +116,7 @@ function readDisplayName(html: string, handle: string): string | null {
     "i"
   )
   const found = owner.exec(html)
-  return found ? unescapeJs(found[1]).slice(0, 80) || null : null
+  return found ? unescapeXText(found[1]).slice(0, 80) || null : null
 }
 
 function readPicture(html: string): string | null {
@@ -206,7 +208,7 @@ function readPosts(html: string, handle: string): ParsedSocialPost[] {
     posts.push({
       sourceId: id,
       postedAt: Number(at[1]),
-      text: unescapeJs(text[1]).trim(),
+      text: unescapeXText(text[1]).trim(),
       url: `https://x.com/${handle}/status/${id}`,
       seen: readNumber(/views:\$R\[\d+\]=\{count:"(\d+)"/.exec(body)),
       likes: readNumber(/favorite_count:(\d+)/.exec(body)),
@@ -224,18 +226,6 @@ function readPosts(html: string, handle: string): ParsedSocialPost[] {
 
 function readNumber(found: RegExpExecArray | null): number | null {
   return found ? Number(found[1]) : null
-}
-
-/** `\n` and `\"` inside the page's own string literals. */
-function unescapeJs(value: string): string {
-  return value
-    .replace(/\\n/g, "\n")
-    .replace(/\\t/g, "\t")
-    .replace(/\\"/g, '"')
-    .replace(/\\u([0-9a-fA-F]{4})/g, (_, code: string) =>
-      String.fromCharCode(parseInt(code, 16))
-    )
-    .replace(/\\\\/g, "\\")
 }
 
 function escapeForRegex(value: string): string {

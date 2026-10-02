@@ -1,12 +1,14 @@
 import { randomUUID } from "node:crypto"
 import { and, desc, eq, exists, inArray, lt, sql } from "drizzle-orm"
 
+import type { MarketMatchKind } from "@/lib/trade/social/coin-matcher"
 import type { ParsedSocialPost } from "@/lib/trade/social/x-profile"
 import {
   SOCIAL_MARKETS_SHOWN,
   SOCIAL_POSTS_PAGE,
   type SocialDashboard,
   type SocialMarketRow,
+  type SocialPostCoin,
   type SocialPostRow,
   type SocialPostsPage,
 } from "@/lib/trade/social/dashboard"
@@ -59,7 +61,7 @@ function toPost(
     url: string | null
     seen: number | null
   },
-  coins: string[]
+  coins: SocialPostCoin[]
 ): SocialPostRow {
   return {
     id: row.id,
@@ -130,14 +132,16 @@ async function readPostPage(
 export async function readCoinsFor(
   userId: string,
   postIds: string[]
-): Promise<Map<string, string[]>> {
-  const byPost = new Map<string, string[]>()
+): Promise<Map<string, SocialPostCoin[]>> {
+  const byPost = new Map<string, SocialPostCoin[]>()
   if (postIds.length === 0) return byPost
 
   const rows = await db
     .select({
       postId: tradeSocialPostCoins.postId,
       coin: tradeSocialPostCoins.coin,
+      kind: tradeSocialPostCoins.kind,
+      marketKey: tradeSocialPostCoins.marketKey,
     })
     .from(tradeSocialPostCoins)
     .where(
@@ -149,9 +153,14 @@ export async function readCoinsFor(
     .orderBy(tradeSocialPostCoins.coin)
 
   for (const row of rows) {
+    const named = {
+      coin: row.coin,
+      kind: row.kind,
+      marketKey: row.marketKey,
+    }
     const held = byPost.get(row.postId)
-    if (held) held.push(row.coin)
-    else byPost.set(row.postId, [row.coin])
+    if (held) held.push(named)
+    else byPost.set(row.postId, [named])
   }
   return byPost
 }
@@ -212,12 +221,16 @@ async function countPostsHeld(
 }
 
 /**
- * The markets panel's rows: every coin this creator names, and how many of
+ * The markets panel's rows: every market this creator names, and how many of
  * their posts name it, counted over everything held rather than over the page
  * on screen.
  *
- * The coins are Trade's own reading of the words, filtered to coins it has a
- * market for. `src/lib/trade/social/coin-matcher.ts` holds the three rules.
+ * The markets are Trade's own reading of the words, filtered to markets it
+ * lists. `src/lib/trade/social/coin-matcher.ts` holds the three rules.
+ *
+ * **A ticker's kind and market come off the newest row that named it.** They
+ * are the same on every row in practice, and `max` picks one answer rather
+ * than splitting a ticker into two rows over a venue change.
  */
 async function readMarkets(
   userId: string,
@@ -226,6 +239,8 @@ async function readMarkets(
   const rows = await db
     .select({
       market: tradeSocialPostCoins.coin,
+      kind: sql<MarketMatchKind>`max(${tradeSocialPostCoins.kind})`,
+      marketKey: sql<string>`max(${tradeSocialPostCoins.marketKey})`,
       posts: sql<number>`count(*)::int`,
     })
     .from(tradeSocialPostCoins)
@@ -239,7 +254,12 @@ async function readMarkets(
     .orderBy(sql`count(*) desc`, tradeSocialPostCoins.coin)
     .limit(SOCIAL_MARKETS_SHOWN)
 
-  return rows.map((row) => ({ market: row.market, posts: row.posts }))
+  return rows.map((row) => ({
+    market: row.market,
+    kind: row.kind,
+    marketKey: row.marketKey,
+    posts: row.posts,
+  }))
 }
 
 /**

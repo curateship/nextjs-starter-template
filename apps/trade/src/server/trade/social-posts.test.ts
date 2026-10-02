@@ -27,9 +27,21 @@ import {
  * anything.
  */
 vi.mock("@/server/trade/social-coin-list", () => ({
-  loadCoinMatchList: async () =>
-    buildCoinMatchList(["BONK", "WIF", "SOL", "ETH"]),
+  loadMarketMatchList: async () =>
+    buildCoinMatchList(
+      ["BONK", "WIF", "SOL", "ETH"].map((symbol) => ({
+        symbol,
+        key: `hyperliquid:mainnet:${symbol}`,
+        kind: "coin" as const,
+      }))
+    ),
 }))
+
+/** A markets panel's rows as the ticker and the count, which is what most of
+ * these tests are about. The kind and the market key have their own test. */
+function counts(rows: readonly { market: string; posts: number }[]) {
+  return rows.map(({ market, posts }) => ({ market, posts }))
+}
 
 let client: PGlite
 let database: CustomShellDb
@@ -185,7 +197,7 @@ describe("storing what a sync read", () => {
     await fillPostCoinsForCreator(userId, creator!.id)
 
     const { markets } = await loadSocialDashboard(userId, "cryptosam")
-    expect(markets).toEqual([{ market: "BONK", posts: 1 }])
+    expect(counts(markets)).toEqual([{ market: "BONK", posts: 1 }])
   })
 
   it("refuses to sync a handle this member does not track", async () => {
@@ -206,10 +218,13 @@ describe("the markets panel", () => {
     const { markets } = await loadSocialDashboard(userId, "cryptosam")
 
     // Every post names BONK in its words; every second one also names WIF.
-    expect(markets).toEqual([
+    expect(counts(markets)).toEqual([
       { market: "BONK", posts: 40 },
       { market: "WIF", posts: 20 },
     ])
+    // Every row carries the kind and the market its chip opens.
+    expect(markets[0].kind).toBe("coin")
+    expect(markets[0].marketKey).toBe("hyperliquid:mainnet:BONK")
   })
 
   it("counts past the page on screen", async () => {
@@ -234,7 +249,9 @@ describe("the markets panel", () => {
     const page = await loadSocialPostsPage(userId, creator!.id, null, "WIF")
 
     expect(page.posts).toHaveLength(20)
-    for (const post of page.posts) expect(post.coins).toContain("WIF")
+    for (const post of page.posts) {
+      expect(post.coins.map((one) => one.coin)).toContain("WIF")
+    }
   })
 
   it("names no coin for a creator whose posts name none", async () => {
@@ -300,8 +317,14 @@ describe("reading the coins out of the words", () => {
     await rereadCreatorCoins(userId, "cryptosam")
 
     const { markets, posts } = await loadSocialDashboard(userId, "cryptosam")
-    expect(markets).toEqual([{ market: "BONK", posts: 1 }])
-    expect(posts[0].coins).toEqual(["BONK"])
+    expect(counts(markets)).toEqual([{ market: "BONK", posts: 1 }])
+    expect(posts[0].coins).toEqual([
+      {
+        coin: "BONK",
+        kind: "coin",
+        marketKey: "hyperliquid:mainnet:BONK",
+      },
+    ])
   })
 
   it("never names a coin Trade has no market for", async () => {
@@ -314,7 +337,7 @@ describe("reading the coins out of the words", () => {
     ])
 
     const { markets } = await loadSocialDashboard(userId, "cryptosam")
-    expect(markets).toEqual([{ market: "WIF", posts: 1 }])
+    expect(counts(markets)).toEqual([{ market: "WIF", posts: 1 }])
   })
 
   it("carries on where a part-read pass stopped instead of starting over", async () => {

@@ -28,7 +28,8 @@ The only way back is the arrow in the left panel's header.
 **Creator** is the handle with the display name beside it. **Followers**,
 **Posts** and **Last post** are the three numbers, and every heading sorts.
 Clicking the whole row opens that creator's dashboard, so there is no small
-target to hit.
+target to hit. A tick box sits before the handle and a bin after the last
+post, which is the shape every table in the app has.
 
 A creator you have added but never pasted anything for says "0 posts" and
 "nothing held", which is different from having gone quiet. Nobody has imported
@@ -46,6 +47,36 @@ rather than blanking the column.
 and the last post are the two somebody came to a phone for, and the 36 pixels
 the picture costs are the difference between reading a 15-character handle and
 reading "@zzcheck…". Nothing scrolls sideways.
+
+## Deleting a creator
+
+A bin on every row, and a **Delete (n)** button above the table once anything
+is ticked. The header tick box takes every row on screen.
+
+**Deleting is untracking, and it takes everything held with it.** Trade stops
+tracking the account and lets go of every post it holds for them, the markets
+read out of those posts, their place in any folder, and the record of which
+posts had been seen. Their posts on X are untouched. It cannot be undone, and
+adding the account again starts from nothing rather than finding the old posts
+waiting.
+
+**Only the rows on screen can be deleted.** The toolbar counts the ticked rows
+that the current search and filters still show, so a row hidden behind a search
+is never deleted from behind it.
+
+**The confirmation names what it is about to do**: the handle for one row, the
+count for several. Nothing is deleted on the first click.
+
+**The result says what actually went.** The server answers with the ids it
+deleted rather than a count, so a row somebody had already deleted in another
+window reads as "1 creator deleted, 1 could not be" instead of being counted as
+gone. `describeBulkResult` in `src/lib/format/bulk-result.ts` writes that line,
+the same one every bulk action in the app uses.
+
+**An id belonging to somebody else is not an error.** The delete is filtered by
+the signed-in member's own id in the same `where` as the row it names, so
+another member's creator does not match, comes back in neither list, and the
+answer never reveals whether that row exists.
 
 ## The search box
 
@@ -140,7 +171,12 @@ filters.
 - The query: `listSocialCreatorRows` in `src/server/trade/social-creators.ts`,
   filtered by the signed-in member's id in the same `where` as the row it looks
   for.
-- The endpoint: `src/lib/api/trade/social.ts`, behind `userGet`.
+- The delete: `deleteSocialCreators` in the same file, one statement that lets
+  the database cascade the posts, the markets, the folder rows and the seen
+  record. `social-creator-delete.test.ts` drives it.
+- The endpoints: `src/lib/api/trade/social.ts`. The list is behind `userGet`;
+  the delete is a POST behind `userPost`, capped at `MAX_CREATORS` ids so a
+  hand-built request cannot ask for an unbounded `in` list.
 
 **The sidebar link is data, not code.** "Social" is added by hand in
 Platform → Navigation, pointing at `/social`, which is the feed. This table

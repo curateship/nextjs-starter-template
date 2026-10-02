@@ -1,8 +1,9 @@
-import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm"
+import { and, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm"
 
 import { coinsNamedIn, type CoinMatch } from "@/lib/trade/social/coin-matcher"
 import { db } from "@/server/db"
-import { loadCoinMatchList } from "@/server/trade/social-coin-list"
+import { loadSocialMatchStocks } from "@/server/trade/prefs"
+import { loadMarketMatchList } from "@/server/trade/social-coin-list"
 import { tradeSocialPostCoins, tradeSocialPosts } from "@/server/trade/schema"
 
 /**
@@ -86,10 +87,11 @@ async function runPass(
   creatorId: string,
   fromScratch: boolean
 ): Promise<number> {
-  // The list first. A market list Hyperliquid will not answer for must not cost
-  // a creator the answers already stored.
-  const list = await loadCoinMatchList().catch((error: unknown) => {
-    console.error("The list of coins Trade trades could not be read", error)
+  // The list first. A market list an exchange will not answer for must not
+  // cost a creator the answers already stored.
+  const stocks = await loadSocialMatchStocks(userId)
+  const list = await loadMarketMatchList(stocks).catch((error: unknown) => {
+    console.error("The list of markets Trade lists could not be read", error)
     throw new SocialCoinsError("SOCIAL_COINS_UNAVAILABLE")
   })
 
@@ -184,6 +186,8 @@ async function writeCoins(
       creatorId,
       userId,
       coin: match.coin,
+      kind: match.kind,
+      marketKey: match.marketKey,
       matchedAs: match.how,
       matchedText: match.text,
     }))
@@ -241,4 +245,40 @@ export async function countPostsAwaitingCoins(
       )
     )
   return row?.waiting ?? 0
+}
+
+/**
+ * Catch every stored answer up after the stocks switch moved.
+ *
+ * The two directions are not the same job, and doing the cheap one cheaply
+ * matters: a member tracking forty creators holds tens of thousands of posts.
+ *
+ * - **Switched off**, every stock, metal and currency row of this member's
+ *   goes. Nothing about the coins changed, so no post needs reading again and
+ *   the panels are right the moment the switch lands.
+ * - **Switched on**, every post of this member's is marked unread, and each
+ *   creator is read again the next time their dashboard or the feed is opened.
+ *   A pass reads 500 posts, so a big member catches up over several opens
+ *   rather than holding one screen for a minute.
+ */
+export async function catchUpAfterStocksSwitch(
+  userId: string,
+  stocks: boolean
+): Promise<void> {
+  if (!stocks) {
+    await db
+      .delete(tradeSocialPostCoins)
+      .where(
+        and(
+          eq(tradeSocialPostCoins.userId, userId),
+          ne(tradeSocialPostCoins.kind, "coin")
+        )
+      )
+    return
+  }
+
+  await db
+    .update(tradeSocialPosts)
+    .set({ coinsReadAt: null })
+    .where(eq(tradeSocialPosts.userId, userId))
 }

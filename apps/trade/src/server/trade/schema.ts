@@ -30,7 +30,10 @@ import type { ChartOptions } from "@/lib/trade/chart-options"
 import type { TradingRules } from "@/lib/trade/trading-rules"
 import type { Goal } from "@/lib/trade/goal"
 import type { ChartView } from "@/lib/trade/chart-view"
-import type { CoinMatchHow } from "@/lib/trade/social/coin-matcher"
+import type {
+  CoinMatchHow,
+  MarketMatchKind,
+} from "@/lib/trade/social/coin-matcher"
 import type { DcaParams, LadderStatus } from "@/lib/trade/dca"
 import type { TradingDashboardWidgetLayout } from "@/lib/trade/dashboard/widgets"
 import type { DrawingAlert, DrawingShape } from "@/lib/trade/drawings"
@@ -305,6 +308,13 @@ export const tradePrefs = pgTable("trade_prefs", {
    * what keeps that cross silent once the switch goes back on.
    */
   lineAlertsPaused: boolean("line_alerts_paused").notNull().default(false),
+  /**
+   * Whether the Social matcher reads stocks, metals and currencies out of a
+   * post's words as well as coins. Off until chosen, because a stock ticker
+   * collides with an ordinary English word far more often than a coin ticker
+   * does and a coin-only member's rows should not fill with false matches.
+   */
+  socialMatchStocks: boolean("social_match_stocks").notNull().default(false),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -2324,6 +2334,22 @@ export const tradeSocialPostCoins = pgTable(
       .notNull()
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
     coin: varchar("coin", { length: 20 }).notNull(),
+    /**
+     * What kind of market the ticker is: a coin, a stock, a metal or oil, or
+     * a currency. Stored per row rather than looked up, so a creator's stock
+     * posts and coin posts can be separated on screen without re-reading an
+     * exchange's list, and so a row stays readable after a venue delists.
+     */
+    kind: varchar("kind", { length: 10 })
+      .$type<MarketMatchKind>()
+      .notNull()
+      .default("coin"),
+    /**
+     * The market a chip for this row opens, "hyperliquid:mainnet:SOL". The
+     * ticker above is the thing the post was about; this is the one market
+     * Trade lists it on, and only the match list knows which that is.
+     */
+    marketKey: varchar("market_key", { length: 64 }).notNull(),
     matchedAs: varchar("matched_as", { length: 14 })
       .$type<CoinMatchHow>()
       .notNull(),

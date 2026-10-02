@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router"
+import * as React from "react"
 import {
   Loader2Icon,
   MessageSquareTextIcon,
@@ -12,11 +12,14 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { formatDateTime, formatTimeAgo } from "@/lib/format/format-time"
 import { plural } from "@/lib/format/plural"
+import { postRowWasClicked } from "@/components/social/post-row-click"
 import {
-  coinChartHref,
-  formatSeen,
-  type SocialPostRow,
-} from "@/lib/trade/social/dashboard"
+  CoinChip,
+  COINS_ON_A_ROW,
+  OpenOnX,
+} from "@/components/social/post-row-parts"
+import { SocialPostDialog } from "@/components/social/social-post-dialog"
+import { formatSeen, type SocialPostRow } from "@/lib/trade/social/dashboard"
 import { cn } from "@/lib/utils"
 
 /**
@@ -41,6 +44,8 @@ import { cn } from "@/lib/utils"
 export function SocialPostsPanel({
   posts,
   total,
+  handle,
+  picture,
   filter,
   onClearFilter,
   more,
@@ -52,6 +57,9 @@ export function SocialPostsPanel({
   posts: SocialPostRow[]
   /** How many are held in all, before the market filter narrowed them. */
   total: number
+  /** Whose posts these are, for the window one of them opens in. */
+  handle: string
+  picture: string | null
   /** The market the right-hand panel is filtering by, or null. */
   filter: string | null
   onClearFilter: () => void
@@ -62,6 +70,10 @@ export function SocialPostsPanel({
   /** A profile read is in flight. */
   syncing: boolean
 }) {
+  // The post whose window is open, held here rather than per row: one window
+  // on screen, and a row that pages out from under it does not shut it.
+  const [open, setOpen] = React.useState<SocialPostRow | null>(null)
+
   return (
     <>
       <DashboardCardTitleHeader
@@ -106,7 +118,12 @@ export function SocialPostsPanel({
         ) : (
           <ul className="divide-y">
             {posts.map((post) => (
-              <PostLine key={post.id} post={post} first={filter} />
+              <PostLine
+                key={post.id}
+                post={post}
+                first={filter}
+                onOpen={() => setOpen(post)}
+              />
             ))}
           </ul>
         )}
@@ -125,21 +142,23 @@ export function SocialPostsPanel({
           </div>
         ) : null}
       </ScrollArea>
+      <SocialPostDialog
+        post={open}
+        handle={handle}
+        picture={picture}
+        canOpenCreator={false}
+        onOpenChange={(next) => {
+          if (!next) setOpen(null)
+        }}
+      />
     </>
   )
 }
 
-/**
- * How many coins fit on a post's line before the rest become a count. A post
- * naming twelve coins would otherwise push the views figure off the row.
- * Exported, with the chip and the seen-count shape below, because the feed
- * draws the same post line with an author on top.
- */
-export const COINS_ON_A_ROW = 4
-
 function PostLine({
   post,
   first,
+  onOpen,
 }: {
   post: SocialPostRow
   /**
@@ -149,20 +168,26 @@ function PostLine({
    * bug.
    */
   first: string | null
+  onOpen: () => void
 }) {
   const posted = new Date(post.postedAt)
-  const coins =
-    first && post.coins.includes(first)
-      ? [first, ...post.coins.filter((coin) => coin !== first)]
-      : post.coins
+  const named = post.coins.find((one) => one.coin === first)
+  const coins = named
+    ? [named, ...post.coins.filter((one) => one.coin !== first)]
+    : post.coins
   return (
-    <li className="grid gap-1 px-5 py-3">
+    <li
+      className="group grid cursor-pointer gap-1 px-5 py-3 hover:bg-muted/50"
+      onClick={(event) => {
+        if (postRowWasClicked(event)) onOpen()
+      }}
+    >
       <div className="flex items-baseline gap-2 text-xs text-muted-foreground">
         <span title={formatDateTime(posted)} className="shrink-0 tabular-nums">
           {formatTimeAgo(posted)}
         </span>
-        {coins.slice(0, COINS_ON_A_ROW).map((coin) => (
-          <CoinChip key={coin} coin={coin} />
+        {coins.slice(0, COINS_ON_A_ROW).map((one) => (
+          <CoinChip key={one.coin} named={one} />
         ))}
         {coins.length > COINS_ON_A_ROW ? (
           // The hidden ones are named on hover. Without it the only way to see
@@ -170,53 +195,33 @@ function PostLine({
           // beside a row of coins looks like something has gone wrong.
           <span
             className="shrink-0"
-            title={coins.slice(COINS_ON_A_ROW).join(", ")}
+            title={coins
+              .slice(COINS_ON_A_ROW)
+              .map((one) => one.coin)
+              .join(", ")}
           >
             +{coins.length - COINS_ON_A_ROW}
           </span>
         ) : null}
-        <span className="ml-auto shrink-0 tabular-nums">
-          {post.seen === null ? "—" : `${formatSeen(post.seen)} seen`}
+        <span className="ml-auto flex shrink-0 items-baseline gap-2 tabular-nums">
+          {post.url ? <OpenOnX url={post.url} /> : null}
+          <span>
+            {post.seen === null ? "—" : `${formatSeen(post.seen)} seen`}
+          </span>
         </span>
       </div>
-      <p className="text-sm break-words whitespace-pre-wrap">{post.text}</p>
-      {post.url ? (
-        <a
-          href={post.url}
-          target="_blank"
-          rel="noreferrer noopener"
-          className={cn(
-            "justify-self-start rounded-md text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground",
-            focusRing
-          )}
-        >
-          Open on X
-        </a>
-      ) : null}
+      {/* A button rather than a paragraph, so the window has a tab stop. The
+          row's own click handler covers the mouse; this covers the keyboard. */}
+      <button
+        type="button"
+        onClick={onOpen}
+        className={cn(
+          "rounded-md text-left text-sm break-words whitespace-pre-wrap",
+          focusRing
+        )}
+      >
+        {post.text}
+      </button>
     </li>
-  )
-}
-
-/**
- * One coin on a post's line, and the way to its chart.
- *
- * Every coin here is a Hyperliquid market, because Hyperliquid's own market
- * list is what decided the word was a coin, so the chip always has somewhere to
- * go. A coin whose address cannot be built is drawn as plain words rather than
- * as a link that goes nowhere.
- */
-export function CoinChip({ coin }: { coin: string }) {
-  const chip =
-    "shrink-0 rounded-full bg-muted px-2 py-0.5 font-medium text-foreground"
-  const href = coinChartHref(coin)
-  if (!href) return <span className={chip}>${coin}</span>
-  return (
-    <Link
-      to={href}
-      aria-label={`Open the ${coin} chart`}
-      className={cn(chip, "hover:bg-foreground/10", focusRing)}
-    >
-      ${coin}
-    </Link>
   )
 }

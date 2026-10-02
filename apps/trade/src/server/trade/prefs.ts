@@ -323,6 +323,37 @@ export async function saveLineAlertsPaused(
   return paused
 }
 
+/**
+ * Whether Social reads stocks, metals and currencies out of a post's words as
+ * well as coins. Off until chosen, and a missing row means off.
+ */
+export async function loadSocialMatchStocks(
+  userId: string,
+  database: CustomShellDb = db
+): Promise<boolean> {
+  const [row] = await database
+    .select({ stocks: tradePrefs.socialMatchStocks })
+    .from(tradePrefs)
+    .where(eq(tradePrefs.userId, userId))
+    .limit(1)
+  return row?.stocks ?? false
+}
+
+export async function saveSocialMatchStocks(
+  userId: string,
+  stocks: boolean,
+  database: CustomShellDb = db
+): Promise<boolean> {
+  await database
+    .insert(tradePrefs)
+    .values({ userId, socialMatchStocks: stocks, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: tradePrefs.userId,
+      set: { socialMatchStocks: stocks, updatedAt: new Date() },
+    })
+  return stocks
+}
+
 /** Remember both independent account-wide sound choices. */
 export async function saveTradeSoundPreferences(
   userId: string,

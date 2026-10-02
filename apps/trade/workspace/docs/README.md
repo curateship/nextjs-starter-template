@@ -106,17 +106,20 @@ screen: anything not written there has not been agreed yet.
   name on the right, the three narrowings and their chips, and the folder
   rules (Everyone, the eye, a creator in several folders).
 - `every-creator.md` — the table at `/social/manage`: what each row says, what
-  the search reads, what the filters mean, why "gone quiet" is 30 days, and
-  why the table, the feed and a creator's dashboard are separate screens.
+  the search reads, what the filters mean, why "gone quiet" is 30 days,
+  deleting one creator or many and what gets let go with them, and why the
+  table, the feed and a creator's dashboard are separate screens.
 - `social-dashboard.md` — the creator dashboard at `/social/<handle>`: the
-  three panels, adding a creator from an address or a handle, where the
+  three panels, opening one post in a window and why a long one arrives cut,
+  adding a creator from an address or a handle, where the
   follower count and the links come from, what Sync profile reads off the
   public X page, how the coins a post names are counted, and why posts are
   held once per member.
 - `which-coins-a-post-names.md` — how Trade reads a post's words and works out
-  which coins it is about: the three match rules, the words that are never a
-  coin and why each is on that list, why only coins Trade has a market for can
-  be matched, and what Re-read coins does.
+  which markets it is about: the three match rules, the words that are never a
+  market and why each is on that list, why only markets Trade lists can be
+  matched, the stocks switch and what a shut market's price is, and what
+  Re-read coins does.
 - `copy-a-trader.md` — following and copying a trader: who can be copied, how
   a trade is heard and copied, every skip and pause rule, the 0.1% fee and the
   trader's half, the fee on each exchange with its source, the fee record and

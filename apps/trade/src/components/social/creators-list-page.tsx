@@ -1,6 +1,7 @@
 import * as React from "react"
 import { useNavigate, useRouter } from "@tanstack/react-router"
-import { UserPlusIcon, UsersIcon } from "lucide-react"
+import { Trash2Icon, UserPlusIcon, UsersIcon } from "lucide-react"
+import { toast } from "sonner"
 
 import { AddCreatorDialog } from "@/components/social/add-creator-dialog"
 import {
@@ -13,6 +14,9 @@ import {
   DashboardToolbarSearch,
 } from "@/components/shared/dashboard-toolbar"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   TableCell,
   TableHead,
@@ -20,10 +24,18 @@ import {
   TableRow,
   TableSortButton,
 } from "@/components/ui/table"
-import type { SocialCreatorsList } from "@/lib/api/trade/social"
+import {
+  deleteCreators,
+  getSocialCreatorsErrorMessage,
+  type SocialCreatorsList,
+} from "@/lib/api/trade/social"
+import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatDateTime, formatTimeAgo } from "@/lib/format/format-time"
+import { plural } from "@/lib/format/plural"
+import { useSelection } from "@/lib/hooks/use-selection"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { useWideScreen } from "@/lib/layout/wide-screen"
+import { showErrorToast } from "@/lib/toast/error-toast"
 import {
   creatorsSearch,
   DEFAULT_CREATORS_QUERY,
@@ -63,6 +75,11 @@ export function CreatorsListPage({
   const router = useRouter()
   const desktop = useWideScreen()
   const [adding, setAdding] = React.useState(false)
+  /** The ids the confirmation is asking about: one row's, or every ticked row. */
+  const [deleting, setDeleting] = React.useState<string[] | null>(null)
+  const [deleteBusy, setDeleteBusy] = React.useState(false)
+  const { selected, toggle, toggleVisible, clear, selectAllState } =
+    useSelection()
   const list = initial
 
   // What is in the box right now, which runs ahead of the address while
@@ -124,14 +141,71 @@ export function CreatorsListPage({
 
   const narrowed = isNarrowed(query)
 
+  // Only the rows on screen. A search that hides a ticked row must not delete
+  // it from behind the filter: the toolbar counts what somebody can see.
+  const visibleIds = list.rows.map((creator) => creator.id)
+  const chosen = visibleIds.filter((id) => selected.has(id))
+
+  const nameOf = (id: string) => {
+    const creator = list.rows.find((row) => row.id === id)
+    return creator ? `@${creator.handle}` : "that creator"
+  }
+
+  /**
+   * Untrack the asked-for rows and say what actually went.
+   *
+   * The ids back from the server are the ones that matched this member, so a
+   * row somebody deleted in another window reads as "could not be" rather than
+   * being counted as deleted. `router.invalidate` re-runs the loader, because
+   * the list, its total and the footer's "of 12 tracked" all come from it.
+   */
+  async function runDelete(ids: string[]) {
+    setDeleteBusy(true)
+    try {
+      const { deleted } = await deleteCreators(ids)
+      clear()
+      await router.invalidate()
+      toast.success(
+        describeBulkResult({
+          done: deleted.length,
+          kept: ids.length - deleted.length,
+          one: "creator",
+          many: "creators",
+          verb: "deleted",
+        })
+      )
+    } catch (error) {
+      showErrorToast(getSocialCreatorsErrorMessage(error))
+    } finally {
+      setDeleteBusy(false)
+      setDeleting(null)
+    }
+  }
+
   return (
     <>
       <DashboardTable
         title="Creators"
         icon={<UsersIcon />}
         count={list.rows.length}
+        selectedCount={chosen.length}
+        onClearSelection={clear}
         controls={
           <>
+            {/* The multi-row action comes before the search and the filters,
+                which is the toolbar's order everywhere. It is only here while
+                something is ticked, so the row is unchanged otherwise. */}
+            {chosen.length ? (
+              <DashboardToolbarButton
+                type="button"
+                variant="destructive"
+                disabled={deleteBusy}
+                onClick={() => setDeleting(chosen)}
+              >
+                <Trash2Icon className="size-4" />
+                Delete ({chosen.length})
+              </DashboardToolbarButton>
+            ) : null}
             {/* Its own full-width row on a phone: sharing a line with the
                 filter button left about four characters of it visible. */}
             <div className="w-full sm:w-auto">
@@ -160,6 +234,13 @@ export function CreatorsListPage({
         header={
           <TableHeader>
             <TableRow>
+              <TableHead column="select">
+                <Checkbox
+                  checked={selectAllState(visibleIds)}
+                  onCheckedChange={() => toggleVisible(visibleIds)}
+                  aria-label="Select every creator on screen"
+                />
+              </TableHead>
               {/* The main column's 320px floor is lifted below 640 pixels.
                   At 390 it pushed "Last post" off the side, so reading when
                   somebody last posted meant scrolling the card sideways — and
@@ -177,6 +258,7 @@ export function CreatorsListPage({
               </TableHead>
               <TableHead column="meta">{heading("posts")}</TableHead>
               <TableHead column="meta">{heading("last")}</TableHead>
+              <TableHead column="meta">Actions</TableHead>
             </TableRow>
           </TableHeader>
         }
@@ -186,7 +268,7 @@ export function CreatorsListPage({
             ? "You are not tracking anybody yet. Use Add a creator, paste the address of an X account, and their dashboard opens ready for their posts."
             : "No creator matches that search. Try fewer words, or clear the filters above."
         }
-        emptyColSpan={4}
+        emptyColSpan={6}
         footer={{
           type: "summary",
           count: list.rows.length,
@@ -219,6 +301,13 @@ export function CreatorsListPage({
               })
             }
           >
+            <TableCell column="select">
+              <Checkbox
+                checked={selected.has(creator.id)}
+                onCheckedChange={() => toggle(creator.id)}
+                aria-label={`Select @${creator.handle}`}
+              />
+            </TableCell>
             <TableCell
               column="main"
               className="max-w-40 min-w-0 sm:max-w-none sm:min-w-80"
@@ -278,9 +367,45 @@ export function CreatorsListPage({
                 ? "nothing held"
                 : formatTimeAgo(new Date(creator.lastPostAt))}
             </TableCell>
+            {/* Marked as the actions cell so clicking the bin never also opens
+                the creator's dashboard through the row's own click. */}
+            <TableCell column="actions">
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={`Delete @${creator.handle}`}
+                  onClick={() => setDeleting([creator.id])}
+                >
+                  <Trash2Icon className="size-3.5" />
+                </Button>
+              </div>
+            </TableCell>
           </TableRow>
         ))}
       </DashboardTable>
+      <ConfirmDialog
+        open={deleting !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleting(null)
+        }}
+        title={
+          deleting && deleting.length > 1
+            ? `Delete ${deleting.length} creators?`
+            : `Delete ${deleting ? nameOf(deleting[0]) : "this creator"}?`
+        }
+        description={
+          deleting && deleting.length > 1
+            ? `Trade stops tracking those ${plural(deleting.length, "account", "accounts")} and lets go of every post it holds for them, the markets read out of those posts, and their place in any folder. Their posts on X are untouched. This cannot be undone, and adding the account again starts from nothing.`
+            : "Trade stops tracking the account and lets go of every post it holds for them, the markets read out of those posts, and their place in any folder. Their posts on X are untouched. This cannot be undone, and adding the account again starts from nothing."
+        }
+        confirmLabel="Delete"
+        loading={deleteBusy}
+        onConfirm={() => {
+          if (deleting) void runDelete(deleting)
+        }}
+      />
       <AddCreatorDialog
         open={adding}
         onOpenChange={setAdding}

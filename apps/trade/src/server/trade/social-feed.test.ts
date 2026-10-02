@@ -22,8 +22,21 @@ import { storeSocialPosts } from "@/server/trade/social-posts"
  * anything.
  */
 vi.mock("@/server/trade/social-coin-list", () => ({
-  loadCoinMatchList: async () => buildCoinMatchList(["BONK", "WIF", "SOL"]),
+  loadMarketMatchList: async () =>
+    buildCoinMatchList(
+      ["BONK", "WIF", "SOL"].map((symbol) => ({
+        symbol,
+        key: `hyperliquid:mainnet:${symbol}`,
+        kind: "coin" as const,
+      }))
+    ),
 }))
+
+/** A markets panel's rows as the ticker and the count, which is what most of
+ * these tests are about. The kind and the market key have their own test. */
+function counts(rows: readonly { market: string; posts: number }[]) {
+  return rows.map(({ market, posts }) => ({ market, posts }))
+}
 
 let client: PGlite
 let database: CustomShellDb
@@ -208,7 +221,7 @@ describe("the social feed", () => {
       creatorId: sam.id,
     })
     expect(samView.held).toBe(3)
-    expect(samView.coins).toEqual([
+    expect(counts(samView.coins)).toEqual([
       { market: "BONK", posts: 2 },
       { market: "WIF", posts: 1 },
     ])
@@ -226,7 +239,7 @@ describe("the social feed", () => {
     // The count and the coins stay the scope's own, not the coin's: the
     // panel keeps listing every coin there is to pick from.
     expect(bonk.held).toBe(4)
-    expect(bonk.coins).toEqual([{ market: "BONK", posts: 3 }, { market: "WIF", posts: 1 }])
+    expect(counts(bonk.coins)).toEqual([{ market: "BONK", posts: 3 }, { market: "WIF", posts: 1 }])
 
     // Both at once: the coin inside one creator.
     const samBonk = await loadSocialFeedView(user.id, {

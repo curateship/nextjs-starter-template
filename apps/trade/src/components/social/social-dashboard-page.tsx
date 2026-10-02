@@ -268,6 +268,8 @@ export function SocialDashboardPage({
     <SocialPostsPanel
       posts={posts}
       total={data.postsHeld}
+      handle={data.creator.handle}
+      picture={data.creator.picture}
       filter={market}
       onClearFilter={() => void pickMarket(null)}
       more={more}
@@ -284,6 +286,7 @@ export function SocialDashboardPage({
       onSelect={(next) => void pickMarket(next)}
       onReread={() => void reread()}
       rereading={rereading}
+      now={data.readAt}
     />
   )
 

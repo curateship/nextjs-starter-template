@@ -7,6 +7,7 @@ import {
   exists,
   gte,
   ilike,
+  inArray,
   lt,
   or,
   sql,
@@ -46,8 +47,12 @@ import { tradeSocialCreators, tradeSocialPosts } from "@/server/trade/schema"
  * in memory.
  */
 
-/** A member cannot track an unbounded number of accounts. */
-const MAX_CREATORS = 200
+/**
+ * A member cannot track an unbounded number of accounts. Exported so the
+ * delete endpoint caps its id list at the same number rather than picking a
+ * second one that could drift away from this.
+ */
+export const MAX_CREATORS = 200
 
 export class SocialCreatorError extends Error {}
 
@@ -346,4 +351,41 @@ export async function listSocialCreatorRows(
     total: counted?.total ?? 0,
     readAt,
   }
+}
+
+/**
+ * Stop tracking creators, and let go of everything held for them.
+ *
+ * **One query, filtered by the member's own id.** An id belonging to somebody
+ * else is not an error and is not reported as one: it simply does not match,
+ * so it comes back in neither list. That is what makes a hand-edited request
+ * harmless rather than a leak of whether a row exists.
+ *
+ * **The posts go with the creator**, and so do the markets read out of their
+ * words, the folder they sat in and the record of which posts had been seen.
+ * Every one of those tables names `trade_social_creators` with
+ * `on delete cascade`, so the database does it in the same statement rather
+ * than this function deleting four things in a row and half failing.
+ *
+ * Answers with the ids that went. The caller compares that against what it
+ * asked for, so a list holding a row somebody had already deleted in another
+ * window says "3 creators deleted, 1 could not be" instead of claiming four.
+ */
+export async function deleteSocialCreators(
+  userId: string,
+  ids: readonly string[]
+): Promise<{ deleted: string[] }> {
+  if (ids.length === 0) return { deleted: [] }
+
+  const gone = await db
+    .delete(tradeSocialCreators)
+    .where(
+      and(
+        eq(tradeSocialCreators.userId, userId),
+        inArray(tradeSocialCreators.id, [...ids])
+      )
+    )
+    .returning({ id: tradeSocialCreators.id })
+
+  return { deleted: gone.map((row) => row.id) }
 }
