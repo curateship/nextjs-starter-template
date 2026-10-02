@@ -47,6 +47,9 @@ screen: anything not written there has not been agreed yet.
 - `market-explorer.md` — Markets across exchanges, live estimates, filters,
   standard table header, saved views, grouping, folder stars, discovery filters,
   pins, map, first-seen migration verification, audit coverage and the Moving now widget.
+- `market-search.md` — the header's search field: every exchange's market list
+  searched at once, what a row says, how the rows are ordered, mainnet only, and
+  what happens when an exchange will not answer.
 - `pnl-page.md` — the P&L page at `/pnl`: the whole Journal read-only, the
   month grid on the Toronto clock, the three period windows, the five pattern
   groupings, what the AI score sends to the model and how long it is kept.
