@@ -138,11 +138,138 @@ export async function searchYoutubeShorts(
     .sort((a, b) => b.views - a.views)
 }
 
+/**
+ * Who a YouTube channel is: its id, its name and its subscriber count.
+ *
+ * One unit. The handle has to be resolved to an id because listing somebody's
+ * uploads needs the id, and a handle can be changed by its owner while the id
+ * never moves.
+ */
+export async function resolveYoutubeChannel(
+  lookup: { handle: string } | { channelId: string },
+  apiKey: string,
+  fetchFn: typeof fetch = fetch
+): Promise<YoutubeChannel | null> {
+  const params = new URLSearchParams({ part: "snippet,statistics" })
+  if ("channelId" in lookup) params.set("id", lookup.channelId)
+  else params.set("forHandle", `@${lookup.handle}`)
+
+  const payload = await callYoutube(fetchFn, apiKey, "channels", params)
+  const [item] = itemsOf(payload)
+  if (!item) return null
+
+  const id = stringAt(item, ["id"])
+  if (!id) return null
+  const hidden = valueAt(item, ["statistics", "hiddenSubscriberCount"])
+  return {
+    channelId: id,
+    title: stringAt(item, ["snippet", "title"]) ?? null,
+    handle: stringAt(item, ["snippet", "customUrl"])?.replace(/^@/, "") ?? null,
+    subscribers:
+      hidden === true ? null : countAt(item, ["statistics", "subscriberCount"]),
+    avatarUrl:
+      httpsOnly(stringAt(item, ["snippet", "thumbnails", "high", "url"])) ??
+      httpsOnly(stringAt(item, ["snippet", "thumbnails", "default", "url"])) ??
+      null,
+  }
+}
+
+export type YoutubeChannel = {
+  channelId: string
+  title: string | null
+  /** The @handle YouTube says is current, which may differ from the pasted one. */
+  handle: string | null
+  subscribers: number | null
+  avatarUrl: string | null
+}
+
+export type YoutubeUpload = {
+  platformVideoId: string
+  url: string
+  title: string | null
+  thumbnailUrl: string | null
+  durationSeconds: number | null
+  views: number | null
+  likes: number | null
+  comments: number | null
+  postedAt: Date | null
+}
+
+/**
+ * A channel's newest uploads, with their numbers.
+ *
+ * Two units: one to read the uploads list, one batch call for the numbers.
+ * Every channel's uploads live in a playlist whose id is the channel id with
+ * its "UC" swapped for "UU" — a documented rule, and it saves asking.
+ */
+export async function listYoutubeChannelUploads(
+  channelId: string,
+  howMany: number,
+  apiKey: string,
+  fetchFn: typeof fetch = fetch
+): Promise<YoutubeUpload[]> {
+  if (!channelId.startsWith("UC")) return []
+  const uploadsPlaylistId = `UU${channelId.slice(2)}`
+
+  const playlist = await callYoutube(
+    fetchFn,
+    apiKey,
+    "playlistItems",
+    new URLSearchParams({
+      part: "contentDetails",
+      playlistId: uploadsPlaylistId,
+      maxResults: String(Math.min(50, Math.max(1, howMany))),
+    })
+  )
+  const videoIds = itemsOf(playlist)
+    .map((item) => stringAt(item, ["contentDetails", "videoId"]))
+    .filter((id): id is string => !!id)
+  if (videoIds.length === 0) return []
+
+  const videos = await callYoutube(
+    fetchFn,
+    apiKey,
+    "videos",
+    new URLSearchParams({
+      part: "snippet,contentDetails,statistics",
+      id: videoIds.join(","),
+    })
+  )
+
+  return itemsOf(videos).flatMap((item) => {
+    const id = stringAt(item, ["id"])
+    if (!id) return []
+    const published = stringAt(item, ["snippet", "publishedAt"])
+    const postedAt = published ? new Date(published) : null
+    return [
+      {
+        platformVideoId: id,
+        url: `https://www.youtube.com/watch?v=${encodeURIComponent(id)}`,
+        title: stringAt(item, ["snippet", "title"]) ?? null,
+        thumbnailUrl:
+          httpsOnly(stringAt(item, ["snippet", "thumbnails", "high", "url"])) ??
+          httpsOnly(
+            stringAt(item, ["snippet", "thumbnails", "medium", "url"])
+          ) ??
+          null,
+        durationSeconds: parseIsoDuration(
+          stringAt(item, ["contentDetails", "duration"])
+        ),
+        views: countAt(item, ["statistics", "viewCount"]),
+        likes: countAt(item, ["statistics", "likeCount"]),
+        comments: countAt(item, ["statistics", "commentCount"]),
+        postedAt:
+          postedAt && !Number.isNaN(postedAt.getTime()) ? postedAt : null,
+      },
+    ]
+  })
+}
+
 /** One API call, with YouTube's refusals turned into throwable sentences. */
 async function callYoutube(
   fetchFn: typeof fetch,
   apiKey: string,
-  resource: "search" | "videos" | "channels",
+  resource: "search" | "videos" | "channels" | "playlistItems",
   params: URLSearchParams
 ): Promise<Record<string, unknown>> {
   let response: Response

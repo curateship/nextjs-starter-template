@@ -860,3 +860,214 @@ export const videoViralResults = pgTable(
 
 export type VideoViralSearchRow = typeof videoViralSearches.$inferSelect
 export type VideoViralResultRow = typeof videoViralResults.$inferSelect
+
+/**
+ * One creator somebody follows, on one platform. The handle is stored
+ * lowercased and matched that way, so adding @Alice and @alice twice is one
+ * creator rather than two — the same rule the old app matched on.
+ *
+ * Deleting a creator takes its feed posts with it but leaves any saved
+ * breakdown standing: the archive stores the channel as plain text and has no
+ * key pointing back here, so a video you studied survives losing interest in
+ * whoever made it.
+ */
+export const videoCreators = pgTable(
+  "video_creators",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    ownerId: varchar("owner_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    platform: varchar("platform", { length: 20 }).notNull(),
+    handle: varchar("handle", { length: 100 }).notNull(),
+    /**
+     * YouTube's own channel id, kept because the Data API needs it to list
+     * uploads and resolving a handle to one costs a unit. Null on the other
+     * two platforms, which are read by their handle.
+     */
+    platformChannelId: varchar("platform_channel_id", { length: 100 }),
+    displayName: text("display_name"),
+    followerCount: bigint("follower_count", { mode: "number" }),
+    avatarStoragePath: text("avatar_storage_path"),
+    profileUrl: text("profile_url").notNull(),
+    /** Off means the watch timer skips this creator but keeps its posts. */
+    watch: boolean("watch").notNull().default(true),
+    lastCheckedAt: timestamp("last_checked_at", { withTimezone: true }),
+    /** "viral" when the Follow button on the Viral page added it. */
+    source: varchar("source", { length: 20 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("ux_video_creators_owner_platform_handle").on(
+      table.ownerId,
+      table.platform,
+      sql`lower(${table.handle})`
+    ),
+    index("ix_video_creators_watch").on(table.watch, table.lastCheckedAt),
+  ]
+)
+
+/**
+ * A folder of creators, in the left panel's order. Copied from the trade app's
+ * social folders, because the behaviour is the same one: name unique per person
+ * ignoring case, dragged into an order, and hideable without losing what is in
+ * it.
+ */
+export const videoCreatorFolders = pgTable(
+  "video_creator_folders",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    ownerId: varchar("owner_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 80 }).notNull(),
+    position: integer("position").notNull().default(0),
+    hidden: boolean("hidden").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("ux_video_creator_folders_owner_name").on(
+      table.ownerId,
+      sql`lower(${table.name})`
+    ),
+    index("ix_video_creator_folders_owner_position").on(
+      table.ownerId,
+      table.position
+    ),
+  ]
+)
+
+/**
+ * Which creators are in which folder. A join table rather than a column on the
+ * creator, because one creator can sit in several folders at once — somebody
+ * can be both a competitor and worth studying for hooks.
+ */
+export const videoCreatorFolderCreators = pgTable(
+  "video_creator_folder_creators",
+  {
+    folderId: varchar("folder_id", { length: 36 })
+      .notNull()
+      .references(() => videoCreatorFolders.id, { onDelete: "cascade" }),
+    creatorId: varchar("creator_id", { length: 36 })
+      .notNull()
+      .references(() => videoCreators.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.folderId, table.creatorId] }),
+    index("ix_video_creator_folder_creators_creator").on(table.creatorId),
+  ]
+)
+
+/**
+ * One video a followed creator posted, as the watch timer found it. Metadata
+ * only — no file is ever downloaded to make one of these rows, which is what
+ * keeps the timer cheap enough to run unattended.
+ *
+ * `firstSeenAt` exists because not every platform says when something was
+ * posted; the feed orders by the posted date when there is one and by when it
+ * was first seen when there is not, so a post never falls off the end.
+ */
+export const videoCreatorPosts = pgTable(
+  "video_creator_posts",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    ownerId: varchar("owner_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    creatorId: varchar("creator_id", { length: 36 })
+      .notNull()
+      .references(() => videoCreators.id, { onDelete: "cascade" }),
+    platform: varchar("platform", { length: 20 }).notNull(),
+    platformVideoId: varchar("platform_video_id", { length: 100 }).notNull(),
+    url: text("url").notNull(),
+    title: text("title"),
+    thumbnailUrl: text("thumbnail_url"),
+    durationSeconds: integer("duration_seconds"),
+    views: bigint("views", { mode: "number" }),
+    likes: bigint("likes", { mode: "number" }),
+    comments: bigint("comments", { mode: "number" }),
+    postedAt: timestamp("posted_at", { withTimezone: true }),
+    firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    // The same video reaching the feed twice — two folders, a second tick —
+    // updates this row rather than adding another. It is also the key the
+    // archive is joined on.
+    uniqueIndex("ux_video_creator_posts_owner_video").on(
+      table.ownerId,
+      table.platform,
+      table.platformVideoId
+    ),
+    index("ix_video_creator_posts_feed").on(table.ownerId, table.postedAt),
+    index("ix_video_creator_posts_creator").on(table.creatorId, table.postedAt),
+  ]
+)
+
+/**
+ * A video somebody pressed Save & break down on: the downloaded file, and what
+ * Gemini made of it.
+ *
+ * The status is the job. A worker claims a `waiting` row, downloads it, then
+ * has Gemini watch it, and a restart puts an interrupted row back to `waiting`
+ * — so closing the browser never strands a half-done job. A failure keeps its
+ * reason in `error` and can be tried again.
+ *
+ * It has no key pointing at a creator on purpose. A saved video belongs to the
+ * person who saved it, not to whoever is being followed this week, so deleting
+ * a creator leaves it alone. The channel is kept as plain text instead.
+ */
+export const videoViralVideos = pgTable(
+  "video_viral_videos",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    ownerId: varchar("owner_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    platform: varchar("platform", { length: 20 }).notNull(),
+    platformVideoId: varchar("platform_video_id", { length: 100 }).notNull(),
+    sourceUrl: text("source_url").notNull(),
+    status: varchar("status", { length: 20 }).notNull(),
+    error: text("error"),
+    /** The downloaded file, once it is in the shell's library. */
+    mediaId: varchar("media_id", { length: 36 }).references(
+      () => customShellMedia.id,
+      { onDelete: "set null" }
+    ),
+    thumbnailStoragePath: text("thumbnail_storage_path"),
+    title: text("title"),
+    channelName: text("channel_name"),
+    durationSeconds: integer("duration_seconds"),
+    views: bigint("views", { mode: "number" }),
+    likes: bigint("likes", { mode: "number" }),
+    comments: bigint("comments", { mode: "number" }),
+    postedAt: timestamp("posted_at", { withTimezone: true }),
+    /** The transcript, parts and scene cuts, once Gemini has watched it. */
+    breakdown: jsonb("breakdown"),
+    /** Who is working on it now, and until when. Null means free to claim. */
+    leaseToken: varchar("lease_token", { length: 36 }),
+    leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    // Pressing the button twice, or saving the same video from the Viral page
+    // and the dashboard, is one row. The feed joins on these three columns.
+    uniqueIndex("ux_video_viral_videos_owner_video").on(
+      table.ownerId,
+      table.platform,
+      table.platformVideoId
+    ),
+    index("ix_video_viral_videos_status").on(table.status, table.updatedAt),
+    check(
+      "ck_video_viral_videos_status",
+      sql`${table.status} in ('waiting', 'downloading', 'analysing', 'ready', 'failed')`
+    ),
+  ]
+)
+
+export type VideoCreatorRow = typeof videoCreators.$inferSelect
+export type VideoCreatorFolderRow = typeof videoCreatorFolders.$inferSelect
+export type VideoCreatorPostRow = typeof videoCreatorPosts.$inferSelect
+export type VideoViralVideoRow = typeof videoViralVideos.$inferSelect
