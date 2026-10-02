@@ -5,6 +5,7 @@ import {
   FocusHeatmapKey,
   fillHeatmapDays,
 } from "@/components/pomodoro/focus-heatmap"
+import { ProfileActions } from "@/components/pomodoro/profile-actions"
 import { ProfilePhoto } from "@/components/pomodoro/profile-photo"
 import { SocialMarkLink } from "@/components/pomodoro/social-marks"
 import { Button } from "@/components/ui/button"
@@ -263,6 +264,22 @@ function ProfileHeader({ profile }: { profile: PublicProfileView }) {
             ))}
           </div>
         ) : null}
+        <p className="text-xs text-muted-foreground">
+          <strong className="font-semibold text-foreground">
+            {profile.followers.toLocaleString()}
+          </strong>{" "}
+          {profile.followers === 1 ? "follower" : "followers"}
+          {" · "}
+          <strong className="font-semibold text-foreground">
+            {profile.following.toLocaleString()}
+          </strong>{" "}
+          following
+        </p>
+        <ProfileActions
+          handle={profile.handle}
+          name={profile.name}
+          isOwner={profile.isOwner}
+        />
       </CardContent>
     </Card>
   )

@@ -1,6 +1,7 @@
 import * as React from "react"
 import { toast } from "sonner"
 
+import BlockedAccountsCard from "@/components/pomodoro/blocked-accounts-card"
 import PublicProfileSettingsPanel from "@/components/pomodoro/public-profile-settings-panel"
 import StreakBadgeCard from "@/components/pomodoro/streak-badge-card"
 import { Button } from "@/components/ui/button"
@@ -163,6 +164,7 @@ export default function ProfileSettingsPanel() {
         </CardContent>
       </Card>
       <PublicProfileSettingsPanel />
+      <BlockedAccountsCard />
       <StreakBadgeCard />
     </div>
   )

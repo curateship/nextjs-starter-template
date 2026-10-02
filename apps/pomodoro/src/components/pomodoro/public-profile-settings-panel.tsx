@@ -53,6 +53,7 @@ import {
   type PublicSocialLink,
   type PublicSocialPlatform,
 } from "@/lib/pages/public-social"
+import { PROFILE_HIDDEN_NOTICE } from "@/lib/pomodoro/profile-reports"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
@@ -82,6 +83,8 @@ type Draft = {
   showProjects: boolean
   showFocusingNow: boolean
   showRoom: boolean
+  listed: boolean
+  cheersEnabled: boolean
 }
 
 type UploadOption = { mediaId: string; name: string; url: string }
@@ -89,6 +92,7 @@ type UploadOption = { mediaId: string; name: string; url: string }
 export default function PublicProfileSettingsPanel() {
   const [draft, setDraft] = React.useState<Draft | null>(null)
   const [avatarUrl, setAvatarUrl] = React.useState<string | null>(null)
+  const [hiddenAt, setHiddenAt] = React.useState<Date | string | null>(null)
   const [earnedBadgeIds, setEarnedBadgeIds] = React.useState<string[]>([])
   const [uploads, setUploads] = React.useState<UploadOption[]>([])
   const [canUpload, setCanUpload] = React.useState(false)
@@ -121,7 +125,10 @@ export default function PublicProfileSettingsPanel() {
           showProjects: profile.showProjects,
           showFocusingNow: profile.showFocusingNow,
           showRoom: profile.showRoom,
+          listed: profile.listed,
+          cheersEnabled: profile.cheersEnabled,
         })
+        setHiddenAt(profile.hiddenAt)
         setAvatarUrl(profile.avatarUrl)
         setEarnedBadgeIds(profile.earnedBadgeIds)
         setUploads(
@@ -180,6 +187,8 @@ export default function PublicProfileSettingsPanel() {
         showProjects: draft.showProjects,
         showFocusingNow: draft.showFocusingNow,
         showRoom: draft.showRoom,
+        listed: draft.listed,
+        cheersEnabled: draft.cheersEnabled,
       })
       // The saved row wins over the draft: the server drops a bad address and
       // a pin for a badge nobody earned, and the card must show what is
@@ -204,6 +213,16 @@ export default function PublicProfileSettingsPanel() {
         <CardTitle>Your public page</CardTitle>
       </CardHeader>
       <CardContent className="grid gap-6">
+        {/* An operator's hide is the one thing on this card the member did
+            not do themselves, so it is said first and plainly. */}
+        {hiddenAt ? (
+          <p
+            role="status"
+            className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm"
+          >
+            {PROFILE_HIDDEN_NOTICE}
+          </p>
+        ) : null}
         {!draft && !loadFailed ? (
           <LoadingRow label="Loading your public page…" />
         ) : null}
@@ -344,6 +363,43 @@ export default function PublicProfileSettingsPanel() {
                   </div>
                 </div>
               ))}
+            </section>
+
+            <section className="grid gap-3">
+              <div className="flex items-start gap-2">
+                <Switch
+                  id="profile-listed"
+                  className="mt-0.5"
+                  checked={draft.listed}
+                  onCheckedChange={(checked) => change({ listed: checked })}
+                />
+                <div className="grid gap-0.5">
+                  <Label htmlFor="profile-listed">List me on /users</Label>
+                  <span className="text-xs text-muted-foreground">
+                    A second switch on purpose. Having a page and being in a
+                    directory other people browse are different wishes, and
+                    only a listed profile is offered to search engines.
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-start gap-2">
+                <Switch
+                  id="profile-cheers"
+                  className="mt-0.5"
+                  checked={draft.cheersEnabled}
+                  onCheckedChange={(checked) =>
+                    change({ cheersEnabled: checked })
+                  }
+                />
+                <div className="grid gap-0.5">
+                  <Label htmlFor="profile-cheers">Let people cheer me on</Label>
+                  <span className="text-xs text-muted-foreground">
+                    A short line from a fixed list, from somebody who follows
+                    you. Nothing is typed, and three a day is the most one
+                    person can send you.
+                  </span>
+                </div>
+              </div>
             </section>
 
             <PinnedBadgesField

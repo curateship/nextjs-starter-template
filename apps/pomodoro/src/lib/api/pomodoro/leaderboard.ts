@@ -32,6 +32,12 @@ const loadLeaderboardFn = createServerFn({ method: "GET" })
     z.object({
       timezone: z.string().min(1).max(60),
       window: z.enum(LEADERBOARD_WINDOWS).default(DEFAULT_LEADERBOARD_WINDOW),
+      /**
+       * The Following tab. It filters the same ranking query rather than
+       * running one of its own, so the two boards can never disagree about a
+       * figure.
+       */
+      following: z.boolean().default(false),
     })
   )
   .handler(async ({ data, context }) => {
@@ -42,14 +48,17 @@ const loadLeaderboardFn = createServerFn({ method: "GET" })
       window: data.window,
       start,
       today,
+      following: data.following,
       leaders: await readLeaderboardRows({
         start,
         viewerUserId: context.user.id,
+        followedBy: data.following ? context.user.id : undefined,
       }),
     }
   })
 
 export const loadLeaderboard = (
   timezone: string,
-  window: LeaderboardWindow = DEFAULT_LEADERBOARD_WINDOW
-) => loadLeaderboardFn({ data: { timezone, window } })
+  window: LeaderboardWindow = DEFAULT_LEADERBOARD_WINDOW,
+  following = false
+) => loadLeaderboardFn({ data: { timezone, window, following } })

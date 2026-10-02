@@ -11,10 +11,12 @@ import {
   MAX_PUBLIC_SOCIAL_URL_LENGTH,
   PUBLIC_SOCIAL_PLATFORMS,
 } from "@/lib/pages/public-social"
+import { findCurrentUser } from "@/server/auth/security"
 import { userGet, userPost } from "@/server/guards"
 import {
   loadMyPublicProfile as loadMyPublicProfileRow,
   readPublicProfile as readPublicProfileRow,
+  readUsersPage as readUsersPageRow,
   readYearInReview as readYearInReviewRow,
   saveMyPublicProfile as saveMyPublicProfileRow,
 } from "@/server/pomodoro/public-profile"
@@ -54,6 +56,8 @@ const publicProfileSchema = z.object({
   showProjects: z.boolean(),
   showFocusingNow: z.boolean(),
   showRoom: z.boolean(),
+  listed: z.boolean(),
+  cheersEnabled: z.boolean(),
 })
 
 export type PublicProfileForm = z.infer<typeof publicProfileSchema>
@@ -65,7 +69,13 @@ export type PublicProfileForm = z.infer<typeof publicProfileSchema>
 // user id is in the answer. Listed in appOpenEndpoints for the guard test.
 const readPublicProfileFn = createServerFn({ method: "GET" })
   .inputValidator(z.object({ handle: handleSchema }))
-  .handler(async ({ data }) => readPublicProfileRow(data.handle))
+  .handler(async ({ data }) => {
+    // Signed in or not: a block hides the page from the blocked account, and
+    // the only way to know is to look for a session. A visitor with none is
+    // blocked by nobody.
+    const viewer = await findCurrentUser()
+    return readPublicProfileRow(data.handle, viewer?.id ?? null)
+  })
 
 // Open for the same reason and under the same rules as the profile read
 // above: it is the year recap at /u/<handle>/<year>, which is the whole point
@@ -74,11 +84,25 @@ const readYearInReviewFn = createServerFn({ method: "GET" })
   .inputValidator(
     z.object({ handle: handleSchema, year: z.number().int().max(9999) })
   )
-  .handler(async ({ data }) => readYearInReviewRow(data.handle, data.year))
+  .handler(async ({ data }) => {
+    const viewer = await findCurrentUser()
+    return readYearInReviewRow(data.handle, data.year, viewer?.id ?? null)
+  })
 
 // The browser's timezone is the fallback for creating the profile row, the
 // same argument `loadPomodoroProfile` takes and for the same reason: it is
 // the only moment the app can learn it.
+// Signed-out on purpose: /users is a public directory of the members who
+// asked to be in one. Listed in appOpenEndpoints for the guard test.
+const readUsersFn = createServerFn({ method: "GET" })
+  .inputValidator(z.object({ page: z.number().int().min(0).max(200) }))
+  .handler(async ({ data }) => {
+    // A signed-in reader's blocks apply to the directory too; a signed-out
+    // one has blocked nobody and costs nothing.
+    const viewer = await findCurrentUser()
+    return readUsersPageRow(data.page, viewer?.id ?? null)
+  })
+
 const loadMyPublicProfileFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .inputValidator(z.object({ timezone: z.string().min(1).max(60) }))
@@ -97,6 +121,7 @@ export const readPublicProfile = (handle: string) =>
   readPublicProfileFn({ data: { handle } })
 export const readYearInReview = (handle: string, year: number) =>
   readYearInReviewFn({ data: { handle, year } })
+export const readUsersPage = (page = 0) => readUsersFn({ data: { page } })
 export const loadMyPublicProfile = (timezone: string) =>
   loadMyPublicProfileFn({ data: { timezone } })
 export const saveMyPublicProfile = (data: PublicProfileForm) =>

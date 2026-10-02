@@ -39,15 +39,25 @@ export const Route = createFileRoute("/_pomodoro/u/$handle")({
   head: ({ loaderData }) => {
     if (!loaderData) return {}
     const { profile } = loaderData
+    const description =
+      profile.bio ??
+      `${profile.name}'s focus record, published by ${profile.name}.`
+    // The card is a PNG because X, Slack and iMessage all refuse SVG in a
+    // preview. Both the Open Graph and the Twitter names are given, because
+    // the services that unfurl links read one or the other and not both.
+    const card = `/badge/profile/${profile.handle}.png`
     return {
       meta: [
         { title: `${profile.name} · Focus profile` },
-        {
-          name: "description",
-          content:
-            profile.bio ??
-            `${profile.name}'s focus record, published by ${profile.name}.`,
-        },
+        { name: "description", content: description },
+        { property: "og:title", content: `${profile.name} · Focus profile` },
+        { property: "og:description", content: description },
+        { property: "og:type", content: "profile" },
+        { property: "og:image", content: card },
+        { name: "twitter:card", content: "summary_large_image" },
+        { name: "twitter:title", content: `${profile.name} · Focus profile` },
+        { name: "twitter:description", content: description },
+        { name: "twitter:image", content: card },
       ],
     }
   },

@@ -33,3 +33,21 @@ ranking.
   It reads the same ranking the page does, with the same opt-in rule, and
   it only asks for it when the popover is opened. The sidebar still has a
   Leaderboard link, so nothing lost a way in.
+
+## Names on the board are links
+
+A display name belonging to somebody with a public profile links to it. A name
+without one draws as plain text, exactly as every name did before profiles
+existed, so no row ever links to a page that answers 404. The handle is
+selected beside the name in the one ranking query, so the board costs no extra
+read per row.
+
+## The Following tab
+
+Beside the three windows there are now two boards: Everyone, and the people
+you follow. The Following tab is the same ranking query with a filter on who
+is allowed in it, never a second query, so the two boards cannot disagree
+about a figure. See [Following](following.md).
+
+Somebody blocked in either direction appears on neither board. See
+[Reporting and blocking](reporting-and-blocking.md).

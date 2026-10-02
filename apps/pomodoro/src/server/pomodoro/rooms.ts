@@ -2,6 +2,7 @@ import { and, desc, eq, inArray, lte, sql } from "drizzle-orm"
 
 import { db, type CustomShellDb } from "@/server/db"
 import { enforceRateLimit } from "@/server/auth/rate-limit"
+import { blockedUserIdsFor } from "@/server/pomodoro/blocks"
 import {
   pomodoroAuditLogs,
   pomodoroProfiles,
@@ -186,6 +187,14 @@ export async function findActiveRoomId(userId: string, database: PomoderDb = db)
 }
 
 const displayName = sql<string>`coalesce(${pomodoroProfiles.publicDisplayName}, ${users.name})`
+/**
+ * The handle, only when that profile is actually readable. A name beside a
+ * switched-off or hidden profile stays plain text rather than linking to a
+ * 404. Selected alongside the name, so a board costs no extra query per row.
+ */
+const readableHandle = sql<string | null>`case
+  when ${pomodoroProfiles.profilePublic} and ${pomodoroProfiles.hiddenAt} is null
+  then ${pomodoroProfiles.handle} end`
 
 export async function listPublicRooms(database: PomoderDb = db) {
   return database
@@ -223,8 +232,11 @@ export type RoomSnapshot = {
     closedAt: Date | null
   }
   you: { role: "host" | "member" }
-  members: { id: string; name: string; role: string; avatarIndex: number; joinedAt: Date }[]
-  messages: { id: string; body: string; authorName: string; mine: boolean; deleted: boolean; createdAt: Date; reactions: RoomReactionSummary[] }[]
+  // `handle` is the public address of that person's profile, and null when
+  // they have none that reads. It is what turns a name in a room into a link
+  // without a lookup per row.
+  members: { id: string; name: string; handle: string | null; role: string; avatarIndex: number; joinedAt: Date }[]
+  messages: { id: string; body: string; authorName: string; handle: string | null; mine: boolean; deleted: boolean; createdAt: Date; reactions: RoomReactionSummary[] }[]
 }
 
 // Per-emoji tally for one message. `mine` marks the emoji the viewer has
@@ -259,14 +271,14 @@ export async function roomSnapshot(roomId: string, userId: string, database: Pom
   if (!membership) throw new Error("ROOM_MEMBERSHIP_REQUIRED")
   const [memberRows, messageRows] = await Promise.all([
     database
-      .select({ id: roomMemberships.id, userId: roomMemberships.userId, role: roomMemberships.role, joinedAt: roomMemberships.joinedAt, name: displayName })
+      .select({ id: roomMemberships.id, userId: roomMemberships.userId, role: roomMemberships.role, joinedAt: roomMemberships.joinedAt, name: displayName, handle: readableHandle })
       .from(roomMemberships)
       .innerJoin(users, eq(roomMemberships.userId, users.id))
       .leftJoin(pomodoroProfiles, eq(pomodoroProfiles.userId, users.id))
       .where(and(eq(roomMemberships.roomId, roomId), sql`${roomMemberships.leftAt} is null`))
       .orderBy(roomMemberships.joinedAt),
     database
-      .select({ id: roomMessages.id, userId: roomMessages.userId, body: roomMessages.body, deletedAt: roomMessages.deletedAt, createdAt: roomMessages.createdAt, authorName: displayName })
+      .select({ id: roomMessages.id, userId: roomMessages.userId, body: roomMessages.body, deletedAt: roomMessages.deletedAt, createdAt: roomMessages.createdAt, authorName: displayName, handle: readableHandle })
       .from(roomMessages)
       .innerJoin(users, eq(roomMessages.userId, users.id))
       .leftJoin(pomodoroProfiles, eq(pomodoroProfiles.userId, users.id))
@@ -277,13 +289,17 @@ export async function roomSnapshot(roomId: string, userId: string, database: Pom
   // Reactions are only ever shown on live messages from people still in the
   // room, so we skip tombstones here and join to active memberships below.
   const reactionsByMessage = await loadMessageReactions(roomId, userId, messageRows.filter((message) => !message.deletedAt).map((message) => message.id), database)
+  // A block holds inside a room as well: neither of you appears in the other's
+  // member list and neither sees the other's messages. One query for the whole
+  // snapshot, through the one function every list in this app uses.
+  const blocked = await blockedUserIdsFor(userId)
   return {
     room: safeRoom,
     you: { role: membership.role as "host" | "member" },
-    members: memberRows.map(({ userId: memberUserId, ...member }) => ({ ...member, avatarIndex: avatarIndexFor(memberUserId) })),
+    members: memberRows.filter((member) => !blocked.has(member.userId)).map(({ userId: memberUserId, ...member }) => ({ ...member, avatarIndex: avatarIndexFor(memberUserId), handle: member.handle })),
     // Soft-deleted messages stay in the timeline as empty tombstones so
     // members see that moderation happened without ever receiving the body.
-    messages: messageRows.map(({ userId: authorUserId, deletedAt, body, ...message }) => ({ ...message, body: deletedAt ? "" : body, deleted: Boolean(deletedAt), mine: authorUserId === userId, reactions: deletedAt ? [] : reactionsByMessage.get(message.id) ?? [] })),
+    messages: messageRows.filter((message) => !blocked.has(message.userId)).map(({ userId: authorUserId, deletedAt, body, ...message }) => ({ ...message, body: deletedAt ? "" : body, deleted: Boolean(deletedAt), mine: authorUserId === userId, reactions: deletedAt ? [] : reactionsByMessage.get(message.id) ?? [] })),
   }
 }
 

@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, gte, inArray, isNull, lte, sql } from "drizzle-orm"
+import { and, count, desc, eq, gt, gte, inArray, isNull, lte, sql } from "drizzle-orm"
 
 import {
   curatedBackgrounds,
@@ -30,9 +30,11 @@ import {
   loadFocusStreaks,
   localDateFor,
 } from "@/server/pomodoro/productivity"
+import { blockedUserIdsFor, isBlockedBetween } from "@/server/pomodoro/blocks"
 import {
   dailyFocusStats,
   focusSessions,
+  pomodoroFollows,
   pomodoroAchievements,
   pomodoroMediaUploads,
   pomodoroProfiles,
@@ -93,7 +95,17 @@ export const RECAP_MIN_FOCUS_HOURS = 20
 
 type Held<T> = { value: T; expiresAt: number }
 
-const profileCache = new Map<string, Held<PublicProfileView | null>>()
+/**
+ * The held page, plus whose it is.
+ *
+ * The owner's id is kept here and never returned. A block is between two
+ * accounts, so the check needs the owner's id — and holding it beside the
+ * page means a signed-in visitor costs no extra query to find out. It stays
+ * in this process; nothing puts it in an answer.
+ */
+type HeldProfile = { view: PublicProfileView | null; ownerUserId: string | null }
+
+const profileCache = new Map<string, Held<HeldProfile>>()
 const recapCache = new Map<string, Held<YearInReviewView | null>>()
 
 function readHeld<T>(cache: Map<string, Held<T>>, key: string, now: number) {
@@ -167,7 +179,10 @@ async function readProfileRow(handle: string) {
     .where(
       and(
         eq(pomodoroProfiles.handle, handle),
-        eq(pomodoroProfiles.profilePublic, true)
+        eq(pomodoroProfiles.profilePublic, true),
+        // An operator's hide answers exactly as a switched-off profile does.
+        // One condition, so there is no second kind of 404 to get wrong.
+        isNull(pomodoroProfiles.hiddenAt)
       )
     )
     .limit(1)
@@ -410,32 +425,50 @@ async function readHostedRoom(userId: string) {
  */
 export async function readPublicProfile(
   handle: string,
+  viewerUserId: string | null = null,
   now = Date.now()
 ): Promise<PublicProfileView | null> {
   // Anything not shaped like a handle is turned away before the database is
   // asked, which is what keeps a NUL byte from reaching Postgres.
   if (!isHandleAvailableShape(handle)) return null
 
-  const held = readHeld(profileCache, handle, now)
-  if (held !== undefined) return held
+  let held = readHeld(profileCache, handle, now)
+  if (held === undefined) {
+    held = await buildPublicProfile(handle, new Date(now))
+    writeHeld(profileCache, handle, held, PROFILE_CACHE_MS, now)
+  }
+  if (!held.view || !held.ownerUserId) return null
 
-  const view = await buildPublicProfile(handle, new Date(now))
-  writeHeld(profileCache, handle, view, PROFILE_CACHE_MS, now)
-  return view
+  // The block is checked outside the held page, because the page is the same
+  // for everybody and a block is between two accounts. A signed-out visitor
+  // has blocked nobody, so this costs nothing on the common path.
+  if (await isBlockedBetween(viewerUserId, held.ownerUserId)) return null
+  // Worked out per reader rather than held, because the held page is the same
+  // one for everybody.
+  return { ...held.view, isOwner: viewerUserId === held.ownerUserId }
 }
 
 async function buildPublicProfile(
   handle: string,
   now: Date
-): Promise<PublicProfileView | null> {
+): Promise<HeldProfile> {
   const profile = await readProfileRow(handle)
-  if (!profile) return null
+  if (!profile) return { view: null, ownerUserId: null }
 
   const todayLocalDate = localDateFor(profile.timezone, now)
   const userId = profile.userId
 
-  const [bannerUrl, figures, badges, heatmap, projects, focusingNow, room] =
-    await Promise.all([
+  const [
+    bannerUrl,
+    figures,
+    badges,
+    heatmap,
+    projects,
+    focusingNow,
+    room,
+    [followerRow],
+    [followingRow],
+  ] = await Promise.all([
       resolveBannerUrl(userId, profile.bannerRef),
       profile.showFigures ? readFigures(userId, todayLocalDate) : null,
       profile.showBadges ? readBadges(userId) : null,
@@ -445,7 +478,19 @@ async function buildPublicProfile(
         : null,
       profile.showFocusingNow ? readFocusingNow(userId, now) : null,
       profile.showRoom ? readHostedRoom(userId) : null,
+      // Counted once each, in the same batch. A count per row is the shape
+      // that turns one page into one query per follower.
+      db
+        .select({ value: count() })
+        .from(pomodoroFollows)
+        .where(eq(pomodoroFollows.followedUserId, userId)),
+      db
+        .select({ value: count() })
+        .from(pomodoroFollows)
+        .where(eq(pomodoroFollows.followerUserId, userId)),
     ])
+  const followers = followerRow?.value ?? 0
+  const following = followingRow?.value ?? 0
 
   // Pinned ids are filtered against what the account has actually earned, so
   // a pin for a badge an operator later removed leaves no gap on the page.
@@ -460,6 +505,8 @@ async function buildPublicProfile(
     : []
 
   return {
+    ownerUserId: userId,
+    view: {
     handle,
     name: profile.displayName?.trim() || handle,
     bio: profile.bio?.trim() || null,
@@ -476,6 +523,11 @@ async function buildPublicProfile(
     focusingNow,
     room,
     recapYears,
+    followers,
+    following,
+    // Replaced per reader in `readPublicProfile`; the held copy is nobody's.
+    isOwner: false,
+    },
   }
 }
 
@@ -503,10 +555,21 @@ function readPinnedBadges(value: unknown): string[] {
 export async function readYearInReview(
   handle: string,
   year: number,
+  viewerUserId: string | null = null,
   now = Date.now()
 ): Promise<YearInReviewView | null> {
   if (!isHandleAvailableShape(handle)) return null
   if (!Number.isInteger(year) || year < FIRST_RECAP_YEAR) return null
+
+  // The recap is the profile one year at a time, so a block hides it for the
+  // same reason and with the same 404. Checked before the held copy, which is
+  // the same page for every reader.
+  const [owner] = await db
+    .select({ userId: pomodoroProfiles.userId })
+    .from(pomodoroProfiles)
+    .where(eq(pomodoroProfiles.handle, handle))
+    .limit(1)
+  if (owner && (await isBlockedBetween(viewerUserId, owner.userId))) return null
 
   const key = `${handle}:${year}`
   const held = readHeld(recapCache, key, now)
@@ -687,6 +750,9 @@ async function readMyPublicProfile(userId: string) {
         showProjects: pomodoroProfiles.showProjects,
         showFocusingNow: pomodoroProfiles.showFocusingNow,
         showRoom: pomodoroProfiles.showRoom,
+        listed: pomodoroProfiles.listed,
+        cheersEnabled: pomodoroProfiles.cheersEnabled,
+        hiddenAt: pomodoroProfiles.hiddenAt,
         avatarUrl: customShellUsers.avatarUrl,
       })
       .from(pomodoroProfiles)
@@ -715,6 +781,10 @@ async function readMyPublicProfile(userId: string) {
     showProjects: row?.showProjects ?? false,
     showFocusingNow: row?.showFocusingNow ?? false,
     showRoom: row?.showRoom ?? false,
+    listed: row?.listed ?? false,
+    cheersEnabled: row?.cheersEnabled ?? true,
+    /** Set when an operator hid the page. The card says so plainly. */
+    hiddenAt: row?.hiddenAt ?? null,
     avatarUrl: row?.avatarUrl ?? null,
     /** What may be pinned. The card offers only badges already earned. */
     earnedBadgeIds: earned
@@ -736,6 +806,8 @@ export type PublicProfileChanges = {
   showProjects: boolean
   showFocusingNow: boolean
   showRoom: boolean
+  listed: boolean
+  cheersEnabled: boolean
 }
 
 const HANDLE_UNIQUE_CODE = "23505"
@@ -801,6 +873,8 @@ export async function saveMyPublicProfile(
     showProjects: changes.showProjects,
     showFocusingNow: changes.showFocusingNow,
     showRoom: changes.showRoom,
+    listed: changes.listed,
+    cheersEnabled: changes.cheersEnabled,
   }
 
   try {
@@ -824,5 +898,179 @@ export async function saveMyPublicProfile(
   // address answering from memory after it stops resolving.
   forgetPublicProfile(previous?.handle ?? null)
   forgetPublicProfile(changes.handle)
+  // The directory is held for five minutes, and a listing switched on or off
+  // should take effect on the next load rather than after the window.
+  forgetUsersPages()
   return readMyPublicProfile(userId)
+}
+
+/**
+ * The `/users` directory: profiles whose owners asked to be listed.
+ *
+ * Two switches have to be on, not one. `profilePublic` makes the page exist;
+ * `listed` puts it in a directory other people browse. They are different
+ * wishes, the same reasoning that keeps a group board and the global board
+ * apart, and a public list of members is a scrapable list of members.
+ *
+ * Newest profile first. Tyler's call, 2 Oct 2026: ranking by activity would
+ * make this a second leaderboard, and the people with least to show would
+ * never appear.
+ *
+ * Held for five minutes and paged, so no visitor causes a per-row read.
+ */
+const USERS_PAGE_SIZE = 24
+const USERS_CACHE_MS = 5 * 60_000
+
+export type UserDirectoryRow = {
+  handle: string
+  name: string
+  avatarUrl: string | null
+  bio: string | null
+  focusHours: number
+}
+
+/**
+ * A held row, with the account it belongs to.
+ *
+ * The id is kept so a signed-in reader's blocks can be applied to the shared
+ * page without reading it again per visitor, and it is stripped before the
+ * rows leave the server. Same move as the held profile's `ownerUserId`.
+ */
+type HeldUserRow = UserDirectoryRow & { userId: string }
+
+type HeldUsers = { rows: HeldUserRow[]; total: number; expiresAt: number }
+const usersCache = new Map<number, HeldUsers>()
+
+export async function readUsersPage(
+  page = 0,
+  viewerUserId: string | null = null,
+  now = Date.now()
+) {
+  const safePage = Math.max(0, Math.min(page, 200))
+  const held = usersCache.get(safePage)
+  if (held && held.expiresAt > now) return shapeUsers(held, safePage, viewerUserId)
+
+  const listed = and(
+    eq(pomodoroProfiles.profilePublic, true),
+    eq(pomodoroProfiles.listed, true),
+    isNull(pomodoroProfiles.hiddenAt)
+  )
+
+  const [rows, [totalRow]] = await Promise.all([
+    db
+      .select({
+        userId: pomodoroProfiles.userId,
+        handle: pomodoroProfiles.handle,
+        name: pomodoroProfiles.publicDisplayName,
+        bio: pomodoroProfiles.bio,
+        avatarUrl: customShellUsers.avatarUrl,
+        showFigures: pomodoroProfiles.showFigures,
+        // One headline figure, summed in the same query rather than a read
+        // per row. Zero when that person keeps their figures private.
+        focusSeconds: sql<number>`coalesce(sum(${dailyFocusStats.focusSeconds}), 0)::bigint`,
+        createdAt: sql<string>`min(${customShellUsers.createdAt})`,
+      })
+      .from(pomodoroProfiles)
+      .innerJoin(
+        customShellUsers,
+        eq(customShellUsers.id, pomodoroProfiles.userId)
+      )
+      .leftJoin(
+        dailyFocusStats,
+        eq(dailyFocusStats.userId, pomodoroProfiles.userId)
+      )
+      .where(listed)
+      .groupBy(
+        pomodoroProfiles.userId,
+        pomodoroProfiles.handle,
+        pomodoroProfiles.publicDisplayName,
+        pomodoroProfiles.bio,
+        pomodoroProfiles.showFigures,
+        customShellUsers.avatarUrl
+      )
+      .orderBy(desc(sql`min(${customShellUsers.createdAt})`))
+      .limit(USERS_PAGE_SIZE)
+      .offset(safePage * USERS_PAGE_SIZE),
+    db
+      .select({ value: count() })
+      .from(pomodoroProfiles)
+      .where(listed),
+  ])
+
+  const listedUsers: HeldUserRow[] = rows
+    .filter((row): row is typeof row & { handle: string } => Boolean(row.handle))
+    .map((row) => ({
+      userId: row.userId,
+      handle: row.handle,
+      name: row.name?.trim() || row.handle,
+      avatarUrl: row.avatarUrl,
+      bio: row.bio?.trim() || null,
+      focusHours: row.showFigures
+        ? Math.floor(Number(row.focusSeconds ?? 0) / 3_600)
+        : 0,
+    }))
+
+  const total = totalRow?.value ?? 0
+  if (usersCache.size >= 50) {
+    const oldest = usersCache.keys().next()
+    if (!oldest.done) usersCache.delete(oldest.value)
+  }
+  const entry = { rows: listedUsers, total, expiresAt: now + USERS_CACHE_MS }
+  usersCache.set(safePage, entry)
+  return shapeUsers(entry, safePage, viewerUserId)
+}
+
+/**
+ * Strips the ids off a held page and drops anybody the reader has blocked or
+ * who has blocked them.
+ *
+ * The expensive part — the rows themselves — stays shared and held, so a
+ * visitor still causes no per-row read. A signed-in reader pays one small
+ * query for their own block list; a signed-out one pays nothing, because they
+ * have blocked nobody.
+ */
+async function shapeUsers(
+  entry: HeldUsers,
+  page: number,
+  viewerUserId: string | null
+) {
+  const blocked = await blockedUserIdsFor(viewerUserId)
+  return {
+    rows: entry.rows
+      .filter((row) => !blocked.has(row.userId))
+      .map(({ userId: _userId, ...row }) => row),
+    total: entry.total,
+    page,
+    pageSize: USERS_PAGE_SIZE,
+  }
+}
+
+/** Drops every held page of the directory, after a listing switch changes. */
+export function forgetUsersPages() {
+  usersCache.clear()
+}
+
+/**
+ * Every listed profile's address, for the sitemap.
+ *
+ * Only listed ones. A profile somebody switched on but did not list stays
+ * reachable by its address and out of search results, which is the whole
+ * point of the second switch.
+ */
+export async function listedProfilePaths() {
+  const rows = await db
+    .select({ handle: pomodoroProfiles.handle })
+    .from(pomodoroProfiles)
+    .where(
+      and(
+        eq(pomodoroProfiles.profilePublic, true),
+        eq(pomodoroProfiles.listed, true),
+        isNull(pomodoroProfiles.hiddenAt)
+      )
+    )
+    .limit(5_000)
+  return rows
+    .map((row) => row.handle)
+    .filter((handle): handle is string => Boolean(handle))
+    .map((handle) => ({ path: `/u/${handle}` }))
 }
