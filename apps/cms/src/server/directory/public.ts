@@ -8,6 +8,7 @@ import {
   inArray,
   isNotNull,
   ne,
+  notInArray,
   or,
   sql,
   type SQL,
@@ -34,7 +35,8 @@ import {
   type DirectoryFilterGroup,
 } from "@/lib/directory/filter-groups"
 import {
-  RELATED_LISTING_COUNT,
+  NEARBY_LISTING_COUNT,
+  NEARBY_LISTING_RADIUS_KM,
   DEFAULT_DIRECTORY_NEAR_RADIUS_KM,
   DIRECTORY_SUGGESTION_CATEGORY_LIMIT,
   DIRECTORY_SUGGESTION_LISTING_LIMIT,
@@ -376,7 +378,13 @@ export type PublicListingPage = {
   shareImageVersion: string
   categories: PublicCategoryLink[]
   primaryCategory: PublicCategoryLink | null
-  related: PublicListingCard[]
+  /**
+   * The other places under this listing: the ones within a kilometre first,
+   * closest first and each carrying its distance, then others in the same
+   * neighbourhood with no distance. Empty when the listing has neither a map
+   * pin nor a neighbourhood.
+   */
+  nearby: PublicListingCard[]
   claim: PublicClaimState
 }
 
@@ -1229,47 +1237,130 @@ export async function readDirectoryMap(
 }
 
 /**
- * Other published listings sharing a category with this one.
+ * The other places to show under a listing, closest first.
  *
- * Same rule as the directory app: anything in one of its categories, itself
- * excluded, in the hand-set order. A listing in no category has no related
- * listings, which is right — there is nothing saying what it is like.
+ * **The pin comes first.** Up to four published listings within
+ * `NEARBY_LISTING_RADIUS_KM` of this one, measured with the same
+ * `distanceKmFrom` the near-me search uses, so "within 1 km" means the same on
+ * a listing page as it does on the browse page. Each one carries its distance.
+ *
+ * **The neighbourhood tops the row up.** Most listings have a street address
+ * and no map pin, and a pinned one out in the suburbs can have nothing within a
+ * kilometre, so the rest of the four are other places in this listing's
+ * neighbourhood. They carry no distance, because there is none to print.
+ * Tyler's call on 1 Oct 2026: the row is always four when the site has four to
+ * give, and the walkable ones are always at the top.
+ *
+ * A listing with no pin and no neighbourhood gets nothing, and the page draws
+ * no row at all.
  */
-async function relatedListings(
+async function nearbyListings(
   siteId: string,
   listingId: string,
-  categoryIds: string[],
+  coordinates: { latitude: number; longitude: number } | null,
+  /** The listing's own neighbourhood category, or empty when it has none. */
+  listingNeighbourhoodId: string,
   featuredFirst: boolean,
   neighbourhoodCategoryId: string,
   database: CustomShellDb
 ): Promise<PublicListingCard[]> {
-  if (categoryIds.length === 0) return []
+  const walkable = coordinates
+    ? await withinWalkingDistance(siteId, listingId, coordinates, database)
+    : []
+  if (walkable.length >= NEARBY_LISTING_COUNT || !listingNeighbourhoodId) {
+    return toCards(siteId, walkable, neighbourhoodCategoryId, database)
+  }
 
-  const siblings = database
+  const topUp = await sameNeighbourhood(
+    siteId,
+    listingId,
+    listingNeighbourhoodId,
+    walkable.map((row) => row.id),
+    NEARBY_LISTING_COUNT - walkable.length,
+    featuredFirst,
+    database
+  )
+  // One list in, one list out, so the cards are built in a single pass and a
+  // place found both ways cannot be printed twice.
+  return toCards(
+    siteId,
+    [...walkable, ...topUp],
+    neighbourhoodCategoryId,
+    database
+  )
+}
+
+/** The pinned part: published listings inside the radius, closest first. */
+async function withinWalkingDistance(
+  siteId: string,
+  listingId: string,
+  coordinates: { latitude: number; longitude: number },
+  database: CustomShellDb
+) {
+  const distanceKm = distanceKmFrom(
+    coordinates,
+    directoryListings.latitude,
+    directoryListings.longitude
+  )
+  return (
+    database
+      .select({ ...cardColumns, distanceKm })
+      .from(directoryListings)
+      .where(
+        and(
+          publishedOnSite(siteId),
+          ne(directoryListings.id, listingId),
+          // A listing with no pin has a null distance, and `null <= 1` is null,
+          // so this one line is also what keeps the unpinned ones out.
+          sql`${distanceKm} <= ${NEARBY_LISTING_RADIUS_KM}`
+        )
+      )
+      // The title breaks a tie. Two places at the same distance would otherwise
+      // swap places every time the page's cache refreshed.
+      .orderBy(sql`${distanceKm} asc`, asc(directoryListings.title))
+      .limit(NEARBY_LISTING_COUNT)
+  )
+}
+
+/**
+ * The top-up: published listings filed under the same neighbourhood, in the
+ * site's own order, with no distance on them.
+ */
+async function sameNeighbourhood(
+  siteId: string,
+  listingId: string,
+  neighbourhoodId: string,
+  alreadyShown: string[],
+  wanted: number,
+  featuredFirst: boolean,
+  database: CustomShellDb
+) {
+  const neighbours = database
     .select({ id: categoryRelationships.contentId })
     .from(categoryRelationships)
     .where(
       and(
         eq(categoryRelationships.workspaceId, siteId),
         eq(categoryRelationships.contentType, LISTING_CONTENT_TYPE),
-        inArray(categoryRelationships.categoryId, categoryIds)
+        eq(categoryRelationships.categoryId, neighbourhoodId)
       )
     )
 
-  const rows = await database
+  return database
     .select(cardColumns)
     .from(directoryListings)
     .where(
       and(
         publishedOnSite(siteId),
         ne(directoryListings.id, listingId),
-        inArray(directoryListings.id, siblings)
+        alreadyShown.length
+          ? notInArray(directoryListings.id, alreadyShown)
+          : undefined,
+        inArray(directoryListings.id, neighbours)
       )
     )
     .orderBy(...orderFor("order", siteId, featuredFirst))
-    .limit(RELATED_LISTING_COUNT)
-
-  return toCards(siteId, rows, neighbourhoodCategoryId, database)
+    .limit(wanted)
 }
 
 /**
@@ -1302,6 +1393,9 @@ async function readPublicListingUncached(
       id: categories.id,
       name: categories.name,
       slug: categories.slug,
+      // Which of these is the listing's neighbourhood, for the row at the
+      // foot of the page. The site names the parent that holds them.
+      parentId: categories.parentId,
       isPrimary: categoryRelationships.isPrimary,
     })
     .from(categoryRelationships)
@@ -1322,6 +1416,22 @@ async function readPublicListingUncached(
     activeFeaturedForListings(site.id, [row.id], database),
     listCustomSections(site.id, database),
   ])
+
+  // The site has to have said which parent holds its neighbourhoods, or no
+  // category counts as one and the row falls back to the pin alone.
+  const listingNeighbourhood = settings.neighbourhoodCategoryId
+    ? (links.find((link) => link.parentId === settings.neighbourhoodCategoryId)
+        ?.id ?? "")
+    : ""
+  const nearby = await nearbyListings(
+    site.id,
+    row.id,
+    coordinates,
+    listingNeighbourhood,
+    settings.featuredFirst,
+    settings.neighbourhoodCategoryId,
+    database
+  )
 
   return {
     site: { name: site.name, url: site.url },
@@ -1363,14 +1473,7 @@ async function readPublicListingUncached(
     primaryCategory: primary
       ? { name: primary.name, slug: primary.slug }
       : null,
-    related: await relatedListings(
-      site.id,
-      row.id,
-      links.map((link) => link.id),
-      settings.featuredFirst,
-      settings.neighbourhoodCategoryId,
-      database
-    ),
+    nearby,
     claim: {
       enabled: settings.claimsEnabled,
       buttonLabel: settings.claimButtonLabel,

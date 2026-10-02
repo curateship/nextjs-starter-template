@@ -30,7 +30,7 @@ page is 1152px at its widest.
 - **The wide column, on the left**, holds the photo gallery, the write-up, the
   fields this site invented, "Deals here" with up to three of the listing's
   live deals, "What's on here" with the next events held at the listing, and
-  the other places nearby. `promotions.md` covers the deals box and
+  "Also nearby". `promotions.md` covers the deals box and
   `events.md` the events box. A listing with no live deal has no deals box and
   no heading.
 - **A listing's card in the directory** carries a small Deal tag with the
@@ -290,13 +290,39 @@ narrowing them take a line.
 - **Categories stay at `/directory/category/<slug>`.** The old site used
   `/categories/<slug>` and the addresses were deliberately not moved.
 
-## Other places nearby
+## "Also nearby" at the foot of a listing
 
-Under a listing, the other places sharing one of its categories are drawn as
-rows — photo, name, description, stars, address, neighbourhood — rather than as
-cards. Somebody at the bottom of a listing is comparing five places, and a row
-fits each fact on one line. The grid of cards stays on the pages where a
-visitor is looking rather than comparing.
+A listing page ends with one row of other places, drawn as rows — photo, name,
+description, stars, address, neighbourhood — rather than as cards. Somebody at
+the bottom of a listing is comparing five places, and a row fits each fact on
+one line. The grid of cards stays on the pages where a visitor is looking
+rather than comparing.
+
+- **The row holds four places and the pin fills it first.** Up to four
+  published listings within 1 km, closest first, each printing its distance:
+  "200 m away", "1.4 km away", or "Nearby" under 100 m. A kilometre is a few
+  minutes' walk, which is the point. Somebody finishing dinner wants a bar they
+  can walk to.
+- **The listing's neighbourhood tops the row up.** Most listings have a street
+  address and no map pin, and a pinned one out in the suburbs can have nothing
+  within a kilometre, so the rest of the four are other places in the same
+  neighbourhood. They print no distance, because there is none to measure.
+- **The heading is "Also nearby" whichever half filled the row.** Tyler's call
+  on 1 Oct 2026: the visitor is never shown the machinery behind it.
+- **A place found both ways is printed once.** The pinned half is read first and
+  the top-up leaves out everything already in it, so the row still reaches four.
+- **A listing with neither a pin nor a neighbourhood gets no row at all**, and
+  neither does a site that has not said which parent category holds its
+  neighbourhoods. `Neighbourhood labels` above says where that setting lives.
+- **The distance is measured the same way the near-me search measures it**, so
+  "within 1 km" means the same here as on the browse page and the Events page.
+- **The row sits inside the listing page's two-minute cache.** Publishing a
+  listing clears that cache for the whole site, so a new neighbour appears on
+  the next read rather than waiting out the two minutes.
+- **There used to be a second row above it, "Related listings", picked by
+  category.** Tyler had it removed on 1 Oct 2026. It could not help a listing
+  filed under nothing, and two rows of other places under one listing was one
+  too many.
 
 ## Where these settings are
 

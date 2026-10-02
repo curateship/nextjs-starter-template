@@ -14,7 +14,7 @@ import { ListingCustomSections } from "@/components/directory/public/listing-cus
 import { ListingEventsBox } from "@/components/directory/public/listing-events"
 import { ListingDealsBox } from "@/components/promotions/public/listing-deals"
 import { ListingSidebar } from "@/components/directory/public/listing-sidebar"
-import { RelatedListings } from "@/components/directory/public/related-listings"
+import { NearbyListings } from "@/components/directory/public/nearby-listings"
 import {
   ListingGallery,
   ListingHoursCard,
@@ -94,7 +94,7 @@ function ListingRoute() {
     listing,
     categories,
     primaryCategory,
-    related,
+    nearby,
     claim,
     whatsOn,
     dealsHere,
@@ -126,7 +126,7 @@ function ListingRoute() {
     listing.customSections.length > 0 ||
     Boolean(whatsOn?.events.length) ||
     Boolean(dealsHere?.length) ||
-    related.length > 0
+    nearby.length > 0
 
   // A listing with none of it — no write-up, no tags, no photos, nothing else
   // like it — is drawn as one column instead of a narrow card beside an empty
@@ -170,7 +170,7 @@ function ListingRoute() {
       <ListingDealsBox deals={dealsHere} />
       <ListingEventsBox whatsOn={whatsOn} listingSlug={listing.slug} />
 
-      <RelatedListings listings={related} />
+      <NearbyListings listings={nearby} />
     </>
   )
 

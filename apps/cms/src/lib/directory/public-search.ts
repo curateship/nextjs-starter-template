@@ -198,8 +198,15 @@ export function formatDirectoryDistance(distanceKm: number | null | undefined) {
   return `${Math.round(distanceKm)} km away`
 }
 
-/** How many "you might also like" listings a detail page shows. */
-export const RELATED_LISTING_COUNT = 3
+/** How many "Also nearby" listings a listing page shows. */
+export const NEARBY_LISTING_COUNT = 4
+
+/**
+ * How far "Also nearby" reaches, in kilometres. A few minutes' walk, which is
+ * the point of the row: somebody finishing dinner wants a bar they can walk
+ * to, not the nearest one in the city.
+ */
+export const NEARBY_LISTING_RADIUS_KM = 1
 
 /**
  * What the search box offers while somebody is still typing.

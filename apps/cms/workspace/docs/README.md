@@ -22,7 +22,8 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   listing are laid out, which card in Settings → Directory holds each page's
   settings, the search band and the filters down the left of the
   browse page, what ticking two boxes means, what a day with two services
-  stores, and where neighbourhood labels come from.
+  stores, where neighbourhood labels come from, and how the "Also nearby" row
+  at the foot of a listing page is filled.
 - `import-eatdrinktoronto.md` — the one-off command that copies one old
   Directory site into one CMS site, and the second command that loads the
   fields it left behind.

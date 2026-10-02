@@ -99,6 +99,24 @@ const browse = (
   options = {}
 ) => readPublicBrowse(site, { sort: "order", page: 1, ...options }, database)
 
+/**
+ * A neighbourhood on a site: the parent the site names as holding them, and one
+ * child under it. The "Also nearby" row tops itself up from this.
+ */
+async function neighbourhoodOn(site: { id: string }) {
+  const parent = await createCategory(
+    site.id,
+    { name: "Neighbourhood" },
+    database
+  )
+  await saveDirectoryNeighbourhoodCategory(site.id, parent.id, database)
+  return createCategory(
+    site.id,
+    { name: "Old town", parentId: parent.id },
+    database
+  )
+}
+
 function measuredDatabase() {
   let queries = 0
   const statements: string[] = []
@@ -475,18 +493,12 @@ describe("a site only shows its own", () => {
     ).toBeNull()
   })
 
-  it("keeps related listings on the same site", async () => {
-    // Both sites have a category at the same address, and a listing in it.
-    const alphaFood = await createCategory(
-      alpha.id,
-      { name: "Food", slug: "food" },
-      database
-    )
-    const betaFood = await createCategory(
-      beta.id,
-      { name: "Food", slug: "food" },
-      database
-    )
+  it("keeps the nearby row on the same site", async () => {
+    // Both sites have a neighbourhood at the same address, and a listing in it.
+    const [alphaHood, betaHood] = await Promise.all([
+      neighbourhoodOn(alpha),
+      neighbourhoodOn(beta),
+    ])
 
     const alphaOne = await publish(alpha, {
       title: "Alpha one",
@@ -498,23 +510,180 @@ describe("a site only shows its own", () => {
     })
     const betaOne = await publish(beta, { title: "Beta one", slug: "beta-one" })
 
-    for (const [site, listing, category] of [
-      [alpha, alphaOne, alphaFood],
-      [alpha, alphaTwo, alphaFood],
-      [beta, betaOne, betaFood],
+    for (const [site, listing, hood] of [
+      [alpha, alphaOne, alphaHood],
+      [alpha, alphaTwo, alphaHood],
+      [beta, betaOne, betaHood],
     ] as const) {
       await setListingCategories(
         site.id,
         listing.id,
-        [category.id],
-        category.id,
+        [hood.id],
+        hood.id,
         database
       )
     }
 
     const page = await readPublicListing(alpha, "alpha-one", {}, database)
 
-    expect(page?.related.map((row) => row.slug)).toEqual(["alpha-two"])
+    expect(page?.nearby.map((row) => row.slug)).toEqual(["alpha-two"])
+  })
+
+  it("puts the places within a kilometre first, closest first, with their distance", async () => {
+    const base = { latitude: 43.653, longitude: -79.383 }
+
+    const here = await publish(alpha, { title: "Here", slug: "here" })
+    const nextDoor = await publish(alpha, {
+      title: "Next door",
+      slug: "next-door",
+    })
+    const shortWalk = await publish(alpha, {
+      title: "Short walk",
+      slug: "short-walk",
+    })
+    const tooFar = await publish(alpha, { title: "Too far", slug: "too-far" })
+    await publish(alpha, { title: "No pin", slug: "no-pin" })
+    const betaHere = await publish(beta, {
+      title: "Beta here",
+      slug: "beta-here",
+    })
+
+    // Degrees of latitude, so the distances are a straight 111 km per degree:
+    // 0.0018 is 200 m, 0.0045 is 500 m, 0.018 is 2 km.
+    for (const [site, listing, offset] of [
+      [alpha, here, 0],
+      [alpha, nextDoor, 0.0018],
+      [alpha, shortWalk, 0.0045],
+      [alpha, tooFar, 0.018],
+      [beta, betaHere, 0],
+    ] as const) {
+      await updateListing(
+        site.id,
+        listing.id,
+        { latitude: base.latitude + offset, longitude: base.longitude },
+        database
+      )
+    }
+
+    const page = await readPublicListing(alpha, "here", {}, database)
+
+    // The 2 km one is out, the unpinned one is out, and so is the other site's.
+    expect(page?.nearby.map((row) => row.slug)).toEqual([
+      "next-door",
+      "short-walk",
+    ])
+    expect(page?.nearby[0]?.distanceKm).toBeCloseTo(0.2, 1)
+    expect(page?.nearby[1]?.distanceKm).toBeCloseTo(0.5, 1)
+  })
+
+  it("tops the row up from the listing's neighbourhood and never repeats a place", async () => {
+    const base = { latitude: 43.653, longitude: -79.383 }
+    const hood = await neighbourhoodOn(alpha)
+
+    const here = await publish(alpha, { title: "Here", slug: "here" })
+    const walkable = await publish(alpha, {
+      title: "Walkable",
+      slug: "walkable",
+    })
+    const acrossTown = await publish(alpha, {
+      title: "Across town",
+      slug: "across-town",
+    })
+    await publish(alpha, { title: "Elsewhere", slug: "elsewhere" })
+
+    for (const [listing, offset] of [
+      [here, 0],
+      [walkable, 0.0018],
+      [acrossTown, 0.18],
+    ] as const) {
+      await updateListing(
+        alpha.id,
+        listing.id,
+        { latitude: base.latitude + offset, longitude: base.longitude },
+        database
+      )
+    }
+
+    // The walkable one is in the neighbourhood too, so the top-up must not
+    // print it a second time.
+    for (const listing of [here, walkable, acrossTown]) {
+      await setListingCategories(
+        alpha.id,
+        listing.id,
+        [hood.id],
+        hood.id,
+        database
+      )
+    }
+
+    const page = await readPublicListing(alpha, "here", {}, database)
+
+    expect(page?.nearby.map((row) => row.slug)).toEqual([
+      "walkable",
+      "across-town",
+    ])
+    expect(page?.nearby[0]?.distanceKm).toBeCloseTo(0.2, 1)
+    // The top-up was found by neighbourhood, not by distance, so it has none.
+    expect(page?.nearby[1]?.distanceKm).toBeUndefined()
+    // "Elsewhere" is in no neighbourhood and has no pin, so it is in neither half.
+    expect(page?.nearby).toHaveLength(2)
+  })
+
+  it("gives no row to a listing with neither a pin nor a neighbourhood", async () => {
+    await publish(alpha, { title: "Alone", slug: "alone" })
+    await publish(alpha, { title: "Somebody else", slug: "somebody-else" })
+
+    const page = await readPublicListing(alpha, "alone", {}, database)
+
+    expect(page?.nearby).toEqual([])
+  })
+
+  it("uses the neighbourhood alone when the listing has no pin", async () => {
+    const hood = await neighbourhoodOn(alpha)
+    const here = await publish(alpha, { title: "Here", slug: "here" })
+    const neighbour = await publish(alpha, {
+      title: "Neighbour",
+      slug: "neighbour",
+    })
+    for (const listing of [here, neighbour]) {
+      await setListingCategories(
+        alpha.id,
+        listing.id,
+        [hood.id],
+        hood.id,
+        database
+      )
+    }
+
+    const page = await readPublicListing(alpha, "here", {}, database)
+
+    expect(page?.nearby.map((row) => row.slug)).toEqual(["neighbour"])
+    expect(page?.nearby[0]?.distanceKm).toBeUndefined()
+  })
+
+  it("rides the listing page's cache and picks up a newly published neighbour", async () => {
+    const base = { latitude: 43.653, longitude: -79.383 }
+    const here = await publish(alpha, { title: "Here", slug: "here" })
+    await updateListing(alpha.id, here.id, base, database)
+
+    const before = await readPublicListing(alpha, "here", {}, database)
+    expect(before?.nearby).toEqual([])
+
+    // Publishing clears this site's public cache, so the next read of the page
+    // is a fresh one rather than the two-minute-old answer.
+    const latecomer = await publish(alpha, {
+      title: "Latecomer",
+      slug: "latecomer",
+    })
+    await updateListing(
+      alpha.id,
+      latecomer.id,
+      { latitude: base.latitude + 0.0018, longitude: base.longitude },
+      database
+    )
+
+    const after = await readPublicListing(alpha, "here", {}, database)
+    expect(after?.nearby.map((row) => row.slug)).toEqual(["latecomer"])
   })
 })
 
