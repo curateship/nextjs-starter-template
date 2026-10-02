@@ -45,7 +45,9 @@ function localTimeFor(timezone: string, timestamp: Date) {
 
 // Productivity totals count completed focus-mode sessions only: breaks never
 // count, and running, paused, or cancelled sessions have not produced focus.
-function completedFocusWithin(userId: string, startsAt: Date, endsBefore: Date) {
+// Exported because the public profile sums the same thing over its own seven
+// days, and two definitions of "a finished focus" would eventually disagree.
+export function completedFocusWithin(userId: string, startsAt: Date, endsBefore: Date) {
   return and(
     eq(focusSessions.userId, userId),
     eq(focusSessions.mode, "focus"),

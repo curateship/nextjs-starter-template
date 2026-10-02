@@ -31,6 +31,10 @@
 export const appOpenEndpoints: Record<string, string> = {
   "pomodoro/rooms.ts:lookupRoomFn":
     "An invite link must say what it points at before sign-in: the lookup answers a status, the room's name and a member count, never member names, emails or ids.",
+  "pomodoro/public-profile.ts:readPublicProfileFn":
+    "A public profile is a page for the open internet, so its read must answer before sign-in. It returns only what that person switched on themselves, carries no user id and no email, and answers null for a handle nobody holds, a profile switched off and a deleted account alike.",
+  "pomodoro/public-profile.ts:readYearInReviewFn":
+    "The year recap at /u/<handle>/<year> is the same public page one year at a time, and it is read by strangers following a shared link. It sums figures its owner already published by switching the figures on, names nobody else and carries no user id.",
 }
 
 /**

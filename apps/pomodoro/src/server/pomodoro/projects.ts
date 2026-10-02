@@ -80,6 +80,31 @@ export async function renameProject(
 }
 
 /**
+ * Whether a project's name and hours may appear on the owner's public
+ * profile. Keyed on the user id as well as the project id, like every other
+ * change here, so a project id from a browser can only ever reach that
+ * person's own row.
+ */
+export async function setProjectPublic(
+  userId: string,
+  projectId: string,
+  isPublic: boolean
+) {
+  const [updated] = await db
+    .update(pomodoroProjects)
+    .set({ isPublic, updatedAt: new Date() })
+    .where(
+      and(
+        eq(pomodoroProjects.id, projectId),
+        eq(pomodoroProjects.userId, userId)
+      )
+    )
+    .returning()
+  if (!updated) throw new Error("PROJECT_NOT_FOUND")
+  return updated
+}
+
+/**
  * Archive or bring back. Bringing back can fail when a new project has taken
  * the name in the meantime, and says so rather than quietly renaming either.
  */

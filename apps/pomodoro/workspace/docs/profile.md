@@ -5,8 +5,11 @@ The product's Settings page (`/settings`, card
 app-level facts about a person, in `pomodoro_profiles` (migration
 `0085_pomodoro_profiles.sql`):
 
-- **Public display name** (up to 50 characters, may be empty) — the only
-  name other users ever see, on the leaderboard and in rooms.
+- **Public display name** (up to 50 characters, may be empty) — the name
+  other people see on the leaderboard, in rooms and on
+  [the public profile](public-profile.md). It used to be the only name
+  anybody ever saw; since the public profile exists, a person with no
+  display name is named by their handle there instead.
 - **Timezone** — an IANA name; an unrecognised one is refused with a plain
   sentence. Every "today" the app computes (goals, streaks, task days, the
   rollover) goes through `userToday` in `src/server/pomodoro/profile.ts`:
@@ -39,3 +42,9 @@ UI rules put help text.
 
 Account name, email, password and deletion stay with the shell's account
 dialog; this tab never duplicates them.
+
+Two more cards sit under this one on the same tab: **Your public page**, which
+is [the public profile](public-profile.md), and the
+[streak badge](streak-badge.md). They are separate cards because they are
+separate decisions. The three fields above are about the account; those two
+are each about one thing published on the open internet.

@@ -15,6 +15,7 @@ import {
   varchar,
 } from "drizzle-orm/pg-core"
 
+import type { PublicSocialLink } from "@/lib/pages/public-social"
 import { customShellMedia, customShellUsers } from "@/server/schema"
 
 /**
@@ -90,6 +91,15 @@ export const pomodoroProjects = pgTable(
       .notNull()
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
     name: varchar("name", { length: 60 }).notNull(),
+    /**
+     * Whether this project's name and hours may appear on the owner's public
+     * profile. Off for every project that exists and every one made from now
+     * on; a project becomes public only because somebody ticked it.
+     *
+     * A project name is often a client's name, so the default is the whole
+     * safety of it. No migration ever turns one on.
+     */
+    isPublic: boolean("is_public").notNull().default(false),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -330,6 +340,60 @@ export const pomodoroProfiles = pgTable(
      * same way.
      */
     streakBadgeToken: varchar("streak_badge_token", { length: 64 }),
+    /**
+     * The one public address for this person, `/u/<handle>`. Null until they
+     * pick one. Always stored lowercase, because a handle is an address and
+     * two addresses differing only in case would be two doors to one page.
+     */
+    handle: varchar("handle", { length: 30 }),
+    /**
+     * Whether `/u/<handle>` answers at all. Off by default, so a handle
+     * reserved today publishes nothing until its owner says so, and switching
+     * it off makes the page 404 exactly as an unknown handle does.
+     */
+    profilePublic: boolean("profile_public").notNull().default(false),
+    /** A few lines about the person. Drawn as text, never as markup. */
+    bio: varchar("bio", { length: 280 }),
+    /**
+     * The person's own social accounts, in the same shape the site-wide
+     * footer setting uses, so `normalizePublicSocialLinks` is the one reader
+     * for both. Re-normalised on the way out as well as in, so a hand-edited
+     * row cannot put a `javascript:` address on a page.
+     */
+    socialLinks: jsonb("social_links")
+      .$type<PublicSocialLink[]>()
+      .notNull()
+      .default([]),
+    /**
+     * The strip behind the name: `scene:<key>` for one of the eight built-in
+     * scenes, `media:<uuid>` for the person's own upload, null for none. The
+     * same spelling `user_preferences.selected_background` uses, parsed by
+     * the same function, so nothing a browser sends can become a URL.
+     */
+    bannerRef: varchar("banner_ref", { length: 80 }),
+    /**
+     * Up to three badge ids drawn larger above the rest. Ids the account has
+     * not earned, and ids that are no longer badges at all, are ignored when
+     * the page is built rather than drawn as a gap.
+     */
+    pinnedBadges: jsonb("pinned_badges")
+      .$type<string[]>()
+      .notNull()
+      .default([]),
+    /**
+     * One switch per publishable section, each off by default. The server
+     * reads a section only when its switch is on, so a section that is off is
+     * never in the page's data for anybody to find in the network tab.
+     *
+     * The bio, the links and the picture have no switch of their own: they
+     * are the profile, and they ride on `profilePublic`.
+     */
+    showFigures: boolean("show_figures").notNull().default(false),
+    showBadges: boolean("show_badges").notNull().default(false),
+    showHeatmap: boolean("show_heatmap").notNull().default(false),
+    showProjects: boolean("show_projects").notNull().default(false),
+    showFocusingNow: boolean("show_focusing_now").notNull().default(false),
+    showRoom: boolean("show_room").notNull().default(false),
     guestImportedAt: timestamp("guest_imported_at", { withTimezone: true }),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
@@ -341,6 +405,17 @@ export const pomodoroProfiles = pgTable(
     uniqueIndex("pomodoro_profiles_streak_badge_token_unique")
       .on(table.streakBadgeToken)
       .where(sql`${table.streakBadgeToken} is not null`),
+    // Same shape, same reason: one handle is one account, and the accounts
+    // with no handle must not all collide on null.
+    uniqueIndex("pomodoro_profiles_handle_unique")
+      .on(table.handle)
+      .where(sql`${table.handle} is not null`),
+    // The database's own last word on the shape, so a handle with a slash or
+    // a NUL byte in it cannot be written even by a hand-run statement.
+    check(
+      "pomodoro_profiles_handle_shape_check",
+      sql`${table.handle} is null or ${table.handle} ~ '^[a-z0-9_-]{3,30}$'`
+    ),
   ]
 )
 

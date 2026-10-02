@@ -3,6 +3,8 @@ import {
   ArchiveIcon,
   ArchiveRestoreIcon,
   CheckIcon,
+  GlobeIcon,
+  LockIcon,
   PlusIcon,
   SettingsIcon,
   XIcon,
@@ -24,6 +26,11 @@ type PomodoroApi = ReturnType<typeof usePomodoro>
  * Archiving is not deleting. An archived project drops out of the task row's
  * picker and keeps every hour it earned in History, and bringing it back is
  * the same button the other way round.
+ *
+ * The globe button is what lets a project's name and hours appear on a
+ * public profile. Every project starts private and only a press here changes
+ * that, because a project name is often a client's name and publishing one
+ * by accident is the kind of mistake that loses somebody work.
  */
 export function ProjectsCard({ pomodoro }: { pomodoro: PomodoroApi }) {
   const { authenticated } = useProductAuth()
@@ -139,6 +146,32 @@ function ProjectRowItem({
       ) : (
         <>
           <span className="flex-1 truncate px-1 text-sm">{project.name}</span>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() =>
+              void pomodoro.setProjectPublic(project.id, !project.isPublic)
+            }
+            // The state is in the icon and in the name of the button, never
+            // in colour alone.
+            aria-pressed={project.isPublic}
+            aria-label={
+              project.isPublic
+                ? `Stop showing ${project.name} on your public profile`
+                : `Show ${project.name} on your public profile`
+            }
+            title={
+              project.isPublic
+                ? "On your public profile"
+                : "Private to you"
+            }
+          >
+            {project.isPublic ? (
+              <GlobeIcon aria-hidden="true" />
+            ) : (
+              <LockIcon aria-hidden="true" className="text-muted-foreground" />
+            )}
+          </Button>
           <Button
             variant="ghost"
             size="icon-sm"

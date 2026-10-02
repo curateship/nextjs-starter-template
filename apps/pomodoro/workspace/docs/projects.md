@@ -66,6 +66,24 @@ history.
 - **Breaks and cancelled timers never count**, the same rule as the rest of
   the report.
 
+## A project can be published, one at a time
+
+The globe button on each project row decides whether that project's name and
+its hours may appear on its owner's [public profile](public-profile.md). The
+lock icon means private, which is what every project is.
+
+- **Every project is private, and only a press changes that.** That covers
+  every project that already existed and every one made from now on. No
+  migration ever turns one on.
+- **It is per project, never a single switch for all of them.** A project name
+  is often a client's name, and publishing one by accident is the kind of
+  mistake that loses somebody work.
+- **Unticking takes it off the page on the next load.** Nothing is deleted;
+  the profile simply stops reading it.
+- **The profile shows the last seven days only**, by project, and only
+  projects that are both ticked and have finished focus in that week. Task
+  titles and session notes never appear there.
+
 ## Where things live
 
 - Rows: `pomodoro_projects`, migration `0094_pomodoro_projects.sql`, which
@@ -81,3 +99,6 @@ history.
   `src/server/pomodoro/focus-report.ts`; the card is `TopProjectsCard` in
   `src/components/pomodoro/history-page.tsx`.
 - The card on `/tasks` is `src/components/pomodoro/projects-card.tsx`.
+- The published tick is `pomodoro_projects.is_public`, added by migration
+  `0101_pomodoro_public_profile.sql` with a default of false, and read by
+  `src/server/pomodoro/public-profile.ts`.
