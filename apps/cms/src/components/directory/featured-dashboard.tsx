@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import type { Category } from "@/lib/api/directory/categories"
 import {
   getFeaturedErrorMessage,
   loadFeaturedAdmin,
@@ -43,6 +44,7 @@ import {
   type FeaturedPlan,
   type FeaturedPlanKind,
 } from "@/lib/api/directory/featured"
+import { categoryTreeOrder } from "@/lib/directory/category-tree"
 import { formatMoney } from "@/lib/format/money"
 import { formatDate } from "@/lib/format/format-time"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
@@ -63,9 +65,12 @@ type Overview = Awaited<ReturnType<typeof loadFeaturedAdmin>>
  */
 export function FeaturedDashboard({
   data,
+  categories,
   search,
 }: {
   data: Overview
+  /** The site's category tree, for the one a plan may name. */
+  categories: Category[]
   search: { q?: string; page?: number; size?: number }
 }) {
   const router = useRouter()
@@ -147,7 +152,7 @@ export function FeaturedDashboard({
               <button type="button" className="block max-w-96 truncate text-left font-medium hover:underline" title={plan.name} onClick={() => setEditing(plan)}>{plan.name}</button>
               {plan.description ? <span className="block max-w-96 truncate text-xs text-muted-foreground" title={plan.description}>{plan.description}</span> : null}
             </TableCell>
-            <TableCell column="meta">{plan.kind === "event" ? "Events" : "Listings"}</TableCell>
+            <TableCell column="meta">{planAudience(plan)}</TableCell>
             <TableCell column="meta">{formatMoney(plan.priceCents, plan.currency)}</TableCell>
             <TableCell column="meta">{planPeriod(plan)}</TableCell>
             <TableCell column="meta"><Badge variant={plan.active ? "secondary" : "outline"}>{plan.active ? "Active" : "Archived"}</Badge></TableCell>
@@ -222,7 +227,7 @@ export function FeaturedDashboard({
         ))}
       </DashboardTable>
 
-      <FeaturedPlanDialog plan={editing} onClose={() => setEditing(undefined)} onSaved={() => void router.invalidate()} />
+      <FeaturedPlanDialog plan={editing} categories={categories} onClose={() => setEditing(undefined)} onSaved={() => void router.invalidate()} />
       <ConfirmDialog
         open={Boolean(deletePlan)}
         onOpenChange={(open) => { if (!open) setDeletePlan(null) }}
@@ -255,17 +260,47 @@ export function FeaturedDashboard({
   )
 }
 
+/**
+ * What the plan sells the top of: the Events page, the whole directory, or
+ * one category with how many spots it has.
+ *
+ * A category plan is always a listing plan, so printing the category name in
+ * place of the word "Listings" loses nothing and saves a column.
+ */
+function planAudience(plan: FeaturedPlan) {
+  if (plan.kind === "event") return "Events"
+  if (!plan.categoryId) return "Listings"
+  if (!plan.categoryName) {
+    // The category was deleted after the plan was made. Nobody can buy this
+    // plan any more, and saying so is the whole point of the row.
+    return <span className="text-muted-foreground">Category deleted</span>
+  }
+  return (
+    <>
+      <span className="block truncate" title={plan.categoryName}>{plan.categoryName}</span>
+      <span className="block text-xs text-muted-foreground">
+        {plan.categorySpots === 1 ? "1 spot" : `${plan.categorySpots} spots`}
+      </span>
+    </>
+  )
+}
+
 /** "30 days", or "Until the event ends" for an event plan. */
 function planPeriod(plan: FeaturedPlan) {
   return plan.durationDays === null ? "Until the event ends" : `${plan.durationDays} days`
 }
 
+/** The Category select's value when a plan sells the whole directory. */
+const WHOLE_DIRECTORY = "all"
+
 function FeaturedPlanDialog({
   plan,
+  categories,
   onClose,
   onSaved,
 }: {
   plan: FeaturedPlan | null | undefined
+  categories: Category[]
   onClose: () => void
   onSaved: () => void
 }) {
@@ -276,6 +311,8 @@ function FeaturedPlanDialog({
   const [currency, setCurrency] = React.useState("usd")
   const [kind, setKind] = React.useState<FeaturedPlanKind>("listing")
   const [days, setDays] = React.useState("")
+  const [categoryId, setCategoryId] = React.useState(WHOLE_DIRECTORY)
+  const [spots, setSpots] = React.useState("3")
   const [priority, setPriority] = React.useState("0")
   const [active, setActive] = React.useState(true)
   const [attempted, setAttempted] = React.useState(false)
@@ -290,6 +327,8 @@ function FeaturedPlanDialog({
     setCurrency(plan?.currency ?? "usd")
     setKind(plan?.kind ?? "listing")
     setDays(plan?.durationDays ? String(plan.durationDays) : "")
+    setCategoryId(plan?.categoryId ?? WHOLE_DIRECTORY)
+    setSpots(plan?.categorySpots ? String(plan.categorySpots) : "3")
     setPriority(plan ? String(plan.priority) : "0")
     setActive(plan?.active ?? true)
     setAttempted(false)
@@ -297,6 +336,11 @@ function FeaturedPlanDialog({
   const dollars = Number(price)
   const duration = Number(days)
   const rank = Number(priority)
+  const places = Number(spots)
+  const treeRows = React.useMemo(
+    () => categoryTreeOrder(categories),
+    [categories]
+  )
   const nameInvalid = !name.trim()
   const priceInvalid =
     !/^\d+(?:\.\d{1,2})?$/.test(price.trim()) ||
@@ -309,10 +353,18 @@ function FeaturedPlanDialog({
     !forEvents && (!Number.isInteger(duration) || duration < 1 || duration > 3650)
   const priorityInvalid =
     !Number.isInteger(rank) || rank < -10_000 || rank > 10_000
+  // An event's spot is the top of the Events page, which has no categories.
+  const chosenCategory = forEvents ? WHOLE_DIRECTORY : categoryId
+  const forOneCategory = chosenCategory !== WHOLE_DIRECTORY
+  const spotsInvalid =
+    forOneCategory &&
+    (!Number.isInteger(places) || places < 1 || places > 100)
   const dirty = open && (
     name !== (plan?.name ?? "") || description !== (plan?.description ?? "") ||
     price !== (plan ? String(plan.priceCents / 100) : "") || currency !== (plan?.currency ?? "usd") ||
     kind !== (plan?.kind ?? "listing") ||
+    categoryId !== (plan?.categoryId ?? WHOLE_DIRECTORY) ||
+    spots !== (plan?.categorySpots ? String(plan.categorySpots) : "3") ||
     days !== (plan?.durationDays ? String(plan.durationDays) : "") || priority !== (plan ? String(plan.priority) : "0") || active !== (plan?.active ?? true)
   )
 
@@ -335,6 +387,36 @@ function FeaturedPlanDialog({
                 </SelectContent>
               </Select>
             </div>
+            {forEvents ? null : (
+              <div className="grid gap-2">
+                <FieldLabel
+                  htmlFor="featured-plan-category"
+                  hint="One category instead of the whole directory. The listing leads that category's page and sorts normally everywhere else."
+                >
+                  Puts the listing at the top of
+                </FieldLabel>
+                <Select value={categoryId} onValueChange={setCategoryId}>
+                  <SelectTrigger id="featured-plan-category" className="w-full sm:w-fit"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={WHOLE_DIRECTORY}>The whole directory</SelectItem>
+                    {treeRows.map(({ category, depth }) => (
+                      <SelectItem key={category.id} value={category.id}>
+                        {/* The tree read as a flat list otherwise, and a site
+                            with the same word under two parents would offer
+                            two rows that look identical. */}
+                        {"\u00a0".repeat(depth * 2)}
+                        {category.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {categories.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    This site has no categories yet. Create them on the Categories screen and they appear here.
+                  </p>
+                ) : null}
+              </div>
+            )}
             <div className="grid gap-2"><div className="flex items-center justify-between gap-2"><FieldLabel htmlFor="featured-plan-name">Name</FieldLabel><CharacterCount value={name} max={120} /></div><Input id="featured-plan-name" maxLength={120} aria-invalid={attempted && nameInvalid} value={name} onChange={(event) => setName(event.target.value)} /></div>
             <div className="grid gap-2"><div className="flex items-center justify-between gap-2"><FieldLabel htmlFor="featured-plan-description">Description</FieldLabel><CharacterCount value={description} max={500} /></div><Textarea id="featured-plan-description" rows={1} maxLength={500} value={description} onChange={(event) => setDescription(event.target.value)} /></div>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -343,6 +425,7 @@ function FeaturedPlanDialog({
               {forEvents ? null : <>
                 <div className="grid gap-2"><FieldLabel htmlFor="featured-plan-days">Days</FieldLabel><Input id="featured-plan-days" inputMode="numeric" aria-invalid={attempted && daysInvalid} value={days} onChange={(event) => setDays(event.target.value)} /></div>
                 <div className="grid gap-2"><FieldLabel htmlFor="featured-plan-priority" hint="Higher plans appear before lower plans.">Priority</FieldLabel><Input id="featured-plan-priority" inputMode="numeric" aria-invalid={attempted && priorityInvalid} value={priority} onChange={(event) => setPriority(event.target.value)} /></div>
+                {forOneCategory ? <div className="grid gap-2"><FieldLabel htmlFor="featured-plan-spots" hint="How many listings can hold a paid spot on that category's page at once. First come, first served.">Spots</FieldLabel><Input id="featured-plan-spots" inputMode="numeric" aria-invalid={attempted && spotsInvalid} value={spots} onChange={(event) => setSpots(event.target.value)} /></div> : null}
               </>}
             </div>
             {forEvents ? <p className="text-sm text-muted-foreground">An event's spot starts when the owner pays and ends when the event ends. Featured events sit soonest first among themselves.</p> : null}
@@ -353,8 +436,8 @@ function FeaturedPlanDialog({
           <Button type="button" variant="outline" disabled={busy} onClick={requestClose}>Cancel</Button>
           <Button type="button" disabled={busy} onClick={() => void run(async () => {
             setAttempted(true)
-            if (nameInvalid || priceInvalid || currencyInvalid || daysInvalid || priorityInvalid) {
-              throw new Error("Check the name, price, days, and priority.")
+            if (nameInvalid || priceInvalid || currencyInvalid || daysInvalid || priorityInvalid || spotsInvalid) {
+              throw new Error("Check the name, price, days, priority, and spots.")
             }
             await saveFeaturedPlanAction({
               id: plan?.id,
@@ -364,6 +447,8 @@ function FeaturedPlanDialog({
               priceCents: Math.round(dollars * 100),
               currency,
               durationDays: forEvents ? null : duration,
+              categoryId: forOneCategory ? chosenCategory : null,
+              categorySpots: forOneCategory ? places : null,
               priority: forEvents ? 0 : rank,
               active,
             })

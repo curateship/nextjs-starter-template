@@ -542,12 +542,19 @@ export async function readDirectorySuggestions(
 function orderFor(
   sort: DirectorySort,
   workspaceId: string,
-  featuredFirst: boolean
+  featuredFirst: boolean,
+  /** The category page being drawn, or null on every other page. */
+  featuredCategoryId: string | null = null
 ) {
   // When this site asks for it, paid placement leads whatever ordinary order
   // the visitor chooses. Expired placement immediately falls back to the
   // ordinary order below without a cleanup job.
-  const featured = featuredFirst ? [desc(featuredPriorityFor(workspaceId))] : []
+  //
+  // A spot bought in one category only leads that category's page. Everywhere
+  // else it is not in this sum at all, so the listing sorts on its own merits.
+  const featured = featuredFirst
+    ? [desc(featuredPriorityFor(workspaceId, featuredCategoryId))]
+    : []
   // The id breaks every tie, so a page boundary cannot land mid-tie and show
   // the same listing twice or skip one.
   switch (sort) {
@@ -657,7 +664,13 @@ async function toCards<
   rows: Row[],
   /** Which parent category names a neighbourhood here, or empty for none. */
   neighbourhoodCategoryId: string,
-  database: CustomShellDb
+  database: CustomShellDb,
+  /**
+   * The category page these cards are on, or null everywhere else. The badge
+   * has to agree with the order: a spot bought in one category badges that
+   * category's page and no other.
+   */
+  featuredScope: { categoryId: string | null } = { categoryId: null }
 ): Promise<(Omit<Row, "contactLinks"> & PublicListingCard)[]> {
   const ids = rows.map((row) => row.id)
   // Both for the whole page at once. One query each rather than one per card:
@@ -665,7 +678,7 @@ async function toCards<
   const [{ shownUnder, neighbourhood }, claimed, featured] = await Promise.all([
     categoryForCards(siteId, ids, neighbourhoodCategoryId, database),
     claimedListingIds(siteId, ids, database),
-    activeFeaturedForListings(siteId, ids, database),
+    activeFeaturedForListings(siteId, ids, database, featuredScope),
   ])
   // The stored links never travel to a card. Only the address line does, and
   // only through the cleaner.
@@ -850,6 +863,12 @@ type BrowseQuery = {
   minRating?: number
   sort: DirectorySort
   featuredFirst: boolean
+  /**
+   * The category whose page this is. A spot bought in that category leads the
+   * page and earns the badge here; on every other page it does neither. Only
+   * the category page sets it.
+   */
+  featuredCategoryId?: string
   near?: DirectoryNearPoint
   radius?: number
 }
@@ -915,7 +934,8 @@ function browseQuery(
   const ordinaryOrder = orderFor(
     options.sort === "distance" ? "order" : options.sort,
     siteId,
-    options.featuredFirst
+    options.featuredFirst,
+    options.featuredCategoryId ?? null
   )
   const ordered =
     options.sort === "distance" && distanceKm
@@ -971,7 +991,8 @@ async function listingPage(
       siteId,
       cardRows,
       options.neighbourhoodCategoryId,
-      database
+      database,
+      { categoryId: options.featuredCategoryId ?? null }
     ),
     total: total ?? 0,
     page,
@@ -1413,7 +1434,9 @@ async function readPublicListingUncached(
 
   const [settings, featured, sections] = await Promise.all([
     directorySettingsFor(site.id, database),
-    activeFeaturedForListings(site.id, [row.id], database),
+    activeFeaturedForListings(site.id, [row.id], database, {
+      categoryId: null,
+    }),
     listCustomSections(site.id, database),
   ])
 
@@ -1573,6 +1596,10 @@ async function readPublicCategoryUncached(
         page: options.page,
         pageSize: settings.pageSize,
         featuredFirst: settings.featuredFirst,
+        // The one page where a spot bought in this category counts. It leads
+        // the page and wears the badge; on the browse page and on every other
+        // category it sorts like anything else.
+        featuredCategoryId: category.id,
         neighbourhoodCategoryId: settings.neighbourhoodCategoryId,
       },
       database

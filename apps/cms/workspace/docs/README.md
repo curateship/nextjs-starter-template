@@ -10,6 +10,9 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   and the database and worker commands needed after an update.
 - `directory-saves-featured-outreach.md` — saved collections, featured
   placement, owner card status, and the outreach that goes with them.
+- `featured-spot-in-one-category.md` — the cheaper featured plan that sells the
+  top of one category page, its spot limit, and how the last spot is held when
+  two people buy at once.
 - `submission-review-email.md` — what an admin is told after approving or
   rejecting a submission, and why a failed email never undoes the decision.
 - `embeddable-listing-badge.md` — the badge a listing owner can put on another
