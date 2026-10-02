@@ -2,6 +2,8 @@ import * as React from "react"
 import { getRouteApi } from "@tanstack/react-router"
 import {
   CheckIcon,
+  EyeIcon,
+  EyeOffIcon,
   FlagIcon,
   Loader2Icon,
   RotateCcwIcon,
@@ -32,6 +34,7 @@ import {
 import {
   getPomodoroAdminErrorMessage,
   listPomodoroReports,
+  hidePomodoroProfiles,
   reviewPomodoroReports,
   type AdminReportRow,
 } from "@/lib/api/pomodoro/admin"
@@ -222,6 +225,52 @@ export function AdminReportsDashboard({
     () => rowIds.filter((id) => selection.selected.has(id)),
     [rowIds, selection.selected]
   )
+  // Hiding means nothing for a message report, so the buttons appear only
+  // when the ticked rows actually include a profile.
+  const selectedProfileIds = React.useMemo(
+    () =>
+      list.rows
+        .filter(
+          (row) => row.kind === "profile" && selection.selected.has(row.id)
+        )
+        .map((row) => row.id),
+    [list.rows, selection.selected]
+  )
+
+  /**
+   * Hide or restore the profiles behind the ticked reports.
+   *
+   * Hiding is about the profile rather than the report, so it leaves the
+   * report's own standing alone: an operator still resolves or dismisses it
+   * afterwards, exactly as they would a message.
+   */
+  const hide = React.useCallback(
+    async (reportIds: string[], hidden: boolean) => {
+      setPending({ rowId: null, decision: "resolved" })
+      try {
+        const { changed, skipped } = await hidePomodoroProfiles(
+          reportIds,
+          hidden
+        )
+        toast.success(
+          describeBulkResult({
+            done: changed.length,
+            kept: skipped.length,
+            one: "profile",
+            many: "profiles",
+            verb: hidden ? "hidden" : "restored",
+          })
+        )
+        clearSelection()
+        await refresh()
+      } catch (error) {
+        showErrorToast(getPomodoroAdminErrorMessage(error))
+      } finally {
+        setPending(null)
+      }
+    },
+    [clearSelection, refresh]
+  )
 
   return (
     <AdminListTable
@@ -268,6 +317,30 @@ export function AdminReportsDashboard({
                 pending={pending}
                 onClick={() => void decide(selectedIds, "pending", "toolbar")}
               />
+              {/* Hiding is the one power an operator has over a profile, and
+                  it means nothing for a message report. */}
+              {selectedProfileIds.length ? (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={Boolean(pending)}
+                    onClick={() => void hide(selectedProfileIds, true)}
+                  >
+                    <EyeOffIcon className="size-4" aria-hidden="true" />
+                    Hide {selectedProfileIds.length}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={Boolean(pending)}
+                    onClick={() => void hide(selectedProfileIds, false)}
+                  >
+                    <EyeIcon className="size-4" aria-hidden="true" />
+                    Unhide
+                  </Button>
+                </>
+              ) : null}
             </>
           ) : null}
           <DashboardToolbarSearch
@@ -304,12 +377,19 @@ export function AdminReportsDashboard({
           <AdminSelectCell
             selection={selection}
             id={row.id}
-            label={`Select the report about ${row.roomName}`}
+            label={`Select the report about ${reportSubject(row)}`}
           />
           <TableCell column="meta" className="max-w-44">
-            <span className="block truncate" title={row.roomName}>
-              {row.roomName}
+            {/* A message report names its room; a profile report names the
+                address an operator would open. */}
+            <span className="block truncate" title={reportSubject(row)}>
+              {reportSubject(row)}
             </span>
+            {row.kind === "profile" && row.reportedHiddenAt ? (
+              <span className="block text-xs text-muted-foreground">
+                hidden
+              </span>
+            ) : null}
           </TableCell>
           <TableCell column="main">
             <div className="min-w-0">
@@ -320,8 +400,13 @@ export function AdminReportsDashboard({
             </div>
           </TableCell>
           <TableCell column="meta" className="max-w-56">
-            <span className="block truncate" title={row.reporterEmail}>
-              {row.reporterName}
+            {/* A profile report can come from a reader with no account at
+                all, which is the point of it being open. */}
+            <span
+              className="block truncate"
+              title={row.reporterEmail ?? "No account"}
+            >
+              {row.reporterName ?? "Signed-out reader"}
             </span>
           </TableCell>
           <TableCell column="meta">
@@ -388,6 +473,21 @@ export function AdminReportsDashboard({
  * message still standing, one the host deleted, and one whose row is gone
  * because the room was deleted.
  */
+/**
+ * What one report is about, in something an operator can scan.
+ *
+ * A message report is about a room; a profile report is about a person, named
+ * by their handle so it matches the address an operator would open to look.
+ */
+function reportSubject(row: AdminReportRow) {
+  if (row.kind === "profile") {
+    return row.reportedHandle
+      ? `/u/${row.reportedHandle}`
+      : (row.reportedName ?? "A profile")
+  }
+  return row.roomName ?? "A room"
+}
+
 function ReportedMessage({ row }: { row: AdminReportRow }) {
   if (!row.messageBody) {
     return (

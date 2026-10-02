@@ -210,6 +210,14 @@ export type PublicProfileView = {
   room: { slug: string; name: string; phase: string } | null
   /** Years with a recap page, newest first. Empty when the figures are off. */
   recapYears: number[]
+  /** How many people follow them, and how many they follow. */
+  followers: number
+  following: number
+  /**
+   * True when the reader is looking at their own page. Nobody follows,
+   * cheers, reports or blocks themselves, so the actions row is not drawn.
+   */
+  isOwner: boolean
 }
 
 export type YearInReviewView = {

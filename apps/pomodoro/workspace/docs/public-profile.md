@@ -10,6 +10,9 @@ Everything on the page is published because its owner pressed a switch. There
 is no part of it that is on by default, and an account that has never opened
 the card publishes nothing at all.
 
+A profile can also be [found](following.md), [followed](following.md), and
+[reported or blocked](reporting-and-blocking.md).
+
 ## The address
 
 A handle is 3 to 30 characters: lowercase letters, digits, hyphens and
@@ -17,12 +20,14 @@ underscores, and nothing else. It is stored lowercase, because a handle is an
 address and `/u/Sarah` and `/u/sarah` must not be two different pages. Typing
 it in capitals still finds the page.
 
-Four things answer 404, and they answer it identically:
+Five things answer 404, and they answer it identically:
 
 - a handle nobody holds
 - a profile whose switch is off
 - an account that has been deleted
 - an address that is not even handle-shaped
+- a profile an operator hid, or one belonging to somebody you have blocked
+  (or who has blocked you)
 
 Nobody can tell from the response which of the four it was. That is the same
 rule [the streak badge](streak-badge.md) follows, and it is why the shape is

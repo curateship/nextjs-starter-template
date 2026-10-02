@@ -41,6 +41,7 @@ import { Route as PomodoroSettingsRouteImport } from './routes/_pomodoro/setting
 import { Route as PomodoroSoundsRouteImport } from './routes/_pomodoro/sounds'
 import { Route as PomodoroTasksRouteImport } from './routes/_pomodoro/tasks'
 import { Route as PomodoroTimerRouteImport } from './routes/_pomodoro/timer'
+import { Route as PomodoroUsersRouteImport } from './routes/_pomodoro/users'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedAdminAiRouteImport } from './routes/_authenticated/admin/ai'
@@ -76,6 +77,7 @@ import { Route as PomodoroUHandleRouteImport } from './routes/_pomodoro/u.$handl
 import { Route as ApiAuthGoogleRouteImport } from './routes/api/auth/google'
 import { Route as ApiWebhooksResendRouteImport } from './routes/api/webhooks/resend'
 import { Route as ApiWebhooksStripeRouteImport } from './routes/api/webhooks/stripe'
+import { Route as BadgeProfileHandleRouteImport } from './routes/badge.profile.$handle'
 import { Route as BadgeStreakTokenRouteImport } from './routes/badge.streak.$token'
 import { Route as AuthenticatedAccountBillingSuccessRouteImport } from './routes/_authenticated/account/billing_.success'
 import { Route as AuthenticatedAdminAutomationsAutomationIdRouteImport } from './routes/_authenticated/admin/automations_.$automationId'
@@ -249,6 +251,11 @@ const PomodoroTasksRoute = PomodoroTasksRouteImport.update({
 const PomodoroTimerRoute = PomodoroTimerRouteImport.update({
   id: '/timer',
   path: '/timer',
+  getParentRoute: () => PomodoroRoute,
+} as any)
+const PomodoroUsersRoute = PomodoroUsersRouteImport.update({
+  id: '/users',
+  path: '/users',
   getParentRoute: () => PomodoroRoute,
 } as any)
 const ApiHealthRoute = ApiHealthRouteImport.update({
@@ -449,6 +456,11 @@ const ApiWebhooksStripeRoute = ApiWebhooksStripeRouteImport.update({
   path: '/api/webhooks/stripe',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BadgeProfileHandleRoute = BadgeProfileHandleRouteImport.update({
+  id: '/badge/profile/$handle',
+  path: '/badge/profile/$handle',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const BadgeStreakTokenRoute = BadgeStreakTokenRouteImport.update({
   id: '/badge/streak/$token',
   path: '/badge/streak/$token',
@@ -570,6 +582,7 @@ export interface FileRoutesByFullPath {
   '/sounds': typeof PomodoroSoundsRoute
   '/tasks': typeof PomodoroTasksRoute
   '/timer': typeof PomodoroTimerRoute
+  '/users': typeof PomodoroUsersRoute
   '/api/health': typeof ApiHealthRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
@@ -603,6 +616,7 @@ export interface FileRoutesByFullPath {
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
+  '/badge/profile/$handle': typeof BadgeProfileHandleRoute
   '/badge/streak/$token': typeof BadgeStreakTokenRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/changelog/': typeof AuthenticatedChangelogIndexRoute
@@ -651,6 +665,7 @@ export interface FileRoutesByTo {
   '/sounds': typeof PomodoroSoundsRoute
   '/tasks': typeof PomodoroTasksRoute
   '/timer': typeof PomodoroTimerRoute
+  '/users': typeof PomodoroUsersRoute
   '/api/health': typeof ApiHealthRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
@@ -684,6 +699,7 @@ export interface FileRoutesByTo {
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
+  '/badge/profile/$handle': typeof BadgeProfileHandleRoute
   '/badge/streak/$token': typeof BadgeStreakTokenRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/changelog': typeof AuthenticatedChangelogIndexRoute
@@ -737,6 +753,7 @@ export interface FileRoutesById {
   '/_pomodoro/sounds': typeof PomodoroSoundsRoute
   '/_pomodoro/tasks': typeof PomodoroTasksRoute
   '/_pomodoro/timer': typeof PomodoroTimerRoute
+  '/_pomodoro/users': typeof PomodoroUsersRoute
   '/api/health': typeof ApiHealthRoute
   '/_authenticated/admin/ai': typeof AuthenticatedAdminAiRoute
   '/_authenticated/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
@@ -770,6 +787,7 @@ export interface FileRoutesById {
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
+  '/badge/profile/$handle': typeof BadgeProfileHandleRoute
   '/badge/streak/$token': typeof BadgeStreakTokenRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/changelog/': typeof AuthenticatedChangelogIndexRoute
@@ -822,6 +840,7 @@ export interface FileRouteTypes {
     | '/sounds'
     | '/tasks'
     | '/timer'
+    | '/users'
     | '/api/health'
     | '/admin/ai'
     | '/admin/ai-usage'
@@ -855,6 +874,7 @@ export interface FileRouteTypes {
     | '/api/auth/google'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
+    | '/badge/profile/$handle'
     | '/badge/streak/$token'
     | '/admin/'
     | '/changelog/'
@@ -903,6 +923,7 @@ export interface FileRouteTypes {
     | '/sounds'
     | '/tasks'
     | '/timer'
+    | '/users'
     | '/api/health'
     | '/admin/ai'
     | '/admin/ai-usage'
@@ -936,6 +957,7 @@ export interface FileRouteTypes {
     | '/api/auth/google'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
+    | '/badge/profile/$handle'
     | '/badge/streak/$token'
     | '/admin'
     | '/changelog'
@@ -988,6 +1010,7 @@ export interface FileRouteTypes {
     | '/_pomodoro/sounds'
     | '/_pomodoro/tasks'
     | '/_pomodoro/timer'
+    | '/_pomodoro/users'
     | '/api/health'
     | '/_authenticated/admin/ai'
     | '/_authenticated/admin/ai-usage'
@@ -1021,6 +1044,7 @@ export interface FileRouteTypes {
     | '/api/auth/google'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
+    | '/badge/profile/$handle'
     | '/badge/streak/$token'
     | '/_authenticated/admin/'
     | '/_authenticated/changelog/'
@@ -1065,6 +1089,7 @@ export interface RootRouteChildren {
   ApiAuthGoogleRoute: typeof ApiAuthGoogleRoute
   ApiWebhooksResendRoute: typeof ApiWebhooksResendRoute
   ApiWebhooksStripeRoute: typeof ApiWebhooksStripeRoute
+  BadgeProfileHandleRoute: typeof BadgeProfileHandleRoute
   BadgeStreakTokenRoute: typeof BadgeStreakTokenRoute
   ApiAuthGoogleCallbackRoute: typeof ApiAuthGoogleCallbackRoute
   ApiV1MediaResizedRoute: typeof ApiV1MediaResizedRoute
@@ -1298,6 +1323,13 @@ declare module '@tanstack/react-router' {
       path: '/timer'
       fullPath: '/timer'
       preLoaderRoute: typeof PomodoroTimerRouteImport
+      parentRoute: typeof PomodoroRoute
+    }
+    '/_pomodoro/users': {
+      id: '/_pomodoro/users'
+      path: '/users'
+      fullPath: '/users'
+      preLoaderRoute: typeof PomodoroUsersRouteImport
       parentRoute: typeof PomodoroRoute
     }
     '/api/health': {
@@ -1543,6 +1575,13 @@ declare module '@tanstack/react-router' {
       path: '/api/webhooks/stripe'
       fullPath: '/api/webhooks/stripe'
       preLoaderRoute: typeof ApiWebhooksStripeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/badge/profile/$handle': {
+      id: '/badge/profile/$handle'
+      path: '/badge/profile/$handle'
+      fullPath: '/badge/profile/$handle'
+      preLoaderRoute: typeof BadgeProfileHandleRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/badge/streak/$token': {
@@ -1811,6 +1850,7 @@ interface PomodoroRouteChildren {
   PomodoroSoundsRoute: typeof PomodoroSoundsRoute
   PomodoroTasksRoute: typeof PomodoroTasksRoute
   PomodoroTimerRoute: typeof PomodoroTimerRoute
+  PomodoroUsersRoute: typeof PomodoroUsersRoute
   PomodoroRoomsSlugRoute: typeof PomodoroRoomsSlugRoute
   PomodoroUHandleRoute: typeof PomodoroUHandleRoute
   PomodoroGroupsJoinTokenRoute: typeof PomodoroGroupsJoinTokenRoute
@@ -1826,6 +1866,7 @@ const PomodoroRouteChildren: PomodoroRouteChildren = {
   PomodoroSoundsRoute: PomodoroSoundsRoute,
   PomodoroTasksRoute: PomodoroTasksRoute,
   PomodoroTimerRoute: PomodoroTimerRoute,
+  PomodoroUsersRoute: PomodoroUsersRoute,
   PomodoroRoomsSlugRoute: PomodoroRoomsSlugRoute,
   PomodoroUHandleRoute: PomodoroUHandleRoute,
   PomodoroGroupsJoinTokenRoute: PomodoroGroupsJoinTokenRoute,
@@ -1860,6 +1901,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthGoogleRoute: ApiAuthGoogleRoute,
   ApiWebhooksResendRoute: ApiWebhooksResendRoute,
   ApiWebhooksStripeRoute: ApiWebhooksStripeRoute,
+  BadgeProfileHandleRoute: BadgeProfileHandleRoute,
   BadgeStreakTokenRoute: BadgeStreakTokenRoute,
   ApiAuthGoogleCallbackRoute: ApiAuthGoogleCallbackRoute,
   ApiV1MediaResizedRoute: ApiV1MediaResizedRoute,

@@ -323,6 +323,111 @@ export const pomodoroAchievements = pgTable(
   ]
 )
 
+/**
+ * One account blocking another, in one direction.
+ *
+ * A block is checked by `isBlockedBetween` in `@/server/pomodoro/blocks`, and
+ * by nothing else. Every list of people in this app calls that one function,
+ * because a block that holds on the profile page and leaks through the
+ * leaderboard is four separate bugs rather than one.
+ *
+ * There is no cap. Tyler's call, 2 Oct 2026: a block is self-protection and
+ * refusing one has a real cost to the person being harassed.
+ */
+export const pomodoroBlocks = pgTable(
+  "pomodoro_blocks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    blockerUserId: varchar("blocker_user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    blockedUserId: varchar("blocked_user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    // Blocking twice is the same block, decided by the index rather than by a
+    // read-then-write that two tabs could both pass.
+    uniqueIndex("pomodoro_blocks_pair_unique").on(
+      table.blockerUserId,
+      table.blockedUserId
+    ),
+    index("pomodoro_blocks_blocked_idx").on(table.blockedUserId),
+  ]
+)
+
+/**
+ * A one-way follow. No invite, no approval, and nothing for the followed
+ * person to accept.
+ *
+ * Capped at 200 followed accounts. Tyler's call, 2 Oct 2026: far above what
+ * anybody reaches in normal use, and low enough that one account cannot
+ * follow every member to scrape the list.
+ */
+export const pomodoroFollows = pgTable(
+  "pomodoro_follows",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    followerUserId: varchar("follower_user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    followedUserId: varchar("followed_user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    // What makes a double-pressed Follow one row, the way the achievements
+    // index makes a twice-earned badge one row.
+    uniqueIndex("pomodoro_follows_pair_unique").on(
+      table.followerUserId,
+      table.followedUserId
+    ),
+    index("pomodoro_follows_followed_idx").on(table.followedUserId),
+    check(
+      "pomodoro_follows_not_self_check",
+      sql`${table.followerUserId} <> ${table.followedUserId}`
+    ),
+  ]
+)
+
+/**
+ * One cheer: a canned line sent to somebody you follow.
+ *
+ * The row exists to count the daily cap per pair, and to be the thing an
+ * operator could look at if this were ever abused. Nothing here is typed by
+ * anybody, so there is no text to moderate.
+ */
+export const pomodoroCheers = pgTable(
+  "pomodoro_cheers",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    fromUserId: varchar("from_user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    toUserId: varchar("to_user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    /** One of the fixed ids in `@/lib/pomodoro/cheers`, never free text. */
+    cheerId: varchar("cheer_id", { length: 40 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("pomodoro_cheers_pair_created_idx").on(
+      table.fromUserId,
+      table.toUserId,
+      table.createdAt
+    ),
+  ]
+)
+
 export const pomodoroProfiles = pgTable(
   "pomodoro_profiles",
   {
@@ -394,6 +499,26 @@ export const pomodoroProfiles = pgTable(
     showProjects: boolean("show_projects").notNull().default(false),
     showFocusingNow: boolean("show_focusing_now").notNull().default(false),
     showRoom: boolean("show_room").notNull().default(false),
+    /**
+     * Whether this profile appears on `/people`. A second switch on top of
+     * `profilePublic`, because "I want a page" and "I want to be in a
+     * directory" are different wishes — the same reasoning that keeps the
+     * group board and the global board apart.
+     */
+    listed: boolean("listed").notNull().default(false),
+    /**
+     * Whether this person accepts cheers. On by default, because a cheer is
+     * one of a fixed set of canned lines from somebody they already allow to
+     * follow them, and off is one press away.
+     */
+    cheersEnabled: boolean("cheers_enabled").notNull().default(true),
+    /**
+     * Set when an operator hides a reported profile. The public read tests
+     * it, so a hidden profile answers 404 exactly as a switched-off one does,
+     * and the owner is told on their own Settings card rather than left
+     * thinking the app broke.
+     */
+    hiddenAt: timestamp("hidden_at", { withTimezone: true }),
     guestImportedAt: timestamp("guest_imported_at", { withTimezone: true }),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
@@ -736,12 +861,30 @@ export const roomReports = pgTable(
   "room_reports",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    roomId: uuid("room_id")
-      .notNull()
-      .references(() => rooms.id, { onDelete: "cascade" }),
-    reporterUserId: varchar("reporter_user_id", { length: 36 })
-      .notNull()
-      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    /**
+     * What is being reported. `message` is a room message, which is every row
+     * written before public profiles existed and the reason this column
+     * defaults to it.
+     */
+    kind: varchar("kind", { length: 20 }).notNull().default("message"),
+    /** Null on a profile report, which belongs to no room. */
+    roomId: uuid("room_id").references(() => rooms.id, {
+      onDelete: "cascade",
+    }),
+    /**
+     * Null when a signed-out reader reported a public profile. The page is
+     * public and most of its readers have no account, so a report that
+     * required one would mostly not be filed.
+     */
+    reporterUserId: varchar("reporter_user_id", { length: 36 }).references(
+      () => customShellUsers.id,
+      { onDelete: "cascade" }
+    ),
+    /** Whose profile was reported. Null on a message report. */
+    profileUserId: varchar("profile_user_id", { length: 36 }).references(
+      () => customShellUsers.id,
+      { onDelete: "cascade" }
+    ),
     messageId: uuid("message_id").references(() => roomMessages.id, {
       onDelete: "set null",
     }),

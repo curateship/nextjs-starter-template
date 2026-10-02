@@ -8,6 +8,7 @@ import {
   readFocusHoursRow,
   readOpenRoomsRow,
 } from "@/server/pomodoro/front-page-rows"
+import { listedProfilePaths } from "@/server/pomodoro/public-profile"
 
 /**
  * What this app changes about the shell, on the server side.
@@ -44,6 +45,22 @@ export const appServerOptions: AppServerOptions = {
       "focus-hours": readFocusHoursRow,
       "open-rooms": readOpenRoomsRow,
     },
+  },
+  sitemap: {
+    /**
+     * The public profiles that asked to be found, and the directory page
+     * itself.
+     *
+     * **Only listed profiles.** A profile switched on but not listed stays
+     * reachable by its address and out of search results, which is the whole
+     * reason the listing is a second switch rather than part of the first.
+     * Somebody who wanted a page to point at from their own bio did not
+     * thereby ask to be indexed.
+     */
+    extraEntries: async () => [
+      { path: "/users" },
+      ...(await listedProfilePaths()),
+    ],
   },
   background: {
     workers: [

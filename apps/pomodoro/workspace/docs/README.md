@@ -36,6 +36,11 @@ cover this one.
 - [The public profile](public-profile.md) — the page at `/u/<handle>`, the
   switch per section, the handle rules and what a stranger can and cannot
   see.
+- [Following, cheering and finding people](following.md) — the follow, the
+  Following board, the cheer, and the four ways somebody finds a profile.
+- [Reporting and blocking](reporting-and-blocking.md) — the Report button on
+  a public profile, what an operator can do about it, and the block that
+  holds everywhere.
 - [Streak badge](streak-badge.md) — the opt-in image you can embed on a blog,
   the secret address that serves it, and what revoking does.
 - [Sounds](sounds.md) — the eight ambient loops, the header player that

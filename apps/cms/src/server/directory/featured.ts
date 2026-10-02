@@ -30,11 +30,14 @@ import { db, type CustomShellDb } from "@/server/db"
 import { sendDirectoryEmail } from "@/server/directory/mail"
 import { clearPublicDirectoryCache } from "@/server/directory/public-cache"
 import {
+  categories,
+  categoryRelationships,
   directoryClaims,
   directoryFeaturedCheckouts,
   directoryFeaturedEntitlements,
   directoryFeaturedPlans,
   directoryListings,
+  LISTING_CONTENT_TYPE,
 } from "@/server/directory/schema"
 import { siteTimeZone } from "@/server/directory/settings"
 import { eventSubmissions, siteEvents } from "@/server/events/schema"
@@ -83,6 +86,9 @@ function featuredCheckoutMetadata(reservation: FeaturedCheckoutReservation) {
     ...(reservation.durationDays === null
       ? {}
       : { durationDays: String(reservation.durationDays) }),
+    // Only on a category spot. Left out entirely for a whole-directory one,
+    // so an older session with no key at all still reads as whole-directory.
+    ...(reservation.categoryId ? { categoryId: reservation.categoryId } : {}),
   }
 }
 
@@ -131,8 +137,27 @@ export type FeaturedPlan = {
   currency: string
   /** A listing plan's days. Null on an event plan, which lasts until the event ends. */
   durationDays: number | null
+  /** The one category this plan sells the top of, or null for the whole directory. */
+  categoryId: string | null
+  /**
+   * That category's name, or null when the plan has no category. Also null
+   * when the category has been deleted, which is how a plan nobody can buy
+   * any more is told apart from a whole-directory plan.
+   */
+  categoryName: string | null
+  /** How many spots the category sells at once. Null when there is no category. */
+  categorySpots: number | null
   priority: number
   active: boolean
+}
+
+/** A plan as an owner's Feature window sees it: the plan, plus what is left. */
+export type FeaturedPlanOffer = FeaturedPlan & {
+  /**
+   * Spots still free in this plan's category, or null for a whole-directory
+   * plan, which has no limit. Zero is sold out.
+   */
+  spotsLeft: number | null
 }
 
 export type FeaturedEntitlement = {
@@ -150,7 +175,10 @@ export type FeaturedEntitlement = {
   revokeNote: string
 }
 
-function planFrom(row: typeof directoryFeaturedPlans.$inferSelect): FeaturedPlan {
+function planFrom(
+  row: typeof directoryFeaturedPlans.$inferSelect,
+  categoryName: string | null = null
+): FeaturedPlan {
   return {
     id: row.id,
     kind: row.kind === "event" ? "event" : "listing",
@@ -159,6 +187,9 @@ function planFrom(row: typeof directoryFeaturedPlans.$inferSelect): FeaturedPlan
     priceCents: row.priceCents,
     currency: row.currency,
     durationDays: row.durationDays,
+    categoryId: row.categoryId,
+    categoryName,
+    categorySpots: row.categorySpots,
     priority: row.priority,
     active: row.active,
   }
@@ -169,9 +200,22 @@ export async function listFeaturedPlans(
   options: { activeOnly?: boolean; kind?: FeaturedPlanKind } = {},
   database: CustomShellDb = db
 ) {
+  // Left-joined on the site as well as the id, so one site's plan can never
+  // print another site's category name. A deleted category simply comes back
+  // null, and the screens read that as "this plan cannot be bought".
   const rows = await database
-    .select()
+    .select({
+      plan: directoryFeaturedPlans,
+      categoryName: categories.name,
+    })
     .from(directoryFeaturedPlans)
+    .leftJoin(
+      categories,
+      and(
+        eq(categories.id, directoryFeaturedPlans.categoryId),
+        eq(categories.workspaceId, directoryFeaturedPlans.workspaceId)
+      )
+    )
     .where(
       and(
         eq(directoryFeaturedPlans.workspaceId, workspaceId),
@@ -180,7 +224,7 @@ export async function listFeaturedPlans(
       )
     )
     .orderBy(desc(directoryFeaturedPlans.active), desc(directoryFeaturedPlans.priority), asc(directoryFeaturedPlans.name))
-  return rows.map(planFrom)
+  return rows.map((row) => planFrom(row.plan, row.categoryName))
 }
 
 export async function saveFeaturedPlan(
@@ -195,6 +239,10 @@ export async function saveFeaturedPlan(
     currency: string
     /** A listing plan's days. Ignored on an event plan. */
     durationDays?: number | null
+    /** The one category to sell the top of, or null for the whole directory. */
+    categoryId?: string | null
+    /** How many spots that category sells. Required with a category. */
+    categorySpots?: number | null
     priority?: number
     active?: boolean
   },
@@ -232,8 +280,40 @@ export async function saveFeaturedPlan(
   ) {
     throw new Error("The period must be between 1 and 3650 days.")
   }
+
+  // An event's spot is the top of the Events page, and that page has no
+  // categories, so an event plan drops any category it was sent.
+  const categoryId = kind === "listing" ? (input.categoryId ?? null) : null
+  const categorySpots = categoryId ? (input.categorySpots ?? 0) : null
+  let categoryName: string | null = null
+  if (categoryId) {
+    if (
+      !Number.isInteger(categorySpots) ||
+      categorySpots! < 1 ||
+      categorySpots! > 100
+    ) {
+      throw new Error("The number of spots must be between 1 and 100.")
+    }
+    // Checked against this site's own tree. Without this an admin could post
+    // another site's category id and sell the top of a page they do not own.
+    const [category] = await database
+      .select({ name: categories.name })
+      .from(categories)
+      .where(
+        and(
+          eq(categories.id, categoryId),
+          eq(categories.workspaceId, workspaceId)
+        )
+      )
+      .limit(1)
+    if (!category) throw new Error("That category is not on this site.")
+    categoryName = category.name
+  }
+
   const at = now()
   const values = {
+    categoryId,
+    categorySpots,
     name,
     description: (input.description ?? "").trim().slice(0, 500),
     priceCents: input.priceCents,
@@ -260,7 +340,7 @@ export async function saveFeaturedPlan(
       )
       .returning()
     if (!updated) throw new Error("That featured plan no longer exists.")
-    return planFrom(updated)
+    return planFrom(updated, categoryName)
   }
 
   const [created] = await database
@@ -268,7 +348,7 @@ export async function saveFeaturedPlan(
     .values({ id: uuid(), workspaceId, kind, ...values, createdAt: at })
     .returning()
   if (!created) throw new Error("The featured plan was not created.")
-  return planFrom(created)
+  return planFrom(created, categoryName)
 }
 
 export async function deleteFeaturedPlan(
@@ -461,8 +541,29 @@ export async function revokeFeaturedEntitlement(
   return updated.id
 }
 
-/** SQL value used before every public sort: active placements first, strongest priority first. */
-export function featuredPriorityFor(workspaceId: string) {
+/**
+ * Which spots a page counts, as a filter on `directory_featured_entitlements
+ * fe`.
+ *
+ * A whole-directory spot counts on every page. A category spot counts only on
+ * its own category's page, which is the whole point of the cheaper plan: the
+ * bakery leads the Bakeries page and sorts normally everywhere else.
+ */
+function spotsVisibleOn(categoryId: string | null) {
+  return categoryId
+    ? sql`(fe.category_id is null or fe.category_id = ${categoryId})`
+    : sql`fe.category_id is null`
+}
+
+/**
+ * SQL value used before every public sort: active placements first, strongest
+ * priority first. `categoryId` is the category page being drawn, or null
+ * everywhere else.
+ */
+export function featuredPriorityFor(
+  workspaceId: string,
+  categoryId: string | null = null
+) {
   return sql<number>`coalesce((
     select max(fp.priority)
     from directory_featured_entitlements fe
@@ -477,13 +578,24 @@ export function featuredPriorityFor(workspaceId: string) {
       and fe.status = 'active'
       and fe.starts_at <= now()
       and fe.ends_at > now()
+      and ${spotsVisibleOn(categoryId)}
   ), -2147483648)`
 }
 
+/**
+ * Which of these listings have a paid spot running now.
+ *
+ * `scope` says which spots count. Left out, every spot does, which is what
+ * the owner's Feature window and the guard against buying twice both want.
+ * `{ categoryId }` is what a public page wants: the badge has to mean the
+ * same thing as the order it appears in, so a Bakeries spot badges the
+ * Bakeries page and nothing else.
+ */
 export async function activeFeaturedForListings(
   workspaceId: string,
   listingIds: string[],
-  database: CustomShellDb = db
+  database: CustomShellDb = db,
+  scope?: { categoryId: string | null }
 ) {
   if (listingIds.length === 0) return new Set<string>()
   const rows = await database
@@ -504,10 +616,99 @@ export async function activeFeaturedForListings(
         inArray(directoryFeaturedEntitlements.listingId, listingIds),
         eq(directoryFeaturedEntitlements.status, "active"),
         lte(directoryFeaturedEntitlements.startsAt, now()),
-        gt(directoryFeaturedEntitlements.endsAt, now())
+        gt(directoryFeaturedEntitlements.endsAt, now()),
+        scope
+          ? scope.categoryId
+            ? or(
+                isNull(directoryFeaturedEntitlements.categoryId),
+                eq(directoryFeaturedEntitlements.categoryId, scope.categoryId)
+              )
+            : isNull(directoryFeaturedEntitlements.categoryId)
+          : undefined
       )
     )
   return new Set(rows.map((row) => row.listingId))
+}
+
+/**
+ * How long an unfinished checkout keeps holding a category's spot.
+ *
+ * A Stripe Checkout session expires 24 hours after it is made, so an older
+ * reservation can no longer turn into a payment and must stop blocking the
+ * next buyer. The row itself is cleared the next time its own listing starts
+ * a checkout, or when an admin deletes the listing.
+ */
+const CHECKOUT_HOLDS_SPOT_MS = 24 * 60 * 60 * 1000
+
+/**
+ * How many spots are taken in each of these categories: the paid spots
+ * running now, plus the checkouts still young enough to be paid.
+ *
+ * Counting the open checkouts is what stops a category overselling while two
+ * people are both on Stripe's page. The count under the lock in
+ * `createFeaturedCheckout` is the one that decides a sale; this same count
+ * read without the lock is what greys a sold-out plan out beforehand.
+ */
+export async function categorySpotsTaken(
+  workspaceId: string,
+  categoryIds: string[],
+  database: CustomShellDb = db
+): Promise<Map<string, number>> {
+  const wanted = [...new Set(categoryIds)].filter(Boolean)
+  const taken = new Map<string, number>()
+  if (wanted.length === 0) return taken
+
+  const at = now()
+  const [sold, holding] = await Promise.all([
+    database
+      .select({
+        categoryId: directoryFeaturedEntitlements.categoryId,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(directoryFeaturedEntitlements)
+      .innerJoin(
+        directoryClaims,
+        and(
+          eq(directoryClaims.id, directoryFeaturedEntitlements.claimId),
+          eq(directoryClaims.status, "approved"),
+          eq(directoryClaims.userId, directoryFeaturedEntitlements.buyerUserId),
+          eq(directoryClaims.listingId, directoryFeaturedEntitlements.listingId)
+        )
+      )
+      .where(
+        and(
+          eq(directoryFeaturedEntitlements.workspaceId, workspaceId),
+          inArray(directoryFeaturedEntitlements.categoryId, wanted),
+          eq(directoryFeaturedEntitlements.status, "active"),
+          lte(directoryFeaturedEntitlements.startsAt, at),
+          gt(directoryFeaturedEntitlements.endsAt, at)
+        )
+      )
+      .groupBy(directoryFeaturedEntitlements.categoryId),
+    database
+      .select({
+        categoryId: directoryFeaturedCheckouts.categoryId,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(directoryFeaturedCheckouts)
+      .where(
+        and(
+          eq(directoryFeaturedCheckouts.workspaceId, workspaceId),
+          inArray(directoryFeaturedCheckouts.categoryId, wanted),
+          gt(
+            directoryFeaturedCheckouts.createdAt,
+            new Date(at.getTime() - CHECKOUT_HOLDS_SPOT_MS)
+          )
+        )
+      )
+      .groupBy(directoryFeaturedCheckouts.categoryId),
+  ])
+
+  for (const row of [...sold, ...holding]) {
+    if (!row.categoryId) continue
+    taken.set(row.categoryId, (taken.get(row.categoryId) ?? 0) + row.count)
+  }
+  return taken
 }
 
 export async function featuredPurchaseState(
@@ -530,11 +731,69 @@ export async function featuredPurchaseState(
     .limit(1)
   if (!owned) throw new Error("You do not look after that listing.")
 
-  const [plans, active] = await Promise.all([
+  const [plans, active, listingCategories] = await Promise.all([
     listFeaturedPlans(owned.workspaceId, { activeOnly: true, kind: "listing" }, database),
     activeFeaturedForListings(owned.workspaceId, [listingId], database),
+    categoriesOfListing(owned.workspaceId, listingId, database),
   ])
-  return { plans, active: active.has(listingId) }
+  return {
+    plans: await offersFor(owned.workspaceId, plans, listingCategories, database),
+    active: active.has(listingId),
+  }
+}
+
+/** Which categories a listing is filed under, as a set of ids. */
+async function categoriesOfListing(
+  workspaceId: string,
+  listingId: string,
+  database: CustomShellDb
+) {
+  const rows = await database
+    .select({ categoryId: categoryRelationships.categoryId })
+    .from(categoryRelationships)
+    .where(
+      and(
+        eq(categoryRelationships.workspaceId, workspaceId),
+        eq(categoryRelationships.contentType, LISTING_CONTENT_TYPE),
+        eq(categoryRelationships.contentId, listingId)
+      )
+    )
+  return new Set(rows.map((row) => row.categoryId))
+}
+
+/**
+ * The plans one listing may actually buy, with how many spots are left.
+ *
+ * A category plan for a category this listing is not in is left out of the
+ * list entirely rather than greyed, because it is not an offer this owner can
+ * ever take: it belongs to somebody else's page. A plan whose category has
+ * been deleted goes for the same reason. Sold out is different and stays on
+ * screen with zero left, so an owner can see the spot exists and come back
+ * when it frees up.
+ */
+async function offersFor(
+  workspaceId: string,
+  plans: FeaturedPlan[],
+  listingCategories: ReadonlySet<string>,
+  database: CustomShellDb
+): Promise<FeaturedPlanOffer[]> {
+  const buyable = plans.filter(
+    (plan) =>
+      !plan.categoryId ||
+      (plan.categoryName !== null && listingCategories.has(plan.categoryId))
+  )
+  const taken = await categorySpotsTaken(
+    workspaceId,
+    buyable.flatMap((plan) => (plan.categoryId ? [plan.categoryId] : [])),
+    database
+  )
+  return buyable.map((plan) => ({
+    ...plan,
+    spotsLeft:
+      plan.categoryId && plan.categorySpots !== null
+        ? Math.max(0, plan.categorySpots - (taken.get(plan.categoryId) ?? 0))
+        : null,
+  }))
 }
 
 /**
@@ -543,11 +802,19 @@ export async function featuredPurchaseState(
  * `pending` finds the one open reservation for the thing being featured.
  * `reserve` is only asked when there is none, and returns the new row, or
  * throws with words for the owner.
+ *
+ * **`reserve` runs in the same transaction as the insert**, and is handed
+ * that transaction. A category plan uses it to lock its category, count the
+ * spots taken and write the reservation without letting go, so two people
+ * racing for the last spot on the Bakeries page are served one after the
+ * other and the second one is refused.
  */
 async function openFeaturedCheckout(
   userId: string,
   pending: SQL | undefined,
-  reserve: () => Promise<typeof directoryFeaturedCheckouts.$inferInsert>,
+  reserve: (
+    tx: CustomShellDb
+  ) => Promise<typeof directoryFeaturedCheckouts.$inferInsert>,
   database: CustomShellDb,
   checkoutClient: FeaturedCheckoutStripe
 ) {
@@ -559,11 +826,13 @@ async function openFeaturedCheckout(
       .limit(1)
 
     if (!reservation) {
-      const [created] = await database
-        .insert(directoryFeaturedCheckouts)
-        .values(await reserve())
-        .onConflictDoNothing()
-        .returning()
+      const [created] = await database.transaction(async (tx) =>
+        tx
+          .insert(directoryFeaturedCheckouts)
+          .values(await reserve(tx))
+          .onConflictDoNothing()
+          .returning()
+      )
       reservation = created
       if (!reservation) {
         const [concurrent] = await database
@@ -611,6 +880,61 @@ async function openFeaturedCheckout(
   throw new Error("CHECKOUT_FAILED")
 }
 
+/**
+ * Takes one of a category's spots, or throws with words for the owner.
+ *
+ * **The lock is on the category row, not the plan.** Two plans can name the
+ * same category, and both of them sell the same page, so locking the plan
+ * would let a Bakeries plan and a Bakeries Plus plan each hand out the last
+ * spot. The category row is the one thing every buyer of that page has in
+ * common, and nothing in a purchase ever writes to it, so waiting on it costs
+ * nothing except when two people really are racing.
+ *
+ * It runs inside `openFeaturedCheckout`'s transaction, so the lock is still
+ * held when the reservation is written a moment later.
+ */
+async function reserveCategorySpot(
+  workspaceId: string,
+  listingId: string,
+  categoryId: string,
+  categorySpots: number | null,
+  tx: CustomShellDb
+) {
+  const [category] = await tx
+    .select({ name: categories.name })
+    .from(categories)
+    .where(
+      and(eq(categories.id, categoryId), eq(categories.workspaceId, workspaceId))
+    )
+    .for("update")
+  // A plan whose category has been deleted sells the top of a page that is
+  // not there any more, so it sells nothing.
+  if (!category) {
+    throw new Error("That featured plan is not available for this listing.")
+  }
+
+  const filed = await categoriesOfListing(workspaceId, listingId, tx)
+  if (!filed.has(categoryId)) {
+    throw new Error(
+      `This listing is not in ${category.name}, so it cannot buy the top of that page.`
+    )
+  }
+
+  // The database check keeps these two together, so a category with no limit
+  // is a hand-edited row. It is not sold out, it is broken, and saying "every
+  // spot is taken" about it would send the owner away to wait for nothing.
+  if (categorySpots === null) {
+    throw new Error("That featured plan is not available for this listing.")
+  }
+
+  const taken = (await categorySpotsTaken(workspaceId, [categoryId], tx)).get(categoryId) ?? 0
+  if (taken >= categorySpots) {
+    throw new Error(
+      `Every featured spot on ${category.name} is taken. Try again once one ends.`
+    )
+  }
+}
+
 const FEATURED_SUCCESS_URL = "/my-listings?featured_session={CHECKOUT_SESSION_ID}"
 const FEATURED_CANCEL_URL = "/my-listings?featured_checkout=cancelled"
 
@@ -654,8 +978,8 @@ export async function createFeaturedCheckout(
       eq(directoryFeaturedCheckouts.workspaceId, owned.workspaceId),
       eq(directoryFeaturedCheckouts.listingId, input.listingId)
     ),
-    async () => {
-      const [plan] = await database
+    async (tx) => {
+      const [plan] = await tx
         .select()
         .from(directoryFeaturedPlans)
         .where(
@@ -668,6 +992,15 @@ export async function createFeaturedCheckout(
         )
         .limit(1)
       if (!plan) throw new Error("That featured plan is not available for this listing.")
+      if (plan.categoryId) {
+        await reserveCategorySpot(
+          owned.workspaceId,
+          input.listingId,
+          plan.categoryId,
+          plan.categorySpots,
+          tx
+        )
+      }
       const at = now()
       return {
         id: uuid(),
@@ -679,6 +1012,7 @@ export async function createFeaturedCheckout(
         priceCents: plan.priceCents,
         currency: plan.currency,
         durationDays: plan.durationDays,
+        categoryId: plan.categoryId,
         productName: `${owned.listingTitle} — ${plan.name}`,
         customerEmail: user.email,
         successUrl: appUrlFor(FEATURED_SUCCESS_URL),
@@ -852,7 +1186,11 @@ export async function eventFeaturedPurchaseState(
   userId: string,
   eventId: string,
   database: CustomShellDb = db
-): Promise<{ plans: FeaturedPlan[]; active: boolean; problem: string | null }> {
+): Promise<{
+  plans: FeaturedPlanOffer[]
+  active: boolean
+  problem: string | null
+}> {
   const event = await ownedEvent(userId, eventId, database)
   if (!event) throw new Error("That event is not one you sent in.")
   const [plans, spot, problem] = await Promise.all([
@@ -860,7 +1198,12 @@ export async function eventFeaturedPurchaseState(
     activeEventSpot(event.workspaceId, eventId, database),
     eventFeatureProblem(event, database),
   ])
-  return { plans, active: event.featured || spot !== null, problem }
+  // An event plan can never name a category, so nothing is ever sold out.
+  return {
+    plans: plans.map((plan) => ({ ...plan, spotsLeft: null })),
+    active: event.featured || spot !== null,
+    problem,
+  }
 }
 
 /** Starts the owner's payment for a featured spot on their own event. */
@@ -884,8 +1227,8 @@ export async function createEventFeaturedCheckout(
       eq(directoryFeaturedCheckouts.workspaceId, event.workspaceId),
       eq(directoryFeaturedCheckouts.eventId, input.eventId)
     ),
-    async () => {
-      const [plan] = await database
+    async (tx) => {
+      const [plan] = await tx
         .select()
         .from(directoryFeaturedPlans)
         .where(
@@ -994,6 +1337,7 @@ export async function activateFeaturedSession(
         workspaceId: target.workspaceId,
         listingId: target.listingId,
         eventId: target.eventId,
+        categoryId: target.categoryId,
         claimId: metadata.claimId!,
         buyerUserId: userId,
         planId: metadata.planId!,
@@ -1037,6 +1381,8 @@ type PaidTarget = {
   workspaceId: string
   listingId: string | null
   eventId: string | null
+  /** The category the spot was bought for, or null for the whole directory. */
+  categoryId: string | null
   /** The plan's terms now, for a session too old to carry its own. */
   priceCents: number
   currency: string
@@ -1087,6 +1433,13 @@ async function paidListingTarget(
     workspaceId: valid.workspaceId,
     listingId: metadata.listingId!,
     eventId: null,
+    // The signed session is the only thing that says which category was
+    // bought. Never the plan as it stands now: an admin who adds a category
+    // to a whole-directory plan mid-payment would otherwise hand the buyer
+    // one category page when they paid for the lot. A session with no key is
+    // a whole-directory sale, which is also every sale made before categories
+    // existed.
+    categoryId: metadata.categoryId ?? null,
     priceCents: valid.priceCents,
     currency: valid.currency,
     endsAt: (startsAt) => new Date(startsAt.getTime() + days * DAY_MS),
@@ -1134,6 +1487,7 @@ async function paidEventTarget(
     workspaceId: event.workspaceId,
     listingId: null,
     eventId: metadata.eventId!,
+    categoryId: null,
     priceCents: plan.priceCents,
     currency: plan.currency,
     endsAt: () => endsAt,
