@@ -78,7 +78,7 @@ export function CreatorsListPage({
   const ask = React.useCallback(
     (next: SocialCreatorsQuery) => {
       void navigate({
-        to: "/social",
+        to: "/social/manage",
         search: creatorsSearch(next),
         replace: true,
       })

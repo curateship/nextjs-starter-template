@@ -12,7 +12,11 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { formatDateTime, formatTimeAgo } from "@/lib/format/format-time"
 import { plural } from "@/lib/format/plural"
-import { coinChartHref, type SocialPostRow } from "@/lib/trade/social/dashboard"
+import {
+  coinChartHref,
+  formatSeen,
+  type SocialPostRow,
+} from "@/lib/trade/social/dashboard"
 import { cn } from "@/lib/utils"
 
 /**
@@ -128,8 +132,10 @@ export function SocialPostsPanel({
 /**
  * How many coins fit on a post's line before the rest become a count. A post
  * naming twelve coins would otherwise push the views figure off the row.
+ * Exported, with the chip and the seen-count shape below, because the feed
+ * draws the same post line with an author on top.
  */
-const COINS_ON_A_ROW = 4
+export const COINS_ON_A_ROW = 4
 
 function PostLine({
   post,
@@ -199,7 +205,7 @@ function PostLine({
  * go. A coin whose address cannot be built is drawn as plain words rather than
  * as a link that goes nowhere.
  */
-function CoinChip({ coin }: { coin: string }) {
+export function CoinChip({ coin }: { coin: string }) {
   const chip =
     "shrink-0 rounded-full bg-muted px-2 py-0.5 font-medium text-foreground"
   const href = coinChartHref(coin)
@@ -213,11 +219,4 @@ function CoinChip({ coin }: { coin: string }) {
       ${coin}
     </Link>
   )
-}
-
-/** "1.2k", "3.1k", "412" — the shape the platform itself prints. */
-function formatSeen(value: number): string {
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}m`
-  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}k`
-  return `${value}`
 }
