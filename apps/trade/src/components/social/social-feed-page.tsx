@@ -437,6 +437,7 @@ export function SocialFeedPage({
       scopeName={scopeName}
       selected={scope.coin}
       onSelect={pickCoin}
+      now={data.readAt}
     />
   )
 
@@ -485,7 +486,7 @@ export function SocialFeedPage({
               {coinsCollapsed ? (
                 <PanelReopenTab
                   side="right"
-                  label="Show the coins this feed names"
+                  label="Show the markets this feed names"
                   onClick={toggleCoins}
                 />
               ) : null}

@@ -19,7 +19,10 @@ order.
   chevron, one at a time.
 - **Middle, the feed.** Every post in the current view, newest first, each row
   carrying its creator's picture and handle. The handle opens that creator's
-  own dashboard. Posts load 50 at a time with "Show older posts".
+  own dashboard, and clicking the post itself opens it in a window;
+  `social-dashboard.md`, "Opening one post", covers that window, the hover on
+  Open on X, and why a long post arrives cut. Posts load 50 at a time with
+  "Show older posts".
 - **Right, the coins the view names**, most-named first, each with how many
   posts name it. The header says what the counts cover — "Everyone", a
   folder's name, or a handle — because a figure that does not name its folder
@@ -94,7 +97,9 @@ the right panel either. The creator dashboard behaves the same way.
   `src/components/social/social-feed-page.tsx`, with the panels in
   `social-creators-panel.tsx`, `social-feed-panel.tsx`,
   `social-feed-coins-panel.tsx` and the cog window in
-  `social-folders-manager.tsx`.
+  `social-folders-manager.tsx`. The post's own window is
+  `social-post-dialog.tsx` and the rules for what a click on a row means are
+  `post-row-click.ts`, both shared with the creator dashboard.
 - Panel sizes: `socialFeedHorizontal` in `src/lib/trade/panel-keys.ts`.
 - The shared shapes: `src/lib/trade/social/feed.ts`.
 

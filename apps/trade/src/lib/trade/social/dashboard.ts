@@ -1,4 +1,4 @@
-import { marketChartHref, marketKey } from "@/lib/protocols/contracts"
+import type { MarketMatchKind } from "@/lib/trade/social/coin-matcher"
 import type { SocialPlatform } from "@/lib/trade/social/creator"
 import type { SocialLink } from "@/lib/trade/social/x-profile"
 
@@ -39,15 +39,28 @@ export type SocialPostRow = {
   url: string | null
   seen: number | null
   /**
-   * The coins this post names, as Trade read them out of the words, in
-   * alphabetical order. Empty when it names none, which is an answer.
+   * The markets this post names, as Trade read them out of the words, in
+   * alphabetical order by ticker. Empty when it names none, which is an
+   * answer.
    */
-  coins: string[]
+  coins: SocialPostCoin[]
+}
+
+/** One market a post names, and where its chip goes. */
+export type SocialPostCoin = {
+  /** The ticker as Trade lists it: "SOL", "kPEPE", "TSLA". */
+  coin: string
+  kind: MarketMatchKind
+  /** The market the chip opens: "hyperliquid:mainnet:SOL". */
+  marketKey: string
 }
 
 export type SocialMarketRow = {
-  /** The coin's ticker as Trade lists it: "SOL", "kPEPE". */
+  /** The ticker as Trade lists it: "SOL", "kPEPE", "TSLA". */
   market: string
+  kind: MarketMatchKind
+  /** The market the row's chart link opens. */
+  marketKey: string
   /** How many of this creator's posts name it, across everything held. */
   posts: number
 }
@@ -74,18 +87,6 @@ export type SocialPostsPage = {
 export const SOCIAL_MARKETS_SHOWN = 60
 
 /**
- * Where a coin named in a post opens.
- *
- * **Always Hyperliquid**, because Hyperliquid's market list is what decided the
- * word was a coin at all. Pointing a $SOL chip at another exchange would be
- * Trade naming a venue the post never implied, and picking between venues is
- * the market picker's job.
- *
- * Worked out here rather than stored, so the row in `trade_social_post_coins`
- * stays venue-free: the post was about the coin, not about one exchange's
- * market in it.
- */
-/**
  * "1.2k", "3.1k", "412" — a post's seen count in the shape the platform
  * itself prints. Shared by the posts panel and the feed, whose rows are the
  * same line.
@@ -94,10 +95,4 @@ export function formatSeen(value: number): string {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}m`
   if (value >= 1_000) return `${(value / 1_000).toFixed(1)}k`
   return `${value}`
-}
-
-export function coinChartHref(coin: string): string | null {
-  return marketChartHref(
-    marketKey({ protocol: "hyperliquid", network: "mainnet", marketId: coin })
-  )
 }

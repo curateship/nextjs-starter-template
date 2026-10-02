@@ -71,14 +71,61 @@ visitors read them at `/posts`, with each post at `/posts/<address>`.
   every block that is not a card to the shell's written-page cleaner, so a
   post can hold nothing a written page cannot, plus cards.
 
+## Reading a post
+
+The page copies the old Directory app's post page: the words on the left with
+nothing drawn around them, and a contents list in a card on the right.
+
+- **The post is not in a card.** The cover image, the title, the date and
+  category line, the summary and the body sit straight on the page, so the
+  words are the only thing on the left. The title is larger here than anywhere
+  else on the site, 30px on a phone and 36px on a wide screen.
+- **The cover image can be turned off.** Settings → Directory → Post pages has
+  one switch, "Show the cover image at the top of a post". It is on for every
+  site, because that is what post pages did before the switch existed. Off, the
+  page starts with the title.
+- **Turning it off takes the picture off this page only.** The post keeps its
+  cover image: the cards on the Posts page, a category page and a home page row
+  all still draw it, and so does the picture a post shows when it is shared or
+  posted on Facebook. The switch is about one page, not about the photo.
+- **The contents list is a card on the right**, headed "On this page", one line
+  per heading. It is the narrow column of the same two-column split a listing's
+  page uses, so the two pages line up.
+- **It sticks** while the post scrolls past it, and stops below the header on a
+  site whose header stays on screen. The list itself scrolls when a post has
+  more headings than fit the window.
+- **The line being read is marked** with a bar down its left and darker words.
+  It is the last heading the reader has scrolled past, and at the bottom of the
+  page it is the last heading, so a short closing section is never skipped.
+- **Only the top heading level is listed.** A post's writing bar offers
+  headings 2 to 4; 2 is the one the list holds, because a list that holds all
+  three is an outline and not a way to jump.
+- **A post with no headings has no contents list**, and the words fill the
+  width of the page.
+- **On a phone the contents list sits above the post**, where the old Directory
+  app put it. There is no second column on a phone to put it in.
+
+### The anchors
+
+- **Each heading's address is made from its own words**, so `/posts/best-cafes`
+  becomes `#where-to-start`. A link a reader copied still lands on the same
+  heading after a paragraph is added above it.
+- **The same heading twice is numbered**: the second "Worth the line" is
+  `#worth-the-line-2`.
+- **A heading with no words is left out**, because there is nothing to show in
+  the list or to land on.
+- **The rules live in `src/lib/posts/post-headings.ts`**, and both the contents
+  list and the body read them, so a link always has something to land on.
+
 ## Where posts appear
 
 A published post appears in all of these and a draft in none of them.
 
 - **`/posts`:** newest first, 12 per page.
 - **`/posts/<address>`:** the cover image, title, date, category links, summary
-  and body. Its tab title, description, share image and search-engine block
-  (`BlogPosting`) come from the post.
+  and body, with a contents list beside them. Its tab title, description, share
+  image and search-engine block (`BlogPosting`) come from the post. "Reading a
+  post" below describes the page.
 - **Category pages:** the 6 newest posts filed under a category show below its
   listings, under "Posts about <category>". A category's listing count does not
   change, because every listing count reads only listing rows.

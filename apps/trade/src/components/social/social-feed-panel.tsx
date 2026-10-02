@@ -1,3 +1,4 @@
+import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import { Loader2Icon, NewspaperIcon, XIcon } from "lucide-react"
 
@@ -5,13 +6,16 @@ import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-hea
 import {
   CoinChip,
   COINS_ON_A_ROW,
-} from "@/components/social/social-posts-panel"
+  OpenOnX,
+} from "@/components/social/post-row-parts"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { formatDateTime, formatTimeAgo } from "@/lib/format/format-time"
 import { plural } from "@/lib/format/plural"
+import { postRowWasClicked } from "@/components/social/post-row-click"
+import { SocialPostDialog } from "@/components/social/social-post-dialog"
 import { formatSeen } from "@/lib/trade/social/dashboard"
 import type { SocialFeedPostRow } from "@/lib/trade/social/feed"
 import { cn } from "@/lib/utils"
@@ -55,6 +59,10 @@ export function SocialFeedPanel({
   busy: boolean
   onLoadOlder: () => void
 }) {
+  // The post whose window is open, held here rather than per row: one window
+  // on screen, and a row that scrolls out from under it does not shut it.
+  const [open, setOpen] = React.useState<SocialFeedPostRow | null>(null)
+
   return (
     <>
       <DashboardCardTitleHeader
@@ -95,7 +103,11 @@ export function SocialFeedPanel({
         ) : (
           <ul className="divide-y">
             {posts.map((post) => (
-              <FeedPostLine key={post.id} post={post} />
+              <FeedPostLine
+                key={post.id}
+                post={post}
+                onOpen={() => setOpen(post)}
+              />
             ))}
           </ul>
         )}
@@ -114,14 +126,33 @@ export function SocialFeedPanel({
           </div>
         ) : null}
       </ScrollArea>
+      <SocialPostDialog
+        post={open}
+        handle={open?.creator.handle ?? ""}
+        picture={open?.creator.picture ?? null}
+        onOpenChange={(next) => {
+          if (!next) setOpen(null)
+        }}
+      />
     </>
   )
 }
 
-function FeedPostLine({ post }: { post: SocialFeedPostRow }) {
+function FeedPostLine({
+  post,
+  onOpen,
+}: {
+  post: SocialFeedPostRow
+  onOpen: () => void
+}) {
   const posted = new Date(post.postedAt)
   return (
-    <li className="grid gap-1 px-5 py-3">
+    <li
+      className="group grid cursor-pointer gap-1 px-5 py-3 hover:bg-muted/50"
+      onClick={(event) => {
+        if (postRowWasClicked(event)) onOpen()
+      }}
+    >
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <Link
           to="/social/$handle"
@@ -145,39 +176,46 @@ function FeedPostLine({ post }: { post: SocialFeedPostRow }) {
         <span title={formatDateTime(posted)} className="shrink-0 tabular-nums">
           {formatTimeAgo(posted)}
         </span>
-        <span className="ml-auto shrink-0 tabular-nums">
-          {post.seen === null ? "—" : `${formatSeen(post.seen)} seen`}
+        {/* Open on X sits up here beside the seen count, where Tyler asked
+            for it on 2 Oct 2026. Under the words it read as part of the post,
+            and it was the only thing on its own line. */}
+        <span className="ml-auto flex shrink-0 items-baseline gap-2 tabular-nums">
+          {post.url ? <OpenOnX url={post.url} /> : null}
+          <span>
+            {post.seen === null ? "—" : `${formatSeen(post.seen)} seen`}
+          </span>
         </span>
       </div>
       <div className="flex flex-wrap items-baseline gap-2 text-xs text-muted-foreground empty:hidden">
-        {post.coins.slice(0, COINS_ON_A_ROW).map((coin) => (
-          <CoinChip key={coin} coin={coin} />
+        {post.coins.slice(0, COINS_ON_A_ROW).map((one) => (
+          <CoinChip key={one.coin} named={one} />
         ))}
         {post.coins.length > COINS_ON_A_ROW ? (
           // The hidden ones are named on hover. Without it the only way to
           // see the fifth coin on a post is to widen the panel.
           <span
             className="shrink-0"
-            title={post.coins.slice(COINS_ON_A_ROW).join(", ")}
+            title={post.coins
+              .slice(COINS_ON_A_ROW)
+              .map((one) => one.coin)
+              .join(", ")}
           >
             +{post.coins.length - COINS_ON_A_ROW}
           </span>
         ) : null}
       </div>
-      <p className="text-sm break-words whitespace-pre-wrap">{post.text}</p>
-      {post.url ? (
-        <a
-          href={post.url}
-          target="_blank"
-          rel="noreferrer noopener"
-          className={cn(
-            "justify-self-start rounded-md text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground",
-            focusRing
-          )}
-        >
-          Open on X
-        </a>
-      ) : null}
+      {/* A button rather than a paragraph, so the window has a tab stop. The
+          row's own click handler covers the mouse; this covers the keyboard. */}
+      <button
+        type="button"
+        onClick={onOpen}
+        className={cn(
+          "rounded-md text-left text-sm break-words whitespace-pre-wrap",
+          focusRing
+        )}
+      >
+        {post.text}
+      </button>
     </li>
   )
 }

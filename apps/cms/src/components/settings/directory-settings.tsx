@@ -5,6 +5,7 @@ import { toast } from "sonner"
 import { CategoryPicker } from "@/components/directory/category-picker"
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { CollapsibleSettingsSection } from "@/components/directory/collapsible-settings-section"
+import { SettingsSwitchRow } from "@/components/settings/settings-switch-row"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardGroup } from "@/components/ui/card"
 import { FieldLabel } from "@/components/ui/field-label"
@@ -28,6 +29,7 @@ import {
   saveBrowseSettings,
   saveMapEnabled,
   saveNeighbourhoodCategory,
+  savePostCoverImage,
   saveTimeZone,
   type DirectoryBrowseSettingsInput,
   type DirectorySettings as DirectorySettingsValue,
@@ -120,6 +122,17 @@ export function DirectorySettings() {
     (neighbourhoodCategoryId: string) => {
       const queued = saveQueue.current.then(() =>
         save(() => saveNeighbourhoodCategory(neighbourhoodCategoryId))
+      )
+      saveQueue.current = queued
+      return queued
+    },
+    [save]
+  )
+
+  const persistPostCoverImage = React.useCallback(
+    (postCoverImage: boolean) => {
+      const queued = saveQueue.current.then(() =>
+        save(() => savePostCoverImage(postCoverImage))
       )
       saveQueue.current = queued
       return queued
@@ -587,6 +600,32 @@ export function DirectorySettings() {
             </SelectContent>
           </Select>
         </div>
+      </CollapsibleSettingsCard>
+
+      <CollapsibleSettingsCard
+        storageId="directory-post-pages"
+        title="Post pages"
+        description="One post's own page at /posts/<address>."
+        contentClassName="space-y-6"
+      >
+        <SettingsSwitchRow
+          id="directory-post-cover-image"
+          checked={settings.postCoverImage}
+          disabled={saving}
+          label="Show the cover image at the top of a post"
+          hint="The cards that lead to the post keep their photo either way. Turn this off on a site whose posts open with the headline rather than the picture."
+          onCheckedChange={(postCoverImage) => {
+            const previous = settings.postCoverImage
+            setSettings({ ...settings, postCoverImage })
+            void persistPostCoverImage(postCoverImage).then((saved) => {
+              if (!saved) {
+                setSettings((current) =>
+                  current ? { ...current, postCoverImage: previous } : current
+                )
+              }
+            })
+          }}
+        />
       </CollapsibleSettingsCard>
 
       <CollapsibleSettingsCard

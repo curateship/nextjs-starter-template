@@ -14,7 +14,9 @@ import type {
 import { userGet, userPost } from "@/server/guards"
 import {
   addSocialCreator,
+  deleteSocialCreators,
   listSocialCreatorRows,
+  MAX_CREATORS,
   type SocialCreatorRow,
   type SocialCreatorsList,
 } from "@/server/trade/social-creators"
@@ -164,6 +166,35 @@ export function rereadCreatorCoinsFromWords(handle: string) {
   return rereadCoinsFn({ data: { handle } })
 }
 
+/**
+ * Stop tracking creators, one or many, and let go of their posts.
+ *
+ * **Capped at the number of creators a member can hold**, so a hand-built
+ * request cannot ask the database for an unbounded `in` list. The screen never
+ * sends more than is on screen.
+ *
+ * Answers with the ids that went rather than a count, which is what lets the
+ * screen say "3 creators deleted, 1 could not be" when a row was already gone
+ * in another window.
+ */
+const deleteCreatorsSchema = z.object({
+  creatorIds: z
+    .array(z.string().min(1).max(36))
+    .min(1)
+    .max(MAX_CREATORS),
+})
+
+const deleteCreatorsFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(deleteCreatorsSchema)
+  .handler(({ data, context }): Promise<{ deleted: string[] }> =>
+    deleteSocialCreators(context.user.id, data.creatorIds)
+  )
+
+export function deleteCreators(creatorIds: string[]) {
+  return deleteCreatorsFn({ data: { creatorIds } })
+}
+
 export function loadSocialPosts(
   creatorId: string,
   before: number | null,
@@ -201,7 +232,7 @@ export const getSocialErrorMessage = createErrorMessage(
     SOCIAL_HANDLE_NOT_AN_ACCOUNT:
       "That address is a page on X, not somebody's account.",
     SOCIAL_COINS_UNAVAILABLE:
-      "The list of coins Trade trades could not be read just now, so nothing was re-read. Try again in a minute.",
+      "The list of markets Trade lists could not be read just now, so nothing was re-read. Try again in a minute.",
     SOCIAL_HANDLE_PRIVATE_ADDRESS:
       "That address points at a private or internal machine, so it was refused.",
   },

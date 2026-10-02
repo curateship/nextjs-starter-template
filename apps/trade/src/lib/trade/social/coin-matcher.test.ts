@@ -4,6 +4,7 @@ import {
   buildCoinMatchList,
   coinsNamedIn,
   NEVER_A_BARE_TICKER,
+  type MarketToMatch,
 } from "@/lib/trade/social/coin-matcher"
 import { COIN_NAMES } from "@/lib/trade/social/coin-names"
 
@@ -40,11 +41,29 @@ const MARKETS = [
   "BCH",
 ]
 
-const list = buildCoinMatchList(MARKETS)
+/** The coins, as the builder takes them: a ticker, a market and a kind. */
+function asCoins(symbols: readonly string[]): MarketToMatch[] {
+  return symbols.map((symbol) => ({
+    symbol,
+    key: `hyperliquid:mainnet:${symbol}`,
+    kind: "coin" as const,
+  }))
+}
+
+const list = buildCoinMatchList(asCoins(MARKETS))
 
 /** Just the coins, in the order the post named them. */
 function coins(text: string): string[] {
   return coinsNamedIn(text, list).map((match) => match.coin)
+}
+
+/** Each match without the market it points at, which has its own tests. */
+function howEach(text: string) {
+  return coinsNamedIn(text, list).map(({ coin, how, text: words }) => ({
+    coin,
+    how,
+    text: words,
+  }))
 }
 
 describe("the six sentences this was built for", () => {
@@ -66,7 +85,7 @@ describe("the six sentences this was built for", () => {
   })
 
   it("reads a bare ticker in capitals", () => {
-    expect(coinsNamedIn("all in on APE", list)).toEqual([
+    expect(howEach("all in on APE")).toEqual([
       { coin: "APE", how: "ticker", text: "APE" },
     ])
   })
@@ -107,7 +126,7 @@ describe("the three rules and nothing else", () => {
   })
 
   it("says how each one matched", () => {
-    expect(coinsNamedIn("$sol, ETH, bitcoin", list)).toEqual([
+    expect(howEach("$sol, ETH, bitcoin")).toEqual([
       { coin: "SOL", how: "dollar-ticker", text: "$sol" },
       { coin: "ETH", how: "ticker", text: "ETH" },
       { coin: "BTC", how: "name", text: "bitcoin" },
@@ -179,7 +198,7 @@ describe("what a post is not", () => {
 
 describe("the market list decides what can match", () => {
   it("points a plain ticker at the k-coin Trade actually trades", () => {
-    expect(coinsNamedIn("$PEPE and SHIB", list)).toEqual([
+    expect(howEach("$PEPE and SHIB")).toEqual([
       { coin: "kPEPE", how: "dollar-ticker", text: "$PEPE" },
       { coin: "kSHIB", how: "ticker", text: "SHIB" },
     ])
@@ -187,7 +206,7 @@ describe("the market list decides what can match", () => {
   })
 
   it("drops a name whose coin has no market here", () => {
-    const thin = buildCoinMatchList(["BTC"])
+    const thin = buildCoinMatchList(asCoins(["BTC"]))
     expect(
       coinsNamedIn("solana and bitcoin", thin).map((one) => one.coin)
     ).toEqual(["BTC"])
@@ -212,5 +231,128 @@ describe("the market list decides what can match", () => {
       "TAO",
       "JUP",
     ])
+  })
+})
+
+/**
+ * Stocks, metals and currencies: task 31.
+ *
+ * The stock list is its own fixture, because the point of most of these is
+ * that a stock behaves differently from a coin on purpose.
+ */
+const STOCKS: MarketToMatch[] = [
+  { symbol: "TSLA", key: "edgex:mainnet:TSLAUSDC", kind: "stock" },
+  { symbol: "NVDA", key: "edgex:mainnet:NVDAUSDC", kind: "stock" },
+  { symbol: "SPY", key: "apex:mainnet:SPY-USDT", kind: "stock" },
+  { symbol: "AAPL", key: "edgex:mainnet:AAPLUSDC", kind: "stock" },
+  { symbol: "META", key: "edgex:mainnet:METAUSDC", kind: "stock" },
+  { symbol: "ALL", key: "edgex:mainnet:ALLUSDC", kind: "stock" },
+  { symbol: "OPEN", key: "edgex:mainnet:OPENUSDC", kind: "stock" },
+  { symbol: "XAU", key: "edgex:mainnet:XAUUSDC", kind: "commodity" },
+  { symbol: "EURUSD", key: "edgex:mainnet:EURUSD", kind: "currency" },
+]
+
+const withStocks = buildCoinMatchList([...asCoins(MARKETS), ...STOCKS])
+const coinsOnly = buildCoinMatchList(asCoins(MARKETS))
+
+/** Just the tickers, in the order the post named them, with stocks on. */
+function named(text: string): string[] {
+  return coinsNamedIn(text, withStocks).map((match) => match.coin)
+}
+
+describe("the sentences task 31 was built for", () => {
+  it("matches a dollar ticker", () => {
+    expect(named("$TSLA into earnings")).toEqual(["TSLA"])
+  })
+
+  it("matches a bare ticker in capitals", () => {
+    expect(named("NVDA is the only thing that matters this quarter")).toEqual([
+      "NVDA",
+    ])
+  })
+
+  it("does not match a bare lower-case ticker", () => {
+    expect(named("nvda is the only thing that matters this quarter")).toEqual(
+      []
+    )
+  })
+
+  it("does not match a lower-case company name", () => {
+    expect(named("apple and tesla and meta had a good week")).toEqual([])
+  })
+
+  it("matches a stop-list word only with a dollar sign", () => {
+    expect(named("all the ALL ords news")).toEqual([])
+    expect(named("$ALL is up")).toEqual(["ALL"])
+  })
+
+  it("reads nothing out of a sentence about opening a position", () => {
+    expect(named("open a new position, OPEN a new position")).toEqual([])
+    expect(named("$OPEN though")).toEqual(["OPEN"])
+  })
+
+  it("matches nothing in the stock list while the switch is off", () => {
+    expect(coinsNamedIn("$TSLA, NVDA, SPY and $AAPL", coinsOnly)).toEqual([])
+  })
+
+  it("reads four stocks and two coins out of one post", () => {
+    expect(
+      named("$TSLA NVDA $SPY META, plus $SOL and ETH")
+    ).toEqual(["TSLA", "NVDA", "SPY", "META", "SOL", "ETH"])
+  })
+
+  it("says what kind each match is, and which market it opens", () => {
+    expect(coinsNamedIn("$TSLA, $XAU, $EURUSD and $SOL", withStocks)).toEqual([
+      {
+        coin: "TSLA",
+        kind: "stock",
+        marketKey: "edgex:mainnet:TSLAUSDC",
+        how: "dollar-ticker",
+        text: "$TSLA",
+      },
+      {
+        coin: "XAU",
+        kind: "commodity",
+        marketKey: "edgex:mainnet:XAUUSDC",
+        how: "dollar-ticker",
+        text: "$XAU",
+      },
+      {
+        coin: "EURUSD",
+        kind: "currency",
+        marketKey: "edgex:mainnet:EURUSD",
+        how: "dollar-ticker",
+        text: "$EURUSD",
+      },
+      {
+        coin: "SOL",
+        kind: "coin",
+        marketKey: "hyperliquid:mainnet:SOL",
+        how: "dollar-ticker",
+        text: "$SOL",
+      },
+    ])
+  })
+
+  it("leaves a coin's ticker with the coin when a stock shares it", () => {
+    const clash = buildCoinMatchList([
+      ...asCoins(["SOL"]),
+      { symbol: "SOL", key: "edgex:mainnet:SOLUSDC", kind: "stock" },
+    ])
+    expect(coinsNamedIn("$SOL", clash)).toEqual([
+      {
+        coin: "SOL",
+        kind: "coin",
+        marketKey: "hyperliquid:mainnet:SOL",
+        how: "dollar-ticker",
+        text: "$SOL",
+      },
+    ])
+  })
+
+  it("keeps every stock out of the written-name dictionary", () => {
+    for (const entry of withStocks.names.values()) {
+      expect(entry.kind).toBe("coin")
+    }
   })
 })

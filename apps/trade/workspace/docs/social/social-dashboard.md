@@ -34,14 +34,16 @@ moment you drag it wider.
   them, and the links they list. Nothing else. It used to carry eight tiles of counting and Tyler cut
   the lot on 29 Sep 2026: none of them said anything the posts beside them did
   not, and the post count was already in the middle panel's own header.
-- **Middle, their posts**, newest first. When it was posted, the coins it names,
-  the words, and how many people saw it. Each coin is a link to its Hyperliquid
-  chart. It scrolls, and it pages 50 at
+- **Middle, their posts**, newest first. When it was posted, the markets it
+  names, the words, and how many people saw it. Clicking the post opens it in a
+  window. Each chip is a link to the chart of the venue that listed that
+  market. It scrolls, and it pages 50 at
   a time: 412 posts are never all drawn at once. **Sync profile** is in its
   header.
-- **Right, the coins they name**, most-named first, each with how many of
-  their posts name it. Clicking one narrows the middle panel to that coin.
-  Clicking it again clears the filter.
+- **Right, the markets they name**, most-named first, each with how many of
+  their posts name it. Clicking one narrows the middle panel to that market.
+  Clicking it again clears the filter. With the stocks switch on, the rows are
+  grouped by kind and a shut market's heading says when it next opens.
 
 ## Where the follower count and the links come from
 
@@ -126,13 +128,72 @@ without anybody copying anything. The cost is that a sync only brings what the
 profile page is showing, so a creator's back catalogue arrives a handful at a
 time as you keep syncing, rather than all at once.
 
+## Opening one post
+
+Clicking a post anywhere in Social opens it in a window. Tyler asked for this
+on 2 Oct 2026: the rows are a list to scan, and reading one of them should not
+mean leaving the app for X.
+
+The window holds the handle and the picture, when it was posted, how many saw
+it, the whole of the words Trade holds, and the market chips. It ends with
+**Open @handle**, **Open on X** and **Done**. The feed and the creator
+dashboard draw the same window, because they draw the same post row.
+
+**The whole row is the target**, so there is nothing small to hit. Four things
+inside it keep their own click and never open the window: the creator's handle,
+a market chip, Open on X, and dragging across the words to copy them. A held
+Cmd, Ctrl, Shift or Alt does nothing at all, because "open this somewhere else"
+is something a window cannot do. These are the rules `TableRow`'s `rowAction`
+follows, for the same reasons, and `post-row-click.test.ts` holds each one.
+
+**The words are a button, not a paragraph.** A row that only a mouse can open
+is a row a keyboard cannot read, so the words are the tab stop that opens the
+window.
+
+**Open on X shows on hover**, up on the top line beside the seen count. Tyler
+moved it there and asked for the hover on 2 Oct 2026: under the words it read
+as part of the post, and one on every row of a long feed is a column of
+underlining nobody reads. It keeps its space while hidden, so the seen count
+does not jump sideways as the pointer runs down the list, and tabbing to it
+shows it, so it is not a control only a mouse can find. On a phone, where
+nothing hovers, the window's own footer carries the same link.
+
+### X does not always serve the whole post
+
+**A long post arrives cut.** X's profile page serves roughly the first 300
+characters and puts a `t.co` link where the rest should be. Trade stores what
+it was given, so the window shows the same cut text and says so above the
+link rather than letting somebody read half a post and take it for all of it.
+On 2 Oct 2026, of 47 posts held, the longest eight were 300 to 304 characters
+and every one of them ended that way.
+
+Reading the rest means reading each post's own page, which is one request per
+post rather than one per creator. That is a separate job and is not built.
+
+`postArrivedCut` in `src/lib/trade/social/post-text.ts` is what spots it: long,
+and ending on a `t.co` link. The length is part of the test because a short
+post ending in a link is an ordinary post with a link on the end.
+
+### The words arrive escaped twice over
+
+X carries its data in the page as JavaScript, and escapes what it renders as
+HTML, so the words come back escaped both ways. Undoing only the first left
+`&amp;` and `-&gt;` sitting in the middle of posts, which two of the 49 posts
+held on 2 Oct 2026 did. `unescapeXText` in `src/lib/trade/social/x-text.ts`
+undoes both, and `&amp;` last, so somebody writing `&amp;lt;` about an entity
+does not end up with a `<`.
+
+A post stored before that fix keeps its `&amp;` until the next sync of that
+creator rewrites the words.
+
 ## The coins a post names
 
-Trade reads the words of the post and works out which coins it is about, and
-only coins it has a market for can come out of that. `$SOL`, `SOL`, `solana` and
-`sol` are all the SOL market; "apes are buying" names nothing. The three rules,
-the words that are never a coin and what **Re-read coins** does are all in
-`which-coins-a-post-names.md`.
+Trade reads the words of the post and works out which markets it is about, and
+only markets it lists can come out of that. `$SOL`, `SOL`, `solana` and `sol`
+are all the SOL market; "apes are buying" names nothing. Stocks, metals and
+currencies come in behind one switch in Settings → Social, off until asked for.
+The three rules, the words that are never a market, the switch and what
+**Re-read coins** does are all in `which-coins-a-post-names.md`.
 
 **The counts on the right are over every post held**, not over the fifty on
 screen, and clicking a coin asks the database again rather than sieving the
@@ -191,11 +252,15 @@ their own screens.
   `src/server/trade/social-posts.ts`. Every query is filtered by the signed-in
   member's id in the same `where` as the row it looks for.
 - The reader slot: `src/server/trade/social-readers.ts`, with the page parser
-  in `src/lib/trade/social/x-profile.ts` and real saved pages to test it
+  in `src/lib/trade/social/x-profile.ts`, the two unescapings in
+  `x-text.ts`, and real saved pages to test the parser
   against in `src/lib/trade/social/__fixtures__/`. Those fixtures are in
   `.prettierignore`: reformatting one rewrites the payload the parser reads.
 - The endpoints: `src/lib/api/trade/social.ts`, all behind `userGet` or
   `userPost`.
 - The screen: `src/routes/_authenticated/social_.$handle.tsx` and
-  `src/components/social/`.
+  `src/components/social/`. The post's own window is
+  `social-post-dialog.tsx`, what a click on a row means is
+  `post-row-click.ts`, and the cut-post test is
+  `src/lib/trade/social/post-text.ts`. All three are shared with the feed.
 - Panel sizes: `socialHorizontal` in `src/lib/trade/panel-keys.ts`.

@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, exists, lt, sql, type SQL } from "drizzle-orm"
 import type { PgColumn } from "drizzle-orm/pg-core"
 
+import type { MarketMatchKind } from "@/lib/trade/social/coin-matcher"
 import {
   SOCIAL_MARKETS_SHOWN,
   SOCIAL_POSTS_PAGE,
@@ -181,6 +182,8 @@ async function readFeedCoins(
   const rows = await database
     .select({
       market: tradeSocialPostCoins.coin,
+      kind: sql<MarketMatchKind>`max(${tradeSocialPostCoins.kind})`,
+      marketKey: sql<string>`max(${tradeSocialPostCoins.marketKey})`,
       posts: sql<number>`count(*)::int`,
     })
     .from(tradeSocialPostCoins)
@@ -188,7 +191,12 @@ async function readFeedCoins(
     .groupBy(tradeSocialPostCoins.coin)
     .orderBy(sql`count(*) desc`, tradeSocialPostCoins.coin)
     .limit(SOCIAL_MARKETS_SHOWN)
-  return rows.map((row) => ({ market: row.market, posts: row.posts }))
+  return rows.map((row) => ({
+    market: row.market,
+    kind: row.kind,
+    marketKey: row.marketKey,
+    posts: row.posts,
+  }))
 }
 
 /** How many posts the scope holds in all, before the coin narrowed it. */

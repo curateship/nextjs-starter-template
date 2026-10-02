@@ -12,6 +12,7 @@ import {
 import { readPublicCategory, type VisitorSite } from "@/server/directory/public"
 import { setContentCategories } from "@/server/directory/content-categories"
 import { resetPublicDirectoryCacheForTests } from "@/server/directory/public-cache"
+import { saveDirectoryPostCoverImage } from "@/server/directory/settings"
 import { createPost, updatePost } from "@/server/posts/posts"
 import { POST_CONTENT_TYPE } from "@/server/posts/schema"
 import {
@@ -172,6 +173,21 @@ describe("listing cards", () => {
     const page = await readPublicPost(site, live.slug, database)
     expect(page?.post.body.content).toHaveLength(4)
     expect(page?.listingCards.map((listing) => listing.id)).toEqual([shown.id])
+  })
+
+  it("draws the cover image until the site turns it off", async () => {
+    const live = await post(site.id, "With a photo", "published")
+
+    expect(
+      (await readPublicPost(site, live.slug, database))?.showCoverImage
+    ).toBe(true)
+
+    await saveDirectoryPostCoverImage(site.id, false, database)
+    resetPublicDirectoryCacheForTests()
+
+    expect(
+      (await readPublicPost(site, live.slug, database))?.showCoverImage
+    ).toBe(false)
   })
 })
 
