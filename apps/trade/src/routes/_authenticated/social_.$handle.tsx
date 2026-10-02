@@ -134,7 +134,7 @@ function SocialRouteError({ error }: { error: unknown }) {
             focusRing
           )}
         >
-          See every creator you track
+          Open the feed of everyone you track
         </Link>
       </div>
       <AddCreatorDialog

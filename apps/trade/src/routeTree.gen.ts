@@ -96,6 +96,7 @@ import { Route as AuthenticatedProtocolsPhemexRouteImport } from './routes/_auth
 import { Route as AuthenticatedProtocolsRobinhoodRouteImport } from './routes/_authenticated/protocols/robinhood'
 import { Route as AuthenticatedProtocolsSolanaRouteImport } from './routes/_authenticated/protocols/solana'
 import { Route as AuthenticatedSocialHandleRouteImport } from './routes/_authenticated/social_.$handle'
+import { Route as AuthenticatedSocialManageRouteImport } from './routes/_authenticated/social_.manage'
 import { Route as ApiAuthGoogleRouteImport } from './routes/api/auth/google'
 import { Route as ApiWebhooksResendRouteImport } from './routes/api/webhooks/resend'
 import { Route as ApiWebhooksStripeRouteImport } from './routes/api/webhooks/stripe'
@@ -595,6 +596,12 @@ const AuthenticatedSocialHandleRoute =
     path: '/social/$handle',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedSocialManageRoute =
+  AuthenticatedSocialManageRouteImport.update({
+    id: '/social_/manage',
+    path: '/social/manage',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const ApiAuthGoogleRoute = ApiAuthGoogleRouteImport.update({
   id: '/api/auth/google',
   path: '/api/auth/google',
@@ -810,6 +817,7 @@ export interface FileRoutesByFullPath {
   '/protocols/robinhood': typeof AuthenticatedProtocolsRobinhoodRoute
   '/protocols/solana': typeof AuthenticatedProtocolsSolanaRoute
   '/social/$handle': typeof AuthenticatedSocialHandleRoute
+  '/social/manage': typeof AuthenticatedSocialManageRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
@@ -919,6 +927,7 @@ export interface FileRoutesByTo {
   '/protocols/robinhood': typeof AuthenticatedProtocolsRobinhoodRoute
   '/protocols/solana': typeof AuthenticatedProtocolsSolanaRoute
   '/social/$handle': typeof AuthenticatedSocialHandleRoute
+  '/social/manage': typeof AuthenticatedSocialManageRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
@@ -1032,6 +1041,7 @@ export interface FileRoutesById {
   '/_authenticated/protocols/robinhood': typeof AuthenticatedProtocolsRobinhoodRoute
   '/_authenticated/protocols/solana': typeof AuthenticatedProtocolsSolanaRoute
   '/_authenticated/social_/$handle': typeof AuthenticatedSocialHandleRoute
+  '/_authenticated/social_/manage': typeof AuthenticatedSocialManageRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
@@ -1145,6 +1155,7 @@ export interface FileRouteTypes {
     | '/protocols/robinhood'
     | '/protocols/solana'
     | '/social/$handle'
+    | '/social/manage'
     | '/api/auth/google'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
@@ -1254,6 +1265,7 @@ export interface FileRouteTypes {
     | '/protocols/robinhood'
     | '/protocols/solana'
     | '/social/$handle'
+    | '/social/manage'
     | '/api/auth/google'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
@@ -1366,6 +1378,7 @@ export interface FileRouteTypes {
     | '/_authenticated/protocols/robinhood'
     | '/_authenticated/protocols/solana'
     | '/_authenticated/social_/$handle'
+    | '/_authenticated/social_/manage'
     | '/api/auth/google'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
@@ -2044,6 +2057,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSocialHandleRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/social_/manage': {
+      id: '/_authenticated/social_/manage'
+      path: '/social/manage'
+      fullPath: '/social/manage'
+      preLoaderRoute: typeof AuthenticatedSocialManageRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/api/auth/google': {
       id: '/api/auth/google'
       path: '/api/auth/google'
@@ -2384,6 +2404,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedProtocolsRobinhoodRoute: typeof AuthenticatedProtocolsRobinhoodRoute
   AuthenticatedProtocolsSolanaRoute: typeof AuthenticatedProtocolsSolanaRoute
   AuthenticatedSocialHandleRoute: typeof AuthenticatedSocialHandleRoute
+  AuthenticatedSocialManageRoute: typeof AuthenticatedSocialManageRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
@@ -2413,6 +2434,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedProtocolsRobinhoodRoute: AuthenticatedProtocolsRobinhoodRoute,
   AuthenticatedProtocolsSolanaRoute: AuthenticatedProtocolsSolanaRoute,
   AuthenticatedSocialHandleRoute: AuthenticatedSocialHandleRoute,
+  AuthenticatedSocialManageRoute: AuthenticatedSocialManageRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(

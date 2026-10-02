@@ -2271,6 +2271,8 @@ export const tradeSocialPosts = pgTable(
     index("trade_social_posts_coins_unread_idx")
       .on(table.creatorId, table.postedAt)
       .where(sql`${table.coinsReadAt} is null`),
+    // The feed reads one member's posts across every creator, newest first.
+    index("trade_social_posts_feed_idx").on(table.userId, table.postedAt),
   ]
 )
 
@@ -2333,5 +2335,66 @@ export const tradeSocialPostCoins = pgTable(
   (table) => [
     primaryKey({ columns: [table.postId, table.coin] }),
     index("trade_social_post_coins_creator_idx").on(table.creatorId, table.coin),
+  ]
+)
+
+/**
+ * One member-owned folder of creators, for the social feed's left panel.
+ *
+ * The same shape as `tradeMarketFolders` with a different subject: a name
+ * unique per member whatever the case, a position for ordering, and a hidden
+ * flag that keeps the folder and its creators while taking it off the screen.
+ * There is no Fav here and no exchange scope, because creators have neither.
+ */
+export const tradeSocialFolders = pgTable(
+  "trade_social_folders",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 80 }).notNull(),
+    position: integer("position").notNull().default(0),
+    // Switched off with the eye in the manage window. The folder keeps its
+    // creators and stops taking a row in the panel.
+    hidden: boolean("hidden").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    // Case-folded: "Trusted" and "trusted" are one folder to a person.
+    uniqueIndex("trade_social_folders_name_idx").on(
+      table.userId,
+      sql`lower(${table.name})`
+    ),
+    index("trade_social_folders_position_idx").on(table.userId, table.position),
+  ]
+)
+
+/**
+ * One creator in one folder. A creator may sit in several folders, because
+ * "trusted" and "posts about stocks" are not exclusive. Folder deletion
+ * removes its rows and leaves the creators.
+ */
+export const tradeSocialFolderCreators = pgTable(
+  "trade_social_folder_creators",
+  {
+    folderId: varchar("folder_id", { length: 36 })
+      .notNull()
+      .references(() => tradeSocialFolders.id, { onDelete: "cascade" }),
+    creatorId: varchar("creator_id", { length: 36 })
+      .notNull()
+      .references(() => tradeSocialCreators.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.folderId, table.creatorId] }),
+    index("trade_social_folder_creators_creator_idx").on(table.creatorId),
   ]
 )

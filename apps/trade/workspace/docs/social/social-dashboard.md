@@ -5,8 +5,9 @@ screen. You paste a creator's X address, Trade reads their public X page, and
 the screen shows who follows them, where else they point, and what they have
 been saying.
 
-The list of every creator you track is a separate screen, `/social`. See
-`every-creator.md`.
+The feed of every creator you track is a separate screen, `/social` (see
+`social-feed.md`), and their sortable table is `/social/manage` (see
+`every-creator.md`).
 
 ## What the screen holds
 
@@ -78,7 +79,7 @@ follows, and it is written up in `src/server/protocols/rationing.ts`.
 
 ## Adding a creator
 
-"Add a creator" is on the list screen, `/social`, not here. Opening
+"Add a creator" is on the feed, `/social`, not here. Opening
 `/social/<handle>` for an account you do not track also offers to add it there
 and then, with a link to the list beside it.
 
@@ -161,11 +162,12 @@ one member deleting their account would take the other's posts with it.
 The cost is that the same post can sit in the table twice under two members.
 That is the right trade for a few hundred posts each.
 
-## Why the list of creators is a separate screen
+## Why the other creators are a separate screen
 
 Every panel on this screen is about the creator in the address. A list of the
 other creators is navigation, not information about this one, and a panel whose
-only job is to leave the page is a panel wasted. The list gets its own screen.
+only job is to leave the page is a panel wasted. The feed and the table get
+their own screens.
 
 ## What is not built yet
 

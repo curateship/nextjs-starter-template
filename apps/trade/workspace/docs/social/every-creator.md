@@ -1,9 +1,15 @@
 # Every creator you track
 
-`/social` is the front door of Social: one row per X account you track, with a
-search box and three filters above them. Clicking a row opens that creator's
-own dashboard. This screen never shows one creator's posts. It shows who you
-have and helps you find the one you want.
+`/social/manage` is every X account you track as one sortable table, with a
+search box and filters above it. Clicking a row opens that creator's own
+dashboard. This screen never shows one creator's posts. It shows who you have
+and helps you find the one you want.
+
+It lived at `/social` until the feed took that address (see `social-feed.md`).
+The table stayed because its sortable Followers, Posts and Last post columns
+answer questions the feed's panel does not, which Tyler asked for on
+29 Sep 2026. The way in is the cog in the feed's left panel, then
+"Manage creators".
 
 ## Two screens on purpose
 
@@ -106,9 +112,9 @@ The search, the filters and the sort all live in the address, so a narrowed
 list can be reloaded and pasted, and the back button out of a creator's
 dashboard returns to the rows you left rather than to everything.
 
-Defaults are left out, so `/social` and
-`/social?posts=any&last=any&sort=last&dir=desc` are the same screen and only
-the first is worth sending to somebody.
+Defaults are left out, so `/social/manage` and
+`/social/manage?posts=any&last=any&sort=last&dir=desc` are the same screen and
+only the first is worth sending to somebody.
 
 **An address nobody understands opens the plain list.** A stale link, a
 hand-edited value or a filter that has since been renamed falls back to the
@@ -125,7 +131,8 @@ filters.
 
 ## Where it lives
 
-- The route: `src/routes/_authenticated/social.tsx`.
+- The route: `src/routes/_authenticated/social_.manage.tsx`. The static
+  segment outranks `$handle`, so no creator called "manage" is ever looked up.
 - The screen: `src/components/social/creators-list-page.tsx`, with the filters
   in `creator-filters.tsx`.
 - The question, its validator and its labels:
@@ -136,4 +143,5 @@ filters.
 - The endpoint: `src/lib/api/trade/social.ts`, behind `userGet`.
 
 **The sidebar link is data, not code.** "Social" is added by hand in
-Platform → Navigation, pointing at `/social`.
+Platform → Navigation, pointing at `/social`, which is the feed. This table
+has no link of its own; the feed's cog is the way in.
