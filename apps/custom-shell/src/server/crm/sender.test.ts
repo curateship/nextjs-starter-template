@@ -154,7 +154,11 @@ describe("who a CRM reply comes from", () => {
       const thread = await openThread()
       const result = await sendCrmReply(workspaceId, thread.id, "On its way.", db)
 
-      expect(result).toEqual({ sent: true, messageId: expect.any(String) })
+      expect(result).toEqual({
+        sent: true,
+        messageId: expect.any(String),
+        reopened: false,
+      })
       expect(sentFrom()).toEqual([`Tyler <${INBOUND}>`])
     })
 
@@ -308,6 +312,81 @@ describe("who a CRM reply comes from", () => {
         .where(eq(customShellCrmMessages.direction, "out"))
       // The screen draws `textBody`, so their message must not be in it.
       expect(outbound.textBody).toBe("Tuesday works.")
+    })
+  })
+
+  describe("answering a conversation that was put away", () => {
+    /** Reads back the one thread's status and snooze date. */
+    async function threadNow(threadId: string) {
+      const [row] = await db
+        .select({
+          status: customShellCrmThreads.status,
+          snoozedUntil: customShellCrmThreads.snoozedUntil,
+        })
+        .from(customShellCrmThreads)
+        .where(eq(customShellCrmThreads.id, threadId))
+      return row
+    }
+
+    it("puts a closed conversation back in the inbox", async () => {
+      const thread = await openThread()
+      await db
+        .update(customShellCrmThreads)
+        .set({ status: "closed" })
+        .where(eq(customShellCrmThreads.id, thread.id))
+
+      const result = await sendCrmReply(workspaceId, thread.id, "One more thing.", db)
+      expect(result).toMatchObject({ sent: true, reopened: true })
+      expect((await threadNow(thread.id)).status).toBe("open")
+    })
+
+    it("clears the snooze date as well as the status", async () => {
+      const thread = await openThread()
+      await db
+        .update(customShellCrmThreads)
+        .set({ status: "snoozed", snoozedUntil: new Date("2027-01-01T09:00:00Z") })
+        .where(eq(customShellCrmThreads.id, thread.id))
+
+      await sendCrmReply(workspaceId, thread.id, "One more thing.", db)
+      const now = await threadNow(thread.id)
+      expect(now.status).toBe("open")
+      // Left behind, the thread would fall asleep again on a date that no
+      // longer means anything.
+      expect(now.snoozedUntil).toBeNull()
+    })
+
+    it("changes nothing about a conversation that was already open", async () => {
+      const thread = await openThread()
+      const result = await sendCrmReply(workspaceId, thread.id, "On its way.", db)
+      expect(result).toMatchObject({ sent: true, reopened: false })
+      expect((await threadNow(thread.id)).status).toBe("open")
+    })
+
+    it("leaves a closed conversation closed when the send is refused", async () => {
+      setEmailProviderFactoryForTests(() => ({
+        async send(): Promise<SendEmailResult> {
+          return { success: false, error: "Resend said no" }
+        },
+        async receive() {
+          return { success: false, error: "not used" }
+        },
+      }))
+
+      const thread = await openThread()
+      await db
+        .update(customShellCrmThreads)
+        .set({ status: "closed" })
+        .where(eq(customShellCrmThreads.id, thread.id))
+
+      const result = await sendCrmReply(workspaceId, thread.id, "One more thing.", db)
+      expect(result).toEqual({ sent: false, error: "Resend said no" })
+      // Nothing is written when the provider refuses, status included.
+      expect((await threadNow(thread.id)).status).toBe("closed")
+      const messages = await db
+        .select()
+        .from(customShellCrmMessages)
+        .where(eq(customShellCrmMessages.direction, "out"))
+      expect(messages).toHaveLength(0)
     })
   })
 })

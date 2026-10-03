@@ -1,5 +1,6 @@
 import * as React from "react"
 import { SparklesIcon } from "lucide-react"
+import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { DisabledReason } from "@/components/ui/disabled-reason"
@@ -59,8 +60,12 @@ export function ReplyComposer({
     if (!body.trim() || sending) return
     setSending(true)
     try {
-      await sendReply(threadId, body.trim())
+      const { reopened } = await sendReply(threadId, body.trim())
       setBody("")
+      // The conversation was closed or snoozed and answering it put it back in
+      // the inbox. Said out loud, because a status changing under somebody
+      // without a word is its own surprise.
+      if (reopened) toast.success("Reopened, because you answered it.")
       onSent()
     } catch (error) {
       showErrorToast(getCrmErrorMessage(error))

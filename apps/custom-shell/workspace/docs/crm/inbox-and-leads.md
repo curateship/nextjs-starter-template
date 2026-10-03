@@ -291,6 +291,23 @@ open when that date passes. Closed is done with. Neither deletes anything, and
 the inbox shows open ones by default because the question this screen answers is
 what needs doing.
 
+**Answering a conversation reopens it.** If you reply in one that was closed or
+snoozed, it goes back to open and a snooze date is cleared, and a toast says
+"Reopened, because you answered it." If you are still talking, it is not done.
+
+This closes the one way the CRM could silently lose a live conversation: close a
+thread, find it again in a search, answer it, and it stays invisible in an inbox
+that shows open ones. Their answer then arrives into a thread nobody looks at.
+
+The status changes in the same statement that bumps the message count, so there
+is no moment where the reply exists and the status is stale. A refused send
+writes nothing at all, the status included.
+
+**An inbound message does not reopen a closed thread.** A new message already
+clears `read_at` and puts the conversation at the top of the list it is in.
+Whether somebody writing again should reopen a thread you deliberately closed is
+a separate question, and the answer may be no.
+
 ## Following up
 
 A lead can carry a date and a note. When the date passes, the background pass

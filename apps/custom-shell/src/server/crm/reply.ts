@@ -161,7 +161,16 @@ async function newestInboundMessage(
 }
 
 export type SendReplyResult =
-  | { sent: true; messageId: string }
+  | {
+      sent: true
+      messageId: string
+      /**
+       * True when the conversation had been closed or snoozed and this reply
+       * put it back in the inbox. The screen says so: a status changing under
+       * somebody without a word is its own surprise.
+       */
+      reopened: boolean
+    }
   | { sent: false; error: string }
 
 /**
@@ -187,6 +196,7 @@ export async function sendCrmReply(
     .select({
       id: customShellCrmThreads.id,
       subject: customShellCrmThreads.subject,
+      status: customShellCrmThreads.status,
       leadId: customShellCrmLeads.id,
       leadEmail: customShellCrmLeads.email,
       leadStage: customShellCrmLeads.stage,
@@ -285,6 +295,9 @@ export async function sendCrmReply(
     createdAt: at,
   })
 
+  // It had been closed or snoozed, and answering it is still talking.
+  const reopened = thread.status !== "open"
+
   await database
     .update(customShellCrmThreads)
     .set({
@@ -293,6 +306,15 @@ export async function sendCrmReply(
       lastDirection: "out",
       // Answering a conversation is reading it.
       readAt: at,
+      // If you are still talking, it is not done. A closed conversation
+      // answered from a search would otherwise stay invisible in an inbox that
+      // shows open ones, and their answer would arrive into a thread nobody
+      // looks at. The snooze date goes with it, or the thread would fall
+      // asleep again on a date that no longer means anything.
+      //
+      // Here rather than in an update of its own, so there is no moment where
+      // the reply exists and the status is stale.
+      ...(reopened ? { status: "open" as const, snoozedUntil: null } : {}),
       updatedAt: at,
     })
     .where(eq(customShellCrmThreads.id, threadId))
@@ -307,5 +329,5 @@ export async function sendCrmReply(
       .where(eq(customShellCrmLeads.id, thread.leadId))
   }
 
-  return { sent: true, messageId }
+  return { sent: true, messageId, reopened }
 }

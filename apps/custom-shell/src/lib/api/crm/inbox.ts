@@ -217,7 +217,7 @@ const sendReplyFn = createServerFn({ method: "POST" })
     const workspaceId = await currentWorkspaceId(context.user.id)
     const result = await sendCrmReply(workspaceId, data.threadId, data.body)
     if (!result.sent) throw new Error(`CRM_SEND_REFUSED: ${result.error}`)
-    return { messageId: result.messageId }
+    return { messageId: result.messageId, reopened: result.reopened }
   })
 
 const setStatusFn = createServerFn({ method: "POST" })
