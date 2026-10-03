@@ -6,7 +6,10 @@ import { PublicBreadcrumbs } from "@/components/shell/public-breadcrumbs"
 import { usePaintedPathname } from "@/lib/hooks/use-painted-pathname"
 import { usePublicBreadcrumbTrail } from "@/lib/hooks/use-public-breadcrumb-trail"
 import { PublicFooter } from "@/components/shell/public-footer"
-import { PublicNavigation } from "@/components/shell/public-navigation"
+import {
+  PUBLIC_HEADER_HEIGHT_VAR,
+  PublicNavigation,
+} from "@/components/shell/public-navigation"
 import {
   useAppName,
   useBrandLogo,
@@ -66,11 +69,18 @@ export function PublicPageFrame({
   className,
   children,
   publicSearchEnabled: publicSearchEnabledOverride,
+  heroRunsUnderMenu = false,
 }: {
   className?: string
   children: React.ReactNode
   /** Current 404 data when root loader data is unavailable. */
   publicSearchEnabled?: boolean
+  /**
+   * True when the front page's first row is a hero running its colour under
+   * the menu. The menu itself is left exactly as it is; this only tells the
+   * hero how far above its own row the colour has to start.
+   */
+  heroRunsUnderMenu?: boolean
 }) {
   const appName = useAppName()
   const logo = useBrandLogo()
@@ -176,7 +186,18 @@ export function PublicPageFrame({
   // the whole page in from the window and a spacing of 0 put the content
   // against the glass. Tyler's call on 30 Sep 2026: the slider is for the gaps
   // between blocks and inside the grids of cards, and nothing else.
-  const mainStyle = mainSpacingStyle
+  //
+  // `--shell-hero-rise` is how far above its own row a first-row hero starts
+  // painting when its colour runs under the menu: this gap, plus the bar's own
+  // height, which the bar measures and writes down. The bar then paints no
+  // background of its own, so the colour behind it is what shows.
+  // Written only for that one case, so every other page's `main` stays plain.
+  const mainStyle = heroRunsUnderMenu
+    ? ({
+        ...mainSpacingStyle,
+        "--shell-hero-rise": `calc(${theme.mainSpacing}px + var(${PUBLIC_HEADER_HEIGHT_VAR}, 0px))`,
+      } as React.CSSProperties)
+    : mainSpacingStyle
   // The gap between front page blocks travels as two CSS variables rather than
   // a class, because theme.css owns those rules: flat mode collapses them and
   // a phone draws less than a desktop. Left at the default, nothing is written
@@ -262,6 +283,10 @@ export function PublicPageFrame({
         blur={publicHeader.blur}
         userPanel={userPanel}
         chromeBackground={chromeBackground}
+        // The hero's colour is behind the bar, so the bar paints nothing over
+        // it and measures itself for the hero. Without this it draws its own
+        // near-solid white and the colour stops at the bottom of the menu.
+        seeThrough={heroRunsUnderMenu}
         showThemeToggle={visitorCanChooseTheme}
         headerActions={headerActions}
         showSearch={showSearch}

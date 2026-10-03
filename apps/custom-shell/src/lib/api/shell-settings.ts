@@ -60,6 +60,9 @@ import {
   MAX_FRONT_PAGE_TESTIMONIALS,
   frontPageRowImageUrls,
   normalizeFrontPageHeroHref,
+  normalizeFrontPageHeroBackground,
+  FRONT_PAGE_HERO_BACKGROUND_MESSAGE,
+  MAX_FRONT_PAGE_HERO_BACKGROUND_LENGTH,
   normalizeFrontPageImageUrl,
   normalizeFrontPageRows,
 } from "@/lib/pages/front-page"
@@ -523,6 +526,21 @@ const frontPageRowsSchema = z
           ),
         note: z.string().max(MAX_FRONT_PAGE_HERO_NOTE_LENGTH),
         stars: z.number().int().min(0).max(MAX_FRONT_PAGE_HERO_STARS),
+        // Six hex digits or nothing. A colour that is not a plain hex code
+        // reaches the page as text inside a style, which is a way to write
+        // CSS into every visitor's browser, so it is refused here as well as
+        // dropped in `normalizeFrontPageRows`.
+        background: z
+          .string()
+          .trim()
+          .max(MAX_FRONT_PAGE_HERO_BACKGROUND_LENGTH)
+          .refine(
+            (value) =>
+              !value ||
+              normalizeFrontPageHeroBackground(value) === value.toLowerCase(),
+            FRONT_PAGE_HERO_BACKGROUND_MESSAGE
+          ),
+        backgroundUnderMenu: z.boolean(),
       }),
       z.object({
         ...frontPageRowBaseShape,

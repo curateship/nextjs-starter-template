@@ -197,6 +197,25 @@ export const FRONT_PAGE_HERO_ACTION_HINTS: Record<
   email: "A box for an address with the button beside it.",
 }
 
+/**
+ * A hero's own background colour, stored as `#rrggbb` and empty when the row
+ * has none. Six digits only: a name such as `red` and a `var(...)` both reach
+ * a stylesheet as text, and a stored colour that is not a plain hex code is
+ * how a settings field becomes a way to write CSS into every visitor's page.
+ */
+const FRONT_PAGE_HERO_BACKGROUND_PATTERN = /^#[0-9a-f]{6}$/i
+
+/** `#rrggbb` and nothing longer. */
+export const MAX_FRONT_PAGE_HERO_BACKGROUND_LENGTH = 7
+
+export const FRONT_PAGE_HERO_BACKGROUND_MESSAGE =
+  "A hero background is a 6-digit hex colour, like #0f172a. Clear the box for no colour."
+
+export function normalizeFrontPageHeroBackground(value: unknown) {
+  const color = typeof value === "string" ? value.trim().toLowerCase() : ""
+  return FRONT_PAGE_HERO_BACKGROUND_PATTERN.test(color) ? color : ""
+}
+
 export const FRONT_PAGE_ROW_HEADING_MESSAGE = "Give the row a heading."
 export const FRONT_PAGE_HERO_LINK_MESSAGE =
   "A button link starts with /, https://, mailto: or tel:."
@@ -332,6 +351,17 @@ export type FrontPageRow =
       note: string
       /** 0 to 5. Drawn before the note, and 0 draws none. */
       stars: number
+      /**
+       * A colour painted in a band behind the hero, right across the window
+       * whatever the row's layout says. `#rrggbb`, or empty for no colour.
+       */
+      background: string
+      /**
+       * True runs that colour under the site menu, so the band starts at the
+       * very top of the window and the bar stops painting over it. Only the
+       * first row has the menu over it, so every hero below it ignores this.
+       */
+      backgroundUnderMenu: boolean
     })
   | (FrontPageRowBase & {
       kind: "testimonials"
@@ -651,6 +681,10 @@ export function normalizeFrontPageRows(value: unknown): FrontPageRow[] {
         buttonHref: action === "email" ? "" : buttonLabel ? buttonHref : "",
         note: cleanText(source.note, MAX_FRONT_PAGE_HERO_NOTE_LENGTH),
         stars: normalizeFrontPageHeroStars(source.stars),
+        background: normalizeFrontPageHeroBackground(source.background),
+        // Only an explicit true runs the colour under the menu, so a hero
+        // saved before this switch existed keeps its band below the bar.
+        backgroundUnderMenu: source.backgroundUnderMenu === true,
       })
     } else if (kind === "testimonials") {
       const items = normalizeTestimonials(source.items)
@@ -701,6 +735,22 @@ export function visibleFrontPageRows(
   rows: readonly FrontPageRow[]
 ): FrontPageRow[] {
   return rows.filter((row) => !row.hidden)
+}
+
+/**
+ * True when the page opens on a hero whose colour runs under the site menu.
+ *
+ * Only the first row is asked, because the menu sits above the first row and
+ * nothing else on the page is anywhere near it. A hero further down with the
+ * switch on still paints its own band; the menu is simply not its neighbour.
+ */
+export function frontPageHeroRunsUnderMenu(rows: readonly FrontPageRow[]) {
+  const first = rows[0]
+  return (
+    first?.kind === "hero" &&
+    first.backgroundUnderMenu &&
+    Boolean(first.background)
+  )
 }
 
 export function frontPageHasPlans(rows: readonly FrontPageRow[]) {

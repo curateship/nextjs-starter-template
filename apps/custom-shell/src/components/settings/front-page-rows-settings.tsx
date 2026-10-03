@@ -176,6 +176,9 @@ export function FrontPageRowsSettings({
         open={editing !== undefined}
         row={editing ?? null}
         newKind={newKind}
+        // A new row joins the end of the list, so it is the top row only when
+        // there is nothing above it yet.
+        first={editing ? rows[0]?.id === editing.id : rows.length === 0}
         onClose={closeRowWindow}
         onSaved={saveRow}
       />

@@ -44,6 +44,7 @@ local setup docs.
 - [Hiding a row, and choosing its screens](content/showing-and-hiding-public-things.md)
 - [Alignment and parts of a front page row](content/front-page-row-alignment-and-parts.md)
 - [The divider row](content/front-page-divider-rows.md)
+- [A hero's background colour](content/hero-background-colour.md)
 
 ## CRM
 
