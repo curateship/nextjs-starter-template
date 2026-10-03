@@ -1318,7 +1318,8 @@ function followTheRangeInto(
     // Renamed for the way it went out. A level the range no longer holds is
     // not at any rung, and the one thing still true of it is that it left
     // through the top: it is the first, second, third to do so.
-    carriedLevel.name = gridCarriedName(plan.downShifts + 1)
+    plan.carriedSoFar += 1
+    carriedLevel.name = gridCarriedName(plan.carriedSoFar)
     plan.carriedLevels.push(carriedLevel)
   }
   plan.levels = nextLevels

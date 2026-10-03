@@ -240,10 +240,10 @@ does not close the position immediately.
   and the position row are painted from it at once, and the next read swaps
   in the exchange's own figures. A reduce-only fill paints nothing new — it
   shrank a position rather than opening one.
-- **A grid arrow names the rung and what happened.** An opening arrow says
-  "Enter rung 1 - for $50.00". The matching close says
-  "Exit rung 1 - profit $4.28". The words do not change between a buying grid
-  and a selling grid.
+- **A grid arrow names the level and what happened.** An opening arrow says
+  "Rung 6 - level 4 bought $50.00" and its close says "Rung 6 - level 4 sold -
+  made $4.28", so both ends of a level's life read as the same level. A selling
+  grid says "sold short" and "bought back" in place of bought and sold.
 - **The arrow that ends the run says the run, not the rung.** It reads "Grid
   run ended - loss $17.80", the whole trade after fees, which is the Journal
   row's figure and the bell's. Tyler's rule, 29 September 2026: a USELESS

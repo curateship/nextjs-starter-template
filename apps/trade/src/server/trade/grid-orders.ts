@@ -388,6 +388,7 @@ export function draftGridOrder(input: GridDraftInput): GridDraft {
     entered: reachedEntry(direction, mark, winEdge(direction, range)),
     shifts: 0,
     downShifts: 0,
+    carriedSoFar: 0,
     closedReason: null,
   }
 

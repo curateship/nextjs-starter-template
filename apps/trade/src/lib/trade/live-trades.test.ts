@@ -460,7 +460,7 @@ describe("tradeFillMarks", () => {
     )
 
     expect(tradeFillMarks(trade).map((mark) => mark.label)).toEqual([
-      "Enter rung 1 - for $100.00",
+      "Rung 1 bought $100.00",
       "Grid run ended - profit $9.00",
     ])
   })
@@ -627,8 +627,8 @@ describe("arrows on a position that is still open", () => {
     ])
 
     expect(marks.map((mark) => mark.label)).toEqual([
-      "Enter rung 2 - for $70.07",
-      "Enter rung 3 - for $107.20",
+      "Rung 2 sold short $70.07",
+      "Rung 3 sold short $107.20",
       "Rung 3 bought back - made $5.66",
     ])
     expect(marks[2].detail).toEqual(["Still holding $70.41"])

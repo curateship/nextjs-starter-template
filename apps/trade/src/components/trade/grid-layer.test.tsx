@@ -119,6 +119,7 @@ function grid(direction: "long" | "short", holding = true): SmartGrid {
       entered: true,
       shifts: 0,
       downShifts: 0,
+    carriedSoFar: 0,
       closedReason: null,
       reverseWhenStopped: false,
       reversedFrom: null,

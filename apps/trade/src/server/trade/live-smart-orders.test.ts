@@ -241,6 +241,7 @@ function gridState(over: Partial<GridPlan> = {}): GridPlan {
     entered: false,
     shifts: 0,
     downShifts: 0,
+    carriedSoFar: 0,
     closedReason: null,
     ...over,
     manualSizing: over.manualSizing ?? false,
@@ -2095,6 +2096,7 @@ describe("live Smart orders", () => {
       entered: true,
       shifts: 0,
       downShifts: 0,
+    carriedSoFar: 0,
       closedReason: null,
     }
     await database.insert(tradeSmartLadders).values({

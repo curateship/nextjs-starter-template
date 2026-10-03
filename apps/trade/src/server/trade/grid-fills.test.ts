@@ -68,8 +68,8 @@ describe("grid fill rungs", () => {
 
     expect(fills.map((one) => one.gridRung)).toEqual([2, 3, undefined])
     expect(openFillMarks(fills).map((mark) => mark.label)).toEqual([
-      "Enter rung 2 - for $70.07",
-      "Enter rung 3 - for $107.20",
+      "Rung 2 sold short $70.07",
+      "Rung 3 sold short $107.20",
       "Rung 3 bought back - made $5.66",
     ])
   })

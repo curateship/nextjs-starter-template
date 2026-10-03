@@ -216,8 +216,14 @@ add up to.
   show the position Aster has already confirmed.
 - Tyler, 5 Sep 2026: **"If I enter a short on the first rung then it should say
   'Enter rung 1 - for $amount', and if I exit then 'Exit rung 1 - profit
-  $amount'."** Every grid arrow names the rung and whether the rung entered or
-  exited. Buy and sell wording does not describe a grid rung.
+  $amount'."** Every grid arrow names the level and whether it entered or
+  exited. Buy and sell wording does not describe a grid level.
+- **The name is the level's, not the seat's.** Tyler, 3 Oct 2026, after one
+  level read as rung 6 in the morning and rung 5 in the afternoon: "the naming
+  needs to be changed as well... It should be 'Rung 1 - level 2, 3, 4 etc'."
+  So an arrow says "Rung 6 - level 4 bought $253.58" and "Rung 6 - level 4
+  sold - made $8.01". The rung on its own is still what the grid card shows,
+  because the seat order top to bottom is what that card is for.
 - **A rule Tyler sets for himself warns and asks; it never blocks.** Tyler,
   4 Sep 2026: "This is not to completely block me from trading, it just gives
   me a warning and I have to confirm to enter the trade." The three rules, the

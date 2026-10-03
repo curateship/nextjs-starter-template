@@ -510,21 +510,28 @@ level is sitting in today.
 That is what the carried lines on the chart say. PONS has four of them, reading
 Rung 1 and then levels 2, 3 and 4 as you go up.
 
-A grid already running when this shipped has its levels named in one go from
-the moves it has made, which is exact. Its carried levels are numbered only
-when none has been cleared yet, because Pair Out takes a cleared one out of the
-list and the order can no longer be proved; those keep the old wording until
-they clear.
+**Both ends of a level's life read the same.** A buy says "Rung 6 - level 4
+bought $253.58" and its sale says "Rung 6 - level 4 sold - made $8.01", so the
+three arrows one level makes over a buy, a sell and a buy again are plainly one
+level. A selling grid's level says "sold short" and "bought back" instead.
+
+The count of levels carried out is kept on the grid itself rather than worked
+out from the list of them. Pair Out takes a cleared level out of that list, so
+its length goes down and would hand the next one a number already used, and a
+move that carries a level holding nothing records no level at all, so the moves
+outrun the carries. MARSCOIN had made seven moves and carried five. A grid
+already running when this shipped has its levels named in one go from the moves
+it has made.
 
 Every place that prices one sale shows this figure, and they all agree.
 
-- **The arrow on the chart.** Point at a grid entry and it reads "Enter rung 1
-  - for $47.53". Its matching close reads "Rung 6 - level 4 sold - made $4.28", with
-  "Still holding $182.82" under it when another rung remains open. A selling
-  grid's level says "bought back" instead of "sold". The place on the price
-  axis still shows where the order filled. The engine records the order id with
-  its level's name before the range can move, so every arrow a level ever makes
-  carries the same name.
+- **The arrow on the chart.** Point at a grid entry and it reads "Rung 6 -
+  level 4 bought $47.53". Its matching close reads "Rung 6 - level 4 sold -
+  made $4.28", with "Still holding $182.82" under it when another rung remains
+  open. A selling grid's level says "sold short" and "bought back". The place
+  on the price axis still shows where the order filled. The engine records the
+  order id with its level's name before the range can move, so every arrow a
+  level ever makes carries the same name.
 - **The Smart orders panel**, on the grid's row, as banked.
 - **The trading overview and the P&L page**, on every row of their fill lists
   and in the totals those rows add up to.
