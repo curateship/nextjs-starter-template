@@ -686,10 +686,169 @@ describe("live fill storage", () => {
     ])
 
     const [notice] = vi.mocked(writeTradeNotice).mock.calls[0]
-    expect(notice.body).toBe(
-      "Made $5.00 on this close, after fees. Measured against rung 2, which bought these coins at $0.9."
-    )
+    // The rung leads and the money is its own, not the venue's nothing.
+    expect(notice.title).toBe("BTC rung 2 sold: made $5.00 (HL1 - GRID)")
+    expect(notice.body).toBe("Sold $95.00. Still holding $95.00.")
     expect(notice.level).toBe("info")
+  })
+
+  it("rings once for a grid sale and the Pair Out rescue beside it", async () => {
+    // MARSCOIN, 3 Oct 2026, the shape this was found on. Rung 4 sells the
+    // coins it bought, and its profit pays to clear a buy the range left
+    // behind two moves ago. Two orders, one event, one row in the bell.
+    const user = await insertUser(database)
+    const wallet: TradeWallet = {
+      id: crypto.randomUUID(),
+      label: "HL1 - GRID",
+      kind: "live",
+      status: "active",
+      protocol: "hyperliquid",
+      network: "mainnet",
+      startingBalance: 0,
+      address: "0x5555555555555555555555555555555555555555",
+      hasKey: true,
+      keyValidUntil: null,
+    }
+    await database.insert(tradeWallets).values({
+      userId: user.id,
+      id: wallet.id,
+      label: wallet.label,
+      kind: wallet.kind,
+      status: wallet.status,
+      protocol: wallet.protocol,
+      network: wallet.network,
+      startingBalance: 0,
+      address: wallet.address,
+    })
+    const BTC = "hyperliquid:mainnet:BTC"
+    const now = Date.now()
+    await database.insert(tradeSmartLadders).values({
+      userId: user.id,
+      id: "grid-1",
+      walletId: wallet.id,
+      marketKey: BTC,
+      status: "active",
+      kind: "grid",
+      plan: {} as never,
+      createdAt: new Date(now - 60_000),
+      updatedAt: new Date(now - 60_000),
+    })
+    await database.insert(tradeGridOrderRungs).values([
+      // The two buys, each naming its own level.
+      {
+        userId: user.id,
+        walletId: wallet.id,
+        orderId: "buy-carried",
+        ladderId: "grid-1",
+        marketKey: BTC,
+        direction: "long" as const,
+        rung: 4,
+        levelId: "level-carried",
+      },
+      {
+        userId: user.id,
+        walletId: wallet.id,
+        orderId: "buy-in-range",
+        ladderId: "grid-1",
+        marketKey: BTC,
+        direction: "long" as const,
+        rung: 6,
+        levelId: "level-in-range",
+      },
+      // The level's own sale.
+      {
+        userId: user.id,
+        walletId: wallet.id,
+        orderId: "sell-own",
+        ladderId: "grid-1",
+        marketKey: BTC,
+        direction: "long" as const,
+        rung: 4,
+        levelId: "level-in-range",
+        eventId: "event-1",
+        closesRung: 4,
+      },
+      // The rescue its profit paid for.
+      {
+        userId: user.id,
+        walletId: wallet.id,
+        orderId: "sell-rescue",
+        ladderId: "grid-1",
+        marketKey: BTC,
+        direction: "long" as const,
+        rung: 1,
+        levelId: "level-carried",
+        eventId: "event-1",
+        closesRung: 4,
+        closesRange: 2,
+        pairOut: true,
+      },
+    ])
+    await database.insert(tradeLiveFills).values(
+      [
+        ["buy-1", "buy-carried", 1.2, 100, now - 50_000],
+        ["buy-2", "buy-in-range", 0.9, 100, now - 40_000],
+      ].map(([fillId, orderId, px, sz, at]) => ({
+        userId: user.id,
+        walletId: wallet.id,
+        fillId: fillId as string,
+        orderId: orderId as string,
+        marketKey: BTC,
+        side: "buy" as const,
+        px: px as number,
+        sz: sz as number,
+        at: at as number,
+        closedPnl: 0,
+        fee: 0,
+        dir: "Open Long",
+        liquidation: false,
+      }))
+    )
+
+    await recordLiveFills(user.id, wallet, [
+      {
+        fillId: "sell-own-1",
+        orderId: "sell-own",
+        marketId: "BTC",
+        side: "sell",
+        px: 1,
+        sz: 100,
+        at: now,
+        closedPnl: -5,
+        fee: 0,
+        dir: "Close Long",
+        liquidation: false,
+      },
+      {
+        fillId: "sell-rescue-1",
+        orderId: "sell-rescue",
+        marketId: "BTC",
+        side: "sell",
+        px: 1,
+        sz: 100,
+        at: now + 850,
+        closedPnl: -25,
+        fee: 0,
+        dir: "Close Long",
+        liquidation: false,
+      },
+    ])
+
+    const fillNotices = vi
+      .mocked(writeTradeNotice)
+      .mock.calls.map(([notice]) => notice)
+      .filter((notice) => notice.soundKind === "fill")
+    // One row, not two. Rung 4 bought at $0.90 and sold at $1.00, so it made
+    // $10. The carried buy cost $1.20 and went at $1.00, so it lost $20. The
+    // event lost $10, which is neither of the venue's own figures.
+    expect(fillNotices).toHaveLength(1)
+    expect(fillNotices[0].title).toBe(
+      "BTC rung 4 sold and cleared rung 4 of range 2: lost $10.00 (HL1 - GRID)"
+    )
+    expect(fillNotices[0].body).toBe(
+      "Rung 4 sold $100 and made $10.00. Rung 4 of range 2 sold $100 and lost $20.00."
+    )
+    expect(fillNotices[0].level).toBe("warning")
   })
 
   it("counts the same coins in a grid sale's dollars and its money", async () => {
@@ -818,9 +977,12 @@ describe("live fill storage", () => {
 
     const [notice] = vi.mocked(writeTradeNotice).mock.calls[0]
     // 50 coins at $0.95 is $47.50, and $2.50 is what those 50 made over the
-    // $0.90 they cost. The hidden 50 are in neither figure.
-    expect(notice.title).toContain("$47.50 of BTC at $0.95")
-    expect(notice.body).toContain("Made $2.50 on this close")
+    // $0.90 they cost. The hidden 50 are in neither figure. The dollars moved
+    // out of the headline on 3 Oct 2026 — "showing the dollar amount sold tell
+    // us nothing about what was sold" — so the body is where they have to
+    // agree with the money beside them.
+    expect(notice.title).toBe("BTC rung 2 sold: made $2.50 (HL1 - GRID)")
+    expect(notice.body).toContain("Sold $47.50.")
   })
 
   it("says the whole run when a sale leaves a grid with no coins", async () => {

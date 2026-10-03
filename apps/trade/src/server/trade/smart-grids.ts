@@ -18,6 +18,7 @@ import {
   heldWrongWay,
   holdsEntry,
   lossEdge,
+  nameGridLevels,
   reachedEntry,
   reachedExit,
   readyWhen,
@@ -254,6 +255,8 @@ function pairOutOneBuy(input: {
   book: WalletBook
   deps: LadderEngineDeps
   now: number
+  /** The sale that paid for this rescue. Both are one event on both screens. */
+  gridEventId: string
 }): GridLevelState | null {
   const { plan, book, deps, mark } = input
   const partner = pairOutPartner(plan, input.candidates, input.closing, mark)
@@ -283,6 +286,15 @@ function pairOutOneBuy(input: {
       // Its OWN rung, not the rung of the level that paid for it, so the
       // chart draws the arrow on the line the coins were bought at.
       rung: partner.rung,
+      // The coins really being sold, which is the whole point of a rescue:
+      // they belong to the partner, never to the level that paid for them.
+      closesLevelId: partner.level.id,
+      closesRung: partner.carried
+        ? partner.level.carriedRung
+        : partner.rung + 1,
+      closesRange: partner.carried ? partner.level.carriedRange : undefined,
+      gridEventId: input.gridEventId,
+      pairOut: true,
     })
   }
   // **Retired for the rest of the run, whether or not there were coins left
@@ -349,12 +361,15 @@ export async function advanceGrid(
     }
   }
   if (plan.paused) return
+  // Before anything trades. A level that buys without a name leaves coins
+  // nothing can later match a sale to, and the grid falls back to guessing by
+  // rung for the rest of that level's life.
+  let changed = nameGridLevels(plan)
   const protocol = getProtocol(book.wallet.protocol)
   const roundPx = (px: number) =>
     protocol.markets.roundPx(px, plan.sizeDecimals, plan.priceTick)
   const mark = input.marks.get(row.marketKey) ?? null
   const direction = plan.direction
-  let changed = false
   let shiftedAwayThisPass = false
 
   // ----- 1. The 4h base the stop rides ------------------------------------
@@ -539,7 +554,12 @@ export async function advanceGrid(
       level,
       carried: true,
       // A carried level left through the winning edge, which is Rung 1 in
-      // either direction.
+      // either direction. That is where its arrow is DRAWN, and it is not a
+      // name: every Pair Out close used to be stamped rung 1, and the sale
+      // was then priced against whichever buy happened to be stamped rung 1,
+      // or, when no buy ever was, against the newest and cheapest coins in
+      // the pile. A carried level is named by `carriedRung` and
+      // `carriedRange` instead, and paired with its own coins by `id`.
       rung: 0,
     })),
   ]
@@ -561,6 +581,9 @@ export async function advanceGrid(
       if (carried) closedCarried.add(level)
       continue
     }
+    // One name for this sale and the Pair Out rescue that may follow it, so
+    // both screens can say in one line what the grid did on this pass.
+    const gridEventId = crypto.randomUUID()
     deps.fill(book, {
       marketKey: row.marketKey,
       side: exitSide(direction),
@@ -575,6 +598,10 @@ export async function advanceGrid(
       reason: "order",
       at: now,
       rung,
+      closesLevelId: level.id,
+      closesRung: carried ? level.carriedRung : rung + 1,
+      closesRange: carried ? level.carriedRange : undefined,
+      gridEventId,
     })
     // ----- THE RECYCLE ----------------------------------------------------
     // Back to watching, holding nothing. A nearby waiting level waits for a
@@ -606,6 +633,7 @@ export async function advanceGrid(
         book,
         deps,
         now,
+        gridEventId,
       })
       if (paired) closedCarried.add(paired)
     }
@@ -770,6 +798,10 @@ export async function advanceGrid(
       reason: "order",
       at: now,
       rung: gridRungNumber(levelIndex, plan.levels.length, direction) - 1,
+      // The buy is named too. A sale is matched to the coins this buy paid
+      // for by this name, not by the rung, which the next downward move hands
+      // to a different level.
+      closesLevelId: level.id,
       triggerPx: level.buyPx,
       undo: () => {
         level.sz = priorSz
@@ -1248,6 +1280,10 @@ function followTheRangeInto(
   const carriedLevel = plan.levels[carriedAt]
   const stopPx = gridStopPx(plan)
   const fresh = {
+    // Named at birth, like every other level. The pass that creates it is not
+    // the pass it buys on, but a level with no name is one whose coins a later
+    // sale cannot find, and that is not worth leaving to ordering.
+    id: crypto.randomUUID(),
     buyPx: sized[freshAt].buyPx,
     sellPx: sized[freshAt].sellPx,
     sz: sized[freshAt].sz,
@@ -1274,6 +1310,13 @@ function followTheRangeInto(
   nextLevels[freshAt] = fresh
 
   if (carriedLevel.status === "holding" && carriedLevel.heldSz > 0) {
+    // What it was, written down while it is still true. The range it is
+    // leaving is the one the grid has been working in, counted from one, and
+    // the rung is its place in that range. After this line the level has
+    // neither: the range below is a new one and its rung belongs to somebody
+    // else. "Rung 4 of range 2" is the only name it answers to from here.
+    carriedLevel.carriedRange = plan.downShifts + 1
+    carriedLevel.carriedRung = gridRungNumber(carriedAt, count, direction)
     plan.carriedLevels.push(carriedLevel)
   }
   plan.levels = nextLevels

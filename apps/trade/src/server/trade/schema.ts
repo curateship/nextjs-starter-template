@@ -610,6 +610,38 @@ export const tradeGridOrderRungs = pgTable(
       .notNull(),
     /** Counted from one, exactly as the grid card and arrow show it. */
     rung: integer("rung").notNull(),
+    /**
+     * The grid level this order opened or closed, by its own permanent name.
+     *
+     * **The rung above cannot do this job.** A range that follows price down
+     * renames every level, so the rung a buy was stamped with is handed to a
+     * different level within hours. Matching a sale to its own coins by rung
+     * priced MARSCOIN's sales against coins they never touched on 3 October
+     * 2026, with the sign flipped on both halves of a Pair Out. Null on every
+     * order placed before levels had names.
+     */
+    levelId: varchar("level_id", { length: 36 }),
+    /**
+     * The one thing that happened, shared by a level's sale and the Pair Out
+     * rescue sold alongside it. Two orders, one arrow and one notice.
+     */
+    eventId: varchar("event_id", { length: 36 }),
+    /**
+     * How the closed level is named out loud. `closesRung` is the rung it was
+     * when it bought the coins being sold, and `closesRange` the range it was
+     * carried out of, counted from one, for a level the range has left behind.
+     * A level still inside the range has a rung and no range number.
+     */
+    closesRung: integer("closes_rung"),
+    closesRange: integer("closes_range"),
+    /**
+     * This order is the Pair Out rescue, not the level's own sale.
+     *
+     * Said rather than worked out. Within one event the two orders look alike
+     * — same coin, same price, a second apart — and which of them paid for the
+     * other is the whole sentence the bell says.
+     */
+    pairOut: boolean("pair_out").notNull().default(false),
     seenAt: timestamp("seen_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [

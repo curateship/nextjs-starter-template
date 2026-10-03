@@ -73,6 +73,33 @@ export type LiveFill = {
   gridDirection?: "long" | "short"
   /** The grid rung this order entered or exited, counted from one. */
   gridRung?: number
+  /**
+   * The grid level this order opened or closed, by its own permanent name.
+   *
+   * **This, not the rung, is what pairs a sale with the coins it sold.** A
+   * rung is a position in the range and the range moves: a grid that has
+   * followed price down seven times has called four different levels "rung
+   * 4". Missing on every order placed before levels had names, and those fall
+   * back to the rung.
+   */
+  gridLevelId?: string
+  /**
+   * The one event this fill belongs to, shared by a level's sale and the Pair
+   * Out rescue sold alongside it. Two orders, one arrow, one notice.
+   */
+  gridEventId?: string
+  /**
+   * How the level this fill CLOSED is named out loud. The rung it was when it
+   * bought these coins, and the range it was carried out of when the range has
+   * since left it behind. Absent on a fill that opened.
+   */
+  gridClosesRung?: number
+  gridClosesRange?: number
+  /**
+   * This fill is the Pair Out rescue rather than the sale that paid for it.
+   * It decides which half of the event's sentence this is.
+   */
+  gridPairOut?: boolean
 }
 
 /** What ended a trade. */
@@ -337,34 +364,70 @@ export type LiveFillMark = {
   side: TradeSide
   sz: number
   label: string
-  detail: string | null
+  /**
+   * The quieter lines under the headline, one per line on screen, empty when
+   * there is nothing to add.
+   *
+   * A list rather than one sentence because a grid sale that cleared an old
+   * buy alongside it has four things to say: what the level made, what the old
+   * buy lost, the two together, and what is still held. Run into one line they
+   * ran off the side of the chart.
+   */
+  detail: readonly string[]
 }
 
 /**
  * What one grid rung's own round trip made after both fees, and the price its
  * own coins were bought at (sold at, on a selling grid).
  */
-export type GridRoundTrip = { money: number; entryPx: number; rung?: number }
+export type GridRoundTrip = {
+  money: number
+  entryPx: number
+  rung?: number
+  /**
+   * The range the closed level was carried out of, counted from one. Present
+   * only on a level the range has left behind, and it is what turns "rung 4"
+   * into "rung 4 of range 2".
+   */
+  range?: number
+}
 
 /**
  * Which lot a closing grid fill is priced against.
  *
- * Newest first, which is what a grid does: the level nearest the losing edge
- * is the last one to open and the first one to close, so its own coins are on
- * top of the pile.
+ * **The level's own name first.** A sale and the buy that paid for it carry
+ * the same `levelId`, so this is an exact answer and not a search. Newest
+ * first within that level, because a level recycles: it buys, sells, and buys
+ * again at the same price, and the batch on top is the one being sold.
  *
- * **Unless the fill names its rung.** Pair Out closes the OLDEST buy
- * alongside the newest one, at the bottom of the pile, and pricing that sale
- * against the newest lot would put the wrong entry price on the chart's
- * arrow and leave every later rung reading against coins it never bought. An
- * ordinary grid exit names its rung too, and for those the two rules pick the
- * same lot, so nothing else moves.
+ * **Then the rung, for coins bought before levels had names.** That match is
+ * a guess and it is wrong often enough to matter. A rung is a position in the
+ * range, and a range that follows price down hands "rung 4" to a new level
+ * every move; a Pair Out rescue was stamped rung 1 whatever it sold. On
+ * MARSCOIN, 3 October 2026, a rung that made $8.60 read as a $8.51 loss and
+ * the rescue that lost $21.62 read as a $5.01 profit. It is kept only because
+ * nothing wrote the level down for those old coins, and a guess is all there
+ * is to give them.
+ *
+ * **Then the newest lot**, which is what a grid usually closes: the level
+ * nearest the losing edge is the last to open and the first to close.
  */
 function gridLotFor(
-  lots: readonly { rung?: number }[],
-  rung: number | undefined
+  lots: readonly { rung?: number; levelId?: string }[],
+  rung: number | undefined,
+  levelId: string | undefined
 ): number {
-  if (rung !== undefined) {
+  if (levelId !== undefined) {
+    for (let at = lots.length - 1; at >= 0; at -= 1) {
+      if (lots[at].levelId === levelId) return at
+    }
+  }
+  // A named sale never falls through to the rung. The level it names holds
+  // nothing left, so this is coins of some other level — the position moved
+  // under the grid, or a hand sold them — and the newest lot is the honest
+  // answer. Reaching for the rung here is how the old bug priced a sale
+  // against a level that never traded.
+  if (levelId === undefined && rung !== undefined) {
     for (let at = lots.length - 1; at >= 0; at -= 1) {
       if (lots[at].rung === rung) return at
     }
@@ -422,7 +485,7 @@ export function gridRoundTrips(
   const out = new Map<string, GridRoundTrip>()
   const stacks = new Map<
     string,
-    { px: number; sz: number; fee: number; rung?: number }[]
+    { px: number; sz: number; fee: number; rung?: number; levelId?: string }[]
   >()
   const ordered = [...fills].sort(
     (left, right) =>
@@ -447,6 +510,7 @@ export function gridRoundTrips(
         sz: fill.sz,
         fee: fill.fee,
         rung: fill.gridRung,
+        levelId: fill.gridLevelId,
       })
       continue
     }
@@ -460,7 +524,7 @@ export function gridRoundTrips(
     let matchedDollars = 0
     const matchedRungs = new Set<number>()
     while (left > DUST && stack.length > 0) {
-      const at = gridLotFor(stack, fill.gridRung)
+      const at = gridLotFor(stack, fill.gridRung, fill.gridLevelId)
       const lot = stack[at]
       const part = Math.min(left, lot.sz)
       const share = lot.sz > 0 ? part / lot.sz : 0
@@ -481,9 +545,23 @@ export function gridRoundTrips(
     out.set(fill.fillId, {
       money,
       entryPx: matchedDollars / matched,
-      rung:
-        fill.gridRung ??
-        (matchedRungs.size === 1 ? [...matchedRungs][0] : undefined),
+      // What the sale says it closed, when the engine wrote it down. A sale
+      // of a carried level names the rung it was before the range left it
+      // behind, which is not the rung that number belongs to today.
+      //
+      // **A rescue with nothing written down is "an old rung", never rung 1.**
+      // Its `gridRung` is the engine's marker for a level that left through
+      // the winning edge, which is Rung 1 in either direction. That is where
+      // the arrow is DRAWN and it is not a name: reading it as one put
+      // "cleared rung 1" on MARSCOIN's repaired sales, which is the same
+      // confusion this change set out to remove.
+      rung: fill.gridClosesRung ?? (
+        fill.gridPairOut === true
+          ? undefined
+          : (fill.gridRung ??
+            (matchedRungs.size === 1 ? [...matchedRungs][0] : undefined))
+      ),
+      range: fill.gridClosesRange,
     })
   }
 
@@ -540,10 +618,20 @@ export function gridHoldingFees(
   if (mine.length === 0) return null
 
   const opens = grid.plan.direction === "long" ? "buy" : "sell"
-  const lots: { sz: number; fee: number; rung?: number }[] = []
+  const lots: {
+    sz: number
+    fee: number
+    rung?: number
+    levelId?: string
+  }[] = []
   for (const fill of mine) {
     if (fill.side === opens) {
-      lots.push({ sz: fill.sz, fee: fill.fee, rung: fill.gridRung })
+      lots.push({
+        sz: fill.sz,
+        fee: fill.fee,
+        rung: fill.gridRung,
+        levelId: fill.gridLevelId,
+      })
       continue
     }
 
@@ -552,7 +640,7 @@ export function gridHoldingFees(
       // The same lot `gridRoundTrips` would price this sale against, so the
       // fees still attached to what is held and the money on the arrows are
       // always talking about the same coins.
-      const at = gridLotFor(lots, fill.gridRung)
+      const at = gridLotFor(lots, fill.gridRung, fill.gridLevelId)
       const lot = lots[at]
       const part = Math.min(left, lot.sz)
       const share = part / lot.sz
@@ -567,6 +655,173 @@ export function gridHoldingFees(
   const tolerance = Math.max(DUST, heldSz * 1e-6)
   if (Math.abs(openSz - heldSz) > tolerance) return null
   return lots.reduce((sum, lot) => sum + lot.fee, 0)
+}
+
+/**
+ * What one grid level is called, out loud.
+ *
+ * A level still inside the range is called by its rung and nothing else.
+ * A level the range has left behind is called by the rung it WAS and the
+ * range it was carried out of, because the rung alone now belongs to another
+ * level at another price: a grid that has followed price down seven times has
+ * called four different levels "rung 4". Range 1 is where the grid started.
+ *
+ * Tyler's rule, 3 October 2026, after being offered the buy price instead:
+ * "the price number would mean nothing to me".
+ */
+export function gridLevelName(
+  rung: number | undefined,
+  range: number | undefined
+): string {
+  const named = rung === undefined ? "an old rung" : `rung ${rung}`
+  return range === undefined ? named : `${named} of range ${range}`
+}
+
+/** "made $8.60" / "lost $21.62", which is how both screens say money. */
+function madeOrLost(money: number): string {
+  return `${money >= 0 ? "made" : "lost"} ${money$(Math.abs(money))}`
+}
+
+/**
+ * The two halves of one grid sale, when Pair Out sold an old buy beside the
+ * level that reached its exit.
+ *
+ * **Two orders are one thing that happened.** The level's own sale pays for
+ * the rescue, they go out on the same pass at the same price, and the chart
+ * used to draw them as two arrows on one spot where only the upper one could
+ * be pointed at. Whichever of them landed on top was the whole story the
+ * screen told. Tyler, 3 October 2026: "It shouldnt show 2 orders. Its 2
+ * orders but it should show only one".
+ *
+ * The rescue is the half whose coins came from outside the live range, or,
+ * when neither says so, the half that lost money — a rescue is a buy being
+ * cut out of a loss, and the sale that paid for it had to be in profit to
+ * earn it.
+ */
+type GridSaleHalf = {
+  /** "rung 4", or "rung 4 of range 2" for a level the range has left behind. */
+  name: string
+  /** What this half made or lost on its own coins, after both fees. */
+  money: number
+}
+
+/**
+ * The headline and the lines under it for one grid sale, whether or not Pair
+ * Out sold an old buy beside it.
+ *
+ * The first half is always the level that reached its exit and paid for the
+ * rest. The money is each half's own, and the total is the only figure that
+ * describes the event.
+ */
+function gridPairedSaleWords(
+  halves: readonly GridSaleHalf[],
+  /** A buying grid's level sells; a selling grid's buys back. */
+  direction: "long" | "short"
+): { label: string; lines: string[]; money: number } {
+  const money = halves.reduce((sum, half) => sum + half.money, 0)
+  const verb = direction === "long" ? "sold" : "bought back"
+  const [sold, ...cleared] = halves
+  if (cleared.length === 0) {
+    return {
+      label: `${upperFirst(sold.name)} ${verb} - ${madeOrLost(sold.money)}`,
+      lines: [],
+      money,
+    }
+  }
+  return {
+    label: `${upperFirst(sold.name)} ${verb}, and cleared ${cleared
+      .map((half) => half.name)
+      .join(", ")}`,
+    lines: [
+      halves
+        .map((half) => `${upperFirst(half.name)} ${madeOrLost(half.money)}.`)
+        .join(" "),
+      `Together: ${madeOrLost(money)}`,
+    ],
+    money,
+  }
+}
+
+/** "rung 4" as it starts a sentence. */
+function upperFirst(words: string): string {
+  return words.charAt(0).toUpperCase() + words.slice(1)
+}
+
+/**
+ * A grid sale and the Pair Out rescue sold beside it, folded into one arrow.
+ *
+ * **Two orders are one thing that happened.** They go out on the same pass at
+ * the same price, so the chart drew them at one spot — `xOfContainingBar`
+ * snaps both to the same candle — with one arrow exactly on top of the other.
+ * Only the upper one could be pointed at, so whichever landed on top was the
+ * whole story the screen told, and the other sale was invisible. Tyler,
+ * 3 October 2026: "It shouldnt show 2 orders. Its 2 orders but it should show
+ * only one".
+ *
+ * The arrow keeps the LAST piece's time and price, because that is when the
+ * event finished and what is held afterwards is measured there. A draft with
+ * no event id is its own arrow and passes straight through.
+ */
+function mergeGridSaleEvents(
+  drafts: readonly {
+    mark: LiveFillMark
+    event: { id: string; half: GridSaleHalf; rescue: boolean } | null
+    direction: "long" | "short"
+    /** The line about what is left, appended after the money lines. */
+    holding: string | null
+  }[]
+): LiveFillMark[] {
+  type Draft = (typeof drafts)[number]
+  type Event = { id: string; half: GridSaleHalf; rescue: boolean }
+  const out: (LiveFillMark | null)[] = []
+  const events = new Map<
+    string,
+    { index: number; pieces: { draft: Draft; event: Event }[] }
+  >()
+  for (const draft of drafts) {
+    const event = draft.event
+    if (!event) {
+      out.push(draft.mark)
+      continue
+    }
+    const found = events.get(event.id)
+    if (found) {
+      found.pieces.push({ draft, event })
+      // Its arrow is folded into the one already placed, so it leaves none.
+      out.push(null)
+      continue
+    }
+    events.set(event.id, {
+      index: out.length,
+      pieces: [{ draft, event }],
+    })
+    out.push(draft.mark)
+  }
+
+  for (const { index, pieces } of events.values()) {
+    if (pieces.length < 2) continue
+    // The level's own sale first, then what its profit paid to clear. A
+    // rescue never speaks first: it is the thing that was bought out of a
+    // loss, and the sentence only makes sense in that order.
+    const ordered = [...pieces].sort(
+      (left, right) => Number(left.event.rescue) - Number(right.event.rescue)
+    )
+    const last = pieces[pieces.length - 1].draft
+    const said = gridPairedSaleWords(
+      ordered.map((piece) => piece.event.half),
+      last.direction
+    )
+    out[index] = {
+      at: last.mark.at,
+      px: last.mark.px,
+      side: last.mark.side,
+      sz: pieces.reduce((sum, piece) => sum + piece.draft.mark.sz, 0),
+      label: said.label,
+      detail: last.holding ? [...said.lines, last.holding] : said.lines,
+    }
+  }
+
+  return out.filter((mark): mark is LiveFillMark => mark !== null)
 }
 
 /**
@@ -595,7 +850,7 @@ export function tradeFillMarks(trade: LiveTrade): LiveFillMark[] {
   const last = grouped[grouped.length - 1]
   const levels = gridRoundTrips(grouped, trade.direction)
   let held = 0
-  return grouped.map((fill) => {
+  return mergeGridSaleEvents(grouped.map((fill) => {
     const opening =
       trade.direction === "long" ? fill.side === "buy" : fill.side === "sell"
     held = Math.max(0, held + (opening ? fill.sz : -fill.sz))
@@ -621,6 +876,15 @@ export function tradeFillMarks(trade: LiveTrade): LiveFillMark[] {
           : (level?.money ?? fill.closedPnl - fill.fee)
     const amount = money$(fill.px * fill.sz)
     const gridRung = opening ? fill.gridRung : matchedLevel?.rung
+    const sale = gridPairedSaleWords(
+      [
+        {
+          name: gridLevelName(gridRung, matchedLevel?.range),
+          money,
+        },
+      ],
+      trade.direction
+    )
     const label =
       fill.grid && !opening && fill === last
         ? `Grid run ended - ${
@@ -629,15 +893,13 @@ export function tradeFillMarks(trade: LiveTrade): LiveFillMark[] {
         : fill.grid && gridRung !== undefined
         ? opening
           ? `Enter rung ${gridRung} - for ${amount}`
-          : `Exit rung ${gridRung} - ${
-              money >= 0 ? "profit" : "loss"
-            } ${money$(Math.abs(money))}`
+          : sale.label
         : opening
           ? `${fill.side === "buy" ? "Bought" : "Sold short"} ${amount}`
           : `${fill.side === "buy" ? "Bought back" : "Sold"} ${amount} · ${
               money >= 0 ? "made" : "lost"
             } ${money$(Math.abs(money))}`
-    const detail = opening
+    const holding = opening
       ? null
       : fill === last
         ? tradeEndingLabel(trade)
@@ -645,14 +907,32 @@ export function tradeFillMarks(trade: LiveTrade): LiveFillMark[] {
           ? `Still holding ${money$(held * fill.px)}`
           : `Part closed · ${money$(held * fill.px)} left`
     return {
-      at: fill.at,
-      px: fill.px,
-      side: fill.side,
-      sz: fill.sz,
-      label,
-      detail,
+      mark: {
+        at: fill.at,
+        px: fill.px,
+        side: fill.side,
+        sz: fill.sz,
+        label,
+        detail: holding ? [holding] : [],
+      },
+      // The last fill of a finished trade says what the WHOLE run made, which
+      // is a different sentence from "this level sold", so it is never folded
+      // into a pair. Tyler's rule, 29 September 2026.
+      event:
+        fill.grid && !opening && fill !== last && fill.gridEventId
+          ? {
+              id: fill.gridEventId,
+              half: {
+                name: gridLevelName(gridRung, matchedLevel?.range),
+                money,
+              },
+              rescue: fill.gridPairOut === true,
+            }
+          : null,
+      direction: trade.direction,
+      holding,
     }
-  })
+  }))
 }
 
 /**
@@ -686,7 +966,7 @@ export function openFillMarks(fills: readonly LiveFill[]): LiveFillMark[] {
   )
   const levels = gridRoundTrips(grouped)
   const heldByPosition = new Map<string, { amount: number; known: boolean }>()
-  return grouped.map((fill) => {
+  return mergeGridSaleEvents(grouped.map((fill) => {
     const level = levels.get(fill.fillId)
     const money = level?.money ?? fill.closedPnl - fill.fee
     const key = `${fill.walletId} ${fill.marketKey}`
@@ -708,37 +988,50 @@ export function openFillMarks(fills: readonly LiveFill[]): LiveFillMark[] {
     const amount = money$(fill.px * fill.sz)
     const holding = money$(Math.abs(held) * fill.px)
     const gridRung = closed ? level?.rung : fill.gridRung
+    const direction = fill.gridDirection ?? "long"
+    const name = gridLevelName(gridRung, level?.range)
+    // Said out loud, because the trade behind it is still open: this is what
+    // one sell banked, not what the position has made. The line under it says
+    // how much remains, which is the missing half of a part-sale.
+    const remaining = level
+      ? `Still holding ${holding}`
+      : closed
+        ? holdingKnown
+          ? `Part closed · ${holding} left`
+          : "Part closed"
+        : null
     return {
-      at: fill.at,
-      px: fill.px,
-      side: fill.side,
-      sz: fill.sz,
-      label:
-        fill.grid && gridRung !== undefined
-          ? closed
-            ? `Exit rung ${gridRung} - ${
-                money >= 0 ? "profit" : "loss"
-              } ${money$(Math.abs(money))}`
-            : `Enter rung ${gridRung} - for ${amount}`
-          : closed
-            ? `${fill.side === "buy" ? "Bought back" : "Sold"} ${amount}${
-                moneyKnown
-                  ? ` · ${money >= 0 ? "made" : "lost"} ${money$(Math.abs(money))}`
-                  : ""
-              }`
-            : `${fill.side === "buy" ? "Bought" : "Sold short"} ${amount}`,
-      // Said out loud, because the trade behind it is still open: this is what
-      // one sell banked, not what the position has made. The second line says
-      // how much remains, which is the missing half of a part-sale.
-      detail: level
-        ? `Still holding ${holding}`
-        : closed
-          ? holdingKnown
-            ? `Part closed · ${holding} left`
-            : "Part closed"
+      mark: {
+        at: fill.at,
+        px: fill.px,
+        side: fill.side,
+        sz: fill.sz,
+        label:
+          fill.grid && gridRung !== undefined
+            ? closed
+              ? gridPairedSaleWords([{ name, money }], direction).label
+              : `Enter rung ${gridRung} - for ${amount}`
+            : closed
+              ? `${fill.side === "buy" ? "Bought back" : "Sold"} ${amount}${
+                  moneyKnown
+                    ? ` · ${money >= 0 ? "made" : "lost"} ${money$(Math.abs(money))}`
+                    : ""
+                }`
+              : `${fill.side === "buy" ? "Bought" : "Sold short"} ${amount}`,
+        detail: remaining ? [remaining] : [],
+      },
+      event:
+        fill.grid && closed && fill.gridEventId
+          ? {
+              id: fill.gridEventId,
+              half: { name, money },
+              rescue: fill.gridPairOut === true,
+            }
           : null,
+      direction,
+      holding: remaining,
     }
-  })
+  }))
 }
 
 /** Fills not already carried by a finished trade, normally the open position. */

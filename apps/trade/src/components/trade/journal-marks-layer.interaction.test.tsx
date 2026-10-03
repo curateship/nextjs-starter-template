@@ -278,8 +278,114 @@ describe("a chart arrow's hover words", () => {
       arrows[2].dispatchEvent(new MouseEvent("pointerover", { bubbles: true }))
     })
 
-    expect(host.textContent).toContain("Exit rung 3 - profit $5.66")
+    expect(host.textContent).toContain("Rung 3 bought back - made $5.66")
     expect(host.textContent).toContain("Still holding $70.41")
+
+    await act(async () => root.unmount())
+    host.remove()
+  })
+
+  it("draws one arrow for a sale and the old buy it cleared", async () => {
+    // MARSCOIN, 3 Oct 2026. Two orders at the same price 850ms apart land in
+    // one candle, so the chart used to draw one arrow on top of the other and
+    // only the upper one could be pointed at.
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    const root = createRoot(host)
+    const marketKey = "aster:mainnet:MARSCOINUSDT"
+    const grid = {
+      ...trade.fills[0],
+      marketKey,
+      grid: true,
+      gridDirection: "long" as const,
+      closedPnl: 0,
+      fee: 0,
+    }
+    const fills: LiveFill[] = [
+      {
+        ...grid,
+        fillId: "buy-carried",
+        orderId: "buy-carried",
+        side: "buy",
+        px: 1.2,
+        sz: 100,
+        at: 1_000,
+        dir: "Open long",
+        gridLevelId: "level-carried",
+      },
+      {
+        ...grid,
+        fillId: "buy-in-range",
+        orderId: "buy-in-range",
+        side: "buy",
+        px: 0.9,
+        sz: 100,
+        at: 2_000,
+        dir: "Open long",
+        gridLevelId: "level-in-range",
+      },
+      {
+        ...grid,
+        fillId: "sell-own",
+        orderId: "sell-own",
+        side: "sell",
+        px: 1,
+        sz: 100,
+        at: 3_000,
+        dir: "Close long",
+        gridLevelId: "level-in-range",
+        gridEventId: "event-1",
+        gridClosesRung: 4,
+      },
+      {
+        ...grid,
+        fillId: "sell-rescue",
+        orderId: "sell-rescue",
+        side: "sell",
+        px: 1,
+        sz: 100,
+        at: 3_850,
+        dir: "Close long",
+        gridLevelId: "level-carried",
+        gridEventId: "event-1",
+        gridClosesRung: 4,
+        gridClosesRange: 2,
+        gridPairOut: true,
+      },
+    ]
+
+    await act(async () => {
+      root.render(
+        <JournalMarksLayer
+          surface={surface}
+          trades={[]}
+          fills={fills}
+          focusedTrade={null}
+          positions={[{ walletId: trade.walletId, marketKey, szi: 1 }]}
+          showArrows={true}
+          tradeLimit={null}
+        />
+      )
+    })
+
+    // Two buys and ONE sale, where there were two sell orders.
+    const arrows = host.querySelectorAll<SVGPolygonElement>(
+      '[data-slot="trade-fill-mark"]'
+    )
+    expect(arrows).toHaveLength(3)
+
+    await act(async () => {
+      arrows[2].dispatchEvent(new MouseEvent("pointerover", { bubbles: true }))
+    })
+
+    // Every line reaches the screen, headline and all three under it.
+    expect(host.textContent).toContain(
+      "Rung 4 sold, and cleared rung 4 of range 2"
+    )
+    expect(host.textContent).toContain(
+      "Rung 4 made $10.00. Rung 4 of range 2 lost $20.00."
+    )
+    expect(host.textContent).toContain("Together: lost $10.00")
 
     await act(async () => root.unmount())
     host.remove()

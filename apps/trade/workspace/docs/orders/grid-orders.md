@@ -474,20 +474,40 @@ would have on their own. It comes back as those levels sell. Once the last
 level is out, both ways of counting land on exactly the same total, which is
 why nothing about the whole trade changes. Only what one sale is worth changes.
 
-**How a sale is matched to a level.** The newest buy still held is the one that
-sold. That is not an accounting convention, it is what really happens: price
-falls through the levels on its way down, so the lowest level holding is always
-the one bought most recently, and the lowest level is also the first to reach
-its sell.
+**How a sale is matched to a level.** Every level has its own name, given once
+and kept for life. The buy carries it and so does the sale, so a sale is paired
+with the exact coins it sold rather than hunted for afterwards.
+
+**A rung number cannot do that job, and used to try.** A rung is a position in
+the range and the range moves. MARSCOIN on 3 October 2026 had followed price
+down seven times, so "rung 4" had been four different levels at four different
+prices, and a Pair Out close was stamped rung 1 whatever it really sold. Both
+halves of that morning's sale came out with the sign flipped: a level that made
+$8.60 read as a $8.51 loss, and an old buy that lost $21.62 read as a $5.01
+profit. Names fixed it. Coins bought before levels had names keep the old
+match, because nothing wrote their level down.
+
+**Within one level, newest first.** That is not an accounting convention, it is
+what really happens: price falls through the levels on its way down, so the
+lowest level holding is always the one bought most recently, and the lowest
+level is also the first to reach its sell.
+
+**An old buy is called "rung 4 of range 2".** Once the range moves away from a
+level, the rung number it had goes to a different level at a different price,
+so the rung alone stops meaning anything. Range 1 is where the grid started and
+the number goes up by one on every downward move, so the two together can only
+ever mean one buy. A buy carried before this existed has no range recorded and
+reads as "an old rung" until it is cleared.
 
 Every place that prices one sale shows this figure, and they all agree.
 
 - **The arrow on the chart.** Point at a grid entry and it reads "Enter rung 1
-  - for $47.53". Its matching close reads "Exit rung 1 - profit $4.28", with
-  "Still holding $182.82" under it when another rung remains open. The place
-  on the price axis still shows where the order filled. The engine records the
-  order id with its rung before the range can move, so an older arrow keeps the
-  number it had when it traded.
+  - for $47.53". Its matching close reads "Rung 1 sold - made $4.28", with
+  "Still holding $182.82" under it when another rung remains open. A selling
+  grid's level says "bought back" instead of "sold". The place on the price
+  axis still shows where the order filled. The engine records the order id with
+  its level and its rung before the range can move, so an older arrow keeps the
+  name it had when it traded.
 - **The Smart orders panel**, on the grid's row, as banked.
 - **The trading overview and the P&L page**, on every row of their fill lists
   and in the totals those rows add up to.
@@ -807,6 +827,51 @@ win that was never made.
 not go back to watching and never buys again. Half a buy would leave half a
 bag, which is the thing being removed, and a level left holding would block
 every later pair behind it.
+
+### Two orders, one thing that happened
+
+A level's sale and the rescue its profit paid for go out on the same pass at the
+same price, a second or so apart. They are one event and every screen says it
+once.
+
+**On the chart, one arrow.** Both orders landed in the same candle at the same
+price, so the chart drew one arrow exactly on top of the other and only the
+upper one could be pointed at — whichever that was became the whole story the
+screen told, and the other sale was invisible. Tyler, 3 October 2026: "It
+shouldnt show 2 orders. Its 2 orders but it should show only one." The arrow
+now reads:
+
+```
+Rung 4 sold, and cleared rung 4 of range 2
+Rung 4 made $8.60. Rung 4 of range 2 lost $21.62.
+Together: lost $13.02
+Still holding $1,781.91
+```
+
+**In the bell, one notice.** The headline names the rungs and the total; the
+second line gives each half with what it sold for.
+
+```
+MARSCOIN rung 4 sold and cleared rung 4 of range 2: lost $13.02 (Aster1 - GRID)
+Rung 4 sold $362.53 and made $8.60. Rung 4 of range 2 sold $119.99 and lost $21.62.
+```
+
+An ordinary sale with no rescue says one rung and one figure, and ends with what
+is left:
+
+```
+MARSCOIN rung 5 sold: made $11.62 (Aster1 - GRID)
+Sold $363.88. Still holding $2,212.21.
+```
+
+**The rung leads and the dollars follow.** Tyler's rule, 3 October 2026:
+"showing the dollar amount sold tell us nothing about what was sold". Coin
+counts appear on neither line — "I dont need to know how many coins it bought.
+Replace that with the amount."
+
+**The two halves can arrive in different sweeps.** Each one carries the whole
+event's words, so the notice is rewritten rather than doubled, and a pair split
+across two reads still ends as one correct row.
 
 ### Where the switch lives
 

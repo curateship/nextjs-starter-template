@@ -2003,6 +2003,14 @@ export async function reconcileLiveLaddersOnce(
                     marketKey: input.marketKey,
                     direction: (entry.plan as GridPlan).direction,
                     rung: input.rung + 1,
+                    // Written beside the rung in the same row, because the
+                    // fill that arrives hours later carries nothing but the
+                    // order id, and by then the range has moved on.
+                    levelId: input.closesLevelId ?? null,
+                    eventId: input.gridEventId ?? null,
+                    closesRung: input.closesRung ?? null,
+                    closesRange: input.closesRange ?? null,
+                    pairOut: input.pairOut === true,
                   })
                 }
                 // A rung bought at market. Its fill reaches the record through

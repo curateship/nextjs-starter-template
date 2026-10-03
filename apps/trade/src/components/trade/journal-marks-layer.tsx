@@ -46,7 +46,18 @@ const STEM_HALF = 2.5
 const OFF_SCREEN = 40
 
 const LABEL_HALF_WIDTH = 110
-const LABEL_HEIGHT = 52
+/**
+ * How tall the pointed-at label is, so a sell's label clears its own arrow.
+ *
+ * Measured in the running app on 3 October 2026 with `getBoundingClientRect`,
+ * not worked out from the classes: a headline on its own is 34px, and every
+ * quieter line under it adds 18px. One detail line is therefore 52px, which is
+ * what the flat 52 here used to be; a grid sale that cleared an old buy
+ * carries three and comes to 88.
+ */
+function labelHeight(lines: number): number {
+  return 34 + 18 * lines
+}
 
 /** A wide head on a short stem — the shape a trading chart marks a fill with. */
 function arrow(x: number, y: number, side: "buy" | "sell"): string {
@@ -296,9 +307,9 @@ export const JournalMarksLayer = React.memo(function JournalMarksLayer({
             top: clamp(
               onPlot.mark.side === "buy"
                 ? onPlot.y + GAP + HEAD + STEM + 6
-                : onPlot.y - GAP - HEAD - STEM - LABEL_HEIGHT,
+                : onPlot.y - GAP - HEAD - STEM - labelHeight(onPlot.mark.detail.length),
               0,
-              Math.max(0, surface.height - LABEL_HEIGHT)
+              Math.max(0, surface.height - labelHeight(onPlot.mark.detail.length))
             ),
           }}
         >
@@ -312,11 +323,11 @@ export const JournalMarksLayer = React.memo(function JournalMarksLayer({
           />
           <span className="grid gap-0.5 leading-tight">
             <span className="text-sm font-semibold">{onPlot.mark.label}</span>
-            {onPlot.mark.detail ? (
-              <span className="text-xs text-muted-foreground">
-                {onPlot.mark.detail}
+            {onPlot.mark.detail.map((line) => (
+              <span key={line} className="text-xs text-muted-foreground">
+                {line}
               </span>
-            ) : null}
+            ))}
           </span>
         </div>
       ) : null}

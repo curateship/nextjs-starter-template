@@ -1280,6 +1280,35 @@ export type GridLevelStatus = (typeof GRID_LEVEL_STATUSES)[number]
  * is why `direction` was fine.
  */
 const gridLevelStateSchema = z.object({
+  /**
+   * This level's own name, kept for as long as the level exists.
+   *
+   * **A rung number cannot say which level a sale belongs to.** The rung is a
+   * position in the range, and the range moves: a grid that has followed price
+   * down seven times has handed the name "rung 4" to four different levels at
+   * four different prices. Matching a sale to the coins it sold by rung number
+   * therefore priced sales against coins they never touched, with the sign
+   * flipped on both halves of a Pair Out. MARSCOIN, 3 October 2026.
+   *
+   * This name is handed out once and never changes, through every shift and
+   * on into `carriedLevels`, so `gridRoundTrips` can pair a sale with the
+   * exact buy that paid for it. Optional because every grid placed before it
+   * existed has levels without one; the engine gives those a name on its next
+   * pass, and sales of coins bought before that fall back to the old rung
+   * match. Never rename this field — see the note on `rebuyAbove`.
+   */
+  id: z.string().optional(),
+  /**
+   * The range this level was carried out of, counted from one, and its rung
+   * at that moment. Written only when the level is moved to `carriedLevels`.
+   *
+   * A carried level has no rung any more, because the range it belonged to is
+   * gone. These two are how it is still named out loud: "rung 4 of range 2".
+   * Range 1 is where the grid started, and the number goes up by one on every
+   * downward move.
+   */
+  carriedRange: z.number().int().min(1).optional(),
+  carriedRung: z.number().int().min(1).optional(),
   /** Where this level opens: a buy on a buying grid, a sell on a selling one. */
   buyPx: z.number().positive(),
   /**
@@ -1354,6 +1383,29 @@ const gridLevelStateSchema = z.object({
 })
 
 export type GridLevelState = z.infer<typeof gridLevelStateSchema>
+
+/**
+ * Gives every level that has not got one its own name, and says whether it had
+ * to.
+ *
+ * Called at the top of every grid pass. Grids placed before levels had names
+ * get them on their first pass after this shipped, and so does any level a
+ * copy of the app running older code wrote back without one. Coins bought
+ * before the name existed are still matched the old way, by rung, because
+ * nothing wrote down which level bought them.
+ */
+export function nameGridLevels(plan: {
+  levels: GridLevelState[]
+  carriedLevels: GridLevelState[]
+}): boolean {
+  let named = false
+  for (const level of [...plan.levels, ...plan.carriedLevels]) {
+    if (level.id) continue
+    level.id = crypto.randomUUID()
+    named = true
+  }
+  return named
+}
 
 /**
  * Where the stop stands as a placed grid carries it. "percent" follows the

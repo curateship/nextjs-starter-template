@@ -70,7 +70,7 @@ describe("grid fill rungs", () => {
     expect(openFillMarks(fills).map((mark) => mark.label)).toEqual([
       "Enter rung 2 - for $70.07",
       "Enter rung 3 - for $107.20",
-      "Exit rung 3 - profit $5.66",
+      "Rung 3 bought back - made $5.66",
     ])
   })
 

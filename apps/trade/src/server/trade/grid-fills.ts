@@ -97,11 +97,28 @@ export type GridOrderRungInput = {
   direction: "long" | "short"
   /** Counted from one, as shown on the grid. */
   rung: number
+  /** The level this order opened or closed, by its own permanent name. */
+  levelId?: string | null
+  /** The sale and the Pair Out rescue beside it share one of these. */
+  eventId?: string | null
+  /** How the closed level is named: "rung 4", or "rung 4 of range 2". */
+  closesRung?: number | null
+  closesRange?: number | null
+  /** This order is the Pair Out rescue rather than the level's own sale. */
+  pairOut?: boolean
 }
 
 type GridOrderRungStamp = Pick<
   GridOrderRungInput,
-  "walletId" | "orderId" | "direction" | "rung"
+  | "walletId"
+  | "orderId"
+  | "direction"
+  | "rung"
+  | "levelId"
+  | "eventId"
+  | "closesRung"
+  | "closesRange"
+  | "pairOut"
 >
 
 /** Exact engine records outrank the size match kept for older fills. */
@@ -120,6 +137,15 @@ export function stampExactGridRungs(
           grid: true,
           gridDirection: exact.direction,
           gridRung: exact.rung,
+          ...(exact.levelId ? { gridLevelId: exact.levelId } : {}),
+          ...(exact.eventId ? { gridEventId: exact.eventId } : {}),
+          ...(exact.closesRung == null
+            ? {}
+            : { gridClosesRung: exact.closesRung }),
+          ...(exact.closesRange == null
+            ? {}
+            : { gridClosesRange: exact.closesRange }),
+          ...(exact.pairOut ? { gridPairOut: true } : {}),
         }
       : fill
   })
@@ -132,7 +158,14 @@ export async function recordGridOrderRung(
 ): Promise<void> {
   await database
     .insert(tradeGridOrderRungs)
-    .values(input)
+    .values({
+      ...input,
+      levelId: input.levelId ?? null,
+      eventId: input.eventId ?? null,
+      closesRung: input.closesRung ?? null,
+      closesRange: input.closesRange ?? null,
+      pairOut: input.pairOut ?? false,
+    })
     .onConflictDoNothing()
 }
 
@@ -214,6 +247,11 @@ export async function stampGridFills(
         orderId: tradeGridOrderRungs.orderId,
         direction: tradeGridOrderRungs.direction,
         rung: tradeGridOrderRungs.rung,
+        levelId: tradeGridOrderRungs.levelId,
+        eventId: tradeGridOrderRungs.eventId,
+        closesRung: tradeGridOrderRungs.closesRung,
+        closesRange: tradeGridOrderRungs.closesRange,
+        pairOut: tradeGridOrderRungs.pairOut,
       })
       .from(tradeGridOrderRungs)
       .where(

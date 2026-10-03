@@ -910,6 +910,39 @@ describe("pairing an old buy out with every sale", () => {
     ).toEqual([100, 110])
     expect((await positions())[0].szi).toBeGreaterThan(paired)
   })
+
+  it("gives every level a name and keeps it through a downward move", async () => {
+    await placePairing({ followDown: true })
+    await priceTo(79)
+    const bought = await onlyGrid()
+    const named = bought.plan.levels.map((one) => one.id)
+    // Every level has one, and no two share. Without a name a level's coins
+    // cannot be found again once the rungs are renumbered.
+    expect(named.every((id) => typeof id === "string" && id.length > 0)).toBe(
+      true
+    )
+    expect(new Set(named).size).toBe(named.length)
+    // The top level is the one a downward move leaves behind.
+    const leaving = bought.plan.levels[bought.plan.levels.length - 1]
+
+    // The range follows price down. The level it drops keeps the name it had,
+    // because it is the same coins.
+    await priceTo(60)
+    const moved = await onlyGrid()
+    const carried = moved.plan.carriedLevels.find(
+      (one) => one.id === leaving.id
+    )
+    expect(carried).toBeDefined()
+    // And it is called by the range it left rather than by a rung number that
+    // now belongs to another level at another price. Range 1 is where the grid
+    // started, so the range a move leaves is one past the moves made so far.
+    expect(carried?.carriedRange).toBe(bought.plan.downShifts + 1)
+    expect(carried?.carriedRung).toBe(1)
+    // Nothing still inside the range claims a range number.
+    for (const level of moved.plan.levels) {
+      expect(level.carriedRange).toBeUndefined()
+    }
+  })
 })
 
 describe("running out of the range", () => {

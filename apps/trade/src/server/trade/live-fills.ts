@@ -23,6 +23,7 @@ import {
 import {
   buildLiveTrades,
   fillsOutsideTrades,
+  gridLevelName,
   gridRoundTrips,
   journalPageCursor,
   journalTradePageCursor,
@@ -576,6 +577,12 @@ async function announceFills(
         }),
       })
     }
+    // A grid level's sale and the Pair Out rescue beside it are two orders and
+    // one event, so the bell rings once. Whichever of them this sweep reads
+    // first writes the notice; the other finds its event already rung and adds
+    // nothing. Both carry the whole event's words, so a pair split across two
+    // sweeps still ends up with one correct row rather than two halves.
+    const rungEvents = new Set<string>()
     for (const fill of orders) {
       if (groupedOrderIds.has(fill.orderId)) continue
       try {
@@ -589,41 +596,54 @@ async function announceFills(
           const sale = fill.liquidation
             ? undefined
             : gridSales.sales.get(`${key} ${fill.orderId}`)
-          await writeTradeNotice({
-            userId,
-            href: marketChartHref(key),
-            soundKind: "fill",
-            database: noticeTx,
-            noticeKey: JSON.stringify([
-              "fill",
-              wallet.id,
-              key,
-              fill.orderId,
-              fill.orderId ? null : fill.fillId,
-              fill.side,
-              fill.dir,
-              fill.liquidation,
-            ]),
-            ...fillNoticeWords({
-              marketKey: key,
-              // The dollars name the coins the money was worked out on, so a
-              // sale delivered in pieces cannot say one size and price the
-              // other.
-              side: fill.side,
-              px: sale?.px ?? fill.px,
-              sz: sale?.sz ?? fill.sz,
-              closedPnl: fill.closedPnl,
-              dir: fill.dir,
-              entryPx: averageEntryOf(wallet.protocol, fill),
-              ownRung: sale,
-              runMoney: fill.liquidation
-                ? null
-                : gridSales.runs.get(`${key} ${fill.orderId}`),
-              liquidation: fill.liquidation,
-              walletLabel: wallet.label,
-              practice,
-            }),
-          })
+          const already =
+            sale?.eventId != null && rungEvents.has(sale.eventId)
+          if (!already) {
+            await writeTradeNotice({
+              userId,
+              href: marketChartHref(key),
+              soundKind: "fill",
+              database: noticeTx,
+              noticeKey: JSON.stringify(
+                sale?.eventId
+                  ? ["grid-sale", wallet.id, key, sale.eventId]
+                  : [
+                      "fill",
+                      wallet.id,
+                      key,
+                      fill.orderId,
+                      fill.orderId ? null : fill.fillId,
+                      fill.side,
+                      fill.dir,
+                      fill.liquidation,
+                    ]
+              ),
+              ...fillNoticeWords({
+                marketKey: key,
+                // The dollars name the coins the money was worked out on, so a
+                // sale delivered in pieces cannot say one size and price the
+                // other.
+                side: fill.side,
+                px: sale?.px ?? fill.px,
+                sz: sale?.sz ?? fill.sz,
+                closedPnl: fill.closedPnl,
+                dir: fill.dir,
+                entryPx: averageEntryOf(wallet.protocol, fill),
+                ownRung: sale,
+                runMoney: fill.liquidation
+                  ? null
+                  : gridSales.runs.get(`${key} ${fill.orderId}`),
+                liquidation: fill.liquidation,
+                walletLabel: wallet.label,
+                practice,
+              }),
+            })
+            // Only once it is really written. Marking the event first would
+            // let a failed write swallow the whole event: this half logs its
+            // error and moves on, and the other half finds the event already
+            // rung and says nothing.
+            if (sale?.eventId) rungEvents.add(sale.eventId)
+          }
           if (fill.closedPnl === 0 || fill.liquidation) return
           const known = knownByOrder.get(fill.orderId)
           if (!known || (known.kind !== "stop" && known.kind !== "target"))
@@ -738,34 +758,131 @@ async function gridSaleMoneyByOrder(
     database
   )
   const trips = gridRoundTrips(stamped)
+  // Oldest first, and never the order the database happened to hand them
+  // back in. `gridRoundTrips` sorts its own copy, but what a market holds
+  // after a fill can only be counted by walking the fills in the order they
+  // really happened.
+  const inOrder = [...stamped].sort(
+    (left, right) =>
+      left.at - right.at || left.fillId.localeCompare(right.fillId)
+  )
   const wanted = new Set(
     closes.map((fill) => `${keyOf(fill.marketId)} ${fill.orderId}`)
   )
+  // What each market holds after each of its fills, so the notice can end with
+  // what is left. Read off the same history the money came from rather than
+  // asking the exchange, because the answer has to belong to the moment of the
+  // sale and not to whenever the sweep happened to run.
+  const heldAfterFill = new Map<string, number>()
+  const heldByMarket = new Map<string, number>()
+  for (const fill of inOrder) {
+    const held =
+      (heldByMarket.get(fill.marketKey) ?? 0) +
+      (fill.side === "buy" ? fill.sz : -fill.sz)
+    heldByMarket.set(fill.marketKey, held)
+    heldAfterFill.set(fill.fillId, held)
+  }
   const piecesByOrder = new Map<string, typeof stamped>()
-  for (const fill of stamped) {
+  for (const fill of inOrder) {
     const key = `${fill.marketKey} ${fill.orderId}`
-    if (!wanted.has(key)) continue
     const pieces = piecesByOrder.get(key)
     if (pieces) pieces.push(fill)
     else piecesByOrder.set(key, [fill])
   }
-  for (const [key, pieces] of piecesByOrder) {
+  /**
+   * One order, priced on the coins its own level really sold.
+   *
+   * Kept once it is worked out: both halves of an event ask for each other, so
+   * a two-order event would otherwise price every order twice.
+   */
+  const priceOrder = (key: string) => {
+    const pieces = piecesByOrder.get(key)
+    if (!pieces || pieces.length === 0) return null
     const priced = pieces.map((fill) => trips.get(fill.fillId))
-    if (priced.some((trip) => trip === undefined)) continue
+    if (priced.some((trip) => trip === undefined)) return null
     const sz = pieces.reduce((sum, fill) => sum + fill.sz, 0)
-    if (sz <= 0) continue
+    if (sz <= 0) return null
     const rungs = new Set(priced.map((trip) => trip?.rung))
+    const ranges = new Set(priced.map((trip) => trip?.range))
     const [rung] = rungs
-    out.set(key, {
+    const [range] = ranges
+    const last = pieces[pieces.length - 1]
+    return {
+      name: gridLevelName(
+        rungs.size === 1 ? rung : undefined,
+        ranges.size === 1 ? range : undefined
+      ),
       money: priced.reduce((sum, trip) => sum + (trip?.money ?? 0), 0),
-      entryPx:
-        pieces.reduce(
-          (sum, fill, index) => sum + fill.sz * (priced[index]?.entryPx ?? 0),
-          0
-        ) / sz,
-      rung: rungs.size === 1 ? rung : undefined,
+      dollars: pieces.reduce((sum, fill) => sum + fill.px * fill.sz, 0),
       sz,
       px: pieces.reduce((sum, fill) => sum + fill.px * fill.sz, 0) / sz,
+      pairOut: last.gridPairOut === true,
+      eventId: last.gridEventId,
+      direction: last.gridDirection ?? "long",
+      at: last.at,
+      heldAfter: heldAfterFill.get(last.fillId) ?? null,
+    }
+  }
+
+  const halves = new Map<string, ReturnType<typeof priceOrder>>()
+  const halfOf = (key: string) => {
+    const found = halves.get(key)
+    if (found !== undefined) return found
+    const made = priceOrder(key)
+    halves.set(key, made)
+    return made
+  }
+
+  // Every order of an event, found anywhere in the history: the two halves can
+  // reach the app in different sweeps, and a notice that named only the half
+  // it had seen would be wrong until the other arrived.
+  const ordersByEvent = new Map<string, string[]>()
+  for (const [key, pieces] of piecesByOrder) {
+    const eventId = pieces[pieces.length - 1].gridEventId
+    if (!eventId) continue
+    const found = ordersByEvent.get(eventId)
+    if (found) found.push(key)
+    else ordersByEvent.set(eventId, [key])
+  }
+  for (const key of wanted) {
+    const own = halfOf(key)
+    if (!own) continue
+    const siblings = own.eventId
+      ? (ordersByEvent.get(own.eventId) ?? [key])
+      : [key]
+    const found = siblings
+      .map((sibling) => halfOf(sibling))
+      .filter((half) => half !== null)
+      // The level's own sale speaks first; the rescue it paid for follows.
+      .sort(
+        (left, right) =>
+          Number(left.pairOut) - Number(right.pairOut) || left.at - right.at
+      )
+    // A half the history cannot price is left out rather than guessed at, so
+    // the notice says the halves it can stand behind and no total that counts
+    // a figure nobody worked out.
+    const said = found.length > 0 ? found : [own]
+    // By time, not by the order the sentence reads in: the halves are sorted
+    // to say the level's own sale first, and a venue can still report the
+    // rescue's fill before it.
+    const last = said.reduce((latest, piece) =>
+      piece.at > latest.at ? piece : latest
+    )
+    out.set(key, {
+      halves: said.map((piece) => ({
+        name: piece.name,
+        money: piece.money,
+        dollars: piece.dollars,
+      })),
+      money: said.reduce((sum, piece) => sum + piece.money, 0),
+      holdingUsd:
+        last.heldAfter === null ? null : Math.abs(last.heldAfter) * last.px,
+      sz: own.sz,
+      px: own.px,
+      direction: own.direction,
+      // Named after the event even while only one half can be priced, so the
+      // second half rewrites that one row instead of adding another.
+      eventId: own.eventId ?? null,
     })
   }
   for (const trade of buildLiveTrades(stamped, new Map())) {

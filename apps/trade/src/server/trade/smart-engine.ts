@@ -35,6 +35,33 @@ export type LadderOrderInput = {
   /** The Grid rung this action belongs to, counted from zero when known. */
   rung?: number
   /**
+   * Which grid level's coins this action closes, and how that level is named.
+   *
+   * **The rung alone cannot say it.** A range that has followed price down
+   * renames every level, so a sale stamped "rung 4" may be selling coins a
+   * level called rung 6 bought. `closesLevelId` is the level's own name, kept
+   * for life, and it is what pairs a sale with the buy that paid for it.
+   *
+   * `closesRung` and `closesRange` are for reading, not for arithmetic. A
+   * carried level says both ("rung 4 of range 2"); a level still in the range
+   * says only its rung.
+   */
+  closesLevelId?: string
+  closesRung?: number
+  closesRange?: number
+  /** This action is the Pair Out rescue rather than the level's own sale. */
+  pairOut?: boolean
+  /**
+   * The one event this action belongs to, shared by a level's sale and the
+   * Pair Out rescue that went with it.
+   *
+   * Two orders a second apart at one price are one thing that happened, and
+   * the chart and the bell say it once. Nothing can work that out afterwards:
+   * the two fills look like unrelated sales, and on a slow venue they can be
+   * seconds apart.
+   */
+  gridEventId?: string
+  /**
    * The watched price that allowed this market action to fire.
    *
    * Live trading checks one fresh quote immediately before sending. If that
@@ -95,6 +122,33 @@ export type LadderEngineDeps = {
       at: number
       /** The Grid rung this action belongs to, counted from zero when known. */
       rung?: number
+      /**
+       * Which grid level's coins this action closes, and how that level is named.
+       *
+       * **The rung alone cannot say it.** A range that has followed price down
+       * renames every level, so a sale stamped "rung 4" may be selling coins a
+       * level called rung 6 bought. `closesLevelId` is the level's own name, kept
+       * for life, and it is what pairs a sale with the buy that paid for it.
+       *
+       * `closesRung` and `closesRange` are for reading, not for arithmetic. A
+       * carried level says both ("rung 4 of range 2"); a level still in the range
+       * says only its rung.
+       */
+      closesLevelId?: string
+      closesRung?: number
+      closesRange?: number
+      /** This action is the Pair Out rescue rather than the level's own sale. */
+      pairOut?: boolean
+      /**
+       * The one event this action belongs to, shared by a level's sale and the
+       * Pair Out rescue that went with it.
+       *
+       * Two orders a second apart at one price are one thing that happened, and
+       * the chart and the bell say it once. Nothing can work that out afterwards:
+       * the two fills look like unrelated sales, and on a slow venue they can be
+       * seconds apart.
+       */
+      gridEventId?: string
       /** The watched price that this fill must still have reached live. */
       triggerPx?: number
       /**

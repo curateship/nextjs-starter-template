@@ -521,7 +521,7 @@ describe("tradeFillMarks", () => {
 
     const marks = tradeFillMarks(trade)
     // Rung 2 bought at 80 and sold at 90, so it made $10 on its own coins.
-    expect(marks[2].label).toBe("Exit rung 2 - profit $10.00")
+    expect(marks[2].label).toBe("Rung 2 sold - made $10.00")
     // Rung 1 bought at 100 and sold at 90, which is $10 lost on its own. The
     // run bought at 100 and 80 and sold both at 90, so the run is flat.
     expect(marks[3].label).toBe("Grid run ended - profit $0.00")
@@ -563,7 +563,7 @@ describe("arrows on a position that is still open", () => {
     ])
     const mark = marks[1]
     expect(mark.label).toContain("made $12.00")
-    expect(mark.detail).toBe("Part closed · $100.00 left")
+    expect(mark.detail).toEqual(["Part closed · $100.00 left"])
   })
 
   it("says lost when the sell closed under what it paid", () => {
@@ -571,14 +571,14 @@ describe("arrows on a position that is still open", () => {
       fill({ side: "sell", closedPnl: -8, fee: 0.25, dir: "Close Long" }),
     ])
     expect(mark.label).toContain("lost $8.25")
-    expect(mark.detail).toBe("Part closed")
+    expect(mark.detail).toEqual(["Part closed"])
   })
 
   it("puts no money on a fill that only opened", () => {
     // Zero here would read as "made nothing", which is a different claim.
     const [mark] = openFillMarks([fill()])
     expect(mark.label).toBe("Bought $100.00")
-    expect(mark.detail).toBeNull()
+    expect(mark.detail).toEqual([])
   })
 
   it("names the FLOCK grid rung entered and exited", () => {
@@ -629,9 +629,9 @@ describe("arrows on a position that is still open", () => {
     expect(marks.map((mark) => mark.label)).toEqual([
       "Enter rung 2 - for $70.07",
       "Enter rung 3 - for $107.20",
-      "Exit rung 3 - profit $5.66",
+      "Rung 3 bought back - made $5.66",
     ])
-    expect(marks[2].detail).toBe("Still holding $70.41")
+    expect(marks[2].detail).toEqual(["Still holding $70.41"])
   })
 })
 
@@ -687,10 +687,10 @@ describe("a grid level's own round trip", () => {
   it("writes made, not lost, on the arrow the exchange called a loss", () => {
     const marks = openFillMarks([...buys, sell])
     expect(marks[3].label).toBe("Bought $46.98")
-    expect(marks[3].detail).toBeNull()
+    expect(marks[3].detail).toEqual([])
     const arrow = marks[marks.length - 1]
     expect(arrow.label).toBe("Sold $51.85 · made $4.28")
-    expect(arrow.detail).toBe("Still holding $182.82")
+    expect(arrow.detail).toEqual(["Still holding $182.82"])
   })
 
   it("leaves a ladder's part-close on the exchange's figure", () => {
@@ -803,5 +803,183 @@ describe("a grid level's own round trip", () => {
         grid
       )
     ).toBeNull()
+  })
+})
+
+/**
+ * MARSCOIN on Aster, 3 October 2026, the morning this was found.
+ *
+ * The real numbers, so the arithmetic can be checked against an account
+ * statement rather than against itself. The grid had followed price down seven
+ * times and Pair Out was on. At 06:28 UTC two orders went out 850ms apart at
+ * the same price: rung 4 sold the 3,269 coins it bought at 22:15 the night
+ * before, and Pair Out cleared 1,082 coins bought at 16:09 by a level the
+ * range had since left behind.
+ *
+ * Both screens got both halves wrong, with the sign flipped on each, because
+ * a sale was matched to a buy by rung NUMBER: "rung 4" had been handed to a
+ * new level by the downward moves, and every Pair Out close was stamped rung 1
+ * whatever it really sold.
+ */
+describe("a grid sale and the Pair Out rescue beside it", () => {
+  const MARS = (
+    over: Partial<LiveFill> & Pick<LiveFill, "fillId" | "side" | "px" | "sz">
+  ): LiveFill => ({
+    orderId: over.fillId,
+    walletId: "w1",
+    marketKey: "aster:mainnet:MARSCOINUSDT",
+    at: 1_000,
+    closedPnl: 0,
+    fee: 0,
+    dir: over.side === "buy" ? "Open long" : "Close long",
+    liquidation: false,
+    grid: true,
+    gridDirection: "long",
+    ...over,
+  })
+
+  /** The two buys the 06:28 event sold, and the two orders that sold them. */
+  const marscoin = (): LiveFill[] => [
+    // 16:09, rung 4 at the time. The range left it behind, and it became
+    // "rung 4 of range 2".
+    MARS({
+      fillId: "buy-16:09",
+      side: "buy",
+      px: 0.13064,
+      sz: 1082,
+      fee: 0.14135248,
+      at: 1,
+      gridLevelId: "level-carried",
+      gridRung: 4,
+    }),
+    // 22:15, stamped rung 6 that night. By the morning its level was rung 4.
+    MARS({
+      fillId: "buy-22:15",
+      side: "buy",
+      px: 0.10805,
+      sz: 3269,
+      fee: 0.35321545,
+      at: 2,
+      gridLevelId: "level-in-range",
+      gridRung: 6,
+    }),
+    // The level's own sale, first out.
+    MARS({
+      fillId: "sell-own",
+      side: "sell",
+      px: 0.1109,
+      sz: 3269,
+      fee: 0.3625321,
+      at: 3,
+      closedPnl: -16.61870796,
+      gridLevelId: "level-in-range",
+      gridRung: 4,
+      gridEventId: "event-06:28",
+      gridClosesRung: 4,
+    }),
+    // What its profit paid to clear, 850ms later at the same price.
+    MARS({
+      fillId: "sell-rescue",
+      side: "sell",
+      px: 0.11089833641404806,
+      sz: 1082,
+      fee: 0.119992,
+      at: 4,
+      closedPnl: -5.50239406,
+      gridLevelId: "level-carried",
+      gridRung: 1,
+      gridEventId: "event-06:28",
+      gridClosesRung: 4,
+      gridClosesRange: 2,
+      gridPairOut: true,
+    }),
+  ]
+
+  it("prices each half against the coins that half really sold", () => {
+    const trips = gridRoundTrips(marscoin())
+
+    // $362.53 out, $353.22 in, both fees off: the level made money.
+    expect(trips.get("sell-own")?.money).toBeCloseTo(8.6, 2)
+    expect(trips.get("sell-own")?.entryPx).toBeCloseTo(0.10805, 5)
+    // $119.99 out against the $141.35 it cost: a bag being cut loose.
+    expect(trips.get("sell-rescue")?.money).toBeCloseTo(-21.62, 2)
+    expect(trips.get("sell-rescue")?.entryPx).toBeCloseTo(0.13064, 5)
+  })
+
+  it("names the rescued level by the range it was carried out of", () => {
+    const trips = gridRoundTrips(marscoin())
+
+    expect(trips.get("sell-own")?.rung).toBe(4)
+    expect(trips.get("sell-own")?.range).toBeUndefined()
+    expect(trips.get("sell-rescue")?.rung).toBe(4)
+    expect(trips.get("sell-rescue")?.range).toBe(2)
+  })
+
+  it("draws one arrow for the two orders, with one total", () => {
+    const marks = openFillMarks(marscoin())
+
+    expect(marks).toHaveLength(3)
+    const arrow = marks[marks.length - 1]
+    expect(arrow.label).toBe("Rung 4 sold, and cleared rung 4 of range 2")
+    expect(arrow.detail).toEqual([
+      "Rung 4 made $8.60. Rung 4 of range 2 lost $21.62.",
+      "Together: lost $13.02",
+      "Still holding $0.00",
+    ])
+    // The arrow sits where the event finished, and carries both sales' coins.
+    expect(arrow.at).toBe(4)
+    expect(arrow.sz).toBe(4351)
+  })
+
+  it("matches a sale to its level after the rungs have been renumbered", () => {
+    // The only difference from the real history: nothing names the levels, as
+    // on every order placed before levels had names. The rung is then all
+    // there is, and it picks the wrong coins — a loss on the level that made
+    // money, and a profit on the bag that lost it.
+    const unnamed = marscoin().map((fill) => ({
+      ...fill,
+      gridLevelId: undefined,
+      gridEventId: undefined,
+      gridClosesRung: undefined,
+      gridClosesRange: undefined,
+      gridRung: fill.fillId === "sell-rescue" ? 1 : fill.gridRung,
+    }))
+    const trips = gridRoundTrips(unnamed)
+
+    expect(trips.get("sell-own")?.money).toBeLessThan(0)
+    expect(trips.get("sell-rescue")?.money).toBeGreaterThan(0)
+    // And with the names on, both halves land the right way up.
+    const named = gridRoundTrips(marscoin())
+    expect(named.get("sell-own")?.money).toBeGreaterThan(0)
+    expect(named.get("sell-rescue")?.money).toBeLessThan(0)
+  })
+
+  it("calls a rescue with nothing written down an old rung, not rung 1", () => {
+    // The repaired MARSCOIN sales: which buy each sale closed is known, but
+    // nothing recorded what rung the carried level was or which range it left,
+    // and no shift history exists to work it out. Its `gridRung` is 1 because
+    // that is where a carried level's arrow is drawn, and reading that as a
+    // name put "cleared rung 1" on the chart.
+    const repaired = marscoin().map((fill) =>
+      fill.fillId === "sell-rescue"
+        ? { ...fill, gridClosesRung: undefined, gridClosesRange: undefined }
+        : fill
+    )
+    const trips = gridRoundTrips(repaired)
+    expect(trips.get("sell-rescue")?.rung).toBeUndefined()
+
+    const arrow = openFillMarks(repaired).at(-1)
+    expect(arrow?.label).toBe("Rung 4 sold, and cleared an old rung")
+    expect(arrow?.detail[0]).toBe("Rung 4 made $8.60. An old rung lost $21.62.")
+  })
+
+  it("leaves a sale nothing was paired with as its own arrow", () => {
+    const alone = marscoin().filter((fill) => fill.fillId !== "sell-rescue")
+    const marks = openFillMarks(alone)
+
+    expect(marks).toHaveLength(3)
+    expect(marks[2].label).toBe("Rung 4 sold - made $8.60")
+    // The 1,082 coins of the carried level, still held, priced at the sale.
+    expect(marks[2].detail).toEqual(["Still holding $119.99"])
   })
 })

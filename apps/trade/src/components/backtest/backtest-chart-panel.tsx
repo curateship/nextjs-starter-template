@@ -6,7 +6,10 @@ import {
 } from "lucide-react"
 
 import { BacktestFocusLayer } from "@/components/backtest/backtest-focus-layer"
-import { BacktestMarksLayer } from "@/components/backtest/backtest-marks-layer"
+import {
+  BacktestMarksLayer,
+  type ChartFillMark,
+} from "@/components/backtest/backtest-marks-layer"
 import { BacktestGraph } from "@/components/backtest/backtest-graph"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { IndicatorLayer } from "@/components/trade/indicator-layer"
@@ -210,6 +213,18 @@ export function BacktestChartPanel({
   // Off the candles themselves, so no timeframe is written down twice.
   const barMs = bars.length > 1 ? bars[1].openTime - bars[0].openTime : 0
 
+  // A saved run keeps its second line as one string, because the shape it was
+  // written in is the shape it is read back in. The arrows draw a list of
+  // lines, so the two meet here and nowhere else.
+  const drawn = React.useMemo<readonly ChartFillMark[]>(
+    () =>
+      fills.map((fill) => ({
+        ...fill,
+        detail: fill.detail ? [fill.detail] : [],
+      })),
+    [fills]
+  )
+
   // One picked row means one dotted line. Trades can share the same exit fill,
   // but each row is still a separate round trip and selecting it isolates that
   // position from the other rungs closed by the same order.
@@ -368,7 +383,7 @@ export function BacktestChartPanel({
                       placed is something that happened, and that should never
                       end up behind a dash. */}
                   <IndicatorLayer surface={surface} paint={indicators} />
-                  <BacktestMarksLayer surface={surface} fills={fills} />
+                  <BacktestMarksLayer surface={surface} fills={drawn} />
                   {/* Over the arrows: a picked trade is what you are looking
                       at, and its box has to be readable through them. */}
                   <BacktestFocusLayer

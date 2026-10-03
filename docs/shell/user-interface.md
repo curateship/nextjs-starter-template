@@ -251,3 +251,20 @@ list instead of copying it into state after the page has drawn.
 - Use `DashboardToolbarSearch` for search inputs.
 - Use `DashboardToolbarSelectTrigger` for dashboard filter dropdowns.
 - Filter controls should wrap on mobile like the feedback dashboard instead of stacking into full-width rows.
+
+## A notification row says everything on hover
+
+A row in the bell, on the member home and anywhere else `NotificationRow`
+draws, cuts its second line to 90 characters and ends it with an ellipsis.
+**The whole text is on the row's `title`, so hovering gives the rest.**
+
+The cut is made in JavaScript, in `notificationPreview`, and the `line-clamp-2`
+under it is only a second guard for a long word. That matters because it means
+nothing on the page holds the missing words: a reader who hovers a row ending
+"which bought these coins at..." gets nothing unless the row was handed the
+untruncated text separately. So `notificationText` returns the whole thing and
+`notificationPreview` cuts a copy, and the row uses one for `title` and the
+other for what it draws.
+
+Tyler asked for this on 3 October 2026, looking at a trade notice whose figure
+had been cut off mid-sentence.

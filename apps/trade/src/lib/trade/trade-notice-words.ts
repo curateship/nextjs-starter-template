@@ -124,11 +124,12 @@ export function fillNoticeWords(fill: {
    */
   entryPx?: number | null
   /**
-   * What the grid rung that sold made on its own coins, when a grid sold
-   * this. Wins over the exchange's figure and its average. See
-   * `gridRoundTrips`.
+   * The grid sale this fill belongs to, priced on the coins each level really
+   * sold, when a grid sold this. Wins over the exchange's figure and its
+   * average. See `gridRoundTrips`.
    */
   ownRung?: GridSaleMoney | null
+
   /**
    * What the whole grid run made after fees, when this sale left no coins.
    * Wins over `ownRung`. See `runEndedWords`.
@@ -167,11 +168,7 @@ export function fillNoticeWords(fill: {
   }
   const title = `${did}: ${usd} of ${coin} at ${price} ${tag}`
   if (fill.ownRung) {
-    return {
-      title,
-      body: rungGainWords(fill.ownRung, fill.side),
-      level: fill.ownRung.money < 0 ? "warning" : "info",
-    }
+    return gridSaleWords({ coin, tag, sale: fill.ownRung })
   }
   if (fill.closedPnl !== 0) {
     return {
@@ -231,20 +228,50 @@ export function triggerNoticeWords(input: {
   }
 }
 
-/** A grid sale priced on the coins its own rung bought. */
+/**
+ * One grid sale, with the Pair Out rescue sold beside it when there was one.
+ *
+ * **A level's sale and its rescue are one thing that happened.** They go out
+ * on the same pass at the same price, the profit of the first pays for the
+ * second, and the bell used to ring twice with two unrelated-looking figures.
+ * Tyler, 3 October 2026: "It shouldnt show 2 orders."
+ */
 export type GridSaleMoney = {
-  /** After both fees, the same figure the chart arrow and the P&L page show. */
+  /**
+   * Each order in the event, the level's own sale first and anything its
+   * profit cleared after it.
+   */
+  halves: readonly {
+    /** "rung 4", or "rung 4 of range 2" once the range has left it behind. */
+    name: string
+    /** After both fees, the same figure the chart arrow shows. */
+    money: number
+    /** What this half sold for. */
+    dollars: number
+  }[]
+  /** The halves added up. The only figure that describes the whole event. */
   money: number
-  /** What the rung paid for the coins it sold, or sold them at on a short. */
-  entryPx: number
-  /** Counted from one. Absent when the sale closed coins of several rungs. */
-  rung?: number
+  /** Which way the grid ran: a selling grid's level buys back, it does not sell. */
+  direction: "long" | "short"
+  /**
+   * The one event both orders belong to, or null for a sale nothing was paired
+   * with. The bell rings once per event, so this is what its inbox row is
+   * named after.
+   */
+  eventId: string | null
+  /**
+   * What the position still holds after it, in dollars, or null when the
+   * fills on hand cannot say.
+   */
+  holdingUsd: number | null
   /**
    * The coins this money covers, and what they went at.
    *
-   * The notice says both, rather than the totals it read a moment later. An
+   * **Only the run-ended headline still prints these**, since an ordinary
+   * grid sale now leads with its rung rather than its dollars. They are the
+   * coins the money was worked out on, not the totals read a moment later: an
    * exchange hands one sale over in pieces, and a body worked out from three
-   * of them under a headline counting four is one notice saying two things: on
+   * of them under a headline counting four is one notice saying two things. On
    * 29 Sep 2026 a USELESS sale read "$262 … made $8.12" when the 1,086 coins in
    * that headline had made $10.81 and the $8.12 was 815 of them.
    */
@@ -253,20 +280,59 @@ export type GridSaleMoney = {
 }
 
 /**
- * "Made $1.20 on this close, after fees. Measured against rung 3, which bought
- * these coins at $0.169."
+ * "MARSCOIN rung 4 sold and cleared rung 4 of range 2: lost $13.02".
+ *
+ * **The rung leads, not the dollars sold.** Tyler's rule, 3 October 2026:
+ * "showing the dollar amount sold tell us nothing about what was sold". The
+ * dollars move to the second line, where they say which half is which, and
+ * coin counts are gone from both lines: "I dont need to know how many coins it
+ * bought. Replace that with the amount."
  *
  * **A grid sale is never measured against the position's average.** Tyler's
- * rule, 22 Sep 2026: it measures against its own rung. On 22 Sep an ANSEM
- * grid sale rang the bell with "Made $1.81 … against the whole
- * position's average entry", the venue's figure, while the rungs still
- * holding held that average up. Each rung buys its own coins and sells those
- * same coins, so its own buy is the only honest "before".
+ * rule, 22 Sep 2026. On 22 Sep an ANSEM grid sale rang the bell with "Made
+ * $1.81 … against the whole position's average entry", the venue's figure,
+ * while the rungs still holding held that average up. Each level buys its own
+ * coins and sells those same coins, so its own buy is the only honest
+ * "before".
  */
-function rungGainWords(sale: GridSaleMoney, side: "buy" | "sell"): string {
-  const money = `${sale.money < 0 ? "Lost" : "Made"} ${formatUsdRounded(Math.abs(sale.money))} on this close, after fees.`
-  const which = sale.rung === undefined ? "its own rungs" : `rung ${sale.rung}`
-  return `${money} Measured against ${which}, which ${side === "sell" ? "bought" : "sold"} these coins at ${formatPrice(sale.entryPx)}.`
+function gridSaleWords(input: {
+  coin: string
+  tag: string
+  sale: GridSaleMoney
+}): { title: string; body: string; level: TradeNoticeLevel } {
+  const { sale } = input
+  const verb = sale.direction === "long" ? "sold" : "bought back"
+  const [own, ...cleared] = sale.halves
+  const result = `${sale.money < 0 ? "lost" : "made"} ${formatUsdRounded(Math.abs(sale.money))}`
+  const did =
+    cleared.length === 0
+      ? `${own.name} ${verb}`
+      : `${own.name} ${verb} and cleared ${cleared.map((half) => half.name).join(", ")}`
+  const held =
+    sale.holdingUsd === null
+      ? ""
+      : ` Still holding ${formatUsdRounded(sale.holdingUsd)}.`
+  const body =
+    cleared.length === 0
+      ? `${upperFirst(verb)} ${formatUsdRounded(own.dollars)}.${held}`
+      : sale.halves
+          .map(
+            (half) =>
+              `${upperFirst(half.name)} ${verb} ${formatUsdRounded(half.dollars)} and ${
+                half.money < 0 ? "lost" : "made"
+              } ${formatUsdRounded(Math.abs(half.money))}.`
+          )
+          .join(" ")
+  return {
+    title: `${input.coin} ${did}: ${result} ${input.tag}`,
+    body,
+    level: sale.money < 0 ? "warning" : "info",
+  }
+}
+
+/** "rung 4" as it starts a sentence. */
+function upperFirst(words: string): string {
+  return words.charAt(0).toUpperCase() + words.slice(1)
 }
 
 /**
