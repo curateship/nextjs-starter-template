@@ -393,6 +393,7 @@ describe("reading a stored grid back", () => {
     entered: true,
     shifts: 0,
     downShifts: 0,
+    carriedSoFar: 0,
     closedReason: null,
   }
 
@@ -1855,5 +1856,56 @@ describe("naming a grid's levels", () => {
       "Rung 4 - level 2",
       "Rung 4 - level 3",
     ])
+  })
+})
+
+describe("the count of levels carried out", () => {
+  it("comes away high enough that the next one gets a fresh name", () => {
+    // A grid named in catch-up has no counter. Without one the next level to
+    // leave would be told it is the first and take a name already drawn on the
+    // chart: PONS would have grown a second "Rung 1" on its next move.
+    const plan = {
+      direction: "long" as const,
+      downShifts: 4,
+      carriedSoFar: 0,
+      levels: [1, 2, 3, 4, 5, 6].map(
+        (buyPx) => ({ buyPx }) as never as GridLevelState
+      ),
+      carriedLevels: [10, 9, 8, 7].map(
+        (buyPx) => ({ buyPx }) as never as GridLevelState
+      ),
+    }
+    nameGridLevels(plan)
+
+    expect(plan.carriedLevels.map((one) => one.name)).toEqual([
+      "Rung 1",
+      "Rung 1 - level 2",
+      "Rung 1 - level 3",
+      "Rung 1 - level 4",
+    ])
+    expect(plan.carriedSoFar).toBe(4)
+  })
+
+  it("counts the ones Pair Out has already cleared", () => {
+    // MARSCOIN: five levels have left and three of them were cleared, so the
+    // two still held are the fourth and fifth, not the first and second.
+    const plan = {
+      direction: "long" as const,
+      downShifts: 7,
+      carriedSoFar: 5,
+      levels: [1, 2, 3, 4, 5, 6].map(
+        (buyPx) => ({ buyPx }) as never as GridLevelState
+      ),
+      carriedLevels: [9, 8].map(
+        (buyPx) => ({ buyPx }) as never as GridLevelState
+      ),
+    }
+    nameGridLevels(plan)
+
+    expect(plan.carriedLevels.map((one) => one.name)).toEqual([
+      "Rung 1 - level 4",
+      "Rung 1 - level 5",
+    ])
+    expect(plan.carriedSoFar).toBe(5)
   })
 })

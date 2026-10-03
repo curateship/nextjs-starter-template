@@ -1407,6 +1407,7 @@ export type GridLevelState = z.infer<typeof gridLevelStateSchema>
 export function nameGridLevels(plan: {
   direction: GridDirection
   downShifts: number
+  carriedSoFar?: number
   levels: GridLevelState[]
   carriedLevels: GridLevelState[]
 }): boolean {
@@ -1422,18 +1423,28 @@ export function nameGridLevels(plan: {
     level.name = gridLevelBornName(plan, index, count)
     named = true
   }
-  // **Only when the count proves the order.** A level is named the moment it
-  // is carried, so this is catch-up for grids that were already running. Pair
-  // Out takes cleared levels out of this list, so once any have gone the
-  // position in it no longer says which one left first, and a number that
-  // means nothing is worse than no number. Those keep the old wording until
-  // they clear.
-  if (plan.carriedLevels.length === plan.downShifts) {
-    for (const [index, level] of plan.carriedLevels.entries()) {
-      if (level.name) continue
-      level.name = gridCarriedName(index + 1)
-      named = true
-    }
+  // **Catch-up for a grid that was already running.** A level is named the
+  // moment it is carried, so this only has to name what came before that.
+  // `carriedSoFar` counts every level that ever left, and the ones still in
+  // the list are the last of them, in the order they went. When nothing has
+  // been cleared the two agree and the first carried level is simply level 1.
+  const gone = Math.max(
+    0,
+    (plan.carriedSoFar ?? plan.carriedLevels.length) - plan.carriedLevels.length
+  )
+  for (const [index, level] of plan.carriedLevels.entries()) {
+    if (level.name) continue
+    level.name = gridCarriedName(gone + index + 1)
+    named = true
+  }
+  // **The counter has to come away at least as high as the names handed out.**
+  // A grid named in catch-up has no counter yet, so without this the next
+  // level to leave would be told it is the first and take a name already on
+  // the chart. PONS would have grown a second "Rung 1" on its next move.
+  const handedOut = gone + plan.carriedLevels.length
+  if ((plan.carriedSoFar ?? 0) < handedOut) {
+    plan.carriedSoFar = handedOut
+    named = true
   }
   return named
 }
@@ -1681,6 +1692,17 @@ const gridPlanSchema = z.object({
   shifts: z.number().int().min(0).default(0),
   /** How many one-level downward moves the range has made. */
   downShifts: z.number().int().min(0).default(0),
+  /**
+   * How many levels have been carried out of the winning edge, ever.
+   *
+   * **Not `carriedLevels.length` and not `downShifts`.** Pair Out takes a
+   * cleared level out of that list, so its length goes DOWN and would hand the
+   * next carry a number already used. And a move that carries a level holding
+   * nothing records no level at all, so the moves outrun the carries: MARSCOIN
+   * had made seven moves and carried five. Only a counter of its own can name
+   * the Nth level to leave and keep naming them in order.
+   */
+  carriedSoFar: z.number().int().min(0).default(0),
   /** Why it finished, once it has. Null while it is still working. */
   closedReason: z
     .enum(["takeProfit", "aboveTop", "stop", "flat", "cancelled"])

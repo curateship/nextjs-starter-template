@@ -676,6 +676,24 @@ function upperFirst(words: string): string {
   return words.charAt(0).toUpperCase() + words.slice(1)
 }
 
+/**
+ * "Rung 6 - level 4 bought $253.58" — a level opening, in the same words it
+ * will close in.
+ *
+ * The name is the level's, not the seat's, so the three arrows one level makes
+ * over a buy, a sell and a buy again all read as the same level. Before this
+ * a buy said "Enter rung 6" and the next buy by that same level, after a
+ * downward move had renumbered it, said "Enter rung 5". PONS, 3 October 2026.
+ */
+function gridEntryWords(
+  name: string,
+  direction: "long" | "short",
+  amount: string
+): string {
+  const did = direction === "long" ? "bought" : "sold short"
+  return `${upperFirst(name)} ${did} ${amount}`
+}
+
 /** "made $8.60" / "lost $21.62", which is how both screens say money. */
 function madeOrLost(money: number): string {
   return `${money >= 0 ? "made" : "lost"} ${money$(Math.abs(money))}`
@@ -887,7 +905,11 @@ export function tradeFillMarks(trade: LiveTrade): LiveFillMark[] {
           } ${money$(Math.abs(money))}`
         : fill.grid && gridRung !== undefined
         ? opening
-          ? `Enter rung ${gridRung} - for ${amount}`
+          ? gridEntryWords(
+              gridLevelName(fill.gridLevelName, gridRung),
+              trade.direction,
+              amount
+            )
           : sale.label
         : opening
           ? `${fill.side === "buy" ? "Bought" : "Sold short"} ${amount}`
@@ -1005,7 +1027,11 @@ export function openFillMarks(fills: readonly LiveFill[]): LiveFillMark[] {
           fill.grid && gridRung !== undefined
             ? closed
               ? gridPairedSaleWords([{ name, money }], direction).label
-              : `Enter rung ${gridRung} - for ${amount}`
+              : gridEntryWords(
+                  gridLevelName(fill.gridLevelName, gridRung),
+                  direction,
+                  amount
+                )
             : closed
               ? `${fill.side === "buy" ? "Bought back" : "Sold"} ${amount}${
                   moneyKnown
