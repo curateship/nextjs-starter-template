@@ -119,8 +119,6 @@ import {
 } from "@/lib/trade/market-volume"
 import { useWideScreen } from "@/lib/layout/wide-screen"
 import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
-import { positionsYouOpenedByHand } from "@/components/trade/watched-orders-list"
-import { smartOrdersYouPlaced } from "@/lib/trade/smart-plan"
 import { cn } from "@/lib/utils"
 
 /**
@@ -995,37 +993,19 @@ export function TradeWorkspace({
     />
   )
 
-  // The spare height in the right column goes to the longer of the two lists,
-  // and the shorter panel takes exactly the height its own rows need. Whoever
-  // gets it also stops at 55% of the column, so the other list always keeps
-  // rows of its own. Without this the bottom panel grew to fill the column
-  // whatever it held, which left an empty half-card under the last waiting
-  // price while Smart orders above it was scrolling.
-  const handRowCount =
-    positionsYouOpenedByHand(trading.positions, trading.smartOrders).length +
-    trading.watchOrders.length
-  const smartRowCount = smartOrdersYouPlaced(trading.smartOrders).length
-  const manualIsLonger = handRowCount > smartRowCount
-
+  // Smart orders is exactly as tall as its own rows, so its card never ends in
+  // empty space, and Manual orders below it takes the rest of the column.
+  // Smart orders still stops at 55% of the column, so a long list of them
+  // cannot push Manual orders down to a strip with no rows in it.
   const orderPanels = (
     <div
       data-order-panels
       className="flex h-full min-h-0 flex-col gap-(--shell-gutter)"
     >
-      <WorkspacePanel
-        className={cn(
-          "flex h-auto min-h-0 flex-col",
-          manualIsLonger ? "max-h-[55%] flex-none" : "flex-auto"
-        )}
-      >
+      <WorkspacePanel className="flex h-auto max-h-[55%] min-h-0 flex-none flex-col">
         {smartOrdersPanel}
       </WorkspacePanel>
-      <WorkspacePanel
-        className={cn(
-          "flex h-auto min-h-0 flex-col",
-          manualIsLonger ? "flex-auto" : "max-h-[55%] flex-none"
-        )}
-      >
+      <WorkspacePanel className="flex h-auto min-h-0 flex-auto flex-col">
         {manualOrdersPanel}
       </WorkspacePanel>
     </div>
