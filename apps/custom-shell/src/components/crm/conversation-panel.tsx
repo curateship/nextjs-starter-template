@@ -45,7 +45,7 @@ export function ConversationPanel({
   leadEmail,
   loading,
   canSend,
-  inboundAddress,
+  replyFrom,
   onStatusChange,
   onMarkUnread,
   onFetchBody,
@@ -57,7 +57,11 @@ export function ConversationPanel({
   leadEmail: string | null
   loading: boolean
   canSend: boolean
-  inboundAddress: string | null
+  /**
+   * The whole From line a reply will carry, for the footnote under Send, and
+   * null when there is no address for mail to arrive at.
+   */
+  replyFrom: string | null
   onStatusChange: (status: CrmThreadStatus, snoozedUntil?: string | null) => void
   onMarkUnread: () => void
   onFetchBody: (messageId: string) => Promise<void>
@@ -237,7 +241,7 @@ export function ConversationPanel({
       <ReplyComposer
         threadId={conversation.id}
         canSend={canSend}
-        inboundAddress={inboundAddress}
+        replyFrom={replyFrom}
         onSent={onSent}
         onDraft={onDraft}
       />

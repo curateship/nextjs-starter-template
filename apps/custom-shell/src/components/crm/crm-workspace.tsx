@@ -254,7 +254,7 @@ export function CrmWorkspace({
       leadEmail={lead?.lead.email ?? openRow?.leadEmail ?? null}
       loading={loadingThread}
       canSend={conversation !== null}
-      inboundAddress={page.inboundAddress}
+      replyFrom={page.replyFrom}
       onStatusChange={changeStatus}
       onMarkUnread={markUnread}
       onFetchBody={refetchBody}

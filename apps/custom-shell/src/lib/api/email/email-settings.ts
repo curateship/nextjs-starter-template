@@ -11,6 +11,7 @@ import {
   clearResendWebhookSecret,
   getEmailSettingsStatus,
   saveAuthLinkExpiry,
+  saveCrmReplyName,
   saveDripDefaults,
   saveEmailSender,
   saveInboundAddress,
@@ -106,6 +107,27 @@ export function saveInboundAddressSetting(inboundAddress: string) {
   return saveInboundAddressFn({
     data: { inboundAddress: inboundAddress.trim() },
   })
+}
+
+/**
+ * The name CRM replies go out under.
+ *
+ * "" is allowed and clears it, which sends replies under the app name instead.
+ * Nothing here checks the characters: `composeFromAddress` takes out anything
+ * that could split the From header, and it does that at send time so an
+ * already-saved name is cleaned too.
+ */
+const saveCrmReplyNameFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ crmReplyName: z.string().max(255) }))
+  .handler(async ({ data, context }): Promise<EmailSettingsStatus> => {
+    const workspaceId = await currentWorkspaceId(context.user.id)
+    await saveCrmReplyName(workspaceId, data.crmReplyName)
+    return getEmailSettingsStatus(workspaceId)
+  })
+
+export function saveCrmReplyNameSetting(crmReplyName: string) {
+  return saveCrmReplyNameFn({ data: { crmReplyName } })
 }
 
 const saveSystemEmailSenderFn = createServerFn({ method: "POST" })

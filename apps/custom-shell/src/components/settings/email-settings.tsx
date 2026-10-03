@@ -26,6 +26,7 @@ import {
   saveEmailApiKey,
   saveAuthLinkExpirySetting,
   saveEmailSenderSettings,
+  saveCrmReplyNameSetting,
   saveInboundAddressSetting,
   saveNewsletterDripDefaults,
   saveResendWebhookSecret,
@@ -72,6 +73,7 @@ export function EmailSettings() {
     fromEmail: string
     fromName: string
     inboundAddress: string
+    crmReplyName: string
   } | null>(null)
   // The pace a new newsletter starts from, as edited; null until the load.
   const [drip, setDrip] = React.useState<DripConfig | null>(null)
@@ -92,6 +94,7 @@ export function EmailSettings() {
     | "systemSender"
     | "sender"
     | "inbound"
+    | "crmReplyName"
     | "key"
     | "webhook"
     | "drip"
@@ -141,6 +144,7 @@ export function EmailSettings() {
             fromEmail: next.fromEmail,
             fromName: next.fromName,
             inboundAddress: next.inboundAddress,
+            crmReplyName: next.crmReplyName,
           }
         )
         setDrip((prev) => prev ?? next.dripDefaults)
@@ -196,6 +200,21 @@ export function EmailSettings() {
     dismissErrorToast()
     try {
       setStatus(await saveInboundAddressSetting(inboundAddress))
+      setSaveStatus("saved")
+    } catch (error) {
+      setSaveStatus("idle")
+      showErrorToast(getEmailSettingsErrorMessage(error))
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  const saveCrmName = async (crmReplyName: string) => {
+    setSaving("crmReplyName")
+    setSaveStatus("saving")
+    dismissErrorToast()
+    try {
+      setStatus(await saveCrmReplyNameSetting(crmReplyName))
       setSaveStatus("saved")
     } catch (error) {
       setSaveStatus("idle")
@@ -372,6 +391,24 @@ export function EmailSettings() {
       return
     }
     void saveInbound(sender.inboundAddress)
+  }
+
+  const scheduleCrmNameSave = (crmReplyName: string) => {
+    clearTimeout(timers.current.crmReplyName)
+    timers.current.crmReplyName = setTimeout(
+      () => void saveCrmName(crmReplyName),
+      SAVE_DELAY_MS
+    )
+  }
+
+  const flushCrmNameSave = () => {
+    if (!sender) return
+    clearTimeout(timers.current.crmReplyName)
+    if (saving !== null) {
+      scheduleCrmNameSave(sender.crmReplyName)
+      return
+    }
+    void saveCrmName(sender.crmReplyName)
   }
 
   const scheduleKeySave = (value: string) => {
@@ -701,6 +738,37 @@ export function EmailSettings() {
               />
               <p className="text-xs text-muted-foreground">
                 Empty means the CRM has no mailbox, so it cannot reply.
+              </p>
+            </div>
+
+            <div className="grid gap-2">
+              <FieldLabel
+                htmlFor="email-crm-reply-name"
+                hint="Goes in front of the address mail arrives at, so a CRM reply shows a person instead of a bare inbox. The address itself does not change, so answers still come back here."
+              >
+                Name replies come from
+              </FieldLabel>
+              <Input
+                id="email-crm-reply-name"
+                autoComplete="off"
+                maxLength={255}
+                placeholder="e.g. Tyler"
+                value={sender.crmReplyName}
+                onChange={(event) => {
+                  const next = {
+                    ...sender,
+                    crmReplyName: event.target.value,
+                  }
+                  setSender(next)
+                  scheduleCrmNameSave(next.crmReplyName)
+                }}
+                onBlur={flushCrmNameSave}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") flushCrmNameSave()
+                }}
+              />
+              <p className="text-xs text-muted-foreground">
+                Empty sends replies under the app name.
               </p>
             </div>
           </>

@@ -22,13 +22,22 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 export function ReplyComposer({
   threadId,
   canSend,
-  inboundAddress,
+  replyFrom,
   onSent,
   onDraft,
 }: {
   threadId: string
   canSend: boolean
-  inboundAddress: string | null
+  /**
+   * The whole From line the reply will carry, worked out on the server. Shown
+   * as typed there rather than rebuilt here, so the footnote cannot promise a
+   * sender the mail does not use.
+   *
+   * Null when the workspace has no address for mail to arrive at, which is the
+   * one thing that stops a reply going at all, so it is also what disables
+   * Send.
+   */
+  replyFrom: string | null
   onSent: () => void
   onDraft: () => Promise<string>
 }) {
@@ -77,7 +86,7 @@ export function ReplyComposer({
     }
   }
 
-  const noAddress = !inboundAddress
+  const noAddress = !replyFrom
 
   return (
     <div className="grid shrink-0 gap-2 border-t p-3">
@@ -124,9 +133,9 @@ export function ReplyComposer({
         </div>
       </div>
 
-      {inboundAddress ? (
+      {replyFrom ? (
         <p className="text-xs text-muted-foreground">
-          Sent from {inboundAddress}, so their answer comes back here.
+          Sent as {replyFrom}
         </p>
       ) : null}
     </div>

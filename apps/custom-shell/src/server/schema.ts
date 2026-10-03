@@ -2355,6 +2355,16 @@ export const customShellEmailSettings = pgTable("email_settings", {
    */
   inboundAddress: varchar("inbound_address", { length: 255 }),
   /**
+   * The name a CRM reply goes out under, in front of the inbound address.
+   *
+   * Only the name is here. The address is always `inboundAddress`, because a
+   * reply has to come back to the same mailbox. Null falls back to the app
+   * name at send time, so a workspace that never fills this in still sends
+   * from a name rather than a bare address. Added in
+   * `0083_custom_shell_crm_reply_name.sql`.
+   */
+  crmReplyName: varchar("crm_reply_name", { length: 255 }),
+  /**
    * The drip rules a newly created newsletter starts from — see
    * `src/lib/broadcasts/drip.ts`. Only ever read at that moment; changing it
    * later leaves newsletters that already exist alone.

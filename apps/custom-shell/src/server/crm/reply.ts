@@ -4,8 +4,9 @@ import { escapeHtml } from "@/lib/email/escape-html"
 import { normalizeSubject } from "@/lib/crm/thread-match"
 import { now, uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
+import { getCrmReplySender } from "@/server/crm/sender"
 import { getEmailProvider } from "@/server/email/provider"
-import { getAppEmailApiKey, getInboundAddress } from "@/server/email/settings"
+import { getAppEmailApiKey } from "@/server/email/settings"
 import {
   customShellCrmLeads,
   customShellCrmMessages,
@@ -65,7 +66,9 @@ export type SendReplyResult =
 /**
  * Sends one reply in a conversation and writes it into the thread.
  *
- * From the workspace's inbound address, so the answer comes back into the CRM.
+ * From the workspace's inbound address, so the answer comes back into the CRM,
+ * under the name `getCrmReplySender` works out.
+ *
  * `In-Reply-To` and `References` carry the newest inbound message's Message-ID,
  * which is what makes the reply land in the same thread in the reader's own
  * mail client rather than as a loose email.
@@ -101,8 +104,8 @@ export async function sendCrmReply(
     .limit(1)
   if (!thread) throw new Error(CRM_THREAD_NOT_FOUND)
 
-  const from = await getInboundAddress(workspaceId, database)
-  if (!from) throw new Error(CRM_NO_INBOUND_ADDRESS)
+  const sender = await getCrmReplySender(workspaceId, database)
+  if (!sender) throw new Error(CRM_NO_INBOUND_ADDRESS)
 
   // The newest message in the thread that has a Message-ID, whichever way it
   // went. Threading off our own last reply is right when the conversation's
@@ -128,7 +131,7 @@ export async function sendCrmReply(
   const subject = replySubject(thread.subject)
   const apiKey = await getAppEmailApiKey(database, workspaceId)
   const result = await getEmailProvider(apiKey ?? "").send({
-    from,
+    from: sender.from,
     to: thread.leadEmail,
     subject,
     html: replyHtml(body),
@@ -146,8 +149,10 @@ export async function sendCrmReply(
     workspaceId,
     threadId,
     direction: "out",
-    fromEmail: from,
-    fromName: null,
+    fromEmail: sender.address,
+    // What went out, so the record of the reply names the same sender the
+    // customer saw rather than only the address.
+    fromName: sender.name || null,
     toEmail: thread.leadEmail,
     subject,
     textBody: body,

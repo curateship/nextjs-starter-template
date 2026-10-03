@@ -174,6 +174,33 @@ person typing, so it goes out with no blocks, no branding frame and **no
 unsubscribe footer**. That footer belongs on a newsletter; offering to
 unsubscribe somebody from a conversation they started would be absurd.
 
+**A reply goes out under a name, never a bare address.** The From line is a name
+in front of the address mail arrives at, such as
+`Tyler <leads@inbox.example.com>`. The name is one box in Settings → Email,
+"Name replies come from", and it is one name for the whole workspace. Leaving it
+empty sends under the app name rather than under the address alone, because mail
+from a bare address reads as automated and a typed personal answer is the
+opposite of that.
+
+The address in that From line is always the address mail arrives at, so the
+answer still comes back into the CRM. Only the name is anybody's to change.
+
+`src/server/crm/sender.ts` is the single place that works the From line out, and
+both the send and the footnote under the Send button read it from there. That is
+why the footnote says exactly what the customer will see.
+
+**The footnote is one line and no explanation: "Sent as Tyler
+<leads@inbox.example.com>".** It used to add "so their answer comes back here",
+and Tyler cut that on 3 Oct 2026: "why do we even need it? I mean where else
+would their reply goes?" A reply to an email comes back to whoever sent it, so
+the sentence was answering a question nobody asked. Who the mail goes out as is
+the only part you cannot work out for yourself, so that is the only part the
+line says. A name holding a comma
+or a quote mark is stripped of those characters before it goes anywhere near the
+header, by the same `composeFromAddress` the app's own email uses, because a
+comma in a From line makes a mail server read it as two senders. A name that is
+nothing but punctuation leaves nothing usable, so the app name steps in.
+
 `In-Reply-To` and `References` carry the newest Message-ID in the conversation,
 which is what makes the answer land in the same thread in the reader's own mail
 client instead of as a loose email.
@@ -291,6 +318,8 @@ mail in it is never written to.
 4. Paste that address into **Settings → Email → Address mail arriving at**.
    Empty means the CRM has no mailbox and cannot reply, and the Send button says
    so.
+5. Type a name into **Name replies come from**, in the same card. Empty is
+   allowed and sends under the app name.
 
 Forwarding an existing Gmail account to that address is how mail already arriving
 somewhere else gets in.

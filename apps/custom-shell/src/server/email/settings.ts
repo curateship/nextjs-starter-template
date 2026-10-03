@@ -52,6 +52,7 @@ async function upsertEmailSettings(
     resendWebhookSecretEncrypted: string | null
     dripDefaults: DripConfig
     inboundAddress: string | null
+    crmReplyName: string | null
   }>,
   database: CustomShellDb = db
 ) {
@@ -143,19 +144,22 @@ export async function saveInboundAddress(
 }
 
 /**
- * The address the CRM sends a reply from, or null when none is saved.
+ * The name CRM replies go out under.
  *
- * Replies go out from the inbound address so the answer comes back into the
- * CRM. A workspace with no inbound address cannot reply at all, and saying so
- * is better than sending from the newsletter's own sender, where the answer
- * would land somewhere nobody reads.
+ * Saving an empty box clears it, and a cleared name falls back to the app name
+ * at send time. Storing the fallback instead would freeze today's app name
+ * into the row and leave it there after a rename.
  */
-export async function getInboundAddress(
+export async function saveCrmReplyName(
   workspaceId: string,
+  name: string,
   database: CustomShellDb = db
-): Promise<string | null> {
-  const settings = await getEmailSettings(workspaceId, database)
-  return settings?.inboundAddress ?? null
+) {
+  return upsertEmailSettings(
+    workspaceId,
+    { crmReplyName: name.trim() || null },
+    database
+  )
 }
 
 /**
@@ -334,6 +338,11 @@ export type EmailSettingsStatus = {
    * from. Empty means the CRM has no mailbox and cannot reply.
    */
   inboundAddress: string
+  /**
+   * The name CRM replies go out under, exactly as it was typed. Empty means
+   * replies go out under the app name instead.
+   */
+  crmReplyName: string
 }
 
 export async function getEmailSettingsStatus(
@@ -385,6 +394,7 @@ export async function getEmailSettingsStatus(
     links: getAppLinkStatus(),
     systemSender,
     inboundAddress: row?.inboundAddress ?? "",
+    crmReplyName: row?.crmReplyName ?? "",
   }
 }
 
