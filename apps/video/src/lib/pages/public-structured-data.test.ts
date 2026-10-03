@@ -72,6 +72,55 @@ describe("public structured data", () => {
     })
   })
 
+  it("adds the trail only when the page shows one", () => {
+    const withoutTrail = publicStructuredData({
+      organization: { name: "Acme" },
+      page: { name: "Pricing" },
+    })
+    expect(
+      (withoutTrail["@graph"] as { "@type": string }[]).map(
+        (node) => node["@type"]
+      )
+    ).toEqual(["Organization", "WebPage"])
+
+    const withTrail = publicStructuredData({
+      organization: { name: "Acme" },
+      page: { name: "Pricing" },
+      breadcrumbs: [
+        { name: "Home", url: "https://acme.example/" },
+        { name: "Pricing", url: "" },
+      ],
+    })
+    expect((withTrail["@graph"] as unknown[])[2]).toEqual({
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        {
+          "@type": "ListItem",
+          position: 1,
+          name: "Home",
+          item: "https://acme.example/",
+        },
+        { "@type": "ListItem", position: 2, name: "Pricing" },
+      ],
+    })
+  })
+
+  it("refuses a trail of one step or one with a nameless step", () => {
+    const oneStep = publicStructuredData({
+      organization: { name: "Acme" },
+      page: { name: "Pricing" },
+      breadcrumbs: [{ name: "Home", url: "https://acme.example/" }],
+    })
+    expect((oneStep["@graph"] as unknown[]).length).toBe(2)
+
+    const nameless = publicStructuredData({
+      organization: { name: "Acme" },
+      page: { name: "Pricing" },
+      breadcrumbs: [{ name: "Home" }, { name: "  " }],
+    })
+    expect((nameless["@graph"] as unknown[]).length).toBe(2)
+  })
+
   it("builds the page address from the visited origin", () => {
     expect(publicPageUrl("https://acme.example", "/about")).toBe(
       "https://acme.example/about"

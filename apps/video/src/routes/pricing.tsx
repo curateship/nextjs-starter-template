@@ -131,7 +131,7 @@ function PricingRoute() {
         {preview ? (
           <PlanChangeConfirmation
             preview={preview}
-            onCancel={() => setPreview(null)}
+            onClose={() => setPreview(null)}
           />
         ) : billingEnabled ? (
           <PricingTable

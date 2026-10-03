@@ -22,6 +22,7 @@ import {
   DashboardPanels,
   type DashboardBlock,
 } from "@/components/shared/dashboard/dashboard-panels"
+import { dashboardCardTabClassName } from "@/components/shared/dashboard-card-header"
 import { CardHeaderRow, CardTop, EmptyRow, FeedCard } from "@/components/shared/feed-card"
 import { ActivityCard } from "@/components/shared/dashboard/activity-card"
 import { SampleValue } from "@/components/shared/dashboard/sample-figure"
@@ -46,8 +47,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Tabs, TabsContent } from "@/components/ui/tabs"
-import { UnderlineTab, UnderlineTabsList } from "@/components/ui/underline-tabs"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 import {
   AUTOMATION_RUNS_CAPTION,
@@ -69,10 +69,13 @@ import {
 import { focusRingInset } from "@/lib/layout/focus-ring"
 import { formatDate } from "@/lib/format/format-time"
 import { formatSharePercent } from "@/lib/format/format-number"
-import { buildMembershipFigures } from "@/lib/billing/membership-figures"
+import {
+  buildMembershipFigures,
+  JOINED_CHANGE_CAPTION,
+  joinedChange,
+} from "@/lib/billing/membership-figures"
 import { cancellationReasonLabel } from "@/lib/billing/cancellation"
 import { percentChange } from "@/lib/format/percent-change"
-import { plural } from "@/lib/format/plural"
 import { cn } from "@/lib/utils"
 
 /**
@@ -233,13 +236,13 @@ function buildOverviewFigures({
       to: "/admin/feedback",
       label: "Feedback this week",
       value: feeds.feedback.last7Days.toLocaleString(),
-      before: `${feeds.feedback.previous7Days.toLocaleString()} the week before`,
       change: percentChange(
         feeds.feedback.previous7Days,
         feeds.feedback.last7Days
       ),
       changeCaption: "vs last week",
-      footer: `${feeds.feedback.noReply.toLocaleString()} with no reply`,
+      changeNote: "None the week before",
+      trend: feeds.feedback.last30Days,
     },
   ]
 }
@@ -276,8 +279,6 @@ function PeopleCard({
   className?: string
 }) {
   const [tab, setTab] = React.useState<PeopleTab>("joining")
-  const { membership } = overview
-  const everyone = membership.revenue.totalUsers
   const current = PEOPLE_TABS.find((entry) => entry.value === tab) ?? PEOPLE_TABS[0]
 
   return (
@@ -287,31 +288,18 @@ function PeopleCard({
         value={tab}
         onValueChange={(value) => setTab(value as PeopleTab)}
       >
-        <CardHeaderRow
-          icon={current.icon}
-          title={current.title}
-          // Dropped rather than truncating the heading once the tabs and this
-          // count no longer both fit — which is most widths in this column.
-          metaClassName="hidden 2xl:flex"
-          meta={
-            tab === "joining"
-              ? `${membership.newLastMonth.toLocaleString()} last month`
-              : tab === "leaving"
-                ? `${overview.scheduledCancellations.length.toLocaleString()} shown`
-              : `${everyone.toLocaleString()} ${plural(everyone, "account")} in all`
-          }
-        >
-          {/* `-mb-px` so the line under the chosen tab lands on the card's own
-              hairline rather than a pixel above it. */}
-          <UnderlineTabsList className="-mb-px">
+        <CardHeaderRow icon={current.icon} title={current.title}>
+          <TabsList>
             {PEOPLE_TABS.map((entry) => (
-              <UnderlineTab
+              <TabsTrigger
                 key={entry.value}
                 value={entry.value}
-                label={entry.tab}
-              />
+                className={dashboardCardTabClassName}
+              >
+                {entry.tab}
+              </TabsTrigger>
             ))}
-          </UnderlineTabsList>
+          </TabsList>
         </CardHeaderRow>
 
         <TabsContent value="joining" className="flex min-h-0 flex-col">
@@ -404,7 +392,7 @@ function JoiningChart({ overview }: { overview: AdminOverview }) {
     current: point.thisMonth,
     previous: point.lastMonth,
   }))
-  const change = percentChange(membership.newLastMonth, membership.newThisMonth)
+  const change = joinedChange(membership)
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 px-4 py-4 sm:px-5 sm:py-5">
@@ -413,7 +401,9 @@ function JoiningChart({ overview }: { overview: AdminOverview }) {
           <p className="font-mono text-3xl leading-tight font-semibold tracking-tight tabular-nums">
             {membership.newThisMonth.toLocaleString()}
           </p>
-          {change ? <ChangeBadge change={change} /> : null}
+          {change ? (
+            <ChangeBadge change={change} caption={JOINED_CHANGE_CAPTION} />
+          ) : null}
         </div>
         <div className="hidden items-center gap-4 lg:flex">
           <LegendDot colour="var(--primary)" label="This month" />
@@ -643,7 +633,6 @@ function AutomationsCard({
       <CardTop
         icon={WorkflowIcon}
         title="Automations"
-        meta={`${automations.length} in all`}
         action={
           <Button asChild variant="outline">
             <Link to="/admin/automations">Manage</Link>

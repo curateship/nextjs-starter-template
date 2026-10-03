@@ -21,6 +21,7 @@ export type NotificationAction =
       runId: string
       nodeId?: string
     }
+  | { kind: "crmThread"; threadId: string }
 
 /**
  * Any origin will do. The question is whether a *relative* address stays on
@@ -73,6 +74,14 @@ export function notificationAction(item: NotificationItem): NotificationAction {
             ? { nodeId: item.automation_failure_node_id }
             : {}),
         }
+      : { kind: "none" }
+  }
+  // A follow-up notice is about a person, and the conversation with them is
+  // where the chasing happens. A lead added by hand has no conversation yet,
+  // and then the notice's own words are all there is.
+  if (item.type === "crm_follow_up") {
+    return item.crm_thread_id
+      ? { kind: "crmThread", threadId: item.crm_thread_id }
       : { kind: "none" }
   }
   // The numbers behind an allowance warning live on the account window's

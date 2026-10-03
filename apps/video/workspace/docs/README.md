@@ -6,6 +6,9 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 
 ## What is in this folder
 
+- [shell-integration.md](shell-integration.md) — what the shell gives Video,
+  what the last merge carried, the migrations it owes, and the files that stay
+  Video's own.
 - [editor-chrome.md](editor-chrome.md) — which lines around the editor come from
   the shell, which ones the editor draws itself, and why it never hides a shell
   one.

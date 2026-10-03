@@ -34,6 +34,58 @@
 }
 
 /*
+ * Libre Baskerville, self-hosted the same way. It is only ever the heading
+ * face, so a site that leaves headings alone never downloads it. Four files:
+ * regular and bold, each in plain latin and the accented latin-ext range.
+ * The family is under the SIL Open Font License, see public/fonts/README.md.
+ */
+@font-face {
+    font-family: "Libre Baskerville";
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url("/fonts/libre-baskerville-latin.woff2") format("woff2");
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
+        U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122,
+        U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+    font-family: "Libre Baskerville";
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url("/fonts/libre-baskerville-latin-ext.woff2") format("woff2");
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7,
+        U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F,
+        U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+        U+A720-A7FF;
+}
+
+@font-face {
+    font-family: "Libre Baskerville";
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url("/fonts/libre-baskerville-700-latin.woff2") format("woff2");
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
+        U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122,
+        U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+    font-family: "Libre Baskerville";
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url("/fonts/libre-baskerville-700-latin-ext.woff2") format("woff2");
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7,
+        U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F,
+        U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+        U+A720-A7FF;
+}
+
+/*
  * The three extra faces video text and carousel slides can be drawn in, also
  * self-hosted from public/fonts. One weight each, 600, the weight the editor
  * draws text clips at. A browser only downloads a face once something on the
@@ -114,11 +166,12 @@
  * The font utilities point at a plain custom property rather than a literal
  * stack, so the value can still be swapped at runtime. That is what lets the
  * signed-in pages switch to Inter while the public pages keep the system font
- * — see the .app-font rule below. Headings share the property deliberately;
- * point --font-heading somewhere else if they ever need their own face.
+ * — see the .app-font rule below. Headings follow the body font until a
+ * public theme sets --app-font-heading, which is the Heading font choice in
+ * Settings > Public > Styling.
  */
 @theme inline {
-    --font-heading: var(--app-font-sans);
+    --font-heading: var(--app-font-heading, var(--app-font-sans));
     --font-sans: var(--app-font-sans);
     --color-sidebar-ring: var(--sidebar-ring);
     --color-sidebar-border: var(--sidebar-border);
@@ -178,6 +231,16 @@
     --shell-sidebar-ring: oklch(0.708 0 0);
     --background: oklch(1 0 0);
     --foreground: oklch(0.145 0 0);
+    /* The page behind the cards. Its own colour rather than --muted, which is
+       a fill for badges and quiet buttons and only lands below --card by luck
+       in light mode. Three tiers, darkest first: the page, then the sidebar
+       rail and sticky bar, then the cards. Each pair is about five steps out
+       of 255 apart, in both palettes. */
+    --shell-canvas: oklch(0.970 0 0);
+    /* The rail and the sticky bar, halfway between the page and a card, so
+       they read as off white here and off black in the dark block without
+       either being set by hand twice. */
+    --shell-rail: color-mix(in oklab, var(--card) 50%, var(--shell-canvas));
     --card: oklch(1 0 0);
     --card-foreground: oklch(0.145 0 0);
     --popover: oklch(1 0 0);
@@ -192,6 +255,10 @@
     --accent-foreground: oklch(0.205 0 0);
     --destructive: oklch(0.577 0.245 27.325);
     --border: oklch(0.922 0 0);
+    /* The theme's own divider colour, kept beside --border because the Styling
+       settings overwrite --border further down the tree. A preview that has to
+       show what "Theme default" draws reads this one instead. */
+    --shell-theme-border: oklch(0.922 0 0);
     --input: oklch(0.922 0 0);
     --ring: var(--shell-ring);
     --chart-1: oklch(0.87 0 0);
@@ -200,7 +267,7 @@
     --chart-4: oklch(0.371 0 0);
     --chart-5: oklch(0.269 0 0);
     --radius: 0.625rem;
-    --sidebar: oklch(0.985 0 0);
+    --sidebar: var(--shell-rail);
     --sidebar-foreground: oklch(0.145 0 0);
     --sidebar-primary: var(--shell-sidebar-primary);
     --sidebar-primary-foreground: var(--shell-sidebar-primary-foreground);
@@ -210,7 +277,22 @@
     --sidebar-ring: var(--shell-sidebar-ring);
 }
 
+/*
+ * How dark the dark mode is. Every grey surface below is its own lightness
+ * plus `--shell-dark-lift`, so one number lifts the whole dark palette
+ * together. Settings -> Styling -> Dark mode writes that number onto <html>
+ * as an inline style, which beats this rule because both sit on the same
+ * element. The lift is 0 here, so a workspace that has never chosen a shade
+ * keeps the near-black canvas it has always had.
+ *
+ * Only the greys move. The text, the accent, the destructive red, the chart
+ * colours and both border alphas are the same at every shade, so nothing
+ * loses contrast as the canvas lifts. `--muted-foreground` is the one
+ * exception: it rises at about a third of the lift, because the same grey on
+ * a lighter canvas would read as washed out.
+ */
 .dark {
+    --shell-dark-lift: 0;
     --shell-primary: var(--shell-public-primary-dark, oklch(0.922 0 0));
     --shell-primary-foreground: var(
       --shell-public-primary-foreground-dark,
@@ -221,25 +303,31 @@
     --shell-ring: var(--shell-public-primary-dark, oklch(0.556 0 0));
     --shell-sidebar-primary: oklch(0.488 0.243 264.376);
     --shell-sidebar-primary-foreground: oklch(0.985 0 0);
-    --shell-sidebar-accent: oklch(0.269 0 0);
+    --shell-sidebar-accent: oklch(calc(0.269 + var(--shell-dark-lift, 0)) 0 0);
     --shell-sidebar-accent-foreground: oklch(0.985 0 0);
     --shell-sidebar-ring: oklch(0.556 0 0);
-    --background: oklch(0.145 0 0);
+    --background: oklch(calc(0.145 + var(--shell-dark-lift, 0)) 0 0);
     --foreground: oklch(0.985 0 0);
-    --card: oklch(0.205 0 0);
+    /* A shade under --card, so the cards read as raised here exactly as they
+       do in light mode. It carries the shade lift like every other grey, and
+       --shell-rail is derived from it, so all three tiers lift together. */
+    --shell-canvas: oklch(calc(0.162 + var(--shell-dark-lift, 0)) 0 0);
+    --shell-rail: color-mix(in oklab, var(--card) 50%, var(--shell-canvas));
+    --card: oklch(calc(0.205 + var(--shell-dark-lift, 0)) 0 0);
     --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.205 0 0);
+    --popover: oklch(calc(0.205 + var(--shell-dark-lift, 0)) 0 0);
     --popover-foreground: oklch(0.985 0 0);
     --primary: var(--shell-primary);
     --primary-foreground: var(--shell-primary-foreground);
-    --secondary: oklch(0.269 0 0);
+    --secondary: oklch(calc(0.269 + var(--shell-dark-lift, 0)) 0 0);
     --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
+    --muted: oklch(calc(0.269 + var(--shell-dark-lift, 0)) 0 0);
+    --muted-foreground: oklch(calc(0.708 + var(--shell-dark-lift, 0) * 0.35) 0 0);
+    --accent: oklch(calc(0.269 + var(--shell-dark-lift, 0)) 0 0);
     --accent-foreground: oklch(0.985 0 0);
     --destructive: oklch(0.704 0.191 22.216);
     --border: oklch(1 0 0 / 10%);
+    --shell-theme-border: oklch(1 0 0 / 10%);
     --input: oklch(1 0 0 / 15%);
     --ring: var(--shell-ring);
     --chart-1: oklch(0.87 0 0);
@@ -247,7 +335,7 @@
     --chart-3: oklch(0.439 0 0);
     --chart-4: oklch(0.371 0 0);
     --chart-5: oklch(0.269 0 0);
-    --sidebar: oklch(0.205 0 0);
+    --sidebar: var(--shell-rail);
     --sidebar-foreground: oklch(0.985 0 0);
     --sidebar-primary: var(--shell-sidebar-primary);
     --sidebar-primary-foreground: var(--shell-sidebar-primary-foreground);
@@ -271,6 +359,81 @@
 body.app-font {
     --app-font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
     font-family: var(--app-font-sans);
+}
+
+/*
+ * Every heading follows the Heading font choice, not only the ones a component
+ * marked with the font-heading utility. The variable is set on <html> by the
+ * public theme, so this reaches the header, the footer, cards, written pages
+ * and anything a dialog portals out to <body>. A signed-in page sets no
+ * variable, so its headings resolve to the same font as its body text and
+ * nothing there moves. A component that names its own font in a class still
+ * wins, because a class beats an element.
+ */
+@layer base {
+    /*
+     * The public header and footer read in the Navigation & footer font. They
+     * are named rather than left to inherit, so the chrome around a page can
+     * differ from the words inside it. In @layer base for the same reason the
+     * heading rule is: a component that names its own face still wins.
+     */
+    [data-public-canvas] header[data-menu-alignment],
+    [data-public-canvas] footer {
+        font-family: var(--app-font-chrome, var(--app-font-sans));
+    }
+}
+
+@layer base {
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
+        font-family: var(--app-font-heading, var(--app-font-sans));
+    }
+}
+
+/*
+ * The gutter: the gap between the blocks down a public page and between the
+ * cards in every grid on it. The frame sets the two ends as variables and this
+ * picks one, because an inline value beats a media query and a number written
+ * on the element could never change with the window.
+ *
+ * 640px is where the card grids stop being one per line, so it is where a page
+ * stops being a phone layout. Below it the gap matches the page's own 16px
+ * edge, or the site's own number when that is smaller, so a phone is never
+ * more spaced out than the desktop.
+ */
+[data-public-canvas] {
+    --shell-gutter: var(--shell-gutter-phone, 0.75rem);
+}
+
+@media (min-width: 640px) {
+    [data-public-canvas] {
+        --shell-gutter: var(--shell-gutter-wide, 0.75rem);
+    }
+}
+
+/*
+ * The space between two blocks on a front page. It is its own number rather
+ * than the page's side edge: a gap wide enough to tell two blocks apart is far
+ * too much padding at the sides of a phone, which is what sharing one number
+ * produced. Flat mode still collapses it, the same as it collapses card
+ * borders and corners.
+ */
+[data-front-page-rows] {
+    gap: var(--shell-front-page-row-gap-phone, 3.5rem);
+}
+
+@media (min-width: 768px) {
+    [data-front-page-rows] {
+        gap: var(--shell-front-page-row-gap, 5rem);
+    }
+}
+
+[data-flat="true"] [data-front-page-rows] {
+    gap: 0;
 }
 
 html[data-public-brand] [data-slot="button"][data-variant="default"]:hover {
@@ -590,6 +753,30 @@ body:has(
   filter: blur(4px);
 }
 
+/*
+ * The blur eases in instead of switching on, so it moves with the overlay fade
+ * and the window's own entrance rather than snapping ahead of them. Spreading
+ * it over the same 150ms also spreads the paint cost across those frames
+ * instead of landing it on one.
+ *
+ * It is not what makes a slow window feel slow. Measured with the processor
+ * slowed to a quarter speed, the blur costs about 50ms of the wait before a
+ * window appears and nothing at all while the window sits open. See
+ * "Windows opening and closing" in docs/shell/user-interface.md for what does.
+ *
+ * The transition lives on the canvas rather than inside the :has() rule above
+ * so that closing a window un-blurs on the same curve.
+ */
+[data-slot="app-canvas"] {
+  transition: filter 150ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-slot="app-canvas"] {
+    transition: none;
+  }
+}
+
 [data-slot="dialog-content"] {
   background-color: var(--shell-modal-bg, var(--popover));
   --tw-ring-shadow: 0 0 #0000;
@@ -684,4 +871,16 @@ body:has(
       --shell-modal-card-border-color,
       color-mix(in oklab, var(--foreground) 10%, transparent)
     );
+}
+
+@layer base {
+  /*
+   * The app canvas: the flat colour behind a page's cards, and the ground the
+   * whole shell sits on. A class rather than a Tailwind arbitrary value so the
+   * three elements that need it share one rule and the colour cannot be missed
+   * by Tailwind's class scanner.
+   */
+  .shell-canvas {
+    background-color: var(--shell-canvas);
+  }
 }

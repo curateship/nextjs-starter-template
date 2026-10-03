@@ -3,6 +3,12 @@ import { createHmac, timingSafeEqual } from "node:crypto"
 import { and, eq, inArray, isNull, sql } from "drizzle-orm"
 
 import { db, type CustomShellDb } from "@/server/db"
+import {
+  fillMessageBody,
+  INBOUND_EVENT,
+  recordInboundEmail,
+  type ResendInboundEvent,
+} from "@/server/crm/inbound"
 import { listResendWebhookSecrets } from "@/server/email/settings"
 import {
   customShellAutomationDeliveries,
@@ -90,7 +96,7 @@ type ResendEvent = {
     email_id?: string
     to?: string[] | string
   }
-}
+} & ResendInboundEvent
 
 function eventTime(event: ResendEvent): Date {
   const parsed = event.created_at ? new Date(event.created_at) : null
@@ -173,6 +179,13 @@ export async function applyResendEvent(
   event: ResendEvent,
   database: CustomShellDb = db
 ): Promise<number> {
+  // Mail arriving is its own thing: it writes a conversation rather than
+  // changing the state of something already sent, so it answers and stops
+  // here rather than falling through the bounce and tracking rules below.
+  if (event.type === INBOUND_EVENT) {
+    return applyInboundEmail(workspaceId, event, database)
+  }
+
   const trackingChanged = await applyAutomationTrackingEvent(
     workspaceId,
     event,
@@ -252,6 +265,30 @@ export async function applyResendEvent(
     changed += updated.length
   }
   return changed + trackingChanged
+}
+
+/**
+ * Records one piece of inbound mail, then tries to fetch its body.
+ *
+ * The fetch is awaited, so a conversation is usually readable the moment it
+ * appears, but a failure is swallowed: the message is already written, and the
+ * background pass asks again. Letting the fetch fail the webhook would make
+ * Resend redeliver mail that is already recorded.
+ */
+async function applyInboundEmail(
+  workspaceId: string,
+  event: ResendInboundEvent,
+  database: CustomShellDb
+): Promise<number> {
+  const recorded = await recordInboundEmail(workspaceId, event, database)
+  if (!recorded.messageId) return recorded.changed
+
+  try {
+    await fillMessageBody(workspaceId, recorded.messageId, database)
+  } catch (error) {
+    console.error("Inbound email body could not be fetched", error)
+  }
+  return recorded.changed
 }
 
 export type ResendWebhookResult =

@@ -6,7 +6,7 @@ import { now } from "@/server/auth/security"
 import { customShellStorageSettings } from "@/server/schema"
 
 // Where uploaded files are kept. The five values an S3-compatible bucket needs,
-// typed into Settings → Storage and kept in one row, or left to the server's
+// typed into the Cloudflare R2 card on General settings and kept in one row, or left to the server's
 // own CUSTOM_SHELL_R2_* environment variables when nothing is saved.
 //
 // Auth lives in the API layer (src/lib/api/storage.ts): every caller there is

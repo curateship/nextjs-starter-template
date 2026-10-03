@@ -13,6 +13,11 @@ import {
 } from "drizzle-orm"
 
 import { isGeneratedFaviconStoragePath } from "@/lib/favicon"
+import {
+  isResizedMediaStoragePath,
+  MEDIA_IMAGE_WIDTHS,
+  resizedMediaStoragePath,
+} from "@/lib/media/image-sizes"
 import { db, type CustomShellDb } from "@/server/db"
 import {
   deleteFromR2,
@@ -795,7 +800,10 @@ async function scanMediaOrphans(
         APP_STORAGE_KEY.test(object.key) &&
         // Favicon sizes have no media row by design. Their settings save owns
         // replacement and cleanup, so the generic orphan tool must leave them.
-        !isGeneratedFaviconStoragePath(object.key)
+        !isGeneratedFaviconStoragePath(object.key) &&
+        // Smaller copies of a public picture have no media row either. The
+        // upload they were cut from owns them and deleting it removes them.
+        !isResizedMediaStoragePath(object.key)
     )
     .map((object) => {
       const [ownerId, ...rest] = object.key.split("/")
@@ -906,6 +914,7 @@ export async function deleteMediaAsAdmin(
 
     for (const row of deletableRows) {
       await deleteFromR2(row.storagePath)
+      await deleteResizedCopies(row.storagePath)
     }
 
     if (deletableRows.length) {
@@ -923,6 +932,29 @@ export async function deleteMediaAsAdmin(
 
     return { deletedCount: deletableRows.length, protectedCount }
   })
+}
+
+/**
+ * Removes the smaller copies cut from one upload.
+ *
+ * Most pictures have none: a copy is only cut when a page asks for that width,
+ * and a bucket that never held the key accepts the delete anyway. A copy that
+ * cannot be removed is reported and then left, because the upload itself is
+ * already gone and failing here would strand the record instead.
+ */
+async function deleteResizedCopies(storagePath: string) {
+  // At once rather than one after another. This runs inside the transaction
+  // that holds the media rows, and a bulk delete of fifty files would otherwise
+  // hold those locks for a hundred and fifty round trips to storage.
+  await Promise.all(
+    MEDIA_IMAGE_WIDTHS.map((width) =>
+      deleteFromR2(resizedMediaStoragePath(storagePath, width)).catch(
+        (error) => {
+          console.error("A resized copy could not be removed", error)
+        }
+      )
+    )
+  )
 }
 
 function defaultExtensionForMimeType(mimeType: string) {

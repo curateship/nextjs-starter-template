@@ -24,30 +24,36 @@ import {
   createDefaultShellConfig,
   createDefaultTopRightNavigation,
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
-  getBorderStyleVars,
-  getModalStyleVars,
   isActiveShellHref,
   isShellEntryNamed,
   isShellEntryVisible,
   isShellItem,
-  BORDER_STYLE_VAR_NAMES,
-  MODAL_STYLE_VAR_NAMES,
   normalizeAutomationPause,
   normalizeMaintenance,
   normalizeSessionPolicy,
-  normalizeStyling,
   normalizeTopLeftNavLimit,
   normalizeTopRightNavigation,
   renderShellIcon,
-  resolveBackground,
+  shellConfigSaveRefusal,
   type ShellConfig,
   type ShellItem,
   type ShellMaintenance,
-  type ShellModalStyling,
-  type ShellStyling,
   type ShellSection,
   type ShellSessionPolicy,
 } from "@/lib/custom-shell"
+import { normalizePublicThemePresets } from "@/lib/public-theme-presets"
+import {
+  BORDER_STYLE_VAR_NAMES,
+  DARK_SHADE_VAR_NAMES,
+  getBorderStyleVars,
+  getDarkShadeVars,
+  getModalStyleVars,
+  MODAL_STYLE_VAR_NAMES,
+  normalizeStyling,
+  resolveBackground,
+  type ShellModalStyling,
+  type ShellStyling,
+} from "@/lib/layout/styling-values"
 import {
   appHeaderRightActionsForRole,
   appHeaderLeftContentForRole,
@@ -56,6 +62,8 @@ import {
 } from "@/lib/app-options"
 import { normalizePageOverrides } from "@/lib/pages/page-visibility"
 import { normalizePublicHeader } from "@/lib/pages/public-header"
+import { normalizePublicBreadcrumbs } from "@/lib/pages/public-breadcrumbs"
+import { normalizePublicUserPanel } from "@/lib/pages/public-user-panel"
 import {
   normalizePublicSeo,
   normalizePublicSystemCopy,
@@ -64,11 +72,10 @@ import {
   normalizeSocialHandle,
 } from "@/lib/pages/public-metadata"
 import { normalizeNotificationTypeVisibility } from "@/lib/notification-types"
-import {
-  isPublicThemeInputValid,
-  normalizePublicTheme,
-} from "@/lib/public-theme"
+import { normalizePublicTheme } from "@/lib/public-theme"
 import { normalizePublicFontAsset } from "@/lib/public-font"
+import { normalizePublicSocialLinks } from "@/lib/pages/public-social"
+import { normalizePublicHeaderActions } from "@/lib/pages/public-header-actions"
 import { normalizeFrontPageRows } from "@/lib/pages/front-page"
 import { resolveAppName } from "@/lib/branding"
 import {
@@ -164,7 +171,7 @@ export function ShellLayout({
   settings,
   workspaces,
   plan,
-  unreadNotifications,
+  unseenNotifications,
   announcements,
   viewedBy,
 }: {
@@ -172,7 +179,7 @@ export function ShellLayout({
   settings: ShellConfig | null
   workspaces: WorkspaceListResponse
   plan: PlanSummary
-  unreadNotifications: number
+  unseenNotifications: number
   announcements: UserAnnouncement[]
   viewedBy: { id: string; name: string; email: string } | null
 }) {
@@ -229,6 +236,7 @@ export function ShellLayout({
   )
   useModalStyleVars(config.styling.modal)
   useBorderStyleVars(config.styling)
+  useDarkShadeVars(config.styling)
 
   React.useEffect(() => {
     if (lastSettingsRef.current === settings) {
@@ -257,10 +265,12 @@ export function ShellLayout({
   // the cookie from the request directly — that's the reliable gate.
 
   // Persists the freshest config immediately, cancelling any pending debounce.
-  // The server rejects an empty workspace name, so skip the request — but say
-  // "Not saved" in the header instead of dropping the edit in silence. The
-  // header is the only warning that reaches you when the edit that emptied the
-  // name happened on another settings tab (e.g. the sidebar's Reset).
+  // The server rejects an empty workspace name and a half-typed colour would
+  // reach the public site, so skip the request — but say "Not saved" in the
+  // header, and name the field, instead of dropping the edit in silence. The
+  // header is the only warning that reaches you when the edit that broke the
+  // save happened on another settings tab (e.g. the sidebar's Reset, or a hex
+  // code left half-typed on Public → Styling).
   // Returns whether it saved.
   const saveConfigNow = React.useCallback(async () => {
     if (configSaveTimerRef.current) {
@@ -269,12 +279,9 @@ export function ShellLayout({
     }
 
     const snapshot = latestConfigRef.current
-    if (!snapshot.workspaceName.trim()) {
-      setSaveStatus("blocked")
-      return false
-    }
-    if (!isPublicThemeInputValid(snapshot.publicTheme)) {
-      setSaveStatus("idle")
+    const refusal = shellConfigSaveRefusal(snapshot)
+    if (refusal) {
+      setSaveStatus({ blocked: refusal })
       return false
     }
 
@@ -293,9 +300,17 @@ export function ShellLayout({
     try {
       const result = await save
       if (version === configSaveVersionRef.current) {
+        // Built on whatever the settings hold *now*, not on the copy that was
+        // sent. A request takes long enough to type in another box, and this
+        // used to put the sent copy back on screen and into the ref, so that
+        // edit vanished and the auto-save it had scheduled then wrote the
+        // older copy to the database. Editing the public menu took the footer
+        // back with it, and an edit that looked saved was gone after a
+        // reload. Only three things in the answer come from the server;
+        // everything else in it is what was sent.
         const savedConfig = normalizeConfig(
           {
-            ...snapshot,
+            ...latestConfigRef.current,
             // The dark logo, the tab icon and its sizes are all made from the
             // one uploaded logo on the server, so they arrive with the answer
             // rather than being guessed at here.
@@ -306,7 +321,10 @@ export function ShellLayout({
         )
         latestConfigRef.current = savedConfig
         setConfig(savedConfig)
-        setSaveStatus("saved")
+        // An edit made while this request was in the air has its own save
+        // waiting on the debounce, so "Saved" would be a lie for the few
+        // hundred milliseconds until it runs.
+        setSaveStatus(configSaveTimerRef.current ? "saving" : "saved")
       }
       return true
     } catch (error) {
@@ -475,10 +493,7 @@ export function ShellLayout({
         clearTimeout(configSaveTimerRef.current)
         configSaveTimerRef.current = null
         const snapshot = latestConfigRef.current
-        if (
-          snapshot.workspaceName.trim() &&
-          isPublicThemeInputValid(snapshot.publicTheme)
-        ) {
+        if (!shellConfigSaveRefusal(snapshot)) {
           void saveShellSettings(snapshot).catch(() => undefined)
         }
       }
@@ -551,11 +566,10 @@ export function ShellLayout({
     ]
   )
 
-  // Recolors both the sidebar rail and the sticky header (both use bg-sidebar).
-  // Opaque so the two render the same color regardless of what sits behind them.
-  const chromeBackground = resolveBackground(config.styling.chrome, {
-    opaque: true,
-  })
+  // The sidebar rail and the sticky header follow the theme's own --sidebar,
+  // which sits between the page and a card in both modes.
+  // `config.styling.chrome` is deliberately not read here; see the note on the
+  // field in lib/layout/styling-values.ts.
   // Divider lines resolve to the theme --border token; overriding it (and the
   // sidebar edge) on this wrapper recolors the rules inside cards and tables plus
   // the sidebar border across the whole shell at once.
@@ -563,7 +577,6 @@ export function ShellLayout({
     base: "--muted-foreground",
   })
   const rootStyle = {
-    ...(chromeBackground ? { "--sidebar": chromeBackground } : {}),
     ...(dividerColor
       ? { "--border": dividerColor, "--sidebar-border": dividerColor }
       : {}),
@@ -577,7 +590,7 @@ export function ShellLayout({
 
   return (
     <ShellRuntimeContext.Provider value={runtime}>
-      <div className="min-h-screen bg-muted/60" style={rootStyle}>
+      <div className="shell-canvas min-h-screen" style={rootStyle}>
         <SidebarProvider
           className="h-screen"
           sidebarWidth={config.sidebarWidth}
@@ -622,7 +635,7 @@ export function ShellLayout({
               navLinkLimit={config.topLeftNavLimit}
               rightNavItems={config.topRightNavigation}
               role={user.role}
-              unreadNotifications={unreadNotifications}
+              unseenNotifications={unseenNotifications}
               liveNotifications={config.liveNotifications}
               saveStatus={pageSaveStatus ?? saveStatus}
               maintenanceOn={
@@ -749,10 +762,9 @@ function normalizeConfig(
     ),
     adminRoute: settings.adminRoute ?? fallback.adminRoute,
     memberHomeRoute: settings.memberHomeRoute ?? fallback.memberHomeRoute,
-    workspaceFavicon: settings.workspaceFavicon ?? fallback.workspaceFavicon,
     workspaceLogo: settings.workspaceLogo ?? fallback.workspaceLogo,
-    workspaceLogoDark: settings.workspaceLogoDark ?? fallback.workspaceLogoDark,
-    workspaceShareImage: settings.workspaceShareImage ?? fallback.workspaceShareImage,
+    workspaceShareImage:
+      settings.workspaceShareImage ?? fallback.workspaceShareImage,
     favicon: settings.favicon ?? fallback.favicon,
     faviconDark: settings.faviconDark ?? fallback.faviconDark,
     faviconSet: normalizePublicFaviconSet(settings.faviconSet),
@@ -775,11 +787,20 @@ function normalizeConfig(
     publicFooter: Array.isArray(settings.publicFooter)
       ? settings.publicFooter
       : fallback.publicFooter,
+    publicFooterSocial: normalizePublicSocialLinks(settings.publicFooterSocial),
+    publicHeaderActions: normalizePublicHeaderActions(
+      settings.publicHeaderActions
+    ),
     publicFooterCopyright:
       settings.publicFooterCopyright ?? fallback.publicFooterCopyright,
     publicHeader: normalizePublicHeader(settings.publicHeader),
+    publicBreadcrumbs: normalizePublicBreadcrumbs(settings.publicBreadcrumbs),
+    publicUserPanel: normalizePublicUserPanel(settings.publicUserPanel),
     publicFont: normalizePublicFontAsset(settings.publicFont),
     publicTheme: normalizePublicTheme(settings.publicTheme),
+    publicThemePresets: normalizePublicThemePresets(
+      settings.publicThemePresets
+    ),
     topRightNavigation: normalizeTopRightNavigation(
       settings.topRightNavigation,
       actionIds
@@ -812,62 +833,78 @@ function normalizeConfig(
 }
 
 // The account area is a modal reached from the user menu, not the sidebar, so
-// drop its retired nav links (and any section left empty by that) from saved
-// configs — no config migration needed.
-function stripRetiredAccountEntries(sections: ShellSection[]): ShellSection[] {
-  return sections
-    .map((section) => ({
-      ...section,
-      entries: section.entries.filter(
-        (entry) => !(isShellItem(entry) && accountTabForHref(entry.href) != null)
-      ),
-    }))
-    .filter((section) => section.entries.length > 0)
+// drop its retired nav links from saved configs — no config migration needed.
+// Exported for its test.
+export function stripRetiredAccountEntries(
+  sections: ShellSection[]
+): ShellSection[] {
+  return sections.flatMap((section) => {
+    const entries = section.entries.filter(
+      (entry) => !(isShellItem(entry) && accountTabForHref(entry.href) != null)
+    )
+
+    // A section goes only when this strip is what emptied it. A section that
+    // arrived empty stays, because "Add section" makes exactly that: dropping
+    // those erased the new section the moment the auto-save came back, so a
+    // new section could not be made at all. The same filter also used to erase
+    // a section whose last link the admin dragged into another section.
+    if (entries.length === 0 && section.entries.length > 0) return []
+
+    return [{ ...section, entries }]
+  })
+}
+
+// Writes a set of CSS variables onto the document root and returns the cleanup
+// that takes them off again, so a styling value reaches content that portals to
+// document.body — dialogs, popovers, dropdown menus, selects, sheets, toasts —
+// outside the shell subtree. A name the caller resolved to "default" is absent
+// from `vars` and gets removed, so the theme's own token shows through.
+function applyRootStyleVars(
+  names: readonly string[],
+  vars: Record<string, string>
+) {
+  const root = document.documentElement
+  for (const name of names) {
+    const value = vars[name]
+    if (value === undefined) {
+      root.style.removeProperty(name)
+    } else {
+      root.style.setProperty(name, value)
+    }
+  }
+  return () => {
+    for (const name of names) {
+      root.style.removeProperty(name)
+    }
+  }
 }
 
 // The dialog portals to document.body, outside the shell subtree, so modal
 // styling is applied as CSS variables on the document root where it can reach.
 function useModalStyleVars(modal: ShellModalStyling) {
-  React.useEffect(() => {
-    const root = document.documentElement
-    const vars = getModalStyleVars(modal)
-    for (const name of MODAL_STYLE_VAR_NAMES) {
-      const value = vars[name]
-      if (value === undefined) {
-        root.style.removeProperty(name)
-      } else {
-        root.style.setProperty(name, value)
-      }
-    }
-    return () => {
-      for (const name of MODAL_STYLE_VAR_NAMES) {
-        root.style.removeProperty(name)
-      }
-    }
-  }, [modal])
+  React.useEffect(
+    () => applyRootStyleVars(MODAL_STYLE_VAR_NAMES, getModalStyleVars(modal)),
+    [modal]
+  )
 }
 
 // Popovers, dropdown menus, selects, sheets, and toasts also portal to
-// document.body, so the border settings are applied the same way: as CSS
-// variables on the document root, where the portaled layers can see them.
+// document.body, so the border settings are applied the same way.
 function useBorderStyleVars(styling: ShellStyling) {
-  React.useEffect(() => {
-    const root = document.documentElement
-    const vars = getBorderStyleVars(styling)
-    for (const name of BORDER_STYLE_VAR_NAMES) {
-      const value = vars[name]
-      if (value === undefined) {
-        root.style.removeProperty(name)
-      } else {
-        root.style.setProperty(name, value)
-      }
-    }
-    return () => {
-      for (const name of BORDER_STYLE_VAR_NAMES) {
-        root.style.removeProperty(name)
-      }
-    }
-  }, [styling])
+  React.useEffect(
+    () => applyRootStyleVars(BORDER_STYLE_VAR_NAMES, getBorderStyleVars(styling)),
+    [styling]
+  )
+}
+
+// How dark the dark mode is. The greys in theme.css are written as their own
+// lightness plus --shell-dark-lift, so setting that one variable on the
+// document root lifts the whole dark palette, including the portaled layers.
+function useDarkShadeVars(styling: ShellStyling) {
+  React.useEffect(
+    () => applyRootStyleVars(DARK_SHADE_VAR_NAMES, getDarkShadeVars(styling)),
+    [styling]
+  )
 }
 
 // The root route puts the saved app name in the tab title when the page loads.

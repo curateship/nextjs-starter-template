@@ -1,19 +1,29 @@
 import { and, asc, eq, inArray } from "drizzle-orm"
 
+import {
+  normalizeFrontPageRows,
+  type FrontPageRow,
+} from "@/lib/pages/front-page"
+import {
+  normalizePublicFaviconSet,
+  type PublicFaviconSet,
+} from "@/lib/favicon"
 import { normalizeShareImage } from "@/lib/pages/public-metadata"
 import {
   createDefaultTopRightNavigation,
   iconMeta,
   isShellItem,
-  normalizeStyling,
   type IconKey,
   type ShellChildItem,
   type ShellEntry,
   type ShellItem,
   type ShellSection,
-  type ShellStyling,
   type ShellTopRightNavigationItem,
 } from "@/lib/custom-shell"
+import {
+  normalizeStyling,
+  type ShellStyling,
+} from "@/lib/layout/styling-values"
 import { cleanAutomationPaletteKeys } from "@/lib/automations/node-registry"
 import {
   createDefaultDashboardWidgets,
@@ -233,6 +243,28 @@ function trafficLink(): ShellItem {
   }
 }
 
+const CRM_LINK_ID = "item-crm"
+const CRM_HREF = "/admin/crm"
+
+/**
+ * The CRM: mail that comes in, and the leads it turns into.
+ *
+ * In Administration rather than beside Newsletter, because it is work somebody
+ * does every day. Newsletter is mail the app sends on your behalf; this is mail
+ * a person reads and answers, which is a different sort of thing entirely.
+ */
+function crmLink(): ShellItem {
+  return {
+    type: "item",
+    id: CRM_LINK_ID,
+    label: "CRM",
+    href: CRM_HREF,
+    icon: "inbox",
+    visible: true,
+    roles: ["admin"],
+  }
+}
+
 const PAGES_LINK_ID = "item-admin-pages"
 const PAGES_HREF = "/admin/pages"
 
@@ -432,17 +464,42 @@ function newsletterLink(): ShellItem {
  * workspace should pick up. A workspace is brought up to this number once, ever
  * — see `applyNavigationUpgrade`.
  */
-export const NAVIGATION_VERSION = 19
+export const NAVIGATION_VERSION = 20
 
 export type WorkspaceSettings = {
   icon: IconKey
+  /**
+   * This site's brand pictures, all made from the one logo an admin uploads.
+   *
+   * The app-wide ones work the same way: you give it a logo, it makes the
+   * dark-mode version and cuts the browser-tab icons from both. A site used to
+   * ask for a favicon and a dark logo of its own as well, which was three
+   * uploads for what one now does, and a site that set its own favicon lost the
+   * cut-to-size icons entirely. Tyler called it redundant on 27 Sep 2026.
+   *
+   * `favicon` and `faviconDark` are the pictures the browser tab is cut from,
+   * and `faviconSet` is the cut sizes. A site that has uploaded no logo has all
+   * of them empty and falls back to the app-wide ones.
+   */
   favicon: string
+  faviconDark: string
+  faviconSet: PublicFaviconSet | null
   logo: string
   logoDark: string
   shareImage: string
   publicNavigation: PublicNavigationItem[]
   publicFooter: PublicNavigationLink[]
   publicFooterCopyright: string
+  /**
+   * The rows this site's front page is built from.
+   *
+   * Per site for the same reason as the menu and the footer above it: an app
+   * serving several websites has a front page per website, and one app-wide set
+   * of rows would open every one of them with the first one's hero. A one-site
+   * app never reads this — its rows stay in the app-wide row, the same way its
+   * menu does.
+   */
+  frontPageRows: FrontPageRow[]
   /** The brand colour used by this site's signed-out pages. */
   publicTheme: PublicBrandTheme
   topRightNavigation: ShellTopRightNavigationItem[]
@@ -1257,6 +1314,9 @@ async function applyNavigationUpgrade(
   if (settings.navVersion < 19) {
     sections = addMeteredUsageLink(sections)
   }
+  if (settings.navVersion < 20) {
+    sections = addCrmLink(sections)
+  }
 
   const [updated] = await database
     .update(customShellWorkspaces)
@@ -1866,6 +1926,51 @@ export function addPagesLink(sections: ShellSection[]): ShellSection[] {
       0,
       pagesLink()
     )
+    return { ...section, entries }
+  })
+}
+
+/**
+ * Puts the CRM link into a sidebar saved before the screen existed, under the
+ * Overview.
+ *
+ * Same rules as every step here: it adds the link once, never doubles one that
+ * is already reachable however it got there, and leaves an empty sidebar alone.
+ */
+export function addCrmLink(sections: ShellSection[]): ShellSection[] {
+  if (!sections.length) return sections
+
+  const isCrm = (link: { id: string; href?: string }) =>
+    link.id === CRM_LINK_ID || link.href === CRM_HREF
+
+  const alreadyThere = sections.some((section) =>
+    section.entries.some(
+      (entry) =>
+        isCrm(entry) ||
+        (isShellItem(entry) && (entry.children ?? []).some(isCrm))
+    )
+  )
+  if (alreadyThere) return sections
+
+  const isOverview = (link: { id: string; href?: string }) =>
+    link.id === OVERVIEW_LINK_ID || link.href === OVERVIEW_HREF
+
+  const overviewSection = sections.findIndex((section) =>
+    section.entries.some(isOverview)
+  )
+  const administration = sections.findIndex(
+    (section) => section.id === "section-administration"
+  )
+  // The Administration section when there is one, the first section otherwise:
+  // a link nobody can reach is worse than a link in a surprising place.
+  const index =
+    overviewSection >= 0 ? overviewSection : Math.max(0, administration)
+
+  return sections.map((section, at) => {
+    if (at !== index) return section
+    const overviewAt = section.entries.findIndex(isOverview)
+    const entries = [...section.entries]
+    entries.splice(overviewAt >= 0 ? overviewAt + 1 : 0, 0, crmLink())
     return { ...section, entries }
   })
 }
@@ -2569,6 +2674,11 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
         typeof settings.favicon === "string"
           ? settings.favicon
           : fallback.favicon,
+      faviconDark:
+        typeof settings.faviconDark === "string"
+          ? settings.faviconDark
+          : fallback.faviconDark,
+      faviconSet: normalizePublicFaviconSet(settings.faviconSet),
       logo: normalizeShareImage(settings.logo),
       logoDark: normalizeShareImage(settings.logoDark),
       shareImage: normalizeShareImage(settings.shareImage),
@@ -2580,6 +2690,7 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
       publicFooterCopyright: cleanPublicFooterCopyright(
         settings.publicFooterCopyright
       ),
+      frontPageRows: normalizeFrontPageRows(settings.frontPageRows),
       publicTheme: normalizePublicBrandTheme(
         settings.publicTheme,
         settings.accentColor
@@ -2627,6 +2738,11 @@ function cleanWorkspaceSettings(
       : fallback.icon,
     favicon:
       typeof settings.favicon === "string" ? settings.favicon : fallback.favicon,
+    faviconDark:
+      typeof settings.faviconDark === "string"
+        ? settings.faviconDark
+        : fallback.faviconDark,
+    faviconSet: normalizePublicFaviconSet(settings.faviconSet),
     logo: normalizeShareImage(settings.logo),
     logoDark: normalizeShareImage(settings.logoDark),
     shareImage: normalizeShareImage(settings.shareImage),
@@ -2638,6 +2754,7 @@ function cleanWorkspaceSettings(
     publicFooterCopyright: cleanPublicFooterCopyright(
       settings.publicFooterCopyright
     ),
+    frontPageRows: normalizeFrontPageRows(settings.frontPageRows),
     publicTheme: normalizePublicBrandTheme(settings.publicTheme),
     topRightNavigation: Array.isArray(settings.topRightNavigation)
       ? settings.topRightNavigation
@@ -2723,12 +2840,17 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
   return {
     icon: DEFAULT_WORKSPACE_ICON,
     favicon: "",
+    faviconDark: "",
+    faviconSet: null,
     logo: "",
     logoDark: "",
     shareImage: "",
     publicNavigation: createDefaultPublicNavigation(),
     publicFooter: [],
     publicFooterCopyright: "",
+    // A new site has no front page until somebody builds one, and a site with
+    // no rows draws its header and its footer with nothing between them.
+    frontPageRows: [],
     publicTheme: normalizePublicBrandTheme(undefined),
     topRightNavigation: createDefaultTopRightNavigation(),
     sections: createDefaultWorkspaceSections(),
@@ -2763,6 +2885,7 @@ function createDefaultWorkspaceSections(): ShellSection[] {
           ...membershipChildLinks(),
           meteredUsageChildLink(),
         ]),
+        crmLink(),
         aiUsageLink(),
         trafficLink(),
         pagesLink(),

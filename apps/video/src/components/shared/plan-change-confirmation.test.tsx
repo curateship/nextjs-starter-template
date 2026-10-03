@@ -14,7 +14,8 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 vi.mock("@/lib/api/billing/billing", () => ({
   confirmPlanChange: vi.fn(),
   loadBillingOverview: vi.fn(),
-  getBillingErrorMessage: (error: Error) => error.message,
+  getBillingErrorMessage: (error: unknown) =>
+    typeof error === "string" ? error : (error as Error).message,
 }))
 vi.mock("@/lib/toast/error-toast", () => ({ showErrorToast: vi.fn() }))
 
@@ -32,7 +33,7 @@ const preview: PlanChangePreview = {
 }
 let root: Root
 let container: HTMLDivElement
-let cancel: ReturnType<typeof vi.fn<() => void>>
+let close: ReturnType<typeof vi.fn<() => void>>
 
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
@@ -40,7 +41,7 @@ beforeEach(() => {
   container = document.createElement("div")
   document.body.append(container)
   root = createRoot(container)
-  cancel = vi.fn()
+  close = vi.fn()
   vi.mocked(loadBillingOverview).mockResolvedValue({
     planSlug: "old",
     interval: "monthly",
@@ -56,7 +57,7 @@ afterEach(async () => {
 
 async function render(values = preview) {
   await act(async () =>
-    root.render(<PlanChangeConfirmation preview={values} onCancel={cancel} />)
+    root.render(<PlanChangeConfirmation preview={values} onClose={close} />)
   )
 }
 
@@ -81,8 +82,78 @@ describe("plan change confirmation", () => {
     expect(container.textContent).toContain("Next invoice estimate$50")
     expect(document.activeElement?.textContent).toBe("Change to Pro?")
     await act(async () => button("Cancel").click())
-    expect(cancel).toHaveBeenCalledOnce()
+    expect(close).toHaveBeenCalledOnce()
     expect(confirmPlanChange).not.toHaveBeenCalled()
+  })
+
+  it("names what the button charges and matches the plan cards' wording", async () => {
+    await render()
+    expect(container.textContent).toContain("$40 per month")
+    expect(button("Switch to Pro")).toBeTruthy()
+    await render({
+      ...preview,
+      interval: "yearly",
+      billsNow: true,
+      amountDue: 1250,
+    })
+    expect(container.textContent).toContain("$40 per year")
+    expect(button("Pay $12.50 and switch")).toBeTruthy()
+    // A credit that covers the whole payment leaves nothing to pay today.
+    await render({ ...preview, billsNow: true, amountDue: 0 })
+    expect(button("Switch to Pro")).toBeTruthy()
+  })
+
+  it("hides an adjustment of nothing", async () => {
+    await render({ ...preview, prorationAmount: 0 })
+    expect(container.textContent).not.toContain("Proration")
+    expect(container.textContent).not.toContain("Unused-time credit")
+  })
+
+  it("closes and explains when the server says the preview is out of date", async () => {
+    vi.mocked(confirmPlanChange).mockRejectedValue(
+      new Error("PLAN_PREVIEW_EXPIRED")
+    )
+    await render()
+    await act(async () => button("Switch to Pro").click())
+    expect(showErrorToast).toHaveBeenCalledWith("PLAN_PREVIEW_EXPIRED")
+    expect(close).toHaveBeenCalledOnce()
+  })
+
+  it("closes itself once the preview is too old to confirm", async () => {
+    vi.useFakeTimers()
+    await render()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(299_000)
+    })
+    expect(close).not.toHaveBeenCalled()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
+    expect(showErrorToast).toHaveBeenCalledWith("PLAN_PREVIEW_EXPIRED")
+    expect(close).toHaveBeenCalledOnce()
+  })
+
+  it("closes after a failure that lands once the preview has run out", async () => {
+    vi.useFakeTimers()
+    let reject: (error: Error) => void = () => {}
+    vi.mocked(confirmPlanChange).mockImplementation(
+      () =>
+        new Promise((_, rejectPromise) => {
+          reject = rejectPromise
+        })
+    )
+    await render()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(299_000)
+    })
+    await act(async () => button("Switch to Pro").click())
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000)
+    })
+    expect(close).not.toHaveBeenCalled()
+    await act(async () => reject(new Error("Payment failed")))
+    expect(showErrorToast).toHaveBeenCalledWith("Payment failed")
+    expect(close).toHaveBeenCalledOnce()
   })
 
   it("describes credits, immediate billing, and a preserved trial", async () => {
@@ -104,14 +175,15 @@ describe("plan change confirmation", () => {
     )
     await render()
     await act(async () => {
-      button("Confirm plan change").click()
-      button("Confirm plan change").click()
+      button("Switch to Pro").click()
+      button("Switch to Pro").click()
     })
     expect(confirmPlanChange).toHaveBeenCalledOnce()
     expect(button("Cancel").disabled).toBe(true)
     await act(async () => reject(new Error("Payment failed")))
     expect(showErrorToast).toHaveBeenCalledWith("Payment failed")
-    expect(button("Confirm plan change").disabled).toBe(false)
+    expect(button("Switch to Pro").disabled).toBe(false)
+    expect(close).not.toHaveBeenCalled()
   })
 
   it("waits for the webhook and checks again without submitting another plan change", async () => {
@@ -121,7 +193,7 @@ describe("plan change confirmation", () => {
       interval: "monthly",
     })
     await render()
-    await act(async () => button("Confirm plan change").click())
+    await act(async () => button("Switch to Pro").click())
     expect(container.textContent).toContain("Plan change submitted")
     expect(button("Check status").disabled).toBe(true)
     await act(async () => {
@@ -134,6 +206,13 @@ describe("plan change confirmation", () => {
     await act(async () => button("Check status").click())
     expect(loadBillingOverview).toHaveBeenCalledTimes(16)
     expect(confirmPlanChange).toHaveBeenCalledOnce()
+    // Past the preview's age, a submitted change is not closed for being old.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300_000)
+    })
+    expect(close).not.toHaveBeenCalled()
+    await act(async () => button("Close").click())
+    expect(close).toHaveBeenCalledOnce()
   })
 
   it("keeps an accepted change visible when the status request fails", async () => {
@@ -145,7 +224,7 @@ describe("plan change confirmation", () => {
       new Error("Connection lost")
     )
     await render()
-    await act(async () => button("Confirm plan change").click())
+    await act(async () => button("Switch to Pro").click())
     expect(container.textContent).toContain("Plan change submitted")
     expect(button("Check status").disabled).toBe(false)
     expect(showErrorToast).toHaveBeenCalledWith("Connection lost")

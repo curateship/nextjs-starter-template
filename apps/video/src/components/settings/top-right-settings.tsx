@@ -14,10 +14,10 @@ import { GripVertical, PlusIcon, RotateCcwIcon, Trash2Icon } from "lucide-react"
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import {
   createShellId,
-  DRAG_HANDLE_CLASS,
+  DRAG_GRIP_CLASS,
   useCheckedAddress,
   useNavSensors,
-  useSortableRow,
+  useSortableChip,
 } from "@/components/settings/nav-editor-shared"
 import { NavLinkDestinationCard } from "@/components/settings/nav-link-destination-card"
 import { Button } from "@/components/ui/button"
@@ -101,23 +101,14 @@ function SortableFixedChip({
   onVisibleChange: (visible: boolean) => void
 }) {
   const Icon = meta.icon
-  const { attributes, listeners, setNodeRef, style } = useSortableRow(
-    item.id,
-    true
-  )
+  const chip = useSortableChip(item.id, meta.label)
 
   return (
-    <div ref={setNodeRef} style={style} className={CHIP_CLASS}>
+    <div {...chip} className={cn(CHIP_CLASS, chip.className)}>
       <div className="flex max-w-full items-center gap-1">
-        <button
-          type="button"
-          {...attributes}
-          {...listeners}
-          className={DRAG_HANDLE_CLASS}
-          aria-label={`Reorder ${meta.label}`}
-        >
+        <span className={DRAG_GRIP_CLASS} aria-hidden="true">
           <GripVertical className="h-4 w-4" />
-        </button>
+        </span>
         <span className="flex h-8 max-w-56 items-center gap-2 px-3 text-sm font-medium">
           <Icon className="h-4 w-4 shrink-0" />
           <span className="truncate">{meta.label}</span>
@@ -163,23 +154,14 @@ function SortableLinkChip({
   const isNamed = isShellEntryNamed(item)
   const itemName = isNamed ? item.label : "menu link"
   const addressCheck = useCheckedAddress(item.href, isNamed)
-  const { attributes, listeners, setNodeRef, style } = useSortableRow(
-    item.id,
-    true
-  )
+  const chip = useSortableChip(item.id, itemName)
 
   return (
-    <div ref={setNodeRef} style={style} className={CHIP_CLASS}>
+    <div {...chip} className={cn(CHIP_CLASS, chip.className)}>
       <div className="flex max-w-full items-center gap-1">
-        <button
-          type="button"
-          {...attributes}
-          {...listeners}
-          className={DRAG_HANDLE_CLASS}
-          aria-label={`Reorder ${itemName}`}
-        >
+        <span className={DRAG_GRIP_CLASS} aria-hidden="true">
           <GripVertical className="h-4 w-4" />
-        </button>
+        </span>
         <Button
           type="button"
           variant="ghost"

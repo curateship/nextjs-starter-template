@@ -9,6 +9,40 @@ export const PUBLIC_HEADER_LOGO_SIZES = [
 ] as const
 export type PublicHeaderLogoSize = (typeof PUBLIC_HEADER_LOGO_SIZES)[number]
 
+/** How strongly the see-through header blurs the page scrolling under it. */
+export const PUBLIC_HEADER_BLURS = ["none", "light", "medium", "heavy"] as const
+export type PublicHeaderBlur = (typeof PUBLIC_HEADER_BLURS)[number]
+
+export const PUBLIC_HEADER_BLUR_LABELS: Record<PublicHeaderBlur, string> = {
+  none: "None",
+  light: "Light",
+  medium: "Medium",
+  heavy: "Heavy",
+}
+
+/** The same range the directory app offers for its navigation width. */
+export const MIN_PUBLIC_HEADER_WIDTH = 320
+export const MAX_PUBLIC_HEADER_WIDTH = 2560
+
+/** How far the menu can be pushed away from the logo, in pixels. */
+export const MIN_PUBLIC_HEADER_LOGO_GAP = 0
+export const MAX_PUBLIC_HEADER_LOGO_GAP = 400
+
+/**
+ * How big the menu words are, in pixels. 14 is the default because it is what
+ * a menu link measured before this setting existed, so a site saved earlier
+ * does not move.
+ *
+ * It had measured 14 by accident rather than by choice: the lists declared
+ * `text-base`, but `PublicMenuLink` carries `text-sm` for the footer and the
+ * missing-page screen, and that won. A group's own word, which is a button
+ * rather than a link, had no such override and drew at 16, so one menu could
+ * hold two sizes. One setting now decides every word in it.
+ */
+export const MIN_PUBLIC_HEADER_MENU_FONT_SIZE = 12
+export const MAX_PUBLIC_HEADER_MENU_FONT_SIZE = 24
+export const DEFAULT_PUBLIC_HEADER_MENU_FONT_SIZE = 14
+
 export type PublicHeader = {
   /** Keeps the full public header at the top while the visitor scrolls. */
   sticky: boolean
@@ -16,6 +50,29 @@ export type PublicHeader = {
   menuAlignment: PublicHeaderMenuAlignment
   /** One of the three fixed logo sizes offered in Settings. */
   logoSize: PublicHeaderLogoSize
+  /** Spreads the header's contents across the whole window. */
+  fullWidth: boolean
+  /**
+   * The widest the header's contents become, in pixels. Null follows the page
+   * width in Styling, which is what every header did before this setting, so a
+   * site saved earlier keeps its header exactly where it was.
+   */
+  width: number | null
+  /** Medium is the blur the header always had. */
+  blur: PublicHeaderBlur
+  /**
+   * Empty space after the logo, in pixels, which is what moves the menu words
+   * along the bar. Zero is the spacing the header always had. It applies from
+   * 1024px up, where the menu is in the bar; below that the menu is behind its
+   * button and there is nothing for the space to move.
+   */
+  logoGap: number
+  /**
+   * The size of the menu words, in pixels. A link inside the phone menu's
+   * group is written as a share of this rather than a fixed size, so the whole
+   * menu grows together.
+   */
+  menuFontSize: number
 }
 
 export function createDefaultPublicHeader(): PublicHeader {
@@ -23,7 +80,39 @@ export function createDefaultPublicHeader(): PublicHeader {
     sticky: false,
     menuAlignment: "left",
     logoSize: "standard",
+    fullWidth: false,
+    width: null,
+    blur: "medium",
+    logoGap: 0,
+    menuFontSize: DEFAULT_PUBLIC_HEADER_MENU_FONT_SIZE,
   }
+}
+
+function isPublicHeaderWidth(value: unknown): value is number {
+  return (
+    typeof value === "number" &&
+    Number.isInteger(value) &&
+    value >= MIN_PUBLIC_HEADER_WIDTH &&
+    value <= MAX_PUBLIC_HEADER_WIDTH
+  )
+}
+
+function isPublicHeaderLogoGap(value: unknown): value is number {
+  return (
+    typeof value === "number" &&
+    Number.isInteger(value) &&
+    value >= MIN_PUBLIC_HEADER_LOGO_GAP &&
+    value <= MAX_PUBLIC_HEADER_LOGO_GAP
+  )
+}
+
+function isPublicHeaderMenuFontSize(value: unknown): value is number {
+  return (
+    typeof value === "number" &&
+    Number.isInteger(value) &&
+    value >= MIN_PUBLIC_HEADER_MENU_FONT_SIZE &&
+    value <= MAX_PUBLIC_HEADER_MENU_FONT_SIZE
+  )
 }
 
 export function normalizePublicHeader(value: unknown): PublicHeader {
@@ -46,5 +135,19 @@ export function normalizePublicHeader(value: unknown): PublicHeader {
     )
       ? (header.logoSize as PublicHeaderLogoSize)
       : fallback.logoSize,
+    fullWidth:
+      typeof header.fullWidth === "boolean"
+        ? header.fullWidth
+        : fallback.fullWidth,
+    width: isPublicHeaderWidth(header.width) ? header.width : fallback.width,
+    blur: PUBLIC_HEADER_BLURS.includes(header.blur as PublicHeaderBlur)
+      ? (header.blur as PublicHeaderBlur)
+      : fallback.blur,
+    logoGap: isPublicHeaderLogoGap(header.logoGap)
+      ? header.logoGap
+      : fallback.logoGap,
+    menuFontSize: isPublicHeaderMenuFontSize(header.menuFontSize)
+      ? header.menuFontSize
+      : fallback.menuFontSize,
   }
 }

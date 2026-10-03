@@ -348,7 +348,7 @@ export function AccountBillingPage({
       {preview ? (
         <PlanChangeConfirmation
           preview={preview}
-          onCancel={() => setPreview(null)}
+          onClose={() => setPreview(null)}
         />
       ) : !overview.billingEnabled ? (
         <PaymentsOffCard />

@@ -1,0 +1,82 @@
+# Video and Custom Shell
+
+Video is a copy of Custom Shell with the video editor built on top of it.
+Accounts, billing, automations, navigation, public pages, email and settings
+are the shell's. Projects, clips, exports, media, captions and the research
+tools are Video's own.
+
+**Never edit a shell file here.** A shell file edited in Video is a fork that
+conflicts on every future merge. A change the shell needs is made in
+`apps/custom-shell` and carried over. The repo's `docs/shell/shell-and-apps.md`
+is the rulebook.
+
+## The 3 October 2026 merge
+
+Video had been a long way behind: 133 shell files were older copies and 51
+shell files were missing outright. All of them are now the shell's current
+version. Nothing in Video had edited a shell file, so nothing had to be
+untangled. The bigger pieces that arrived:
+
+**The CRM.** Email that comes in becomes a lead you can chase. Admin → CRM is
+an inbox of conversations down one side and the lead's own record down the
+other. Mail arrives through Resend's inbound webhook on the address set in
+Settings → Email → Inbound address, and a reply goes back out from that same
+address. A lead is an email address, not a contact, so an inbound address
+never adds itself to the newsletter audience. A chase date that passes puts a
+notice in the bell.
+
+**Breadcrumbs, and public pages that know their own shape.** Public breadcrumb
+trails, per-device rows, social links, the public user panel, header actions,
+the theme presets and the styling fields all arrived together.
+
+**Resized images.** `/api/v1/media/resized` serves a public image at the size
+the page asks for, rather than shipping the original to a phone.
+
+**A hero's own background colour.** A front page hero row can carry a colour,
+painted as a band right across the window whatever its Layout says, with a
+switch to run that colour under the menu. With the switch on the menu bar
+stops painting its own background, so the colour is what shows through its
+blur. Only the top row of the page can do it.
+
+**Also carried:** dark mode's four shades, the sliding pill on tab strips and
+the colour-mode switcher, the divider row and the Whole screen layout, the
+public menu's text size, the page loading bar, and the settings save that no
+longer overwrites an edit made on another card while it was in flight.
+
+## The one file that is a real merge
+
+`src/theme.css` is the shell's, plus Video's own `@font-face` blocks for
+Playfair Display, Space Grotesk and Caveat, which are the faces a text clip or
+a carousel slide can be set in. Those blocks sit directly after the shell's own
+fonts. The shell's Libre Baskerville files were copied into `public/fonts/`
+with them, because the shell's Heading font setting names them and a rule
+pointing at a missing file is a 404 on a real site.
+
+## Migrations owed
+
+Six, all the shell's, keeping their shell names under Video's next free
+numbers:
+
+- `0094_custom_shell_notifications_seen.sql` — the bell's unread count and its
+  unread list stop being the same thing.
+- `0095_custom_shell_per_page_index_controls.sql` — `hidden_from_search` and
+  `canonical_url` on a written page.
+- `0096` to `0099` — the CRM: six tables, the inbound address on
+  `email_settings`, the reply name, the signature, and the quote switch.
+
+The `crm_follow_up` notice type is added to the `notifications` check
+constraint, which is a widening, so no saved notice stops being valid. Apply
+them with `npm run db:migrate` and an explicit `CUSTOM_SHELL_DATABASE_URL`; the
+migration command does not read a local environment file.
+
+## What stays Video's own
+
+Five files are deliberately not the shell's and a merge must leave them alone:
+`src/app/options.ts`, `src/app/server-options.ts`, `src/app/open-endpoints.ts`,
+the generated `src/routeTree.gen.ts`, and `src/theme.css`, which is the merge
+above rather than a copy.
+
+Three shell dev scripts are deliberately not carried: `crm-samples.mjs`,
+`crm-samples.test.mjs` and `send-sample-inbound.mjs`. They seed sample CRM
+leads on `npm run db:setup`, which is not something an app's database should
+grow on its own.

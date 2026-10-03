@@ -24,6 +24,7 @@ import {
 } from "@/server/content/pages"
 import { findSessionContext } from "@/server/auth/security"
 import { readBranding } from "@/server/shell-settings"
+import { MAX_CANONICAL_URL_LENGTH } from "@/lib/pages/page-indexing"
 import type {
   PublicSeo,
   SocialCardType,
@@ -52,6 +53,8 @@ type WrittenPageRouteView =
         shareImage: string
         socialCardType: SocialCardType
         socialHandle: string
+        /** The domain this visitor used, so a canonical path can become a URL. */
+        publicOrigin: string
         publicSeo: PublicSeo
       }
     }
@@ -183,6 +186,11 @@ const writtenPageInput = z.object({
   // what is allowed", which a cleaner expresses better than a schema. Anything
   // at all may arrive; only the allowed shapes survive.
   body: z.unknown(),
+  hiddenFromSearch: z.boolean(),
+  // Checked rather than merely bounded on the server: `normalizeCanonicalUrl`
+  // turns anything it does not recognise into empty, so a wrong address never
+  // reaches a canonical tag.
+  canonicalUrl: z.string().max(MAX_CANONICAL_URL_LENGTH),
 })
 
 const createWrittenPageFn = createServerFn({ method: "POST" })
@@ -250,6 +258,7 @@ const readWrittenPageFn = createServerFn({ method: "GET" })
         shareImage: branding.shareImage,
         socialCardType: branding.socialCardType,
         socialHandle: branding.socialHandle,
+        publicOrigin: branding.publicOrigin,
         publicSeo: branding.publicSeo,
       },
     }
@@ -279,6 +288,8 @@ export function saveNewWrittenPage(input: {
   path: string
   title: string
   body: unknown
+  hiddenFromSearch: boolean
+  canonicalUrl: string
 }) {
   return createWrittenPageFn({ data: input })
 }
@@ -288,6 +299,8 @@ export function saveWrittenPage(input: {
   path?: string
   title?: string
   body?: unknown
+  hiddenFromSearch?: boolean
+  canonicalUrl?: string
 }) {
   return updateWrittenPageFn({ data: input })
 }

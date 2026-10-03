@@ -19,7 +19,9 @@ import type { ComponentType } from "react"
 export type AppSettingsTab = {
   /**
    * The last part of the address — `/admin/settings/<id>` — and the tab's own
-   * name. An id the shell already uses is refused out loud.
+   * name. An id the shell already uses is refused out loud, except for the
+   * handful in `REPLACEABLE_SETTINGS_TAB_IDS`, where using the id means "show
+   * mine here instead of yours".
    */
   id: string
   label: string

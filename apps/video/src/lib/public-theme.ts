@@ -1,6 +1,18 @@
 import type { CSSProperties } from "react"
 
 import {
+  DEFAULT_DARK_SHADE,
+  MAX_CARD_BORDER_WIDTH,
+  MAX_CONTENT_GUTTER,
+  MAX_MODAL_PADDING,
+  MIN_CONTENT_GUTTER,
+  SHELL_BACKGROUND_MODES,
+  type ShellBackground,
+  type ShellBackgroundMode,
+  type ShellModalStyling,
+  type ShellStyling,
+} from "@/lib/layout/styling-values"
+import {
   derivePublicBrandColors,
   type PublicBrandColorOverrides,
 } from "@/lib/public-theme-colors"
@@ -8,12 +20,57 @@ import {
 export const PUBLIC_THEME_FONTS = ["system", "inter", "serif", "mono"] as const
 export type PublicThemeFont = (typeof PUBLIC_THEME_FONTS)[number]
 
+export const PUBLIC_THEME_HEADING_FONTS = [
+  "match",
+  "baskerville",
+  "inter",
+  "serif",
+  "mono",
+] as const
+export type PublicThemeHeadingFont =
+  (typeof PUBLIC_THEME_HEADING_FONTS)[number]
+
+/**
+ * The header and footer choose from the same faces as headings do, so the list
+ * is shared rather than written twice and left to drift apart.
+ */
+export const PUBLIC_THEME_CHROME_FONTS = PUBLIC_THEME_HEADING_FONTS
+export type PublicThemeChromeFont = PublicThemeHeadingFont
+
 export const PUBLIC_COLOR_SCHEMES = ["system", "light", "dark"] as const
 export type PublicColorScheme = (typeof PUBLIC_COLOR_SCHEMES)[number]
 
 export const PUBLIC_CONTENT_ALIGNMENTS = ["left", "center", "right"] as const
 export type PublicContentAlignment =
   (typeof PUBLIC_CONTENT_ALIGNMENTS)[number]
+
+/**
+ * Where the public footer sits, on its own rather than following the page.
+ *
+ * `inherit` is what every site saved before this choice existed reads as, and
+ * it keeps the footer following Content alignment, including a site that set
+ * that to right. The two named choices are the ones a footer actually wants.
+ */
+export const PUBLIC_FOOTER_ALIGNMENTS = ["inherit", "left", "center"] as const
+export type PublicFooterAlignment = (typeof PUBLIC_FOOTER_ALIGNMENTS)[number]
+
+export const PUBLIC_FOOTER_ALIGNMENT_LABELS: Record<
+  PublicFooterAlignment,
+  string
+> = {
+  inherit: "Follow the site",
+  left: "Left",
+  center: "Centred",
+}
+
+export const PUBLIC_FOOTER_ALIGNMENT_HINTS: Record<
+  PublicFooterAlignment,
+  string
+> = {
+  inherit: "Uses Styling > Page frame > Content alignment, as it always has.",
+  left: "The logo, the links and the copyright line sit on the left.",
+  center: "The logo, the links and the copyright line sit in the middle.",
+}
 
 export const PUBLIC_BACKGROUND_PATTERNS = ["none", "dots", "grid"] as const
 export type PublicBackgroundPattern =
@@ -38,14 +95,39 @@ export type PublicTheme = {
   brandColor: string
   /** Optional fixed values. A missing key keeps that value automatic. */
   brandOverrides: PublicBrandColorOverrides
-  /** Public canvas colour. Empty keeps the standard muted canvas. */
-  canvasColor: string
+  /** Public canvas behind the header, page content, and footer. */
+  canvasColor: ShellBackground
+  /** Public header and footer background. The signed-in twin is `chrome`. */
+  chrome: ShellBackground
+  /**
+   * Space around the public content column and between its blocks, in pixels.
+   * 0 is flat mode: no card borders, no rounded corners, no gaps. Top and
+   * bottom spacing stays with `mainSpacing`.
+   */
+  gutter: number
+  /** Card and table border width on public pages, in pixels (0 = off). */
+  cardBorderWidth: number
+  /** Card and table border colour on public pages. */
+  cardBorderColor: ShellBackground
+  /** The thin lines inside public cards and tables, and the header rule. */
+  dividerColor: ShellBackground
+  /** Dialog styling for public pages. */
+  modal: ShellModalStyling
   /** Widest public header, main area, and footer content in pixels. */
   pageWidth: number
   /** Top and bottom padding around public page content in pixels. */
   mainSpacing: number
+  /**
+   * The space between two blocks on the public front page, in pixels, as a
+   * desktop screen draws it. A phone draws 70% of it, because a gap wide
+   * enough to tell two blocks apart on a desktop is most of a phone screen.
+   * Flat mode still collapses both to nothing.
+   */
+  frontPageRowGap: number
   /** Horizontal alignment for the main content on every public page. */
   contentAlignment: PublicContentAlignment
+  /** Where the footer sits, or `inherit` to follow `contentAlignment`. */
+  footerAlignment: PublicFooterAlignment
   /** Optional texture drawn over the public canvas. */
   backgroundPattern: PublicBackgroundPattern
   /** Distance between the pattern's dots or grid lines. */
@@ -65,6 +147,10 @@ export type PublicTheme = {
   /** Uses the uploaded app-wide font while keeping `font` as its fallback. */
   useCustomFont: boolean
   font: PublicThemeFont
+  /** The face headings use. `match` leaves them on the body font. */
+  headingFont: PublicThemeHeadingFont
+  /** The face the public header and footer use. */
+  chromeFont: PublicThemeChromeFont
   radius: number
 }
 
@@ -89,6 +175,27 @@ export const PUBLIC_THEME_FONT_STACKS: Record<PublicThemeFont, string> = {
   mono: 'ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace',
 }
 
+export const PUBLIC_THEME_HEADING_FONT_LABELS: Record<
+  PublicThemeHeadingFont,
+  string
+> = {
+  match: "Same as the body",
+  baskerville: "Libre Baskerville",
+  inter: "Inter",
+  serif: "Serif",
+  mono: "Mono",
+}
+
+export const PUBLIC_THEME_HEADING_FONT_STACKS: Record<
+  Exclude<PublicThemeHeadingFont, "match">,
+  string
+> = {
+  baskerville: '"Libre Baskerville", ui-serif, Georgia, serif',
+  inter: PUBLIC_THEME_FONT_STACKS.inter,
+  serif: PUBLIC_THEME_FONT_STACKS.serif,
+  mono: PUBLIC_THEME_FONT_STACKS.mono,
+}
+
 export const DEFAULT_PUBLIC_RADIUS = 10
 export const MAX_PUBLIC_RADIUS = 24
 export const MIN_PUBLIC_PAGE_WIDTH = 640
@@ -96,6 +203,34 @@ export const DEFAULT_PUBLIC_PAGE_WIDTH = 1152
 export const MAX_PUBLIC_PAGE_WIDTH = 1600
 export const DEFAULT_PUBLIC_MAIN_SPACING = 40
 export const MAX_PUBLIC_MAIN_SPACING = 96
+
+/** The 5rem in theme.css, in pixels. A phone's 3.5rem is 70% of it. */
+export const DEFAULT_PUBLIC_FRONT_PAGE_ROW_GAP = 80
+export const MAX_PUBLIC_FRONT_PAGE_ROW_GAP = 160
+/** What a phone draws, as a share of the desktop gap. */
+export const PUBLIC_FRONT_PAGE_ROW_GAP_PHONE_SHARE = 0.7
+/**
+ * The widest gap a phone draws between public blocks and between the cards in
+ * a grid, whatever the Spacing setting says.
+ *
+ * It is the page's own 16px edge. A gap wide enough to tell two blocks apart
+ * on a desktop is a stripe of empty background on a 390px screen, and next to
+ * a 16px edge it reads as a mistake. Tyler asked for the two to match on
+ * 30 Sep 2026. It is a ceiling rather than a number: a site that chose less
+ * keeps what it chose, so a phone is never more spaced out than the desktop
+ * and flat mode needs no exception.
+ */
+export const PUBLIC_GUTTER_PHONE_MAX = 16
+/**
+ * 12px is `md:gap-3`, the desktop gap the public column has always used. A
+ * theme still on this number keeps the responsive `gap-2 md:gap-3` classes, so
+ * phones keep their 8px gap until an admin moves the slider.
+ */
+export const DEFAULT_PUBLIC_GUTTER = 12
+/** The `--shell-modal-padding` fallback in theme.css, as a number. */
+const DEFAULT_PUBLIC_MODAL_PADDING = 24
+/** The `--shell-modal-overlay-opacity` fallback in theme.css, as a number. */
+const DEFAULT_PUBLIC_MODAL_OVERLAY_OPACITY = 10
 export const DEFAULT_PUBLIC_BACKGROUND_PATTERN_OPACITY = 8
 export const MAX_PUBLIC_BACKGROUND_PATTERN_OPACITY = 20
 export const PUBLIC_BACKGROUND_PATTERN_SIZE_PIXELS: Record<
@@ -114,13 +249,41 @@ export const PUBLIC_BRAND_OVERRIDE_KEYS = [
   "darkColor",
 ] as const satisfies readonly PublicBrandOverrideKey[]
 
+/**
+ * The dialog look a public page has today, written as settings.
+ *
+ * Not `createDefaultModalStyling()`: that is the tuned signed-in look, and the
+ * numbers here are the fallbacks already written into the dialog rules in
+ * `theme.css`, so a site that changes nothing keeps the dialog it has now.
+ */
+function createDefaultPublicModalStyling(): ShellModalStyling {
+  return {
+    background: { mode: "default", strength: 44, color: "#ffffff" },
+    borderWidth: 1,
+    borderColor: { mode: "default", strength: 28, color: "#d4d4d8" },
+    padding: DEFAULT_PUBLIC_MODAL_PADDING,
+    overlayOpacity: DEFAULT_PUBLIC_MODAL_OVERLAY_OPACITY,
+    cardBackground: { mode: "default", strength: 0, color: "#ffffff" },
+    cardBorderWidth: 1,
+    cardBorderColor: { mode: "default", strength: 6, color: "#d4d4d8" },
+  }
+}
+
 export function createDefaultPublicTheme(): PublicTheme {
   return {
     brandColor: "",
     brandOverrides: {},
-    canvasColor: "",
+    canvasColor: { mode: "default", strength: 60, color: "#ffffff" },
+    chrome: { mode: "default", strength: 27, color: "#ffffff" },
+    gutter: DEFAULT_PUBLIC_GUTTER,
+    cardBorderWidth: 1,
+    cardBorderColor: { mode: "default", strength: 7, color: "#d4d4d8" },
+    dividerColor: { mode: "default", strength: 10, color: "#d4d4d8" },
+    modal: createDefaultPublicModalStyling(),
     pageWidth: DEFAULT_PUBLIC_PAGE_WIDTH,
     mainSpacing: DEFAULT_PUBLIC_MAIN_SPACING,
+    frontPageRowGap: DEFAULT_PUBLIC_FRONT_PAGE_ROW_GAP,
+    footerAlignment: "inherit",
     contentAlignment: "center",
     backgroundPattern: "none",
     backgroundPatternSize: "medium",
@@ -132,6 +295,8 @@ export function createDefaultPublicTheme(): PublicTheme {
     colorScheme: "system",
     useCustomFont: false,
     font: "system",
+    headingFont: "match",
+    chromeFont: "match",
     radius: DEFAULT_PUBLIC_RADIUS,
   }
 }
@@ -195,18 +360,66 @@ function publicBrandOverrideChanges(
   )
 }
 
-export function isPublicThemeInputValid(theme: PublicTheme) {
+/**
+ * Every canvas colour an admin can type on the Public styling tab, paired with
+ * the name that tab gives it and listed in the order that tab shows them. The
+ * header names the field to fix when the auto-save refuses a half-typed hex, so
+ * the label lives beside the value it belongs to. A colour left on "Theme
+ * default" or "Muted" has no hex to get wrong.
+ */
+function publicThemeBackgroundFields(
+  theme: PublicTheme
+): readonly (readonly [ShellBackground, string])[] {
+  return [
+    [theme.canvasColor, "canvas colour"],
+    [theme.cardBorderColor, "border colour"],
+    [theme.dividerColor, "divider colour"],
+    [theme.chrome, "header and footer colour"],
+    [theme.modal.background, "modal background"],
+    [theme.modal.borderColor, "modal border colour"],
+    [theme.modal.cardBackground, "modal card background"],
+    [theme.modal.cardBorderColor, "modal card border colour"],
+  ]
+}
+
+const PUBLIC_BRAND_OVERRIDE_LABELS: Record<PublicBrandOverrideKey, string> = {
+  hoverColor: "hover colour",
+  softColor: "soft tint",
+  foregroundColor: "button text colour",
+  darkColor: "dark-mode brand colour",
+}
+
+function isPublicBackgroundValid(background: ShellBackground): boolean {
   return (
-    isPublicBrandColor(theme.brandColor) &&
-    isPublicBrandColor(theme.canvasColor) &&
-    PUBLIC_BRAND_OVERRIDE_KEYS.every((key) => {
-      if (!Object.prototype.hasOwnProperty.call(theme.brandOverrides, key)) {
-        return true
-      }
-      const value = theme.brandOverrides[key]
-      return typeof value === "string" && PUBLIC_BRAND_COLOR_PATTERN.test(value)
-    })
+    background.mode !== "custom" ||
+    PUBLIC_BRAND_COLOR_PATTERN.test(background.color)
   )
+}
+
+/**
+ * The first half-typed colour on the Public styling tab, named as that tab
+ * names it, or null when every colour is a finished 6-digit hex. The auto-save
+ * refuses a theme with one of these in it, so this is what the header names.
+ */
+export function publicThemeColorProblem(theme: PublicTheme): string | null {
+  if (!isPublicBrandColor(theme.brandColor)) {
+    return "brand colour"
+  }
+  for (const key of PUBLIC_BRAND_OVERRIDE_KEYS) {
+    if (!Object.prototype.hasOwnProperty.call(theme.brandOverrides, key)) {
+      continue
+    }
+    const value = theme.brandOverrides[key]
+    if (typeof value !== "string" || !PUBLIC_BRAND_COLOR_PATTERN.test(value)) {
+      return PUBLIC_BRAND_OVERRIDE_LABELS[key]
+    }
+  }
+  for (const [background, label] of publicThemeBackgroundFields(theme)) {
+    if (!isPublicBackgroundValid(background)) {
+      return label
+    }
+  }
+  return null
 }
 
 /**
@@ -231,6 +444,93 @@ export function normalizePublicBrandTheme(
   return {
     brandColor: normalizePublicBrandColor(fallbackBrandColor),
     brandOverrides: {},
+  }
+}
+
+/**
+ * A saved public colour. Three shapes reach this function:
+ *
+ * - the three-mode object this tab saves now;
+ * - a plain hex string, which is every canvas colour saved before the tab
+ *   gained the mode picker, and reads as the custom colour it drew;
+ * - an empty string, the same rows with no canvas colour, which reads as the
+ *   theme's own canvas.
+ */
+function normalizePublicBackground(
+  value: unknown,
+  fallback: ShellBackground
+): ShellBackground {
+  if (typeof value === "string") {
+    const color = normalizePublicBrandColor(value)
+    return color
+      ? { ...fallback, mode: "custom", color }
+      : { ...fallback, mode: "default" }
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return { ...fallback }
+  }
+
+  const background = value as Partial<ShellBackground>
+  return {
+    mode: SHELL_BACKGROUND_MODES.includes(background.mode as ShellBackgroundMode)
+      ? (background.mode as ShellBackgroundMode)
+      : fallback.mode,
+    strength: normalizeWholeNumber(background.strength, fallback.strength, 0, 100),
+    // Only a 6-digit hex, which is the one shape the save schema accepts and
+    // the picker writes. These colours reach a signed-out visitor's page as
+    // inline styles and CSS variables, so a row edited straight in the
+    // database cannot put anything else there.
+    color: normalizePublicBrandColor(background.color) || fallback.color,
+  }
+}
+
+function normalizePublicModalStyling(
+  value: unknown,
+  fallback: ShellModalStyling
+): ShellModalStyling {
+  // Copied rather than handed back, colours included, so a normalized theme
+  // never shares an object with the fallback it was filled from.
+  const modal = (
+    value && typeof value === "object" && !Array.isArray(value) ? value : {}
+  ) as Partial<ShellModalStyling>
+  return {
+    background: normalizePublicBackground(modal.background, fallback.background),
+    borderWidth: normalizeWholeNumber(
+      modal.borderWidth,
+      fallback.borderWidth,
+      0,
+      MAX_CARD_BORDER_WIDTH
+    ),
+    borderColor: normalizePublicBackground(
+      modal.borderColor,
+      fallback.borderColor
+    ),
+    padding: normalizeWholeNumber(
+      modal.padding,
+      fallback.padding,
+      0,
+      MAX_MODAL_PADDING
+    ),
+    overlayOpacity: normalizeWholeNumber(
+      modal.overlayOpacity,
+      fallback.overlayOpacity,
+      0,
+      100
+    ),
+    cardBackground: normalizePublicBackground(
+      modal.cardBackground,
+      fallback.cardBackground
+    ),
+    cardBorderWidth: normalizeWholeNumber(
+      modal.cardBorderWidth,
+      fallback.cardBorderWidth,
+      0,
+      MAX_CARD_BORDER_WIDTH
+    ),
+    cardBorderColor: normalizePublicBackground(
+      modal.cardBorderColor,
+      fallback.cardBorderColor
+    ),
   }
 }
 
@@ -261,9 +561,32 @@ export function normalizePublicTheme(
           fallback.brandOverrides
         )
       : { ...fallback.brandOverrides },
-    canvasColor: Object.prototype.hasOwnProperty.call(theme, "canvasColor")
-      ? normalizePublicBrandColor(theme.canvasColor)
-      : fallback.canvasColor,
+    canvasColor: normalizePublicBackground(
+      theme.canvasColor,
+      fallback.canvasColor
+    ),
+    chrome: normalizePublicBackground(theme.chrome, fallback.chrome),
+    gutter: normalizeWholeNumber(
+      theme.gutter,
+      fallback.gutter,
+      MIN_CONTENT_GUTTER,
+      MAX_CONTENT_GUTTER
+    ),
+    cardBorderWidth: normalizeWholeNumber(
+      theme.cardBorderWidth,
+      fallback.cardBorderWidth,
+      0,
+      MAX_CARD_BORDER_WIDTH
+    ),
+    cardBorderColor: normalizePublicBackground(
+      theme.cardBorderColor,
+      fallback.cardBorderColor
+    ),
+    dividerColor: normalizePublicBackground(
+      theme.dividerColor,
+      fallback.dividerColor
+    ),
+    modal: normalizePublicModalStyling(theme.modal, fallback.modal),
     pageWidth: normalizeWholeNumber(
       theme.pageWidth,
       fallback.pageWidth,
@@ -276,11 +599,22 @@ export function normalizePublicTheme(
       0,
       MAX_PUBLIC_MAIN_SPACING
     ),
+    frontPageRowGap: normalizeWholeNumber(
+      theme.frontPageRowGap,
+      fallback.frontPageRowGap,
+      0,
+      MAX_PUBLIC_FRONT_PAGE_ROW_GAP
+    ),
     contentAlignment: PUBLIC_CONTENT_ALIGNMENTS.includes(
       theme.contentAlignment as PublicContentAlignment
     )
       ? (theme.contentAlignment as PublicContentAlignment)
       : fallback.contentAlignment,
+    footerAlignment: PUBLIC_FOOTER_ALIGNMENTS.includes(
+      theme.footerAlignment as PublicFooterAlignment
+    )
+      ? (theme.footerAlignment as PublicFooterAlignment)
+      : fallback.footerAlignment,
     backgroundPattern: PUBLIC_BACKGROUND_PATTERNS.includes(
       theme.backgroundPattern as PublicBackgroundPattern
     )
@@ -327,6 +661,16 @@ export function normalizePublicTheme(
     font: PUBLIC_THEME_FONTS.includes(theme.font as PublicThemeFont)
       ? (theme.font as PublicThemeFont)
       : fallback.font,
+    headingFont: PUBLIC_THEME_HEADING_FONTS.includes(
+      theme.headingFont as PublicThemeHeadingFont
+    )
+      ? (theme.headingFont as PublicThemeHeadingFont)
+      : fallback.headingFont,
+    chromeFont: PUBLIC_THEME_CHROME_FONTS.includes(
+      theme.chromeFont as PublicThemeChromeFont
+    )
+      ? (theme.chromeFont as PublicThemeChromeFont)
+      : fallback.chromeFont,
     radius: normalizeWholeNumber(
       theme.radius,
       fallback.radius,
@@ -353,6 +697,46 @@ export function publicThemeForSite(
   }
 }
 
+function sameBackground(a: ShellBackground, b: ShellBackground): boolean {
+  if (a.mode !== b.mode) return false
+  if (a.mode === "muted") return a.strength === b.strength
+  if (a.mode === "custom") return a.color === b.color
+  // "Theme default" draws the theme's own colour, so the strength and colour
+  // parked behind the picker change nothing on screen and are not a change.
+  return true
+}
+
+/**
+ * One colour's entry in the saved overrides, or nothing when it still matches
+ * the app's starting look. The whole object is saved once it differs, because
+ * the mode, the strength and the colour are read together.
+ */
+function changedBackground<Key extends string>(
+  key: Key,
+  value: ShellBackground,
+  baseline: ShellBackground
+): Partial<Record<Key, ShellBackground>> {
+  return sameBackground(value, baseline)
+    ? {}
+    : ({ [key]: value } as Record<Key, ShellBackground>)
+}
+
+function modalStylingChanged(
+  value: ShellModalStyling,
+  baseline: ShellModalStyling
+): boolean {
+  return (
+    value.borderWidth !== baseline.borderWidth ||
+    value.padding !== baseline.padding ||
+    value.overlayOpacity !== baseline.overlayOpacity ||
+    value.cardBorderWidth !== baseline.cardBorderWidth ||
+    !sameBackground(value.background, baseline.background) ||
+    !sameBackground(value.borderColor, baseline.borderColor) ||
+    !sameBackground(value.cardBackground, baseline.cardBackground) ||
+    !sameBackground(value.cardBorderColor, baseline.cardBorderColor)
+  )
+}
+
 /** Keeps only app-wide values an admin changed from the app's starting look. */
 export function publicThemeOverrides(
   value: PublicTheme,
@@ -370,8 +754,24 @@ export function publicThemeOverrides(
       ? { brandColor: theme.brandColor }
       : {}),
     ...(Object.keys(brandOverrides).length ? { brandOverrides } : {}),
-    ...(theme.canvasColor !== baseline.canvasColor
-      ? { canvasColor: theme.canvasColor }
+    ...changedBackground("canvasColor", theme.canvasColor, baseline.canvasColor),
+    ...changedBackground("chrome", theme.chrome, baseline.chrome),
+    ...(theme.gutter !== baseline.gutter ? { gutter: theme.gutter } : {}),
+    ...(theme.cardBorderWidth !== baseline.cardBorderWidth
+      ? { cardBorderWidth: theme.cardBorderWidth }
+      : {}),
+    ...changedBackground(
+      "cardBorderColor",
+      theme.cardBorderColor,
+      baseline.cardBorderColor
+    ),
+    ...changedBackground(
+      "dividerColor",
+      theme.dividerColor,
+      baseline.dividerColor
+    ),
+    ...(modalStylingChanged(theme.modal, baseline.modal)
+      ? { modal: theme.modal }
       : {}),
     ...(theme.pageWidth !== baseline.pageWidth
       ? { pageWidth: theme.pageWidth }
@@ -379,8 +779,14 @@ export function publicThemeOverrides(
     ...(theme.mainSpacing !== baseline.mainSpacing
       ? { mainSpacing: theme.mainSpacing }
       : {}),
+    ...(theme.frontPageRowGap !== baseline.frontPageRowGap
+      ? { frontPageRowGap: theme.frontPageRowGap }
+      : {}),
     ...(theme.contentAlignment !== baseline.contentAlignment
       ? { contentAlignment: theme.contentAlignment }
+      : {}),
+    ...(theme.footerAlignment !== baseline.footerAlignment
+      ? { footerAlignment: theme.footerAlignment }
       : {}),
     ...(theme.backgroundPattern !== baseline.backgroundPattern
       ? { backgroundPattern: theme.backgroundPattern }
@@ -410,6 +816,12 @@ export function publicThemeOverrides(
       ? { useCustomFont: theme.useCustomFont }
       : {}),
     ...(theme.font !== baseline.font ? { font: theme.font } : {}),
+    ...(theme.headingFont !== baseline.headingFont
+      ? { headingFont: theme.headingFont }
+      : {}),
+    ...(theme.chromeFont !== baseline.chromeFont
+      ? { chromeFont: theme.chromeFont }
+      : {}),
     ...(theme.radius !== baseline.radius ? { radius: theme.radius } : {}),
   }
 }
@@ -485,6 +897,14 @@ export function publicThemeStyle(
       : PUBLIC_THEME_FONT_STACKS[theme.font]
     style.fontFamily = "var(--app-font-sans)"
   }
+  if (theme.headingFont !== "match") {
+    style["--app-font-heading"] =
+      PUBLIC_THEME_HEADING_FONT_STACKS[theme.headingFont]
+  }
+  if (theme.chromeFont !== "match") {
+    style["--app-font-chrome"] =
+      PUBLIC_THEME_HEADING_FONT_STACKS[theme.chromeFont]
+  }
   if (
     theme.backgroundPattern !== "none" &&
     theme.backgroundPatternOpacity > 0
@@ -499,12 +919,21 @@ export function publicThemeStyle(
 }
 
 export function hasCustomPublicTheme(theme: PublicTheme): boolean {
+  const starting = createDefaultPublicTheme()
   return (
     publicThemeStyle(theme) !== undefined ||
-    theme.canvasColor !== "" ||
+    !sameBackground(theme.canvasColor, starting.canvasColor) ||
+    !sameBackground(theme.chrome, starting.chrome) ||
+    !sameBackground(theme.cardBorderColor, starting.cardBorderColor) ||
+    !sameBackground(theme.dividerColor, starting.dividerColor) ||
+    theme.gutter !== starting.gutter ||
+    theme.cardBorderWidth !== starting.cardBorderWidth ||
+    modalStylingChanged(theme.modal, starting.modal) ||
     theme.pageWidth !== DEFAULT_PUBLIC_PAGE_WIDTH ||
     theme.mainSpacing !== DEFAULT_PUBLIC_MAIN_SPACING ||
+    theme.frontPageRowGap !== DEFAULT_PUBLIC_FRONT_PAGE_ROW_GAP ||
     theme.contentAlignment !== "center" ||
+    theme.footerAlignment !== "inherit" ||
     (theme.backgroundPattern !== "none" &&
       theme.backgroundPatternOpacity > 0) ||
     theme.buttonStyle !== "solid" ||
@@ -513,6 +942,26 @@ export function hasCustomPublicTheme(theme: PublicTheme): boolean {
     !theme.footerBorder ||
     theme.colorScheme !== "system"
   )
+}
+
+/**
+ * The public theme read as the styling shape the signed-in app saves, so the
+ * public frame can hand it to `resolveBackground`, `getBorderStyleVars` and
+ * `getModalStyleVars` instead of repeating what those already do.
+ */
+export function publicShellStyling(theme: PublicTheme): ShellStyling {
+  return {
+    gutter: theme.gutter,
+    // The public pages have no dark-shade control of their own, so they keep
+    // the near-black dark mode whatever the signed-in app is set to.
+    darkShade: DEFAULT_DARK_SHADE,
+    cardBorderWidth: theme.cardBorderWidth,
+    cardBorderColor: theme.cardBorderColor,
+    dividerColor: theme.dividerColor,
+    content: theme.canvasColor,
+    chrome: theme.chrome,
+    modal: theme.modal,
+  }
 }
 
 /** Chooses the public colour mode before styles load, avoiding a light/dark flash. */

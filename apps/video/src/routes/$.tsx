@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { catchAllOverride } from "@/lib/app-options"
 import { loadWrittenPage } from "@/lib/api/content/pages"
 import { resolveAppName } from "@/lib/branding"
+import { resolveCanonicalUrl } from "@/lib/pages/page-indexing"
 import {
   publicSocialMeta,
   resolveWrittenPageSeoMetadata,
@@ -89,9 +90,22 @@ export const Route = createFileRoute("/$")({
       seo: loaderData.branding.publicSeo,
     })
 
+    // An address on this same site becomes a full one on the domain the
+    // visitor actually used, so a deployment answering on several domains
+    // never points one site's canonical tag at another's.
+    const canonical = resolveCanonicalUrl(
+      loaderData.branding.publicOrigin,
+      loaderData.page.canonicalUrl
+    )
+
     return {
       meta: [
         { title: metadata.title },
+        // `noindex` asks a search engine not to list the page. It is not a
+        // lock: the page still answers for anyone holding the link.
+        ...(loaderData.page.hiddenFromSearch
+          ? [{ name: "robots", content: "noindex" }]
+          : []),
         ...publicSocialMeta({
           title: metadata.socialTitle,
           description: metadata.description,
@@ -100,6 +114,9 @@ export const Route = createFileRoute("/$")({
           handle: loaderData.branding.socialHandle,
         }),
       ],
+      ...(canonical
+        ? { links: [{ rel: "canonical", href: canonical }] }
+        : {}),
     }
   },
 })

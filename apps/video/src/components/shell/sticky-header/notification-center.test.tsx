@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest"
 
 const listNotificationPage = vi.fn()
 const markAllNotificationsRead = vi.fn()
+const markNotificationsSeen = vi.fn()
 
 vi.mock("@tanstack/react-router", () => ({ useNavigate: () => vi.fn() }))
 vi.mock("@/lib/hooks/use-notification-stream", () => ({
@@ -16,6 +17,7 @@ vi.mock("@/lib/hooks/use-app-notification-links", () => ({
 vi.mock("@/lib/api/notification", () => ({
   listNotificationPage: (...args: unknown[]) => listNotificationPage(...args),
   markAllNotificationsRead: () => markAllNotificationsRead(),
+  markNotificationsSeen: () => markNotificationsSeen(),
   markNotificationRead: vi.fn(),
   countUnreadNotifications: vi.fn(),
   getNotificationErrorMessage: () => "Could not load notifications.",
@@ -49,13 +51,20 @@ beforeEach(() => {
   document.body.append(host)
   root = createRoot(host)
   // A stand-in server: the page it hands back reflects the write that landed
-  // before it, which is the whole point of doing the two in order.
+  // before it, which is the whole point of doing the two in order. Being seen
+  // is what the bell's number counts; being read is what the tab counts.
+  let seen = false
   let readAt: string | null = null
   listNotificationPage.mockImplementation(async () => ({
     notifications: [{ ...notice, read_at: readAt }],
     unread_count: readAt === null ? 1 : 0,
+    unseen_count: seen || readAt !== null ? 0 : 1,
     next_cursor: null,
   }))
+  markNotificationsSeen.mockImplementation(async () => {
+    seen = true
+    return { seenCount: 1, seenAt: new Date().toISOString() }
+  })
   markAllNotificationsRead.mockImplementation(async () => {
     readAt = new Date().toISOString()
     return { notificationIds: [notice.id], readAt }
@@ -72,34 +81,57 @@ const bell = () =>
   host.querySelector<HTMLButtonElement>('button[aria-label^="Open notif"]')!
 
 /**
- * Tyler, 16 Sep 2026: clicking the bell clears the red number. The notice it
- * was counting still has to be readable, so the tray keeps it in the Unread
- * list for that one opening.
+ * Tyler, 22 Sep 2026: opening the bell clears the red number and nothing else.
+ * The notice stays unread, stays in the tray, and is cleared by clicking it or
+ * by Mark all as read.
  */
-it("clears the bell's red count on the click that opens the tray", async () => {
-  await act(async () => root.render(<NotificationCenter initialUnreadCount={1} />))
+it("clears the bell's red count without reading anything", async () => {
+  await act(async () =>
+    root.render(<NotificationCenter initialUnseenCount={1} />)
+  )
   expect(bell().textContent).toContain("1")
 
   await act(async () => bell().click())
   await act(async () => undefined)
 
-  expect(markAllNotificationsRead).toHaveBeenCalledTimes(1)
+  expect(markNotificationsSeen).toHaveBeenCalledTimes(1)
+  expect(markAllNotificationsRead).not.toHaveBeenCalled()
   expect(bell().textContent).not.toContain("1")
   expect(document.body.textContent).toContain("Unread (1)")
   expect(document.body.textContent).toContain("Something happened")
 })
 
-it("leaves a bell with nothing unread alone", async () => {
+it("leaves the notice unread after the tray is shut and opened again", async () => {
+  await act(async () =>
+    root.render(<NotificationCenter initialUnseenCount={1} />)
+  )
+
+  await act(async () => bell().click())
+  await act(async () => undefined)
+  await act(async () => bell().click())
+  await act(async () => bell().click())
+  await act(async () => undefined)
+
+  expect(markAllNotificationsRead).not.toHaveBeenCalled()
+  expect(document.body.textContent).toContain("Unread (1)")
+  expect(bell().textContent).not.toContain("1")
+})
+
+it("leaves a bell with nothing waiting alone", async () => {
   listNotificationPage.mockImplementation(async () => ({
     notifications: [{ ...notice, read_at: new Date().toISOString() }],
     unread_count: 0,
+    unseen_count: 0,
     next_cursor: null,
   }))
-  await act(async () => root.render(<NotificationCenter initialUnreadCount={0} />))
+  await act(async () =>
+    root.render(<NotificationCenter initialUnseenCount={0} />)
+  )
 
   await act(async () => bell().click())
   await act(async () => undefined)
 
+  expect(markNotificationsSeen).not.toHaveBeenCalled()
   expect(markAllNotificationsRead).not.toHaveBeenCalled()
   expect(document.body.textContent).toContain("Unread (0)")
 })

@@ -1,6 +1,7 @@
 import {
   DeleteObjectCommand,
   GetObjectCommand,
+  HeadObjectCommand,
   ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
@@ -18,20 +19,21 @@ export class R2StorageNotConfiguredError extends Error {}
 /**
  * One setting, or a refusal naming what is missing and where to put it.
  *
- * The message says Settings first and the environment variable second, because
- * Settings → Storage is now where this is filled in and the variables are only
- * still read so an older deployment keeps working.
+ * The message says Settings first and the environment variable second,
+ * because the Cloudflare R2 card on General settings is now where this is
+ * filled in and the variables are only still read so an older deployment keeps
+ * working.
  */
 function requireSetting(config: StorageConfig, field: StorageField) {
   const entry = config[field]
   if (entry.value) return entry.value
   if (entry.unreadable) {
     throw new R2StorageNotConfiguredError(
-      `The storage ${STORAGE_FIELD_LABEL[field]} can't be read back. Paste it again in Settings → Storage.`
+      `The storage ${STORAGE_FIELD_LABEL[field]} can't be read back. Paste it again on Settings → General settings, under Cloudflare R2.`
     )
   }
   throw new R2StorageNotConfiguredError(
-    `The storage ${STORAGE_FIELD_LABEL[field]} is not set. Add it in Settings → Storage.`
+    `The storage ${STORAGE_FIELD_LABEL[field]} is not set. Add it on Settings → General settings, under Cloudflare R2.`
   )
 }
 
@@ -132,6 +134,25 @@ export async function listR2Objects(maxKeys: number) {
   } while (continuationToken)
 
   return { objects, truncated: false }
+}
+
+/**
+ * Whether the bucket already holds this key, without reading the bytes.
+ *
+ * The resized-image route asks this before cutting a copy, so the common case —
+ * the copy was cut days ago — costs one small request instead of pulling the
+ * original through the app.
+ */
+export async function r2ObjectExists(storagePath: string) {
+  const { client, bucket } = await openBucket()
+  try {
+    await client.send(
+      new HeadObjectCommand({ Bucket: bucket, Key: storagePath })
+    )
+    return true
+  } catch {
+    return false
+  }
 }
 
 export async function getFromR2(storagePath: string, range?: string | null) {

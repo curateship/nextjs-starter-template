@@ -1,13 +1,11 @@
 import * as React from "react"
 import type { ComponentType } from "react"
 import { Link } from "@tanstack/react-router"
-import { AiSettings } from "@/components/settings/ai-settings"
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { EmailSettings } from "@/components/settings/email-settings"
 import { FrontPageRowsSettings } from "@/components/settings/front-page-rows-settings"
 import { GeneralSettings } from "@/components/settings/general-settings"
 import { MemberSettings } from "@/components/settings/member-settings"
-import { NotificationSettings } from "@/components/settings/notification-settings"
 import {
   PublicSeoSettings,
   PublicSocialSettings,
@@ -15,9 +13,7 @@ import {
 } from "@/components/settings/public-metadata-settings"
 import { PublicSiteSettings } from "@/components/settings/public-site-settings"
 import { PublicThemeSettings } from "@/components/settings/public-theme-settings"
-import { SecuritySettings } from "@/components/settings/security-settings"
 import { SidebarSettings } from "@/components/settings/sidebar-settings"
-import { StorageSettings } from "@/components/settings/storage-settings"
 import { StripeSettings } from "@/components/settings/stripe-settings"
 import { StylingSettings } from "@/components/settings/styling-settings"
 import { TopRightSettings } from "@/components/settings/top-right-settings"
@@ -31,52 +27,77 @@ import { cn } from "@/lib/utils"
 import {
   createDefaultShellConfig,
   createDefaultTopRightNavigation,
+  shellConfigSaveRefusal,
   type ShellConfig,
   type ShellMaintenance,
   type ShellSessionPolicy,
 } from "@/lib/custom-shell"
 
-/** Settings that are about the app, and about the admin's own shell. */
+/**
+ * The shell's own settings — the signed-in workspace an admin works in.
+ *
+ * This is the half no app may take over, which is the whole reason the rail is
+ * split the way it is. Security, Notifications, Storage and AI were rows here
+ * until 25 Sep 2026; each was one card, so each is now a card on General
+ * settings instead.
+ */
 const settingsTabs = [
   { id: "general", label: "General settings" },
   { id: "navigation", label: "Navigation" },
   { id: "widgets", label: "Widgets" },
   { id: "styling", label: "Styling" },
-  { id: "security", label: "Security" },
-  { id: "notifications", label: "Notifications" },
   { id: "email", label: "Email" },
   { id: "payments", label: "Payments" },
-  { id: "storage", label: "Storage" },
-  { id: "ai", label: "AI" },
 ] as const
 
 /**
- * Settings an admin decides on a member's behalf. Their own card in the rail,
- * so it is obvious at a glance which of these change somebody else's screen.
+ * What the shell puts in the app's card before the app adds anything, in the
+ * blocks it draws them in.
+ *
+ * Every row here is the shell's screen and the app's decision. Both blocks are
+ * about somebody other than the admin — the members who sign in, and the
+ * visitors who do not — and an app can be right about either in a way the shell
+ * cannot guess. Pomodoro draws its own member sidebar from its own list, so the
+ * shell's Navigation screen there edits settings no page of its reads.
+ *
+ * An app registers a tab with one of these ids and its own screen takes that
+ * row's place, keeping its position. See `REPLACEABLE_SETTINGS_TAB_IDS` in
+ * `lib/app-options.ts`, which is this list.
+ *
+ * **The data stays the shell's.** A replacement screen writes the same
+ * `ShellConfig` fields the shell's version wrote, because `PublicPageFrame` and
+ * the sidebar are still what draw from them. An app that writes somewhere else
+ * gets a settings screen that changes nothing.
  */
-const memberSettingsTabs = [
-  { id: "member-navigation", label: "Navigation" },
+const appScaffoldGroups = [
+  {
+    label: "Members",
+    tabs: [{ id: "member-navigation", label: "Navigation" }],
+  },
+  {
+    label: "Public",
+    tabs: [
+      { id: "public-navigation", label: "Navigation" },
+      { id: "public-styling", label: "Styling" },
+      { id: "public-pages", label: "Pages" },
+      { id: "public-seo", label: "SEO" },
+      { id: "public-social", label: "Social" },
+    ],
+  },
 ] as const
 
-/** Settings for the pages a site's visitors see before signing in. */
-const publicSettingsTabs = [
-  { id: "public-navigation", label: "Navigation" },
-  { id: "public-styling", label: "Styling" },
-  { id: "public-pages", label: "Pages" },
-  { id: "public-seo", label: "SEO" },
-  { id: "public-social", label: "Social" },
-] as const
+/** The same rows, flat, for the id checks that do not care which block. */
+const appScaffoldTabs: readonly { id: SettingsTabId; label: string }[] =
+  appScaffoldGroups.flatMap((group) => group.tabs.map((tab) => ({ ...tab })))
 
 export type SettingsTabId =
   | (typeof settingsTabs)[number]["id"]
-  | (typeof memberSettingsTabs)[number]["id"]
-  | (typeof publicSettingsTabs)[number]["id"]
+  | (typeof appScaffoldGroups)[number]["tabs"][number]["id"]
 
 /** Every id the shell itself owns — what an app's tab may not be called. */
 const shellSettingsTabIds: readonly string[] = [
   ...settingsTabs.map((tab) => tab.id),
-  ...memberSettingsTabs.map((tab) => tab.id),
-  ...publicSettingsTabs.map((tab) => tab.id),
+  ...appScaffoldTabs.map((tab) => tab.id),
 ]
 
 /**
@@ -88,6 +109,48 @@ const shellSettingsTabIds: readonly string[] = [
  */
 function extraTabs() {
   return appSettingsTabs(undefined, shellSettingsTabIds)
+}
+
+/**
+ * The blocks in the app's card: the app's own rows first, then Members, then
+ * Public.
+ *
+ * The app's rows go on top and carry no heading, because the card is already
+ * called App settings and they are the reason an admin opens it. A row the app
+ * has claimed keeps the scaffold's position rather than moving up here, so
+ * Public → Styling stays between Navigation and Pages whoever draws it.
+ */
+function appCardGroups(): readonly SettingsTabGroupSection[] {
+  const own = extraTabs()
+  const claim = (id: string) => own.find((tab) => tab.id === id)
+  const row = (tab: { id: string; label: string }) => ({
+    id: tab.id as SettingsTabId,
+    label: tab.label,
+  })
+
+  const ownRows = own
+    .filter((tab) => !appScaffoldTabs.some((one) => one.id === tab.id))
+    .map(row)
+
+  return [
+    ...(ownRows.length > 0 ? [{ tabs: ownRows }] : []),
+    ...appScaffoldGroups.map((group) => ({
+      label: group.label,
+      tabs: group.tabs.map((tab) => row(claim(tab.id) ?? tab)),
+    })),
+  ]
+}
+
+/**
+ * True when this is the open row and the shell is the one drawing it.
+ *
+ * Every row in the app's card is claimable, so each of their panels below asks
+ * this rather than the tab id alone. A claimed row's panel is the app's, and
+ * `AppSettingsPanel` draws it.
+ */
+function shellDraws(activeTab: SettingsTabId, id: SettingsTabId): boolean {
+  if (activeTab !== id) return false
+  return !extraTabs().some((tab) => tab.id === id)
 }
 
 export function getSettingsTabFromPath(path: string): SettingsTabId {
@@ -117,6 +180,20 @@ export function SettingsPage({
   onSessionPolicyChange: (policy: ShellSessionPolicy) => Promise<boolean>
   sessionPolicyBusy: boolean
 }) {
+  // Every handler below builds a whole new config by spreading this one, and
+  // some of them run long after the render that made them. One runs when a
+  // save comes back, another when a font finishes uploading. Spreading the
+  // render's own `config` there rebuilds the settings as they were when the
+  // screen last drew and silently undoes anything typed since. The ref is
+  // always the current one.
+  const latestConfig = React.useRef(config)
+  latestConfig.current = config
+  const changeConfig = React.useCallback(
+    (part: Partial<ShellConfig>) =>
+      onConfigChange({ ...latestConfig.current, ...part }),
+    [onConfigChange]
+  )
+
   const adminHeaderActions = appHeaderRightActionsForRole("admin")
   const memberHeaderActions = appHeaderRightActionsForRole("member")
   const adminHeaderActionIds = adminHeaderActions.map((action) => action.id)
@@ -131,42 +208,26 @@ export function SettingsPage({
         className="flex w-full shrink-0 flex-col lg:w-48"
         style={{ gap: pageGutter }}
       >
+        {/* The signed-in workspace, and nothing an app may take over. */}
         <SettingsTabGroup
           storageId="settings-rail-platform"
-          title="Platform"
-          tabs={settingsTabs}
+          title="Platform settings"
+          groups={[{ tabs: settingsTabs }]}
           activeTab={activeTab}
         />
 
+        {/* The app's own card, always drawn. Even an app that adds nothing has
+            the member navigation row to decide about.
+
+            Called "App settings" rather than the app's own name: the name is an
+            editable field, so the card would rename itself the moment somebody
+            changed it, and an admin already knows which app they are in. */}
         <SettingsTabGroup
-          storageId="settings-rail-members"
-          title="Members"
-          tabs={memberSettingsTabs}
+          storageId="settings-rail-app"
+          title="App settings"
+          groups={appCardGroups()}
           activeTab={activeTab}
         />
-
-        <SettingsTabGroup
-          storageId="settings-rail-public"
-          title="Public"
-          tabs={publicSettingsTabs}
-          activeTab={activeTab}
-        />
-
-        {/* The app's own, last and in their own card, so it is obvious at a
-            glance which settings belong to this app rather than to the shell.
-            Nothing is drawn when an app has none, which is every app by
-            default. */}
-        {extraTabs().length > 0 ? (
-          <SettingsTabGroup
-            storageId="settings-rail-app"
-            title="This app"
-            tabs={extraTabs().map((tab) => ({
-              id: tab.id as SettingsTabId,
-              label: tab.label,
-            }))}
-            activeTab={activeTab}
-          />
-        ) : null}
       </div>
 
       <div className="min-w-0 flex-1">
@@ -176,48 +237,90 @@ export function SettingsPage({
             onConfigChange={onConfigChange}
             onMaintenanceChange={onMaintenanceChange}
             maintenanceBusy={maintenanceBusy}
+            onSessionPolicyChange={onSessionPolicyChange}
+            sessionPolicyBusy={sessionPolicyBusy}
           />
         ) : null}
-        {activeTab === "public-navigation" ? (
+        {shellDraws(activeTab, "public-navigation") ? (
           <PublicSiteSettings
             navigation={config.publicNavigation}
             footer={config.publicFooter}
+            footerSocial={config.publicFooterSocial}
             footerCopyright={config.publicFooterCopyright}
+            footerAlignment={config.publicTheme.footerAlignment}
             publicHeader={config.publicHeader}
+            pageWidth={config.publicTheme.pageWidth}
+            chromeFont={config.publicTheme.chromeFont}
+            headerActions={config.publicHeaderActions}
+            publicUserPanel={config.publicUserPanel}
+            publicBreadcrumbs={config.publicBreadcrumbs}
             onNavigationChange={(publicNavigation) =>
-              onConfigChange({ ...config, publicNavigation })
+              changeConfig({ publicNavigation })
             }
             onFooterChange={(publicFooter) =>
-              onConfigChange({ ...config, publicFooter })
+              changeConfig({ publicFooter })
+            }
+            onFooterSocialChange={(publicFooterSocial) =>
+              changeConfig({ publicFooterSocial })
+            }
+            onFooterAlignmentChange={(footerAlignment) =>
+              changeConfig({
+                publicTheme: { ...config.publicTheme, footerAlignment },
+              })
             }
             onFooterCopyrightChange={(publicFooterCopyright) =>
-              onConfigChange({ ...config, publicFooterCopyright })
+              changeConfig({ publicFooterCopyright })
             }
             onPublicHeaderChange={(publicHeader) =>
-              onConfigChange({ ...config, publicHeader })
+              changeConfig({ publicHeader })
+            }
+            onChromeFontChange={(chromeFont) =>
+              changeConfig({
+                publicTheme: { ...config.publicTheme, chromeFont },
+              })
+            }
+            onHeaderActionsChange={(publicHeaderActions) =>
+              changeConfig({ publicHeaderActions })
+            }
+            onPublicUserPanelChange={(publicUserPanel) =>
+              changeConfig({ publicUserPanel })
+            }
+            onPublicBreadcrumbsChange={(publicBreadcrumbs) =>
+              changeConfig({ publicBreadcrumbs })
             }
             onSaveConfig={onSaveConfig}
           />
         ) : null}
-        {activeTab === "public-styling" ? (
+        {shellDraws(activeTab, "public-styling") ? (
           <PublicThemeSettings
             theme={config.publicTheme}
+            presets={config.publicThemePresets}
             publicFont={config.publicFont}
             onThemeChange={(publicTheme) =>
-              onConfigChange({ ...config, publicTheme })
+              changeConfig({ publicTheme })
+            }
+            onPresetsChange={(publicThemePresets) =>
+              changeConfig({ publicThemePresets })
             }
             onFontStateChange={(publicTheme, publicFont) =>
-              onConfigChange({ ...config, publicTheme, publicFont })
+              changeConfig({ publicTheme, publicFont })
             }
             onSaveConfig={onSaveConfig}
+            saveRefusal={shellConfigSaveRefusal(config)}
           />
         ) : null}
-        {activeTab === "public-pages" ? (
+        {shellDraws(activeTab, "public-pages") ? (
           <CardGroup>
             <FrontPageRowsSettings
               rows={config.frontPageRows}
               onRowsChange={(frontPageRows) =>
-                onConfigChange({ ...config, frontPageRows })
+                changeConfig({ frontPageRows })
+              }
+              rowGap={config.publicTheme.frontPageRowGap}
+              onRowGapChange={(frontPageRowGap) =>
+                changeConfig({
+                  publicTheme: { ...config.publicTheme, frontPageRowGap },
+                })
               }
             />
             <PublicSystemPagesSettings
@@ -226,10 +329,10 @@ export function SettingsPage({
             />
           </CardGroup>
         ) : null}
-        {activeTab === "public-seo" ? (
+        {shellDraws(activeTab, "public-seo") ? (
           <PublicSeoSettings config={config} onConfigChange={onConfigChange} />
         ) : null}
-        {activeTab === "public-social" ? (
+        {shellDraws(activeTab, "public-social") ? (
           <PublicSocialSettings
             config={config}
             onConfigChange={onConfigChange}
@@ -246,7 +349,7 @@ export function SettingsPage({
               }
               sections={config.sections}
               onSectionsChange={(sections) =>
-                onConfigChange({ ...config, sections })
+                changeConfig({ sections })
               }
               onSaveConfig={onSaveConfig}
               card={{
@@ -258,14 +361,21 @@ export function SettingsPage({
               reset={{
                 label: "Reset all to defaults",
                 description:
-                  "Every sidebar section and link is deleted. The workspace name, subheader, home route, logo, rows per page, sidebar width, top-right menu, all public settings, and signed-in styling go back to their defaults. This cannot be undone.",
-                onReset: () => onConfigChange(createDefaultShellConfig()),
+                  "Every sidebar section and link is deleted. The workspace name, subheader, home route, logo, rows per page, sidebar width, top-right menu, all public settings, and signed-in styling go back to their defaults. Saved public presets are kept. This cannot be undone.",
+                // A preset is a look the admin built and named, not a setting,
+                // and it is the way back after a reset lands on a look nobody
+                // wanted. Resetting the sidebar must not delete the lot.
+                onReset: () =>
+                  onConfigChange({
+                    ...createDefaultShellConfig(),
+                    publicThemePresets: config.publicThemePresets,
+                  }),
               }}
             />
             <TopRightSettings
               items={config.topRightNavigation}
               onItemsChange={(topRightNavigation) =>
-                onConfigChange({ ...config, topRightNavigation })
+                changeConfig({ topRightNavigation })
               }
               onSaveConfig={onSaveConfig}
               appActions={adminHeaderActions}
@@ -280,8 +390,7 @@ export function SettingsPage({
                 description:
                   "Every built-in button goes back to its starting place and is shown, and every link you added here is deleted. The members' menu is not touched. This cannot be undone.",
                 onReset: () =>
-                  onConfigChange({
-                    ...config,
+                  changeConfig({
                     topRightNavigation: createDefaultTopRightNavigation(
                       adminHeaderActionIds
                     ),
@@ -290,7 +399,7 @@ export function SettingsPage({
             />
           </CardGroup>
         ) : null}
-        {activeTab === "member-navigation" ? (
+        {shellDraws(activeTab, "member-navigation") ? (
           <CardGroup>
             <MemberSettings
               config={config}
@@ -300,7 +409,7 @@ export function SettingsPage({
             <TopRightSettings
               items={config.memberTopRightNavigation}
               onItemsChange={(memberTopRightNavigation) =>
-                onConfigChange({ ...config, memberTopRightNavigation })
+                changeConfig({ memberTopRightNavigation })
               }
               onSaveConfig={onSaveConfig}
               appActions={memberHeaderActions}
@@ -315,8 +424,7 @@ export function SettingsPage({
                 description:
                   "Every built-in button goes back to its starting place and is shown for members, and every link you added for them is deleted. Your own menu is not touched. This cannot be undone.",
                 onReset: () =>
-                  onConfigChange({
-                    ...config,
+                  changeConfig({
                     memberTopRightNavigation: createDefaultTopRightNavigation(
                       memberHeaderActionIds
                     ),
@@ -329,30 +437,15 @@ export function SettingsPage({
           <WidgetSettings
             layout={config.dashboardWidgets}
             onLayoutChange={(dashboardWidgets) =>
-              onConfigChange({ ...config, dashboardWidgets })
+              changeConfig({ dashboardWidgets })
             }
           />
         ) : null}
         {activeTab === "styling" ? (
           <StylingSettings config={config} onConfigChange={onConfigChange} />
         ) : null}
-        {activeTab === "security" ? (
-          <SecuritySettings
-            config={config}
-            onSessionPolicyChange={onSessionPolicyChange}
-            sessionPolicyBusy={sessionPolicyBusy}
-          />
-        ) : null}
-        {activeTab === "notifications" ? (
-          <NotificationSettings
-            config={config}
-            onConfigChange={onConfigChange}
-          />
-        ) : null}
         {activeTab === "email" ? <EmailSettings /> : null}
         {activeTab === "payments" ? <StripeSettings /> : null}
-        {activeTab === "storage" ? <StorageSettings /> : null}
-        {activeTab === "ai" ? <AiSettings /> : null}
         <AppSettingsPanel activeTab={activeTab} />
       </div>
     </div>
@@ -398,19 +491,30 @@ function AppSettingsPanel({ activeTab }: { activeTab: SettingsTabId }) {
   )
 }
 
+/** One block of rows in a rail card, with an optional heading above it. */
+type SettingsTabGroupSection = {
+  /** Unset for the first block, which the card's own title already names. */
+  label?: string
+  tabs: readonly { id: SettingsTabId; label: string }[]
+}
+
 /**
  * One card in the settings rail. It collapses so a long rail can be folded down
  * to the group you are working in, and the choice is remembered per browser.
+ *
+ * A card can hold more than one block of rows. The Platform card does: its
+ * public rows carry short names — Navigation, Styling — and the heading above
+ * them is what says whose Navigation they are.
  */
 function SettingsTabGroup({
   storageId,
   title,
-  tabs,
+  groups,
   activeTab,
 }: {
   storageId: string
   title: string
-  tabs: readonly { id: SettingsTabId; label: string }[]
+  groups: readonly SettingsTabGroupSection[]
   activeTab: SettingsTabId
 }) {
   return (
@@ -418,19 +522,54 @@ function SettingsTabGroup({
       storageId={storageId}
       size="sm"
       title={title}
-      contentClassName="px-2 pt-2"
+      contentClassName="px-3 pt-2"
     >
       <nav className="flex flex-col gap-1">
-        {tabs.map((tab) => (
-          <SettingsTabLink
-            key={tab.id}
-            tabId={tab.id}
-            label={tab.label}
-            active={activeTab === tab.id}
+        {groups.map((group, index) => (
+          <SettingsTabSection
+            key={group.label ?? index}
+            label={group.label}
+            tabs={group.tabs}
+            activeTab={activeTab}
           />
         ))}
       </nav>
     </CollapsibleSettingsCard>
+  )
+}
+
+function SettingsTabSection({
+  label,
+  tabs,
+  activeTab,
+}: SettingsTabGroupSection & { activeTab: SettingsTabId }) {
+  const labelId = React.useId()
+
+  return (
+    <div
+      className="flex flex-col gap-1"
+      role={label ? "group" : undefined}
+      aria-labelledby={label ? labelId : undefined}
+    >
+      {label ? (
+        // Edge to edge, so the line does not read as broken: pulled out to the
+        // card's 12px inset and the heading put back inside it.
+        <p
+          id={labelId}
+          className="-mx-3 mt-2 border-t px-3 pt-3 pb-1 font-heading text-base leading-snug font-medium"
+        >
+          {label}
+        </p>
+      ) : null}
+      {tabs.map((tab) => (
+        <SettingsTabLink
+          key={tab.id}
+          tabId={tab.id}
+          label={tab.label}
+          active={activeTab === tab.id}
+        />
+      ))}
+    </div>
   )
 }
 

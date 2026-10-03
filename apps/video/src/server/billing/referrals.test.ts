@@ -342,6 +342,12 @@ describe("referral conversion and rewards", () => {
     const adjust = vi.fn().mockResolvedValue("cbtxn_reward")
     const api: ReferralBalanceApi = { adjust }
     const [reward] = await database.select().from(customShellReferrals)
+    // The admin is shown the amount before the grant, and it is what is added.
+    const waiting = await loadAdminReferrals(database)
+    expect(waiting.items[0].freeMonth).toEqual({
+      amountCents: 4900,
+      currency: "usd",
+    })
     const grantedAt = new Date("2026-08-30T12:00:00.000Z")
     const first = await grantReferralReward(reward.id, database, api, grantedAt)
     const repeated = await grantReferralReward(reward.id, database, api)
@@ -362,6 +368,8 @@ describe("referral conversion and rewards", () => {
       })
     )
     expect(adjust).toHaveBeenCalledTimes(1)
+    const done = await loadAdminReferrals(database)
+    expect(done.items[0].freeMonth).toBeNull()
     const [granted] = await database.select().from(customShellReferrals)
     expect(granted).toMatchObject({
       rewardStatus: "granted",
@@ -374,6 +382,11 @@ describe("referral conversion and rewards", () => {
     const { referred } = await referralPair(true)
     await recordReferralConversion(paidInvoice(referred.id), database)
     const [reward] = await database.select().from(customShellReferrals)
+    const activity = await loadAdminReferrals(database)
+    expect(activity.items[0]).toMatchObject({
+      rewardStatus: "pending",
+      freeMonth: null,
+    })
 
     await expect(
       grantReferralReward(reward.id, database, { adjust: vi.fn() })

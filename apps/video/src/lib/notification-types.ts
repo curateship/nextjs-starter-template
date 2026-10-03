@@ -27,6 +27,7 @@ export type NotificationType =
   | "account_update"
   | "system_email_failed"
   | "app_activity"
+  | "crm_follow_up"
 
 export const NOTIFICATION_TYPES = [
   "feedback_vote",
@@ -41,6 +42,7 @@ export const NOTIFICATION_TYPES = [
   "account_update",
   "system_email_failed",
   "app_activity",
+  "crm_follow_up",
 ] as const satisfies readonly NotificationType[]
 
 export type NotificationTypeVisibility = Record<NotificationType, boolean>
@@ -89,6 +91,7 @@ export const notificationTypeLabels: Record<NotificationType, string> = {
   account_update: "Account update",
   system_email_failed: "Email failed",
   app_activity: "Activity",
+  crm_follow_up: "Follow up",
 }
 
 /**
@@ -115,6 +118,25 @@ export const automationApprovalNotificationText: Record<
     detail:
       "The deadline passed with no answer, so the run was rejected and nothing after that step ran.",
   },
+}
+
+/**
+ * The words a follow-up notice carries.
+ *
+ * The notice IS the message, like an announcement: the lead's own name and the
+ * note typed with the date go in `detail`, and the conversation it points at is
+ * where the work happens.
+ */
+export function crmFollowUpNotificationText(
+  who: string,
+  note: string | null
+): { message: string; detail: string } {
+  return {
+    message: `Follow up with ${who}`,
+    detail: note?.trim()
+      ? note.trim()
+      : "You set a date to chase this one, and the date has passed.",
+  }
 }
 
 export type AiLimitNotificationType = "ai_limit_warning" | "ai_limit_reached"

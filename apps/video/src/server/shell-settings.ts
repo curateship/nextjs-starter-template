@@ -36,6 +36,14 @@ import {
   type PublicHeader,
 } from "@/lib/pages/public-header"
 import {
+  normalizePublicBreadcrumbs,
+  type PublicBreadcrumbs,
+} from "@/lib/pages/public-breadcrumbs"
+import {
+  normalizePublicUserPanel,
+  type PublicUserPanel,
+} from "@/lib/pages/public-user-panel"
+import {
   normalizeFaviconMode,
   normalizePublicFaviconSet,
   type FaviconMode,
@@ -48,12 +56,22 @@ import {
   publicThemeOverrides,
   type PublicTheme,
 } from "@/lib/public-theme"
+import { normalizePublicThemePresets } from "@/lib/public-theme-presets"
 import {
   normalizePublicFontAsset,
   type PublicFontAsset,
 } from "@/lib/public-font"
 import {
+  normalizePublicSocialLinks,
+  type PublicSocialLink,
+} from "@/lib/pages/public-social"
+import {
+  normalizePublicHeaderActions,
+  type PublicHeaderAction,
+} from "@/lib/pages/public-header-actions"
+import {
   normalizeFrontPageRows,
+  visibleFrontPageRows,
   type FrontPageRow,
 } from "@/lib/pages/front-page"
 import { clampToastSeconds } from "@/lib/toast/toast-seconds"
@@ -140,10 +158,14 @@ export async function readBranding(
   publicSystemCopy: PublicSystemCopy
   frontPageRows: FrontPageRow[]
   publicHeader: PublicHeader
+  publicBreadcrumbs: PublicBreadcrumbs
+  publicUserPanel: PublicUserPanel
   publicNavigation: ReturnType<
     typeof parseWorkspaceSettings
   >["publicNavigation"]
   publicFooter: ReturnType<typeof parseWorkspaceSettings>["publicFooter"]
+  publicFooterSocial: PublicSocialLink[]
+  publicHeaderActions: PublicHeaderAction[]
   publicFooterCopyright: string
   publicSearchEnabled: boolean
   publicFont: PublicFontAsset | null
@@ -155,6 +177,18 @@ export async function readBranding(
    * stranger's address is worse than answering nothing.
    */
   hostIsUnknown: boolean
+  /**
+   * True when the address belongs to one of this deployment's sites.
+   *
+   * The front page reads it to decide what "no rows" means. On a site it means
+   * the site has not built a front page yet, and the honest answer is the
+   * site's header and footer with nothing between them — never the
+   * deployment's own sign-up block, which on somebody's restaurant directory
+   * is an advert for software they did not come for. On the deployment's own
+   * address, and in a one-site app, that block is exactly right and still
+   * draws.
+   */
+  hostIsSite: boolean
 }> {
   const globals = await readShellGlobals(database)
   const answer = await answerForRequest(database)
@@ -185,12 +219,16 @@ export async function readBranding(
       publicOrigin: currentPublicOrigin(),
       publicSeo: globals.publicSeo,
       publicSystemCopy: globals.publicSystemCopy,
-      frontPageRows: globals.frontPageRows,
+      frontPageRows: visibleFrontPageRows(globals.frontPageRows),
       publicHeader: globals.publicHeader,
+      publicBreadcrumbs: globals.publicBreadcrumbs,
+      publicUserPanel: globals.publicUserPanel,
       publicNavigation: workspaceDomainsEnabled
         ? []
         : globals.publicNavigation,
       publicFooter: workspaceDomainsEnabled ? [] : globals.publicFooter,
+      publicFooterSocial: globals.publicFooterSocial,
+      publicHeaderActions: globals.publicHeaderActions,
       publicFooterCopyright: workspaceDomainsEnabled
         ? ""
         : globals.publicFooterCopyright,
@@ -202,10 +240,15 @@ export async function readBranding(
         ? { publicTheme: appWidePublicTheme }
         : {}),
       hostIsUnknown: answer.kind === "unknown",
+      hostIsSite: false,
     }
   }
 
   const workspaceSettings = parseWorkspaceSettings(answer.workspace.settings)
+  // Whether a site keeps its own menu, footer, copyright line and front page
+  // rows, or reads the deployment's. The same switch the Settings screen and
+  // the save read, so all three agree about whose menu is whose.
+  const siteOwnsPublicPages = Boolean(workspaceBaseDomain())
   const siteBranding = appUsesSiteBranding()
   const publicTheme = publicThemeForSite(
     appWidePublicTheme,
@@ -213,14 +256,29 @@ export async function readBranding(
   )
   const searchPage = pageForPath("/search")
 
+  // On an app that brands each site, the site's own picture is the only one it
+  // is ever drawn with — its menu and its footer work the same way. A site that
+  // has uploaded none shows its name, rather than borrowing the deployment's
+  // logo off the sign-in pages, which is a brand nobody on that website asked
+  // for. Tyler's call on 27 Sep 2026, after the second logo box read as a
+  // duplicate of the first.
+  //
+  // Its whole chain travels together: the dark version and the browser-tab
+  // icons are cut from that logo when it is saved, exactly as the app-wide ones
+  // are, so a site never wears one brand in the tab and another on the page.
+  const siteBrand = siteBranding
+
   return {
     appName: answer.workspace.name || globals.appName,
-    favicon: (siteBranding && workspaceSettings.favicon) || globals.favicon,
-    faviconDark: siteBranding && workspaceSettings.favicon ? "" : globals.faviconDark,
-    faviconSet: siteBranding && workspaceSettings.favicon ? null : globals.faviconSet,
+    // The site's own logo is the tab picture, not a second upload beside it.
+    // Read from the logo rather than from the saved `favicon` so a site branded
+    // before the two were joined still shows its picture in the tab.
+    favicon: siteBrand ? workspaceSettings.logo : globals.favicon,
+    faviconDark: siteBrand ? workspaceSettings.faviconDark : globals.faviconDark,
+    faviconSet: siteBrand ? workspaceSettings.faviconSet : globals.faviconSet,
     faviconMode: globals.faviconMode,
-    logo: (siteBranding && workspaceSettings.logo) || globals.logo,
-    logoDark: (siteBranding && workspaceSettings.logoDark) || globals.logoDark,
+    logo: siteBrand ? workspaceSettings.logo : globals.logo,
+    logoDark: siteBrand ? workspaceSettings.logoDark : globals.logoDark,
     shareImage: (siteBranding && workspaceSettings.shareImage) || versionedShareImage(
       globals.shareImage,
       globals.shareImageVersion
@@ -230,17 +288,44 @@ export async function readBranding(
     publicOrigin: currentPublicOrigin(),
     publicSeo: globals.publicSeo,
     publicSystemCopy: globals.publicSystemCopy,
-    frontPageRows: globals.frontPageRows,
+    // This site's own rows, like the menu and the footer below, and only when
+    // the deployment serves several sites. A one-site app whose one site was
+    // given its own domain reaches here too, because a custom domain is
+    // matched without any base domain being set. Reading the site's row there
+    // drew a menu the Settings screen does not edit: the screen and the save
+    // both use the app-wide row while the base domain is unset, so an admin's
+    // edit never appeared on the website. All three read the same switch now.
+    frontPageRows: visibleFrontPageRows(
+      siteOwnsPublicPages
+        ? workspaceSettings.frontPageRows
+        : globals.frontPageRows
+    ),
     publicHeader: globals.publicHeader,
-    publicNavigation: workspaceSettings.publicNavigation,
-    publicFooter: workspaceSettings.publicFooter,
-    publicFooterCopyright: workspaceSettings.publicFooterCopyright,
+    publicBreadcrumbs: globals.publicBreadcrumbs,
+    publicUserPanel: globals.publicUserPanel,
+    publicNavigation: siteOwnsPublicPages
+      ? workspaceSettings.publicNavigation
+      : globals.publicNavigation,
+    publicFooter: siteOwnsPublicPages
+      ? workspaceSettings.publicFooter
+      : globals.publicFooter,
+    publicFooterSocial: globals.publicFooterSocial,
+    publicHeaderActions: globals.publicHeaderActions,
+    publicFooterCopyright: siteOwnsPublicPages
+      ? workspaceSettings.publicFooterCopyright
+      : globals.publicFooterCopyright,
     publicSearchEnabled:
       searchPage !== null &&
       pageVisibility(workspaceSettings.pages, searchPage) !== "off",
     publicFont: globals.publicFont,
     ...(hasCustomPublicTheme(publicTheme) ? { publicTheme } : {}),
     hostIsUnknown: false,
+    // Only where a site answers for its own public pages. A one-site app whose
+    // site has its own domain reaches this branch, and there "no rows" has to
+    // mean the same thing it means on the deployment's own address: draw the
+    // deployment's front page, because there is only the one website and those
+    // are its rows.
+    hostIsSite: siteOwnsPublicPages,
   }
 }
 
@@ -318,11 +403,15 @@ export async function readShellSettings(
     // The site's own name, not the app-wide value — that is only the fallback
     // for somebody who is in no site at all.
     workspaceName: workspace?.name ?? globals.workspaceName,
-    workspaceFavicon: workspaceSettings.favicon,
+    // One picture per site, like the app-wide logo above it. The favicon and
+    // the dark version are made from it when it is saved, so neither is a field
+    // an admin fills in.
     workspaceLogo: workspaceSettings.logo,
-    workspaceLogoDark: workspaceSettings.logoDark,
     workspaceShareImage: workspaceSettings.shareImage,
     sidebarWidth: await sidebarWidthFor(user.id, database),
+    frontPageRows: workspaceDomainsEnabled
+      ? workspaceSettings.frontPageRows
+      : globals.frontPageRows,
     publicNavigation: workspaceDomainsEnabled
       ? workspaceSettings.publicNavigation
       : globals.publicNavigation,
@@ -401,14 +490,23 @@ export function parseShellGlobals(value: unknown) {
         ? fallback.publicNavigation
         : cleanPublicNavigationItems(settings.publicNavigation),
     publicFooter: cleanPublicNavigationLinks(settings.publicFooter),
+    publicFooterSocial: normalizePublicSocialLinks(settings.publicFooterSocial),
+    publicHeaderActions: normalizePublicHeaderActions(
+      settings.publicHeaderActions
+    ),
     publicFooterCopyright: cleanPublicFooterCopyright(
       settings.publicFooterCopyright
     ),
     publicHeader: normalizePublicHeader(settings.publicHeader),
+    publicBreadcrumbs: normalizePublicBreadcrumbs(settings.publicBreadcrumbs),
+    publicUserPanel: normalizePublicUserPanel(settings.publicUserPanel),
     publicFont: normalizePublicFontAsset(settings.publicFont),
     publicTheme: normalizePublicTheme(
       settings.publicTheme,
       fallback.publicTheme
+    ),
+    publicThemePresets: normalizePublicThemePresets(
+      settings.publicThemePresets
     ),
     dashboardRowsPerPage:
       typeof settings.dashboardRowsPerPage === "number" &&
@@ -492,10 +590,15 @@ export function pickShellGlobals(
     | "frontPageRows"
     | "publicNavigation"
     | "publicFooter"
+    | "publicFooterSocial"
+    | "publicHeaderActions"
     | "publicFooterCopyright"
     | "publicHeader"
+    | "publicBreadcrumbs"
+    | "publicUserPanel"
     | "publicFont"
     | "publicTheme"
+    | "publicThemePresets"
     | "dashboardRowsPerPage"
     | "toastSeconds"
     | "topLeftNavLimit"
@@ -528,12 +631,21 @@ export function pickShellGlobals(
     frontPageRows: normalizeFrontPageRows(settings.frontPageRows),
     publicNavigation: cleanPublicNavigationItems(settings.publicNavigation),
     publicFooter: cleanPublicNavigationLinks(settings.publicFooter),
+    publicFooterSocial: normalizePublicSocialLinks(settings.publicFooterSocial),
+    publicHeaderActions: normalizePublicHeaderActions(
+      settings.publicHeaderActions
+    ),
     publicFooterCopyright: cleanPublicFooterCopyright(
       settings.publicFooterCopyright
     ),
     publicHeader: normalizePublicHeader(settings.publicHeader),
+    publicBreadcrumbs: normalizePublicBreadcrumbs(settings.publicBreadcrumbs),
+    publicUserPanel: normalizePublicUserPanel(settings.publicUserPanel),
     publicFont: normalizePublicFontAsset(settings.publicFont),
     publicTheme: normalizePublicTheme(settings.publicTheme),
+    publicThemePresets: normalizePublicThemePresets(
+      settings.publicThemePresets
+    ),
     dashboardRowsPerPage: settings.dashboardRowsPerPage,
     toastSeconds: settings.toastSeconds,
     topLeftNavLimit: settings.topLeftNavLimit,
