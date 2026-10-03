@@ -54,6 +54,7 @@ async function upsertEmailSettings(
     inboundAddress: string | null
     crmReplyName: string | null
     crmReplySignature: string | null
+    crmQuoteReplies: boolean
   }>,
   database: CustomShellDb = db
 ) {
@@ -178,6 +179,24 @@ export async function saveCrmReplySignature(
   return upsertEmailSettings(
     workspaceId,
     { crmReplySignature: signature.trim() || null },
+    database
+  )
+}
+
+/**
+ * Whether a CRM reply carries the message it answers underneath it.
+ *
+ * On for a workspace that has never touched this, which is what the column's
+ * own default says too, because every mail client quotes by default.
+ */
+export async function saveCrmQuoteReplies(
+  workspaceId: string,
+  quoteReplies: boolean,
+  database: CustomShellDb = db
+) {
+  return upsertEmailSettings(
+    workspaceId,
+    { crmQuoteReplies: quoteReplies },
     database
   )
 }
@@ -368,6 +387,8 @@ export type EmailSettingsStatus = {
    * Empty means a reply goes out with nothing added.
    */
   crmReplySignature: string
+  /** Whether a reply carries the message it answers underneath it. */
+  crmQuoteReplies: boolean
 }
 
 export async function getEmailSettingsStatus(
@@ -421,6 +442,7 @@ export async function getEmailSettingsStatus(
     inboundAddress: row?.inboundAddress ?? "",
     crmReplyName: row?.crmReplyName ?? "",
     crmReplySignature: row?.crmReplySignature ?? "",
+    crmQuoteReplies: row?.crmQuoteReplies ?? true,
   }
 }
 

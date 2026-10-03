@@ -2,6 +2,13 @@ import { and, desc, eq, isNotNull, sql } from "drizzle-orm"
 
 import { escapeHtml } from "@/lib/email/escape-html"
 import { normalizeSubject } from "@/lib/crm/thread-match"
+import {
+  quoteAsHtml,
+  quoteAsText,
+  quotedMessage,
+  type QuotableMessage,
+  type QuotedMessage,
+} from "@/lib/crm/message-text"
 import { now, uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
 import { getCrmOutgoingReply } from "@/server/crm/sender"
@@ -64,7 +71,11 @@ function typedParagraphs(text: string): string[] {
  * A blank signature adds nothing at all: no rule, no gap, and a mail
  * identical to the one sent before there was a signature setting.
  */
-export function replyHtml(body: string, signature = ""): string {
+export function replyHtml(
+  body: string,
+  signature = "",
+  quote: QuotedMessage | null = null
+): string {
   const paragraphs = typedParagraphs(body)
   const inner = paragraphs.length > 0 ? paragraphs.join("") : "<p></p>"
 
@@ -77,7 +88,12 @@ export function replyHtml(body: string, signature = ""): string {
       ? `<hr style="border:0;border-top:1px solid #e5e5e5;margin:24px 0 16px" />${signed.join("")}`
       : ""
 
-  return `<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.5;color:#111">${inner}${sign}</div>`
+  // Words, then signature, then the quote, which is the order Gmail and
+  // Outlook both use. The signature belongs to what was just written, so it
+  // stays with it rather than sitting below somebody else's message.
+  const quoted = quote ? quoteAsHtml(quote) : ""
+
+  return `<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.5;color:#111">${inner}${sign}${quoted}</div>`
 }
 
 /**
@@ -88,10 +104,60 @@ export function replyHtml(body: string, signature = ""): string {
  * rule the HTML draws becomes `--`, which is the line mail clients have
  * understood as the start of a signature since long before HTML mail.
  */
-export function replyText(body: string, signature = ""): string {
+export function replyText(
+  body: string,
+  signature = "",
+  quote: QuotedMessage | null = null
+): string {
   const typed = body.replace(/\r\n/g, "\n").trim()
   const signed = signature.replace(/\r\n/g, "\n").trim()
-  return signed ? `${typed}\n\n-- \n${signed}` : typed
+  const withSignature = signed ? `${typed}\n\n-- \n${signed}` : typed
+  return quote ? `${withSignature}\n\n${quoteAsText(quote)}` : withSignature
+}
+
+/**
+ * The newest message that arrived in this conversation, for the quote.
+ *
+ * Only inbound: quoting our own last reply back at somebody would show them
+ * their own copy of what we already sent. Answers an empty message rather than
+ * null, so a conversation with nothing inbound in it simply quotes nothing.
+ */
+async function newestInboundMessage(
+  workspaceId: string,
+  threadId: string,
+  database: CustomShellDb
+): Promise<QuotableMessage> {
+  const [message] = await database
+    .select({
+      fromName: customShellCrmMessages.fromName,
+      fromEmail: customShellCrmMessages.fromEmail,
+      textBody: customShellCrmMessages.textBody,
+      htmlBody: customShellCrmMessages.htmlBody,
+      occurredAt: customShellCrmMessages.occurredAt,
+    })
+    .from(customShellCrmMessages)
+    .where(
+      and(
+        // The thread was already proved to be this workspace's, so this is
+        // belt and braces. It costs nothing and it means the words that go
+        // into somebody's mail can only ever have come from their own tenant.
+        eq(customShellCrmMessages.workspaceId, workspaceId),
+        eq(customShellCrmMessages.threadId, threadId),
+        eq(customShellCrmMessages.direction, "in")
+      )
+    )
+    .orderBy(desc(customShellCrmMessages.occurredAt))
+    .limit(1)
+
+  return (
+    message ?? {
+      fromName: null,
+      fromEmail: "",
+      textBody: null,
+      htmlBody: null,
+      occurredAt: null,
+    }
+  )
 }
 
 export type SendReplyResult =
@@ -141,7 +207,7 @@ export async function sendCrmReply(
 
   const outgoing = await getCrmOutgoingReply(workspaceId, database)
   if (!outgoing) throw new Error(CRM_NO_INBOUND_ADDRESS)
-  const { sender, signature } = outgoing
+  const { sender, signature, quoteReplies } = outgoing
 
   // The newest message in the thread that has a Message-ID, whichever way it
   // went. Threading off our own last reply is right when the conversation's
@@ -158,6 +224,14 @@ export async function sendCrmReply(
     .orderBy(desc(customShellCrmMessages.occurredAt))
     .limit(1)
 
+  // The newest message that came IN, which is the one being answered. Read
+  // only when the workspace quotes, so the switch off costs nothing.
+  const quote = quoteReplies
+    ? quotedMessage(
+        await newestInboundMessage(workspaceId, threadId, database)
+      )
+    : null
+
   const headers: Record<string, string> = {}
   if (parent?.rfcMessageId) {
     headers["In-Reply-To"] = `<${parent.rfcMessageId}>`
@@ -170,8 +244,8 @@ export async function sendCrmReply(
     from: sender.from,
     to: thread.leadEmail,
     subject,
-    html: replyHtml(body, signature),
-    text: replyText(body, signature),
+    html: replyHtml(body, signature, quote),
+    text: replyText(body, signature, quote),
     ...(Object.keys(headers).length > 0 ? { headers } : {}),
   })
 
@@ -196,7 +270,7 @@ export async function sendCrmReply(
     // on screen draws, and the same lines repeated under every bubble you ever
     // sent would bury the words. `htmlBody` below keeps what actually went out.
     textBody: body,
-    htmlBody: replyHtml(body, signature),
+    htmlBody: replyHtml(body, signature, quote),
     // Resend's id is not an RFC Message-ID, so it goes in its own column and
     // this stays null. A reply to our reply quotes the real header, which only
     // the inbound side ever sees.

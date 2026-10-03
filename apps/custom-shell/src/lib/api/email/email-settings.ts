@@ -11,6 +11,7 @@ import {
   clearResendWebhookSecret,
   getEmailSettingsStatus,
   saveAuthLinkExpiry,
+  saveCrmQuoteReplies,
   saveCrmReplyName,
   saveCrmReplySignature,
   saveDripDefaults,
@@ -149,6 +150,20 @@ const saveCrmReplySignatureFn = createServerFn({ method: "POST" })
 
 export function saveCrmReplySignatureSetting(crmReplySignature: string) {
   return saveCrmReplySignatureFn({ data: { crmReplySignature } })
+}
+
+/** Whether a CRM reply carries the message it answers underneath it. */
+const saveCrmQuoteRepliesFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ crmQuoteReplies: z.boolean() }))
+  .handler(async ({ data, context }): Promise<EmailSettingsStatus> => {
+    const workspaceId = await currentWorkspaceId(context.user.id)
+    await saveCrmQuoteReplies(workspaceId, data.crmQuoteReplies)
+    return getEmailSettingsStatus(workspaceId)
+  })
+
+export function saveCrmQuoteRepliesSetting(crmQuoteReplies: boolean) {
+  return saveCrmQuoteRepliesFn({ data: { crmQuoteReplies } })
 }
 
 const saveSystemEmailSenderFn = createServerFn({ method: "POST" })

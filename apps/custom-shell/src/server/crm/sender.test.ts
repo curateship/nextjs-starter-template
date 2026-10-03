@@ -11,6 +11,7 @@ import {
   type SendEmailResult,
 } from "@/server/email/provider"
 import {
+  saveCrmQuoteReplies,
   saveCrmReplyName,
   saveCrmReplySignature,
 } from "@/server/email/settings"
@@ -84,6 +85,14 @@ describe("who a CRM reply comes from", () => {
       },
       db
     )
+    // The webhook writes the message with no body — it carries metadata only
+    // — and a second request fills it in. Standing in for that here, because
+    // by the time somebody types a reply the body has arrived.
+    await db
+      .update(customShellCrmMessages)
+      .set({ textBody: "Can you quote a kitchen?", bodyFetchedAt: new Date() })
+      .where(eq(customShellCrmMessages.direction, "in"))
+
     const [thread] = await db
       .select()
       .from(customShellCrmThreads)
@@ -191,6 +200,13 @@ describe("who a CRM reply comes from", () => {
   })
 
   describe("the signature under a sent reply", () => {
+    // Quoting is on by default and would be in the text too. These tests are
+    // about the signature alone, so they compare the whole message against an
+    // exact string with nothing else in it.
+    beforeEach(async () => {
+      await saveCrmQuoteReplies(workspaceId, false, db)
+    })
+
     it("goes out in both the html and the plain text part", async () => {
       await saveCrmReplySignature(workspaceId, "Tyler\n01234 567890", db)
       const thread = await openThread()
@@ -233,6 +249,65 @@ describe("who a CRM reply comes from", () => {
         .from(customShellEmailSettings)
         .where(eq(customShellEmailSettings.workspaceId, workspaceId))
       expect(row.crmReplySignature).toBeNull()
+    })
+  })
+
+  describe("the message a reply quotes", () => {
+    it("carries their words under the reply, in both parts", async () => {
+      const thread = await openThread()
+      await sendCrmReply(workspaceId, thread.id, "Tuesday works.", db)
+
+      expect(sent[0].text).toContain("Tuesday works.")
+      expect(sent[0].text).toMatch(/On .+, Jane Smith wrote:/)
+      expect(sent[0].html).toContain("border-left")
+    })
+
+    it("sends nothing extra when the switch is off", async () => {
+      await saveCrmQuoteReplies(workspaceId, false, db)
+      const thread = await openThread()
+      await sendCrmReply(workspaceId, thread.id, "Tuesday works.", db)
+
+      expect(sent[0].text).toBe("Tuesday works.")
+      expect(sent[0].html).not.toContain("border-left")
+      expect(sent[0].html).not.toContain("wrote:")
+    })
+
+    it("quotes nothing, and never the word null, when no body arrived", async () => {
+      const thread = await openThread()
+      // The webhook writes the message before the body is fetched, which is
+      // the state every inbound mail passes through.
+      await db
+        .update(customShellCrmMessages)
+        .set({ textBody: null, htmlBody: null })
+        .where(eq(customShellCrmMessages.direction, "in"))
+
+      await sendCrmReply(workspaceId, thread.id, "Tuesday works.", db)
+      expect(sent[0].text).toBe("Tuesday works.")
+      expect(sent[0].text).not.toContain("null")
+      expect(sent[0].html).not.toContain("null")
+      expect(sent[0].html).not.toContain("wrote:")
+    })
+
+    it("puts the signature above the quote, the way Gmail does", async () => {
+      await saveCrmReplySignature(workspaceId, "Tyler", db)
+      const thread = await openThread()
+      await sendCrmReply(workspaceId, thread.id, "Tuesday works.", db)
+
+      const text = sent[0].text ?? ""
+      expect(text.indexOf("-- ")).toBeGreaterThan(text.indexOf("Tuesday works."))
+      expect(text.indexOf("wrote:")).toBeGreaterThan(text.indexOf("-- "))
+    })
+
+    it("keeps the quote out of the conversation on screen", async () => {
+      const thread = await openThread()
+      await sendCrmReply(workspaceId, thread.id, "Tuesday works.", db)
+
+      const [outbound] = await db
+        .select()
+        .from(customShellCrmMessages)
+        .where(eq(customShellCrmMessages.direction, "out"))
+      // The screen draws `textBody`, so their message must not be in it.
+      expect(outbound.textBody).toBe("Tuesday works.")
     })
   })
 })

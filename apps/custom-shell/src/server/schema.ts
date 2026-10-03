@@ -2373,6 +2373,14 @@ export const customShellEmailSettings = pgTable("email_settings", {
    */
   crmReplySignature: text("crm_reply_signature"),
   /**
+   * Whether a CRM reply carries the message it answers underneath it, the way
+   * every mail client does. On unless somebody turns it off, which is why the
+   * column is `not null default true` rather than nullable: a workspace that
+   * predates the setting quotes, the same as a new one. Added in
+   * `0085_custom_shell_crm_quote_replies.sql`.
+   */
+  crmQuoteReplies: boolean("crm_quote_replies").notNull().default(true),
+  /**
    * The drip rules a newly created newsletter starts from — see
    * `src/lib/broadcasts/drip.ts`. Only ever read at that moment; changing it
    * later leaves newsletters that already exist alone.

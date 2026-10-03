@@ -220,10 +220,42 @@ which mail clients have read as the start of a signature since before HTML mail.
 Without that second part, somebody reading in a plain-text client would see the
 message stop before the phone number.
 
-**The signature is not drawn in the conversation on screen.** It is the same
-lines every time and would bury the words in every bubble you ever sent. The
-message row keeps the typed words in `text_body`, which is what the screen
-draws, and the mail that actually went out in `html_body`.
+**A reply carries the message it answers underneath it**, the way every mail
+client does: your words, then a line saying who wrote and when, then their
+message indented behind a border. Only the newest message that came in, never
+the whole thread, because the thread is already in their own mail client and
+quoting all of it would grow every reply.
+
+The order is your words, then the signature, then the quote, which is what
+Gmail and Outlook both do. The signature belongs to what was just written, so
+it stays with it instead of sitting below somebody else's message.
+
+The switch is in Settings → Email, "Put their message under your reply", and it
+is on unless somebody turns it off. Off sends exactly what the CRM sent before
+quoting existed. It exists because somebody answering twenty short questions a
+day does not want three lines of quoting under each one.
+
+**The attribution line is written to match the fold.** `splitQuotedText` in
+`src/lib/crm/message-text.ts` looks for `On ... wrote:` when a message arrives,
+and `quotedMessage` in the same file writes that exact shape on the way out.
+Both halves live in one file for that reason: when their answer comes back with
+our quote inside it, the conversation panel folds it away behind "Show earlier
+text" rather than showing it. A test sends a quote through the splitter to
+prove the two agree.
+
+**A message whose body never arrived quotes nothing.** Inbound mail is written
+by the webhook before its body is fetched, so for a moment a message has no
+words. Replying in that moment sends the typed words alone, with no attribution
+line standing over an empty block.
+
+**Their own quoted history is passed on, not trimmed.** If their mail already
+held three levels of quoting, that is what they sent and what they get back.
+
+**The signature and the quote are not drawn in the conversation on screen.**
+The signature is the same lines every time and would bury the words in every
+bubble you ever sent; the quote is a message already sitting above it in the
+same conversation. The message row keeps the typed words in `text_body`, which
+is what the screen draws, and the mail that actually went out in `html_body`.
 
 `In-Reply-To` and `References` carry the newest Message-ID in the conversation,
 which is what makes the answer land in the same thread in the reader's own mail

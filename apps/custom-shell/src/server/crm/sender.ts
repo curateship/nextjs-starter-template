@@ -18,6 +18,8 @@ export type CrmOutgoingReply = {
   sender: CrmReplySender
   /** The lines that go under the words, or "" when none are saved. */
   signature: string
+  /** Whether the message being answered goes under the reply. */
+  quoteReplies: boolean
 }
 
 type EmailSettingsRow = Awaited<ReturnType<typeof getEmailSettings>>
@@ -83,5 +85,12 @@ export async function getCrmOutgoingReply(
   const settings = await getEmailSettings(workspaceId, database)
   const sender = await senderFromSettings(workspaceId, settings, database)
   if (!sender) return null
-  return { sender, signature: settings?.crmReplySignature?.trim() ?? "" }
+  return {
+    sender,
+    signature: settings?.crmReplySignature?.trim() ?? "",
+    // On when the workspace has no settings row at all, the same as the
+    // column's own default, so quoting never depends on having visited
+    // Settings once.
+    quoteReplies: settings?.crmQuoteReplies ?? true,
+  }
 }

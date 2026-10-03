@@ -13,6 +13,7 @@ import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { NumberField } from "@/components/ui/number-field"
+import { SettingsSwitchRow } from "@/components/settings/settings-switch-row"
 import { Textarea } from "@/components/ui/textarea"
 import {
   Tooltip,
@@ -27,6 +28,7 @@ import {
   saveEmailApiKey,
   saveAuthLinkExpirySetting,
   saveEmailSenderSettings,
+  saveCrmQuoteRepliesSetting,
   saveCrmReplyNameSetting,
   saveCrmReplySignatureSetting,
   saveInboundAddressSetting,
@@ -77,6 +79,7 @@ export function EmailSettings() {
     inboundAddress: string
     crmReplyName: string
     crmReplySignature: string
+    crmQuoteReplies: boolean
   } | null>(null)
   // The pace a new newsletter starts from, as edited; null until the load.
   const [drip, setDrip] = React.useState<DripConfig | null>(null)
@@ -99,6 +102,7 @@ export function EmailSettings() {
     | "inbound"
     | "crmReplyName"
     | "crmReplySignature"
+    | "crmQuoteReplies"
     | "key"
     | "webhook"
     | "drip"
@@ -150,6 +154,7 @@ export function EmailSettings() {
             inboundAddress: next.inboundAddress,
             crmReplyName: next.crmReplyName,
             crmReplySignature: next.crmReplySignature,
+            crmQuoteReplies: next.crmQuoteReplies,
           }
         )
         setDrip((prev) => prev ?? next.dripDefaults)
@@ -237,6 +242,28 @@ export function EmailSettings() {
       setStatus(await saveCrmReplySignatureSetting(crmReplySignature))
       setSaveStatus("saved")
     } catch (error) {
+      setSaveStatus("idle")
+      showErrorToast(getEmailSettingsErrorMessage(error))
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  // No debounce: a switch takes effect when it is flipped, and there is no
+  // half-typed state to wait for the way there is in a text box.
+  const saveQuoteReplies = async (crmQuoteReplies: boolean) => {
+    setSender((prev) => (prev ? { ...prev, crmQuoteReplies } : prev))
+    setSaving("crmQuoteReplies")
+    setSaveStatus("saving")
+    dismissErrorToast()
+    try {
+      setStatus(await saveCrmQuoteRepliesSetting(crmQuoteReplies))
+      setSaveStatus("saved")
+    } catch (error) {
+      // Put the switch back: it never took, so it must not look as if it did.
+      setSender((prev) =>
+        prev ? { ...prev, crmQuoteReplies: !crmQuoteReplies } : prev
+      )
       setSaveStatus("idle")
       showErrorToast(getEmailSettingsErrorMessage(error))
     } finally {
@@ -837,6 +864,14 @@ export function EmailSettings() {
                 Empty adds nothing to a reply.
               </p>
             </div>
+
+            <SettingsSwitchRow
+              id="email-crm-quote-replies"
+              checked={sender.crmQuoteReplies}
+              onCheckedChange={(checked) => void saveQuoteReplies(checked)}
+              label="Put their message under your reply"
+              hint="The way every mail client does it: your words, then the line saying who wrote and when, then their message indented. Turn it off if you answer short questions all day."
+            />
           </>
         )}
       </CollapsibleSettingsCard>
