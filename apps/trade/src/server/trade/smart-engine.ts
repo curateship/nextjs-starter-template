@@ -42,13 +42,11 @@ export type LadderOrderInput = {
    * level called rung 6 bought. `closesLevelId` is the level's own name, kept
    * for life, and it is what pairs a sale with the buy that paid for it.
    *
-   * `closesRung` and `closesRange` are for reading, not for arithmetic. A
-   * carried level says both ("rung 4 of range 2"); a level still in the range
-   * says only its rung.
+   * `closesName` is for reading, not for arithmetic: "Rung 6 - level 4" is
+   * what the level is called for life, whatever seat it is sitting in today.
    */
   closesLevelId?: string
-  closesRung?: number
-  closesRange?: number
+  closesName?: string
   /** This action is the Pair Out rescue rather than the level's own sale. */
   pairOut?: boolean
   /**
@@ -130,13 +128,11 @@ export type LadderEngineDeps = {
        * level called rung 6 bought. `closesLevelId` is the level's own name, kept
        * for life, and it is what pairs a sale with the buy that paid for it.
        *
-       * `closesRung` and `closesRange` are for reading, not for arithmetic. A
-       * carried level says both ("rung 4 of range 2"); a level still in the range
-       * says only its rung.
+       * `closesName` is for reading, not for arithmetic: "Rung 6 - level 4" is
+       * what the level is called for life, whatever seat it is sitting in today.
        */
       closesLevelId?: string
-      closesRung?: number
-      closesRange?: number
+      closesName?: string
       /** This action is the Pair Out rescue rather than the level's own sale. */
       pairOut?: boolean
       /**

@@ -335,7 +335,7 @@ describe("a chart arrow's hover words", () => {
         dir: "Close long",
         gridLevelId: "level-in-range",
         gridEventId: "event-1",
-        gridClosesRung: 4,
+        gridLevelName: "Rung 4",
       },
       {
         ...grid,
@@ -348,8 +348,7 @@ describe("a chart arrow's hover words", () => {
         dir: "Close long",
         gridLevelId: "level-carried",
         gridEventId: "event-1",
-        gridClosesRung: 4,
-        gridClosesRange: 2,
+        gridLevelName: "Rung 6 - level 2",
         gridPairOut: true,
       },
     ]
@@ -380,10 +379,10 @@ describe("a chart arrow's hover words", () => {
 
     // Every line reaches the screen, headline and all three under it.
     expect(host.textContent).toContain(
-      "Rung 4 sold, and cleared rung 4 of range 2"
+      "Rung 4 sold, and cleared Rung 6 - level 2"
     )
     expect(host.textContent).toContain(
-      "Rung 4 made $10.00. Rung 4 of range 2 lost $20.00."
+      "Rung 4 made $10.00. Rung 6 - level 2 lost $20.00."
     )
     expect(host.textContent).toContain("Together: lost $10.00")
 

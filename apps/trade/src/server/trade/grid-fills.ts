@@ -101,9 +101,9 @@ export type GridOrderRungInput = {
   levelId?: string | null
   /** The sale and the Pair Out rescue beside it share one of these. */
   eventId?: string | null
-  /** How the closed level is named: "rung 4", or "rung 4 of range 2". */
-  closesRung?: number | null
-  closesRange?: number | null
+  /** What the level is called: "Rung 4", or "Rung 6 - level 2". */
+  /** What the level is called: "Rung 6 - level 4". */
+  levelName?: string | null
   /** This order is the Pair Out rescue rather than the level's own sale. */
   pairOut?: boolean
 }
@@ -116,8 +116,7 @@ type GridOrderRungStamp = Pick<
   | "rung"
   | "levelId"
   | "eventId"
-  | "closesRung"
-  | "closesRange"
+  | "levelName"
   | "pairOut"
 >
 
@@ -139,12 +138,7 @@ export function stampExactGridRungs(
           gridRung: exact.rung,
           ...(exact.levelId ? { gridLevelId: exact.levelId } : {}),
           ...(exact.eventId ? { gridEventId: exact.eventId } : {}),
-          ...(exact.closesRung == null
-            ? {}
-            : { gridClosesRung: exact.closesRung }),
-          ...(exact.closesRange == null
-            ? {}
-            : { gridClosesRange: exact.closesRange }),
+          ...(exact.levelName ? { gridLevelName: exact.levelName } : {}),
           ...(exact.pairOut ? { gridPairOut: true } : {}),
         }
       : fill
@@ -162,8 +156,7 @@ export async function recordGridOrderRung(
       ...input,
       levelId: input.levelId ?? null,
       eventId: input.eventId ?? null,
-      closesRung: input.closesRung ?? null,
-      closesRange: input.closesRange ?? null,
+      levelName: input.levelName ?? null,
       pairOut: input.pairOut ?? false,
     })
     .onConflictDoNothing()
@@ -249,8 +242,7 @@ export async function stampGridFills(
         rung: tradeGridOrderRungs.rung,
         levelId: tradeGridOrderRungs.levelId,
         eventId: tradeGridOrderRungs.eventId,
-        closesRung: tradeGridOrderRungs.closesRung,
-        closesRange: tradeGridOrderRungs.closesRange,
+        levelName: tradeGridOrderRungs.levelName,
         pairOut: tradeGridOrderRungs.pairOut,
       })
       .from(tradeGridOrderRungs)

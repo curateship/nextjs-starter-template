@@ -687,7 +687,7 @@ describe("live fill storage", () => {
 
     const [notice] = vi.mocked(writeTradeNotice).mock.calls[0]
     // The rung leads and the money is its own, not the venue's nothing.
-    expect(notice.title).toBe("BTC rung 2 sold: made $5.00 (HL1 - GRID)")
+    expect(notice.title).toBe("BTC Rung 2 sold: made $5.00 (HL1 - GRID)")
     expect(notice.body).toBe("Sold $95.00. Still holding $95.00.")
     expect(notice.level).toBe("info")
   })
@@ -766,7 +766,7 @@ describe("live fill storage", () => {
         rung: 4,
         levelId: "level-in-range",
         eventId: "event-1",
-        closesRung: 4,
+        levelName: "Rung 4",
       },
       // The rescue its profit paid for.
       {
@@ -779,8 +779,7 @@ describe("live fill storage", () => {
         rung: 1,
         levelId: "level-carried",
         eventId: "event-1",
-        closesRung: 4,
-        closesRange: 2,
+        levelName: "Rung 6 - level 2",
         pairOut: true,
       },
     ])
@@ -843,10 +842,10 @@ describe("live fill storage", () => {
     // event lost $10, which is neither of the venue's own figures.
     expect(fillNotices).toHaveLength(1)
     expect(fillNotices[0].title).toBe(
-      "BTC rung 4 sold and cleared rung 4 of range 2: lost $10.00 (HL1 - GRID)"
+      "BTC Rung 4 sold and cleared Rung 6 - level 2: lost $10.00 (HL1 - GRID)"
     )
     expect(fillNotices[0].body).toBe(
-      "Rung 4 sold $100 and made $10.00. Rung 4 of range 2 sold $100 and lost $20.00."
+      "Rung 4 sold $100 and made $10.00. Rung 6 - level 2 sold $100 and lost $20.00."
     )
     expect(fillNotices[0].level).toBe("warning")
   })
@@ -981,7 +980,7 @@ describe("live fill storage", () => {
     // out of the headline on 3 Oct 2026 — "showing the dollar amount sold tell
     // us nothing about what was sold" — so the body is where they have to
     // agree with the money beside them.
-    expect(notice.title).toBe("BTC rung 2 sold: made $2.50 (HL1 - GRID)")
+    expect(notice.title).toBe("BTC Rung 2 sold: made $2.50 (HL1 - GRID)")
     expect(notice.body).toContain("Sold $47.50.")
   })
 

@@ -17,6 +17,8 @@ import {
   gridTakeProfitPx,
   heldWrongWay,
   holdsEntry,
+  gridCarriedName,
+  gridLevelNameOf,
   lossEdge,
   nameGridLevels,
   reachedEntry,
@@ -289,10 +291,7 @@ function pairOutOneBuy(input: {
       // The coins really being sold, which is the whole point of a rescue:
       // they belong to the partner, never to the level that paid for them.
       closesLevelId: partner.level.id,
-      closesRung: partner.carried
-        ? partner.level.carriedRung
-        : partner.rung + 1,
-      closesRange: partner.carried ? partner.level.carriedRange : undefined,
+      closesName: partner.level.name,
       gridEventId: input.gridEventId,
       pairOut: true,
     })
@@ -558,8 +557,8 @@ export async function advanceGrid(
       // name: every Pair Out close used to be stamped rung 1, and the sale
       // was then priced against whichever buy happened to be stamped rung 1,
       // or, when no buy ever was, against the newest and cheapest coins in
-      // the pile. A carried level is named by `carriedRung` and
-      // `carriedRange` instead, and paired with its own coins by `id`.
+      // the pile. A carried level carries its own `name` instead, and is
+      // paired with its own coins by `id`.
       rung: 0,
     })),
   ]
@@ -599,8 +598,7 @@ export async function advanceGrid(
       at: now,
       rung,
       closesLevelId: level.id,
-      closesRung: carried ? level.carriedRung : rung + 1,
-      closesRange: carried ? level.carriedRange : undefined,
+      closesName: level.name,
       gridEventId,
     })
     // ----- THE RECYCLE ----------------------------------------------------
@@ -802,6 +800,7 @@ export async function advanceGrid(
       // for by this name, not by the rung, which the next downward move hands
       // to a different level.
       closesLevelId: level.id,
+      closesName: level.name,
       triggerPx: level.buyPx,
       undo: () => {
         level.sz = priorSz
@@ -1284,6 +1283,12 @@ function followTheRangeInto(
     // the pass it buys on, but a level with no name is one whose coins a later
     // sale cannot find, and that is not worth leaving to ordering.
     id: crypto.randomUUID(),
+    // The second, third, fourth level to be born at this end. The first was
+    // placed with the grid, so this move's level is one past the moves made.
+    name: gridLevelNameOf(
+      gridRungNumber(freshAt, count, direction),
+      plan.downShifts + 2
+    ),
     buyPx: sized[freshAt].buyPx,
     sellPx: sized[freshAt].sellPx,
     sz: sized[freshAt].sz,
@@ -1310,13 +1315,10 @@ function followTheRangeInto(
   nextLevels[freshAt] = fresh
 
   if (carriedLevel.status === "holding" && carriedLevel.heldSz > 0) {
-    // What it was, written down while it is still true. The range it is
-    // leaving is the one the grid has been working in, counted from one, and
-    // the rung is its place in that range. After this line the level has
-    // neither: the range below is a new one and its rung belongs to somebody
-    // else. "Rung 4 of range 2" is the only name it answers to from here.
-    carriedLevel.carriedRange = plan.downShifts + 1
-    carriedLevel.carriedRung = gridRungNumber(carriedAt, count, direction)
+    // Renamed for the way it went out. A level the range no longer holds is
+    // not at any rung, and the one thing still true of it is that it left
+    // through the top: it is the first, second, third to do so.
+    carriedLevel.name = gridCarriedName(plan.downShifts + 1)
     plan.carriedLevels.push(carriedLevel)
   }
   plan.levels = nextLevels

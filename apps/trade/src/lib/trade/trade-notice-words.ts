@@ -242,7 +242,7 @@ export type GridSaleMoney = {
    * profit cleared after it.
    */
   halves: readonly {
-    /** "rung 4", or "rung 4 of range 2" once the range has left it behind. */
+    /** "Rung 4", or "Rung 6 - level 2" once a level has been born below it. */
     name: string
     /** After both fees, the same figure the chart arrow shows. */
     money: number
@@ -280,7 +280,7 @@ export type GridSaleMoney = {
 }
 
 /**
- * "MARSCOIN rung 4 sold and cleared rung 4 of range 2: lost $13.02".
+ * "MARSCOIN Rung 4 sold and cleared Rung 6 - level 2: lost $13.02".
  *
  * **The rung leads, not the dollars sold.** Tyler's rule, 3 October 2026:
  * "showing the dollar amount sold tell us nothing about what was sold". The

@@ -2008,8 +2008,7 @@ export async function reconcileLiveLaddersOnce(
                     // order id, and by then the range has moved on.
                     levelId: input.closesLevelId ?? null,
                     eventId: input.gridEventId ?? null,
-                    closesRung: input.closesRung ?? null,
-                    closesRange: input.closesRange ?? null,
+                    levelName: input.closesName ?? null,
                     pairOut: input.pairOut === true,
                   })
                 }

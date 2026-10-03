@@ -585,27 +585,34 @@ function levelTitle(
 }
 
 /**
- * The money one level puts on its own line.
+ * The money on a rung's line: what that rung puts in, every time it buys.
  *
- * A level that has bought shows what it is HOLDING at its own price. A level
- * still waiting shows the stake it will put in when it fills. `heldSz` and
- * `sz` are deliberately different numbers — `grid.ts` keeps them apart so a
- * part-filled sell shrinks what is left to sell without shrinking what the
- * next cycle may spend — so reading the wrong one is silent and wrong, not a
- * type error.
+ * **It is the rung's own amount and nothing else.** A grid split 30/25/20/15/
+ * 10/5 reads $253, $211, $169, $126, $84, $42 from the bottom up, which is the
+ * shape that was typed, and it stays that whether the rung is holding, waiting
+ * or has just sold. Tyler, 3 October 2026: "the amount should be what the rung
+ * is".
  *
- * Every line on the drawing reads this one function: the range rungs, a rung
- * carried from an older range, and the moving preview. It exists because they
- * did not. Until 3 Sep 2026 the range rungs used `sz` while the carried rung
- * and the preview used `heldSz`, so on a KuCoin BR grid one rung holding 149
- * coins printed $13.94, the stake of the 44 it was planned with, beside a
- * carried rung printing the $105 it really held. One pill cannot mean
- * "holding" on one line and "planned" on the next.
+ * **Why showing what it HOLDS was wrong.** Until then a rung that had bought
+ * printed its coins instead, and those coins are history: a level buys while it
+ * is deep and carries a big share, then four downward moves make it a shallow
+ * rung with a small share while it still holds the old coins. PONS on 3 October
+ * read $212, $255, $254, $254, $211 down a grid whose shares are $42 to $253,
+ * so the picture said the top rung was the biggest. Worse, the one rung that
+ * had not bought printed its share, so the bottom line meant a future buy and
+ * the five above it meant past ones, side by side and identical in style.
+ *
+ * A level carried out of the range is not a rung and never buys again, so its
+ * line shows what it is holding. That is `carriedHoldingUsd`, and the two are
+ * separate functions because they answer different questions.
  */
-function levelUsd(level: GridLevelState): number {
-  return level.status === "holding"
-    ? level.buyPx * level.heldSz
-    : level.buyPx * level.sz
+function rungStakeUsd(level: GridLevelState): number {
+  return level.buyPx * level.sz
+}
+
+/** What a level the range has left behind is still sitting on. */
+function carriedHoldingUsd(level: GridLevelState): number {
+  return level.buyPx * level.heldSz
 }
 
 function pricesOf(plan: SmartGrid["plan"]): AtPrice[] {
@@ -633,12 +640,12 @@ function pricesOf(plan: SmartGrid["plan"]): AtPrice[] {
     if (level.status === "waiting") {
       const one = slot(level.buyPx)
       one.entry = index
-      one.usd = levelUsd(level)
+      one.usd = rungStakeUsd(level)
       if (level.dead) one.dead = true
     } else {
       const one = slot(level.buyPx)
       one.holding = index
-      one.usd = levelUsd(level)
+      one.usd = rungStakeUsd(level)
     }
   }
   for (const level of plan.carriedLevels) {
@@ -646,7 +653,7 @@ function pricesOf(plan: SmartGrid["plan"]): AtPrice[] {
     const one = slot(level.buyPx)
     one.holding = -1
     one.carried = true
-    one.usd += levelUsd(level)
+    one.usd += carriedHoldingUsd(level)
   }
   // The ends of the range are not separate things to draw. One of them IS the
   // deepest level's own price — the bottom on a buying grid, the top on a
@@ -1126,24 +1133,50 @@ function GridLines({
   // grid read as an exit rather than the trade still waiting to close (AZTEC,
   // Tyler, 4 Sep 2026). One line per price, holding every coin closing there.
   const carriedExits = (() => {
-    const byPrice = new Map<string, { px: number; heldSz: number }>()
+    const byPrice = new Map<
+      string,
+      { px: number; heldSz: number; levels: number; names: string[] }
+    >()
     for (const level of plan.carriedLevels) {
       if (level.status !== "holding" || !(level.heldSz > 0)) continue
       const key = priceKey(level.sellPx)
       const found = byPrice.get(key)
-      if (found) found.heldSz += level.heldSz
-      else byPrice.set(key, { px: level.sellPx, heldSz: level.heldSz })
+      if (found) {
+        found.heldSz += level.heldSz
+        found.levels += 1
+        if (level.name) found.names.push(level.name)
+      } else {
+        byPrice.set(key, {
+          px: level.sellPx,
+          heldSz: level.heldSz,
+          levels: 1,
+          names: level.name ? [level.name] : [],
+        })
+      }
     }
     return [...byPrice.values()]
   })()
-  const carriedExitName =
-    direction === "long"
-      ? "Carried buy sells here"
-      : "Carried short buys back here"
+  // **A carried level is called by name, not by what happened to it.** Every
+  // one of these lines used to read "Carried buy sells here", which told you
+  // there was a bag up there and nothing about which bag. Tyler, 3 October
+  // 2026: "Carried buy naming makes no sense." A level that left through the
+  // top is the first, second, third to do so, and says which.
+  const carriedExitName = (names: readonly string[], levels: number) => {
+    const did = direction === "long" ? "sells here" : "buys back here"
+    // Every level closing here has to be named or none of them is. One line
+    // can hold two levels that sell at the same price, and naming the one that
+    // happens to have a name would put its name over both their coins.
+    if (names.length === 0 || names.length !== levels) {
+      return direction === "long"
+        ? "Carried buy sells here"
+        : "Carried short buys back here"
+    }
+    return `${names.join(", ")} ${did}`
+  }
   const carriedExitTitle = (heldSz: number, px: number) =>
     direction === "long"
-      ? `A buy carried from an older range sells its ${heldSz} coins here, at ${formatPrice(px)}. The level is gone once it sells.`
-      : `A short carried from an older range buys back its ${heldSz} coins here, at ${formatPrice(px)}. The level is gone once it buys back.`
+      ? `A buy carried out of the top sells its ${heldSz} coins here, at ${formatPrice(px)}. The level is gone once it sells.`
+      : `A short carried out of the bottom buys back its ${heldSz} coins here, at ${formatPrice(px)}. The level is gone once it buys back.`
   // `gridLevels` hands the moving levels back lowest price first.
   const nearIndex = direction === "long" ? levelCount - 1 : 0
   const nearLevel =
@@ -1441,7 +1474,7 @@ function GridLines({
             // buys, never how many dollars, so the figure holds still while
             // the range is dragged. Blanking it left every waiting rung
             // looking empty mid-drag (Tyler, 4 Sep 2026).
-            usd={levelUsd(saved)}
+            usd={rungStakeUsd(saved)}
             colour={sideColour(
               holding ? exitSide(direction) : entrySide(direction)
             )}
@@ -1501,7 +1534,7 @@ function GridLines({
         />
       ) : null}
 
-      {carriedExits.map(({ px, heldSz }) => {
+      {carriedExits.map(({ px, heldSz, names, levels }) => {
         const y = yFor(px)
         if (y === null) return null
         return (
@@ -1515,7 +1548,7 @@ function GridLines({
             nameNode={
               <NameChip
                 colour={sideColour(exitSide(direction))}
-                name={carriedExitName}
+                name={carriedExitName(names, levels)}
                 className="w-auto shrink-0 whitespace-nowrap"
                 title={carriedExitTitle(heldSz, px)}
               />

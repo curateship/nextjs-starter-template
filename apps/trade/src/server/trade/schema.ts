@@ -627,13 +627,11 @@ export const tradeGridOrderRungs = pgTable(
      */
     eventId: varchar("event_id", { length: 36 }),
     /**
-     * How the closed level is named out loud. `closesRung` is the rung it was
-     * when it bought the coins being sold, and `closesRange` the range it was
-     * carried out of, counted from one, for a level the range has left behind.
-     * A level still inside the range has a rung and no range number.
+     * What the level this order opened or closed is called: "Rung 6 - level 4".
+     * The rung alone is a seat that changes every time the range moves, so it
+     * is no use as a name. Null on orders placed before levels had names.
      */
-    closesRung: integer("closes_rung"),
-    closesRange: integer("closes_range"),
+    levelName: varchar("level_name", { length: 40 }),
     /**
      * This order is the Pair Out rescue, not the level's own sale.
      *

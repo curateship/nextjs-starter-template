@@ -89,12 +89,10 @@ export type LiveFill = {
    */
   gridEventId?: string
   /**
-   * How the level this fill CLOSED is named out loud. The rung it was when it
-   * bought these coins, and the range it was carried out of when the range has
-   * since left it behind. Absent on a fill that opened.
+   * What the level this fill belongs to is called: "Rung 6 - level 4". The
+   * rung on its own is a seat that changes every time the range moves.
    */
-  gridClosesRung?: number
-  gridClosesRange?: number
+  gridLevelName?: string
   /**
    * This fill is the Pair Out rescue rather than the sale that paid for it.
    * It decides which half of the event's sentence this is.
@@ -383,13 +381,10 @@ export type LiveFillMark = {
 export type GridRoundTrip = {
   money: number
   entryPx: number
+  /** What the level that sold is called, when the engine wrote it down. */
+  name?: string
+  /** The seat it was in, for a sale made before levels had names. */
   rung?: number
-  /**
-   * The range the closed level was carried out of, counted from one. Present
-   * only on a level the range has left behind, and it is what turns "rung 4"
-   * into "rung 4 of range 2".
-   */
-  range?: number
 }
 
 /**
@@ -545,23 +540,16 @@ export function gridRoundTrips(
     out.set(fill.fillId, {
       money,
       entryPx: matchedDollars / matched,
-      // What the sale says it closed, when the engine wrote it down. A sale
-      // of a carried level names the rung it was before the range left it
-      // behind, which is not the rung that number belongs to today.
-      //
-      // **A rescue with nothing written down is "an old rung", never rung 1.**
-      // Its `gridRung` is the engine's marker for a level that left through
-      // the winning edge, which is Rung 1 in either direction. That is where
-      // the arrow is DRAWN and it is not a name: reading it as one put
-      // "cleared rung 1" on MARSCOIN's repaired sales, which is the same
-      // confusion this change set out to remove.
-      rung: fill.gridClosesRung ?? (
+      name: fill.gridLevelName,
+      // Only for a sale made before levels had names, and never for a rescue:
+      // a rescue's `gridRung` is the engine's marker for a level that left
+      // through the winning edge, which is Rung 1 either way round. That is
+      // where the arrow is DRAWN and it is not a name.
+      rung:
         fill.gridPairOut === true
           ? undefined
           : (fill.gridRung ??
-            (matchedRungs.size === 1 ? [...matchedRungs][0] : undefined))
-      ),
-      range: fill.gridClosesRange,
+            (matchedRungs.size === 1 ? [...matchedRungs][0] : undefined)),
     })
   }
 
@@ -658,23 +646,34 @@ export function gridHoldingFees(
 }
 
 /**
- * What one grid level is called, out loud.
+ * What one grid level is called, out loud: "Rung 6 - level 4".
  *
- * A level still inside the range is called by its rung and nothing else.
- * A level the range has left behind is called by the rung it WAS and the
- * range it was carried out of, because the rung alone now belongs to another
- * level at another price: a grid that has followed price down seven times has
- * called four different levels "rung 4". Range 1 is where the grid started.
+ * The engine writes the name down when the level is born, so this only has to
+ * choose between what it was given and what can be said without it. A sale
+ * made before levels had names falls back to the seat it was in, which is the
+ * old behaviour and is wrong as soon as the range moves. A rescue of a level
+ * nobody named has nothing honest left to say and says so.
  *
  * Tyler's rule, 3 October 2026, after being offered the buy price instead:
  * "the price number would mean nothing to me".
  */
 export function gridLevelName(
-  rung: number | undefined,
-  range: number | undefined
+  name: string | undefined,
+  rung: number | undefined
 ): string {
-  const named = rung === undefined ? "an old rung" : `rung ${rung}`
-  return range === undefined ? named : `${named} of range ${range}`
+  if (name) return name
+  return rung === undefined ? "an old level" : `Rung ${rung}`
+}
+
+/**
+ * A name as it starts a sentence.
+ *
+ * "Rung 6 - level 4" already begins with a capital and comes through
+ * untouched; the fallback for a level nobody named is "an old level", which
+ * has to be lifted when it leads.
+ */
+function upperFirst(words: string): string {
+  return words.charAt(0).toUpperCase() + words.slice(1)
 }
 
 /** "made $8.60" / "lost $21.62", which is how both screens say money. */
@@ -699,7 +698,7 @@ function madeOrLost(money: number): string {
  * earn it.
  */
 type GridSaleHalf = {
-  /** "rung 4", or "rung 4 of range 2" for a level the range has left behind. */
+  /** "Rung 4", or "Rung 6 - level 2" for the second level born at the bottom. */
   name: string
   /** What this half made or lost on its own coins, after both fees. */
   money: number
@@ -742,10 +741,6 @@ function gridPairedSaleWords(
   }
 }
 
-/** "rung 4" as it starts a sentence. */
-function upperFirst(words: string): string {
-  return words.charAt(0).toUpperCase() + words.slice(1)
-}
 
 /**
  * A grid sale and the Pair Out rescue sold beside it, folded into one arrow.
@@ -879,7 +874,7 @@ export function tradeFillMarks(trade: LiveTrade): LiveFillMark[] {
     const sale = gridPairedSaleWords(
       [
         {
-          name: gridLevelName(gridRung, matchedLevel?.range),
+          name: gridLevelName(matchedLevel?.name, gridRung),
           money,
         },
       ],
@@ -923,7 +918,7 @@ export function tradeFillMarks(trade: LiveTrade): LiveFillMark[] {
           ? {
               id: fill.gridEventId,
               half: {
-                name: gridLevelName(gridRung, matchedLevel?.range),
+                name: gridLevelName(matchedLevel?.name, gridRung),
                 money,
               },
               rescue: fill.gridPairOut === true,
@@ -989,7 +984,7 @@ export function openFillMarks(fills: readonly LiveFill[]): LiveFillMark[] {
     const holding = money$(Math.abs(held) * fill.px)
     const gridRung = closed ? level?.rung : fill.gridRung
     const direction = fill.gridDirection ?? "long"
-    const name = gridLevelName(gridRung, level?.range)
+    const name = gridLevelName(level?.name, gridRung)
     // Said out loud, because the trade behind it is still open: this is what
     // one sell banked, not what the position has made. The line under it says
     // how much remains, which is the missing half of a part-sale.

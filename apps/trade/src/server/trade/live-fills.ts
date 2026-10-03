@@ -802,15 +802,15 @@ async function gridSaleMoneyByOrder(
     if (priced.some((trip) => trip === undefined)) return null
     const sz = pieces.reduce((sum, fill) => sum + fill.sz, 0)
     if (sz <= 0) return null
+    const names = new Set(priced.map((trip) => trip?.name))
     const rungs = new Set(priced.map((trip) => trip?.rung))
-    const ranges = new Set(priced.map((trip) => trip?.range))
+    const [name] = names
     const [rung] = rungs
-    const [range] = ranges
     const last = pieces[pieces.length - 1]
     return {
       name: gridLevelName(
-        rungs.size === 1 ? rung : undefined,
-        ranges.size === 1 ? range : undefined
+        names.size === 1 ? name : undefined,
+        rungs.size === 1 ? rung : undefined
       ),
       money: priced.reduce((sum, trip) => sum + (trip?.money ?? 0), 0),
       dollars: pieces.reduce((sum, fill) => sum + fill.px * fill.sz, 0),

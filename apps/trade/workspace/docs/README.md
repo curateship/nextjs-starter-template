@@ -201,9 +201,10 @@ screen: anything not written there has not been agreed yet.
   rallies, where its range sits, how the money is split between levels, what a
   sell is worth, what following price up and down does, and pairing an old buy
   out with every sale so a grid that fell through its range is not bag held;
-  how every level keeps its own name so a sale is priced on the coins it really
-  sold, what an old buy is called once the range has left it behind, and why a
-  level's sale and its Pair Out rescue are one arrow and one notice.
+  how every level keeps one name for life so a sale is priced on the coins it
+  really sold, why a rung is a seat rather than a name, what a level carried out
+  of the top is called, and why a level's sale and its Pair Out rescue are one
+  arrow and one notice.
 - `grid-rung-gap.md` — typing the percent gap between rungs instead of a
   count, how the range decides how many fit, and what is saved.
 - `grid-above-ladder.md` — the one allowed pairing of two smart orders on a

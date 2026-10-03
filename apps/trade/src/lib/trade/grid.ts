@@ -1299,16 +1299,26 @@ const gridLevelStateSchema = z.object({
    */
   id: z.string().optional(),
   /**
-   * The range this level was carried out of, counted from one, and its rung
-   * at that moment. Written only when the level is moved to `carriedLevels`.
+   * What this level is called out loud, for life: "Rung 6 - level 4".
    *
-   * A carried level has no rung any more, because the range it belonged to is
-   * gone. These two are how it is still named out loud: "rung 4 of range 2".
-   * Range 1 is where the grid started, and the number goes up by one on every
-   * downward move.
+   * **A rung is a seat, not a name.** Rung 1 is the top seat and rung 6 the
+   * bottom, and every time the range follows price down the top level is
+   * carried out and everything below it shuffles into a lower-numbered seat.
+   * So one level sits at several rungs over its life, and a sale labelled by
+   * the seat it happened to be in reads under a different number every move.
+   * On PONS, 3 October 2026, one level bought at 08:13 as rung 6 and bought
+   * again at 15:06 as rung 5, at the same price, with nothing to say the two
+   * arrows were the same level.
+   *
+   * **The name is the rung it was BORN at, plus which one it is.** A grid
+   * places its first levels as Rung 1 to Rung 6. Each downward move then
+   * carries the top one out and gives birth to a new bottom, so the bottom
+   * rung has a second, third and fourth level over time: "Rung 6 - level 2",
+   * "- level 3". A level that leaves through the top is renamed for the way it
+   * went, "Rung 1 - level 3", because that is the only thing left to say about
+   * a level the range no longer holds. Tyler's rule, 3 October 2026.
    */
-  carriedRange: z.number().int().min(1).optional(),
-  carriedRung: z.number().int().min(1).optional(),
+  name: z.string().optional(),
   /** Where this level opens: a buy on a buying grid, a sell on a selling one. */
   buyPx: z.number().positive(),
   /**
@@ -1395,6 +1405,8 @@ export type GridLevelState = z.infer<typeof gridLevelStateSchema>
  * nothing wrote down which level bought them.
  */
 export function nameGridLevels(plan: {
+  direction: GridDirection
+  downShifts: number
   levels: GridLevelState[]
   carriedLevels: GridLevelState[]
 }): boolean {
@@ -1404,7 +1416,65 @@ export function nameGridLevels(plan: {
     level.id = crypto.randomUUID()
     named = true
   }
+  const count = plan.levels.length
+  for (const [index, level] of plan.levels.entries()) {
+    if (level.name) continue
+    level.name = gridLevelBornName(plan, index, count)
+    named = true
+  }
+  // **Only when the count proves the order.** A level is named the moment it
+  // is carried, so this is catch-up for grids that were already running. Pair
+  // Out takes cleared levels out of this list, so once any have gone the
+  // position in it no longer says which one left first, and a number that
+  // means nothing is worse than no number. Those keep the old wording until
+  // they clear.
+  if (plan.carriedLevels.length === plan.downShifts) {
+    for (const [index, level] of plan.carriedLevels.entries()) {
+      if (level.name) continue
+      level.name = gridCarriedName(index + 1)
+      named = true
+    }
+  }
   return named
+}
+
+/** "Rung 6", or "Rung 6 - level 4" for the fourth level to be born there. */
+export function gridLevelNameOf(rung: number, level: number): string {
+  return level <= 1 ? `Rung ${rung}` : `Rung ${rung} - level ${level}`
+}
+
+/** What the Nth level carried out of the winning edge is called. */
+export function gridCarriedName(carried: number): string {
+  return gridLevelNameOf(1, carried)
+}
+
+/**
+ * The name a level already in the range was born with, worked back from the
+ * moves the grid has made.
+ *
+ * **Every downward move gives birth to exactly one level, at the far rung.**
+ * They stack on top of each other, so on a grid that has moved down four times
+ * the four levels nearest that edge are the four that were born there, newest
+ * first, and anything beyond them is a survivor from placement still carrying
+ * its placement rung. Checked against PONS on 3 October 2026: four moves, and
+ * the levels at $0.40479, $0.41726, $0.43011 and $0.44336 come back as Rung 6
+ * levels 5, 4, 3 and 2, with $0.45701 the original Rung 6 and $0.47108 still
+ * Rung 5.
+ *
+ * Only ever used to name levels a grid was already running without. A level
+ * born after this shipped is named at birth and never comes through here.
+ */
+function gridLevelBornName(
+  plan: { direction: GridDirection; downShifts: number },
+  index: number,
+  count: number
+): string {
+  // How far this level sits from the end new ones are born at.
+  const fromEdge = plan.direction === "long" ? index : count - 1 - index
+  if (fromEdge < plan.downShifts) {
+    return gridLevelNameOf(count, plan.downShifts + 1 - fromEdge)
+  }
+  return gridLevelNameOf(count - (fromEdge - plan.downShifts), 1)
 }
 
 /**

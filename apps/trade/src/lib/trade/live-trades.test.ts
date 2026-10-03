@@ -841,7 +841,7 @@ describe("a grid sale and the Pair Out rescue beside it", () => {
   /** The two buys the 06:28 event sold, and the two orders that sold them. */
   const marscoin = (): LiveFill[] => [
     // 16:09, rung 4 at the time. The range left it behind, and it became
-    // "rung 4 of range 2".
+    // "Rung 6 - level 2".
     MARS({
       fillId: "buy-16:09",
       side: "buy",
@@ -875,7 +875,7 @@ describe("a grid sale and the Pair Out rescue beside it", () => {
       gridLevelId: "level-in-range",
       gridRung: 4,
       gridEventId: "event-06:28",
-      gridClosesRung: 4,
+      gridLevelName: "Rung 4",
     }),
     // What its profit paid to clear, 850ms later at the same price.
     MARS({
@@ -889,8 +889,7 @@ describe("a grid sale and the Pair Out rescue beside it", () => {
       gridLevelId: "level-carried",
       gridRung: 1,
       gridEventId: "event-06:28",
-      gridClosesRung: 4,
-      gridClosesRange: 2,
+      gridLevelName: "Rung 6 - level 2",
       gridPairOut: true,
     }),
   ]
@@ -906,13 +905,13 @@ describe("a grid sale and the Pair Out rescue beside it", () => {
     expect(trips.get("sell-rescue")?.entryPx).toBeCloseTo(0.13064, 5)
   })
 
-  it("names the rescued level by the range it was carried out of", () => {
+  it("calls each level by the name it keeps for life", () => {
     const trips = gridRoundTrips(marscoin())
 
-    expect(trips.get("sell-own")?.rung).toBe(4)
-    expect(trips.get("sell-own")?.range).toBeUndefined()
-    expect(trips.get("sell-rescue")?.rung).toBe(4)
-    expect(trips.get("sell-rescue")?.range).toBe(2)
+    expect(trips.get("sell-own")?.name).toBe("Rung 4")
+    // The rescued level was born at the bottom and the range has moved on, but
+    // it answers to the same name it always did.
+    expect(trips.get("sell-rescue")?.name).toBe("Rung 6 - level 2")
   })
 
   it("draws one arrow for the two orders, with one total", () => {
@@ -920,9 +919,9 @@ describe("a grid sale and the Pair Out rescue beside it", () => {
 
     expect(marks).toHaveLength(3)
     const arrow = marks[marks.length - 1]
-    expect(arrow.label).toBe("Rung 4 sold, and cleared rung 4 of range 2")
+    expect(arrow.label).toBe("Rung 4 sold, and cleared Rung 6 - level 2")
     expect(arrow.detail).toEqual([
-      "Rung 4 made $8.60. Rung 4 of range 2 lost $21.62.",
+      "Rung 4 made $8.60. Rung 6 - level 2 lost $21.62.",
       "Together: lost $13.02",
       "Still holding $0.00",
     ])
@@ -954,23 +953,21 @@ describe("a grid sale and the Pair Out rescue beside it", () => {
     expect(named.get("sell-rescue")?.money).toBeLessThan(0)
   })
 
-  it("calls a rescue with nothing written down an old rung, not rung 1", () => {
+  it("calls a rescue with nothing written down an old level, not rung 1", () => {
     // The repaired MARSCOIN sales: which buy each sale closed is known, but
-    // nothing recorded what rung the carried level was or which range it left,
-    // and no shift history exists to work it out. Its `gridRung` is 1 because
+    // nothing recorded what the carried level was called. Its `gridRung` is 1
+    // because
     // that is where a carried level's arrow is drawn, and reading that as a
     // name put "cleared rung 1" on the chart.
     const repaired = marscoin().map((fill) =>
-      fill.fillId === "sell-rescue"
-        ? { ...fill, gridClosesRung: undefined, gridClosesRange: undefined }
-        : fill
+      fill.fillId === "sell-rescue" ? { ...fill, gridLevelName: undefined } : fill
     )
     const trips = gridRoundTrips(repaired)
-    expect(trips.get("sell-rescue")?.rung).toBeUndefined()
+    expect(trips.get("sell-rescue")?.name).toBeUndefined()
 
     const arrow = openFillMarks(repaired).at(-1)
-    expect(arrow?.label).toBe("Rung 4 sold, and cleared an old rung")
-    expect(arrow?.detail[0]).toBe("Rung 4 made $8.60. An old rung lost $21.62.")
+    expect(arrow?.label).toBe("Rung 4 sold, and cleared an old level")
+    expect(arrow?.detail[0]).toBe("Rung 4 made $8.60. An old level lost $21.62.")
   })
 
   it("leaves a sale nothing was paired with as its own arrow", () => {

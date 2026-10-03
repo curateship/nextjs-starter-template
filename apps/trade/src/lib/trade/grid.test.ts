@@ -8,6 +8,7 @@ import {
   gridLevelPctsFromRows,
   gridLevels,
   gridLevelSize,
+  nameGridLevels,
   gridLiquidationPx,
   gridManualPcts,
   gridOrderPlan,
@@ -1774,5 +1775,85 @@ describe("what a paired-out grid's weakest pair makes", () => {
         "short"
       ) as number
     ).toBeLessThan(0)
+  })
+})
+
+/**
+ * PONS on Hyperliquid, 3 October 2026. Six levels placed, then four downward
+ * moves, so four levels were carried out of the top and four were born at the
+ * bottom. The real prices, so the names can be checked against the account.
+ */
+describe("naming a grid's levels", () => {
+  const pons = () => ({
+    direction: "long" as const,
+    downShifts: 4,
+    // Lowest price first, which is how a long grid stores them.
+    levels: [0.40479, 0.41726, 0.43011, 0.44336, 0.45701, 0.47108].map(
+      (buyPx) => ({ buyPx }) as never as GridLevelState
+    ),
+    carriedLevels: [0.53185, 0.51596, 0.50055, 0.48559].map(
+      (buyPx) => ({ buyPx }) as never as GridLevelState
+    ),
+  })
+
+  it("names the levels born at the bottom by which one they are", () => {
+    const plan = pons()
+    nameGridLevels(plan)
+
+    // Four moves down, four levels born there, and the one placed with the
+    // grid is simply Rung 6. Tyler: "if there is 4 carried buys (PONS) then
+    // naturally there should be 4 level rung 6".
+    expect(plan.levels.map((level) => level.name)).toEqual([
+      "Rung 6 - level 5",
+      "Rung 6 - level 4",
+      "Rung 6 - level 3",
+      "Rung 6 - level 2",
+      "Rung 6",
+      "Rung 5",
+    ])
+  })
+
+  it("names a carried level for the way it went out", () => {
+    const plan = pons()
+    nameGridLevels(plan)
+
+    expect(plan.carriedLevels.map((level) => level.name)).toEqual([
+      "Rung 1",
+      "Rung 1 - level 2",
+      "Rung 1 - level 3",
+      "Rung 1 - level 4",
+    ])
+  })
+
+  it("keeps a name once it has one", () => {
+    const plan = pons()
+    nameGridLevels(plan)
+    const kept = plan.levels[1].name
+    plan.downShifts += 1
+    nameGridLevels(plan)
+
+    // The grid moved again. The level did not, so neither did its name.
+    expect(plan.levels[1].name).toBe(kept)
+    expect(kept).toBe("Rung 6 - level 4")
+  })
+
+  it("mirrors for a selling grid, where new levels are born at the top", () => {
+    const plan = {
+      direction: "short" as const,
+      downShifts: 2,
+      // A short grid stores rung 1 at index 0, so new levels arrive at the end.
+      levels: [1, 2, 3, 4].map((buyPx) => ({ buyPx }) as never as GridLevelState),
+      carriedLevels: [],
+    }
+    nameGridLevels(plan)
+
+    // Two moves, so the two original levels nearest rung 1 have already been
+    // carried out and the two survivors were born as rungs 3 and 4.
+    expect(plan.levels.map((level) => level.name)).toEqual([
+      "Rung 3",
+      "Rung 4",
+      "Rung 4 - level 2",
+      "Rung 4 - level 3",
+    ])
   })
 })

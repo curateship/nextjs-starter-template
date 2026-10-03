@@ -160,20 +160,25 @@ Every line of a grid carries a grey figure in dollars beside its price. It is
 money, never a price. On a coin trading at $0.31 the figures still read $28.29
 or $105, because they say what the level is worth, not where it sits.
 
-One rule decides the figure, and it is the same rule on every line: **a level
-that has bought shows what it is holding at its own price, and a level still
-waiting shows the stake it will put in when it fills.** A rung carried from an
-older range is holding by definition, so it shows what it holds, exactly like a
-holding rung inside the range.
+One rule decides the figure on a rung's line: **it is what that rung puts in,
+every time it buys.** Holding, waiting or just sold, the figure is the same, so
+a grid split 30/25/20/15/10/5 reads $253, $211, $169, $126, $84 and $42 from
+the bottom up and the column is the shape that was typed.
 
-Before 3 September 2026 the rungs inside the range broke that rule. They showed
-the size the level was planned with rather than the size it holds, so a KuCoin
-BR rung holding 149 coins printed $13.94, the value of the 44 it was planned
-with, while the carried rung beside it printed the $105 it really held. Two
-meanings in one column is unreadable, and the wrong one understated real money.
-`levelUsd` in `src/components/trade/grid-layer.tsx` is now the only place the
-figure is worked out, and `grid-layer.test.tsx` fails if any line goes back to
-the planned size while it is holding.
+A level carried out of the range is not a rung and will never buy again, so its
+line shows what it is holding. That is the only other meaning in the column,
+and it belongs to lines that are drawn dashed and named for the level that left.
+
+Until 3 October 2026 a rung that had bought showed its coins instead. Those
+coins are history: a level buys while it is deep and carrying a big share, and
+four downward moves later it is a shallow rung with a small share, still
+holding the old ones. PONS read $212, $255, $254, $254 and $211 down a grid
+whose shares run $42 to $253, so the picture said the top rung was the biggest,
+and the single rung that had not bought printed its share, putting a future buy
+and five past ones side by side in one style. `rungStakeUsd` and
+`carriedHoldingUsd` in `src/components/trade/grid-layer.tsx` are the only two
+places a figure is worked out, and `grid-layer.test.tsx` fails if a rung line
+goes back to showing its coins.
 
 **Dragging the range does not change any of those figures.** A rung's stake is
 its share of the account, set by Share of account, leverage and the split

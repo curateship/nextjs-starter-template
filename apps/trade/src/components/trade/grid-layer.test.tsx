@@ -269,20 +269,25 @@ describe("the money on each grid line", () => {
       .filter((text) => /^\$[\d,.]+$/.test(text))
   }
 
-  it("prints what a holding rung holds, not the stake it was planned with", () => {
-    // 4 coins at $100, not the $100 its planned size of 1 would give.
+  it("prints what a rung puts in, whether or not it is holding", () => {
+    // Its size of 1 at $100, not the 4 coins it happens to be sitting on.
+    // Those coins are history: a level buys while it is deep and carries a big
+    // share, then the range moves down and leaves it a shallow rung with a
+    // small one. Tyler, 3 Oct 2026: "the amount should be what the rung is".
     const money = moneyOnLines(render(mixed()))
-    expect(money).toContain("$400")
-    expect(money).not.toContain("$100")
+    expect(money).toContain("$100")
+    expect(money).not.toContain("$400")
   })
 
-  it("prints the planned stake on a rung that has bought nothing", () => {
-    // 2 coins at $110, because nothing is held there yet.
+  it("prints the same figure on a rung that has bought nothing", () => {
+    // 2 coins at $110. One meaning for every rung line, so a waiting rung and
+    // a holding one can be read against each other.
     expect(moneyOnLines(render(mixed()))).toContain("$220")
   })
 
-  it("reads a carried rung by the same rule as a rung inside the range", () => {
-    // 7 coins at $90, not the $270 its planned size of 3 would give.
+  it("prints what a carried rung HOLDS, because it never buys again", () => {
+    // 7 coins at $90. It has left the range, so it has no stake to show and
+    // the coins are the only thing left to say about it.
     const money = moneyOnLines(render(mixed()))
     expect(money).toContain("$630")
     expect(money).not.toContain("$270")

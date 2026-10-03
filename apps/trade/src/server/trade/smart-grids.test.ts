@@ -933,15 +933,16 @@ describe("pairing an old buy out with every sale", () => {
       (one) => one.id === leaving.id
     )
     expect(carried).toBeDefined()
-    // And it is called by the range it left rather than by a rung number that
-    // now belongs to another level at another price. Range 1 is where the grid
-    // started, so the range a move leaves is one past the moves made so far.
-    expect(carried?.carriedRange).toBe(bought.plan.downShifts + 1)
-    expect(carried?.carriedRung).toBe(1)
-    // Nothing still inside the range claims a range number.
-    for (const level of moved.plan.levels) {
-      expect(level.carriedRange).toBeUndefined()
-    }
+    // Renamed for the way it went out: the Nth level to leave through the top.
+    expect(carried?.name).toBe(
+      bought.plan.downShifts === 0
+        ? "Rung 1"
+        : `Rung 1 - level ${bought.plan.downShifts + 1}`
+    )
+    // And the move gave birth to a new bottom, which says which one it is.
+    const born = moved.plan.levels.find((one) => one.id !== undefined &&
+      !named.includes(one.id))
+    expect(born?.name).toBe(`Rung 4 - level ${bought.plan.downShifts + 2}`)
   })
 })
 

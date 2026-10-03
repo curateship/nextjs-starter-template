@@ -492,22 +492,39 @@ what really happens: price falls through the levels on its way down, so the
 lowest level holding is always the one bought most recently, and the lowest
 level is also the first to reach its sell.
 
-**An old buy is called "rung 4 of range 2".** Once the range moves away from a
-level, the rung number it had goes to a different level at a different price,
-so the rung alone stops meaning anything. Range 1 is where the grid started and
-the number goes up by one on every downward move, so the two together can only
-ever mean one buy. A buy carried before this existed has no range recorded and
-reads as "an old rung" until it is cleared.
+**A rung is a seat, not a name.** Rung 1 is the top seat and rung 6 the bottom.
+Every downward move carries the top level out and shuffles everything below it
+into a lower-numbered seat, so one level sits at several rungs over its life.
+PONS on 3 October 2026 had one level buy at 08:13 as rung 6 and buy again at
+15:06 as rung 5, at the same price, with nothing to say they were the same
+level.
+
+**So a level is called by the rung it was born at, plus which one it is:
+"Rung 6 - level 4".** A grid places its first levels as Rung 1 to Rung 6. Each
+downward move then gives birth to a new bottom, so that rung has a second,
+third and fourth level over time. The name never changes, whatever seat the
+level is sitting in today.
+
+**A level that leaves through the top is renamed for the way it went**, "Rung 1
+- level 3", because the rung it is leaving is the only thing still true of it.
+That is what the carried lines on the chart say. PONS has four of them, reading
+Rung 1 and then levels 2, 3 and 4 as you go up.
+
+A grid already running when this shipped has its levels named in one go from
+the moves it has made, which is exact. Its carried levels are numbered only
+when none has been cleared yet, because Pair Out takes a cleared one out of the
+list and the order can no longer be proved; those keep the old wording until
+they clear.
 
 Every place that prices one sale shows this figure, and they all agree.
 
 - **The arrow on the chart.** Point at a grid entry and it reads "Enter rung 1
-  - for $47.53". Its matching close reads "Rung 1 sold - made $4.28", with
+  - for $47.53". Its matching close reads "Rung 6 - level 4 sold - made $4.28", with
   "Still holding $182.82" under it when another rung remains open. A selling
   grid's level says "bought back" instead of "sold". The place on the price
   axis still shows where the order filled. The engine records the order id with
-  its level and its rung before the range can move, so an older arrow keeps the
-  name it had when it traded.
+  its level's name before the range can move, so every arrow a level ever makes
+  carries the same name.
 - **The Smart orders panel**, on the grid's row, as banked.
 - **The trading overview and the P&L page**, on every row of their fill lists
   and in the totals those rows add up to.
@@ -828,6 +845,25 @@ not go back to watching and never buys again. Half a buy would leave half a
 bag, which is the thing being removed, and a level left holding would block
 every later pair behind it.
 
+### The money on a rung's line
+
+**A rung's line shows what that rung puts in, every time it buys.** A grid split
+30/25/20/15/10/5 reads $253, $211, $169, $126, $84 and $42 from the bottom up,
+which is the shape that was typed, and it reads the same whether the rung is
+holding, waiting or has just sold.
+
+**It used to show the coins a rung was sitting on**, and those are history. A
+level buys while it is deep and carrying a big share; four downward moves later
+it is a shallow rung with a small share, still holding the old coins. PONS on
+3 October 2026 read $212, $255, $254, $254 and $211 down a grid whose shares run
+from $42 to $253, so the picture said the top rung was the biggest. The one rung
+that had not bought printed its share instead, so the bottom line meant a future
+buy and the five above it meant past ones, side by side and identical in style.
+
+**A level carried out of the range still shows what it holds**, because it is
+not a rung any more and will never buy again. The coins are the only thing left
+to say about it.
+
 ### Two orders, one thing that happened
 
 A level's sale and the rescue its profit paid for go out on the same pass at the
@@ -842,8 +878,8 @@ shouldnt show 2 orders. Its 2 orders but it should show only one." The arrow
 now reads:
 
 ```
-Rung 4 sold, and cleared rung 4 of range 2
-Rung 4 made $8.60. Rung 4 of range 2 lost $21.62.
+Rung 4 sold, and cleared Rung 6 - level 2
+Rung 4 made $8.60. Rung 6 - level 2 lost $21.62.
 Together: lost $13.02
 Still holding $1,781.91
 ```
@@ -852,15 +888,15 @@ Still holding $1,781.91
 second line gives each half with what it sold for.
 
 ```
-MARSCOIN rung 4 sold and cleared rung 4 of range 2: lost $13.02 (Aster1 - GRID)
-Rung 4 sold $362.53 and made $8.60. Rung 4 of range 2 sold $119.99 and lost $21.62.
+MARSCOIN Rung 4 sold and cleared Rung 6 - level 2: lost $13.02 (Aster1 - GRID)
+Rung 4 sold $362.53 and made $8.60. Rung 6 - level 2 sold $119.99 and lost $21.62.
 ```
 
 An ordinary sale with no rescue says one rung and one figure, and ends with what
 is left:
 
 ```
-MARSCOIN rung 5 sold: made $11.62 (Aster1 - GRID)
+MARSCOIN Rung 5 sold: made $11.62 (Aster1 - GRID)
 Sold $363.88. Still holding $2,212.21.
 ```
 
