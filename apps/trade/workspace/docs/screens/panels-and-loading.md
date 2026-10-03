@@ -8,22 +8,19 @@ fixed in one is fixed in both.
 - The divider between Smart orders and Manual orders is gone. The
   two panels size to their contents and fill the right column between them.
   The old 60/40 split is no longer saved or read.
-- **The spare height goes to the longer of the two lists.** The shorter panel
-  takes exactly the height its own rows need, so there is never an empty
-  half-card under the last row while the other list is scrolling. With 23 smart
-  orders and 4 waiting prices in a 601px column, Manual orders is 243px and its
-  4 rows fill it, and Smart orders keeps 352px and scrolls. With 3 smart orders
-  and 20 waiting prices it is the other way round: Smart orders is 219px for
-  its 3 rows and Manual orders is 376px and scrolls.
-- **Whichever panel grows stops at 55% of the column.** The other list always
-  keeps rows of its own. Before this, a long Smart orders list left Manual
-  orders its header and two rows.
-- **The share is a share of the column, not a fixed height.** A 901px column
-  gives the growing panel around 445px, which is 9 rows rather than 5, with no
-  code change.
-- **The longer list is counted in smart orders, not in bots.** The top panel's
-  Bots tab is inside the panel, so a long Bots list does not win the spare
-  height. Bots scrolls in whatever height the smart orders count earned.
+- **Smart orders is exactly as tall as its own rows, and Manual orders takes
+  the rest of the column.** The top card never ends in empty space, however
+  few smart orders there are, because the space under its last row belongs to
+  the panel below it. In a 900px column, 6 smart orders make the top card 374px
+  and Manual orders 518px.
+- **Smart orders stops at 55% of the column.** A long list of them scrolls
+  there rather than pushing Manual orders down to a strip with no rows in it.
+  The same 900px column gives Smart orders 495px and Manual orders 397px.
+- **The cap is a share of the column, not a fixed height.** A taller column
+  lets Smart orders show more rows before it starts scrolling, with no code
+  change.
+- **The Bots tab lives inside the top panel**, so it scrolls in whatever height
+  Smart orders has.
 - The dividers beside the chart and above Positions still drag.
 - **Left and right shut all the way to nothing.** A slim tab appears on the
   middle panel's edge where each one disappeared, and brings it back. **Both
