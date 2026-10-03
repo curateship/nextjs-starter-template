@@ -56,6 +56,7 @@ import { Route as AuthenticatedAdminAutomationsRouteImport } from './routes/_aut
 import { Route as AuthenticatedAdminBnbRouteImport } from './routes/_authenticated/admin/bnb'
 import { Route as AuthenticatedAdminContactsRouteImport } from './routes/_authenticated/admin/contacts'
 import { Route as AuthenticatedAdminCopyTradingRouteImport } from './routes/_authenticated/admin/copy-trading'
+import { Route as AuthenticatedAdminCrmRouteImport } from './routes/_authenticated/admin/crm'
 import { Route as AuthenticatedAdminDashboardRouteImport } from './routes/_authenticated/admin/dashboard'
 import { Route as AuthenticatedAdminDevOutboxRouteImport } from './routes/_authenticated/admin/dev-outbox'
 import { Route as AuthenticatedAdminFeedbackRouteImport } from './routes/_authenticated/admin/feedback'
@@ -360,6 +361,11 @@ const AuthenticatedAdminCopyTradingRoute =
     path: '/copy-trading',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminCrmRoute = AuthenticatedAdminCrmRouteImport.update({
+  id: '/crm',
+  path: '/crm',
+  getParentRoute: () => AuthenticatedAdminRoute,
+} as any)
 const AuthenticatedAdminDashboardRoute =
   AuthenticatedAdminDashboardRouteImport.update({
     id: '/dashboard',
@@ -778,6 +784,7 @@ export interface FileRoutesByFullPath {
   '/admin/bnb': typeof AuthenticatedAdminBnbRoute
   '/admin/contacts': typeof AuthenticatedAdminContactsRoute
   '/admin/copy-trading': typeof AuthenticatedAdminCopyTradingRoute
+  '/admin/crm': typeof AuthenticatedAdminCrmRoute
   '/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
   '/admin/dev-outbox': typeof AuthenticatedAdminDevOutboxRoute
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
@@ -888,6 +895,7 @@ export interface FileRoutesByTo {
   '/admin/bnb': typeof AuthenticatedAdminBnbRoute
   '/admin/contacts': typeof AuthenticatedAdminContactsRoute
   '/admin/copy-trading': typeof AuthenticatedAdminCopyTradingRoute
+  '/admin/crm': typeof AuthenticatedAdminCrmRoute
   '/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
   '/admin/dev-outbox': typeof AuthenticatedAdminDevOutboxRoute
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
@@ -1002,6 +1010,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/bnb': typeof AuthenticatedAdminBnbRoute
   '/_authenticated/admin/contacts': typeof AuthenticatedAdminContactsRoute
   '/_authenticated/admin/copy-trading': typeof AuthenticatedAdminCopyTradingRoute
+  '/_authenticated/admin/crm': typeof AuthenticatedAdminCrmRoute
   '/_authenticated/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
   '/_authenticated/admin/dev-outbox': typeof AuthenticatedAdminDevOutboxRoute
   '/_authenticated/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
@@ -1116,6 +1125,7 @@ export interface FileRouteTypes {
     | '/admin/bnb'
     | '/admin/contacts'
     | '/admin/copy-trading'
+    | '/admin/crm'
     | '/admin/dashboard'
     | '/admin/dev-outbox'
     | '/admin/feedback'
@@ -1226,6 +1236,7 @@ export interface FileRouteTypes {
     | '/admin/bnb'
     | '/admin/contacts'
     | '/admin/copy-trading'
+    | '/admin/crm'
     | '/admin/dashboard'
     | '/admin/dev-outbox'
     | '/admin/feedback'
@@ -1339,6 +1350,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/bnb'
     | '/_authenticated/admin/contacts'
     | '/_authenticated/admin/copy-trading'
+    | '/_authenticated/admin/crm'
     | '/_authenticated/admin/dashboard'
     | '/_authenticated/admin/dev-outbox'
     | '/_authenticated/admin/feedback'
@@ -1775,6 +1787,13 @@ declare module '@tanstack/react-router' {
       path: '/copy-trading'
       fullPath: '/admin/copy-trading'
       preLoaderRoute: typeof AuthenticatedAdminCopyTradingRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/crm': {
+      id: '/_authenticated/admin/crm'
+      path: '/crm'
+      fullPath: '/admin/crm'
+      preLoaderRoute: typeof AuthenticatedAdminCrmRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/dashboard': {
@@ -2263,6 +2282,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminBnbRoute: typeof AuthenticatedAdminBnbRoute
   AuthenticatedAdminContactsRoute: typeof AuthenticatedAdminContactsRoute
   AuthenticatedAdminCopyTradingRoute: typeof AuthenticatedAdminCopyTradingRoute
+  AuthenticatedAdminCrmRoute: typeof AuthenticatedAdminCrmRoute
   AuthenticatedAdminDashboardRoute: typeof AuthenticatedAdminDashboardRoute
   AuthenticatedAdminDevOutboxRoute: typeof AuthenticatedAdminDevOutboxRoute
   AuthenticatedAdminFeedbackRoute: typeof AuthenticatedAdminFeedbackRoute
@@ -2310,6 +2330,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminBnbRoute: AuthenticatedAdminBnbRoute,
   AuthenticatedAdminContactsRoute: AuthenticatedAdminContactsRoute,
   AuthenticatedAdminCopyTradingRoute: AuthenticatedAdminCopyTradingRoute,
+  AuthenticatedAdminCrmRoute: AuthenticatedAdminCrmRoute,
   AuthenticatedAdminDashboardRoute: AuthenticatedAdminDashboardRoute,
   AuthenticatedAdminDevOutboxRoute: AuthenticatedAdminDevOutboxRoute,
   AuthenticatedAdminFeedbackRoute: AuthenticatedAdminFeedbackRoute,

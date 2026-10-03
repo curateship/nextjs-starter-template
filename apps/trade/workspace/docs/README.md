@@ -24,6 +24,8 @@ screen: anything not written there has not been agreed yet.
 ## app/ — the app as a whole
 
 - `architecture-overview.md` — how Trade is put together on top of the shell.
+- `shell-integration.md` — what the shell gives Trade, what the last merge
+  carried, the migrations it owes, and the files that stay Trade's own.
 - `running-tests-fast.md` — the focused-test rule, what the two full-suite
   commands include, and why only Tyler decides when either one runs.
 - `database-link-encryption.md` — the TLS on the database connection: what the

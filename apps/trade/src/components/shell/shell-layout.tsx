@@ -833,17 +833,25 @@ function normalizeConfig(
 }
 
 // The account area is a modal reached from the user menu, not the sidebar, so
-// drop its retired nav links (and any section left empty by that) from saved
-// configs — no config migration needed.
-function stripRetiredAccountEntries(sections: ShellSection[]): ShellSection[] {
-  return sections
-    .map((section) => ({
-      ...section,
-      entries: section.entries.filter(
-        (entry) => !(isShellItem(entry) && accountTabForHref(entry.href) != null)
-      ),
-    }))
-    .filter((section) => section.entries.length > 0)
+// drop its retired nav links from saved configs — no config migration needed.
+// Exported for its test.
+export function stripRetiredAccountEntries(
+  sections: ShellSection[]
+): ShellSection[] {
+  return sections.flatMap((section) => {
+    const entries = section.entries.filter(
+      (entry) => !(isShellItem(entry) && accountTabForHref(entry.href) != null)
+    )
+
+    // A section goes only when this strip is what emptied it. A section that
+    // arrived empty stays, because "Add section" makes exactly that: dropping
+    // those erased the new section the moment the auto-save came back, so a
+    // new section could not be made at all. The same filter also used to erase
+    // a section whose last link the admin dragged into another section.
+    if (entries.length === 0 && section.entries.length > 0) return []
+
+    return [{ ...section, entries }]
+  })
 }
 
 // Writes a set of CSS variables onto the document root and returns the cleanup

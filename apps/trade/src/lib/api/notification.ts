@@ -63,6 +63,11 @@ export type NotificationItem = {
   automation_failure_node_id: string | null
   automation_failure_node_name: string | null
   automation_failure_error: string | null
+  /**
+   * Null unless the notice is a follow-up: the conversation with the lead
+   * whose chase date came round, so clicking the notice opens it in the CRM.
+   */
+  crm_thread_id: string | null
   /** Filled when an admin changed this person's own account. */
   message: string | null
   detail: string | null

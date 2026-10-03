@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dialog"
 import { FieldLabel } from "@/components/ui/field-label"
 import { FormDialog } from "@/components/ui/form-dialog"
+import { ColorSwatch } from "@/components/ui/color-swatch"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -53,7 +54,10 @@ import {
   MAX_FRONT_PAGE_ROW_HEADING_LENGTH,
   MAX_FRONT_PAGE_ROW_INTRO_LENGTH,
   normalizeFrontPageHeroHref,
+  normalizeFrontPageHeroBackground,
+  FRONT_PAGE_HERO_BACKGROUND_MESSAGE,
   DEFAULT_FRONT_PAGE_DIVIDER_SHADE,
+  DEFAULT_FRONT_PAGE_DIVIDER_SPACE,
   type FrontPageDividerStyle,
   type FrontPageRow,
   type FrontPageRowAlignment,
@@ -75,6 +79,7 @@ export function FrontPageRowDialog({
   open,
   row,
   newKind,
+  first,
   onClose,
   onSaved,
 }: {
@@ -86,6 +91,11 @@ export function FrontPageRowDialog({
    * saved row keeps the kind it was made with.
    */
   newKind?: string | null
+  /**
+   * True when this row is the top one on the page. Only that row sits under
+   * the site menu, so only that row may carry its colour up behind it.
+   */
+  first?: boolean
   onClose: () => void
   onSaved: (row: FrontPageRowDraft) => void
 }) {
@@ -121,6 +131,9 @@ export function FrontPageRowDialog({
   const [heroButtonHref, setHeroButtonHref] = React.useState("")
   const [heroNote, setHeroNote] = React.useState("")
   const [heroStars, setHeroStars] = React.useState(0)
+  const [heroBackground, setHeroBackground] = React.useState("")
+  const [heroBackgroundUnderMenu, setHeroBackgroundUnderMenu] =
+    React.useState(false)
   const [testimonials, setTestimonials] = React.useState<
     FrontPageTestimonial[]
   >([])
@@ -133,6 +146,9 @@ export function FrontPageRowDialog({
     React.useState<FrontPageDividerStyle>("line")
   const [dividerShade, setDividerShade] = React.useState(
     DEFAULT_FRONT_PAGE_DIVIDER_SHADE
+  )
+  const [dividerSpace, setDividerSpace] = React.useState(
+    DEFAULT_FRONT_PAGE_DIVIDER_SPACE
   )
   const [headingTouched, setHeadingTouched] = React.useState(false)
   const [submitted, setSubmitted] = React.useState(false)
@@ -172,6 +188,10 @@ export function FrontPageRowDialog({
     setHeroButtonHref(row?.kind === "hero" ? row.buttonHref : "")
     setHeroNote(row?.kind === "hero" ? row.note : "")
     setHeroStars(row?.kind === "hero" ? row.stars : 0)
+    setHeroBackground(row?.kind === "hero" ? row.background : "")
+    setHeroBackgroundUnderMenu(
+      row?.kind === "hero" ? row.backgroundUnderMenu : false
+    )
     setTestimonials(row?.kind === "testimonials" ? row.items : [])
     setFaqItems(row?.kind === "faq" ? row.items : [])
     setLogos(row?.kind === "logos" ? row.items : [])
@@ -181,6 +201,11 @@ export function FrontPageRowDialog({
       row?.kind === "divider"
         ? row.dividerShade
         : DEFAULT_FRONT_PAGE_DIVIDER_SHADE
+    )
+    setDividerSpace(
+      row?.kind === "divider"
+        ? row.dividerSpace
+        : DEFAULT_FRONT_PAGE_DIVIDER_SPACE
     )
     setHeadingTouched(false)
     setSubmitted(false)
@@ -239,11 +264,17 @@ export function FrontPageRowDialog({
     heroButtonHref !== (savedHero?.buttonHref ?? "") ||
     heroNote !== (savedHero?.note ?? "") ||
     heroStars !== (savedHero?.stars ?? 0) ||
+    heroBackground !== (savedHero?.background ?? "") ||
+    heroBackgroundUnderMenu !== (savedHero?.backgroundUnderMenu ?? false) ||
     dividerStyle !== (row?.kind === "divider" ? row.dividerStyle : "line") ||
     dividerShade !==
       (row?.kind === "divider"
         ? row.dividerShade
         : DEFAULT_FRONT_PAGE_DIVIDER_SHADE) ||
+    dividerSpace !==
+      (row?.kind === "divider"
+        ? row.dividerSpace
+        : DEFAULT_FRONT_PAGE_DIVIDER_SPACE) ||
     JSON.stringify(currentItems) !== JSON.stringify(savedItems)
   const headingInvalid =
     !heading.trim() && (headingTouched || submitted)
@@ -277,6 +308,7 @@ export function FrontPageRowDialog({
       heroAction,
       heroButtonLabel,
       heroButtonHref,
+      heroBackground,
       testimonials,
       faqItems,
       logos,
@@ -314,12 +346,15 @@ export function FrontPageRowDialog({
         heroButtonHref: heroButtonHref.trim(),
         heroNote: heroNote.trim(),
         heroStars,
+        heroBackground,
+        heroBackgroundUnderMenu,
         testimonials,
         faqItems,
         logos,
         screenshots,
         dividerStyle,
         dividerShade,
+        dividerSpace,
       })
     )
   }
@@ -457,6 +492,75 @@ export function FrontPageRowDialog({
                   </Select>
                 </div>
 
+                {kind === "hero" ? (
+                  <>
+                    <div className="grid gap-2">
+                      <FieldLabel
+                        htmlFor="front-page-row-hero-background-hex"
+                        hint="Painted in a band right across the window, behind this row only, whatever its Layout says. Clear the box to leave the page's own colour showing. The same colour is used in light and dark mode."
+                      >
+                        Background colour
+                      </FieldLabel>
+                      <div className="flex items-center gap-2">
+                        <ColorSwatch
+                          id="front-page-row-hero-background"
+                          // A native colour box has no "no colour" to show, so
+                          // an empty field sits on white and the hex box beside
+                          // it is the one that says the row has none.
+                          value={heroBackground || "#ffffff"}
+                          onChange={(event) =>
+                            setHeroBackground(event.target.value)
+                          }
+                          aria-label="Pick a background colour"
+                        />
+                        <Input
+                          id="front-page-row-hero-background-hex"
+                          value={heroBackground}
+                          placeholder="No colour"
+                          className="w-40"
+                          aria-invalid={
+                            (heroBackground.trim() &&
+                              !normalizeFrontPageHeroBackground(
+                                heroBackground
+                              )) ||
+                            undefined
+                          }
+                          onChange={(event) =>
+                            setHeroBackground(event.target.value)
+                          }
+                        />
+                        {heroBackground ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => {
+                              setHeroBackground("")
+                              setHeroBackgroundUnderMenu(false)
+                            }}
+                          >
+                            Clear
+                          </Button>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <SettingsSwitchRow
+                      id="front-page-row-hero-background-under-menu"
+                      checked={heroBackgroundUnderMenu}
+                      disabled={!heroBackground || !first}
+                      onCheckedChange={setHeroBackgroundUnderMenu}
+                      label="Run the colour under the menu"
+                      hint={
+                        !first
+                          ? "Only the top row of the page sits under the menu. Drag this row to the top to use this."
+                          : !heroBackground
+                            ? "Choose a background colour first. There is nothing to carry up until there is one."
+                            : "The colour starts at the very top of the window and passes behind the menu. The menu itself is not changed: it keeps its own colour, and its blur now blurs this colour instead of the page."
+                      }
+                    />
+                  </>
+                ) : null}
+
                 <div className="grid gap-2">
                   <FieldLabel
                     htmlFor="front-page-row-device"
@@ -510,6 +614,7 @@ export function FrontPageRowDialog({
               screenshots={screenshots}
               dividerStyle={dividerStyle}
               dividerShade={dividerShade}
+              dividerSpace={dividerSpace}
               submitted={submitted}
               onHeroActionChange={setHeroAction}
               onHeroImageChange={setHeroImage}
@@ -524,6 +629,7 @@ export function FrontPageRowDialog({
               onScreenshotsChange={setScreenshots}
               onDividerStyleChange={setDividerStyle}
               onDividerShadeChange={setDividerShade}
+              onDividerSpaceChange={setDividerSpace}
             />
 
             <CollapsibleSettingsCard
@@ -653,11 +759,19 @@ function getContentProblem(
   heroAction: FrontPageHeroAction,
   heroButtonLabel: string,
   heroButtonHref: string,
+  heroBackground: string,
   testimonials: FrontPageTestimonial[],
   faqItems: FrontPageFaqItem[],
   logos: FrontPageLogo[],
   screenshots: FrontPageScreenshot[]
 ) {
+  if (
+    kind === "hero" &&
+    heroBackground.trim() &&
+    !normalizeFrontPageHeroBackground(heroBackground)
+  ) {
+    return FRONT_PAGE_HERO_BACKGROUND_MESSAGE
+  }
   if (kind === "hero" && heroAction === "email") {
     if (!heroButtonLabel.trim()) {
       return "Give the email form's button its wording."
@@ -774,12 +888,15 @@ function buildDraft({
   heroButtonHref,
   heroNote,
   heroStars,
+  heroBackground,
+  heroBackgroundUnderMenu,
   testimonials,
   faqItems,
   logos,
   screenshots,
   dividerStyle,
   dividerShade,
+  dividerSpace,
 }: {
   heading: string
   intro: string
@@ -805,12 +922,15 @@ function buildDraft({
   heroButtonHref: string
   heroNote: string
   heroStars: number
+  heroBackground: string
+  heroBackgroundUnderMenu: boolean
   testimonials: FrontPageTestimonial[]
   faqItems: FrontPageFaqItem[]
   logos: FrontPageLogo[]
   screenshots: FrontPageScreenshot[]
   dividerStyle: FrontPageDividerStyle
   dividerShade: number
+  dividerSpace: number
 }): FrontPageRowDraft {
   const base = {
     heading,
@@ -841,6 +961,8 @@ function buildDraft({
       buttonHref: heroButtonHref,
       note: heroNote,
       stars: heroStars,
+      background: normalizeFrontPageHeroBackground(heroBackground),
+      backgroundUnderMenu: heroBackgroundUnderMenu,
     }
   }
   if (kind === "testimonials") return { ...base, kind, items: testimonials }
@@ -848,7 +970,7 @@ function buildDraft({
   if (kind === "logos") return { ...base, kind, items: logos }
   if (kind === "screenshots") return { ...base, kind, items: screenshots }
   if (kind === "divider") {
-    return { ...base, kind, dividerStyle, dividerShade }
+    return { ...base, kind, dividerStyle, dividerShade, dividerSpace }
   }
   return { ...base, kind }
 }

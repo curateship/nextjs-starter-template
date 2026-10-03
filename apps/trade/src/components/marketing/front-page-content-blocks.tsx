@@ -22,6 +22,7 @@ import {
   type FrontPageScreenshot,
   type FrontPageTestimonial,
 } from "@/lib/pages/front-page"
+import { PUBLIC_FRONT_PAGE_ROW_GAP_PHONE_SHARE } from "@/lib/public-theme"
 import { cn } from "@/lib/utils"
 
 /**
@@ -388,14 +389,32 @@ export function FrontPageScreenshots({
 export function FrontPageDivider({
   style,
   shade,
+  space,
   alignClassName = publicContentAlignmentRowClassName,
 }: {
   style: FrontPageDividerStyle
   shade: number
+  space: number
   alignClassName?: string
 }) {
   if (style === "space") {
-    return <div aria-hidden className="h-8 w-full md:h-16" />
+    return (
+      <div
+        aria-hidden
+        className="h-(--divider-space-phone) w-full md:h-(--divider-space)"
+        style={
+          {
+            "--divider-space": `${space}px`,
+            // A phone keeps the same share of a desktop gap that
+            // Settings > Styling > Space between rows keeps, so the app has one
+            // rule for this rather than a second one hiding in a row.
+            "--divider-space-phone": `${Math.round(
+              space * PUBLIC_FRONT_PAGE_ROW_GAP_PHONE_SHARE
+            )}px`,
+          } as React.CSSProperties
+        }
+      />
+    )
   }
 
   const color = frontPageDividerColor(shade)
