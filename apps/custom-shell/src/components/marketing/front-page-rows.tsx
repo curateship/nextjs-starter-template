@@ -155,10 +155,10 @@ export function FrontPageRows({
               // nothing else. Without it the band's negative layer would drop
               // behind the page's canvas colour and disappear.
               //
-              // The padding is what stops the heading sitting against the top
-              // edge of its own colour. A row with no colour needs none: the
-              // gap between rows is already its breathing room.
-              background ? "relative isolate py-12 md:py-16" : null,
+              // No padding here. The hero decides how much air it wants above
+              // and below itself, and the band covers the whole row, that air
+              // included.
+              background ? "relative isolate" : null,
               publicDeviceRowClassName(row.device)
             )}
             data-front-page-row={row.kind}
@@ -263,6 +263,7 @@ export function FrontPageRows({
                 showAction={row.showAction}
                 showStars={row.showStars}
                 showNote={row.showNote}
+                spacing={row.spacing}
               />
             ) : row.kind === "plans" ? (
               <PricingTable

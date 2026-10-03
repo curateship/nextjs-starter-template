@@ -529,6 +529,14 @@ the former 1152px width, muted canvas, 40px spacing, both divider lines, and
 content centred. Content alignment can move every public page's main content
 to the left, centre, or right.
 
+**Main spacing skips the front page.** Tyler's call on 3 October 2026. The
+front page is built from rows that reach the window's edges, and the top one is
+usually a hero, so a gap above it is a white strip between the menu and the
+page's own first block. The front page starts directly under the menu whatever
+the slider says, and every other public page gets the number. This is the page
+at `/`, whatever is drawn there, so an app that replaces the front page through
+`landing.page` gets the same treatment.
+
 Canvas colour, and every other colour on the Public Styling tab, uses the same
 three-mode picker as the Platform Styling tab. Theme default keeps the colour
 the theme already draws, and it adapts to light and dark on its own. Muted

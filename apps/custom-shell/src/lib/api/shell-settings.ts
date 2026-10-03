@@ -63,6 +63,7 @@ import {
   normalizeFrontPageHeroBackground,
   FRONT_PAGE_HERO_BACKGROUND_MESSAGE,
   MAX_FRONT_PAGE_HERO_BACKGROUND_LENGTH,
+  MAX_FRONT_PAGE_HERO_SPACING,
   normalizeFrontPageImageUrl,
   normalizeFrontPageRows,
 } from "@/lib/pages/front-page"
@@ -541,6 +542,11 @@ const frontPageRowsSchema = z
             FRONT_PAGE_HERO_BACKGROUND_MESSAGE
           ),
         backgroundUnderMenu: z.boolean(),
+        spacing: z
+          .number()
+          .int()
+          .min(0)
+          .max(MAX_FRONT_PAGE_HERO_SPACING),
       }),
       z.object({
         ...frontPageRowBaseShape,

@@ -281,6 +281,7 @@ describe("PublicPageFrame navigation", () => {
   })
 
   it("uses the declared marketing layout with the established frame defaults", async () => {
+    router.pathname = "/pricing"
     const host = document.createElement("div")
     document.body.appendChild(host)
     const root = createRoot(host)
@@ -584,10 +585,32 @@ describe("PublicPageFrame navigation", () => {
     expect(header?.className).not.toContain("bg-background/90")
     expect(header?.className).toContain("backdrop-blur")
     // The gap between the bar and the first row, plus the bar's own height,
-    // which the bar measures and writes down.
+    // which the bar measures and writes down. On the front page that gap is
+    // nothing, because Main spacing skips this one page.
     expect(main?.style.getPropertyValue("--shell-hero-rise")).toBe(
-      "calc(40px + var(--shell-public-header-height, 0px))"
+      "calc(0px + var(--shell-public-header-height, 0px))"
     )
+  })
+
+  it("skips the front page with Main spacing and keeps it everywhere else", async () => {
+    publicTheme.current = { ...publicTheme.current, mainSpacing: 20 }
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    const root = createRoot(host)
+
+    // The front page is rows that reach the window's edges, so a gap above the
+    // top one would be a white strip between the menu and the page.
+    await act(async () => {
+      root.render(<PublicPageFrame>Page</PublicPageFrame>)
+    })
+    expect(host.querySelector("main")?.style.paddingBlock).toBe("0px")
+
+    // Every other public page still gets the number.
+    router.pathname = "/pricing"
+    await act(async () => {
+      root.render(<PublicPageFrame>Page</PublicPageFrame>)
+    })
+    expect(host.querySelector("main")?.style.paddingBlock).toBe("20px")
   })
 
   it("leaves main plain when no hero runs its colour under the menu", async () => {

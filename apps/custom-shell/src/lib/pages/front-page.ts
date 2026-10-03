@@ -216,6 +216,26 @@ export function normalizeFrontPageHeroBackground(value: unknown) {
   return FRONT_PAGE_HERO_BACKGROUND_PATTERN.test(color) ? color : ""
 }
 
+/**
+ * How much air a hero keeps above and below itself on a desktop, in pixels.
+ *
+ * The hero carries its own number rather than reading
+ * Settings > Styling > Main spacing, because Main spacing skips the front page
+ * and because the top block of a page usually wants more room than a block in
+ * the middle of one.
+ *
+ * 64 is the default, which is exactly what a hero drew before the number was
+ * anybody's to set, and a phone draws 48 of it, which is also what it drew.
+ */
+export const DEFAULT_FRONT_PAGE_HERO_SPACING = 64
+export const MAX_FRONT_PAGE_HERO_SPACING = 240
+
+/**
+ * What share of the desktop number a phone draws. 0.75 lands the default on
+ * 48, the hero's old phone padding, so nothing moves on a saved page.
+ */
+export const FRONT_PAGE_HERO_SPACING_PHONE_SHARE = 0.75
+
 export const FRONT_PAGE_ROW_HEADING_MESSAGE = "Give the row a heading."
 export const FRONT_PAGE_HERO_LINK_MESSAGE =
   "A button link starts with /, https://, mailto: or tel:."
@@ -362,6 +382,11 @@ export type FrontPageRow =
        * first row has the menu over it, so every hero below it ignores this.
        */
       backgroundUnderMenu: boolean
+      /**
+       * The air above and below the hero on a desktop, in pixels. A phone
+       * draws three quarters of it.
+       */
+      spacing: number
     })
   | (FrontPageRowBase & {
       kind: "testimonials"
@@ -685,6 +710,11 @@ export function normalizeFrontPageRows(value: unknown): FrontPageRow[] {
         // Only an explicit true runs the colour under the menu, so a hero
         // saved before this switch existed keeps its band below the bar.
         backgroundUnderMenu: source.backgroundUnderMenu === true,
+        spacing: wholeNumberInRange(
+          source.spacing,
+          DEFAULT_FRONT_PAGE_HERO_SPACING,
+          MAX_FRONT_PAGE_HERO_SPACING
+        ),
       })
     } else if (kind === "testimonials") {
       const items = normalizeTestimonials(source.items)

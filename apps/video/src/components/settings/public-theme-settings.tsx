@@ -636,7 +636,7 @@ export function PublicThemeSettings({
               : `${theme.mainSpacing}px`
           }
           onChange={(mainSpacing) => update({ mainSpacing })}
-          help="The space above and below the main content on every public page."
+          help="The space above and below the main content on every public page but the front page. The front page is built from rows that reach the window's edges, so it starts directly under the menu whatever this says."
         />
 
         <FieldGroup

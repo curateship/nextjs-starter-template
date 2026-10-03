@@ -57,6 +57,7 @@ import {
   normalizeFrontPageHeroBackground,
   FRONT_PAGE_HERO_BACKGROUND_MESSAGE,
   DEFAULT_FRONT_PAGE_DIVIDER_SHADE,
+  DEFAULT_FRONT_PAGE_HERO_SPACING,
   DEFAULT_FRONT_PAGE_DIVIDER_SPACE,
   type FrontPageDividerStyle,
   type FrontPageRow,
@@ -134,6 +135,9 @@ export function FrontPageRowDialog({
   const [heroBackground, setHeroBackground] = React.useState("")
   const [heroBackgroundUnderMenu, setHeroBackgroundUnderMenu] =
     React.useState(false)
+  const [heroSpacing, setHeroSpacing] = React.useState(
+    DEFAULT_FRONT_PAGE_HERO_SPACING
+  )
   const [testimonials, setTestimonials] = React.useState<
     FrontPageTestimonial[]
   >([])
@@ -191,6 +195,9 @@ export function FrontPageRowDialog({
     setHeroBackground(row?.kind === "hero" ? row.background : "")
     setHeroBackgroundUnderMenu(
       row?.kind === "hero" ? row.backgroundUnderMenu : false
+    )
+    setHeroSpacing(
+      row?.kind === "hero" ? row.spacing : DEFAULT_FRONT_PAGE_HERO_SPACING
     )
     setTestimonials(row?.kind === "testimonials" ? row.items : [])
     setFaqItems(row?.kind === "faq" ? row.items : [])
@@ -266,6 +273,7 @@ export function FrontPageRowDialog({
     heroStars !== (savedHero?.stars ?? 0) ||
     heroBackground !== (savedHero?.background ?? "") ||
     heroBackgroundUnderMenu !== (savedHero?.backgroundUnderMenu ?? false) ||
+    heroSpacing !== (savedHero?.spacing ?? DEFAULT_FRONT_PAGE_HERO_SPACING) ||
     dividerStyle !== (row?.kind === "divider" ? row.dividerStyle : "line") ||
     dividerShade !==
       (row?.kind === "divider"
@@ -348,6 +356,7 @@ export function FrontPageRowDialog({
         heroStars,
         heroBackground,
         heroBackgroundUnderMenu,
+        heroSpacing,
         testimonials,
         faqItems,
         logos,
@@ -504,13 +513,11 @@ export function FrontPageRowDialog({
                       <div className="flex items-center gap-2">
                         <ColorSwatch
                           id="front-page-row-hero-background"
-                          // A native colour box has no "no colour" to show, so
-                          // an empty field sits on white and the hex box beside
-                          // it is the one that says the row has none.
+                          // A native colour box has no "no colour" to show, so an empty
+                          // field sits on white and the hex box beside it is the one that
+                          // says the row has none.
                           value={heroBackground || "#ffffff"}
-                          onChange={(event) =>
-                            setHeroBackground(event.target.value)
-                          }
+                          onChange={(event) => setHeroBackground(event.target.value)}
                           aria-label="Pick a background colour"
                         />
                         <Input
@@ -520,14 +527,10 @@ export function FrontPageRowDialog({
                           className="w-40"
                           aria-invalid={
                             (heroBackground.trim() &&
-                              !normalizeFrontPageHeroBackground(
-                                heroBackground
-                              )) ||
+                              !normalizeFrontPageHeroBackground(heroBackground)) ||
                             undefined
                           }
-                          onChange={(event) =>
-                            setHeroBackground(event.target.value)
-                          }
+                          onChange={(event) => setHeroBackground(event.target.value)}
                         />
                         {heroBackground ? (
                           <Button
@@ -554,7 +557,7 @@ export function FrontPageRowDialog({
                         !first
                           ? "Only the top row of the page sits under the menu. Drag this row to the top to use this."
                           : !heroBackground
-                            ? "Choose a background colour first. There is nothing to carry up until there is one."
+                            ? "Choose a background colour first. There is nothing to run under the menu until there is one."
                             : "The colour starts at the very top of the window and passes behind the menu. The menu itself is not changed: it keeps its own colour, and its blur now blurs this colour instead of the page."
                       }
                     />
@@ -608,6 +611,7 @@ export function FrontPageRowDialog({
               heroButtonHref={heroButtonHref}
               heroNote={heroNote}
               heroStars={heroStars}
+              heroSpacing={heroSpacing}
               testimonials={testimonials}
               faqItems={faqItems}
               logos={logos}
@@ -623,6 +627,7 @@ export function FrontPageRowDialog({
               onHeroButtonHrefChange={setHeroButtonHref}
               onHeroNoteChange={setHeroNote}
               onHeroStarsChange={setHeroStars}
+              onHeroSpacingChange={setHeroSpacing}
               onTestimonialsChange={setTestimonials}
               onFaqItemsChange={setFaqItems}
               onLogosChange={setLogos}
@@ -890,6 +895,7 @@ function buildDraft({
   heroStars,
   heroBackground,
   heroBackgroundUnderMenu,
+  heroSpacing,
   testimonials,
   faqItems,
   logos,
@@ -924,6 +930,7 @@ function buildDraft({
   heroStars: number
   heroBackground: string
   heroBackgroundUnderMenu: boolean
+  heroSpacing: number
   testimonials: FrontPageTestimonial[]
   faqItems: FrontPageFaqItem[]
   logos: FrontPageLogo[]
@@ -963,6 +970,7 @@ function buildDraft({
       stars: heroStars,
       background: normalizeFrontPageHeroBackground(heroBackground),
       backgroundUnderMenu: heroBackgroundUnderMenu,
+      spacing: heroSpacing,
     }
   }
   if (kind === "testimonials") return { ...base, kind, items: testimonials }

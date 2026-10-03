@@ -139,10 +139,20 @@ export function PublicPageFrame({
     : publicHeader.width !== null
       ? { maxWidth: publicHeader.width }
       : pageWidthStyle
+  // The front page is built from rows that reach the window's edges, and the
+  // top one is usually a hero. A gap above it is a white strip between the
+  // menu and the page's own first block, so Main spacing skips this one page
+  // and the rows start directly under the menu. Tyler's call on 3 Oct 2026.
+  //
+  // `/` whatever is drawn there: an app may replace the shell's own front page
+  // through `landing.page`, and the page at the front door is still the page
+  // at the front door.
+  const frontPage = pathname === "/"
+  const mainSpacing = frontPage ? 0 : theme.mainSpacing
   const mainSpacingStyle =
-    theme.mainSpacing === DEFAULT_PUBLIC_MAIN_SPACING
+    mainSpacing === DEFAULT_PUBLIC_MAIN_SPACING
       ? undefined
-      : { paddingBlock: theme.mainSpacing }
+      : { paddingBlock: mainSpacing }
   const styling = publicShellStyling(theme)
   const isFlat = theme.gutter === 0
   // A gutter still on its starting number keeps the responsive classes, so a
@@ -195,7 +205,7 @@ export function PublicPageFrame({
   const mainStyle = heroRunsUnderMenu
     ? ({
         ...mainSpacingStyle,
-        "--shell-hero-rise": `calc(${theme.mainSpacing}px + var(${PUBLIC_HEADER_HEIGHT_VAR}, 0px))`,
+        "--shell-hero-rise": `calc(${mainSpacing}px + var(${PUBLIC_HEADER_HEIGHT_VAR}, 0px))`,
       } as React.CSSProperties)
     : mainSpacingStyle
   // The gap between front page blocks travels as two CSS variables rather than

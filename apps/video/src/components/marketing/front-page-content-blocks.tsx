@@ -13,6 +13,8 @@ import {
   MAX_CARRIED_EMAIL_LENGTH,
 } from "@/lib/billing/pricing-choice"
 import {
+  DEFAULT_FRONT_PAGE_HERO_SPACING,
+  FRONT_PAGE_HERO_SPACING_PHONE_SHARE,
   frontPageDividerColor,
   MAX_FRONT_PAGE_HERO_STARS,
   type FrontPageDividerStyle,
@@ -24,6 +26,23 @@ import {
 } from "@/lib/pages/front-page"
 import { PUBLIC_FRONT_PAGE_ROW_GAP_PHONE_SHARE } from "@/lib/public-theme"
 import { cn } from "@/lib/utils"
+
+/**
+ * The hero's own air, as the two numbers theme.css picks between at the
+ * breakpoint. It cannot be one inline `padding-block`, because an inline
+ * value beats a media query and a phone could then never draw less than a
+ * desktop. Left at the default, nothing is written and theme.css keeps its
+ * own fallbacks.
+ */
+function heroSpacingStyle(spacing: number): React.CSSProperties | undefined {
+  if (spacing === DEFAULT_FRONT_PAGE_HERO_SPACING) return undefined
+  return {
+    "--shell-hero-space": `${spacing}px`,
+    "--shell-hero-space-phone": `${Math.round(
+      spacing * FRONT_PAGE_HERO_SPACING_PHONE_SHARE
+    )}px`,
+  } as React.CSSProperties
+}
 
 /**
  * The hero's address box: one pill holding the box and its button.
@@ -89,6 +108,7 @@ export function FrontPageHero({
   showAction = true,
   showStars = true,
   showNote = true,
+  spacing = DEFAULT_FRONT_PAGE_HERO_SPACING,
 }: {
   heading: string
   intro: string
@@ -108,12 +128,16 @@ export function FrontPageHero({
   showAction?: boolean
   showStars?: boolean
   showNote?: boolean
+  /** The air above and below, on a desktop, in pixels. */
+  spacing?: number
 }) {
   const Heading = headingLevel
   const shownStars = showStars ? stars : 0
   const shownNote = showNote ? note : ""
   const words = (
     <div
+      data-front-page-hero={image ? undefined : ""}
+      style={image ? undefined : heroSpacingStyle(spacing)}
       className={cn(
         "grid gap-6",
         // Long lines are hard to read, so the words stop short of the full
@@ -183,7 +207,11 @@ export function FrontPageHero({
   if (!image) return words
 
   return (
-    <div className="grid w-full gap-6 md:grid-cols-2 md:items-start md:gap-10">
+    <div
+      data-front-page-hero=""
+      style={heroSpacingStyle(spacing)}
+      className="grid w-full gap-6 md:grid-cols-2 md:items-start md:gap-10"
+    >
       {words}
       <MediaThumbnail
         url={image}

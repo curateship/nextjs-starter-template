@@ -436,6 +436,23 @@ body.app-font {
     gap: 0;
 }
 
+/*
+ * A hero's own air, above and below. Its own number rather than the page's
+ * Main spacing, which skips the front page entirely, and rather than the gap
+ * between rows, which sits outside a hero's background colour while this sits
+ * inside it. The fallbacks are what a hero drew before the number was
+ * anybody's to set.
+ */
+[data-front-page-hero] {
+    padding-block: var(--shell-hero-space-phone, 3rem);
+}
+
+@media (min-width: 768px) {
+    [data-front-page-hero] {
+        padding-block: var(--shell-hero-space, 4rem);
+    }
+}
+
 html[data-public-brand] [data-slot="button"][data-variant="default"]:hover {
   background-color: var(--shell-primary-hover);
 }

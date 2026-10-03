@@ -575,6 +575,46 @@ describe("front page content blocks", () => {
     expect(frontPageHeroRunsUnderMenu(rows)).toBe(true)
   })
 
+  it("gives the hero its own air, set per row and smaller on a phone", () => {
+    const rows = normalizeFrontPageRows([
+      { id: "default", heading: "Left alone", kind: "hero" },
+      { id: "roomy", heading: "More room", kind: "hero", spacing: 120 },
+      { id: "tight", heading: "None at all", kind: "hero", spacing: 0 },
+    ])
+
+    // A hero saved before the slider existed keeps the 64 it always drew.
+    expect(rows[0]).toMatchObject({ spacing: 64 })
+    expect(rows[1]).toMatchObject({ spacing: 120 })
+    expect(rows[2]).toMatchObject({ spacing: 0 })
+
+    const markup = renderToStaticMarkup(
+      <FrontPageRows
+        rows={rows}
+        plans={[]}
+        trialUsed={false}
+        interval="monthly"
+        onIntervalChange={vi.fn()}
+        onSelectPlan={vi.fn()}
+      />
+    )
+    const sections = markup.split("<section").slice(1)
+
+    // The default writes nothing, so theme.css keeps its own numbers.
+    expect(sections[0]).not.toContain("--shell-hero-space")
+    // A chosen number travels as two, and the phone one is three quarters of
+    // the desktop one, so a phone never draws a desktop's worth of air.
+    expect(sections[1]).toContain("--shell-hero-space:120px")
+    expect(sections[1]).toContain("--shell-hero-space-phone:90px")
+    expect(sections[2]).toContain("--shell-hero-space:0px")
+    expect(sections[2]).toContain("--shell-hero-space-phone:0px")
+
+    // The air is the hero's, never the row's.
+    for (const section of sections) {
+      const openingTag = section.slice(0, section.indexOf(">"))
+      expect(openingTag).not.toContain("py-12")
+    }
+  })
+
   it("only lets the top row carry its colour behind the menu", () => {
     const rows = normalizeFrontPageRows([
       { id: "words", heading: "First", kind: "text" },

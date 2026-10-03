@@ -32,6 +32,9 @@ import {
   MAX_FRONT_PAGE_HERO_BUTTON_HREF_LENGTH,
   MAX_FRONT_PAGE_HERO_BUTTON_LABEL_LENGTH,
   MAX_FRONT_PAGE_HERO_NOTE_LENGTH,
+  MAX_FRONT_PAGE_HERO_SPACING,
+  DEFAULT_FRONT_PAGE_HERO_SPACING,
+  FRONT_PAGE_HERO_SPACING_PHONE_SHARE,
   MAX_FRONT_PAGE_HERO_STARS,
   MAX_FRONT_PAGE_FAQ_ITEMS,
   MAX_FRONT_PAGE_FAQ_QUESTION_LENGTH,
@@ -61,6 +64,7 @@ type FrontPageRowContentEditorProps = {
   heroButtonHref: string
   heroNote: string
   heroStars: number
+  heroSpacing: number
   testimonials: FrontPageTestimonial[]
   faqItems: FrontPageFaqItem[]
   logos: FrontPageLogo[]
@@ -76,6 +80,7 @@ type FrontPageRowContentEditorProps = {
   onHeroButtonHrefChange: (href: string) => void
   onHeroNoteChange: (note: string) => void
   onHeroStarsChange: (stars: number) => void
+  onHeroSpacingChange: (spacing: number) => void
   onTestimonialsChange: (items: FrontPageTestimonial[]) => void
   onFaqItemsChange: (items: FrontPageFaqItem[]) => void
   onLogosChange: (items: FrontPageLogo[]) => void
@@ -312,6 +317,7 @@ function HeroEditor({
   heroButtonHref,
   heroNote,
   heroStars,
+  heroSpacing,
   onHeroActionChange,
   onHeroImageChange,
   onHeroAltChange,
@@ -319,6 +325,7 @@ function HeroEditor({
   onHeroButtonHrefChange,
   onHeroNoteChange,
   onHeroStarsChange,
+  onHeroSpacingChange,
 }: FrontPageRowContentEditorProps) {
   return (
     <EditorCard
@@ -454,6 +461,24 @@ function HeroEditor({
           if (!heroAlt && altText) onHeroAltChange(altText)
         }}
       />
+
+      <SettingsSliderRow
+        label="Space above and below"
+        value={heroSpacing}
+        min={0}
+        max={MAX_FRONT_PAGE_HERO_SPACING}
+        step={4}
+        valueLabel={
+          heroSpacing === DEFAULT_FRONT_PAGE_HERO_SPACING
+            ? `${heroSpacing}px · Default`
+            : `${heroSpacing}px`
+        }
+        onChange={onHeroSpacingChange}
+        help={`The hero's own air, inside its background colour. A phone draws ${Math.round(
+          FRONT_PAGE_HERO_SPACING_PHONE_SHARE * 100
+        )}% of it, because the room that separates a hero from the menu on a desktop is most of a phone screen. Settings > Styling > Main spacing does not touch the front page, so this is the number.`}
+      />
+
     </EditorCard>
   )
 }
