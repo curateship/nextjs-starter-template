@@ -26,6 +26,7 @@ import {
   saveEmailApiKey,
   saveAuthLinkExpirySetting,
   saveEmailSenderSettings,
+  saveInboundAddressSetting,
   saveNewsletterDripDefaults,
   saveResendWebhookSecret,
   saveSystemEmailSenderSetting,
@@ -70,6 +71,7 @@ export function EmailSettings() {
     systemFromEmail: string
     fromEmail: string
     fromName: string
+    inboundAddress: string
   } | null>(null)
   // The pace a new newsletter starts from, as edited; null until the load.
   const [drip, setDrip] = React.useState<DripConfig | null>(null)
@@ -89,6 +91,7 @@ export function EmailSettings() {
   const [saving, setSaving] = React.useState<
     | "systemSender"
     | "sender"
+    | "inbound"
     | "key"
     | "webhook"
     | "drip"
@@ -137,6 +140,7 @@ export function EmailSettings() {
             systemFromEmail: next.systemFromEmail,
             fromEmail: next.fromEmail,
             fromName: next.fromName,
+            inboundAddress: next.inboundAddress,
           }
         )
         setDrip((prev) => prev ?? next.dripDefaults)
@@ -179,6 +183,21 @@ export function EmailSettings() {
       setSaveStatus("saved")
     } catch (error) {
       // The fields keep what was typed so a failed save loses nothing.
+      setSaveStatus("idle")
+      showErrorToast(getEmailSettingsErrorMessage(error))
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  const saveInbound = async (inboundAddress: string) => {
+    setSaving("inbound")
+    setSaveStatus("saving")
+    dismissErrorToast()
+    try {
+      setStatus(await saveInboundAddressSetting(inboundAddress))
+      setSaveStatus("saved")
+    } catch (error) {
       setSaveStatus("idle")
       showErrorToast(getEmailSettingsErrorMessage(error))
     } finally {
@@ -335,6 +354,24 @@ export function EmailSettings() {
       return
     }
     void saveSender(sender.fromEmail, sender.fromName)
+  }
+
+  const scheduleInboundSave = (inboundAddress: string) => {
+    clearTimeout(timers.current.inbound)
+    timers.current.inbound = setTimeout(
+      () => void saveInbound(inboundAddress),
+      SAVE_DELAY_MS
+    )
+  }
+
+  const flushInboundSave = () => {
+    if (!sender) return
+    clearTimeout(timers.current.inbound)
+    if (saving !== null) {
+      scheduleInboundSave(sender.inboundAddress)
+      return
+    }
+    void saveInbound(sender.inboundAddress)
   }
 
   const scheduleKeySave = (value: string) => {
@@ -634,6 +671,37 @@ export function EmailSettings() {
                   if (event.key === "Enter") flushSenderSave()
                 }}
               />
+            </div>
+
+            <div className="grid gap-2">
+              <FieldLabel
+                htmlFor="email-inbound-address"
+                hint="A Resend inbound address, such as leads@inbox.yourdomain.com. It needs MX records pointing at Resend, and the email.received event ticked on the webhook. The CRM reads mail here and replies from it, so answers come back."
+              >
+                Address mail arrives at
+              </FieldLabel>
+              <Input
+                id="email-inbound-address"
+                type="email"
+                autoComplete="off"
+                placeholder="e.g. leads@inbox.yourdomain.com"
+                value={sender.inboundAddress}
+                onChange={(event) => {
+                  const next = {
+                    ...sender,
+                    inboundAddress: event.target.value,
+                  }
+                  setSender(next)
+                  scheduleInboundSave(next.inboundAddress)
+                }}
+                onBlur={flushInboundSave}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") flushInboundSave()
+                }}
+              />
+              <p className="text-xs text-muted-foreground">
+                Empty means the CRM has no mailbox, so it cannot reply.
+              </p>
             </div>
           </>
         )}

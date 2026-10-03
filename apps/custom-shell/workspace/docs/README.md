@@ -45,6 +45,10 @@ local setup docs.
 - [Alignment and parts of a front page row](content/front-page-row-alignment-and-parts.md)
 - [The divider row](content/front-page-divider-rows.md)
 
+## CRM
+
+- [The inbox, and the leads it makes](crm/inbox-and-leads.md)
+
 ## Email and notifications
 
 - [Newsletters and broadcasts](email/newsletters-and-broadcasts.md)

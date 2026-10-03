@@ -243,6 +243,28 @@ function trafficLink(): ShellItem {
   }
 }
 
+const CRM_LINK_ID = "item-crm"
+const CRM_HREF = "/admin/crm"
+
+/**
+ * The CRM: mail that comes in, and the leads it turns into.
+ *
+ * In Administration rather than beside Newsletter, because it is work somebody
+ * does every day. Newsletter is mail the app sends on your behalf; this is mail
+ * a person reads and answers, which is a different sort of thing entirely.
+ */
+function crmLink(): ShellItem {
+  return {
+    type: "item",
+    id: CRM_LINK_ID,
+    label: "CRM",
+    href: CRM_HREF,
+    icon: "inbox",
+    visible: true,
+    roles: ["admin"],
+  }
+}
+
 const PAGES_LINK_ID = "item-admin-pages"
 const PAGES_HREF = "/admin/pages"
 
@@ -442,7 +464,7 @@ function newsletterLink(): ShellItem {
  * workspace should pick up. A workspace is brought up to this number once, ever
  * — see `applyNavigationUpgrade`.
  */
-export const NAVIGATION_VERSION = 19
+export const NAVIGATION_VERSION = 20
 
 export type WorkspaceSettings = {
   icon: IconKey
@@ -1292,6 +1314,9 @@ async function applyNavigationUpgrade(
   if (settings.navVersion < 19) {
     sections = addMeteredUsageLink(sections)
   }
+  if (settings.navVersion < 20) {
+    sections = addCrmLink(sections)
+  }
 
   const [updated] = await database
     .update(customShellWorkspaces)
@@ -1901,6 +1926,51 @@ export function addPagesLink(sections: ShellSection[]): ShellSection[] {
       0,
       pagesLink()
     )
+    return { ...section, entries }
+  })
+}
+
+/**
+ * Puts the CRM link into a sidebar saved before the screen existed, under the
+ * Overview.
+ *
+ * Same rules as every step here: it adds the link once, never doubles one that
+ * is already reachable however it got there, and leaves an empty sidebar alone.
+ */
+export function addCrmLink(sections: ShellSection[]): ShellSection[] {
+  if (!sections.length) return sections
+
+  const isCrm = (link: { id: string; href?: string }) =>
+    link.id === CRM_LINK_ID || link.href === CRM_HREF
+
+  const alreadyThere = sections.some((section) =>
+    section.entries.some(
+      (entry) =>
+        isCrm(entry) ||
+        (isShellItem(entry) && (entry.children ?? []).some(isCrm))
+    )
+  )
+  if (alreadyThere) return sections
+
+  const isOverview = (link: { id: string; href?: string }) =>
+    link.id === OVERVIEW_LINK_ID || link.href === OVERVIEW_HREF
+
+  const overviewSection = sections.findIndex((section) =>
+    section.entries.some(isOverview)
+  )
+  const administration = sections.findIndex(
+    (section) => section.id === "section-administration"
+  )
+  // The Administration section when there is one, the first section otherwise:
+  // a link nobody can reach is worse than a link in a surprising place.
+  const index =
+    overviewSection >= 0 ? overviewSection : Math.max(0, administration)
+
+  return sections.map((section, at) => {
+    if (at !== index) return section
+    const overviewAt = section.entries.findIndex(isOverview)
+    const entries = [...section.entries]
+    entries.splice(overviewAt >= 0 ? overviewAt + 1 : 0, 0, crmLink())
     return { ...section, entries }
   })
 }
@@ -2815,6 +2885,7 @@ function createDefaultWorkspaceSections(): ShellSection[] {
           ...membershipChildLinks(),
           meteredUsageChildLink(),
         ]),
+        crmLink(),
         aiUsageLink(),
         trafficLink(),
         pagesLink(),

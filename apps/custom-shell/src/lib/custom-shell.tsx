@@ -77,6 +77,7 @@ import {
   GlobeIcon,
   HeartPulseIcon,
   ImageIcon,
+  InboxIcon,
   LayoutDashboardIcon,
   LibraryIcon,
   MailIcon,
@@ -107,6 +108,10 @@ export const iconMeta = {
   package: {
     label: "Package",
     icon: PackageIcon,
+  },
+  inbox: {
+    label: "Inbox",
+    icon: InboxIcon,
   },
   folderOpen: {
     label: "Folder open",

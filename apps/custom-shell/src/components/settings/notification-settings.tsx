@@ -19,6 +19,7 @@ const notificationSettingLabels: Record<NotificationType, string> = {
   account_update: "Account changes made by an admin",
   system_email_failed: "Account emails that stopped retrying",
   app_activity: "Activity in the app, such as a trade or a price alert",
+  crm_follow_up: "A lead you set a date to follow up on",
 }
 
 /**

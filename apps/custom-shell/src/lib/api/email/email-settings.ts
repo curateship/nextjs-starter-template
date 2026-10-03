@@ -13,6 +13,7 @@ import {
   saveAuthLinkExpiry,
   saveDripDefaults,
   saveEmailSender,
+  saveInboundAddress,
   saveSystemEmailSender,
   setEmailApiKey,
   setResendWebhookSecret,
@@ -39,6 +40,8 @@ export const getEmailSettingsErrorMessage = createErrorMessage(
     NO_KEY: "There's no key to test yet — paste one first.",
     INVALID_FROM_EMAIL:
       "The from address doesn't look like an email address. Check it and try again.",
+    INVALID_INBOUND_ADDRESS:
+      "The address mail arrives at doesn't look like an email address. Check it and try again.",
     DRIP_SETTINGS_INVALID:
       "Those batch settings contradict each other. Check the smallest is not bigger than the largest.",
   },
@@ -76,6 +79,32 @@ const saveEmailSenderFn = createServerFn({ method: "POST" })
 export function saveEmailSenderSettings(fromEmail: string, fromName: string) {
   return saveEmailSenderFn({
     data: { fromEmail: fromEmail.trim(), fromName },
+  })
+}
+
+/**
+ * Where mail comes IN: the Resend inbound address the CRM reads and replies
+ * from.
+ *
+ * "" is allowed and clears it, which turns the CRM's replying off rather than
+ * leaving it pointed at an address nobody owns.
+ */
+const saveInboundAddressFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(
+    z.object({
+      inboundAddress: z.union([z.literal(""), z.string().email().max(255)]),
+    })
+  )
+  .handler(async ({ data, context }): Promise<EmailSettingsStatus> => {
+    const workspaceId = await currentWorkspaceId(context.user.id)
+    await saveInboundAddress(workspaceId, data.inboundAddress)
+    return getEmailSettingsStatus(workspaceId)
+  })
+
+export function saveInboundAddressSetting(inboundAddress: string) {
+  return saveInboundAddressFn({
+    data: { inboundAddress: inboundAddress.trim() },
   })
 }
 
