@@ -43,6 +43,26 @@ with it, and an edit that said Saved was gone after a reload.
 the header still says Saving…, make a second change on another card. Reload.
 Both have to be there.
 
+## What the load is allowed to drop
+
+The shell tidies a saved record on its way in, and the auto-save then writes
+that tidying back. Anything dropped here is dropped for good, so the rule is
+narrow.
+
+- **Retired account links go.** The account area is a modal reached from the
+  user menu, so a saved sidebar link pointing at it is removed on load.
+  `stripRetiredAccountEntries` in `src/components/shell/shell-layout.tsx` does
+  this instead of a config migration.
+- **A sidebar section goes only when that strip is what emptied it.** A section
+  that was already empty stays. "Add section" makes an empty section, so
+  dropping those meant a new section appeared and then vanished a second later
+  when the save came back, and no new section could be made at all. The same
+  filter had earlier erased a section whose last link the admin dragged into
+  another section. Fixed 3 Oct 2026.
+- **An empty section is invisible in the live sidebar anyway.**
+  `src/components/shell/sidebar/sidebar.tsx` hides a section with no visible
+  links, so keeping it in the record costs nothing on screen.
+
 ## What a site owns and what the deployment owns
 
 A multisite app splits the record in two when
