@@ -686,6 +686,9 @@ export async function serializeNotificationRows(
             automations.get(row.automationRunId ?? "")?.error ?? null
           )
         : null,
+    // A follow-up notice needs no join: it carries its own words, and this is
+    // the one thing it points at.
+    crm_thread_id: row.crmThreadId,
     message: row.message,
     detail: row.detail,
     read_at: row.readAt?.toISOString() ?? null,

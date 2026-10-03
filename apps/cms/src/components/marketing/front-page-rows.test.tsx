@@ -2,7 +2,10 @@ import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it, vi } from "vitest"
 
 import { FrontPageRows } from "@/components/marketing/front-page-rows"
-import { normalizeFrontPageRows } from "@/lib/pages/front-page"
+import {
+  frontPageHeroRunsUnderMenu,
+  normalizeFrontPageRows,
+} from "@/lib/pages/front-page"
 
 describe("front page content blocks", () => {
   it("renders testimonials, FAQ entries, logos, and screenshots in row order", () => {
@@ -408,6 +411,66 @@ describe("front page content blocks", () => {
     expect(markup).not.toContain("bg-border")
   })
 
+  it("gives a space divider the height it was set, and 70% of it on a phone", () => {
+    const rows = normalizeFrontPageRows([
+      { id: "a", heading: "A", kind: "divider", dividerStyle: "space" },
+      {
+        id: "b",
+        heading: "B",
+        kind: "divider",
+        dividerStyle: "space",
+        dividerSpace: 200,
+      },
+    ])
+    const markup = renderToStaticMarkup(
+      <FrontPageRows
+        rows={rows}
+        plans={[]}
+        trialUsed={false}
+        interval="monthly"
+        onIntervalChange={vi.fn()}
+        onSelectPlan={vi.fn()}
+      />
+    )
+
+    // Left alone, a space divider is still the 64px it has always drawn.
+    expect(markup).toContain("--divider-space:64px")
+    expect(markup).toContain("--divider-space-phone:45px")
+    expect(markup).toContain("--divider-space:200px")
+    expect(markup).toContain("--divider-space-phone:140px")
+  })
+
+  it("reads a missing or silly space as 64px", () => {
+    const rows = normalizeFrontPageRows([
+      { id: "none", heading: "None", kind: "divider", dividerStyle: "space" },
+      {
+        id: "high",
+        heading: "High",
+        kind: "divider",
+        dividerStyle: "space",
+        dividerSpace: 9000,
+      },
+      {
+        id: "low",
+        heading: "Low",
+        kind: "divider",
+        dividerStyle: "space",
+        dividerSpace: -40,
+      },
+      {
+        id: "junk",
+        heading: "Junk",
+        kind: "divider",
+        dividerStyle: "space",
+        dividerSpace: "tall",
+      },
+    ])
+
+    expect(
+      rows.map((row) => row.kind === "divider" && row.dividerSpace)
+    ).toEqual([64, 240, 0, 64])
+  })
+
   it("reads a missing or silly shade as the theme's own 10%", () => {
     const rows = normalizeFrontPageRows([
       { id: "none", heading: "None", kind: "divider" },
@@ -467,6 +530,78 @@ describe("front page content blocks", () => {
     // The row left on Full width did not grow a breakout.
     expect(normal).not.toContain("w-screen")
     expect(normal).not.toContain("mx-[calc(50%-50vw)]")
+  })
+
+  it("paints a hero's own colour as a band and keeps a bad one out", () => {
+    const rows = normalizeFrontPageRows([
+      {
+        id: "hero",
+        heading: "Open your shop this week",
+        kind: "hero",
+        background: "#0F172A",
+        backgroundUnderMenu: true,
+      },
+      {
+        id: "second",
+        heading: "Later on",
+        kind: "hero",
+        background: "red",
+        backgroundUnderMenu: true,
+      },
+    ])
+
+    // A 6-digit hex is kept, lower-cased. Anything else is no colour at all,
+    // so a name or a `var(...)` can never reach a visitor's stylesheet.
+    expect(rows[0]).toMatchObject({
+      background: "#0f172a",
+      backgroundUnderMenu: true,
+    })
+    expect(rows[1]).toMatchObject({ background: "" })
+
+    const markup = renderToStaticMarkup(
+      <FrontPageRows
+        rows={rows}
+        plans={[]}
+        trialUsed={false}
+        interval="monthly"
+        onIntervalChange={vi.fn()}
+        onSelectPlan={vi.fn()}
+      />
+    )
+
+    expect(markup).toContain("background-color:#0f172a")
+    // The band climbs past the menu, so the colour passes behind it.
+    expect(markup).toContain("var(--shell-hero-rise, 0px)")
+    expect(frontPageHeroRunsUnderMenu(rows)).toBe(true)
+  })
+
+  it("only lets the top row carry its colour behind the menu", () => {
+    const rows = normalizeFrontPageRows([
+      { id: "words", heading: "First", kind: "text" },
+      {
+        id: "hero",
+        heading: "Second",
+        kind: "hero",
+        background: "#0f172a",
+        backgroundUnderMenu: true,
+      },
+    ])
+    const markup = renderToStaticMarkup(
+      <FrontPageRows
+        rows={rows}
+        plans={[]}
+        trialUsed={false}
+        interval="monthly"
+        onIntervalChange={vi.fn()}
+        onSelectPlan={vi.fn()}
+      />
+    )
+
+    // The band is still painted, it just starts at the row rather than above
+    // it, because this hero is not the one the menu sits over.
+    expect(markup).toContain("background-color:#0f172a")
+    expect(markup).not.toContain("var(--shell-hero-rise, 0px)")
+    expect(frontPageHeroRunsUnderMenu(rows)).toBe(false)
   })
 
   it("reads an unknown layout as the usual full width", () => {

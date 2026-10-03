@@ -417,6 +417,8 @@ export function NotificationCenter({
           to: ".",
           search: (prev) => ({ ...prev, account: "billing" }),
         })
+      } else if (action.kind === "crmThread") {
+        void navigate({ to: "/admin/crm", search: { open: action.threadId } })
       } else {
         onOpenFeedback?.(action.feedbackId)
       }

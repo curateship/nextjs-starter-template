@@ -107,6 +107,19 @@ export function FrontPageRows({
             ? frontPageRowAction(appRowData?.[row.id])
             : null
 
+        // A hero's own colour, painted as a band right across the window. The
+        // band is a child rather than a background on the section itself,
+        // because the section is only as wide as its layout allows and the
+        // colour has to reach both edges of the window whatever that is.
+        const background = row.kind === "hero" ? row.background : ""
+        // Only the row at the very top of the page has the menu over it,
+        // whatever a hero further down has saved.
+        const underMenu =
+          index === 0 &&
+          row.kind === "hero" &&
+          Boolean(row.background) &&
+          row.backgroundUnderMenu
+
         // A whole-screen row steps outside the public content column and the
         // page's own left and right edge. The column is centred inside `main`,
         // so half the window less half the column is exactly the distance to
@@ -138,6 +151,14 @@ export function FrontPageRows({
               row.layout === "narrow" && "max-w-3xl",
               alignment ? publicContentAlignmentSelfClassNames[alignment] : null,
               wholeClassName,
+              // `isolate` keeps the band behind this row's own words and
+              // nothing else. Without it the band's negative layer would drop
+              // behind the page's canvas colour and disappear.
+              //
+              // The padding is what stops the heading sitting against the top
+              // edge of its own colour. A row with no colour needs none: the
+              // gap between rows is already its breathing room.
+              background ? "relative isolate py-12 md:py-16" : null,
               publicDeviceRowClassName(row.device)
             )}
             data-front-page-row={row.kind}
@@ -145,6 +166,29 @@ export function FrontPageRows({
             data-front-page-device={row.device}
             data-front-page-alignment={row.alignment}
           >
+            {/* The colour itself. It runs 100vw past each side rather than
+                measuring the window, because the row may sit left, right or
+                centred and only one of those has the window's middle under
+                it. `main` has `overflow-x-clip`, so the spill is cut off at
+                the window and never adds a sideways scrollbar.
+
+                With the switch on it also climbs past the menu, so the
+                colour is what shows through it. How far that is — the gap
+                above this row plus the bar's own height — is `--shell-hero-rise`,
+                which the public page frame writes on `main`. */}
+            {background ? (
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute -z-10 right-[-100vw] bottom-0 left-[-100vw]"
+                style={{
+                  backgroundColor: background,
+                  top: underMenu
+                    ? "calc(-1 * var(--shell-hero-rise, 0px))"
+                    : 0,
+                }}
+              />
+            ) : null}
+
             {/* A hero draws its own heading, at its own size and beside the
                 picture. A divider has no words at all. Every other row puts the
                 heading above its content. */}
@@ -255,6 +299,7 @@ export function FrontPageRows({
               <FrontPageDivider
                 style={row.dividerStyle}
                 shade={row.dividerShade}
+                space={row.dividerSpace}
                 alignClassName={alignClassName}
               />
             ) : null}

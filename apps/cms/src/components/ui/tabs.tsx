@@ -75,6 +75,36 @@ function TabsTrigger({
   )
 }
 
+/**
+ * The number beside a tab's label: how many rows are behind it.
+ *
+ * A soft chip in the muted shade, not a coloured number. On the chosen tab it
+ * sits on the raised white pill and reads as a chip; on the others it sits on
+ * the track, which is the same shade, so it quietly disappears — which is what
+ * a count on a tab nobody is looking at should do. A coloured number competes
+ * with the label for attention and makes the control look like it is warning
+ * about something.
+ *
+ * Fixed-width digits and a minimum width, so the pill does not jump as the
+ * number goes from 9 to 10, and `aria-hidden` because the label beside it
+ * already names what is being counted and a screen reader reading "Unread 2"
+ * as two separate things is noise. Give the trigger its own full label when
+ * the number matters to somebody who cannot see it.
+ */
+function TabsCount({ className, ...props }: React.ComponentProps<"span">) {
+  return (
+    <span
+      data-slot="tabs-count"
+      aria-hidden
+      className={cn(
+        "inline-flex min-w-5 items-center justify-center rounded-full bg-muted px-1.5 py-0.5 text-xs leading-none font-medium text-muted-foreground tabular-nums",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
 function TabsContent({
   className,
   ...props
@@ -88,4 +118,4 @@ function TabsContent({
   )
 }
 
-export { Tabs, TabsList, TabsTrigger, TabsContent }
+export { Tabs, TabsList, TabsTrigger, TabsContent, TabsCount }

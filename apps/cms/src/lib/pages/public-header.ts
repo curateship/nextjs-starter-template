@@ -28,6 +28,21 @@ export const MAX_PUBLIC_HEADER_WIDTH = 2560
 export const MIN_PUBLIC_HEADER_LOGO_GAP = 0
 export const MAX_PUBLIC_HEADER_LOGO_GAP = 400
 
+/**
+ * How big the menu words are, in pixels. 14 is the default because it is what
+ * a menu link measured before this setting existed, so a site saved earlier
+ * does not move.
+ *
+ * It had measured 14 by accident rather than by choice: the lists declared
+ * `text-base`, but `PublicMenuLink` carries `text-sm` for the footer and the
+ * missing-page screen, and that won. A group's own word, which is a button
+ * rather than a link, had no such override and drew at 16, so one menu could
+ * hold two sizes. One setting now decides every word in it.
+ */
+export const MIN_PUBLIC_HEADER_MENU_FONT_SIZE = 12
+export const MAX_PUBLIC_HEADER_MENU_FONT_SIZE = 24
+export const DEFAULT_PUBLIC_HEADER_MENU_FONT_SIZE = 14
+
 export type PublicHeader = {
   /** Keeps the full public header at the top while the visitor scrolls. */
   sticky: boolean
@@ -52,6 +67,12 @@ export type PublicHeader = {
    * button and there is nothing for the space to move.
    */
   logoGap: number
+  /**
+   * The size of the menu words, in pixels. A link inside the phone menu's
+   * group is written as a share of this rather than a fixed size, so the whole
+   * menu grows together.
+   */
+  menuFontSize: number
 }
 
 export function createDefaultPublicHeader(): PublicHeader {
@@ -63,6 +84,7 @@ export function createDefaultPublicHeader(): PublicHeader {
     width: null,
     blur: "medium",
     logoGap: 0,
+    menuFontSize: DEFAULT_PUBLIC_HEADER_MENU_FONT_SIZE,
   }
 }
 
@@ -81,6 +103,15 @@ function isPublicHeaderLogoGap(value: unknown): value is number {
     Number.isInteger(value) &&
     value >= MIN_PUBLIC_HEADER_LOGO_GAP &&
     value <= MAX_PUBLIC_HEADER_LOGO_GAP
+  )
+}
+
+function isPublicHeaderMenuFontSize(value: unknown): value is number {
+  return (
+    typeof value === "number" &&
+    Number.isInteger(value) &&
+    value >= MIN_PUBLIC_HEADER_MENU_FONT_SIZE &&
+    value <= MAX_PUBLIC_HEADER_MENU_FONT_SIZE
   )
 }
 
@@ -115,5 +146,8 @@ export function normalizePublicHeader(value: unknown): PublicHeader {
     logoGap: isPublicHeaderLogoGap(header.logoGap)
       ? header.logoGap
       : fallback.logoGap,
+    menuFontSize: isPublicHeaderMenuFontSize(header.menuFontSize)
+      ? header.menuFontSize
+      : fallback.menuFontSize,
   }
 }

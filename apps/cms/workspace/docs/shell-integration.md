@@ -215,14 +215,51 @@ with the arriving list.
 No migration is owed. Front page rows live in the settings JSON, and the
 segment fix is all in the browser.
 
+## The CRM, and a hero's own colour
+
+Carried from the shell on 3 October 2026.
+
+**The CRM.** Email that comes in becomes a lead you can chase. Admin → CRM is
+an inbox of conversations down one side and the lead's own record down the
+other: their stage, what the work is worth, and when to chase them. Mail
+arrives through Resend's inbound webhook on the address set in
+Settings → Email → Inbound address, and a reply goes back out from that same
+address so the answer lands in the CRM rather than in a send-only mailbox.
+
+A lead is an email address, not a contact. Somebody writing in has not asked
+for the newsletter, so an inbound address never adds itself to the audience.
+It links to a contact only when one already exists on that address, or when
+somebody presses Add to contacts.
+
+Replies go out under a name set once in Settings → Email, with a signature of
+a name, a business and a phone number under them, and they quote the message
+they answer unless that is switched off. Answering a closed or snoozed thread
+puts it back in the inbox. A chase date that passes puts a notice in the bell,
+and clicking the notice opens that conversation.
+
+**A hero's own background colour.** A front page hero row can carry a colour,
+painted as a band right across the window whatever its Layout says, with a
+switch to run that colour under the menu. With the switch on the menu bar
+stops painting its own background, so the colour is what shows through its
+blur. Only the top row of the page can do it. The shell's own
+`docs/content/hero-background-colour.md` in custom-shell has the detail.
+
+**Also carried:** the bell's unread count and its unread list stopped being the
+same thing, written pages gained `hidden_from_search` and `canonical_url`, and
+the public menu's text size is now a setting.
+
+## Migrations
+
 The current shell includes database migrations through
-`0081_custom_shell_per_page_index_controls.sql`. CMS numbers its own migrations
+`0085_custom_shell_crm_quote_replies.sql`. CMS numbers its own migrations
 past the shell's, so a shell migration takes the next free CMS number and keeps
-its name: the shell's `0080` and `0081` are CMS's
+its name. The shell's `0080` and `0081` are CMS's
 `0102_custom_shell_notifications_seen.sql` and
-`0103_custom_shell_per_page_index_controls.sql`. The first adds the bell's
-`seen_at` column, and the second adds `hidden_from_search` and `canonical_url`
-to written pages. Apply pending migrations
+`0103_custom_shell_per_page_index_controls.sql`, and the shell's `0082` to
+`0085` are CMS's `0113` to `0116`, all four of them the CRM: its six tables,
+the inbound address, the reply name, the signature, and the quote switch. The
+`crm_follow_up` notice type is added to the `notifications` check constraint,
+which is a widening, so no saved notice stops being valid. Apply pending migrations
 with `npm run db:migrate` against the intended CMS database before running the
 updated app. Supply `CUSTOM_SHELL_DATABASE_URL` explicitly; the migration
 command does not load a local environment file. The background worker has its own build and start commands,

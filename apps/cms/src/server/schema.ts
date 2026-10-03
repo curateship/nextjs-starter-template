@@ -9,6 +9,12 @@ import type {
   AutomationRunStepStatus,
   AutomationTriggerFacts,
 } from "@/lib/automations/run"
+import type {
+  CrmAttachment,
+  CrmDirection,
+  CrmStage,
+  CrmThreadStatus,
+} from "@/lib/crm/crm"
 import type { PlanFeatures } from "@/lib/billing/plan-features"
 import {
   bigint,
@@ -432,6 +438,15 @@ export const customShellNotifications = pgTable(
     automationApprovalState: varchar("automation_approval_state", {
       length: 20,
     }).$type<"pending" | "timed_out">(),
+    /**
+     * Set on a `crm_follow_up` notice: the conversation clicking it opens.
+     *
+     * No `references()` here, the same way `users.currentWorkspaceId` has
+     * none — the CRM tables are declared at the foot of this file and a
+     * pointer up here would be read before they exist. The real foreign key,
+     * with its ON DELETE SET NULL, is in `0082_custom_shell_crm.sql`.
+     */
+    crmThreadId: varchar("crm_thread_id", { length: 36 }),
     readAt: timestamp("read_at", { withTimezone: true }),
     /**
      * When the bell was opened with this notice already waiting behind it.
@@ -447,7 +462,7 @@ export const customShellNotifications = pgTable(
   (table) => [
     check(
       "notifications_type_check",
-      sql`${table.type} in ('feedback_vote', 'feedback_comment', 'feedback_merged', 'changelog', 'announcement', 'ai_limit_warning', 'ai_limit_reached', 'automation_approval', 'automation_failed', 'account_update', 'system_email_failed', 'app_activity')`
+      sql`${table.type} in ('feedback_vote', 'feedback_comment', 'feedback_merged', 'changelog', 'announcement', 'ai_limit_warning', 'ai_limit_reached', 'automation_approval', 'automation_failed', 'account_update', 'system_email_failed', 'app_activity', 'crm_follow_up')`
     ),
     index("ix_notifications_recipient_created").on(
       table.recipientUserId,
@@ -2330,6 +2345,42 @@ export const customShellEmailSettings = pgTable("email_settings", {
   fromEmail: varchar("from_email", { length: 255 }),
   fromName: varchar("from_name", { length: 255 }),
   /**
+   * Where this workspace's mail comes IN — the Resend inbound address, such as
+   * `leads@inbox.example.com`.
+   *
+   * It is how the webhook knows whose mail it is holding: the event says which
+   * address a message was received for, and that is matched against this
+   * column. The CRM also replies FROM it, so the answer comes back to the same
+   * place instead of to a send-only sender nobody reads.
+   */
+  inboundAddress: varchar("inbound_address", { length: 255 }),
+  /**
+   * The name a CRM reply goes out under, in front of the inbound address.
+   *
+   * Only the name is here. The address is always `inboundAddress`, because a
+   * reply has to come back to the same mailbox. Null falls back to the app
+   * name at send time, so a workspace that never fills this in still sends
+   * from a name rather than a bare address. Added in
+   * `0083_custom_shell_crm_reply_name.sql`.
+   */
+  crmReplyName: varchar("crm_reply_name", { length: 255 }),
+  /**
+   * The lines that go under every CRM reply: a name, a business, a phone
+   * number. Plain text, never HTML and never blocks, so it is escaped on the
+   * way out exactly like the typed body. Null or blank means a reply goes out
+   * with nothing added. Added in
+   * `0084_custom_shell_crm_reply_signature.sql`.
+   */
+  crmReplySignature: text("crm_reply_signature"),
+  /**
+   * Whether a CRM reply carries the message it answers underneath it, the way
+   * every mail client does. On unless somebody turns it off, which is why the
+   * column is `not null default true` rather than nullable: a workspace that
+   * predates the setting quotes, the same as a new one. Added in
+   * `0085_custom_shell_crm_quote_replies.sql`.
+   */
+  crmQuoteReplies: boolean("crm_quote_replies").notNull().default(true),
+  /**
    * The drip rules a newly created newsletter starts from — see
    * `src/lib/broadcasts/drip.ts`. Only ever read at that moment; changing it
    * later leaves newsletters that already exist alone.
@@ -2372,6 +2423,228 @@ export const customShellStripeSettings = pgTable("stripe_settings", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 })
 
+/* -------------------------------------------------------------------------- */
+/*  The CRM: email that comes in, and the leads it turns into                  */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * One address that has written in, with everything about them that is not an
+ * email.
+ *
+ * **A lead is an address, not a contact.** `customShellContacts` is the
+ * newsletter audience, and somebody emailing you has not asked for a
+ * newsletter — so inbound mail writes a lead here and never a contact. The
+ * two are joined by `contactId` when a contact already exists on the address,
+ * or when an admin presses "Add to contacts".
+ */
+export const customShellCrmLeads = pgTable(
+  "crm_leads",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    email: varchar("email", { length: 255 }).notNull(),
+    name: varchar("name", { length: 255 }),
+    company: varchar("company", { length: 255 }),
+    phone: varchar("phone", { length: 60 }),
+    /** Where they came from, in words. Inbound mail writes "Email". */
+    source: varchar("source", { length: 255 }),
+    stage: varchar("stage", { length: 20 })
+      .notNull()
+      .default("new")
+      .$type<CrmStage>(),
+    /**
+     * What the work is worth, in cents. Cents because money in a float stops
+     * adding up; every screen that shows it shows dollars.
+     */
+    valueCents: integer("value_cents").notNull().default(0),
+    followUpAt: timestamp("follow_up_at", { withTimezone: true }),
+    followUpNote: text("follow_up_note"),
+    /**
+     * Stamped once the background pass has said "chase this one", so it cannot
+     * say it again fifteen seconds later on the next pass.
+     */
+    followUpNotifiedAt: timestamp("follow_up_notified_at", {
+      withTimezone: true,
+    }),
+    /**
+     * The newsletter contact this lead turned out to be. SET NULL rather than
+     * cascade: removing somebody from the newsletter must not delete the record
+     * of the job they paid for.
+     */
+    contactId: varchar("contact_id", { length: 36 }).references(
+      () => customShellContacts.id,
+      { onDelete: "set null" }
+    ),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "crm_leads_stage_check",
+      sql`${table.stage} in ('new', 'contacted', 'quoted', 'won', 'lost')`
+    ),
+    // Lowered: mail arrives with whatever capitals the sender's client used.
+    uniqueIndex("ux_crm_leads_workspace_email").on(
+      table.workspaceId,
+      sql`lower(${table.email})`
+    ),
+    // The follow-up job's own question. Partial, because it is a handful of
+    // rows out of a table that only grows.
+    index("ix_crm_leads_follow_up_due")
+      .on(table.workspaceId, table.followUpAt)
+      .where(
+        sql`${table.followUpAt} is not null and ${table.followUpNotifiedAt} is null`
+      ),
+    index("ix_crm_leads_workspace_stage").on(table.workspaceId, table.stage),
+  ]
+)
+
+/**
+ * One back-and-forth with one lead.
+ *
+ * The newest message's time and the message count are kept on the row rather
+ * than counted over `customShellCrmMessages` every time, because the inbox
+ * list reads them for every thread on the page.
+ */
+export const customShellCrmThreads = pgTable(
+  "crm_threads",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    leadId: varchar("lead_id", { length: 36 })
+      .notNull()
+      .references(() => customShellCrmLeads.id, { onDelete: "cascade" }),
+    subject: text("subject").notNull().default(""),
+    /**
+     * The subject with every "Re:" and "Fwd:" taken off, squeezed and
+     * lowered, by `normalizeSubject`.
+     *
+     * Stored rather than worked out on the way in, because matching a reply to
+     * its thread is a lookup on this column and SQL cannot strip a stack of
+     * reply prefixes. The subject shown on screen is always `subject`, exactly
+     * as the mail arrived.
+     */
+    subjectKey: varchar("subject_key", { length: 500 }).notNull().default(""),
+    status: varchar("status", { length: 20 })
+      .notNull()
+      .default("open")
+      .$type<CrmThreadStatus>(),
+    snoozedUntil: timestamp("snoozed_until", { withTimezone: true }),
+    lastMessageAt: timestamp("last_message_at", {
+      withTimezone: true,
+    }).notNull(),
+    lastDirection: varchar("last_direction", { length: 3 })
+      .notNull()
+      .$type<CrmDirection>(),
+    messageCount: integer("message_count").notNull().default(0),
+    /** Null is unread. A new message clears it again. */
+    readAt: timestamp("read_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "crm_threads_status_check",
+      sql`${table.status} in ('open', 'snoozed', 'closed')`
+    ),
+    check(
+      "crm_threads_last_direction_check",
+      sql`${table.lastDirection} in ('in', 'out')`
+    ),
+    // The inbox list, exactly.
+    index("ix_crm_threads_workspace_last_message").on(
+      table.workspaceId,
+      table.lastMessageAt
+    ),
+    index("ix_crm_threads_workspace_status").on(table.workspaceId, table.status),
+    index("ix_crm_threads_lead").on(table.leadId),
+    // Rule two of thread matching: has this person written about this same
+    // subject recently.
+    index("ix_crm_threads_lead_subject").on(
+      table.leadId,
+      table.subjectKey,
+      table.lastMessageAt
+    ),
+  ]
+)
+
+/**
+ * One email, in or out.
+ *
+ * **The body arrives in a second request.** Resend's `email.received` webhook
+ * carries the sender, the subject and the attachment names and nothing else, so
+ * the row is written the moment the hook fires and filled in once the receiving
+ * endpoint has answered. A null `bodyFetchedAt` means that second call has not
+ * landed, and the background pass retries those until `bodyAttempts` runs out.
+ */
+export const customShellCrmMessages = pgTable(
+  "crm_messages",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    threadId: varchar("thread_id", { length: 36 })
+      .notNull()
+      .references(() => customShellCrmThreads.id, { onDelete: "cascade" }),
+    direction: varchar("direction", { length: 3 })
+      .notNull()
+      .$type<CrmDirection>(),
+    fromEmail: varchar("from_email", { length: 255 }).notNull(),
+    fromName: varchar("from_name", { length: 255 }),
+    toEmail: varchar("to_email", { length: 255 }).notNull(),
+    subject: text("subject").notNull().default(""),
+    textBody: text("text_body"),
+    htmlBody: text("html_body"),
+    /**
+     * The Message-ID header. A reply quotes it in `In-Reply-To`, which is the
+     * only reliable way one thread stays one thread.
+     */
+    rfcMessageId: varchar("rfc_message_id", { length: 998 }),
+    inReplyTo: varchar("in_reply_to", { length: 998 }),
+    /** Resend's id: the received email on the way in, the sent one on the way out. */
+    providerEmailId: varchar("provider_email_id", { length: 255 }),
+    /**
+     * Names, sizes and types only. The files stay with Resend; pulling them
+     * into storage is a separate job nobody has asked for.
+     */
+    attachments: jsonb("attachments")
+      .notNull()
+      .default(sql`'[]'::jsonb`)
+      .$type<CrmAttachment[]>(),
+    bodyFetchedAt: timestamp("body_fetched_at", { withTimezone: true }),
+    bodyAttempts: integer("body_attempts").notNull().default(0),
+    /** When the mail was sent or received, which is what the thread is ordered by. */
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "crm_messages_direction_check",
+      sql`${table.direction} in ('in', 'out')`
+    ),
+    // The replay guard. Resend retries a webhook it was not answered quickly
+    // enough, and the same email must not be written twice.
+    uniqueIndex("ux_crm_messages_provider_email")
+      .on(table.workspaceId, table.providerEmailId)
+      .where(sql`${table.providerEmailId} is not null`),
+    index("ix_crm_messages_rfc_message_id")
+      .on(table.workspaceId, table.rfcMessageId)
+      .where(sql`${table.rfcMessageId} is not null`),
+    index("ix_crm_messages_thread_occurred").on(
+      table.threadId,
+      table.occurredAt
+    ),
+    index("ix_crm_messages_body_pending")
+      .on(table.createdAt)
+      .where(sql`${table.bodyFetchedAt} is null`),
+  ]
+)
+
 export type CustomShellUser = typeof customShellUsers.$inferSelect
 export type CustomShellChangelogEntry =
   typeof customShellChangelogEntries.$inferSelect
@@ -2409,3 +2682,7 @@ export type CustomShellEmailSettings =
   typeof customShellEmailSettings.$inferSelect
 export type CustomShellStripeSettings =
   typeof customShellStripeSettings.$inferSelect
+export type CustomShellCrmLead = typeof customShellCrmLeads.$inferSelect
+export type CustomShellCrmThread = typeof customShellCrmThreads.$inferSelect
+export type CustomShellCrmMessage =
+  typeof customShellCrmMessages.$inferSelect

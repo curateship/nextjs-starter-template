@@ -59,6 +59,7 @@ import { Route as AuthenticatedAdminAnnouncementsRouteImport } from './routes/_a
 import { Route as AuthenticatedAdminAutomationsRouteImport } from './routes/_authenticated/admin/automations'
 import { Route as AuthenticatedAdminCategoriesRouteImport } from './routes/_authenticated/admin/categories'
 import { Route as AuthenticatedAdminContactsRouteImport } from './routes/_authenticated/admin/contacts'
+import { Route as AuthenticatedAdminCrmRouteImport } from './routes/_authenticated/admin/crm'
 import { Route as AuthenticatedAdminDashboardRouteImport } from './routes/_authenticated/admin/dashboard'
 import { Route as AuthenticatedAdminDevOutboxRouteImport } from './routes/_authenticated/admin/dev-outbox'
 import { Route as AuthenticatedAdminEventSubmissionsRouteImport } from './routes/_authenticated/admin/event-submissions'
@@ -367,6 +368,11 @@ const AuthenticatedAdminContactsRoute =
     path: '/contacts',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminCrmRoute = AuthenticatedAdminCrmRouteImport.update({
+  id: '/crm',
+  path: '/crm',
+  getParentRoute: () => AuthenticatedAdminRoute,
+} as any)
 const AuthenticatedAdminDashboardRoute =
   AuthenticatedAdminDashboardRouteImport.update({
     id: '/dashboard',
@@ -706,6 +712,7 @@ export interface FileRoutesByFullPath {
   '/admin/automations': typeof AuthenticatedAdminAutomationsRoute
   '/admin/categories': typeof AuthenticatedAdminCategoriesRoute
   '/admin/contacts': typeof AuthenticatedAdminContactsRoute
+  '/admin/crm': typeof AuthenticatedAdminCrmRoute
   '/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
   '/admin/dev-outbox': typeof AuthenticatedAdminDevOutboxRoute
   '/admin/event-submissions': typeof AuthenticatedAdminEventSubmissionsRoute
@@ -806,6 +813,7 @@ export interface FileRoutesByTo {
   '/admin/automations': typeof AuthenticatedAdminAutomationsRoute
   '/admin/categories': typeof AuthenticatedAdminCategoriesRoute
   '/admin/contacts': typeof AuthenticatedAdminContactsRoute
+  '/admin/crm': typeof AuthenticatedAdminCrmRoute
   '/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
   '/admin/dev-outbox': typeof AuthenticatedAdminDevOutboxRoute
   '/admin/event-submissions': typeof AuthenticatedAdminEventSubmissionsRoute
@@ -910,6 +918,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/automations': typeof AuthenticatedAdminAutomationsRoute
   '/_authenticated/admin/categories': typeof AuthenticatedAdminCategoriesRoute
   '/_authenticated/admin/contacts': typeof AuthenticatedAdminContactsRoute
+  '/_authenticated/admin/crm': typeof AuthenticatedAdminCrmRoute
   '/_authenticated/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
   '/_authenticated/admin/dev-outbox': typeof AuthenticatedAdminDevOutboxRoute
   '/_authenticated/admin/event-submissions': typeof AuthenticatedAdminEventSubmissionsRoute
@@ -1014,6 +1023,7 @@ export interface FileRouteTypes {
     | '/admin/automations'
     | '/admin/categories'
     | '/admin/contacts'
+    | '/admin/crm'
     | '/admin/dashboard'
     | '/admin/dev-outbox'
     | '/admin/event-submissions'
@@ -1114,6 +1124,7 @@ export interface FileRouteTypes {
     | '/admin/automations'
     | '/admin/categories'
     | '/admin/contacts'
+    | '/admin/crm'
     | '/admin/dashboard'
     | '/admin/dev-outbox'
     | '/admin/event-submissions'
@@ -1217,6 +1228,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/automations'
     | '/_authenticated/admin/categories'
     | '/_authenticated/admin/contacts'
+    | '/_authenticated/admin/crm'
     | '/_authenticated/admin/dashboard'
     | '/_authenticated/admin/dev-outbox'
     | '/_authenticated/admin/event-submissions'
@@ -1675,6 +1687,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminContactsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/crm': {
+      id: '/_authenticated/admin/crm'
+      path: '/crm'
+      fullPath: '/admin/crm'
+      preLoaderRoute: typeof AuthenticatedAdminCrmRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/dashboard': {
       id: '/_authenticated/admin/dashboard'
       path: '/dashboard'
@@ -2068,6 +2087,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminAutomationsRoute: typeof AuthenticatedAdminAutomationsRoute
   AuthenticatedAdminCategoriesRoute: typeof AuthenticatedAdminCategoriesRoute
   AuthenticatedAdminContactsRoute: typeof AuthenticatedAdminContactsRoute
+  AuthenticatedAdminCrmRoute: typeof AuthenticatedAdminCrmRoute
   AuthenticatedAdminDashboardRoute: typeof AuthenticatedAdminDashboardRoute
   AuthenticatedAdminDevOutboxRoute: typeof AuthenticatedAdminDevOutboxRoute
   AuthenticatedAdminEventSubmissionsRoute: typeof AuthenticatedAdminEventSubmissionsRoute
@@ -2111,6 +2131,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminAutomationsRoute: AuthenticatedAdminAutomationsRoute,
   AuthenticatedAdminCategoriesRoute: AuthenticatedAdminCategoriesRoute,
   AuthenticatedAdminContactsRoute: AuthenticatedAdminContactsRoute,
+  AuthenticatedAdminCrmRoute: AuthenticatedAdminCrmRoute,
   AuthenticatedAdminDashboardRoute: AuthenticatedAdminDashboardRoute,
   AuthenticatedAdminDevOutboxRoute: AuthenticatedAdminDevOutboxRoute,
   AuthenticatedAdminEventSubmissionsRoute:

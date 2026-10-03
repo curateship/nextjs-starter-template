@@ -28,8 +28,10 @@ import {
 import { FAVICON_MODES, type PublicFaviconSet } from "@/lib/favicon"
 import {
   DEFAULT_FRONT_PAGE_DIVIDER_SHADE,
+  DEFAULT_FRONT_PAGE_DIVIDER_SPACE,
   FRONT_PAGE_DIVIDER_STYLES,
   MAX_FRONT_PAGE_DIVIDER_SHADE,
+  MAX_FRONT_PAGE_DIVIDER_SPACE,
   FRONT_PAGE_ROW_ALIGNMENTS,
   FRONT_PAGE_ROW_LAYOUTS,
   MAX_FRONT_PAGE_FAQ_ANSWER_LENGTH,
@@ -58,6 +60,9 @@ import {
   MAX_FRONT_PAGE_TESTIMONIALS,
   frontPageRowImageUrls,
   normalizeFrontPageHeroHref,
+  normalizeFrontPageHeroBackground,
+  FRONT_PAGE_HERO_BACKGROUND_MESSAGE,
+  MAX_FRONT_PAGE_HERO_BACKGROUND_LENGTH,
   normalizeFrontPageImageUrl,
   normalizeFrontPageRows,
 } from "@/lib/pages/front-page"
@@ -85,7 +90,10 @@ import {
 import {
   MAX_PUBLIC_HEADER_LOGO_GAP,
   MAX_PUBLIC_HEADER_WIDTH,
+  DEFAULT_PUBLIC_HEADER_MENU_FONT_SIZE,
+  MAX_PUBLIC_HEADER_MENU_FONT_SIZE,
   MIN_PUBLIC_HEADER_LOGO_GAP,
+  MIN_PUBLIC_HEADER_MENU_FONT_SIZE,
   MIN_PUBLIC_HEADER_WIDTH,
   PUBLIC_HEADER_BLURS,
   PUBLIC_HEADER_LOGO_SIZES,
@@ -491,6 +499,12 @@ const frontPageRowsSchema = z
           .min(0)
           .max(MAX_FRONT_PAGE_DIVIDER_SHADE)
           .default(DEFAULT_FRONT_PAGE_DIVIDER_SHADE),
+        dividerSpace: z
+          .number()
+          .int()
+          .min(0)
+          .max(MAX_FRONT_PAGE_DIVIDER_SPACE)
+          .default(DEFAULT_FRONT_PAGE_DIVIDER_SPACE),
       }),
       z.object({ ...frontPageRowBaseShape, kind: z.literal("plans") }),
       z.object({
@@ -512,6 +526,21 @@ const frontPageRowsSchema = z
           ),
         note: z.string().max(MAX_FRONT_PAGE_HERO_NOTE_LENGTH),
         stars: z.number().int().min(0).max(MAX_FRONT_PAGE_HERO_STARS),
+        // Six hex digits or nothing. A colour that is not a plain hex code
+        // reaches the page as text inside a style, which is a way to write
+        // CSS into every visitor's browser, so it is refused here as well as
+        // dropped in `normalizeFrontPageRows`.
+        background: z
+          .string()
+          .trim()
+          .max(MAX_FRONT_PAGE_HERO_BACKGROUND_LENGTH)
+          .refine(
+            (value) =>
+              !value ||
+              normalizeFrontPageHeroBackground(value) === value.toLowerCase(),
+            FRONT_PAGE_HERO_BACKGROUND_MESSAGE
+          ),
+        backgroundUnderMenu: z.boolean(),
       }),
       z.object({
         ...frontPageRowBaseShape,
@@ -675,6 +704,12 @@ const shellConfigSchema = z.object({
       .min(MIN_PUBLIC_HEADER_LOGO_GAP)
       .max(MAX_PUBLIC_HEADER_LOGO_GAP)
       .default(0),
+    menuFontSize: z
+      .number()
+      .int()
+      .min(MIN_PUBLIC_HEADER_MENU_FONT_SIZE)
+      .max(MAX_PUBLIC_HEADER_MENU_FONT_SIZE)
+      .default(DEFAULT_PUBLIC_HEADER_MENU_FONT_SIZE),
   }),
   // Checked by the same function the reader uses, so an unknown or missing
   // value saves as "every kind off" rather than refusing the whole settings

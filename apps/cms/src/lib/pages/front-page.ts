@@ -78,6 +78,18 @@ export const FRONT_PAGE_DIVIDER_STYLE_HINTS: Record<
 export const DEFAULT_FRONT_PAGE_DIVIDER_SHADE = 10
 export const MAX_FRONT_PAGE_DIVIDER_SHADE = 100
 
+/**
+ * How tall a Space only divider is on a desktop, in pixels, on top of the gap
+ * the page already puts between two rows. A phone draws the same share of it
+ * that Settings > Styling > Space between rows uses, so the app has one rule
+ * for how much of a desktop gap a phone keeps rather than two.
+ *
+ * 64 is the default, which is what a space divider drew before the number was
+ * anybody's to set.
+ */
+export const DEFAULT_FRONT_PAGE_DIVIDER_SPACE = 64
+export const MAX_FRONT_PAGE_DIVIDER_SPACE = 240
+
 export const FRONT_PAGE_ROW_LAYOUTS = ["wide", "narrow", "full"] as const
 
 export type FrontPageRowLayout = (typeof FRONT_PAGE_ROW_LAYOUTS)[number]
@@ -183,6 +195,25 @@ export const FRONT_PAGE_HERO_ACTION_HINTS: Record<
 > = {
   button: "One button with its own wording and link.",
   email: "A box for an address with the button beside it.",
+}
+
+/**
+ * A hero's own background colour, stored as `#rrggbb` and empty when the row
+ * has none. Six digits only: a name such as `red` and a `var(...)` both reach
+ * a stylesheet as text, and a stored colour that is not a plain hex code is
+ * how a settings field becomes a way to write CSS into every visitor's page.
+ */
+const FRONT_PAGE_HERO_BACKGROUND_PATTERN = /^#[0-9a-f]{6}$/i
+
+/** `#rrggbb` and nothing longer. */
+export const MAX_FRONT_PAGE_HERO_BACKGROUND_LENGTH = 7
+
+export const FRONT_PAGE_HERO_BACKGROUND_MESSAGE =
+  "A hero background is a 6-digit hex colour, like #0f172a. Clear the box for no colour."
+
+export function normalizeFrontPageHeroBackground(value: unknown) {
+  const color = typeof value === "string" ? value.trim().toLowerCase() : ""
+  return FRONT_PAGE_HERO_BACKGROUND_PATTERN.test(color) ? color : ""
 }
 
 export const FRONT_PAGE_ROW_HEADING_MESSAGE = "Give the row a heading."
@@ -320,6 +351,17 @@ export type FrontPageRow =
       note: string
       /** 0 to 5. Drawn before the note, and 0 draws none. */
       stars: number
+      /**
+       * A colour painted in a band behind the hero, right across the window
+       * whatever the row's layout says. `#rrggbb`, or empty for no colour.
+       */
+      background: string
+      /**
+       * True runs that colour under the site menu, so the band starts at the
+       * very top of the window and the bar stops painting over it. Only the
+       * first row has the menu over it, so every hero below it ignores this.
+       */
+      backgroundUnderMenu: boolean
     })
   | (FrontPageRowBase & {
       kind: "testimonials"
@@ -337,6 +379,8 @@ export type FrontPageRow =
       dividerStyle: FrontPageDividerStyle
       /** How dark the line or the dots are, 0 to 100. */
       dividerShade: number
+      /** A Space only divider's height on a desktop, in pixels. */
+      dividerSpace: number
     })
 
 type WithoutId<T> = T extends unknown ? Omit<T, "id"> : never
@@ -389,11 +433,15 @@ export function normalizeFrontPageHeroHref(value: unknown) {
   return href && isSafeWrittenPageLink(href) ? href : ""
 }
 
-function normalizeFrontPageDividerShade(value: unknown) {
-  if (typeof value !== "number" || !Number.isFinite(value)) {
-    return DEFAULT_FRONT_PAGE_DIVIDER_SHADE
-  }
-  return Math.min(MAX_FRONT_PAGE_DIVIDER_SHADE, Math.max(0, Math.round(value)))
+/**
+ * A stored number that has to land between 0 and a maximum: a whole number
+ * inside the range, or the default when it is not a number at all. Shared by
+ * the three fields that need it, because three copies of the same four lines
+ * is where one of them quietly stops matching the others.
+ */
+function wholeNumberInRange(value: unknown, fallback: number, max: number) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return fallback
+  return Math.min(max, Math.max(0, Math.round(value)))
 }
 
 /**
@@ -403,14 +451,15 @@ function normalizeFrontPageDividerShade(value: unknown) {
  * this follows light and dark without naming a shade of its own.
  */
 export function frontPageDividerColor(shade: number) {
-  return `color-mix(in oklab, var(--muted-foreground) ${normalizeFrontPageDividerShade(
-    shade
+  return `color-mix(in oklab, var(--muted-foreground) ${wholeNumberInRange(
+    shade,
+    DEFAULT_FRONT_PAGE_DIVIDER_SHADE,
+    MAX_FRONT_PAGE_DIVIDER_SHADE
   )}%, transparent)`
 }
 
 function normalizeFrontPageHeroStars(value: unknown) {
-  if (typeof value !== "number" || !Number.isFinite(value)) return 0
-  return Math.min(MAX_FRONT_PAGE_HERO_STARS, Math.max(0, Math.round(value)))
+  return wholeNumberInRange(value, 0, MAX_FRONT_PAGE_HERO_STARS)
 }
 
 function normalizeTestimonials(value: unknown): FrontPageTestimonial[] {
@@ -632,6 +681,10 @@ export function normalizeFrontPageRows(value: unknown): FrontPageRow[] {
         buttonHref: action === "email" ? "" : buttonLabel ? buttonHref : "",
         note: cleanText(source.note, MAX_FRONT_PAGE_HERO_NOTE_LENGTH),
         stars: normalizeFrontPageHeroStars(source.stars),
+        background: normalizeFrontPageHeroBackground(source.background),
+        // Only an explicit true runs the colour under the menu, so a hero
+        // saved before this switch existed keeps its band below the bar.
+        backgroundUnderMenu: source.backgroundUnderMenu === true,
       })
     } else if (kind === "testimonials") {
       const items = normalizeTestimonials(source.items)
@@ -654,7 +707,16 @@ export function normalizeFrontPageRows(value: unknown): FrontPageRow[] {
         )
           ? (source.dividerStyle as FrontPageDividerStyle)
           : "line",
-        dividerShade: normalizeFrontPageDividerShade(source.dividerShade),
+        dividerShade: wholeNumberInRange(
+          source.dividerShade,
+          DEFAULT_FRONT_PAGE_DIVIDER_SHADE,
+          MAX_FRONT_PAGE_DIVIDER_SHADE
+        ),
+        dividerSpace: wholeNumberInRange(
+          source.dividerSpace,
+          DEFAULT_FRONT_PAGE_DIVIDER_SPACE,
+          MAX_FRONT_PAGE_DIVIDER_SPACE
+        ),
       })
     } else {
       rows.push({ ...rowBase(), kind })
@@ -673,6 +735,22 @@ export function visibleFrontPageRows(
   rows: readonly FrontPageRow[]
 ): FrontPageRow[] {
   return rows.filter((row) => !row.hidden)
+}
+
+/**
+ * True when the page opens on a hero whose colour runs under the site menu.
+ *
+ * Only the first row is asked, because the menu sits above the first row and
+ * nothing else on the page is anywhere near it. A hero further down with the
+ * switch on still paints its own band; the menu is simply not its neighbour.
+ */
+export function frontPageHeroRunsUnderMenu(rows: readonly FrontPageRow[]) {
+  const first = rows[0]
+  return (
+    first?.kind === "hero" &&
+    first.backgroundUnderMenu &&
+    Boolean(first.background)
+  )
 }
 
 export function frontPageHasPlans(rows: readonly FrontPageRow[]) {

@@ -19,6 +19,7 @@ import type { BillingInterval } from "@/lib/billing/pricing-choice"
 import {
   APP_FRONT_PAGE_ROW_KIND,
   frontPageHasPlans,
+  frontPageHeroRunsUnderMenu,
   type FrontPageRow,
 } from "@/lib/pages/front-page"
 
@@ -165,7 +166,9 @@ function PricingLanding({ data }: { data: LandingData }) {
 
   if (frontPageRows.length > 0) {
     return (
-      <PublicPageFrame>
+      <PublicPageFrame
+        heroRunsUnderMenu={frontPageHeroRunsUnderMenu(frontPageRows)}
+      >
         <FrontPageRows
           rows={frontPageRows}
           appRowData={appRowData}

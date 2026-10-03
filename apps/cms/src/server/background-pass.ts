@@ -31,11 +31,15 @@ export async function runBackgroundPass(): Promise<BackgroundPassResult> {
     { runAutomationTick },
     { processDueBroadcasts },
     { processPendingEmailRetries },
+    { fillPendingBodies, notifyDueFollowUps },
+    { wakeSnoozedThreads },
     { appBackgroundWorkers },
   ] = await Promise.all([
     import("@/server/automations/engine"),
     import("@/server/email/broadcast-send"),
     import("@/server/email/retry"),
+    import("@/server/crm/follow-ups"),
+    import("@/server/crm/inbox"),
     import("@/server/app-options"),
   ])
 
@@ -52,6 +56,11 @@ export async function runBackgroundPass(): Promise<BackgroundPassResult> {
     run("Automation tick", runAutomationTick),
     run("Broadcast tick", processDueBroadcasts),
     run("Account-email retry tick", processPendingEmailRetries),
+    // The CRM's three, registered one at a time so a failure in any of them
+    // is isolated and counted exactly like every other job's.
+    run("CRM follow-up tick", notifyDueFollowUps),
+    run("CRM snooze tick", wakeSnoozedThreads),
+    run("CRM body-fetch tick", fillPendingBodies),
     // The app's own workers ride the same pass, each as isolated as the two
     // jobs above. Read inside the pass, never at module top level — the app's
     // answers may still be loading while this module is first imported.

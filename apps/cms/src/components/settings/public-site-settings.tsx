@@ -79,9 +79,12 @@ import {
   type PublicBreadcrumbs,
 } from "@/lib/pages/public-breadcrumbs"
 import {
+  DEFAULT_PUBLIC_HEADER_MENU_FONT_SIZE,
   MAX_PUBLIC_HEADER_LOGO_GAP,
+  MAX_PUBLIC_HEADER_MENU_FONT_SIZE,
   MAX_PUBLIC_HEADER_WIDTH,
   MIN_PUBLIC_HEADER_LOGO_GAP,
+  MIN_PUBLIC_HEADER_MENU_FONT_SIZE,
   MIN_PUBLIC_HEADER_WIDTH,
   PUBLIC_HEADER_BLUR_LABELS,
   PUBLIC_HEADER_BLURS,
@@ -487,6 +490,17 @@ function PublicHeaderSettings({
         max={MAX_PUBLIC_HEADER_LOGO_GAP}
         inputClassName="w-full sm:w-32"
         onChange={(logoGap) => update({ logoGap })}
+      />
+
+      <NumberField
+        id="public-header-menu-font-size"
+        label="Menu text size"
+        hint={`How big the menu words are, in pixels, from ${MIN_PUBLIC_HEADER_MENU_FONT_SIZE} to ${MAX_PUBLIC_HEADER_MENU_FONT_SIZE}. ${DEFAULT_PUBLIC_HEADER_MENU_FONT_SIZE} is the size the menu has always been. Every word in the menu follows it, on a phone as well, including the links inside a group.`}
+        value={header.menuFontSize}
+        min={MIN_PUBLIC_HEADER_MENU_FONT_SIZE}
+        max={MAX_PUBLIC_HEADER_MENU_FONT_SIZE}
+        inputClassName="w-full sm:w-32"
+        onChange={(menuFontSize) => update({ menuFontSize })}
       />
 
       <div className="grid gap-2">

@@ -209,7 +209,8 @@ function NotificationIcon({ item }: { item: NotificationItem }) {
  * The line under the message: the update's title, the announcement's own words,
  * or the feedback it is about.
  */
-function notificationPreview(item: NotificationItem) {
+/** Everything a notice has to say, whole. */
+function notificationText(item: NotificationItem) {
   const approvalText = automationApprovalNotificationText[approvalState(item)]
   const approvalSummary = item.automation_approval_summary?.trim()
   const text =
@@ -231,6 +232,21 @@ function notificationPreview(item: NotificationItem) {
                 ? aiLimitNotificationText[item.type].detail
                 : (item.feedback_message ?? "")
 
+  return text
+}
+
+/**
+ * The same words cut to fit the two lines a row gives them.
+ *
+ * **The row hands the whole thing to `title` as well.** The cut happens here,
+ * in JavaScript, not in the `line-clamp` underneath it, so a reader who wants
+ * the rest has nowhere else to get it: a trade notice that ends "which bought
+ * these coins at..." has stopped saying the thing it was written to say.
+ * Tyler, 3 October 2026: "Hovering over the notificattion should show me all
+ * the text".
+ */
+function notificationPreview(item: NotificationItem) {
+  const text = notificationText(item)
   return text.length > 90 ? `${text.slice(0, 90)}...` : text
 }
 
@@ -263,7 +279,12 @@ export function NotificationRow({
             <NotificationMessage item={item} />
           </span>
         </p>
-        <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+        {/* Cut to fit, whole on hover. The same answer the time underneath
+            already gives, and for the same reason. */}
+        <p
+          className="mt-1 line-clamp-2 text-xs text-muted-foreground"
+          title={notificationText(item)}
+        >
           {notificationPreview(item)}
         </p>
         {/* The exact moment is one hover away; the line itself answers the only

@@ -562,6 +562,48 @@ describe("PublicPageFrame navigation", () => {
     ).toBe("")
   })
 
+  it("leaves the menu untouched and tells a hero how far above its row to start", async () => {
+    publicTheme.current = {
+      ...publicTheme.current,
+      chrome: { mode: "custom", strength: 60, color: "#778899" },
+    }
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(<PublicPageFrame heroRunsUnderMenu>Page</PublicPageFrame>)
+    })
+
+    const main = host.querySelector("main") as HTMLElement | null
+
+    // The bar paints nothing of its own, so the hero's colour behind it is
+    // what shows. It keeps its blur, which now blurs that colour.
+    const header = host.querySelector("header") as HTMLElement | null
+    expect(header?.style.backgroundColor).toBe("")
+    expect(header?.className).not.toContain("bg-background/90")
+    expect(header?.className).toContain("backdrop-blur")
+    // The gap between the bar and the first row, plus the bar's own height,
+    // which the bar measures and writes down.
+    expect(main?.style.getPropertyValue("--shell-hero-rise")).toBe(
+      "calc(40px + var(--shell-public-header-height, 0px))"
+    )
+  })
+
+  it("leaves main plain when no hero runs its colour under the menu", async () => {
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(<PublicPageFrame>Page</PublicPageFrame>)
+    })
+
+    const main = host.querySelector("main") as HTMLElement | null
+
+    expect(main?.style.getPropertyValue("--shell-hero-rise")).toBe("")
+  })
+
   it("flattens the public frame when content spacing is zero", async () => {
     publicTheme.current = { ...publicTheme.current, gutter: 0 }
     const host = document.createElement("div")

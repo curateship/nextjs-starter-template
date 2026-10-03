@@ -51,6 +51,10 @@ async function upsertEmailSettings(
     resendApiKeyEncrypted: string | null
     resendWebhookSecretEncrypted: string | null
     dripDefaults: DripConfig
+    inboundAddress: string | null
+    crmReplyName: string | null
+    crmReplySignature: string | null
+    crmQuoteReplies: boolean
   }>,
   database: CustomShellDb = db
 ) {
@@ -118,6 +122,81 @@ export async function saveEmailSender(
       fromEmail: input.fromEmail.trim() || null,
       fromName: input.fromName.trim() || null,
     },
+    database
+  )
+}
+
+/**
+ * Where this workspace's mail comes in: the Resend inbound address the CRM
+ * reads and replies from.
+ *
+ * Saving an empty box clears it, which turns the CRM's sending off rather than
+ * leaving it pointed at an address nobody owns.
+ */
+export async function saveInboundAddress(
+  workspaceId: string,
+  inboundAddress: string,
+  database: CustomShellDb = db
+) {
+  return upsertEmailSettings(
+    workspaceId,
+    { inboundAddress: inboundAddress.trim().toLowerCase() || null },
+    database
+  )
+}
+
+/**
+ * The name CRM replies go out under.
+ *
+ * Saving an empty box clears it, and a cleared name falls back to the app name
+ * at send time. Storing the fallback instead would freeze today's app name
+ * into the row and leave it there after a rename.
+ */
+export async function saveCrmReplyName(
+  workspaceId: string,
+  name: string,
+  database: CustomShellDb = db
+) {
+  return upsertEmailSettings(
+    workspaceId,
+    { crmReplyName: name.trim() || null },
+    database
+  )
+}
+
+/**
+ * The lines that go under every CRM reply.
+ *
+ * Trailing blank lines and spaces come off, and a signature that is nothing
+ * but whitespace saves as null. Otherwise a stray newline left in the box
+ * would put an empty gap and a rule under every reply forever.
+ */
+export async function saveCrmReplySignature(
+  workspaceId: string,
+  signature: string,
+  database: CustomShellDb = db
+) {
+  return upsertEmailSettings(
+    workspaceId,
+    { crmReplySignature: signature.trim() || null },
+    database
+  )
+}
+
+/**
+ * Whether a CRM reply carries the message it answers underneath it.
+ *
+ * On for a workspace that has never touched this, which is what the column's
+ * own default says too, because every mail client quotes by default.
+ */
+export async function saveCrmQuoteReplies(
+  workspaceId: string,
+  quoteReplies: boolean,
+  database: CustomShellDb = db
+) {
+  return upsertEmailSettings(
+    workspaceId,
+    { crmQuoteReplies: quoteReplies },
     database
   )
 }
@@ -293,6 +372,23 @@ export type EmailSettingsStatus = {
   links: AppLinkStatus
   /** The active sender for this workspace's sign-in and security emails. */
   systemSender: SystemEmailSender
+  /**
+   * The address mail arrives at, which is what the CRM reads and replies
+   * from. Empty means the CRM has no mailbox and cannot reply.
+   */
+  inboundAddress: string
+  /**
+   * The name CRM replies go out under, exactly as it was typed. Empty means
+   * replies go out under the app name instead.
+   */
+  crmReplyName: string
+  /**
+   * The lines that go under every CRM reply, exactly as they were typed.
+   * Empty means a reply goes out with nothing added.
+   */
+  crmReplySignature: string
+  /** Whether a reply carries the message it answers underneath it. */
+  crmQuoteReplies: boolean
 }
 
 export async function getEmailSettingsStatus(
@@ -343,6 +439,10 @@ export async function getEmailSettingsStatus(
     delivery: await getEmailDeliveryStatus(database),
     links: getAppLinkStatus(),
     systemSender,
+    inboundAddress: row?.inboundAddress ?? "",
+    crmReplyName: row?.crmReplyName ?? "",
+    crmReplySignature: row?.crmReplySignature ?? "",
+    crmQuoteReplies: row?.crmQuoteReplies ?? true,
   }
 }
 
