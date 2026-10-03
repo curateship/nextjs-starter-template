@@ -2365,6 +2365,14 @@ export const customShellEmailSettings = pgTable("email_settings", {
    */
   crmReplyName: varchar("crm_reply_name", { length: 255 }),
   /**
+   * The lines that go under every CRM reply: a name, a business, a phone
+   * number. Plain text, never HTML and never blocks, so it is escaped on the
+   * way out exactly like the typed body. Null or blank means a reply goes out
+   * with nothing added. Added in
+   * `0084_custom_shell_crm_reply_signature.sql`.
+   */
+  crmReplySignature: text("crm_reply_signature"),
+  /**
    * The drip rules a newly created newsletter starts from — see
    * `src/lib/broadcasts/drip.ts`. Only ever read at that moment; changing it
    * later leaves newsletters that already exist alone.

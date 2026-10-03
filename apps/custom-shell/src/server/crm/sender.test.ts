@@ -7,9 +7,13 @@ import { getCrmReplySender } from "@/server/crm/sender"
 import { type CustomShellDb } from "@/server/db"
 import {
   setEmailProviderFactoryForTests,
+  type SendEmailParams,
   type SendEmailResult,
 } from "@/server/email/provider"
-import { saveCrmReplyName } from "@/server/email/settings"
+import {
+  saveCrmReplyName,
+  saveCrmReplySignature,
+} from "@/server/email/settings"
 import {
   customShellCrmMessages,
   customShellCrmThreads,
@@ -23,8 +27,9 @@ const INBOUND = "leads@inbox.example.com"
 describe("who a CRM reply comes from", () => {
   let db: CustomShellDb
   const workspaceId = "ws-crm-sender"
-  // Every From line the stubbed provider was handed, in order.
-  let sentFrom: string[] = []
+  // Every message the stubbed provider was handed, in order.
+  let sent: SendEmailParams[] = []
+  const sentFrom = () => sent.map((message) => message.from)
 
   beforeEach(async () => {
     db = (await createTestDatabase()).db as unknown as CustomShellDb
@@ -45,10 +50,10 @@ describe("who a CRM reply comes from", () => {
       updatedAt: new Date(),
     })
 
-    sentFrom = []
+    sent = []
     setEmailProviderFactoryForTests(() => ({
       async send(message): Promise<SendEmailResult> {
-        sentFrom.push(message.from)
+        sent.push(message)
         return { success: true, messageId: "re_out_1" }
       },
       async receive() {
@@ -141,13 +146,13 @@ describe("who a CRM reply comes from", () => {
       const result = await sendCrmReply(workspaceId, thread.id, "On its way.", db)
 
       expect(result).toEqual({ sent: true, messageId: expect.any(String) })
-      expect(sentFrom).toEqual([`Tyler <${INBOUND}>`])
+      expect(sentFrom()).toEqual([`Tyler <${INBOUND}>`])
     })
 
     it("is the app name and the address when no name is saved", async () => {
       const thread = await openThread()
       await sendCrmReply(workspaceId, thread.id, "On its way.", db)
-      expect(sentFrom).toEqual([`Acme Kitchens <${INBOUND}>`])
+      expect(sentFrom()).toEqual([`Acme Kitchens <${INBOUND}>`])
     })
 
     it("stays one sender when the name holds a comma or a quote mark", async () => {
@@ -157,7 +162,7 @@ describe("who a CRM reply comes from", () => {
 
       // One pair of angle brackets and no comma outside them, or a mail server
       // reads the header as two senders.
-      expect(sentFrom).toEqual([`Tyler Acme Ltd. <${INBOUND}>`])
+      expect(sentFrom()).toEqual([`Tyler Acme Ltd. <${INBOUND}>`])
     })
 
     it("never sends the word null or an empty pair of brackets", async () => {
@@ -166,9 +171,9 @@ describe("who a CRM reply comes from", () => {
       await sendCrmReply(workspaceId, thread.id, "On its way.", db)
 
       // Nothing usable was typed, so the app name steps in.
-      expect(sentFrom).toEqual([`Acme Kitchens <${INBOUND}>`])
-      expect(sentFrom[0]).not.toContain("null")
-      expect(sentFrom[0]).not.toContain("<>")
+      expect(sentFrom()).toEqual([`Acme Kitchens <${INBOUND}>`])
+      expect(sentFrom()[0]).not.toContain("null")
+      expect(sentFrom()[0]).not.toContain("<>")
     })
 
     it("writes down the name the customer saw beside the address", async () => {
@@ -182,6 +187,52 @@ describe("who a CRM reply comes from", () => {
         .where(eq(customShellCrmMessages.direction, "out"))
       expect(message.fromEmail).toBe(INBOUND)
       expect(message.fromName).toBe("Tyler")
+    })
+  })
+
+  describe("the signature under a sent reply", () => {
+    it("goes out in both the html and the plain text part", async () => {
+      await saveCrmReplySignature(workspaceId, "Tyler\n01234 567890", db)
+      const thread = await openThread()
+      await sendCrmReply(workspaceId, thread.id, "On its way.", db)
+
+      expect(sent).toHaveLength(1)
+      expect(sent[0].html).toContain("<hr")
+      expect(sent[0].html).toContain("01234 567890")
+      expect(sent[0].text).toBe("On its way.\n\n-- \nTyler\n01234 567890")
+    })
+
+    it("sends no rule and no text part when none is saved", async () => {
+      const thread = await openThread()
+      await sendCrmReply(workspaceId, thread.id, "On its way.", db)
+
+      expect(sent[0].html).not.toContain("<hr")
+      expect(sent[0].text).toBe("On its way.")
+    })
+
+    it("keeps the signature out of the conversation on screen", async () => {
+      await saveCrmReplySignature(workspaceId, "Tyler\n01234 567890", db)
+      const thread = await openThread()
+      await sendCrmReply(workspaceId, thread.id, "On its way.", db)
+
+      const [message] = await db
+        .select()
+        .from(customShellCrmMessages)
+        .where(eq(customShellCrmMessages.direction, "out"))
+      // The screen draws `textBody`, so the phone number must not be in it.
+      expect(message.textBody).toBe("On its way.")
+      // What actually went out is still recorded.
+      expect(message.htmlBody).toContain("01234 567890")
+    })
+
+    it("saves a signature of only blank lines as null", async () => {
+      await saveCrmReplySignature(workspaceId, "Tyler", db)
+      await saveCrmReplySignature(workspaceId, "  \n\n  ", db)
+      const [row] = await db
+        .select()
+        .from(customShellEmailSettings)
+        .where(eq(customShellEmailSettings.workspaceId, workspaceId))
+      expect(row.crmReplySignature).toBeNull()
     })
   })
 })

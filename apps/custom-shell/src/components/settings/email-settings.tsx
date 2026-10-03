@@ -13,6 +13,7 @@ import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { NumberField } from "@/components/ui/number-field"
+import { Textarea } from "@/components/ui/textarea"
 import {
   Tooltip,
   TooltipContent,
@@ -27,6 +28,7 @@ import {
   saveAuthLinkExpirySetting,
   saveEmailSenderSettings,
   saveCrmReplyNameSetting,
+  saveCrmReplySignatureSetting,
   saveInboundAddressSetting,
   saveNewsletterDripDefaults,
   saveResendWebhookSecret,
@@ -74,6 +76,7 @@ export function EmailSettings() {
     fromName: string
     inboundAddress: string
     crmReplyName: string
+    crmReplySignature: string
   } | null>(null)
   // The pace a new newsletter starts from, as edited; null until the load.
   const [drip, setDrip] = React.useState<DripConfig | null>(null)
@@ -95,6 +98,7 @@ export function EmailSettings() {
     | "sender"
     | "inbound"
     | "crmReplyName"
+    | "crmReplySignature"
     | "key"
     | "webhook"
     | "drip"
@@ -145,6 +149,7 @@ export function EmailSettings() {
             fromName: next.fromName,
             inboundAddress: next.inboundAddress,
             crmReplyName: next.crmReplyName,
+            crmReplySignature: next.crmReplySignature,
           }
         )
         setDrip((prev) => prev ?? next.dripDefaults)
@@ -215,6 +220,21 @@ export function EmailSettings() {
     dismissErrorToast()
     try {
       setStatus(await saveCrmReplyNameSetting(crmReplyName))
+      setSaveStatus("saved")
+    } catch (error) {
+      setSaveStatus("idle")
+      showErrorToast(getEmailSettingsErrorMessage(error))
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  const saveCrmSignature = async (crmReplySignature: string) => {
+    setSaving("crmReplySignature")
+    setSaveStatus("saving")
+    dismissErrorToast()
+    try {
+      setStatus(await saveCrmReplySignatureSetting(crmReplySignature))
       setSaveStatus("saved")
     } catch (error) {
       setSaveStatus("idle")
@@ -409,6 +429,24 @@ export function EmailSettings() {
       return
     }
     void saveCrmName(sender.crmReplyName)
+  }
+
+  const scheduleCrmSignatureSave = (crmReplySignature: string) => {
+    clearTimeout(timers.current.crmReplySignature)
+    timers.current.crmReplySignature = setTimeout(
+      () => void saveCrmSignature(crmReplySignature),
+      SAVE_DELAY_MS
+    )
+  }
+
+  const flushCrmSignatureSave = () => {
+    if (!sender) return
+    clearTimeout(timers.current.crmReplySignature)
+    if (saving !== null) {
+      scheduleCrmSignatureSave(sender.crmReplySignature)
+      return
+    }
+    void saveCrmSignature(sender.crmReplySignature)
   }
 
   const scheduleKeySave = (value: string) => {
@@ -769,6 +807,34 @@ export function EmailSettings() {
               />
               <p className="text-xs text-muted-foreground">
                 Empty sends replies under the app name.
+              </p>
+            </div>
+
+            <div className="grid gap-2">
+              <FieldLabel
+                htmlFor="email-crm-reply-signature"
+                hint="Goes under every reply the CRM sends, below a thin line, and under nothing else in the app. Plain words only: typed brackets arrive as brackets, not as formatting."
+              >
+                Signature on CRM replies
+              </FieldLabel>
+              <Textarea
+                id="email-crm-reply-signature"
+                rows={1}
+                maxLength={2000}
+                placeholder="e.g. your name, your business, your phone number"
+                value={sender.crmReplySignature}
+                onChange={(event) => {
+                  const next = {
+                    ...sender,
+                    crmReplySignature: event.target.value,
+                  }
+                  setSender(next)
+                  scheduleCrmSignatureSave(next.crmReplySignature)
+                }}
+                onBlur={flushCrmSignatureSave}
+              />
+              <p className="text-xs text-muted-foreground">
+                Empty adds nothing to a reply.
               </p>
             </div>
           </>

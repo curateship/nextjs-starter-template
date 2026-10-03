@@ -12,6 +12,7 @@ import {
   getEmailSettingsStatus,
   saveAuthLinkExpiry,
   saveCrmReplyName,
+  saveCrmReplySignature,
   saveDripDefaults,
   saveEmailSender,
   saveInboundAddress,
@@ -128,6 +129,26 @@ const saveCrmReplyNameFn = createServerFn({ method: "POST" })
 
 export function saveCrmReplyNameSetting(crmReplyName: string) {
   return saveCrmReplyNameFn({ data: { crmReplyName } })
+}
+
+/**
+ * The lines that go under every CRM reply.
+ *
+ * "" is allowed and clears it, which sends replies with nothing added. The
+ * length cap is generous because it holds an address, and the signature is
+ * escaped when the mail is built, not here.
+ */
+const saveCrmReplySignatureFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ crmReplySignature: z.string().max(2000) }))
+  .handler(async ({ data, context }): Promise<EmailSettingsStatus> => {
+    const workspaceId = await currentWorkspaceId(context.user.id)
+    await saveCrmReplySignature(workspaceId, data.crmReplySignature)
+    return getEmailSettingsStatus(workspaceId)
+  })
+
+export function saveCrmReplySignatureSetting(crmReplySignature: string) {
+  return saveCrmReplySignatureFn({ data: { crmReplySignature } })
 }
 
 const saveSystemEmailSenderFn = createServerFn({ method: "POST" })

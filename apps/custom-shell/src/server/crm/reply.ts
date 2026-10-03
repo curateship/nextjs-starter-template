@@ -4,7 +4,7 @@ import { escapeHtml } from "@/lib/email/escape-html"
 import { normalizeSubject } from "@/lib/crm/thread-match"
 import { now, uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
-import { getCrmReplySender } from "@/server/crm/sender"
+import { getCrmOutgoingReply } from "@/server/crm/sender"
 import { getEmailProvider } from "@/server/email/provider"
 import { getAppEmailApiKey } from "@/server/email/settings"
 import {
@@ -33,19 +33,9 @@ export function replySubject(subject: string): string {
   return `Re: ${trimmed}`
 }
 
-/**
- * Typed words as an email body.
- *
- * A reply is a person typing, not a newsletter: no blocks, no branding, no
- * unsubscribe footer. A contact's newsletter mail legally needs that footer
- * and a personal answer must not carry one, because it would offer to
- * unsubscribe somebody from a conversation they started.
- *
- * Blank lines become paragraphs and single newlines become breaks, which is
- * what somebody typing into a box expects to come out the other end.
- */
-export function replyHtml(body: string): string {
-  const paragraphs = body
+/** Typed lines as HTML paragraphs, escaped, with single newlines as breaks. */
+function typedParagraphs(text: string): string[] {
+  return text
     .replace(/\r\n/g, "\n")
     .split(/\n{2,}/)
     .map((block) => block.trim())
@@ -54,9 +44,54 @@ export function replyHtml(body: string): string {
       (block) =>
         `<p style="margin:0 0 16px">${escapeHtml(block).replace(/\n/g, "<br />")}</p>`
     )
+}
 
+/**
+ * Typed words as an email body, with the workspace's signature under them.
+ *
+ * A reply is a person typing, not a newsletter: no blocks, no branding, no
+ * unsubscribe footer. A contact's newsletter mail legally needs that footer
+ * and a personal answer must not carry one, because it would offer to
+ * unsubscribe somebody from a conversation they started. The signature obeys
+ * the same rule, which is why it is the person's own plain typing and not the
+ * newsletter's branded frame from `server/email/branding.ts`.
+ *
+ * Blank lines become paragraphs and single newlines become breaks, which is
+ * what somebody typing into a box expects to come out the other end. The
+ * signature is escaped exactly like the body, so `<b>` arrives as the four
+ * characters somebody typed rather than turning the rest of the mail bold.
+ *
+ * A blank signature adds nothing at all: no rule, no gap, and a mail
+ * identical to the one sent before there was a signature setting.
+ */
+export function replyHtml(body: string, signature = ""): string {
+  const paragraphs = typedParagraphs(body)
   const inner = paragraphs.length > 0 ? paragraphs.join("") : "<p></p>"
-  return `<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.5;color:#111">${inner}</div>`
+
+  const signed = typedParagraphs(signature)
+  // A hairline rather than a border on the signature block: a `<hr>` is the
+  // one separator every mail client draws the same way, and Outlook ignores
+  // most of what else could draw this line.
+  const sign =
+    signed.length > 0
+      ? `<hr style="border:0;border-top:1px solid #e5e5e5;margin:24px 0 16px" />${signed.join("")}`
+      : ""
+
+  return `<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.5;color:#111">${inner}${sign}</div>`
+}
+
+/**
+ * The same reply as plain text, for a reader that does not draw HTML.
+ *
+ * Mail carries both parts and they have to say the same thing, or somebody
+ * reading the text one sees a message that stops before the phone number. The
+ * rule the HTML draws becomes `--`, which is the line mail clients have
+ * understood as the start of a signature since long before HTML mail.
+ */
+export function replyText(body: string, signature = ""): string {
+  const typed = body.replace(/\r\n/g, "\n").trim()
+  const signed = signature.replace(/\r\n/g, "\n").trim()
+  return signed ? `${typed}\n\n-- \n${signed}` : typed
 }
 
 export type SendReplyResult =
@@ -67,7 +102,7 @@ export type SendReplyResult =
  * Sends one reply in a conversation and writes it into the thread.
  *
  * From the workspace's inbound address, so the answer comes back into the CRM,
- * under the name `getCrmReplySender` works out.
+ * under the name `getCrmOutgoingReply` works out.
  *
  * `In-Reply-To` and `References` carry the newest inbound message's Message-ID,
  * which is what makes the reply land in the same thread in the reader's own
@@ -104,8 +139,9 @@ export async function sendCrmReply(
     .limit(1)
   if (!thread) throw new Error(CRM_THREAD_NOT_FOUND)
 
-  const sender = await getCrmReplySender(workspaceId, database)
-  if (!sender) throw new Error(CRM_NO_INBOUND_ADDRESS)
+  const outgoing = await getCrmOutgoingReply(workspaceId, database)
+  if (!outgoing) throw new Error(CRM_NO_INBOUND_ADDRESS)
+  const { sender, signature } = outgoing
 
   // The newest message in the thread that has a Message-ID, whichever way it
   // went. Threading off our own last reply is right when the conversation's
@@ -134,7 +170,8 @@ export async function sendCrmReply(
     from: sender.from,
     to: thread.leadEmail,
     subject,
-    html: replyHtml(body),
+    html: replyHtml(body, signature),
+    text: replyText(body, signature),
     ...(Object.keys(headers).length > 0 ? { headers } : {}),
   })
 
@@ -155,8 +192,11 @@ export async function sendCrmReply(
     fromName: sender.name || null,
     toEmail: thread.leadEmail,
     subject,
+    // The typed words only, with no signature. This is what the conversation
+    // on screen draws, and the same lines repeated under every bubble you ever
+    // sent would bury the words. `htmlBody` below keeps what actually went out.
     textBody: body,
-    htmlBody: replyHtml(body),
+    htmlBody: replyHtml(body, signature),
     // Resend's id is not an RFC Message-ID, so it goes in its own column and
     // this stays null. A reply to our reply quotes the real header, which only
     // the inbound side ever sees.

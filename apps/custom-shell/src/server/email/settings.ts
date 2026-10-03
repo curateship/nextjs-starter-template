@@ -53,6 +53,7 @@ async function upsertEmailSettings(
     dripDefaults: DripConfig
     inboundAddress: string | null
     crmReplyName: string | null
+    crmReplySignature: string | null
   }>,
   database: CustomShellDb = db
 ) {
@@ -158,6 +159,25 @@ export async function saveCrmReplyName(
   return upsertEmailSettings(
     workspaceId,
     { crmReplyName: name.trim() || null },
+    database
+  )
+}
+
+/**
+ * The lines that go under every CRM reply.
+ *
+ * Trailing blank lines and spaces come off, and a signature that is nothing
+ * but whitespace saves as null. Otherwise a stray newline left in the box
+ * would put an empty gap and a rule under every reply forever.
+ */
+export async function saveCrmReplySignature(
+  workspaceId: string,
+  signature: string,
+  database: CustomShellDb = db
+) {
+  return upsertEmailSettings(
+    workspaceId,
+    { crmReplySignature: signature.trim() || null },
     database
   )
 }
@@ -343,6 +363,11 @@ export type EmailSettingsStatus = {
    * replies go out under the app name instead.
    */
   crmReplyName: string
+  /**
+   * The lines that go under every CRM reply, exactly as they were typed.
+   * Empty means a reply goes out with nothing added.
+   */
+  crmReplySignature: string
 }
 
 export async function getEmailSettingsStatus(
@@ -395,6 +420,7 @@ export async function getEmailSettingsStatus(
     systemSender,
     inboundAddress: row?.inboundAddress ?? "",
     crmReplyName: row?.crmReplyName ?? "",
+    crmReplySignature: row?.crmReplySignature ?? "",
   }
 }
 

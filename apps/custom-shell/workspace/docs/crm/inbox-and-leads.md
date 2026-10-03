@@ -201,6 +201,30 @@ header, by the same `composeFromAddress` the app's own email uses, because a
 comma in a From line makes a mail server read it as two senders. A name that is
 nothing but punctuation leaves nothing usable, so the app name steps in.
 
+**Every reply carries the workspace's signature under a thin line.** It is one
+box in Settings → Email, "Signature on CRM replies", and it holds whatever you
+would type by hand: a name, a business, a phone number. A blank box adds
+nothing, not an empty gap and not a stray line, so a reply sent with no
+signature is the same mail the CRM sent before the setting existed.
+
+The signature is plain typing, escaped exactly like the body. Someone who types
+`<b>` gets those four characters in the mail, not bold text and not a broken
+message. It is deliberately **not** the newsletter's branded frame from
+`src/server/email/branding.ts`: a personal answer arriving in a marketing
+wrapper is worse than one with no signature at all. There is no unsubscribe
+link for the same reason as the rest of the reply.
+
+**The mail carries a plain-text part as well as an HTML one**, and both end with
+the signature. Where the HTML draws a rule, the text uses `--` on its own line,
+which mail clients have read as the start of a signature since before HTML mail.
+Without that second part, somebody reading in a plain-text client would see the
+message stop before the phone number.
+
+**The signature is not drawn in the conversation on screen.** It is the same
+lines every time and would bury the words in every bubble you ever sent. The
+message row keeps the typed words in `text_body`, which is what the screen
+draws, and the mail that actually went out in `html_body`.
+
 `In-Reply-To` and `References` carry the newest Message-ID in the conversation,
 which is what makes the answer land in the same thread in the reader's own mail
 client instead of as a loose email.
@@ -320,6 +344,8 @@ mail in it is never written to.
    so.
 5. Type a name into **Name replies come from**, in the same card. Empty is
    allowed and sends under the app name.
+6. Type a **Signature on CRM replies**, in the same card. Empty is allowed and
+   adds nothing.
 
 Forwarding an existing Gmail account to that address is how mail already arriving
 somewhere else gets in.
