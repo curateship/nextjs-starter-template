@@ -338,6 +338,9 @@ pages.
   each need their own Google key, and each section says which.
 - **Listing pages** — the category that names this site's neighbourhoods, which
   is the small label on a listing's card.
+- **Post pages** — whether a post's own page draws its cover image at the top.
+  Off takes the picture off that page alone; every card that leads to the post
+  still has it. `posts.md` describes the page.
 - **Events and deals pages** — the site's time zone, which is what their times
   are read in and what decides when one is over.
 - **Every public page** — the button that forgets this site's saved public

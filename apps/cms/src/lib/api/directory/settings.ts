@@ -14,6 +14,7 @@ import {
   saveDirectoryBrowseCategories,
   saveDirectoryBrowseSettings,
   saveDirectoryNeighbourhoodCategory,
+  saveDirectoryPostCoverImage,
   directoryGeocodingKeyStatus,
   directoryMapDisplayKeyStatus,
   saveDirectoryMapEnabled,
@@ -183,6 +184,21 @@ const saveTimeZoneFn = createServerFn({ method: "POST" })
 /** Changes the zone this site's event times are read in. */
 export function saveTimeZone(timeZone: string) {
   return saveTimeZoneFn({ data: { timeZone } })
+}
+
+const savePostCoverImageFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ postCoverImage: z.boolean() }))
+  .handler(async ({ data, context }) =>
+    saveDirectoryPostCoverImage(
+      await workspaceIdForRequest(context.user.id),
+      data.postCoverImage
+    )
+  )
+
+/** Turns the cover image at the top of a post's page on or off. */
+export function savePostCoverImage(postCoverImage: boolean) {
+  return savePostCoverImageFn({ data: { postCoverImage } })
 }
 
 export type { DirectorySettings }
