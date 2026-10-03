@@ -2355,6 +2355,32 @@ export const customShellEmailSettings = pgTable("email_settings", {
    */
   inboundAddress: varchar("inbound_address", { length: 255 }),
   /**
+   * The name a CRM reply goes out under, in front of the inbound address.
+   *
+   * Only the name is here. The address is always `inboundAddress`, because a
+   * reply has to come back to the same mailbox. Null falls back to the app
+   * name at send time, so a workspace that never fills this in still sends
+   * from a name rather than a bare address. Added in
+   * `0083_custom_shell_crm_reply_name.sql`.
+   */
+  crmReplyName: varchar("crm_reply_name", { length: 255 }),
+  /**
+   * The lines that go under every CRM reply: a name, a business, a phone
+   * number. Plain text, never HTML and never blocks, so it is escaped on the
+   * way out exactly like the typed body. Null or blank means a reply goes out
+   * with nothing added. Added in
+   * `0084_custom_shell_crm_reply_signature.sql`.
+   */
+  crmReplySignature: text("crm_reply_signature"),
+  /**
+   * Whether a CRM reply carries the message it answers underneath it, the way
+   * every mail client does. On unless somebody turns it off, which is why the
+   * column is `not null default true` rather than nullable: a workspace that
+   * predates the setting quotes, the same as a new one. Added in
+   * `0085_custom_shell_crm_quote_replies.sql`.
+   */
+  crmQuoteReplies: boolean("crm_quote_replies").notNull().default(true),
+  /**
    * The drip rules a newly created newsletter starts from — see
    * `src/lib/broadcasts/drip.ts`. Only ever read at that moment; changing it
    * later leaves newsletters that already exist alone.

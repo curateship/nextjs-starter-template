@@ -21,6 +21,13 @@ export type SendEmailParams = {
   to: string
   subject: string
   html: string
+  /**
+   * The same message as plain text, for a reader that does not draw HTML.
+   *
+   * Left out, the mail carries the HTML part alone, which is what every send
+   * in the app did before the CRM started adding a signature.
+   */
+  text?: string
   replyTo?: string
   headers?: Record<string, string>
 }
@@ -129,6 +136,7 @@ class ResendProvider implements EmailProvider {
           to: [params.to],
           subject: params.subject,
           html: params.html,
+          ...(params.text ? { text: params.text } : {}),
           ...(params.replyTo ? { reply_to: params.replyTo } : {}),
           ...(params.headers ? { headers: params.headers } : {}),
         }),

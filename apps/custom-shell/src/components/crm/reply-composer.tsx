@@ -1,5 +1,6 @@
 import * as React from "react"
 import { SparklesIcon } from "lucide-react"
+import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { DisabledReason } from "@/components/ui/disabled-reason"
@@ -22,13 +23,22 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 export function ReplyComposer({
   threadId,
   canSend,
-  inboundAddress,
+  replyFrom,
   onSent,
   onDraft,
 }: {
   threadId: string
   canSend: boolean
-  inboundAddress: string | null
+  /**
+   * The whole From line the reply will carry, worked out on the server. Shown
+   * as typed there rather than rebuilt here, so the footnote cannot promise a
+   * sender the mail does not use.
+   *
+   * Null when the workspace has no address for mail to arrive at, which is the
+   * one thing that stops a reply going at all, so it is also what disables
+   * Send.
+   */
+  replyFrom: string | null
   onSent: () => void
   onDraft: () => Promise<string>
 }) {
@@ -50,8 +60,12 @@ export function ReplyComposer({
     if (!body.trim() || sending) return
     setSending(true)
     try {
-      await sendReply(threadId, body.trim())
+      const { reopened } = await sendReply(threadId, body.trim())
       setBody("")
+      // The conversation was closed or snoozed and answering it put it back in
+      // the inbox. Said out loud, because a status changing under somebody
+      // without a word is its own surprise.
+      if (reopened) toast.success("Reopened, because you answered it.")
       onSent()
     } catch (error) {
       showErrorToast(getCrmErrorMessage(error))
@@ -77,7 +91,7 @@ export function ReplyComposer({
     }
   }
 
-  const noAddress = !inboundAddress
+  const noAddress = !replyFrom
 
   return (
     <div className="grid shrink-0 gap-2 border-t p-3">
@@ -124,9 +138,9 @@ export function ReplyComposer({
         </div>
       </div>
 
-      {inboundAddress ? (
+      {replyFrom ? (
         <p className="text-xs text-muted-foreground">
-          Sent from {inboundAddress}, so their answer comes back here.
+          Sent as {replyFrom}
         </p>
       ) : null}
     </div>

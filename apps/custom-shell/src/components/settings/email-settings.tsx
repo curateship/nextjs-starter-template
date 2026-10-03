@@ -13,6 +13,8 @@ import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { NumberField } from "@/components/ui/number-field"
+import { SettingsSwitchRow } from "@/components/settings/settings-switch-row"
+import { Textarea } from "@/components/ui/textarea"
 import {
   Tooltip,
   TooltipContent,
@@ -26,6 +28,9 @@ import {
   saveEmailApiKey,
   saveAuthLinkExpirySetting,
   saveEmailSenderSettings,
+  saveCrmQuoteRepliesSetting,
+  saveCrmReplyNameSetting,
+  saveCrmReplySignatureSetting,
   saveInboundAddressSetting,
   saveNewsletterDripDefaults,
   saveResendWebhookSecret,
@@ -72,6 +77,9 @@ export function EmailSettings() {
     fromEmail: string
     fromName: string
     inboundAddress: string
+    crmReplyName: string
+    crmReplySignature: string
+    crmQuoteReplies: boolean
   } | null>(null)
   // The pace a new newsletter starts from, as edited; null until the load.
   const [drip, setDrip] = React.useState<DripConfig | null>(null)
@@ -92,6 +100,9 @@ export function EmailSettings() {
     | "systemSender"
     | "sender"
     | "inbound"
+    | "crmReplyName"
+    | "crmReplySignature"
+    | "crmQuoteReplies"
     | "key"
     | "webhook"
     | "drip"
@@ -141,6 +152,9 @@ export function EmailSettings() {
             fromEmail: next.fromEmail,
             fromName: next.fromName,
             inboundAddress: next.inboundAddress,
+            crmReplyName: next.crmReplyName,
+            crmReplySignature: next.crmReplySignature,
+            crmQuoteReplies: next.crmQuoteReplies,
           }
         )
         setDrip((prev) => prev ?? next.dripDefaults)
@@ -198,6 +212,58 @@ export function EmailSettings() {
       setStatus(await saveInboundAddressSetting(inboundAddress))
       setSaveStatus("saved")
     } catch (error) {
+      setSaveStatus("idle")
+      showErrorToast(getEmailSettingsErrorMessage(error))
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  const saveCrmName = async (crmReplyName: string) => {
+    setSaving("crmReplyName")
+    setSaveStatus("saving")
+    dismissErrorToast()
+    try {
+      setStatus(await saveCrmReplyNameSetting(crmReplyName))
+      setSaveStatus("saved")
+    } catch (error) {
+      setSaveStatus("idle")
+      showErrorToast(getEmailSettingsErrorMessage(error))
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  const saveCrmSignature = async (crmReplySignature: string) => {
+    setSaving("crmReplySignature")
+    setSaveStatus("saving")
+    dismissErrorToast()
+    try {
+      setStatus(await saveCrmReplySignatureSetting(crmReplySignature))
+      setSaveStatus("saved")
+    } catch (error) {
+      setSaveStatus("idle")
+      showErrorToast(getEmailSettingsErrorMessage(error))
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  // No debounce: a switch takes effect when it is flipped, and there is no
+  // half-typed state to wait for the way there is in a text box.
+  const saveQuoteReplies = async (crmQuoteReplies: boolean) => {
+    setSender((prev) => (prev ? { ...prev, crmQuoteReplies } : prev))
+    setSaving("crmQuoteReplies")
+    setSaveStatus("saving")
+    dismissErrorToast()
+    try {
+      setStatus(await saveCrmQuoteRepliesSetting(crmQuoteReplies))
+      setSaveStatus("saved")
+    } catch (error) {
+      // Put the switch back: it never took, so it must not look as if it did.
+      setSender((prev) =>
+        prev ? { ...prev, crmQuoteReplies: !crmQuoteReplies } : prev
+      )
       setSaveStatus("idle")
       showErrorToast(getEmailSettingsErrorMessage(error))
     } finally {
@@ -372,6 +438,42 @@ export function EmailSettings() {
       return
     }
     void saveInbound(sender.inboundAddress)
+  }
+
+  const scheduleCrmNameSave = (crmReplyName: string) => {
+    clearTimeout(timers.current.crmReplyName)
+    timers.current.crmReplyName = setTimeout(
+      () => void saveCrmName(crmReplyName),
+      SAVE_DELAY_MS
+    )
+  }
+
+  const flushCrmNameSave = () => {
+    if (!sender) return
+    clearTimeout(timers.current.crmReplyName)
+    if (saving !== null) {
+      scheduleCrmNameSave(sender.crmReplyName)
+      return
+    }
+    void saveCrmName(sender.crmReplyName)
+  }
+
+  const scheduleCrmSignatureSave = (crmReplySignature: string) => {
+    clearTimeout(timers.current.crmReplySignature)
+    timers.current.crmReplySignature = setTimeout(
+      () => void saveCrmSignature(crmReplySignature),
+      SAVE_DELAY_MS
+    )
+  }
+
+  const flushCrmSignatureSave = () => {
+    if (!sender) return
+    clearTimeout(timers.current.crmReplySignature)
+    if (saving !== null) {
+      scheduleCrmSignatureSave(sender.crmReplySignature)
+      return
+    }
+    void saveCrmSignature(sender.crmReplySignature)
   }
 
   const scheduleKeySave = (value: string) => {
@@ -703,6 +805,73 @@ export function EmailSettings() {
                 Empty means the CRM has no mailbox, so it cannot reply.
               </p>
             </div>
+
+            <div className="grid gap-2">
+              <FieldLabel
+                htmlFor="email-crm-reply-name"
+                hint="Goes in front of the address mail arrives at, so a CRM reply shows a person instead of a bare inbox. The address itself does not change, so answers still come back here."
+              >
+                Name replies come from
+              </FieldLabel>
+              <Input
+                id="email-crm-reply-name"
+                autoComplete="off"
+                maxLength={255}
+                placeholder="e.g. Tyler"
+                value={sender.crmReplyName}
+                onChange={(event) => {
+                  const next = {
+                    ...sender,
+                    crmReplyName: event.target.value,
+                  }
+                  setSender(next)
+                  scheduleCrmNameSave(next.crmReplyName)
+                }}
+                onBlur={flushCrmNameSave}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") flushCrmNameSave()
+                }}
+              />
+              <p className="text-xs text-muted-foreground">
+                Empty sends replies under the app name.
+              </p>
+            </div>
+
+            <div className="grid gap-2">
+              <FieldLabel
+                htmlFor="email-crm-reply-signature"
+                hint="Goes under every reply the CRM sends, below a thin line, and under nothing else in the app. Plain words only: typed brackets arrive as brackets, not as formatting."
+              >
+                Signature on CRM replies
+              </FieldLabel>
+              <Textarea
+                id="email-crm-reply-signature"
+                rows={1}
+                maxLength={2000}
+                placeholder="e.g. your name, your business, your phone number"
+                value={sender.crmReplySignature}
+                onChange={(event) => {
+                  const next = {
+                    ...sender,
+                    crmReplySignature: event.target.value,
+                  }
+                  setSender(next)
+                  scheduleCrmSignatureSave(next.crmReplySignature)
+                }}
+                onBlur={flushCrmSignatureSave}
+              />
+              <p className="text-xs text-muted-foreground">
+                Empty adds nothing to a reply.
+              </p>
+            </div>
+
+            <SettingsSwitchRow
+              id="email-crm-quote-replies"
+              checked={sender.crmQuoteReplies}
+              onCheckedChange={(checked) => void saveQuoteReplies(checked)}
+              label="Put their message under your reply"
+              hint="The way every mail client does it: your words, then the line saying who wrote and when, then their message indented. Turn it off if you answer short questions all day."
+            />
           </>
         )}
       </CollapsibleSettingsCard>

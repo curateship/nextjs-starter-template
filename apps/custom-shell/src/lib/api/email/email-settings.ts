@@ -11,6 +11,9 @@ import {
   clearResendWebhookSecret,
   getEmailSettingsStatus,
   saveAuthLinkExpiry,
+  saveCrmQuoteReplies,
+  saveCrmReplyName,
+  saveCrmReplySignature,
   saveDripDefaults,
   saveEmailSender,
   saveInboundAddress,
@@ -106,6 +109,61 @@ export function saveInboundAddressSetting(inboundAddress: string) {
   return saveInboundAddressFn({
     data: { inboundAddress: inboundAddress.trim() },
   })
+}
+
+/**
+ * The name CRM replies go out under.
+ *
+ * "" is allowed and clears it, which sends replies under the app name instead.
+ * Nothing here checks the characters: `composeFromAddress` takes out anything
+ * that could split the From header, and it does that at send time so an
+ * already-saved name is cleaned too.
+ */
+const saveCrmReplyNameFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ crmReplyName: z.string().max(255) }))
+  .handler(async ({ data, context }): Promise<EmailSettingsStatus> => {
+    const workspaceId = await currentWorkspaceId(context.user.id)
+    await saveCrmReplyName(workspaceId, data.crmReplyName)
+    return getEmailSettingsStatus(workspaceId)
+  })
+
+export function saveCrmReplyNameSetting(crmReplyName: string) {
+  return saveCrmReplyNameFn({ data: { crmReplyName } })
+}
+
+/**
+ * The lines that go under every CRM reply.
+ *
+ * "" is allowed and clears it, which sends replies with nothing added. The
+ * length cap is generous because it holds an address, and the signature is
+ * escaped when the mail is built, not here.
+ */
+const saveCrmReplySignatureFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ crmReplySignature: z.string().max(2000) }))
+  .handler(async ({ data, context }): Promise<EmailSettingsStatus> => {
+    const workspaceId = await currentWorkspaceId(context.user.id)
+    await saveCrmReplySignature(workspaceId, data.crmReplySignature)
+    return getEmailSettingsStatus(workspaceId)
+  })
+
+export function saveCrmReplySignatureSetting(crmReplySignature: string) {
+  return saveCrmReplySignatureFn({ data: { crmReplySignature } })
+}
+
+/** Whether a CRM reply carries the message it answers underneath it. */
+const saveCrmQuoteRepliesFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ crmQuoteReplies: z.boolean() }))
+  .handler(async ({ data, context }): Promise<EmailSettingsStatus> => {
+    const workspaceId = await currentWorkspaceId(context.user.id)
+    await saveCrmQuoteReplies(workspaceId, data.crmQuoteReplies)
+    return getEmailSettingsStatus(workspaceId)
+  })
+
+export function saveCrmQuoteRepliesSetting(crmQuoteReplies: boolean) {
+  return saveCrmQuoteRepliesFn({ data: { crmQuoteReplies } })
 }
 
 const saveSystemEmailSenderFn = createServerFn({ method: "POST" })

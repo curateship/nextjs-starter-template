@@ -3,6 +3,9 @@ import { describe, expect, it } from "vitest"
 import {
   htmlToText,
   messageSnippet,
+  quoteAsHtml,
+  quoteAsText,
+  quotedMessage,
   splitQuotedText,
 } from "@/lib/crm/message-text"
 
@@ -95,5 +98,100 @@ describe("messageSnippet", () => {
   it("answers null for a body that has not arrived", () => {
     expect(messageSnippet(null, null)).toBeNull()
     expect(messageSnippet("", "")).toBeNull()
+  })
+})
+
+describe("quoting the message a reply answers", () => {
+  const inbound = {
+    fromName: "Jane Smith",
+    fromEmail: "jane@buyer.com",
+    textBody: "Can you quote a kitchen?",
+    htmlBody: null,
+    occurredAt: new Date("2026-10-02T15:07:00Z"),
+  }
+
+  it("names who wrote and when, then their words", () => {
+    const quote = quotedMessage(inbound)
+    expect(quote?.attribution).toMatch(/^On .+, Jane Smith wrote:$/)
+    expect(quote?.body).toBe("Can you quote a kitchen?")
+  })
+
+  it("falls back to the address when the mail carried no name", () => {
+    const quote = quotedMessage({ ...inbound, fromName: null })
+    expect(quote?.attribution).toContain("jane@buyer.com")
+  })
+
+  it("quotes nothing when the body never arrived", () => {
+    expect(
+      quotedMessage({ ...inbound, textBody: null, htmlBody: null })
+    ).toBeNull()
+    expect(
+      quotedMessage({ ...inbound, textBody: "   ", htmlBody: null })
+    ).toBeNull()
+  })
+
+  it("quotes nothing rather than an attribution line with no date in it", () => {
+    expect(quotedMessage({ ...inbound, occurredAt: null })).toBeNull()
+  })
+
+  it("reads the words out of a mail that was html only", () => {
+    const quote = quotedMessage({
+      ...inbound,
+      textBody: null,
+      htmlBody: "<p>Can you quote a <b>kitchen</b>?</p>",
+    })
+    expect(quote?.body).toBe("Can you quote a kitchen ?")
+  })
+
+  it("passes their own quoted history on rather than trimming it", () => {
+    const quote = quotedMessage({
+      ...inbound,
+      textBody: "Yes please.\n\nOn Sep 1, 2026, You wrote:\n> The quote is $400.",
+    })
+    expect(quote?.body).toContain("> The quote is $400.")
+  })
+
+  it("writes an attribution line our own folding recognises", () => {
+    // A reply to our reply comes back with this line in it, and the
+    // conversation panel folds everything from here down.
+    const quote = quotedMessage(inbound)
+    const sent = `Tuesday works.\n\n${quoteAsText(quote!)}`
+    const split = splitQuotedText(sent)
+    expect(split.own).toBe("Tuesday works.")
+    expect(split.quoted).toContain("Can you quote a kitchen?")
+  })
+})
+
+describe("quoteAsText", () => {
+  it("puts every line behind a marker", () => {
+    expect(
+      quoteAsText({ attribution: "On a day, Jane wrote:", body: "One\nTwo" })
+    ).toBe("On a day, Jane wrote:\n> One\n> Two")
+  })
+
+  it("marks a blank line too, so the block reads as one block", () => {
+    expect(
+      quoteAsText({ attribution: "On a day, Jane wrote:", body: "One\n\nTwo" })
+    ).toBe("On a day, Jane wrote:\n> One\n>\n> Two")
+  })
+})
+
+describe("quoteAsHtml", () => {
+  it("indents their words behind a line down the left", () => {
+    const html = quoteAsHtml({
+      attribution: "On a day, Jane wrote:",
+      body: "One\nTwo",
+    })
+    expect(html).toContain("border-left")
+    expect(html).toContain("One<br />Two")
+  })
+
+  it("shows their typed markup as characters rather than running it", () => {
+    const html = quoteAsHtml({
+      attribution: "On a day, Jane wrote:",
+      body: '<script>alert("x")</script>',
+    })
+    expect(html).not.toContain("<script>")
+    expect(html).toContain("&lt;script&gt;")
   })
 })

@@ -22,8 +22,8 @@ import {
 } from "@/server/crm/inbox"
 import { fillMessageBody, MAX_BODY_ATTEMPTS } from "@/server/crm/inbound"
 import { sendCrmReply } from "@/server/crm/reply"
+import { getCrmReplySender } from "@/server/crm/sender"
 import { adminGet, adminPost } from "@/server/guards"
-import { getInboundAddress } from "@/server/email/settings"
 import { currentWorkspaceId } from "@/server/people/workspaces"
 
 import { createErrorMessage } from "../error-message"
@@ -65,6 +65,13 @@ export type InboxPage = {
    * empty inbox explains itself with, and what disables Send.
    */
   inboundAddress: string | null
+  /**
+   * The whole From line a reply would go out as, such as
+   * `Tyler <leads@inbox.example.com>`, or null when there is no inbound
+   * address. The composer's footnote shows this rather than assembling its own,
+   * so what it promises is what the customer receives.
+   */
+  replyFrom: string | null
 }
 
 export type ConversationMessage = {
@@ -112,14 +119,14 @@ const loadInboxFn = createServerFn({ method: "GET" })
   .inputValidator(listSchema)
   .handler(async ({ data, context }): Promise<InboxPage> => {
     const workspaceId = await currentWorkspaceId(context.user.id)
-    const [threads, counts, inboundAddress] = await Promise.all([
+    const [threads, counts, sender] = await Promise.all([
       listInboxThreads(workspaceId, {
         ...data,
         limit: CRM_INBOX_PAGE_SIZE,
         offset: ((data.page ?? 1) - 1) * CRM_INBOX_PAGE_SIZE,
       }),
       countInboxThreads(workspaceId, data),
-      getInboundAddress(workspaceId),
+      getCrmReplySender(workspaceId),
     ])
 
     return {
@@ -129,7 +136,8 @@ const loadInboxFn = createServerFn({ method: "GET" })
       total: data.unreadOnly ? counts.unread : counts.all,
       allCount: counts.all,
       unreadCount: counts.unread,
-      inboundAddress,
+      inboundAddress: sender?.address ?? null,
+      replyFrom: sender?.from ?? null,
       pageSize: CRM_INBOX_PAGE_SIZE,
       threads: threads.map((row) => ({
         id: row.id,
@@ -209,7 +217,7 @@ const sendReplyFn = createServerFn({ method: "POST" })
     const workspaceId = await currentWorkspaceId(context.user.id)
     const result = await sendCrmReply(workspaceId, data.threadId, data.body)
     if (!result.sent) throw new Error(`CRM_SEND_REFUSED: ${result.error}`)
-    return { messageId: result.messageId }
+    return { messageId: result.messageId, reopened: result.reopened }
   })
 
 const setStatusFn = createServerFn({ method: "POST" })

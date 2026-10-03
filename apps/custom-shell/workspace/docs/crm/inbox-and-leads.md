@@ -174,6 +174,89 @@ person typing, so it goes out with no blocks, no branding frame and **no
 unsubscribe footer**. That footer belongs on a newsletter; offering to
 unsubscribe somebody from a conversation they started would be absurd.
 
+**A reply goes out under a name, never a bare address.** The From line is a name
+in front of the address mail arrives at, such as
+`Tyler <leads@inbox.example.com>`. The name is one box in Settings → Email,
+"Name replies come from", and it is one name for the whole workspace. Leaving it
+empty sends under the app name rather than under the address alone, because mail
+from a bare address reads as automated and a typed personal answer is the
+opposite of that.
+
+The address in that From line is always the address mail arrives at, so the
+answer still comes back into the CRM. Only the name is anybody's to change.
+
+`src/server/crm/sender.ts` is the single place that works the From line out, and
+both the send and the footnote under the Send button read it from there. That is
+why the footnote says exactly what the customer will see.
+
+**The footnote is one line and no explanation: "Sent as Tyler
+<leads@inbox.example.com>".** It used to add "so their answer comes back here",
+and Tyler cut that on 3 Oct 2026: "why do we even need it? I mean where else
+would their reply goes?" A reply to an email comes back to whoever sent it, so
+the sentence was answering a question nobody asked. Who the mail goes out as is
+the only part you cannot work out for yourself, so that is the only part the
+line says. A name holding a comma
+or a quote mark is stripped of those characters before it goes anywhere near the
+header, by the same `composeFromAddress` the app's own email uses, because a
+comma in a From line makes a mail server read it as two senders. A name that is
+nothing but punctuation leaves nothing usable, so the app name steps in.
+
+**Every reply carries the workspace's signature under a thin line.** It is one
+box in Settings → Email, "Signature on CRM replies", and it holds whatever you
+would type by hand: a name, a business, a phone number. A blank box adds
+nothing, not an empty gap and not a stray line, so a reply sent with no
+signature is the same mail the CRM sent before the setting existed.
+
+The signature is plain typing, escaped exactly like the body. Someone who types
+`<b>` gets those four characters in the mail, not bold text and not a broken
+message. It is deliberately **not** the newsletter's branded frame from
+`src/server/email/branding.ts`: a personal answer arriving in a marketing
+wrapper is worse than one with no signature at all. There is no unsubscribe
+link for the same reason as the rest of the reply.
+
+**The mail carries a plain-text part as well as an HTML one**, and both end with
+the signature. Where the HTML draws a rule, the text uses `--` on its own line,
+which mail clients have read as the start of a signature since before HTML mail.
+Without that second part, somebody reading in a plain-text client would see the
+message stop before the phone number.
+
+**A reply carries the message it answers underneath it**, the way every mail
+client does: your words, then a line saying who wrote and when, then their
+message indented behind a border. Only the newest message that came in, never
+the whole thread, because the thread is already in their own mail client and
+quoting all of it would grow every reply.
+
+The order is your words, then the signature, then the quote, which is what
+Gmail and Outlook both do. The signature belongs to what was just written, so
+it stays with it instead of sitting below somebody else's message.
+
+The switch is in Settings → Email, "Put their message under your reply", and it
+is on unless somebody turns it off. Off sends exactly what the CRM sent before
+quoting existed. It exists because somebody answering twenty short questions a
+day does not want three lines of quoting under each one.
+
+**The attribution line is written to match the fold.** `splitQuotedText` in
+`src/lib/crm/message-text.ts` looks for `On ... wrote:` when a message arrives,
+and `quotedMessage` in the same file writes that exact shape on the way out.
+Both halves live in one file for that reason: when their answer comes back with
+our quote inside it, the conversation panel folds it away behind "Show earlier
+text" rather than showing it. A test sends a quote through the splitter to
+prove the two agree.
+
+**A message whose body never arrived quotes nothing.** Inbound mail is written
+by the webhook before its body is fetched, so for a moment a message has no
+words. Replying in that moment sends the typed words alone, with no attribution
+line standing over an empty block.
+
+**Their own quoted history is passed on, not trimmed.** If their mail already
+held three levels of quoting, that is what they sent and what they get back.
+
+**The signature and the quote are not drawn in the conversation on screen.**
+The signature is the same lines every time and would bury the words in every
+bubble you ever sent; the quote is a message already sitting above it in the
+same conversation. The message row keeps the typed words in `text_body`, which
+is what the screen draws, and the mail that actually went out in `html_body`.
+
 `In-Reply-To` and `References` carry the newest Message-ID in the conversation,
 which is what makes the answer land in the same thread in the reader's own mail
 client instead of as a loose email.
@@ -207,6 +290,23 @@ me again later" and carries its own date; the background pass puts it back to
 open when that date passes. Closed is done with. Neither deletes anything, and
 the inbox shows open ones by default because the question this screen answers is
 what needs doing.
+
+**Answering a conversation reopens it.** If you reply in one that was closed or
+snoozed, it goes back to open and a snooze date is cleared, and a toast says
+"Reopened, because you answered it." If you are still talking, it is not done.
+
+This closes the one way the CRM could silently lose a live conversation: close a
+thread, find it again in a search, answer it, and it stays invisible in an inbox
+that shows open ones. Their answer then arrives into a thread nobody looks at.
+
+The status changes in the same statement that bumps the message count, so there
+is no moment where the reply exists and the status is stale. A refused send
+writes nothing at all, the status included.
+
+**An inbound message does not reopen a closed thread.** A new message already
+clears `read_at` and puts the conversation at the top of the list it is in.
+Whether somebody writing again should reopen a thread you deliberately closed is
+a separate question, and the answer may be no.
 
 ## Following up
 
@@ -291,6 +391,10 @@ mail in it is never written to.
 4. Paste that address into **Settings → Email → Address mail arriving at**.
    Empty means the CRM has no mailbox and cannot reply, and the Send button says
    so.
+5. Type a name into **Name replies come from**, in the same card. Empty is
+   allowed and sends under the app name.
+6. Type a **Signature on CRM replies**, in the same card. Empty is allowed and
+   adds nothing.
 
 Forwarding an existing Gmail account to that address is how mail already arriving
 somewhere else gets in.
