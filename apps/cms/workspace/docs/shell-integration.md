@@ -186,6 +186,25 @@ already the way the button would set them, which "Change many at once" needs
 and the shell's copy does not have. A shell merge must not overwrite it. Both
 forks end when the shell takes the same change.
 
+## The 3 October 2026 picture and picker merge
+
+Seven shell files came over: the hero block, the media picker and its test, the
+picture thumbnail, the picture field, the front page row editor and the
+feedback box. No migration.
+
+**A hero's picture keeps its own shape.** It used to sit in a fixed 16:9 box
+set to fit inside, so a picture that was not 16:9 was drawn small in the middle
+of that box with grey bars either side of it. The picture now fills the width
+of its column and is as tall as its own shape makes it. A 720 by 720 picture in
+a 556px column draws 556 by 556, where before it was 313 by 313 inside a 556 by
+313 grey box. Nothing is cropped.
+
+**The media picker is always its own window.** It used to have a second mode
+that drew the whole library inside the window that opened it, which in a 96px
+picture field stretched the field across the form and ran off the bottom of the
+screen. That mode is gone, so the picker opens over the window that asked for
+it and Escape closes only the picker.
+
 ## What the second 30 September 2026 shell merge brought
 
 The first that day was the dark shade and the sliding pill. This one carried the
