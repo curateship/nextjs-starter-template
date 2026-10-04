@@ -34,6 +34,11 @@ describe("market keys", () => {
     expect(marketSymbol("aster:mainnet:BTCUSDT")).toBe("BTCUSDT")
     // Dukascopy's lowercase ids carry the quote currency and are translated.
     expect(marketSymbol("dukascopy:mainnet:tslaususd")).toBe("TSLA")
+    // KuCoin's ids end in the quote currency and a perpetual's M.
+    expect(marketSymbol("kucoin:mainnet:SOLUSDTM")).toBe("SOL")
+    expect(marketSymbol("kucoin:mainnet:MARSCOINUSDTM")).toBe("MARSCOIN")
+    // KuCoin calls Bitcoin XBT, and so does its own market list.
+    expect(marketSymbol("kucoin:mainnet:XBTUSDTM")).toBe("XBT")
     // A key that cannot be read still says something rather than nothing.
     expect(marketSymbol(`bnb:mainnet:0x${"a".repeat(40)}`)).toBe("0xaaaa…aaaa")
     expect(marketSymbol("not-a-market")).toBe("not-a-market")

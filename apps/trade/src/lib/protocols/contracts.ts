@@ -234,6 +234,12 @@ export function marketSymbol(key: string): string {
   // Dukascopy's ids are lowercase and carry the quote currency: `tslaususd`
   // is TSLA.
   if (ref.protocol === "dukascopy") return dukascopySymbol(ref.marketId)
+  // KuCoin's contract ids carry the quote currency and a perpetual's M:
+  // "SOLUSDTM" is SOL. The catalogue already prints the coin on its own rows
+  // (`kucoin/markets.ts`), so a panel holding only a key has to strip the
+  // same ending or the two disagree on the same screen. XBT stays XBT,
+  // because that is what the catalogue shows for Bitcoin here.
+  if (ref.protocol === "kucoin") return ref.marketId.replace(/USDTM?$/, "")
   // A Solana id is the coin's mint address, because two coins can share a
   // ticker there and only the address is unique. The ticker is not in the
   // key and cannot be derived from it, so a caller holding only a key shows

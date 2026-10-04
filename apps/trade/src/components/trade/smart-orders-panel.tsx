@@ -167,15 +167,12 @@ type SmartOrdersPanelProps = SmartOrdersViewProps & {
   protocol: ProtocolId
   initialBots: RunningBot[]
   initialBotsError: string | null
-  /** Size to the rows when the panel is shown in the collapsed-column menu. */
-  compact?: boolean
 }
 
 export function SmartOrdersPanel({
   protocol,
   initialBots,
   initialBotsError,
-  compact = false,
   ...smartOrdersProps
 }: SmartOrdersPanelProps) {
   const [tab, setTab] = React.useState<"smart" | "bots">("smart")
@@ -223,12 +220,10 @@ export function SmartOrdersPanel({
         setTab(next)
         if (next === "bots") void refreshBots()
       }}
-      className={cn(
-        "min-h-0 gap-0 overflow-hidden bg-card",
-        // In the dropdown the panel fills the half it was given and scrolls
-        // inside it, the same way it does in its own column.
-        compact ? "h-full" : "flex-1"
-      )}
+      // The panel fills the box it was given and scrolls inside it, in its
+      // own column and in the collapsed-column menu alike. Both boxes are a
+      // flex column with a height cap, so one class covers them.
+      className="min-h-0 flex-1 gap-0 overflow-hidden bg-card"
     >
       <DashboardCardTabsHeader>
         <DashboardCardTab

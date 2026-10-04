@@ -1,5 +1,21 @@
 # KuCoin
 
+## What a KuCoin market is called on screen
+
+KuCoin's contract ids end in the quote currency and a perpetual's M, so
+Bitcoin is `XBTUSDTM` and Solana is `SOLUSDTM`. Every screen prints the coin
+on its own: SOL, PUMP, ARB, MARSCOIN. The market list strips the ending when
+it builds its rows, and `marketSymbol` in `src/lib/protocols/contracts.ts`
+strips the same ending for every panel that holds only a market key, which is
+how the Positions table, the orders panels and a notice's words all say the
+same thing. Positions and waiting orders read `SOLUSDTM` before that
+(Tyler, 3 Oct 2026).
+
+XBT stays XBT. KuCoin calls Bitcoin XBT in its ids and in the base currency it
+publishes, so renaming it to BTC here would disagree with the exchange and
+with the market list. Chart history is the one place that maps XBT to BTC,
+because the history source lists the coin under its ordinary name.
+
 ## Open orders
 
 KuCoin returns finished stop-order history by default from

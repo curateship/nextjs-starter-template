@@ -953,7 +953,6 @@ export function TradeWorkspace({
   const smartOrdersPanel = (
     <SmartOrdersPanel
       key={protocol}
-      compact={desktop && smartOrdersCollapsed}
       protocol={protocol}
       initialBots={initialRunningBots.rows}
       initialBotsError={initialRunningBots.error}
@@ -1091,13 +1090,16 @@ export function TradeWorkspace({
               {walletManagement}
               {desktop && smartOrdersCollapsed && !chartFullscreen ? (
                 <SmartOrdersMenu>
-                  {/* Two halves that can each shrink to nothing, so a long
-                      list scrolls inside its half instead of running past the
-                      menu's bottom edge where its rows could not be reached.
-                      Short lists still hug their rows, because the height is a
-                      cap rather than a fixed size. */}
-                  <div className="grid max-h-[min(32rem,var(--radix-popover-content-available-height))] grid-rows-[minmax(0,1fr)_minmax(0,1fr)] overflow-hidden">
-                    {smartOrdersPanel}
+                  {/* The same shape as the docked column: Smart orders is as
+                      tall as its own rows and Manual orders takes the rest.
+                      A fixed half each meant four rows showed under a menu
+                      with empty space below it. Smart orders still stops
+                      9rem short of the bottom, so a long list cannot squeeze
+                      Manual orders down to its heading. */}
+                  <div className="grid max-h-[min(44rem,var(--radix-popover-content-available-height))] grid-rows-[minmax(0,auto)_minmax(0,1fr)] overflow-hidden">
+                    <div className="flex max-h-[calc(min(44rem,var(--radix-popover-content-available-height))-9rem)] min-h-0 flex-col">
+                      {smartOrdersPanel}
+                    </div>
                     <div className="min-h-0 border-t">{manualOrdersPanel}</div>
                   </div>
                 </SmartOrdersMenu>
