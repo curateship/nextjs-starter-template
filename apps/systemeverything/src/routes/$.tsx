@@ -1,0 +1,154 @@
+import { createFileRoute, notFound, redirect } from "@tanstack/react-router"
+
+import { PublicPageFrame } from "@/components/shell/public-page-frame"
+import {
+  getVisitorPageErrorMessage,
+  visitorRouteErrorComponent,
+} from "@/components/shell/route-error"
+import { FrontPageRows } from "@/components/marketing/front-page-rows"
+import { catchAllOverride } from "@/lib/app-options"
+import { loadPublicPageBlocks } from "@/lib/api/content/page-blocks"
+import { loadWrittenPage } from "@/lib/api/content/pages"
+import { frontPageHeroRunsUnderMenu } from "@/lib/pages/front-page"
+import { resolveAppName } from "@/lib/branding"
+import { resolveCanonicalUrl } from "@/lib/pages/page-indexing"
+import {
+  publicSocialMeta,
+  resolveWrittenPageSeoMetadata,
+} from "@/lib/pages/public-metadata"
+
+/**
+ * Every address the app has no route for lands here, and this is where a page
+ * an admin wrote gets served.
+ *
+ * It is deliberately the last word rather than a route per written page: the
+ * addresses live in a table an admin edits while the app is running, and the
+ * router's list is fixed when the app is built. Nothing an admin types can
+ * shadow a real page, because a real route always wins over this one.
+ *
+ * An address nobody wrote throws not-found from here, so the not-found page
+ * still answers for genuine dead links exactly as it did before this route
+ * existed.
+ *
+ * The app is asked before the written pages are. See `pages.catchAll` in
+ * `src/lib/app-options.ts`: an app whose pages live in a table of its own gets
+ * first refusal on the address, and saying "not mine" leaves everything below
+ * running as it always has.
+ *
+ * Read once here, at the top, exactly as `index.tsx` reads its own option and
+ * for the same reason: route files are leaves, so the import circle an app's
+ * options file can create cannot reach them.
+ */
+const appPage = catchAllOverride()
+
+export const Route = createFileRoute("/$")({
+  loader: async ({ params }) => {
+    const path = `/${params._splat ?? ""}`
+
+    // Nothing is the app saying the address is not its own; anything else it
+    // answers with is the page. Its loader may also throw not-found or a
+    // redirect, which is how it claims an address *and* refuses it — falling
+    // through to the written pages would answer "no such address" instead.
+    //
+    // `?? null` because a loader that forgets to return gives `undefined`, and
+    // the option's type cannot catch it — `unknown | null` is just `unknown`.
+    // Without this, that one missing `return` would silently claim every
+    // address in the app and draw the app's page with no data in it.
+    const appData = (appPage ? await appPage.loader({ path }) : null) ?? null
+    if (appData !== null) {
+      return { source: "app" as const, data: appData }
+    }
+
+    // One read, and it has already decided whether this visitor may see the
+    // page — the words only come back when they may. Switched off arrives as
+    // "missing", so a hidden page is indistinguishable from one that never
+    // existed, here and in a direct call to the endpoint alike.
+    const view = await loadWrittenPage(path)
+
+    if (view.status === "missing") throw notFound()
+    if (view.status === "signIn") {
+      throw redirect({ to: "/login", search: { redirect: path } })
+    }
+
+    return {
+      source: "written" as const,
+      page: view.page,
+      // The page's content, which is blocks like the front page's. Read after
+      // the page itself, because the read above is what decides whether this
+      // visitor may see the address at all.
+      blocks: await loadPublicPageBlocks(path),
+      branding: view.branding,
+    }
+  },
+  errorComponent: visitorRouteErrorComponent(getVisitorPageErrorMessage),
+  component: CatchAllRoute,
+  head: ({ loaderData }) => {
+    if (!loaderData) return {}
+    if (loaderData.source === "app") {
+      return appPage?.head?.({ data: loaderData.data }) ?? {}
+    }
+
+    const appName = resolveAppName(loaderData.branding.appName)
+    const metadata = resolveWrittenPageSeoMetadata({
+      pageTitle: loaderData.page.title,
+      appName,
+      seo: loaderData.branding.publicSeo,
+    })
+
+    // An address on this same site becomes a full one on the domain the
+    // visitor actually used, so a deployment answering on several domains
+    // never points one site's canonical tag at another's.
+    const canonical = resolveCanonicalUrl(
+      loaderData.branding.publicOrigin,
+      loaderData.page.canonicalUrl
+    )
+
+    return {
+      meta: [
+        { title: metadata.title },
+        // `noindex` asks a search engine not to list the page. It is not a
+        // lock: the page still answers for anyone holding the link.
+        ...(loaderData.page.hiddenFromSearch
+          ? [{ name: "robots", content: "noindex" }]
+          : []),
+        ...publicSocialMeta({
+          title: metadata.socialTitle,
+          description: metadata.description,
+          image: loaderData.branding.shareImage,
+          cardType: loaderData.branding.socialCardType,
+          handle: loaderData.branding.socialHandle,
+        }),
+      ],
+      ...(canonical
+        ? { links: [{ rel: "canonical", href: canonical }] }
+        : {}),
+    }
+  },
+})
+
+function CatchAllRoute() {
+  const loaderData = Route.useLoaderData()
+
+  if (loaderData.source === "app") {
+    // The page cannot be missing here — data only carries "app" when the app
+    // answered — but it is read from a module-level value the router knows
+    // nothing about, so it is asked for rather than assumed.
+    const AppComponent = appPage?.Component
+    return AppComponent ? <AppComponent data={loaderData.data} /> : null
+  }
+
+  // Drawn exactly as the front page is, because it is built the same way. A
+  // page whose blocks are all gone still answers, with its header and footer
+  // and nothing between them, rather than throwing.
+  return (
+    <PublicPageFrame
+      // The registry has nothing to say about this address, so the frame is
+      // told: a page an admin added is built from blocks and is drawn the way
+      // the front page is, from the top of the window down.
+      layout="marketing"
+      heroRunsUnderMenu={frontPageHeroRunsUnderMenu(loaderData.blocks)}
+    >
+      <FrontPageRows rows={loaderData.blocks} />
+    </PublicPageFrame>
+  )
+}
