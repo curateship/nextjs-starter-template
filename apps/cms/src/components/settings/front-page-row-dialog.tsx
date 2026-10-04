@@ -11,6 +11,7 @@ import { CollapsibleSettingsCard } from "@/components/settings/collapsible-setti
 const APP_KIND_PREFIX = "app:"
 import { FrontPageRowContentEditor } from "@/components/settings/front-page-row-content-editor"
 import { Button } from "@/components/ui/button"
+import { SettingsSliderRow } from "@/components/settings/settings-slider-row"
 import { SettingsSwitchRow } from "@/components/settings/settings-switch-row"
 import {
   DialogBody,
@@ -56,6 +57,10 @@ import {
   normalizeFrontPageHeroHref,
   normalizeFrontPageHeroBackground,
   FRONT_PAGE_HERO_BACKGROUND_MESSAGE,
+  MAX_FRONT_PAGE_HERO_GREY,
+  DEFAULT_FRONT_PAGE_HERO_GREY,
+  frontPageHeroGrey,
+  frontPageHeroBandColors,
   DEFAULT_FRONT_PAGE_DIVIDER_SHADE,
   DEFAULT_FRONT_PAGE_HERO_SPACING,
   DEFAULT_FRONT_PAGE_DIVIDER_SPACE,
@@ -286,6 +291,13 @@ export function FrontPageRowDialog({
     JSON.stringify(currentItems) !== JSON.stringify(savedItems)
   const headingInvalid =
     !heading.trim() && (headingTouched || submitted)
+  // Which of the two kinds of background the row holds. The row stores one
+  // string: `grey-<n>` is the slider, a `#` is a fixed colour, empty is no
+  // band at all.
+  const heroGrey = frontPageHeroGrey(heroBackground)
+  const heroBackgroundChoice: "none" | "grey" | "custom" =
+    !heroBackground.trim() ? "none" : heroGrey !== null ? "grey" : "custom"
+  const heroBand = frontPageHeroBandColors(heroBackground)
 
   const save = () => {
     setSubmitted(true)
@@ -505,46 +517,102 @@ export function FrontPageRowDialog({
                   <>
                     <div className="grid gap-2">
                       <FieldLabel
-                        htmlFor="front-page-row-hero-background-hex"
-                        hint="Painted in a band right across the window, behind this row only, whatever its Layout says. Clear the box to leave the page's own colour showing. The same colour is used in light and dark mode."
+                        htmlFor="front-page-row-hero-background"
+                        hint="Painted in a band right across the window, behind this row only, whatever its Layout says. A muted grey is the only one that changes with the mode."
                       >
                         Background colour
                       </FieldLabel>
-                      <div className="flex items-center gap-2">
-                        <ColorSwatch
-                          id="front-page-row-hero-background"
-                          // A native colour box has no "no colour" to show, so an empty
-                          // field sits on white and the hex box beside it is the one that
-                          // says the row has none.
-                          value={heroBackground || "#ffffff"}
-                          onChange={(event) => setHeroBackground(event.target.value)}
-                          aria-label="Pick a background colour"
-                        />
-                        <Input
-                          id="front-page-row-hero-background-hex"
-                          value={heroBackground}
-                          placeholder="No colour"
-                          className="w-40"
-                          aria-invalid={
-                            (heroBackground.trim() &&
-                              !normalizeFrontPageHeroBackground(heroBackground)) ||
-                            undefined
+                      <Select
+                        value={heroBackgroundChoice}
+                        onValueChange={(value) => {
+                          if (value === "none") {
+                            setHeroBackground("")
+                            setHeroBackgroundUnderMenu(false)
+                            return
                           }
-                          onChange={(event) => setHeroBackground(event.target.value)}
-                        />
-                        {heroBackground ? (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => {
-                              setHeroBackground("")
-                              setHeroBackgroundUnderMenu(false)
-                            }}
+                          if (value === "grey") {
+                            setHeroBackground(
+                              `grey-${DEFAULT_FRONT_PAGE_HERO_GREY}`
+                            )
+                            return
+                          }
+                          // A fresh fixed colour starts on the pale grey the
+                          // band draws by default, so switching to it changes
+                          // nothing until a colour is chosen.
+                          setHeroBackground("#f4f4f5")
+                        }}
+                      >
+                        <SelectTrigger
+                          id="front-page-row-hero-background"
+                          className="w-full sm:w-fit"
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">No colour</SelectItem>
+                          <SelectItem value="grey">Muted grey</SelectItem>
+                          <SelectItem value="custom">Fixed colour</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {heroBackgroundChoice === "grey" ? (
+                        <div className="grid gap-3 pt-1">
+                          <SettingsSliderRow
+                            label="How strong"
+                            value={heroGrey ?? DEFAULT_FRONT_PAGE_HERO_GREY}
+                            min={0}
+                            max={MAX_FRONT_PAGE_HERO_GREY}
+                            step={1}
+                            valueLabel={`${heroGrey ?? DEFAULT_FRONT_PAGE_HERO_GREY}`}
+                            onChange={(value) =>
+                              setHeroBackground(`grey-${value}`)
+                            }
+                            help="All the way left the band is barely off the page. Drag right and it steps further away from it. In dark mode the same drag lightens the band instead of darkening it, so one slider sets both."
+                          />
+                          {/* Both bands at once, because the one you are not
+                              looking at is the one that usually goes wrong. */}
+                          <div
+                            className="flex max-w-sm overflow-hidden rounded-md border"
+                            aria-hidden="true"
                           >
-                            Clear
-                          </Button>
-                        ) : null}
-                      </div>
+                            <div
+                              className="h-10 flex-1"
+                              style={{ backgroundColor: heroBand.light }}
+                            />
+                            <div
+                              className="h-10 flex-1"
+                              style={{ backgroundColor: heroBand.dark }}
+                            />
+                          </div>
+                        </div>
+                      ) : null}
+                      {heroBackgroundChoice === "custom" ? (
+                        <div className="flex items-center gap-2">
+                          <ColorSwatch
+                            value={heroBackground || "#ffffff"}
+                            onChange={(event) =>
+                              setHeroBackground(event.target.value)
+                            }
+                            aria-label="Pick a background colour"
+                          />
+                          <Input
+                            id="front-page-row-hero-background-hex"
+                            value={heroBackground}
+                            placeholder="#f4f4f5"
+                            className="w-40"
+                            aria-label="Background colour hex code"
+                            aria-invalid={
+                              (heroBackground.trim() &&
+                                !normalizeFrontPageHeroBackground(
+                                  heroBackground
+                                )) ||
+                              undefined
+                            }
+                            onChange={(event) =>
+                              setHeroBackground(event.target.value)
+                            }
+                          />
+                        </div>
+                      ) : null}
                     </div>
 
                     <SettingsSwitchRow

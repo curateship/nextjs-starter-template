@@ -198,22 +198,82 @@ export const FRONT_PAGE_HERO_ACTION_HINTS: Record<
 }
 
 /**
- * A hero's own background colour, stored as `#rrggbb` and empty when the row
- * has none. Six digits only: a name such as `red` and a `var(...)` both reach
- * a stylesheet as text, and a stored colour that is not a plain hex code is
- * how a settings field becomes a way to write CSS into every visitor's page.
+ * A hero's own background. Two shapes, and empty when the row has none.
+ *
+ * - `grey-<n>`, a muted grey the slider picked, 0 to 100. 0 is barely off the
+ *   page and 100 is the strongest step away from it. This is the one that
+ *   changes with the mode: pale in light mode, dark in dark mode.
+ * - `#rrggbb`, one fixed colour, the same in light mode and dark mode.
+ *
+ * Anything else is dropped, because a name such as `red` and a `var(...)`
+ * both reach a stylesheet as text, and a stored colour that is not checked
+ * here is how a settings field becomes a way to write CSS into every
+ * visitor's page. The slider's number never reaches a style attribute as it
+ * is stored: `frontPageHeroBandColors` builds the CSS from it.
  */
 const FRONT_PAGE_HERO_BACKGROUND_PATTERN = /^#[0-9a-f]{6}$/i
 
-/** `#rrggbb` and nothing longer. */
-export const MAX_FRONT_PAGE_HERO_BACKGROUND_LENGTH = 7
+const FRONT_PAGE_HERO_GREY_PATTERN = /^grey-(\d{1,3})$/
+
+/** `grey-100` is 8 characters, and `#rrggbb` is 7. */
+export const MAX_FRONT_PAGE_HERO_BACKGROUND_LENGTH = 8
+
+/** The slider's right-hand end. */
+export const MAX_FRONT_PAGE_HERO_GREY = 100
+
+/** Where the slider sits on a hero that has never had a grey. */
+export const DEFAULT_FRONT_PAGE_HERO_GREY = 50
 
 export const FRONT_PAGE_HERO_BACKGROUND_MESSAGE =
-  "A hero background is a 6-digit hex colour, like #0f172a. Clear the box for no colour."
+  "A hero background is a muted grey or a 6-digit hex colour like #0f172a. Clear it for no colour."
+
+/**
+ * The two ends of the slider, in each mode.
+ *
+ * In light mode the band darkens as the slider moves right and in dark mode it
+ * lightens, because both are moving the same distance away from the page. The
+ * far end of each sits near where `--muted` already sits in `theme.css`, 0.97
+ * in light mode and 0.269 in dark, so even the strongest band is one a heading
+ * in the normal text colour reads on.
+ */
+const HERO_GREY_LIGHT = { quietest: 0.99, strongest: 0.9 }
+const HERO_GREY_DARK = { quietest: 0.175, strongest: 0.32 }
+
+export function frontPageHeroGrey(value: string) {
+  const match = FRONT_PAGE_HERO_GREY_PATTERN.exec(value.trim().toLowerCase())
+  if (!match) return null
+  const grey = Number(match[1])
+  return grey <= MAX_FRONT_PAGE_HERO_GREY ? grey : null
+}
 
 export function normalizeFrontPageHeroBackground(value: unknown) {
   const color = typeof value === "string" ? value.trim().toLowerCase() : ""
+  const grey = frontPageHeroGrey(color)
+  if (grey !== null) return `grey-${grey}`
   return FRONT_PAGE_HERO_BACKGROUND_PATTERN.test(color) ? color : ""
+}
+
+function greyColor(ends: { quietest: number; strongest: number }, grey: number) {
+  const lightness =
+    ends.quietest +
+    ((ends.strongest - ends.quietest) * grey) / MAX_FRONT_PAGE_HERO_GREY
+  return `oklch(${Number(lightness.toFixed(4))} 0 0)`
+}
+
+/**
+ * The two colours a saved hero background paints, one per mode. A hex gets the
+ * same colour twice, because a hex is one fixed colour and says nothing about
+ * dark mode. A row with no colour gets two empty strings.
+ */
+export function frontPageHeroBandColors(value: string) {
+  const color = normalizeFrontPageHeroBackground(value)
+  if (!color) return { light: "", dark: "" }
+  const grey = frontPageHeroGrey(color)
+  if (grey === null) return { light: color, dark: color }
+  return {
+    light: greyColor(HERO_GREY_LIGHT, grey),
+    dark: greyColor(HERO_GREY_DARK, grey),
+  }
 }
 
 /**

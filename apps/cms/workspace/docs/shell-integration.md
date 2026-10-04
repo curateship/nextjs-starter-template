@@ -186,6 +186,35 @@ already the way the button would set them, which "Change many at once" needs
 and the shell's copy does not have. A shell merge must not overwrite it. Both
 forks end when the shell takes the same change.
 
+## The 3 October 2026 hero background merge
+
+Six shell files came over: the front page model and its test, the front page
+rows and their test, the row dialog and the settings schema. `src/theme.css`
+gained two rules at the end. No migration: the field it changes already
+existed.
+
+**A hero's background colour has two colours now, one per mode.** It used to
+be a single hex code used in light mode and dark mode alike, so a pale band
+glared on a dark page. Background colour is a list of three. **No colour**
+leaves the page showing. **Muted grey** is a slider, 0 to 100, where the left
+end is barely off the page and the right end is a clear band, and the same
+drag darkens the band in light mode and lightens it in dark mode. **Fixed
+colour** is the old colour square and hex box, and a hex is still one colour
+in both modes, because that is what a hex means.
+
+Under the slider sit two swatches, the light band and the dark band side by
+side, redrawing as you drag.
+
+**Why `theme.css` changed.** An inline `background-color` is one colour and
+cannot change when the page turns dark, so the band carries
+`--shell-hero-band-light` and `--shell-hero-band-dark` as custom properties
+plus a `data-hero-band` attribute, and two rules at the end of `theme.css`
+pick between them.
+
+**What a row stores** is `grey-<n>` or `#rrggbb`, never the CSS it becomes,
+which is what keeps a settings field from writing CSS into a visitor's
+browser.
+
 ## The 3 October 2026 picture and picker merge
 
 Seven shell files came over: the hero block, the media picker and its test, the

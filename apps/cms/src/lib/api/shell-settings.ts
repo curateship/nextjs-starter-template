@@ -527,10 +527,12 @@ const frontPageRowsSchema = z
           ),
         note: z.string().max(MAX_FRONT_PAGE_HERO_NOTE_LENGTH),
         stars: z.number().int().min(0).max(MAX_FRONT_PAGE_HERO_STARS),
-        // Six hex digits or nothing. A colour that is not a plain hex code
-        // reaches the page as text inside a style, which is a way to write
-        // CSS into every visitor's browser, so it is refused here as well as
-        // dropped in `normalizeFrontPageRows`.
+        // A muted grey as `grey-<n>`, six hex digits, or nothing. A colour
+        // that is none of those reaches the page as text inside a style,
+        // which is a way to write CSS into every visitor's browser, so it is
+        // refused here as well as dropped in `normalizeFrontPageRows`. The
+        // slider's number is stored as the number and never as the CSS it
+        // becomes.
         background: z
           .string()
           .trim()
