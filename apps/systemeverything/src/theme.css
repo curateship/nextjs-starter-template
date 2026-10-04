@@ -1,0 +1,843 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@source "./**/*.{ts,tsx}";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Inter, self-hosted from public/fonts so no request leaves for Google. Two
+ * files: plain latin, plus the accented latin-ext range. Both are the variable
+ * cut, so every weight from 100 to 900 comes out of the one file.
+ */
+@font-face {
+    font-family: "Inter";
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
+    src: url("/fonts/inter-latin.woff2") format("woff2");
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
+        U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122,
+        U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+    font-family: "Inter";
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
+    src: url("/fonts/inter-latin-ext.woff2") format("woff2");
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7,
+        U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F,
+        U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+        U+A720-A7FF;
+}
+
+/*
+ * Libre Baskerville, self-hosted the same way. It is only ever the heading
+ * face, so a site that leaves headings alone never downloads it. Four files:
+ * regular and bold, each in plain latin and the accented latin-ext range.
+ * The family is under the SIL Open Font License, see public/fonts/README.md.
+ */
+@font-face {
+    font-family: "Libre Baskerville";
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url("/fonts/libre-baskerville-latin.woff2") format("woff2");
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
+        U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122,
+        U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+    font-family: "Libre Baskerville";
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url("/fonts/libre-baskerville-latin-ext.woff2") format("woff2");
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7,
+        U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F,
+        U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+        U+A720-A7FF;
+}
+
+@font-face {
+    font-family: "Libre Baskerville";
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url("/fonts/libre-baskerville-700-latin.woff2") format("woff2");
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
+        U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122,
+        U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+    font-family: "Libre Baskerville";
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url("/fonts/libre-baskerville-700-latin-ext.woff2") format("woff2");
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7,
+        U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F,
+        U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+        U+A720-A7FF;
+}
+
+/*
+ * The font utilities point at a plain custom property rather than a literal
+ * stack, so the value can still be swapped at runtime. That is what lets the
+ * signed-in pages switch to Inter while the public pages keep the system font
+ * — see the .app-font rule below. Headings follow the body font until a
+ * public theme sets --app-font-heading, which is the Heading font choice in
+ * Settings > Public > Styling.
+ */
+@theme inline {
+    --font-heading: var(--app-font-heading, var(--app-font-sans));
+    --font-sans: var(--app-font-sans);
+    --color-sidebar-ring: var(--sidebar-ring);
+    --color-sidebar-border: var(--sidebar-border);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar: var(--sidebar);
+    --color-chart-5: var(--chart-5);
+    --color-chart-4: var(--chart-4);
+    --color-chart-3: var(--chart-3);
+    --color-chart-2: var(--chart-2);
+    --color-chart-1: var(--chart-1);
+    --color-ring: var(--ring);
+    --color-input: var(--input);
+    --color-border: var(--border);
+    --color-destructive: var(--destructive);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-accent: var(--accent);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-muted: var(--muted);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-secondary: var(--secondary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-primary: var(--primary);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-popover: var(--popover);
+    --color-card-foreground: var(--card-foreground);
+    --color-card: var(--card);
+    --color-foreground: var(--foreground);
+    --color-background: var(--background);
+    /* Public Styling changes --radius at runtime, so every utility must follow it. */
+    --radius-sm: calc(var(--radius) * 0.6);
+    --radius-md: calc(var(--radius) * 0.8);
+    --radius-lg: var(--radius);
+    --radius-xl: calc(var(--radius) * 1.4);
+    --radius-2xl: calc(var(--radius) * 1.8);
+    --radius-3xl: calc(var(--radius) * 2.2);
+    --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+    --app-font-sans: ui-sans-serif, system-ui, sans-serif;
+    --shell-primary: var(--shell-public-primary-light, oklch(0.205 0 0));
+    --shell-primary-foreground: var(
+      --shell-public-primary-foreground-light,
+      oklch(0.985 0 0)
+    );
+    --shell-primary-hover: var(--shell-public-primary-hover-light);
+    --shell-primary-soft: var(--shell-public-primary-soft-light);
+    --shell-ring: var(--shell-public-primary-light, oklch(0.708 0 0));
+    --shell-sidebar-primary: oklch(0.205 0 0);
+    --shell-sidebar-primary-foreground: oklch(0.985 0 0);
+    --shell-sidebar-accent: oklch(0.97 0 0);
+    --shell-sidebar-accent-foreground: oklch(0.205 0 0);
+    --shell-sidebar-ring: oklch(0.708 0 0);
+    --background: oklch(1 0 0);
+    --foreground: oklch(0.145 0 0);
+    /* The page behind the cards. Its own colour rather than --muted, which is
+       a fill for badges and quiet buttons and only lands below --card by luck
+       in light mode. Three tiers, darkest first: the page, then the sidebar
+       rail and sticky bar, then the cards. Each pair is about five steps out
+       of 255 apart, in both palettes. */
+    --shell-canvas: oklch(0.970 0 0);
+    /* The rail and the sticky bar, halfway between the page and a card, so
+       they read as off white here and off black in the dark block without
+       either being set by hand twice. */
+    --shell-rail: color-mix(in oklab, var(--card) 50%, var(--shell-canvas));
+    --card: oklch(1 0 0);
+    --card-foreground: oklch(0.145 0 0);
+    --popover: oklch(1 0 0);
+    --popover-foreground: oklch(0.145 0 0);
+    --primary: var(--shell-primary);
+    --primary-foreground: var(--shell-primary-foreground);
+    --secondary: oklch(0.97 0 0);
+    --secondary-foreground: oklch(0.205 0 0);
+    --muted: oklch(0.97 0 0);
+    --muted-foreground: oklch(0.556 0 0);
+    --accent: oklch(0.97 0 0);
+    --accent-foreground: oklch(0.205 0 0);
+    --destructive: oklch(0.577 0.245 27.325);
+    --border: oklch(0.922 0 0);
+    /* The theme's own divider colour, kept beside --border because the Styling
+       settings overwrite --border further down the tree. A preview that has to
+       show what "Theme default" draws reads this one instead. */
+    --shell-theme-border: oklch(0.922 0 0);
+    --input: oklch(0.922 0 0);
+    --ring: var(--shell-ring);
+    --chart-1: oklch(0.87 0 0);
+    --chart-2: oklch(0.556 0 0);
+    --chart-3: oklch(0.439 0 0);
+    --chart-4: oklch(0.371 0 0);
+    --chart-5: oklch(0.269 0 0);
+    --radius: 0.625rem;
+    --sidebar: var(--shell-rail);
+    --sidebar-foreground: oklch(0.145 0 0);
+    --sidebar-primary: var(--shell-sidebar-primary);
+    --sidebar-primary-foreground: var(--shell-sidebar-primary-foreground);
+    --sidebar-accent: var(--shell-sidebar-accent);
+    --sidebar-accent-foreground: var(--shell-sidebar-accent-foreground);
+    --sidebar-border: oklch(0.922 0 0);
+    --sidebar-ring: var(--shell-sidebar-ring);
+}
+
+/*
+ * How dark the dark mode is. Every grey surface below is its own lightness
+ * plus `--shell-dark-lift`, so one number lifts the whole dark palette
+ * together. Settings -> Styling -> Dark mode writes that number onto <html>
+ * as an inline style, which beats this rule because both sit on the same
+ * element. The lift is 0 here, so a workspace that has never chosen a shade
+ * keeps the near-black canvas it has always had.
+ *
+ * Only the greys move. The text, the accent, the destructive red, the chart
+ * colours and both border alphas are the same at every shade, so nothing
+ * loses contrast as the canvas lifts. `--muted-foreground` is the one
+ * exception: it rises at about a third of the lift, because the same grey on
+ * a lighter canvas would read as washed out.
+ */
+.dark {
+    --shell-dark-lift: 0;
+    --shell-primary: var(--shell-public-primary-dark, oklch(0.922 0 0));
+    --shell-primary-foreground: var(
+      --shell-public-primary-foreground-dark,
+      oklch(0.205 0 0)
+    );
+    --shell-primary-hover: var(--shell-public-primary-hover-dark);
+    --shell-primary-soft: var(--shell-public-primary-soft-dark);
+    --shell-ring: var(--shell-public-primary-dark, oklch(0.556 0 0));
+    --shell-sidebar-primary: oklch(0.488 0.243 264.376);
+    --shell-sidebar-primary-foreground: oklch(0.985 0 0);
+    --shell-sidebar-accent: oklch(calc(0.269 + var(--shell-dark-lift, 0)) 0 0);
+    --shell-sidebar-accent-foreground: oklch(0.985 0 0);
+    --shell-sidebar-ring: oklch(0.556 0 0);
+    --background: oklch(calc(0.145 + var(--shell-dark-lift, 0)) 0 0);
+    --foreground: oklch(0.985 0 0);
+    /* A shade under --card, so the cards read as raised here exactly as they
+       do in light mode. It carries the shade lift like every other grey, and
+       --shell-rail is derived from it, so all three tiers lift together. */
+    --shell-canvas: oklch(calc(0.162 + var(--shell-dark-lift, 0)) 0 0);
+    --shell-rail: color-mix(in oklab, var(--card) 50%, var(--shell-canvas));
+    --card: oklch(calc(0.205 + var(--shell-dark-lift, 0)) 0 0);
+    --card-foreground: oklch(0.985 0 0);
+    --popover: oklch(calc(0.205 + var(--shell-dark-lift, 0)) 0 0);
+    --popover-foreground: oklch(0.985 0 0);
+    --primary: var(--shell-primary);
+    --primary-foreground: var(--shell-primary-foreground);
+    --secondary: oklch(calc(0.269 + var(--shell-dark-lift, 0)) 0 0);
+    --secondary-foreground: oklch(0.985 0 0);
+    --muted: oklch(calc(0.269 + var(--shell-dark-lift, 0)) 0 0);
+    --muted-foreground: oklch(calc(0.708 + var(--shell-dark-lift, 0) * 0.35) 0 0);
+    --accent: oklch(calc(0.269 + var(--shell-dark-lift, 0)) 0 0);
+    --accent-foreground: oklch(0.985 0 0);
+    --destructive: oklch(0.704 0.191 22.216);
+    --border: oklch(1 0 0 / 10%);
+    --shell-theme-border: oklch(1 0 0 / 10%);
+    --input: oklch(1 0 0 / 15%);
+    --ring: var(--shell-ring);
+    --chart-1: oklch(0.87 0 0);
+    --chart-2: oklch(0.556 0 0);
+    --chart-3: oklch(0.439 0 0);
+    --chart-4: oklch(0.371 0 0);
+    --chart-5: oklch(0.269 0 0);
+    --sidebar: var(--shell-rail);
+    --sidebar-foreground: oklch(0.985 0 0);
+    --sidebar-primary: var(--shell-sidebar-primary);
+    --sidebar-primary-foreground: var(--shell-sidebar-primary-foreground);
+    --sidebar-accent: var(--shell-sidebar-accent);
+    --sidebar-accent-foreground: var(--shell-sidebar-accent-foreground);
+    --sidebar-border: oklch(1 0 0 / 10%);
+    --sidebar-ring: var(--shell-sidebar-ring);
+}
+
+/*
+ * Inter is for the signed-in app only; the public landing and sign-in pages
+ * stay on the system font so a visitor who never logs in never downloads it.
+ * The class sits on <body> rather than a wrapper div, because dialogs and
+ * dropdowns render into <body> and would otherwise miss out. It cannot go on
+ * <html>: the no-flash theme script owns that element's class list.
+ *
+ * The font-family line is not redundant with the variable. <html> already
+ * computed its font-family from the system default, and children inherit that
+ * finished value rather than re-reading the variable.
+ */
+body.app-font {
+    --app-font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+    font-family: var(--app-font-sans);
+}
+
+/*
+ * Every heading follows the Heading font choice, not only the ones a component
+ * marked with the font-heading utility. The variable is set on <html> by the
+ * public theme, so this reaches the header, the footer, cards, written pages
+ * and anything a dialog portals out to <body>. A signed-in page sets no
+ * variable, so its headings resolve to the same font as its body text and
+ * nothing there moves. A component that names its own font in a class still
+ * wins, because a class beats an element.
+ */
+@layer base {
+    /*
+     * The public header and footer read in the Navigation & footer font. They
+     * are named rather than left to inherit, so the chrome around a page can
+     * differ from the words inside it. In @layer base for the same reason the
+     * heading rule is: a component that names its own face still wins.
+     */
+    [data-public-canvas] header[data-menu-alignment],
+    [data-public-canvas] footer {
+        font-family: var(--app-font-chrome, var(--app-font-sans));
+    }
+}
+
+@layer base {
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
+        font-family: var(--app-font-heading, var(--app-font-sans));
+    }
+}
+
+/*
+ * The gutter: the gap between the blocks down a public page and between the
+ * cards in every grid on it. The frame sets the two ends as variables and this
+ * picks one, because an inline value beats a media query and a number written
+ * on the element could never change with the window.
+ *
+ * 640px is where the card grids stop being one per line, so it is where a page
+ * stops being a phone layout. Below it the gap matches the page's own 16px
+ * edge, or the site's own number when that is smaller, so a phone is never
+ * more spaced out than the desktop.
+ */
+[data-public-canvas] {
+    --shell-gutter: var(--shell-gutter-phone, 0.75rem);
+}
+
+@media (min-width: 640px) {
+    [data-public-canvas] {
+        --shell-gutter: var(--shell-gutter-wide, 0.75rem);
+    }
+}
+
+/*
+ * The space between two blocks on a front page. It is its own number rather
+ * than the page's side edge: a gap wide enough to tell two blocks apart is far
+ * too much padding at the sides of a phone, which is what sharing one number
+ * produced. Flat mode still collapses it, the same as it collapses card
+ * borders and corners.
+ */
+[data-front-page-rows] {
+    gap: var(--shell-front-page-row-gap-phone, 3.5rem);
+}
+
+@media (min-width: 768px) {
+    [data-front-page-rows] {
+        gap: var(--shell-front-page-row-gap, 5rem);
+    }
+}
+
+[data-flat="true"] [data-front-page-rows] {
+    gap: 0;
+}
+
+/*
+ * A hero's own air, above and below. Its own number rather than the page's
+ * Main spacing, which skips the front page entirely, and rather than the gap
+ * between rows, which sits outside a hero's background colour while this sits
+ * inside it. The fallbacks are what a hero drew before the number was
+ * anybody's to set.
+ */
+[data-front-page-hero] {
+    padding-block: var(--shell-hero-space-phone, 3rem);
+}
+
+@media (min-width: 768px) {
+    [data-front-page-hero] {
+        padding-block: var(--shell-hero-space, 4rem);
+    }
+}
+
+html[data-public-brand] [data-slot="button"][data-variant="default"]:hover {
+  background-color: var(--shell-primary-hover);
+}
+
+html[data-public-brand] ::selection {
+  color: var(--foreground);
+  background-color: var(--shell-primary-soft);
+}
+
+html[data-public-pattern="dots"] [data-public-canvas] {
+  background-image: radial-gradient(
+    circle,
+    var(--shell-public-pattern-color) 1px,
+    transparent 1px
+  );
+  background-size: var(--shell-public-pattern-size)
+    var(--shell-public-pattern-size);
+}
+
+html[data-public-pattern="grid"] [data-public-canvas] {
+  background-image:
+    linear-gradient(
+      to right,
+      var(--shell-public-pattern-color) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      to bottom,
+      var(--shell-public-pattern-color) 1px,
+      transparent 1px
+    );
+  background-size: var(--shell-public-pattern-size)
+    var(--shell-public-pattern-size);
+}
+
+html[data-public-button-style="outline"]
+  [data-slot="button"][data-variant="default"] {
+  border-color: var(--primary);
+  color: var(--primary);
+  background-color: transparent;
+}
+
+html[data-public-button-style="outline"]
+  [data-slot="button"][data-variant="default"]:hover {
+  color: var(--primary);
+  background-color: var(
+    --shell-primary-soft,
+    color-mix(in oklab, var(--primary) 10%, transparent)
+  );
+}
+
+html[data-public-button-casing="uppercase"] [data-slot="button"] {
+  text-transform: uppercase;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+    }
+
+  body {
+    @apply bg-background text-foreground;
+    }
+  html {
+    @apply font-sans;
+    }
+}
+
+/*
+ * Runtime card styling driven by the Settings → Styling tab. Scoped to the
+ * DashboardContent subtree ([data-content-styling]) so cards inside portaled
+ * modals keep their standard look. --shell-card-border-width (px, 0 = off) is
+ * set inline on the content <main>. Covers both the shared Card and the table
+ * surface, since both draw the same ring-1 ring-foreground/10 border.
+ */
+[data-content-styling] [data-slot="card"],
+[data-content-styling] [data-slot="table-surface"] {
+  /* Replace the ring-1 border with a width- and color-adjustable box-shadow border. */
+  --tw-ring-shadow: 0 0 #0000;
+  box-shadow: 0 0 0 calc(var(--shell-card-border-width, 1) * 1px)
+    var(
+      --shell-card-border-color,
+      color-mix(in oklab, var(--foreground) 10%, transparent)
+    );
+}
+
+/*
+ * The table's heading row is fenced off from what is above and below it with
+ * the same hairline the card draws. Not scoped to [data-content-styling]: a
+ * table in a modal gets the same line from the fallback, and inside the content
+ * area the two variables inherit down from the <main>, so the Styling settings
+ * reach it without a second rule.
+ *
+ * Drawn as inset shadows on the cells rather than borders on the row, because a
+ * table that fills its column makes those cells `position: sticky` — a sticky
+ * cell in a collapsed-border table drops its borders, and the heading would
+ * lose its lines exactly where it matters most.
+ */
+[data-slot="table-header"] th {
+  /* Resolved here, on the cell, so the Styling settings' colour reaches it by
+     inheritance the same way the card's does. */
+  --shell-table-header-line: var(
+    --shell-card-border-color,
+    color-mix(in oklab, var(--foreground) 10%, transparent)
+  );
+  box-shadow: inset 0 calc(var(--shell-card-border-width, 1) * -1px) 0
+    var(--shell-table-header-line);
+}
+
+/*
+ * The line above only exists when something is above it: a heading row sitting
+ * at the very top of its surface is already fenced by the surface's own border,
+ * and a second hairline one pixel inside it reads as one thick smudged line.
+ * `> * ~ *` is "not in the surface's first block", which covers the toolbar, the
+ * error banner, and anything later put between them.
+ */
+[data-slot="table-surface"] > * ~ * [data-slot="table-header"] th {
+  box-shadow:
+    inset 0 calc(var(--shell-card-border-width, 1) * 1px) 0
+      var(--shell-table-header-line),
+    inset 0 calc(var(--shell-card-border-width, 1) * -1px) 0
+      var(--shell-table-header-line);
+}
+
+/*
+ * The pagination/summary strip is fenced off from the rows above it by the same
+ * hairline. A plain border here, not an inset shadow: nothing about this strip
+ * is sticky, and a real border keeps the last row from butting into the line.
+ */
+[data-slot="table-footer"] {
+  border-top: calc(var(--shell-card-border-width, 1) * 1px) solid
+    var(
+      --shell-card-border-color,
+      color-mix(in oklab, var(--foreground) 10%, transparent)
+    );
+}
+
+/*
+ * Workspace panels get the same adjustable border as a REAL border, not a
+ * box-shadow: they sit flush inside resizable-panel containers that clip
+ * anything drawn outside the box, and their children fill them edge-to-edge
+ * with opaque backgrounds that would paint over an inset shadow. A true border
+ * is part of the panel's frame, so neither can erase it.
+ */
+[data-content-styling] [data-slot="workspace-panel"] {
+  border-width: calc(var(--shell-card-border-width, 1) * 1px);
+  border-color: var(
+    --shell-card-border-color,
+    color-mix(in oklab, var(--foreground) 10%, transparent)
+  );
+}
+
+/*
+ * A panel shut down to its own header draws one line along the bottom, not two.
+ *
+ * The header's line parts it from what is below; the panel's bottom edge closes
+ * the box. Open, they are far apart and both belong. Shut, the panel is exactly
+ * its header, so the two land one pixel apart and read as a single line of
+ * double thickness. The header's is the one that has nothing left to do.
+ *
+ * Written here rather than as a class on the header because the rule above sets
+ * these borders from the user's settings and would put the line straight back.
+ * Not scoped to `[data-content-styling]`: the doubling is the panel's own
+ * geometry and happens whether or not the styling wrapper is above it.
+ */
+[data-slot="workspace-panel"][data-header-only="true"]
+  [data-slot="dashboard-card-header"] {
+  border-bottom-width: 0;
+}
+
+/*
+ * A dashboard card that fills a resizable panel needs the same treatment, and
+ * for the same reason: its border is drawn OUTSIDE the box — a ring normally,
+ * the box-shadow above once the Styling settings are in play — and the panel
+ * clips anything outside the box, so the card lost its outline entirely the
+ * moment the dashboards became resizable. A real border is part of the card's
+ * own frame and survives the clip.
+ *
+ * bg-clip-padding is load-bearing: the border color is translucent, and it has
+ * to composite over the muted page background the way every other card's border
+ * does. Left alone it would composite over the card's own white background and
+ * wash out to almost nothing.
+ */
+[data-dashboard-panel] [data-slot="card"],
+[data-dashboard-panel] [data-slot="table-surface"] {
+  --tw-ring-shadow: 0 0 #0000;
+  box-shadow: none;
+  border-style: solid;
+  border-width: calc(var(--shell-card-border-width, 1) * 1px);
+  border-color: var(
+    --shell-card-border-color,
+    color-mix(in oklab, var(--foreground) 10%, transparent)
+  );
+  background-clip: padding-box;
+}
+
+/*
+ * A panel collapsed to nothing. It is zero wide, but a box with no width still
+ * paints its left and right borders — they land on top of each other and leave
+ * a stray hairline down the workspace. Declared here, not as a Tailwind class,
+ * because the rule above would otherwise put the border straight back.
+ */
+[data-slot="workspace-panel"][data-collapsed="true"] {
+  border-width: 0;
+}
+
+/* gutter = 0 → flat mode: no card chrome. */
+[data-content-styling][data-flat="true"] [data-slot="card"],
+[data-content-styling][data-flat="true"] [data-slot="table-surface"],
+[data-content-styling][data-flat="true"] [data-slot="table-header"] th {
+  box-shadow: none;
+}
+[data-content-styling][data-flat="true"] [data-slot="table-footer"] {
+  border-top-width: 0;
+}
+[data-content-styling][data-flat="true"] [data-slot="workspace-panel"],
+[data-content-styling][data-flat="true"] [data-dashboard-panel] [data-slot="card"],
+[data-content-styling][data-flat="true"]
+  [data-dashboard-panel]
+  [data-slot="table-surface"] {
+  border-width: 0;
+}
+[data-content-styling][data-flat="true"] [data-slot="card"],
+[data-content-styling][data-flat="true"] [data-slot^="card"],
+[data-content-styling][data-flat="true"] [data-slot="table-surface"],
+[data-content-styling][data-flat="true"] [data-slot="workspace-panel"] {
+  border-radius: 0;
+}
+
+[data-content-styling][data-flat="true"] [data-slot="card"] img {
+  border-radius: 0;
+}
+
+/*
+ * Flat mode: the handle between two panels draws the line they no longer draw
+ * themselves.
+ *
+ * In card mode each panel is a card with its own outline, and the handle is
+ * only the transparent gutter between them. Take the spacing to zero and the
+ * rule above strips those outlines — correctly, because the outer edges then
+ * sit flush against the page. But the inner edges go with them, and the gutter
+ * is now zero wide and see-through, so the palette, the inspector and the runs
+ * panel run into the canvas with nothing between them.
+ *
+ * The handle stands exactly where those inner edges were, so it is the honest
+ * place for the line. A collapsed handle is left alone: its panel is shut and
+ * the panel beside it already closes the gap.
+ */
+[data-content-styling][data-flat="true"]
+  [data-slot="resizable-handle"][data-gap="true"]:not([data-collapsed="true"]) {
+  /*
+   * Settings → Styling → "Divider lines", the same as every other line that
+   * parts one thing from another. `--border` is what that setting writes; see
+   * the note on `dashboard-card-header.tsx`.
+   */
+  --shell-panel-edge: var(--border);
+  width: 1px;
+  /*
+   * Starts below the panel headers rather than at the very top. Each panel's
+   * header already draws a line along its bottom, and those meet across the
+   * whole workspace; a vertical line carried up through that row crosses it
+   * and reads as a stray tick above the join.
+   *
+   * The top stretch is painted in the panel's own colour rather than left
+   * see-through, because this handle is a real one-pixel column in the layout:
+   * clear, it shows the page behind the panels and still reads as a line, just
+   * a grey one. The height comes from the same variable as
+   * `dashboard-card-header.tsx`, including the header's own hairline.
+   */
+  background-image: linear-gradient(
+    to bottom,
+    var(--card) 0 var(--dashboard-card-header-height),
+    var(--shell-panel-edge) var(--dashboard-card-header-height)
+  );
+}
+[data-content-styling][data-flat="true"]
+  [data-slot="resizable-handle"][data-gap="true"][aria-orientation="horizontal"]:not(
+    [data-collapsed="true"]
+  ) {
+  width: 100%;
+  height: 1px;
+  /* Nothing sits beside this one, so it runs the whole way with no inset. */
+  background-image: none;
+  background-color: var(--shell-panel-edge);
+}
+
+/*
+ * Modal styling driven by Settings → Styling → Modal. Applied via --shell-modal-*
+ * on the document root (see useModalStyleVars) so it reaches the dialog, which
+ * portals to <body> outside the shell subtree. Declared AFTER the content rules
+ * so that in the settings modal preview (a mock nested inside the content area)
+ * these modal rules win for the preview card. Fallbacks reproduce the current
+ * dialog look when a value is left in "default" mode.
+ */
+[data-slot="dialog-overlay"] {
+  background-color: color-mix(
+    in oklab,
+    black var(--shell-modal-overlay-opacity, 10%),
+    transparent
+  );
+}
+
+/*
+ * Blur the stable page canvas instead of sampling it through the modal overlay.
+ * A backdrop filter is recalculated when the modal's own scroll viewport paints,
+ * which makes Chromium briefly show an unblurred frame during scrolling. Radix
+ * portals dialogs and sheets beside this canvas, so they remain sharp while the
+ * page behind them keeps the same 4px glass blur without scroll-time repaints.
+ */
+body:has(
+    [data-slot="dialog-overlay"][data-state="open"],
+    [data-slot="sheet-overlay"][data-state="open"]
+  )
+  > [data-slot="app-canvas"] {
+  filter: blur(4px);
+}
+
+/*
+ * The blur eases in instead of switching on, so it moves with the overlay fade
+ * and the window's own entrance rather than snapping ahead of them. Spreading
+ * it over the same 150ms also spreads the paint cost across those frames
+ * instead of landing it on one.
+ *
+ * It is not what makes a slow window feel slow. Measured with the processor
+ * slowed to a quarter speed, the blur costs about 50ms of the wait before a
+ * window appears and nothing at all while the window sits open. See
+ * "Windows opening and closing" in docs/shell/user-interface.md for what does.
+ *
+ * The transition lives on the canvas rather than inside the :has() rule above
+ * so that closing a window un-blurs on the same curve.
+ */
+[data-slot="app-canvas"] {
+  transition: filter 150ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-slot="app-canvas"] {
+    transition: none;
+  }
+}
+
+[data-slot="dialog-content"] {
+  background-color: var(--shell-modal-bg, var(--popover));
+  --tw-ring-shadow: 0 0 #0000;
+  box-shadow: 0 0 0 calc(var(--shell-modal-border-width, 1) * 1px)
+    var(
+      --shell-modal-border-color,
+      color-mix(in oklab, var(--foreground) 10%, transparent)
+    );
+}
+
+/*
+ * Popovers and dropdown menus portal to document.body like the dialog, so
+ * their hairline follows the card border settings the same way: replace the
+ * fixed ring-1 ring-foreground/10 with a width- and color-adjustable ring.
+ * Only --tw-ring-shadow is overridden so the elevation shadow (shadow-md)
+ * stays. The variables are set on the document root by ShellLayout.
+ */
+[data-slot="popover-content"],
+[data-slot="dropdown-menu-content"] {
+  --tw-ring-shadow: 0 0 0 calc(var(--shell-card-border-width, 1) * 1px)
+    var(
+      --shell-card-border-color,
+      color-mix(in oklab, var(--foreground) 10%, transparent)
+    );
+}
+
+[data-slot="dialog-content"][data-variant="default"] {
+  padding: var(--shell-modal-padding, 1rem);
+  gap: var(--shell-modal-padding, 1rem);
+}
+
+[data-slot="dialog-header"] {
+  padding-left: var(--shell-modal-padding, 1.5rem);
+  padding-right: var(--shell-modal-padding, 1.5rem);
+  padding-top: var(--shell-modal-padding, 1.5rem);
+}
+
+/* The admin header owns the space below itself (the body starts flush), so a
+   modal with no body — a confirmation — still separates header from footer. */
+[data-slot="dialog-content"][data-variant="admin"] [data-slot="dialog-header"] {
+  padding-bottom: var(--shell-modal-padding, 1.5rem);
+}
+
+/* The pinned strip between the header and the body. The header owns the space
+   above it, so it only pays for its own sides and the gap down to the body. */
+[data-slot="dialog-toolbar"] {
+  padding-left: var(--shell-modal-padding, 1.5rem);
+  padding-right: var(--shell-modal-padding, 1.5rem);
+  padding-bottom: var(--shell-modal-padding, 1.5rem);
+}
+
+[data-slot="dialog-body"] {
+  padding: var(--shell-modal-padding, 1.5rem);
+  /* Inner spacing also drives the gap between the modal's stacked cards. */
+  gap: var(--shell-modal-padding, 1.5rem);
+}
+
+/* 8px of the header's gap lives inside the scroll viewport (paired with the
+   ScrollArea's -mt-2) so focus rings on the first control are not clipped. */
+[data-slot="dialog-content"][data-variant="admin"] [data-slot="dialog-body"] {
+  padding-top: 0.5rem;
+}
+
+/* The body-to-footer gap belongs to the footer, not the body.
+   A body's own bottom padding is inside the scroll viewport, so on a window
+   whose content is taller than the frame it scrolls away with the content and
+   the buttons end up sitting flush on a card cut off mid-row. Only 8px stays
+   in the body, and only so a focus ring on the last control is not clipped —
+   the same trick as the top edge above. Windows with no footer keep their full
+   bottom padding, because there is nothing below to pay for it. */
+[data-slot="dialog-content"][data-variant="admin"]:has([data-slot="dialog-footer"])
+  [data-slot="dialog-body"] {
+  padding-bottom: 0.5rem;
+}
+
+[data-slot="dialog-footer"] {
+  padding-left: var(--shell-modal-padding, 1.5rem);
+  padding-right: var(--shell-modal-padding, 1.5rem);
+  padding-bottom: var(--shell-modal-padding, 1.5rem);
+}
+
+[data-slot="dialog-content"][data-variant="admin"] [data-slot="dialog-footer"] {
+  padding-top: max(0px, calc(var(--shell-modal-padding, 1.5rem) - 0.5rem));
+}
+
+/* Cards inside the modal. */
+[data-slot="dialog-content"] [data-slot="card"] {
+  background-color: var(--shell-modal-card-bg, var(--card));
+  --tw-ring-shadow: 0 0 #0000;
+  box-shadow: 0 0 0 calc(var(--shell-modal-card-border-width, 1) * 1px)
+    var(
+      --shell-modal-card-border-color,
+      color-mix(in oklab, var(--foreground) 10%, transparent)
+    );
+}
+
+@layer base {
+  /*
+   * The app canvas: the flat colour behind a page's cards, and the ground the
+   * whole shell sits on. A class rather than a Tailwind arbitrary value so the
+   * three elements that need it share one rule and the colour cannot be missed
+   * by Tailwind's class scanner.
+   */
+  .shell-canvas {
+    background-color: var(--shell-canvas);
+  }
+}
+
+@layer base {
+  /*
+   * A hero's background band. It carries a colour for each mode as two custom
+   * properties set inline on the element, because an inline `background-color`
+   * is one colour and cannot change when the page turns dark. A muted grey has
+   * a real pair, pale in light mode and dark in dark mode; a fixed hex is the
+   * same colour in both, which is what a hex means.
+   */
+  [data-hero-band] {
+    background-color: var(--shell-hero-band-light);
+  }
+
+  .dark [data-hero-band] {
+    background-color: var(--shell-hero-band-dark);
+  }
+}

@@ -58,8 +58,9 @@ tuning a page that is already public.
 
 **Hiding every row brings the built-in pricing page back.** The front page
 falls back to it whenever no rows reach a visitor, and that rule cannot tell a
-page with no rows from a page whose rows are all hidden. Leave one row shown,
-or switch the page off in Public Pages, if the intention is to take it down.
+page with no rows from a page whose rows are all hidden. Leave one block shown,
+or set the page to Switched off on the Pages screen, if the intention is to
+take it down.
 
 **The first row supplies the page's main heading.** A hidden first row hands
 that job to the next row, because a hidden row is not in the page at all. A

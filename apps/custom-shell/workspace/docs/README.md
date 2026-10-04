@@ -41,7 +41,7 @@ local setup docs.
 - [Announcements and changelog](content/announcements-and-changelog.md)
 - [Public pages, search, and SEO](content/public-pages-search-and-seo.md)
 - [Public page load errors](content/public-page-load-errors.md)
-- [Building the front page](content/building-the-front-page.md)
+- [Building a page](content/building-the-front-page.md)
 - [Hiding a row, and choosing its screens](content/showing-and-hiding-public-things.md)
 - [Alignment and parts of a front page row](content/front-page-row-alignment-and-parts.md)
 - [The divider row](content/front-page-divider-rows.md)

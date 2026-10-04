@@ -5,9 +5,11 @@ Custom Shell combines two types of public page:
 - A coded page is a route with a nearby `*.page.ts` declaration. The declaration
   gives the page its public address, label, source, and visibility rules. The
   registry rejects duplicate or invalid addresses when the app starts.
-- A written page lives in the active workspace's database. The Pages dashboard
-  can create, edit, publish, hide, and delete it. The body uses structured
-  content rather than saved HTML.
+- A page an admin added lives in the active workspace's database, as a row with
+  its name, its address and its search settings. What is on it is blocks, like
+  the front page's, and the Pages dashboard's first tab is where both are built.
+  The words on such a page are a rich text block, which is a tree of named nodes
+  rather than saved HTML.
 
 A page can be visible to everyone, limited to signed-in members, or turned off.
 
