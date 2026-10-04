@@ -10,6 +10,29 @@ conflicts on every future merge. A change the shell needs is made in
 `apps/custom-shell` and carried over. The repo's `docs/shell/shell-and-apps.md`
 is the rulebook.
 
+## The 3 October 2026 picture and picker merge
+
+Seven shell files came over: the hero block, the media picker and its test, the
+picture thumbnail, the picture field, the front page row editor and the
+feedback box. No migration.
+
+**A hero's picture keeps its own shape.** It used to sit in a fixed 16:9 box
+set to fit inside, so a picture that was not 16:9 was drawn small in the middle
+of that box with grey bars either side of it. The picture now fills the width
+of its column and is as tall as its own shape makes it. A 720 by 720 picture in
+a 556px column draws 556 by 556, where before it was 313 by 313 inside a 556 by
+313 grey box. Nothing is cropped.
+
+**The media picker is always its own window.** It used to have a second mode
+that drew the whole library inside the window that opened it, which in a 96px
+picture field stretched the field across the form and ran off the bottom of the
+screen. That mode is gone, so the picker opens over the window that asked for
+it and Escape closes only the picker.
+
+Trade's own `src/components/social/public-profile-dialog.tsx` passed the
+deleted `inlinePicker` prop to its profile picture field, so that one line is
+removed. The field now opens the picker as a window like every other one.
+
 ## What the 3 October 2026 merge carried
 
 **The CRM.** Email that comes in becomes a lead you can chase. Admin → CRM is

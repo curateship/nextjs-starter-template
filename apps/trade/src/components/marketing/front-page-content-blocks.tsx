@@ -213,12 +213,16 @@ export function FrontPageHero({
       className="grid w-full gap-6 md:grid-cols-2 md:items-start md:gap-10"
     >
       {words}
+      {/* The picture keeps its own shape. It used to sit in a 16:9 box set to
+        `contain`, so anything that was not 16:9 was drawn small in the middle
+        with grey bars either side of it. Now it fills the column's width and
+        is as tall as its own shape makes it. */}
       <MediaThumbnail
         url={image}
         fileType="image"
         alt={alt}
-        fit="contain"
-        className="aspect-video w-full rounded-lg bg-muted/50"
+        natural
+        className="w-full overflow-hidden rounded-lg"
         // Half the reading width on desktop, the whole of it on a phone.
         sizes="(min-width: 768px) 50vw, 100vw"
         eager={eager}

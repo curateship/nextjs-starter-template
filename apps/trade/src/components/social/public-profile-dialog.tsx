@@ -387,7 +387,6 @@ export function PublicProfileDialog({
                         onChange={(url) => update({ picture: url || null })}
                         aspect="square"
                         emptyLabel="Add picture"
-                        inlinePicker
                         className="max-w-20"
                       />
                       <div className="grid gap-4 sm:flex-1">
