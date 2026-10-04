@@ -88,6 +88,16 @@ export type AppHeaderAction = {
   icon: ComponentType<{ className?: string }>
   /** Unset means admins and members may both see it. */
   roles?: readonly string[]
+  /**
+   * A line of its own, with a divider, inside the phone's three-dot dropdown.
+   *
+   * The dropdown packs the app's controls into a wrapped row, which is right
+   * for buttons that are all about the same size. A control that is a list of
+   * its own — a row of pinned markets, say — reads as part of the buttons
+   * beside it there. Unset leaves it in the row with the rest, and the option
+   * does nothing at all on a wide screen, where the controls are not folded.
+   */
+  ownSection?: boolean
   component: () => Promise<{
     default: ComponentType<AppHeaderActionProps>
   }>

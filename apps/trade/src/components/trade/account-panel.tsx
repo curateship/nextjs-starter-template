@@ -724,10 +724,13 @@ type WalletMenuContentProps = {
 type WalletManagementProps = WalletMenuContentProps & {
   detailsOpen: boolean
   walletButtonRef?: React.RefObject<HTMLButtonElement | null>
+  /** A line in the phone's market menu, in place of the wallet button. */
+  trigger?: React.ReactElement
 }
 
 export function WalletManagement({
   walletButtonRef,
+  trigger,
   ...props
 }: WalletManagementProps) {
   const [open, setOpen] = React.useState(false)
@@ -744,46 +747,50 @@ export function WalletManagement({
         setOpen(nextOpen)
       }}
     >
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <PopoverTrigger asChild>
-            <Button
-              ref={walletButtonRef}
-              type="button"
-              variant="outline"
-              aria-label={
-                activeWallet
-                  ? `Manage wallets. ${activeWallet.label} is in use.`
-                  : "Manage wallets"
-              }
-              className="max-w-72 min-w-0 bg-muted/60 dark:bg-muted/60"
-            >
-              <CreditCardIcon className="size-4" />
-              <span className="max-w-24 truncate max-sm:sr-only">
-                {activeWallet?.label ?? "Wallets"}
-              </span>
-              {activeState.figures ? (
-                <>
-                  <span className="hidden font-mono tabular-nums xl:inline">
-                    - {formatUsd(activeState.figures.equity)}
-                  </span>
-                  <SignedUsd
-                    value={activeState.figures.madeOrLost}
-                    className="hidden font-mono xl:inline"
-                  />
-                </>
-              ) : null}
-              <ChevronDownIcon
-                className={cn(
-                  "size-4 text-muted-foreground transition-transform max-sm:hidden",
-                  open && "rotate-180"
-                )}
-              />
-            </Button>
-          </PopoverTrigger>
-        </TooltipTrigger>
-        <TooltipContent>Manage wallets</TooltipContent>
-      </Tooltip>
+      {trigger ? (
+        <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+      ) : (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <PopoverTrigger asChild>
+              <Button
+                ref={walletButtonRef}
+                type="button"
+                variant="outline"
+                aria-label={
+                  activeWallet
+                    ? `Manage wallets. ${activeWallet.label} is in use.`
+                    : "Manage wallets"
+                }
+                className="max-w-72 min-w-0 bg-muted/60 dark:bg-muted/60"
+              >
+                <CreditCardIcon className="size-4" />
+                <span className="max-w-24 truncate max-sm:sr-only">
+                  {activeWallet?.label ?? "Wallets"}
+                </span>
+                {activeState.figures ? (
+                  <>
+                    <span className="hidden font-mono tabular-nums xl:inline">
+                      - {formatUsd(activeState.figures.equity)}
+                    </span>
+                    <SignedUsd
+                      value={activeState.figures.madeOrLost}
+                      className="hidden font-mono xl:inline"
+                    />
+                  </>
+                ) : null}
+                <ChevronDownIcon
+                  className={cn(
+                    "size-4 text-muted-foreground transition-transform max-sm:hidden",
+                    open && "rotate-180"
+                  )}
+                />
+              </Button>
+            </PopoverTrigger>
+          </TooltipTrigger>
+          <TooltipContent>Manage wallets</TooltipContent>
+        </Tooltip>
+      )}
       <PopoverContent
         align="end"
         sideOffset={8}

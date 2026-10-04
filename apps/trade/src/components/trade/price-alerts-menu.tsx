@@ -32,7 +32,13 @@ export function PriceAlertsMenu({
   onDelete,
   lines,
   onCleared,
+  renderTrigger,
 }: {
+  /**
+   * A line in the phone's market menu, in place of the siren button. It is
+   * handed the count so the line can carry the same red number.
+   */
+  renderTrigger?: (firedCount: number) => React.ReactElement
   alerts: readonly PriceAlert[]
   error: string | null
   onRetry: () => void
@@ -91,28 +97,32 @@ export function PriceAlertsMenu({
         }}
       >
         <PopoverTrigger asChild>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="relative bg-muted/60 dark:bg-muted/60"
-            aria-label={
-              firedCount > 0
-                ? `Open alerts, ${firedCount} fired`
-                : "Open alerts"
-            }
-          >
-            <SirenIcon className="size-4" />
-            {firedCount > 0 ? (
-              <Badge
-                variant="destructive"
-                aria-hidden
-                className="pointer-events-none absolute -top-1 -right-1 min-w-5 border-2 border-background px-1 text-[0.625rem] leading-none font-semibold tabular-nums"
-              >
-                {firedCount > 99 ? "99+" : firedCount}
-              </Badge>
-            ) : null}
-          </Button>
+          {renderTrigger ? (
+            renderTrigger(firedCount)
+          ) : (
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="relative bg-muted/60 dark:bg-muted/60"
+              aria-label={
+                firedCount > 0
+                  ? `Open alerts, ${firedCount} fired`
+                  : "Open alerts"
+              }
+            >
+              <SirenIcon className="size-4" />
+              {firedCount > 0 ? (
+                <Badge
+                  variant="destructive"
+                  aria-hidden
+                  className="pointer-events-none absolute -top-1 -right-1 min-w-5 border-2 border-background px-1 text-[0.625rem] leading-none font-semibold tabular-nums"
+                >
+                  {firedCount > 99 ? "99+" : firedCount}
+                </Badge>
+              ) : null}
+            </Button>
+          )}
         </PopoverTrigger>
         <PopoverContent
           align="start"

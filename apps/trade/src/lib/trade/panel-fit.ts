@@ -159,3 +159,17 @@ export function usePanelFit(
     [grow, shrink, grown, onLayoutChanged]
   )
 }
+
+/**
+ * A panel that cannot be grown or shrunk, for the phone's sliding tables.
+ *
+ * The bottom panel grows to fit its rows by moving the divider it shares with
+ * the chart. On a phone it is a sheet over the chart at a fixed height, with no
+ * divider and nothing to take the height from, so pressing a tab there only
+ * changes the tab.
+ */
+export const STILL_PANEL: PanelFit = {
+  grow: () => {},
+  shrink: () => {},
+  grown: () => false,
+}

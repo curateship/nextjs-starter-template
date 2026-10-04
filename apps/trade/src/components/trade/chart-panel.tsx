@@ -231,9 +231,16 @@ function readFavoriteIntervals(): CandleInterval[] {
 export function IntervalPicker({
   value,
   onChange,
+  phone = false,
 }: {
   value: CandleInterval
   onChange: (next: CandleInterval) => void
+  /**
+   * The phone header's one timeframe button. The favourites and the arrow both
+   * go: pressing the timeframe itself opens the full list, which is what the
+   * arrow beside it did, and the row has no room to say it twice.
+   */
+  phone?: boolean
 }) {
   const [favoriteIntervals, setFavoriteIntervals] = React.useState<
     CandleInterval[]
@@ -310,6 +317,24 @@ export function IntervalPicker({
       })}
     </DropdownMenuContent>
   )
+
+  if (phone) {
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            aria-label={`Candle interval, ${value}`}
+            className="h-8 shrink-0 bg-muted/60 px-3 font-medium dark:bg-muted/60"
+          >
+            {value}
+          </Button>
+        </DropdownMenuTrigger>
+        {menu}
+      </DropdownMenu>
+    )
+  }
 
   return (
     <Tabs

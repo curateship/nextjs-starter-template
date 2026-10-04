@@ -22,6 +22,17 @@ import { minimumOrderLabel } from "@/lib/trade/market-info"
  * to star. It leads the row, ahead of the market's own art.
  */
 
+// The header asks the window how wide it is, to decide between the one-row
+// phone layout and the full row. jsdom has no `matchMedia`, and the hook's
+// server answer — a desktop — is the layout these tests are about.
+window.matchMedia = ((query: string) =>
+  ({
+    matches: false,
+    media: query,
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+  }) as unknown as MediaQueryList) as typeof window.matchMedia
+
 vi.mock("@/lib/trade/use-pinned-markets", () => ({
   usePinnedMarkets: () => ({
     pins: [],

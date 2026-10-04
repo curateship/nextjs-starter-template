@@ -26,7 +26,9 @@ Saved folders remain in the chart header's folder menu.
   all TradFi categories. Trending adds the fifty highest-volume matching markets.
   Search narrows the combined results. The filter menu stays open while checking
   several choices, and the market dropdown stays open while its filter is used.
-  On narrow screens, the chart header wraps its controls so the market selector stays clickable.
+  Between 768px and 1280px the chart header wraps its controls so the market
+  selector stays clickable. Below 768px it is one row instead, described in
+  `dashboard-on-a-phone.md`.
   The search box sits in the toolbar itself, always there. It is the shared
   toolbar search field, with the magnifier drawn inside it and an × to clear
   it once something is typed. Closing the picker clears what was typed.

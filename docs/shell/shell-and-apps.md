@@ -159,6 +159,19 @@ the guess that one might:
   the app has stopped offering leaves its saved row alone rather than deleting
   it. A component loads only when the header draws. Two controls sharing an id
   are refused out loud. Unset leaves the header and its settings unchanged.
+  **On a phone every one of them folds into a three-dot button drawn after the
+  settings cog**, which opens them in a dropdown. The controls inside are the
+  real ones, not copies, so each still opens its own panel. A phone header has
+  room for about four controls, and an app with three of its own left no room
+  for the sidebar toggle and pushed the bell off the screen. The fold happens
+  below 768px, the same width the sidebar collapses at. Everything in the dropdown is
+  packed to the left. The buttons share a wrapped row at the top; a control
+  that sets `ownSection: true` is drawn under them instead, on a line of its
+  own under its own `label` as a heading. It is for a control that is a list
+  rather than a button — Trade's row of pinned markets, where the heading is
+  the only thing saying what the chips are. The buttons stay nearest the thumb
+  and nearest the three dots that opened the dropdown. The flag does nothing on
+  a wide screen, where nothing is folded.
 - `header.quickSettings` — the app's own switches inside the header's settings
   cog, in the order the app writes them. The cog, its place in the Top right
   menu, the panel and the colour-mode pill at the top belong to the shell; each

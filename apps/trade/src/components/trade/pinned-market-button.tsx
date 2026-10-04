@@ -1,6 +1,7 @@
 import { PinIcon } from "lucide-react"
 
 import { DisabledReason } from "@/components/ui/disabled-reason"
+import { PhoneMenuRow } from "@/components/trade/market-phone-menu"
 import {
   Tooltip,
   TooltipContent,
@@ -49,5 +50,26 @@ export function PinnedMarketButton({ marketKey }: { marketKey: string }) {
       <TooltipTrigger asChild>{button}</TooltipTrigger>
       <TooltipContent>{label}</TooltipContent>
     </Tooltip>
+  )
+}
+
+/**
+ * The same pin as a line in the phone's market menu.
+ *
+ * It says what pressing it does rather than what the market already is, so the
+ * word changes to "Unpin from top" once the market is up there. The icon still
+ * fills in, which is what the header's own button shows.
+ */
+export function PinnedMarketRow({ marketKey }: { marketKey: string }) {
+  const { pins, loaded, busy, store } = usePinnedMarkets()
+  const pinned = pins.includes(marketKey)
+  return (
+    <PhoneMenuRow
+      icon={<PinIcon className={marketHeaderIconClassName(pinned)} />}
+      label={pinned ? "Unpin from top" : "Pin to top"}
+      aria-pressed={pinned}
+      disabled={!loaded || busy}
+      onClick={() => void store.setPin(marketKey, !pinned)}
+    />
   )
 }
