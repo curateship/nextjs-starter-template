@@ -14,8 +14,15 @@ at, so a tablet keeps the fuller row it has always had.
 The sidebar toggle, the exchange's name, the bell, the settings cog, and then
 three dots.
 
-The three dots hold the app's own header controls: the market search, today's
-goal, the active-trades figure, and the pinned markets under them. They are the real
+Today's goal and the active-trades figure stay in the row, because they are
+numbers somebody opens the page to read and a press to see them is a press too
+many. The three dots hold the two controls that are not: the market search and
+the pinned markets. Which of an app's controls fold is the app's own choice,
+through `foldsOnPhone` on each one.
+
+- **The search is the field itself**, a whole row of the dropdown, rather than
+  a magnifier you press to get a field. The dropdown is a list, so there is
+  room for it, and the results open under it as you type. They are the real
 controls rather than copies, so each one still opens its own panel. This fold
 belongs to the shell and happens in every app built on it, so it is written
 down once in the repo's `docs/shell/shell-and-apps.md`.
@@ -121,10 +128,9 @@ Open `/protocols/hyper-liquid` at 390×844 and check:
    Indicators and Contract info each open a panel without the sheet closing.
 3. Open orders opens the table over the chart, with Close all beside the tabs
    and no words sitting on top of each other.
-4. The three dots after the settings cog hold the search, the goal and the
-   active-trades figure, with the pinned markets under a "Pinned markets"
-   heading below them, and the exchange's name beside the sidebar toggle reads
-   in full.
+4. The three dots after the settings cog hold the search field and, under a
+   "Pinned markets" heading, the pinned markets. Typing three letters in the
+   field lists markets from every exchange.
 5. Open the Journal: its tab reads in full with its count, and Close all sits
    clear of it.
 6. Nothing is drawn under the chart.

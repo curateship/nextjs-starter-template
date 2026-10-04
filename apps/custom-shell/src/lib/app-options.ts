@@ -89,6 +89,16 @@ export type AppHeaderAction = {
   /** Unset means admins and members may both see it. */
   roles?: readonly string[]
   /**
+   * Folds into the three-dot button after the settings cog on a phone,
+   * instead of staying in the header row.
+   *
+   * Unset means it keeps its place in the row at every width, which is what
+   * every control did before the dropdown existed. An app marks the controls
+   * it can live without at a glance, and leaves the ones somebody opens the
+   * page to read where they can be read without a press.
+   */
+  foldsOnPhone?: boolean
+  /**
    * A line of its own, with a divider, inside the phone's three-dot dropdown.
    *
    * The dropdown packs the app's controls into a wrapped row, which is right

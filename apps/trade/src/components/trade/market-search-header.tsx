@@ -17,6 +17,7 @@ import {
   type MarketSearchAnswer,
 } from "@/lib/trade/market-search"
 import { cn } from "@/lib/utils"
+import { useIsMobile } from "@/hooks/use-mobile"
 
 /** How long after the last keystroke the exchanges are asked. */
 const SETTLE_MS = 250
@@ -80,6 +81,10 @@ function useMarketSearch(typed: string) {
 }
 
 function MarketSearchHeaderContent() {
+  // On a phone this control is drawn inside the header's three-dot dropdown,
+  // which is a list rather than a row. So it is the field itself, on a line of
+  // its own, rather than a magnifier you press to get a field.
+  const phone = useIsMobile()
   const [typed, setTyped] = React.useState("")
   const [open, setOpen] = React.useState(false)
   // Which row the keyboard is on, remembered against the list it belongs to: a
@@ -278,22 +283,24 @@ function MarketSearchHeaderContent() {
         <DashboardToolbarSearch
           {...fieldProps}
           ref={fieldRef}
-          className="hidden lg:block"
-          inputClassName="w-[220px]!"
+          className={phone ? "block w-72 max-w-full" : "hidden lg:block"}
+          inputClassName={phone ? "w-full!" : "w-[220px]!"}
           onFocus={() => {
             if (asked.length >= LEAST_SEARCH_LETTERS) setOpen(true)
           }}
         />
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          className="lg:hidden"
-          aria-label="Search markets on every exchange"
-          onClick={() => setOpen((current) => !current)}
-        >
-          <SearchIcon className="size-3.5" />
-        </Button>
+        {phone ? null : (
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className="lg:hidden"
+            aria-label="Search markets on every exchange"
+            onClick={() => setOpen((current) => !current)}
+          >
+            <SearchIcon className="size-3.5" />
+          </Button>
+        )}
       </div>
       <PopoverContent
         align="end"
@@ -321,14 +328,20 @@ function MarketSearchHeaderContent() {
             event.preventDefault()
         }}
       >
-        <div className="border-b p-2 lg:hidden">
-          <DashboardToolbarSearch
-            {...fieldProps}
-            ref={panelFieldRef}
-            className="w-full"
-            inputClassName="w-full!"
-          />
-        </div>
+        {/* The second field, for the widths where the header holds a
+            magnifier instead of a field. A phone has the field itself in the
+            dropdown, so a copy of it on top of the results would be two
+            places to type the same words. */}
+        {phone ? null : (
+          <div className="border-b p-2 lg:hidden">
+            <DashboardToolbarSearch
+              {...fieldProps}
+              ref={panelFieldRef}
+              className="w-full"
+              inputClassName="w-full!"
+            />
+          </div>
+        )}
         {results()}
         {hits.length > 0 && searching ? (
           <div className="flex items-center gap-2 border-t px-3 py-2 text-xs text-muted-foreground">

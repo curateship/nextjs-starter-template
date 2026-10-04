@@ -196,16 +196,16 @@ export function StickyHeaderRightNav({
     items,
     appActions.map((action) => action.id)
   )
-  // On a phone the app's controls leave the row and fold into the three-dot
-  // button drawn after the cog, below. The row itself then holds the same few
-  // controls in every app.
+  // On a phone the controls the app marked `foldsOnPhone` leave the row and
+  // fold into the three-dot button drawn after the cog, below. The rest keep
+  // their place at every width.
   const isMobile = useIsMobile()
   const foldedActions = isMobile
-    ? navItems.flatMap((item) =>
-        item.type === "app" && item.visible
-          ? (appActions.find((one) => one.id === item.id) ?? [])
-          : []
-      )
+    ? navItems.flatMap((item) => {
+        if (item.type !== "app" || !item.visible) return []
+        const action = appActions.find((one) => one.id === item.id)
+        return action?.foldsOnPhone ? action : []
+      })
     : []
 
   return (
@@ -225,12 +225,13 @@ export function StickyHeaderRightNav({
         if (!item.visible) return null
 
         if (item.type === "app") {
-          // Folded into the three-dot button after the cog on a phone.
-          if (isMobile) return null
           const action = appActions.find((one) => one.id === item.id)
-          return action ? (
+          if (!action) return null
+          // Drawn inside the three-dot button after the cog instead.
+          if (isMobile && action.foldsOnPhone) return null
+          return (
             <AppHeaderRightAction key={item.id} action={action} role={role} />
-          ) : null
+          )
         }
 
         if (item.id === "feedback") {
