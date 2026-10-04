@@ -3,10 +3,26 @@
 A hero row can carry its own colour, painted as a band behind it. Set it in
 Settings > Public Pages > Front page rows, open a hero, and use **Background
 colour** in the Row content card, under Alignment, with the switch beneath it.
-Leave the box empty and the row shows the page's own colour, which is what
-every hero saved before this did.
+Pick **No colour** and the row shows the page's own colour, which is what every
+hero saved before this did.
 
 Only a hero has the setting. The other kinds of row sit on the page's colour.
+
+## Two kinds of background
+
+**Muted grey** is a slider. Drag it and the band steps away from the page: all
+the way left it is barely off the page, all the way right it is a clear band.
+The slider sets both modes at once, so the same drag darkens the band in light
+mode and lightens it in dark mode. Under the slider sit two swatches, the light
+band on the left and the dark band on the right, redrawing as you drag, because
+the one you are not looking at is the one that usually goes wrong.
+
+Even at the right-hand end the band stays close to the site's own grey, so a
+heading in the normal text colour reads on it in either mode.
+
+**Fixed colour** is the colour square and the hex box. A hex code is one colour
+by definition, so it is the same in light mode and dark mode, and a pale one
+will glare on a dark page. Use the grey if you want dark mode handled for you.
 
 ## What the band covers
 
@@ -63,10 +79,6 @@ of the page says nothing about the bottom of it.
 
 ## Two things worth knowing
 
-**The colour is one colour, not two.** It is the same in light mode and dark
-mode, the same as a custom colour anywhere else in Styling. Pick one that your
-heading can be read on in both.
-
 **The band has to know how tall the menu bar is**, since it starts above its own
 row. The bar measures itself and writes the number down as
 `--shell-public-header-height`, and watches for the bar growing a line taller
@@ -78,10 +90,24 @@ bar instead of behind it.
 Two fields on the hero row, in the same settings row that already holds every
 front page row. Nothing new in the database, so there is no migration.
 
-- `background` is a 6-digit hex code, `#0f172a` and the like, or empty.
+- `background` is `grey-<n>` with n from 0 to 100, a 6-digit hex code such as
+  `#0f172a`, or empty.
 - `backgroundUnderMenu` is on or off.
 
-Anything that is not 6 hex digits is refused when you save and dropped when the
-page is read, so a colour name, a `var(...)` or anything else that would reach a
-visitor's browser as a piece of CSS never gets stored. The field writes a colour
-into every visitor's page, so it takes colours and nothing else.
+Anything else is refused when you save and dropped when the page is read, so a
+colour name, a `var(...)` or anything else that would reach a visitor's browser
+as a piece of CSS never gets stored. The field writes a colour into every
+visitor's page, so it takes those two shapes and nothing else.
+
+The slider's number is stored as the number, never as the CSS it becomes.
+`frontPageHeroBandColors` in `src/lib/pages/front-page.ts` turns it into the
+two `oklch` colours, so the text a visitor's browser reads is written in the
+repo rather than in a settings field.
+
+## How two colours fit in one band
+
+An inline `background-color` is one colour and cannot change when the page
+turns dark. So the band carries both: `--shell-hero-band-light` and
+`--shell-hero-band-dark`, set on the element, and two rules at the end of
+`src/theme.css` pick between them off the `data-hero-band` attribute. A hex
+writes the same value to both, which is what a hex means.
