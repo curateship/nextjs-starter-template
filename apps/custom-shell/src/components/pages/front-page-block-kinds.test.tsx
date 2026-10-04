@@ -36,7 +36,7 @@ describe("FrontPageBlockKinds", () => {
     const onPick = vi.fn()
 
     await act(async () => {
-      root.render(<FrontPageBlockKinds onPick={onPick} />)
+      root.render(<FrontPageBlockKinds path="/" onPick={onPick} />)
     })
 
     for (const kind of FRONT_PAGE_ROW_KINDS) {
@@ -50,5 +50,20 @@ describe("FrontPageBlockKinds", () => {
     })
 
     expect(onPick).toHaveBeenCalledWith("faq")
+  })
+
+  it("keeps the plans card off a page that is not the front page", async () => {
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(<FrontPageBlockKinds path="/about" onPick={vi.fn()} />)
+    })
+
+    // Everything else is there; plans needs the public prices, which only the
+    // front page loads, so a plans block anywhere else would draw nothing.
+    expect(cardNamed(FRONT_PAGE_ROW_KIND_LABELS.hero)).toBeTruthy()
+    expect(() => cardNamed(FRONT_PAGE_ROW_KIND_LABELS.plans)).toThrow()
   })
 })

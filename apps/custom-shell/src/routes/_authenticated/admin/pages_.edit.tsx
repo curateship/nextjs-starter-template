@@ -3,7 +3,12 @@ import { createFileRoute, redirect } from "@tanstack/react-router"
 import { FrontPageEditor } from "@/components/pages/front-page-editor"
 import { routeErrorComponent } from "@/components/shell/route-error"
 import { useShellRuntime } from "@/components/shell/shell-layout"
-import { getPagesErrorMessage, loadPagesOverview } from "@/lib/api/content/pages"
+import { loadPageBlocks } from "@/lib/api/content/page-blocks"
+import {
+  getPagesErrorMessage,
+  loadPagesOverview,
+  loadWrittenPageForEdit,
+} from "@/lib/api/content/pages"
 import {
   FRONT_PAGE_PATH,
   MAX_PAGE_PATH_LENGTH,
@@ -33,30 +38,38 @@ export const Route = createFileRoute("/_authenticated/admin/pages_/edit")({
   validateSearch: readEditSearch,
   loader: async ({ location }) => {
     const { path } = readEditSearch(location.search as Record<string, unknown>)
-    // Only the front page is built from blocks today. Every other page is code
-    // an app wrote or words an admin wrote, so there is nothing here to edit
-    // and the list is the honest place to land.
-    if (path !== FRONT_PAGE_PATH) {
-      throw redirect({ to: "/admin/pages", search: { q: undefined } })
-    }
     const overview = await loadPagesOverview()
     const page = overview.rows.find((row) => row.path === path)
-    if (!page) {
-      throw redirect({ to: "/admin/pages", search: { q: undefined } })
+    // A page that is not built from blocks has nothing to edit here, and the
+    // list is the honest place to land. The page's own card decides, so an app
+    // that gives a second page blocks gets this screen with no change here.
+    if (!page?.blocks) {
+      throw redirect({
+        to: "/admin/pages",
+        search: { q: undefined, group: undefined },
+      })
     }
-    return { page }
+    // The page's own row, when an admin added it. A page the code declares has
+    // none, and its name and address are in its file rather than in a table.
+    const [blocks, writtenPage] = await Promise.all([
+      loadPageBlocks(path),
+      page.writtenPageId ? loadWrittenPageForEdit(path) : null,
+    ])
+    return { page, blocks, writtenPage }
   },
   component: AdminFrontPageEditorRoute,
   errorComponent: routeErrorComponent(getPagesErrorMessage),
 })
 
 function AdminFrontPageEditorRoute() {
-  const { page } = Route.useLoaderData()
+  const { page, blocks, writtenPage } = Route.useLoaderData()
   const runtime = useShellRuntime()
 
   return (
     <FrontPageEditor
       page={page}
+      writtenPage={writtenPage}
+      initialBlocks={blocks}
       config={runtime.config}
       onConfigChange={runtime.onConfigChange}
     />

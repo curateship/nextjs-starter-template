@@ -9,6 +9,12 @@ import {
 import { FrontPageBlockList } from "@/components/pages/front-page-block-list"
 import { FrontPageSettingsPanel } from "@/components/pages/front-page-settings-panel"
 import { createShellId } from "@/components/settings/nav-editor-shared"
+import {
+  getPageBlockSaveErrorMessage,
+  removePageBlock,
+  savePageBlock,
+  savePageBlockOrder,
+} from "@/lib/api/content/page-blocks"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   PanelReopenTab,
@@ -19,7 +25,7 @@ import {
 } from "@/components/ui/resizable"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { PanelImperativeHandle } from "react-resizable-panels"
-import type { PublicPageRow } from "@/lib/api/content/pages"
+import type { PublicPageRow, WrittenPage } from "@/lib/api/content/pages"
 import type { ShellConfig } from "@/lib/custom-shell"
 import { pageGutter } from "@/lib/layout/shell-gutter"
 import {
@@ -36,7 +42,7 @@ import {
   type FrontPageRowDraft,
   type FrontPageRowKind,
 } from "@/lib/pages/front-page"
-import { showErrorToast } from "@/lib/toast/error-toast"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
 /**
  * What the right panel is editing. `id` is null while a block is being made,
@@ -83,10 +89,16 @@ function draftOf(row: FrontPageRow): FrontPageRowDraft {
  */
 export function FrontPageEditor({
   page,
+  writtenPage,
+  initialBlocks,
   config,
   onConfigChange,
 }: {
   page: PublicPageRow
+  /** The row behind a page an admin added, or null for one the code declares. */
+  writtenPage: WrittenPage | null
+  /** This page's blocks as the loader read them, hidden ones included. */
+  initialBlocks: FrontPageRow[]
   config: ShellConfig
   onConfigChange: (config: ShellConfig) => void
 }) {
@@ -94,6 +106,16 @@ export function FrontPageEditor({
   // layout it is going to keep instead of painting the narrow version and
   // rebuilding itself.
   const desktop = useWideScreen()
+  /**
+   * The page's blocks, as the server last answered.
+   *
+   * Every write below sends one block and is handed the whole page back, so
+   * this is the database's answer rather than the screen's guess about what
+   * changed. That is what lets two admins work on two pages at once without
+   * either one's list going stale.
+   */
+  const [rows, setRows] = React.useState(initialBlocks)
+  const [busy, setBusy] = React.useState(false)
   const [selection, setSelection] = React.useState<Selection | null>(null)
   const [pendingDelete, setPendingDelete] = React.useState<FrontPageRow | null>(
     null
@@ -117,7 +139,6 @@ export function FrontPageEditor({
   const kindsDoubleClick = useBlankSpaceDoubleClick(toggleKinds)
   const panelDoubleClick = useBlankSpaceDoubleClick(togglePanel)
 
-  const rows = config.frontPageRows
   const dirty = selection
     ? JSON.stringify(selection.draft) !== selection.baseline
     : false
@@ -135,8 +156,23 @@ export function FrontPageEditor({
     run()
   }
 
-  function commit(nextRows: FrontPageRow[]) {
-    onConfigChange({ ...config, frontPageRows: nextRows })
+  /**
+   * Runs one write and takes the page the server hands back. A failure says so
+   * and changes nothing, so the list on screen is never a block ahead of the
+   * database.
+   */
+  async function write(run: () => Promise<FrontPageRow[]>) {
+    setBusy(true)
+    dismissErrorToast()
+    try {
+      setRows(await run())
+      return true
+    } catch (error) {
+      showErrorToast(getPageBlockSaveErrorMessage(error))
+      return false
+    } finally {
+      setBusy(false)
+    }
   }
 
   function addBlock(choice: string) {
@@ -158,12 +194,11 @@ export function FrontPageEditor({
     })
   }
 
-  function saveSelection() {
+  async function saveSelection() {
     if (!selection) return
     const id = selection.id ?? createShellId("front-page-row")
-    // Stored through the very normaliser the save uses, so the list shows what
-    // the database will hold rather than what was typed. A block the normaliser
-    // will not keep is refused here instead of vanishing on its own.
+    // Through the very normaliser the server uses, so a block the server would
+    // refuse is caught here instead of travelling just to be turned away.
     const [row] = normalizeFrontPageRows([{ ...selection.draft, id }])
     if (!row) {
       showErrorToast(
@@ -171,21 +206,31 @@ export function FrontPageEditor({
       )
       return
     }
-    commit(
-      selection.id
-        ? rows.map((candidate) => (candidate.id === row.id ? row : candidate))
-        : [...rows, row]
+    const saved = await write(() =>
+      savePageBlock({ path: page.path, block: row })
     )
-    setSelection(select(row.id, draftOf(row)))
+    if (saved) setSelection(select(row.id, draftOf(row)))
   }
 
-  function deleteBlock(row: FrontPageRow) {
-    commit(rows.filter((candidate) => candidate.id !== row.id))
-    if (selection?.id === row.id) setSelection(null)
+  async function deleteBlock(row: FrontPageRow) {
     setPendingDelete(null)
+    if (selection?.id === row.id) setSelection(null)
+    await write(() => removePageBlock({ path: page.path, id: row.id }))
   }
 
-  const kinds = <FrontPageBlockKinds onPick={addBlock} />
+  async function reorder(nextRows: FrontPageRow[]) {
+    // Drawn in the new order straight away, because a drag that snaps back
+    // while a request flies reads as a drag that failed.
+    setRows(nextRows)
+    await write(() =>
+      savePageBlockOrder({
+        path: page.path,
+        ids: nextRows.map((row) => row.id),
+      })
+    )
+  }
+
+  const kinds = <FrontPageBlockKinds path={page.path} onPick={addBlock} />
 
   const list = (
     <FrontPageBlockList
@@ -193,7 +238,7 @@ export function FrontPageEditor({
       selectedId={selection?.id ?? null}
       pending={selection && selection.id === null ? selection.draft : null}
       onSelect={openBlock}
-      onReorder={commit}
+      onReorder={(next) => void reorder(next)}
       onDelete={setPendingDelete}
     />
   )
@@ -205,18 +250,20 @@ export function FrontPageEditor({
       key={selection.token}
       draft={selection.draft}
       isNew={selection.id === null}
+      busy={busy}
       // A new block joins the end of the list, so it is the top block only
       // when there is nothing above it yet.
       first={selection.id ? rows[0]?.id === selection.id : rows.length === 0}
       onChange={(draft) =>
         setSelection((current) => (current ? { ...current, draft } : current))
       }
-      onSave={saveSelection}
+      onSave={() => void saveSelection()}
       onCancel={() => leaveSelection(() => setSelection(null))}
     />
   ) : (
     <FrontPageSettingsPanel
       page={page}
+      writtenPage={writtenPage}
       config={config}
       onConfigChange={onConfigChange}
     />
@@ -366,8 +413,9 @@ export function FrontPageEditor({
             : null
         }
         confirmLabel="Delete block"
+        loading={busy}
         onConfirm={() => {
-          if (pendingDelete) deleteBlock(pendingDelete)
+          if (pendingDelete) void deleteBlock(pendingDelete)
         }}
       />
     </div>

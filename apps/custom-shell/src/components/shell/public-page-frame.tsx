@@ -35,6 +35,7 @@ import {
 } from "@/lib/announcement"
 import { loadVisitorAnnouncements } from "@/lib/api/content/announcements"
 import { pageForPath } from "@/lib/pages/page-registry"
+import type { PageLayout } from "@/lib/pages/page-descriptor"
 import {
   DEFAULT_PUBLIC_FRONT_PAGE_ROW_GAP,
   DEFAULT_PUBLIC_GUTTER,
@@ -70,11 +71,22 @@ export function PublicPageFrame({
   children,
   publicSearchEnabled: publicSearchEnabledOverride,
   heroRunsUnderMenu = false,
+  layout,
 }: {
   className?: string
   children: React.ReactNode
   /** Current 404 data when root loader data is unavailable. */
   publicSearchEnabled?: boolean
+  /**
+   * Which frame to draw, for a page the registry does not know about.
+   *
+   * A page an admin added is one: its address is in a table rather than in the
+   * code, so `pageForPath` has nothing to say about it. It is built from blocks
+   * like the front page, so it is drawn like the front page — content starting
+   * at the top rather than floating in the middle of the window, which is what
+   * a sign-in card wants and a page of words does not.
+   */
+  layout?: PageLayout
   /**
    * True when the front page's first row is a hero running its colour under
    * the menu. The menu itself is left exactly as it is; this only tells the
@@ -127,7 +139,7 @@ export function PublicPageFrame({
       !dismissedVisitorIds.has(announcement.id) &&
       !isVisitorAnnouncementDismissed(localStorage, announcement)
   )
-  const marketing = pageForPath(pathname)?.layout === "marketing"
+  const marketing = (layout ?? pageForPath(pathname)?.layout) === "marketing"
   const pageWidthStyle =
     theme.pageWidth === DEFAULT_PUBLIC_PAGE_WIDTH
       ? undefined

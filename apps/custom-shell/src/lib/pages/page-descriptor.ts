@@ -71,6 +71,15 @@ export type PageDeclaration = {
    * place that knows.
    */
   source?: PageSource
+  /**
+   * Whether this page is built from blocks an admin arranges, rather than from
+   * markup the page itself draws. Defaults to false, so a page says one word to
+   * opt in and no page can sprout blocks it never renders.
+   *
+   * A page that opts in has to draw them, by rendering the saved blocks
+   * somewhere in its own component. The front page does; nothing else does yet.
+   */
+  blocks?: boolean
 }
 
 /**
@@ -96,6 +105,8 @@ export type PageDescriptor = {
    * exactly as every page does today.
    */
   source: PageSource
+  /** Whether an admin builds this page out of blocks. */
+  blocks: boolean
 }
 
 /** Identity helper so declaration literals stay fully typed where they are written. */

@@ -1,4 +1,5 @@
 import {
+  AlignLeftIcon,
   BlocksIcon,
   CreditCardIcon,
   HelpCircleIcon,
@@ -16,6 +17,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { appFrontPageRowKinds } from "@/lib/app-options"
 import type { AutomationNodeIcon } from "@/lib/automations/node-descriptor"
 import { focusRingInset } from "@/lib/layout/focus-ring"
+import { FRONT_PAGE_PATH } from "@/lib/pages/page-descriptor"
 import {
   FRONT_PAGE_ROW_KIND_HINTS,
   FRONT_PAGE_ROW_KIND_LABELS,
@@ -38,6 +40,7 @@ export const APP_KIND_PREFIX = "app:"
  */
 const KIND_ICONS: Record<FrontPageRowKind, AutomationNodeIcon> = {
   text: TypeIcon,
+  words: AlignLeftIcon,
   hero: PanelTopIcon,
   plans: CreditCardIcon,
   testimonials: QuoteIcon,
@@ -63,16 +66,25 @@ type Choice = {
  * the block and selects it, so one click gets from here to typing.
  */
 export function FrontPageBlockKinds({
+  path,
   onPick,
 }: {
+  /** The page being built, which decides the kinds it may hold. */
+  path: string
   onPick: (choice: string) => void
 }) {
-  const shellChoices: Choice[] = FRONT_PAGE_ROW_KINDS.map((kind) => ({
-    value: kind,
-    label: FRONT_PAGE_ROW_KIND_LABELS[kind],
-    hint: FRONT_PAGE_ROW_KIND_HINTS[kind],
-    icon: KIND_ICONS[kind],
-  }))
+  const shellChoices: Choice[] = FRONT_PAGE_ROW_KINDS
+    // Plans is the front page's own. It needs the public prices and the
+    // machinery to offer them, which the front page loads and no other page
+    // does, so offering it elsewhere would be a card that adds a block drawing
+    // nothing.
+    .filter((kind) => kind !== "plans" || path === FRONT_PAGE_PATH)
+    .map((kind) => ({
+      value: kind,
+      label: FRONT_PAGE_ROW_KIND_LABELS[kind],
+      hint: FRONT_PAGE_ROW_KIND_HINTS[kind],
+      icon: KIND_ICONS[kind],
+    }))
   // An app's own kinds, after the shell's, in the order the app wrote them. A
   // kind that named no icon gets the plain block, so a card is never empty.
   const appChoices: Choice[] = appFrontPageRowKinds().map((kind) => ({

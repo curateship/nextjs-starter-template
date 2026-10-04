@@ -8,7 +8,6 @@ import { MemberSettings } from "@/components/settings/member-settings"
 import {
   PublicSeoSettings,
   PublicSocialSettings,
-  PublicSystemPagesSettings,
 } from "@/components/settings/public-metadata-settings"
 import { PublicSiteSettings } from "@/components/settings/public-site-settings"
 import { PublicThemeSettings } from "@/components/settings/public-theme-settings"
@@ -20,6 +19,7 @@ import { WidgetSettings } from "@/components/settings/widget-settings"
 import { TopLeftNavigationSettings } from "@/components/settings/top-left-navigation-settings"
 import { CardGroup } from "@/components/ui/card"
 import { appHeaderRightActionsForRole, appSettingsTabs } from "@/lib/app-options"
+import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { pageGutter } from "@/lib/layout/shell-gutter"
 import { cn } from "@/lib/utils"
@@ -78,7 +78,6 @@ const appScaffoldGroups = [
     tabs: [
       { id: "public-navigation", label: "Navigation" },
       { id: "public-styling", label: "Styling" },
-      { id: "public-pages", label: "Pages" },
       { id: "public-seo", label: "SEO" },
       { id: "public-social", label: "Social" },
     ],
@@ -185,8 +184,15 @@ export function SettingsPage({
   // render's own `config` there rebuilds the settings as they were when the
   // screen last drew and silently undoes anything typed since. The ref is
   // always the current one.
+  //
+  // Written before the paint rather than during the render: a ref set while
+  // rendering is a write React may throw away and redo, and the rule against it
+  // is an error here. Before the paint is still before any handler can run,
+  // because a click cannot happen in a frame the browser has not drawn.
   const latestConfig = React.useRef(config)
-  latestConfig.current = config
+  useEffectBeforePaint(() => {
+    latestConfig.current = config
+  }, [config])
   const changeConfig = React.useCallback(
     (part: Partial<ShellConfig>) =>
       onConfigChange({ ...latestConfig.current, ...part }),
@@ -306,15 +312,6 @@ export function SettingsPage({
             }
             onSaveConfig={onSaveConfig}
             saveRefusal={shellConfigSaveRefusal(config)}
-          />
-        ) : null}
-        {shellDraws(activeTab, "public-pages") ? (
-          /* The front page's blocks are built in Pages, not here: a block a
-             visitor reads is content, and content does not belong in settings.
-             What is left is the wording of the pages the shell draws itself. */
-          <PublicSystemPagesSettings
-            config={config}
-            onConfigChange={onConfigChange}
           />
         ) : null}
         {shellDraws(activeTab, "public-seo") ? (

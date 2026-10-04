@@ -1381,7 +1381,6 @@ export const customShellWrittenPages = pgTable(
     /** The address it answers on, always starting with "/". */
     path: varchar("path", { length: 160 }).notNull(),
     title: varchar("title", { length: 200 }).notNull(),
-    body: jsonb("body").notNull(),
     /**
      * True puts `noindex` in the page's head and drops it from the sitemap.
      * It does not hide the page from people: the link still works. Who may
@@ -1408,6 +1407,56 @@ export const customShellWrittenPages = pgTable(
     uniqueIndex("ux_written_pages_workspace_path").on(
       table.workspaceId,
       table.path
+    ),
+  ]
+)
+
+/**
+ * The blocks a public page is built from, one row per block.
+ *
+ * They were an array in the settings blob until 4 Oct 2026. One row each is
+ * what lets a second page have any, and what stops an edit to one block
+ * rewriting every setting the app has — see
+ * `0086_custom_shell_page_blocks.sql`.
+ *
+ * A page needs no row here to exist. It is declared by a `*.page.ts` file
+ * beside its route, and only a page whose card says `blocks` is drawn from
+ * this table at all.
+ */
+export const customShellPageBlocks = pgTable(
+  "page_blocks",
+  {
+    /**
+     * The block's own id, the one the editor and the page both know it by. It
+     * is unique within a site rather than across the deployment, which is why
+     * the key below is the pair: copying a front page onto two sites would
+     * otherwise have to rename one of them for a reason nobody could see.
+     */
+    id: varchar("id", { length: 96 }).notNull(),
+    /** The site this block belongs to. */
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    /** The page it is on, always starting with "/". */
+    path: varchar("path", { length: 160 }).notNull(),
+    /** Where it sits on the page, counted from 0. */
+    position: integer("position").notNull(),
+    /** One of the shell's kinds, or "app" when the app added the kind. */
+    kind: varchar("kind", { length: 40 }).notNull(),
+    /** Which of the app's own kinds, when `kind` is "app". */
+    appKind: varchar("app_kind", { length: 60 }),
+    /** Every other field of the block, in the shape the editor saves. */
+    settings: jsonb("settings").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.workspaceId, table.id] }),
+    // How every read asks for them: this site's blocks, on this page, in order.
+    index("ix_page_blocks_workspace_path_position").on(
+      table.workspaceId,
+      table.path,
+      table.position
     ),
   ]
 )

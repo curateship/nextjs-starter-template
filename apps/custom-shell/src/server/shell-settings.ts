@@ -70,9 +70,6 @@ import {
   type PublicHeaderAction,
 } from "@/lib/pages/public-header-actions"
 import {
-  normalizeFrontPageRows,
-  visibleFrontPageRows,
-  type FrontPageRow,
 } from "@/lib/pages/front-page"
 import { clampToastSeconds } from "@/lib/toast/toast-seconds"
 import { db, type CustomShellDb } from "@/server/db"
@@ -156,7 +153,6 @@ export async function readBranding(
   publicOrigin: string
   publicSeo: PublicSeo
   publicSystemCopy: PublicSystemCopy
-  frontPageRows: FrontPageRow[]
   publicHeader: PublicHeader
   publicBreadcrumbs: PublicBreadcrumbs
   publicUserPanel: PublicUserPanel
@@ -219,7 +215,6 @@ export async function readBranding(
       publicOrigin: currentPublicOrigin(),
       publicSeo: globals.publicSeo,
       publicSystemCopy: globals.publicSystemCopy,
-      frontPageRows: visibleFrontPageRows(globals.frontPageRows),
       publicHeader: globals.publicHeader,
       publicBreadcrumbs: globals.publicBreadcrumbs,
       publicUserPanel: globals.publicUserPanel,
@@ -288,18 +283,6 @@ export async function readBranding(
     publicOrigin: currentPublicOrigin(),
     publicSeo: globals.publicSeo,
     publicSystemCopy: globals.publicSystemCopy,
-    // This site's own rows, like the menu and the footer below, and only when
-    // the deployment serves several sites. A one-site app whose one site was
-    // given its own domain reaches here too, because a custom domain is
-    // matched without any base domain being set. Reading the site's row there
-    // drew a menu the Settings screen does not edit: the screen and the save
-    // both use the app-wide row while the base domain is unset, so an admin's
-    // edit never appeared on the website. All three read the same switch now.
-    frontPageRows: visibleFrontPageRows(
-      siteOwnsPublicPages
-        ? workspaceSettings.frontPageRows
-        : globals.frontPageRows
-    ),
     publicHeader: globals.publicHeader,
     publicBreadcrumbs: globals.publicBreadcrumbs,
     publicUserPanel: globals.publicUserPanel,
@@ -409,9 +392,6 @@ export async function readShellSettings(
     workspaceLogo: workspaceSettings.logo,
     workspaceShareImage: workspaceSettings.shareImage,
     sidebarWidth: await sidebarWidthFor(user.id, database),
-    frontPageRows: workspaceDomainsEnabled
-      ? workspaceSettings.frontPageRows
-      : globals.frontPageRows,
     publicNavigation: workspaceDomainsEnabled
       ? workspaceSettings.publicNavigation
       : globals.publicNavigation,
@@ -484,7 +464,6 @@ export function parseShellGlobals(value: unknown) {
     socialHandle: normalizeSocialHandle(settings.socialHandle),
     publicSeo: normalizePublicSeo(settings.publicSeo),
     publicSystemCopy: normalizePublicSystemCopy(settings.publicSystemCopy),
-    frontPageRows: normalizeFrontPageRows(settings.frontPageRows),
     publicNavigation:
       settings.publicNavigation === undefined
         ? fallback.publicNavigation
@@ -587,7 +566,6 @@ export function pickShellGlobals(
     | "socialHandle"
     | "publicSeo"
     | "publicSystemCopy"
-    | "frontPageRows"
     | "publicNavigation"
     | "publicFooter"
     | "publicFooterSocial"
@@ -628,7 +606,6 @@ export function pickShellGlobals(
     socialHandle: normalizeSocialHandle(settings.socialHandle),
     publicSeo: normalizePublicSeo(settings.publicSeo),
     publicSystemCopy: normalizePublicSystemCopy(settings.publicSystemCopy),
-    frontPageRows: normalizeFrontPageRows(settings.frontPageRows),
     publicNavigation: cleanPublicNavigationItems(settings.publicNavigation),
     publicFooter: cleanPublicNavigationLinks(settings.publicFooter),
     publicFooterSocial: normalizePublicSocialLinks(settings.publicFooterSocial),

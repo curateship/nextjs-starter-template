@@ -16,10 +16,23 @@ vi.mock("@/lib/api/content/pages", () => ({
   savePageVisibility: vi.fn(),
   getPageVisibilityErrorMessage: () => "",
 }))
+// The editor writes one block at a time now. The fake hands back the page the
+// server would, which is what the list draws.
+const saved: FrontPageRow[][] = []
+vi.mock("@/lib/api/content/page-blocks", () => ({
+  getPageBlockSaveErrorMessage: () => "",
+  savePageBlock: vi.fn(async ({ block }: { block: FrontPageRow }) => {
+    saved.push([block])
+    return [block]
+  }),
+  savePageBlockOrder: vi.fn(async () => []),
+  removePageBlock: vi.fn(async () => []),
+}))
 
 import { FrontPageEditor } from "@/components/pages/front-page-editor"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { createDefaultShellConfig, type ShellConfig } from "@/lib/custom-shell"
+import type { FrontPageRow } from "@/lib/pages/front-page"
 import type { PublicPageRow } from "@/lib/api/content/pages"
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
@@ -31,7 +44,9 @@ const page: PublicPageRow = {
   canSwitchOff: false,
   layout: "marketing",
   source: "shell",
+  blocks: true,
   visits: 0,
+  blockCount: 0,
   visibility: "everyone",
   writtenPageId: null,
 }
@@ -69,20 +84,22 @@ async function type(selector: string, value: string) {
   })
 }
 
-/** Renders the editor and reports every config it tries to save. */
+/** Renders the editor on an empty page and reports every block it writes. */
 async function open(config: ShellConfig = createDefaultShellConfig()) {
+  saved.length = 0
   const host = document.createElement("div")
   document.body.appendChild(host)
   const root = createRoot(host)
-  const saved: ShellConfig[] = []
 
   await act(async () => {
     root.render(
       <TooltipProvider>
         <FrontPageEditor
           page={page}
+          writtenPage={null}
+          initialBlocks={[]}
           config={config}
-          onConfigChange={(next) => saved.push(next)}
+          onConfigChange={() => undefined}
         />
       </TooltipProvider>
     )
@@ -126,7 +143,7 @@ describe("FrontPageEditor", () => {
     await act(async () => click(named("button", "Add block")))
 
     expect(saved).toHaveLength(1)
-    const rows = saved[0].frontPageRows
+    const rows = saved[0]
     expect(rows).toHaveLength(1)
     // Trimmed, because it was stored through `normalizeFrontPageRows` rather
     // than straight from the field.

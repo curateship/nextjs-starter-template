@@ -1,5 +1,5 @@
 import * as React from "react"
-import { SlidersHorizontalIcon } from "lucide-react"
+import { Loader2Icon, SlidersHorizontalIcon } from "lucide-react"
 
 import { AppFrontPageRowEditor } from "@/components/pages/app-front-page-row-editor"
 import { FrontPageRowContentEditor } from "@/components/pages/front-page-row-content-editor"
@@ -56,6 +56,7 @@ import {
   PUBLIC_DEVICES,
   type PublicDevice,
 } from "@/lib/pages/public-device"
+import { emptyWrittenPageBody } from "@/lib/pages/written-page-body"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
 /** One kind of draft, narrowed by its `kind`. */
@@ -101,6 +102,7 @@ export function FrontPageBlockInspector({
   draft,
   isNew,
   first,
+  busy,
   onChange,
   onSave,
   onCancel,
@@ -108,6 +110,8 @@ export function FrontPageBlockInspector({
   draft: FrontPageRowDraft
   /** True while this block is being made and has not been added yet. */
   isNew: boolean
+  /** True while a write is in flight, which is the only thing that disables Save. */
+  busy: boolean
   /**
    * True when this block is the top one on the page. Only that block sits
    * under the site menu, so only that one may carry its colour up behind it.
@@ -480,6 +484,10 @@ export function FrontPageBlockInspector({
             dividerSpace={
               divider?.dividerSpace ?? DEFAULT_FRONT_PAGE_DIVIDER_SPACE
             }
+            words={draft.kind === "words" ? draft.body : emptyWrittenPageBody()}
+            onWordsChange={(body) =>
+              onChange(draft.kind === "words" ? { ...draft, body } : draft)
+            }
             submitted={submitted}
             onHeroActionChange={(action) =>
               onChange(patchHero(draft, { action }))
@@ -652,10 +660,16 @@ export function FrontPageBlockInspector({
       {/* The panel's own footer, pinned under the scrolling fields: a block
           with twelve FAQ entries in it must not put its Save a scroll away. */}
       <div className="flex shrink-0 items-center justify-end gap-2 border-t p-3">
-        <Button type="button" variant="outline" onClick={onCancel}>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={busy}
+          onClick={onCancel}
+        >
           Cancel
         </Button>
-        <Button type="button" onClick={save}>
+        <Button type="button" disabled={busy} onClick={save}>
+          {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
           {isNew ? "Add block" : "Save changes"}
         </Button>
       </div>

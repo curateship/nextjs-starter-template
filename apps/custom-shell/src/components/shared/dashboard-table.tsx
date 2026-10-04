@@ -72,6 +72,15 @@ type DashboardTableBaseProps = {
   titleAs?: "h2" | "h3" | "h4" | "h5" | "h6"
   icon?: React.ReactNode
   count: number
+  /**
+   * Tabs in place of the icon, the title and the count, for a table whose rows
+   * split into named groups.
+   *
+   * The tabs carry their own counts, so the title's badge would be a second
+   * number describing a different set of rows. The title itself stays as the
+   * table's accessible name, read out but not drawn.
+   */
+  tabs?: React.ReactNode
   controls?: React.ReactNode
   /**
    * A strip under the toolbar for the filters currently on — one removable chip
@@ -154,6 +163,7 @@ export function DashboardTable(props: DashboardTableProps) {
     titleAs: Title = "h2",
     icon,
     count,
+    tabs,
     controls,
     filters,
     error,
@@ -181,15 +191,24 @@ export function DashboardTable(props: DashboardTableProps) {
     >
       <DashboardToolbar>
         <DashboardToolbarTitle>
-          {icon ? (
-            <span className="flex size-7 shrink-0 items-center justify-center sm:size-8 [&_svg]:size-4">
-              {icon}
-            </span>
-          ) : null}
-          <Title className="text-sm font-medium sm:text-base">{title}</Title>
-          <Badge variant="secondary">
-            {countsPending ? "—" : count.toLocaleString()}
-          </Badge>
+          {tabs ? (
+            <>
+              <Title className="sr-only">{title}</Title>
+              {tabs}
+            </>
+          ) : (
+            <>
+              {icon ? (
+                <span className="flex size-7 shrink-0 items-center justify-center sm:size-8 [&_svg]:size-4">
+                  {icon}
+                </span>
+              ) : null}
+              <Title className="text-sm font-medium sm:text-base">{title}</Title>
+              <Badge variant="secondary">
+                {countsPending ? "—" : count.toLocaleString()}
+              </Badge>
+            </>
+          )}
           {selectedCount && onClearSelection ? (
             <ToolbarChipButton onClick={onClearSelection}>
               Clear {selectedCount.toLocaleString()} selected

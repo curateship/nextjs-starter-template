@@ -1,7 +1,6 @@
 import { PGlite } from "@electric-sql/pglite"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
-import { writtenPageText } from "@/lib/pages/written-page-body"
 import {
   loadPagesOverview,
   readPageVisibility,
@@ -37,10 +36,6 @@ let site: string
 
 const at = new Date("2026-08-06T12:00:00Z")
 
-const body = (words: string) => ({
-  type: "doc",
-  content: [{ type: "paragraph", content: [{ type: "text", text: words }] }],
-})
 
 beforeEach(async () => {
   const testDb = await createTestDatabase()
@@ -90,23 +85,22 @@ describe("which addresses may be claimed", () => {
 
 describe("writing a page", () => {
   it("creates one and serves it by address", async () => {
-    const page = await createWrittenPage(site, { path: "About", title: "About us", body: body("We sell things.") },
+    const page = await createWrittenPage(site, { path: "About", title: "About us" },
       database
     )
 
     expect(page.path).toBe("/about")
     const found = await findWrittenPage(site, "/about", database)
     expect(found?.title).toBe("About us")
-    expect(writtenPageText(found!.body)).toBe("We sell things.")
   })
 
   it("refuses a second page on the same address", async () => {
-    await createWrittenPage(site, { path: "/about", title: "About", body: body("One") },
+    await createWrittenPage(site, { path: "/about", title: "About" },
       database
     )
 
     await expect(
-      createWrittenPage(site, { path: "/about", title: "Another", body: body("Two") },
+      createWrittenPage(site, { path: "/about", title: "Another" },
         database
       )
     ).rejects.toThrow("already answers on /about")
@@ -114,7 +108,7 @@ describe("writing a page", () => {
 
   it("refuses an address a coded page holds", async () => {
     await expect(
-      createWrittenPage(site, { path: "/pricing", title: "My pricing", body: body("Cheap") },
+      createWrittenPage(site, { path: "/pricing", title: "My pricing" },
         database
       )
     ).rejects.toThrow("already answers on /pricing")
@@ -122,32 +116,14 @@ describe("writing a page", () => {
 
   it("insists on a title", async () => {
     await expect(
-      createWrittenPage(site, { path: "/about", title: "   ", body: body("Hi") }, database)
+      createWrittenPage(site, { path: "/about", title: "   " }, database)
     ).rejects.toThrow("needs a title")
-  })
-
-  it("stores only what a page is allowed to hold", async () => {
-    const page = await createWrittenPage(site, {
-        path: "/about",
-        title: "About",
-        body: {
-          type: "doc",
-          content: [
-            { type: "paragraph", content: [{ type: "text", text: "Kept" }] },
-            { type: "iframe", attrs: { src: "//evil" } },
-          ],
-        },
-      },
-      database
-    )
-
-    expect(page.body.content).toHaveLength(1)
   })
 })
 
 describe("changing and removing a page", () => {
   it("moves a page to a free address", async () => {
-    const page = await createWrittenPage(site, { path: "/about", title: "About", body: body("Hi") },
+    const page = await createWrittenPage(site, { path: "/about", title: "About" },
       database
     )
 
@@ -158,10 +134,10 @@ describe("changing and removing a page", () => {
   })
 
   it("refuses to move onto another page's address", async () => {
-    await createWrittenPage(site, { path: "/about", title: "About", body: body("Hi") },
+    await createWrittenPage(site, { path: "/about", title: "About" },
       database
     )
-    const other = await createWrittenPage(site, { path: "/help", title: "Help", body: body("Hi") },
+    const other = await createWrittenPage(site, { path: "/help", title: "Help" },
       database
     )
 
@@ -171,7 +147,7 @@ describe("changing and removing a page", () => {
   })
 
   it("lets a page keep its own address while something else changes", async () => {
-    const page = await createWrittenPage(site, { path: "/about", title: "About", body: body("Hi") },
+    const page = await createWrittenPage(site, { path: "/about", title: "About" },
       database
     )
 
@@ -185,7 +161,7 @@ describe("changing and removing a page", () => {
   })
 
   it("makes the address stop existing when the page goes", async () => {
-    const page = await createWrittenPage(site, { path: "/about", title: "About", body: body("Hi") },
+    const page = await createWrittenPage(site, { path: "/about", title: "About" },
       database
     )
 
@@ -205,7 +181,7 @@ describe("changing and removing a page", () => {
 
 describe("a written page is an ordinary page", () => {
   it("appears in the pages list beside the coded ones, in address order", async () => {
-    await createWrittenPage(site, { path: "/about", title: "About us", body: body("Hi") },
+    await createWrittenPage(site, { path: "/about", title: "About us" },
       database
     )
 
@@ -222,7 +198,7 @@ describe("a written page is an ordinary page", () => {
   })
 
   it("can be switched off like any other page", async () => {
-    await createWrittenPage(site, { path: "/about", title: "About", body: body("Hi") },
+    await createWrittenPage(site, { path: "/about", title: "About" },
       database
     )
 
@@ -234,7 +210,7 @@ describe("a written page is an ordinary page", () => {
   })
 
   it("keys the switch off the tidied address, not what was typed", async () => {
-    await createWrittenPage(site, { path: "/about", title: "About", body: body("Hi") },
+    await createWrittenPage(site, { path: "/about", title: "About" },
       database
     )
 
@@ -250,7 +226,7 @@ describe("a written page is an ordinary page", () => {
     // would be readable — so it is what decides, not the page that draws it.
     // Fetching first and checking second would let a direct call read a hidden
     // page's words, which is the switch working in a browser and nowhere else.
-    await createWrittenPage(site, { path: "/about", title: "About", body: body("Our secret plans.") },
+    await createWrittenPage(site, { path: "/about", title: "About" },
       database
     )
     await setPageVisibility(site, { path: "/about", visibility: "off" }, database)
@@ -265,7 +241,7 @@ describe("a written page is an ordinary page", () => {
   })
 
   it("asks a signed-out visitor to sign in without showing them the words", async () => {
-    await createWrittenPage(site, { path: "/about", title: "About", body: body("Members only text.") },
+    await createWrittenPage(site, { path: "/about", title: "About" },
       database
     )
     await setPageVisibility(site, { path: "/about", visibility: "members" }, database)
@@ -279,19 +255,19 @@ describe("a written page is an ordinary page", () => {
   })
 
   it("hands over a page anybody may see", async () => {
-    await createWrittenPage(site, { path: "/about", title: "About", body: body("Open to all.") },
+    await createWrittenPage(site, { path: "/about", title: "About" },
       database
     )
 
     const view = await readWrittenPageForViewer(site, "/about", false, database)
     expect(view.status).toBe("ok")
     if (view.status === "ok") {
-      expect(writtenPageText(view.page.body)).toBe("Open to all.")
+      expect(view.page.title).toBe("About")
     }
   })
 
   it("answers everyone once the page is deleted", async () => {
-    const page = await createWrittenPage(site, { path: "/about", title: "About", body: body("Hi") },
+    const page = await createWrittenPage(site, { path: "/about", title: "About" },
       database
     )
     await setPageVisibility(site, { path: "/about", visibility: "off" }, database)
@@ -313,7 +289,7 @@ describe("keeping a page out of search", () => {
   it("starts switched off, with no canonical address", async () => {
     const page = await createWrittenPage(
       site,
-      { path: "/about", title: "About", body: body("Hi") },
+      { path: "/about", title: "About" },
       database
     )
 
@@ -327,12 +303,12 @@ describe("keeping a page out of search", () => {
   it("drops a hidden page from the sitemap and leaves it readable", async () => {
     const page = await createWrittenPage(
       site,
-      { path: "/thank-you", title: "Thank you", body: body("Thanks.") },
+      { path: "/thank-you", title: "Thank you" },
       database
     )
     await createWrittenPage(
       site,
-      { path: "/about", title: "About", body: body("Hi") },
+      { path: "/about", title: "About" },
       database
     )
 
@@ -353,7 +329,6 @@ describe("keeping a page out of search", () => {
       {
         path: "/thank-you",
         title: "Thank you",
-        body: body("Thanks."),
         hiddenFromSearch: true,
       },
       database
@@ -374,7 +349,6 @@ describe("naming the address that counts", () => {
       {
         path: "/about-us",
         title: "About us",
-        body: body("Hi"),
         canonicalUrl: "/about/",
       },
       database
@@ -396,7 +370,6 @@ describe("naming the address that counts", () => {
       {
         path: "/about-us",
         title: "About us",
-        body: body("Hi"),
         canonicalUrl: "javascript:alert(1)",
       },
       database
@@ -410,7 +383,6 @@ describe("naming the address that counts", () => {
       {
         path: "/about-us",
         title: "About us",
-        body: body("Hi"),
         canonicalUrl: "/about",
       },
       database

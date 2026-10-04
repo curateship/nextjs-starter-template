@@ -841,7 +841,6 @@ export const REPLACEABLE_SETTINGS_TAB_IDS: readonly string[] = [
   "member-navigation",
   "public-navigation",
   "public-styling",
-  "public-pages",
   "public-seo",
   "public-social",
 ]

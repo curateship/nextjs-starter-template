@@ -473,10 +473,10 @@ Public Social chooses the small or large X presentation and saves an optional X
 account without `@`. Small is the default so older installs keep their previous
 card style.
 
-Public Pages edits one short heading and plain-text body for both the 404 and
-maintenance pages. Empty fields use the former built-in wording. The preview
-uses the same fallback rules as the public page, so clearing a field shows what
-a visitor will get before the settings save.
+The 404 and maintenance pages' own wording is not in Settings. Both are listed
+under System pages on the Pages screen, and clicking either one opens a window
+with its heading, its message and a preview. It moved there on 4 October 2026,
+because a page's words belong where the page is listed.
 
 The front page itself is not in Settings. Its blocks are built at Pages > Home,
 on a screen of three panels: the kinds of block on the left, this page's blocks

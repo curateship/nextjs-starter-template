@@ -62,11 +62,7 @@ import {
   insertWorkspace,
   type TestDatabase,
 } from "@/server/test-support"
-import {
-  parseShellGlobals,
-  readBranding,
-  shellGlobalsForWrite,
-} from "@/server/shell-settings"
+import { readBranding, shellGlobalsForWrite } from "@/server/shell-settings"
 import { setPageVisibility } from "@/server/content/pages"
 import { dropWorkspaceCache } from "@/server/workspaces/host"
 
@@ -234,70 +230,6 @@ describe("public site branding", () => {
     expect(branding.publicFooterCopyright).toBe("Single site copyright")
   })
 
-  it("returns app-wide front page rows in order and drops incomplete rows", async () => {
-    const timestamp = now()
-    await database.insert(customShellSettings).values({
-      key: DEFAULT_SETTINGS_KEY,
-      settings: {
-        frontPageRows: [
-          {
-            id: "welcome",
-            heading: "Welcome",
-            intro: "Start here.",
-            kind: "text",
-            layout: "narrow",
-          },
-          {
-            id: "blank",
-            heading: " ",
-            intro: "This row is incomplete.",
-            kind: "text",
-            layout: "wide",
-          },
-          {
-            id: "plans",
-            heading: "Plans",
-            intro: "Choose what works.",
-            kind: "plans",
-            layout: "wide",
-          },
-          {
-            id: "empty-faq",
-            heading: "Empty questions",
-            intro: "Nothing complete lives here.",
-            kind: "faq",
-            layout: "wide",
-            items: [{ id: "empty", question: "Question", answer: "" }],
-          },
-          {
-            id: "faq",
-            heading: "Questions",
-            intro: "Answers before signup.",
-            kind: "faq",
-            layout: "narrow",
-            items: [
-              {
-                id: "billing",
-                question: "How does billing work?",
-                answer: "Choose a public plan.",
-              },
-            ],
-          },
-        ],
-      },
-      createdAt: timestamp,
-      updatedAt: timestamp,
-    })
-
-    const branding = await readBranding(database as unknown as CustomShellDb)
-
-    expect(branding.frontPageRows.map((row) => row.id)).toEqual([
-      "welcome",
-      "plans",
-      "faq",
-    ])
-  })
-
   it("uses app-wide icons, social metadata, and system copy on public domains", async () => {
     const timestamp = now()
     const light = {
@@ -387,41 +319,6 @@ describe("public site branding", () => {
     )
 
     expect((await readBranding(testDb)).publicSearchEnabled).toBe(false)
-  })
-
-  it("keeps a hidden row out of what a visitor is served", async () => {
-    const timestamp = now()
-    await database.insert(customShellSettings).values({
-      key: DEFAULT_SETTINGS_KEY,
-      settings: {
-        frontPageRows: [
-          { id: "shown", heading: "Shown", kind: "text" },
-          { id: "staged", heading: "Staged", kind: "text", hidden: true },
-        ],
-      },
-      createdAt: timestamp,
-      updatedAt: timestamp,
-    })
-
-    const branding = await readBranding(database as unknown as CustomShellDb)
-
-    // The visitor's data carries one row. The staged one is not hidden with a
-    // class, it is not in the response at all, so its words cannot be read out
-    // of the page source before it is ready.
-    expect(branding.frontPageRows.map((row) => row.heading)).toEqual(["Shown"])
-    expect(JSON.stringify(branding)).not.toContain("Staged")
-
-    // The admin's own read still has both, so the editor can list it.
-    const globals = parseShellGlobals({
-      frontPageRows: [
-        { id: "shown", heading: "Shown", kind: "text" },
-        { id: "staged", heading: "Staged", kind: "text", hidden: true },
-      ],
-    })
-    expect(globals.frontPageRows.map((row) => row.heading)).toEqual([
-      "Shown",
-      "Staged",
-    ])
   })
 
   it("carries an admin's saved presets through a global write", () => {
@@ -557,41 +454,5 @@ describe("public site branding", () => {
    * the menu and the footer. One app-wide set of rows would open every site
    * with the first one's hero.
    */
-  it("gives each site its own front page rows", async () => {
-    const timestamp = now()
-    await database.insert(customShellSettings).values({
-      key: DEFAULT_SETTINGS_KEY,
-      settings: {
-        frontPageRows: [
-          { id: "app-wide", heading: "The deployment's own", kind: "text" },
-        ],
-      },
-      createdAt: timestamp,
-      updatedAt: timestamp,
-    })
-    await insertWorkspace(database, {
-      name: "Alpha",
-      subdomain: "alpha",
-      settings: {
-        frontPageRows: [
-          { id: "alpha-hero", heading: "Alpha's hero", kind: "text" },
-        ],
-      },
-    })
-    await insertWorkspace(database, { name: "Beta", subdomain: "beta" })
-
-    request.host = "alpha.localhost:3002"
-    const alpha = await readBranding(database as unknown as CustomShellDb)
-    expect(alpha.frontPageRows.map((row) => row.heading)).toEqual([
-      "Alpha's hero",
-    ])
-
-    // Beta has built none, so it has no front page of its own rather than
-    // Alpha's or the deployment's.
-    request.host = "beta.localhost:3002"
-    const beta = await readBranding(database as unknown as CustomShellDb)
-    expect(beta.frontPageRows).toEqual([])
-  })
-
 
 })

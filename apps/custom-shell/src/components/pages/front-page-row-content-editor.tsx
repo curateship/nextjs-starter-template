@@ -2,6 +2,7 @@ import type { ReactNode } from "react"
 import { PlusIcon, Trash2Icon } from "lucide-react"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
+import { DocumentEditor } from "@/components/shared/rich-text-editor"
 import { SettingsSliderRow } from "@/components/settings/settings-slider-row"
 import { ImageUpload } from "@/components/shared/image-upload"
 import { Button } from "@/components/ui/button"
@@ -17,6 +18,7 @@ import {
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { createShellId } from "@/components/settings/nav-editor-shared"
+import type { WrittenPageNode } from "@/lib/pages/written-page-body"
 import {
   DEFAULT_FRONT_PAGE_DIVIDER_SPACE,
   frontPageDividerColor,
@@ -57,6 +59,9 @@ import {
 
 type FrontPageRowContentEditorProps = {
   kind: FrontPageRowKind
+  /** The words of a `words` block. Ignored by every other kind. */
+  words: WrittenPageNode
+  onWordsChange: (body: WrittenPageNode) => void
   heroAction: FrontPageHeroAction
   heroImage: string
   heroAlt: string
@@ -93,6 +98,7 @@ type FrontPageRowContentEditorProps = {
 export function FrontPageRowContentEditor(
   props: FrontPageRowContentEditorProps
 ) {
+  if (props.kind === "words") return <WordsEditor {...props} />
   if (props.kind === "hero") return <HeroEditor {...props} />
   if (props.kind === "testimonials") return <TestimonialsEditor {...props} />
   if (props.kind === "faq") return <FaqEditor {...props} />
@@ -100,6 +106,27 @@ export function FrontPageRowContentEditor(
   if (props.kind === "screenshots") return <ScreenshotsEditor {...props} />
   if (props.kind === "divider") return <DividerEditor {...props} />
   return null
+}
+
+/**
+ * The writing in a rich text block, in the same editor a written page used.
+ *
+ * It is the one block whose content has no shape of its own: headings, lists,
+ * links and emphasis, as long as the page needs. Everything it may hold is
+ * named in `lib/pages/written-page-body.ts`, and anything else is dropped on
+ * the way in — which is what keeps a block an admin typed off the list of
+ * things a public page has to sanitise.
+ */
+function WordsEditor({ words, onWordsChange }: FrontPageRowContentEditorProps) {
+  return (
+    <EditorCard
+      storageId="front-page-row-words"
+      title="Rich text"
+      description="Headings, lists, links and emphasis. Pictures and layout are what the other kinds of block are for."
+    >
+      <DocumentEditor value={words} onChange={onWordsChange} />
+    </EditorCard>
+  )
 }
 
 function DividerEditor({

@@ -57,7 +57,6 @@ describe("starting a workspace from an existing one", () => {
       workspaceId: source.id,
       path: "/about",
       title: "About Alpha",
-      body: { type: "doc", content: [] },
       createdAt: at,
       updatedAt: at,
     })
@@ -137,7 +136,6 @@ describe("starting a workspace from an existing one", () => {
       workspaceId: source.id,
       path: "/rollback",
       title: "Rollback",
-      body: { type: "doc", content: [] },
       createdAt: at,
       updatedAt: at,
     }

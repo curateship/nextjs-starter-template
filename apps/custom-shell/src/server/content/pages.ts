@@ -28,6 +28,7 @@ import {
   normalizeWrittenPagePath,
   type WrittenPage,
 } from "@/server/content/written-pages"
+import { readPageBlockCounts } from "@/server/content/page-blocks"
 
 /**
  * The Pages dashboard's one read: every public page joined to the visit counts
@@ -52,6 +53,9 @@ export const PAGES_VISIT_DAYS = 30
 export type PublicPageRow = PageDescriptor & {
   /** Views of this address over the last `PAGES_VISIT_DAYS` days. */
   visits: number
+  /** How many blocks this site has saved for the page. Always 0 for a page
+   * that is not built from blocks. */
+  blockCount: number
   /** Who may see it — always "everyone" for a page that cannot be switched off. */
   visibility: PageVisibility
   /**
@@ -73,12 +77,18 @@ function descriptorForWrittenPage(page: WrittenPage): PageDescriptor {
     name: page.title,
     summary: "Written in the app by an admin.",
     canSwitchOff: true,
-    layout: "card",
+    // The public content column, not the centred card it used to be: a hero
+    // inside a 672px card is not a hero.
+    layout: "marketing",
     // `source` says whose code a page is, and a written page has no code —
     // the shell's own page-writing screen made it. So it takes the default and
     // carries no "added by this app" label, which is the truth: whichever app
     // this is, nobody added a file for it.
     source: "shell",
+    // Every page an admin adds is built from blocks, the same as the front
+    // page. Tyler's call on 4 Oct 2026: writing a page and building one were
+    // two different things, and only one of them could be done from the app.
+    blocks: true,
   }
 }
 
@@ -110,7 +120,7 @@ export async function loadPagesOverview(
   )
   const facts = customShellTrafficDailyFacts
 
-  const [factRows, overrides, written] = await Promise.all([
+  const [factRows, overrides, written, blockCounts] = await Promise.all([
     database
       .select({
         key: facts.key,
@@ -129,6 +139,7 @@ export async function loadPagesOverview(
       .groupBy(facts.key),
     readWorkspacePageOverrides(workspaceId, database),
     listWrittenPages(workspaceId, database),
+    readPageBlockCounts(workspaceId, database),
   ])
 
   const visitsByPath = new Map(
@@ -149,6 +160,10 @@ export async function loadPagesOverview(
       ...page,
       visits: visitsByPath.get(page.path) ?? 0,
       visibility: pageVisibility(overrides, page),
+      // Counted only for a page that draws them. A page that does not could
+      // still have rows from before it stopped, and saying so on the screen
+      // would offer an editor that leads nowhere.
+      blockCount: page.blocks ? (blockCounts[page.path] ?? 0) : 0,
     }))
     // One order for both kinds, by address, so a written page sits where its
     // address puts it rather than in a second group underneath.

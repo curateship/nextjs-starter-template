@@ -1,4 +1,9 @@
-import { isSafeWrittenPageLink } from "@/lib/pages/written-page-body"
+import {
+  cleanWrittenPageBody,
+  emptyWrittenPageBody,
+  isSafeWrittenPageLink,
+  type WrittenPageNode,
+} from "@/lib/pages/written-page-body"
 import {
   normalizePublicDevice,
   type PublicDevice,
@@ -6,6 +11,7 @@ import {
 
 export const FRONT_PAGE_ROW_KINDS = [
   "text",
+  "words",
   "hero",
   "plans",
   "testimonials",
@@ -19,6 +25,7 @@ export type FrontPageRowKind = (typeof FRONT_PAGE_ROW_KINDS)[number]
 
 export const FRONT_PAGE_ROW_KIND_LABELS: Record<FrontPageRowKind, string> = {
   text: "Plain text",
+  words: "Rich text",
   hero: "Hero",
   plans: "Plans",
   testimonials: "Testimonials",
@@ -30,6 +37,7 @@ export const FRONT_PAGE_ROW_KIND_LABELS: Record<FrontPageRowKind, string> = {
 
 export const FRONT_PAGE_ROW_KIND_HINTS: Record<FrontPageRowKind, string> = {
   text: "A heading and one short introduction line.",
+  words: "A heading and as much writing as the page needs, with its own headings, lists and links.",
   hero: "A large heading, a line beneath it, a button, and an optional picture beside them.",
   plans: "The app's current public plans beneath the row heading.",
   testimonials: "Customer quotes with a name, role, and optional picture.",
@@ -419,6 +427,16 @@ export type FrontPageRow =
     })
   | (FrontPageRowBase & { kind: "text" | "plans" })
   | (FrontPageRowBase & {
+      kind: "words"
+      /**
+       * The words themselves, as a tree of named nodes rather than markup.
+       * Nothing in it can carry a tag, which is what keeps a block an admin
+       * typed off the list of things a public page has to sanitise. See
+       * `written-page-body.ts`.
+       */
+      body: WrittenPageNode
+    })
+  | (FrontPageRowBase & {
       kind: "hero"
       /** A button to somewhere, or a box that takes an address. */
       action: FrontPageHeroAction
@@ -535,6 +553,13 @@ export function createFrontPageRowDraft(
       dividerShade: DEFAULT_FRONT_PAGE_DIVIDER_SHADE,
       dividerSpace: DEFAULT_FRONT_PAGE_DIVIDER_SPACE,
     }
+  }
+  if (kind === "words") {
+    // Through the cleaner, so a block nobody has typed into is already in the
+    // shape the database stores: an empty document comes back without the
+    // empty `content` array, and a draft that did not match would read as an
+    // unsaved edit the moment the panel opened.
+    return { ...base, kind, body: cleanWrittenPageBody(emptyWrittenPageBody()) }
   }
   if (
     kind === "testimonials" ||
@@ -876,6 +901,8 @@ export function normalizeFrontPageRows(value: unknown): FrontPageRow[] {
     } else if (kind === "screenshots") {
       const items = normalizeScreenshots(source.items)
       if (items.length) rows.push({ ...rowBase(), kind, items })
+    } else if (kind === "words") {
+      rows.push({ ...rowBase(), kind, body: cleanWrittenPageBody(source.body) })
     } else if (kind === "divider") {
       rows.push({
         ...rowBase(),
