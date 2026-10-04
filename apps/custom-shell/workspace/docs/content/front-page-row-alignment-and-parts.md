@@ -1,8 +1,9 @@
 # Alignment and parts of a front page row
 
-Every front page row answers two questions of its own: where it sits across the
-page, and which of its parts a visitor sees. Both are in the row window in
-Settings > Public Pages > Front page rows.
+Every front page block answers two questions of its own: where it sits across
+the page, and which of its parts a visitor sees. Both are in the right-hand
+panel of the front page editor, which is Pages > Home. See
+[Building the front page](building-the-front-page.md) for the screen itself.
 
 ## Layout: how wide the row is
 
@@ -59,10 +60,10 @@ looks the way it does:
 The row carries `data-front-page-alignment` in the page source, so the chosen
 value can be read straight off a rendered page.
 
-## The row window's cards
+## The panel's cards
 
-The row window is three cards in a fixed order: **Row content** at the top,
-then the card for the row's own kind (Hero, Testimonials, FAQ entries, Logos,
+The panel is three cards in a fixed order: **Block content** at the top, then
+the card for the block's own kind (Hero, Testimonials, FAQ entries, Logos,
 Screenshots), then **Visibility** at the bottom. Visibility is last because it
 switches off parts that are set in the two cards above it, so it reads in the
 order the work is done.
@@ -70,7 +71,7 @@ order the work is done.
 **Every card folds away.** Clicking a card's heading collapses it, and this
 browser remembers which cards are folded, the same as the cards on the settings
 page itself. Folding a card does not lose anything typed into it: what the
-window holds lives in the window, not in the card.
+panel holds lives in the panel, not in the card.
 
 ## Visibility: which parts are drawn
 

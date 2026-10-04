@@ -108,48 +108,6 @@ export function PublicSeoSettings({
   return (
     <CardGroup>
       <CollapsibleSettingsCard
-        storageId="public-seo-home"
-        title="Home page"
-        description="Set the browser and search text used only for the public front page."
-        contentClassName="grid gap-4"
-      >
-        <div className="grid gap-2">
-          <FieldLabel
-            htmlFor="public-seo-home-title"
-            hint="Leave this empty to keep the standard front-page title."
-          >
-            Home page title
-          </FieldLabel>
-          <Input
-            id="public-seo-home-title"
-            value={config.publicSeo.homeTitle}
-            maxLength={MAX_PUBLIC_SEO_TITLE_LENGTH}
-            placeholder="Front page title"
-            onChange={(event) => updateSeo({ homeTitle: event.target.value })}
-          />
-        </div>
-
-        <div className="grid gap-2">
-          <FieldLabel
-            htmlFor="public-seo-home-description"
-            hint="Leave this empty to use the default page description below, then the standard front-page description."
-          >
-            Home page description
-          </FieldLabel>
-          <Textarea
-            id="public-seo-home-description"
-            rows={1}
-            value={config.publicSeo.homeDescription}
-            maxLength={MAX_PUBLIC_SEO_DESCRIPTION_LENGTH}
-            placeholder="Describe the public front page"
-            onChange={(event) =>
-              updateSeo({ homeDescription: event.target.value })
-            }
-          />
-        </div>
-      </CollapsibleSettingsCard>
-
-      <CollapsibleSettingsCard
         storageId="public-seo-written-pages"
         title="Written pages"
         description="Set one pattern for every public page created in Pages."

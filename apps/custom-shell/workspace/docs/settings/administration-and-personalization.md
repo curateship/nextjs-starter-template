@@ -458,11 +458,12 @@ button label that falls below the same line gets a plain warning beside the
 setting for the mode that fails. Contrast warnings update while the admin types
 and never block saving a valid colour.
 
-Public SEO holds the title and description used only on the home page, plus a
-title template and description template for written pages. The templates use
-`{{page_title}}` for the page name and `{{site_title}}` for the current site
-name. Empty template fields keep the former written-page title and description.
-A page's own SEO fields take priority when the per-page editor supplies them.
+Public SEO holds a title template and description template for written pages.
+The templates use `{{page_title}}` for the page name and `{{site_title}}` for
+the current site name. Empty template fields keep the former written-page title
+and description. A page's own SEO fields take priority when the per-page editor
+supplies them. The home page's own title and description moved to the front page
+editor on 4 October 2026, so a page's words are set where the page is built.
 
 The same tab holds the description and share image used when another public
 page has no value of its own. The server checks that a new image belongs to the
@@ -477,50 +478,18 @@ maintenance pages. Empty fields use the former built-in wording. The preview
 uses the same fallback rules as the public page, so clearing a field shows what
 a visitor will get before the settings save.
 
-Public Pages also holds the app-wide front page row editor. An admin can add up
-to six plain-text, hero, plans, testimonial, FAQ, logo-strip, or screenshot
-rows. Each row has a heading, an optional introduction, full or narrow width,
-and a fixed set of fields for its kind. The editor accepts up to six
-testimonials or screenshots and up to twelve FAQ entries or logos in one row.
-It uses the media library for every picture and keeps the picker inside the row
-window.
+The front page itself is not in Settings. Its blocks are built at Pages > Home,
+on a screen of three panels: the kinds of block on the left, this page's blocks
+in the middle, the selected block's fields on the right. That screen also holds
+the front page's own title and description for search engines, and the space
+between one block and the next.
 
-A hero row is the top of a page. Its heading and introduction are its words,
-and the card beneath them adds a button, a short line under the button with up
-to five stars beside it, and an optional picture. With a picture the words sit
-on the left and the picture on the right; without one the words run across the
-page. The button needs both its wording and its link, or it is not drawn, and
-the link has to start with `/`, `https://`, `mailto:` or `tel:`.
-
-Add row opens a window of cards, one per kind of row, each with its icon, its
-name and the line that says what it shows. The shell's own kinds come first and
-the app's own kinds after them, under their own heading. Picking a card makes
-the row and opens it, so one click gets from Add row to typing.
-
-**A row keeps the kind it was made with.** The row window states the kind and
-offers no way to change it, because changing it would leave the fields of one
-kind under the name of another: an FAQ's questions do not become a hero's
-button. A row of the wrong kind is deleted and picked again.
-
-**Space between rows** is a slider under the list, from 0 to 160 pixels, and it
-is the gap between two blocks as a desktop draws them. The default is 80px. A
-phone draws 70% of whatever it says, because a gap that separates two blocks on
-a desktop is most of a phone screen, so the default gives a phone 56px. Flat
-mode, which is a page gutter of 0, still collapses both to nothing. The number
-is saved with the public styling rather than with the rows, so a site that sets
-its own public look sets its own spacing too.
-
-A heading and at least one complete entry are required for content rows. The
-server removes incomplete saved entries and refuses a newly selected image that
-does not belong to the current admin's media library. Dragging changes the
-public order. Removing every row brings back the built-in pricing front page,
-so an untouched app does not change.
-
-Each row also chooses its own alignment, has a Visibility card of switches, and
-has a Shown on choice that a header menu item shares. They have their own docs:
+Three docs cover it: [Building the front page](../content/building-the-front-page.md)
+for the screen, [Alignment and parts of a front page row](../content/front-page-row-alignment-and-parts.md)
+for a block's width and its parts, and
 [Hiding a row, and choosing its screens](../content/showing-and-hiding-public-things.md)
-and
-[Alignment and parts of a front page row](../content/front-page-row-alignment-and-parts.md).
+for keeping a block off the page. The front page's content was edited in
+Settings until 4 October 2026, so older notes and screenshots show it here.
 
 The Page frame card controls the widest public content width, the canvas
 colour, the space above and below main content, and the divider lines under the

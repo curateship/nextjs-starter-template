@@ -4,7 +4,7 @@ import { act } from "react"
 import { createRoot } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { FrontPageRowPicker } from "@/components/settings/front-page-row-picker"
+import { FrontPageBlockKinds } from "@/components/pages/front-page-block-kinds"
 import {
   FRONT_PAGE_ROW_KIND_LABELS,
   FRONT_PAGE_ROW_KINDS,
@@ -18,7 +18,7 @@ function cardNamed(name: string) {
   return card
 }
 
-describe("FrontPageRowPicker", () => {
+describe("FrontPageBlockKinds", () => {
   beforeEach(() => {
     ;(
       globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -36,13 +36,7 @@ describe("FrontPageRowPicker", () => {
     const onPick = vi.fn()
 
     await act(async () => {
-      root.render(
-        <FrontPageRowPicker
-          open
-          onOpenChange={vi.fn()}
-          onPick={onPick}
-        />
-      )
+      root.render(<FrontPageBlockKinds onPick={onPick} />)
     })
 
     for (const kind of FRONT_PAGE_ROW_KINDS) {

@@ -3,6 +3,7 @@ import {
   CreditCardIcon,
   HelpCircleIcon,
   ImagesIcon,
+  LayoutGridIcon,
   MonitorIcon,
   PanelTopIcon,
   QuoteIcon,
@@ -10,26 +11,23 @@ import {
   TypeIcon,
 } from "lucide-react"
 
-import {
-  Dialog,
-  DialogBody,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { appFrontPageRowKinds } from "@/lib/app-options"
 import type { AutomationNodeIcon } from "@/lib/automations/node-descriptor"
+import { focusRingInset } from "@/lib/layout/focus-ring"
 import {
   FRONT_PAGE_ROW_KIND_HINTS,
   FRONT_PAGE_ROW_KIND_LABELS,
   FRONT_PAGE_ROW_KINDS,
   type FrontPageRowKind,
 } from "@/lib/pages/front-page"
+import { cn } from "@/lib/utils"
 
 /**
- * The prefix an app's key wears in a chosen value, the same one the row window
- * reads, so a picked card and a saved row say the kind the same way.
+ * The prefix an app's key wears in a chosen value, the same one the block
+ * inspector reads, so a picked card and a saved block say the kind the same
+ * way.
  */
 export const APP_KIND_PREFIX = "app:"
 
@@ -57,19 +55,16 @@ type Choice = {
 }
 
 /**
- * Choosing what a new front page row is, before the row exists.
+ * The left panel of the front page editor: every kind of block this page may
+ * hold, as a card each.
  *
- * A row's kind decides which fields it has, so it is chosen once here and
- * never again: the row window has no way to change it. Picking a card creates
- * the row and opens it, so one click gets from Add row to typing.
+ * A block's kind decides which fields it has, so it is chosen once here and
+ * never again — the inspector has no way to change it. Clicking a card makes
+ * the block and selects it, so one click gets from here to typing.
  */
-export function FrontPageRowPicker({
-  open,
-  onOpenChange,
+export function FrontPageBlockKinds({
   onPick,
 }: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
   onPick: (choice: string) => void
 }) {
   const shellChoices: Choice[] = FRONT_PAGE_ROW_KINDS.map((kind) => ({
@@ -88,44 +83,48 @@ export function FrontPageRowPicker({
   }))
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent variant="admin" className="sm:max-w-3xl">
-        <DialogHeader>
-          <DialogTitle>Add a row</DialogTitle>
-          <DialogDescription>
-            Pick what this row shows. A row keeps the kind it was made with, so
-            its fields cannot change under what you typed.
-          </DialogDescription>
-        </DialogHeader>
-        {/* The body, not a bare div: it carries the window's side and bottom
-            padding and the scroll area a long list of kinds needs. */}
-        <DialogBody className="gap-4">
-          <div className="grid gap-2 sm:grid-cols-2">
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-card">
+      <DashboardCardTitleHeader
+        icon={<LayoutGridIcon className="size-4" />}
+        title="Add a block"
+      />
+      <ScrollArea className="min-h-0 flex-1">
+        <div className="flex flex-col gap-4 p-3">
+          <div className="grid gap-2">
             {shellChoices.map((choice) => (
-              <RowKindCard key={choice.value} choice={choice} onPick={onPick} />
+              <BlockKindCard
+                key={choice.value}
+                choice={choice}
+                onPick={onPick}
+              />
             ))}
           </div>
           {appChoices.length ? (
-            <div className="grid gap-2">
-              <h3 className="text-sm font-medium">This app's own rows</h3>
-              <div className="grid gap-2 sm:grid-cols-2">
+            <section aria-labelledby="front-page-app-kinds">
+              <h3
+                id="front-page-app-kinds"
+                className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
+              >
+                This app's own blocks
+              </h3>
+              <div className="grid gap-2">
                 {appChoices.map((choice) => (
-                  <RowKindCard
+                  <BlockKindCard
                     key={choice.value}
                     choice={choice}
                     onPick={onPick}
                   />
                 ))}
               </div>
-            </div>
+            </section>
           ) : null}
-        </DialogBody>
-      </DialogContent>
-    </Dialog>
+        </div>
+      </ScrollArea>
+    </div>
   )
 }
 
-function RowKindCard({
+function BlockKindCard({
   choice,
   onPick,
 }: {
@@ -137,14 +136,17 @@ function RowKindCard({
   return (
     <button
       type="button"
-      className="flex items-start gap-3 rounded-md border bg-background p-3 text-left hover:bg-muted"
+      className={cn(
+        "flex w-full items-start gap-2 overflow-hidden rounded-lg border bg-card p-2 text-left transition-colors hover:border-primary/40 hover:bg-muted/30",
+        focusRingInset
+      )}
       onClick={() => onPick(choice.value)}
     >
-      <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-        <Icon className="size-4" />
+      <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+        <Icon className="size-3.5" />
       </span>
-      <span className="grid gap-1">
-        <span className="text-sm font-medium">{choice.label}</span>
+      <span className="grid min-w-0 gap-1">
+        <span className="truncate text-sm font-medium">{choice.label}</span>
         <span className="text-xs text-muted-foreground">{choice.hint}</span>
       </span>
     </button>

@@ -1,5 +1,5 @@
 import * as React from "react"
-import { useRouter } from "@tanstack/react-router"
+import { Link, useRouter } from "@tanstack/react-router"
 import {
   ExternalLinkIcon,
   PanelsTopLeftIcon,
@@ -27,6 +27,9 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { TableCell, TableHead, TableRow } from "@/components/ui/table"
+import { focusRing } from "@/lib/layout/focus-ring"
+import { cn } from "@/lib/utils"
+import { FRONT_PAGE_PATH } from "@/lib/pages/page-descriptor"
 import {
   getPageVisibilityErrorMessage,
   getWrittenPageErrorMessage,
@@ -42,6 +45,7 @@ import { useListSearchNavigate, useSearchBoxText } from "@/lib/nav/list-search"
 import {
   PAGE_VISIBILITIES,
   PAGE_VISIBILITY_LABELS,
+  PAGE_VISIBILITY_SENTENCES,
   type PageVisibility,
 } from "@/lib/pages/page-visibility"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
@@ -55,6 +59,9 @@ import { useTableSort } from "@/lib/hooks/use-table-sort"
  */
 
 type PageSort = "page" | "address" | "status" | "visits"
+
+/** Where a page built from blocks is edited. */
+const EDIT_ROUTE = "/admin/pages/edit"
 
 /**
  * There is no range picker, so the Visits heading is what tells an admin how
@@ -168,7 +175,7 @@ export function AdminPagesDashboard({
     try {
       await savePageVisibility({ path: row.path, visibility: next })
       await router.invalidate()
-      toast.success(`${row.name} is now ${visibilitySentence(next)}`)
+      toast.success(`${row.name} is now ${PAGE_VISIBILITY_SENTENCES[next]}`)
     } catch (error) {
       showErrorToast(getPageVisibilityErrorMessage(error))
     } finally {
@@ -240,18 +247,46 @@ export function AdminPagesDashboard({
       }}
     >
       {rows.map((row) => (
-        <TableRow key={row.path}>
+        <TableRow
+          key={row.path}
+          // Only a page built from blocks has an editor to open. Everything
+          // else on this screen is code an app wrote or words an admin wrote,
+          // so its row stays a row.
+          rowAction={
+            row.path === FRONT_PAGE_PATH
+              ? () =>
+                  void router.navigate({
+                    to: EDIT_ROUTE,
+                    search: { path: row.path },
+                  })
+              : undefined
+          }
+        >
           <TableCell column="main">
             <div className="flex min-w-0 items-center gap-2">
               {/* `min-w-0` on the name as well as the row: a flex child
                   refuses to shrink below its own text by default, and without
                   it a long name pushes out of the cell instead of truncating. */}
-              <span
-                className="min-w-0 truncate text-sm font-medium"
-                title={row.name}
-              >
-                {row.name}
-              </span>
+              {row.path === FRONT_PAGE_PATH ? (
+                <Link
+                  to={EDIT_ROUTE}
+                  search={{ path: row.path }}
+                  className={cn(
+                    "min-w-0 truncate text-sm font-medium hover:underline",
+                    focusRing
+                  )}
+                  title={`Build ${row.name}`}
+                >
+                  {row.name}
+                </Link>
+              ) : (
+                <span
+                  className="min-w-0 truncate text-sm font-medium"
+                  title={row.name}
+                >
+                  {row.name}
+                </span>
+              )}
               {/* Only the app's own pages say anything. The shell's are the
                   ordinary case and a caption on every row would be noise —
                   and a page that never says where it came from reads as the
@@ -404,13 +439,6 @@ function VisibilitySelect({
       </Select>
     </DisabledReason>
   )
-}
-
-/** The confirmation's wording, so the toast reads as a sentence. */
-function visibilitySentence(visibility: PageVisibility) {
-  if (visibility === "everyone") return "open to everyone."
-  if (visibility === "members") return "members only."
-  return "switched off."
 }
 
 function comparePages(a: PublicPageRow, b: PublicPageRow, sort: PageSort) {

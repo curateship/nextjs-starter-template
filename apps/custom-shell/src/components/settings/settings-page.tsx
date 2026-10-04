@@ -3,7 +3,6 @@ import type { ComponentType } from "react"
 import { Link } from "@tanstack/react-router"
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { EmailSettings } from "@/components/settings/email-settings"
-import { FrontPageRowsSettings } from "@/components/settings/front-page-rows-settings"
 import { GeneralSettings } from "@/components/settings/general-settings"
 import { MemberSettings } from "@/components/settings/member-settings"
 import {
@@ -310,24 +309,13 @@ export function SettingsPage({
           />
         ) : null}
         {shellDraws(activeTab, "public-pages") ? (
-          <CardGroup>
-            <FrontPageRowsSettings
-              rows={config.frontPageRows}
-              onRowsChange={(frontPageRows) =>
-                changeConfig({ frontPageRows })
-              }
-              rowGap={config.publicTheme.frontPageRowGap}
-              onRowGapChange={(frontPageRowGap) =>
-                changeConfig({
-                  publicTheme: { ...config.publicTheme, frontPageRowGap },
-                })
-              }
-            />
-            <PublicSystemPagesSettings
-              config={config}
-              onConfigChange={onConfigChange}
-            />
-          </CardGroup>
+          /* The front page's blocks are built in Pages, not here: a block a
+             visitor reads is content, and content does not belong in settings.
+             What is left is the wording of the pages the shell draws itself. */
+          <PublicSystemPagesSettings
+            config={config}
+            onConfigChange={onConfigChange}
+          />
         ) : null}
         {shellDraws(activeTab, "public-seo") ? (
           <PublicSeoSettings config={config} onConfigChange={onConfigChange} />

@@ -472,6 +472,94 @@ type WithoutId<T> = T extends unknown ? Omit<T, "id"> : never
 
 export type FrontPageRowDraft = WithoutId<FrontPageRow>
 
+/**
+ * The fields every block has, whatever kind it is. The editor patches these on
+ * a draft without knowing which kind it is holding.
+ */
+export type FrontPageRowCommonFields = Omit<FrontPageRowBase, "id">
+
+/**
+ * Every field a block of this kind has, at the value it starts on.
+ *
+ * The block editor holds one draft object rather than a field at a time, so a
+ * new block has to arrive whole: a missing field would read as "the admin
+ * cleared it" the first time the draft is saved. The values here are the ones
+ * `normalizeFrontPageRows` falls back to, so a block made and saved without a
+ * single edit comes back exactly as it was made.
+ */
+export function createFrontPageRowDraft(
+  kind: FrontPageRowKind
+): FrontPageRowDraft {
+  const base = {
+    // A divider never shows words on the page, so it is named for the admin
+    // straight away rather than making them invent a name for a line.
+    heading: kind === "divider" ? "Divider" : "",
+    intro: "",
+    layout: "wide",
+    alignment: "inherit",
+    hidden: false,
+    showHeading: true,
+    showIntro: true,
+    showImage: true,
+    showAction: true,
+    showStars: true,
+    showNote: true,
+    showPictures: true,
+    showRoles: true,
+    showNumbers: true,
+    showCaptions: true,
+    device: "all",
+  } as const
+
+  if (kind === "hero") {
+    return {
+      ...base,
+      kind,
+      action: "button",
+      image: "",
+      alt: "",
+      buttonLabel: "",
+      buttonHref: "",
+      note: "",
+      stars: 0,
+      background: "",
+      backgroundUnderMenu: false,
+      spacing: DEFAULT_FRONT_PAGE_HERO_SPACING,
+    }
+  }
+  if (kind === "divider") {
+    return {
+      ...base,
+      kind,
+      dividerStyle: "line",
+      dividerShade: DEFAULT_FRONT_PAGE_DIVIDER_SHADE,
+      dividerSpace: DEFAULT_FRONT_PAGE_DIVIDER_SPACE,
+    }
+  }
+  if (
+    kind === "testimonials" ||
+    kind === "faq" ||
+    kind === "logos" ||
+    kind === "screenshots"
+  ) {
+    return { ...base, kind, items: [] }
+  }
+  return { ...base, kind }
+}
+
+/**
+ * A new block of a kind the app added. It carries no settings at all, because
+ * what an app's fields mean is the app's business — its own panel fills them.
+ */
+export function createAppFrontPageRowDraft(appKind: string): FrontPageRowDraft {
+  return {
+    ...createFrontPageRowDraft("text"),
+    kind: APP_FRONT_PAGE_ROW_KIND,
+    appKind,
+    settings: {},
+  }
+}
+
 function cleanText(value: unknown, maxLength: number) {
   return typeof value === "string" ? value.trim().slice(0, maxLength) : ""
 }

@@ -1,8 +1,8 @@
 # The divider row
 
 A divider is a front page row with no words in it. It marks the break between
-the row above it and the row below it, and that is all it does. Add one from
-Settings > Public Pages > Front page rows > Add row, the same as any other kind.
+the row above it and the row below it, and that is all it does. Add one from the
+front page editor's **Add a block** panel, the same as any other kind.
 
 ## The three things it can draw
 

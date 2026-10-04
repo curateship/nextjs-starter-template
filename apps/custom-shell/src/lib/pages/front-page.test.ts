@@ -10,6 +10,8 @@ import {
   MAX_FRONT_PAGE_ROWS,
   MAX_FRONT_PAGE_SCREENSHOTS,
   MAX_FRONT_PAGE_TESTIMONIALS,
+  createAppFrontPageRowDraft,
+  createFrontPageRowDraft,
   frontPageHasPlans,
   frontPageHeroBandColors,
   frontPageRowImageUrls,
@@ -453,5 +455,56 @@ describe("hero background", () => {
       dark: "#f4f4f5",
     })
     expect(frontPageHeroBandColors("url(evil)")).toEqual({ light: "", dark: "" })
+  })
+})
+
+describe("a new block's starting values", () => {
+  /**
+   * The kinds that hold a list. They start empty on purpose, and the editor is
+   * what refuses to add one until it has an entry — `normalizeFrontPageRows`
+   * drops an empty one, so a block saved before then would delete itself.
+   */
+  const listKinds = ["testimonials", "faq", "logos", "screenshots"] as const
+
+  it("gives every kind a draft the normaliser keeps once it is named", () => {
+    for (const kind of FRONT_PAGE_ROW_KINDS) {
+      const draft = createFrontPageRowDraft(kind)
+      const [row] = normalizeFrontPageRows([
+        { ...draft, id: kind, heading: draft.heading || "Named" },
+      ])
+
+      if (listKinds.includes(kind as (typeof listKinds)[number])) {
+        expect(row, `${kind} should be dropped while it is empty`).toBeUndefined()
+        continue
+      }
+
+      expect(row, `${kind} should survive`).toBeDefined()
+      expect(row.kind).toBe(kind)
+      // Nothing is lost or invented on the way through: what the editor starts
+      // a block with is what the save keeps.
+      expect(row).toEqual({
+        ...draft,
+        id: kind,
+        heading: draft.heading || "Named",
+      })
+    }
+  })
+
+  it("names a divider for the admin, because its heading never reaches the page", () => {
+    expect(createFrontPageRowDraft("divider").heading).toBe("Divider")
+    expect(createFrontPageRowDraft("hero").heading).toBe("")
+  })
+
+  it("starts an app's own block with no settings at all", () => {
+    const draft = createAppFrontPageRowDraft("listings")
+    expect(draft.kind).toBe(APP_FRONT_PAGE_ROW_KIND)
+    const [row] = normalizeFrontPageRows([
+      { ...draft, id: "listings", heading: "Latest listings" },
+    ])
+    expect(row).toEqual({
+      ...draft,
+      id: "listings",
+      heading: "Latest listings",
+    })
   })
 })

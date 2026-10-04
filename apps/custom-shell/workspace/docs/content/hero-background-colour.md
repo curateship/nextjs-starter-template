@@ -1,8 +1,8 @@
 # A hero's background colour
 
-A hero row can carry its own colour, painted as a band behind it. Set it in
-Settings > Public Pages > Front page rows, open a hero, and use **Background
-colour** in the Row content card, under Alignment, with the switch beneath it.
+A hero row can carry its own colour, painted as a band behind it. Open the front
+page editor at Pages > Home, click a hero, and use **Background colour** in the
+Block content card, under Alignment, with the switch beneath it.
 Pick **No colour** and the row shows the page's own colour, which is what every
 hero saved before this did.
 

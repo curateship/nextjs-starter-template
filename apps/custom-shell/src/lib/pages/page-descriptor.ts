@@ -18,6 +18,19 @@
 export type PageLayout = "marketing" | "card"
 
 /**
+ * Where the front page answers. It is the one address an app cannot claim with
+ * a new file, and the one page built from blocks, so the screens that care name
+ * it from here rather than writing `"/"` and hoping.
+ */
+export const FRONT_PAGE_PATH = "/"
+
+/**
+ * The longest address a page may have, matching the `written_pages.path`
+ * column. Anything longer is not a page this app has.
+ */
+export const MAX_PAGE_PATH_LENGTH = 160
+
+/**
  * Who ships a page: `"shell"` for the pages this template comes with,
  * `"app"` for the ones an app built on top of it added itself.
  *
