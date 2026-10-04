@@ -17,8 +17,6 @@ type ImageUploadProps = {
   /** Help text, shown behind the label's info icon like every other field. */
   hint?: React.ReactNode
   showVideos?: boolean
-  /** Keeps picker and crop steps inside the surrounding window. */
-  inlinePicker?: boolean
   showLabel?: boolean
   /** Locks the field while the form around it is submitting. */
   disabled?: boolean
@@ -42,7 +40,6 @@ export function ImageUpload({
   emptyLabel = "Add image",
   hint,
   showVideos = false,
-  inlinePicker = false,
   showLabel = true,
   disabled = false,
   invalid = false,
@@ -59,13 +56,7 @@ export function ImageUpload({
   const isVideo = showVideos && getMediaType(value) === "video"
 
   return (
-    <div
-      className={cn(
-        "w-full space-y-2",
-        className,
-        inlinePicker && pickerOpen && "max-w-none"
-      )}
-    >
+    <div className={cn("w-full space-y-2", className)}>
       {showLabel ? (
         <FieldLabel id={labelId} htmlFor={buttonId} hint={hint}>
           {label}
@@ -128,7 +119,6 @@ export function ImageUpload({
         onSelectMedia={(mediaUrl, altText) => onChange(mediaUrl, altText)}
         currentMediaUrl={value}
         showVideos={showVideos}
-        inline={inlinePicker}
         // The crop step starts on the shape this field needs — square for
         // favicons, logos, and avatars; wide for covers and banners.
         defaultCropAspect={aspect === "square" ? "square" : "wide"}
