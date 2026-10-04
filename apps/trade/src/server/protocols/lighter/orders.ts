@@ -320,6 +320,8 @@ const CONFIRM_ROWS = 20
 
 const confirmOrderSchema = z.object({
   client_order_index: z.number(),
+  /** Lighter's own number, which only a later cancel needs. */
+  order_index: numeric.optional(),
   status: z.string().optional(),
   filled_base_amount: z.union([z.string(), z.number()]).optional(),
   filled_quote_amount: z.union([z.string(), z.number()]).optional(),
@@ -373,7 +375,24 @@ async function confirmLighterOrder(
       if (!confirmAnswerSchema.safeParse(active).success) {
         return { stood: "resting" }
       }
-      if (confirmRowFor(active, clientOrderIndex)) return { stood: "resting" }
+      const resting = confirmRowFor(active, clientOrderIndex)
+      if (resting) {
+        /**
+         * **The one moment both numbers for this order are in hand**, and the
+         * cancel that eventually takes it off needs Lighter's. Written down
+         * here so that cancel costs no request of its own — see
+         * `rememberLighterOrderIndex`.
+         */
+        if (resting.order_index !== undefined) {
+          rememberLighterOrderIndex(
+            network,
+            where.accountIndex,
+            String(clientOrderIndex),
+            String(resting.order_index)
+          )
+        }
+        return { stood: "resting" }
+      }
       const done = await lighterPrivate(
         network,
         "/api/v1/accountInactiveOrders",
@@ -558,6 +577,14 @@ export async function placeLighterOrder(
       // Resting when the book holds it; filled when Lighter's history says a
       // fast market took it before the read-back.
       status: confirmed.stood,
+      /**
+       * **The app's own number, and on Lighter it has to be.** Lighter
+       * answers with two numbers for one order and uses a different one in
+       * each place: its book states `order_index`, its trade history states
+       * the number the app sent. Only one of the two can be the id the app
+       * saves, and it has to be the one both of those lists can be matched
+       * on — see `bookOrderId`.
+       */
       orderId: String(clientOrderIndex),
       avgPx: confirmed.stood === "filled" ? confirmed.avgPx : null,
       filledSz: confirmed.stood === "filled" ? confirmed.filledSz : null,
@@ -577,18 +604,40 @@ export async function placeLighterOrder(
   })
 }
 
+/**
+ * Takes one order off the book.
+ *
+ * **A cancel names Lighter's `order_index` and the app saves its own number**,
+ * so the one has to be turned into the other before anything is signed — see
+ * `bookOrderId` for why the app saves the number it does, and
+ * `lighterExchangeOrderIndex` for the lookup. Signing the saved number
+ * straight through is what left six take-profit legs on one LIT position on
+ * 1 Oct 2026: the cancel went out, Lighter accepted it, and it took nothing
+ * off, because no order of that number existed.
+ */
 export async function cancelLighterOrder(
   network: NetworkId,
   auth: OrderAuth,
   params: { marketId: string; orderId: string }
 ): Promise<void> {
   return saying(async () => {
+    /**
+     * **Both real-money switches first, before a single request is spent.**
+     * `send` asks them too, and that is the gate every Lighter change goes
+     * through — but the lookup below can read the exchange, and a cancel sent
+     * with real money switched off must not spend one of Lighter's sixty
+     * requests a minute before it is refused.
+     */
+    await assertRealMoneyAllowed(network)
     const where = await orderContext(network, auth, params.marketId)
+    const orderIndex =
+      (await lighterExchangeOrderIndex(network, where, params.orderId)) ??
+      params.orderId
     await send(network, where, LIGHTER_TX_TYPE.cancelOrder, (nonce) =>
       signLighterCancel({
         accountIndex: where.accountIndex,
         marketIndex: where.marketIndex,
-        orderIndex: params.orderId,
+        orderIndex,
         nonce,
       })
     )
@@ -851,16 +900,24 @@ export async function fetchLighterOrderPortfolio(
  */
 async function fetchLighterOpenOrders(
   network: NetworkId,
-  facts: { accountIndex: number; apiKeyIndex: number }
+  facts: { accountIndex: number; apiKeyIndex: number },
+  /**
+   * Order work when a cancel is waiting on this answer. Lighter keeps a fifth
+   * of its minute out of the background tier's reach, so a cancel asking at
+   * background priority can be refused while the room kept for real money
+   * sits unused — the same fault the fresh price for a grid change had.
+   */
+  priority: "background" | "order" = "background"
 ) {
   return heldLighterRead("orders", network, facts.accountIndex, () =>
-    readLighterOpenOrders(network, facts)
+    readLighterOpenOrders(network, facts, priority)
   )
 }
 
 async function readLighterOpenOrders(
   network: NetworkId,
-  facts: { accountIndex: number; apiKeyIndex: number }
+  facts: { accountIndex: number; apiKeyIndex: number },
+  priority: "background" | "order"
 ): Promise<LighterOpenOrder[]> {
   const token = await lighterAuthToken(facts)
   const answer = await lighterPrivate(
@@ -868,7 +925,8 @@ async function readLighterOpenOrders(
     "/api/v1/accountActiveOrders",
     UNLISTED_WEIGHT,
     token.token,
-    { account_index: facts.accountIndex }
+    { account_index: facts.accountIndex },
+    priority
   )
   const parsed = ordersAnswerSchema.safeParse(answer)
   /**
@@ -881,20 +939,158 @@ async function readLighterOpenOrders(
    * `ordersUnavailable`, which the engine and the drag both refuse to act on.
    */
   if (!parsed.success) throw new Error("LIVE_UNREADABLE")
-  return toLighterOpenOrders(network, parsed.data.orders)
+  return toLighterOpenOrders(network, facts.accountIndex, parsed.data.orders)
+}
+
+/**
+ * Which of Lighter's two numbers for an order the app saves and shows.
+ *
+ * **Lighter answers with two and uses a different one in each place.** Its
+ * book states `order_index`, a number of its own: 1,125,898,789,999,244 on
+ * this account on 1 Sep 2026. Its trade history states the number the app
+ * sent with the order instead, in `ask_client_id_str`, and that number is the
+ * clock in milliseconds: 1,791,085,938,413. Sixteen digits against thirteen,
+ * so the two can never be mistaken for one another, and whichever one the app
+ * saves has to match BOTH lists or something breaks.
+ *
+ * So the app saves the number it sent, and this read answers with that same
+ * number rather than Lighter's. Until 4 Oct 2026 it answered with Lighter's,
+ * and that one mismatch cost three things:
+ *
+ * - **A watch could not find its own resting order.** `smart-watch.ts` asks
+ *   whether the order is on the book by the number the placement gave it, got
+ *   no on every pass, and is forbidden to treat a missing resting order as
+ *   gone — correctly, since guessing there buys the same thing twice. So it
+ *   waited for ever: no chase, no finish. Two real sells, HYPE and XRP, sat
+ *   frozen from 03:52 on 4 Oct 2026 with the engine reading them every
+ *   second.
+ * - **Protection legs piled up.** `setBrackets` cancels the legs the read
+ *   gave it, and it was handed numbers that matched nothing the app had saved
+ *   — six take-profit legs stood on one LIT position on 1 Oct 2026, four of
+ *   them copies at $4.3582 selling 410 coins between them, while the window
+ *   listed one.
+ * - **A grid stop was replaced by adding a second one**, the same way.
+ *
+ * **`order_index` is still what a cancel must name**, so every row that
+ * carries both numbers has the pair written down as it goes past, and
+ * `lighterExchangeOrderIndex` turns one into the other at the moment of use.
+ *
+ * An order placed on Lighter's own website carries no number of the app's —
+ * Lighter writes 0 there — so that row keeps `order_index` as its id. Such an
+ * order is shown and can be cancelled; no smart order of this app's is ever
+ * looking for it.
+ */
+function bookOrderId(row: z.infer<typeof orderRowSchema>): string | null {
+  const own = row.client_order_index
+  if (own !== undefined && String(own) !== "" && String(own) !== "0") {
+    return String(own)
+  }
+  if (row.order_index === undefined) return null
+  const index = String(row.order_index)
+  return index === "" ? null : index
+}
+
+/**
+ * Lighter's own `order_index` against the number the app sent, for every order
+ * this process has seen both numbers on.
+ *
+ * **A cancel names `order_index` and nothing else**, while every row the app
+ * saves holds the number it sent — see `bookOrderId`. Something has to turn
+ * one into the other, and every answer that carries both is written down here
+ * as it goes past: the read-back a placement already makes, and every read of
+ * the book. So the cancel of an order this process placed costs no request at
+ * all, and `lighterExchangeOrderIndex` only reads the book when the pair is
+ * not already known.
+ *
+ * Memory only, and losing it costs one read rather than a wrong cancel. Capped
+ * so a long-running engine cannot grow it without end; the oldest pairs go
+ * first, and they are the ones whose orders are least likely to still be
+ * resting.
+ */
+const LIGHTER_ORDER_INDEX_MEMORY = 2_000
+const lighterOrderIndexes = new Map<string, string>()
+
+function rememberLighterOrderIndex(
+  network: NetworkId,
+  accountIndex: number,
+  orderId: string,
+  exchangeOrderId: string
+): void {
+  if (orderId === exchangeOrderId) return
+  const key = `${network}:${accountIndex}:${orderId}`
+  // Re-inserting moves the pair to the back, so a pair still being used is
+  // not the one dropped.
+  lighterOrderIndexes.delete(key)
+  lighterOrderIndexes.set(key, exchangeOrderId)
+  while (lighterOrderIndexes.size > LIGHTER_ORDER_INDEX_MEMORY) {
+    const oldest = lighterOrderIndexes.keys().next().value
+    if (oldest === undefined) break
+    lighterOrderIndexes.delete(oldest)
+  }
+}
+
+/** Tests only: forgets the pairs so one case cannot answer the next. */
+export function forgetLighterOrderIndexes(): void {
+  lighterOrderIndexes.clear()
+}
+
+/**
+ * Lighter's own `order_index` for an order the app knows by its own number.
+ *
+ * Known pairs first, then the book, which is held thirty seconds and dropped
+ * by anything this app sends — so the read happens at most once per cancel and
+ * usually not at all.
+ *
+ * **A read that could not be made is not an answer**, and the difference
+ * matters on real money. An order missing from a book that WAS read is either
+ * already gone or was placed on Lighter's own website, whose rows carry no
+ * number of this app's — sending the number in hand is right for both. A book
+ * that could not be read says nothing, and sending the number in hand there
+ * would sign a cancel that may take nothing off while reporting success. That
+ * is how a stop gets left standing and a replacement added over the top, which
+ * is the fault this whole lookup exists to end. So it refuses instead, and the
+ * caller tries again on its next pass with the order still protected.
+ */
+async function lighterExchangeOrderIndex(
+  network: NetworkId,
+  facts: { accountIndex: number; apiKeyIndex: number },
+  orderId: string
+): Promise<string | null> {
+  const key = `${network}:${facts.accountIndex}:${orderId}`
+  const known = lighterOrderIndexes.get(key)
+  if (known !== undefined) return known
+  // Reading the book writes down every pair it carries, so the answer is found
+  // in the memory above rather than scanned for twice. Order priority: a
+  // cancel is real money waiting.
+  try {
+    await fetchLighterOpenOrders(network, facts, "order")
+  } catch (error) {
+    // An allowance refusal already says so in its own words; only the
+    // unreadable answer needs wording of its own, because "that did not go
+    // through" on a stop is the least useful thing this app can say.
+    const message = error instanceof Error ? error.message : String(error)
+    if (message === "LIVE_UNREADABLE") {
+      throw new Error(
+        "LIVE_EXCHANGE:Lighter's list of resting orders could not be read, so the order to cancel could not be named. Nothing was cancelled. Try it again."
+      )
+    }
+    throw error
+  }
+  return lighterOrderIndexes.get(key) ?? null
 }
 
 /** Lighter's own order rows as this app's. */
 async function toLighterOpenOrders(
   network: NetworkId,
+  accountIndex: number,
   raw: readonly unknown[]
 ) {
   const rows: LighterOpenOrder[] = []
   for (const one of raw) {
     const row = orderRowSchema.safeParse(one)
     if (!row.success) continue
-    const id = row.data.order_index ?? row.data.client_order_index
-    if (id === undefined || row.data.market_index === undefined) continue
+    const id = bookOrderId(row.data)
+    if (id === null || row.data.market_index === undefined) continue
     /**
      * **`price` and `remaining_base_amount` arrive in ordinary units.**
      * Measured on a live account on 1 Sep 2026, from both the REST list and
@@ -918,8 +1114,13 @@ async function toLighterOpenOrders(
     const px = trigger ? triggerPx : num(row.data.price)
     const sz = num(row.data.remaining_base_amount)
     if (px === null || sz === null) continue
+    const exchangeOrderId =
+      row.data.order_index === undefined ? id : String(row.data.order_index)
+    // Both numbers in one row: the pair a later cancel needs, written down as
+    // it goes past. See `rememberLighterOrderIndex`.
+    rememberLighterOrderIndex(network, accountIndex, id, exchangeOrderId)
     rows.push({
-      orderId: String(id),
+      orderId: id,
       // The symbol, not Lighter's number, so this row lines up with the
       // position beside it and with every saved market.
       marketId: market.symbol,
@@ -1136,5 +1337,7 @@ async function placeTriggerOrder(
    * (measured 1 Sep 2026), so the same read-back covers it.
    */
   await confirmLighterOrder(network, where, clientOrderIndex)
+  // The app's own number, the same as an entry's, so the replace that cancels
+  // this leg can find it on the book. See `bookOrderId`.
   return String(clientOrderIndex)
 }

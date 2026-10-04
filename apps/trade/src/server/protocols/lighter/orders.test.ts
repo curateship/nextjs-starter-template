@@ -10,6 +10,7 @@ import {
   modifyLighterOrder,
   placeLighterOrder,
   setLighterBrackets,
+  forgetLighterOrderIndexes,
   setLighterConfirmDelaysForTests,
 } from "@/server/protocols/lighter/orders"
 import {
@@ -128,12 +129,15 @@ beforeEach(async () => {
   // socket is down, so one case would otherwise be answered with the last
   // one's rows. Same reason the nonces are cleared above.
   forgetLighterHeldReads("mainnet", 5)
+  // The pairs of order numbers one case learned must not answer the next.
+  forgetLighterOrderIndexes()
   // The real signer, because what it produces is the thing under test.
   await loadLighterKey({ privateKey: KEY, accountIndex: 5, apiKeyIndex: 2 })
 })
 
 afterEach(() => {
   setLighterConfirmDelaysForTests(null)
+  forgetLighterOrderIndexes()
   clearLighterNonces()
   forgetLighterHeldReads("mainnet", 5)
 })
@@ -165,12 +169,16 @@ describe("the real-money gate on Lighter", () => {
     expect(sent).not.toHaveBeenCalled()
   })
 
-  it("sends no cancel either", async () => {
+  it("sends no cancel either, and spends no request finding it", async () => {
+    // A cancel has to turn the saved number into Lighter's before it signs,
+    // and that lookup can read the exchange. With real money switched off it
+    // must not spend one of Lighter's sixty requests a minute to be refused.
     delete process.env.TRADE_ENABLE_MAINNET
     await expect(
       cancelLighterOrder("mainnet", auth(), { marketId: "BTC", orderId: "9" })
     ).rejects.toThrow("LIVE_MAINNET_OFF")
     expect(sent).not.toHaveBeenCalled()
+    expect(privateRead).not.toHaveBeenCalled()
   })
 })
 
@@ -368,7 +376,98 @@ describe("placing a Lighter order", () => {
 })
 
 describe("cancelling a Lighter order", () => {
+  it("signs Lighter's own number for an order the app knows by its own", async () => {
+    /**
+     * **The pile-up.** A cancel transaction names `order_index` and nothing
+     * else, and the app saves the number it sent. Signing the saved number
+     * straight through named an order Lighter had never issued, so the
+     * cancel was accepted and took nothing off: six take-profit legs stood
+     * on one LIT position on 1 Oct 2026, four of them copies at $4.3582
+     * selling 410 coins between them, while the window listed one.
+     */
+    privateRead.mockResolvedValue({
+      code: 200,
+      orders: [
+        {
+          order_index: 1125898789999244,
+          client_order_index: 1791085938413,
+          market_index: 1,
+          is_ask: true,
+          price: "89.847",
+          remaining_base_amount: "5.58",
+          reduce_only: true,
+          trigger_price: "0.0",
+        },
+      ],
+    })
+    await cancelLighterOrder("mainnet", auth(), {
+      marketId: "BTC",
+      orderId: "1791085938413",
+    })
+    expect(bodySent().Index).toBe(1125898789999244)
+  }, 60_000)
+
+  it("costs no request when the placement already learned the pair", async () => {
+    // Lighter's sixty requests a minute is the tightest cap of the venues, so
+    // a cancel must not spend one looking a number up. The read-back the
+    // placement already makes carries both numbers, and it is written down
+    // there — see `rememberLighterOrderIndex`.
+    confirmAnswers({
+      active: [
+        {
+          client_order_index: 42,
+          order_index: 1125898789999244,
+          status: "open",
+        },
+      ],
+    })
+    const placed = await placeLighterOrder("mainnet", auth(), order())
+    expect(placed.orderId).toBe("42")
+    const readsBefore = privateRead.mock.calls.length
+    sent.mockClear()
+    await cancelLighterOrder("mainnet", auth(), {
+      marketId: "BTC",
+      orderId: placed.orderId!,
+    })
+    expect(privateRead.mock.calls.length).toBe(readsBefore)
+    expect(bodySent().Index).toBe(1125898789999244)
+  }, 60_000)
+
+  it("sends the number it has when the order is not on the book", async () => {
+    // Already filled, already cancelled, or the read could not be made. The
+    // cancel goes out on the only number there is, which is right for an
+    // order placed on Lighter's own website and takes nothing off otherwise.
+    privateRead.mockResolvedValue({ code: 200, orders: [] })
+    await cancelLighterOrder("mainnet", auth(), {
+      marketId: "BTC",
+      orderId: "1791085938413",
+    })
+    expect(bodySent().Index).toBe(1791085938413)
+  }, 60_000)
+
+  it("refuses the cancel when the book cannot be read at all", async () => {
+    /**
+     * **A read that could not be made is not an answer.** An order missing
+     * from a book that WAS read is either gone or was placed on Lighter's own
+     * site, and the number in hand is right for both. A book that could not
+     * be read says nothing, and signing the number in hand there sends a
+     * cancel that may take nothing off while reporting success — which is how
+     * a stop is left standing and a replacement added over the top.
+     */
+    privateRead.mockResolvedValue(undefined)
+    await expect(
+      cancelLighterOrder("mainnet", auth(), {
+        marketId: "BTC",
+        orderId: "1791085938413",
+      })
+    ).rejects.toThrow(/^LIVE_EXCHANGE:Lighter's list of resting orders/)
+    expect(sent).not.toHaveBeenCalled()
+  }, 60_000)
+
   it("sends a cancel naming the market and the order", async () => {
+    // A readable book with nothing on it. The cancel then names the number it
+    // was handed, which is right for an order placed on Lighter's own site.
+    privateRead.mockResolvedValue({ code: 200, orders: [] })
     await cancelLighterOrder("mainnet", auth(), {
       marketId: "BTC",
       orderId: "12345",
@@ -388,6 +487,9 @@ describe("cancelling a Lighter order", () => {
    * next try, done before anything reaches the screen.
    */
   it("sends again with a fresh number when Lighter refuses the sequence number", async () => {
+    // A readable book with nothing on it. The cancel then names the number it
+    // was handed, which is right for an order placed on Lighter's own site.
+    privateRead.mockResolvedValue({ code: 200, orders: [] })
     sent.mockRejectedValueOnce(
       new Error(
         "LIGHTER_NONCE:Lighter refused the transaction's sequence number."
@@ -403,6 +505,7 @@ describe("cancelling a Lighter order", () => {
   }, 60_000)
 
   it("shows a second sequence-number refusal in a row instead of looping", async () => {
+    privateRead.mockResolvedValue({ code: 200, orders: [] })
     sent.mockRejectedValue(
       new Error(
         "LIGHTER_NONCE:Lighter refused the transaction's sequence number."
@@ -417,6 +520,7 @@ describe("cancelling a Lighter order", () => {
   }, 60_000)
 
   it("does not send a refusal about anything else twice", async () => {
+    privateRead.mockResolvedValue({ code: 200, orders: [] })
     sent.mockRejectedValue(
       new Error("LIGHTER_REFUSED:Lighter refused (code 21500).")
     )
@@ -444,6 +548,7 @@ describe("moving a Lighter order", () => {
   })
 
   it("cancels the old one before placing the new one", async () => {
+    confirmAnswers({ active: [{ client_order_index: 42, status: "open" }] })
     // Lighter has an amend transaction and it is deliberately not used: an
     // amend that half-applies leaves an order at a price nobody chose, and
     // there is no way to rehearse that. Cancel-then-place fails safe.
@@ -469,6 +574,7 @@ describe("moving a Lighter order", () => {
   }, 60_000)
 
   it("does not place a replacement when the cancel is refused", async () => {
+    confirmAnswers({ active: [{ client_order_index: 42, status: "open" }] })
     // Placing after a failed cancel is how a wallet ends up holding two
     // orders where it wanted one.
     sent.mockRejectedValueOnce(new Error("EXCHANGE_BUSY"))
@@ -487,6 +593,73 @@ describe("moving a Lighter order", () => {
 })
 
 describe("reading Lighter's resting orders", () => {
+  it("answers with the number the app sent, not Lighter's own", async () => {
+    /**
+     * **The frozen watch.** Lighter answers with two numbers for one order
+     * and uses a different one in each place: its book states `order_index`
+     * and its trade history states the number the app sent. Until
+     * 4 Oct 2026 this read answered with Lighter's, while every saved row
+     * held the app's — so `smart-watch.ts`, asking whether its order was
+     * still on the book, got no on every pass and waited for ever. Two real
+     * sells, HYPE and XRP, sat frozen from 03:52 on 4 Oct with the engine
+     * reading them every second.
+     *
+     * The numbers below are the real shapes: an `order_index` off Tyler's
+     * account on 1 Sep 2026, sixteen digits, against the app's own, which is
+     * the clock in milliseconds, thirteen.
+     */
+    privateRead.mockResolvedValue({
+      code: 200,
+      orders: [
+        {
+          order_index: 1125898789999244,
+          client_order_index: 1791085938413,
+          market_index: 1,
+          is_ask: true,
+          price: "89.847",
+          remaining_base_amount: "5.58",
+          reduce_only: true,
+          trigger_price: "0.0",
+        },
+      ],
+    })
+    const portfolio = await fetchLighterOrderPortfolio(
+      "mainnet",
+      "0x887960F1faffbEC960F22f8F95aa4f311F91ff19",
+      () => KEY
+    )
+    expect(portfolio.orders).toHaveLength(1)
+    expect(portfolio.orders[0].orderId).toBe("1791085938413")
+  }, 60_000)
+
+  it("keeps Lighter's number for an order placed on Lighter's own website", async () => {
+    // Such an order carries no number of the app's — Lighter writes 0 there
+    // — so Lighter's own is the only one it has. It is listed and can be
+    // cancelled; no smart order of this app's is ever looking for it.
+    privateRead.mockResolvedValue({
+      code: 200,
+      orders: [
+        {
+          order_index: 1125898789999219,
+          client_order_index: 0,
+          market_index: 1,
+          is_ask: false,
+          price: "78584.1",
+          remaining_base_amount: "0.0006",
+          reduce_only: false,
+          trigger_price: "0.0",
+        },
+      ],
+    })
+    const portfolio = await fetchLighterOrderPortfolio(
+      "mainnet",
+      "0x887960F1faffbEC960F22f8F95aa4f311F91ff19",
+      () => KEY
+    )
+    expect(portfolio.orders).toHaveLength(1)
+    expect(portfolio.orders[0].orderId).toBe("1125898789999219")
+  }, 60_000)
+
   it("keeps the ordinary-unit price and size Lighter actually answers", async () => {
     /**
      * **The bug this pins.** A row's `price` and `remaining_base_amount`
@@ -695,6 +868,7 @@ describe("stops and targets on a Lighter position", () => {
   }, 60_000)
 
   it("takes the old legs off before putting new ones on", async () => {
+    confirmAnswers({ active: [{ client_order_index: 42, status: "open" }] })
     // A leg left behind sells the position a second time. On 24 Aug 2026 a
     // Hyperliquid position was found holding four.
     await setLighterBrackets("mainnet", auth(), {
@@ -1404,6 +1578,7 @@ describe("fixed-size Lighter grid stops", () => {
   )
 
   it("never places a replacement after the old stop's cancellation is refused", async () => {
+    confirmAnswers({ active: [{ client_order_index: 42, status: "open" }] })
     sent.mockRejectedValueOnce(new Error("LIGHTER_BUDGET:Wait a minute"))
     await expect(
       setLighterBrackets("mainnet", auth(), {
@@ -1431,7 +1606,18 @@ describe("fixed-size Lighter grid stops", () => {
       privateRead.mockImplementation(async (network, _path, weight) => {
         reserveLighterRequest(network, { weight, priority: "order" })
         requests.push(at)
-        return { orders: [{ client_order_index: 42, status: "open" }] }
+        // Both of Lighter's numbers, the way its own answers carry them. The
+        // read-back a placement already makes is where the cancel learns the
+        // pair it needs, so cancelling costs no request of its own.
+        return {
+          orders: [
+            {
+              client_order_index: 42,
+              order_index: 1125898789999244,
+              status: "open",
+            },
+          ],
+        }
       })
       let stopId: string | null = null
       const change = async (coins: number, px: number) => {
