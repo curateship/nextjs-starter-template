@@ -16,6 +16,7 @@ import {
   customShellContacts,
   customShellDeliveries,
 } from "@/server/schema"
+import { clearQuietContact } from "@/server/people/quiet-contacts"
 import { now } from "@/server/auth/security"
 
 // A call whose timestamp is further out than this is refused: replaying an
@@ -104,11 +105,14 @@ function eventTime(event: ResendEvent): Date {
 }
 
 /**
- * Stamps the first verified delivery, open or click on an automation email.
+ * Stamps the first verified delivery, open or click on an automation email, and
+ * puts whoever opened it back on the list if they had gone quiet.
  *
  * The signed secret identifies the workspace, and the join enforces that
  * boundary before the message id is trusted. A replay finds a non-null stamp
- * and changes nothing, which keeps both the row and every count idempotent.
+ * and changes nothing, which keeps both the row and every count idempotent —
+ * and keeps the revival idempotent with it, since it reads the rows the stamp
+ * actually changed.
  */
 async function applyAutomationTrackingEvent(
   workspaceId: string,
@@ -158,8 +162,72 @@ async function applyAutomationTrackingEvent(
         isNull(column)
       )
     )
-    .returning({ id: customShellAutomationDeliveries.id })
-  return changed.length
+    .returning({
+      id: customShellAutomationDeliveries.id,
+      contactId: customShellAutomationDeliveries.contactId,
+    })
+
+  let revived = 0
+  if (event.type === "email.opened" || event.type === "email.clicked") {
+    for (const row of changed) {
+      if (!row.contactId) continue
+      revived += await clearQuietContact(workspaceId, row.contactId, database)
+    }
+  }
+  return changed.length + revived
+}
+
+/**
+ * Stamps the first open or click on a newsletter, and puts whoever did it back
+ * on the list if they had gone quiet.
+ *
+ * Automation mail has recorded both all along; newsletters recorded neither, so
+ * without this a workspace that only sends newsletters could mark people quiet
+ * and never notice any of them coming back. `isNull` makes a replayed event
+ * change nothing.
+ *
+ * A click revives somebody the same as an open does, and is the better evidence
+ * of the two: an open is a hidden image a mail client can block, and a click
+ * cannot happen by accident. It does not clear the quiet status on its own
+ * reckoning though — `clearQuietContact` is what decides that, and it only ever
+ * moves somebody who is actually quiet.
+ *
+ * Returns how many rows changed, deliveries and contacts together, because the
+ * caller only reports whether the event did anything at all.
+ */
+async function applyBroadcastEngagement(
+  workspaceId: string,
+  event: ResendEvent,
+  database: CustomShellDb
+): Promise<number> {
+  const opened = event.type === "email.opened"
+  const clicked = event.type === "email.clicked"
+  if (!opened && !clicked) return 0
+  const emailId = event.data?.email_id?.trim()
+  if (!emailId || emailId.length > 255) return 0
+
+  const timestamp = eventTime(event)
+  const stamped = await database
+    .update(customShellDeliveries)
+    .set(opened ? { openedAt: timestamp } : { clickedAt: timestamp })
+    .where(
+      and(
+        eq(customShellDeliveries.workspaceId, workspaceId),
+        eq(customShellDeliveries.providerMessageId, emailId),
+        isNull(
+          opened
+            ? customShellDeliveries.openedAt
+            : customShellDeliveries.clickedAt
+        )
+      )
+    )
+    .returning({ contactId: customShellDeliveries.contactId })
+
+  let changed = stamped.length
+  for (const row of stamped) {
+    changed += await clearQuietContact(workspaceId, row.contactId, database)
+  }
+  return changed
 }
 
 /**
@@ -167,10 +235,10 @@ async function applyAutomationTrackingEvent(
  * bounced or complaining address's contact comes off the list, with the
  * status saying which of the two happened.
  *
- * Only a 'subscribed' contact changes. Someone who already opted out keeps
- * "unsubscribed" — their own choice outranks what the mail server noticed —
- * and a bounce arriving after a complaint (or the reverse) keeps the first
- * verdict rather than flip-flopping.
+ * Only a contact who is on the list or has gone quiet changes. Someone who
+ * already opted out keeps "unsubscribed" — their own choice outranks what the
+ * mail server noticed — and a bounce arriving after a complaint (or the
+ * reverse) keeps the first verdict rather than flip-flopping.
  *
  * Returns how many contacts changed.
  */
@@ -186,11 +254,9 @@ export async function applyResendEvent(
     return applyInboundEmail(workspaceId, event, database)
   }
 
-  const trackingChanged = await applyAutomationTrackingEvent(
-    workspaceId,
-    event,
-    database
-  )
+  const trackingChanged =
+    (await applyAutomationTrackingEvent(workspaceId, event, database)) +
+    (await applyBroadcastEngagement(workspaceId, event, database))
   const status = event.type ? EVENT_STATUS[event.type] : undefined
   if (!status) return trackingChanged
 
@@ -258,7 +324,10 @@ export async function applyResendEvent(
       .where(
         and(
           eq(customShellContacts.id, contactId),
-          eq(customShellContacts.status, "subscribed")
+          // Quiet counts as on the list here. Somebody cold is still being
+          // mailed, so their address can still bounce, and "bouncing" is the
+          // more useful of the two facts to be left holding.
+          inArray(customShellContacts.status, ["subscribed", "cold"])
         )
       )
       .returning({ id: customShellContacts.id })

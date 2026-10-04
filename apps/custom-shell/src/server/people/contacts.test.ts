@@ -532,3 +532,164 @@ describe("deleting everybody the filter matches", () => {
     ])
   })
 })
+
+/**
+ * The two engagement rules, which are the only filters that read whether
+ * somebody did anything with an email rather than whether one was sent.
+ *
+ * Worth their own tests because both are written as a subquery over two tables
+ * at once, and the way that goes wrong is silent: a bare column name resolving
+ * against the wrong table returns a plausible list rather than an error.
+ */
+describe("filtering by what they did with an email", () => {
+  /**
+   * Dates measured from the real clock, not from this file's fixed `TODAY`.
+   *
+   * These two rules compare against the moment the filter runs, and `TODAY` is
+   * a day in the past, so a fixture built from it is already older than any
+   * "in the last 30 days" window and every such test would pass for the wrong
+   * reason — or, as happened here, fail for one.
+   */
+  function recently(days: number) {
+    return new Date(Date.now() - days * 24 * 60 * 60 * 1000)
+  }
+
+  /** One newsletter to somebody, optionally opened, clicked, or failed. */
+  async function newsletter(
+    contactId: string,
+    at: Date,
+    marks: { opened?: Date; clicked?: Date; failed?: boolean } = {}
+  ) {
+    await db.insert(customShellDeliveries).values({
+      id: `${contactId}-n-${at.getTime()}`,
+      workspaceId: WORKSPACE_ID,
+      broadcastId: null,
+      contactId,
+      toEmail: `${contactId}@example.test`,
+      subject: "A newsletter",
+      status: marks.failed ? "failed" : "sent",
+      openedAt: marks.opened ?? null,
+      clickedAt: marks.clicked ?? null,
+      createdAt: at,
+    })
+  }
+
+  it("counts a click as engagement even with no open recorded", async () => {
+    await insertContact("clicker")
+    await insertContact("silent")
+    await newsletter("clicker", recently(5), { clicked: recently(5) })
+    await newsletter("silent", recently(5))
+
+    expect(
+      await listed([{ type: "engaged", operator: "within", days: 30 }])
+    ).toEqual(["clicker@example.test"])
+  })
+
+  it("counts an open as engagement too", async () => {
+    await insertContact("opener")
+    await newsletter("opener", recently(5), { opened: recently(5) })
+
+    expect(
+      await listed([{ type: "engaged", operator: "within", days: 30 }])
+    ).toEqual(["opener@example.test"])
+  })
+
+  it("an old open does not count as recent engagement", async () => {
+    await insertContact("lapsed")
+    await newsletter("lapsed", recently(200), { opened: recently(200) })
+
+    expect(
+      await listed([{ type: "engaged", operator: "within", days: 30 }])
+    ).toEqual([])
+    expect(
+      await listed([{ type: "engaged", operator: "before", days: 30 }])
+    ).toEqual(["lapsed@example.test"])
+  })
+
+  it("somebody never sent anything counts as never engaged", async () => {
+    await insertContact("newcomer")
+
+    expect(
+      await listed([{ type: "engaged", operator: "never", days: 30 }])
+    ).toEqual(["newcomer@example.test"])
+  })
+
+  it("opened none of the last three, counting only the last three", async () => {
+    await insertContact("faded")
+    // Opened the oldest, then ignored the three most recent.
+    await newsletter("faded", recently(40), { opened: recently(40) })
+    await newsletter("faded", recently(30))
+    await newsletter("faded", recently(20))
+    await newsletter("faded", recently(10))
+
+    expect(
+      await listed([{ type: "opened", operator: "hasnt", emails: 3 }])
+    ).toEqual(["faded@example.test"])
+    // Widen the window to four and the old open is back inside it.
+    expect(
+      await listed([{ type: "opened", operator: "hasnt", emails: 4 }])
+    ).toEqual([])
+    expect(
+      await listed([{ type: "opened", operator: "has", emails: 4 }])
+    ).toEqual(["faded@example.test"])
+  })
+
+  it("a click without an open is still not an open", async () => {
+    await insertContact("clicker")
+    await newsletter("clicker", recently(5), { clicked: recently(5) })
+
+    expect(
+      await listed([{ type: "opened", operator: "hasnt", emails: 1 }])
+    ).toEqual(["clicker@example.test"])
+  })
+
+  it("a send that failed never left, so it is not an ignored email", async () => {
+    await insertContact("unlucky")
+    await newsletter("unlucky", recently(10), { opened: recently(10) })
+    await newsletter("unlucky", recently(5), { failed: true })
+
+    // Their last real send was opened, so one failure afterwards must not read
+    // as a run of being ignored.
+    expect(
+      await listed([{ type: "opened", operator: "hasnt", emails: 1 }])
+    ).toEqual([])
+  })
+
+  it("somebody never sent anything opened none of them", async () => {
+    await insertContact("newcomer")
+
+    expect(
+      await listed([{ type: "opened", operator: "hasnt", emails: 3 }])
+    ).toEqual(["newcomer@example.test"])
+  })
+
+  it("never reaches another workspace's sends", async () => {
+    await insertContact("ada")
+    await db.insert(customShellContacts).values({
+      id: "stranger",
+      workspaceId: OTHER_WORKSPACE_ID,
+      email: "stranger@example.test",
+      status: "subscribed",
+      tags: [],
+      createdAt: recently(1),
+      updatedAt: recently(1),
+    })
+    await db.insert(customShellDeliveries).values({
+      id: "stranger-n-1",
+      workspaceId: OTHER_WORKSPACE_ID,
+      broadcastId: null,
+      contactId: "stranger",
+      toEmail: "stranger@example.test",
+      subject: "Theirs",
+      status: "sent",
+      openedAt: recently(1),
+      createdAt: recently(1),
+    })
+
+    // Ada has opened nothing and the only open in the database is somebody
+    // else's, in another workspace.
+    expect(
+      await listed([{ type: "engaged", operator: "within", days: 30 }])
+    ).toEqual([])
+  })
+})

@@ -346,6 +346,14 @@ describe("counting who matches", () => {
     expect(await countSynced(audienceOf("everyone"))).toBe(1)
   })
 
+  it("still counts somebody who has gone quiet", async () => {
+    await insertContact("quiet", { status: "cold" })
+
+    // Quiet is not an opt-out. They are still written to, which is the only way
+    // they can open something and come back onto the list.
+    expect(await countSynced(audienceOf("everyone"))).toBe(2)
+  })
+
   it("keeps other workspaces' contacts out entirely", async () => {
     const timestamp = now()
     await db.insert(customShellWorkspaces).values({

@@ -6,9 +6,11 @@ import {
   contactFilterSchema,
   type ContactFilterInput,
 } from "@/lib/contacts/contact-filter"
-import type {
-  SegmentKind,
-  SegmentRuleOptions,
+import {
+  CONTACT_SEGMENT_STATUSES,
+  type ContactSegmentStatus,
+  type SegmentKind,
+  type SegmentRuleOptions,
 } from "@/lib/contacts/contact-segments"
 
 import {
@@ -34,12 +36,15 @@ import { currentWorkspaceId } from "@/server/people/workspaces"
 
 import { createErrorMessage } from "../error-message"
 
-/** 'bounced' and 'complained' are set by the Resend webhook, never by hand. */
-export type ContactStatus =
-  | "subscribed"
-  | "unsubscribed"
-  | "bounced"
-  | "complained"
+/**
+ * The five things a contact's status can be.
+ *
+ * An alias rather than a second list. It used to be its own four names written
+ * out here, which is how adding 'cold' left the table, the segment rules and
+ * this page each believing something different about how many statuses exist.
+ * One list, in `contact-segments.ts`, beside the labels and the badge colours.
+ */
+export type ContactStatus = ContactSegmentStatus
 
 export type ContactItem = {
   id: string
@@ -172,6 +177,7 @@ const upsertSchema = z.object({
   firstName: z.string().trim().max(255).nullable().optional(),
   lastName: z.string().trim().max(255).nullable().optional(),
   tags: z.array(z.string().trim().min(1).max(100)).max(25).optional(),
+  status: z.enum(CONTACT_SEGMENT_STATUSES).optional(),
 })
 
 
@@ -276,7 +282,7 @@ const saveContactFn = createServerFn({ method: "POST" })
 const setStatusFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(
-    idsSchema.extend({ status: z.enum(["subscribed", "unsubscribed"]) })
+    idsSchema.extend({ status: z.enum(CONTACT_SEGMENT_STATUSES) })
   )
   .handler(async ({ data, context }): Promise<{ changed: number }> => {
     const workspaceId = await currentWorkspaceId(context.user.id)
@@ -335,7 +341,7 @@ export function saveContact(input: z.input<typeof upsertSchema>) {
 
 export function setContactsStatus(
   contactIds: string[],
-  status: "subscribed" | "unsubscribed"
+  status: ContactSegmentStatus
 ) {
   return setStatusFn({ data: { contactIds, status } })
 }

@@ -5,6 +5,7 @@ import {
   eq,
   exists,
   gt,
+  inArray,
   isNotNull,
   isNull,
   notInArray,
@@ -139,9 +140,13 @@ function audienceCondition(
     eq(customShellContacts.workspaceId, workspaceId),
     // Nobody who unsubscribed is ever in an audience, whatever the choice
     // says — that is the promise the unsubscribe link makes. Bounced and
-    // complained addresses are out for the same reason: not "subscribed" is
-    // not somebody to act on.
-    eq(customShellContacts.status, "subscribed"),
+    // complained addresses are out for the same reason.
+    //
+    // Somebody cold stays in. They never asked to stop and their address
+    // works; they just have not opened anything lately, and the only way back
+    // on the list is opening something they were sent. A flow that does not
+    // want them says so with a status rule.
+    inArray(customShellContacts.status, ["subscribed", "cold"]),
     // A contact with no account has no account to be suspended, so the
     // account-status rule only applies where there is one.
     or(

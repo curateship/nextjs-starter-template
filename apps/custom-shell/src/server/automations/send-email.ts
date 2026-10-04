@@ -1,4 +1,4 @@
-import { and, eq, isNull, or, sql } from "drizzle-orm"
+import { and, eq, inArray, isNull, or, sql } from "drizzle-orm"
 
 import { automationCompiledConfigSchema } from "@/lib/automations/compile"
 import { readSendEmailSettings } from "@/lib/automations/nodes/send-email"
@@ -13,6 +13,7 @@ import {
   type AutomationAudienceContact,
 } from "@/server/automations/audience"
 import { syncContactsFromUsers } from "@/server/people/contacts"
+import { markQuietContacts } from "@/server/people/quiet-contacts"
 import { userBelongsToWorkspaceCondition } from "@/server/people/workspace-users"
 import { workspaceForRun } from "@/server/automations/runs"
 import type { CustomShellDb } from "@/server/db"
@@ -138,7 +139,10 @@ async function subjectRecipient(
         run.subjectContactId
           ? eq(customShellContacts.id, run.subjectContactId)
           : eq(customShellContacts.userId, run.subjectUserId!),
-        eq(customShellContacts.status, "subscribed"),
+        // Cold counts as reachable here for the same reason it does in
+        // `audience.ts`: they never opted out, and a message is how they stop
+        // being cold.
+        inArray(customShellContacts.status, ["subscribed", "cold"]),
         or(
           isNull(customShellContacts.userId),
           eq(customShellUsers.status, "active")
@@ -381,6 +385,18 @@ export async function executeSendEmailNode({
   let sender: Awaited<ReturnType<typeof emailProvider>> | null = null
   let logoProtection: Promise<number> | null = null
 
+  /**
+   * Everybody sent to since the last check, so going quiet is worked out once
+   * per page instead of once per message. Emptied each time, so an audience of
+   * 25,000 never holds 25,000 ids at once.
+   */
+  const sentTo: string[] = []
+  const reconsiderQuiet = async () => {
+    if (sentTo.length === 0) return
+    const ids = sentTo.splice(0, sentTo.length)
+    await markQuietContacts(workspaceId, ids, database)
+  }
+
   const processRecipient = async (recipient: Recipient) => {
     if (recipient.userId && !recipient.emailVerifiedAt) {
       skipped += 1
@@ -414,6 +430,7 @@ export async function executeSendEmailNode({
       database,
       timestamp: now(),
     })
+    sentTo.push(recipient.id)
   }
 
   if (audience) {
@@ -426,6 +443,7 @@ export async function executeSendEmailNode({
         database
       )
       for (const recipient of page) await processRecipient(recipient)
+      await reconsiderQuiet()
       const last = page.at(-1)
       if (!last || page.length < SEND_BATCH_SIZE) break
       after = { createdAt: last.createdAt, id: last.id }
@@ -434,6 +452,7 @@ export async function executeSendEmailNode({
     const recipient = await subjectRecipient(run, workspaceId, database)
     if (recipient) {
       await processRecipient(recipient)
+      await reconsiderQuiet()
     } else {
       emptyReason =
         run.subjectContactId || run.subjectUserId

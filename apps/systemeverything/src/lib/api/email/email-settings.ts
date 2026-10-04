@@ -3,6 +3,10 @@ import { z } from "zod"
 
 import { dripConfigSchema, type DripConfig } from "@/lib/broadcasts/drip"
 import {
+  QUIET_AFTER_EMAILS_MAX,
+  QUIET_AFTER_EMAILS_MIN,
+} from "@/lib/contacts/gone-quiet"
+import {
   authLinkExpirySchema,
   type AuthLinkExpiry,
 } from "@/lib/email/auth-token-expiry"
@@ -16,6 +20,7 @@ import {
   saveCrmReplySignature,
   saveDripDefaults,
   saveEmailSender,
+  saveQuietAfterEmails,
   saveInboundAddress,
   saveSystemEmailSender,
   setEmailApiKey,
@@ -164,6 +169,28 @@ const saveCrmQuoteRepliesFn = createServerFn({ method: "POST" })
 
 export function saveCrmQuoteRepliesSetting(crmQuoteReplies: boolean) {
   return saveCrmQuoteRepliesFn({ data: { crmQuoteReplies } })
+}
+
+/** How many unopened sends in a row mark somebody as gone quiet. */
+const saveQuietAfterEmailsFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(
+    z.object({
+      quietAfterEmails: z
+        .number()
+        .int()
+        .min(QUIET_AFTER_EMAILS_MIN)
+        .max(QUIET_AFTER_EMAILS_MAX),
+    })
+  )
+  .handler(async ({ data, context }): Promise<EmailSettingsStatus> => {
+    const workspaceId = await currentWorkspaceId(context.user.id)
+    await saveQuietAfterEmails(workspaceId, data.quietAfterEmails)
+    return getEmailSettingsStatus(workspaceId)
+  })
+
+export function saveQuietAfterEmailsSetting(quietAfterEmails: number) {
+  return saveQuietAfterEmailsFn({ data: { quietAfterEmails } })
 }
 
 const saveSystemEmailSenderFn = createServerFn({ method: "POST" })

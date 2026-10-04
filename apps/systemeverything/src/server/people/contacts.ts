@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm"
 
+import type { ContactSegmentStatus } from "@/lib/contacts/contact-segments"
 import type { ContactSortColumn } from "@/lib/contacts/contact-sort"
 import {
   contactFilterConditions,
@@ -343,6 +344,12 @@ export async function upsertWorkspaceContact(
     lastName?: string | null
     tags?: string[]
     source?: string | null
+    /**
+     * Only ever sent by the Add and Edit window, where somebody picked it.
+     * Left out means "do not touch it" on an existing contact and "on the
+     * list" on a new one, so every other caller keeps behaving as before.
+     */
+    status?: ContactSegmentStatus
   },
   database: CustomShellDb = db
 ): Promise<CustomShellContact> {
@@ -368,6 +375,16 @@ export async function upsertWorkspaceContact(
         firstName: input.firstName ?? existing.firstName,
         lastName: input.lastName ?? existing.lastName,
         tags: input.tags ? cleanTags(input.tags) : existing.tags,
+        status: input.status ?? existing.status,
+        // The date is the opt-out's own, so it is set when the new status is
+        // "opted out" and cleared when it is anything else. Leaving a stale
+        // date on somebody who was put back makes the contact window say they
+        // opted out on a day they did not.
+        unsubscribedAt: input.status
+          ? input.status === "unsubscribed"
+            ? (existing.unsubscribedAt ?? timestamp)
+            : null
+          : existing.unsubscribedAt,
         updatedAt: timestamp,
       })
       .where(eq(customShellContacts.id, existing.id))
@@ -386,7 +403,8 @@ export async function upsertWorkspaceContact(
       lastName: input.lastName ?? null,
       tags: cleanTags(input.tags ?? []),
       source: input.source ?? null,
-      status: "subscribed",
+      status: input.status ?? "subscribed",
+      unsubscribedAt: input.status === "unsubscribed" ? timestamp : null,
       createdAt: timestamp,
       updatedAt: timestamp,
     })
@@ -396,10 +414,19 @@ export async function upsertWorkspaceContact(
   return created
 }
 
+/**
+ * Sets the status of one or more contacts by hand.
+ *
+ * All five are allowed, including the two Resend reports. Hiding a bounce
+ * behind a read-only field does not make the address work, and an admin who
+ * knows a bounce was a full mailbox on one bad afternoon needs a way to say so.
+ * What it does not do is pretend: the next bounce writes the status straight
+ * back.
+ */
 export async function setContactStatus(
   workspaceId: string,
   contactIds: string[],
-  status: "subscribed" | "unsubscribed",
+  status: ContactSegmentStatus,
   database: CustomShellDb = db
 ) {
   if (contactIds.length === 0) return 0

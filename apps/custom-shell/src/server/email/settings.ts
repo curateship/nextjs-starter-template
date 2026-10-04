@@ -10,6 +10,7 @@ import {
   parseAuthLinkExpiry,
   type AuthLinkExpiry,
 } from "@/lib/email/auth-token-expiry"
+import { normalizeQuietAfterEmails } from "@/lib/contacts/gone-quiet"
 import { db, type CustomShellDb } from "@/server/db"
 import { decryptSecret, encryptSecret } from "@/server/auth/encryption"
 import { customShellEmailSettings } from "@/server/schema"
@@ -55,6 +56,7 @@ async function upsertEmailSettings(
     crmReplyName: string | null
     crmReplySignature: string | null
     crmQuoteReplies: boolean
+    quietAfterEmails: number
   }>,
   database: CustomShellDb = db
 ) {
@@ -216,6 +218,27 @@ export async function saveDripDefaults(
   const invalid = validateDripConfig(config)
   if (invalid) throw new Error("DRIP_SETTINGS_INVALID")
   return upsertEmailSettings(workspaceId, { dripDefaults: config }, database)
+}
+
+export async function saveQuietAfterEmails(
+  workspaceId: string,
+  emails: number,
+  database: CustomShellDb = db
+) {
+  return upsertEmailSettings(
+    workspaceId,
+    { quietAfterEmails: normalizeQuietAfterEmails(emails) },
+    database
+  )
+}
+
+/** This workspace's run of unopened sends, or the built-in seven. */
+export async function getQuietAfterEmails(
+  workspaceId: string,
+  database: CustomShellDb = db
+): Promise<number> {
+  const row = await getEmailSettings(workspaceId, database)
+  return normalizeQuietAfterEmails(row?.quietAfterEmails)
 }
 
 /** What a new newsletter in this workspace is paced at. Off when never set. */
@@ -389,6 +412,8 @@ export type EmailSettingsStatus = {
   crmReplySignature: string
   /** Whether a reply carries the message it answers underneath it. */
   crmQuoteReplies: boolean
+  /** How many unopened sends in a row mark somebody as gone quiet. */
+  quietAfterEmails: number
 }
 
 export async function getEmailSettingsStatus(
@@ -443,6 +468,7 @@ export async function getEmailSettingsStatus(
     crmReplyName: row?.crmReplyName ?? "",
     crmReplySignature: row?.crmReplySignature ?? "",
     crmQuoteReplies: row?.crmQuoteReplies ?? true,
+    quietAfterEmails: normalizeQuietAfterEmails(row?.quietAfterEmails),
   }
 }
 

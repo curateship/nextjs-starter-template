@@ -1858,8 +1858,11 @@ export const customShellContacts = pgTable(
   (table) => [
     check(
       "contacts_status_check",
-      // 'bounced' and 'complained' arrive by Resend webhook, never by hand.
-      sql`${table.status} in ('subscribed', 'unsubscribed', 'bounced', 'complained')`
+      // 'bounced' and 'complained' arrive by Resend webhook. 'cold' is written
+      // by `markQuietContacts` after a run of unopened sends, and cleared by
+      // the webhook the moment one is opened. All five can also be set by hand
+      // from the contact's own window.
+      sql`${table.status} in ('subscribed', 'unsubscribed', 'bounced', 'complained', 'cold')`
     ),
     uniqueIndex("ux_contacts_workspace_email").on(
       table.workspaceId,
@@ -1927,6 +1930,18 @@ export const customShellAutomationDeliveries = pgTable(
     index("ix_automation_deliveries_provider_message").on(
       table.providerMessageId
     ),
+    /**
+     * "Who opened or clicked an automation email", which is half of what
+     * "when they last opened or clicked" asks.
+     *
+     * Partial on purpose: the rows worth looking at are the small share that
+     * were opened or clicked, so a full index over every send ever made would
+     * be mostly nulls. The matching one on `deliveries` answers the other half.
+     * Added in `0090_custom_shell_automation_engagement_index.sql`.
+     */
+    index("ix_automation_deliveries_engaged")
+      .on(table.contactId)
+      .where(sql`${table.openedAt} is not null or ${table.clickedAt} is not null`),
     uniqueIndex("ux_automation_deliveries_run_node_contact")
       .on(table.runId, table.nodeId, table.contactId)
       .where(sql`${table.contactId} is not null`),
@@ -2203,6 +2218,32 @@ export const customShellDeliveries = pgTable(
      * arrives. Two separate facts, two separate columns.
      */
     bouncedAt: timestamp("bounced_at", { withTimezone: true }),
+    /**
+     * The first open Resend reported for this message, or null for one nobody
+     * has opened.
+     *
+     * An estimate, not proof of reading: it is a hidden image, so a mail client
+     * that blocks pictures leaves this null on a message somebody read. That is
+     * why nothing here calls an unopened message ignored, and why the only
+     * thing reading the column is `markQuietContacts`, which needs a *run* of
+     * them before it says anything.
+     *
+     * Added in `0088_custom_shell_contact_cold_status.sql`. Automation mail
+     * records the same fact in its own table, which has had the column all
+     * along.
+     */
+    openedAt: timestamp("opened_at", { withTimezone: true }),
+    /**
+     * The first link click Resend reported, or null for a message nobody
+     * clicked.
+     *
+     * Worth recording beside the open because it is the stronger of the two
+     * signals and the one that survives a mail client blocking pictures:
+     * somebody who clicked read the message, whatever the open says. "When
+     * they last opened or clicked" reads both. Added in
+     * `0089_custom_shell_delivery_clicks.sql`.
+     */
+    clickedAt: timestamp("clicked_at", { withTimezone: true }),
     error: text("error"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   },
@@ -2435,6 +2476,16 @@ export const customShellEmailSettings = pgTable("email_settings", {
    * later leaves newsletters that already exist alone.
    */
   dripDefaults: jsonb("drip_defaults"),
+  /**
+   * How many sends in a row with nothing opened before somebody is marked
+   * 'cold' — see `markQuietContacts`.
+   *
+   * `not null default 7` rather than nullable, so a workspace that predates the
+   * setting behaves the same as a new one. Seven is what systemeverything.com
+   * had been running on. Added in
+   * `0088_custom_shell_contact_cold_status.sql`.
+   */
+  quietAfterEmails: integer("quiet_after_emails").notNull().default(7),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 })
