@@ -20,6 +20,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { Conversation, ConversationMessage } from "@/lib/api/crm/inbox"
 import type { CrmThreadStatus } from "@/lib/crm/crm"
+import type { ReplyDraftUpdate } from "@/lib/crm/reply-drafts"
 import { initialsFor } from "@/lib/crm/inbox-time"
 import { htmlToText, splitQuotedText } from "@/lib/crm/message-text"
 import { formatClockTime, formatDate } from "@/lib/format/format-time"
@@ -46,6 +47,8 @@ export function ConversationPanel({
   loading,
   canSend,
   replyFrom,
+  replyDraft,
+  onReplyDraftChange,
   onStatusChange,
   onMarkUnread,
   onFetchBody,
@@ -62,6 +65,9 @@ export function ConversationPanel({
    * null when there is no address for mail to arrive at.
    */
   replyFrom: string | null
+  /** What is half typed in the reply box for this conversation. */
+  replyDraft: string
+  onReplyDraftChange: (threadId: string, update: ReplyDraftUpdate) => void
   onStatusChange: (status: CrmThreadStatus, snoozedUntil?: string | null) => void
   onMarkUnread: () => void
   onFetchBody: (messageId: string) => Promise<void>
@@ -240,7 +246,9 @@ export function ConversationPanel({
 
       <ReplyComposer
         threadId={conversation.id}
+        body={replyDraft}
         canSend={canSend}
+        onBodyChange={onReplyDraftChange}
         replyFrom={replyFrom}
         onSent={onSent}
         onDraft={onDraft}
