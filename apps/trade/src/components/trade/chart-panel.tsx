@@ -18,6 +18,7 @@ import {
   ChartTakeProfit,
   type ChartTakeProfitState,
 } from "@/components/trade/chart-take-profit"
+import { ClosePositionDialog } from "@/components/trade/close-position-dialog"
 import { IndicatorLayer } from "@/components/trade/indicator-layer"
 import { MeasureLayer } from "@/components/trade/measure-layer"
 import { OrderEditWindow } from "@/components/trade/order-edit-window"
@@ -743,7 +744,10 @@ export function ChartPanel({
     chartOpenedAtRef.current = Date.now()
   }, [selectedKey])
   // The position whose × on the Entry line was pressed. Closing costs real
-  // money, so it asks first — the same question the Positions table asks.
+  // money, so it opens the same window the Positions table opens: how much to
+  // sell, and whether it goes at market or rests as a limit that follows the
+  // price. The × used to raise a yes-or-no question that always sold all of
+  // it at market (Tyler, 3 Oct 2026).
   const [closingPosition, setClosingPosition] =
     React.useState<TradePosition | null>(null)
   const [arrowMenu, setArrowMenu] = React.useState<
@@ -2732,24 +2736,29 @@ export function ChartPanel({
           }}
         />
       ) : null}
-      <ConfirmDialog
-        open={closingPosition !== null}
-        onOpenChange={(open) => {
-          if (!open) setClosingPosition(null)
-        }}
-        title="Close this position?"
-        description={
+      {/* The × is only drawn on a position whose coin the chart is showing,
+          so today's price is this chart's own: the live tick first, then the
+          catalogue's price, then what it was bought at — the same chain the
+          Positions table walks, because the window turns that price into the
+          dollars it offers to sell. */}
+      <ClosePositionDialog
+        position={closingPosition}
+        mark={
           closingPosition
-            ? `${parseMarketKey(closingPosition.marketKey)?.marketId ?? "This position"} is closed at whatever the market pays right now, and whatever it has made or lost is settled. Its stop and target go with it.`
-            : ""
+            ? (liveMarkOf(closingPosition.marketKey) ??
+              (market?.key === closingPosition.marketKey
+                ? market.price
+                : null) ??
+              closingPosition.entryPx)
+            : 0
         }
-        confirmLabel="Close it"
-        onConfirm={() => {
-          if (closingPosition) {
-            void trading.close(closingPosition)
-          }
-          setClosingPosition(null)
-        }}
+        walletName={
+          closingPosition ? walletNameOf(closingPosition.walletId) : ""
+        }
+        busy={trading.busy}
+        onCloseAll={(position) => void trading.close(position)}
+        onClosePart={(position, ask) => void trading.closePart(position, ask)}
+        onDismiss={() => setClosingPosition(null)}
       />
       <ConfirmDialog
         open={cancelGridFor !== null}

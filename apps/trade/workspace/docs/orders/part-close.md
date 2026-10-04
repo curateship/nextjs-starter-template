@@ -4,6 +4,15 @@ The X on a position row opens a window asking how much comes off and how it
 sells. It starts on all of it at market, which is what the button did before,
 so nothing has to be filled in to get the old behaviour.
 
+**The X on the chart's Entry pill opens the same window.** It used to ask a
+plain yes-or-no question that always sold the whole position at market, so the
+amount and the market-or-limit choice were reachable from the Positions table
+and nowhere else. Tyler asked for the window on the chart on 3 Oct 2026. One
+window means the chart and the table can never disagree about what a close
+does. "Close all" there means all of this position, not every position you
+hold; the toolbar's own Close all button is still the only way to sell
+everything.
+
 ## Market or limit, for any amount
 
 Tyler asked for the choice on 24 Sep 2026: "When closing trade. GIve me an

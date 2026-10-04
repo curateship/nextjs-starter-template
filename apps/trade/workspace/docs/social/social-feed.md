@@ -28,6 +28,18 @@ order.
   folder's name, or a handle — because a figure that does not name its folder
   cannot be trusted.
 
+## Reading the feed again
+
+The feed is read once when the screen opens, so posts added after that are not
+there until it is asked again. The refresh icon at the right of the Feed
+header asks the server for the view on screen now, keeping whichever folder,
+creator or coin is picked. Tyler asked for it on 3 Oct 2026, because syncing a
+creator on their own dashboard left the feed in another tab a few posts
+behind. It spins while the ask is in flight and will not start a second one.
+
+It does not read X. Only a creator's own dashboard does that, through Sync
+profile, and `social-dashboard.md` covers it.
+
 ## Narrowing the feed
 
 Three narrowings, and the chips in the feed's header name whichever are in

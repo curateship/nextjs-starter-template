@@ -1,8 +1,14 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
-import { Loader2Icon, NewspaperIcon, XIcon } from "lucide-react"
+import {
+  Loader2Icon,
+  NewspaperIcon,
+  RefreshCwIcon,
+  XIcon,
+} from "lucide-react"
 
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
+import { PanelHeaderButton } from "@/components/social/panel-header-button"
 import {
   CoinChip,
   COINS_ON_A_ROW,
@@ -48,6 +54,8 @@ export function SocialFeedPanel({
   more,
   busy,
   onLoadOlder,
+  onRefresh,
+  refreshing,
 }: {
   posts: SocialFeedPostRow[]
   /** How many posts the scope holds in all, before a coin narrowed it. */
@@ -58,6 +66,10 @@ export function SocialFeedPanel({
   more: boolean
   busy: boolean
   onLoadOlder: () => void
+  /** Ask the server for this same view again, newest posts included. */
+  onRefresh: () => void
+  /** That ask is in flight. */
+  refreshing: boolean
 }) {
   // The post whose window is open, held here rather than per row: one window
   // on screen, and a row that scrolls out from under it does not shut it.
@@ -74,23 +86,31 @@ export function SocialFeedPanel({
             : `${held} ${plural(held, "post", "posts")}`
         }
         action={
-          chips.length > 0 ? (
-            <div className="flex items-center gap-2">
-              {chips.map((chip) => (
-                <Button
-                  key={chip.key}
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  aria-label={chip.clearLabel}
-                  onClick={chip.onClear}
-                >
-                  <XIcon className="size-4" />
-                  <span className="max-w-32 truncate">{chip.label}</span>
-                </Button>
-              ))}
-            </div>
-          ) : undefined
+          <div className="flex items-center gap-2">
+            {chips.map((chip) => (
+              <Button
+                key={chip.key}
+                type="button"
+                variant="outline"
+                size="sm"
+                aria-label={chip.clearLabel}
+                onClick={chip.onClear}
+              >
+                <XIcon className="size-4" />
+                <span className="max-w-32 truncate">{chip.label}</span>
+              </Button>
+            ))}
+            {/* The feed is read once when the screen opens. Syncing a
+                creator's profile on their own dashboard, or another tab
+                adding posts, leaves this list behind until it is asked
+                again, so the button asks for the view on screen now. */}
+            <PanelHeaderButton
+              label="Refresh the feed"
+              icon={<RefreshCwIcon />}
+              busy={refreshing}
+              onClick={onRefresh}
+            />
+          </div>
         }
       />
       <ScrollArea className="min-h-0 flex-1">

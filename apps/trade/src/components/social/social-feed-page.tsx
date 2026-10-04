@@ -174,6 +174,7 @@ export function SocialFeedPage({
   const { scope } = shown
 
   const [viewBusy, setViewBusy] = React.useState(false)
+  const [refreshing, setRefreshing] = React.useState(false)
   const [olderBusy, setOlderBusy] = React.useState(false)
   const [folderBusy, setFolderBusy] = React.useState(false)
   const [adding, setAdding] = React.useState(false)
@@ -213,6 +214,21 @@ export function SocialFeedPage({
     (coin: string | null) => void pickScope({ ...scope, coin }),
     [pickScope, scope]
   )
+
+  /**
+   * Read the scope already on screen again, so posts added since the screen
+   * opened appear. It keeps its own flag rather than reusing `viewBusy`, or
+   * the icon would spin every time a folder or a coin is picked.
+   */
+  const refresh = React.useCallback(async () => {
+    if (refreshing) return
+    setRefreshing(true)
+    try {
+      await pickScope(scope)
+    } finally {
+      setRefreshing(false)
+    }
+  }, [pickScope, refreshing, scope])
 
   const loadOlder = React.useCallback(async () => {
     const oldest = shown.posts[shown.posts.length - 1]
@@ -429,6 +445,8 @@ export function SocialFeedPage({
       more={shown.more}
       busy={olderBusy || viewBusy}
       onLoadOlder={() => void loadOlder()}
+      onRefresh={() => void refresh()}
+      refreshing={refreshing}
     />
   )
   const coinsPanel = (

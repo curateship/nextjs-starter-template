@@ -655,6 +655,64 @@ not mistaken for "never there"):
 It costs one or two requests at order priority, spent from the fifth of the
 minute the background reads are kept out of.
 
+## Lighter gives one order two numbers, and uses a different one in each place
+
+Hyperliquid, Aster, Phemex and KuCoin each answer a placement with the one
+number their own book and their own history both use. Lighter does not, and
+until 4 October 2026 that cost three separate faults.
+
+- **Lighter's book states its own number.** The resting-orders list answers
+  with `order_index`, a number Lighter assigns. A real one off Tyler's account
+  on 1 September 2026 was 1,125,898,789,999,244.
+- **Lighter's trade history states the number Trade sent.** A fill comes back
+  with `ask_client_id_str` or `bid_client_id_str`, which is the number this app
+  put on the order: the clock in milliseconds, 1,791,085,938,413. Lighter
+  writes 0 there for an order placed on its own website.
+
+Sixteen digits against thirteen, so the two can never be mistaken for each
+other. Only one of them can be the number Trade saves against a watch, a grid
+rung or a protection leg, and it has to be the one both of those lists can be
+matched on.
+
+**Trade saves the number it sent.** That is the only choice that works: the
+trade history states nothing else, so saving Lighter's number would leave every
+Lighter fill unable to find the order that made it, and the Journal would stop
+naming which rung sold.
+
+So the resting-orders read answers with the number Trade sent too, taken from
+each row's `client_order_index`. A row with no number of Trade's keeps
+Lighter's, which is how an order placed on Lighter's own website is still
+listed and can still be cancelled.
+
+### What it cost while the read answered with Lighter's number instead
+
+- **A watch could not find its own resting order.** `smart-watch.ts` asks
+  whether the order is still on the book, by the number the placement handed
+  back, and got no on every pass. It is forbidden to treat a missing resting
+  order as gone, and rightly: guessing there is how one KuCoin watch placed six
+  orders in eighteen seconds on 20 August 2026. So it waited instead, for ever.
+  No chase, no finish, nothing written. Two real sells, HYPE at 03:52:22 and
+  XRP at 03:52:38 on 4 October 2026, sat frozen with the engine reading them
+  every second and the Journal saying "Resting on the exchange", which was
+  true. Both orders were on Lighter the whole time.
+- **A cancel took nothing off.** A cancel transaction names `order_index` and
+  nothing else, and it was handed whatever number was saved. An order Trade
+  had placed itself was therefore cancelled by a number Lighter had never
+  issued: the transaction was accepted and removed nothing. That is the call at
+  00:18:23 on 1 October 2026 in the section below, the one that "removed every
+  exit and cancelled nothing".
+- **A grid stop was replaced by adding a second one**, for the same reason. The
+  replace cancels before it places, the cancel did nothing, and the position
+  ended up guarded twice.
+
+**The cancel turns one number into the other before it signs.** Every answer
+that carries both numbers is written down as it goes past, which includes the
+read-back a placement already makes, so cancelling an order this process placed
+costs no request at all. Only a pair this process has never seen, after a
+restart or for an order placed elsewhere, makes the cancel read the book, and
+that read is held thirty seconds like every other. Measured against the
+ten-rung hour below: still 101 requests, unchanged.
+
 ## The three kinds of order, and the one that must rest
 
 Lighter carries the kind in the order's time in force, and Trade picks it from
@@ -741,12 +799,19 @@ Five replaces over nine hours built the pile:
 - 00:18:21, :22 and :29 placed four more between them. All four still there,
   including the call at 00:18:23 that removed every exit and cancelled nothing.
 
-**Cancelling itself works.** Lighter's own inactive-order list gives the
-$4.1791 leg the status `canceled`, updated at the second of the 00:18:21
-replace, and that cancel was signed with the `order_index` the read hands back.
-So the fault is in what the read sees, not in the number the cancel carries.
+**Cancelling by the number the read hands back works.** Lighter's own
+inactive-order list gives the $4.1791 leg the status `canceled`, updated at the
+second of the 00:18:21 replace, and that cancel was signed with the
+`order_index` that read gave it.
 
-**The socket was the fault, and it is no longer asked.** Subscribing to
+**Cancelling by the number a placement handed back did not, and that is the
+second cause.** A leg Trade had just placed was saved under Trade's own number,
+and a cancel naming that number removes nothing — see "Lighter gives one order
+two numbers" above. It explains the call at 00:18:23 that removed every exit
+and cancelled nothing. Both faults are fixed: the socket channel went on
+1 October 2026 and the numbers were straightened out on 4 October 2026.
+
+**The socket was the first fault, and it is no longer asked.** Subscribing to
 `account_all_orders` on the real account on 1 Oct 2026, with six orders resting
 at that moment, answered:
 

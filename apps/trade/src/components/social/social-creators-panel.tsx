@@ -9,6 +9,7 @@ import {
 } from "lucide-react"
 
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
+import { PanelHeaderButton } from "@/components/social/panel-header-button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -20,11 +21,6 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
 import { focusRing } from "@/lib/layout/focus-ring"
 import type {
   SocialFeedCreator,
@@ -291,36 +287,6 @@ export function SocialCreatorsPanel({
         )}
       </ScrollArea>
     </>
-  )
-}
-
-function PanelHeaderButton({
-  label,
-  icon,
-  pressed,
-  onClick,
-}: {
-  label: string
-  icon: React.ReactNode
-  pressed?: boolean
-  onClick: () => void
-}) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          type="button"
-          variant="outline"
-          size="icon-sm"
-          aria-label={label}
-          aria-pressed={pressed}
-          onClick={onClick}
-        >
-          {icon}
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
-    </Tooltip>
   )
 }
 
