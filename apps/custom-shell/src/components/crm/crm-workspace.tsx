@@ -1,4 +1,5 @@
 import * as React from "react"
+import { toast } from "sonner"
 import type { PanelImperativeHandle } from "react-resizable-panels"
 
 import { ConversationPanel } from "@/components/crm/conversation-panel"
@@ -18,13 +19,16 @@ import {
   loadConversation,
   loadInbox,
   markConversationRead,
+  markConversationsRead,
   markConversationUnread,
   setConversationStatus,
+  setConversationsStatus,
   type Conversation,
   type InboxPage,
+  type ManyThreadsResult,
 } from "@/lib/api/crm/inbox"
 import { loadLead, type LeadBundle } from "@/lib/api/crm/leads"
-import type { CrmThreadStatus } from "@/lib/crm/crm"
+import { CRM_MAX_THREADS_PER_PRESS, type CrmThreadStatus } from "@/lib/crm/crm"
 import {
   applyReplyDraft,
   noReplyDrafts,
@@ -32,6 +36,9 @@ import {
   type ReplyDraftUpdate,
   type ReplyDrafts,
 } from "@/lib/crm/reply-drafts"
+import { describeBulkResult } from "@/lib/format/bulk-result"
+import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
+import { useSelection } from "@/lib/hooks/use-selection"
 import {
   useBlankSpaceDoubleClick,
   usePanelToggle,
@@ -81,6 +88,26 @@ export function CrmWorkspace({
   const inboxDoubleClick = useBlankSpaceDoubleClick(toggleInbox)
   const leadDoubleClick = useBlankSpaceDoubleClick(toggleLead)
 
+  // The ticked rows. They live here rather than in the panel, for the same
+  // reason the open conversation does: this component survives every redraw
+  // the panel below it does not.
+  const ticks = useSelection()
+  const [tickedBusy, setTickedBusy] = React.useState(false)
+
+  // Changing a filter, the search or the unread tab clears the ticks, because
+  // the rows they pointed at are no longer the rows on screen. Same hook as
+  // every dashboard table.
+  useClearSelectionOnListChange(
+    ticks.setSelected,
+    [
+      filters.search,
+      filters.status,
+      filters.stage,
+      filters.unreadOnly,
+      filters.followUpDue,
+    ].join("|")
+  )
+
   // The first page comes from the route's loader; Load more appends to it. A
   // fresh loader result replaces the lot, checked during the render so the new
   // page is in the first paint rather than the second.
@@ -90,6 +117,19 @@ export function CrmWorkspace({
   if (lastLoaded !== page.threads) {
     setLastLoaded(page.threads)
     setThreads(page.threads)
+    // A tick must never outlive the row it pointed at. The filters clearing
+    // the ticks covers a filter change, but a fresh loader result also arrives
+    // after a conversation is opened or a press is made, and it comes back as
+    // the first page only. Without this, a tick made on row 45 of a
+    // loaded-more list survives into a list that stops at 30, and the bar
+    // then counts a row nobody can see.
+    const stillHere = new Set(page.threads.map((thread) => thread.id))
+    ticks.setSelected((current) => {
+      const kept = new Set(
+        [...current].filter((threadId) => stillHere.has(threadId))
+      )
+      return kept.size === current.size ? current : kept
+    })
   }
 
   // The half-written replies, one per conversation. They live here because
@@ -220,6 +260,53 @@ export function CrmWorkspace({
     }
   }
 
+  /**
+   * One ticked-rows press: one request, one honest sentence, one redraw.
+   *
+   * The count said is the count the server wrote. The ones that were already
+   * read or already closed are named separately and never folded in, because
+   * "20 closed" when three of them were shut yesterday is a number nobody can
+   * check.
+   */
+  const runOnTicked = async (
+    write: (threadIds: string[]) => Promise<ManyThreadsResult>,
+    words: { verb: string; keptReason: string }
+  ) => {
+    const threadIds = Array.from(ticks.selected)
+    if (threadIds.length === 0 || tickedBusy) return
+
+    if (threadIds.length > CRM_MAX_THREADS_PER_PRESS) {
+      showErrorToast(
+        `${CRM_MAX_THREADS_PER_PRESS} conversations is the most one press can take. Untick some and go again.`
+      )
+      return
+    }
+
+    setTickedBusy(true)
+    try {
+      const { changed, unchanged } = await write(threadIds)
+      toast.success(
+        describeBulkResult({
+          done: changed,
+          kept: unchanged,
+          one: "conversation",
+          many: "conversations",
+          verb: words.verb,
+          keptReason: words.keptReason,
+        })
+      )
+      ticks.clear()
+      // The list redraws itself, and the open conversation with it: closing a
+      // set that includes the one on screen must not leave its header saying
+      // "Open".
+      reloadBoth()
+    } catch (error) {
+      showErrorToast(getCrmErrorMessage(error))
+    } finally {
+      setTickedBusy(false)
+    }
+  }
+
   const markUnread = async () => {
     if (!conversation) return
     try {
@@ -254,8 +341,31 @@ export function CrmWorkspace({
       replyDrafts={replyDrafts}
       filters={filters}
       inboundAddress={page.inboundAddress}
+      ticked={ticks.selected}
+      tickedBusy={tickedBusy}
       onFiltersChange={onFiltersChange}
       onOpen={(thread) => onOpenThread(thread.id)}
+      onToggleTick={ticks.toggle}
+      onClearTicks={ticks.clear}
+      onMarkTickedRead={() =>
+        void runOnTicked(markConversationsRead, {
+          verb: "marked read",
+          keptReason: "already read",
+        })
+      }
+      onCloseTicked={() =>
+        void runOnTicked(
+          (threadIds) => setConversationsStatus(threadIds, "closed"),
+          { verb: "closed", keptReason: "already closed" }
+        )
+      }
+      onSnoozeTicked={(until) =>
+        void runOnTicked(
+          (threadIds) =>
+            setConversationsStatus(threadIds, "snoozed", until.toISOString()),
+          { verb: "snoozed", keptReason: "already snoozed until then" }
+        )
+      }
       onLoadMore={loadMore}
     />
   )

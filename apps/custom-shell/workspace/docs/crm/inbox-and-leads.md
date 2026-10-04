@@ -334,6 +334,91 @@ clears `read_at` and puts the conversation at the top of the list it is in.
 Whether somebody writing again should reopen a thread you deliberately closed is
 a separate question, and the answer may be no.
 
+## Clearing a handful at once
+
+Rows in the inbox can be ticked, and a bar above the list then deals with the
+lot in one press. A morning of newsletters and no-reply notices was otherwise
+twenty conversations opened and closed one at a time.
+
+**The tick box sits on top of the avatar.** It appears when the pointer is over
+a row or the row has keyboard focus, and once anything is ticked every row's
+box stays out, because boxes that only appear under the pointer make picking the
+fifth row a hunt for where the fourth one was. The initials are hidden rather
+than removed, so ticking never moves the name under the pointer.
+
+Because the box is always there and only its opacity changes, a tap on the
+initials ticks the row on a phone, where there is no pointer to hover with. The
+open conversation keeps the darker fill and a ticked row takes the hover fill,
+so two rows never both look like the one being read.
+
+The box is a sibling of the row's button, not a child of it. A button inside a
+button is invalid HTML, and the inner one swallows the outer one's click, so
+ticking a row would have opened it.
+
+**The bar is the count, then Mark read, Close, Snooze, then a way to clear the
+ticks.** Icon buttons, not words: the panel is a fifth of the window, and the
+three actions spelled out leave no room for the count. They are the same three
+icons the conversation header uses for the same three actions. Snooze opens the
+same date popover the header does.
+
+**One press is one request.** `markConversationsRead` and
+`setConversationsStatus` in `src/lib/api/crm/inbox.ts` each take the whole list
+of ids, and `markThreadsRead` and `setThreadStatuses` in
+`src/server/crm/inbox.ts` write them in one statement with `inArray`. Twenty
+rows is one trip, and either all twenty are written or none are. The list is
+asked again once rather than twenty times.
+
+**The count said is the count that changed.** Both writes come back as
+`{ changed, unchanged }`. `changed` is how many rows the statement wrote.
+`unchanged` is how many of the asked-for ids were this workspace's and were
+already in that state, which is the difference between "17 closed." and
+"17 closed. 3 were already closed." An id from another workspace, or one that
+no longer exists, is in neither number: nothing happened to it, so nothing is
+claimed about it.
+
+Rows already in the asked-for state are left out of the write rather than
+written over. Without that, a conversation closed yesterday comes back from
+`RETURNING` and gets counted as something this press did. A fresh snooze date
+always counts as a change, because the date is part of the state and the new one
+is never the old one to the millisecond.
+
+**A snoozed conversation with no date is still written.** The one-thread
+endpoint's date is optional, so `status = 'snoozed'` with a null
+`snoozed_until` is a row the database can hold. Comparing a null column to a
+date answers NULL rather than false, and `NOT NULL` is NULL, so that row would
+match nothing, keep its missing date, and be reported as already snoozed until
+then. The test is `IS NOT NULL` before the comparison, which is false there and
+makes the whole condition false, so the row is written like any other.
+
+The wording comes from `describeBulkResult` in
+`src/lib/format/bulk-result.ts`, through its `keptReason`. Without that reason
+the line reads "could not be closed", and a conversation that was already
+closed being reported as one that could not be closed sends somebody looking
+for a bug that is not there.
+
+**Changing a filter clears the ticks**, through
+`useClearSelectionOnListChange`, the same hook every dashboard table uses. The
+search, the status, the stage, the unread tab and the follow-up filter all
+count. The rows the ticks pointed at are no longer the rows on screen, so a
+press on the bar could otherwise act on conversations nobody can see.
+
+**A tick never outlives the row it pointed at.** A fresh loader result also
+arrives after a conversation is opened and after a press, and it comes back as
+the first page only, so the ticks are pruned to the ids the new list actually
+holds. Without that, a tick made on row 45 of a loaded-more list survives into
+a list that stops at 30 and the bar counts a row nobody can see.
+
+**Two hundred is the most one press may carry**
+(`CRM_MAX_THREADS_PER_PRESS` in `src/lib/crm/crm.ts`). The ids arrive from the
+browser and an uncapped array is an invitation to send a hundred thousand of
+them. The inbox loads thirty rows at a time, so the cap is seven presses of
+Load more with every row ticked, and the bar says so in words rather than
+letting the request come back with a validation refusal nobody can read.
+
+Deleting is not here. Nothing in the CRM deletes a conversation yet. Neither is
+acting on every conversation the filter matches rather than the ticked ones,
+which the contacts list has and which needs its own confirmation.
+
 ## Following up
 
 A lead can carry a date and a note. When the date passes, the background pass

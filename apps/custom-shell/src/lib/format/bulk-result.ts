@@ -14,6 +14,7 @@ export function describeBulkResult({
   one,
   many,
   verb,
+  keptReason,
 }: {
   /** How many went through. */
   done: number
@@ -25,9 +26,21 @@ export function describeBulkResult({
   many: string
   /** What happened to them, past tense — "deleted". */
   verb: string
+  /**
+   * Why the rest did not change, without the count and without the full stop —
+   * "already closed". It becomes a sentence of its own: "17 closed. 3 were
+   * already closed."
+   *
+   * Leave it out when the rest genuinely failed, and the line falls back to
+   * "could not be deleted". The two are not the same thing, and a conversation
+   * that was already closed being reported as one that could not be closed
+   * sends somebody looking for a bug.
+   */
+  keptReason?: string
 }) {
   const things = `${done} ${plural(done, one, many)}`
-  return kept
-    ? `${things} ${verb}, ${kept} could not be ${verb}.`
-    : `${things} ${verb}.`
+  if (!kept) return `${things} ${verb}.`
+  return keptReason
+    ? `${things} ${verb}. ${kept} ${plural(kept, "was", "were")} ${keptReason}.`
+    : `${things} ${verb}, ${kept} could not be ${verb}.`
 }

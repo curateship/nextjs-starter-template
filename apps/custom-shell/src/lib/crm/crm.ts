@@ -72,3 +72,13 @@ export const CRM_MAX_BODY_LENGTH = 20_000
 
 /** How many threads one page of the inbox holds. */
 export const CRM_INBOX_PAGE_SIZE = 30
+
+/**
+ * The most conversations one ticked-rows press may carry.
+ *
+ * Ticks only ever come from rows on screen, and the inbox loads 30 at a time,
+ * so 200 is seven presses of Load more with every row ticked. It is here so
+ * the bar can say so in words instead of the request coming back with a
+ * validation refusal nobody can read.
+ */
+export const CRM_MAX_THREADS_PER_PRESS = 200
