@@ -26,6 +26,13 @@ import {
 import { loadLead, type LeadBundle } from "@/lib/api/crm/leads"
 import type { CrmThreadStatus } from "@/lib/crm/crm"
 import {
+  applyReplyDraft,
+  noReplyDrafts,
+  replyDraftFor,
+  type ReplyDraftUpdate,
+  type ReplyDrafts,
+} from "@/lib/crm/reply-drafts"
+import {
   useBlankSpaceDoubleClick,
   usePanelToggle,
 } from "@/lib/layout/panel-collapse"
@@ -84,6 +91,15 @@ export function CrmWorkspace({
     setLastLoaded(page.threads)
     setThreads(page.threads)
   }
+
+  // The half-written replies, one per conversation. They live here because
+  // this component stays mounted while the conversation panel below it is
+  // rebuilt for every thread opened, so state inside that panel is lost on
+  // every switch. A reload clears them on purpose.
+  const [replyDrafts, setReplyDrafts] =
+    React.useState<ReplyDrafts>(noReplyDrafts)
+  const changeReplyDraft = (threadId: string, update: ReplyDraftUpdate) =>
+    setReplyDrafts((current) => applyReplyDraft(current, threadId, update))
 
   const [loaded, setLoaded] = React.useState<{
     conversation: Conversation
@@ -235,6 +251,7 @@ export function CrmWorkspace({
       loadingMore={loadingMore}
       hasMore={threads.length < page.total}
       openThreadId={openThreadId}
+      replyDrafts={replyDrafts}
       filters={filters}
       inboundAddress={page.inboundAddress}
       onFiltersChange={onFiltersChange}
@@ -255,6 +272,8 @@ export function CrmWorkspace({
       loading={loadingThread}
       canSend={conversation !== null}
       replyFrom={page.replyFrom}
+      replyDraft={replyDraftFor(replyDrafts, openThreadId)}
+      onReplyDraftChange={changeReplyDraft}
       onStatusChange={changeStatus}
       onMarkUnread={markUnread}
       onFetchBody={refetchBody}

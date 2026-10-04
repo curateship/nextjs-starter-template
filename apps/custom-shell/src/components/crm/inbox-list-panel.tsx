@@ -28,6 +28,7 @@ import {
   type CrmThreadStatus,
 } from "@/lib/crm/crm"
 import { formatInboxTime, initialsFor } from "@/lib/crm/inbox-time"
+import { hasReplyDraft, type ReplyDrafts } from "@/lib/crm/reply-drafts"
 import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
 import { focusRing } from "@/lib/layout/focus-ring"
 import type { InboxThread } from "@/lib/api/crm/inbox"
@@ -65,6 +66,7 @@ export function InboxListPanel({
   loadingMore,
   hasMore,
   openThreadId,
+  replyDrafts,
   filters,
   inboundAddress,
   onFiltersChange,
@@ -82,6 +84,8 @@ export function InboxListPanel({
   loadingMore: boolean
   hasMore: boolean
   openThreadId: string | null
+  /** The half-written replies, so a row can say it was left half finished. */
+  replyDrafts: ReplyDrafts
   filters: InboxFilters
   inboundAddress: string | null
   onFiltersChange: (next: Partial<InboxFilters>) => void
@@ -325,6 +329,7 @@ export function InboxListPanel({
                 key={thread.id}
                 thread={thread}
                 open={thread.id === openThreadId}
+                hasDraft={hasReplyDraft(replyDrafts, thread.id)}
                 onOpen={() => onOpen(thread)}
               />
             ))
@@ -346,10 +351,13 @@ export function InboxListPanel({
 function InboxRow({
   thread,
   open,
+  hasDraft,
   onOpen,
 }: {
   thread: InboxThread
   open: boolean
+  /** A reply was started in this conversation and never sent. */
+  hasDraft: boolean
   onOpen: () => void
 }) {
   const who = thread.leadName?.trim() || thread.leadEmail
@@ -410,8 +418,13 @@ function InboxRow({
           ) : null}
         </span>
 
-        {followUpDue || thread.status !== "open" ? (
+        {hasDraft || followUpDue || thread.status !== "open" ? (
           <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            {/* In words, not a coloured dot, because "you left this half
+                written" is not something a shade can say. */}
+            {hasDraft ? (
+              <span className="font-medium text-foreground">Unsent draft</span>
+            ) : null}
             {followUpDue ? (
               <span className="font-medium text-foreground">To follow up</span>
             ) : null}
@@ -424,6 +437,7 @@ function InboxRow({
 
       <span className="sr-only">
         {thread.subject || "No subject"}. {thread.unread ? "Unread." : ""}
+        {hasDraft ? "Has an unsent draft." : ""}
       </span>
     </button>
   )

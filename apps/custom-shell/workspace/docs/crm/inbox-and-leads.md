@@ -265,6 +265,32 @@ Nothing is written when the provider refuses the send. A reply that did not go
 out must not appear in the conversation as though it had, and what was typed
 stays in the box so the words are not lost over something worth retrying.
 
+### A half-written reply survives a switch
+
+**Opening another conversation no longer empties the box.** You can type three
+paragraphs, click another thread to check a date, and come back to your words
+with the caret after the last one. Every conversation keeps its own half-written
+reply, and three of them never cross.
+
+The words live on the CRM screen rather than in the box itself, in
+`src/lib/crm/reply-drafts.ts`, because the conversation panel is thrown away and
+rebuilt every time another thread is opened. State inside it is lost on every
+switch by definition.
+
+**A conversation with a draft says "Unsent draft" on its row** in the inbox, on
+the same line as "To follow up". In words rather than a dot, because "you left
+this half written" is not something a colour can say.
+
+Sending clears that conversation's draft, so the words never come back as a
+ghost over the next reply, and emptying the box by hand clears it too, mark
+included. Spaces alone are not a draft.
+
+**They are held for as long as the screen is open and no longer.** A reload
+clears every one of them, which is deliberate: a draft that outlives a reload
+needs its own database column, its own cleanup rule, and an answer for two
+admins typing in one conversation. If it turns out people reload with drafts
+open, that is its own piece of work.
+
 Beside Send there is one shortcut. **Draft with AI** writes a first draft from
 the conversation, through the same metered path as every
 other AI feature, so the allowance is checked before it and the spend is
