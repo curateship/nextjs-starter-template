@@ -16,8 +16,11 @@ The picker and full library use the same records. Both support:
 
 An image field receives the selected file's current preview and id as soon as
 the picker inserts it, so the result is visible before the dialog closes.
-When the picker opens inside another editor, it uses the editor's full width.
-Escape returns to the editor instead of closing both screens.
+The picker is always its own window, even when the field that opened it is
+itself in a window, such as the picture field inside a front page row. Escape
+closes the picker and leaves the window underneath it open. It used to draw
+itself inside that window instead, which stretched a 96px picture field across
+the form and ran off the bottom of the screen.
 
 ## Upload checks
 

@@ -451,7 +451,6 @@ function HeroEditor({
         value={heroImage}
         aspect="square"
         fit="cover"
-        inlinePicker
         emptyLabel="Add picture"
         className="max-w-24"
         onChange={(image, altText) => {
@@ -510,7 +509,6 @@ function TestimonialsEditor({
               value={item.picture}
               aspect="square"
               fit="cover"
-              inlinePicker
               emptyLabel="Add picture"
               className="max-w-24"
               onChange={(picture) =>
@@ -713,7 +711,6 @@ function LogosEditor({
               label="Logo image"
               value={item.image}
               fit="contain"
-              inlinePicker
               invalid={submitted && !item.image}
               emptyLabel="Choose logo"
               className="max-w-40"
@@ -799,7 +796,6 @@ function ScreenshotsEditor({
             label="Screenshot image"
             value={item.image}
             fit="contain"
-            inlinePicker
             invalid={submitted && !item.image}
             emptyLabel="Choose screenshot"
             onChange={(image, altText) =>

@@ -358,6 +358,14 @@ lines stay readable. On a screen narrower than 768px the columns stack and the
 words come first, which is also the order they sit in the page source, so a
 screen reader reads the heading before it reaches the picture.
 
+The hero picture keeps its own shape. It fills the width of its column and is
+as tall as that shape makes it, so a tall picture draws a tall column and a
+wide one draws a short column. It used to sit in a fixed 16:9 box, which drew
+anything that was not 16:9 small in the middle of that box with grey bars
+either side of it. A 720 by 720 picture in a 556px column is now 556 by 556,
+where before it was 313 by 313 inside a 556 by 313 grey box. Nothing is
+cropped, so a picture is never cut to fit.
+
 A hero button needs both its wording and its link, and a row saved with only
 one of them keeps neither. The link has to start with `/`, `https://`,
 `mailto:` or `tel:`, so a saved `javascript:` address never reaches a browser.

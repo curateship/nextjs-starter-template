@@ -58,6 +58,14 @@ function setInputValue(input: HTMLInputElement, value: string) {
   input.dispatchEvent(new Event("input", { bubbles: true }))
 }
 
+/**
+ * The picker is its own window, so its markup lands in a portal on `body`
+ * rather than inside the element the test rendered into.
+ */
+function picker() {
+  return document.body
+}
+
 function footerSelectButton(host: HTMLElement) {
   const button = Array.from(host.querySelectorAll("button")).find(
     (candidate) => candidate.textContent?.trim() === "Select"
@@ -91,7 +99,6 @@ describe("MediaPicker", () => {
       root.render(
         <Dialog open>
           <MediaPicker
-            inline
             open
             onOpenChange={onOpenChange}
             onSelectMedia={onSelectMedia}
@@ -101,12 +108,12 @@ describe("MediaPicker", () => {
     })
     await act(async () => await Promise.resolve())
 
-    const tile = host.querySelector<HTMLButtonElement>(
+    const tile = picker().querySelector<HTMLButtonElement>(
       'button[aria-label="Select first.png"]'
     )
     expect(tile).not.toBeNull()
     await act(async () => tile?.click())
-    await act(async () => footerSelectButton(host).click())
+    await act(async () => footerSelectButton(picker()).click())
 
     expect(onSelectMedia).toHaveBeenCalledWith(
       "https://example.com/first.png",
@@ -118,20 +125,17 @@ describe("MediaPicker", () => {
     host.remove()
   })
 
-  it("closes an inline picker on Escape without closing its owner", async () => {
+  it("opens as its own window over the form that asked for it", async () => {
     mediaApi.listMedia.mockResolvedValue(page())
     const onOpenChange = vi.fn()
-    const ownerKeyDown = vi.fn()
     const host = document.createElement("div")
     document.body.appendChild(host)
-    document.addEventListener("keydown", ownerKeyDown)
     const root = createRoot(host)
 
     await act(async () => {
       root.render(
         <Dialog open>
           <MediaPicker
-            inline
             open
             onOpenChange={onOpenChange}
             onSelectMedia={vi.fn()}
@@ -139,19 +143,16 @@ describe("MediaPicker", () => {
         </Dialog>
       )
     })
+    await act(async () => await Promise.resolve())
 
-    const escape = new KeyboardEvent("keydown", {
-      key: "Escape",
-      bubbles: true,
-      cancelable: true,
-    })
-    await act(async () => document.body.dispatchEvent(escape))
+    // Nothing is drawn inside the form. The picker is a window of its own,
+    // which is why a 96px picture field never has to hold a grid of tiles.
+    expect(host.textContent).toBe("")
+    const dialog = document.body.querySelector('[role="dialog"]')
+    expect(dialog).not.toBeNull()
+    expect(host.contains(dialog)).toBe(false)
+    expect(dialog?.textContent).toContain("Select")
 
-    expect(escape.defaultPrevented).toBe(true)
-    expect(onOpenChange).toHaveBeenCalledWith(false)
-    expect(ownerKeyDown).not.toHaveBeenCalled()
-
-    document.removeEventListener("keydown", ownerKeyDown)
     await act(async () => root.unmount())
     host.remove()
   })
@@ -171,7 +172,6 @@ describe("MediaPicker", () => {
       root.render(
         <Dialog open>
           <MediaPicker
-            inline
             open
             onOpenChange={onOpenChange}
             onSelectMedia={onSelectMedia}
@@ -182,14 +182,14 @@ describe("MediaPicker", () => {
     await act(async () => await Promise.resolve())
 
     await act(async () => {
-      host
+      picker()
         .querySelector<HTMLButtonElement>(
           'button[aria-label="Select first.png"]'
         )
         ?.click()
     })
 
-    const search = host.querySelector<HTMLInputElement>(
+    const search = picker().querySelector<HTMLInputElement>(
       'input[aria-label="Search media"]'
     )
     expect(search).not.toBeNull()
@@ -201,9 +201,11 @@ describe("MediaPicker", () => {
     })
     await act(async () => await Promise.resolve())
 
-    expect(host.textContent).toContain("Nothing matched")
-    expect(footerSelectButton(host).hasAttribute("aria-invalid")).toBe(false)
-    await act(async () => footerSelectButton(host).click())
+    expect(picker().textContent).toContain("Nothing matched")
+    expect(footerSelectButton(picker()).hasAttribute("aria-invalid")).toBe(
+      false
+    )
+    await act(async () => footerSelectButton(picker()).click())
 
     expect(onSelectMedia).not.toHaveBeenCalled()
     expect(onOpenChange).not.toHaveBeenCalled()
