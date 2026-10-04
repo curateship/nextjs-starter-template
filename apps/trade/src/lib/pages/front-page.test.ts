@@ -11,7 +11,9 @@ import {
   MAX_FRONT_PAGE_SCREENSHOTS,
   MAX_FRONT_PAGE_TESTIMONIALS,
   frontPageHasPlans,
+  frontPageHeroBandColors,
   frontPageRowImageUrls,
+  normalizeFrontPageHeroBackground,
   normalizeFrontPageRows,
 } from "@/lib/pages/front-page"
 
@@ -419,5 +421,37 @@ describe("front page rows", () => {
     ])
 
     expect(rows).toEqual([])
+  })
+})
+
+describe("hero background", () => {
+  it("keeps a muted grey and a hex, and drops anything else", () => {
+    expect(normalizeFrontPageHeroBackground(" Grey-50 ")).toBe("grey-50")
+    expect(normalizeFrontPageHeroBackground("grey-0")).toBe("grey-0")
+    expect(normalizeFrontPageHeroBackground("#F4F4F5")).toBe("#f4f4f5")
+    expect(normalizeFrontPageHeroBackground("grey-101")).toBe("")
+    expect(normalizeFrontPageHeroBackground("grey")).toBe("")
+    expect(normalizeFrontPageHeroBackground("red")).toBe("")
+    expect(normalizeFrontPageHeroBackground("var(--muted)")).toBe("")
+    expect(normalizeFrontPageHeroBackground("#fff")).toBe("")
+  })
+
+  it("darkens the grey in light mode and lightens it in dark as it strengthens", () => {
+    const quiet = frontPageHeroBandColors("grey-0")
+    const strong = frontPageHeroBandColors("grey-100")
+    expect(quiet).toEqual({ light: "oklch(0.99 0 0)", dark: "oklch(0.175 0 0)" })
+    expect(strong).toEqual({ light: "oklch(0.9 0 0)", dark: "oklch(0.32 0 0)" })
+    expect(frontPageHeroBandColors("grey-50")).toEqual({
+      light: "oklch(0.945 0 0)",
+      dark: "oklch(0.2475 0 0)",
+    })
+  })
+
+  it("paints a hex the same in both modes and nothing at all for junk", () => {
+    expect(frontPageHeroBandColors("#f4f4f5")).toEqual({
+      light: "#f4f4f5",
+      dark: "#f4f4f5",
+    })
+    expect(frontPageHeroBandColors("url(evil)")).toEqual({ light: "", dark: "" })
   })
 })

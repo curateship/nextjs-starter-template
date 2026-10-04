@@ -569,7 +569,9 @@ describe("front page content blocks", () => {
       />
     )
 
-    expect(markup).toContain("background-color:#0f172a")
+    // A hex is one fixed colour, so both modes get the same value.
+    expect(markup).toContain("--shell-hero-band-light:#0f172a")
+    expect(markup).toContain("--shell-hero-band-dark:#0f172a")
     // The band climbs past the menu, so the colour passes behind it.
     expect(markup).toContain("var(--shell-hero-rise, 0px)")
     expect(frontPageHeroRunsUnderMenu(rows)).toBe(true)
@@ -639,7 +641,9 @@ describe("front page content blocks", () => {
 
     // The band is still painted, it just starts at the row rather than above
     // it, because this hero is not the one the menu sits over.
-    expect(markup).toContain("background-color:#0f172a")
+    // A hex is one fixed colour, so both modes get the same value.
+    expect(markup).toContain("--shell-hero-band-light:#0f172a")
+    expect(markup).toContain("--shell-hero-band-dark:#0f172a")
     expect(markup).not.toContain("var(--shell-hero-rise, 0px)")
     expect(frontPageHeroRunsUnderMenu(rows)).toBe(false)
   })

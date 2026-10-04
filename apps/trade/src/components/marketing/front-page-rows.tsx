@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react"
 import {
   FrontPageDivider,
   FrontPageFaq,
@@ -20,6 +21,7 @@ import type { PlanOption } from "@/lib/api/billing/billing"
 import type { BillingInterval } from "@/lib/billing/pricing-choice"
 import {
   APP_FRONT_PAGE_ROW_KIND,
+  frontPageHeroBandColors,
   type FrontPageRow,
 } from "@/lib/pages/front-page"
 import { publicDeviceRowClassName } from "@/lib/pages/public-device"
@@ -112,6 +114,9 @@ export function FrontPageRows({
         // because the section is only as wide as its layout allows and the
         // colour has to reach both edges of the window whatever that is.
         const background = row.kind === "hero" ? row.background : ""
+        // One colour for light mode and one for dark. A muted grey has a real
+        // pair; a fixed hex is the same colour twice.
+        const bandColors = frontPageHeroBandColors(background)
         // Only the row at the very top of the page has the menu over it,
         // whatever a hero further down has saved.
         const underMenu =
@@ -180,12 +185,20 @@ export function FrontPageRows({
               <div
                 aria-hidden="true"
                 className="pointer-events-none absolute -z-10 right-[-100vw] bottom-0 left-[-100vw]"
-                style={{
-                  backgroundColor: background,
-                  top: underMenu
-                    ? "calc(-1 * var(--shell-hero-rise, 0px))"
-                    : 0,
-                }}
+                // The band carries a colour for each mode rather than one
+                // `backgroundColor`, because an inline background cannot
+                // change when the page turns dark. `theme.css` picks between
+                // the two off `data-hero-band`.
+                data-hero-band=""
+                style={
+                  {
+                    "--shell-hero-band-light": bandColors.light,
+                    "--shell-hero-band-dark": bandColors.dark,
+                    top: underMenu
+                      ? "calc(-1 * var(--shell-hero-rise, 0px))"
+                      : 0,
+                  } as CSSProperties
+                }
               />
             ) : null}
 
