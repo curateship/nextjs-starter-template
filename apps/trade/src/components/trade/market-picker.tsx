@@ -120,6 +120,7 @@ export function MarketPicker({
   onSelect,
   venueLabel,
   onSearchBeyond,
+  phone = false,
 }: {
   rows: MarketRow[]
   selected: MarketRow
@@ -127,6 +128,13 @@ export function MarketPicker({
   folders: readonly MarketFolder[]
   folderActions: MarketFolderActions
   onSelect: (key: string) => void
+  /**
+   * The phone header's shorter name button. The coin's picture and the arrow
+   * both go: the star to the left of the name is the picture's old place, and
+   * nothing else in that row opens a list, so the arrow was saying what the
+   * row only has one of.
+   */
+  phone?: boolean
   /** The venue's printed name, for the lookup button: "Find … on Solana". */
   venueLabel: string
   /**
@@ -383,11 +391,14 @@ export function MarketPicker({
             searchRef.current?.focus()
           }}
           className={cn(
-            "flex h-full max-w-full min-w-0 items-center gap-1.5 rounded-l-lg px-2.5 font-bold transition-colors hover:bg-muted",
+            "flex h-full max-w-full min-w-0 items-center gap-1.5 px-2.5 font-bold transition-colors hover:bg-muted",
+            phone ? "rounded-r-lg" : "rounded-l-lg",
             focusRing
           )}
         >
-          <MarketIcon symbol={selected.symbol} iconUrl={selected.iconUrl} />
+          {phone ? null : (
+            <MarketIcon symbol={selected.symbol} iconUrl={selected.iconUrl} />
+          )}
           <span className="truncate">
             {displaySymbol(selected.symbol)}-{selected.quoteAsset}
           </span>
@@ -396,7 +407,9 @@ export function MarketPicker({
               {selected.maxLeverage}×
             </span>
           ) : null}
-          <ChevronDownIcon className="size-3.5 shrink-0 text-muted-foreground" />
+          {phone ? null : (
+            <ChevronDownIcon className="size-3.5 shrink-0 text-muted-foreground" />
+          )}
         </button>
       </PopoverTrigger>
       {pinnedAt ? <PopoverPrimitive.Anchor virtualRef={anchor} /> : null}

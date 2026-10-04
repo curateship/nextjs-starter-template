@@ -88,6 +88,26 @@ export type AppHeaderAction = {
   icon: ComponentType<{ className?: string }>
   /** Unset means admins and members may both see it. */
   roles?: readonly string[]
+  /**
+   * Folds into the three-dot button after the settings cog on a phone,
+   * instead of staying in the header row.
+   *
+   * Unset means it keeps its place in the row at every width, which is what
+   * every control did before the dropdown existed. An app marks the controls
+   * it can live without at a glance, and leaves the ones somebody opens the
+   * page to read where they can be read without a press.
+   */
+  foldsOnPhone?: boolean
+  /**
+   * A line of its own, with a divider, inside the phone's three-dot dropdown.
+   *
+   * The dropdown packs the app's controls into a wrapped row, which is right
+   * for buttons that are all about the same size. A control that is a list of
+   * its own — a row of pinned markets, say — reads as part of the buttons
+   * beside it there. Unset leaves it in the row with the rest, and the option
+   * does nothing at all on a wide screen, where the controls are not folded.
+   */
+  ownSection?: boolean
   component: () => Promise<{
     default: ComponentType<AppHeaderActionProps>
   }>
@@ -841,7 +861,6 @@ export const REPLACEABLE_SETTINGS_TAB_IDS: readonly string[] = [
   "member-navigation",
   "public-navigation",
   "public-styling",
-  "public-pages",
   "public-seo",
   "public-social",
 ]

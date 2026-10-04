@@ -1,6 +1,16 @@
 import * as React from "react"
 import { getRouteApi } from "@tanstack/react-router"
 import type { PanelImperativeHandle } from "react-resizable-panels"
+import {
+  BookOpenIcon,
+  ChartNoAxesCombinedIcon,
+  CreditCardIcon,
+  EyeIcon,
+  FolderIcon,
+  LayersIcon,
+  ScrollTextIcon,
+  SirenIcon,
+} from "lucide-react"
 
 import type { DashboardBootstrap } from "@/lib/api/trade/dashboard"
 import {
@@ -38,8 +48,18 @@ import { useChartOptions } from "@/components/trade/use-chart-options"
 import { useTradePanelLayouts } from "@/components/trade/use-panel-layouts"
 import {
   MarketHeader,
+  MarketInfoRow,
   type MarketSelection,
 } from "@/components/trade/market-header"
+import {
+  MarketPhoneMenu,
+  PhoneMenuRow,
+} from "@/components/trade/market-phone-menu"
+import { PinnedMarketRow } from "@/components/trade/pinned-market-button"
+import { ChartOptionsMenu } from "@/components/trade/chart-options-menu"
+import { IndicatorsMenu } from "@/components/trade/indicators-menu"
+import { indicatorsOn } from "@/lib/trade/indicators/registry"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { CardFolds } from "@/components/trade/card-folds"
 import type { CardFolds as CardFoldsValue } from "@/lib/trade/card-folds"
 import { useChartIndicators } from "@/components/trade/use-indicators"
@@ -95,7 +115,7 @@ import {
   useBlankSpaceDoubleClick,
   usePanelToggle,
 } from "@/lib/layout/panel-collapse"
-import { usePanelFit } from "@/lib/trade/panel-fit"
+import { STILL_PANEL, usePanelFit } from "@/lib/trade/panel-fit"
 import { tradePanelIds, tradePanelLayoutKey } from "@/lib/trade/panel-keys"
 import {
   marketPanelScopeKey,
@@ -269,6 +289,12 @@ export function TradeWorkspace({
   // rebuilding itself a beat later.
   const { user } = authenticatedRoute.useLoaderData()
   const desktop = useWideScreen()
+  // A phone, which is narrower again than the point the side panels fold away
+  // at. The market header goes down to one row there and the bottom panel
+  // leaves the screen, both of them reachable from the header's three dots.
+  const phone = useIsMobile()
+  // Which table the three dots opened over the chart, or null for none.
+  const [phoneActivity, setPhoneActivity] = React.useState(false)
   // Memoised: the workspace re-renders on every poll and every price tick,
   // and a fresh answer each time made every panel below re-do its own work.
   const selection = React.useMemo(
@@ -752,6 +778,14 @@ export function TradeWorkspace({
     setLastDesktop(desktop)
     setSideSheet((current) => ({ ...current, open: false }))
   }
+  // The same rule for the phone's sliding table, on the phone line rather than
+  // the wide one. Leaving it set would pop the table open, unasked, the next
+  // time the window narrowed.
+  const [lastPhone, setLastPhone] = React.useState(phone)
+  if (phone !== lastPhone) {
+    setLastPhone(phone)
+    setPhoneActivity(false)
+  }
 
   // The finished trade drawn on the chart, picked in the Journal. It lives up
   // here because two panels share it: the table below decides which one, and
@@ -1010,6 +1044,111 @@ export function TradeWorkspace({
     </div>
   )
 
+  // Everything the phone's market row has no space for, in the order the row
+  // used to hold it: the chart's own two menus first, then the market's.
+  //
+  // The controls in here are the real ones, handed a line to be opened by
+  // instead of their icon button, so nothing about what they do is written
+  // twice. The three tables at the end are the bottom panel, which is not on a
+  // phone screen at all — pressing one slides it up over the chart.
+  const phoneMenu = !phone ? null : (
+    <MarketPhoneMenu>
+      <IndicatorsMenu
+        indicators={indicators}
+        context={{ zone: chartOptions.options.zone, interval }}
+        trigger={
+          <PhoneMenuRow
+            icon={<ChartNoAxesCombinedIcon />}
+            label="Indicators"
+            detail={
+              indicatorsOn(indicators.settings)
+                ? String(indicatorsOn(indicators.settings))
+                : undefined
+            }
+          />
+        }
+      />
+      <ChartOptionsMenu
+        control={chartOptions}
+        trigger={<PhoneMenuRow icon={<EyeIcon />} label="View options" />}
+      />
+      <WalletManagement
+        walletButtonRef={walletButtonRef}
+        account={account}
+        cacheScope={dashboardCacheScope}
+        detailsOpen={walletDetails !== null}
+        onAddWallet={() => setAddingWallet(true)}
+        onOpenWalletDetails={(wallet) => setWalletDetailsId(wallet.id)}
+        trigger={<PhoneMenuRow icon={<CreditCardIcon />} label="Wallet" />}
+      />
+      <PriceAlertsMenu
+        alerts={priceAlerts.alerts}
+        error={priceAlerts.error}
+        onRetry={() => void priceAlerts.refresh()}
+        onSelectMarket={onSelectMarket}
+        onDelete={priceAlerts.remove}
+        lines={linesForPanel}
+        onCleared={onAlertsCleared}
+        renderTrigger={(firedCount) => (
+          <PhoneMenuRow
+            icon={<SirenIcon />}
+            label="Alerts"
+            count={firedCount}
+          />
+        )}
+      />
+      {selection.kind === "market" ? (
+        <PinnedMarketRow marketKey={selection.row.key} />
+      ) : null}
+      <MarketFoldersMenu
+        panelRows={panelRows}
+        marketsError={marketsError}
+        marketsPending={marketsPending}
+        onRetryMarkets={onRetryMarkets}
+        folders={folders}
+        protocol={protocol}
+        network={network}
+        catalogs={catalogs}
+        selectedMarketKey={selectedKey}
+        onFoldersChange={setFolders}
+        onManage={() => {
+          setSideSheet({ side: "markets", open: true })
+          setFolderManagerOpen(true)
+        }}
+        onSelectMarket={onSelectMarket}
+        trigger={<PhoneMenuRow icon={<FolderIcon />} label="Watchlists" />}
+      />
+      {selection.kind === "market" ? (
+        <MarketInfoRow selection={selection} />
+      ) : null}
+      <div aria-hidden className="my-1 border-t" />
+      <PhoneMenuRow
+        icon={<LayersIcon />}
+        label="Positions"
+        onClick={() => {
+          setActivityTab("positions")
+          setPhoneActivity(true)
+        }}
+      />
+      <PhoneMenuRow
+        icon={<ScrollTextIcon />}
+        label="Open orders"
+        onClick={() => {
+          setActivityTab("orders")
+          setPhoneActivity(true)
+        }}
+      />
+      <PhoneMenuRow
+        icon={<BookOpenIcon />}
+        label="Journal"
+        onClick={() => {
+          setActivityTab("journal")
+          setPhoneActivity(true)
+        }}
+      />
+    </MarketPhoneMenu>
+  )
+
   const middle = (
     // flex-1 and min-w-0 are load-bearing: this sits in a flex row, and without
     // a width to fill it shrinks to its content.
@@ -1118,6 +1257,12 @@ export function TradeWorkspace({
               ? undefined
               : () => setSideSheet({ side: "smart-orders", open: true })
           }
+          phoneToolbar={
+            phone ? (
+              <IntervalPicker phone value={interval} onChange={setInterval} />
+            ) : null
+          }
+          phoneMenu={phoneMenu}
         />
       ) : (
         // No market on the chart yet — a fresh visit, or an exchange with no
@@ -1298,57 +1443,122 @@ export function TradeWorkspace({
             "fixed inset-0 z-50 bg-background p-[var(--shell-gutter,0.75rem)]"
         )}
       >
-        <ResizablePanelGroup
-          elementRef={verticalGroupElementRef}
-          groupRef={verticalLayout.groupRef}
-          orientation="vertical"
-          className="min-h-0 flex-1"
-          onLayoutChanged={activityFit.onLayoutChanged}
-        >
-          <ResizablePanel id="workspace" defaultSize="72%" minSize="35%">
-            <div className="flex h-full min-h-0">{upper}</div>
-          </ResizablePanel>
-          {/* Keeps its gap even while the panel below is collapsed — that
+        {/* A phone gets the chart and nothing under it. The tables are a
+          screen's worth of columns each, and sharing 844 points of height
+          with them left the chart too short to read a candle on. They open
+          over the chart from the market row's three dots instead. */}
+        {phone ? (
+          <div className="flex min-h-0 flex-1">{upper}</div>
+        ) : (
+          <ResizablePanelGroup
+            elementRef={verticalGroupElementRef}
+            groupRef={verticalLayout.groupRef}
+            orientation="vertical"
+            className="min-h-0 flex-1"
+            onLayoutChanged={activityFit.onLayoutChanged}
+          >
+            <ResizablePanel id="workspace" defaultSize="72%" minSize="35%">
+              <div className="flex h-full min-h-0">{upper}</div>
+            </ResizablePanel>
+            {/* Keeps its gap even while the panel below is collapsed — that
             collapsed tab row is still a panel on screen, and this handle is
             what makes it draggable back open. */}
-          <ResizableHandle
-            gap
-            className={cn(NO_RING, chartFullscreen && "hidden")}
-          />
-          <ResizablePanel
-            id="activity"
-            panelRef={activityPanelRef}
-            className={chartFullscreen ? "hidden" : undefined}
-            defaultSize="28%"
-            minSize="12%"
-            maxSize="60%"
-            // A shorter window shrinks the chart above, not this panel's rows.
-            groupResizeBehavior="preserve-pixel-size"
-            // Down to its own header rather than to nothing, so its tabs and
-            // their counts never disappear.
-            collapsible
-            collapsedSize={BOTTOM_COLLAPSED_HEIGHT}
-          >
-            <WorkspacePanel onDoubleClick={activityDoubleClick}>
+            <ResizableHandle
+              gap
+              className={cn(NO_RING, chartFullscreen && "hidden")}
+            />
+            <ResizablePanel
+              id="activity"
+              panelRef={activityPanelRef}
+              className={chartFullscreen ? "hidden" : undefined}
+              defaultSize="28%"
+              minSize="12%"
+              maxSize="60%"
+              // A shorter window shrinks the chart above, not this panel's rows.
+              groupResizeBehavior="preserve-pixel-size"
+              // Down to its own header rather than to nothing, so its tabs and
+              // their counts never disappear.
+              collapsible
+              collapsedSize={BOTTOM_COLLAPSED_HEIGHT}
+            >
+              <WorkspacePanel onDoubleClick={activityDoubleClick}>
+                <ActivityPanel
+                  trading={trading}
+                  tab={activityTab}
+                  onTabChange={setActivityTab}
+                  catalogs={catalogs}
+                  wallets={account.wallets}
+                  onSelectMarket={onSelectMarket}
+                  onAddToPosition={addToPosition}
+                  canChangeLeverage={allowed(abilities?.changeLeverage)}
+                  leverageRefusal={refusalOf(abilities?.changeLeverage)}
+                  canAdjustMargin={allowed(abilities?.adjustMargin)}
+                  marginRefusal={refusalOf(abilities?.adjustMargin)}
+                  shownTrade={shownTrade}
+                  onShowTrade={showTrade}
+                  fit={activityFit}
+                />
+              </WorkspacePanel>
+            </ResizablePanel>
+          </ResizablePanelGroup>
+        )}
+
+        {/* The bottom panel on a phone: the same tables, over the chart,
+          opened by their line in the market row's three dots. The panel keeps
+          its own tabs inside, so the other two tables are one press away
+          without going back to the menu. */}
+        {phone ? (
+          <Sheet open={phoneActivity} onOpenChange={setPhoneActivity}>
+            <SheetContent
+              side="bottom"
+              showCloseButton={false}
+              // The height is written against the side, because the sheet's own
+              // `h-auto` for a bottom sheet is the more specific rule and wins
+              // over a plain height. `svh` is the small viewport height, which
+              // is the phone screen with its address bar showing — the one
+              // height that never changes as the bar slides away.
+              // The tab row slides sideways rather than painting over Close
+              // all beside it. Three words and a count are wider than a phone,
+              // and the row's own box already shrinks to fit — it just had
+              // nothing telling it to keep its tabs inside.
+              className="gap-0 overflow-hidden rounded-t-2xl p-0 duration-150 ease-out data-[side=bottom]:h-[85svh] motion-reduce:animate-none motion-reduce:transition-none [&_[data-slot=tabs-list]]:overflow-x-auto"
+            >
+              <SheetHeader className="sr-only">
+                <SheetTitle>Positions, open orders and journal</SheetTitle>
+              </SheetHeader>
+              {/* The same grab bar as the market menu, and the same way back:
+                  the chart above it closes the sheet. */}
+              <div
+                aria-hidden
+                className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-muted-foreground/30"
+              />
               <ActivityPanel
                 trading={trading}
                 tab={activityTab}
                 onTabChange={setActivityTab}
                 catalogs={catalogs}
                 wallets={account.wallets}
-                onSelectMarket={onSelectMarket}
+                // Both of these put something on the chart, and the chart is
+                // behind this sheet, so the sheet goes.
+                onSelectMarket={(key) => {
+                  onSelectMarket(key)
+                  setPhoneActivity(false)
+                }}
                 onAddToPosition={addToPosition}
                 canChangeLeverage={allowed(abilities?.changeLeverage)}
                 leverageRefusal={refusalOf(abilities?.changeLeverage)}
                 canAdjustMargin={allowed(abilities?.adjustMargin)}
                 marginRefusal={refusalOf(abilities?.adjustMargin)}
                 shownTrade={shownTrade}
-                onShowTrade={showTrade}
-                fit={activityFit}
+                onShowTrade={(trade) => {
+                  showTrade(trade)
+                  setPhoneActivity(false)
+                }}
+                fit={STILL_PANEL}
               />
-            </WorkspacePanel>
-          </ResizablePanel>
-        </ResizablePanelGroup>
+            </SheetContent>
+          </Sheet>
+        ) : null}
 
         {/* Narrow screens keep the market itself as the page and reach the side
           panels through the two buttons in its header, rather than squeezing

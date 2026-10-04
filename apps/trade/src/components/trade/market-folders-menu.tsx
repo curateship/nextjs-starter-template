@@ -43,7 +43,10 @@ export function MarketFoldersMenu({
   marketsError,
   marketsPending,
   onRetryMarkets,
+  trigger,
 }: {
+  /** A line in the phone's market menu, in place of the icon button. */
+  trigger?: React.ReactElement
   panelRows: MarketPanelRows
   marketsError: string | null
   marketsPending: boolean
@@ -117,17 +120,19 @@ export function MarketFoldersMenu({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          className="bg-muted/60 dark:bg-muted/60"
-          aria-label="Open folders"
-          onMouseEnter={openFromHover}
-          onMouseLeave={closeFromHover}
-        >
-          <FolderIcon className="size-4" />
-        </Button>
+        {trigger ?? (
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className="bg-muted/60 dark:bg-muted/60"
+            aria-label="Open folders"
+            onMouseEnter={openFromHover}
+            onMouseLeave={closeFromHover}
+          >
+            <FolderIcon className="size-4" />
+          </Button>
+        )}
       </PopoverTrigger>
       <PopoverContent
         align="start"
@@ -181,7 +186,7 @@ export function MarketFoldersMenu({
                 <Input
                   id="new-market-folder-menu-name"
                   autoFocus
-                placeholder="Majors"
+                  placeholder="Majors"
                   value={newName}
                   maxLength={80}
                   disabled={busy}
@@ -276,7 +281,11 @@ export function MarketFoldersMenu({
                 {marketsPending ? (
                   <LoadingRow label="Reading the market list" />
                 ) : marketsError ? (
-                  <ErrorRow message={marketsError} onRetry={onRetryMarkets} className="p-3" />
+                  <ErrorRow
+                    message={marketsError}
+                    onRetry={onRetryMarkets}
+                    className="p-3"
+                  />
                 ) : allMarkets.length === 0 ? (
                   <p className="p-3 text-xs text-muted-foreground">
                     No markets match your market visibility settings.

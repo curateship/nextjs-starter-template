@@ -5,13 +5,20 @@ import { TestnetStrip } from "@/components/trade/market-list-panel"
 import { PinnedMarketButton } from "@/components/trade/pinned-market-button"
 import { MarketPicker } from "@/components/trade/market-picker"
 import { MarketFolderStar } from "@/components/trade/market-folder-star"
+import { PhoneMenuRow } from "@/components/trade/market-phone-menu"
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { useIsMobile } from "@/hooks/use-mobile"
 import {
   parseMarketKey,
   type MarketPickerCapabilities,
@@ -54,6 +61,8 @@ export function MarketHeader({
   onOpenMarkets,
   onOpenSmartOrders,
   onSearchBeyond,
+  phoneToolbar,
+  phoneMenu,
 }: {
   selection: MarketSelection
   markets: MarketRow[]
@@ -75,7 +84,94 @@ export function MarketHeader({
   onOpenSmartOrders?: () => void
   /** The venue's lookup for a market outside the list, where it has one. */
   onSearchBeyond?: (query: string) => Promise<MarketRow[]>
+  /**
+   * Phone only. The one chart control that stays on the row — the timeframe —
+   * and the three dots holding everything else. Both are built by the
+   * workspace, because the controls inside them are the workspace's.
+   */
+  phoneToolbar?: React.ReactNode
+  phoneMenu?: React.ReactNode
 }) {
+  const phone = useIsMobile()
+  const star = (
+    <MarketFolderStar
+      symbol={selection.row.symbol}
+      marketKey={selection.row.key}
+      folders={folders}
+      busy={folderActions.busy}
+      compact={phone}
+      onQuickAdd={() => folderActions.quickAdd(selection.row.key)}
+      onToggle={(folderId, saved) =>
+        folderActions.toggle(selection.row.key, folderId, saved)
+      }
+      onCreate={(name) => folderActions.create(selection.row.key, name)}
+    />
+  )
+  const picker = (
+    <MarketPicker
+      key={parseMarketKey(selection.row.key)?.protocol}
+      rows={markets}
+      selected={selection.row}
+      capabilities={selection.picker}
+      folders={folders}
+      folderActions={folderActions}
+      onSelect={onSelectMarket}
+      venueLabel={selection.protocolLabel}
+      onSearchBeyond={onSearchBeyond}
+      phone={phone}
+    />
+  )
+  const testnetStrip =
+    parseMarketKey(selection.row.key)?.network === "testnet" ? (
+      <TestnetStrip />
+    ) : null
+
+  // One row on a phone, and every control that is not the market itself, the
+  // timeframe or the two panels has moved into the three dots at the end. The
+  // row used to wrap onto a second line of nine buttons, which took a third of
+  // the screen before the chart began.
+  if (phone) {
+    return (
+      <>
+        <DashboardCardHeader className="flex-nowrap">
+          {onOpenMarkets ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              aria-label="Show markets"
+              className="bg-muted/60 dark:bg-muted/60"
+              onClick={onOpenMarkets}
+            >
+              <ListIcon className="size-4" />
+            </Button>
+          ) : null}
+          <div className="flex h-8 min-w-0 flex-1 items-center rounded-lg border bg-muted/60">
+            <span className="flex h-full shrink-0 items-center pl-2">
+              {star}
+            </span>
+            {picker}
+          </div>
+          {phoneToolbar}
+          {onOpenSmartOrders ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              aria-label="Show smart orders"
+              className="bg-muted/60 dark:bg-muted/60"
+              onClick={onOpenSmartOrders}
+            >
+              <BotIcon className="size-4" />
+            </Button>
+          ) : null}
+          {phoneMenu}
+        </DashboardCardHeader>
+        {testnetStrip}
+      </>
+    )
+  }
+
   const sheetButtons =
     onOpenMarkets || onOpenSmartOrders ? (
       <>
@@ -128,30 +224,10 @@ export function MarketHeader({
   return (
     <>
       <DashboardCardHeader className="flex-wrap sm:flex-nowrap">
-        <MarketFolderStar
-          symbol={selection.row.symbol}
-          marketKey={selection.row.key}
-          folders={folders}
-          busy={folderActions.busy}
-          onQuickAdd={() => folderActions.quickAdd(selection.row.key)}
-          onToggle={(folderId, saved) =>
-            folderActions.toggle(selection.row.key, folderId, saved)
-          }
-          onCreate={(name) => folderActions.create(selection.row.key, name)}
-        />
+        {star}
         <PinnedMarketButton marketKey={selection.row.key} />
         <div className="flex h-8 min-w-0 items-center rounded-lg border bg-muted/60">
-          <MarketPicker
-            key={parseMarketKey(selection.row.key)?.protocol}
-            rows={markets}
-            selected={selection.row}
-            capabilities={selection.picker}
-            folders={folders}
-            folderActions={folderActions}
-            onSelect={onSelectMarket}
-            venueLabel={selection.protocolLabel}
-            onSearchBeyond={onSearchBeyond}
-          />
+          {picker}
           <span className="flex h-full shrink-0 items-center border-l">
             <MarketInfo selection={selection} />
           </span>
@@ -159,11 +235,38 @@ export function MarketHeader({
         {marketAction}
         {action ? <div className="ml-auto shrink-0">{action}</div> : null}
       </DashboardCardHeader>
-      {parseMarketKey(selection.row.key)?.network === "testnet" ? (
-        <TestnetStrip />
-      ) : null}
+      {testnetStrip}
     </>
   )
+}
+
+/** What the exchange says about this market, one fact to a line. */
+function marketInfoLines(
+  selection: Extract<MarketSelection, { kind: "market" }>
+) {
+  const leverage =
+    selection.row.maxLeverage === null
+      ? "Not stated publicly"
+      : `${selection.row.maxLeverage}×`
+  return [
+    selection.protocolLabel,
+    selection.networkLabel,
+    `Price tick: ${selection.row.priceTick ?? "Exchange rounding rule"}`,
+    "List price: mark price",
+    "Chart bars: traded prices",
+    `Daily volume: ${formatCompactUsd(selection.row.volume24hUsd)}`,
+    selection.row.liquidityUsd != null
+      ? `Pool liquidity: ${formatCompactUsd(selection.row.liquidityUsd)}`
+      : null,
+    minimumOrderLabel(selection.row),
+    `Top leverage: ${leverage}`,
+  ].filter((line): line is string => Boolean(line))
+}
+
+function marketInfoLabel(
+  selection: Extract<MarketSelection, { kind: "market" }>
+) {
+  return `About ${selection.row.symbol} market, ${selection.protocolLabel}, ${selection.networkLabel}`
 }
 
 function MarketInfo({
@@ -171,10 +274,6 @@ function MarketInfo({
 }: {
   selection: Extract<MarketSelection, { kind: "market" }>
 }) {
-  const leverage =
-    selection.row.maxLeverage === null
-      ? "Not stated publicly"
-      : `${selection.row.maxLeverage}×`
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -182,33 +281,47 @@ function MarketInfo({
           type="button"
           variant="ghost"
           size="icon-sm"
-          aria-label={`About ${selection.row.symbol} market, ${selection.protocolLabel}, ${selection.networkLabel}`}
+          aria-label={marketInfoLabel(selection)}
           className="h-full rounded-l-none"
         >
           <InfoIcon className="size-4" />
         </Button>
       </TooltipTrigger>
       <TooltipContent className="grid gap-1">
-        <span>{selection.protocolLabel}</span>
-        <span>{selection.networkLabel}</span>
-        <span>
-          Price tick: {selection.row.priceTick ?? "Exchange rounding rule"}
-        </span>
-        <span>List price: mark price</span>
-        <span>Chart bars: traded prices</span>
-        <span>
-          Daily volume: {formatCompactUsd(selection.row.volume24hUsd)}
-        </span>
-        {selection.row.liquidityUsd != null ? (
-          <span>
-            Pool liquidity: {formatCompactUsd(selection.row.liquidityUsd)}
-          </span>
-        ) : null}
-        {minimumOrderLabel(selection.row) ? (
-          <span>{minimumOrderLabel(selection.row)}</span>
-        ) : null}
-        <span>Top leverage: {leverage}</span>
+        {marketInfoLines(selection).map((line) => (
+          <span key={line}>{line}</span>
+        ))}
       </TooltipContent>
     </Tooltip>
+  )
+}
+
+/**
+ * The same facts as a line in the phone's market menu.
+ *
+ * A tooltip needs a pointer to hover, which a phone has not got, so the facts
+ * open in a panel of their own instead.
+ */
+export function MarketInfoRow({
+  selection,
+}: {
+  selection: Extract<MarketSelection, { kind: "market" }>
+}) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <PhoneMenuRow icon={<InfoIcon />} label="Contract info" />
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        collisionPadding={12}
+        aria-label={marketInfoLabel(selection)}
+        className="grid w-[calc(100vw-2rem)] max-w-80 gap-1"
+      >
+        {marketInfoLines(selection).map((line) => (
+          <span key={line}>{line}</span>
+        ))}
+      </PopoverContent>
+    </Popover>
   )
 }

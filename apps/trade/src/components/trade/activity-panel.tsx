@@ -292,6 +292,18 @@ export function ActivityPanel({
   const countOf = (length: number) =>
     !trading.settled || trading.failed ? undefined : length
 
+  // The three words and Close all together are wider than a phone. The word
+  // stays on the tab that is open, and the other two keep their picture and
+  // their count. A screen reader still reads the full name of all three.
+  const tabProps = (which: ActivityTab, word: string) => ({
+    label: (
+      <span className={which === tab ? undefined : "hidden sm:inline"}>
+        {word}
+      </span>
+    ),
+    "aria-label": word,
+  })
+
   // ----- Growing the panel to fit the tab you just pressed -----------------
   //
   // Asking for the panel's height bumps this counter and the effect below
@@ -300,6 +312,21 @@ export function ActivityPanel({
   const root = React.useRef<HTMLDivElement | null>(null)
   const [landed, setLanded] = React.useState(0)
   const measured = React.useRef(0)
+
+  // The open tab, brought fully into view when the row is too narrow to hold
+  // all three. On a phone the row slides sideways, and the tab somebody has
+  // just opened is the one whose count must not be the part hanging off the
+  // end. `scrollLeft` is set by hand rather than through `scrollIntoView`,
+  // which also scrolls every box above this one.
+  React.useEffect(() => {
+    const list = root.current?.querySelector('[data-slot="tabs-list"]')
+    if (!(list instanceof HTMLElement)) return
+    const open = list.querySelector('[data-state="active"]')
+    if (!(open instanceof HTMLElement)) return
+    const overshoot = open.offsetLeft + open.offsetWidth - list.clientWidth
+    if (overshoot > list.scrollLeft) list.scrollLeft = overshoot
+    else if (open.offsetLeft < list.scrollLeft) list.scrollLeft = open.offsetLeft
+  }, [tab])
 
   React.useEffect(() => {
     // Only ever once per press. The other things this effect reads move on
@@ -379,16 +406,27 @@ export function ActivityPanel({
                 type="button"
                 variant="outline"
                 disabled={trading.busy}
+                aria-label={`Remove ${tickedTrades.length} ticked trades`}
                 onClick={() => setRemovingTrades(tickedTrades)}
               >
                 <Trash2Icon className="size-4" />
-                Remove ({tickedTrades.length})
+                <span className="max-sm:sr-only">Remove </span>(
+                {tickedTrades.length})
               </Button>
             ) : null}
             {/* The same Journal across every exchange, at full height, with
                 the month grid and the pattern cards beside it. */}
+            {/* Not on a phone. It is a link to another page rather than
+                something done to this table, the sidebar already carries PnL,
+                and it is the button that squeezed the Journal's own tab down
+                to four letters. */}
             {tab === "journal" ? (
-              <Button type="button" variant="outline" asChild>
+              <Button
+                type="button"
+                variant="outline"
+                asChild
+                className="max-sm:hidden"
+              >
                 <Link to="/pnl">Open P&amp;L</Link>
               </Button>
             ) : null}
@@ -430,7 +468,7 @@ export function ActivityPanel({
           <DashboardCardTab
             value="positions"
             icon={<LayersIcon className="size-4" />}
-            label="Positions"
+            {...tabProps("positions", "Positions")}
             count={countOf(visible.length)}
             onPointerDown={pressTab("positions")}
           />
@@ -438,14 +476,14 @@ export function ActivityPanel({
         <DashboardCardTab
           value="orders"
           icon={<ScrollTextIcon className="size-4" />}
-          label="Open orders"
+          {...tabProps("orders", "Open orders")}
           count={countOf(trading.orders.length + trading.watchOrders.length)}
           onPointerDown={pressTab("orders")}
         />
         <DashboardCardTab
           value="journal"
           icon={<BookOpenIcon className="size-4" />}
-          label="Journal"
+          {...tabProps("journal", "Journal")}
           count={countOf(trading.trades.length + unmatchedHistory.length)}
           onPointerDown={pressTab("journal")}
         />

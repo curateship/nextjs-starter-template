@@ -1,4 +1,9 @@
-import { CandlestickChartIcon, SearchIcon, TargetIcon } from "lucide-react"
+import {
+  CandlestickChartIcon,
+  PinIcon,
+  SearchIcon,
+  TargetIcon,
+} from "lucide-react"
 
 import type { AppOptions } from "@/lib/app-options"
 
@@ -34,6 +39,23 @@ export const appOptions: AppOptions = {
     rightActions: [
       {
         /**
+         * The pinned markets, on a phone only. They are drawn along the header
+         * itself on anything wider — this is the copy that rides in the
+         * three-dot dropdown the shell folds the app's controls into, where a
+         * phone header has no room for a row of chips.
+         */
+        id: "pinned-markets",
+        label: "Pinned markets",
+        icon: PinIcon,
+        roles: ["member", "admin"],
+        foldsOnPhone: true,
+        // A list of markets rather than a button, so it takes a line of its
+        // own in the dropdown instead of reading as one more button in the row.
+        ownSection: true,
+        component: () => import("@/components/trade/pinned-markets-menu"),
+      },
+      {
+        /**
          * One field that searches every exchange's market list at once. It is
          * first in the row because it is the way into a market by name, and
          * everybody's own screens, so a member gets it as well as an admin.
@@ -42,6 +64,9 @@ export const appOptions: AppOptions = {
         label: "Search markets",
         icon: SearchIcon,
         roles: ["member", "admin"],
+        // Nothing to read at a glance — it is a field you go and use — so it
+        // is one of the two that fold away on a phone.
+        foldsOnPhone: true,
         component: () => import("@/components/trade/market-search-header"),
       },
       {

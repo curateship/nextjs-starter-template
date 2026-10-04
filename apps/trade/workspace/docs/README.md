@@ -62,6 +62,11 @@ screen: anything not written there has not been agreed yet.
   `/admin` so a member can open one, the address of each, why protocol rather
   than exchange, why there is one address rather than one per role, and what
   stays admin-only.
+- `dashboard-on-a-phone.md` — the exchange dashboard below 768px: the one-row
+  market header, the three-dot sheet holding Indicators, Wallet, Alerts, Pin to
+  top, Watchlists and Contract info, the pinned markets and figures in the
+  header's own three-dot dropdown, and the three tables that slide up over the
+  chart instead of sitting under it.
 - `workspace.md` — the trading workspace: its panels, the Positions tab, Close
   all, Long/Short badge columns, and where the navigation lives.
 - `trading-overview.md`: visible profit date labels and empty-history explanations; the signed-in home page and its Active trades menu,

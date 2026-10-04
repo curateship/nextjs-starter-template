@@ -18,13 +18,19 @@ import {
 import { formatChange } from "@/lib/trade/format"
 import { moneyTone } from "@/lib/trade/money-tone"
 import { usePinnedMarkets } from "@/lib/trade/use-pinned-markets"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { useHidePnlSync } from "@/lib/trade/use-hide-pnl-sync"
 import { PublicProfileDialogHost } from "@/components/social/public-profile-setting"
 
 export default function PinnedMarketsHeader({
   fallback,
 }: AppHeaderLeftContentProps) {
-  const { pins, quotes, busy, failed, store } = usePinnedMarkets()
+  const { pins, failed, store } = usePinnedMarkets()
+  // The chips leave this row on a phone and are drawn in the header's
+  // three-dot dropdown instead, by `pinned-markets-menu.tsx`. Everything else
+  // in here stays mounted at every width: the reading clock below, the saved
+  // Hide profit and loss choice, and the settings cog's own window.
+  const phone = useIsMobile()
   // Not about pinned markets at all. This is the app's own control on the
   // signed-in header, so it is the one component drawn on every screen — and
   // the saved Hide profit and loss choice has to reach the page before any
@@ -78,9 +84,39 @@ export default function PinnedMarketsHeader({
           cog's panel closes as the window opens. See the component. */}
       <PublicProfileDialogHost />
       {fallback}
-      {pins.length ? (
-        <ScrollArea className="mr-2 ml-auto max-w-full min-w-0">
-          {/*
+      {pins.length && !phone ? (
+        <PinnedMarketChips className="mr-2 ml-auto max-w-full min-w-0" />
+      ) : null}
+      {failed ? (
+        <Button variant="ghost" size="sm" onClick={() => void store.refresh()}>
+          Retry header pins
+        </Button>
+      ) : null}
+    </>
+  )
+}
+
+/**
+ * The pinned markets themselves, wherever they are drawn: along the header on
+ * a wide window, inside its three-dot dropdown on a phone.
+ */
+export function PinnedMarketChips({
+  className,
+  alwaysShowChange = false,
+}: {
+  className?: string
+  /**
+   * The day's change on every chip. Off along the header, where the row only
+   * has room for it above 1280px, and on inside the three-dot dropdown, which
+   * is a list rather than a row and has the width to spare.
+   */
+  alwaysShowChange?: boolean
+}) {
+  const { pins, quotes, busy, store } = usePinnedMarkets()
+  if (!pins.length) return null
+  return (
+    <ScrollArea className={className}>
+      {/*
             The chips sit on their own light ground, so the pins read as one
             thing rather than as more navigation links that happen to be
             further along the row. Same shape as the chart's timeframe picker:
@@ -88,18 +124,18 @@ export default function PinnedMarketsHeader({
             controls. A chip's own hover is the full-strength `bg-muted`, a
             step darker than the tray it sits in.
           */}
-          <nav
-            aria-label="Pinned markets"
-            className="flex h-8 w-max items-center gap-0.5 rounded-lg bg-muted/60 p-0.5"
-          >
-            {pins.map((key) => {
-              const quote = quotes.find((item) => item.key === key)
-              const symbol = quote?.symbol ?? marketSymbol(key)
-              const ref = parseMarketKey(key)!
-              const label = `${symbol}, ${ref.protocol}, ${ref.network}`
-              const change = quote?.change24h ?? null
-              return (
-                /*
+      <nav
+        aria-label="Pinned markets"
+        className="flex h-8 w-max items-center gap-0.5 rounded-lg bg-muted/60 p-0.5"
+      >
+        {pins.map((key) => {
+          const quote = quotes.find((item) => item.key === key)
+          const symbol = quote?.symbol ?? marketSymbol(key)
+          const ref = parseMarketKey(key)!
+          const label = `${symbol}, ${ref.protocol}, ${ref.network}`
+          const change = quote?.change24h ?? null
+          return (
+            /*
                   ONE hovered surface for the whole chip, filling the tray it
                   sits in.
 
@@ -110,11 +146,11 @@ export default function PinnedMarketsHeader({
                   the same pair the top-left links use — and the two controls
                   inside paint no background of their own.
                 */
-                <div
-                  key={key}
-                  className="inline-flex h-7 min-w-0 items-center gap-1 rounded-md pr-1 pl-2.5 text-sm font-medium transition-all hover:bg-muted"
-                >
-                  {/*
+            <div
+              key={key}
+              className="inline-flex h-7 min-w-0 items-center gap-1 rounded-md pr-1 pl-2.5 text-sm font-medium transition-all hover:bg-muted"
+            >
+              {/*
                     No tooltip on the chip.
 
                     It named the protocol, the network and the price, and it
@@ -124,13 +160,13 @@ export default function PinnedMarketsHeader({
                     says the rest. `aria-label` still carries the full
                     description for a screen reader.
                   */}
-                  <Link
-                    to={marketChartHref(key)!}
-                    aria-label={`Open ${label} chart`}
-                    className="inline-flex min-w-0 items-center gap-1 rounded-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-                  >
-                    <span className="max-w-16 truncate">{symbol}</span>
-                    {/*
+              <Link
+                to={marketChartHref(key)!}
+                aria-label={`Open ${label} chart`}
+                className="inline-flex min-w-0 items-center gap-1 rounded-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                <span className="max-w-16 truncate">{symbol}</span>
+                {/*
                       The day's change, and no price anywhere. The price was
                       the longest thing on the chip and the least looked at,
                       and the chart this opens is where it is read now.
@@ -142,42 +178,33 @@ export default function PinnedMarketsHeader({
                       the row steady: every digit is the same width, so a
                       figure ticking from -2.15% to -2.17% moves nothing.
                     */}
-                    <span
-                      className={`hidden font-mono tabular-nums xl:inline ${change === null ? "text-muted-foreground" : moneyTone(change)}`}
-                    >
-                      {change === null ? "—" : formatChange(change)}
-                    </span>
-                  </Link>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        type="button"
-                        disabled={busy}
-                        aria-label={`Unpin ${label} from header`}
-                        onClick={() => void store.setPin(key, false)}
-                        className="inline-flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50"
-                      >
-                        <XIcon className="size-3" />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      {busy
-                        ? "Saving header pins"
-                        : `Unpin ${symbol} from header`}
-                    </TooltipContent>
-                  </Tooltip>
-                </div>
-              )
-            })}
-          </nav>
-          <ScrollBar orientation="horizontal" />
-        </ScrollArea>
-      ) : null}
-      {failed ? (
-        <Button variant="ghost" size="sm" onClick={() => void store.refresh()}>
-          Retry header pins
-        </Button>
-      ) : null}
-    </>
+                <span
+                  className={`font-mono tabular-nums ${alwaysShowChange ? "" : "hidden xl:inline"} ${change === null ? "text-muted-foreground" : moneyTone(change)}`}
+                >
+                  {change === null ? "—" : formatChange(change)}
+                </span>
+              </Link>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    aria-label={`Unpin ${label} from header`}
+                    onClick={() => void store.setPin(key, false)}
+                    className="inline-flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50"
+                  >
+                    <XIcon className="size-3" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {busy ? "Saving header pins" : `Unpin ${symbol} from header`}
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          )
+        })}
+      </nav>
+      <ScrollBar orientation="horizontal" />
+    </ScrollArea>
   )
 }
