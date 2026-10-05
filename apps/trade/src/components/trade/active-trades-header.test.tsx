@@ -7,12 +7,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { setHidePnl } from "@/lib/trade/hide-pnl"
 
-const { loadActiveTradesHeader } = vi.hoisted(() => ({
+const { loadActiveTradesHeader, loadLastHeaderFigures } = vi.hoisted(() => ({
   loadActiveTradesHeader: vi.fn(),
+  // Nothing remembered by default, so every test below still measures the
+  // button with only its own read behind it.
+  loadLastHeaderFigures: vi.fn<
+    () => Promise<{ value: string; profit: string; profitValue: number } | null>
+  >(async () => null),
 }))
 
 vi.mock("@/lib/api/trade/active-trades-header", () => ({
   loadActiveTradesHeader,
+  loadLastHeaderFigures,
 }))
 vi.mock("@/lib/toast/error-toast", () => ({
   showErrorToast: vi.fn(),
@@ -125,6 +131,57 @@ describe("the Active Trades header", () => {
 
     expect(host.textContent).toContain("Reading active trades")
     expect(host.textContent).not.toContain("Try again")
+  })
+
+  it("shows the figures it last knew while the exchanges are still being read", async () => {
+    // The one Tyler asked for, 4 October 2026: "Just show the old numbers until
+    // theres a new one." A read where a venue stays quiet has no total in it,
+    // and after a reload there is nothing in memory to fall back on, so the
+    // button sat on two dashes for 26 seconds. The last complete pair comes
+    // from the server instead, and lands long before the exchanges answer.
+    loadActiveTradesHeader.mockReturnValueOnce(new Promise(() => {}))
+    loadLastHeaderFigures.mockResolvedValueOnce({
+      value: "$5,439",
+      profit: "-$2",
+      profitValue: -2.31,
+    })
+
+    await act(async () => root.render(<ActiveTradesHeader role="admin" />))
+    await act(async () => undefined)
+
+    const trigger = host.querySelector<HTMLButtonElement>(
+      "[data-active-trades-header-trigger]"
+    )
+    expect(trigger?.textContent).toContain("$5,439")
+    expect(trigger?.textContent).toContain("-$2")
+    expect(trigger?.textContent).not.toContain("—")
+  })
+
+  it("never puts an old total back over a fresh one", async () => {
+    // The remembered pair can answer after the real read. It only ever fills
+    // figures that are still empty, so a late answer cannot undo a live total.
+    loadActiveTradesHeader.mockResolvedValueOnce({
+      snapshot: {
+        activeTrades: [{ value: 1000, profit: 16, profitShare: 1.6 }],
+        activeTradesUnavailable: [],
+        watchingOrders: [],
+        watchingUnavailable: [],
+      },
+    })
+    loadLastHeaderFigures.mockResolvedValueOnce({
+      value: "$5,439",
+      profit: "-$2",
+      profitValue: -2.31,
+    })
+
+    await act(async () => root.render(<ActiveTradesHeader role="admin" />))
+    await act(async () => undefined)
+
+    const trigger = host.querySelector<HTMLButtonElement>(
+      "[data-active-trades-header-trigger]"
+    )
+    expect(trigger?.textContent).toContain("$1,000")
+    expect(trigger?.textContent).not.toContain("$5,439")
   })
 
   it("retries a failed read and replaces the error with trades", async () => {

@@ -17,6 +17,7 @@ import {
   checkDrawingAlerts,
   loadDrawingAlerts,
 } from "@/server/trade/drawing-alerts"
+import { tradeNoticeLinks } from "@/server/trade/schema"
 import {
   deleteChartDrawing,
   loadChartDrawings,
@@ -219,6 +220,17 @@ describe("alerts on drawn lines", () => {
     ])
     expect(await database.select().from(customShellNotifications)).toHaveLength(1)
     expect(drawing?.id).toBe(id)
+
+    // The pieces the bell draws, saved beside the sentence. This writer used to
+    // name title, body and level by hand, which left an alert as the one notice
+    // arriving with nothing to draw and reading its own sentence back forever.
+    const [link] = await database
+      .select()
+      .from(tradeNoticeLinks)
+      .where(eq(tradeNoticeLinks.noticeId, notices[0].id))
+    expect(link?.headline).toBe("BTC crossed your trendline")
+    expect(link?.meta).toEqual(["@ $120", "rising"])
+    expect(link?.kind).toBe("alert")
   })
 
   it("lists armed lines oldest first and fired ones newest first, priced at their moment", async () => {

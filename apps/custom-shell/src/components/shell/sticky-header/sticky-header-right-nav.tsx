@@ -263,6 +263,7 @@ export function StickyHeaderRightNav({
               key={item.id}
               initialUnseenCount={unseenNotifications ?? 0}
               live={liveNotifications}
+              canOpenSettings={role === "admin"}
               onOpenFeedback={onOpenFeedbackThread}
             />
           )

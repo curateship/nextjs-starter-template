@@ -252,19 +252,88 @@ list instead of copying it into state after the page has drawn.
 - Use `DashboardToolbarSelectTrigger` for dashboard filter dropdowns.
 - Filter controls should wrap on mobile like the feedback dashboard instead of stacking into full-width rows.
 
+## A notification row has four parts, and the app fills them
+
+`NotificationRow` draws a tile, a heading, a line of figures and the time. The
+shell writes all four for its own notices. An app that wrote the notice knows
+better and says so through `AppOptions.notifications.detailsFor`, which hands
+back an `AppNoticeDetail` per notice id.
+
+- **`title`** is the heading: short enough for one line beside the time.
+- **`meta`** is an array of single facts, drawn in a fixed-width font and
+  joined with a middle dot. `["@ 0.04932", "HL1 Grid", "filled"]` becomes
+  "@ 0.04932 · HL1 Grid · filled". One fact per entry is the whole point: the
+  price then sits in the same place on every row and a column of fills reads
+  straight down.
+- **`icon` and `toneClassName`** are the tile. The app owns the colour because
+  only the app knows whether its own notice is good news.
+- **`categoryId`** is which tab the row sits under, from the app's own
+  `categories` list.
+An unread row is tinted and carries a red dot, the theme's own `destructive`
+and the same colour as the count on the bell.
+
+`NotificationTile` is exported, so the admin notifications table draws its rows
+from the same pieces. A notice that reads one way in the tray and another way in
+the record is the bug this prevents. The day grouping lives in
+`notification-center.tsx`, because the bell is the only thing that groups.
+
+Every field is optional, and a notice the app says nothing about looks exactly
+as it did before any of this existed. Tyler asked for this shape on 4 October
+2026.
+
+### The look is worked out on the spot, and only the address is fetched
+
+An app fills a row's four parts through two options, and the split between them
+is what keeps the tray instant.
+
+- **`describe`** is synchronous. The shell is already holding the notice's own
+  words, so an app that can read its own sentences answers immediately and every
+  row is right on the first paint.
+- **`detailsFor`** is the request, and it is for what only a server can say —
+  chiefly where a notice leads when it is clicked. What comes back is laid over
+  what `describe` said, field by field, so a late answer can only add to a drawn
+  row and never blank it.
+
+Putting the whole decoration behind the request instead drew the plain sentence
+and redrew it 378ms later, which read as the old design flashing past. Holding a
+spinner over the gap hid it but did not close it; answering synchronously
+removes the gap. Measured after the change: twenty rows, all twenty with their
+figures, in the first frame.
+
+### The tabs
+
+Unread and All are the shell's, always first. Everything after them is the
+app's, in the order the app lists them. Filtering by an app tab reads the
+`categoryId` the app gave each notice, so a tab shows nothing until that
+answer has arrived — which happens while the tray is being read, not on a
+click.
+
+### Mark all read lives in the footer
+
+Five tabs and a worded button do not share a 416px row — putting the action
+beside the tabs wrapped the header onto two lines. It sits in the footer
+instead, beside Settings and History. Those two go to admin screens, so a
+member sees Mark all read on its own rather than links that would bounce them
+back. There is no separate member-facing history page; the admin notifications
+table already is the record.
+
 ## A notification row says everything on hover
 
-A row in the bell, on the member home and anywhere else `NotificationRow`
-draws, cuts its second line to 90 characters and ends it with an ellipsis.
-**The whole text is on the row's `title`, so hovering gives the rest.**
+**The whole of a row is on the row's own `title`**, so hovering anywhere on it
+gives the heading, the figures, the sentence and the exact time.
 
-The cut is made in JavaScript, in `notificationPreview`, and the `line-clamp-2`
-under it is only a second guard for a long word. That matters because it means
-nothing on the page holds the missing words: a reader who hovers a row ending
-"which bought these coins at..." gets nothing unless the row was handed the
-untruncated text separately. So `notificationText` returns the whole thing and
-`notificationPreview` cuts a copy, and the row uses one for `title` and the
-other for what it draws.
+The tooltip has to live on the row rather than on the lines inside it. The
+click target is a button laid over the whole row — the row holds a button of
+its own, and a button inside a button is not something a browser will render —
+so a tooltip on any inner line would never be the one the pointer is over.
+
+The sentence itself is still cut to 90 characters in JavaScript, in
+`notificationPreview`, with the `line-clamp-2` under it only a second guard for
+a long word. That matters because it means nothing else on the page holds the
+missing words: a reader who hovers a row ending "which bought these coins
+at..." gets nothing unless the row was handed the untruncated text separately.
+So `notificationText` returns the whole thing and `notificationPreview` cuts a
+copy.
 
 Tyler asked for this on 3 October 2026, looking at a trade notice whose figure
 had been cut off mid-sentence.

@@ -1691,6 +1691,48 @@ export const tradeNoticeLinks = pgTable("trade_notice_links", {
    * the notices can be told apart without reading them.
    */
   level: varchar("level", { length: 8 }).$type<"info" | "warning" | "critical">().notNull().default("info"),
+  /**
+   * The same event cut into the pieces the bell draws: a short heading, and
+   * one fact per entry under it ("@ 0.04932", "Main wallet", "filled").
+   *
+   * Saved beside the sentences rather than instead of them. The notification
+   * row still carries `message` and `detail`, which the admin table and the
+   * home activity card read as prose; these are the same event arranged for a
+   * list. Null on every notice written before 4 October 2026, and such a
+   * notice falls back to its sentences.
+   */
+  headline: text("headline"),
+  meta: jsonb("meta").$type<string[]>(),
+  /**
+   * What kind of thing happened, which decides the bell's tab and its tile.
+   * Not the same question as `level`: the level says a trade lost money, the
+   * kind says a trade happened at all.
+   */
+  kind: varchar("kind", { length: 12 }).$type<
+    "entered" | "exited" | "liquidated" | "alert" | "system"
+  >(),
+})
+
+/**
+ * The last two figures the header button was able to say, per person.
+ *
+ * A read where one exchange stays quiet has no total in it, so after a reload
+ * the button had nothing to show until a read landed with every venue
+ * answering — two dashes for 26 seconds, measured on 4 October 2026. These are
+ * what it draws in the meantime. Tyler: "Just show the old numbers until theres
+ * a new one."
+ *
+ * Written only when a read produces a real total, so what is here was true at
+ * `measuredAt` and is never a partial sum wearing a complete one's clothes.
+ */
+export const tradeHeaderFigures = pgTable("trade_header_figures", {
+  userId: varchar("user_id", { length: 36 }).primaryKey(),
+  value: text("value").notNull(),
+  profit: text("profit").notNull(),
+  profitValue: doublePrecision("profit_value").notNull(),
+  measuredAt: timestamp("measured_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 })
 
 export const tradeMarketFirstSeen = pgTable("trade_market_first_seen", {

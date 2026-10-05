@@ -7,6 +7,7 @@ import { publishNotificationCreated } from "@/server/notifications/events"
 import { customShellNotifications } from "@/server/schema"
 import { tradeNoticeLinks } from "@/server/trade/schema"
 import type { TradeSoundKind } from "@/lib/trade/trade-sounds"
+import type { TradeNoticeKind } from "@/lib/trade/trade-notice-words"
 
 /**
  * Write one app notice straight to the wallet owner's inbox.
@@ -22,6 +23,9 @@ export async function writeTradeNotice({
   title,
   body,
   level,
+  headline,
+  meta,
+  kind,
   href,
   soundKind,
   noticeKey,
@@ -32,6 +36,15 @@ export async function writeTradeNotice({
   title: string
   body: string
   level: "info" | "warning" | "critical"
+  /**
+   * The same event cut into the pieces the bell draws: a short heading, and one
+   * fact per entry under it. Left out, the bell falls back to the sentences
+   * above, which is what every notice written before 4 October 2026 does.
+   */
+  headline?: string
+  meta?: readonly string[]
+  /** What kind of thing happened, which decides the bell's tab and its tile. */
+  kind?: TradeNoticeKind
   /**
    * The page this notice came off, so clicking it in the bell goes there.
    *
@@ -82,6 +95,9 @@ export async function writeTradeNotice({
       href: href ?? null,
       soundKind: soundKind ?? null,
       level,
+      headline: headline ?? null,
+      meta: meta ? [...meta] : null,
+      kind: kind ?? null,
     })
     .onConflictDoUpdate({
       target: tradeNoticeLinks.noticeId,
@@ -93,6 +109,12 @@ export async function writeTradeNotice({
         level,
         href: sql`coalesce(${href ?? null}, ${tradeNoticeLinks.href})`,
         soundKind: sql`coalesce(${soundKind ?? null}, ${tradeNoticeLinks.soundKind})`,
+        // The pieces follow the words, for the same reason the level does: a
+        // later piece of one fill knows more about it than the first did, and
+        // the bell has to say the same thing the sentence above it says.
+        headline: sql`coalesce(${headline ?? null}, ${tradeNoticeLinks.headline})`,
+        kind: sql`coalesce(${kind ?? null}, ${tradeNoticeLinks.kind})`,
+        ...(meta ? { meta: [...meta] } : {}),
       },
     })
   await publishNotificationCreated(userId, database)

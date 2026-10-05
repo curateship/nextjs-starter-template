@@ -8,6 +8,7 @@ import { customShellNotifications, customShellUsers } from "@/server/schema"
 import {
   tradeEngineOutages,
   tradeEngineOutageHistory,
+  tradeNoticeLinks,
   tradeWorkerControls,
   tradeWorkerHeartbeats,
 } from "@/server/trade/schema"
@@ -47,22 +48,47 @@ function durationText(milliseconds: number): string {
   return parts.join(" ")
 }
 
+/** "5m 13s" — the same span the sentence spells out, short enough for a heading. */
+function shortDurationText(milliseconds: number): string {
+  const totalSeconds = Math.max(1, Math.round(milliseconds / 1_000))
+  const hours = Math.floor(totalSeconds / 3_600)
+  const minutes = Math.floor((totalSeconds % 3_600) / 60)
+  const seconds = totalSeconds % 60
+  const parts: string[] = []
+
+  if (hours) parts.push(`${hours}h`)
+  if (minutes) parts.push(`${minutes}m`)
+  if (seconds || parts.length === 0) parts.push(`${seconds}s`)
+
+  return parts.join(" ")
+}
+
 function outageWords(outageStartedAt: Date) {
   return {
     title: `The trading engine stopped at ${ENGINE_TIME.format(outageStartedAt)}`,
     body: "Watched orders and ladder rungs will not fire until it is running again.",
+    headline: "Trading engine stopped",
+    meta: [ENGINE_TIME.format(outageStartedAt), "down"],
   }
 }
 
 function recoveryWords(outageStartedAt: Date, recoveredAt: Date) {
+  const span = recoveredAt.getTime() - outageStartedAt.getTime()
   return {
     title: `The trading engine came back at ${ENGINE_TIME.format(recoveredAt)}`,
-    body: `It was unavailable for ${durationText(recoveredAt.getTime() - outageStartedAt.getTime())}. Watched orders and ladder rungs are working again.`,
+    body: `It was unavailable for ${durationText(span)}. Watched orders and ladder rungs are working again.`,
+    headline: `Trading engine was down ${shortDurationText(span)}`,
+    // The window it was out for, said once rather than twice: the clock format
+    // only prints its zone on the second time, where it covers both.
+    meta: [
+      `${ENGINE_TIME.format(outageStartedAt).replace(/\s[A-Z]{2,5}$/, "")} – ${ENGINE_TIME.format(recoveredAt)}`,
+      "recovered",
+    ],
   }
 }
 
 async function writeNotice(
-  words: { title: string; body: string },
+  words: { title: string; body: string; headline: string; meta: string[] },
   timestamp: Date,
   database: CustomShellDb
 ): Promise<string[]> {
@@ -79,14 +105,28 @@ async function writeNotice(
 
   // One row per admin, each carrying the words. The engine stopping is news
   // for every admin at once, and each of them reads and clears their own copy.
-  await database.insert(customShellNotifications).values(
-    recipients.map(({ id }) => ({
-      id: randomUUID(),
-      recipientUserId: id,
-      type: "app_activity" as const,
-      message: words.title,
-      detail: words.body,
-      createdAt: timestamp,
+  const notices = recipients.map(({ id }) => ({
+    id: randomUUID(),
+    recipientUserId: id,
+    type: "app_activity" as const,
+    message: words.title,
+    detail: words.body,
+    createdAt: timestamp,
+  }))
+  await database.insert(customShellNotifications).values(notices)
+
+  // The pieces the bell draws, and the kind that puts these under System. An
+  // engine notice has no page to open and no sound to make, so those stay
+  // null; this row exists for the heading, the window and the tab.
+  await database.insert(tradeNoticeLinks).values(
+    notices.map((notice) => ({
+      noticeId: notice.id,
+      href: null,
+      soundKind: null,
+      level: "warning" as const,
+      headline: words.headline,
+      meta: words.meta,
+      kind: "system" as const,
     }))
   )
 

@@ -16,7 +16,7 @@ import {
 } from "@/server/test-support"
 import { recordLiveFills } from "@/server/trade/live-fills"
 import {
-  tradeNoticeLinksFor,
+  tradeNoticeDetailsFor,
   tradeSoundEventsAfter,
 } from "@/server/trade/notice-links"
 import { writeTradeNotice } from "@/server/trade/notices"
@@ -123,15 +123,15 @@ describe("where a trade notice leads", () => {
       expect(notice.readAt).toEqual(readAt)
       const words = notice
       expect(words.message).toBe(
-        `${dir === "Open Long" ? "Entered" : "Exited"} a trade: $700 of SUSHIUSDTM at $175 (Ku1)`
+        `${dir === "Open Long" ? "Entered" : "Exited"} a trade: $700 of SUSHI at $175 (Ku1)`
       )
       if (dir === "Close Long") expect(words.detail).toContain("$20.00")
       expect(
         (await tradeSoundEventsAfter(userId, sounds.cursor)).events
       ).toEqual([])
-      expect(await tradeNoticeLinksFor(userId, [noticeId])).toEqual({
-        [noticeId]: "/protocols/kucoin?market=kucoin%3Amainnet%3ASUSHIUSDTM",
-      })
+      expect(
+        (await tradeNoticeDetailsFor(userId, [noticeId]))[noticeId]?.href
+      ).toBe("/protocols/kucoin?market=kucoin%3Amainnet%3ASUSHIUSDTM")
 
       await Promise.all([
         recordLiveFills(userId, wallet, [
@@ -147,7 +147,7 @@ describe("where a trade notice leads", () => {
         .from(customShellNotifications)
         .where(eq(customShellNotifications.id, noticeId))
       expect(combined.message).toBe(
-        `${dir === "Open Long" ? "Entered" : "Exited"} a trade: $1,700 of SUSHIUSDTM at $170 (Ku1)`
+        `${dir === "Open Long" ? "Entered" : "Exited"} a trade: $1,700 of SUSHI at $170 (Ku1)`
       )
       if (dir === "Close Long") expect(combined.detail).toContain("$40.00")
 
@@ -179,24 +179,36 @@ describe("where a trade notice leads", () => {
     }
   )
 
-  it("gives back the page a notice was written with", async () => {
+  it("gives back the page and the pieces a notice was written with", async () => {
     const userId = await makePerson()
     await writeTradeNotice({
       userId,
-      title: "Bought $500 of ETH at $90 (Main)",
+      title: "Entered a trade: $500 of ETH at $90 (Main)",
       body: "The order filled on the exchange.",
       level: "info",
+      headline: "Entered $500 of ETH",
+      meta: ["@ $90", "Main", "filled"],
+      kind: "entered",
       href: "/protocols/hyper-liquid?market=hyperliquid%3Amainnet%3AETH",
       database,
     })
 
     const [noticeId] = await noticeIdsOf(userId)
-    expect(await tradeNoticeLinksFor(userId, [noticeId])).toEqual({
-      [noticeId]: "/protocols/hyper-liquid?market=hyperliquid%3Amainnet%3AETH",
+    expect(await tradeNoticeDetailsFor(userId, [noticeId])).toEqual({
+      [noticeId]: {
+        href: "/protocols/hyper-liquid?market=hyperliquid%3Amainnet%3AETH",
+        headline: "Entered $500 of ETH",
+        meta: ["@ $90", "Main", "filled"],
+        kind: "entered",
+        level: "info",
+      },
     })
   })
 
-  it("says nothing about a notice written without a page", async () => {
+  it("still answers for a notice with no page, because it still has a tab", async () => {
+    // Before the bell had tabs this answered nothing at all for a notice with
+    // nowhere to go. It has to answer now: the kind is what puts the row under
+    // Trades or System, and a notice with no page still belongs under one.
     const userId = await makePerson()
     await writeTradeNotice({
       userId,
@@ -207,7 +219,15 @@ describe("where a trade notice leads", () => {
     })
 
     const [noticeId] = await noticeIdsOf(userId)
-    expect(await tradeNoticeLinksFor(userId, [noticeId])).toEqual({})
+    expect(await tradeNoticeDetailsFor(userId, [noticeId])).toEqual({
+      [noticeId]: {
+        href: null,
+        headline: null,
+        meta: null,
+        kind: null,
+        level: "info",
+      },
+    })
   })
 
   it("writes the notice to one inbox and announces nothing", async () => {
@@ -284,12 +304,12 @@ describe("where a trade notice leads", () => {
     })
 
     const [theirNoticeId] = await noticeIdsOf(theirs)
-    expect(await tradeNoticeLinksFor(mine, [theirNoticeId])).toEqual({})
+    expect(await tradeNoticeDetailsFor(mine, [theirNoticeId])).toEqual({})
   })
 
   it("asks nothing of the database when there is nothing to ask about", async () => {
     const userId = await makePerson()
-    expect(await tradeNoticeLinksFor(userId, [])).toEqual({})
+    expect(await tradeNoticeDetailsFor(userId, [])).toEqual({})
   })
 
   /**
@@ -352,9 +372,9 @@ describe("where a trade notice leads", () => {
     const ids = await noticeIdsOf(user.id)
     expect(ids).toHaveLength(1)
     // The practice network, not the real one wearing the same coin's name.
-    expect(await tradeNoticeLinksFor(user.id, ids)).toEqual({
-      [ids[0]]: "/protocols/aster?market=aster%3Atestnet%3ABTCUSDT",
-    })
+    expect((await tradeNoticeDetailsFor(user.id, ids))[ids[0]]?.href).toBe(
+      "/protocols/aster?market=aster%3Atestnet%3ABTCUSDT"
+    )
   })
 
   it("answers only for the notices that have a page, out of a mixed handful", async () => {
@@ -377,8 +397,11 @@ describe("where a trade notice leads", () => {
 
     const ids = await noticeIdsOf(userId)
     expect(ids).toHaveLength(2)
-    const found = await tradeNoticeLinksFor(userId, ids)
-    expect(Object.values(found)).toEqual(["/flow-runs/run-7"])
+    const found = await tradeNoticeDetailsFor(userId, ids)
+    expect(Object.values(found).map((one) => one.href)).toEqual([
+      "/flow-runs/run-7",
+      null,
+    ])
   })
 })
 

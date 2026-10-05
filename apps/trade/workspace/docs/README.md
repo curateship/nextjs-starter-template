@@ -63,6 +63,7 @@ screen: anything not written there has not been agreed yet.
   than exchange, why there is one address rather than one per role, and what
   stays admin-only.
 - `dashboard-on-a-phone.md` — the exchange dashboard below 768px: the one-row
+- [The active trades button](screens/active-trades-button.md) — click to open, why the table fits exactly, and why it never shows two dashes.
   market header, the three-dot sheet holding Indicators, Wallet, Alerts, Pin to
   top, Watchlists and Contract info, the pinned markets and figures in the
   header's own three-dot dropdown, and the three tables that slide up over the

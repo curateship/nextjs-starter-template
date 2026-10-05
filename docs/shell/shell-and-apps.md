@@ -141,12 +141,18 @@ the guess that one might:
   header, for what the flow IS right now rather than what a run produced
 - `automations.runControl` — the app's own control in place of Run
 - `automations.pauseControl` — the app's own control in place of Pause all
-- `notifications.linksFor` — where the app's own notices go when one is
-  clicked, asked once per page of notices rather than once per click. The shell
-  knows what its own notices are about; an `app_activity` notice carries its own
-  words and nowhere to go, which is what this answers. Addresses inside the app
-  only: anything else is dropped rather than followed, because these strings
-  come out of a database
+- `notifications.describe` — how one of the app's own notices looks, answered
+  on the spot from the words the shell already holds, so the row is right on
+  the first paint rather than redrawn a moment later
+- `notifications.detailsFor` — what the app can only say after asking a server,
+  asked once per page of notices rather than once per click: the page one goes
+  to, the heading and figures the bell draws it with, its tile and its tab. The
+  shell knows what its own notices are about; an `app_activity` notice carries
+  its own words and nowhere to go, which is what this answers. Addresses inside
+  the app only: anything else is dropped rather than followed, because these
+  strings come out of a database
+- `notifications.categories` — the app's own tabs in the tray, after the
+  shell's Unread and All. Each notice names one through its `categoryId`
 - `header.leftContent` — optional app-owned left navigation, lazy-loaded for
   the allowed roles. The component receives `fallback`, the current sidebar
   links, and renders that value when it has nothing to show. The same links

@@ -9,39 +9,21 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { loadActiveTradesHeader } from "@/lib/api/trade/active-trades-header"
+import {
+  loadActiveTradesHeader,
+  loadLastHeaderFigures,
+} from "@/lib/api/trade/active-trades-header"
 import type { AppHeaderActionProps } from "@/lib/app-options"
 import type { ActiveTradesSnapshot } from "@/lib/trade/dashboard/overview"
 import {
+  activeTradesFigures,
   mergeActiveTradesSnapshot,
-  summarizeActiveTrades,
 } from "@/lib/trade/dashboard/active-trades"
-import { formatWholeUsd } from "@/lib/trade/format"
 import { useHiddenPnlClass } from "@/lib/trade/hide-pnl"
 import { moneyTone } from "@/lib/trade/money-tone"
 import { cn } from "@/lib/utils"
 
 const REFRESH_MS = 15_000
-const HOVER_CLOSE_MS = 180
-
-function signedWholeUsd(value: number) {
-  if (value === 0) return "$0"
-  return `${value > 0 ? "+" : ""}${formatWholeUsd(value)}`
-}
-
-function headerFigures(snapshot: ActiveTradesSnapshot) {
-  if (snapshot.activeTradesUnavailable.length) return null
-  if (snapshot.activeTrades.length === 0) {
-    return { value: "$0", profit: "$0", profitValue: 0 }
-  }
-  const summary = summarizeActiveTrades(snapshot.activeTrades)
-  if (summary.totalValue === null || summary.totalProfit === null) return null
-  return {
-    value: formatWholeUsd(summary.totalValue),
-    profit: signedWholeUsd(summary.totalProfit),
-    profitValue: summary.totalProfit,
-  }
-}
 
 function useActiveTradesHeader() {
   const [snapshot, setSnapshot] = React.useState<ActiveTradesSnapshot | null>(
@@ -53,7 +35,7 @@ function useActiveTradesHeader() {
   // the button flicker empty while nothing was wrong with the trades. Dashes
   // are now only the first read, before any total has ever landed.
   const [figures, setFigures] = React.useState<ReturnType<
-    typeof headerFigures
+    typeof activeTradesFigures
   > | null>(null)
   const [failed, setFailed] = React.useState(false)
   const snapshotRef = React.useRef<ActiveTradesSnapshot | null>(null)
@@ -70,7 +52,7 @@ function useActiveTradesHeader() {
           : fresh.snapshot
         snapshotRef.current = merged
         setSnapshot(merged)
-        const next = headerFigures(merged)
+        const next = activeTradesFigures(merged)
         if (next) setFigures(next)
         setFailed(false)
       } catch {
@@ -82,6 +64,29 @@ function useActiveTradesHeader() {
       if (requestRef.current === request) requestRef.current = null
     })
     return request
+  }, [])
+
+  // The figures the button last managed to say, fetched beside the real read
+  // and back in a fraction of the time, because it touches no exchange. Two
+  // dashes are now only the very first load of a brand new account — Tyler,
+  // 4 October 2026: "Just show the old numbers until theres a new one."
+  //
+  // Whichever lands first wins, and a real read always beats it: this only
+  // ever fills figures that are still empty, so an answer that arrives late
+  // can never put an old total back over a fresh one.
+  React.useEffect(() => {
+    let stopped = false
+    void loadLastHeaderFigures()
+      .then((last) => {
+        if (stopped || !last) return
+        setFigures((current) => current ?? last)
+      })
+      .catch(() => {
+        // Nothing to say. The real read is already on its way.
+      })
+    return () => {
+      stopped = true
+    }
   }, [])
 
   React.useEffect(() => {
@@ -126,39 +131,11 @@ function useActiveTradesHeader() {
 function ActiveTradesHeaderContent() {
   const { snapshot, figures, failed, refresh } = useActiveTradesHeader()
   const hiddenPnl = useHiddenPnlClass()
+  // Click to open, click or Escape to close. It used to open on hover and shut
+  // itself on a timer a fifth of a second after the pointer left, which meant
+  // crossing the header on the way somewhere else threw a panel of trades over
+  // the page. Tyler, 4 October 2026.
   const [open, setOpen] = React.useState(false)
-  const closeTimer = React.useRef<number | null>(null)
-  const hoverOpen = React.useRef(false)
-
-  const cancelClose = React.useCallback(() => {
-    if (closeTimer.current !== null) window.clearTimeout(closeTimer.current)
-    closeTimer.current = null
-  }, [])
-  const closeSoon = React.useCallback(() => {
-    cancelClose()
-    closeTimer.current = window.setTimeout(() => setOpen(false), HOVER_CLOSE_MS)
-  }, [cancelClose])
-
-  React.useEffect(() => cancelClose, [cancelClose])
-
-  React.useEffect(() => {
-    if (!open) return
-    const onPointerMove = (event: PointerEvent) => {
-      if (!hoverOpen.current) return
-      const target = event.target
-      if (
-        target instanceof Element &&
-        (target.closest("[data-active-trades-header-trigger]") ||
-          target.closest('[data-slot="popover-content"]'))
-      ) {
-        cancelClose()
-        return
-      }
-      closeSoon()
-    }
-    document.addEventListener("pointermove", onPointerMove)
-    return () => document.removeEventListener("pointermove", onPointerMove)
-  }, [cancelClose, closeSoon, open])
 
   const label = figures
     ? `Active trades, ${figures.value} in trades, ${figures.profit} profit and loss`
@@ -167,14 +144,7 @@ function ActiveTradesHeaderContent() {
       : "Reading active trades"
 
   return (
-    <Popover
-      open={open}
-      onOpenChange={(next) => {
-        hoverOpen.current = false
-        cancelClose()
-        setOpen(next)
-      }}
-    >
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
           type="button"
@@ -183,12 +153,6 @@ function ActiveTradesHeaderContent() {
           data-nav-shape="text"
           data-active-trades-header-trigger
           aria-label={label}
-          onMouseEnter={() => {
-            hoverOpen.current = true
-            cancelClose()
-            setOpen(true)
-          }}
-          onMouseLeave={closeSoon}
         >
           {snapshot ? (
             <CandlestickChartIcon className="size-3.5" />
@@ -212,15 +176,32 @@ function ActiveTradesHeaderContent() {
       <PopoverContent
         align="end"
         sideOffset={8}
-        className="flex max-h-[var(--radix-popover-content-available-height)] w-160 max-w-[calc(100vw-1rem)] gap-0 overflow-hidden p-0"
+        className="flex max-h-[var(--radix-popover-content-available-height)] w-144 max-w-[calc(100vw-1rem)] gap-0 overflow-hidden p-0"
         onOpenAutoFocus={(event) => event.preventDefault()}
-        onMouseEnter={cancelClose}
-        onMouseLeave={closeSoon}
       >
         {snapshot ? (
           <ActiveTradesDropdown
             snapshot={snapshot}
-            className="[&_[data-slot=table-container]]:w-full [&_table]:w-full"
+            // Only here: on the dashboard the same table has the room.
+            className={cn(
+              "[&_[data-slot=table-container]]:w-full [&_table]:w-full",
+              // Tighter cells than the same table gets on a full-width page.
+              // Every column here is shrink-to-content and never wraps, so the
+              // table is as wide as its content plus five lots of padding, and
+              // at the page's `px-5` that came to 621px inside a 576px panel.
+              "[&_[data-slot=table-cell]]:px-2.5 [&_[data-slot=table-head]]:px-2.5",
+              // The ticker gives way, and nothing else does. Padding alone
+              // cannot make this table fit, because the longest coin name sets
+              // a floor under it — MARSCOINUSDTM held the panel 4px open even
+              // after the padding came off. A clipped ticker is still readable
+              // and its full name is on the chart one click away; a clipped
+              // figure is money with a digit missing, which is why the P/L
+              // column is the one that must never give.
+              "[&_tbody_td:first-child]:max-w-36",
+              "[&_tbody_td:first-child>span]:min-w-0",
+              "[&_tbody_td:first-child_button]:min-w-0 [&_tbody_td:first-child_button]:truncate",
+              "[&_tbody_td:first-child>span>span]:truncate"
+            )}
             onTradeOpen={() => setOpen(false)}
           />
         ) : failed ? (

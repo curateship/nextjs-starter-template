@@ -13,18 +13,58 @@ import { formatPrice, formatUsdRounded } from "@/lib/trade/format"
 
 export type TradeNoticeLevel = "info" | "warning" | "critical"
 
+/**
+ * What kind of thing happened, which is what the bell sorts its tabs by and
+ * draws its tile from.
+ *
+ * Not the same question as the level. "A trade lost money" is a level; "a
+ * trade happened at all" is a kind, and the bell needs both — the tab comes
+ * from the kind, the colour from the level.
+ */
+export type TradeNoticeKind =
+  | "entered"
+  | "exited"
+  | "liquidated"
+  | "alert"
+  | "system"
+
+/**
+ * One notice, in the two shapes the app needs it in.
+ *
+ * `title` and `body` are the whole sentences, saved on the notification row
+ * itself and read by the admin table, the home activity card and anything else
+ * that shows a notice as prose.
+ *
+ * `headline` and `meta` are the same event cut into the pieces the bell draws:
+ * a short heading, then one fact per piece under it. "Entered $49.91 of CHIP"
+ * above "@ 0.04932 · Main wallet · filled" is the same information as the
+ * sentence, arranged so a column of twenty rows can be read straight down with
+ * the price always in the same place. Tyler asked for this on 4 October 2026.
+ */
+export type TradeNoticeWords = {
+  title: string
+  body: string
+  level: TradeNoticeLevel
+  headline: string
+  meta: string[]
+  kind: TradeNoticeKind
+}
+
 /** One price alert, using the direction fixed when the line was placed. */
 export function priceAlertNoticeWords(input: {
   marketKey: string
   price: number
   direction: "above" | "below"
-}): { title: string; body: string; level: TradeNoticeLevel } {
+}): TradeNoticeWords {
   const coin = marketSymbol(input.marketKey)
   const movement = input.direction === "above" ? "rising" : "falling"
   return {
     title: `${coin} reached ${formatPrice(input.price)} (was ${movement})`,
     body: "The price alert fired once and is now retired.",
     level: "info",
+    headline: `${coin} reached ${formatPrice(input.price)}`,
+    meta: [`@ ${formatPrice(input.price)}`, movement, "price alert"],
+    kind: "alert",
   }
 }
 
@@ -49,7 +89,7 @@ export function drawingAlertNoticeWords(input: {
   closeInterval?: CandleInterval | null
   /** The volume the breaking candle had to beat, as a multiple, or null. */
   volumeMultiple?: number | null
-}): { title: string; body: string; level: TradeNoticeLevel } {
+}): TradeNoticeWords {
   const coin = marketSymbol(input.marketKey)
   const movement = input.direction === "above" ? "rising" : "falling"
   // Said before the rest, because it explains the price in the line above it:
@@ -70,17 +110,31 @@ export function drawingAlertNoticeWords(input: {
   const returned = input.retest ? `The price broke ${input.direction} the ${input.kind}, then returned to it from that side. ` : ""
   const verb = input.retest ? "retested" : "crossed"
   const rest = `${returned}${closed}${volume}${past}The ${input.kind}'s alert fired once and is now off. The ${input.kind} is still on the chart.`
+  // One fact each, in the order somebody checks them: where the price was,
+  // which way it was going, and what the line asked for before it would fire.
+  const meta = [`@ ${formatPrice(input.price)}`, movement]
+  if (input.buffer) meta.push(`${input.buffer}% buffer`)
+  if (input.closeInterval) meta.push(`${input.closeInterval} close`)
+  if (input.volumeMultiple) meta.push(`${input.volumeMultiple}x volume`)
+  if (input.retest) meta.push("retest")
+
   if (input.name) {
     return {
       title: `${coin} ${verb} ${input.name} (was ${movement})`,
       body: `${input.name} was at ${formatPrice(input.price)}. ${rest}`,
       level: "info",
+      headline: `${coin} ${verb} ${input.name}`,
+      meta,
+      kind: "alert",
     }
   }
   return {
     title: `${coin} ${verb} your ${input.kind} at ${formatPrice(input.price)} (was ${movement})`,
     body: rest,
     level: "info",
+    headline: `${coin} ${verb} your ${input.kind}`,
+    meta,
+    kind: "alert",
   }
 }
 
@@ -138,12 +192,18 @@ export function fillNoticeWords(fill: {
   liquidation: boolean
   walletLabel: string
   practice: boolean
-}): { title: string; body: string; level: TradeNoticeLevel } {
+}): TradeNoticeWords {
   const coin = marketSymbol(fill.marketKey)
   const usd = formatUsdRounded(Math.abs(fill.px * fill.sz))
   const price = formatPrice(fill.px)
-  const did = fillWasExit(fill) ? "Exited a trade" : "Entered a trade"
+  const exit = fillWasExit(fill)
+  const did = exit ? "Exited a trade" : "Entered a trade"
   const tag = walletTag(fill.walletLabel, fill.practice)
+  // The wallet's own name, without the brackets the sentence needs. The bell
+  // puts it in its own slot, where brackets inside brackets read as a mistake.
+  const wallet = fill.practice
+    ? `${fill.walletLabel}, practice`
+    : fill.walletLabel
 
   if (fill.liquidation) {
     return {
@@ -153,6 +213,9 @@ export function fillNoticeWords(fill: {
           ? `${gainWords(fill.closedPnl, null)} The exchange closed this itself.`
           : "The exchange closed this itself.",
       level: "critical",
+      headline: `The exchange liquidated ${usd} of ${coin}`,
+      meta: [`@ ${price}`, wallet, moneyMeta(fill.closedPnl) ?? "liquidated"],
+      kind: "liquidated",
     }
   }
 
@@ -162,22 +225,43 @@ export function fillNoticeWords(fill: {
       usd,
       price,
       tag,
+      wallet,
       side: fill.side,
       money: fill.runMoney,
     })
   }
   const title = `${did}: ${usd} of ${coin} at ${price} ${tag}`
+  // "Entered $49.91 of CHIP" — the word "a trade" is in the sentence below
+  // because the sentence has room for it, and out of the heading because the
+  // heading has to fit on one line beside the time.
+  const headline = `${exit ? "Exited" : "Entered"} ${usd} of ${coin}`
   if (fill.ownRung) {
-    return gridSaleWords({ coin, tag, sale: fill.ownRung })
+    return gridSaleWords({ coin, tag, wallet, sale: fill.ownRung })
   }
   if (fill.closedPnl !== 0) {
     return {
       title,
       body: gainWords(fill.closedPnl, fill.entryPx ?? null),
       level: fill.closedPnl < 0 ? "warning" : "info",
+      headline,
+      meta: [`@ ${price}`, wallet, moneyMeta(fill.closedPnl) ?? "filled"],
+      kind: exit ? "exited" : "entered",
     }
   }
-  return { title, body: "The order filled on the exchange.", level: "info" }
+  return {
+    title,
+    body: "The order filled on the exchange.",
+    level: "info",
+    headline,
+    meta: [`@ ${price}`, wallet, "filled"],
+    kind: exit ? "exited" : "entered",
+  }
+}
+
+/** "made $8.12" or "lost $13.02", or nothing at all when it broke even. */
+function moneyMeta(closedPnl: number): string | null {
+  if (closedPnl === 0) return null
+  return `${closedPnl < 0 ? "lost" : "made"} ${formatUsdRounded(Math.abs(closedPnl))}`
 }
 
 /** One short notice for several entry rungs filled by one ladder. */
@@ -187,13 +271,19 @@ export function ladderFillNoticeWords(input: {
   dollars: number
   walletLabel: string
   practice: boolean
-}): { title: string; body: string; level: TradeNoticeLevel } {
+}): TradeNoticeWords {
   const coin = marketSymbol(input.marketKey)
   const rungWord = input.count === 1 ? "rung" : "rungs"
+  const wallet = input.practice
+    ? `${input.walletLabel}, practice`
+    : input.walletLabel
   return {
     title: `${coin} ladder filled ${input.count} ${rungWord}`,
     body: `${formatUsdRounded(input.dollars)} in. ${walletTag(input.walletLabel, input.practice)}`,
     level: "info",
+    headline: `${coin} ladder filled ${input.count} ${rungWord}`,
+    meta: [`${formatUsdRounded(input.dollars)} in`, wallet],
+    kind: "entered",
   }
 }
 
@@ -210,10 +300,13 @@ export function triggerNoticeWords(input: {
   closedPnl: number
   walletLabel: string
   practice: boolean
-}): { title: string; body: string; level: TradeNoticeLevel } {
+}): TradeNoticeWords {
   const coin = marketSymbol(input.marketKey)
   const name = input.kind === "stop" ? "Stop hit" : "Target hit"
   const tag = walletTag(input.walletLabel, input.practice)
+  const wallet = input.practice
+    ? `${input.walletLabel}, practice`
+    : input.walletLabel
   const money =
     input.closedPnl !== 0
       ? `, ${input.closedPnl < 0 ? "lost" : "made"} ${formatUsdRounded(Math.abs(input.closedPnl))}`
@@ -225,6 +318,13 @@ export function triggerNoticeWords(input: {
         ? "The stop order fired and closed the position."
         : "The target order fired and took the profit.",
     level: input.kind === "stop" && input.closedPnl < 0 ? "warning" : "info",
+    headline: `${name} on ${coin}`,
+    meta: [
+      `@ ${formatPrice(input.px)}`,
+      wallet,
+      moneyMeta(input.closedPnl) ?? "closed",
+    ],
+    kind: "exited",
   }
 }
 
@@ -298,8 +398,10 @@ export type GridSaleMoney = {
 function gridSaleWords(input: {
   coin: string
   tag: string
+  /** The wallet's own name, for the bell's own slot. */
+  wallet: string
   sale: GridSaleMoney
-}): { title: string; body: string; level: TradeNoticeLevel } {
+}): TradeNoticeWords {
   const { sale } = input
   const verb = sale.direction === "long" ? "sold" : "bought back"
   const [own, ...cleared] = sale.halves
@@ -327,6 +429,12 @@ function gridSaleWords(input: {
     title: `${input.coin} ${did}: ${result} ${input.tag}`,
     body,
     level: sale.money < 0 ? "warning" : "info",
+    headline: `${input.coin} ${did}`,
+    meta: [`@ ${formatPrice(sale.px)}`, input.wallet, result],
+    // A grid level selling is getting out of that level's own trade, whichever
+    // way the grid runs: a buying grid sells its coins, a selling grid buys
+    // them back, and both bank the money the level was opened for.
+    kind: "exited",
   }
 }
 
@@ -351,16 +459,20 @@ function runEndedWords(input: {
   usd: string
   price: string
   tag: string
+  wallet: string
   /** A selling grid ends on a buy-back, so a buy is the last word. */
   side: "buy" | "sell"
   money: number
-}): { title: string; body: string; level: TradeNoticeLevel } {
+}): TradeNoticeWords {
   const result = `${input.money < 0 ? "lost" : "made"} ${formatUsdRounded(Math.abs(input.money))}`
   const last = input.side === "buy" ? "Bought back the last" : "Sold the last"
   return {
     title: `${input.coin} grid run ended: ${result} ${input.tag}`,
     body: `${last} ${input.usd} at ${input.price}. That is the whole run, after fees, the same as its Journal row.`,
     level: input.money < 0 ? "warning" : "info",
+    headline: `${input.coin} grid run ended`,
+    meta: [`@ ${input.price}`, input.wallet, result],
+    kind: "exited",
   }
 }
 

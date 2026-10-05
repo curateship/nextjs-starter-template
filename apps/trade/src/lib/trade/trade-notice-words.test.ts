@@ -28,6 +28,9 @@ describe("a drawn line's alert notice", () => {
       title: "BTC crossed your trendline at $61,200 (was falling)",
       body: "The trendline's alert fired once and is now off. The trendline is still on the chart.",
       level: "info",
+      headline: "BTC crossed your trendline",
+      meta: ["@ $61,200", "falling"],
+      kind: "alert",
     })
     expect(
       drawingAlertNoticeWords({
@@ -51,6 +54,9 @@ describe("a drawn line's alert notice", () => {
     expect(said.body).toBe(
       "The price had to go 0.1% past the level. The level's alert fired once and is now off. The level is still on the chart."
     )
+    // The same condition as one of the bell's figures, which is where somebody
+    // scanning a list of fired alerts actually reads it.
+    expect(said.meta).toEqual(["@ $60,000", "rising", "0.1% buffer"])
     // Nothing said about it when there was none.
     expect(
       drawingAlertNoticeWords({
@@ -75,6 +81,9 @@ describe("a drawn line's alert notice", () => {
       title: "BTC crossed 4h base (was rising)",
       body: "4h base was at $61,200. The trendline's alert fired once and is now off. The trendline is still on the chart.",
       level: "info",
+      headline: "BTC crossed 4h base",
+      meta: ["@ $61,200", "rising"],
+      kind: "alert",
     })
   })
 })
@@ -91,6 +100,9 @@ describe("a price alert's notice", () => {
       title: "ETH reached $3,600 (was rising)",
       body: "The price alert fired once and is now retired.",
       level: "info",
+      headline: "ETH reached $3,600",
+      meta: ["@ $3,600", "rising", "price alert"],
+      kind: "alert",
     })
   })
 })

@@ -58,10 +58,104 @@ than the one the tray was opened from; every notice that opened nothing was one
 of the old engine's.
 
 The shell's bell knows what the shell's own notices are about and opens each
-one. It cannot know what a trade notice is about, so the page each one came off
-is written into `trade_notice_links` at the same moment the notice is, and the
-bell asks for it through the shell's `notifications.linksFor` app option. That
-row also holds the notice's sound and how loud it is meant to be.
+one. It cannot know what a trade notice is about, so everything it needs is
+written into `trade_notice_links` at the same moment the notice is, and the
+bell asks for it through the shell's notification app options: `describe`
+answers on the spot from the notice's own words, so a row is never drawn twice,
+and `detailsFor` fetches the address and the saved pieces.
+That row holds the page, the notice's sound, how loud it is meant to be, and
+the pieces the bell draws.
+
+## How a trade notice is drawn in the bell
+
+The bell draws a notice in pieces: a tile on the left, a heading, a line of
+figures under it, and the time on the right. Tyler asked for this on 4 October
+2026.
+
+- **The heading is short.** "Entered $49.91 of CHIP", not the whole sentence.
+  It has to fit on one line beside the time.
+- **The figures are one fact each**, joined with a middle dot and drawn in a
+  fixed-width font: "@ 0.04932 · HL1 Grid · filled". One fact per slot is the
+  whole point, because the price then sits in the same place on every row and a
+  column of twenty fills reads straight down.
+- **The sentence is not repeated.** A notice with its pieces saved says
+  "filled" or "made $8.12" in the figures, so the prose line is left off. A
+  notice written before 4 October 2026 has no pieces, and its sentence is drawn
+  as it always was.
+- **No button on a row.** The whole row is already a click through to the
+  coin's chart, so a button saying the same thing was only a taller list.
+  Tyler, 4 October 2026.
+
+The sentences in `message` and `detail` are still written, unchanged. The admin
+notifications table and the home activity card read those, and the pieces are
+the same event arranged for a list.
+
+### The tabs
+
+The bell has Unread and All from the shell, then Trades, Alerts and System from
+this app. Which tab a notice sits under comes from its `kind`:
+
+| `kind` | Tab | Tile |
+| --- | --- | --- |
+| `entered` | Trades | arrow in, green |
+| `exited` | Trades | arrow out, green, or amber when it lost money |
+| `liquidated` | Trades | warning triangle, red |
+| `alert` | Alerts | trend arrow, amber |
+| `system` | System | power, grey |
+
+The colour comes from the notice's `level` and nothing else, because the level
+is already the judgement the words made — a close that ended up losing is a
+warning even when its first piece looked ordinary. Reading the money again in
+the tile would be the same call made twice and two places for it to drift.
+
+A notice with no `kind` saved counts as System, which is the honest home for
+"something the app did". Every notice written before 4 October 2026 is one of
+those.
+
+### An old notice reads its own sentence back
+
+**Every notice in the bell draws the new shape, not just the ones written since
+the pieces existed.** `src/lib/trade/notice-sentences.ts` reads a notice's own
+sentence back into a heading, a set of figures, a kind and a level.
+
+It is safe to read these back because this app wrote every one of them, in
+`trade-notice-words.ts` and `engine-health.ts`. The shapes are finite and they
+are in this repo, so "Entered a trade: $431 of XBT at $86,194 (Ku1)" becomes
+"Entered $431 of XBT" over "@ $86,194 · Ku1 · filled". A sentence matching none
+of the shapes falls through, and the bell draws it exactly as it drew it before
+any of this existed — a flow's stop is one of those.
+
+A test builds sentences with the real writer and reads them straight back, so a
+change to the wording that the reader cannot follow fails there rather than
+quietly turning half the bell into prose again.
+
+**Saved pieces always win.** The read-back is only consulted for a notice that
+has none. Backfilling the columns instead would have meant rebuilding every
+fill, alert and grid sale from the tables they came off, for rows nobody will
+write to again.
+
+### The admin table draws the same rows
+
+The notifications table at `/admin/notifications` uses the same tile, heading
+and figures, so one fill never reads two ways. It asks the app the same question
+the bell asks.
+
+An admin reading somebody else's notice gets no saved row back, because those
+are scoped to the person the notice was sent to. The heading and figures still
+appear, recovered from the words already on the row; only the address is
+missing, which is right — an admin has no business opening another person's
+chart from their notice.
+
+### Where the pieces are stored
+
+`drizzle/0202_trade_notice_pieces.sql` adds `headline`, `meta` and `kind` to
+`trade_notice_links`. All three are nullable, and a notice from before the
+migration keeps its sentences and falls back to them. `src/lib/trade/trade-notice-words.ts`
+builds the pieces beside the sentences, so one place decides both and they can
+never say different things. `src/lib/trade/notice-appearance.ts` turns a saved
+row into the tile, the tab and the button; it is browser-safe and pure, because
+the figures come off the server and the icon is a React component that cannot
+travel through a server function.
 
 The bell asks **once per page of notices, while the tray is being read**, not
 once per click. The database is a second away, and a second of nothing between

@@ -1,3 +1,4 @@
+import { formatWholeUsd } from "@/lib/trade/format"
 import type {
   ActiveTradesSnapshot,
   TradingOverviewActiveTrade,
@@ -44,5 +45,42 @@ export function mergeActiveTradesSnapshot(
       ? Math.min(was.readAt, fresh.readAt)
       : fresh.readAt,
     activeTrades: [...fresh.activeTrades, ...held],
+  }
+}
+
+
+/** What the header button says: the money in trades, and what it has made. */
+export type ActiveTradesFigures = {
+  value: string
+  profit: string
+  profitValue: number
+}
+
+function signedWholeUsd(value: number) {
+  if (value === 0) return "$0"
+  return `${value > 0 ? "+" : ""}${formatWholeUsd(value)}`
+}
+
+/**
+ * The two figures on the header button, or null when they cannot be said.
+ *
+ * Null is the honest answer while an exchange has not answered, because a
+ * total missing one venue is not this account's total. It lives here rather
+ * than in the button so the server can work out the same pair and remember
+ * the last one that came out — see `server/trade/header-figures.ts`.
+ */
+export function activeTradesFigures(
+  snapshot: ActiveTradesSnapshot
+): ActiveTradesFigures | null {
+  if (snapshot.activeTradesUnavailable.length) return null
+  if (snapshot.activeTrades.length === 0) {
+    return { value: "$0", profit: "$0", profitValue: 0 }
+  }
+  const summary = summarizeActiveTrades(snapshot.activeTrades)
+  if (summary.totalValue === null || summary.totalProfit === null) return null
+  return {
+    value: formatWholeUsd(summary.totalValue),
+    profit: signedWholeUsd(summary.totalProfit),
+    profitValue: summary.totalProfit,
   }
 }

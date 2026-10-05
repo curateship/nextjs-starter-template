@@ -6,6 +6,12 @@ import {
 } from "lucide-react"
 
 import type { AppOptions } from "@/lib/app-options"
+import {
+  NO_SAVED_NOTICE_ROW,
+  TRADE_NOTICE_CATEGORIES,
+  tradeNoticeDetail,
+  type TradeNoticeRow,
+} from "@/lib/trade/notice-appearance"
 
 /**
  * What this app changes about the shell.
@@ -177,24 +183,62 @@ export const appOptions: AppOptions = {
     ],
   },
   notifications: {
+    categories: TRADE_NOTICE_CATEGORIES,
     /**
-     * Where a trade notice goes when it is clicked.
+     * How a trade notice looks, worked out from the words the shell is already
+     * holding — no server, so every row is right on the first paint.
      *
-     * A trade notice carries its own words and no link, so the shell opens
-     * nothing for one. The page it came off is remembered in
-     * `trade_notice_links` when the notice is written, and this is where the
-     * bell asks for it.
+     * A trade notice's sentence was written by this app, in
+     * `trade-notice-words.ts` and `engine-health.ts`, so reading it back into a
+     * heading, figures, a tab and a tile is this app recognising its own
+     * handwriting. `detailsFor` below adds what only a server can say.
+     */
+    describe: (notice) =>
+      notice.type === "app_activity"
+        ? tradeNoticeDetail(NO_SAVED_NOTICE_ROW, notice)
+        : null,
+    /**
+     * Everything about its own notices this app can only get from a server:
+     * the page each one came off, and the pieces saved beside newer ones.
+     *
+     * A trade notice is one shell type carrying a title and a body, so to the
+     * shell every fill, every crossed line and every engine outage looked the
+     * same and led nowhere. All of it is remembered in `trade_notice_links`
+     * when the notice is written, and this is where the bell asks for it.
      *
      * Only this app's own notices are asked about. The shell's own — a reply on
      * a piece of feedback, a published update, a run waiting for approval —
      * already know where they lead, and asking about them would be a database
      * trip that can only ever come back empty.
+     *
+     * The figures come off the server and the tile is added here, in the
+     * browser, because an icon is a React component and cannot travel through
+     * a server function.
      */
-    linksFor: async (notices) =>
-      (await import("@/lib/api/trade/notice-links")).loadTradeNoticeLinks(
-        notices
-          .filter((one) => one.type === "app_activity")
-          .map((one) => one.id)
-      ),
+    detailsFor: async (notices) => {
+      const mine = notices.filter((one) => one.type === "app_activity")
+      if (mine.length === 0) return {}
+      const { loadTradeNoticeDetails } = await import(
+        "@/lib/api/trade/notice-links"
+      )
+      // A failed read loses the addresses and the saved pieces, not the bell.
+      // Everything else is recovered from the words the browser already holds,
+      // so the tray still draws its headings, figures and tabs — it just opens
+      // nothing until the next page of notices asks again.
+      const rows = await loadTradeNoticeDetails(mine.map((one) => one.id)).catch(
+        () => ({}) as Record<string, TradeNoticeRow>
+      )
+      // Only the notices with a saved row. Everything else was already drawn
+      // by `describe` from the same words, so repeating it here would be the
+      // same answer twice.
+      return Object.fromEntries(
+        mine
+          .filter((notice) => rows[notice.id])
+          .map((notice) => [
+            notice.id,
+            tradeNoticeDetail(rows[notice.id], notice),
+          ])
+      )
+    },
   },
 }

@@ -11,8 +11,8 @@ vi.mock("@tanstack/react-router", () => ({ useNavigate: () => vi.fn() }))
 vi.mock("@/lib/hooks/use-notification-stream", () => ({
   useNotificationStream: () => undefined,
 }))
-vi.mock("@/lib/hooks/use-app-notification-links", () => ({
-  useAppNotificationLinks: () => ({}),
+vi.mock("@/lib/hooks/use-app-notification-details", () => ({
+  useAppNotificationDetails: () => ({}),
 }))
 vi.mock("@/lib/api/notification", () => ({
   listNotificationPage: (...args: unknown[]) => listNotificationPage(...args),
@@ -81,6 +81,16 @@ const bell = () =>
   host.querySelector<HTMLButtonElement>('button[aria-label^="Open notif"]')!
 
 /**
+ * The Unread tab, whose own text is the whole assertion: the word, then the
+ * count beside it when there is one. The count is a chip rather than brackets
+ * since 4 Oct 2026, so "Unread1" is the tab reading one, and a bare "Unread"
+ * is the tab reading none — the chip is left off at zero rather than printed
+ * as a nought.
+ */
+const unreadTab = () =>
+  document.querySelectorAll<HTMLElement>('[data-slot="tabs-trigger"]')[0]
+
+/**
  * Tyler, 22 Sep 2026: opening the bell clears the red number and nothing else.
  * The notice stays unread, stays in the tray, and is cleared by clicking it or
  * by Mark all as read.
@@ -97,8 +107,15 @@ it("clears the bell's red count without reading anything", async () => {
   expect(markNotificationsSeen).toHaveBeenCalledTimes(1)
   expect(markAllNotificationsRead).not.toHaveBeenCalled()
   expect(bell().textContent).not.toContain("1")
-  expect(document.body.textContent).toContain("Unread (1)")
+  expect(unreadTab().textContent).toBe("Unread1")
   expect(document.body.textContent).toContain("Something happened")
+
+  // What makes an unread notice look unread: the row is tinted and carries the
+  // red dot. There is no way to check this against the real app while every
+  // notice in the inbox has been read, so it is checked here.
+  const row = document.querySelector<HTMLElement>("div.relative.grid")!
+  expect(row.className).toContain("bg-muted/50")
+  expect(row.querySelector("span.bg-destructive")).not.toBeNull()
 })
 
 it("leaves the notice unread after the tray is shut and opened again", async () => {
@@ -113,7 +130,7 @@ it("leaves the notice unread after the tray is shut and opened again", async () 
   await act(async () => undefined)
 
   expect(markAllNotificationsRead).not.toHaveBeenCalled()
-  expect(document.body.textContent).toContain("Unread (1)")
+  expect(unreadTab().textContent).toBe("Unread1")
   expect(bell().textContent).not.toContain("1")
 })
 
@@ -133,5 +150,5 @@ it("leaves a bell with nothing waiting alone", async () => {
 
   expect(markNotificationsSeen).not.toHaveBeenCalled()
   expect(markAllNotificationsRead).not.toHaveBeenCalled()
-  expect(document.body.textContent).toContain("Unread (0)")
+  expect(unreadTab().textContent).toBe("Unread")
 })

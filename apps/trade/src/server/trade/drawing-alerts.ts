@@ -401,9 +401,10 @@ export async function checkDrawingAlerts({
       })
       await writeTradeNotice({
         userId: row.userId,
-        title: words.title,
-        body: words.body,
-        level: words.level,
+        // Every field the words carry, headings and figures included. Naming
+        // three of the six by hand is how an alert ended up as the one notice
+        // with no pieces saved, left reading its own sentence back forever.
+        ...words,
         href: marketChartHref(row.marketKey),
         soundKind: "alert",
         createdAt: checkedAt,

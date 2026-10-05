@@ -306,9 +306,10 @@ export async function checkPriceAlerts({
       const words = priceAlertNoticeWords(alert)
       await writeTradeNotice({
         userId: alert.userId,
-        title: words.title,
-        body: words.body,
-        level: words.level,
+        // Every field the words carry, headings and figures included. Naming
+        // three of the six by hand is how an alert ended up as the one notice
+        // with no pieces saved, left reading its own sentence back forever.
+        ...words,
         href: marketChartHref(alert.marketKey),
         soundKind: "alert",
         createdAt: checkedAt,

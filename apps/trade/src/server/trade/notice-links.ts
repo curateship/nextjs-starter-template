@@ -7,9 +7,20 @@ import type {
   TradeSoundCursor,
   TradeSoundEvent,
 } from "@/lib/trade/trade-sounds"
+import type { TradeNoticeKind } from "@/lib/trade/trade-notice-words"
+
+/** Everything this app can say about one of its own notices in the bell. */
+export type TradeNoticeDetail = {
+  href: string | null
+  headline: string | null
+  meta: string[] | null
+  kind: TradeNoticeKind | null
+  level: "info" | "warning" | "critical"
+}
 
 /**
- * Which of these notices have a page behind them, and where it is.
+ * What this app says about these notices: where each one leads, the heading and
+ * figures the bell draws it with, and what kind of thing happened.
  *
  * Asked for by notification id — one person's copy of a notice — and answered
  * by the same ids, because that is what the bell has in its hand. The join
@@ -17,19 +28,28 @@ import type {
  * useless: it is not this reader's notice, so it is not in the answer.
  *
  * A notice with no row here is simply absent from the answer rather than
- * present with a null. The caller reads "is there an address for this one",
- * and absent is that question's cleanest no.
+ * present with a null. The caller reads "does this app know this one", and
+ * absent is that question's cleanest no.
+ *
+ * A row from before 4 October 2026 has an address and nothing else, because the
+ * pieces were never saved for it. It keeps its click and falls back to the
+ * sentences on the notification row for its words, which is exactly what every
+ * notice did before the pieces existed.
  */
-export async function tradeNoticeLinksFor(
+export async function tradeNoticeDetailsFor(
   userId: string,
   notificationIds: readonly string[]
-): Promise<Record<string, string>> {
+): Promise<Record<string, TradeNoticeDetail>> {
   if (notificationIds.length === 0) return {}
 
   const rows = await db
     .select({
       notificationId: customShellNotifications.id,
       href: tradeNoticeLinks.href,
+      headline: tradeNoticeLinks.headline,
+      meta: tradeNoticeLinks.meta,
+      kind: tradeNoticeLinks.kind,
+      level: tradeNoticeLinks.level,
     })
     .from(customShellNotifications)
     .innerJoin(
@@ -39,13 +59,21 @@ export async function tradeNoticeLinksFor(
     .where(
       and(
         eq(customShellNotifications.recipientUserId, userId),
-        inArray(customShellNotifications.id, [...notificationIds]),
-        isNotNull(tradeNoticeLinks.href)
+        inArray(customShellNotifications.id, [...notificationIds])
       )
     )
 
   return Object.fromEntries(
-    rows.map((row) => [row.notificationId, row.href as string])
+    rows.map((row) => [
+      row.notificationId,
+      {
+        href: row.href,
+        headline: row.headline,
+        meta: row.meta,
+        kind: row.kind,
+        level: row.level,
+      },
+    ])
   )
 }
 
