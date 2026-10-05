@@ -4,6 +4,7 @@ import {
   BarChart3Icon,
   CheckSquareIcon,
   ChevronLeftIcon,
+  FileTextIcon,
   HistoryIcon,
   ImageIcon,
   LayoutDashboardIcon,
@@ -21,11 +22,17 @@ import {
 import QuickControlsHeader from "@/components/pomodoro/quick-controls-header"
 import { SceneBackdrop } from "@/components/pomodoro/scene-backdrop"
 import SoundPlayerHeader from "@/components/pomodoro/sound-player-header"
+import { SavedLink } from "@/components/shell/public-navigation"
 import { useTheme } from "@/components/shell/sticky-header/light-dark-switcher"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { logout } from "@/lib/api/auth/auth"
+import { usePublicNavigation } from "@/lib/branding"
 import { useBackgroundSelection } from "@/lib/pomodoro/background-store"
+import {
+  publicDeviceSidebarClassName,
+  savedMenuLinks,
+} from "@/lib/pomodoro/saved-menu"
 import { useTabCountdown } from "@/lib/pomodoro/use-tab-countdown"
 
 // The whole Pomoder look rides in with the product shell: the tokens
@@ -53,7 +60,7 @@ import "@/lib/pomodoro/dark-shade"
 const NAV_LINKS = [
   { to: "/timer", label: "Dashboard", icon: LayoutDashboardIcon },
   { to: "/rooms", label: "Rooms", icon: Users2Icon },
-  { to: "/pricing", label: "Pricing", icon: TagIcon },
+  { to: "/plans", label: "Pricing", icon: TagIcon },
   { to: "/backgrounds", label: "Theme", icon: ImageIcon },
   { to: "/sounds", label: "Sounds", icon: Music2Icon },
   { to: "/leaderboard", label: "Leaderboard", icon: BarChart3Icon },
@@ -230,6 +237,16 @@ export function PomodoroShell({
   const pathname = useRouterState({ select: (state) => state.location.pathname })
   const { background, fallBackToDefault } = useBackgroundSelection()
   const { setTheme } = useTheme()
+  const savedMenu = usePublicNavigation()
+  const savedLinks = React.useMemo(
+    () =>
+      savedMenuLinks(savedMenu, [
+        ...NAV_LINKS.map((item) => item.to),
+        "/settings",
+        "/",
+      ]),
+    [savedMenu]
+  )
 
   // The tab's title and favicon count down with the timer. It lives here
   // rather than on the timer page because the countdown keeps running while
@@ -308,6 +325,30 @@ export function PomodoroShell({
           className="flex min-h-0 flex-1 flex-col gap-1.5"
         >
           {NAV_LINKS.map((item) => navLink(item.to, item.label, item.icon))}
+          {/* Pages an admin wrote and put in the public menu. Below the
+              product's own screens, never instead of them: a menu edit must
+              not be able to take the timer away from a member. */}
+          {savedLinks.length ? (
+            <div className="mt-1.5 flex flex-col gap-1.5 border-t border-[rgba(var(--p-fg-rgb),0.07)] pt-1.5">
+              {savedLinks.map((link) => (
+                <SavedLink
+                  key={link.href}
+                  href={link.href}
+                  title={link.label}
+                  onClick={() => setMenuOpen(false)}
+                  className={cn(
+                    sidebarRowClass,
+                    publicDeviceSidebarClassName(link.device)
+                  )}
+                >
+                  <FileTextIcon className="size-[19px] shrink-0" aria-hidden />
+                  <span className={cn(collapsed && "lg:hidden")}>
+                    {link.label}
+                  </span>
+                </SavedLink>
+              ))}
+            </div>
+          ) : null}
           {navLink("/settings", "Settings", SettingsIcon, true)}
           {/* Narrows the sidebar to its icons. Desktop only: on a phone the
               sidebar is a drawer that is either open or gone, so there is

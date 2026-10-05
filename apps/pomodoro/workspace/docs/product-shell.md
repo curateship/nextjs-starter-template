@@ -113,11 +113,57 @@ marker sits on the product shell's root, so the Pomoder tokens
 `_authenticated` with the stock shell look. The app borrows nothing from
 the shell's signed-in chrome — `src/app/options.ts` is empty again.
 
-Pages under the layout: `/timer` (the dashboard), `/tasks`, `/sounds`,
-`/backgrounds`, `/history`, `/settings` (focus rhythm + profile). The
-layout requires sign-in for now and forwards to `/login`; guest mode and
-the public landing page are their own tasks. Maintenance mode holds for
-members the same way the shell's own layout does.
+## Every member-facing screen goes under `_pomodoro`
+
+**A new screen a member can reach is a route file under
+`src/routes/_pomodoro/`, and nothing else.** Put it anywhere else in
+`src/routes/` and it draws the shell's public frame: a different header, no
+sidebar, no scene, different fonts. A person clicking a link in the product
+sidebar then watches the whole page change shape, which is the one thing this
+layout exists to prevent.
+
+The addresses the shell keeps, and why they are the exception:
+
+- `/login`, `/register`, `/pricing`, `/search` and the missing-page screen are
+  the shell's own route files. Editing or moving one forks it, and a forked
+  shell file conflicts on every future merge, so they stay where they are.
+- The router refuses two routes at one address, so `src/routes/_pomodoro/x.tsx`
+  cannot shadow `src/routes/x.tsx`. It fails the build with "Conflicting
+  configuration paths", not quietly.
+- **The way round it is a new address, not a second file.** The plans screen is
+  the worked example: `/plans` under the layout, the sidebar pointing at it,
+  the shell's `/pricing` left alone. See [The plans page](plans-page.md).
+- They do share the accent colour. `src/app/options.ts` sets `publicTheme` to
+  the Pomoder orange and the Pomoder corner radius, so buttons and focus rings
+  match on both sides. It names only those two fields: a value saved in
+  Settings → Styling replaces whatever is named there, and anything left out
+  keeps the shell's own look.
+
+Closing the seam for good needs a shell option that lets an app wrap the
+signed-out pages in its own frame, which would mean changing
+`apps/custom-shell`. That has not been done.
+
+## Pages an admin added
+
+Under the product's own screens, after a thin rule, the sidebar lists the links
+an admin put in the public menu (Settings → Public → Navigation), so a page
+written in the admin is reachable from inside the product. Groups are flattened
+to their links, because a sidebar row is one address. A link marked desktop-only
+or phone-only is hidden by a class at `lg`, the width the sidebar itself swaps
+its rail for a drawer.
+
+They are added below the product's screens and never replace them: a member
+must not lose the timer because somebody edited a menu. The reader is
+`src/lib/pomodoro/saved-menu.ts`. Such a link still leaves the product shell
+when followed, for the reason above.
+
+Pages under the layout: `/timer` (the dashboard), `/tasks`, `/plans`,
+`/rooms`, `/leaderboard`, `/users`, `/sounds`, `/backgrounds`, `/history`,
+`/settings` (focus rhythm + profile) and the public profiles at
+`/u/<handle>`. The layout does not require sign-in: a guest gets the whole
+product out of browser storage, and the first signed-in visit afterwards
+imports it to the account once. See [Guest mode](guest-mode.md). Maintenance
+mode holds for members the same way the shell's own layout does.
 
 Why a mistake is worth recording: the first build hung these pages inside
 the shell's admin layout, put the timer settings in the admin Settings

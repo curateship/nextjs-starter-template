@@ -3,7 +3,7 @@ import { useRouter } from "@tanstack/react-router"
 import { ExternalLinkIcon, FileTextIcon, Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 
-import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
+import { InspectorCard } from "@/components/shared/inspector-card"
 import { SettingsSwitchRow } from "@/components/settings/settings-switch-row"
 import { SettingsSliderRow } from "@/components/settings/settings-slider-row"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
@@ -159,13 +159,11 @@ export function FrontPageSettingsPanel({
         meta="No block selected"
       />
       <ScrollArea className="min-h-0 flex-1">
-        <div className="grid gap-3 p-3">
-          <CollapsibleSettingsCard
-            size="sm"
+        <div className="grid gap-4 p-4 sm:p-5">
+          <InspectorCard
             storageId="front-page-page-settings"
             title="This page"
             description="What this page is called in the app, where it answers, and who may reach it."
-            contentClassName="grid gap-4"
           >
             {/* A page an admin added owns its name and its address, so both
                 are fields. A page the code declares owns neither: they are in
@@ -276,10 +274,9 @@ export function FrontPageSettingsPanel({
                 </>
               )}
             </div>
-          </CollapsibleSettingsCard>
+          </InspectorCard>
 
-          <CollapsibleSettingsCard
-            size="sm"
+          <InspectorCard
             storageId="front-page-page-seo"
             title="Search engines"
             description={
@@ -287,7 +284,6 @@ export function FrontPageSettingsPanel({
                 ? "What Google is told about this address. Neither setting locks the page: anyone with the link can still open it."
                 : "The browser and search text used only for this page."
             }
-            contentClassName="grid gap-4"
           >
             {writtenPage ? (
               <>
@@ -361,7 +357,7 @@ export function FrontPageSettingsPanel({
             </div>
               </>
             )}
-          </CollapsibleSettingsCard>
+          </InspectorCard>
 
           {writtenPage ? (
             /* The page's own row saves on a button, unlike everything else on
@@ -381,12 +377,10 @@ export function FrontPageSettingsPanel({
             </div>
           ) : null}
 
-          <CollapsibleSettingsCard
-            size="sm"
+          <InspectorCard
             storageId="front-page-page-spacing"
             title="Spacing"
             description="How much air the page leaves between one block and the next."
-            contentClassName="grid gap-4"
           >
             <SettingsSliderRow
               label="Space between blocks"
@@ -409,7 +403,7 @@ export function FrontPageSettingsPanel({
                 PUBLIC_FRONT_PAGE_ROW_GAP_PHONE_SHARE * 100
               )}% of it, because a gap that separates two blocks on a desktop is most of a phone screen. Flat mode collapses both.`}
             />
-          </CollapsibleSettingsCard>
+          </InspectorCard>
         </div>
       </ScrollArea>
     </div>

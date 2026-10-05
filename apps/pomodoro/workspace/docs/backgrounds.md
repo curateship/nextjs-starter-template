@@ -8,7 +8,7 @@ screen's content with a canvas-tinted shade so text stays readable.
 ## How it works
 
 - **The choice is a module store** (`src/lib/pomodoro/background-store.ts`),
-  like the sound engine: the page picks, every `PomodoroScreen` draws, no
+  like the sound engine: the page picks, every product screen draws, no
   provider around the shell's tree, saves debounced. It lives on
   `user_preferences.selected_background` (migration 0087), serialized as
   `scene:<key>`, or `media:<uuid>` for one of your own uploads (see

@@ -47,6 +47,28 @@ const ROW_ICONS = {
  * object still reads as the full shape. Both catch a misspelled option.
  */
 export const appOptions: AppOptions = {
+  /**
+   * The look the shell's own signed-out pages start from.
+   *
+   * Five addresses stay on the shell's public frame rather than the product
+   * shell, because their route files belong to the shell and an app that edits
+   * one has forked it: `/login`, `/register`, `/pricing`, `/search` and the
+   * missing-page screen. They cannot have the product's sidebar, hero or
+   * fonts, but they can at least share its colour, so the orange Register
+   * button and the focus rings are the same orange on both sides of the seam.
+   *
+   * `#ff5a3c` is the old app's accent, the dark palette's `--p-accent` in
+   * `src/components/pomodoro/theme.css`. Only these two fields are set: a
+   * saved value in Settings → Styling replaces whatever is named here, and
+   * everything left out keeps the shell's own look, so an admin is not fighting
+   * this file. The light or dark choice is deliberately not pinned, so a
+   * visitor keeps both.
+   */
+  publicTheme: {
+    brandColor: "#ff5a3c",
+    // The Pomoder tokens round at 0.8rem. The public scale stops at 24.
+    radius: 13,
+  },
   landing: {
     page: pomodoroLandingPage,
   },

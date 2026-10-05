@@ -1,3 +1,4 @@
+import * as React from "react"
 import { DndContext, closestCenter, type DragEndEvent } from "@dnd-kit/core"
 import {
   SortableContext,
@@ -25,6 +26,7 @@ import {
   type FrontPageRow,
   type FrontPageRowDraft,
 } from "@/lib/pages/front-page"
+import { BLOCK_KIND_MEDIA_TYPE } from "@/components/pages/front-page-block-kinds"
 import { cn } from "@/lib/utils"
 
 /**
@@ -39,8 +41,11 @@ export function FrontPageBlockList({
   rows,
   selectedId,
   pending,
+  draggingKind,
+  pendingAt,
   onSelect,
   onReorder,
+  onAddKindAt,
   onDelete,
 }: {
   rows: FrontPageRow[]
@@ -52,12 +57,59 @@ export function FrontPageBlockList({
    * the inspector is filling in.
    */
   pending: FrontPageRowDraft | null
+  /** What is being carried in from the left panel, by name, or null. */
+  draggingKind: string | null
+  /**
+   * Where the block in `pending` was dropped, so it waits there rather than at
+   * the end. Null when it was added with the plus, which puts it at the end
+   * anyway.
+   */
+  pendingAt: number | null
   onSelect: (id: string) => void
   onReorder: (rows: FrontPageRow[]) => void
+  /**
+   * A kind card dropped in from the left panel. `at` is the block it landed
+   * on, or the end of the list when it landed on neither.
+   */
+  onAddKindAt: (choice: string, at?: number) => void
   onDelete: (row: FrontPageRow) => void
 }) {
   const sensors = useNavSensors()
   const ids = rows.map((row) => row.id)
+  // Where a card dragged in from the left would land, so the list can open the
+  // space before it is let go. Null while nothing is being dragged over it.
+  const [dropAt, setDropAt] = React.useState<number | null>(null)
+  const listRef = React.useRef<HTMLDivElement | null>(null)
+  /**
+   * Where each block sat when the drag arrived, as a list of midpoints.
+   *
+   * **Measured once, and not again until the drag leaves.** The space the list
+   * opens pushes every block below it down, so a drop worked out from where
+   * the blocks are *now* is worked out from positions the space itself moved:
+   * the pointer ends up over the space, the space jumps to the end, the blocks
+   * come back, the pointer is over a block again, and the space comes back
+   * too. That loop is what made the list skip around while it was being
+   * dragged over.
+   */
+  const midpoints = React.useRef<number[]>([])
+
+  /** The gap a drop at `y` belongs in, against where the blocks started. */
+  const dropIndexFor = (y: number) => {
+    const found = midpoints.current.findIndex((middle) => y < middle)
+    return found === -1 ? midpoints.current.length : found
+  }
+
+  /** Reads the blocks' own positions, with no space open among them. */
+  const measureRows = () => {
+    const list = listRef.current
+    if (!list) return
+    midpoints.current = [...list.querySelectorAll("[data-block-row]")].map(
+      (row) => {
+        const box = row.getBoundingClientRect()
+        return box.top + box.height / 2
+      }
+    )
+  }
 
   const handleDragEnd = (event: DragEndEvent) => {
     if (!event.over || event.active.id === event.over.id) return
@@ -65,6 +117,19 @@ export function FrontPageBlockList({
     const to = ids.indexOf(String(event.over.id))
     if (from === -1 || to === -1) return
     onReorder(arrayMove(rows, from, to))
+  }
+
+  /** True when what is being dragged is one of the left panel's cards. */
+  const carriesKind = (event: React.DragEvent) =>
+    event.dataTransfer.types.includes(BLOCK_KIND_MEDIA_TYPE)
+
+  const dropKind = (event: React.DragEvent, at: number) => {
+    if (!carriesKind(event)) return
+    event.preventDefault()
+    event.stopPropagation()
+    setDropAt(null)
+    const choice = event.dataTransfer.getData(BLOCK_KIND_MEDIA_TYPE)
+    if (choice) onAddKindAt(choice, at)
   }
 
   return (
@@ -76,10 +141,42 @@ export function FrontPageBlockList({
         meta={rows.length === 1 ? "1 block" : `${rows.length} blocks`}
       />
       <ScrollArea className="min-h-0 flex-1">
-        <div className="grid gap-2 p-3">
+        <div
+          ref={listRef}
+          className={cn(
+            "grid min-h-full content-start gap-2 rounded-lg p-3 transition-colors",
+            // A page with no blocks has no block to open a space beside, so
+            // the panel itself says the drop will land.
+            dropAt !== null && rows.length === 0 && "bg-primary/5"
+          )}
+          // One handler for the whole panel, not one per block. A block that
+          // answered for itself would be answering from under a space that had
+          // just moved it.
+          onDragEnter={(event) => {
+            if (!carriesKind(event)) return
+            if (dropAt === null) measureRows()
+          }}
+          onDragOver={(event) => {
+            if (!carriesKind(event)) return
+            event.preventDefault()
+            event.dataTransfer.dropEffect = "copy"
+            // The first `dragover` can arrive before any `dragenter` this
+            // handler saw, so the measuring is tried here too. It costs one
+            // read of the blocks already on screen.
+            if (dropAt === null) measureRows()
+            setDropAt(dropIndexFor(event.clientY))
+          }}
+          onDragLeave={(event) => {
+            // Only when the pointer has left the panel itself, not when it has
+            // crossed onto something inside it.
+            if (event.currentTarget.contains(event.relatedTarget as Node)) return
+            setDropAt(null)
+          }}
+          onDrop={(event) => dropKind(event, dropIndexFor(event.clientY))}
+        >
           {rows.length === 0 && !pending ? (
             <EmptyRow>
-              No blocks yet. Pick one on the left and it lands here.
+              No blocks yet. Pick one on the left, or drag it over here.
             </EmptyRow>
           ) : null}
           <DndContext
@@ -90,36 +187,105 @@ export function FrontPageBlockList({
           >
             <SortableContext items={ids} strategy={verticalListSortingStrategy}>
               <ul className="grid gap-2">
-                {rows.map((row) => (
-                  <FrontPageBlockRow
-                    key={row.id}
-                    row={row}
-                    selected={row.id === selectedId}
-                    onSelect={() => onSelect(row.id)}
-                    onDelete={() => onDelete(row)}
-                  />
+                {rows.map((row, index) => (
+                  <React.Fragment key={row.id}>
+                    {dropAt === index ? (
+                      <BlockDropGap label={draggingKind} />
+                    ) : null}
+                    {pending && pendingAt === index ? (
+                      <PendingBlockRow draft={pending} />
+                    ) : null}
+                    <FrontPageBlockRow
+                      row={row}
+                      selected={row.id === selectedId}
+                      onSelect={() => onSelect(row.id)}
+                      onDelete={() => onDelete(row)}
+                    />
+                  </React.Fragment>
                 ))}
+                {dropAt === rows.length && rows.length > 0 ? (
+                  <BlockDropGap label={draggingKind} />
+                ) : null}
+                {/* A block that has been dropped but whose write has not come
+                    back yet. Drawn where it was dropped rather than at the
+                    end: the write appends and the order follows it, and a
+                    block that appeared at the bottom and then jumped into
+                    place is a block somebody has to watch move. */}
+                {pending && pendingAt !== null && pendingAt >= rows.length ? (
+                  <PendingBlockRow draft={pending} />
+                ) : null}
               </ul>
             </SortableContext>
           </DndContext>
-          {/* Not in the sortable list: it has no id to drag by yet, and its
-              place is decided by being added rather than by being moved. */}
-          {pending ? (
-            <div
-              className="grid min-w-0 gap-1 rounded-md border border-primary/50 bg-muted p-2 pl-4"
-              aria-current="true"
-            >
-              <span className="truncate text-sm font-medium">
-                {pending.heading.trim() || blockKindLabel(pending)}
-              </span>
-              <span className="truncate text-xs text-muted-foreground">
-                {blockKindLabel(pending)} · Not added yet
-              </span>
-            </div>
+          {/* One that was added without a drop, so it has no place of its own
+              to wait in. It goes where a click puts a block: the end. */}
+          {pending && pendingAt === null ? (
+            <ul className="grid">
+              <PendingBlockRow draft={pending} />
+            </ul>
           ) : null}
         </div>
       </ScrollArea>
     </div>
+  )
+}
+
+/**
+ * A block that has been added and whose write has not come back yet.
+ *
+ * Not in the sortable list: it has no id the server knows, and its place is
+ * decided by where it was dropped rather than by being dragged.
+ */
+function PendingBlockRow({ draft }: { draft: FrontPageRowDraft }) {
+  return (
+    <li
+      className="grid min-w-0 gap-1 rounded-md border border-primary/50 bg-muted p-2 pl-4"
+      aria-current="true"
+    >
+      <span className="truncate text-sm font-medium">
+        {draft.heading.trim() || blockKindLabel(draft)}
+      </span>
+      <span className="truncate text-xs text-muted-foreground">
+        {blockKindLabel(draft)} · Not added yet
+      </span>
+    </li>
+  )
+}
+
+/**
+ * The space the list opens for the block being carried over it.
+ *
+ * A space the shape of a block, not a line between two: the question somebody
+ * dragging is asking is "where does this go", and a gap the size of the thing
+ * in their hand answers it without them having to read anything. 66px is what
+ * a row measures, so the blocks below move exactly as far as they will stay.
+ *
+ * It grows rather than appearing, through the `0fr`/`1fr` trick, because a
+ * list that jumps 66px in one frame reads as the page breaking rather than as
+ * the page making room.
+ */
+function BlockDropGap({ label }: { label: string | null }) {
+  const [open, setOpen] = React.useState(false)
+
+  // On the frame after this is first drawn, so the browser has a closed state
+  // to animate away from. Set during the render it would have no start.
+  React.useEffect(() => {
+    const frame = requestAnimationFrame(() => setOpen(true))
+    return () => cancelAnimationFrame(frame)
+  }, [])
+
+  return (
+    <li
+      aria-hidden
+      className="pointer-events-none grid transition-[grid-template-rows] duration-150 ease-out"
+      style={{ gridTemplateRows: open ? "1fr" : "0fr" }}
+    >
+      <div className="overflow-hidden">
+        <div className="flex h-[66px] items-center justify-center rounded-md border border-dashed border-primary/50 bg-primary/5 text-xs font-medium text-muted-foreground">
+          {label ? `${label} lands here` : "It lands here"}
+        </div>
+      </div>
+    </li>
   )
 }
 
@@ -155,6 +321,9 @@ function FrontPageBlockRow({
     <li
       ref={setNodeRef}
       style={style}
+      // Named so the panel can measure where the blocks sit without counting
+      // the space it opens among them.
+      data-block-row=""
       // The hover tint belongs to the whole row, not to the middle button, so
       // pointing at the handle, the words or the icon at the end all light the
       // same strip.
@@ -165,6 +334,7 @@ function FrontPageBlockRow({
           : "bg-background hover:bg-muted"
       )}
     >
+
       <button
         type="button"
         {...attributes}

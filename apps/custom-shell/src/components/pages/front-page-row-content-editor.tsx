@@ -1,7 +1,7 @@
 import type { ReactNode } from "react"
 import { PlusIcon, Trash2Icon } from "lucide-react"
 
-import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
+import { InspectorCard } from "@/components/shared/inspector-card"
 import { DocumentEditor } from "@/components/shared/rich-text-editor"
 import { SettingsSliderRow } from "@/components/settings/settings-slider-row"
 import { ImageUpload } from "@/components/shared/image-upload"
@@ -77,7 +77,12 @@ type FrontPageRowContentEditorProps = {
   dividerStyle: FrontPageDividerStyle
   dividerShade: number
   dividerSpace: number
-  submitted: boolean
+  /**
+   * True while the block is being held off the page and an empty entry is
+   * what is holding it. The fields that are empty mark themselves, which is
+   * what the refused Save press used to do before a block saved itself.
+   */
+  heldBack: boolean
   onHeroActionChange: (action: FrontPageHeroAction) => void
   onHeroImageChange: (image: string) => void
   onHeroAltChange: (alt: string) => void
@@ -261,15 +266,13 @@ function EditorCard({
   children: ReactNode
 }) {
   return (
-    <CollapsibleSettingsCard
-      size="sm"
+    <InspectorCard
       storageId={storageId}
       title={title}
       description={description}
-      contentClassName="grid gap-4"
     >
       {children}
-    </CollapsibleSettingsCard>
+    </InspectorCard>
   )
 }
 
@@ -283,7 +286,9 @@ function ItemEditor({
   children: ReactNode
 }) {
   return (
-    <div className="grid gap-4 rounded-md border p-3">
+    // `bg-background`, like the fields beside it: on the card's grey this box
+    // would otherwise be grey on grey with only its border to say it is a box.
+    <div className="grid gap-4 rounded-md border bg-background p-3">
       <div className="flex items-center justify-between gap-2">
         <p className="text-sm font-medium">{label}</p>
         <Button
@@ -511,7 +516,7 @@ function HeroEditor({
 
 function TestimonialsEditor({
   testimonials,
-  submitted,
+  heldBack,
   onTestimonialsChange,
 }: FrontPageRowContentEditorProps) {
   return (
@@ -553,7 +558,7 @@ function TestimonialsEditor({
                   id={`testimonial-name-${item.id}`}
                   value={item.name}
                   maxLength={MAX_FRONT_PAGE_ITEM_NAME_LENGTH}
-                  aria-invalid={(submitted && !item.name.trim()) || undefined}
+                  aria-invalid={(heldBack && !item.name.trim()) || undefined}
                   onChange={(event) =>
                     onTestimonialsChange(
                       replaceItem(testimonials, item.id, {
@@ -594,7 +599,7 @@ function TestimonialsEditor({
               rows={1}
               value={item.quote}
               maxLength={MAX_FRONT_PAGE_TESTIMONIAL_QUOTE_LENGTH}
-              aria-invalid={(submitted && !item.quote.trim()) || undefined}
+              aria-invalid={(heldBack && !item.quote.trim()) || undefined}
               onChange={(event) =>
                 onTestimonialsChange(
                   replaceItem(testimonials, item.id, {
@@ -633,7 +638,7 @@ function TestimonialsEditor({
 
 function FaqEditor({
   faqItems,
-  submitted,
+  heldBack,
   onFaqItemsChange,
 }: FrontPageRowContentEditorProps) {
   return (
@@ -660,7 +665,7 @@ function FaqEditor({
               id={`faq-question-${item.id}`}
               value={item.question}
               maxLength={MAX_FRONT_PAGE_FAQ_QUESTION_LENGTH}
-              aria-invalid={(submitted && !item.question.trim()) || undefined}
+              aria-invalid={(heldBack && !item.question.trim()) || undefined}
               onChange={(event) =>
                 onFaqItemsChange(
                   replaceItem(faqItems, item.id, {
@@ -678,7 +683,7 @@ function FaqEditor({
               rows={1}
               value={item.answer}
               maxLength={MAX_FRONT_PAGE_FAQ_ANSWER_LENGTH}
-              aria-invalid={(submitted && !item.answer.trim()) || undefined}
+              aria-invalid={(heldBack && !item.answer.trim()) || undefined}
               onChange={(event) =>
                 onFaqItemsChange(
                   replaceItem(faqItems, item.id, {
@@ -716,7 +721,7 @@ function FaqEditor({
 
 function LogosEditor({
   logos,
-  submitted,
+  heldBack,
   onLogosChange,
 }: FrontPageRowContentEditorProps) {
   return (
@@ -738,7 +743,7 @@ function LogosEditor({
               label="Logo image"
               value={item.image}
               fit="contain"
-              invalid={submitted && !item.image}
+              invalid={heldBack && !item.image}
               emptyLabel="Choose logo"
               className="max-w-40"
               onChange={(image, altText) =>
@@ -762,7 +767,7 @@ function LogosEditor({
                 id={`logo-alt-${item.id}`}
                 value={item.alt}
                 maxLength={MAX_FRONT_PAGE_IMAGE_ALT_LENGTH}
-                aria-invalid={(submitted && !item.alt.trim()) || undefined}
+                aria-invalid={(heldBack && !item.alt.trim()) || undefined}
                 onChange={(event) =>
                   onLogosChange(
                     replaceItem(logos, item.id, {
@@ -800,7 +805,7 @@ function LogosEditor({
 
 function ScreenshotsEditor({
   screenshots,
-  submitted,
+  heldBack,
   onScreenshotsChange,
 }: FrontPageRowContentEditorProps) {
   return (
@@ -823,7 +828,7 @@ function ScreenshotsEditor({
             label="Screenshot image"
             value={item.image}
             fit="contain"
-            invalid={submitted && !item.image}
+            invalid={heldBack && !item.image}
             emptyLabel="Choose screenshot"
             onChange={(image, altText) =>
               onScreenshotsChange(
@@ -843,7 +848,7 @@ function ScreenshotsEditor({
               id={`screenshot-caption-${item.id}`}
               value={item.caption}
               maxLength={MAX_FRONT_PAGE_SCREENSHOT_CAPTION_LENGTH}
-              aria-invalid={(submitted && !item.caption.trim()) || undefined}
+              aria-invalid={(heldBack && !item.caption.trim()) || undefined}
               onChange={(event) =>
                 onScreenshotsChange(
                   replaceItem(screenshots, item.id, {

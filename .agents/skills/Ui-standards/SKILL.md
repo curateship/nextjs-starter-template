@@ -120,6 +120,15 @@ in `src/lib/custom-shell.tsx` and are applied by
   `src/components/shared/dashboard-card-header.tsx`. The component owns the
   57px height, 12px padding and bottom divider. Title, tab and custom
   header rows compose it instead of repeating those values.
+- **A workspace screen's right-hand options panel uses `InspectorCard`** from
+  `src/components/shared/inspector-card.tsx`, not the white
+  `CollapsibleSettingsCard`. It is a grey box with a border, a 15px heading and
+  an arrow that is always drawn. The difference is what the card sits on: a
+  settings page is a column of white cards on a grey canvas, while an options
+  panel is a white panel beside a canvas, and a white card on a white panel
+  reads as one long list rather than a set of groups. The newsletter editor and
+  the page editor both use it; a third panel joins them rather than inventing a
+  card of its own.
 - **Every border follows the border settings in Settings → Styling. No
   component draws its own.** Divider and frame lines are a plain `border`,
   `border-b`, or `border-t` with no color class. They then take `--border`,

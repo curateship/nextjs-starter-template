@@ -40,4 +40,5 @@ the old app's Pro).
 
 Not set. The old app charged free / $9 a month / $78 a year ("Save 28%"),
 kept here for reference; live prices wait for Tyler and are entered in the
-shell's Plans screen, not in code.
+shell's Plans screen, not in code. What a member sees is
+[the plans page](plans-page.md) at `/plans`, which reads those rows.

@@ -36,6 +36,7 @@ import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authentic
 import { Route as PomodoroBackgroundsRouteImport } from './routes/_pomodoro/backgrounds'
 import { Route as PomodoroHistoryRouteImport } from './routes/_pomodoro/history'
 import { Route as PomodoroLeaderboardRouteImport } from './routes/_pomodoro/leaderboard'
+import { Route as PomodoroPlansRouteImport } from './routes/_pomodoro/plans'
 import { Route as PomodoroRoomsRouteImport } from './routes/_pomodoro/rooms'
 import { Route as PomodoroSettingsRouteImport } from './routes/_pomodoro/settings'
 import { Route as PomodoroSoundsRouteImport } from './routes/_pomodoro/sounds'
@@ -226,6 +227,11 @@ const PomodoroHistoryRoute = PomodoroHistoryRouteImport.update({
 const PomodoroLeaderboardRoute = PomodoroLeaderboardRouteImport.update({
   id: '/leaderboard',
   path: '/leaderboard',
+  getParentRoute: () => PomodoroRoute,
+} as any)
+const PomodoroPlansRoute = PomodoroPlansRouteImport.update({
+  id: '/plans',
+  path: '/plans',
   getParentRoute: () => PomodoroRoute,
 } as any)
 const PomodoroRoomsRoute = PomodoroRoomsRouteImport.update({
@@ -577,6 +583,7 @@ export interface FileRoutesByFullPath {
   '/backgrounds': typeof PomodoroBackgroundsRoute
   '/history': typeof PomodoroHistoryRoute
   '/leaderboard': typeof PomodoroLeaderboardRoute
+  '/plans': typeof PomodoroPlansRoute
   '/rooms': typeof PomodoroRoomsRoute
   '/settings': typeof PomodoroSettingsRoute
   '/sounds': typeof PomodoroSoundsRoute
@@ -660,6 +667,7 @@ export interface FileRoutesByTo {
   '/backgrounds': typeof PomodoroBackgroundsRoute
   '/history': typeof PomodoroHistoryRoute
   '/leaderboard': typeof PomodoroLeaderboardRoute
+  '/plans': typeof PomodoroPlansRoute
   '/rooms': typeof PomodoroRoomsRoute
   '/settings': typeof PomodoroSettingsRoute
   '/sounds': typeof PomodoroSoundsRoute
@@ -748,6 +756,7 @@ export interface FileRoutesById {
   '/_pomodoro/backgrounds': typeof PomodoroBackgroundsRoute
   '/_pomodoro/history': typeof PomodoroHistoryRoute
   '/_pomodoro/leaderboard': typeof PomodoroLeaderboardRoute
+  '/_pomodoro/plans': typeof PomodoroPlansRoute
   '/_pomodoro/rooms': typeof PomodoroRoomsRoute
   '/_pomodoro/settings': typeof PomodoroSettingsRoute
   '/_pomodoro/sounds': typeof PomodoroSoundsRoute
@@ -835,6 +844,7 @@ export interface FileRouteTypes {
     | '/backgrounds'
     | '/history'
     | '/leaderboard'
+    | '/plans'
     | '/rooms'
     | '/settings'
     | '/sounds'
@@ -918,6 +928,7 @@ export interface FileRouteTypes {
     | '/backgrounds'
     | '/history'
     | '/leaderboard'
+    | '/plans'
     | '/rooms'
     | '/settings'
     | '/sounds'
@@ -1005,6 +1016,7 @@ export interface FileRouteTypes {
     | '/_pomodoro/backgrounds'
     | '/_pomodoro/history'
     | '/_pomodoro/leaderboard'
+    | '/_pomodoro/plans'
     | '/_pomodoro/rooms'
     | '/_pomodoro/settings'
     | '/_pomodoro/sounds'
@@ -1288,6 +1300,13 @@ declare module '@tanstack/react-router' {
       path: '/leaderboard'
       fullPath: '/leaderboard'
       preLoaderRoute: typeof PomodoroLeaderboardRouteImport
+      parentRoute: typeof PomodoroRoute
+    }
+    '/_pomodoro/plans': {
+      id: '/_pomodoro/plans'
+      path: '/plans'
+      fullPath: '/plans'
+      preLoaderRoute: typeof PomodoroPlansRouteImport
       parentRoute: typeof PomodoroRoute
     }
     '/_pomodoro/rooms': {
@@ -1845,6 +1864,7 @@ interface PomodoroRouteChildren {
   PomodoroBackgroundsRoute: typeof PomodoroBackgroundsRoute
   PomodoroHistoryRoute: typeof PomodoroHistoryRoute
   PomodoroLeaderboardRoute: typeof PomodoroLeaderboardRoute
+  PomodoroPlansRoute: typeof PomodoroPlansRoute
   PomodoroRoomsRoute: typeof PomodoroRoomsRoute
   PomodoroSettingsRoute: typeof PomodoroSettingsRoute
   PomodoroSoundsRoute: typeof PomodoroSoundsRoute
@@ -1861,6 +1881,7 @@ const PomodoroRouteChildren: PomodoroRouteChildren = {
   PomodoroBackgroundsRoute: PomodoroBackgroundsRoute,
   PomodoroHistoryRoute: PomodoroHistoryRoute,
   PomodoroLeaderboardRoute: PomodoroLeaderboardRoute,
+  PomodoroPlansRoute: PomodoroPlansRoute,
   PomodoroRoomsRoute: PomodoroRoomsRoute,
   PomodoroSettingsRoute: PomodoroSettingsRoute,
   PomodoroSoundsRoute: PomodoroSoundsRoute,

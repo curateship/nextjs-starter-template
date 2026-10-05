@@ -30,6 +30,7 @@ import {
   MAX_FRONT_PAGE_ROW_HEADING_LENGTH,
   MAX_FRONT_PAGE_ROW_ID_LENGTH,
   MAX_FRONT_PAGE_ROW_INTRO_LENGTH,
+  MAX_FRONT_PAGE_ROW_SPACE,
   MAX_FRONT_PAGE_SCREENSHOT_CAPTION_LENGTH,
   MAX_FRONT_PAGE_SCREENSHOTS,
   MAX_FRONT_PAGE_TESTIMONIAL_QUOTE_LENGTH,
@@ -72,6 +73,23 @@ const frontPageRowBaseShape = {
   showNumbers: z.boolean().default(true),
   showCaptions: z.boolean().default(true),
   device: z.enum(PUBLIC_DEVICES),
+  // Null is "follow the page's own Space between blocks", which is what a
+  // block saved before these existed has to keep doing. Defaulted as well as
+  // nullable, so a panel opened before they existed still saves.
+  spaceAbove: z
+    .number()
+    .int()
+    .min(0)
+    .max(MAX_FRONT_PAGE_ROW_SPACE)
+    .nullable()
+    .default(null),
+  spaceBelow: z
+    .number()
+    .int()
+    .min(0)
+    .max(MAX_FRONT_PAGE_ROW_SPACE)
+    .nullable()
+    .default(null),
 }
 
 const frontPageItemIdSchema = z.string().max(MAX_FRONT_PAGE_ROW_ID_LENGTH)

@@ -7,7 +7,7 @@ cover this one.
   own sidebar, header and settings page; the admin chrome is never the
   frontend.
 - [The Pomoder look](pomoder-look.md) — the ported design tokens, fonts and
-  orange accent for the member-facing screens, and the PomodoroScreen wrapper
+  orange accent for the member-facing screens, and the PomodoroShell wrapper
   that switches them on.
 - [The timer](timer.md) — the ring at `/timer`, the 4-focus cycle, auto-start,
   and the session rows and daily stats every run writes.
@@ -31,6 +31,9 @@ cover this one.
   rhythms.
 - [Pro perks](pro-perks.md) — what a paid plan unlocks and the one module
   that answers every can-do question.
+- [The plans page](plans-page.md) — `/plans`, the product's own pricing
+  screen: where the figures come from, what each button does, and why the
+  shell's `/pricing` is a different page.
 - [Profile](profile.md) — public display name, the day-boundary timezone and
   the leaderboard opt-in.
 - [The public profile](public-profile.md) — the page at `/u/<handle>`, the

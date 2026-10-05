@@ -26,10 +26,11 @@ are decisions, not decoration.
 
 **The inbox header is two tabs and two buttons.** All and Unread, each carrying
 its own count, because those are the only two things looked at constantly.
-Search sits behind the magnifying glass and the rest of the filters behind the
-funnel. Five controls on permanent display would take a third of the panel's
-height from the list they exist to narrow. The funnel carries a dot when
-something is on, so a list narrowed yesterday cannot look empty today.
+Search sits behind the magnifying glass, and the rest of the filters and the
+order behind the funnel. Five controls on permanent display would take a third
+of the panel's height from the list they exist to narrow. The funnel carries a
+dot when something is on, so a list narrowed or reordered yesterday cannot look
+like an ordinary one today.
 
 **A tab's count is a soft grey chip, never a coloured number.** `TabsCount` in
 `src/components/ui/tabs.tsx` draws it, so every screen in every app gets the
@@ -76,9 +77,10 @@ repeated on every message: it is the same two people the whole way down, so the
 header says it once. A screen reader still hears "You wrote" or "They wrote" on
 each one, so which way it went never rests on which side it is drawn.
 
-The three square buttons in the conversation header are **mark unread**,
-**snooze** and **close**, and each does something. There is no star: nothing in
-the CRM is starred, and a button that only looks right is a button that lies.
+The four square buttons in the conversation header are **mark unread**,
+**snooze**, **block this address** and **close**, and each does something.
+There is no star: nothing in the CRM is starred, and a button that only looks
+right is a button that lies.
 
 Mark unread exists because opening a conversation marks it read. Without a way
 back, one opened by accident, or meant for later, would look dealt with.
@@ -298,6 +300,75 @@ recorded after it. It is added under anything already typed rather than over it,
 it is never sent, and it is told not to invent a price, a date or a fact that is
 not in the conversation.
 
+## Blocking an address
+
+Mail from a blocked address never reaches the inbox. The list is per workspace,
+kept in **Settings → Email → Blocked senders**, and a pattern is one of two
+things:
+
+- A whole address, `spam@example.com`.
+- A whole domain, written with a leading at sign: `@example.com`.
+
+**Nothing is ever deleted.** The message is written exactly as anybody else's
+would be, and its conversation arrives already closed and already read, so it
+stays out of the default inbox. Setting the inbox's status filter to All finds
+it. Silently destroying inbound mail is the one thing this feature must not do,
+because a customer blocked by accident has to be recoverable.
+
+**The match is equality, never a substring.** `@example.com` catches
+`anyone@example.com` and leaves `me@notexample.com` alone. `jane@buyer.com`
+does not catch `notjane@buyer.com`. Capitals make no difference on either side:
+the pattern is stored lowered and the sender's address is lowered before it is
+compared, because mail arrives with whatever capitals the sender's client used.
+
+**A subdomain of a blocked domain is not blocked.** `@example.com` leaves
+`sales@mail.example.com` alone. Blocking a domain nobody listed is the same
+mistake as a substring match in a different shape, so the subdomain has to be
+listed too if it writes in. This is the opposite of the throwaway-domain list
+in `src/server/email/deliverability.ts`, which does catch subdomains — that
+list is a hand-kept set of providers whose whole business is temporary
+addresses, and those hand out endless subdomains of one name.
+
+**Blocking from the conversation is one button and one confirmation.** The ban
+icon in the conversation header blocks the address and closes the thread, in
+that order: if closing fails the address is still blocked, which is the half
+that matters. The confirmation exists although nothing is destroyed, because
+the button sits in a row of four square icons and a misclick that quietly
+stopped a real customer's mail is the failure this whole design is shaped
+around. The note it writes is "Blocked from the conversation", so the settings
+list says where the block came from.
+
+**Unblocking is one press and reopens nothing.** The next message from that
+address lands in the inbox; the mail that was blocked stays where it was put.
+Reopening a month of spam somebody has already dealt with is not what
+unblocking one address is asking for.
+
+**A second Block on the same sender is not an error.** The write answers
+whether it was what added the row, so the screen says "that one was already
+blocked" instead of a refusal nobody can act on.
+
+**No stage changes and no notice goes out.** A blocked sender's lead is still
+written, because a message needs a conversation and a conversation needs a
+lead — that is the only way to keep the mail. The lead stays at New with no
+chase date, so the follow-up job never mentions it.
+
+**The webhook still answers normally.** A block is not an error, so nothing
+throws and Resend does not retry the delivery. `isSenderBlocked` in
+`src/server/crm/blocked.ts` is one indexed lookup on the unique index migration
+0091 built, asked once per piece of mail.
+
+**One place the block has to be asked about twice.** `mergeByHeaders` moves a
+message into the thread its `In-Reply-To` points at, and that move normally
+makes the parent thread unread. It runs from the body fetch rather than from
+the write, so it asks the blocked list again: without that, a blocked sender
+who changed the subject mid-conversation would have their message moved into
+the thread they had open before the block, and the move would raise it into the
+inbox the block exists to keep clear.
+
+**What blocking does not do.** It does not judge spam by score or by content,
+it does not block on the way out, and it is not per inbound address. One list
+per workspace, typed by a person.
+
 ## Unread, snoozed and closed
 
 A conversation is **unread** while its `read_at` is null. Opening it stamps the
@@ -333,6 +404,47 @@ writes nothing at all, the status included.
 clears `read_at` and puts the conversation at the top of the list it is in.
 Whether somebody writing again should reopen a thread you deliberately closed is
 a separate question, and the answer may be no.
+
+## The order the inbox comes in
+
+The inbox is newest first, and the funnel holds one other choice: **Longest
+waiting**, which puts the person who has been waiting the most days at the top.
+
+Newest first is the order for reading mail. Longest waiting is the order for
+clearing it. A customer who wrote on Monday was at the bottom of the list by
+Thursday, pushed down by everybody who had written since, which is backwards
+from who needs answering.
+
+**The choice lives in the address as `sort`.** `/admin/crm?sort=oldest` is the
+longest-waiting inbox, so a reload keeps it and the link can be handed to
+somebody else. `readCrmSearch` checks it against the two values in
+`CRM_INBOX_SORTS`, so a hand-edited address can only fall back to newest first.
+The default stays out of the address: there is no `?sort=newest`.
+
+**The funnel's dot turns on for a non-default order**, the same dot a filter
+turns on, because a reordered list must not look like an ordinary one. The dot
+counts the order as one of the things that is on, and "Clear the filters" puts
+the order back to newest first along with the rest.
+
+**The order is not a filter, and the empty row knows the difference.** An inbox
+with nothing in it says "Nothing has arrived yet" rather than "Nothing matches
+that" when all that changed was the order, because the order hides no rows.
+
+**Load more carries the order.** Without that the second page would come back
+newest first and restart the list halfway down. Ticked rows are cleared when
+the order changes, for the same reason a filter change clears them: page 1 of
+one order is not the same set of rows as page 1 of the other.
+
+Paging is `LIMIT`/`OFFSET` over a list that moves. Mail arriving while
+somebody is partway down can push one conversation onto the next page or pull
+one back, so a row can be missed or seen twice. That was already true of
+newest first and the order does not make it worse. `loadMore` in
+`src/components/crm/crm-workspace.tsx` filters what comes back by id, so at
+least the same conversation cannot be drawn twice.
+
+Both orders are plain `asc`/`desc` on `last_message_at`, which is `NOT NULL`,
+so neither needs a `NULLS LAST` — the trap in the last section of this doc.
+`src/server/crm/reads.test.ts` runs both of them against a real database.
 
 ## Clearing a handful at once
 

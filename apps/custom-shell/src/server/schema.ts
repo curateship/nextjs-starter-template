@@ -2745,6 +2745,42 @@ export const customShellCrmMessages = pgTable(
   ]
 )
 
+/**
+ * One address, or one whole domain, whose mail must not reach the inbox.
+ *
+ * **Nothing is deleted on a match.** The mail is still written; the thread it
+ * lands in is closed and stamped read, so it stays out of the default inbox
+ * and is still there under a different status filter. A customer blocked by
+ * accident is the risk this table is shaped around, which is why the note and
+ * the date are kept and why unblocking is one press.
+ */
+export const customShellCrmBlockedSenders = pgTable(
+  "crm_blocked_senders",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    /**
+     * A whole address (`spam@example.com`), or a whole domain written with a
+     * leading at sign (`@example.com`). Stored lowered, because mail arrives
+     * with whatever capitals the sender's client used.
+     */
+    pattern: varchar("pattern", { length: 255 }).notNull(),
+    /** Why it was blocked, in the person's own words. The date is `createdAt`. */
+    note: varchar("note", { length: 500 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    // One row per pattern per workspace, and the index the inbound lookup
+    // reads: workspace plus the lowered address or domain.
+    uniqueIndex("ux_crm_blocked_senders_workspace_pattern").on(
+      table.workspaceId,
+      sql`lower(${table.pattern})`
+    ),
+  ]
+)
+
 export type CustomShellUser = typeof customShellUsers.$inferSelect
 export type CustomShellChangelogEntry =
   typeof customShellChangelogEntries.$inferSelect
@@ -2786,3 +2822,5 @@ export type CustomShellCrmLead = typeof customShellCrmLeads.$inferSelect
 export type CustomShellCrmThread = typeof customShellCrmThreads.$inferSelect
 export type CustomShellCrmMessage =
   typeof customShellCrmMessages.$inferSelect
+export type CustomShellCrmBlockedSender =
+  typeof customShellCrmBlockedSenders.$inferSelect

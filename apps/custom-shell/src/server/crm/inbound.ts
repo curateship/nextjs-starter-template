@@ -9,6 +9,7 @@ import {
   threadMatchCutoff,
 } from "@/lib/crm/thread-match"
 import { now, uuid } from "@/server/auth/security"
+import { isSenderBlocked } from "@/server/crm/blocked"
 import { db, type CustomShellDb } from "@/server/db"
 import { getAppEmailApiKey } from "@/server/email/settings"
 import { getEmailProvider } from "@/server/email/provider"
@@ -237,6 +238,7 @@ async function threadForMessage(
   workspaceId: string,
   leadId: string,
   mail: InboundEmail,
+  blocked: boolean,
   database: CustomShellDb
 ): Promise<{ id: string; created: boolean }> {
   const subjectKey = normalizeSubject(mail.subject).slice(0, 500)
@@ -268,11 +270,14 @@ async function threadForMessage(
     leadId,
     subject: mail.subject,
     subjectKey,
-    status: "open",
+    // A blocked sender's conversation is born closed and read, which is what
+    // keeps it out of the default inbox. Nothing is deleted: change the status
+    // filter to All and it is there.
+    status: blocked ? "closed" : "open",
     lastMessageAt: mail.occurredAt,
     lastDirection: "in",
     messageCount: 0,
-    readAt: null,
+    readAt: blocked ? at : null,
     createdAt: at,
     updatedAt: at,
   })
@@ -287,6 +292,12 @@ export type RecordInboundResult = {
 
 /**
  * Writes one received email.
+ *
+ * **A blocked sender's mail is written like anybody else's**, then its thread
+ * is closed and stamped read so it never appears in the default inbox. It is
+ * not thrown away, because a customer blocked by accident has to be
+ * recoverable, and nothing judges spam by score or by content — only the list
+ * somebody typed.
  *
  * The workspace comes from the signature on the webhook, the same way every
  * other Resend event finds its workspace, so it is not taken from the address
@@ -319,13 +330,21 @@ export async function recordInboundEmail(
     .limit(1)
   if (already) return { changed: 0 }
 
+  const blocked = await isSenderBlocked(workspaceId, mail.fromEmail, database)
+
   const leadId = await leadForAddress(
     workspaceId,
     mail.fromEmail,
     mail.fromName,
     database
   )
-  const thread = await threadForMessage(workspaceId, leadId, mail, database)
+  const thread = await threadForMessage(
+    workspaceId,
+    leadId,
+    mail,
+    blocked,
+    database
+  )
 
   const at = now()
   const messageId = uuid()
@@ -359,8 +378,15 @@ export async function recordInboundEmail(
       lastMessageAt: mail.occurredAt,
       lastDirection: "in",
       // New mail makes a read thread unread again, which is what puts it back
-      // at the top of the inbox in bold.
-      readAt: null,
+      // at the top of the inbox in bold. Blocked mail does the opposite: it
+      // stays read and the thread stays closed, so a thread this sender had
+      // open before the block is shut by their next message rather than
+      // raised by it. The snooze date goes with it, the same way
+      // `setThreadStatus` clears it, so no closed thread is left holding a
+      // date nothing will ever read.
+      ...(blocked
+        ? { readAt: at, status: "closed" as const, snoozedUntil: null }
+        : { readAt: null }),
       updatedAt: at,
     })
     .where(eq(customShellCrmThreads.id, thread.id))
@@ -392,6 +418,7 @@ async function mergeByHeaders(
     .select({
       id: customShellCrmMessages.id,
       threadId: customShellCrmMessages.threadId,
+      fromEmail: customShellCrmMessages.fromEmail,
       occurredAt: customShellCrmMessages.occurredAt,
     })
     .from(customShellCrmMessages)
@@ -422,6 +449,13 @@ async function mergeByHeaders(
   if (!parent || parent.threadId === message.threadId) return
 
   const at = now()
+  // Asked again here, not carried in, because the merge runs from the body
+  // fetch rather than from the write. Without it, a blocked sender whose
+  // subject changed mid-conversation would have their message moved into the
+  // thread they had open before the block, and that move would raise it to
+  // unread in the inbox the block exists to keep clear.
+  const blocked = await isSenderBlocked(workspaceId, message.fromEmail, database)
+
   await database
     .update(customShellCrmMessages)
     .set({ threadId: parent.threadId })
@@ -433,7 +467,9 @@ async function mergeByHeaders(
       messageCount: sql`${customShellCrmThreads.messageCount} + 1`,
       lastMessageAt: message.occurredAt,
       lastDirection: "in",
-      readAt: null,
+      ...(blocked
+        ? { readAt: at, status: "closed" as const, snoozedUntil: null }
+        : { readAt: null }),
       updatedAt: at,
     })
     .where(eq(customShellCrmThreads.id, parent.threadId))
