@@ -16,13 +16,23 @@ does not belong in settings.
   before it counts as a drag, the same distance every other list in the app
   uses, so a click is still a click.
 - **Middle, Front page.** This page's blocks, top to bottom, in the order a
-  visitor reads them. Each row says its kind, its width, its alignment when it
-  is not following the site, which screens it is drawn on when that is not all
-  of them, and **Hidden** when it is. Dragging the grip changes the order;
-  clicking a row opens it on the right.
+  visitor reads them. Each row carries the same picture its kind wears on the
+  left-hand cards, so a long page can be read by its shapes rather than by
+  reading every heading. After the picture the row says its kind, its width, its
+  alignment when it is not following the site, which screens it is drawn on when
+  that is not all of them, and **Hidden** when it is. Dragging the grip changes
+  the order; clicking a row opens it on the right. The arrow at the top right of
+  this panel's header opens the page in a new tab, as a visitor sees it, which
+  is the question somebody building a page asks constantly.
 - **Right.** The fields of whatever is selected. With nothing selected it holds
   the page's own settings instead, and the X at the right-hand end of its
-  header is the way back to them.
+  header is the way back to them. **Both states of this panel have a button that
+  shuts every card in it at once**, and opens them all again the next time it is
+  pressed: beside the X on a block's settings, and on its own in the header of
+  the page's settings. The first press always shuts, because opening a panel
+  that is already open is a press that does nothing. Shutting from here is the
+  same as shutting each card by hand: this browser remembers it, so the panel is
+  still shut after a reload.
 
 **The right panel is drawn the same way the newsletter editor's is.** Its cards
 are `InspectorCard` from `src/components/shared/inspector-card.tsx`: a grey box

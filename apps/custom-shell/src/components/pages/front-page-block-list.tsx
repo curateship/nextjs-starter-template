@@ -5,7 +5,12 @@ import {
   arrayMove,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
-import { GripVerticalIcon, LayersIcon, Trash2Icon } from "lucide-react"
+import {
+  ExternalLinkIcon,
+  GripVerticalIcon,
+  LayersIcon,
+  Trash2Icon,
+} from "lucide-react"
 
 import {
   DRAG_HANDLE_CLASS,
@@ -16,6 +21,11 @@ import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-hea
 import { EmptyRow } from "@/components/shared/feed-card"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { appFrontPageRowKind } from "@/lib/app-options"
 import { PUBLIC_DEVICE_LABELS } from "@/lib/pages/public-device"
 import {
@@ -26,7 +36,11 @@ import {
   type FrontPageRow,
   type FrontPageRowDraft,
 } from "@/lib/pages/front-page"
-import { BLOCK_KIND_MEDIA_TYPE } from "@/components/pages/front-page-block-kinds"
+import {
+  BLOCK_KIND_MEDIA_TYPE,
+  FRONT_PAGE_BLOCK_FALLBACK_ICON,
+  FRONT_PAGE_BLOCK_ICONS,
+} from "@/components/pages/front-page-block-kinds"
 import { cn } from "@/lib/utils"
 
 /**
@@ -38,6 +52,7 @@ import { cn } from "@/lib/utils"
  * website is the one that counts.
  */
 export function FrontPageBlockList({
+  page,
   rows,
   selectedId,
   pending,
@@ -48,6 +63,8 @@ export function FrontPageBlockList({
   onAddKindAt,
   onDelete,
 }: {
+  /** The page being built, for its name and its public address. */
+  page: { path: string; name: string }
   rows: FrontPageRow[]
   /** The saved block being edited, if the inspector is on one. */
   selectedId: string | null
@@ -137,8 +154,31 @@ export function FrontPageBlockList({
       <DashboardCardTitleHeader
         icon={<LayersIcon className="size-4" />}
         back={{ to: "/admin/pages", label: "Back to pages" }}
+        // Left as it was. The page's own name is "Home" for the front page, so
+        // swapping it in renames this header rather than fixing anything, and
+        // what a second page's header should say is Tyler's call.
         title="Front page"
         meta={rows.length === 1 ? "1 block" : `${rows.length} blocks`}
+        action={
+          /* Straight to the page as a visitor sees it, which is the question
+             somebody building it asks constantly. The address is the page's
+             own path on this host, the same link the Pages list uses. */
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button asChild variant="ghost" size="icon" className="size-8">
+                <a
+                  href={page.path}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={`Open ${page.name} in a new tab`}
+                >
+                  <ExternalLinkIcon className="size-4" />
+                </a>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Open the page in a new tab</TooltipContent>
+          </Tooltip>
+        }
       />
       <ScrollArea className="min-h-0 flex-1">
         <div
@@ -316,6 +356,14 @@ function FrontPageBlockRow({
     row.id,
     true
   )
+  // Read as a property, never returned from a function. A helper that handed
+  // back a component counts as building one during render, which would remount
+  // the icon on every keystroke and is a lint error besides.
+  const KindIcon =
+    row.kind === APP_FRONT_PAGE_ROW_KIND
+      ? (appFrontPageRowKind(row.appKind)?.icon ??
+        FRONT_PAGE_BLOCK_FALLBACK_ICON)
+      : (FRONT_PAGE_BLOCK_ICONS[row.kind] ?? FRONT_PAGE_BLOCK_FALLBACK_ICON)
 
   return (
     <li
@@ -344,6 +392,11 @@ function FrontPageBlockRow({
       >
         <GripVerticalIcon className="size-4" />
       </button>
+      {/* The same picture the block was picked by on the left, so a long list
+          can be read by its shapes rather than by reading every heading. It is
+          decorative: the kind is already written underneath in words, and a
+          screen reader saying it twice helps nobody. */}
+      <KindIcon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
       <button
         type="button"
         className="grid min-w-0 flex-1 gap-1 rounded-md px-2 py-1 text-left"

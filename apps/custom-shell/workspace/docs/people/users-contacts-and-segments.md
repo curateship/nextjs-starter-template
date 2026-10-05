@@ -54,6 +54,30 @@ Newsletters and automations may depend on a segment. The server refuses to
 delete a segment while another saved record still refers to it. Removing the
 reference first makes the effect explicit.
 
+### A tag rule is picked from a list, not typed
+
+The Tag rule's second field is a combobox: it lists every tag contacts actually
+carry, filters as you type, and ticks the ones the rule matches. The same rule
+builder draws the contacts filter and the segment window, so both got it.
+
+It was a text field you typed comma-separated names into until 5 October 2026.
+Tyler asked for the combobox, and the field had earned it. A name had to be
+spelled exactly, nothing on screen said which tags existed, and a typo looked
+identical to a tag nobody carries, so the rule quietly matched nobody and the
+screen gave no hint why.
+
+**A tag the rule already names is kept even when no contact carries it any
+more.** Those sit at the top of the list, ticked, so opening an old rule and
+pressing Save cannot silently narrow what it matches. Untick one and it goes;
+nothing else removes it.
+
+**There is no way to invent a tag here**, which is the point of the change. A
+rule can only name a tag that exists, because a rule naming one that does not is
+a rule that matches nobody.
+
+`src/components/ui/multi-combobox.tsx` is the control, built from the Popover,
+ScrollArea and Badge already in the app rather than from a new dependency.
+
 ### A hand-picked segment waits for its people before it can be saved
 
 A hand-picked segment's people live in their own table, so the edit window asks

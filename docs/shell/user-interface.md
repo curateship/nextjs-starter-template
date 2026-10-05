@@ -5,6 +5,30 @@
 - If a required shadcn component does not exist in `src/components/ui/`, add it there first, then use it in the page/component.
 - All custom Ui changes will be in global.css and not in the Ui Component
 
+## Picking several things from a list
+
+- **`src/components/ui/multi-combobox.tsx` is the one multi-select.** A trigger
+  the same height and shape as a Select, a search box, and a ticked row per
+  choice. It is built from the Popover, ScrollArea and Badge already here rather
+  than from `cmdk`, which would be a dependency for one control.
+- **A picked value the list no longer offers is kept and shown, ticked, at the
+  top.** A saved rule can name something nobody carries any more, and a picker
+  that quietly dropped it would change what the rule means the next time
+  somebody opened it and pressed Save.
+
+## Shutting every card in an options panel at once
+
+- **The button lives in the panel's header and the cards listen for it**, through
+  the optional context in `src/components/shared/inspector-card.tsx`. A panel
+  that does not put the button in its header provides no signal and its cards
+  each keep their own remembered state, which is how they all worked before.
+- **The first press always shuts.** Opening a panel that is already open is a
+  press that does nothing, and a button whose first use does nothing reads as
+  broken.
+- **Acting on it writes each card's own remembered state**, so a panel shut from
+  the header is still shut after a reload, exactly as if every card had been
+  clicked.
+
 ## Borders
 
 - **Every border comes from the border settings in Settings → Styling.** No
