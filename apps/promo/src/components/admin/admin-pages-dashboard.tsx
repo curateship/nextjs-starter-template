@@ -1,21 +1,28 @@
 import * as React from "react"
-import { useRouter } from "@tanstack/react-router"
+import { Link, useRouter } from "@tanstack/react-router"
 import {
   ExternalLinkIcon,
   PanelsTopLeftIcon,
   PlusIcon,
-  SettingsIcon,
   Trash2Icon,
+  WrenchIcon,
 } from "lucide-react"
 import { toast } from "sonner"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
+import { DashboardCardHeaderIcon } from "@/components/shared/dashboard-card-header"
 import { DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
 import {
   SortableTableHeader,
   type SortableColumn,
 } from "@/components/shared/sortable-table-header"
+import {
+  hasSystemPageCopy,
+  SystemPageCopyDialog,
+  SYSTEM_PAGE_COPY,
+} from "@/components/pages/system-page-copy-dialog"
 import { WrittenPageDialog } from "@/components/pages/written-page-dialog"
+import { useShellRuntime } from "@/components/shell/shell-layout"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { DisabledReason } from "@/components/ui/disabled-reason"
@@ -27,21 +34,29 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { TableCell, TableHead, TableRow } from "@/components/ui/table"
+import { Tabs, TabsCount, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { focusRing } from "@/lib/layout/focus-ring"
+import { cn } from "@/lib/utils"
+import {
+  PAGE_GROUP_LABELS,
+  PAGE_GROUPS,
+  pageGroup,
+  type PageGroup,
+} from "@/lib/pages/page-groups"
 import {
   getPageVisibilityErrorMessage,
   getWrittenPageErrorMessage,
-  loadWrittenPageForEdit,
   removeWrittenPage,
   savePageVisibility,
   type PagesOverview,
   type PublicPageRow,
-  type WrittenPage,
 } from "@/lib/api/content/pages"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { useListSearchNavigate, useSearchBoxText } from "@/lib/nav/list-search"
 import {
   PAGE_VISIBILITIES,
   PAGE_VISIBILITY_LABELS,
+  PAGE_VISIBILITY_SENTENCES,
   type PageVisibility,
 } from "@/lib/pages/page-visibility"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
@@ -55,6 +70,19 @@ import { useTableSort } from "@/lib/hooks/use-table-sort"
  */
 
 type PageSort = "page" | "address" | "status" | "visits"
+
+/** Where a page built from blocks is edited. */
+const EDIT_ROUTE = "/admin/pages/edit"
+
+/**
+ * The picture on each tab. Here rather than beside the labels in
+ * `lib/pages/page-groups.ts`, because that module is read on the server too and
+ * an icon is a React component.
+ */
+const PAGE_GROUP_ICONS: Record<PageGroup, React.ReactNode> = {
+  yours: <PanelsTopLeftIcon className="size-4" />,
+  system: <WrenchIcon className="size-4" />,
+}
 
 /**
  * There is no range picker, so the Visits heading is what tells an admin how
@@ -85,11 +113,15 @@ const pageSortDirection = (column: PageSort) =>
 export function AdminPagesDashboard({
   data,
   searchText,
+  group,
 }: {
   data: PagesOverview
   searchText: string
+  /** Which half of the screen is open. See `lib/pages/page-groups.ts`. */
+  group: PageGroup
 }) {
   const router = useRouter()
+  const runtime = useShellRuntime()
   const navigate = useListSearchNavigate()
   const [text, setText] = useSearchBoxText(searchText, (value) =>
     navigate({ q: value || undefined })
@@ -111,40 +143,14 @@ export function AdminPagesDashboard({
     visibility: PageVisibility
   } | null>(null)
 
-  /**
-   * The written page being edited, or "new" while one is being written. Held
-   * as its own record rather than reusing the row, because the row carries a
-   * summary while the window needs the words.
-   */
-  const [editing, setEditing] = React.useState<WrittenPage | "new" | null>(null)
-  const [opening, setOpening] = React.useState<string | null>(null)
+  /** True while the add-a-page window is open. */
+  const [adding, setAdding] = React.useState(false)
+  /** Which system page's words are open, or null. */
+  const [editingCopy, setEditingCopy] = React.useState<
+    keyof typeof SYSTEM_PAGE_COPY | null
+  >(null)
   const [deleting, setDeleting] = React.useState<PublicPageRow | null>(null)
   const [deleteRunning, setDeleteRunning] = React.useState(false)
-
-  /**
-   * The row only knows a page exists; the words come from its own read.
-   *
-   * The admin read, not the visitor one: a switched-off page is missing to a
-   * visitor by design, and asking that way would mean hiding a page and never
-   * being able to open it again.
-   */
-  async function openForEdit(row: PublicPageRow) {
-    setOpening(row.path)
-    dismissErrorToast()
-    try {
-      const page = await loadWrittenPageForEdit(row.path)
-      if (!page) {
-        showErrorToast("That page has already been deleted.")
-        await router.invalidate()
-        return
-      }
-      setEditing(page)
-    } catch (error) {
-      showErrorToast(getWrittenPageErrorMessage(error))
-    } finally {
-      setOpening(null)
-    }
-  }
 
   async function confirmDelete() {
     if (!deleting?.writtenPageId) return
@@ -168,7 +174,7 @@ export function AdminPagesDashboard({
     try {
       await savePageVisibility({ path: row.path, visibility: next })
       await router.invalidate()
-      toast.success(`${row.name} is now ${visibilitySentence(next)}`)
+      toast.success(`${row.name} is now ${PAGE_VISIBILITY_SENTENCES[next]}`)
     } catch (error) {
       showErrorToast(getPageVisibilityErrorMessage(error))
     } finally {
@@ -176,15 +182,23 @@ export function AdminPagesDashboard({
     }
   }
 
+  /** How many pages each tab holds, before the search narrows anything. */
+  const groupCounts = React.useMemo(() => {
+    const counts: Record<PageGroup, number> = { yours: 0, system: 0 }
+    for (const row of data.rows) counts[pageGroup(row)] += 1
+    return counts
+  }, [data.rows])
+
   const rows = React.useMemo(() => {
     const query = searchText.trim().toLowerCase()
     const matching = data.rows.filter(
       (row) =>
-        !query || `${row.name} ${row.path}`.toLowerCase().includes(query)
+        pageGroup(row) === group &&
+        (!query || `${row.name} ${row.path}`.toLowerCase().includes(query))
     )
     const factor = direction === "asc" ? 1 : -1
     return matching.sort((a, b) => factor * comparePages(a, b, sort))
-  }, [data.rows, searchText, sort, direction])
+  }, [data.rows, group, searchText, sort, direction])
 
   return (
     <>
@@ -192,6 +206,34 @@ export function AdminPagesDashboard({
       title="Pages"
       icon={<PanelsTopLeftIcon className="text-muted-foreground" />}
       count={rows.length}
+      tabs={
+        <Tabs
+          value={group}
+          onValueChange={(value) =>
+            navigate({ group: value === "yours" ? undefined : (value as PageGroup) })
+          }
+        >
+          <TabsList>
+            {PAGE_GROUPS.map((value) => (
+              <TabsTrigger
+                key={value}
+                value={value}
+                className="group/page-tab"
+                aria-label={`${PAGE_GROUP_LABELS[value]}, ${groupCounts[value]}`}
+              >
+                {/* Muted until the tab is the chosen one, the same as the tab's
+                    own words, so the pill reads as one thing rather than an
+                    icon sitting beside a label. */}
+                <DashboardCardHeaderIcon className="group-data-[state=active]/page-tab:text-foreground">
+                  {PAGE_GROUP_ICONS[value]}
+                </DashboardCardHeaderIcon>
+                {PAGE_GROUP_LABELS[value]}
+                <TabsCount>{groupCounts[value]}</TabsCount>
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+      }
       controls={
         <>
           <DashboardToolbarSearch
@@ -202,9 +244,9 @@ export function AdminPagesDashboard({
             onChange={(event) => setText(event.target.value)}
           />
           {/* The one primary action, last, as the toolbar order asks. */}
-          <Button type="button" onClick={() => setEditing("new")}>
+          <Button type="button" onClick={() => setAdding(true)}>
             <PlusIcon className="size-4" />
-            Write a page
+            Add a page
           </Button>
         </>
       }
@@ -221,13 +263,15 @@ export function AdminPagesDashboard({
       emptyText={
         searchText.trim()
           ? "No page matches that search."
-          : "No public pages are declared."
+          : group === "yours"
+            ? "No pages of your own yet. Write one, or give a page blocks in its own file."
+            : "No public pages are declared."
       }
       emptyColSpan={5}
       footer={{
         type: "summary",
         count: rows.length,
-        label: "public pages",
+        label: group === "yours" ? "pages" : "system pages",
         // The tracker counts the busiest 200 addresses per day and pools the
         // rest, so on a very busy day a page's count can read low. Said out
         // loud rather than pretending the numbers are exact.
@@ -239,19 +283,66 @@ export function AdminPagesDashboard({
         ) : undefined,
       }}
     >
-      {rows.map((row) => (
-        <TableRow key={row.path}>
+      {rows.map((row) => {
+        // Held as a value rather than asked twice: the check narrows the
+        // address, and a callback that asks again later has lost the narrowing.
+        const copyPath = hasSystemPageCopy(row.path) ? row.path : null
+        return (
+        <TableRow
+          key={row.path}
+          // Only a page built from blocks has an editor to open. Everything
+          // else on this screen is code an app wrote or words an admin wrote,
+          // so its row stays a row. The page's own card decides, so an app that
+          // gives a second page blocks needs no change here.
+          rowAction={
+            row.blocks
+              ? () =>
+                  void router.navigate({
+                    to: EDIT_ROUTE,
+                    search: { path: row.path },
+                  })
+              : copyPath
+                ? () => setEditingCopy(copyPath)
+                : undefined
+          }
+        >
           <TableCell column="main">
             <div className="flex min-w-0 items-center gap-2">
               {/* `min-w-0` on the name as well as the row: a flex child
                   refuses to shrink below its own text by default, and without
                   it a long name pushes out of the cell instead of truncating. */}
-              <span
-                className="min-w-0 truncate text-sm font-medium"
-                title={row.name}
-              >
-                {row.name}
-              </span>
+              {row.blocks ? (
+                <Link
+                  to={EDIT_ROUTE}
+                  search={{ path: row.path }}
+                  className={cn(
+                    "min-w-0 truncate text-sm font-medium hover:underline",
+                    focusRing
+                  )}
+                  title={`Build ${row.name}`}
+                >
+                  {row.name}
+                </Link>
+              ) : copyPath ? (
+                <button
+                  type="button"
+                  className={cn(
+                    "min-w-0 truncate rounded-md text-left text-sm font-medium hover:underline",
+                    focusRing
+                  )}
+                  title={`Change what ${row.name} says`}
+                  onClick={() => setEditingCopy(copyPath)}
+                >
+                  {row.name}
+                </button>
+              ) : (
+                <span
+                  className="min-w-0 truncate text-sm font-medium"
+                  title={row.name}
+                >
+                  {row.name}
+                </span>
+              )}
               {/* Only the app's own pages say anything. The shell's are the
                   ordinary case and a caption on every row would be noise —
                   and a page that never says where it came from reads as the
@@ -259,6 +350,14 @@ export function AdminPagesDashboard({
               {row.source === "app" ? (
                 <span className="shrink-0 text-xs text-muted-foreground">
                   Added by this app
+                </span>
+              ) : null}
+              {/* Only a page built from blocks says so, and it says how many
+                  it holds: "0 blocks" is the difference between a page waiting
+                  to be built and a page that is not built this way at all. */}
+              {row.blocks ? (
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  {row.blockCount === 1 ? "1 block" : `${row.blockCount} blocks`}
                 </span>
               ) : null}
             </div>
@@ -297,46 +396,50 @@ export function AdminPagesDashboard({
                   <ExternalLinkIcon className="size-4" />
                 </a>
               </Button>
-              {/* Only a page an admin wrote can be edited or deleted here. A
-                  coded page is changed by changing its code, so it gets no
-                  buttons rather than buttons that would refuse. */}
+              {/* A page built from blocks is edited by opening it, which is
+                  what its name does. The one button left is the one the editor
+                  has no place for: a page an admin added can be taken away,
+                  and a coded page cannot. */}
               {row.writtenPageId ? (
-                <>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    disabled={opening === row.path}
-                    aria-label={`Edit ${row.name}`}
-                    onClick={() => void openForEdit(row)}
-                  >
-                    <SettingsIcon className="size-4" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label={`Delete ${row.name}`}
-                    onClick={() => setDeleting(row)}
-                  >
-                    <Trash2Icon className="size-4" />
-                  </Button>
-                </>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label={`Delete ${row.name}`}
+                  onClick={() => setDeleting(row)}
+                >
+                  <Trash2Icon className="size-4" />
+                </Button>
               ) : null}
           </TableCell>
         </TableRow>
-      ))}
+        )
+      })}
     </DashboardTable>
 
     <WrittenPageDialog
-      open={editing !== null}
-      page={editing === "new" ? null : editing}
-      onClose={() => setEditing(null)}
-      onSaved={() => {
-        const wasNew = editing === "new"
-        setEditing(null)
-        void router.invalidate()
-        toast.success(wasNew ? "Page created." : "Page saved.")
+      open={adding}
+      onClose={() => setAdding(false)}
+      onCreated={(page) => {
+        setAdding(false)
+        toast.success(`${page.title} was created.`)
+        // Straight into the editor: the window asked for a name and an
+        // address, and everything else about the page is built there.
+        void router.navigate({
+          to: EDIT_ROUTE,
+          search: { path: page.path },
+        })
+      }}
+    />
+
+    <SystemPageCopyDialog
+      path={editingCopy}
+      config={runtime.config}
+      onClose={() => setEditingCopy(null)}
+      onSave={(publicSystemCopy) => {
+        runtime.onConfigChange({ ...runtime.config, publicSystemCopy })
+        setEditingCopy(null)
+        toast.success("Saved.")
       }}
     />
 
@@ -404,13 +507,6 @@ function VisibilitySelect({
       </Select>
     </DisabledReason>
   )
-}
-
-/** The confirmation's wording, so the toast reads as a sentence. */
-function visibilitySentence(visibility: PageVisibility) {
-  if (visibility === "everyone") return "open to everyone."
-  if (visibility === "members") return "members only."
-  return "switched off."
 }
 
 function comparePages(a: PublicPageRow, b: PublicPageRow, sort: PageSort) {

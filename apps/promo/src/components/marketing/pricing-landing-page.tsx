@@ -14,11 +14,14 @@ import {
   type PlanOption,
 } from "@/lib/api/billing/billing"
 import { loadAppFrontPageRows, loadBranding } from "@/lib/api/shell"
+import { loadPublicPageBlocks } from "@/lib/api/content/page-blocks"
+import { FRONT_PAGE_PATH } from "@/lib/pages/page-descriptor"
 import { useAppName } from "@/lib/branding"
 import type { BillingInterval } from "@/lib/billing/pricing-choice"
 import {
   APP_FRONT_PAGE_ROW_KIND,
   frontPageHasPlans,
+  frontPageHeroRunsUnderMenu,
   type FrontPageRow,
 } from "@/lib/pages/front-page"
 
@@ -55,15 +58,16 @@ export const pricingLandingPage = definePublicPage({
 })
 
 export async function loadPricingLandingData(
-  rootFrontPageRows?: FrontPageRow[],
   rootHostIsSite?: boolean
 ): Promise<LandingData> {
-  // Branding is read only when the caller has not already read it. The root
-  // route has, and reading it twice on the front page is the round trip this
-  // argument exists to save.
-  const branding = rootFrontPageRows === undefined ? await loadBranding() : null
-  const savedRows = rootFrontPageRows ?? branding?.frontPageRows ?? []
-  const hostIsSite = rootHostIsSite ?? branding?.hostIsSite ?? false
+  // Branding is read only when the caller has not already answered this. The
+  // root route has, and reading it twice on the front page is the round trip
+  // the argument exists to save.
+  const hostIsSite =
+    rootHostIsSite ?? (await loadBranding().catch(() => null))?.hostIsSite ?? false
+  // The page's own blocks, from the table they live in. Hidden ones never
+  // leave the server, so what arrives here is what a visitor may see.
+  const savedRows = await loadPublicPageBlocks(FRONT_PAGE_PATH)
 
   // Asked for only when the page has a row of the app's own on it, and the
   // rows it answers about are the saved ones, read again on the server — never
@@ -165,7 +169,9 @@ function PricingLanding({ data }: { data: LandingData }) {
 
   if (frontPageRows.length > 0) {
     return (
-      <PublicPageFrame>
+      <PublicPageFrame
+        heroRunsUnderMenu={frontPageHeroRunsUnderMenu(frontPageRows)}
+      >
         <FrontPageRows
           rows={frontPageRows}
           appRowData={appRowData}

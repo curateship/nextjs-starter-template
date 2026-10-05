@@ -15,4 +15,27 @@ import type { AppOptions } from "@/lib/app-options"
  * The type is written as an annotation rather than `satisfies` so that an empty
  * object still reads as the full shape. Both catch a misspelled option.
  */
-export const appOptions: AppOptions = {}
+export const appOptions: AppOptions = {
+  workspaces: {
+    /**
+     * Promo is one site and always will be. It is a tool one person runs
+     * against their own social accounts, not something with tenants.
+     */
+    whoMayHave: "off",
+  },
+  settings: {
+    tabs: [
+      {
+        id: "reddit-account",
+        label: "Reddit account",
+        /**
+         * A pointer, never the component. This file is pulled into the
+         * server's node registry during boot, and reaching a component module
+         * from it builds server functions while the guards are half-made — the
+         * app then falls over before it serves anything.
+         */
+        panel: () => import("@/components/social/account-settings"),
+      },
+    ],
+  },
+}

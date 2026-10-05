@@ -2238,6 +2238,9 @@ importers:
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@electric-sql/pglite@0.4.6)(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(kysely@0.29.4)(pg@8.22.0)
+      https-proxy-agent:
+        specifier: ^7.0.6
+        version: 7.0.6(supports-color@7.2.0)
       lucide-react:
         specifier: ^1.14.0
         version: 1.25.0(react@19.2.7)
@@ -2277,6 +2280,9 @@ importers:
       sharp:
         specifier: ^0.35.4
         version: 0.35.4(@types/node@24.13.3)
+      socks-proxy-agent:
+        specifier: ^10.1.0
+        version: 10.1.0(supports-color@7.2.0)
       sonner:
         specifier: ^2.0.7
         version: 2.0.7(react-dom@19.2.7(react@19.2.7))(react@19.2.7)

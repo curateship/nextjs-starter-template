@@ -23,6 +23,13 @@ import {
 import { FieldLabel } from "@/components/ui/field-label"
 import { FormDialog } from "@/components/ui/form-dialog"
 import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { InlineError } from "@/components/ui/inline-error"
 import { LoadingRow } from "@/components/ui/loading-row"
 import {
@@ -34,7 +41,13 @@ import {
   type ContactDetail,
   type ContactItem,
 } from "@/lib/api/people/contacts"
-import { segmentStatusLabels } from "@/lib/contacts/contact-segments"
+import {
+  CONTACT_SEGMENT_STATUSES,
+  segmentStatusHints,
+  segmentStatusLabels,
+  segmentStatusSaidDone,
+  type ContactSegmentStatus,
+} from "@/lib/contacts/contact-segments"
 import { formatDate, formatDateTime } from "@/lib/format/format-time"
 import { quoteOneLine } from "@/lib/format/quote-text"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
@@ -140,7 +153,6 @@ export function ContactDetailDialog({
   if (!contact) return null
 
   const dirty = tagsText !== openedTags
-  const subscribed = contact.status === "subscribed"
 
   const save = async () => {
     await runSave(async () => {
@@ -158,15 +170,21 @@ export function ContactDetailDialog({
     })
   }
 
-  const toggleStatus = async () => {
-    const next = subscribed ? "unsubscribed" : "subscribed"
+  /**
+   * Status is saved the moment it is picked, not with the Save button below.
+   *
+   * The button belongs to the tags, and one of these two is a thing you do to
+   * somebody while reading about them while the other is an edit you might
+   * cancel. Sharing a Save between them would mean picking "Opted out" and
+   * walking away had done nothing.
+   */
+  const pickStatus = async (next: ContactSegmentStatus) => {
+    if (next === contact.status) return
     await runStatus(async () => {
       await setContactsStatus([contact.id], next)
       await onChanged()
       toast.success(
-        next === "unsubscribed"
-          ? `${contact.email} will not get any more.`
-          : `${contact.email} is back on the list.`
+        segmentStatusSaidDone[next].replace("%s", () => contact.email)
       )
     })
   }
@@ -222,24 +240,36 @@ export function ContactDetailDialog({
                     <Fact
                       label="Getting the newsletter"
                       value={
-                        <span className="flex flex-wrap items-center gap-2">
-                          <Badge
-                            variant={subscribed ? "secondary" : "destructive"}
-                          >
-                            {segmentStatusLabels[contact.status]}
-                          </Badge>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            disabled={changingStatus}
-                            onClick={() => void toggleStatus()}
-                          >
+                        <span className="grid gap-1.5">
+                          <span className="flex items-center gap-2">
+                            <Select
+                              value={contact.status}
+                              onValueChange={(value) =>
+                                void pickStatus(value as ContactSegmentStatus)
+                              }
+                            >
+                              <SelectTrigger
+                                className="w-full sm:w-fit"
+                                aria-label="Their status"
+                                disabled={changingStatus}
+                              >
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {CONTACT_SEGMENT_STATUSES.map((status) => (
+                                  <SelectItem key={status} value={status}>
+                                    {segmentStatusLabels[status]}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                             {changingStatus ? (
-                              <Loader2Icon className="size-4 animate-spin" />
+                              <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
                             ) : null}
-                            {subscribed ? "Take off" : "Put back"}
-                          </Button>
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {segmentStatusHints[contact.status]}
+                          </span>
                         </span>
                       }
                     />

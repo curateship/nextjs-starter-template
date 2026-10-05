@@ -61,8 +61,6 @@ type MediaPickerProps = {
   onSelectMedia: (mediaUrl: string, altText?: string) => void
   currentMediaUrl?: string
   showVideos?: boolean
-  /** Renders as a step inside the owner window instead of a nested dialog. */
-  inline?: boolean
   /** Which crop shape starts selected when an uploaded image is cropped. */
   defaultCropAspect?: CropAspectKey
 }
@@ -80,7 +78,6 @@ function MediaPickerSession({
   currentMediaUrl,
   showVideos = true,
   defaultCropAspect,
-  inline = false,
 }: MediaPickerProps) {
   const [data, setData] = React.useState<MediaListResponse | null>(null)
   const [error, setError] = React.useState<string | null>(null)
@@ -278,18 +275,6 @@ function MediaPickerSession({
     },
     [cropFile, onOpenChange]
   )
-
-  React.useEffect(() => {
-    if (!inline || !open) return
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return
-      event.preventDefault()
-      event.stopPropagation()
-      handleOpenChange(false)
-    }
-    window.addEventListener("keydown", handleKeyDown, true)
-    return () => window.removeEventListener("keydown", handleKeyDown, true)
-  }, [handleOpenChange, inline, open])
 
   const pickerContent = (
     <>
@@ -545,13 +530,10 @@ function MediaPickerSession({
     </>
   )
 
-  return inline ? (
-    open ? (
-      <div className="grid gap-4 rounded-xl border bg-card p-4" data-media-picker-step="">
-        {pickerContent}
-      </div>
-    ) : null
-  ) : (
+  // Always its own window, even when the field that opened it is itself in a
+  // window. Drawn inside the owner instead, the picker stretched a 96px field
+  // across the form and ran off the bottom of the screen.
+  return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent variant="admin">{pickerContent}</DialogContent>
     </Dialog>

@@ -26,6 +26,7 @@ const ROUTE_TITLES: Record<string, string> = {
     "Automation template",
   "/_authenticated/admin/ai-usage": "Metered usage",
   "/_authenticated/admin/contacts": "Contacts",
+  "/_authenticated/admin/crm": "CRM",
   "/_authenticated/admin/dev-outbox": "Dev outbox",
   "/_authenticated/admin/feedback": "Feedback",
   "/_authenticated/admin/media": "Media",

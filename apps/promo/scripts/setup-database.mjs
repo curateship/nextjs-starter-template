@@ -5,6 +5,7 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 import pg from "pg"
 
+import { seedCrmSamples } from "./crm-samples.mjs"
 import { quoteIdentifier, runMigrations } from "./migrations.mjs"
 
 /**
@@ -59,6 +60,11 @@ await runMigrations(databaseUrl, root)
 if (!(await importScaffoldDatabase(databaseUrl))) {
   await seedAdminUser(databaseUrl)
 }
+// The admin's email decides which workspace the samples are filed under: they
+// have to land on the screen the person who signs in here actually sees.
+await withClient(databaseUrl, (client) =>
+  seedCrmSamples(client, { adminEmail: adminUser.email })
+)
 
 async function loadEnv(file) {
   if (!existsSync(file)) return
@@ -184,6 +190,17 @@ async function seedAdminUser(url) {
        where email = $1 and current_workspace_id is null`,
       [adminUser.email]
     )
+  } finally {
+    await client.end()
+  }
+}
+
+/** Opens a connection, hands it to `work`, and always closes it again. */
+async function withClient(url, work) {
+  const client = new Client({ connectionString: url })
+  await client.connect()
+  try {
+    return await work(client)
   } finally {
     await client.end()
   }

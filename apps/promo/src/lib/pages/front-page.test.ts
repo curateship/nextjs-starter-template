@@ -10,8 +10,12 @@ import {
   MAX_FRONT_PAGE_ROWS,
   MAX_FRONT_PAGE_SCREENSHOTS,
   MAX_FRONT_PAGE_TESTIMONIALS,
+  createAppFrontPageRowDraft,
+  createFrontPageRowDraft,
   frontPageHasPlans,
+  frontPageHeroBandColors,
   frontPageRowImageUrls,
+  normalizeFrontPageHeroBackground,
   normalizeFrontPageRows,
 } from "@/lib/pages/front-page"
 
@@ -419,5 +423,88 @@ describe("front page rows", () => {
     ])
 
     expect(rows).toEqual([])
+  })
+})
+
+describe("hero background", () => {
+  it("keeps a muted grey and a hex, and drops anything else", () => {
+    expect(normalizeFrontPageHeroBackground(" Grey-50 ")).toBe("grey-50")
+    expect(normalizeFrontPageHeroBackground("grey-0")).toBe("grey-0")
+    expect(normalizeFrontPageHeroBackground("#F4F4F5")).toBe("#f4f4f5")
+    expect(normalizeFrontPageHeroBackground("grey-101")).toBe("")
+    expect(normalizeFrontPageHeroBackground("grey")).toBe("")
+    expect(normalizeFrontPageHeroBackground("red")).toBe("")
+    expect(normalizeFrontPageHeroBackground("var(--muted)")).toBe("")
+    expect(normalizeFrontPageHeroBackground("#fff")).toBe("")
+  })
+
+  it("darkens the grey in light mode and lightens it in dark as it strengthens", () => {
+    const quiet = frontPageHeroBandColors("grey-0")
+    const strong = frontPageHeroBandColors("grey-100")
+    expect(quiet).toEqual({ light: "oklch(0.99 0 0)", dark: "oklch(0.175 0 0)" })
+    expect(strong).toEqual({ light: "oklch(0.9 0 0)", dark: "oklch(0.32 0 0)" })
+    expect(frontPageHeroBandColors("grey-50")).toEqual({
+      light: "oklch(0.945 0 0)",
+      dark: "oklch(0.2475 0 0)",
+    })
+  })
+
+  it("paints a hex the same in both modes and nothing at all for junk", () => {
+    expect(frontPageHeroBandColors("#f4f4f5")).toEqual({
+      light: "#f4f4f5",
+      dark: "#f4f4f5",
+    })
+    expect(frontPageHeroBandColors("url(evil)")).toEqual({ light: "", dark: "" })
+  })
+})
+
+describe("a new block's starting values", () => {
+  /**
+   * The kinds that hold a list. They start empty on purpose, and the editor is
+   * what refuses to add one until it has an entry — `normalizeFrontPageRows`
+   * drops an empty one, so a block saved before then would delete itself.
+   */
+  const listKinds = ["testimonials", "faq", "logos", "screenshots"] as const
+
+  it("gives every kind a draft the normaliser keeps once it is named", () => {
+    for (const kind of FRONT_PAGE_ROW_KINDS) {
+      const draft = createFrontPageRowDraft(kind)
+      const [row] = normalizeFrontPageRows([
+        { ...draft, id: kind, heading: draft.heading || "Named" },
+      ])
+
+      if (listKinds.includes(kind as (typeof listKinds)[number])) {
+        expect(row, `${kind} should be dropped while it is empty`).toBeUndefined()
+        continue
+      }
+
+      expect(row, `${kind} should survive`).toBeDefined()
+      expect(row.kind).toBe(kind)
+      // Nothing is lost or invented on the way through: what the editor starts
+      // a block with is what the save keeps.
+      expect(row).toEqual({
+        ...draft,
+        id: kind,
+        heading: draft.heading || "Named",
+      })
+    }
+  })
+
+  it("names a divider for the admin, because its heading never reaches the page", () => {
+    expect(createFrontPageRowDraft("divider").heading).toBe("Divider")
+    expect(createFrontPageRowDraft("hero").heading).toBe("")
+  })
+
+  it("starts an app's own block with no settings at all", () => {
+    const draft = createAppFrontPageRowDraft("listings")
+    expect(draft.kind).toBe(APP_FRONT_PAGE_ROW_KIND)
+    const [row] = normalizeFrontPageRows([
+      { ...draft, id: "listings", heading: "Latest listings" },
+    ])
+    expect(row).toEqual({
+      ...draft,
+      id: "listings",
+      heading: "Latest listings",
+    })
   })
 })

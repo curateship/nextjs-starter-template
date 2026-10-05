@@ -264,6 +264,100 @@ function conditionSql(
       return condition.operator === "within" ? exists(sent) : notExists(sent)
     }
 
+    /**
+     * When they last opened or clicked anything.
+     *
+     * Both signals and both tables. A click counts because an open is a hidden
+     * image and a mail client that blocks pictures reports nothing on a message
+     * somebody read; a click cannot happen by accident, so ignoring it would
+     * call that person unengaged.
+     *
+     * Written as a list of ids rather than a correlated `exists`, because the
+     * union of two tables inside a per-row subquery is where a hand-written
+     * fragment silently resolves a bare column against the wrong table. One
+     * pass over the sends, one `in`, nothing to misread. The ids it returns are
+     * only ever compared against contacts already narrowed to this workspace,
+     * which is what keeps the automation side — which has no workspace column
+     * of its own — inside the boundary.
+     */
+    case "engaged": {
+      const cutoff =
+        condition.operator === "never"
+          ? null
+          : new Date(timestamp.getTime() - condition.days * 24 * 60 * 60 * 1000)
+
+      const since = cutoff
+        ? sql`and (opened_at >= ${cutoff} or clicked_at >= ${cutoff})`
+        : sql`and (opened_at is not null or clicked_at is not null)`
+
+      const engaged = sql`(
+        select contact_id from deliveries
+         where workspace_id = ${workspaceId}
+           and contact_id is not null
+           ${since}
+        union
+        select contact_id from automation_deliveries
+         where contact_id is not null
+           ${since}
+      )`
+
+      // "Not in the last N days" and "never" are the same question asked of
+      // different rows: nothing recent, and nothing at all. Somebody who has
+      // never been sent anything is in both, which is what makes this a
+      // re-engagement list rather than a list of lapsed regulars.
+      return condition.operator === "within"
+        ? sql`${customShellContacts.id} in ${engaged}`
+        : sql`${customShellContacts.id} not in ${engaged}`
+    }
+
+    /**
+     * Whether they opened any of the last few things you sent them.
+     *
+     * No clock: "the last 7 emails" are the last 7 that person was sent,
+     * whenever that was, so a month with no sending moves nobody in or out.
+     * Opens only — a click is not an open, and `engaged` above is the rule that
+     * counts both.
+     *
+     * `status = 'sent'` on both sides, because a send that failed never left
+     * and so cannot have been opened. Without it a run of failures would read
+     * as a run of ignored emails.
+     */
+    case "opened": {
+      const opened = sql`(
+        with sent as (
+          select contact_id, created_at, opened_at
+            from deliveries
+           where workspace_id = ${workspaceId}
+             and contact_id is not null
+             and status = 'sent'
+          union all
+          select contact_id, created_at, opened_at
+            from automation_deliveries
+           where contact_id is not null
+             and status = 'sent'
+        ),
+        recent as (
+          select contact_id, opened_at,
+                 row_number() over (
+                   partition by contact_id order by created_at desc
+                 ) as place
+            from sent
+        )
+        select contact_id
+          from recent
+         where place <= ${condition.emails}
+         group by contact_id
+        having count(opened_at) > 0
+      )`
+
+      // "Opened none of them" deliberately includes somebody who has been sent
+      // nothing at all: there is no message of theirs that was opened, which is
+      // the honest answer and the one a re-engagement send wants.
+      return condition.operator === "has"
+        ? sql`${customShellContacts.id} in ${opened}`
+        : sql`${customShellContacts.id} not in ${opened}`
+    }
+
     case "account":
       return condition.operator === "has"
         ? isNotNull(customShellContacts.userId)

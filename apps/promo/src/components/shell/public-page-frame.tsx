@@ -6,7 +6,10 @@ import { PublicBreadcrumbs } from "@/components/shell/public-breadcrumbs"
 import { usePaintedPathname } from "@/lib/hooks/use-painted-pathname"
 import { usePublicBreadcrumbTrail } from "@/lib/hooks/use-public-breadcrumb-trail"
 import { PublicFooter } from "@/components/shell/public-footer"
-import { PublicNavigation } from "@/components/shell/public-navigation"
+import {
+  PUBLIC_HEADER_HEIGHT_VAR,
+  PublicNavigation,
+} from "@/components/shell/public-navigation"
 import {
   useAppName,
   useBrandLogo,
@@ -32,6 +35,7 @@ import {
 } from "@/lib/announcement"
 import { loadVisitorAnnouncements } from "@/lib/api/content/announcements"
 import { pageForPath } from "@/lib/pages/page-registry"
+import type { PageLayout } from "@/lib/pages/page-descriptor"
 import {
   DEFAULT_PUBLIC_FRONT_PAGE_ROW_GAP,
   DEFAULT_PUBLIC_GUTTER,
@@ -66,11 +70,29 @@ export function PublicPageFrame({
   className,
   children,
   publicSearchEnabled: publicSearchEnabledOverride,
+  heroRunsUnderMenu = false,
+  layout,
 }: {
   className?: string
   children: React.ReactNode
   /** Current 404 data when root loader data is unavailable. */
   publicSearchEnabled?: boolean
+  /**
+   * Which frame to draw, for a page the registry does not know about.
+   *
+   * A page an admin added is one: its address is in a table rather than in the
+   * code, so `pageForPath` has nothing to say about it. It is built from blocks
+   * like the front page, so it is drawn like the front page — content starting
+   * at the top rather than floating in the middle of the window, which is what
+   * a sign-in card wants and a page of words does not.
+   */
+  layout?: PageLayout
+  /**
+   * True when the front page's first row is a hero running its colour under
+   * the menu. The menu itself is left exactly as it is; this only tells the
+   * hero how far above its own row the colour has to start.
+   */
+  heroRunsUnderMenu?: boolean
 }) {
   const appName = useAppName()
   const logo = useBrandLogo()
@@ -117,7 +139,7 @@ export function PublicPageFrame({
       !dismissedVisitorIds.has(announcement.id) &&
       !isVisitorAnnouncementDismissed(localStorage, announcement)
   )
-  const marketing = pageForPath(pathname)?.layout === "marketing"
+  const marketing = (layout ?? pageForPath(pathname)?.layout) === "marketing"
   const pageWidthStyle =
     theme.pageWidth === DEFAULT_PUBLIC_PAGE_WIDTH
       ? undefined
@@ -129,10 +151,20 @@ export function PublicPageFrame({
     : publicHeader.width !== null
       ? { maxWidth: publicHeader.width }
       : pageWidthStyle
+  // The front page is built from rows that reach the window's edges, and the
+  // top one is usually a hero. A gap above it is a white strip between the
+  // menu and the page's own first block, so Main spacing skips this one page
+  // and the rows start directly under the menu. Tyler's call on 3 Oct 2026.
+  //
+  // `/` whatever is drawn there: an app may replace the shell's own front page
+  // through `landing.page`, and the page at the front door is still the page
+  // at the front door.
+  const frontPage = pathname === "/"
+  const mainSpacing = frontPage ? 0 : theme.mainSpacing
   const mainSpacingStyle =
-    theme.mainSpacing === DEFAULT_PUBLIC_MAIN_SPACING
+    mainSpacing === DEFAULT_PUBLIC_MAIN_SPACING
       ? undefined
-      : { paddingBlock: theme.mainSpacing }
+      : { paddingBlock: mainSpacing }
   const styling = publicShellStyling(theme)
   const isFlat = theme.gutter === 0
   // A gutter still on its starting number keeps the responsive classes, so a
@@ -176,7 +208,18 @@ export function PublicPageFrame({
   // the whole page in from the window and a spacing of 0 put the content
   // against the glass. Tyler's call on 30 Sep 2026: the slider is for the gaps
   // between blocks and inside the grids of cards, and nothing else.
-  const mainStyle = mainSpacingStyle
+  //
+  // `--shell-hero-rise` is how far above its own row a first-row hero starts
+  // painting when its colour runs under the menu: this gap, plus the bar's own
+  // height, which the bar measures and writes down. The bar then paints no
+  // background of its own, so the colour behind it is what shows.
+  // Written only for that one case, so every other page's `main` stays plain.
+  const mainStyle = heroRunsUnderMenu
+    ? ({
+        ...mainSpacingStyle,
+        "--shell-hero-rise": `calc(${mainSpacing}px + var(${PUBLIC_HEADER_HEIGHT_VAR}, 0px))`,
+      } as React.CSSProperties)
+    : mainSpacingStyle
   // The gap between front page blocks travels as two CSS variables rather than
   // a class, because theme.css owns those rules: flat mode collapses them and
   // a phone draws less than a desktop. Left at the default, nothing is written
@@ -262,6 +305,10 @@ export function PublicPageFrame({
         blur={publicHeader.blur}
         userPanel={userPanel}
         chromeBackground={chromeBackground}
+        // The hero's colour is behind the bar, so the bar paints nothing over
+        // it and measures itself for the hero. Without this it draws its own
+        // near-solid white and the colour stops at the bottom of the menu.
+        seeThrough={heroRunsUnderMenu}
         showThemeToggle={visitorCanChooseTheme}
         headerActions={headerActions}
         showSearch={showSearch}

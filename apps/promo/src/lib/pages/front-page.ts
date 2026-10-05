@@ -1,4 +1,9 @@
-import { isSafeWrittenPageLink } from "@/lib/pages/written-page-body"
+import {
+  cleanWrittenPageBody,
+  emptyWrittenPageBody,
+  isSafeWrittenPageLink,
+  type WrittenPageNode,
+} from "@/lib/pages/written-page-body"
 import {
   normalizePublicDevice,
   type PublicDevice,
@@ -6,6 +11,7 @@ import {
 
 export const FRONT_PAGE_ROW_KINDS = [
   "text",
+  "words",
   "hero",
   "plans",
   "testimonials",
@@ -19,6 +25,7 @@ export type FrontPageRowKind = (typeof FRONT_PAGE_ROW_KINDS)[number]
 
 export const FRONT_PAGE_ROW_KIND_LABELS: Record<FrontPageRowKind, string> = {
   text: "Plain text",
+  words: "Rich text",
   hero: "Hero",
   plans: "Plans",
   testimonials: "Testimonials",
@@ -30,6 +37,7 @@ export const FRONT_PAGE_ROW_KIND_LABELS: Record<FrontPageRowKind, string> = {
 
 export const FRONT_PAGE_ROW_KIND_HINTS: Record<FrontPageRowKind, string> = {
   text: "A heading and one short introduction line.",
+  words: "A heading and as much writing as the page needs, with its own headings, lists and links.",
   hero: "A large heading, a line beneath it, a button, and an optional picture beside them.",
   plans: "The app's current public plans beneath the row heading.",
   testimonials: "Customer quotes with a name, role, and optional picture.",
@@ -197,6 +205,105 @@ export const FRONT_PAGE_HERO_ACTION_HINTS: Record<
   email: "A box for an address with the button beside it.",
 }
 
+/**
+ * A hero's own background. Two shapes, and empty when the row has none.
+ *
+ * - `grey-<n>`, a muted grey the slider picked, 0 to 100. 0 is barely off the
+ *   page and 100 is the strongest step away from it. This is the one that
+ *   changes with the mode: pale in light mode, dark in dark mode.
+ * - `#rrggbb`, one fixed colour, the same in light mode and dark mode.
+ *
+ * Anything else is dropped, because a name such as `red` and a `var(...)`
+ * both reach a stylesheet as text, and a stored colour that is not checked
+ * here is how a settings field becomes a way to write CSS into every
+ * visitor's page. The slider's number never reaches a style attribute as it
+ * is stored: `frontPageHeroBandColors` builds the CSS from it.
+ */
+const FRONT_PAGE_HERO_BACKGROUND_PATTERN = /^#[0-9a-f]{6}$/i
+
+const FRONT_PAGE_HERO_GREY_PATTERN = /^grey-(\d{1,3})$/
+
+/** `grey-100` is 8 characters, and `#rrggbb` is 7. */
+export const MAX_FRONT_PAGE_HERO_BACKGROUND_LENGTH = 8
+
+/** The slider's right-hand end. */
+export const MAX_FRONT_PAGE_HERO_GREY = 100
+
+/** Where the slider sits on a hero that has never had a grey. */
+export const DEFAULT_FRONT_PAGE_HERO_GREY = 50
+
+export const FRONT_PAGE_HERO_BACKGROUND_MESSAGE =
+  "A hero background is a muted grey or a 6-digit hex colour like #0f172a. Clear it for no colour."
+
+/**
+ * The two ends of the slider, in each mode.
+ *
+ * In light mode the band darkens as the slider moves right and in dark mode it
+ * lightens, because both are moving the same distance away from the page. The
+ * far end of each sits near where `--muted` already sits in `theme.css`, 0.97
+ * in light mode and 0.269 in dark, so even the strongest band is one a heading
+ * in the normal text colour reads on.
+ */
+const HERO_GREY_LIGHT = { quietest: 0.99, strongest: 0.9 }
+const HERO_GREY_DARK = { quietest: 0.175, strongest: 0.32 }
+
+export function frontPageHeroGrey(value: string) {
+  const match = FRONT_PAGE_HERO_GREY_PATTERN.exec(value.trim().toLowerCase())
+  if (!match) return null
+  const grey = Number(match[1])
+  return grey <= MAX_FRONT_PAGE_HERO_GREY ? grey : null
+}
+
+export function normalizeFrontPageHeroBackground(value: unknown) {
+  const color = typeof value === "string" ? value.trim().toLowerCase() : ""
+  const grey = frontPageHeroGrey(color)
+  if (grey !== null) return `grey-${grey}`
+  return FRONT_PAGE_HERO_BACKGROUND_PATTERN.test(color) ? color : ""
+}
+
+function greyColor(ends: { quietest: number; strongest: number }, grey: number) {
+  const lightness =
+    ends.quietest +
+    ((ends.strongest - ends.quietest) * grey) / MAX_FRONT_PAGE_HERO_GREY
+  return `oklch(${Number(lightness.toFixed(4))} 0 0)`
+}
+
+/**
+ * The two colours a saved hero background paints, one per mode. A hex gets the
+ * same colour twice, because a hex is one fixed colour and says nothing about
+ * dark mode. A row with no colour gets two empty strings.
+ */
+export function frontPageHeroBandColors(value: string) {
+  const color = normalizeFrontPageHeroBackground(value)
+  if (!color) return { light: "", dark: "" }
+  const grey = frontPageHeroGrey(color)
+  if (grey === null) return { light: color, dark: color }
+  return {
+    light: greyColor(HERO_GREY_LIGHT, grey),
+    dark: greyColor(HERO_GREY_DARK, grey),
+  }
+}
+
+/**
+ * How much air a hero keeps above and below itself on a desktop, in pixels.
+ *
+ * The hero carries its own number rather than reading
+ * Settings > Styling > Main spacing, because Main spacing skips the front page
+ * and because the top block of a page usually wants more room than a block in
+ * the middle of one.
+ *
+ * 64 is the default, which is exactly what a hero drew before the number was
+ * anybody's to set, and a phone draws 48 of it, which is also what it drew.
+ */
+export const DEFAULT_FRONT_PAGE_HERO_SPACING = 64
+export const MAX_FRONT_PAGE_HERO_SPACING = 240
+
+/**
+ * What share of the desktop number a phone draws. 0.75 lands the default on
+ * 48, the hero's old phone padding, so nothing moves on a saved page.
+ */
+export const FRONT_PAGE_HERO_SPACING_PHONE_SHARE = 0.75
+
 export const FRONT_PAGE_ROW_HEADING_MESSAGE = "Give the row a heading."
 export const FRONT_PAGE_HERO_LINK_MESSAGE =
   "A button link starts with /, https://, mailto: or tel:."
@@ -320,6 +427,16 @@ export type FrontPageRow =
     })
   | (FrontPageRowBase & { kind: "text" | "plans" })
   | (FrontPageRowBase & {
+      kind: "words"
+      /**
+       * The words themselves, as a tree of named nodes rather than markup.
+       * Nothing in it can carry a tag, which is what keeps a block an admin
+       * typed off the list of things a public page has to sanitise. See
+       * `written-page-body.ts`.
+       */
+      body: WrittenPageNode
+    })
+  | (FrontPageRowBase & {
       kind: "hero"
       /** A button to somewhere, or a box that takes an address. */
       action: FrontPageHeroAction
@@ -332,6 +449,22 @@ export type FrontPageRow =
       note: string
       /** 0 to 5. Drawn before the note, and 0 draws none. */
       stars: number
+      /**
+       * A colour painted in a band behind the hero, right across the window
+       * whatever the row's layout says. `#rrggbb`, or empty for no colour.
+       */
+      background: string
+      /**
+       * True runs that colour under the site menu, so the band starts at the
+       * very top of the window and the bar stops painting over it. Only the
+       * first row has the menu over it, so every hero below it ignores this.
+       */
+      backgroundUnderMenu: boolean
+      /**
+       * The air above and below the hero on a desktop, in pixels. A phone
+       * draws three quarters of it.
+       */
+      spacing: number
     })
   | (FrontPageRowBase & {
       kind: "testimonials"
@@ -356,6 +489,101 @@ export type FrontPageRow =
 type WithoutId<T> = T extends unknown ? Omit<T, "id"> : never
 
 export type FrontPageRowDraft = WithoutId<FrontPageRow>
+
+/**
+ * The fields every block has, whatever kind it is. The editor patches these on
+ * a draft without knowing which kind it is holding.
+ */
+export type FrontPageRowCommonFields = Omit<FrontPageRowBase, "id">
+
+/**
+ * Every field a block of this kind has, at the value it starts on.
+ *
+ * The block editor holds one draft object rather than a field at a time, so a
+ * new block has to arrive whole: a missing field would read as "the admin
+ * cleared it" the first time the draft is saved. The values here are the ones
+ * `normalizeFrontPageRows` falls back to, so a block made and saved without a
+ * single edit comes back exactly as it was made.
+ */
+export function createFrontPageRowDraft(
+  kind: FrontPageRowKind
+): FrontPageRowDraft {
+  const base = {
+    // A divider never shows words on the page, so it is named for the admin
+    // straight away rather than making them invent a name for a line.
+    heading: kind === "divider" ? "Divider" : "",
+    intro: "",
+    layout: "wide",
+    alignment: "inherit",
+    hidden: false,
+    showHeading: true,
+    showIntro: true,
+    showImage: true,
+    showAction: true,
+    showStars: true,
+    showNote: true,
+    showPictures: true,
+    showRoles: true,
+    showNumbers: true,
+    showCaptions: true,
+    device: "all",
+  } as const
+
+  if (kind === "hero") {
+    return {
+      ...base,
+      kind,
+      action: "button",
+      image: "",
+      alt: "",
+      buttonLabel: "",
+      buttonHref: "",
+      note: "",
+      stars: 0,
+      background: "",
+      backgroundUnderMenu: false,
+      spacing: DEFAULT_FRONT_PAGE_HERO_SPACING,
+    }
+  }
+  if (kind === "divider") {
+    return {
+      ...base,
+      kind,
+      dividerStyle: "line",
+      dividerShade: DEFAULT_FRONT_PAGE_DIVIDER_SHADE,
+      dividerSpace: DEFAULT_FRONT_PAGE_DIVIDER_SPACE,
+    }
+  }
+  if (kind === "words") {
+    // Through the cleaner, so a block nobody has typed into is already in the
+    // shape the database stores: an empty document comes back without the
+    // empty `content` array, and a draft that did not match would read as an
+    // unsaved edit the moment the panel opened.
+    return { ...base, kind, body: cleanWrittenPageBody(emptyWrittenPageBody()) }
+  }
+  if (
+    kind === "testimonials" ||
+    kind === "faq" ||
+    kind === "logos" ||
+    kind === "screenshots"
+  ) {
+    return { ...base, kind, items: [] }
+  }
+  return { ...base, kind }
+}
+
+/**
+ * A new block of a kind the app added. It carries no settings at all, because
+ * what an app's fields mean is the app's business — its own panel fills them.
+ */
+export function createAppFrontPageRowDraft(appKind: string): FrontPageRowDraft {
+  return {
+    ...createFrontPageRowDraft("text"),
+    kind: APP_FRONT_PAGE_ROW_KIND,
+    appKind,
+    settings: {},
+  }
+}
 
 function cleanText(value: unknown, maxLength: number) {
   return typeof value === "string" ? value.trim().slice(0, maxLength) : ""
@@ -651,6 +879,15 @@ export function normalizeFrontPageRows(value: unknown): FrontPageRow[] {
         buttonHref: action === "email" ? "" : buttonLabel ? buttonHref : "",
         note: cleanText(source.note, MAX_FRONT_PAGE_HERO_NOTE_LENGTH),
         stars: normalizeFrontPageHeroStars(source.stars),
+        background: normalizeFrontPageHeroBackground(source.background),
+        // Only an explicit true runs the colour under the menu, so a hero
+        // saved before this switch existed keeps its band below the bar.
+        backgroundUnderMenu: source.backgroundUnderMenu === true,
+        spacing: wholeNumberInRange(
+          source.spacing,
+          DEFAULT_FRONT_PAGE_HERO_SPACING,
+          MAX_FRONT_PAGE_HERO_SPACING
+        ),
       })
     } else if (kind === "testimonials") {
       const items = normalizeTestimonials(source.items)
@@ -664,6 +901,8 @@ export function normalizeFrontPageRows(value: unknown): FrontPageRow[] {
     } else if (kind === "screenshots") {
       const items = normalizeScreenshots(source.items)
       if (items.length) rows.push({ ...rowBase(), kind, items })
+    } else if (kind === "words") {
+      rows.push({ ...rowBase(), kind, body: cleanWrittenPageBody(source.body) })
     } else if (kind === "divider") {
       rows.push({
         ...rowBase(),
@@ -701,6 +940,22 @@ export function visibleFrontPageRows(
   rows: readonly FrontPageRow[]
 ): FrontPageRow[] {
   return rows.filter((row) => !row.hidden)
+}
+
+/**
+ * True when the page opens on a hero whose colour runs under the site menu.
+ *
+ * Only the first row is asked, because the menu sits above the first row and
+ * nothing else on the page is anywhere near it. A hero further down with the
+ * switch on still paints its own band; the menu is simply not its neighbour.
+ */
+export function frontPageHeroRunsUnderMenu(rows: readonly FrontPageRow[]) {
+  const first = rows[0]
+  return (
+    first?.kind === "hero" &&
+    first.backgroundUnderMenu &&
+    Boolean(first.background)
+  )
 }
 
 export function frontPageHasPlans(rows: readonly FrontPageRow[]) {

@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react"
 import {
   FrontPageDivider,
   FrontPageFaq,
@@ -7,6 +8,7 @@ import {
   FrontPageTestimonials,
 } from "@/components/marketing/front-page-content-blocks"
 import { AppFrontPageRow } from "@/components/marketing/app-front-page-row"
+import { WrittenPageBody } from "@/components/pages/written-page-body"
 import { SavedLink } from "@/components/shell/public-navigation"
 import { Button } from "@/components/ui/button"
 import {
@@ -20,6 +22,7 @@ import type { PlanOption } from "@/lib/api/billing/billing"
 import type { BillingInterval } from "@/lib/billing/pricing-choice"
 import {
   APP_FRONT_PAGE_ROW_KIND,
+  frontPageHeroBandColors,
   type FrontPageRow,
 } from "@/lib/pages/front-page"
 import { publicDeviceRowClassName } from "@/lib/pages/public-device"
@@ -59,11 +62,19 @@ export function FrontPageRows({
   appRowData,
 }: {
   rows: FrontPageRow[]
-  plans: PlanOption[]
-  trialUsed: boolean
-  interval: BillingInterval
-  onIntervalChange: (interval: BillingInterval) => void
-  onSelectPlan: (plan: PlanOption, interval: BillingInterval) => void
+  /**
+   * The public plans, and everything the plans block needs to offer them.
+   *
+   * Left out by a page that cannot hold a plans block — every page but the
+   * front page — so the caller does not have to load billing for a block it
+   * will never draw. A plans block without them draws nothing rather than an
+   * empty table.
+   */
+  plans?: PlanOption[]
+  trialUsed?: boolean
+  interval?: BillingInterval
+  onIntervalChange?: (interval: BillingInterval) => void
+  onSelectPlan?: (plan: PlanOption, interval: BillingInterval) => void
   /**
    * What the app's own reader filled for each of its rows, by row id. A page
    * drawn without asking the app — a preview, or an app with no such rows —
@@ -107,6 +118,22 @@ export function FrontPageRows({
             ? frontPageRowAction(appRowData?.[row.id])
             : null
 
+        // A hero's own colour, painted as a band right across the window. The
+        // band is a child rather than a background on the section itself,
+        // because the section is only as wide as its layout allows and the
+        // colour has to reach both edges of the window whatever that is.
+        const background = row.kind === "hero" ? row.background : ""
+        // One colour for light mode and one for dark. A muted grey has a real
+        // pair; a fixed hex is the same colour twice.
+        const bandColors = frontPageHeroBandColors(background)
+        // Only the row at the very top of the page has the menu over it,
+        // whatever a hero further down has saved.
+        const underMenu =
+          index === 0 &&
+          row.kind === "hero" &&
+          Boolean(row.background) &&
+          row.backgroundUnderMenu
+
         // A whole-screen row steps outside the public content column and the
         // page's own left and right edge. The column is centred inside `main`,
         // so half the window less half the column is exactly the distance to
@@ -138,6 +165,14 @@ export function FrontPageRows({
               row.layout === "narrow" && "max-w-3xl",
               alignment ? publicContentAlignmentSelfClassNames[alignment] : null,
               wholeClassName,
+              // `isolate` keeps the band behind this row's own words and
+              // nothing else. Without it the band's negative layer would drop
+              // behind the page's canvas colour and disappear.
+              //
+              // No padding here. The hero decides how much air it wants above
+              // and below itself, and the band covers the whole row, that air
+              // included.
+              background ? "relative isolate" : null,
               publicDeviceRowClassName(row.device)
             )}
             data-front-page-row={row.kind}
@@ -145,6 +180,37 @@ export function FrontPageRows({
             data-front-page-device={row.device}
             data-front-page-alignment={row.alignment}
           >
+            {/* The colour itself. It runs 100vw past each side rather than
+                measuring the window, because the row may sit left, right or
+                centred and only one of those has the window's middle under
+                it. `main` has `overflow-x-clip`, so the spill is cut off at
+                the window and never adds a sideways scrollbar.
+
+                With the switch on it also climbs past the menu, so the
+                colour is what shows through it. How far that is — the gap
+                above this row plus the bar's own height — is `--shell-hero-rise`,
+                which the public page frame writes on `main`. */}
+            {background ? (
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute -z-10 right-[-100vw] bottom-0 left-[-100vw]"
+                // The band carries a colour for each mode rather than one
+                // `backgroundColor`, because an inline background cannot
+                // change when the page turns dark. `theme.css` picks between
+                // the two off `data-hero-band`.
+                data-hero-band=""
+                style={
+                  {
+                    "--shell-hero-band-light": bandColors.light,
+                    "--shell-hero-band-dark": bandColors.dark,
+                    top: underMenu
+                      ? "calc(-1 * var(--shell-hero-rise, 0px))"
+                      : 0,
+                  } as CSSProperties
+                }
+              />
+            ) : null}
+
             {/* A hero draws its own heading, at its own size and beside the
                 picture. A divider has no words at all. Every other row puts the
                 heading above its content. */}
@@ -219,16 +285,19 @@ export function FrontPageRows({
                 showAction={row.showAction}
                 showStars={row.showStars}
                 showNote={row.showNote}
+                spacing={row.spacing}
               />
             ) : row.kind === "plans" ? (
-              <PricingTable
-                plans={plans}
-                interval={interval}
-                onIntervalChange={onIntervalChange}
-                onSelect={onSelectPlan}
-                trialUsed={trialUsed}
-                actionLabel="Get started"
-              />
+              plans && interval && onIntervalChange && onSelectPlan ? (
+                <PricingTable
+                  plans={plans}
+                  interval={interval}
+                  onIntervalChange={onIntervalChange}
+                  onSelect={onSelectPlan}
+                  trialUsed={trialUsed ?? false}
+                  actionLabel="Get started"
+                />
+              ) : null
             ) : row.kind === "testimonials" ? (
               <FrontPageTestimonials
                 items={row.items}
@@ -251,6 +320,13 @@ export function FrontPageRows({
                 alignClassName={alignClassName}
                 showCaptions={row.showCaptions}
               />
+            ) : row.kind === "words" ? (
+              /* The words a page is written in, drawn from the same node tree
+                 a written page always used. Nothing in it is markup, so there
+                 is no string to sanitise on the way to the browser. */
+              <div className={cn("w-full", alignClassName)}>
+                <WrittenPageBody body={row.body} />
+              </div>
             ) : row.kind === "divider" ? (
               <FrontPageDivider
                 style={row.dividerStyle}

@@ -345,6 +345,99 @@ describe("resend webhook", () => {
     expect(rows.find((row) => row.id === "automation-delivery-2")?.openedAt).toBeNull()
   })
 
+  it("stamps the open on a newsletter and puts a quiet reader back", async () => {
+    await db
+      .update(customShellContacts)
+      .set({ status: "cold" })
+      .where(eq(customShellContacts.id, contactId))
+
+    const body = JSON.stringify({
+      type: "email.opened",
+      created_at: "2026-10-04T09:30:00.000Z",
+      data: { email_id: "re_message_1", to: ["reader@example.com"] },
+    })
+    const result = await handleResendWebhook(body, headersFor(body), db)
+    expect(result.outcome).toBe("applied")
+    expect(await contactStatus()).toBe("subscribed")
+
+    const [row] = await db
+      .select({ openedAt: customShellDeliveries.openedAt })
+      .from(customShellDeliveries)
+      .where(eq(customShellDeliveries.id, "delivery-1"))
+    expect(row.openedAt).toEqual(new Date("2026-10-04T09:30:00.000Z"))
+  })
+
+  it("an open on an automation email puts a quiet reader back too", async () => {
+    await db
+      .update(customShellContacts)
+      .set({ status: "cold" })
+      .where(eq(customShellContacts.id, contactId))
+
+    const body = JSON.stringify({
+      type: "email.opened",
+      created_at: "2026-10-04T09:30:00.000Z",
+      data: { email_id: "re_automation_1", to: ["reader@example.com"] },
+    })
+    await handleResendWebhook(body, headersFor(body), db)
+    expect(await contactStatus()).toBe("subscribed")
+  })
+
+  it("an open does not put somebody back who asked to stop", async () => {
+    await db
+      .update(customShellContacts)
+      .set({ status: "unsubscribed" })
+      .where(eq(customShellContacts.id, contactId))
+
+    const body = JSON.stringify({
+      type: "email.opened",
+      data: { email_id: "re_message_1", to: ["reader@example.com"] },
+    })
+    await handleResendWebhook(body, headersFor(body), db)
+    expect(await contactStatus()).toBe("unsubscribed")
+  })
+
+  it("a bounce still lands on a reader who had gone quiet", async () => {
+    await db
+      .update(customShellContacts)
+      .set({ status: "cold" })
+      .where(eq(customShellContacts.id, contactId))
+
+    const body = JSON.stringify({
+      type: "email.bounced",
+      data: { email_id: "re_message_1", to: ["reader@example.com"] },
+    })
+    await handleResendWebhook(body, headersFor(body), db)
+    expect(await contactStatus()).toBe("bounced")
+  })
+
+  it("records a click on a newsletter and revives a quiet reader", async () => {
+    await db
+      .update(customShellContacts)
+      .set({ status: "cold" })
+      .where(eq(customShellContacts.id, contactId))
+
+    const body = JSON.stringify({
+      type: "email.clicked",
+      created_at: "2026-10-04T09:30:00.000Z",
+      data: { email_id: "re_message_1", to: ["reader@example.com"] },
+    })
+    const result = await handleResendWebhook(body, headersFor(body), db)
+    expect(result.outcome).toBe("applied")
+    expect(await contactStatus()).toBe("subscribed")
+
+    const [row] = await db
+      .select({
+        clickedAt: customShellDeliveries.clickedAt,
+        openedAt: customShellDeliveries.openedAt,
+      })
+      .from(customShellDeliveries)
+      .where(eq(customShellDeliveries.id, "delivery-1"))
+    expect(row.clickedAt).toEqual(new Date("2026-10-04T09:30:00.000Z"))
+    // A click is not an open. Recording one as the other would make "opened
+    // none of their last 7" quietly wrong.
+    expect(row.openedAt).toBeNull()
+  })
+
   it("says so when no workspace has a webhook secret at all", async () => {
     await db
       .update(customShellEmailSettings)

@@ -129,7 +129,7 @@ describe("building the list", () => {
     ).toThrow('declares the address "tour"')
   })
 
-  it("fills in the defaults: switchable, card layout, the shell's own", () => {
+  it("fills in the defaults: switchable, card layout, the shell's own, no blocks", () => {
     const [page] = buildPageDescriptors([
       {
         file: "src/routes/tour.page.ts",
@@ -144,6 +144,9 @@ describe("building the list", () => {
       canSwitchOff: true,
       layout: "card",
       source: "shell",
+      // A page is not built from blocks unless it says so, because a page that
+      // does not draw them would collect them and show none.
+      blocks: false,
     })
   })
 

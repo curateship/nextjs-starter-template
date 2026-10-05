@@ -21,6 +21,7 @@ export function MediaThumbnail({
   alt,
   className,
   fit = "contain",
+  natural = false,
   compact = false,
   showPlayBadge = true,
   sizes,
@@ -31,6 +32,12 @@ export function MediaThumbnail({
   alt: string
   className?: string
   fit?: "contain" | "cover"
+  /**
+   * The picture keeps its own shape: it fills the width it is given and is as
+   * tall as that shape makes it. The caller then sets no height and no
+   * aspect ratio, and no bars are drawn either side of it.
+   */
+  natural?: boolean
   /** For thumbnails around 80px and under, where the full badge would cover it. */
   compact?: boolean
   /** Turn off where the caller puts a real play button in the same spot. */
@@ -97,7 +104,9 @@ export function MediaThumbnail({
           // `min-h-0` because a grid item's own minimum height is the
           // picture's natural height. A tall picture in a wide box would
           // otherwise push past the box and get cut off instead of fitting.
-          className={cn("h-full min-h-0 w-full", fitClass)}
+          className={
+            natural ? "h-auto w-full" : cn("h-full min-h-0 w-full", fitClass)
+          }
           // A grid of these is mostly below the fold. Left to itself the browser
           // starts every original at once; asked to wait, it fetches a tile when
           // the tile is scrolled to. The box is already sized by its caller, so

@@ -359,6 +359,23 @@ body.app-font {
     gap: 0;
 }
 
+/*
+ * A hero's own air, above and below. Its own number rather than the page's
+ * Main spacing, which skips the front page entirely, and rather than the gap
+ * between rows, which sits outside a hero's background colour while this sits
+ * inside it. The fallbacks are what a hero drew before the number was
+ * anybody's to set.
+ */
+[data-front-page-hero] {
+    padding-block: var(--shell-hero-space-phone, 3rem);
+}
+
+@media (min-width: 768px) {
+    [data-front-page-hero] {
+        padding-block: var(--shell-hero-space, 4rem);
+    }
+}
+
 html[data-public-brand] [data-slot="button"][data-variant="default"]:hover {
   background-color: var(--shell-primary-hover);
 }
@@ -805,5 +822,22 @@ body:has(
    */
   .shell-canvas {
     background-color: var(--shell-canvas);
+  }
+}
+
+@layer base {
+  /*
+   * A hero's background band. It carries a colour for each mode as two custom
+   * properties set inline on the element, because an inline `background-color`
+   * is one colour and cannot change when the page turns dark. A muted grey has
+   * a real pair, pale in light mode and dark in dark mode; a fixed hex is the
+   * same colour in both, which is what a hex means.
+   */
+  [data-hero-band] {
+    background-color: var(--shell-hero-band-light);
+  }
+
+  .dark [data-hero-band] {
+    background-color: var(--shell-hero-band-dark);
   }
 }

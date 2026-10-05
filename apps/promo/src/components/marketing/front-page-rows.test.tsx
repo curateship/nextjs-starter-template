@@ -2,7 +2,10 @@ import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it, vi } from "vitest"
 
 import { FrontPageRows } from "@/components/marketing/front-page-rows"
-import { normalizeFrontPageRows } from "@/lib/pages/front-page"
+import {
+  frontPageHeroRunsUnderMenu,
+  normalizeFrontPageRows,
+} from "@/lib/pages/front-page"
 
 describe("front page content blocks", () => {
   it("renders testimonials, FAQ entries, logos, and screenshots in row order", () => {
@@ -527,6 +530,122 @@ describe("front page content blocks", () => {
     // The row left on Full width did not grow a breakout.
     expect(normal).not.toContain("w-screen")
     expect(normal).not.toContain("mx-[calc(50%-50vw)]")
+  })
+
+  it("paints a hero's own colour as a band and keeps a bad one out", () => {
+    const rows = normalizeFrontPageRows([
+      {
+        id: "hero",
+        heading: "Open your shop this week",
+        kind: "hero",
+        background: "#0F172A",
+        backgroundUnderMenu: true,
+      },
+      {
+        id: "second",
+        heading: "Later on",
+        kind: "hero",
+        background: "red",
+        backgroundUnderMenu: true,
+      },
+    ])
+
+    // A 6-digit hex is kept, lower-cased. Anything else is no colour at all,
+    // so a name or a `var(...)` can never reach a visitor's stylesheet.
+    expect(rows[0]).toMatchObject({
+      background: "#0f172a",
+      backgroundUnderMenu: true,
+    })
+    expect(rows[1]).toMatchObject({ background: "" })
+
+    const markup = renderToStaticMarkup(
+      <FrontPageRows
+        rows={rows}
+        plans={[]}
+        trialUsed={false}
+        interval="monthly"
+        onIntervalChange={vi.fn()}
+        onSelectPlan={vi.fn()}
+      />
+    )
+
+    // A hex is one fixed colour, so both modes get the same value.
+    expect(markup).toContain("--shell-hero-band-light:#0f172a")
+    expect(markup).toContain("--shell-hero-band-dark:#0f172a")
+    // The band climbs past the menu, so the colour passes behind it.
+    expect(markup).toContain("var(--shell-hero-rise, 0px)")
+    expect(frontPageHeroRunsUnderMenu(rows)).toBe(true)
+  })
+
+  it("gives the hero its own air, set per row and smaller on a phone", () => {
+    const rows = normalizeFrontPageRows([
+      { id: "default", heading: "Left alone", kind: "hero" },
+      { id: "roomy", heading: "More room", kind: "hero", spacing: 120 },
+      { id: "tight", heading: "None at all", kind: "hero", spacing: 0 },
+    ])
+
+    // A hero saved before the slider existed keeps the 64 it always drew.
+    expect(rows[0]).toMatchObject({ spacing: 64 })
+    expect(rows[1]).toMatchObject({ spacing: 120 })
+    expect(rows[2]).toMatchObject({ spacing: 0 })
+
+    const markup = renderToStaticMarkup(
+      <FrontPageRows
+        rows={rows}
+        plans={[]}
+        trialUsed={false}
+        interval="monthly"
+        onIntervalChange={vi.fn()}
+        onSelectPlan={vi.fn()}
+      />
+    )
+    const sections = markup.split("<section").slice(1)
+
+    // The default writes nothing, so theme.css keeps its own numbers.
+    expect(sections[0]).not.toContain("--shell-hero-space")
+    // A chosen number travels as two, and the phone one is three quarters of
+    // the desktop one, so a phone never draws a desktop's worth of air.
+    expect(sections[1]).toContain("--shell-hero-space:120px")
+    expect(sections[1]).toContain("--shell-hero-space-phone:90px")
+    expect(sections[2]).toContain("--shell-hero-space:0px")
+    expect(sections[2]).toContain("--shell-hero-space-phone:0px")
+
+    // The air is the hero's, never the row's.
+    for (const section of sections) {
+      const openingTag = section.slice(0, section.indexOf(">"))
+      expect(openingTag).not.toContain("py-12")
+    }
+  })
+
+  it("only lets the top row carry its colour behind the menu", () => {
+    const rows = normalizeFrontPageRows([
+      { id: "words", heading: "First", kind: "text" },
+      {
+        id: "hero",
+        heading: "Second",
+        kind: "hero",
+        background: "#0f172a",
+        backgroundUnderMenu: true,
+      },
+    ])
+    const markup = renderToStaticMarkup(
+      <FrontPageRows
+        rows={rows}
+        plans={[]}
+        trialUsed={false}
+        interval="monthly"
+        onIntervalChange={vi.fn()}
+        onSelectPlan={vi.fn()}
+      />
+    )
+
+    // The band is still painted, it just starts at the row rather than above
+    // it, because this hero is not the one the menu sits over.
+    // A hex is one fixed colour, so both modes get the same value.
+    expect(markup).toContain("--shell-hero-band-light:#0f172a")
+    expect(markup).toContain("--shell-hero-band-dark:#0f172a")
+    expect(markup).not.toContain("var(--shell-hero-rise, 0px)")
+    expect(frontPageHeroRunsUnderMenu(rows)).toBe(false)
   })
 
   it("reads an unknown layout as the usual full width", () => {
