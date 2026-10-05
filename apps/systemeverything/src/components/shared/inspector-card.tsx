@@ -1,17 +1,117 @@
 import * as React from "react"
-import { ChevronDown } from "lucide-react"
+import {
+  ChevronDown,
+  ChevronsDownUpIcon,
+  ChevronsUpDownIcon,
+} from "lucide-react"
 
+import { Button } from "@/components/ui/button"
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { focusRingInset } from "@/lib/layout/focus-ring"
 import {
   collapseStorageKey,
   useRememberedCollapse,
 } from "@/lib/remembered-choice"
 import { cn } from "@/lib/utils"
+
+/**
+ * A command from a panel's header to shut or open every card in it at once.
+ *
+ * `at` counts the presses rather than naming a state, because the cards do not
+ * agree with each other: one may be shut and the next open, so "open" alone
+ * would be a value a card could already match and then ignore. A fresh number
+ * every press is something every card can tell it has not acted on yet.
+ *
+ * It is optional. A panel that never puts the button in its header provides no
+ * signal, and its cards each keep their own remembered state, which is how all
+ * of them worked before this existed.
+ */
+type CollapseAllSignal = { at: number; open: boolean }
+
+const CollapseAllContext = React.createContext<CollapseAllSignal | null>(null)
+
+/**
+ * The header's half: the signal to hand down, and what the next press will do.
+ *
+ * `nextOpen` starts at false, so the first press shuts the panel. Opening a
+ * panel that is already open is the press that does nothing, and a button whose
+ * first use does nothing reads as broken.
+ */
+export function useInspectorCollapseAll() {
+  const [signal, setSignal] = React.useState<CollapseAllSignal | null>(null)
+  const nextOpen = signal ? !signal.open : false
+
+  const setAll = React.useCallback(
+    (open: boolean) =>
+      setSignal((current) => ({ at: (current?.at ?? 0) + 1, open })),
+    []
+  )
+
+  return { signal, nextOpen, setAll }
+}
+
+/**
+ * The button itself, for a panel header's `action` slot.
+ *
+ * Here rather than written out in each panel, so the two panels of the page
+ * editor — a block's settings and the page's own — cannot drift into saying
+ * different things or wearing different icons for the same press.
+ */
+export function InspectorCollapseAllButton({
+  nextOpen,
+  onPress,
+}: {
+  /** What the next press does, from `useInspectorCollapseAll`. */
+  nextOpen: boolean
+  onPress: () => void
+}) {
+  const label = nextOpen ? "Open every setting" : "Shut every setting"
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="size-8"
+          aria-label={label}
+          onClick={onPress}
+        >
+          {nextOpen ? (
+            <ChevronsUpDownIcon className="size-4" />
+          ) : (
+            <ChevronsDownUpIcon className="size-4" />
+          )}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  )
+}
+
+/** Wraps the cards a header's collapse-all button speaks to. */
+export function InspectorCollapseAllProvider({
+  signal,
+  children,
+}: {
+  signal: CollapseAllSignal | null
+  children: React.ReactNode
+}) {
+  return (
+    <CollapseAllContext.Provider value={signal}>
+      {children}
+    </CollapseAllContext.Provider>
+  )
+}
 
 /**
  * One card in a workspace screen's right-hand options panel.
@@ -49,6 +149,22 @@ export function InspectorCard({
   const [open, setOpen, noFlashKey] = useRememberedCollapse(
     collapseStorageKey.settingsCard(storageId)
   )
+
+  // The header's shut-everything button. Acting on it writes this card's own
+  // remembered state, so a panel shut from the header is still shut after a
+  // reload, exactly as if each card had been clicked.
+  //
+  // The ref starts at whatever press the panel is already on, so a card that
+  // appears later — the inspector swaps its middle cards when the block's kind
+  // changes — opens on its own remembered state rather than on a press that
+  // happened before it existed.
+  const collapseAll = React.useContext(CollapseAllContext)
+  const actedOn = React.useRef(collapseAll?.at ?? 0)
+  React.useEffect(() => {
+    if (!collapseAll || collapseAll.at === actedOn.current) return
+    actedOn.current = collapseAll.at
+    setOpen(collapseAll.open)
+  }, [collapseAll, setOpen])
 
   return (
     <Collapsible

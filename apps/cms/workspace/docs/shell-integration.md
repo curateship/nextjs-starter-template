@@ -365,3 +365,26 @@ shell's `hover:bg-accent/40`, and `lib/format/bulk-result.ts` is ahead of the
 shell's. Both were left exactly as they were. The search-page fork conflicts on
 every merge until that hover moves into the shell, which would change the
 shell's own search cards, and Tyler has not decided.
+
+## Shell merge, 5 October 2026 (second)
+
+A small one on top of the merge earlier the same day: eight files, no
+migrations, no new routes, and nothing for the route generator to rebuild. Every
+app was exactly seven files behind and gained one new file.
+
+- **The Tag rule is a combobox.** Contacts → Filters → Tag, and the same field in
+  the segment window, now picks from the tags contacts actually carry instead of
+  taking comma-separated text. `src/components/ui/multi-combobox.tsx` is the new
+  control, built from the Popover, ScrollArea and Badge already here rather than
+  from a new dependency.
+- **Each block in the page editor's list wears its kind's mark**, the same
+  picture the cards on the left use.
+- **Both states of the editor's right-hand panel have a button that shuts every
+  card at once.** The cards hear it through an optional signal in
+  `inspector-card.tsx`, so any panel that puts no button in its header — the
+  newsletter editor, the automation panels — is unchanged.
+- **The block list's header links to the page itself**, opening it in a new tab.
+
+Nothing was deleted and nothing forked. CMS's `lib/format/bulk-result.ts` is no
+longer a fork at all: the previous merge folded its "already that way" count
+into the shell's own copy, and this merge confirms the two are identical again.

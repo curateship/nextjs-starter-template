@@ -426,6 +426,7 @@ export function FrontPageEditor({
 
   const list = (
     <FrontPageBlockList
+      page={page}
       rows={rows}
       selectedId={selection?.id ?? null}
       pending={unwritten && selection ? selection.draft : null}

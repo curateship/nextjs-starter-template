@@ -3,7 +3,12 @@ import { SlidersHorizontalIcon, XIcon } from "lucide-react"
 
 import { AppFrontPageRowEditor } from "@/components/pages/app-front-page-row-editor"
 import { FrontPageRowContentEditor } from "@/components/pages/front-page-row-content-editor"
-import { InspectorCard } from "@/components/shared/inspector-card"
+import {
+  InspectorCard,
+  InspectorCollapseAllButton,
+  InspectorCollapseAllProvider,
+  useInspectorCollapseAll,
+} from "@/components/shared/inspector-card"
 import { SettingsSliderRow } from "@/components/settings/settings-slider-row"
 import { SettingsSwitchRow } from "@/components/settings/settings-switch-row"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
@@ -157,6 +162,9 @@ export function FrontPageBlockInspector({
 
   const headingInvalid = !draft.heading.trim() && headingTouched
   // Which of the two kinds of background the block holds. It stores one
+  // Every card in this panel, shut or opened from the one button above them.
+  const collapseAll = useInspectorCollapseAll()
+
   // string: `grey-<n>` is the slider, a `#` is a fixed colour, empty is no
   // band at all.
   const heroBackground = hero?.background ?? ""
@@ -175,564 +183,572 @@ export function FrontPageBlockInspector({
         title={draft.heading.trim() || "Untitled block"}
         meta={appKind ? appKind.label : FRONT_PAGE_ROW_KIND_LABELS[kind]}
         action={
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="size-8"
-                aria-label="Close the block's settings"
-                onClick={onClose}
-              >
-                <XIcon className="size-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Close the block's settings</TooltipContent>
-          </Tooltip>
+          <div className="flex items-center gap-1">
+            <InspectorCollapseAllButton
+              nextOpen={collapseAll.nextOpen}
+              onPress={() => collapseAll.setAll(collapseAll.nextOpen)}
+            />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-8"
+                  aria-label="Close the block's settings"
+                  onClick={onClose}
+                >
+                  <XIcon className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Close the block's settings</TooltipContent>
+            </Tooltip>
+          </div>
         }
       />
       <ScrollArea className="min-h-0 flex-1">
-        <div className="grid gap-4 p-4 sm:p-5">
-          <InspectorCard
-            storageId="front-page-row-content"
-            title="Block content"
-            description="Every block uses a fixed shape, so the front page stays consistent on phones and larger screens."
-          >
-            <div className="grid gap-2">
-              <FieldLabel
-                htmlFor="front-page-row-heading"
-                hint={
-                  kind === "divider"
-                    ? "Only the name this block goes by in the list beside it. A divider never shows words on the page."
-                    : undefined
-                }
-              >
-                {kind === "divider" ? "Name" : "Heading"}
-              </FieldLabel>
-              <Input
-                id="front-page-row-heading"
-                value={draft.heading}
-                maxLength={MAX_FRONT_PAGE_ROW_HEADING_LENGTH}
-                placeholder={
-                  kind === "divider" ? "Divider" : "Welcome to our site"
-                }
-                aria-invalid={headingInvalid || undefined}
-                onBlur={() => setHeadingTouched(true)}
-                onChange={(event) =>
-                  onChange(patchCommon(draft, { heading: event.target.value }))
-                }
-              />
-            </div>
-
-            {kind === "divider" ? null : (
+        <InspectorCollapseAllProvider signal={collapseAll.signal}>
+          <div className="grid gap-4 p-4 sm:p-5">
+            <InspectorCard
+              storageId="front-page-row-content"
+              title="Block content"
+              description="Every block uses a fixed shape, so the front page stays consistent on phones and larger screens."
+            >
               <div className="grid gap-2">
                 <FieldLabel
-                  htmlFor="front-page-row-intro"
-                  hint="One short line beneath the heading. Leave it empty to show no introduction."
+                  htmlFor="front-page-row-heading"
+                  hint={
+                    kind === "divider"
+                      ? "Only the name this block goes by in the list beside it. A divider never shows words on the page."
+                      : undefined
+                  }
                 >
-                  Introduction
+                  {kind === "divider" ? "Name" : "Heading"}
                 </FieldLabel>
-                <Textarea
-                  id="front-page-row-intro"
-                  rows={1}
-                  value={draft.intro}
-                  maxLength={MAX_FRONT_PAGE_ROW_INTRO_LENGTH}
+                <Input
+                  id="front-page-row-heading"
+                  value={draft.heading}
+                  maxLength={MAX_FRONT_PAGE_ROW_HEADING_LENGTH}
+                  placeholder={
+                    kind === "divider" ? "Divider" : "Welcome to our site"
+                  }
+                  aria-invalid={headingInvalid || undefined}
+                  onBlur={() => setHeadingTouched(true)}
                   onChange={(event) =>
-                    onChange(patchCommon(draft, { intro: event.target.value }))
+                    onChange(patchCommon(draft, { heading: event.target.value }))
                   }
                 />
               </div>
-            )}
 
-            <div className="grid gap-2">
-              <FieldLabel
-                htmlFor="front-page-row-layout"
-                hint={FRONT_PAGE_ROW_LAYOUT_HINTS[draft.layout]}
-              >
-                Layout
-              </FieldLabel>
-              <Select
-                value={draft.layout}
-                onValueChange={(value) =>
-                  onChange(
-                    patchCommon(draft, { layout: value as FrontPageRowLayout })
-                  )
-                }
-              >
-                <SelectTrigger
-                  id="front-page-row-layout"
-                  className="w-full sm:w-fit"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {FRONT_PAGE_ROW_LAYOUTS.map((value) => (
-                    <SelectItem key={value} value={value}>
-                      {FRONT_PAGE_ROW_LAYOUT_LABELS[value]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="grid gap-2">
-              <FieldLabel
-                htmlFor="front-page-row-alignment"
-                hint={FRONT_PAGE_ROW_ALIGNMENT_HINTS[draft.alignment]}
-              >
-                Alignment
-              </FieldLabel>
-              <Select
-                value={draft.alignment}
-                onValueChange={(value) =>
-                  onChange(
-                    patchCommon(draft, {
-                      alignment: value as FrontPageRowAlignment,
-                    })
-                  )
-                }
-              >
-                <SelectTrigger
-                  id="front-page-row-alignment"
-                  className="w-full sm:w-fit"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {FRONT_PAGE_ROW_ALIGNMENTS.map((value) => (
-                    <SelectItem key={value} value={value}>
-                      {FRONT_PAGE_ROW_ALIGNMENT_LABELS[value]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {hero ? (
-              <>
+              {kind === "divider" ? null : (
                 <div className="grid gap-2">
                   <FieldLabel
-                    htmlFor="front-page-row-hero-background"
-                    hint="Painted in a band right across the window, behind this block only, whatever its Layout says. A muted grey is the only one that changes with the mode."
+                    htmlFor="front-page-row-intro"
+                    hint="One short line beneath the heading. Leave it empty to show no introduction."
                   >
-                    Background colour
+                    Introduction
                   </FieldLabel>
-                  <Select
-                    value={heroBackgroundChoice}
-                    onValueChange={(value) => {
-                      if (value === "none") {
-                        onChange(
-                          patchHero(draft, {
-                            background: "",
-                            backgroundUnderMenu: false,
-                          })
-                        )
-                        return
-                      }
-                      if (value === "grey") {
-                        onChange(
-                          patchHero(draft, {
-                            background: `grey-${DEFAULT_FRONT_PAGE_HERO_GREY}`,
-                          })
-                        )
-                        return
-                      }
-                      // A fresh fixed colour starts on the pale grey the band
-                      // draws by default, so switching to it changes nothing
-                      // until a colour is chosen.
-                      onChange(patchHero(draft, { background: "#f4f4f5" }))
-                    }}
+                  <Textarea
+                    id="front-page-row-intro"
+                    rows={1}
+                    value={draft.intro}
+                    maxLength={MAX_FRONT_PAGE_ROW_INTRO_LENGTH}
+                    onChange={(event) =>
+                      onChange(patchCommon(draft, { intro: event.target.value }))
+                    }
+                  />
+                </div>
+              )}
+
+              <div className="grid gap-2">
+                <FieldLabel
+                  htmlFor="front-page-row-layout"
+                  hint={FRONT_PAGE_ROW_LAYOUT_HINTS[draft.layout]}
+                >
+                  Layout
+                </FieldLabel>
+                <Select
+                  value={draft.layout}
+                  onValueChange={(value) =>
+                    onChange(
+                      patchCommon(draft, { layout: value as FrontPageRowLayout })
+                    )
+                  }
+                >
+                  <SelectTrigger
+                    id="front-page-row-layout"
+                    className="w-full sm:w-fit"
                   >
-                    <SelectTrigger
-                      id="front-page-row-hero-background"
-                      className="w-full sm:w-fit"
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {FRONT_PAGE_ROW_LAYOUTS.map((value) => (
+                      <SelectItem key={value} value={value}>
+                        {FRONT_PAGE_ROW_LAYOUT_LABELS[value]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid gap-2">
+                <FieldLabel
+                  htmlFor="front-page-row-alignment"
+                  hint={FRONT_PAGE_ROW_ALIGNMENT_HINTS[draft.alignment]}
+                >
+                  Alignment
+                </FieldLabel>
+                <Select
+                  value={draft.alignment}
+                  onValueChange={(value) =>
+                    onChange(
+                      patchCommon(draft, {
+                        alignment: value as FrontPageRowAlignment,
+                      })
+                    )
+                  }
+                >
+                  <SelectTrigger
+                    id="front-page-row-alignment"
+                    className="w-full sm:w-fit"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {FRONT_PAGE_ROW_ALIGNMENTS.map((value) => (
+                      <SelectItem key={value} value={value}>
+                        {FRONT_PAGE_ROW_ALIGNMENT_LABELS[value]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {hero ? (
+                <>
+                  <div className="grid gap-2">
+                    <FieldLabel
+                      htmlFor="front-page-row-hero-background"
+                      hint="Painted in a band right across the window, behind this block only, whatever its Layout says. A muted grey is the only one that changes with the mode."
                     >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">No colour</SelectItem>
-                      <SelectItem value="grey">Muted grey</SelectItem>
-                      <SelectItem value="custom">Fixed colour</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {heroBackgroundChoice === "grey" ? (
-                    <div className="grid gap-3 pt-1">
-                      <SettingsSliderRow
-                        label="How strong"
-                        value={heroGrey ?? DEFAULT_FRONT_PAGE_HERO_GREY}
-                        min={0}
-                        max={MAX_FRONT_PAGE_HERO_GREY}
-                        step={1}
-                        valueLabel={`${heroGrey ?? DEFAULT_FRONT_PAGE_HERO_GREY}`}
-                        onChange={(value) =>
+                      Background colour
+                    </FieldLabel>
+                    <Select
+                      value={heroBackgroundChoice}
+                      onValueChange={(value) => {
+                        if (value === "none") {
                           onChange(
-                            patchHero(draft, { background: `grey-${value}` })
+                            patchHero(draft, {
+                              background: "",
+                              backgroundUnderMenu: false,
+                            })
                           )
+                          return
                         }
-                        help="All the way left the band is barely off the page. Drag right and it steps further away from it. In dark mode the same drag lightens the band instead of darkening it, so one slider sets both."
-                      />
-                      {/* Both bands at once, because the one you are not
-                          looking at is the one that usually goes wrong. */}
-                      <div
-                        className="flex max-w-sm overflow-hidden rounded-md border"
-                        aria-hidden="true"
+                        if (value === "grey") {
+                          onChange(
+                            patchHero(draft, {
+                              background: `grey-${DEFAULT_FRONT_PAGE_HERO_GREY}`,
+                            })
+                          )
+                          return
+                        }
+                        // A fresh fixed colour starts on the pale grey the band
+                        // draws by default, so switching to it changes nothing
+                        // until a colour is chosen.
+                        onChange(patchHero(draft, { background: "#f4f4f5" }))
+                      }}
+                    >
+                      <SelectTrigger
+                        id="front-page-row-hero-background"
+                        className="w-full sm:w-fit"
                       >
-                        <div
-                          className="h-10 flex-1"
-                          style={{ backgroundColor: heroBand.light }}
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No colour</SelectItem>
+                        <SelectItem value="grey">Muted grey</SelectItem>
+                        <SelectItem value="custom">Fixed colour</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {heroBackgroundChoice === "grey" ? (
+                      <div className="grid gap-3 pt-1">
+                        <SettingsSliderRow
+                          label="How strong"
+                          value={heroGrey ?? DEFAULT_FRONT_PAGE_HERO_GREY}
+                          min={0}
+                          max={MAX_FRONT_PAGE_HERO_GREY}
+                          step={1}
+                          valueLabel={`${heroGrey ?? DEFAULT_FRONT_PAGE_HERO_GREY}`}
+                          onChange={(value) =>
+                            onChange(
+                              patchHero(draft, { background: `grey-${value}` })
+                            )
+                          }
+                          help="All the way left the band is barely off the page. Drag right and it steps further away from it. In dark mode the same drag lightens the band instead of darkening it, so one slider sets both."
                         />
+                        {/* Both bands at once, because the one you are not
+                            looking at is the one that usually goes wrong. */}
                         <div
-                          className="h-10 flex-1"
-                          style={{ backgroundColor: heroBand.dark }}
+                          className="flex max-w-sm overflow-hidden rounded-md border"
+                          aria-hidden="true"
+                        >
+                          <div
+                            className="h-10 flex-1"
+                            style={{ backgroundColor: heroBand.light }}
+                          />
+                          <div
+                            className="h-10 flex-1"
+                            style={{ backgroundColor: heroBand.dark }}
+                          />
+                        </div>
+                      </div>
+                    ) : null}
+                    {heroBackgroundChoice === "custom" ? (
+                      <div className="flex items-center gap-2">
+                        <ColorSwatch
+                          value={hero.background || "#ffffff"}
+                          onChange={(event) =>
+                            onChange(
+                              patchHero(draft, { background: event.target.value })
+                            )
+                          }
+                          aria-label="Pick a background colour"
+                        />
+                        <Input
+                          id="front-page-row-hero-background-hex"
+                          value={hero.background}
+                          placeholder="#f4f4f5"
+                          className="w-40"
+                          aria-label="Background colour hex code"
+                          aria-invalid={
+                            (hero.background.trim() &&
+                              !normalizeFrontPageHeroBackground(
+                                hero.background
+                              )) ||
+                            undefined
+                          }
+                          onChange={(event) =>
+                            onChange(
+                              patchHero(draft, { background: event.target.value })
+                            )
+                          }
                         />
                       </div>
-                    </div>
-                  ) : null}
-                  {heroBackgroundChoice === "custom" ? (
-                    <div className="flex items-center gap-2">
-                      <ColorSwatch
-                        value={hero.background || "#ffffff"}
-                        onChange={(event) =>
-                          onChange(
-                            patchHero(draft, { background: event.target.value })
-                          )
-                        }
-                        aria-label="Pick a background colour"
-                      />
-                      <Input
-                        id="front-page-row-hero-background-hex"
-                        value={hero.background}
-                        placeholder="#f4f4f5"
-                        className="w-40"
-                        aria-label="Background colour hex code"
-                        aria-invalid={
-                          (hero.background.trim() &&
-                            !normalizeFrontPageHeroBackground(
-                              hero.background
-                            )) ||
-                          undefined
-                        }
-                        onChange={(event) =>
-                          onChange(
-                            patchHero(draft, { background: event.target.value })
-                          )
-                        }
-                      />
-                    </div>
-                  ) : null}
-                </div>
+                    ) : null}
+                  </div>
 
-                <SettingsSwitchRow
-                  id="front-page-row-hero-background-under-menu"
-                  checked={hero.backgroundUnderMenu}
-                  disabled={!hero.background || !first}
-                  onCheckedChange={(next) =>
-                    onChange(patchHero(draft, { backgroundUnderMenu: next }))
-                  }
-                  label="Run the colour under the menu"
-                  hint={
-                    !first
-                      ? "Only the top block of the page sits under the menu. Drag this block to the top to use this."
-                      : !hero.background
-                        ? "Choose a background colour first. There is nothing to run under the menu until there is one."
-                        : "The colour starts at the very top of the window and passes behind the menu. The menu itself is not changed: it keeps its own colour, and its blur now blurs this colour instead of the page."
-                  }
-                />
-              </>
-            ) : null}
+                  <SettingsSwitchRow
+                    id="front-page-row-hero-background-under-menu"
+                    checked={hero.backgroundUnderMenu}
+                    disabled={!hero.background || !first}
+                    onCheckedChange={(next) =>
+                      onChange(patchHero(draft, { backgroundUnderMenu: next }))
+                    }
+                    label="Run the colour under the menu"
+                    hint={
+                      !first
+                        ? "Only the top block of the page sits under the menu. Drag this block to the top to use this."
+                        : !hero.background
+                          ? "Choose a background colour first. There is nothing to run under the menu until there is one."
+                          : "The colour starts at the very top of the window and passes behind the menu. The menu itself is not changed: it keeps its own colour, and its blur now blurs this colour instead of the page."
+                    }
+                  />
+                </>
+              ) : null}
 
-            <div className="grid gap-2">
-              <FieldLabel
-                htmlFor="front-page-row-device"
-                hint={PUBLIC_DEVICE_HINTS[draft.device]}
-              >
-                Shown on
-              </FieldLabel>
-              <Select
-                value={draft.device}
-                onValueChange={(value) =>
-                  onChange(
-                    patchCommon(draft, { device: value as PublicDevice })
-                  )
-                }
-              >
-                <SelectTrigger
-                  id="front-page-row-device"
-                  className="w-full sm:w-fit"
+              <div className="grid gap-2">
+                <FieldLabel
+                  htmlFor="front-page-row-device"
+                  hint={PUBLIC_DEVICE_HINTS[draft.device]}
                 >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PUBLIC_DEVICES.map((value) => (
-                    <SelectItem key={value} value={value}>
-                      {PUBLIC_DEVICE_LABELS[value]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </InspectorCard>
+                  Shown on
+                </FieldLabel>
+                <Select
+                  value={draft.device}
+                  onValueChange={(value) =>
+                    onChange(
+                      patchCommon(draft, { device: value as PublicDevice })
+                    )
+                  }
+                >
+                  <SelectTrigger
+                    id="front-page-row-device"
+                    className="w-full sm:w-fit"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PUBLIC_DEVICES.map((value) => (
+                      <SelectItem key={value} value={value}>
+                        {PUBLIC_DEVICE_LABELS[value]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </InspectorCard>
 
-          {appKind && draft.kind === APP_FRONT_PAGE_ROW_KIND ? (
-            <AppFrontPageRowEditor
-              kind={appKind}
-              settings={draft.settings}
-              onChange={(settings) => onChange({ ...draft, settings })}
-            />
-          ) : null}
-
-          <FrontPageRowContentEditor
-            kind={kind}
-            heroAction={hero?.action ?? "button"}
-            heroImage={hero?.image ?? ""}
-            heroAlt={hero?.alt ?? ""}
-            heroButtonLabel={hero?.buttonLabel ?? ""}
-            heroButtonHref={hero?.buttonHref ?? ""}
-            heroNote={hero?.note ?? ""}
-            heroStars={hero?.stars ?? 0}
-            heroSpacing={hero?.spacing ?? DEFAULT_FRONT_PAGE_HERO_SPACING}
-            testimonials={draft.kind === "testimonials" ? draft.items : []}
-            faqItems={draft.kind === "faq" ? draft.items : []}
-            logos={draft.kind === "logos" ? draft.items : []}
-            screenshots={draft.kind === "screenshots" ? draft.items : []}
-            dividerStyle={divider?.dividerStyle ?? "line"}
-            dividerShade={
-              divider?.dividerShade ?? DEFAULT_FRONT_PAGE_DIVIDER_SHADE
-            }
-            dividerSpace={
-              divider?.dividerSpace ?? DEFAULT_FRONT_PAGE_DIVIDER_SPACE
-            }
-            words={draft.kind === "words" ? draft.body : emptyWrittenPageBody()}
-            onWordsChange={(body) =>
-              onChange(draft.kind === "words" ? { ...draft, body } : draft)
-            }
-            heldBack={touched && heldBack}
-            onHeroActionChange={(action) =>
-              onChange(patchHero(draft, { action }))
-            }
-            onHeroImageChange={(image) => onChange(patchHero(draft, { image }))}
-            onHeroAltChange={(alt) => onChange(patchHero(draft, { alt }))}
-            onHeroButtonLabelChange={(buttonLabel) =>
-              onChange(patchHero(draft, { buttonLabel }))
-            }
-            onHeroButtonHrefChange={(buttonHref) =>
-              onChange(patchHero(draft, { buttonHref }))
-            }
-            onHeroNoteChange={(note) => onChange(patchHero(draft, { note }))}
-            onHeroStarsChange={(stars) => onChange(patchHero(draft, { stars }))}
-            onHeroSpacingChange={(spacing) =>
-              onChange(patchHero(draft, { spacing }))
-            }
-            onTestimonialsChange={(next) =>
-              onChange(
-                draft.kind === "testimonials" ? { ...draft, items: next } : draft
-              )
-            }
-            onFaqItemsChange={(next) =>
-              onChange(draft.kind === "faq" ? { ...draft, items: next } : draft)
-            }
-            onLogosChange={(next) =>
-              onChange(
-                draft.kind === "logos" ? { ...draft, items: next } : draft
-              )
-            }
-            onScreenshotsChange={(next) =>
-              onChange(
-                draft.kind === "screenshots" ? { ...draft, items: next } : draft
-              )
-            }
-            onDividerStyleChange={(dividerStyle) =>
-              onChange(
-                draft.kind === "divider" ? { ...draft, dividerStyle } : draft
-              )
-            }
-            onDividerShadeChange={(dividerShade) =>
-              onChange(
-                draft.kind === "divider" ? { ...draft, dividerShade } : draft
-              )
-            }
-            onDividerSpaceChange={(dividerSpace) =>
-              onChange(
-                draft.kind === "divider" ? { ...draft, dividerSpace } : draft
-              )
-            }
-          />
-
-          <InspectorCard
-            storageId="front-page-row-spacing"
-            title="Spacing"
-            description="How much air this block keeps above and below itself, instead of the page's own."
-          >
-            <SettingsSliderRow
-              label="Space above"
-              value={draft.spaceAbove ?? pageHalf}
-              min={0}
-              max={MAX_FRONT_PAGE_ROW_SPACE}
-              step={4}
-              valueLabel={
-                draft.spaceAbove === null
-                  ? `${pageHalf}px · Page default`
-                  : `${draft.spaceAbove}px`
-              }
-              onChange={(spaceAbove) =>
-                onChange(patchCommon(draft, { spaceAbove }))
-              }
-              help={`Each block keeps its own half of the gap, so a page set to ${pageGap}px gives every block ${pageHalf}px above and ${pageHalf}px below and two blocks still sit ${pageGap}px apart. The two halves add up: set this to 0 and the block above it to 0 and they touch.`}
-            />
-
-            <SettingsSliderRow
-              label="Space below"
-              value={draft.spaceBelow ?? pageHalf}
-              min={0}
-              max={MAX_FRONT_PAGE_ROW_SPACE}
-              step={4}
-              valueLabel={
-                draft.spaceBelow === null
-                  ? `${pageHalf}px · Page default`
-                  : `${draft.spaceBelow}px`
-              }
-              onChange={(spaceBelow) =>
-                onChange(patchCommon(draft, { spaceBelow }))
-              }
-              help={`A phone draws ${Math.round(
-                PUBLIC_FRONT_PAGE_ROW_GAP_PHONE_SHARE * 100
-              )}% of whatever these two say, the same share the page's own number gets. Flat mode collapses them both, because flat is the whole site asking for no air.`}
-            />
-
-            {/* Only when there is something to go back from. A side nobody has
-                touched already follows the page and says so. */}
-            {draft.spaceAbove !== null || draft.spaceBelow !== null ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="justify-self-start"
-                onClick={() =>
-                  onChange(
-                    patchCommon(draft, { spaceAbove: null, spaceBelow: null })
-                  )
-                }
-              >
-                Follow the page again
-              </Button>
-            ) : null}
-          </InspectorCard>
-
-          <InspectorCard
-            storageId="front-page-row-visibility"
-            title="Visibility"
-            description="Switch off a part of the block to leave it out of the public page. The part keeps whatever you typed into it, so switching it back on brings the same words back."
-          >
-            <SettingsSwitchRow
-              id="front-page-row-hidden"
-              checked={draft.hidden}
-              onCheckedChange={(hidden) =>
-                onChange(patchCommon(draft, { hidden }))
-              }
-              label="Hide this block from visitors"
-              hint="The whole block is left out of the page, words and all, so nothing in it can be read out of the page source."
-            />
-            {/* A divider draws neither, so switching them would do nothing. */}
-            {kind === "divider" ? null : (
-              <>
-                <SettingsSwitchRow
-                  id="front-page-row-show-heading"
-                  checked={draft.showHeading}
-                  onCheckedChange={(showHeading) =>
-                    onChange(patchCommon(draft, { showHeading }))
-                  }
-                  label="Show the heading"
-                />
-                <SettingsSwitchRow
-                  id="front-page-row-show-intro"
-                  checked={draft.showIntro}
-                  onCheckedChange={(showIntro) =>
-                    onChange(patchCommon(draft, { showIntro }))
-                  }
-                  label="Show the introduction line"
-                />
-              </>
-            )}
-            {kind === "hero" ? (
-              <>
-                <SettingsSwitchRow
-                  id="front-page-row-show-image"
-                  checked={draft.showImage}
-                  onCheckedChange={(showImage) =>
-                    onChange(patchCommon(draft, { showImage }))
-                  }
-                  label="Show the picture"
-                  hint="With the picture off, the words run across the page instead of sitting in one column."
-                />
-                <SettingsSwitchRow
-                  id="front-page-row-show-action"
-                  checked={draft.showAction}
-                  onCheckedChange={(showAction) =>
-                    onChange(patchCommon(draft, { showAction }))
-                  }
-                  label="Show the button or email box"
-                />
-                <SettingsSwitchRow
-                  id="front-page-row-show-stars"
-                  checked={draft.showStars}
-                  onCheckedChange={(showStars) =>
-                    onChange(patchCommon(draft, { showStars }))
-                  }
-                  label="Show the stars"
-                />
-                <SettingsSwitchRow
-                  id="front-page-row-show-note"
-                  checked={draft.showNote}
-                  onCheckedChange={(showNote) =>
-                    onChange(patchCommon(draft, { showNote }))
-                  }
-                  label="Show the line under the button"
-                />
-              </>
-            ) : null}
-            {kind === "testimonials" ? (
-              <>
-                <SettingsSwitchRow
-                  id="front-page-row-show-pictures"
-                  checked={draft.showPictures}
-                  onCheckedChange={(showPictures) =>
-                    onChange(patchCommon(draft, { showPictures }))
-                  }
-                  label="Show each person's picture"
-                />
-                <SettingsSwitchRow
-                  id="front-page-row-show-roles"
-                  checked={draft.showRoles}
-                  onCheckedChange={(showRoles) =>
-                    onChange(patchCommon(draft, { showRoles }))
-                  }
-                  label="Show each person's role"
-                />
-              </>
-            ) : null}
-            {kind === "faq" ? (
-              <SettingsSwitchRow
-                id="front-page-row-show-numbers"
-                checked={draft.showNumbers}
-                onCheckedChange={(showNumbers) =>
-                  onChange(patchCommon(draft, { showNumbers }))
-                }
-                label="Number the questions"
+            {appKind && draft.kind === APP_FRONT_PAGE_ROW_KIND ? (
+              <AppFrontPageRowEditor
+                kind={appKind}
+                settings={draft.settings}
+                onChange={(settings) => onChange({ ...draft, settings })}
               />
             ) : null}
-            {kind === "screenshots" ? (
-              <SettingsSwitchRow
-                id="front-page-row-show-captions"
-                checked={draft.showCaptions}
-                onCheckedChange={(showCaptions) =>
-                  onChange(patchCommon(draft, { showCaptions }))
+
+            <FrontPageRowContentEditor
+              kind={kind}
+              heroAction={hero?.action ?? "button"}
+              heroImage={hero?.image ?? ""}
+              heroAlt={hero?.alt ?? ""}
+              heroButtonLabel={hero?.buttonLabel ?? ""}
+              heroButtonHref={hero?.buttonHref ?? ""}
+              heroNote={hero?.note ?? ""}
+              heroStars={hero?.stars ?? 0}
+              heroSpacing={hero?.spacing ?? DEFAULT_FRONT_PAGE_HERO_SPACING}
+              testimonials={draft.kind === "testimonials" ? draft.items : []}
+              faqItems={draft.kind === "faq" ? draft.items : []}
+              logos={draft.kind === "logos" ? draft.items : []}
+              screenshots={draft.kind === "screenshots" ? draft.items : []}
+              dividerStyle={divider?.dividerStyle ?? "line"}
+              dividerShade={
+                divider?.dividerShade ?? DEFAULT_FRONT_PAGE_DIVIDER_SHADE
+              }
+              dividerSpace={
+                divider?.dividerSpace ?? DEFAULT_FRONT_PAGE_DIVIDER_SPACE
+              }
+              words={draft.kind === "words" ? draft.body : emptyWrittenPageBody()}
+              onWordsChange={(body) =>
+                onChange(draft.kind === "words" ? { ...draft, body } : draft)
+              }
+              heldBack={touched && heldBack}
+              onHeroActionChange={(action) =>
+                onChange(patchHero(draft, { action }))
+              }
+              onHeroImageChange={(image) => onChange(patchHero(draft, { image }))}
+              onHeroAltChange={(alt) => onChange(patchHero(draft, { alt }))}
+              onHeroButtonLabelChange={(buttonLabel) =>
+                onChange(patchHero(draft, { buttonLabel }))
+              }
+              onHeroButtonHrefChange={(buttonHref) =>
+                onChange(patchHero(draft, { buttonHref }))
+              }
+              onHeroNoteChange={(note) => onChange(patchHero(draft, { note }))}
+              onHeroStarsChange={(stars) => onChange(patchHero(draft, { stars }))}
+              onHeroSpacingChange={(spacing) =>
+                onChange(patchHero(draft, { spacing }))
+              }
+              onTestimonialsChange={(next) =>
+                onChange(
+                  draft.kind === "testimonials" ? { ...draft, items: next } : draft
+                )
+              }
+              onFaqItemsChange={(next) =>
+                onChange(draft.kind === "faq" ? { ...draft, items: next } : draft)
+              }
+              onLogosChange={(next) =>
+                onChange(
+                  draft.kind === "logos" ? { ...draft, items: next } : draft
+                )
+              }
+              onScreenshotsChange={(next) =>
+                onChange(
+                  draft.kind === "screenshots" ? { ...draft, items: next } : draft
+                )
+              }
+              onDividerStyleChange={(dividerStyle) =>
+                onChange(
+                  draft.kind === "divider" ? { ...draft, dividerStyle } : draft
+                )
+              }
+              onDividerShadeChange={(dividerShade) =>
+                onChange(
+                  draft.kind === "divider" ? { ...draft, dividerShade } : draft
+                )
+              }
+              onDividerSpaceChange={(dividerSpace) =>
+                onChange(
+                  draft.kind === "divider" ? { ...draft, dividerSpace } : draft
+                )
+              }
+            />
+
+            <InspectorCard
+              storageId="front-page-row-spacing"
+              title="Spacing"
+              description="How much air this block keeps above and below itself, instead of the page's own."
+            >
+              <SettingsSliderRow
+                label="Space above"
+                value={draft.spaceAbove ?? pageHalf}
+                min={0}
+                max={MAX_FRONT_PAGE_ROW_SPACE}
+                step={4}
+                valueLabel={
+                  draft.spaceAbove === null
+                    ? `${pageHalf}px · Page default`
+                    : `${draft.spaceAbove}px`
                 }
-                label="Show the captions"
+                onChange={(spaceAbove) =>
+                  onChange(patchCommon(draft, { spaceAbove }))
+                }
+                help={`Each block keeps its own half of the gap, so a page set to ${pageGap}px gives every block ${pageHalf}px above and ${pageHalf}px below and two blocks still sit ${pageGap}px apart. The two halves add up: set this to 0 and the block above it to 0 and they touch.`}
               />
-            ) : null}
-          </InspectorCard>
-        </div>
+
+              <SettingsSliderRow
+                label="Space below"
+                value={draft.spaceBelow ?? pageHalf}
+                min={0}
+                max={MAX_FRONT_PAGE_ROW_SPACE}
+                step={4}
+                valueLabel={
+                  draft.spaceBelow === null
+                    ? `${pageHalf}px · Page default`
+                    : `${draft.spaceBelow}px`
+                }
+                onChange={(spaceBelow) =>
+                  onChange(patchCommon(draft, { spaceBelow }))
+                }
+                help={`A phone draws ${Math.round(
+                  PUBLIC_FRONT_PAGE_ROW_GAP_PHONE_SHARE * 100
+                )}% of whatever these two say, the same share the page's own number gets. Flat mode collapses them both, because flat is the whole site asking for no air.`}
+              />
+
+              {/* Only when there is something to go back from. A side nobody has
+                  touched already follows the page and says so. */}
+              {draft.spaceAbove !== null || draft.spaceBelow !== null ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="justify-self-start"
+                  onClick={() =>
+                    onChange(
+                      patchCommon(draft, { spaceAbove: null, spaceBelow: null })
+                    )
+                  }
+                >
+                  Follow the page again
+                </Button>
+              ) : null}
+            </InspectorCard>
+
+            <InspectorCard
+              storageId="front-page-row-visibility"
+              title="Visibility"
+              description="Switch off a part of the block to leave it out of the public page. The part keeps whatever you typed into it, so switching it back on brings the same words back."
+            >
+              <SettingsSwitchRow
+                id="front-page-row-hidden"
+                checked={draft.hidden}
+                onCheckedChange={(hidden) =>
+                  onChange(patchCommon(draft, { hidden }))
+                }
+                label="Hide this block from visitors"
+                hint="The whole block is left out of the page, words and all, so nothing in it can be read out of the page source."
+              />
+              {/* A divider draws neither, so switching them would do nothing. */}
+              {kind === "divider" ? null : (
+                <>
+                  <SettingsSwitchRow
+                    id="front-page-row-show-heading"
+                    checked={draft.showHeading}
+                    onCheckedChange={(showHeading) =>
+                      onChange(patchCommon(draft, { showHeading }))
+                    }
+                    label="Show the heading"
+                  />
+                  <SettingsSwitchRow
+                    id="front-page-row-show-intro"
+                    checked={draft.showIntro}
+                    onCheckedChange={(showIntro) =>
+                      onChange(patchCommon(draft, { showIntro }))
+                    }
+                    label="Show the introduction line"
+                  />
+                </>
+              )}
+              {kind === "hero" ? (
+                <>
+                  <SettingsSwitchRow
+                    id="front-page-row-show-image"
+                    checked={draft.showImage}
+                    onCheckedChange={(showImage) =>
+                      onChange(patchCommon(draft, { showImage }))
+                    }
+                    label="Show the picture"
+                    hint="With the picture off, the words run across the page instead of sitting in one column."
+                  />
+                  <SettingsSwitchRow
+                    id="front-page-row-show-action"
+                    checked={draft.showAction}
+                    onCheckedChange={(showAction) =>
+                      onChange(patchCommon(draft, { showAction }))
+                    }
+                    label="Show the button or email box"
+                  />
+                  <SettingsSwitchRow
+                    id="front-page-row-show-stars"
+                    checked={draft.showStars}
+                    onCheckedChange={(showStars) =>
+                      onChange(patchCommon(draft, { showStars }))
+                    }
+                    label="Show the stars"
+                  />
+                  <SettingsSwitchRow
+                    id="front-page-row-show-note"
+                    checked={draft.showNote}
+                    onCheckedChange={(showNote) =>
+                      onChange(patchCommon(draft, { showNote }))
+                    }
+                    label="Show the line under the button"
+                  />
+                </>
+              ) : null}
+              {kind === "testimonials" ? (
+                <>
+                  <SettingsSwitchRow
+                    id="front-page-row-show-pictures"
+                    checked={draft.showPictures}
+                    onCheckedChange={(showPictures) =>
+                      onChange(patchCommon(draft, { showPictures }))
+                    }
+                    label="Show each person's picture"
+                  />
+                  <SettingsSwitchRow
+                    id="front-page-row-show-roles"
+                    checked={draft.showRoles}
+                    onCheckedChange={(showRoles) =>
+                      onChange(patchCommon(draft, { showRoles }))
+                    }
+                    label="Show each person's role"
+                  />
+                </>
+              ) : null}
+              {kind === "faq" ? (
+                <SettingsSwitchRow
+                  id="front-page-row-show-numbers"
+                  checked={draft.showNumbers}
+                  onCheckedChange={(showNumbers) =>
+                    onChange(patchCommon(draft, { showNumbers }))
+                  }
+                  label="Number the questions"
+                />
+              ) : null}
+              {kind === "screenshots" ? (
+                <SettingsSwitchRow
+                  id="front-page-row-show-captions"
+                  checked={draft.showCaptions}
+                  onCheckedChange={(showCaptions) =>
+                    onChange(patchCommon(draft, { showCaptions }))
+                  }
+                  label="Show the captions"
+                />
+              ) : null}
+            </InspectorCard>
+          </div>
+        </InspectorCollapseAllProvider>
       </ScrollArea>
     </div>
   )

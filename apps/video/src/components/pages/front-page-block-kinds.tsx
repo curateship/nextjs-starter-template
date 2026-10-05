@@ -57,6 +57,23 @@ const KIND_ICONS: Record<FrontPageRowKind, AutomationNodeIcon> = {
   divider: SeparatorHorizontalIcon,
 }
 
+/**
+ * The picture for each kind the shell owns, for anything outside this file that
+ * draws a block: the list beside the editor reads it so a block carries the
+ * picture it was picked by.
+ *
+ * Exported as the map rather than as a `iconFor(block)` function on purpose. A
+ * function that returns a component is a component built during render, which
+ * is both a lint error and a real remount on every keystroke. Reading a
+ * property is neither.
+ */
+export const FRONT_PAGE_BLOCK_ICONS: Readonly<
+  Record<FrontPageRowKind, AutomationNodeIcon>
+> = KIND_ICONS
+
+/** What a block whose kind nobody recognises is drawn with. */
+export const FRONT_PAGE_BLOCK_FALLBACK_ICON: AutomationNodeIcon = BlocksIcon
+
 type Choice = {
   value: string
   label: string

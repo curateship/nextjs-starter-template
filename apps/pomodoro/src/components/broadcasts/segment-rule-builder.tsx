@@ -19,7 +19,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Input } from "@/components/ui/input"
+import { MultiCombobox } from "@/components/ui/multi-combobox"
 import { Label } from "@/components/ui/label"
 import { NumberField } from "@/components/ui/number-field"
 import {
@@ -42,7 +42,6 @@ import {
   type SegmentConditionType,
   type SegmentRuleOptions,
 } from "@/lib/contacts/contact-segments"
-import { MEMBER_TAG_MAX_LENGTH } from "@/lib/member-tags"
 
 /**
  * The rule builder, in one place because there are two screens that build the
@@ -211,22 +210,40 @@ export function SegmentRuleBuilder({
  * The card's title is the rule's visible name; each control inside carries its
  * own accessible name, since "is" and "On the list" mean nothing read alone.
  */
-function TagConditionInput({ condition, index, incomplete, onChange, placeholder }: {
+/**
+ * The tags a tag rule matches, picked from the ones contacts actually carry.
+ *
+ * It was a text field you typed comma-separated names into until 5 Oct 2026.
+ * Tyler asked for a combobox, and the field deserved it: a name had to be
+ * spelled exactly, nothing told you which tags existed, and a typo looked
+ * identical to a tag nobody has, so the rule quietly matched nobody.
+ *
+ * A tag already on the rule that no contact carries any more is still listed
+ * and still ticked, so opening an old rule and saving it cannot silently drop
+ * part of what it matches. `MultiCombobox` holds that rule.
+ */
+function TagConditionInput({ condition, index, incomplete, onChange, tags }: {
   condition: Extract<SegmentCondition, { type: "tag" }>
   index: number
   incomplete: boolean
   onChange: (condition: SegmentCondition) => void
-  placeholder: string
+  /** Every tag in use, which is what there is to pick from. */
+  tags: readonly string[]
 }) {
-  const serializedTags = condition.tags.join(", ")
-  const [draft, setDraft] = React.useState(serializedTags)
-
-  return <Input className="sm:flex-1" value={draft} maxLength={MEMBER_TAG_MAX_LENGTH} placeholder={placeholder} aria-label={`Tags for rule ${index + 1}`} aria-invalid={incomplete || undefined} onChange={(event) => {
-    const nextDraft = event.target.value
-    const tags = nextDraft.split(",").map((tag) => tag.trim()).filter(Boolean)
-    setDraft(nextDraft)
-    onChange({ ...condition, tags })
-  }} />
+  return (
+    <MultiCombobox
+      className="sm:flex-1"
+      value={condition.tags}
+      options={tags}
+      placeholder="Pick tags"
+      searchPlaceholder="Search tags"
+      emptyLabel="No contact carries a tag yet"
+      noMatchLabel="No tag matches that"
+      invalid={incomplete}
+      aria-label={`Tags for rule ${index + 1}`}
+      onChange={(next) => onChange({ ...condition, tags: next })}
+    />
+  )
 }
 
 function ConditionRow({
@@ -284,7 +301,7 @@ function ConditionRow({
                 onChange({ ...condition, operator: operator as "includes" | "excludes" })
               }
             />
-            <TagConditionInput condition={condition} index={index} placeholder={options.tags.slice(0, 2).join(", ")} incomplete={incomplete} onChange={onChange} />
+            <TagConditionInput condition={condition} index={index} tags={options.tags} incomplete={incomplete} onChange={onChange} />
           </>
         ) : null}
 
