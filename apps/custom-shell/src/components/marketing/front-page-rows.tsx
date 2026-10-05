@@ -26,6 +26,7 @@ import {
   type FrontPageRow,
 } from "@/lib/pages/front-page"
 import { publicDeviceRowClassName } from "@/lib/pages/public-device"
+import { PUBLIC_FRONT_PAGE_ROW_GAP_PHONE_SHARE } from "@/lib/public-theme"
 import { cn } from "@/lib/utils"
 
 /**
@@ -50,6 +51,32 @@ function frontPageRowAction(
     href.trim()
     ? { label, href }
     : null
+}
+
+/**
+ * A row's own air, as the two variables theme.css picks between.
+ *
+ * It cannot be one inline `margin-block`, for the reason the hero's spacing
+ * cannot be one inline `padding-block`: an inline value beats a media query,
+ * so a number written here could never be smaller on a phone. A side the block
+ * has not set writes nothing at all, and theme.css falls back to half the
+ * page's own Space between blocks.
+ */
+function rowSpaceStyle(row: FrontPageRow): CSSProperties | undefined {
+  const sides: Record<string, string> = {}
+  if (row.spaceAbove !== null) {
+    sides["--shell-row-space-above"] = `${row.spaceAbove}px`
+    sides["--shell-row-space-above-phone"] = `${Math.round(
+      row.spaceAbove * PUBLIC_FRONT_PAGE_ROW_GAP_PHONE_SHARE
+    )}px`
+  }
+  if (row.spaceBelow !== null) {
+    sides["--shell-row-space-below"] = `${row.spaceBelow}px`
+    sides["--shell-row-space-below-phone"] = `${Math.round(
+      row.spaceBelow * PUBLIC_FRONT_PAGE_ROW_GAP_PHONE_SHARE
+    )}px`
+  }
+  return Object.keys(sides).length ? (sides as CSSProperties) : undefined
 }
 
 export function FrontPageRows({
@@ -90,8 +117,10 @@ export function FrontPageRows({
 
   return (
     <div
-      // The gap between rows is set in theme.css, so flat mode can collapse it
-      // and a phone and a desktop can have different ones.
+      // The space between rows is set in theme.css, so flat mode can collapse
+      // it and a phone and a desktop can have different ones. It is each row's
+      // own margin rather than this grid's `gap`, because a gap belongs to the
+      // container and a block has to be able to name its own.
       className={cn("grid w-full", publicContentAlignmentGridClassName)}
       data-front-page-rows=""
     >
@@ -175,6 +204,7 @@ export function FrontPageRows({
               background ? "relative isolate" : null,
               publicDeviceRowClassName(row.device)
             )}
+            style={rowSpaceStyle(row)}
             data-front-page-row={row.kind}
             data-front-page-layout={row.layout}
             data-front-page-device={row.device}

@@ -304,6 +304,15 @@ export const MAX_FRONT_PAGE_HERO_SPACING = 240
  */
 export const FRONT_PAGE_HERO_SPACING_PHONE_SHARE = 0.75
 
+/**
+ * The most air one block may ask for above or below itself, in pixels.
+ *
+ * The same ceiling as the page's own Space between blocks, because these two
+ * numbers are the same kind of thing: one is the gap the page gives every
+ * block, the other is the gap this block asks for instead.
+ */
+export const MAX_FRONT_PAGE_ROW_SPACE = 160
+
 export const FRONT_PAGE_ROW_HEADING_MESSAGE = "Give the row a heading."
 export const FRONT_PAGE_HERO_LINK_MESSAGE =
   "A button link starts with /, https://, mailto: or tel:."
@@ -344,6 +353,23 @@ type FrontPageRowBase = {
   hidden: boolean
   /** Which screens the row is drawn on. */
   device: PublicDevice
+  /**
+   * The air this block asks for above and below itself, in pixels, or null to
+   * take the page's own Space between blocks.
+   *
+   * **Each side is the block's own half of a gap, and the two halves add up.**
+   * The page's number is split between the two blocks it separates, so a page
+   * at the default 80 gives every block 40 above and 40 below and the gap
+   * between any two of them is still 80. A block that sets 0 below and leaves
+   * the next one alone makes that gap 40; both at 0 makes them touch. Tyler
+   * chose adding over "the bigger one wins" on 5 Oct 2026, because a block
+   * owning its own air is the rule with nothing to remember.
+   *
+   * Null rather than a number, so a block saved before these existed takes the
+   * page's number and keeps doing so when the page's number changes.
+   */
+  spaceAbove: number | null
+  spaceBelow: number | null
 }
 
 export type FrontPageTestimonial = {
@@ -509,9 +535,12 @@ export function createFrontPageRowDraft(
   kind: FrontPageRowKind
 ): FrontPageRowDraft {
   const base = {
-    // A divider never shows words on the page, so it is named for the admin
-    // straight away rather than making them invent a name for a line.
-    heading: kind === "divider" ? "Divider" : "",
+    // Named after its kind from the start, so the block is something the page
+    // can draw the moment it is picked and joins the page there and then.
+    // Left empty it was a block nobody could add without first typing a
+    // heading, which read as a block that could not be added at all. Typing
+    // over the name is the first thing anybody does.
+    heading: FRONT_PAGE_ROW_KIND_LABELS[kind],
     intro: "",
     layout: "wide",
     alignment: "inherit",
@@ -527,6 +556,10 @@ export function createFrontPageRowDraft(
     showNumbers: true,
     showCaptions: true,
     device: "all",
+    // Null, not a number: a new block takes the page's spacing and keeps
+    // following it until somebody moves one of these sliders.
+    spaceAbove: null,
+    spaceBelow: null,
   } as const
 
   if (kind === "hero") {
@@ -576,11 +609,18 @@ export function createFrontPageRowDraft(
  * A new block of a kind the app added. It carries no settings at all, because
  * what an app's fields mean is the app's business — its own panel fills them.
  */
-export function createAppFrontPageRowDraft(appKind: string): FrontPageRowDraft {
+export function createAppFrontPageRowDraft(
+  appKind: string,
+  label?: string
+): FrontPageRowDraft {
   return {
     ...createFrontPageRowDraft("text"),
     kind: APP_FRONT_PAGE_ROW_KIND,
     appKind,
+    // The app's own name for the kind, so one of its blocks arrives named the
+    // way the shell's own do. Without the label it falls back to the plain
+    // kind's name, which is still something the page can draw.
+    heading: label?.trim() || FRONT_PAGE_ROW_KIND_LABELS.text,
     settings: {},
   }
 }
@@ -637,6 +677,93 @@ export function normalizeFrontPageHeroHref(value: unknown) {
  * the three fields that need it, because three copies of the same four lines
  * is where one of them quietly stops matching the others.
  */
+/**
+ * Why this block cannot go on the page yet, in the admin's words, or null when
+ * it can.
+ *
+ * Every answer here is also a rule `normalizeFrontPageRows` enforces, so the
+ * sentence and the storage agree: a block this function is happy with is one
+ * that function keeps, and a block it names a problem with is one that
+ * function would drop. The editor writes a block only once this answers null,
+ * because writing one it would drop deletes it.
+ */
+export function frontPageBlockProblem(
+  draft: FrontPageRowDraft
+): string | null {
+  if (!draft.heading.trim()) return FRONT_PAGE_ROW_HEADING_MESSAGE
+  if (draft.kind === "hero") {
+    if (
+      draft.background.trim() &&
+      !normalizeFrontPageHeroBackground(draft.background)
+    ) {
+      return FRONT_PAGE_HERO_BACKGROUND_MESSAGE
+    }
+    if (draft.action === "email" && !draft.buttonLabel.trim()) {
+      return "Give the email form's button its wording."
+    }
+    if (draft.action === "button") {
+      if (draft.buttonLabel.trim() && !draft.buttonHref.trim()) {
+        return "Give the hero button a link, or clear its wording."
+      }
+      if (draft.buttonHref.trim() && !draft.buttonLabel.trim()) {
+        return "Give the hero button its wording, or clear its link."
+      }
+      if (
+        draft.buttonHref.trim() &&
+        normalizeFrontPageHeroHref(draft.buttonHref) !==
+          draft.buttonHref.trim()
+      ) {
+        return FRONT_PAGE_HERO_LINK_MESSAGE
+      }
+    }
+    return null
+  }
+  // An empty list is not a problem: the block goes on the page with its
+  // heading and fills up later. A half-typed entry is, because the store drops
+  // one of those and the words in it would go with it.
+  if (draft.kind === "testimonials") {
+    if (draft.items.some((item) => !item.name.trim() || !item.quote.trim())) {
+      return "Give every testimonial a name and quote."
+    }
+    return null
+  }
+  if (draft.kind === "faq") {
+    if (
+      draft.items.some((item) => !item.question.trim() || !item.answer.trim())
+    ) {
+      return "Give every FAQ entry a question and answer."
+    }
+    return null
+  }
+  if (draft.kind === "logos") {
+    if (draft.items.some((item) => !item.image || !item.alt.trim())) {
+      return "Choose every logo image and give it a name."
+    }
+    return null
+  }
+  if (draft.kind === "screenshots") {
+    if (draft.items.some((item) => !item.image || !item.caption.trim())) {
+      return "Choose every screenshot image and give it a caption."
+    }
+    return null
+  }
+  return null
+}
+
+/**
+ * One side's air, or null for "take the page's number".
+ *
+ * Anything that is not a number in range reads as null, so a hand-edited row
+ * can only ever fall back to the page's own spacing. Zero is a real answer and
+ * has to survive, which is why this cannot lean on a falsy check.
+ */
+export function normalizeFrontPageRowSpace(value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null
+  const whole = Math.round(value)
+  if (whole < 0 || whole > MAX_FRONT_PAGE_ROW_SPACE) return null
+  return whole
+}
+
 function wholeNumberInRange(value: unknown, fallback: number, max: number) {
   if (typeof value !== "number" || !Number.isFinite(value)) return fallback
   return Math.min(max, Math.max(0, Math.round(value)))
@@ -829,6 +956,8 @@ export function normalizeFrontPageRows(value: unknown): FrontPageRow[] {
       // existed has no value at all and has to stay on the page.
       hidden: source.hidden === true,
       device: normalizePublicDevice(source.device),
+      spaceAbove: normalizeFrontPageRowSpace(source.spaceAbove),
+      spaceBelow: normalizeFrontPageRowSpace(source.spaceBelow),
     } as const
     const rowBase = () => ({
       id: safeId(source.id, `front-page-row-${index + 1}`, usedIds),
@@ -889,18 +1018,29 @@ export function normalizeFrontPageRows(value: unknown): FrontPageRow[] {
           MAX_FRONT_PAGE_HERO_SPACING
         ),
       })
+      // The four kinds below are lists, and an empty one is kept rather than
+      // dropped. A block with a heading is a block the page can draw: an FAQ
+      // with no questions draws its heading and nothing under it, which is
+      // exactly what somebody who has just added one is looking at. Dropping
+      // it meant the block could never be written at all and sat in the list
+      // marked "Not added yet" with no way out. Tyler found it there on
+      // 5 Oct 2026.
+      //
+      // An entry that is half typed is still dropped, by the item normalisers
+      // below, which is why the editor will not write a block while one of
+      // those is on screen.
     } else if (kind === "testimonials") {
-      const items = normalizeTestimonials(source.items)
-      if (items.length) rows.push({ ...rowBase(), kind, items })
+      rows.push({ ...rowBase(), kind, items: normalizeTestimonials(source.items) })
     } else if (kind === "faq") {
-      const items = normalizeFaqItems(source.items)
-      if (items.length) rows.push({ ...rowBase(), kind, items })
+      rows.push({ ...rowBase(), kind, items: normalizeFaqItems(source.items) })
     } else if (kind === "logos") {
-      const items = normalizeLogos(source.items)
-      if (items.length) rows.push({ ...rowBase(), kind, items })
+      rows.push({ ...rowBase(), kind, items: normalizeLogos(source.items) })
     } else if (kind === "screenshots") {
-      const items = normalizeScreenshots(source.items)
-      if (items.length) rows.push({ ...rowBase(), kind, items })
+      rows.push({
+        ...rowBase(),
+        kind,
+        items: normalizeScreenshots(source.items),
+      })
     } else if (kind === "words") {
       rows.push({ ...rowBase(), kind, body: cleanWrittenPageBody(source.body) })
     } else if (kind === "divider") {

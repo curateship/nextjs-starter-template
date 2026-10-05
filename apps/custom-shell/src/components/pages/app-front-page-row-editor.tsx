@@ -1,7 +1,7 @@
 import * as React from "react"
 import type { ComponentType } from "react"
 
-import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
+import { InspectorCard } from "@/components/shared/inspector-card"
 import { LoadingRow } from "@/components/ui/loading-row"
 import type {
   AppFrontPageRowEditorProps,
@@ -52,12 +52,10 @@ export function AppFrontPageRowEditor({
   const Panel = lazyPanelFor(kind)
 
   return (
-    <CollapsibleSettingsCard
-      size="sm"
+    <InspectorCard
       storageId={`front-page-row-app-${kind.key}`}
       title={kind.label}
       description={kind.hint}
-      contentClassName="grid gap-4"
     >
       <React.Suspense fallback={<LoadingRow label={`Loading ${kind.label}…`} />}>
         {/* Built with `createElement` rather than as `<Panel />` so it is plain
@@ -65,6 +63,6 @@ export function AppFrontPageRowEditor({
             here. */}
         {React.createElement(Panel, { settings, disabled: false, onChange })}
       </React.Suspense>
-    </CollapsibleSettingsCard>
+    </InspectorCard>
   )
 }

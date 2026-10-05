@@ -46,6 +46,7 @@ local setup docs.
 - [Alignment and parts of a front page row](content/front-page-row-alignment-and-parts.md)
 - [The divider row](content/front-page-divider-rows.md)
 - [A hero's background colour](content/hero-background-colour.md)
+- [The hero's email box](content/hero-email-box.md)
 
 ## CRM
 

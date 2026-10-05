@@ -11,14 +11,27 @@ does not belong in settings.
   with its name and the line that says what it shows. The shell's own kinds come
   first and the app's own kinds after them, under their own heading. Clicking a
   card makes the block and opens it on the right, so one click gets from here to
-  typing.
+  typing. A card can also be dragged into the middle panel, which is how a
+  block lands between two that are already there. The pointer has to travel 8px
+  before it counts as a drag, the same distance every other list in the app
+  uses, so a click is still a click.
 - **Middle, Front page.** This page's blocks, top to bottom, in the order a
   visitor reads them. Each row says its kind, its width, its alignment when it
   is not following the site, which screens it is drawn on when that is not all
   of them, and **Hidden** when it is. Dragging the grip changes the order;
   clicking a row opens it on the right.
 - **Right.** The fields of whatever is selected. With nothing selected it holds
-  the page's own settings instead.
+  the page's own settings instead, and the X at the right-hand end of its
+  header is the way back to them.
+
+**The right panel is drawn the same way the newsletter editor's is.** Its cards
+are `InspectorCard` from `src/components/shared/inspector-card.tsx`: a grey box
+with a border, a heading and an arrow that is always there rather than revealed
+on hover. Tyler asked for the two panels to match on 5 October 2026; this panel
+used the white `CollapsibleSettingsCard` the Settings screens use until then,
+and a white card on a white panel reads as one long list instead of a set of
+groups. The Settings screens keep the white card, because a settings page is a
+column of cards on a grey canvas and the problem does not arise there.
 
 **There is no bottom panel.** A bottom panel's job on the other workspace
 screens is the detail for one row of the list above it, and a block has no rows.
@@ -30,33 +43,98 @@ it again. This browser remembers the widths.
 A phone gets one panel at a time, as three tabs: Blocks, Add, and the third
 being whatever the right panel is holding.
 
-## A block joins the page when it is finished, not while it is typed
+## A block saves itself, once it has enough to draw
 
-A new block sits in the middle panel marked **Not added yet** until **Add
-block** is pressed. Everything else on the screen saves itself the moment it
-changes, so this is the one place with a button.
+There is no Save button and no Cancel. A block writes itself a moment after the
+typing stops, the way every other screen in the app does, and the sticky header
+says Saving… and then Saved. Tyler asked for this on 5 October 2026; the panel
+had a footer with **Cancel** and **Save changes** until then.
 
-It works that way because of what the save does. The settings save stores the
-blocks through `normalizeFrontPageRows`, and that function **drops a block it
-could not draw**: a testimonials block with no testimonials, an FAQ with no
-questions, a logo strip with no logos, anything with no heading. A half-built
-block written straight to the settings would be deleted by its own save while
-somebody was still typing into it. So the panel refuses instead, and says what
-is missing:
+**A kind is dragged onto the list, or added with the plus on its card.**
+Clicking the card itself does nothing: Tyler's call on 5 October 2026, because
+a list of cards you read by pointing at them must not build a page while you
+read it. The plus appears when the pointer or the keyboard reaches the card,
+and it is also how a keyboard adds a block, since a drag has no keyboard.
 
-- a heading, on every kind
-- at least one complete entry, on testimonials, FAQ, logos and screenshots
+**A block joins the page the moment it is added**, named after its kind — a new
+plain text block is called "Plain text" until you type over it. It arrives
+named for a reason: a block with no heading is one the store drops, so an
+unnamed new block could not be written at all.
+
+**Dragging a kind onto the list is the other way in**, and the one that decides
+where the block lands. **The list makes way**: a space the shape of a block
+opens where it would go, named after what is being carried, and the blocks
+below move down to leave room for it. Which half of a block the pointer is over
+decides which side the space opens on, so a block can be dropped last as easily
+as first. The space grows rather than appearing, because a list that jumps 66px
+in one frame reads as the page breaking rather than as the page making room.
+
+The block is written first and moved into place afterwards, because a block has
+to exist before it can be put in order. **It waits where it was dropped while
+that happens**, rather than at the end of the list: the write appends and the
+order follows it, so a block drawn where the write put it would appear at the
+bottom and then move, which is a block somebody has to watch travel.
+
+**Where the space goes is worked out from where the blocks were when the drag
+arrived, measured once.** The space pushes every block below it down, so a drop
+worked out from where the blocks are *now* is worked out from positions the
+space itself moved: the pointer ends up over the space, the space jumps to the
+end, the blocks come back, the pointer is over a block again, and round it
+goes. That loop is what made the list skip about while it was being dragged
+over. One handler on the panel answers for the whole list, and no block answers
+for itself.
+
+**The name on the space cannot travel on the drag.** A browser hands
+`dataTransfer.getData` back empty until the moment of the drop, so the list
+would have nothing to call the space it is opening. Both panels are in one
+React tree, so the left panel passes the name up as the drag starts and the
+editor hands it down. With no name the space says "It lands here", which is
+what a drag from outside the app would get.
+
+**The two drags on this screen are two different mechanisms, deliberately.**
+Reordering the blocks is dnd-kit, the way every sortable list in the app is.
+Carrying a kind in from the left panel is the browser's own drag, the way the
+automation palette does it. They were briefly both dnd-kit, in one context
+wrapping both panels, and that broke reordering: a context holding a sortable
+list and a card dragged in from outside turns the whole list into one drop
+target, so a row being dragged has no row to land on and nothing happens. The
+two have nothing to say to each other, so they never share a context.
+
+**An empty testimonials, FAQ, logo strip or screenshots block is kept**, and
+draws its heading with nothing under it until the first entry is filled in.
+Those four used to be dropped by the store while they were empty, which meant
+one could never be written at all: an FAQ added from the left panel sat in the
+list marked "Not added yet" with nothing anybody could do about it. Tyler found
+one there on 5 October 2026.
+
+**A half-typed entry is still a reason to wait.** The store drops an entry
+missing its question, its answer, its picture or its name, so writing the block
+while one is being typed would throw those words away. The editor holds the
+write until the entry is complete, and the block is already on the page by
+then, so nothing on screen says anything about it.
+
+The other rules the store keeps, and the editor waits for in the same way:
+
+- a heading, on every kind, which a new block arrives with
 - both the wording and the link on a hero button, or neither
 - a background colour that is a real colour
 
-A saved block is edited the same way: change what you like, then **Save
-changes**. Clicking another block, or pressing Escape, with unsaved edits in the
-panel asks before throwing them away.
+**A new block is given its id when it is picked, not when it is first saved.**
+The write is an upsert on that id, so a second keystroke arriving before the
+first answer updates the block being made rather than putting a second copy of
+it on the page.
 
-**What is stored is what the panel shows.** Pressing Save puts the block through
-the same normaliser the settings save uses, and the list shows the result. So a
-heading typed with spaces around it comes back trimmed, rather than looking one
-way on this screen and another way after a reload.
+**Leaving the panel saves what can be saved.** The X at the right-hand end of
+the panel's header closes it and goes back to the page's own settings, and so
+does Escape. Either one writes the block first rather than waiting out the
+timer, so closing never loses the last thing typed. The only thing that still
+asks a question is leaving a block that **cannot** be saved, because that is the
+only work leaving can throw away.
+
+**What is stored is what the page draws.** The save puts the block through the
+same normaliser the read uses, so a heading typed with spaces around it is
+stored trimmed. The panel keeps what was typed while it is open, and the list
+beside it shows what was stored.
 
 ## What a block can hold
 
@@ -118,7 +196,47 @@ than to anything on it:
 - **Spacing** is the front page's gap between one block and the next, 0 to 160
   pixels, 80 by default. A phone draws 70% of it. The number is saved with the
   public styling rather than with the blocks, so a site that sets its own public
-  look sets its own spacing too.
+  look sets its own spacing too. A block can ask for something else on either
+  of its sides; the next section is how.
+
+## A block can set its own spacing
+
+Every block has a **Spacing** card of its own, holding **Space above** and
+**Space below**, 0 to 160 pixels each. Until one of them is moved both say
+"Page default" and the block follows the page's own number.
+
+**Each block keeps half of each gap, and the two halves add up.** A page set to
+80 gives every block 40 above and 40 below, so two blocks still sit 80 apart.
+That is the rule to hold on to, because it is what makes the numbers
+predictable:
+
+- One block sets 0 below, the next leaves its own alone: 0 + 40, so 40 between
+  them.
+- One block leaves its own alone, the next sets 120 above: 40 + 120, so 160.
+- Both set 0: nothing between them, and the blocks touch.
+
+Tyler chose adding over "the bigger number wins" on 5 October 2026. A block
+owning its own air is the rule with nothing to remember, and it is the only one
+where a single block can always close a gap on its own.
+
+**The first block's Space above and the last block's Space below start at
+nothing**, not at half the page's number, because there is no block on that
+side to be spaced from. The air above the first block belongs to the page. A
+block that names that side still gets exactly what it asked for.
+
+**A phone draws 70% of whatever these say**, the same share the page's own
+number gets, so a gap that separates two blocks on a desktop is not most of a
+phone screen. **Flat mode collapses them both**, because flat is the whole site
+asking for no air and a page where half the blocks kept their gaps would be
+neither one thing nor the other.
+
+**Follow the page again** appears under the two sliders once either side has
+been set, and puts both back to the page's number.
+
+This is not the hero's own **Space above and below**, which is a different
+thing in a similar name. The hero's is padding inside its background colour, so
+a hero with a band draws the colour across that air. These two are the gap
+outside the block entirely, where no background reaches.
 
 ## Adding a page
 
