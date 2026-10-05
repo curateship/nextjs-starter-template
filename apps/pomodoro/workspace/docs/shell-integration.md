@@ -9,11 +9,20 @@ future merge. The app's own code is the `_pomodoro` product shell, the six
 
 ## What this app claims from the shell
 
-`src/app/options.ts` claims one thing: the front door. `/` serves the timer,
-guests included, so the shell's own front page — the pricing landing page and
+`src/app/options.ts` claims two things. The first is the front door: `/` serves
+the timer, guests included, so the shell's own front page — the pricing landing page and
 the front page rows an admin builds in Settings → Public → Pages → Front page —
 is not what a visitor to this app's root sees. Those rows still exist and are
 still editable; nothing draws them here.
+
+The second is the public brand colour. `publicTheme` names the Pomoder orange
+and the Pomoder corner radius, so the five signed-out pages that stay on the
+shell's frame — `/login`, `/register`, `/pricing`, `/search` and the
+missing-page screen — at least share the product's accent. Only those two
+fields are named: a value saved in Settings → Styling replaces whatever is
+named there, and everything left out keeps the shell's own look. Why those
+five pages cannot have the product shell is in
+[the plans page](plans-page.md).
 
 `src/app/server-options.ts` adds four background workers: the room clock,
 booked rooms, members' media re-encodes and AI generations. Each is this app's,

@@ -4,7 +4,7 @@
  * theme.css is never edited.
  *
  * The look belongs to the frontend only: the member-facing screens, which
- * render the PomodoroScreen wrapper and its data-pomodoro-screen marker
+ * render the PomodoroShell wrapper and its data-pomodoro-screen marker
  * (the stage for the old app's product UI — dark canvas, orange ring, its own
  * sidebar). The admin and shell screens never render the marker and keep the
  * standard shell look, exactly as the old app's admin did.
@@ -23,7 +23,7 @@
  * in one block is overridden in both, or the light block would beat the
  * shell's .dark block for that variable.
  *
- * Imported by pomodoro-screen.tsx, so this sheet arrives with the first
+ * Imported by pomodoro-shell.tsx, so this sheet arrives with the first
  * member screen and never loads on the admin or shell screens. The fonts load
  * through the FontFace API in fonts.ts rather than @font-face here — a
  * bundler that ever pulls this sheet server-side (the worker's esbuild has no
