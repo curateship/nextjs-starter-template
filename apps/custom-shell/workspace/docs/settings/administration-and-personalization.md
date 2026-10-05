@@ -1,39 +1,45 @@
 # Administration and personalization
 
 Settings is the control room for the active workspace and platform. The rail is
-two cards, and the line between them is what the app is allowed to decide.
+two cards, and the line between them is who wrote the screen: the shell wrote
+everything in the first card, and the app wrote everything in the second.
 
-**Platform settings** is the shell's half, and no app may take any of it over:
-General settings, Navigation, Widgets, Styling, Email, Payments. All six are
-about the signed-in workspace an admin works in.
+**Platform settings** is every screen the shell draws, in three blocks:
 
-**App settings** is everything an app may take over, in three blocks:
-
-- The app's own rows first, with no heading, because the card already names
-  them and they are the reason an admin opens it.
+- The admin's own rows first, with no heading, because the card's own title
+  already names them: General settings, Navigation, Widgets, Styling, Email,
+  Payments.
 - **Members**: Navigation, the member sidebar and member top right menu.
-- **Public**: Navigation for the signed-out header layout and links, Styling
-  for the site's colours and frame, Pages for system-page wording, SEO for
-  site-wide search defaults, and Social for X card choices.
+- **Public**: Navigation for the signed-out header layout and links, Styling for
+  the site's colours and frame, SEO for site-wide search defaults, and Social
+  for X card choices.
 
-Members and Public are the two audiences that are not the admin, and that is
-the only cut that survives an app adding things. The rows under each heading
-carry short names because the heading is what says whose Navigation and whose
-Styling they are, and a heading is drawn at the same size and weight as the
-card's own title.
+Members and Public are the two audiences who are not the admin. The rows under
+each heading carry short names because the heading is what says whose Navigation
+and whose Styling they are, and a heading is drawn at the same size and weight
+as the card's own title.
+
+**App settings** holds what the app itself added, and nothing else. The card is
+always drawn, so an admin can tell at a glance whether this app has settings of
+its own. An app that added none gets the sentence "This app has no settings of
+its own." rather than an empty box, which is what Custom Shell itself shows.
 
 The card is called **App settings** in every app rather than after the app. The
 app's name is an editable field, so the card would rename itself the moment
 somebody changed it, and an admin already knows which app they are in.
 
-Two things moved to get here, both on 25 Sep 2026. Security, Notifications,
-Storage and AI stopped being rows and became cards on General settings; each was
-a single card already. Then the public rows moved out of the shell's card into
-the app's, because the shell can scaffold a public site and cannot be right
-about one for every app. The rail went from 16 rows in three cards to 6 and 6 in
-two. An address saved before the first change, such as `/admin/settings/security`,
-opens General settings, because an unknown tab id falls back to General and
-General is where that content now lives.
+Three things moved to get here. On 25 Sep 2026, Security, Notifications, Storage
+and AI stopped being rows and became cards on General settings; each was a single
+card already. On the same day the Members and Public rows moved into the app's
+card, on the reasoning that the shell can scaffold a public site and cannot be
+right about one for every app. **Tyler's call on 5 Oct 2026 moved them back.**
+Every one of those screens is the shell's own, writing the shell's `ShellConfig`,
+so they belong beside the shell's other rows, and an app's card that is mostly
+the shell's work says the wrong thing about what the app did. An app may still
+take a row over, which is a separate question from which card draws it. An
+address saved before any of this, such as `/admin/settings/security`, opens
+General settings, because an unknown tab id falls back to General and General is
+where that content now lives.
 
 Sidebar section cards have 16px between them, matching the containing card's
 16px content inset. Add section and Reset all to defaults sit inside that
@@ -65,16 +71,17 @@ the page's own save still shows. `use-reported-save-status.ts` holds that rule.
 ## An app's own settings rows
 
 An app adds rows to the App settings card through `settings.tabs` in its
-`src/app/options.ts`. They appear above Members. An app that adds nothing still
-gets the card, opening on the Members heading.
+`src/app/options.ts`. Those rows are the whole of that card.
 
-**An app may also take over any row the shell put there.** It registers a tab
-with that row's id, and its own screen takes that place and keeps the position,
-so Public → Styling stays between Navigation and Pages whoever draws it. The six
-claimable ids are `member-navigation`, `public-navigation`, `public-styling`,
-`public-pages`, `public-seo` and `public-social`, listed as
-`REPLACEABLE_SETTINGS_TAB_IDS` in `lib/app-options.ts`. Every id on Platform
-settings is still refused out loud, and so is an id an app used twice.
+**An app may also take over a Members or Public row.** It registers a tab with
+that row's id, and its own screen takes that place and keeps the position in the
+Platform card, so Public → Styling stays between Navigation and SEO whoever draws
+it. A claimed row does not move into the App settings card: an admin looks for
+public styling where public styling has always been, not under a different
+heading because a different team wrote it. The five claimable ids are
+`member-navigation`, `public-navigation`, `public-styling`, `public-seo` and
+`public-social`, listed as `REPLACEABLE_SETTINGS_TAB_IDS` in `lib/app-options.ts`.
+The admin's own six rows are refused out loud, and so is an id an app used twice.
 
 Two reasons a real app needs this. Pomodoro's member pages draw their own
 sidebar from a list in its own code and never read `memberSections`, so the

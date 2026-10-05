@@ -58,20 +58,23 @@ describe("Navigation settings", () => {
     )
   })
 
-  it("puts the rail in two cards, and everything claimable in the app's", () => {
+  it("puts Members and Public in the Platform card, above an empty app card", () => {
     const html = markup("general")
     expect(html).toContain("Platform settings")
     expect(html).toContain("App settings")
-    // Members and Public are blocks of the App settings card. The rows under
-    // them keep short names; the heading is what says whose Navigation it is.
+    // Members and Public are blocks of the Platform settings card. The rows
+    // under them keep short names; the heading says whose Navigation it is.
     expect(html).toContain(">Members<")
     expect(html).toContain(">Public<")
-    // Platform settings ends at Payments, so the Public rows sit after the
-    // App settings title rather than before it.
+    // Both headings sit between the two card titles, which is what puts them
+    // in the first card rather than the second.
     const platform = html.indexOf("Platform settings")
     const appCard = html.indexOf("App settings")
-    expect(platform).toBeLessThan(appCard)
-    expect(appCard).toBeLessThan(html.indexOf(">Public<"))
+    expect(platform).toBeLessThan(html.indexOf(">Members<"))
+    expect(html.indexOf(">Public<")).toBeLessThan(appCard)
+    // The shell adds no settings tabs of its own, so its App settings card
+    // says so instead of drawing an empty box.
+    expect(html).toContain("This app has no settings of its own.")
     // The four that became cards on General settings are no longer rows.
     expect(html).toContain("AI provider keys")
     expect(html).toContain("Cloudflare R2")

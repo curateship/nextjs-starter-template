@@ -491,8 +491,12 @@ html[data-public-button-casing="uppercase"] [data-slot="button"] {
 }
 
 @layer base {
+  /* The border colour is NOT set here. `border-first.css` owns it, imported
+     first by `styles.css` so the lines are not drawn black for the first frames
+     of a fresh load. Two homes for one rule and the later one silently wins, so
+     there is only the one. */
   * {
-    @apply border-border outline-ring/50;
+    @apply outline-ring/50;
     }
 
   body {

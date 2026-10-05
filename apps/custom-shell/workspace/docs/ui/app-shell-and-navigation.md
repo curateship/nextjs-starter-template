@@ -33,6 +33,31 @@ for both.
 The address under the name is drawn only for an admin. It is there to tell two
 sites apart, and a member has only the one.
 
+### Hovering the name opens the site
+
+Putting the pointer anywhere on that block shows an external-link button beside
+the name, and it opens the site in a new tab. It is for the question an admin
+asks all day, which is what this looks like to somebody who is not signed in,
+and it saves retyping the address or going through the switcher menu.
+
+- **It keeps its 28px whether or not it is showing**, so the name does not
+  reflow under the pointer the moment the button appears.
+- **A keyboard reaches it**, because focus reveals it the same way hover does.
+- **On a phone it is simply always drawn**, since a touch screen has no hover
+  and a button nobody can reveal is a button nobody has.
+- **It carries no tooltip.** Tyler's instruction on 5 Oct 2026. The button only
+  appears once the pointer is already on the block, so a label arriving a beat
+  later repeats what the icon has just said. It keeps its `aria-label`, because
+  a screen reader never sees the icon. This is the exception to the rule that an
+  icon-only button outside a table row gets a tooltip.
+- **It goes to the active site's own address**, the same rule the switcher
+  menu's Open buttons use: a workspace's real domain only from a deployment,
+  `name.localhost:3002` on a developer's machine, and the deployment's own front
+  page where there is no workspace to ask about. `workspace-switcher.tsx` holds
+  that rule once and both buttons read it. Opening the real domain from
+  localhost showed somebody the live site when they had asked to see their own
+  edits.
+
 The header used to render nothing at all for a member. The workspace list is
 the sites a person may switch to, a member owns none, so their list arrived
 empty and there was nothing to name. The name and logo now come from the shell

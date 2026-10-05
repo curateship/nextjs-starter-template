@@ -12,6 +12,29 @@
   `border` / `border-b` / `border-t` with no color class, so they take
   `--border`, the variable the Divider lines setting writes. Card and surface
   hairlines come from the card border width and color settings.
+- **The colour is set at the top of the stylesheet, never at the bottom and
+  never from a component.** Tailwind's preflight resets everything to
+  `border: 0 solid` and names no colour, so a border with no colour named is
+  drawn in the text colour, which is near-black. `src/border-first.css` is the
+  one rule that fixes that, and `src/styles.css` imports it before anything
+  else. The browser paints while it parses: with the rule at the bottom of
+  `theme.css` it was 169,737 bytes into a 187,805-byte file, so in development,
+  where the stylesheet arrives through a script instead of a render-blocking
+  `<link>`, every divider on the page was a solid black line for the first
+  frames of a fresh load. It is now 200 bytes in. The rule is in the
+  `components` layer, because preflight's `border: 0 solid` is a shorthand that
+  resets the colour and preflight is in `base`. The literal colour in its
+  fallback is there because `:root` is near the bottom too, so for those first
+  frames the lines are drawn in the colour they are about to become.
+- **Two fixes for this were tried and reverted, and neither is to be repeated.**
+  A React-rendered `<style>` tag in the root `<head>` (9 Aug 2026) made React
+  redraw the tag on every navigation, which restyles every element on the page,
+  and Tyler reported the whole app visibly juddering on each click. Splitting
+  `@import "tailwindcss"` into its theme, preflight and utilities parts
+  (5 Oct 2026) made Vite serve those three as separate modules, and on a
+  throttled fresh load the public page stayed unstyled — mobile header at
+  desktop width, pricing cards overlapping their own headings — for more than
+  four seconds, against under 400ms before. Leave that import whole.
 - **Dividers run edge to edge.** A divider inside a padded container pulls
   itself out to the surface's edges with negative margins matching the
   padding, and puts the inset back on its own content, so the line never

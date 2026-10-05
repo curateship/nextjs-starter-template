@@ -1,3 +1,8 @@
+/* The layer order Tailwind declares, repeated here because `border-first.css`
+   is read before Tailwind is and has to land in a layer that already has its
+   place in the order. That file says why it is first and why it is not base. */
+@layer theme, base, components, utilities;
+@import "./border-first.css" layer(components);
 @import "./theme.css";
 
 @source "./";
