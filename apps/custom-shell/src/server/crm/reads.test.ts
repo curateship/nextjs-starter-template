@@ -205,6 +205,57 @@ describe("the reads the CRM screen makes", () => {
       expect(due.map((row) => row.id)).toEqual(["thread-1"])
     })
 
+    /**
+     * Both orders, run against a real database rather than type checked.
+     * `asc(sql`col nulls last`)` builds SQL Postgres refuses and passes every
+     * type check, which is the whole reason this file exists.
+     */
+    it("puts the longest waiting first, and newest first puts it last", async () => {
+      const newest = await listInboxThreads(
+        workspaceId,
+        { sort: "newest" },
+        db
+      )
+      expect(newest.map((row) => row.id)).toEqual(["thread-1", "thread-2"])
+
+      const oldest = await listInboxThreads(
+        workspaceId,
+        { sort: "oldest" },
+        db
+      )
+      expect(oldest.map((row) => row.id)).toEqual(["thread-2", "thread-1"])
+    })
+
+    it("orders newest first when no order is asked for", async () => {
+      const threads = await listInboxThreads(workspaceId, {}, db)
+      expect(threads.map((row) => row.id)).toEqual(["thread-1", "thread-2"])
+    })
+
+    it("keeps the order over the same filtered set", async () => {
+      const oldest = await listInboxThreads(
+        workspaceId,
+        { sort: "oldest", status: "all" },
+        db
+      )
+      expect(oldest.map((row) => row.id)).toEqual(["thread-2", "thread-1"])
+    })
+
+    /** One row per page, so paging is what the order has to survive. */
+    it("pages through the longest-waiting order without repeating a row", async () => {
+      const first = await listInboxThreads(
+        workspaceId,
+        { sort: "oldest", limit: 1, offset: 0 },
+        db
+      )
+      const second = await listInboxThreads(
+        workspaceId,
+        { sort: "oldest", limit: 1, offset: 1 },
+        db
+      )
+      expect(first.map((row) => row.id)).toEqual(["thread-2"])
+      expect(second.map((row) => row.id)).toEqual(["thread-1"])
+    })
+
     it("searches the subject, the person and the words in the mail", async () => {
       const bySubject = await listInboxThreads(
         workspaceId,

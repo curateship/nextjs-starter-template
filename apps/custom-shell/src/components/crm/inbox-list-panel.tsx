@@ -30,10 +30,14 @@ import {
 import { Tabs, TabsCount, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
+  CRM_DEFAULT_INBOX_SORT,
+  CRM_INBOX_SORT_LABELS,
+  CRM_INBOX_SORTS,
   CRM_STAGE_LABELS,
   CRM_STAGES,
   CRM_THREAD_STATUS_LABELS,
   CRM_THREAD_STATUSES,
+  type CrmInboxSort,
   type CrmStage,
   type CrmThreadStatus,
 } from "@/lib/crm/crm"
@@ -51,10 +55,13 @@ export type InboxFilters = {
   stage: CrmStage | "all"
   unreadOnly: boolean
   followUpDue: boolean
+  /** Which end of the list comes first. Not a filter: it hides nothing. */
+  sort: CrmInboxSort
 }
 
 /**
- * The left panel: every conversation, newest first.
+ * The left panel: every conversation, newest first until the funnel's Order
+ * says longest waiting.
  *
  * One row per conversation, never one per message. A thread somebody has
  * answered three times would otherwise fill the list with four near-identical
@@ -158,6 +165,12 @@ export function InboxListPanel({
     (filters.stage !== "all" ? 1 : 0) +
     (filters.followUpDue ? 1 : 0)
 
+  // Counted for the dot but kept out of `filtered`, because the order hides
+  // nothing. An empty inbox that is merely reordered must not claim "nothing
+  // matches that" when the real answer is that no mail has arrived.
+  const reordered = filters.sort !== CRM_DEFAULT_INBOX_SORT
+  const funnelCount = narrowed + (reordered ? 1 : 0)
+
   const filtered = narrowed > 0 || filters.unreadOnly || appliedSearch.length > 0
 
   return (
@@ -216,13 +229,13 @@ export function InboxListPanel({
                 size="icon"
                 className="relative size-8"
                 aria-label={
-                  narrowed > 0
-                    ? `Filters, ${narrowed} on`
-                    : "Filter the inbox"
+                  funnelCount > 0
+                    ? `Filters and order, ${funnelCount} on`
+                    : "Filter and order the inbox"
                 }
               >
                 <ListFilterIcon className="size-4" />
-                {narrowed > 0 ? (
+                {funnelCount > 0 ? (
                   <span
                     aria-hidden
                     className="absolute top-1 right-1 size-1.5 rounded-full bg-primary"
@@ -280,6 +293,32 @@ export function InboxListPanel({
                   </Select>
                 </div>
 
+                <div className="grid gap-1.5">
+                  <FieldLabel
+                    htmlFor="inbox-sort"
+                    hint="Longest waiting puts the person who has been waiting the most days at the top, which is the order for clearing the inbox rather than reading it."
+                  >
+                    Order
+                  </FieldLabel>
+                  <Select
+                    value={filters.sort}
+                    onValueChange={(value) =>
+                      onFiltersChange({ sort: value as CrmInboxSort })
+                    }
+                  >
+                    <SelectTrigger id="inbox-sort" className="h-8">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CRM_INBOX_SORTS.map((sort) => (
+                        <SelectItem key={sort} value={sort}>
+                          {CRM_INBOX_SORT_LABELS[sort]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 <button
                   type="button"
                   aria-pressed={filters.followUpDue}
@@ -297,7 +336,7 @@ export function InboxListPanel({
                   Only the ones to follow up
                 </button>
 
-                {narrowed > 0 ? (
+                {funnelCount > 0 ? (
                   <Button
                     type="button"
                     variant="ghost"
@@ -307,6 +346,7 @@ export function InboxListPanel({
                         status: "open",
                         stage: "all",
                         followUpDue: false,
+                        sort: CRM_DEFAULT_INBOX_SORT,
                       })
                     }
                   >
