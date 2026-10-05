@@ -8,8 +8,11 @@ import {
   loadInbox,
 } from "@/lib/api/crm/inbox"
 import {
+  CRM_DEFAULT_INBOX_SORT,
+  CRM_INBOX_SORTS,
   CRM_STAGES,
   CRM_THREAD_STATUSES,
+  type CrmInboxSort,
   type CrmStage,
   type CrmThreadStatus,
 } from "@/lib/crm/crm"
@@ -24,6 +27,7 @@ type CrmSearch = {
   stage?: CrmStage | "all"
   unread?: boolean
   due?: boolean
+  sort?: CrmInboxSort
 }
 
 /**
@@ -39,6 +43,7 @@ function readCrmSearch(search: Record<string, unknown>): CrmSearch {
     stage: readOneOf(search.stage, [...CRM_STAGES, "all"] as const),
     unread: search.unread === true || search.unread === "true" ? true : undefined,
     due: search.due === true || search.due === "true" ? true : undefined,
+    sort: readOneOf(search.sort, CRM_INBOX_SORTS),
   }
 }
 
@@ -67,6 +72,7 @@ export const Route = createFileRoute("/_authenticated/admin/crm")({
       stage: deps.stage,
       unreadOnly: deps.unread,
       followUpDue: deps.due,
+      sort: deps.sort,
     }),
   component: AdminCrmRoute,
   errorComponent: routeErrorComponent(getCrmErrorMessage),
@@ -84,6 +90,7 @@ function AdminCrmRoute() {
     stage: search.stage ?? "all",
     unreadOnly: search.unread ?? false,
     followUpDue: search.due ?? false,
+    sort: search.sort ?? CRM_DEFAULT_INBOX_SORT,
   }
 
   const changeFilters = (next: Partial<InboxFilters>) => {
@@ -100,6 +107,14 @@ function AdminCrmRoute() {
           : {}),
         ...(next.followUpDue !== undefined
           ? { due: next.followUpDue || undefined }
+          : {}),
+        // The default order stays out of the address, so a plain `/admin/crm`
+        // link is the newest-first inbox rather than one carrying `?sort=`.
+        ...(next.sort !== undefined
+          ? {
+              sort:
+                next.sort === CRM_DEFAULT_INBOX_SORT ? undefined : next.sort,
+            }
           : {}),
       }),
       // A filter change is not a place to come back to with Back.

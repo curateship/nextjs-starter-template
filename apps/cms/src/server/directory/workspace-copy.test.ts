@@ -21,7 +21,11 @@ import {
   setListingCategories,
   updateListing,
 } from "@/server/directory/listings"
-import { customShellWrittenPages, customShellWorkspaces } from "@/server/schema"
+import {
+  customShellPageBlocks,
+  customShellWrittenPages,
+  customShellWorkspaces,
+} from "@/server/schema"
 import {
   createTestDatabase,
   insertUser,
@@ -67,38 +71,62 @@ function appRow(
   }
 }
 
-/** Writes the source site's front page, which the shell's copy carries over. */
+/**
+ * Writes the source site's front page, which the shell's copy carries over.
+ *
+ * The blocks live in `page_blocks`, keyed by site and address, since the shell's
+ * 5 Oct 2026 merge. They were fields inside the workspace's settings before
+ * that.
+ */
 async function saveSourceFrontPageRows(
   workspaceId: string,
   rows: ReturnType<typeof appRow>[]
 ) {
-  const [row] = await database
-    .select({ settings: customShellWorkspaces.settings })
-    .from(customShellWorkspaces)
-    .where(eq(customShellWorkspaces.id, workspaceId))
-    .limit(1)
-  await database
-    .update(customShellWorkspaces)
-    .set({
+  const at = now()
+  await database.insert(customShellPageBlocks).values(
+    rows.map((row, position) => ({
+      id: row.id,
+      workspaceId,
+      path: "/",
+      position,
+      kind: row.kind,
+      appKind: row.appKind,
+      // The jsonb column is the whole block bar its id, kind and appKind, so
+      // this app's own fields stay nested under `settings`, exactly as the
+      // shell's own writer stores them.
       settings: {
-        ...((row?.settings as Record<string, unknown>) ?? {}),
-        frontPageRows: rows,
+        heading: row.heading,
+        intro: row.intro,
+        layout: row.layout,
+        alignment: row.alignment,
+        hidden: row.hidden,
+        device: row.device,
+        settings: row.settings,
       },
-    })
-    .where(eq(customShellWorkspaces.id, workspaceId))
+      createdAt: at,
+      updatedAt: at,
+    }))
+  )
 }
 
-/** This app's own rows on a site's front page, in the order they are drawn. */
+/** This app's own blocks on a site's front page, in the order they are drawn. */
 async function frontPageRowsOf(workspaceId: string) {
-  const [row] = await database
-    .select({ settings: customShellWorkspaces.settings })
-    .from(customShellWorkspaces)
-    .where(eq(customShellWorkspaces.id, workspaceId))
-    .limit(1)
-  const settings = row?.settings as {
-    frontPageRows?: { heading: string; settings: Record<string, unknown> }[]
-  }
-  return settings?.frontPageRows ?? []
+  const blocks = await database
+    .select({
+      position: customShellPageBlocks.position,
+      settings: customShellPageBlocks.settings,
+    })
+    .from(customShellPageBlocks)
+    .where(eq(customShellPageBlocks.workspaceId, workspaceId))
+  return blocks
+    .sort((a, b) => a.position - b.position)
+    .map((block) => {
+      const saved = (block.settings ?? {}) as Record<string, unknown>
+      return {
+        heading: String(saved.heading ?? ""),
+        settings: (saved.settings ?? {}) as Record<string, unknown>,
+      }
+    })
 }
 
 describe("copying CMS site content", () => {
@@ -301,7 +329,9 @@ async function seedSourceSite() {
     workspaceId: workspace.id,
     path: "/about",
     title: "About Alpha",
-    body: { type: "doc", content: [] },
+    // A written page's words are blocks in `page_blocks` since the shell's
+    // `0087_custom_shell_written_pages_as_blocks` migration, so the page row
+    // itself carries no body.
     createdAt: at,
     updatedAt: at,
   })

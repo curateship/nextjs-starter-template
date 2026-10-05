@@ -648,6 +648,47 @@ describe("front page content blocks", () => {
     expect(frontPageHeroRunsUnderMenu(rows)).toBe(false)
   })
 
+  /**
+   * The two variables are what theme.css reads. A side the block has not set
+   * must write nothing at all, or the fallback to half the page's own gap
+   * would never be reached.
+   */
+  it("writes a block's own spacing as variables, and nothing for a side it left alone", () => {
+    const rows = normalizeFrontPageRows([
+      {
+        id: "tight",
+        heading: "Tight",
+        kind: "text",
+        intro: "Up against the one above.",
+        spaceAbove: 0,
+        spaceBelow: 120,
+      },
+      { id: "plain", heading: "Plain", kind: "text", intro: "Follows the page." },
+    ])
+
+    const markup = renderToStaticMarkup(
+      <FrontPageRows
+        rows={rows}
+        plans={[]}
+        trialUsed={false}
+        interval="monthly"
+        onIntervalChange={vi.fn()}
+        onSelectPlan={vi.fn()}
+      />
+    )
+
+    expect(markup).toContain("--shell-row-space-above:0px")
+    expect(markup).toContain("--shell-row-space-below:120px")
+    // A phone draws 70% of each, rounded, the same share the page's own gap
+    // gets.
+    expect(markup).toContain("--shell-row-space-above-phone:0px")
+    expect(markup).toContain("--shell-row-space-below-phone:84px")
+    // One block set both sides and the other set neither, so two variables of
+    // each name is the whole page.
+    expect(markup.match(/--shell-row-space-above:/g)).toHaveLength(1)
+    expect(markup.match(/--shell-row-space-below:/g)).toHaveLength(1)
+  })
+
   it("reads an unknown layout as the usual full width", () => {
     const [row] = normalizeFrontPageRows([
       { id: "x", heading: "X", kind: "text", layout: "enormous" },

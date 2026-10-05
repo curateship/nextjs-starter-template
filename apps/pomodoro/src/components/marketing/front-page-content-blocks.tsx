@@ -13,14 +13,36 @@ import {
   MAX_CARRIED_EMAIL_LENGTH,
 } from "@/lib/billing/pricing-choice"
 import {
+  DEFAULT_FRONT_PAGE_HERO_SPACING,
+  FRONT_PAGE_HERO_SPACING_PHONE_SHARE,
+  frontPageDividerColor,
   MAX_FRONT_PAGE_HERO_STARS,
+  type FrontPageDividerStyle,
   type FrontPageHeroAction,
   type FrontPageFaqItem,
   type FrontPageLogo,
   type FrontPageScreenshot,
   type FrontPageTestimonial,
 } from "@/lib/pages/front-page"
+import { PUBLIC_FRONT_PAGE_ROW_GAP_PHONE_SHARE } from "@/lib/public-theme"
 import { cn } from "@/lib/utils"
+
+/**
+ * The hero's own air, as the two numbers theme.css picks between at the
+ * breakpoint. It cannot be one inline `padding-block`, because an inline
+ * value beats a media query and a phone could then never draw less than a
+ * desktop. Left at the default, nothing is written and theme.css keeps its
+ * own fallbacks.
+ */
+function heroSpacingStyle(spacing: number): React.CSSProperties | undefined {
+  if (spacing === DEFAULT_FRONT_PAGE_HERO_SPACING) return undefined
+  return {
+    "--shell-hero-space": `${spacing}px`,
+    "--shell-hero-space-phone": `${Math.round(
+      spacing * FRONT_PAGE_HERO_SPACING_PHONE_SHARE
+    )}px`,
+  } as React.CSSProperties
+}
 
 /**
  * The hero's address box: one pill holding the box and its button.
@@ -28,6 +50,21 @@ import { cn } from "@/lib/utils"
  * Nothing is stored here. The address travels to the register page and lands
  * in its email box, so somebody who typed it on the front page does not type
  * it again. Registering is what creates the person.
+ *
+ * **The box fills the pill, rather than sitting as a line of text inside it.**
+ * The pill is 448 by 58 and the box used to be 285 by 20, which is 22% of what
+ * looks like one control: a click 8px in from the left edge, or 4px under the
+ * top edge, landed on the form and did nothing. The box is now the pill's full
+ * inner height and carries the left inset itself, so every pixel from the
+ * border to the button is live. The button keeps its 6px frame through the
+ * form's `pr-1.5` and the `gap-2` between the two.
+ *
+ * **The pill carries the focus ring**, because the pill is what reads as the
+ * field. It is the ring every other control draws, written with
+ * `focus-within` rather than taken from `focusRing`: focus lands on the box
+ * inside and the ring has to appear around the pill around it. Until this the
+ * focused field drew nothing at all, so a keyboard had no way to say where it
+ * was.
  */
 function HeroEmailForm({ buttonLabel }: { buttonLabel: string }) {
   const navigate = useNavigate()
@@ -35,7 +72,7 @@ function HeroEmailForm({ buttonLabel }: { buttonLabel: string }) {
 
   return (
     <form
-      className="flex w-full max-w-md items-center gap-2 rounded-full border border-foreground/15 bg-background py-1.5 pr-1.5 pl-5"
+      className="flex w-full max-w-md items-center gap-2 rounded-full border border-foreground/15 bg-background pr-1.5 transition-[color,box-shadow] focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50"
       onSubmit={(event) => {
         event.preventDefault()
         void navigate({ to: "/register", search: { email } })
@@ -49,7 +86,11 @@ function HeroEmailForm({ buttonLabel }: { buttonLabel: string }) {
         placeholder="Enter your email"
         aria-label="Your email address"
         maxLength={MAX_CARRIED_EMAIL_LENGTH}
-        className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+        // `h-14` is the pill's whole inner height, so there is no band above
+        // or below the box that looks like the field and is not. `pl-5` is
+        // the inset the form used to hold, which keeps the text exactly where
+        // it has always been, 20px from the pill's edge.
+        className="h-14 min-w-0 flex-1 bg-transparent pl-5 text-sm outline-none placeholder:text-muted-foreground"
       />
       <Button
         type="submit"
@@ -86,6 +127,7 @@ export function FrontPageHero({
   showAction = true,
   showStars = true,
   showNote = true,
+  spacing = DEFAULT_FRONT_PAGE_HERO_SPACING,
 }: {
   heading: string
   intro: string
@@ -105,12 +147,16 @@ export function FrontPageHero({
   showAction?: boolean
   showStars?: boolean
   showNote?: boolean
+  /** The air above and below, on a desktop, in pixels. */
+  spacing?: number
 }) {
   const Heading = headingLevel
   const shownStars = showStars ? stars : 0
   const shownNote = showNote ? note : ""
   const words = (
     <div
+      data-front-page-hero={image ? undefined : ""}
+      style={image ? undefined : heroSpacingStyle(spacing)}
       className={cn(
         "grid gap-6",
         // Long lines are hard to read, so the words stop short of the full
@@ -180,14 +226,22 @@ export function FrontPageHero({
   if (!image) return words
 
   return (
-    <div className="grid w-full gap-6 md:grid-cols-2 md:items-start md:gap-10">
+    <div
+      data-front-page-hero=""
+      style={heroSpacingStyle(spacing)}
+      className="grid w-full gap-6 md:grid-cols-2 md:items-start md:gap-10"
+    >
       {words}
+      {/* The picture keeps its own shape. It used to sit in a 16:9 box set to
+        `contain`, so anything that was not 16:9 was drawn small in the middle
+        with grey bars either side of it. Now it fills the column's width and
+        is as tall as its own shape makes it. */}
       <MediaThumbnail
         url={image}
         fileType="image"
         alt={alt}
-        fit="contain"
-        className="aspect-video w-full rounded-lg bg-muted/50"
+        natural
+        className="w-full overflow-hidden rounded-lg"
         // Half the reading width on desktop, the whole of it on a phone.
         sizes="(min-width: 768px) 50vw, 100vw"
         eager={eager}
@@ -367,5 +421,79 @@ export function FrontPageScreenshots({
         </Card>
       ))}
     </div>
+  )
+}
+
+/**
+ * A break between the rows around it.
+ *
+ * The line and the dots take the row's own Shade, not
+ * Settings > Styling > Divider lines, so one break on the front page can be
+ * stronger or fainter than the hairlines inside a card. The shade is a share of
+ * `--muted-foreground`, the token the theme builds its own divider colour from,
+ * so it still follows light and dark. A space draws nothing at all: the row is
+ * there only for the gap it adds between its neighbours.
+ *
+ * Marked `aria-hidden`, because a divider says nothing a screen reader needs to
+ * hear. The rows either side are already separate sections.
+ */
+export function FrontPageDivider({
+  style,
+  shade,
+  space,
+  alignClassName = publicContentAlignmentRowClassName,
+}: {
+  style: FrontPageDividerStyle
+  shade: number
+  space: number
+  alignClassName?: string
+}) {
+  if (style === "space") {
+    return (
+      <div
+        aria-hidden
+        className="h-(--divider-space-phone) w-full md:h-(--divider-space)"
+        style={
+          {
+            "--divider-space": `${space}px`,
+            // A phone keeps the same share of a desktop gap that
+            // Settings > Styling > Space between rows keeps, so the app has one
+            // rule for this rather than a second one hiding in a row.
+            "--divider-space-phone": `${Math.round(
+              space * PUBLIC_FRONT_PAGE_ROW_GAP_PHONE_SHARE
+            )}px`,
+          } as React.CSSProperties
+        }
+      />
+    )
+  }
+
+  const color = frontPageDividerColor(shade)
+
+  if (style === "dots") {
+    return (
+      <div
+        aria-hidden
+        className={cn("flex w-full items-center gap-3", alignClassName)}
+      >
+        {/* Bigger than the hairline is tall, because a dot at the line's own
+            weight all but disappears next to it. */}
+        {[0, 1, 2].map((dot) => (
+          <span
+            key={dot}
+            className="size-2 rounded-full"
+            style={{ backgroundColor: color }}
+          />
+        ))}
+      </div>
+    )
+  }
+
+  return (
+    <hr
+      aria-hidden
+      className="w-full border-t"
+      style={{ borderTopColor: color }}
+    />
   )
 }

@@ -50,6 +50,21 @@ function heroSpacingStyle(spacing: number): React.CSSProperties | undefined {
  * Nothing is stored here. The address travels to the register page and lands
  * in its email box, so somebody who typed it on the front page does not type
  * it again. Registering is what creates the person.
+ *
+ * **The box fills the pill, rather than sitting as a line of text inside it.**
+ * The pill is 448 by 58 and the box used to be 285 by 20, which is 22% of what
+ * looks like one control: a click 8px in from the left edge, or 4px under the
+ * top edge, landed on the form and did nothing. The box is now the pill's full
+ * inner height and carries the left inset itself, so every pixel from the
+ * border to the button is live. The button keeps its 6px frame through the
+ * form's `pr-1.5` and the `gap-2` between the two.
+ *
+ * **The pill carries the focus ring**, because the pill is what reads as the
+ * field. It is the ring every other control draws, written with
+ * `focus-within` rather than taken from `focusRing`: focus lands on the box
+ * inside and the ring has to appear around the pill around it. Until this the
+ * focused field drew nothing at all, so a keyboard had no way to say where it
+ * was.
  */
 function HeroEmailForm({ buttonLabel }: { buttonLabel: string }) {
   const navigate = useNavigate()
@@ -57,7 +72,7 @@ function HeroEmailForm({ buttonLabel }: { buttonLabel: string }) {
 
   return (
     <form
-      className="flex w-full max-w-md items-center gap-2 rounded-full border border-foreground/15 bg-background py-1.5 pr-1.5 pl-5"
+      className="flex w-full max-w-md items-center gap-2 rounded-full border border-foreground/15 bg-background pr-1.5 transition-[color,box-shadow] focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50"
       onSubmit={(event) => {
         event.preventDefault()
         void navigate({ to: "/register", search: { email } })
@@ -71,7 +86,11 @@ function HeroEmailForm({ buttonLabel }: { buttonLabel: string }) {
         placeholder="Enter your email"
         aria-label="Your email address"
         maxLength={MAX_CARRIED_EMAIL_LENGTH}
-        className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+        // `h-14` is the pill's whole inner height, so there is no band above
+        // or below the box that looks like the field and is not. `pl-5` is
+        // the inset the form used to hold, which keeps the text exactly where
+        // it has always been, 20px from the pill's edge.
+        className="h-14 min-w-0 flex-1 bg-transparent pl-5 text-sm outline-none placeholder:text-muted-foreground"
       />
       <Button
         type="submit"

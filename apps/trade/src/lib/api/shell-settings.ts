@@ -27,47 +27,6 @@ import {
 } from "@/lib/brand-image"
 import { FAVICON_MODES, type PublicFaviconSet } from "@/lib/favicon"
 import {
-  DEFAULT_FRONT_PAGE_DIVIDER_SHADE,
-  DEFAULT_FRONT_PAGE_DIVIDER_SPACE,
-  FRONT_PAGE_DIVIDER_STYLES,
-  MAX_FRONT_PAGE_DIVIDER_SHADE,
-  MAX_FRONT_PAGE_DIVIDER_SPACE,
-  FRONT_PAGE_ROW_ALIGNMENTS,
-  FRONT_PAGE_ROW_LAYOUTS,
-  MAX_FRONT_PAGE_FAQ_ANSWER_LENGTH,
-  MAX_FRONT_PAGE_FAQ_ITEMS,
-  MAX_FRONT_PAGE_FAQ_QUESTION_LENGTH,
-  FRONT_PAGE_HERO_ACTIONS,
-  MAX_FRONT_PAGE_HERO_BUTTON_HREF_LENGTH,
-  MAX_FRONT_PAGE_HERO_BUTTON_LABEL_LENGTH,
-  MAX_FRONT_PAGE_HERO_NOTE_LENGTH,
-  APP_FRONT_PAGE_ROW_KIND,
-  MAX_APP_FRONT_PAGE_ROW_KEY_LENGTH,
-  MAX_APP_FRONT_PAGE_ROW_SETTINGS_LENGTH,
-  MAX_FRONT_PAGE_HERO_STARS,
-  MAX_FRONT_PAGE_IMAGE_ALT_LENGTH,
-  MAX_FRONT_PAGE_IMAGE_URL_LENGTH,
-  MAX_FRONT_PAGE_ITEM_NAME_LENGTH,
-  MAX_FRONT_PAGE_ITEM_ROLE_LENGTH,
-  MAX_FRONT_PAGE_LOGOS,
-  MAX_FRONT_PAGE_ROW_HEADING_LENGTH,
-  MAX_FRONT_PAGE_ROW_ID_LENGTH,
-  MAX_FRONT_PAGE_ROW_INTRO_LENGTH,
-  MAX_FRONT_PAGE_ROWS,
-  MAX_FRONT_PAGE_SCREENSHOT_CAPTION_LENGTH,
-  MAX_FRONT_PAGE_SCREENSHOTS,
-  MAX_FRONT_PAGE_TESTIMONIAL_QUOTE_LENGTH,
-  MAX_FRONT_PAGE_TESTIMONIALS,
-  frontPageRowImageUrls,
-  normalizeFrontPageHeroHref,
-  normalizeFrontPageHeroBackground,
-  FRONT_PAGE_HERO_BACKGROUND_MESSAGE,
-  MAX_FRONT_PAGE_HERO_BACKGROUND_LENGTH,
-  MAX_FRONT_PAGE_HERO_SPACING,
-  normalizeFrontPageImageUrl,
-  normalizeFrontPageRows,
-} from "@/lib/pages/front-page"
-import {
   MAX_PUBLIC_SOCIAL_LINKS,
   MAX_PUBLIC_SOCIAL_URL_LENGTH,
   PUBLIC_SOCIAL_PLATFORMS,
@@ -429,185 +388,6 @@ const publicThemePresetsSchema = z
   )
   .max(MAX_PUBLIC_THEME_PRESETS)
 
-const frontPageRowBaseShape = {
-  id: z.string().max(MAX_FRONT_PAGE_ROW_ID_LENGTH),
-  heading: z.string().max(MAX_FRONT_PAGE_ROW_HEADING_LENGTH),
-  intro: z.string().max(MAX_FRONT_PAGE_ROW_INTRO_LENGTH),
-  layout: z.enum(FRONT_PAGE_ROW_LAYOUTS),
-  // Defaulted so a settings tab opened before these existed still saves, and
-  // saves the row as it already looked.
-  alignment: z.enum(FRONT_PAGE_ROW_ALIGNMENTS).default("inherit"),
-  hidden: z.boolean(),
-  showHeading: z.boolean().default(true),
-  showIntro: z.boolean().default(true),
-  showImage: z.boolean().default(true),
-  showAction: z.boolean().default(true),
-  showStars: z.boolean().default(true),
-  showNote: z.boolean().default(true),
-  showPictures: z.boolean().default(true),
-  showRoles: z.boolean().default(true),
-  showNumbers: z.boolean().default(true),
-  showCaptions: z.boolean().default(true),
-  device: z.enum(PUBLIC_DEVICES),
-}
-
-const frontPageItemIdSchema = z.string().max(MAX_FRONT_PAGE_ROW_ID_LENGTH)
-const frontPageImageSchema = z
-  .string()
-  .trim()
-  .max(MAX_FRONT_PAGE_IMAGE_URL_LENGTH)
-  .refine(
-    (value) => !value || normalizeFrontPageImageUrl(value) === value,
-    "Choose an image from the media library."
-  )
-
-const frontPageRowsSchema = z
-  .array(
-    z.discriminatedUnion("kind", [
-      z.object({
-        ...frontPageRowBaseShape,
-        kind: z.literal(APP_FRONT_PAGE_ROW_KIND),
-        appKind: z
-          .string()
-          .max(MAX_APP_FRONT_PAGE_ROW_KEY_LENGTH)
-          .regex(/^[a-z0-9][a-z0-9-]*$/),
-        /**
-         * The app's own fields, kept as they arrive. The shell does not know
-         * what they mean, so it checks only that they are a plain object and
-         * that they are small enough to travel inside every visitor's page.
-         * Whatever reads them treats them as untrusted, the same as any other
-         * stored value.
-         */
-        settings: z
-          .record(z.string(), z.unknown())
-          .refine(
-            (value) =>
-              JSON.stringify(value).length <=
-              MAX_APP_FRONT_PAGE_ROW_SETTINGS_LENGTH,
-            "That row holds too much to save."
-          ),
-      }),
-      z.object({ ...frontPageRowBaseShape, kind: z.literal("text") }),
-      z.object({
-        ...frontPageRowBaseShape,
-        kind: z.literal("divider"),
-        // Defaulted for the same reason as the base's own switches: a settings
-        // tab opened before this field existed still saves the row.
-        dividerStyle: z.enum(FRONT_PAGE_DIVIDER_STYLES).default("line"),
-        dividerShade: z
-          .number()
-          .int()
-          .min(0)
-          .max(MAX_FRONT_PAGE_DIVIDER_SHADE)
-          .default(DEFAULT_FRONT_PAGE_DIVIDER_SHADE),
-        dividerSpace: z
-          .number()
-          .int()
-          .min(0)
-          .max(MAX_FRONT_PAGE_DIVIDER_SPACE)
-          .default(DEFAULT_FRONT_PAGE_DIVIDER_SPACE),
-      }),
-      z.object({ ...frontPageRowBaseShape, kind: z.literal("plans") }),
-      z.object({
-        ...frontPageRowBaseShape,
-        kind: z.literal("hero"),
-        action: z.enum(FRONT_PAGE_HERO_ACTIONS),
-        image: frontPageImageSchema,
-        alt: z.string().max(MAX_FRONT_PAGE_IMAGE_ALT_LENGTH),
-        buttonLabel: z
-          .string()
-          .max(MAX_FRONT_PAGE_HERO_BUTTON_LABEL_LENGTH),
-        buttonHref: z
-          .string()
-          .trim()
-          .max(MAX_FRONT_PAGE_HERO_BUTTON_HREF_LENGTH)
-          .refine(
-            (value) => !value || normalizeFrontPageHeroHref(value) === value,
-            "A button link starts with /, https://, mailto: or tel:."
-          ),
-        note: z.string().max(MAX_FRONT_PAGE_HERO_NOTE_LENGTH),
-        stars: z.number().int().min(0).max(MAX_FRONT_PAGE_HERO_STARS),
-        // A muted grey as `grey-<n>`, six hex digits, or nothing. A colour
-        // that is none of those reaches the page as text inside a style,
-        // which is a way to write CSS into every visitor's browser, so it is
-        // refused here as well as dropped in `normalizeFrontPageRows`. The
-        // slider's number is stored as the number and never as the CSS it
-        // becomes.
-        background: z
-          .string()
-          .trim()
-          .max(MAX_FRONT_PAGE_HERO_BACKGROUND_LENGTH)
-          .refine(
-            (value) =>
-              !value ||
-              normalizeFrontPageHeroBackground(value) === value.toLowerCase(),
-            FRONT_PAGE_HERO_BACKGROUND_MESSAGE
-          ),
-        backgroundUnderMenu: z.boolean(),
-        spacing: z
-          .number()
-          .int()
-          .min(0)
-          .max(MAX_FRONT_PAGE_HERO_SPACING),
-      }),
-      z.object({
-        ...frontPageRowBaseShape,
-        kind: z.literal("testimonials"),
-        items: z
-          .array(
-            z.object({
-              id: frontPageItemIdSchema,
-              quote: z.string().max(MAX_FRONT_PAGE_TESTIMONIAL_QUOTE_LENGTH),
-              name: z.string().max(MAX_FRONT_PAGE_ITEM_NAME_LENGTH),
-              role: z.string().max(MAX_FRONT_PAGE_ITEM_ROLE_LENGTH),
-              picture: frontPageImageSchema,
-            })
-          )
-          .max(MAX_FRONT_PAGE_TESTIMONIALS),
-      }),
-      z.object({
-        ...frontPageRowBaseShape,
-        kind: z.literal("faq"),
-        items: z
-          .array(
-            z.object({
-              id: frontPageItemIdSchema,
-              question: z.string().max(MAX_FRONT_PAGE_FAQ_QUESTION_LENGTH),
-              answer: z.string().max(MAX_FRONT_PAGE_FAQ_ANSWER_LENGTH),
-            })
-          )
-          .max(MAX_FRONT_PAGE_FAQ_ITEMS),
-      }),
-      z.object({
-        ...frontPageRowBaseShape,
-        kind: z.literal("logos"),
-        items: z
-          .array(
-            z.object({
-              id: frontPageItemIdSchema,
-              image: frontPageImageSchema,
-              alt: z.string().max(MAX_FRONT_PAGE_IMAGE_ALT_LENGTH),
-            })
-          )
-          .max(MAX_FRONT_PAGE_LOGOS),
-      }),
-      z.object({
-        ...frontPageRowBaseShape,
-        kind: z.literal("screenshots"),
-        items: z
-          .array(
-            z.object({
-              id: frontPageItemIdSchema,
-              image: frontPageImageSchema,
-              caption: z.string().max(MAX_FRONT_PAGE_SCREENSHOT_CAPTION_LENGTH),
-            })
-          )
-          .max(MAX_FRONT_PAGE_SCREENSHOTS),
-      }),
-    ])
-  )
-  .max(MAX_FRONT_PAGE_ROWS)
-  .transform(normalizeFrontPageRows)
 
 /**
  * Each slot as written, checked for shape only: `normalizeDashboardWidgets` in
@@ -682,7 +462,6 @@ const shellConfigSchema = z.object({
     maintenanceHeading: z.string().max(MAX_PUBLIC_SYSTEM_HEADING_LENGTH),
     maintenanceBody: z.string().max(MAX_PUBLIC_SYSTEM_BODY_LENGTH),
   }),
-  frontPageRows: frontPageRowsSchema,
   publicNavigation: publicNavigationSchema,
   publicFooter: publicFooterSchema,
   publicFooterSocial: publicFooterSocialSchema,
@@ -852,9 +631,6 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
             publicFooterCopyright: workspaceDomainsEnabled
               ? data.publicFooterCopyright
               : workspaceSettings.publicFooterCopyright,
-            frontPageRows: workspaceDomainsEnabled
-              ? data.frontPageRows
-              : workspaceSettings.frontPageRows,
             topRightNavigation: data.topRightNavigation,
             sections: data.sections,
             styling: data.styling,
@@ -898,27 +674,6 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
         )
       }
 
-      // Compared against the rows this save is replacing, which on a multisite
-      // app are the site's own. Comparing against the app-wide rows there would
-      // ask an admin to re-own a picture their site has been drawing for months.
-      const savedFrontPageImages = new Set(
-        frontPageRowImageUrls(
-          workspaceDomainsEnabled
-            ? workspaceSettings.frontPageRows
-            : existingGlobals.frontPageRows
-        )
-      )
-      for (const image of new Set(frontPageRowImageUrls(data.frontPageRows))) {
-        if (
-          !savedFrontPageImages.has(image) &&
-          !(await isOwnedImageUrl(context.user.id, image, tx))
-        ) {
-          throw new Error(
-            "A front page image is no longer in your media library. Pick another one."
-          )
-        }
-      }
-
       const brand = brandImagesForLockedSave(
         logo,
         existingGlobals,
@@ -950,9 +705,6 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
           publicFooterCopyright: workspaceDomainsEnabled
             ? existingGlobals.publicFooterCopyright
             : data.publicFooterCopyright,
-          frontPageRows: workspaceDomainsEnabled
-            ? existingGlobals.frontPageRows
-            : data.frontPageRows,
           // A dedicated upload action owns the stored font. A stale settings
           // tab may choose whether to use it, but cannot replace its identity.
           publicFont: existingGlobals.publicFont,

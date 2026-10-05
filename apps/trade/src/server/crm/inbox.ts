@@ -1,6 +1,20 @@
-import { and, asc, count, desc, eq, ilike, inArray, isNull, lte, or, sql } from "drizzle-orm"
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  isNotNull,
+  isNull,
+  lte,
+  not,
+  or,
+  sql,
+} from "drizzle-orm"
 
-import type { CrmStage, CrmThreadStatus } from "@/lib/crm/crm"
+import type { CrmInboxSort, CrmStage, CrmThreadStatus } from "@/lib/crm/crm"
 import { messageSnippet } from "@/lib/crm/message-text"
 import { now } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
@@ -17,6 +31,8 @@ export type InboxFilter = {
   unreadOnly?: boolean
   /** Only threads whose lead has a chase date that has already passed. */
   followUpDue?: boolean
+  /** Which end of the conversation list comes first. Newest when unsaid. */
+  sort?: CrmInboxSort
   limit?: number
   offset?: number
 }
@@ -114,7 +130,15 @@ export async function countInboxThreads(
 }
 
 /**
- * One page of the inbox, newest message first.
+ * One page of the inbox, newest message first unless `sort` says otherwise.
+ *
+ * `sort: "oldest"` puts the person who has waited longest at the top, which is
+ * the order for clearing the inbox rather than reading it.
+ *
+ * Both orders are plain `asc`/`desc` on `last_message_at`, which is `NOT NULL`,
+ * so neither needs a `NULLS LAST`. That matters: Drizzle's
+ * `asc(sql`col nulls last`)` builds SQL Postgres refuses, and it type checks
+ * fine. `src/server/crm/reads.test.ts` runs both orders for that reason.
  *
  * The snippet is fetched in a second query rather than as a correlated
  * subquery on the first. Thirty threads means one extra read, and it keeps the
@@ -148,7 +172,11 @@ export async function listInboxThreads(
       eq(customShellCrmLeads.id, customShellCrmThreads.leadId)
     )
     .where(where)
-    .orderBy(desc(customShellCrmThreads.lastMessageAt))
+    .orderBy(
+      filter.sort === "oldest"
+        ? asc(customShellCrmThreads.lastMessageAt)
+        : desc(customShellCrmThreads.lastMessageAt)
+    )
     .limit(filter.limit ?? 30)
     .offset(filter.offset ?? 0)
 
@@ -368,4 +396,118 @@ export async function wakeSnoozedThreads(
     )
     .returning({ id: customShellCrmThreads.id })
   return woken.length
+}
+
+/**
+ * What a many-conversations write did, counted honestly.
+ *
+ * `changed` is how many rows the statement actually wrote. `unchanged` is how
+ * many of the asked-for ids were this workspace's and were already in the
+ * state being asked for, which is the difference between "17 closed" and
+ * "17 closed, 3 were already closed". An id belonging to another workspace,
+ * or one that no longer exists, is in neither number: nothing happened to it
+ * and nothing is claimed about it.
+ */
+export type ManyThreadsResult = { changed: number; unchanged: number }
+
+/** How many of these ids are this workspace's, whatever state they are in. */
+async function countThreadsHere(
+  workspaceId: string,
+  threadIds: string[],
+  database: CustomShellDb
+): Promise<number> {
+  const [row] = await database
+    .select({ here: count() })
+    .from(customShellCrmThreads)
+    .where(
+      and(
+        eq(customShellCrmThreads.workspaceId, workspaceId),
+        inArray(customShellCrmThreads.id, threadIds)
+      )
+    )
+  return Number(row?.here ?? 0)
+}
+
+/**
+ * Stamps many conversations as read in one statement.
+ *
+ * One statement rather than one per row, so twenty rows is one trip and either
+ * all twenty are read or none are. Already-read threads keep their first
+ * stamp, which is why `isNull` is still in the where clause.
+ */
+export async function markThreadsRead(
+  workspaceId: string,
+  threadIds: string[],
+  database: CustomShellDb = db
+): Promise<ManyThreadsResult> {
+  if (threadIds.length === 0) return { changed: 0, unchanged: 0 }
+
+  const changed = await database
+    .update(customShellCrmThreads)
+    .set({ readAt: now(), updatedAt: now() })
+    .where(
+      and(
+        eq(customShellCrmThreads.workspaceId, workspaceId),
+        inArray(customShellCrmThreads.id, threadIds),
+        isNull(customShellCrmThreads.readAt)
+      )
+    )
+    .returning({ id: customShellCrmThreads.id })
+
+  const here = await countThreadsHere(workspaceId, threadIds, database)
+  return { changed: changed.length, unchanged: here - changed.length }
+}
+
+/**
+ * Opens, snoozes or closes many conversations in one statement.
+ *
+ * Rows already in the asked-for state are left out of the write rather than
+ * written over, so `changed` is the number a person can be told. A row that is
+ * already closed would otherwise come back from `RETURNING` and be counted as
+ * something this press did.
+ *
+ * A fresh snooze date always counts as a change, because the date is part of
+ * the state and the new one is never the old one to the millisecond.
+ */
+export async function setThreadStatuses(
+  workspaceId: string,
+  threadIds: string[],
+  status: CrmThreadStatus,
+  snoozedUntil: Date | null,
+  database: CustomShellDb = db
+): Promise<ManyThreadsResult> {
+  if (threadIds.length === 0) return { changed: 0, unchanged: 0 }
+
+  const nextSnooze = status === "snoozed" ? snoozedUntil : null
+  // `isNotNull` before the date comparison, and not for tidiness. A snoozed
+  // row with no date — which `setThreadStatus` still allows, because the
+  // one-thread endpoint's date is optional — makes `snoozed_until = $1`
+  // answer NULL rather than false, and `NOT NULL` is NULL, so the row matches
+  // nothing and is skipped. It would then be left dateless and reported as
+  // "already snoozed until then". `IS NOT NULL` is false there, which makes
+  // the whole AND false, so the row is written like any other.
+  const alreadyThere = and(
+    eq(customShellCrmThreads.status, status),
+    nextSnooze
+      ? and(
+          isNotNull(customShellCrmThreads.snoozedUntil),
+          eq(customShellCrmThreads.snoozedUntil, nextSnooze)
+        )
+      : isNull(customShellCrmThreads.snoozedUntil)
+  )!
+
+  const changed = await database
+    .update(customShellCrmThreads)
+    .set({ status, snoozedUntil: nextSnooze, updatedAt: now() })
+    .where(
+      and(
+        eq(customShellCrmThreads.workspaceId, workspaceId),
+        inArray(customShellCrmThreads.id, threadIds),
+        not(alreadyThere)
+      )
+    )
+    .returning({ id: customShellCrmThreads.id })
+
+  const here = await countThreadsHere(workspaceId, threadIds, database)
+  return { changed: changed.length, unchanged: here - changed.length }
 }

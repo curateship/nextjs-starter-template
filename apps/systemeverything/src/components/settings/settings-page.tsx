@@ -33,12 +33,10 @@ import {
 } from "@/lib/custom-shell"
 
 /**
- * The shell's own settings — the signed-in workspace an admin works in.
+ * The admin's own rows, and the first block of the Platform card.
  *
- * This is the half no app may take over, which is the whole reason the rail is
- * split the way it is. Security, Notifications, Storage and AI were rows here
- * until 25 Sep 2026; each was one card, so each is now a card on General
- * settings instead.
+ * Security, Notifications, Storage and AI were rows here until 25 Sep 2026;
+ * each was one card, so each is now a card on General settings instead.
  */
 const settingsTabs = [
   { id: "general", label: "General settings" },
@@ -50,25 +48,29 @@ const settingsTabs = [
 ] as const
 
 /**
- * What the shell puts in the app's card before the app adds anything, in the
- * blocks it draws them in.
+ * The two audiences who are not the admin: the members who sign in, and the
+ * visitors who do not.
  *
- * Every row here is the shell's screen and the app's decision. Both blocks are
- * about somebody other than the admin — the members who sign in, and the
- * visitors who do not — and an app can be right about either in a way the shell
- * cannot guess. Pomodoro draws its own member sidebar from its own list, so the
- * shell's Navigation screen there edits settings no page of its reads.
+ * Both blocks sit in the Platform card, under the admin's own rows. They were
+ * the App settings card from 25 Sep until 5 Oct 2026, because an app can be
+ * right about either audience in a way the shell cannot guess. Tyler's call on
+ * 5 Oct 2026: every one of these screens is the shell's, writing the shell's
+ * `ShellConfig`, so they belong with the shell's other rows. App settings holds
+ * only what the app itself added.
  *
- * An app registers a tab with one of these ids and its own screen takes that
- * row's place, keeping its position. See `REPLACEABLE_SETTINGS_TAB_IDS` in
- * `lib/app-options.ts`, which is this list.
+ * An app can still register a tab with one of these ids and its own screen
+ * takes that row's place, keeping its position in this card. See
+ * `REPLACEABLE_SETTINGS_TAB_IDS` in `lib/app-options.ts`, which is this list.
+ * Pomodoro is the reason: it draws its own member sidebar from its own list, so
+ * the shell's member Navigation screen there edits settings no page of its
+ * reads.
  *
  * **The data stays the shell's.** A replacement screen writes the same
  * `ShellConfig` fields the shell's version wrote, because `PublicPageFrame` and
  * the sidebar are still what draw from them. An app that writes somewhere else
  * gets a settings screen that changes nothing.
  */
-const appScaffoldGroups = [
+const audienceGroups = [
   {
     label: "Members",
     tabs: [{ id: "member-navigation", label: "Navigation" }],
@@ -85,17 +87,17 @@ const appScaffoldGroups = [
 ] as const
 
 /** The same rows, flat, for the id checks that do not care which block. */
-const appScaffoldTabs: readonly { id: SettingsTabId; label: string }[] =
-  appScaffoldGroups.flatMap((group) => group.tabs.map((tab) => ({ ...tab })))
+const audienceTabs: readonly { id: SettingsTabId; label: string }[] =
+  audienceGroups.flatMap((group) => group.tabs.map((tab) => ({ ...tab })))
 
 export type SettingsTabId =
   | (typeof settingsTabs)[number]["id"]
-  | (typeof appScaffoldGroups)[number]["tabs"][number]["id"]
+  | (typeof audienceGroups)[number]["tabs"][number]["id"]
 
 /** Every id the shell itself owns — what an app's tab may not be called. */
 const shellSettingsTabIds: readonly string[] = [
   ...settingsTabs.map((tab) => tab.id),
-  ...appScaffoldTabs.map((tab) => tab.id),
+  ...audienceTabs.map((tab) => tab.id),
 ]
 
 /**
@@ -109,40 +111,52 @@ function extraTabs() {
   return appSettingsTabs(undefined, shellSettingsTabIds)
 }
 
+/** A row as the rail draws it, from either list's looser shape. */
+const railRow = (tab: { id: string; label: string }) => ({
+  id: tab.id as SettingsTabId,
+  label: tab.label,
+})
+
 /**
- * The blocks in the app's card: the app's own rows first, then Members, then
+ * The blocks in the Platform card: the admin's own rows, then Members, then
  * Public.
  *
- * The app's rows go on top and carry no heading, because the card is already
- * called App settings and they are the reason an admin opens it. A row the app
- * has claimed keeps the scaffold's position rather than moving up here, so
- * Public → Styling stays between Navigation and Pages whoever draws it.
+ * The first block carries no heading, because the card's own title already
+ * names it. A row the app has claimed keeps its position here rather than
+ * moving into the app's card, so Public → Styling stays between Navigation and
+ * SEO whoever draws it.
  */
-function appCardGroups(): readonly SettingsTabGroupSection[] {
+function platformCardGroups(): readonly SettingsTabGroupSection[] {
   const own = extraTabs()
   const claim = (id: string) => own.find((tab) => tab.id === id)
-  const row = (tab: { id: string; label: string }) => ({
-    id: tab.id as SettingsTabId,
-    label: tab.label,
-  })
-
-  const ownRows = own
-    .filter((tab) => !appScaffoldTabs.some((one) => one.id === tab.id))
-    .map(row)
 
   return [
-    ...(ownRows.length > 0 ? [{ tabs: ownRows }] : []),
-    ...appScaffoldGroups.map((group) => ({
+    { tabs: settingsTabs.map(railRow) },
+    ...audienceGroups.map((group) => ({
       label: group.label,
-      tabs: group.tabs.map((tab) => row(claim(tab.id) ?? tab)),
+      tabs: group.tabs.map((tab) => railRow(claim(tab.id) ?? tab)),
     })),
   ]
 }
 
 /**
+ * The rows in the app's card: what the app added, and nothing else.
+ *
+ * They carry no heading, because the card is already called App settings and
+ * they are the reason an admin opens it. A row claimed from the Platform card
+ * is not one of these — it is drawn where the shell's version was — so an app
+ * that only claims rows leaves this card empty and the card says so.
+ */
+function appCardRows(): readonly { id: SettingsTabId; label: string }[] {
+  return extraTabs()
+    .filter((tab) => !audienceTabs.some((one) => one.id === tab.id))
+    .map(railRow)
+}
+
+/**
  * True when this is the open row and the shell is the one drawing it.
  *
- * Every row in the app's card is claimable, so each of their panels below asks
+ * Every Members and Public row is claimable, so each of their panels below asks
  * this rather than the tab id alone. A claimed row's panel is the app's, and
  * `AppSettingsPanel` draws it.
  */
@@ -203,6 +217,7 @@ export function SettingsPage({
   const memberHeaderActions = appHeaderRightActionsForRole("member")
   const adminHeaderActionIds = adminHeaderActions.map((action) => action.id)
   const memberHeaderActionIds = memberHeaderActions.map((action) => action.id)
+  const appRows = appCardRows()
 
   return (
     <div
@@ -213,16 +228,17 @@ export function SettingsPage({
         className="flex w-full shrink-0 flex-col lg:w-48"
         style={{ gap: pageGutter }}
       >
-        {/* The signed-in workspace, and nothing an app may take over. */}
+        {/* Every screen the shell itself draws: the admin's own rows, then the
+            members who sign in, then the visitors who do not. */}
         <SettingsTabGroup
           storageId="settings-rail-platform"
           title="Platform settings"
-          groups={[{ tabs: settingsTabs }]}
+          groups={platformCardGroups()}
           activeTab={activeTab}
         />
 
-        {/* The app's own card, always drawn. Even an app that adds nothing has
-            the member navigation row to decide about.
+        {/* The app's own card, always drawn so an admin can see at a glance
+            whether this app added any settings of its own.
 
             Called "App settings" rather than the app's own name: the name is an
             editable field, so the card would rename itself the moment somebody
@@ -230,7 +246,8 @@ export function SettingsPage({
         <SettingsTabGroup
           storageId="settings-rail-app"
           title="App settings"
-          groups={appCardGroups()}
+          groups={appRows.length > 0 ? [{ tabs: appRows }] : []}
+          empty="This app has no settings of its own."
           activeTab={activeTab}
         />
       </div>
@@ -488,18 +505,21 @@ type SettingsTabGroupSection = {
  * to the group you are working in, and the choice is remembered per browser.
  *
  * A card can hold more than one block of rows. The Platform card does: its
- * public rows carry short names — Navigation, Styling — and the heading above
- * them is what says whose Navigation they are.
+ * member and public rows carry short names — Navigation, Styling — and the
+ * heading above them is what says whose Navigation they are.
  */
 function SettingsTabGroup({
   storageId,
   title,
   groups,
+  empty,
   activeTab,
 }: {
   storageId: string
   title: string
   groups: readonly SettingsTabGroupSection[]
+  /** What to say in place of the rows when there are none. */
+  empty?: string
   activeTab: SettingsTabId
 }) {
   return (
@@ -509,16 +529,22 @@ function SettingsTabGroup({
       title={title}
       contentClassName="px-3 pt-2"
     >
-      <nav className="flex flex-col gap-1">
-        {groups.map((group, index) => (
-          <SettingsTabSection
-            key={group.label ?? index}
-            label={group.label}
-            tabs={group.tabs}
-            activeTab={activeTab}
-          />
-        ))}
-      </nav>
+      {groups.length === 0 && empty ? (
+        // A sentence rather than a blank card: the card is drawn whether or not
+        // the app added anything, so it has to say which of the two this is.
+        <p className="pb-1 text-sm text-muted-foreground">{empty}</p>
+      ) : (
+        <nav className="flex flex-col gap-1">
+          {groups.map((group, index) => (
+            <SettingsTabSection
+              key={group.label ?? index}
+              label={group.label}
+              tabs={group.tabs}
+              activeTab={activeTab}
+            />
+          ))}
+        </nav>
+      )}
     </CollapsibleSettingsCard>
   )
 }

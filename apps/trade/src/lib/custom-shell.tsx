@@ -43,7 +43,6 @@ import {
 } from "@/lib/public-theme"
 import type { PublicThemePreset } from "@/lib/public-theme-presets"
 import type { PublicFontAsset } from "@/lib/public-font"
-import type { FrontPageRow } from "@/lib/pages/front-page"
 import type { PublicSocialLink } from "@/lib/pages/public-social"
 import {
   createDefaultPublicHeaderActions,
@@ -499,8 +498,6 @@ export type ShellConfig = {
   publicSeo: PublicSeo
   /** Editable headings and bodies for the public 404 and maintenance pages. */
   publicSystemCopy: PublicSystemCopy
-  /** Ordered app-wide rows that replace the built-in public front page. */
-  frontPageRows: FrontPageRow[]
   /** App-wide on one-site apps; saved per workspace when domains enable multisite. */
   publicNavigation: PublicNavigationItem[]
   /** App-wide on one-site apps; saved per workspace when domains enable multisite. */
@@ -796,7 +793,6 @@ export function createDefaultShellConfig(): ShellConfig {
     socialHandle: "",
     publicSeo: createDefaultPublicSeo(),
     publicSystemCopy: createDefaultPublicSystemCopy(),
-    frontPageRows: [],
     publicNavigation: createDefaultPublicNavigation(),
     publicFooter: [],
     publicFooterSocial: [],

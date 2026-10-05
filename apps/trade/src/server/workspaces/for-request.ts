@@ -3,7 +3,7 @@ import { asc, eq } from "drizzle-orm"
 import { db, type CustomShellDb } from "@/server/db"
 import { findCurrentWorkspaceId } from "@/server/people/workspaces"
 import { customShellWorkspaces } from "@/server/schema"
-import { answerForRequest } from "@/server/workspaces/host"
+import { answerForRequest, workspaceBaseDomain } from "@/server/workspaces/host"
 
 /**
  * Which site the content on this request belongs to.
@@ -83,6 +83,32 @@ export async function workspaceIdForRequest(
   const workspaceId = await findWorkspaceIdForRequest(userId, database)
   if (!workspaceId) throw new Error("No workspace")
   return workspaceId
+}
+
+/**
+ * The site whose **public pages** this admin is working on.
+ *
+ * Not always the site they are in, and the difference is the whole point. A
+ * deployment that does not serve several sites has one public front door, and
+ * every visitor reaching it lands on the oldest workspace whatever site the
+ * admin happens to be looking at. Reading the admin's own site there would let
+ * them build a front page no address can reach, and the website would keep
+ * drawing a different one.
+ *
+ * The shell already learned this with the public menu and footer, which read
+ * the app-wide row whenever the base domain is unset so that the screen, the
+ * save and the website cannot disagree. This is that same rule, for the thing
+ * that replaced the saved rows beside them.
+ *
+ * With workspace domains on, every site has its own address, so the answer is
+ * the site the admin picked in the switcher.
+ */
+export async function publicPagesWorkspaceId(
+  userId: string,
+  database: CustomShellDb = db
+): Promise<string> {
+  if (workspaceBaseDomain()) return workspaceIdForRequest(userId, database)
+  return (await onlyWorkspaceId(database)) ?? workspaceIdForRequest(userId, database)
 }
 
 /**

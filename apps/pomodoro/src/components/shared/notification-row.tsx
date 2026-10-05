@@ -13,14 +13,18 @@ import {
 } from "lucide-react"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import type { AppNoticeDetail } from "@/lib/app-options"
 import { type NotificationItem } from "@/lib/api/notification"
 import {
   aiLimitNotificationText,
   automationApprovalNotificationText,
   isAiLimitNotification,
 } from "@/lib/notification-types"
-import { focusRing } from "@/lib/layout/focus-ring"
-import { formatDateTime, formatRelativeTime } from "@/lib/format/format-time"
+import { focusRingInset } from "@/lib/layout/focus-ring"
+import {
+  formatDateTime,
+  formatShortTimeAgo,
+} from "@/lib/format/format-time"
 import { cn } from "@/lib/utils"
 
 /**
@@ -28,9 +32,16 @@ import { cn } from "@/lib/utils"
  * name for it, their words, and where clicking it goes.
  *
  * Two places show a member their own notices: the bell in the header and the
- * home page's notifications card. The row lives here so a notice reads the
- * same in both, and so neither can quietly send a click somewhere the other
- * does not.
+ * full Notifications page. The row lives here so a notice reads the same in
+ * both, and so neither can quietly send a click somewhere the other does not.
+ *
+ * **The row has four parts, and an app may fill any of them.** A tile on the
+ * left saying what kind of thing happened, a heading, a line of figures under
+ * it, and the time on the right. The shell writes all four for its own
+ * notices; an app that wrote the notice knows better and says so through
+ * `detail`, which comes from `AppOptions.notifications.detailsFor`. Nothing
+ * here is required, and a notice nobody said anything about looks exactly as
+ * every notice looked before `detail` existed.
  */
 
 function getInitial(name: string) {
@@ -61,155 +72,117 @@ function isFromTheApp(item: NotificationItem) {
 }
 
 /**
- * Two circles, not five colours.
+ * A rounded tile, not a face.
  *
- * Something the app sent — a published update or an announcement — wears the
- * theme's secondary colour and the mark of what it is. Something a person did
- * keeps the plain avatar circle and their initial. Which kind of thing a person
- * did (a thumbs up or a reply) is never told by colour: the row beside it
- * carries its own icon and says so in words.
+ * Something the app sent — a published update, an announcement, a filled order
+ * — gets a square-ish tile with the mark of what it is. Something a person did
+ * keeps the round avatar and their initial, because a circle means a human
+ * everywhere else in the app and a notice is no place to break that.
+ *
+ * The tile's colour is the theme's quiet `secondary` unless the app names its
+ * own. Only the app that wrote the notice knows whether it is good news, so
+ * green for a filled order and amber for a crossed line are the app's call and
+ * arrive in `toneClassName`.
  */
-function NotificationAvatar({ item }: { item: NotificationItem }) {
-  if (isFromTheApp(item)) {
+export function NotificationTile({
+  item,
+  detail,
+  className,
+}: {
+  item: NotificationItem
+  detail?: AppNoticeDetail
+  /** The tile's size and shape, for a row that is not the bell's. */
+  className?: string
+}) {
+  if (!isFromTheApp(item)) {
     return (
       <Avatar size="lg">
-        <AvatarFallback
-          className={cn(
-            "bg-secondary text-secondary-foreground",
-            (item.type === "automation_failed" ||
-              item.type === "system_email_failed") &&
-              "text-destructive-foreground bg-destructive"
-          )}
-        >
-          {item.type === "changelog" ? (
-            <SparklesIcon className="h-4 w-4" />
-          ) : item.type === "announcement" ? (
-            <MegaphoneIcon className="h-4 w-4" />
-          ) : item.type === "automation_approval" ? (
-            <UserCheckIcon className="h-4 w-4" />
-          ) : item.type === "automation_failed" ? (
-            <CircleAlertIcon className="h-4 w-4" />
-          ) : item.type === "account_update" ? (
-            <UserRoundCogIcon className="h-4 w-4" />
-          ) : item.type === "system_email_failed" ? (
-            <MailWarningIcon className="h-4 w-4" />
-          ) : item.type === "app_activity" ? (
-            <ActivityIcon className="h-4 w-4" />
-          ) : (
-            <GaugeIcon className="h-4 w-4" />
-          )}
-        </AvatarFallback>
+        <AvatarFallback>{getInitial(item.actor_name ?? "")}</AvatarFallback>
       </Avatar>
     )
   }
 
+  const AppIcon = detail?.icon
+  const failed =
+    item.type === "automation_failed" || item.type === "system_email_failed"
+
   return (
-    <Avatar size="lg">
-      <AvatarFallback>{getInitial(item.actor_name ?? "")}</AvatarFallback>
-    </Avatar>
+    <span
+      aria-hidden
+      className={cn(
+        "flex size-10 shrink-0 items-center justify-center rounded-lg",
+        detail?.toneClassName ??
+          (failed
+            ? "bg-destructive text-destructive-foreground"
+            : "bg-secondary text-secondary-foreground"),
+        className
+      )}
+    >
+      {AppIcon ? (
+        <AppIcon className="size-4" />
+      ) : (
+        <ShellNotificationIcon item={item} className="size-4" />
+      )}
+    </span>
   )
 }
 
-function NotificationMessage({ item }: { item: NotificationItem }) {
+/** The shell's own mark for each kind of notice it writes itself. */
+function ShellNotificationIcon({
+  item,
+  className,
+}: {
+  item: NotificationItem
+  className?: string
+}) {
+  if (item.type === "changelog") return <SparklesIcon className={className} />
+  if (item.type === "announcement") return <MegaphoneIcon className={className} />
+  if (item.type === "automation_approval")
+    return <UserCheckIcon className={className} />
+  if (item.type === "automation_failed")
+    return <CircleAlertIcon className={className} />
+  if (item.type === "account_update")
+    return <UserRoundCogIcon className={className} />
+  if (item.type === "system_email_failed")
+    return <MailWarningIcon className={className} />
+  if (item.type === "app_activity") return <ActivityIcon className={className} />
+  if (isAiLimitNotification(item.type)) return <GaugeIcon className={className} />
+  if (item.type === "feedback_merged")
+    return <GitMergeIcon className={className} />
+  return item.type === "feedback_vote" ? (
+    <ThumbsUpIcon className={className} />
+  ) : (
+    <MessageSquareIcon className={className} />
+  )
+}
+
+/** The shell's own heading for a notice, as plain text a screen reader can use. */
+function shellHeadingText(item: NotificationItem): string {
   if (
     item.type === "account_update" ||
     item.type === "system_email_failed" ||
     item.type === "app_activity"
   ) {
-    return <strong>{item.message ?? "The app needs attention"}</strong>
+    return item.message ?? "The app needs attention"
   }
-  if (item.type === "changelog") {
-    return <>New update shipped</>
-  }
-
-  // About the reader's own account, so like an announcement it carries its
-  // own words rather than pointing at a thing to open.
+  if (item.type === "changelog") return "New update shipped"
   if (isAiLimitNotification(item.type)) {
-    return <strong>{aiLimitNotificationText[item.type].message}</strong>
+    return aiLimitNotificationText[item.type].message
   }
-
-  // An announcement has nowhere to be opened, so its own words go here rather
-  // than a stock line that would send the reader looking for a link.
-  if (item.type === "announcement") {
-    return <strong>{item.announcement_title}</strong>
+  if (item.type === "announcement") return item.announcement_title ?? ""
+  if (item.type === "automation_approval" || item.type === "automation_failed") {
+    return item.automation_name?.replace(/\s*—\s*/g, " ") ?? ""
   }
-
-  // The flow's name is the useful half — "Weekly changelog email" says more
-  // about what is waiting than the word "approval" ever could.
-  if (item.type === "automation_approval") {
-    return <strong>{item.automation_name?.replace(/\s*—\s*/g, " ")}</strong>
-  }
-  if (item.type === "automation_failed") {
-    return <strong>{item.automation_name?.replace(/\s*—\s*/g, " ")}</strong>
-  }
-
-  if (item.type === "feedback_vote") {
-    return (
-      <>
-        <strong>{item.actor_name}</strong> gave your feedback a thumbs up
-      </>
-    )
-  }
-
-  // The reader's item was folded into another one; the line below quotes the
-  // surviving item, and clicking opens it.
+  const who = item.actor_name ?? "Somebody"
+  if (item.type === "feedback_vote") return `${who} gave your feedback a thumbs up`
   if (item.type === "feedback_merged") {
-    return (
-      <>
-        <strong>{item.actor_name}</strong> merged your feedback into another
-        item
-      </>
-    )
+    return `${who} merged your feedback into another item`
   }
-
-  return (
-    <>
-      <strong>{item.actor_name}</strong> commented on your feedback
-    </>
-  )
+  return `${who} commented on your feedback`
 }
 
-function NotificationIcon({ item }: { item: NotificationItem }) {
-  if (item.type === "app_activity") {
-    return <ActivityIcon className="h-3.5 w-3.5" />
-  }
-  if (item.type === "account_update") {
-    return <UserRoundCogIcon className="h-3.5 w-3.5" />
-  }
-  if (item.type === "system_email_failed") {
-    return <MailWarningIcon className="h-3.5 w-3.5" />
-  }
-  if (item.type === "changelog") {
-    return <SparklesIcon className="h-3.5 w-3.5" />
-  }
-  if (item.type === "announcement") {
-    return <MegaphoneIcon className="h-3.5 w-3.5" />
-  }
-  if (isAiLimitNotification(item.type)) {
-    return <GaugeIcon className="h-3.5 w-3.5" />
-  }
-  if (item.type === "automation_approval") {
-    return <UserCheckIcon className="h-3.5 w-3.5" />
-  }
-  if (item.type === "automation_failed") {
-    return <CircleAlertIcon className="h-3.5 w-3.5" />
-  }
-  if (item.type === "feedback_merged") {
-    return <GitMergeIcon className="h-3.5 w-3.5" />
-  }
-
-  return item.type === "feedback_vote" ? (
-    <ThumbsUpIcon className="h-3.5 w-3.5" />
-  ) : (
-    <MessageSquareIcon className="h-3.5 w-3.5" />
-  )
-}
-
-/**
- * The line under the message: the update's title, the announcement's own words,
- * or the feedback it is about.
- */
-function notificationPreview(item: NotificationItem) {
+/** Everything a notice has to say underneath its heading, whole. */
+function notificationText(item: NotificationItem) {
   const approvalText = automationApprovalNotificationText[approvalState(item)]
   const approvalSummary = item.automation_approval_summary?.trim()
   const text =
@@ -231,51 +204,121 @@ function notificationPreview(item: NotificationItem) {
                 ? aiLimitNotificationText[item.type].detail
                 : (item.feedback_message ?? "")
 
+  return text
+}
+
+/**
+ * The same words cut to fit the two lines a row gives them.
+ *
+ * **The row hands the whole thing to `title` as well.** The cut happens here,
+ * in JavaScript, not in the `line-clamp` underneath it, so a reader who wants
+ * the rest has nowhere else to get it: a trade notice that ends "which bought
+ * these coins at..." has stopped saying the thing it was written to say.
+ * Tyler, 3 October 2026: "Hovering over the notificattion should show me all
+ * the text".
+ */
+function notificationPreview(item: NotificationItem) {
+  const text = notificationText(item)
   return text.length > 90 ? `${text.slice(0, 90)}...` : text
 }
 
 export function NotificationRow({
   item,
+  detail,
   onClick,
 }: {
   item: NotificationItem
+  /** What the app that wrote this notice says about it, when it wrote it. */
+  detail?: AppNoticeDetail
   onClick: () => void
 }) {
+  const heading = detail?.title ?? shellHeadingText(item)
+  const meta = detail?.meta ?? []
+  // An empty string is the app saying "the figures above already say it".
+  // Leaving the field out is the app saying nothing, so the shell's own
+  // sentence stands.
+  const body = detail?.body ?? notificationPreview(item)
+  const unread = !item.read_at
+
+  // One tooltip for the whole row, carrying every word of it and the exact
+  // moment. It has to live on the row rather than on the lines inside it: the
+  // click target below is laid over those lines, so a tooltip on any of them
+  // would never be the one the pointer is over. Tyler, 3 October 2026:
+  // "Hovering over the notificattion should show me all the text".
+  //
+  // **The sentence is always in here, even when the row does not draw it.** An
+  // app that fills the figures sets `body` to an empty string, because "filled"
+  // and "made $8.12" are already above — but the sentence they came from often
+  // says more than they do, and a grid sale's "measured against rung 2, which
+  // bought these coins at $0.9" has nowhere else to be read. So the empty
+  // string hides the line and never the words.
+  const wholeRowText = [
+    heading,
+    meta.join(" · "),
+    detail?.body || notificationText(item),
+    formatDateTime(item.created_at),
+  ]
+    .filter(Boolean)
+    .join("\n")
+
   return (
-    <button
-      type="button"
+    // The whole row is one click target, drawn as a button laid over it rather
+    // than wrapped around it, so the lines inside it stay plain text.
+    <div
+      title={wholeRowText}
       className={cn(
-        "grid w-full grid-cols-[0.25rem_3rem_1fr] gap-2 rounded-md p-2 text-left hover:bg-muted/60",
-        focusRing
+        "relative grid grid-cols-[2.5rem_1fr_auto] gap-3 rounded-lg p-3 transition-colors",
+        unread ? "bg-muted/50" : "bg-transparent",
+        "hover:bg-muted"
       )}
-      onClick={onClick}
     >
-      <div className="pt-5">
-        {!item.read_at ? (
-          <span className="block size-2 rounded-full bg-destructive" />
+      <NotificationTile item={item} detail={detail} />
+
+      <div className="min-w-0 space-y-1">
+        <p className="text-sm leading-snug font-semibold text-foreground">
+          {heading}
+        </p>
+
+        {meta.length > 0 ? (
+          // Fixed-width figures, so the price sits in the same place on every
+          // row and a column of fills can be read straight down.
+          <p className="truncate font-mono text-xs text-muted-foreground tabular-nums">
+            {meta.join(" · ")}
+          </p>
+        ) : null}
+
+        {body ? (
+          // Cut to fit here, whole in the row's own tooltip above.
+          <p className="line-clamp-2 text-xs text-muted-foreground">{body}</p>
+        ) : null}
+
+      </div>
+
+      <div className="flex shrink-0 flex-col items-end gap-2">
+        {/* The exact moment is in the row's tooltip; the stamp itself answers
+            the only question a list of notices gets asked, which is how long
+            ago this happened. */}
+        <span className="text-xs whitespace-nowrap text-muted-foreground">
+          {formatShortTimeAgo(item.created_at)}
+        </span>
+        {unread ? (
+          // Red, which is the theme's own `destructive` and the same colour as
+          // the count on the bell. Tyler, 4 October 2026.
+          <span
+            aria-hidden
+            className="block size-2 shrink-0 rounded-full bg-destructive"
+          />
         ) : null}
       </div>
-      <NotificationAvatar item={item} />
-      <div className="min-w-0">
-        <p className="flex items-center gap-1.5 text-sm leading-snug text-muted-foreground [&_strong]:font-semibold [&_strong]:text-foreground">
-          <NotificationIcon item={item} />
-          <span>
-            <NotificationMessage item={item} />
-          </span>
-        </p>
-        <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-          {notificationPreview(item)}
-        </p>
-        {/* The exact moment is one hover away; the line itself answers the only
-            question a list of notices gets asked, which is how long ago this
-            happened. */}
-        <p
-          className="mt-1 text-xs text-muted-foreground"
-          title={formatDateTime(item.created_at)}
-        >
-          {formatRelativeTime(item.created_at, formatDateTime)}
-        </p>
-      </div>
-    </button>
+
+      {/* Last in the order a screen reader reads, so the words come first and
+          the control that opens them comes after, named by its heading. */}
+      <button
+        type="button"
+        aria-label={`Open: ${heading}`}
+        className={cn("absolute inset-0 rounded-lg", focusRingInset)}
+        onClick={onClick}
+      />
+    </div>
   )
 }

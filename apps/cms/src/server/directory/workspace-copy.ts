@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm"
+import { and, eq } from "drizzle-orm"
 
 import type { WorkspaceCopyInput } from "@/server/app-options"
 import { now, uuid } from "@/server/auth/security"
@@ -12,8 +12,7 @@ import {
   LISTING_CONTENT_TYPE,
 } from "@/server/directory/schema"
 import type { CustomShellDb } from "@/server/db"
-import { customShellWorkspaces } from "@/server/schema"
-import { parseWorkspaceSettings } from "@/server/people/workspaces"
+import { customShellPageBlocks } from "@/server/schema"
 import {
   cleanCategoriesRowSettings,
   cleanListingsRowSettings,
@@ -202,67 +201,74 @@ export async function copyDirectoryWorkspace({
 }
 
 /**
- * Points every one of this app's front page rows at the copy's own categories.
+ * Points every one of this app's front page blocks at the copy's own categories.
  *
- * The shell copies a site's settings wholesale, rows and all, and it has no
- * idea that the bag of fields inside one of this app's rows holds a category
- * id. So the ids are swapped here, in the same transaction, and a row whose
- * category did not come across is widened to every category rather than left
- * pointing at a stranger's.
+ * The shell copies a site's blocks wholesale, and it has no idea that the bag
+ * of fields inside one of this app's blocks holds a category id. So the ids are
+ * swapped here, in the same transaction, and a block whose category did not
+ * come across is widened to every category rather than left pointing at a
+ * stranger's.
+ *
+ * The blocks used to live in the workspace's settings, as `frontPageRows`. They
+ * moved to the `page_blocks` table on the shell's 5 Oct 2026 merge, keyed by
+ * site and address, so this reads and writes rows there instead. What it does
+ * to each block is unchanged.
  */
 async function repointFrontPageRows(
   newWorkspaceId: string,
   categoryIds: Map<string, string>,
   database: CustomShellDb
 ): Promise<void> {
-  const [row] = await database
-    .select({ settings: customShellWorkspaces.settings })
-    .from(customShellWorkspaces)
-    .where(eq(customShellWorkspaces.id, newWorkspaceId))
-    .limit(1)
-  if (!row) return
+  const blocks = await database
+    .select({
+      id: customShellPageBlocks.id,
+      kind: customShellPageBlocks.kind,
+      appKind: customShellPageBlocks.appKind,
+      settings: customShellPageBlocks.settings,
+    })
+    .from(customShellPageBlocks)
+    .where(eq(customShellPageBlocks.workspaceId, newWorkspaceId))
 
-  const settings = parseWorkspaceSettings(row.settings)
   const copiedId = (id: string | null) =>
     id ? (categoryIds.get(id) ?? null) : null
 
-  let changed = false
-  const rows = settings.frontPageRows.map((front) => {
-    if (front.kind !== "app" || !isCmsFrontPageRowKey(front.appKind)) {
-      return front
-    }
-    changed = true
+  for (const block of blocks) {
+    if (block.kind !== "app" || !isCmsFrontPageRowKey(block.appKind)) continue
 
-    if (front.appKind === "listings") {
-      const own = cleanListingsRowSettings(front.settings)
-      return {
-        ...front,
-        settings: { ...own, categoryId: copiedId(own.categoryId) },
-      }
-    }
-    if (front.appKind === "categories") {
-      const own = cleanCategoriesRowSettings(front.settings)
-      return {
-        ...front,
-        settings: {
-          ...own,
-          pickedCategoryIds: own.pickedCategoryIds.flatMap((id) => {
-            const copied = categoryIds.get(id)
-            return copied ? [copied] : []
-          }),
-        },
-      }
-    }
-    const own = cleanPickedRowSettings(front.settings)
-    return {
-      ...front,
-      settings: { ...own, categoryId: copiedId(own.categoryId) },
-    }
-  })
+    // The jsonb column is the whole block bar its id, kind and appKind, so the
+    // heading, the layout and the Visibility switches are in here too. This
+    // app's own fields are the nested `settings` key, and only that key is
+    // rewritten: replacing the column with the cleaner's output would drop the
+    // block's heading.
+    const saved = (block.settings ?? {}) as Record<string, unknown>
+    const ownSaved = (saved.settings ?? null) as Record<string, unknown> | null
 
-  if (!changed) return
-  await database
-    .update(customShellWorkspaces)
-    .set({ settings: { ...settings, frontPageRows: rows }, updatedAt: now() })
-    .where(eq(customShellWorkspaces.id, newWorkspaceId))
+    let own: Record<string, unknown>
+    if (block.appKind === "listings") {
+      const cleaned = cleanListingsRowSettings(ownSaved)
+      own = { ...cleaned, categoryId: copiedId(cleaned.categoryId) }
+    } else if (block.appKind === "categories") {
+      const cleaned = cleanCategoriesRowSettings(ownSaved)
+      own = {
+        ...cleaned,
+        pickedCategoryIds: cleaned.pickedCategoryIds.flatMap((id) => {
+          const copied = categoryIds.get(id)
+          return copied ? [copied] : []
+        }),
+      }
+    } else {
+      const cleaned = cleanPickedRowSettings(ownSaved)
+      own = { ...cleaned, categoryId: copiedId(cleaned.categoryId) }
+    }
+
+    await database
+      .update(customShellPageBlocks)
+      .set({ settings: { ...saved, settings: own }, updatedAt: now() })
+      .where(
+        and(
+          eq(customShellPageBlocks.workspaceId, newWorkspaceId),
+          eq(customShellPageBlocks.id, block.id)
+        )
+      )
+  }
 }

@@ -6,6 +6,7 @@ import {
 import { answerForRequest } from "@/server/workspaces/host"
 import { appFrontPageRowReader } from "@/server/app-options"
 import { loadUserAnnouncements } from "@/server/content/announcements"
+import { readVisiblePageBlocks } from "@/server/content/page-blocks"
 import { loadEntitlements } from "@/server/billing/entitlements"
 import { countUnseenNotifications } from "@/server/notifications/inbox"
 import { findSessionContext } from "@/server/auth/security"
@@ -29,6 +30,7 @@ import {
 } from "@/lib/pages/front-page"
 import { createDefaultPublicHeaderActions } from "@/lib/pages/public-header-actions"
 import { createDefaultPublicNavigation } from "@/lib/pages/public-navigation"
+import { FRONT_PAGE_PATH } from "@/lib/pages/page-descriptor"
 import {
   createDefaultPublicHeader,
   type PublicHeader,
@@ -202,7 +204,6 @@ const loadBrandingFn = createServerFn({ method: "GET" }).handler(
     publicOrigin: string
     publicSeo: PublicSeo
     publicSystemCopy: PublicSystemCopy
-    frontPageRows: FrontPageRow[]
     publicHeader: PublicHeader
     publicBreadcrumbs: PublicBreadcrumbs
     publicUserPanel: PublicUserPanel
@@ -239,7 +240,6 @@ const loadBrandingFn = createServerFn({ method: "GET" }).handler(
         publicOrigin: "",
         publicSeo: createDefaultPublicSeo(),
         publicSystemCopy: createDefaultPublicSystemCopy(),
-        frontPageRows: [],
         publicHeader: createDefaultPublicHeader(),
         publicBreadcrumbs: createDefaultPublicBreadcrumbs(),
         publicUserPanel: createDefaultPublicUserPanel(),
@@ -284,13 +284,6 @@ export type AppFrontPageRowFills = {
  */
 const loadAppFrontPageRowsFn = createServerFn({ method: "GET" }).handler(
   async (): Promise<AppFrontPageRowFills> => {
-    const branding = await readBranding()
-    const rows = branding.frontPageRows.filter(
-      (row): row is Extract<FrontPageRow, { appKind: string }> =>
-        row.kind === APP_FRONT_PAGE_ROW_KIND
-    )
-    if (rows.length === 0) return { data: {}, dropped: [] }
-
     const answer = await answerForRequest()
     // The site whose address was visited. A one-site app has no such address,
     // so its front page asks the shell for the site every other read there
@@ -299,7 +292,17 @@ const loadAppFrontPageRowsFn = createServerFn({ method: "GET" }).handler(
       answer.kind === "workspace"
         ? answer.workspace.id
         : ((await onlyWorkspaceId()) ?? "")
-    if (!workspaceId) return { data: {}, dropped: rows.map((row) => row.id) }
+    if (!workspaceId) return { data: {}, dropped: [] }
+
+    // Read again here rather than trusted from the browser: what an app's row
+    // is asked to fill has to be what the page actually holds.
+    const rows = (
+      await readVisiblePageBlocks(workspaceId, FRONT_PAGE_PATH)
+    ).filter(
+      (row): row is Extract<FrontPageRow, { appKind: string }> =>
+        row.kind === APP_FRONT_PAGE_ROW_KIND
+    )
+    if (rows.length === 0) return { data: {}, dropped: [] }
 
     const data: Record<string, AppFrontPageRowData> = {}
     const dropped: string[] = []

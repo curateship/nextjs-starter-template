@@ -67,6 +67,9 @@ export function buildPageDescriptors(
       // Writing nothing means "the shell's", which is what every page in this
       // repo is.
       source: declaration.source ?? "shell",
+      // Off unless the page says so: a page that does not draw its blocks
+      // would collect them in the database and show none of them.
+      blocks: declaration.blocks === true,
     })
   }
 

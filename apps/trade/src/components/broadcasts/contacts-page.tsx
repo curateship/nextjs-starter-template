@@ -29,6 +29,7 @@ import {
   Select,
   SelectContent,
   SelectItem,
+  SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
@@ -74,7 +75,11 @@ import {
   describeSegmentCondition,
   segmentConditionIsComplete,
   segmentRulesMatch,
+  segmentStatusBadgeVariant,
+  segmentStatusHints,
   segmentStatusLabels,
+  CONTACT_SEGMENT_STATUSES,
+  type ContactSegmentStatus,
   type SegmentCondition,
   type SegmentRuleOptions,
   type SegmentRules,
@@ -100,6 +105,18 @@ const contactsRoute = getRouteApi("/_authenticated/admin/contacts")
 
 /** One shared empty list, so "no filters" is the same object every render. */
 const EMPTY_RULES: SegmentRules = { conditions: [] }
+
+/**
+ * How many of somebody's tags a row draws before it stops counting.
+ *
+ * A cap, not a scrolling cell, because a table row is as tall as its tallest
+ * cell. An imported contact carrying 74 tags made one row 74 lines high, pushed
+ * the paging controls off the bottom of the screen, and turned a list of
+ * twenty-five thousand people into a view of one. Three fit on one line at the
+ * width this column gets, and the rest are one click away in the contact's own
+ * window, where they can also be edited.
+ */
+const TAGS_SHOWN_IN_A_ROW = 3
 
 const CONTACT_COLUMNS: TableHeaderColumn<ContactSortColumn>[] = [
   { key: "email", label: "Email", column: "main" },
@@ -145,10 +162,20 @@ function ContactStatusButton({
 }) {
   const [runStatus, changingStatus] = useAsyncAction(getContactErrorMessage)
 
+  /**
+   * Whether this person is still being sent things.
+   *
+   * Gone quiet counts as yes, because they are: a quiet contact is still in
+   * every send's audience, which is the only way they can open something and
+   * come back. So the button has to offer to take them off, not to put them
+   * back — "Put back" on somebody who was never taken off is a sentence that
+   * makes an admin doubt what the status means.
+   */
+  const mailable = contact.status === "subscribed" || contact.status === "cold"
+
   const handleToggleStatus = async () => {
     if (changingStatus) return
-    const next =
-      contact.status === "subscribed" ? "unsubscribed" : "subscribed"
+    const next = mailable ? "unsubscribed" : "subscribed"
     await runStatus(async () => {
       await setContactsStatus([contact.id], next)
       toast.success(
@@ -171,7 +198,7 @@ function ContactStatusButton({
       {changingStatus ? (
         <Loader2Icon className="size-4 animate-spin" />
       ) : null}
-      {contact.status === "subscribed" ? "Take off" : "Put back"}
+      {mailable ? "Take off" : "Put back"}
     </Button>
   )
 }
@@ -317,6 +344,13 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
     lastName: "",
     tags: "",
   })
+  /**
+   * Separate from `form` because it is never blank and never counts as typing.
+   * Somebody who opened this window and only looked at the status dropdown has
+   * not written anything to lose, so closing must not ask them to confirm.
+   */
+  const [addStatus, setAddStatus] =
+    React.useState<ContactSegmentStatus>("subscribed")
   const [emailTouched, setEmailTouched] = React.useState(false)
   const [addAttempted, setAddAttempted] = React.useState(false)
   /** Anything typed into the add form, which closing would throw away. */
@@ -436,9 +470,11 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
           .split(",")
           .map((entry) => entry.trim())
           .filter(Boolean),
+        status: addStatus,
       })
       setAddOpen(false)
       setForm({ email: "", firstName: "", lastName: "", tags: "" })
+      setAddStatus("subscribed")
       setEmailTouched(false)
       setAddAttempted(false)
       await refresh()
@@ -532,6 +568,13 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
   return (
     <>
       <DashboardTable
+        // The card fits the window, with the rows scrolling inside it, so the
+        // paging controls at the bottom are always reachable. Without this the
+        // card is shrunk to the space left and hides what does not fit — and it
+        // hides it with `overflow-hidden`, which cannot be scrolled, so on a
+        // 900px window the last four rows and the whole footer were gone with
+        // no way to reach them.
+        fillHeight
         busy={routeLoading}
         title="Contacts"
         icon={<UsersIcon />}
@@ -754,8 +797,8 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
               {contact.tags.length === 0 ? (
                 <span className="text-muted-foreground">—</span>
               ) : (
-                <span className="flex flex-wrap gap-1">
-                  {contact.tags.map((entry) => {
+                <span className="flex flex-wrap items-center gap-1">
+                  {contact.tags.slice(0, TAGS_SHOWN_IN_A_ROW).map((entry) => {
                     const on = filteredTags.has(entry)
                     return (
                       <button
@@ -776,15 +819,20 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
                       </button>
                     )
                   })}
+                  {contact.tags.length > TAGS_SHOWN_IN_A_ROW ? (
+                    <button
+                      type="button"
+                      className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+                      onClick={() => setOpenContact(contact.id)}
+                    >
+                      +{contact.tags.length - TAGS_SHOWN_IN_A_ROW} more
+                    </button>
+                  ) : null}
                 </span>
               )}
             </TableCell>
             <TableCell column="meta">
-              <Badge
-                variant={
-                  contact.status === "subscribed" ? "secondary" : "destructive"
-                }
-              >
+              <Badge variant={segmentStatusBadgeVariant[contact.status]}>
                 {segmentStatusLabels[contact.status]}
               </Badge>
             </TableCell>
@@ -914,6 +962,31 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
                       }))
                     }
                   />
+                </div>
+                <div className="grid gap-2">
+                  <FieldLabel
+                    htmlFor="contact-status"
+                    hint={segmentStatusHints[addStatus]}
+                  >
+                    Status
+                  </FieldLabel>
+                  <Select
+                    value={addStatus}
+                    onValueChange={(value) =>
+                      setAddStatus(value as ContactSegmentStatus)
+                    }
+                  >
+                    <SelectTrigger id="contact-status" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CONTACT_SEGMENT_STATUSES.map((status) => (
+                        <SelectItem key={status} value={status}>
+                          {segmentStatusLabels[status]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </CardContent>
             </Card>

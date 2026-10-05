@@ -8,6 +8,7 @@ import {
   FrontPageTestimonials,
 } from "@/components/marketing/front-page-content-blocks"
 import { AppFrontPageRow } from "@/components/marketing/app-front-page-row"
+import { WrittenPageBody } from "@/components/pages/written-page-body"
 import { SavedLink } from "@/components/shell/public-navigation"
 import { Button } from "@/components/ui/button"
 import {
@@ -25,6 +26,7 @@ import {
   type FrontPageRow,
 } from "@/lib/pages/front-page"
 import { publicDeviceRowClassName } from "@/lib/pages/public-device"
+import { PUBLIC_FRONT_PAGE_ROW_GAP_PHONE_SHARE } from "@/lib/public-theme"
 import { cn } from "@/lib/utils"
 
 /**
@@ -51,6 +53,32 @@ function frontPageRowAction(
     : null
 }
 
+/**
+ * A row's own air, as the two variables theme.css picks between.
+ *
+ * It cannot be one inline `margin-block`, for the reason the hero's spacing
+ * cannot be one inline `padding-block`: an inline value beats a media query,
+ * so a number written here could never be smaller on a phone. A side the block
+ * has not set writes nothing at all, and theme.css falls back to half the
+ * page's own Space between blocks.
+ */
+function rowSpaceStyle(row: FrontPageRow): CSSProperties | undefined {
+  const sides: Record<string, string> = {}
+  if (row.spaceAbove !== null) {
+    sides["--shell-row-space-above"] = `${row.spaceAbove}px`
+    sides["--shell-row-space-above-phone"] = `${Math.round(
+      row.spaceAbove * PUBLIC_FRONT_PAGE_ROW_GAP_PHONE_SHARE
+    )}px`
+  }
+  if (row.spaceBelow !== null) {
+    sides["--shell-row-space-below"] = `${row.spaceBelow}px`
+    sides["--shell-row-space-below-phone"] = `${Math.round(
+      row.spaceBelow * PUBLIC_FRONT_PAGE_ROW_GAP_PHONE_SHARE
+    )}px`
+  }
+  return Object.keys(sides).length ? (sides as CSSProperties) : undefined
+}
+
 export function FrontPageRows({
   rows,
   plans,
@@ -61,11 +89,19 @@ export function FrontPageRows({
   appRowData,
 }: {
   rows: FrontPageRow[]
-  plans: PlanOption[]
-  trialUsed: boolean
-  interval: BillingInterval
-  onIntervalChange: (interval: BillingInterval) => void
-  onSelectPlan: (plan: PlanOption, interval: BillingInterval) => void
+  /**
+   * The public plans, and everything the plans block needs to offer them.
+   *
+   * Left out by a page that cannot hold a plans block — every page but the
+   * front page — so the caller does not have to load billing for a block it
+   * will never draw. A plans block without them draws nothing rather than an
+   * empty table.
+   */
+  plans?: PlanOption[]
+  trialUsed?: boolean
+  interval?: BillingInterval
+  onIntervalChange?: (interval: BillingInterval) => void
+  onSelectPlan?: (plan: PlanOption, interval: BillingInterval) => void
   /**
    * What the app's own reader filled for each of its rows, by row id. A page
    * drawn without asking the app — a preview, or an app with no such rows —
@@ -81,8 +117,10 @@ export function FrontPageRows({
 
   return (
     <div
-      // The gap between rows is set in theme.css, so flat mode can collapse it
-      // and a phone and a desktop can have different ones.
+      // The space between rows is set in theme.css, so flat mode can collapse
+      // it and a phone and a desktop can have different ones. It is each row's
+      // own margin rather than this grid's `gap`, because a gap belongs to the
+      // container and a block has to be able to name its own.
       className={cn("grid w-full", publicContentAlignmentGridClassName)}
       data-front-page-rows=""
     >
@@ -166,6 +204,7 @@ export function FrontPageRows({
               background ? "relative isolate" : null,
               publicDeviceRowClassName(row.device)
             )}
+            style={rowSpaceStyle(row)}
             data-front-page-row={row.kind}
             data-front-page-layout={row.layout}
             data-front-page-device={row.device}
@@ -279,14 +318,16 @@ export function FrontPageRows({
                 spacing={row.spacing}
               />
             ) : row.kind === "plans" ? (
-              <PricingTable
-                plans={plans}
-                interval={interval}
-                onIntervalChange={onIntervalChange}
-                onSelect={onSelectPlan}
-                trialUsed={trialUsed}
-                actionLabel="Get started"
-              />
+              plans && interval && onIntervalChange && onSelectPlan ? (
+                <PricingTable
+                  plans={plans}
+                  interval={interval}
+                  onIntervalChange={onIntervalChange}
+                  onSelect={onSelectPlan}
+                  trialUsed={trialUsed ?? false}
+                  actionLabel="Get started"
+                />
+              ) : null
             ) : row.kind === "testimonials" ? (
               <FrontPageTestimonials
                 items={row.items}
@@ -309,6 +350,13 @@ export function FrontPageRows({
                 alignClassName={alignClassName}
                 showCaptions={row.showCaptions}
               />
+            ) : row.kind === "words" ? (
+              /* The words a page is written in, drawn from the same node tree
+                 a written page always used. Nothing in it is markup, so there
+                 is no string to sanitise on the way to the browser. */
+              <div className={cn("w-full", alignClassName)}>
+                <WrittenPageBody body={row.body} />
+              </div>
             ) : row.kind === "divider" ? (
               <FrontPageDivider
                 style={row.dividerStyle}

@@ -27,6 +27,7 @@ import {
   useNavSensors,
   useSortableChip,
   useSortableRow,
+  stableItemIds,
 } from "@/components/settings/nav-editor-shared"
 import { Button } from "@/components/ui/button"
 import {
@@ -78,9 +79,12 @@ import {
   type PublicBreadcrumbs,
 } from "@/lib/pages/public-breadcrumbs"
 import {
+  DEFAULT_PUBLIC_HEADER_MENU_FONT_SIZE,
   MAX_PUBLIC_HEADER_LOGO_GAP,
+  MAX_PUBLIC_HEADER_MENU_FONT_SIZE,
   MAX_PUBLIC_HEADER_WIDTH,
   MIN_PUBLIC_HEADER_LOGO_GAP,
+  MIN_PUBLIC_HEADER_MENU_FONT_SIZE,
   MIN_PUBLIC_HEADER_WIDTH,
   PUBLIC_HEADER_BLUR_LABELS,
   PUBLIC_HEADER_BLURS,
@@ -488,6 +492,17 @@ function PublicHeaderSettings({
         onChange={(logoGap) => update({ logoGap })}
       />
 
+      <NumberField
+        id="public-header-menu-font-size"
+        label="Menu text size"
+        hint={`How big the menu words are, in pixels, from ${MIN_PUBLIC_HEADER_MENU_FONT_SIZE} to ${MAX_PUBLIC_HEADER_MENU_FONT_SIZE}. ${DEFAULT_PUBLIC_HEADER_MENU_FONT_SIZE} is the size the menu has always been. Every word in the menu follows it, on a phone as well, including the links inside a group.`}
+        value={header.menuFontSize}
+        min={MIN_PUBLIC_HEADER_MENU_FONT_SIZE}
+        max={MAX_PUBLIC_HEADER_MENU_FONT_SIZE}
+        inputClassName="w-full sm:w-32"
+        onChange={(menuFontSize) => update({ menuFontSize })}
+      />
+
       <div className="grid gap-2">
         <FieldLabel
           htmlFor="public-header-blur"
@@ -547,11 +562,9 @@ function PublicLinkEditor<T extends PublicNavigationItem>({
     number | null
   >(null)
   const sensors = useNavSensors()
-  const itemIds = links.map((item, index) => {
-    return isPublicNavigationGroup(item)
-      ? `${id}-group-${index}`
-      : `${id}-link-${index}`
-  })
+  // Ids that travel with the item, not with its slot, so a dropped chip
+  // slides into place the way the top-right chips do.
+  const itemIds = stableItemIds(links, id)
   const linkNoun = title === "Public footer" ? "footer link" : "menu link"
   const footerAtLimit =
     !allowGroups &&

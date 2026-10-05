@@ -70,9 +70,6 @@ import {
   type PublicHeaderAction,
 } from "@/lib/pages/public-header-actions"
 import {
-  normalizeFrontPageRows,
-  visibleFrontPageRows,
-  type FrontPageRow,
 } from "@/lib/pages/front-page"
 import { clampToastSeconds } from "@/lib/toast/toast-seconds"
 import { db, type CustomShellDb } from "@/server/db"
@@ -156,7 +153,6 @@ export async function readBranding(
   publicOrigin: string
   publicSeo: PublicSeo
   publicSystemCopy: PublicSystemCopy
-  frontPageRows: FrontPageRow[]
   publicHeader: PublicHeader
   publicBreadcrumbs: PublicBreadcrumbs
   publicUserPanel: PublicUserPanel
@@ -219,7 +215,6 @@ export async function readBranding(
       publicOrigin: currentPublicOrigin(),
       publicSeo: globals.publicSeo,
       publicSystemCopy: globals.publicSystemCopy,
-      frontPageRows: visibleFrontPageRows(globals.frontPageRows),
       publicHeader: globals.publicHeader,
       publicBreadcrumbs: globals.publicBreadcrumbs,
       publicUserPanel: globals.publicUserPanel,
@@ -245,6 +240,10 @@ export async function readBranding(
   }
 
   const workspaceSettings = parseWorkspaceSettings(answer.workspace.settings)
+  // Whether a site keeps its own menu, footer, copyright line and front page
+  // rows, or reads the deployment's. The same switch the Settings screen and
+  // the save read, so all three agree about whose menu is whose.
+  const siteOwnsPublicPages = Boolean(workspaceBaseDomain())
   const siteBranding = appUsesSiteBranding()
   const publicTheme = publicThemeForSite(
     appWidePublicTheme,
@@ -284,25 +283,32 @@ export async function readBranding(
     publicOrigin: currentPublicOrigin(),
     publicSeo: globals.publicSeo,
     publicSystemCopy: globals.publicSystemCopy,
-    // This site's own rows, like the menu and the footer below. A one-site app
-    // never reaches here: its front page is answered by the branch above, from
-    // the app-wide row.
-    frontPageRows: visibleFrontPageRows(workspaceSettings.frontPageRows),
     publicHeader: globals.publicHeader,
     publicBreadcrumbs: globals.publicBreadcrumbs,
     publicUserPanel: globals.publicUserPanel,
-    publicNavigation: workspaceSettings.publicNavigation,
-    publicFooter: workspaceSettings.publicFooter,
+    publicNavigation: siteOwnsPublicPages
+      ? workspaceSettings.publicNavigation
+      : globals.publicNavigation,
+    publicFooter: siteOwnsPublicPages
+      ? workspaceSettings.publicFooter
+      : globals.publicFooter,
     publicFooterSocial: globals.publicFooterSocial,
     publicHeaderActions: globals.publicHeaderActions,
-    publicFooterCopyright: workspaceSettings.publicFooterCopyright,
+    publicFooterCopyright: siteOwnsPublicPages
+      ? workspaceSettings.publicFooterCopyright
+      : globals.publicFooterCopyright,
     publicSearchEnabled:
       searchPage !== null &&
       pageVisibility(workspaceSettings.pages, searchPage) !== "off",
     publicFont: globals.publicFont,
     ...(hasCustomPublicTheme(publicTheme) ? { publicTheme } : {}),
     hostIsUnknown: false,
-    hostIsSite: true,
+    // Only where a site answers for its own public pages. A one-site app whose
+    // site has its own domain reaches this branch, and there "no rows" has to
+    // mean the same thing it means on the deployment's own address: draw the
+    // deployment's front page, because there is only the one website and those
+    // are its rows.
+    hostIsSite: siteOwnsPublicPages,
   }
 }
 
@@ -386,9 +392,6 @@ export async function readShellSettings(
     workspaceLogo: workspaceSettings.logo,
     workspaceShareImage: workspaceSettings.shareImage,
     sidebarWidth: await sidebarWidthFor(user.id, database),
-    frontPageRows: workspaceDomainsEnabled
-      ? workspaceSettings.frontPageRows
-      : globals.frontPageRows,
     publicNavigation: workspaceDomainsEnabled
       ? workspaceSettings.publicNavigation
       : globals.publicNavigation,
@@ -461,7 +464,6 @@ export function parseShellGlobals(value: unknown) {
     socialHandle: normalizeSocialHandle(settings.socialHandle),
     publicSeo: normalizePublicSeo(settings.publicSeo),
     publicSystemCopy: normalizePublicSystemCopy(settings.publicSystemCopy),
-    frontPageRows: normalizeFrontPageRows(settings.frontPageRows),
     publicNavigation:
       settings.publicNavigation === undefined
         ? fallback.publicNavigation
@@ -564,7 +566,6 @@ export function pickShellGlobals(
     | "socialHandle"
     | "publicSeo"
     | "publicSystemCopy"
-    | "frontPageRows"
     | "publicNavigation"
     | "publicFooter"
     | "publicFooterSocial"
@@ -605,7 +606,6 @@ export function pickShellGlobals(
     socialHandle: normalizeSocialHandle(settings.socialHandle),
     publicSeo: normalizePublicSeo(settings.publicSeo),
     publicSystemCopy: normalizePublicSystemCopy(settings.publicSystemCopy),
-    frontPageRows: normalizeFrontPageRows(settings.frontPageRows),
     publicNavigation: cleanPublicNavigationItems(settings.publicNavigation),
     publicFooter: cleanPublicNavigationLinks(settings.publicFooter),
     publicFooterSocial: normalizePublicSocialLinks(settings.publicFooterSocial),

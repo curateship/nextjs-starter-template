@@ -128,6 +128,16 @@ export function WorkspaceSwitcher({
     const port = currentOrigin?.port ? `:${currentOrigin.port}` : ""
     return `${protocol}//${workspace.subdomain}.${baseDomain}${port}`
   }
+  /**
+   * Where the button at the top of the sidebar goes.
+   *
+   * The workspace's own public address when there is a workspace, and this
+   * deployment's own front page when there is not — a member owns none, and an
+   * app that is one site has one address for everybody. `publicUrlOf` already
+   * answers `/` for a deployment with no base domain, so the two cases meet at
+   * the same place for the same reason.
+   */
+  const frontendUrl = activeWorkspace ? publicUrlOf(activeWorkspace) : "/"
   const [createOpen, setCreateOpen] = React.useState(false)
   // The switch itself lives in `useSwitchWorkspace`, because the workspaces
   // dashboard does the same thing and the two must not drift apart.
@@ -181,7 +191,7 @@ export function WorkspaceSwitcher({
     <>
       <SidebarMenu>
         <SidebarMenuItem>
-          <div className="flex min-h-8 items-center gap-2 py-2">
+          <div className="group/workspace flex min-h-8 items-center gap-2 py-2">
             <Link
               to="/home"
               onClick={closeMobileSidebar}
@@ -210,6 +220,40 @@ export function WorkspaceSwitcher({
                   </span>
                 ) : null}
               </Link>
+              {/* Hovering the name is how an admin asks to see the site the way
+                  a visitor does, so the button appears there rather than
+                  sitting in the row all day. It keeps its 28px either way, so
+                  the name does not reflow under the pointer, and a keyboard
+                  reaches it because focus reveals it as well.
+
+                  On a phone there is no hover, so it is simply always drawn.
+
+                  No tooltip, on Tyler's instruction of 5 Oct 2026. The button
+                  only appears once the pointer is already on the block, so a
+                  label arriving a beat later says what the icon has just said.
+                  The `aria-label` stays, because a screen reader never sees the
+                  icon. */}
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                asChild
+                className={cn(
+                  "shrink-0 transition-opacity",
+                  isMobile
+                    ? undefined
+                    : "opacity-0 group-hover/workspace:opacity-100 focus-visible:opacity-100"
+                )}
+              >
+                <a
+                  href={frontendUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={`Open ${brandName} in a new tab`}
+                  onClick={closeMobileSidebar}
+                >
+                  <ExternalLinkIcon />
+                </a>
+              </Button>
               {maySwitch ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>

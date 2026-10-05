@@ -15,6 +15,7 @@ describe("public header settings", () => {
       width: null,
       blur: "medium",
       logoGap: 0,
+      menuFontSize: 14,
     })
     expect(normalizePublicHeader(undefined)).toEqual(
       createDefaultPublicHeader()
@@ -31,6 +32,7 @@ describe("public header settings", () => {
         width: 1400,
         blur: "heavy",
         logoGap: 64,
+        menuFontSize: 20,
       })
     ).toEqual({
       sticky: true,
@@ -40,6 +42,7 @@ describe("public header settings", () => {
       width: 1400,
       blur: "heavy",
       logoGap: 64,
+      menuFontSize: 20,
     })
 
     expect(
@@ -51,6 +54,7 @@ describe("public header settings", () => {
         width: 100,
         blur: "extreme",
         logoGap: 4000,
+        menuFontSize: 99,
       })
     ).toEqual(createDefaultPublicHeader())
   })
@@ -70,6 +74,16 @@ describe("public header settings", () => {
     })
     expect(normalizePublicHeader({ width: 1200.5 }).width).toBeNull()
     expect(normalizePublicHeader({ width: 2560 }).width).toBe(2560)
+  })
+
+  it("keeps the menu words at the 14px they already were until somebody changes it", () => {
+    expect(normalizePublicHeader({}).menuFontSize).toBe(14)
+    expect(normalizePublicHeader({ menuFontSize: 12 }).menuFontSize).toBe(12)
+    expect(normalizePublicHeader({ menuFontSize: 24 }).menuFontSize).toBe(24)
+    expect(normalizePublicHeader({ menuFontSize: 11 }).menuFontSize).toBe(14)
+    expect(normalizePublicHeader({ menuFontSize: 25 }).menuFontSize).toBe(14)
+    expect(normalizePublicHeader({ menuFontSize: 18.5 }).menuFontSize).toBe(14)
+    expect(normalizePublicHeader({ menuFontSize: "20" }).menuFontSize).toBe(14)
   })
 
   it("keeps a whole number of pixels after the logo and drops anything else", () => {

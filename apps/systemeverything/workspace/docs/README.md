@@ -6,3 +6,5 @@ Custom Shell lives in the repo's `docs/`, and `docs/README.md` indexes it.
 - `importing-the-old-contact-list.md` — the one-off script that brings
   systemeverything.com's 25,100 contacts across, what it carries, what it leaves
   behind, and the broken tags it repairs on the way in.
+- `shell-integration.md` — what this app takes from Custom Shell, what it
+  keeps of its own, and what each shell merge carried across.

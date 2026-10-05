@@ -80,6 +80,9 @@ export const panelLayoutKey = {
   // old widths, which is right: they were measured against a layout that no
   // longer exists. Bump it again the next time the defaults move.
   crmWorkspace: "crm-workspace-horizontal-2",
+  // One key: the front page editor has no bottom panel, so there is no second
+  // group whose height needs remembering.
+  frontPageEditor: "front-page-editor-horizontal",
   automationEmailEditorVertical: "automation-email-editor-vertical",
   dashboardColumns: (page: string) => `custom-shell-${page}-columns`,
   dashboardColumn: (page: string, side: "left" | "right", cards: string) =>

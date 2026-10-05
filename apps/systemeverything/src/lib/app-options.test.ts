@@ -10,7 +10,9 @@ import {
   appHeaderLeftContentForRole,
   appHeaderRightActions,
   appHeaderRightActionsForRole,
-  appNotificationLinks,
+  appNoticeCategories,
+  appNoticeDescription,
+  appNotificationDetails,
   appQuickSettingsForRole,
   appShowsRunButton,
   appOffersMemberTest,
@@ -87,7 +89,10 @@ describe("an option nobody set means what the shell always did", () => {
     // The bell then falls back to what it always read off the notice itself,
     // which for an announcement is to open nothing and stay up.
     expect(
-      await appNotificationLinks([{ id: "n1", type: "announcement" }], {})
+      await appNotificationDetails(
+        [{ id: "n1", type: "announcement", message: null, detail: null }],
+        {}
+      )
     ).toEqual({})
   })
 
@@ -192,23 +197,37 @@ describe("an app's answer wins", () => {
     ).toThrow(/hide-pnl/)
   })
 
-  it("sends a notice where the app says it came from", async () => {
+  it("draws a notice the way the app that wrote it says to", async () => {
     const asked: string[] = []
-    const links = await appNotificationLinks(
+    const details = await appNotificationDetails(
       [
-        { id: "n1", type: "announcement" },
-        { id: "n2", type: "feedback_vote" },
+        { id: "n1", type: "announcement", message: "Up", detail: null },
+        { id: "n2", type: "feedback_vote", message: null, detail: null },
       ],
       {
         notifications: {
-          linksFor: async (notices) => {
+          detailsFor: async (notices) => {
             for (const one of notices) asked.push(one.id)
-            return { n1: "/admin/hyper-liquid?market=x" }
+            return {
+              n1: {
+                href: "/admin/hyper-liquid?market=x",
+                categoryId: "trades",
+                title: "Entered $49.91 of CHIP",
+                meta: ["@ 0.04932", "Main wallet", "filled"],
+              },
+            }
           },
         },
       }
     )
-    expect(links).toEqual({ n1: "/admin/hyper-liquid?market=x" })
+    expect(details).toEqual({
+      n1: {
+        href: "/admin/hyper-liquid?market=x",
+        categoryId: "trades",
+        title: "Entered $49.91 of CHIP",
+        meta: ["@ 0.04932", "Main wallet", "filled"],
+      },
+    })
     // Which notices reach the app is the app's own business; the shell hands
     // over everything on screen and lets the app say which ones it knows.
     expect(asked).toEqual(["n1", "n2"])
@@ -216,15 +235,51 @@ describe("an app's answer wins", () => {
 
   it("does not ask the app about an empty tray", async () => {
     let asked = 0
-    await appNotificationLinks([], {
+    await appNotificationDetails([], {
       notifications: {
-        linksFor: async () => {
+        detailsFor: async () => {
           asked += 1
           return {}
         },
       },
     })
     expect(asked).toBe(0)
+  })
+
+  it("draws a notice from its own words, with no server in the way", () => {
+    // The look is worked out on the spot. Putting it behind a request instead
+    // drew the plain sentence and redrew it 378ms later, which read as the old
+    // design flashing past.
+    const notice = {
+      id: "n1",
+      type: "app_activity",
+      message: "Entered a trade: $431 of XBT at $86,194 (Ku1)",
+      detail: "The order filled on the exchange.",
+    }
+    expect(
+      appNoticeDescription(notice, {
+        notifications: {
+          describe: (one) =>
+            one.type === "app_activity"
+              ? { title: one.message ?? "", categoryId: "trades" }
+              : null,
+        },
+      })
+    ).toEqual({
+      title: "Entered a trade: $431 of XBT at $86,194 (Ku1)",
+      categoryId: "trades",
+    })
+    // An app that has not said anything leaves the shell's own look alone.
+    expect(appNoticeDescription(notice, {})).toBeNull()
+  })
+
+  it("gives the tray no extra tabs until an app names some", () => {
+    expect(appNoticeCategories({})).toEqual([])
+    expect(
+      appNoticeCategories({
+        notifications: { categories: [{ id: "trades", label: "Trades" }] },
+      })
+    ).toEqual([{ id: "trades", label: "Trades" }])
   })
 
   it("hands over the front page", () => {

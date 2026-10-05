@@ -203,3 +203,46 @@ export function formatRelativeTime(
     ? formatTimeAgo(date)
     : absolute(date)
 }
+
+/**
+ * The short stamp a notification list puts on the right of a row: "Just now",
+ * "3m", "1h", "Yesterday", then the plain date.
+ *
+ * Deliberately shorter than `formatRelativeTime`. A notification row carries
+ * its own heading and a second line of detail, and "3 minutes ago" beside them
+ * takes a third of the row's width to say what "3m" says in two characters.
+ * The exact moment still belongs in the row's `title`.
+ */
+export function formatShortTimeAgo(value: string | Date | null) {
+  if (!value) return "—"
+  const date = typeof value === "string" ? new Date(value) : value
+  if (Number.isNaN(date.getTime())) return "—"
+
+  const elapsed = Date.now() - date.getTime()
+  if (elapsed < 60_000) return "Just now"
+  if (elapsed < DAY_MS) return formatDuration(elapsed)
+
+  const days = daysBetween(date, new Date())
+  if (days === 1) return "Yesterday"
+  return formatDate(date)
+}
+
+/**
+ * Which heading a notification belongs under: "Today", "Yesterday" or
+ * "Earlier".
+ *
+ * Whole days in the reader's own timezone, so a notice at 11pm and one at 1am
+ * fall on the two sides of the line a person would draw themselves. Anything
+ * dated ahead of this clock counts as today rather than inventing a fourth
+ * heading for it.
+ */
+export function relativeDayGroup(value: string | Date | null): string {
+  if (!value) return "Earlier"
+  const date = typeof value === "string" ? new Date(value) : value
+  if (Number.isNaN(date.getTime())) return "Earlier"
+
+  const days = daysBetween(date, new Date())
+  if (days <= 0) return "Today"
+  if (days === 1) return "Yesterday"
+  return "Earlier"
+}

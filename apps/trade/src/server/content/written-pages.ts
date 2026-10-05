@@ -2,30 +2,28 @@ import { asc, eq, ne, and } from "drizzle-orm"
 
 import { normalizeCanonicalUrl } from "@/lib/pages/page-indexing"
 import { pageForPath } from "@/lib/pages/page-registry"
-import {
-  cleanWrittenPageBody,
-  type WrittenPageNode,
-} from "@/lib/pages/written-page-body"
 import { db, type CustomShellDb } from "@/server/db"
-import { customShellWrittenPages } from "@/server/schema"
+import {
+  customShellPageBlocks,
+  customShellWrittenPages,
+} from "@/server/schema"
 import { now, uuid } from "@/server/auth/security"
 
 /**
- * Pages an admin wrote, rather than pages the code declares.
+ * Pages an admin added, rather than pages the code declares.
  *
- * **The boundary this feature is not allowed to cross:** a written page is a
- * title, an address and a body of words. There are no sections, no layout
- * choices, no components and no fields. Every "can it also…" request lands
- * here, and the answer is that the page gets written as code instead — that is
- * the standing decision that killed the block builder, and widening this file
- * is how it would come back.
+ * **This row is the page, not its content.** Its address, its name and what
+ * search engines are told about it live here; the words a visitor reads, and
+ * everything else on the page, are blocks in `page_blocks` like the front
+ * page's. They were one body of words in a column here until 4 Oct 2026, when
+ * Tyler's answer to "how do I add a page that is block enabled" was that every
+ * page he adds should be one. See `0087_custom_shell_written_pages_as_blocks.sql`.
  */
 
 export type WrittenPage = {
   id: string
   path: string
   title: string
-  body: WrittenPageNode
   /**
    * Keeps the page out of search results: it carries `noindex` and is left
    * out of the sitemap. The link still works for anyone who has it.
@@ -93,7 +91,6 @@ function toWrittenPage(row: {
   id: string
   path: string
   title: string
-  body: unknown
   hiddenFromSearch: boolean
   canonicalUrl: string
   createdAt: Date
@@ -103,10 +100,6 @@ function toWrittenPage(row: {
     id: row.id,
     path: row.path,
     title: row.title,
-    // Cleaned on the way out as well as in. A row can predate a change to what
-    // is allowed, or have been edited straight in the database, and this is
-    // the last point before the words reach a public page.
-    body: cleanWrittenPageBody(row.body),
     hiddenFromSearch: row.hiddenFromSearch,
     // Cleaned on the way out for the same reason the body is, and it is the
     // last point before the address reaches a canonical tag.
@@ -205,7 +198,6 @@ export async function createWrittenPage(
   input: {
     path: string
     title: string
-    body: unknown
     hiddenFromSearch?: boolean
     canonicalUrl?: string
   },
@@ -230,7 +222,6 @@ export async function createWrittenPage(
       workspaceId,
       path,
       title,
-      body: cleanWrittenPageBody(input.body),
       hiddenFromSearch: input.hiddenFromSearch ?? false,
       canonicalUrl: normalizeCanonicalUrl(input.canonicalUrl),
       createdAt: at,
@@ -248,13 +239,25 @@ export async function updateWrittenPage(
   input: {
     path?: string
     title?: string
-    body?: unknown
     hiddenFromSearch?: boolean
     canonicalUrl?: string
   },
   database: CustomShellDb = db
 ): Promise<WrittenPage> {
   const values: Record<string, unknown> = { updatedAt: now() }
+  // Where the page answers now, so its blocks can be moved if it moves. They
+  // are keyed by address rather than by the page's id, which is what lets a
+  // page the code declares have blocks at all.
+  const [before] = await database
+    .select({ path: customShellWrittenPages.path })
+    .from(customShellWrittenPages)
+    .where(
+      and(
+        eq(customShellWrittenPages.id, id),
+        eq(customShellWrittenPages.workspaceId, workspaceId)
+      )
+    )
+    .limit(1)
 
   if (input.path !== undefined) {
     const path = normalizeWrittenPagePath(input.path)
@@ -271,8 +274,6 @@ export async function updateWrittenPage(
     if (!title) throw new Error("A page needs a title.")
     values.title = title
   }
-
-  if (input.body !== undefined) values.body = cleanWrittenPageBody(input.body)
 
   if (input.hiddenFromSearch !== undefined) {
     values.hiddenFromSearch = input.hiddenFromSearch
@@ -298,6 +299,21 @@ export async function updateWrittenPage(
     .returning()
 
   if (!row) throw new Error("That page no longer exists.")
+
+  // The blocks follow the address. Without this a renamed page comes back
+  // empty and its words are stranded at an address nothing answers on.
+  if (before && before.path !== row.path) {
+    await database
+      .update(customShellPageBlocks)
+      .set({ path: row.path, updatedAt: now() })
+      .where(
+        and(
+          eq(customShellPageBlocks.workspaceId, workspaceId),
+          eq(customShellPageBlocks.path, before.path)
+        )
+      )
+  }
+
   return toWrittenPage(row)
 }
 
@@ -317,5 +333,18 @@ export async function deleteWrittenPage(
     .returning({ path: customShellWrittenPages.path })
 
   if (!row) throw new Error("That page no longer exists.")
+
+  // And the blocks go with it. Left behind they would be invisible — nothing
+  // lists an address with no page — until somebody made a page on that address
+  // again and found somebody else's words already on it.
+  await database
+    .delete(customShellPageBlocks)
+    .where(
+      and(
+        eq(customShellPageBlocks.workspaceId, workspaceId),
+        eq(customShellPageBlocks.path, row.path)
+      )
+    )
+
   return row
 }

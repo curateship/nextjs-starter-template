@@ -76,7 +76,6 @@ import { normalizePublicTheme } from "@/lib/public-theme"
 import { normalizePublicFontAsset } from "@/lib/public-font"
 import { normalizePublicSocialLinks } from "@/lib/pages/public-social"
 import { normalizePublicHeaderActions } from "@/lib/pages/public-header-actions"
-import { normalizeFrontPageRows } from "@/lib/pages/front-page"
 import { resolveAppName } from "@/lib/branding"
 import {
   normalizeFaviconMode,
@@ -780,7 +779,6 @@ function normalizeConfig(
     socialHandle: normalizeSocialHandle(settings.socialHandle),
     publicSeo: normalizePublicSeo(settings.publicSeo),
     publicSystemCopy: normalizePublicSystemCopy(settings.publicSystemCopy),
-    frontPageRows: normalizeFrontPageRows(settings.frontPageRows),
     publicNavigation: Array.isArray(settings.publicNavigation)
       ? settings.publicNavigation
       : fallback.publicNavigation,

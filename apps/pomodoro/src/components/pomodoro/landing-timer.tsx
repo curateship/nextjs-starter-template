@@ -1,11 +1,12 @@
 import * as React from "react"
-import { useLoaderData } from "@tanstack/react-router"
 
 import { FrontPageRows } from "@/components/marketing/front-page-rows"
 import { PomodoroShell } from "@/components/pomodoro/pomodoro-shell"
 import { TimerDashboard } from "@/components/pomodoro/timer-dashboard"
+import { loadPublicPageBlocks } from "@/lib/api/content/page-blocks"
 import { loadAppFrontPageRows } from "@/lib/api/shell"
 import { APP_FRONT_PAGE_ROW_KIND } from "@/lib/pages/front-page"
+import { FRONT_PAGE_PATH } from "@/lib/pages/page-descriptor"
 import { setProductAuthenticated } from "@/lib/pomodoro/auth-state"
 import { maybeImportGuestState } from "@/lib/pomodoro/guest-import"
 import { reloadPomodoroData } from "@/lib/pomodoro/use-pomodoro"
@@ -61,56 +62,59 @@ export default function LandingTimer({
  * rows of this app's own kinds are passed, so none of them is read.
  */
 function LiveFigureRows() {
-  const branding = useLoaderData({ from: "__root__" })
-  const [fills, setFills] = React.useState<{
+  const [page, setPage] = React.useState<{
+    rows: Awaited<ReturnType<typeof loadPublicPageBlocks>>
     data: Record<string, unknown>
-    dropped: string[]
   } | null>(null)
 
-  // Only this app's own kinds. A Text or Hero row placed in the builder is for
-  // the shell's front page, and `/` here is the timer, not that page.
-  const appRows = React.useMemo(
-    () =>
-      (branding?.frontPageRows ?? []).filter(
-        (row) => row.kind === APP_FRONT_PAGE_ROW_KIND
-      ),
-    [branding?.frontPageRows]
-  )
-
-  const hasRows = appRows.length > 0
   React.useEffect(() => {
-    if (!hasRows) return
     let cancelled = false
-    // The figures are read on the server from the saved rows, never from the
-    // list the browser is holding.
-    void loadAppFrontPageRows()
+    // The blocks come from the table they live in rather than from the root
+    // loader, which stopped carrying them when the front page became blocks
+    // keyed by site and address. Hidden blocks never leave the server, so what
+    // arrives here is what a visitor may see.
+    void loadPublicPageBlocks(FRONT_PAGE_PATH)
+      .then(async (savedRows) => {
+        // Only this app's own kinds. A Text or Hero block placed in the page
+        // editor is for the shell's front page, and `/` here is the timer.
+        const appRows = savedRows.filter(
+          (row) => row.kind === APP_FRONT_PAGE_ROW_KIND
+        )
+        if (appRows.length === 0) return { rows: appRows, data: {} }
+        // The figures are read on the server from the saved blocks, never from
+        // the list the browser is holding.
+        const fills = await loadAppFrontPageRows()
+        const dropped = new Set(fills.dropped)
+        return {
+          rows: appRows.filter((row) => !dropped.has(row.id)),
+          data: fills.data,
+        }
+      })
       .then((result) => {
-        if (!cancelled) setFills(result)
+        if (!cancelled) setPage(result)
       })
       .catch(() => {
         // A front page is the most public thing this app has. A figure that
         // could not be read leaves its row off rather than showing an error to
         // somebody who has not even signed up.
-        if (!cancelled)
-          setFills({ data: {}, dropped: appRows.map((row) => row.id) })
+        if (!cancelled) setPage({ rows: [], data: {} })
       })
     return () => {
       cancelled = true
     }
-  }, [hasRows, appRows])
+  }, [])
 
   // Nothing is drawn until the figures are in: a heading over an empty space is
   // worse than waiting, and a row under its floor never arrives at all.
-  if (!fills) return null
-  const dropped = new Set(fills.dropped)
-  const rows = appRows.filter((row) => !dropped.has(row.id))
+  if (!page) return null
+  const rows = page.rows
   if (rows.length === 0) return null
 
   return (
     <section className="flex w-full flex-col gap-2 py-8 md:gap-3">
       <FrontPageRows
         rows={rows}
-        appRowData={fills.data}
+        appRowData={page.data}
         plans={[]}
         trialUsed={false}
         interval="monthly"

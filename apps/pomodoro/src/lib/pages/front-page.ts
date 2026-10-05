@@ -1,4 +1,9 @@
-import { isSafeWrittenPageLink } from "@/lib/pages/written-page-body"
+import {
+  cleanWrittenPageBody,
+  emptyWrittenPageBody,
+  isSafeWrittenPageLink,
+  type WrittenPageNode,
+} from "@/lib/pages/written-page-body"
 import {
   normalizePublicDevice,
   type PublicDevice,
@@ -6,37 +11,94 @@ import {
 
 export const FRONT_PAGE_ROW_KINDS = [
   "text",
+  "words",
   "hero",
   "plans",
   "testimonials",
   "faq",
   "logos",
   "screenshots",
+  "divider",
 ] as const
 
 export type FrontPageRowKind = (typeof FRONT_PAGE_ROW_KINDS)[number]
 
 export const FRONT_PAGE_ROW_KIND_LABELS: Record<FrontPageRowKind, string> = {
   text: "Plain text",
+  words: "Rich text",
   hero: "Hero",
   plans: "Plans",
   testimonials: "Testimonials",
   faq: "FAQ",
   logos: "Logo strip",
   screenshots: "Screenshots",
+  divider: "Divider",
 }
 
 export const FRONT_PAGE_ROW_KIND_HINTS: Record<FrontPageRowKind, string> = {
   text: "A heading and one short introduction line.",
+  words: "A heading and as much writing as the page needs, with its own headings, lists and links.",
   hero: "A large heading, a line beneath it, a button, and an optional picture beside them.",
   plans: "The app's current public plans beneath the row heading.",
   testimonials: "Customer quotes with a name, role, and optional picture.",
   faq: "Questions and answers shown together.",
   logos: "Customer or partner logos with accessible names.",
   screenshots: "Product images with short captions.",
+  divider: "A break between the rows around it: a line, a row of dots, or a gap.",
 }
 
-export const FRONT_PAGE_ROW_LAYOUTS = ["wide", "narrow"] as const
+/**
+ * What a divider row draws. `line` is the default and what a divider saved
+ * before this choice existed reads as.
+ */
+export const FRONT_PAGE_DIVIDER_STYLES = ["line", "dots", "space"] as const
+
+export type FrontPageDividerStyle = (typeof FRONT_PAGE_DIVIDER_STYLES)[number]
+
+export const FRONT_PAGE_DIVIDER_STYLE_LABELS: Record<
+  FrontPageDividerStyle,
+  string
+> = {
+  line: "Line",
+  dots: "Dots",
+  space: "Space only",
+}
+
+export const FRONT_PAGE_DIVIDER_STYLE_HINTS: Record<
+  FrontPageDividerStyle,
+  string
+> = {
+  line: "One thin rule across the row, at the Shade set below.",
+  dots: "Three small dots at the Shade set below, placed by the row's own alignment.",
+  space: "Nothing is drawn. The row is a gap between the rows either side of it.",
+}
+
+/**
+ * How dark a divider's line or dots are, as a percentage of the page's own
+ * grey. The divider carries its own number rather than reading
+ * Settings > Styling > Divider lines, so one break on the front page can be
+ * stronger or fainter than the hairlines inside a card. Tyler's call on
+ * 30 Sep 2026.
+ *
+ * 10 is the default because it is exactly what the theme's own divider colour
+ * is, so a divider left alone looks like every other line on the page.
+ */
+export const DEFAULT_FRONT_PAGE_DIVIDER_SHADE = 10
+export const MAX_FRONT_PAGE_DIVIDER_SHADE = 100
+
+/**
+ * How tall a Space only divider is on a desktop, in pixels, on top of the gap
+ * the page already puts between two rows. A phone draws the same share of it
+ * that Settings > Styling > Space between rows uses, so the app has one rule
+ * for how much of a desktop gap a phone keeps rather than two.
+ *
+ * 64 is the default, which is what a space divider drew before the number was
+ * anybody's to set.
+ */
+export const DEFAULT_FRONT_PAGE_DIVIDER_SPACE = 64
+export const MAX_FRONT_PAGE_DIVIDER_SPACE = 240
+
+export const FRONT_PAGE_ROW_LAYOUTS = ["wide", "narrow", "full"] as const
 
 export type FrontPageRowLayout = (typeof FRONT_PAGE_ROW_LAYOUTS)[number]
 
@@ -46,14 +108,16 @@ export const FRONT_PAGE_ROW_LAYOUT_LABELS: Record<
 > = {
   wide: "Full width",
   narrow: "Narrow",
+  full: "Whole screen",
 }
 
 export const FRONT_PAGE_ROW_LAYOUT_HINTS: Record<
   FrontPageRowLayout,
   string
 > = {
-  wide: "Uses the full public content width.",
+  wide: "Uses the full public content width, which is where every other row sits.",
   narrow: "Caps the row at 768px and follows the site's content alignment.",
+  full: "Runs the whole way across the window, past the edges the rest of the page keeps. Words still stop 16px short of the window so they are never against it; a divider has no words, so its line runs the whole way.",
 }
 
 /**
@@ -141,6 +205,114 @@ export const FRONT_PAGE_HERO_ACTION_HINTS: Record<
   email: "A box for an address with the button beside it.",
 }
 
+/**
+ * A hero's own background. Two shapes, and empty when the row has none.
+ *
+ * - `grey-<n>`, a muted grey the slider picked, 0 to 100. 0 is barely off the
+ *   page and 100 is the strongest step away from it. This is the one that
+ *   changes with the mode: pale in light mode, dark in dark mode.
+ * - `#rrggbb`, one fixed colour, the same in light mode and dark mode.
+ *
+ * Anything else is dropped, because a name such as `red` and a `var(...)`
+ * both reach a stylesheet as text, and a stored colour that is not checked
+ * here is how a settings field becomes a way to write CSS into every
+ * visitor's page. The slider's number never reaches a style attribute as it
+ * is stored: `frontPageHeroBandColors` builds the CSS from it.
+ */
+const FRONT_PAGE_HERO_BACKGROUND_PATTERN = /^#[0-9a-f]{6}$/i
+
+const FRONT_PAGE_HERO_GREY_PATTERN = /^grey-(\d{1,3})$/
+
+/** `grey-100` is 8 characters, and `#rrggbb` is 7. */
+export const MAX_FRONT_PAGE_HERO_BACKGROUND_LENGTH = 8
+
+/** The slider's right-hand end. */
+export const MAX_FRONT_PAGE_HERO_GREY = 100
+
+/** Where the slider sits on a hero that has never had a grey. */
+export const DEFAULT_FRONT_PAGE_HERO_GREY = 50
+
+export const FRONT_PAGE_HERO_BACKGROUND_MESSAGE =
+  "A hero background is a muted grey or a 6-digit hex colour like #0f172a. Clear it for no colour."
+
+/**
+ * The two ends of the slider, in each mode.
+ *
+ * In light mode the band darkens as the slider moves right and in dark mode it
+ * lightens, because both are moving the same distance away from the page. The
+ * far end of each sits near where `--muted` already sits in `theme.css`, 0.97
+ * in light mode and 0.269 in dark, so even the strongest band is one a heading
+ * in the normal text colour reads on.
+ */
+const HERO_GREY_LIGHT = { quietest: 0.99, strongest: 0.9 }
+const HERO_GREY_DARK = { quietest: 0.175, strongest: 0.32 }
+
+export function frontPageHeroGrey(value: string) {
+  const match = FRONT_PAGE_HERO_GREY_PATTERN.exec(value.trim().toLowerCase())
+  if (!match) return null
+  const grey = Number(match[1])
+  return grey <= MAX_FRONT_PAGE_HERO_GREY ? grey : null
+}
+
+export function normalizeFrontPageHeroBackground(value: unknown) {
+  const color = typeof value === "string" ? value.trim().toLowerCase() : ""
+  const grey = frontPageHeroGrey(color)
+  if (grey !== null) return `grey-${grey}`
+  return FRONT_PAGE_HERO_BACKGROUND_PATTERN.test(color) ? color : ""
+}
+
+function greyColor(ends: { quietest: number; strongest: number }, grey: number) {
+  const lightness =
+    ends.quietest +
+    ((ends.strongest - ends.quietest) * grey) / MAX_FRONT_PAGE_HERO_GREY
+  return `oklch(${Number(lightness.toFixed(4))} 0 0)`
+}
+
+/**
+ * The two colours a saved hero background paints, one per mode. A hex gets the
+ * same colour twice, because a hex is one fixed colour and says nothing about
+ * dark mode. A row with no colour gets two empty strings.
+ */
+export function frontPageHeroBandColors(value: string) {
+  const color = normalizeFrontPageHeroBackground(value)
+  if (!color) return { light: "", dark: "" }
+  const grey = frontPageHeroGrey(color)
+  if (grey === null) return { light: color, dark: color }
+  return {
+    light: greyColor(HERO_GREY_LIGHT, grey),
+    dark: greyColor(HERO_GREY_DARK, grey),
+  }
+}
+
+/**
+ * How much air a hero keeps above and below itself on a desktop, in pixels.
+ *
+ * The hero carries its own number rather than reading
+ * Settings > Styling > Main spacing, because Main spacing skips the front page
+ * and because the top block of a page usually wants more room than a block in
+ * the middle of one.
+ *
+ * 64 is the default, which is exactly what a hero drew before the number was
+ * anybody's to set, and a phone draws 48 of it, which is also what it drew.
+ */
+export const DEFAULT_FRONT_PAGE_HERO_SPACING = 64
+export const MAX_FRONT_PAGE_HERO_SPACING = 240
+
+/**
+ * What share of the desktop number a phone draws. 0.75 lands the default on
+ * 48, the hero's old phone padding, so nothing moves on a saved page.
+ */
+export const FRONT_PAGE_HERO_SPACING_PHONE_SHARE = 0.75
+
+/**
+ * The most air one block may ask for above or below itself, in pixels.
+ *
+ * The same ceiling as the page's own Space between blocks, because these two
+ * numbers are the same kind of thing: one is the gap the page gives every
+ * block, the other is the gap this block asks for instead.
+ */
+export const MAX_FRONT_PAGE_ROW_SPACE = 160
+
 export const FRONT_PAGE_ROW_HEADING_MESSAGE = "Give the row a heading."
 export const FRONT_PAGE_HERO_LINK_MESSAGE =
   "A button link starts with /, https://, mailto: or tel:."
@@ -181,6 +353,23 @@ type FrontPageRowBase = {
   hidden: boolean
   /** Which screens the row is drawn on. */
   device: PublicDevice
+  /**
+   * The air this block asks for above and below itself, in pixels, or null to
+   * take the page's own Space between blocks.
+   *
+   * **Each side is the block's own half of a gap, and the two halves add up.**
+   * The page's number is split between the two blocks it separates, so a page
+   * at the default 80 gives every block 40 above and 40 below and the gap
+   * between any two of them is still 80. A block that sets 0 below and leaves
+   * the next one alone makes that gap 40; both at 0 makes them touch. Tyler
+   * chose adding over "the bigger one wins" on 5 Oct 2026, because a block
+   * owning its own air is the rule with nothing to remember.
+   *
+   * Null rather than a number, so a block saved before these existed takes the
+   * page's number and keeps doing so when the page's number changes.
+   */
+  spaceAbove: number | null
+  spaceBelow: number | null
 }
 
 export type FrontPageTestimonial = {
@@ -264,6 +453,16 @@ export type FrontPageRow =
     })
   | (FrontPageRowBase & { kind: "text" | "plans" })
   | (FrontPageRowBase & {
+      kind: "words"
+      /**
+       * The words themselves, as a tree of named nodes rather than markup.
+       * Nothing in it can carry a tag, which is what keeps a block an admin
+       * typed off the list of things a public page has to sanitise. See
+       * `written-page-body.ts`.
+       */
+      body: WrittenPageNode
+    })
+  | (FrontPageRowBase & {
       kind: "hero"
       /** A button to somewhere, or a box that takes an address. */
       action: FrontPageHeroAction
@@ -276,6 +475,22 @@ export type FrontPageRow =
       note: string
       /** 0 to 5. Drawn before the note, and 0 draws none. */
       stars: number
+      /**
+       * A colour painted in a band behind the hero, right across the window
+       * whatever the row's layout says. `#rrggbb`, or empty for no colour.
+       */
+      background: string
+      /**
+       * True runs that colour under the site menu, so the band starts at the
+       * very top of the window and the bar stops painting over it. Only the
+       * first row has the menu over it, so every hero below it ignores this.
+       */
+      backgroundUnderMenu: boolean
+      /**
+       * The air above and below the hero on a desktop, in pixels. A phone
+       * draws three quarters of it.
+       */
+      spacing: number
     })
   | (FrontPageRowBase & {
       kind: "testimonials"
@@ -287,10 +502,128 @@ export type FrontPageRow =
       kind: "screenshots"
       items: FrontPageScreenshot[]
     })
+  | (FrontPageRowBase & {
+      kind: "divider"
+      /** A line, dots, or nothing at all. */
+      dividerStyle: FrontPageDividerStyle
+      /** How dark the line or the dots are, 0 to 100. */
+      dividerShade: number
+      /** A Space only divider's height on a desktop, in pixels. */
+      dividerSpace: number
+    })
 
 type WithoutId<T> = T extends unknown ? Omit<T, "id"> : never
 
 export type FrontPageRowDraft = WithoutId<FrontPageRow>
+
+/**
+ * The fields every block has, whatever kind it is. The editor patches these on
+ * a draft without knowing which kind it is holding.
+ */
+export type FrontPageRowCommonFields = Omit<FrontPageRowBase, "id">
+
+/**
+ * Every field a block of this kind has, at the value it starts on.
+ *
+ * The block editor holds one draft object rather than a field at a time, so a
+ * new block has to arrive whole: a missing field would read as "the admin
+ * cleared it" the first time the draft is saved. The values here are the ones
+ * `normalizeFrontPageRows` falls back to, so a block made and saved without a
+ * single edit comes back exactly as it was made.
+ */
+export function createFrontPageRowDraft(
+  kind: FrontPageRowKind
+): FrontPageRowDraft {
+  const base = {
+    // Named after its kind from the start, so the block is something the page
+    // can draw the moment it is picked and joins the page there and then.
+    // Left empty it was a block nobody could add without first typing a
+    // heading, which read as a block that could not be added at all. Typing
+    // over the name is the first thing anybody does.
+    heading: FRONT_PAGE_ROW_KIND_LABELS[kind],
+    intro: "",
+    layout: "wide",
+    alignment: "inherit",
+    hidden: false,
+    showHeading: true,
+    showIntro: true,
+    showImage: true,
+    showAction: true,
+    showStars: true,
+    showNote: true,
+    showPictures: true,
+    showRoles: true,
+    showNumbers: true,
+    showCaptions: true,
+    device: "all",
+    // Null, not a number: a new block takes the page's spacing and keeps
+    // following it until somebody moves one of these sliders.
+    spaceAbove: null,
+    spaceBelow: null,
+  } as const
+
+  if (kind === "hero") {
+    return {
+      ...base,
+      kind,
+      action: "button",
+      image: "",
+      alt: "",
+      buttonLabel: "",
+      buttonHref: "",
+      note: "",
+      stars: 0,
+      background: "",
+      backgroundUnderMenu: false,
+      spacing: DEFAULT_FRONT_PAGE_HERO_SPACING,
+    }
+  }
+  if (kind === "divider") {
+    return {
+      ...base,
+      kind,
+      dividerStyle: "line",
+      dividerShade: DEFAULT_FRONT_PAGE_DIVIDER_SHADE,
+      dividerSpace: DEFAULT_FRONT_PAGE_DIVIDER_SPACE,
+    }
+  }
+  if (kind === "words") {
+    // Through the cleaner, so a block nobody has typed into is already in the
+    // shape the database stores: an empty document comes back without the
+    // empty `content` array, and a draft that did not match would read as an
+    // unsaved edit the moment the panel opened.
+    return { ...base, kind, body: cleanWrittenPageBody(emptyWrittenPageBody()) }
+  }
+  if (
+    kind === "testimonials" ||
+    kind === "faq" ||
+    kind === "logos" ||
+    kind === "screenshots"
+  ) {
+    return { ...base, kind, items: [] }
+  }
+  return { ...base, kind }
+}
+
+/**
+ * A new block of a kind the app added. It carries no settings at all, because
+ * what an app's fields mean is the app's business — its own panel fills them.
+ */
+export function createAppFrontPageRowDraft(
+  appKind: string,
+  label?: string
+): FrontPageRowDraft {
+  return {
+    ...createFrontPageRowDraft("text"),
+    kind: APP_FRONT_PAGE_ROW_KIND,
+    appKind,
+    // The app's own name for the kind, so one of its blocks arrives named the
+    // way the shell's own do. Without the label it falls back to the plain
+    // kind's name, which is still something the page can draw.
+    heading: label?.trim() || FRONT_PAGE_ROW_KIND_LABELS.text,
+    settings: {},
+  }
+}
 
 function cleanText(value: unknown, maxLength: number) {
   return typeof value === "string" ? value.trim().slice(0, maxLength) : ""
@@ -338,9 +671,120 @@ export function normalizeFrontPageHeroHref(value: unknown) {
   return href && isSafeWrittenPageLink(href) ? href : ""
 }
 
+/**
+ * A stored number that has to land between 0 and a maximum: a whole number
+ * inside the range, or the default when it is not a number at all. Shared by
+ * the three fields that need it, because three copies of the same four lines
+ * is where one of them quietly stops matching the others.
+ */
+/**
+ * Why this block cannot go on the page yet, in the admin's words, or null when
+ * it can.
+ *
+ * Every answer here is also a rule `normalizeFrontPageRows` enforces, so the
+ * sentence and the storage agree: a block this function is happy with is one
+ * that function keeps, and a block it names a problem with is one that
+ * function would drop. The editor writes a block only once this answers null,
+ * because writing one it would drop deletes it.
+ */
+export function frontPageBlockProblem(
+  draft: FrontPageRowDraft
+): string | null {
+  if (!draft.heading.trim()) return FRONT_PAGE_ROW_HEADING_MESSAGE
+  if (draft.kind === "hero") {
+    if (
+      draft.background.trim() &&
+      !normalizeFrontPageHeroBackground(draft.background)
+    ) {
+      return FRONT_PAGE_HERO_BACKGROUND_MESSAGE
+    }
+    if (draft.action === "email" && !draft.buttonLabel.trim()) {
+      return "Give the email form's button its wording."
+    }
+    if (draft.action === "button") {
+      if (draft.buttonLabel.trim() && !draft.buttonHref.trim()) {
+        return "Give the hero button a link, or clear its wording."
+      }
+      if (draft.buttonHref.trim() && !draft.buttonLabel.trim()) {
+        return "Give the hero button its wording, or clear its link."
+      }
+      if (
+        draft.buttonHref.trim() &&
+        normalizeFrontPageHeroHref(draft.buttonHref) !==
+          draft.buttonHref.trim()
+      ) {
+        return FRONT_PAGE_HERO_LINK_MESSAGE
+      }
+    }
+    return null
+  }
+  // An empty list is not a problem: the block goes on the page with its
+  // heading and fills up later. A half-typed entry is, because the store drops
+  // one of those and the words in it would go with it.
+  if (draft.kind === "testimonials") {
+    if (draft.items.some((item) => !item.name.trim() || !item.quote.trim())) {
+      return "Give every testimonial a name and quote."
+    }
+    return null
+  }
+  if (draft.kind === "faq") {
+    if (
+      draft.items.some((item) => !item.question.trim() || !item.answer.trim())
+    ) {
+      return "Give every FAQ entry a question and answer."
+    }
+    return null
+  }
+  if (draft.kind === "logos") {
+    if (draft.items.some((item) => !item.image || !item.alt.trim())) {
+      return "Choose every logo image and give it a name."
+    }
+    return null
+  }
+  if (draft.kind === "screenshots") {
+    if (draft.items.some((item) => !item.image || !item.caption.trim())) {
+      return "Choose every screenshot image and give it a caption."
+    }
+    return null
+  }
+  return null
+}
+
+/**
+ * One side's air, or null for "take the page's number".
+ *
+ * Anything that is not a number in range reads as null, so a hand-edited row
+ * can only ever fall back to the page's own spacing. Zero is a real answer and
+ * has to survive, which is why this cannot lean on a falsy check.
+ */
+export function normalizeFrontPageRowSpace(value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null
+  const whole = Math.round(value)
+  if (whole < 0 || whole > MAX_FRONT_PAGE_ROW_SPACE) return null
+  return whole
+}
+
+function wholeNumberInRange(value: unknown, fallback: number, max: number) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return fallback
+  return Math.min(max, Math.max(0, Math.round(value)))
+}
+
+/**
+ * The colour a divider draws itself in: its own share of the page's grey, so it
+ * lands on the theme's own divider colour at the default 10 and darkens from
+ * there. `--muted-foreground` is the token the theme builds `--border` from, so
+ * this follows light and dark without naming a shade of its own.
+ */
+export function frontPageDividerColor(shade: number) {
+  return `color-mix(in oklab, var(--muted-foreground) ${wholeNumberInRange(
+    shade,
+    DEFAULT_FRONT_PAGE_DIVIDER_SHADE,
+    MAX_FRONT_PAGE_DIVIDER_SHADE
+  )}%, transparent)`
+}
+
 function normalizeFrontPageHeroStars(value: unknown) {
-  if (typeof value !== "number" || !Number.isFinite(value)) return 0
-  return Math.min(MAX_FRONT_PAGE_HERO_STARS, Math.max(0, Math.round(value)))
+  return wholeNumberInRange(value, 0, MAX_FRONT_PAGE_HERO_STARS)
 }
 
 function normalizeTestimonials(value: unknown): FrontPageTestimonial[] {
@@ -512,6 +956,8 @@ export function normalizeFrontPageRows(value: unknown): FrontPageRow[] {
       // existed has no value at all and has to stay on the page.
       hidden: source.hidden === true,
       device: normalizePublicDevice(source.device),
+      spaceAbove: normalizeFrontPageRowSpace(source.spaceAbove),
+      spaceBelow: normalizeFrontPageRowSpace(source.spaceBelow),
     } as const
     const rowBase = () => ({
       id: safeId(source.id, `front-page-row-${index + 1}`, usedIds),
@@ -562,19 +1008,61 @@ export function normalizeFrontPageRows(value: unknown): FrontPageRow[] {
         buttonHref: action === "email" ? "" : buttonLabel ? buttonHref : "",
         note: cleanText(source.note, MAX_FRONT_PAGE_HERO_NOTE_LENGTH),
         stars: normalizeFrontPageHeroStars(source.stars),
+        background: normalizeFrontPageHeroBackground(source.background),
+        // Only an explicit true runs the colour under the menu, so a hero
+        // saved before this switch existed keeps its band below the bar.
+        backgroundUnderMenu: source.backgroundUnderMenu === true,
+        spacing: wholeNumberInRange(
+          source.spacing,
+          DEFAULT_FRONT_PAGE_HERO_SPACING,
+          MAX_FRONT_PAGE_HERO_SPACING
+        ),
       })
+      // The four kinds below are lists, and an empty one is kept rather than
+      // dropped. A block with a heading is a block the page can draw: an FAQ
+      // with no questions draws its heading and nothing under it, which is
+      // exactly what somebody who has just added one is looking at. Dropping
+      // it meant the block could never be written at all and sat in the list
+      // marked "Not added yet" with no way out. Tyler found it there on
+      // 5 Oct 2026.
+      //
+      // An entry that is half typed is still dropped, by the item normalisers
+      // below, which is why the editor will not write a block while one of
+      // those is on screen.
     } else if (kind === "testimonials") {
-      const items = normalizeTestimonials(source.items)
-      if (items.length) rows.push({ ...rowBase(), kind, items })
+      rows.push({ ...rowBase(), kind, items: normalizeTestimonials(source.items) })
     } else if (kind === "faq") {
-      const items = normalizeFaqItems(source.items)
-      if (items.length) rows.push({ ...rowBase(), kind, items })
+      rows.push({ ...rowBase(), kind, items: normalizeFaqItems(source.items) })
     } else if (kind === "logos") {
-      const items = normalizeLogos(source.items)
-      if (items.length) rows.push({ ...rowBase(), kind, items })
+      rows.push({ ...rowBase(), kind, items: normalizeLogos(source.items) })
     } else if (kind === "screenshots") {
-      const items = normalizeScreenshots(source.items)
-      if (items.length) rows.push({ ...rowBase(), kind, items })
+      rows.push({
+        ...rowBase(),
+        kind,
+        items: normalizeScreenshots(source.items),
+      })
+    } else if (kind === "words") {
+      rows.push({ ...rowBase(), kind, body: cleanWrittenPageBody(source.body) })
+    } else if (kind === "divider") {
+      rows.push({
+        ...rowBase(),
+        kind,
+        dividerStyle: FRONT_PAGE_DIVIDER_STYLES.includes(
+          source.dividerStyle as FrontPageDividerStyle
+        )
+          ? (source.dividerStyle as FrontPageDividerStyle)
+          : "line",
+        dividerShade: wholeNumberInRange(
+          source.dividerShade,
+          DEFAULT_FRONT_PAGE_DIVIDER_SHADE,
+          MAX_FRONT_PAGE_DIVIDER_SHADE
+        ),
+        dividerSpace: wholeNumberInRange(
+          source.dividerSpace,
+          DEFAULT_FRONT_PAGE_DIVIDER_SPACE,
+          MAX_FRONT_PAGE_DIVIDER_SPACE
+        ),
+      })
     } else {
       rows.push({ ...rowBase(), kind })
     }
@@ -592,6 +1080,22 @@ export function visibleFrontPageRows(
   rows: readonly FrontPageRow[]
 ): FrontPageRow[] {
   return rows.filter((row) => !row.hidden)
+}
+
+/**
+ * True when the page opens on a hero whose colour runs under the site menu.
+ *
+ * Only the first row is asked, because the menu sits above the first row and
+ * nothing else on the page is anywhere near it. A hero further down with the
+ * switch on still paints its own band; the menu is simply not its neighbour.
+ */
+export function frontPageHeroRunsUnderMenu(rows: readonly FrontPageRow[]) {
+  const first = rows[0]
+  return (
+    first?.kind === "hero" &&
+    first.backgroundUnderMenu &&
+    Boolean(first.background)
+  )
 }
 
 export function frontPageHasPlans(rows: readonly FrontPageRow[]) {

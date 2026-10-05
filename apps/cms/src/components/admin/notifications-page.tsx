@@ -1,19 +1,6 @@
 import * as React from "react"
 import { getRouteApi, useNavigate } from "@tanstack/react-router"
-import {
-  ActivityIcon,
-  BellIcon,
-  CircleAlertIcon,
-  GaugeIcon,
-  GitMergeIcon,
-  MegaphoneIcon,
-  MailWarningIcon,
-  MessageSquareIcon,
-  SparklesIcon,
-  ThumbsUpIcon,
-  Trash2Icon,
-  UserCheckIcon,
-} from "lucide-react"
+import { BellIcon, Trash2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { describeBulkResult } from "@/lib/format/bulk-result"
@@ -29,6 +16,8 @@ import {
   DashboardToolbarSelectTrigger,
 } from "@/components/shared/dashboard-toolbar"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { NotificationTile } from "@/components/shared/notification-row"
+import { useAppNotificationDetails } from "@/lib/hooks/use-app-notification-details"
 import {
   Select,
   SelectContent,
@@ -210,6 +199,12 @@ export function NotificationsPage({
 }: NotificationsPageProps) {
   const navigate = useNavigate()
   const [notifications, setNotifications] = React.useState(initialNotifications)
+  // What the app says about its own notices on this page. The same answer the
+  // bell gets, so the record and the tray cannot describe one fill two ways.
+  // An admin reading somebody else's notice gets no saved row back — those are
+  // scoped to the person they were sent to — and the app recovers the heading
+  // and figures from the words on the row instead.
+  const appDetails = useAppNotificationDetails(notifications)
   const [total, setTotal] = React.useState(initialTotal)
   // Search, filters, sort and page live in the address, so opening a record
   // and pressing Back returns this exact list — see `lib/nav/list-search.ts`.
@@ -509,7 +504,11 @@ export function NotificationsPage({
       >
         {notifications.map((item) => {
           const opens = notificationDestination(item) !== null
-          const subject = notificationSubject(item)
+          const detail = appDetails[item.id]
+          // The app's own heading wins over the shell's guess at a subject, the
+          // same way it does in the bell.
+          const subject = detail?.title ?? notificationSubject(item)
+          const figures = detail?.meta?.length ? detail.meta.join(" · ") : null
           return (
             <TableRow
               key={item.id}
@@ -524,28 +523,16 @@ export function NotificationsPage({
                 />
               </TableCell>
               <TableCell column="main" className="min-w-0 md:min-w-80">
-                <div className="flex max-w-64 items-center gap-2 sm:max-w-none">
-                  {item.type === "changelog" ? (
-                    <SparklesIcon className="size-4 text-muted-foreground" />
-                  ) : item.type === "announcement" ? (
-                    <MegaphoneIcon className="size-4 text-muted-foreground" />
-                  ) : isAiLimitNotification(item.type) ? (
-                    <GaugeIcon className="size-4 text-muted-foreground" />
-                  ) : item.type === "automation_approval" ? (
-                    <UserCheckIcon className="size-4 text-muted-foreground" />
-                  ) : item.type === "automation_failed" ? (
-                    <CircleAlertIcon className="size-4 text-destructive" />
-                  ) : item.type === "system_email_failed" ? (
-                    <MailWarningIcon className="size-4 text-destructive" />
-                  ) : item.type === "app_activity" ? (
-                    <ActivityIcon className="size-4 text-muted-foreground" />
-                  ) : item.type === "feedback_merged" ? (
-                    <GitMergeIcon className="size-4 text-muted-foreground" />
-                  ) : item.type === "feedback_vote" ? (
-                    <ThumbsUpIcon className="size-4 text-muted-foreground" />
-                  ) : (
-                    <MessageSquareIcon className="size-4 text-muted-foreground" />
-                  )}
+                {/* The same tile, heading and figures the bell draws, so a
+                    notice reads the same in the tray and in the record. The
+                    second line is the app's figures when it has them, and the
+                    person or sentence behind the notice when it does not. */}
+                <div className="flex max-w-64 items-center gap-2.5 sm:max-w-none">
+                  <NotificationTile
+                    item={item}
+                    detail={detail}
+                    className="size-8 rounded-md"
+                  />
                   <div className="min-w-0">
                     {opens ? (
                       <button
@@ -564,12 +551,21 @@ export function NotificationsPage({
                         {subject}
                       </p>
                     )}
-                    <p
-                      className="max-w-96 truncate text-xs text-muted-foreground"
-                      title={notificationActor(item)}
-                    >
-                      {notificationActor(item)}
-                    </p>
+                    {figures ? (
+                      <p
+                        className="max-w-96 truncate font-mono text-xs text-muted-foreground tabular-nums"
+                        title={figures}
+                      >
+                        {figures}
+                      </p>
+                    ) : (
+                      <p
+                        className="max-w-96 truncate text-xs text-muted-foreground"
+                        title={notificationActor(item)}
+                      >
+                        {notificationActor(item)}
+                      </p>
+                    )}
                   </div>
                 </div>
               </TableCell>

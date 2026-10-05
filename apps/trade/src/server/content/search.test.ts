@@ -4,6 +4,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { setPageVisibility } from "@/server/content/pages"
 import { createWrittenPage } from "@/server/content/written-pages"
+import { writePageBlock } from "@/server/content/page-blocks"
+import { createFrontPageRowDraft } from "@/lib/pages/front-page"
 import { customShellWorkspaces } from "@/server/schema"
 import { searchWrittenPages } from "@/server/content/search"
 import { createTestDatabase, insertWorkspace, type TestDatabase } from "@/server/test-support"
@@ -17,6 +19,34 @@ const body = (words: string) => ({
   type: "doc",
   content: [{ type: "paragraph", content: [{ type: "text", text: words }] }],
 })
+
+/**
+ * A page and the words on it. The words are a block now, so a test that wants
+ * a page with something written on it makes both, the way the app does.
+ */
+async function writePage(
+  workspaceId: string,
+  input: { path: string; title: string; words?: string }
+) {
+  const { words, ...page } = input
+  const created = await createWrittenPage(workspaceId, page, database)
+  if (words !== undefined) {
+    await writePageBlock(
+      "admin",
+      workspaceId,
+      {
+        path: created.path,
+        block: {
+          ...createFrontPageRowDraft("words"),
+          id: `words-${created.id}`,
+          heading: created.title,
+          body: body(words),
+        },
+      }
+    )
+  }
+  return created
+}
 
 beforeEach(async () => {
   const testDb = await createTestDatabase()
@@ -32,26 +62,24 @@ afterEach(async () => {
 
 describe("written pages in whole-site search", () => {
   it("searches titles and stored body words with title matches first", async () => {
-    await createWrittenPage(
+    await writePage(
       alpha,
       {
         path: "/parking",
         title: "Parking guide",
-        body: body("Where to leave your car."),
+        words: "Where to leave your car.",
       },
-      database
     )
-    await createWrittenPage(
+    await writePage(
       alpha,
       {
         path: "/visit",
         title: "Plan your visit",
-        body: body("Parking is behind the building."),
+        words: "Parking is behind the building.",
       },
-      database
     )
 
-    const results = await searchWrittenPages(alpha, "parking", 40, database)
+    const results = await searchWrittenPages(alpha, "parking", 40)
 
     expect(results.map((result) => result.path)).toEqual(["/parking", "/visit"])
     expect(results[1]).toMatchObject({
@@ -61,26 +89,24 @@ describe("written pages in whole-site search", () => {
   })
 
   it("never returns another site's words", async () => {
-    await createWrittenPage(
+    await writePage(
       alpha,
       {
         path: "/about",
         title: "Alpha",
-        body: body("Shared parking phrase"),
+        words: "Shared parking phrase",
       },
-      database
     )
-    await createWrittenPage(
+    await writePage(
       beta,
       {
         path: "/about",
         title: "Beta",
-        body: body("Shared parking phrase"),
+        words: "Shared parking phrase",
       },
-      database
     )
 
-    const results = await searchWrittenPages(alpha, "parking", 40, database)
+    const results = await searchWrittenPages(alpha, "parking", 40)
 
     expect(results.map((result) => result.title)).toEqual(["Alpha"])
   })
@@ -91,50 +117,47 @@ describe("written pages in whole-site search", () => {
       ["/hidden", "Hidden page"],
       ["/members", "Members page"],
     ] as const) {
-      await createWrittenPage(
+      await writePage(
         alpha,
         {
           path,
           title,
-          body: body("Unmistakable parking words"),
-        },
-        database
+          words: "Unmistakable parking words",
+        }
       )
     }
-    await setPageVisibility(alpha, { path: "/hidden", visibility: "off" }, database)
-    await setPageVisibility(alpha, { path: "/members", visibility: "members" }, database)
+    await setPageVisibility(alpha, { path: "/hidden", visibility: "off" })
+    await setPageVisibility(alpha, { path: "/members", visibility: "members" })
 
-    const results = await searchWrittenPages(alpha, "unmistakable", 40, database)
+    const results = await searchWrittenPages(alpha, "unmistakable", 40)
 
     expect(results.map((result) => result.path)).toEqual(["/open"])
   })
 
   it("treats a malformed saved visibility as the public default", async () => {
-    await createWrittenPage(
+    await writePage(
       alpha,
-      { path: "/public", title: "Public page", body: body("Parking") },
-      database
+      { path: "/public", title: "Public page", words: "Parking" },
     )
     await database
       .update(customShellWorkspaces)
       .set({ settings: { pages: { "/public": { visibility: "broken" } } } })
       .where(eq(customShellWorkspaces.id, alpha))
 
-    const results = await searchWrittenPages(alpha, "parking", 40, database)
+    const results = await searchWrittenPages(alpha, "parking", 40)
 
     expect(results.map((result) => result.path)).toEqual(["/public"])
   })
 
   it("returns no more than the requested bound", async () => {
     for (let index = 0; index < 4; index += 1) {
-      await createWrittenPage(
+      await writePage(
         alpha,
         {
           path: `/page-${index}`,
           title: `Match ${index}`,
-          body: body("Bounded phrase"),
-        },
-        database
+          words: "Bounded phrase",
+        }
       )
     }
 
@@ -142,10 +165,9 @@ describe("written pages in whole-site search", () => {
   })
 
   it("treats database wildcard characters as ordinary search text", async () => {
-    await createWrittenPage(
+    await writePage(
       alpha,
-      { path: "/ordinary", title: "Ordinary page", body: body("Words") },
-      database
+      { path: "/ordinary", title: "Ordinary page", words: "Words" },
     )
 
     await expect(searchWrittenPages(alpha, "%", 40, database)).resolves.toEqual([])

@@ -2,6 +2,7 @@ import * as React from "react"
 import { InfoIcon, Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 
+import { BlockedSendersCard } from "@/components/settings/blocked-senders-card"
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { DripSettingsFields } from "@/components/shared/drip-settings-fields"
 import { useShellRuntime } from "@/components/shell/shell-layout"
@@ -917,6 +918,10 @@ export function EmailSettings() {
           </>
         )}
       </CollapsibleSettingsCard>
+
+      {/* Next to the address mail arrives at, because that card is where the
+          inbound side of email is set up. It fetches its own list. */}
+      <BlockedSendersCard />
 
       <CollapsibleSettingsCard
         storageId="system-email-link-expiry"

@@ -3,6 +3,7 @@ import { z } from "zod"
 
 import {
   CRM_INBOX_PAGE_SIZE,
+  CRM_INBOX_SORTS,
   CRM_MAX_BODY_LENGTH,
   CRM_MAX_THREADS_PER_PRESS,
   CRM_STAGES,
@@ -113,6 +114,7 @@ const listSchema = z.object({
   stage: z.enum([...CRM_STAGES, "all"]).optional(),
   unreadOnly: z.boolean().optional(),
   followUpDue: z.boolean().optional(),
+  sort: z.enum(CRM_INBOX_SORTS).optional(),
   page: z.number().int().min(1).max(10_000).optional(),
 })
 

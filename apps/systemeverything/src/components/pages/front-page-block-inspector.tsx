@@ -1,13 +1,18 @@
 import * as React from "react"
-import { Loader2Icon, SlidersHorizontalIcon } from "lucide-react"
+import { SlidersHorizontalIcon, XIcon } from "lucide-react"
 
 import { AppFrontPageRowEditor } from "@/components/pages/app-front-page-row-editor"
 import { FrontPageRowContentEditor } from "@/components/pages/front-page-row-content-editor"
-import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
+import { InspectorCard } from "@/components/shared/inspector-card"
 import { SettingsSliderRow } from "@/components/settings/settings-slider-row"
 import { SettingsSwitchRow } from "@/components/settings/settings-switch-row"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { ColorSwatch } from "@/components/ui/color-swatch"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
@@ -27,12 +32,9 @@ import {
   DEFAULT_FRONT_PAGE_DIVIDER_SPACE,
   DEFAULT_FRONT_PAGE_HERO_GREY,
   DEFAULT_FRONT_PAGE_HERO_SPACING,
-  FRONT_PAGE_HERO_BACKGROUND_MESSAGE,
-  FRONT_PAGE_HERO_LINK_MESSAGE,
   FRONT_PAGE_ROW_ALIGNMENT_HINTS,
   FRONT_PAGE_ROW_ALIGNMENT_LABELS,
   FRONT_PAGE_ROW_ALIGNMENTS,
-  FRONT_PAGE_ROW_HEADING_MESSAGE,
   FRONT_PAGE_ROW_KIND_LABELS,
   FRONT_PAGE_ROW_LAYOUT_HINTS,
   FRONT_PAGE_ROW_LAYOUT_LABELS,
@@ -40,10 +42,10 @@ import {
   MAX_FRONT_PAGE_HERO_GREY,
   MAX_FRONT_PAGE_ROW_HEADING_LENGTH,
   MAX_FRONT_PAGE_ROW_INTRO_LENGTH,
+  MAX_FRONT_PAGE_ROW_SPACE,
   frontPageHeroBandColors,
   frontPageHeroGrey,
   normalizeFrontPageHeroBackground,
-  normalizeFrontPageHeroHref,
   type FrontPageRowAlignment,
   type FrontPageRowCommonFields,
   type FrontPageRowDraft,
@@ -57,7 +59,7 @@ import {
   type PublicDevice,
 } from "@/lib/pages/public-device"
 import { emptyWrittenPageBody } from "@/lib/pages/written-page-body"
-import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+import { PUBLIC_FRONT_PAGE_ROW_GAP_PHONE_SHARE } from "@/lib/public-theme"
 
 /** One kind of draft, narrowed by its `kind`. */
 type DraftOfKind<K extends FrontPageRowDraft["kind"]> = Extract<
@@ -100,29 +102,46 @@ function patchHero(
  */
 export function FrontPageBlockInspector({
   draft,
-  isNew,
   first,
-  busy,
+  pageGap,
+  heldBack,
   onChange,
-  onSave,
-  onCancel,
+  onClose,
 }: {
   draft: FrontPageRowDraft
-  /** True while this block is being made and has not been added yet. */
-  isNew: boolean
-  /** True while a write is in flight, which is the only thing that disables Save. */
-  busy: boolean
   /**
    * True when this block is the top one on the page. Only that block sits
    * under the site menu, so only that one may carry its colour up behind it.
    */
   first: boolean
+  /**
+   * The page's own Space between blocks, which is what a side the block has
+   * not set follows. Halved for each side, so the two halves of one gap add
+   * back up to this number.
+   */
+  pageGap: number
+  /**
+   * True while this block is still waiting on something before it can go on
+   * the page. Only the kinds that need an entry of their own ever are, and the
+   * block list is what says so; the panel marks the empty entry and otherwise
+   * stays quiet.
+   */
+  heldBack: boolean
   onChange: (draft: FrontPageRowDraft) => void
-  onSave: () => void
-  onCancel: () => void
+  /** Closes the panel and goes back to the page's own settings. */
+  onClose: () => void
 }) {
   const [headingTouched, setHeadingTouched] = React.useState(false)
-  const [submitted, setSubmitted] = React.useState(false)
+  /**
+   * Whether anything in this block has been typed since the panel opened.
+   *
+   * A brand-new FAQ block is held off the page the moment it is picked, and
+   * painting its fields red before a character is typed is a telling-off for
+   * nothing. The panel is keyed per block, so the draft it first saw is the
+   * one to compare against.
+   */
+  const [openedWith] = React.useState(() => JSON.stringify(draft))
+  const touched = JSON.stringify(draft) !== openedWith
 
   const appKind =
     draft.kind === APP_FRONT_PAGE_ROW_KIND
@@ -136,7 +155,7 @@ export function FrontPageBlockInspector({
   const hero = draft.kind === "hero" ? draft : null
   const divider = draft.kind === "divider" ? draft : null
 
-  const headingInvalid = !draft.heading.trim() && (headingTouched || submitted)
+  const headingInvalid = !draft.heading.trim() && headingTouched
   // Which of the two kinds of background the block holds. It stores one
   // string: `grey-<n>` is the slider, a `#` is a fixed colour, empty is no
   // band at all.
@@ -145,21 +164,9 @@ export function FrontPageBlockInspector({
   const heroBackgroundChoice: "none" | "grey" | "custom" =
     !heroBackground.trim() ? "none" : heroGrey !== null ? "grey" : "custom"
   const heroBand = frontPageHeroBandColors(heroBackground)
-
-  const save = () => {
-    setSubmitted(true)
-    if (!draft.heading.trim()) {
-      showErrorToast(FRONT_PAGE_ROW_HEADING_MESSAGE)
-      return
-    }
-    const problem = contentProblem(draft)
-    if (problem) {
-      showErrorToast(problem)
-      return
-    }
-    dismissErrorToast()
-    onSave()
-  }
+  // A block owns half the gap on each side, so the page's number splits in two
+  // and the halves of one gap add back up to it.
+  const pageHalf = Math.round(pageGap / 2)
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-card">
@@ -167,18 +174,30 @@ export function FrontPageBlockInspector({
         icon={<SlidersHorizontalIcon className="size-4" />}
         title={draft.heading.trim() || "Untitled block"}
         meta={appKind ? appKind.label : FRONT_PAGE_ROW_KIND_LABELS[kind]}
+        action={
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-8"
+                aria-label="Close the block's settings"
+                onClick={onClose}
+              >
+                <XIcon className="size-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Close the block's settings</TooltipContent>
+          </Tooltip>
+        }
       />
-      {/* `min-h-0 flex-1` and not `h-full`: the footer below is a sibling in
-          this column, and a scroller claiming the whole height pushes it out of
-          the panel, where `overflow-hidden` takes it off the screen. */}
       <ScrollArea className="min-h-0 flex-1">
-        <div className="grid gap-3 p-3">
-          <CollapsibleSettingsCard
-            size="sm"
+        <div className="grid gap-4 p-4 sm:p-5">
+          <InspectorCard
             storageId="front-page-row-content"
             title="Block content"
             description="Every block uses a fixed shape, so the front page stays consistent on phones and larger screens."
-            contentClassName="grid gap-4"
           >
             <div className="grid gap-2">
               <FieldLabel
@@ -453,7 +472,7 @@ export function FrontPageBlockInspector({
                 </SelectContent>
               </Select>
             </div>
-          </CollapsibleSettingsCard>
+          </InspectorCard>
 
           {appKind && draft.kind === APP_FRONT_PAGE_ROW_KIND ? (
             <AppFrontPageRowEditor
@@ -488,7 +507,7 @@ export function FrontPageBlockInspector({
             onWordsChange={(body) =>
               onChange(draft.kind === "words" ? { ...draft, body } : draft)
             }
-            submitted={submitted}
+            heldBack={touched && heldBack}
             onHeroActionChange={(action) =>
               onChange(patchHero(draft, { action }))
             }
@@ -540,12 +559,70 @@ export function FrontPageBlockInspector({
             }
           />
 
-          <CollapsibleSettingsCard
-            size="sm"
+          <InspectorCard
+            storageId="front-page-row-spacing"
+            title="Spacing"
+            description="How much air this block keeps above and below itself, instead of the page's own."
+          >
+            <SettingsSliderRow
+              label="Space above"
+              value={draft.spaceAbove ?? pageHalf}
+              min={0}
+              max={MAX_FRONT_PAGE_ROW_SPACE}
+              step={4}
+              valueLabel={
+                draft.spaceAbove === null
+                  ? `${pageHalf}px · Page default`
+                  : `${draft.spaceAbove}px`
+              }
+              onChange={(spaceAbove) =>
+                onChange(patchCommon(draft, { spaceAbove }))
+              }
+              help={`Each block keeps its own half of the gap, so a page set to ${pageGap}px gives every block ${pageHalf}px above and ${pageHalf}px below and two blocks still sit ${pageGap}px apart. The two halves add up: set this to 0 and the block above it to 0 and they touch.`}
+            />
+
+            <SettingsSliderRow
+              label="Space below"
+              value={draft.spaceBelow ?? pageHalf}
+              min={0}
+              max={MAX_FRONT_PAGE_ROW_SPACE}
+              step={4}
+              valueLabel={
+                draft.spaceBelow === null
+                  ? `${pageHalf}px · Page default`
+                  : `${draft.spaceBelow}px`
+              }
+              onChange={(spaceBelow) =>
+                onChange(patchCommon(draft, { spaceBelow }))
+              }
+              help={`A phone draws ${Math.round(
+                PUBLIC_FRONT_PAGE_ROW_GAP_PHONE_SHARE * 100
+              )}% of whatever these two say, the same share the page's own number gets. Flat mode collapses them both, because flat is the whole site asking for no air.`}
+            />
+
+            {/* Only when there is something to go back from. A side nobody has
+                touched already follows the page and says so. */}
+            {draft.spaceAbove !== null || draft.spaceBelow !== null ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="justify-self-start"
+                onClick={() =>
+                  onChange(
+                    patchCommon(draft, { spaceAbove: null, spaceBelow: null })
+                  )
+                }
+              >
+                Follow the page again
+              </Button>
+            ) : null}
+          </InspectorCard>
+
+          <InspectorCard
             storageId="front-page-row-visibility"
             title="Visibility"
             description="Switch off a part of the block to leave it out of the public page. The part keeps whatever you typed into it, so switching it back on brings the same words back."
-            contentClassName="grid gap-4"
           >
             <SettingsSwitchRow
               id="front-page-row-hidden"
@@ -654,91 +731,9 @@ export function FrontPageBlockInspector({
                 label="Show the captions"
               />
             ) : null}
-          </CollapsibleSettingsCard>
+          </InspectorCard>
         </div>
       </ScrollArea>
-      {/* The panel's own footer, pinned under the scrolling fields: a block
-          with twelve FAQ entries in it must not put its Save a scroll away. */}
-      <div className="flex shrink-0 items-center justify-end gap-2 border-t p-3">
-        <Button
-          type="button"
-          variant="outline"
-          disabled={busy}
-          onClick={onCancel}
-        >
-          Cancel
-        </Button>
-        <Button type="button" disabled={busy} onClick={save}>
-          {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
-          {isNew ? "Add block" : "Save changes"}
-        </Button>
-      </div>
     </div>
   )
-}
-
-/**
- * Why this block cannot go on the page yet, in the admin's words, or null when
- * it can. Every answer here is also a rule `normalizeFrontPageRows` enforces
- * when the settings are written, so the message and the storage agree.
- */
-function contentProblem(draft: FrontPageRowDraft): string | null {
-  if (draft.kind === "hero") {
-    if (
-      draft.background.trim() &&
-      !normalizeFrontPageHeroBackground(draft.background)
-    ) {
-      return FRONT_PAGE_HERO_BACKGROUND_MESSAGE
-    }
-    if (draft.action === "email" && !draft.buttonLabel.trim()) {
-      return "Give the email form's button its wording."
-    }
-    if (draft.action === "button") {
-      if (draft.buttonLabel.trim() && !draft.buttonHref.trim()) {
-        return "Give the hero button a link, or clear its wording."
-      }
-      if (draft.buttonHref.trim() && !draft.buttonLabel.trim()) {
-        return "Give the hero button its wording, or clear its link."
-      }
-      if (
-        draft.buttonHref.trim() &&
-        normalizeFrontPageHeroHref(draft.buttonHref) !==
-          draft.buttonHref.trim()
-      ) {
-        return FRONT_PAGE_HERO_LINK_MESSAGE
-      }
-    }
-    return null
-  }
-  if (draft.kind === "testimonials") {
-    if (!draft.items.length) return "Add at least one testimonial."
-    if (draft.items.some((item) => !item.name.trim() || !item.quote.trim())) {
-      return "Give every testimonial a name and quote."
-    }
-    return null
-  }
-  if (draft.kind === "faq") {
-    if (!draft.items.length) return "Add at least one FAQ entry."
-    if (
-      draft.items.some((item) => !item.question.trim() || !item.answer.trim())
-    ) {
-      return "Give every FAQ entry a question and answer."
-    }
-    return null
-  }
-  if (draft.kind === "logos") {
-    if (!draft.items.length) return "Add at least one logo."
-    if (draft.items.some((item) => !item.image || !item.alt.trim())) {
-      return "Choose every logo image and give it a name."
-    }
-    return null
-  }
-  if (draft.kind === "screenshots") {
-    if (!draft.items.length) return "Add at least one screenshot."
-    if (draft.items.some((item) => !item.image || !item.caption.trim())) {
-      return "Choose every screenshot image and give it a caption."
-    }
-    return null
-  }
-  return null
 }

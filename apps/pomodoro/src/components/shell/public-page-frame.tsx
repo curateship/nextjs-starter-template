@@ -6,7 +6,10 @@ import { PublicBreadcrumbs } from "@/components/shell/public-breadcrumbs"
 import { usePaintedPathname } from "@/lib/hooks/use-painted-pathname"
 import { usePublicBreadcrumbTrail } from "@/lib/hooks/use-public-breadcrumb-trail"
 import { PublicFooter } from "@/components/shell/public-footer"
-import { PublicNavigation } from "@/components/shell/public-navigation"
+import {
+  PUBLIC_HEADER_HEIGHT_VAR,
+  PublicNavigation,
+} from "@/components/shell/public-navigation"
 import {
   useAppName,
   useBrandLogo,
@@ -32,12 +35,14 @@ import {
 } from "@/lib/announcement"
 import { loadVisitorAnnouncements } from "@/lib/api/content/announcements"
 import { pageForPath } from "@/lib/pages/page-registry"
+import type { PageLayout } from "@/lib/pages/page-descriptor"
 import {
   DEFAULT_PUBLIC_FRONT_PAGE_ROW_GAP,
   DEFAULT_PUBLIC_GUTTER,
   DEFAULT_PUBLIC_MAIN_SPACING,
   DEFAULT_PUBLIC_PAGE_WIDTH,
   PUBLIC_FRONT_PAGE_ROW_GAP_PHONE_SHARE,
+  PUBLIC_GUTTER_PHONE_MAX,
   publicShellStyling,
   type PublicTheme,
 } from "@/lib/public-theme"
@@ -48,6 +53,7 @@ import {
   MODAL_STYLE_VAR_NAMES,
   resolveBackground,
 } from "@/lib/layout/styling-values"
+import { pageGutter } from "@/lib/layout/shell-gutter"
 import { cn } from "@/lib/utils"
 
 /**
@@ -64,11 +70,29 @@ export function PublicPageFrame({
   className,
   children,
   publicSearchEnabled: publicSearchEnabledOverride,
+  heroRunsUnderMenu = false,
+  layout,
 }: {
   className?: string
   children: React.ReactNode
   /** Current 404 data when root loader data is unavailable. */
   publicSearchEnabled?: boolean
+  /**
+   * Which frame to draw, for a page the registry does not know about.
+   *
+   * A page an admin added is one: its address is in a table rather than in the
+   * code, so `pageForPath` has nothing to say about it. It is built from blocks
+   * like the front page, so it is drawn like the front page — content starting
+   * at the top rather than floating in the middle of the window, which is what
+   * a sign-in card wants and a page of words does not.
+   */
+  layout?: PageLayout
+  /**
+   * True when the front page's first row is a hero running its colour under
+   * the menu. The menu itself is left exactly as it is; this only tells the
+   * hero how far above its own row the colour has to start.
+   */
+  heroRunsUnderMenu?: boolean
 }) {
   const appName = useAppName()
   const logo = useBrandLogo()
@@ -115,7 +139,7 @@ export function PublicPageFrame({
       !dismissedVisitorIds.has(announcement.id) &&
       !isVisitorAnnouncementDismissed(localStorage, announcement)
   )
-  const marketing = pageForPath(pathname)?.layout === "marketing"
+  const marketing = (layout ?? pageForPath(pathname)?.layout) === "marketing"
   const pageWidthStyle =
     theme.pageWidth === DEFAULT_PUBLIC_PAGE_WIDTH
       ? undefined
@@ -127,10 +151,20 @@ export function PublicPageFrame({
     : publicHeader.width !== null
       ? { maxWidth: publicHeader.width }
       : pageWidthStyle
+  // The front page is built from rows that reach the window's edges, and the
+  // top one is usually a hero. A gap above it is a white strip between the
+  // menu and the page's own first block, so Main spacing skips this one page
+  // and the rows start directly under the menu. Tyler's call on 3 Oct 2026.
+  //
+  // `/` whatever is drawn there: an app may replace the shell's own front page
+  // through `landing.page`, and the page at the front door is still the page
+  // at the front door.
+  const frontPage = pathname === "/"
+  const mainSpacing = frontPage ? 0 : theme.mainSpacing
   const mainSpacingStyle =
-    theme.mainSpacing === DEFAULT_PUBLIC_MAIN_SPACING
+    mainSpacing === DEFAULT_PUBLIC_MAIN_SPACING
       ? undefined
-      : { paddingBlock: theme.mainSpacing }
+      : { paddingBlock: mainSpacing }
   const styling = publicShellStyling(theme)
   const isFlat = theme.gutter === 0
   // A gutter still on its starting number keeps the responsive classes, so a
@@ -151,19 +185,41 @@ export function PublicPageFrame({
       ? { "--shell-card-border-color": cardBorderColor }
       : {}),
     ...(dividerColor ? { "--border": dividerColor } : {}),
+    // The two ends of the gutter, not the gutter itself. theme.css picks
+    // between them at the breakpoint and writes `--shell-gutter`, which is
+    // what every container and every grid of cards reads through `pageGutter`.
+    // It cannot be written here: an inline value beats a media query, so a
+    // number set on this element could never change with the window.
+    //
     // Always set, so a container that reads the gutter gets the public number
     // rather than the 24px fallback meant for content inside a modal.
-    "--shell-gutter": `${theme.gutter}px`,
+    "--shell-gutter-phone": `${Math.min(
+      theme.gutter,
+      PUBLIC_GUTTER_PHONE_MAX
+    )}px`,
+    "--shell-gutter-wide": `${theme.gutter}px`,
   } as React.CSSProperties
-  // The one left and right edge for the whole page. The header and the footer
-  // sit outside `<main>`, so they are handed the same value rather than
-  // carrying padding of their own, which is what used to leave the logo and
-  // the footer links further in than the content between them.
-  const edgeStyle = gutterChanged ? { paddingInline: theme.gutter } : undefined
-  const mainStyle = {
-    ...mainSpacingStyle,
-    ...edgeStyle,
-  }
+  // The left and right edge belongs to the page wrapper, not to the Spacing
+  // setting. `px-4` on `<main>`, on the header and on the footer is the whole
+  // rule, and those three are the only places that may set it, which is what
+  // keeps the logo, the first heading and the first footer link on one line.
+  //
+  // Spacing used to write it as well as the gaps, so moving the slider walked
+  // the whole page in from the window and a spacing of 0 put the content
+  // against the glass. Tyler's call on 30 Sep 2026: the slider is for the gaps
+  // between blocks and inside the grids of cards, and nothing else.
+  //
+  // `--shell-hero-rise` is how far above its own row a first-row hero starts
+  // painting when its colour runs under the menu: this gap, plus the bar's own
+  // height, which the bar measures and writes down. The bar then paints no
+  // background of its own, so the colour behind it is what shows.
+  // Written only for that one case, so every other page's `main` stays plain.
+  const mainStyle = heroRunsUnderMenu
+    ? ({
+        ...mainSpacingStyle,
+        "--shell-hero-rise": `calc(${mainSpacing}px + var(${PUBLIC_HEADER_HEIGHT_VAR}, 0px))`,
+      } as React.CSSProperties)
+    : mainSpacingStyle
   // The gap between front page blocks travels as two CSS variables rather than
   // a class, because theme.css owns those rules: flat mode collapses them and
   // a phone draws less than a desktop. Left at the default, nothing is written
@@ -179,7 +235,9 @@ export function PublicPageFrame({
         } as React.CSSProperties)
   const contentStyle = {
     ...pageWidthStyle,
-    ...(gutterChanged ? { gap: theme.gutter } : {}),
+    // The variable rather than the number, so the column's gap narrows on a
+    // phone with everything else.
+    ...(gutterChanged ? { gap: pageGutter } : {}),
     ...rowGapStyle,
   }
   // Content alignment is for pages built out of blocks: the front page, the
@@ -238,23 +296,31 @@ export function PublicPageFrame({
         logoDark={logoDark}
         logoSize={publicHeader.logoSize}
         logoGap={publicHeader.logoGap}
+        menuFontSize={publicHeader.menuFontSize}
         navigation={visibleNavigation}
         sticky={publicHeader.sticky}
         menuAlignment={publicHeader.menuAlignment}
         headerBorder={theme.headerBorder}
         widthStyle={headerWidthStyle}
-        edgeStyle={edgeStyle}
         blur={publicHeader.blur}
         userPanel={userPanel}
         chromeBackground={chromeBackground}
+        // The hero's colour is behind the bar, so the bar paints nothing over
+        // it and measures itself for the hero. Without this it draws its own
+        // near-solid white and the colour stops at the bottom of the menu.
+        seeThrough={heroRunsUnderMenu}
         showThemeToggle={visitorCanChooseTheme}
         headerActions={headerActions}
         showSearch={showSearch}
       />
       <main
+        // `overflow-x-clip` is what lets a whole-screen front page row step out
+        // to the window's edge without the window gaining a sideways scrollbar:
+        // `100vw` counts the vertical scrollbar, so the row is a few pixels
+        // wider than the space there is. `clip` rather than `hidden`, because
+        // `hidden` would make this a scroll container and break sticky children.
         className={cn(
-          "grid flex-1 py-10",
-          gutterChanged ? undefined : "px-4",
+          "grid flex-1 overflow-x-clip px-4 py-10",
           mainLayoutClass,
           className
         )}
@@ -285,7 +351,6 @@ export function PublicPageFrame({
         contentAlignment={footerAlignment}
         footerBorder={theme.footerBorder}
         pageWidthStyle={pageWidthStyle}
-        edgeStyle={edgeStyle}
         chromeBackground={chromeBackground}
       />
     </div>

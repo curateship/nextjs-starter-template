@@ -15,6 +15,7 @@ function page(partial: Partial<PageDescriptor> & { path: string }): PageDescript
     canSwitchOff: true,
     layout: "card",
     source: "shell",
+    blocks: false,
     ...partial,
   }
 }

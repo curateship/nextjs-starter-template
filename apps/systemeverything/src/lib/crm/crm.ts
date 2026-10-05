@@ -82,3 +82,22 @@ export const CRM_INBOX_PAGE_SIZE = 30
  * validation refusal nobody can read.
  */
 export const CRM_MAX_THREADS_PER_PRESS = 200
+
+/**
+ * Which way the inbox is ordered.
+ *
+ * `newest` is right for reading mail and `oldest` is right for clearing it: a
+ * customer who wrote on Monday is at the bottom by Thursday, which is backwards
+ * from who needs answering.
+ */
+export const CRM_INBOX_SORTS = ["newest", "oldest"] as const
+
+export type CrmInboxSort = (typeof CRM_INBOX_SORTS)[number]
+
+/** What the inbox shows when nobody has chosen an order. */
+export const CRM_DEFAULT_INBOX_SORT: CrmInboxSort = "newest"
+
+export const CRM_INBOX_SORT_LABELS: Record<CrmInboxSort, string> = {
+  newest: "Newest first",
+  oldest: "Longest waiting",
+}

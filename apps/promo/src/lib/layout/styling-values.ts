@@ -129,6 +129,20 @@ export const DARK_SHADE_IDS = DARK_SHADES.map((shade) => shade.id) as [
 /** Near black is the look every existing workspace already has, so it stays the default. */
 export const DEFAULT_DARK_SHADE: DarkShadeId = "black"
 
+/**
+ * The styling a generated app starts with, as its scaffold file declares it.
+ *
+ * `darkShade` is optional, and the rest is not. A scaffold captured before dark
+ * shades existed does not carry one, which `createDefaultStyling` below has
+ * always handled by falling back when the value is missing or unrecognised.
+ * `ShellStyling` says it is required, so Pomodoro's captured styling stopped
+ * typechecking the moment the field was added. The code was right and the type
+ * was wrong. It lives here rather than in `scaffold-styling.ts`, because every
+ * generated app replaces that file with its own captured value.
+ */
+export type ScaffoldStyling = Omit<ShellStyling, "darkShade"> &
+  Partial<Pick<ShellStyling, "darkShade">>
+
 export function isDarkShadeId(value: unknown): value is DarkShadeId {
   return DARK_SHADES.some((shade) => shade.id === value)
 }

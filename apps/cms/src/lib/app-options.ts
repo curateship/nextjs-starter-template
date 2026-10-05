@@ -88,6 +88,26 @@ export type AppHeaderAction = {
   icon: ComponentType<{ className?: string }>
   /** Unset means admins and members may both see it. */
   roles?: readonly string[]
+  /**
+   * Folds into the three-dot button after the settings cog on a phone,
+   * instead of staying in the header row.
+   *
+   * Unset means it keeps its place in the row at every width, which is what
+   * every control did before the dropdown existed. An app marks the controls
+   * it can live without at a glance, and leaves the ones somebody opens the
+   * page to read where they can be read without a press.
+   */
+  foldsOnPhone?: boolean
+  /**
+   * A line of its own, with a divider, inside the phone's three-dot dropdown.
+   *
+   * The dropdown packs the app's controls into a wrapped row, which is right
+   * for buttons that are all about the same size. A control that is a list of
+   * its own — a row of pinned markets, say — reads as part of the buttons
+   * beside it there. Unset leaves it in the row with the rest, and the option
+   * does nothing at all on a wide screen, where the controls are not folded.
+   */
+  ownSection?: boolean
   component: () => Promise<{
     default: ComponentType<AppHeaderActionProps>
   }>
@@ -140,41 +160,132 @@ type HeaderOptions = {
 }
 
 /**
- * The little the shell says about a notice when it asks the app where that
- * notice came from. The id and the kind, and nothing else.
+ * The little the shell says about a notice when it asks the app about it: what
+ * it is, and the words it already carries.
  *
  * Deliberately not the whole notice row. That type lives in
  * `src/lib/api/notification.ts`, which reaches into the server's inbox module,
- * which reaches back — and this file is imported by the browser. The two
- * fields an app actually needs are written out here instead, the same way
+ * which reaches back — and this file is imported by the browser. The fields an
+ * app actually needs are written out here instead, the same way
  * `notification-types.ts` keeps the words out of the circle.
+ *
+ * **The words are here so an app can answer about a notice it saved nothing
+ * extra for.** An app that starts saving its notices in pieces has a history of
+ * notices with no pieces, and those read the app's own sentences back to
+ * recover them. Without this the app would have to fetch words the browser is
+ * already holding.
  */
-export type NoticeToLink = { id: string; type: string }
+export type NoticeToLink = {
+  id: string
+  type: string
+  /** The notice's heading, as the shell stored it. */
+  message: string | null
+  /** The sentence under it, as the shell stored it. */
+  detail: string | null
+}
+
+/**
+ * One tab in the notification tray, beside the shell's own Unread and All.
+ *
+ * An app's notices are all one shell type, so without this they arrive as one
+ * undifferentiated pile — in Trade a filled order, a crossed trendline and the
+ * engine going down all read as "activity in the app". The app names its own
+ * tabs here and puts each notice under one of them through `detailsFor`.
+ */
+export type AppNoticeCategory = {
+  /** Matches the `categoryId` the app gives a notice. */
+  id: string
+  /** The word on the tab. One word, because five tabs share a popover. */
+  label: string
+}
+
+/**
+ * How an app's own notice is drawn, said by the app that wrote it.
+ *
+ * Everything here is optional, and a notice the app says nothing about looks
+ * exactly as it did before this existed: the shell's own wording, the shell's
+ * own circle, and no second line. Fill a field and that field is the app's.
+ */
+export type AppNoticeDetail = {
+  /**
+   * Where clicking the notice goes. An address inside this app only — anything
+   * else is dropped rather than followed, because these strings come out of a
+   * database.
+   */
+  href?: string
+  /** Which of the app's own tabs this notice sits under. */
+  categoryId?: string
+  /**
+   * The heading, short enough to live on one line: "Entered $49.91 of CHIP".
+   * The shell's own wording is used when this is missing.
+   */
+  title?: string
+  /**
+   * The figures under the heading, drawn in a fixed-width font and joined with
+   * a middle dot: `["@ 0.04932", "HL1 Grid", "filled"]` becomes
+   * "@ 0.04932 · HL1 Grid · filled". Each piece is one fact, so a reader scans
+   * down a column of rows and finds the price in the same place every time.
+   */
+  meta?: readonly string[]
+  /** The sentence under the figures, when there is more to say. */
+  body?: string
+  /** The icon inside the tile on the left. */
+  icon?: ComponentType<{ className?: string }>
+  /**
+   * The tile's colour, as Tailwind classes: `"bg-emerald-500/10 text-emerald-600"`.
+   * The app owns this because only the app knows whether its notice is good
+   * news. The shell's quiet `bg-secondary` is used when it is missing.
+   */
+  toneClassName?: string
+}
 
 type NotificationOptions = {
   /**
-   * Where the app's own notices go when somebody clicks one.
+   * Everything the app wants to say about its own notices, asked once per page
+   * of notices rather than once per click.
    *
    * The shell knows what its own notices are about — a piece of feedback, a
-   * published update, a run waiting for approval — and opens each one. It
-   * cannot know what an app's notices are about. Trade writes its notices as
-   * announcements, so to the shell they are a title and a body with nowhere to
-   * go, and clicking one did nothing at all.
+   * published update, a run waiting for approval — and opens each one, with
+   * wording it wrote itself. It cannot know what an app's notices are about.
+   * Every Trade notice is one shell type carrying a title and a body, so to the
+   * shell they were a pile of identical-looking rows with nowhere to go.
    *
-   * The app is asked once per page of notices, not once per click, so the
-   * click itself never waits on a database sitting a second away. It is handed
-   * only the notices now on screen and answers with the ones it recognises:
-   * `{ <notice id>: "/admin/hyper-liquid?market=..." }`. A notice it says
-   * nothing about keeps the shell's own behaviour, which for an announcement
-   * is to open nothing and leave the tray up.
+   * Asked while the tray is being read, not when a notice is clicked, so the
+   * click itself never waits on a database sitting a second away. The app is
+   * handed only the notices now on screen and answers with the ones it
+   * recognises. A notice it says nothing about keeps the shell's own behaviour.
    *
-   * Addresses inside this app only. Anything else — another site, a
-   * `javascript:` address, a protocol-relative `//host` — is dropped rather
-   * than followed, because these strings come out of a database.
+   * This runs in the browser, so an app may fetch the plain figures from its
+   * own server and add the icon component on the way back.
    */
-  linksFor?: (
+  /**
+   * How one of the app's own notices looks, answered on the spot.
+   *
+   * **This is what a row is drawn from, and it must not go to a server.** The
+   * shell has the notice's own words in its hand already, so an app that can
+   * work its heading, figures and tile out of those answers here and every row
+   * is right on the first paint. Asking over the network instead meant drawing
+   * the plain sentence and redrawing it 378ms later, which read as the old
+   * design flashing past — and then a spinner held up to hide it.
+   *
+   * Return null for a notice the app knows nothing about, and the shell's own
+   * look stands.
+   */
+  describe?: (notice: NoticeToLink) => AppNoticeDetail | null
+  /**
+   * Anything about its own notices the app can only get from a server, chiefly
+   * where each one leads when it is clicked.
+   *
+   * Asked once per page of notices rather than once per click, so the click
+   * itself never waits on a database sitting a second away. What comes back is
+   * laid over what `describe` already said, field by field, so a late answer
+   * can only add to a drawn row and never blank it.
+   */
+  detailsFor?: (
     notices: readonly NoticeToLink[]
-  ) => Promise<Record<string, string>>
+  ) => Promise<Record<string, AppNoticeDetail>>
+  /** The app's own tabs in the tray, in the order they are shown. */
+  categories?: readonly AppNoticeCategory[]
 }
 
 type SettingsOptions = {
@@ -841,7 +952,6 @@ export const REPLACEABLE_SETTINGS_TAB_IDS: readonly string[] = [
   "member-navigation",
   "public-navigation",
   "public-styling",
-  "public-pages",
   "public-seo",
   "public-social",
 ]
@@ -932,7 +1042,7 @@ export function capitalise(word: string): string {
 }
 
 /**
- * Where the app says its own notices lead, or nothing when it has no answer.
+ * What the app says about its own notices, or nothing when it has no answer.
  *
  * An app that never set the option, which is every app by default, returns an
  * empty answer and every notice behaves exactly as it did before this existed.
@@ -941,13 +1051,35 @@ export function capitalise(word: string): string {
  * option still means today's behaviour — written this way so that check keeps
  * working inside an app that has set the option.
  */
-export async function appNotificationLinks(
+export async function appNotificationDetails(
   notices: readonly NoticeToLink[],
   options: AppOptions = appOptions
-): Promise<Record<string, string>> {
-  const ask = options.notifications?.linksFor
+): Promise<Record<string, AppNoticeDetail>> {
+  const ask = options.notifications?.detailsFor
   if (!ask || notices.length === 0) return {}
   return await ask(notices)
+}
+
+/**
+ * How the app would draw one of its own notices, worked out on the spot from
+ * the words the shell is already holding. Nothing for an app that has not said.
+ */
+export function appNoticeDescription(
+  notice: NoticeToLink,
+  options: AppOptions = appOptions
+): AppNoticeDetail | null {
+  return options.notifications?.describe?.(notice) ?? null
+}
+
+/**
+ * The app's own tabs in the notification tray, or none.
+ *
+ * An app with no categories leaves the tray with the two tabs it always had.
+ */
+export function appNoticeCategories(
+  options: AppOptions = appOptions
+): readonly AppNoticeCategory[] {
+  return options.notifications?.categories ?? []
 }
 
 /** App-wide branding stays the default unless the app builds distinct sites. */

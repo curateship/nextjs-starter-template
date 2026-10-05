@@ -95,6 +95,8 @@ const OPEN_TO_EVERYONE: Record<string, string> = {
     "The site's search page is public. Its read resolves the site from the domain and returns only content already visible to everyone.",
   "content/announcements.ts:readVisitorAnnouncementsFn":
     "Public pages show these banners before a visitor has an account; the domain chooses the site and the query returns only live visitor announcements.",
+  "content/page-blocks.ts:loadPublicPageBlocksFn":
+    "A public page's blocks are what a visitor came to read, so they are readable before there is a session. It takes only an address: the site comes from the domain that was visited, the page's Visibility setting is checked before anything is read, and a members-only page still returns nothing without a session. A hidden block never leaves the server.",
   "people/view-as.ts:stopFn":
     "While the view is on the app treats the caller as the member, so an admin check here would be a door that locks from the inside. The session row is the guard.",
   "shell.ts:loadAppFrontPageRowsFn":

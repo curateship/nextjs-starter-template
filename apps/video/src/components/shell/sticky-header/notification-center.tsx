@@ -1,8 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { useNavigate } from "@tanstack/react-router"
-import { BellIcon, CheckCheckIcon, Loader2Icon } from "lucide-react"
+import { Link, useNavigate } from "@tanstack/react-router"
+import { ArrowRightIcon, BellIcon, Loader2Icon } from "lucide-react"
 
 import { NotificationRow } from "@/components/shared/notification-row"
 import { Badge } from "@/components/ui/badge"
@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsCount, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   countUnreadNotifications,
   getNotificationErrorMessage,
@@ -27,13 +27,44 @@ import {
   markNotificationsSeen,
   type NotificationItem,
 } from "@/lib/api/notification"
+import { appNoticeCategories } from "@/lib/app-options"
 import { notificationAction } from "@/lib/notification-action"
-import { useAppNotificationLinks } from "@/lib/hooks/use-app-notification-links"
+import { relativeDayGroup } from "@/lib/format/format-time"
+import { useAppNotificationDetails } from "@/lib/hooks/use-app-notification-details"
 import { useNotificationStream } from "@/lib/hooks/use-notification-stream"
 import { cn } from "@/lib/utils"
 
-type NotificationFilter = "all" | "unread"
+/**
+ * Which tab the tray is on: the shell's own two, or the id of one of the app's
+ * categories. A string rather than a union, because the app names its own.
+ */
+type NotificationFilter = string
 const NOTIFICATION_PAGE_SIZE = 20
+
+/**
+ * The rows under one day heading.
+ *
+ * **The headings are what makes a long tray readable.** Twenty rows each
+ * carrying their own "2h" or "Yesterday" is twenty small sums for the reader to
+ * do; one heading does it once for the run underneath it. Tyler asked for these
+ * on 4 October 2026.
+ *
+ * The server hands the notices back newest first, so walking them in order
+ * gives Today, then Yesterday, then Earlier, and nothing is sorted again here.
+ */
+function groupByDay(items: readonly NotificationItem[]) {
+  const groups: { label: string; items: NotificationItem[] }[] = []
+  for (const item of items) {
+    const label = relativeDayGroup(item.created_at)
+    const last = groups[groups.length - 1]
+    if (last && last.label === label) {
+      last.items.push(item)
+      continue
+    }
+    groups.push({ label, items: [item] })
+  }
+  return groups
+}
 
 /**
  * Nothing to show, said the way the media gallery says it: an icon, a line, and
@@ -50,7 +81,7 @@ function EmptyNotifications({ hasAny }: { hasAny: boolean }) {
         </p>
         <p className="mt-1">
           {hasAny
-            ? "Everything here has been read. View all shows the rest."
+            ? "Everything here has been read. All shows the rest."
             : "Votes and replies on your feedback land here, along with announcements and new updates."}
         </p>
       </div>
@@ -70,12 +101,19 @@ type NotificationCenterProps = {
    * on the slow check inside useNotificationStream instead.
    */
   live?: boolean
+  /**
+   * Whether to offer "Notification settings" in the footer. The switches live
+   * on an admin screen, so a member has no page to be sent to and is shown no
+   * link rather than one that bounces them back.
+   */
+  canOpenSettings?: boolean
   onOpenFeedback?: (feedbackId: string) => void
 }
 
 export function NotificationCenter({
   initialUnseenCount,
   live = true,
+  canOpenSettings = false,
   onOpenFeedback,
 }: NotificationCenterProps) {
   const navigate = useNavigate()
@@ -125,14 +163,23 @@ export function NotificationCenter({
   // list is already the truth.
   const pendingReadIdsRef = React.useRef<Set<string>>(new Set())
 
+  // What this app says about its own notices, looked up while the tray is
+  // being read rather than after a click. Empty in an app that has not set the
+  // option, and every notice then looks as it always did.
+  const appDetails = useAppNotificationDetails(notifications)
+
+  // The app's own tabs, after Unread and All. Fixed for the life of the app,
+  // so this never changes while the tray is open.
+  const categories = React.useMemo(() => appNoticeCategories(), [])
+
   const visibleNotifications =
     filter === "unread"
       ? notifications.filter((item) => !item.read_at)
-      : notifications
-
-  // Where this app's own notices lead, looked up while the tray is being read
-  // rather than after a click. Empty in an app that has not set the option.
-  const appLinks = useAppNotificationLinks(notifications)
+      : filter === "all"
+        ? notifications
+        : notifications.filter(
+            (item) => appDetails[item.id]?.categoryId === filter
+          )
 
   // The Unread tab can only filter the rows it has pulled, so with unread
   // notices sitting further back than the first page the tab would say 3 and
@@ -142,6 +189,21 @@ export function NotificationCenter({
       ? Math.max(0, unreadCount - visibleNotifications.length)
       : 0
   const canLoadHiddenUnread = hiddenUnreadCount > 0 && nextCursor !== null
+
+  // An app's own tab needs a way to ask for the next page by hand.
+  //
+  // Scrolling to the bottom fetches the next page, but a filtered tab is the
+  // one place that never reaches the bottom: Alerts showing six rows out of
+  // twenty loaded has nothing to scroll, so the fetch never fires and those
+  // six look like every alert there has ever been.
+  //
+  // The shell's own two tabs are exempt, and for opposite reasons. All shows
+  // every row it has, so its own scrollbar does the asking. Unread knows
+  // exactly how many it is hiding and says so in words, which beats an
+  // unlabelled button — and a tray with everything read would otherwise lose
+  // "You are all caught up" to one.
+  const canLoadMoreIntoFilter =
+    filter !== "all" && filter !== "unread" && nextCursor !== null
 
   const loadNotificationRows = React.useCallback(async () => {
     // One request at a time. Three things ask for pages now — opening the
@@ -293,6 +355,51 @@ export function NotificationCenter({
     void clearBell()
   }, [clearBell, open, unseenCount])
 
+  function openNotification(item: NotificationItem) {
+    // The app's answer first. A notice the app wrote knows where it came from —
+    // the coin that filled, the flow that stopped — and the app is the only
+    // side that can say so. The shell opens nothing for those rows, so without
+    // this the reading that has an address loses to the one that does not.
+    const appHref = appDetails[item.id]?.href
+    if (appHref) {
+      setOpen(false)
+      void navigate({ href: appHref })
+      markReadInBackground(item)
+      return
+    }
+
+    const action = notificationAction(item)
+
+    // A notice with nowhere to go — an announcement, whose own words are the
+    // whole message — leaves the tray open rather than shutting on what the
+    // reader just clicked. Everything else opens first; the dot is cleared
+    // afterwards, behind the click.
+    if (action.kind !== "none") {
+      setOpen(false)
+
+      if (action.kind === "changelog") {
+        void navigate({ to: "/changelog/whats-new" })
+      } else if (action.kind === "automationRun") {
+        void navigate({
+          to: "/admin/automations/$automationId",
+          params: { automationId: action.automationId },
+          search: { run: action.runId, node: action.nodeId },
+        })
+      } else if (action.kind === "billing") {
+        void navigate({
+          to: ".",
+          search: (prev) => ({ ...prev, account: "billing" }),
+        })
+      } else if (action.kind === "crmThread") {
+        void navigate({ to: "/admin/crm", search: { open: action.threadId } })
+      } else {
+        onOpenFeedback?.(action.feedbackId)
+      }
+    }
+
+    markReadInBackground(item)
+  }
+
   const loading = open && !firstPageLoaded
   const loadMoreFromElement = React.useCallback(
     (element: HTMLDivElement) => {
@@ -381,52 +488,6 @@ export function NotificationCenter({
       })
   }
 
-  function openNotification(item: NotificationItem) {
-    // The app's own answer first. A notice the app wrote knows where it came
-    // from — the coin that filled, the flow that stopped — and the app is the
-    // only side that can say so. The shell opens nothing for those rows, so
-    // without this the reading that has an address loses to the one that does
-    // not.
-    const appHref = appLinks[item.id]
-    if (appHref) {
-      setOpen(false)
-      void navigate({ href: appHref })
-      markReadInBackground(item)
-      return
-    }
-
-    const action = notificationAction(item)
-
-    // A notice with nowhere to go — an announcement, whose own words are the
-    // whole message — leaves the tray open rather than shutting on what the
-    // reader just clicked. Everything else opens first; the dot is cleared
-    // afterwards, behind the click.
-    if (action.kind !== "none") {
-      setOpen(false)
-
-      if (action.kind === "changelog") {
-        void navigate({ to: "/changelog/whats-new" })
-      } else if (action.kind === "automationRun") {
-        void navigate({
-          to: "/admin/automations/$automationId",
-          params: { automationId: action.automationId },
-          search: { run: action.runId, node: action.nodeId },
-        })
-      } else if (action.kind === "billing") {
-        void navigate({
-          to: ".",
-          search: (prev) => ({ ...prev, account: "billing" }),
-        })
-      } else if (action.kind === "crmThread") {
-        void navigate({ to: "/admin/crm", search: { open: action.threadId } })
-      } else {
-        onOpenFeedback?.(action.feedbackId)
-      }
-    }
-
-    markReadInBackground(item)
-  }
-
   return (
     // A popover, not a menu. The library gives a menu's container a menu role,
     // which tells a screen reader to expect arrow keys and type-to-jump — and
@@ -485,15 +546,30 @@ export function NotificationCenter({
         }}
         className="flex w-[calc(100vw-2rem)] max-w-[26rem] flex-col gap-0 overflow-hidden p-0 sm:w-[26rem]"
       >
-        <div className="flex shrink-0 flex-wrap items-center gap-3 p-4">
-          <h2 className="mr-auto text-xl font-semibold">Notifications</h2>
+        {/* Tabs and the one action, on one row. The heading that used to sit
+            here said "Notifications" above a tray opened from a bell, which is
+            the one thing nobody needed telling. The popover is named for a
+            screen reader instead. */}
+        <div className="flex shrink-0 flex-wrap items-center gap-2 p-3">
+          <h2 className="sr-only">Notifications</h2>
           <Tabs
+            className="min-w-0"
             value={filter}
             onValueChange={(value) => setFilter(value as NotificationFilter)}
           >
             <TabsList>
-              <TabsTrigger value="unread">Unread ({unreadCount})</TabsTrigger>
-              <TabsTrigger value="all">View all</TabsTrigger>
+              <TabsTrigger value="unread">
+                Unread
+                {unreadCount > 0 ? (
+                  <TabsCount>{unreadCount > 99 ? "99+" : unreadCount}</TabsCount>
+                ) : null}
+              </TabsTrigger>
+              <TabsTrigger value="all">All</TabsTrigger>
+              {categories.map((category) => (
+                <TabsTrigger key={category.id} value={category.id}>
+                  {category.label}
+                </TabsTrigger>
+              ))}
             </TabsList>
           </Tabs>
         </div>
@@ -506,24 +582,37 @@ export function NotificationCenter({
               be a real height, not just a cap: the scrolling area sizes its own
               viewport from it, and left to grow it would run straight over the
               footer. */}
-          <ScrollArea className="h-[28rem] max-h-[calc(var(--radix-popover-content-available-height)-9.5rem)]">
-            <div className="px-4 py-4">
+          <ScrollArea className="h-[28rem] max-h-[calc(var(--radix-popover-content-available-height)-7rem)]">
+            <div className="px-1 py-3">
               {/* Only the very first open has nothing to show. Later opens keep
                   the rows already in hand while they refresh, rather than
                   flashing a spinner over data that is very likely still right. */}
               {loading && notifications.length === 0 ? (
                 <LoadingRow label="Loading…" className="min-h-56" />
               ) : visibleNotifications.length > 0 ? (
-                <div className="space-y-3">
-                  {visibleNotifications.map((item) => (
-                    <NotificationRow
-                      key={item.id}
-                      item={item}
-                      onClick={() => openNotification(item)}
-                    />
+                <div className="space-y-4">
+                  {groupByDay(visibleNotifications).map((group) => (
+                    <section
+                      key={`${group.label}-${group.items[0].id}`}
+                      className="space-y-1"
+                    >
+                      <h3 className="px-3 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                        {group.label}
+                      </h3>
+                      <div className="space-y-1">
+                        {group.items.map((item) => (
+                          <NotificationRow
+                            key={item.id}
+                            item={item}
+                            detail={appDetails[item.id]}
+                            onClick={() => openNotification(item)}
+                          />
+                        ))}
+                      </div>
+                    </section>
                   ))}
                 </div>
-              ) : canLoadHiddenUnread || error ? null : (
+              ) : canLoadHiddenUnread || canLoadMoreIntoFilter || error ? null : (
                 // A failed load leaves no rows either, and saying "none" there
                 // would be the same lie in a different place — the error row
                 // below is the only honest thing to show.
@@ -546,6 +635,20 @@ export function NotificationCenter({
                       ? "1 unread notice further back"
                       : `${hiddenUnreadCount} unread notices further back`}
                   </p>
+                  <LoadMoreButton
+                    loading={loading || loadingMore}
+                    onClick={() => {
+                      if (nextCursor) void loadMoreNotificationRows(nextCursor)
+                    }}
+                  />
+                </div>
+              ) : canLoadMoreIntoFilter ? (
+                <div
+                  className={cn(
+                    "flex justify-center",
+                    visibleNotifications.length > 0 ? "pt-4" : "py-10"
+                  )}
+                >
                   <LoadMoreButton
                     loading={loading || loadingMore}
                     onClick={() => {
@@ -576,20 +679,37 @@ export function NotificationCenter({
           </ScrollArea>
         </div>
         <Separator />
-        <div className="flex shrink-0 flex-wrap items-center gap-2 p-4">
+        {/* Mark all read sits down here rather than beside the tabs. Five tabs
+            and a worded button do not share a 416px row, and the row wrapped to
+            two — so the action joins the links instead of widening the tray.
+            The two links are admin screens, so a member sees the action alone
+            rather than links that would bounce them back. */}
+        <div className="flex shrink-0 items-center justify-between gap-2 p-2">
           <Button
             type="button"
             variant="ghost"
+            size="sm"
             disabled={unreadCount === 0 || markingAll}
             onClick={() => void markAllAsRead()}
           >
-            {markingAll ? (
-              <Loader2Icon className="h-4 w-4 animate-spin" />
-            ) : (
-              <CheckCheckIcon className="h-4 w-4" />
-            )}
-            Mark all as read
+            {markingAll ? <Loader2Icon className="size-4 animate-spin" /> : null}
+            Mark all read
           </Button>
+          {canOpenSettings ? (
+            <div className="flex items-center gap-1">
+              <Button asChild type="button" variant="ghost" size="sm">
+                <Link to="/admin/settings" onClick={() => setOpen(false)}>
+                  Settings
+                </Link>
+              </Button>
+              <Button asChild type="button" variant="ghost" size="sm">
+                <Link to="/admin/notifications" onClick={() => setOpen(false)}>
+                  History
+                  <ArrowRightIcon className="size-4" />
+                </Link>
+              </Button>
+            </div>
+          ) : null}
         </div>
       </PopoverContent>
     </Popover>

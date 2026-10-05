@@ -13,6 +13,10 @@ import {
   WorkspacePanel,
 } from "@/components/ui/resizable"
 import {
+  blockAddress,
+  getBlockedSenderErrorMessage,
+} from "@/lib/api/crm/blocked"
+import {
   draftReply,
   fetchMessageBody,
   getCrmErrorMessage,
@@ -105,6 +109,10 @@ export function CrmWorkspace({
       filters.stage,
       filters.unreadOnly,
       filters.followUpDue,
+      // The order too: page 1 of "longest waiting" is a different set of rows
+      // from page 1 of "newest first", so a tick made in one must not be
+      // counted in the other.
+      filters.sort,
     ].join("|")
   )
 
@@ -167,6 +175,10 @@ export function CrmWorkspace({
       ? loaded.conversation
       : null
   const lead = conversation ? loaded?.lead ?? null : null
+  // The row in the list already knows who the conversation is with, so the
+  // header has a name to draw before the lead panel's own fetch lands, and
+  // blocking has an address to send before it too.
+  const openRow = threads.find((thread) => thread.id === openThreadId) ?? null
 
   // Held in a ref so the fetch below is keyed on which conversation is open,
   // not on a callback the owner rebuilds every render. In the deps it would
@@ -229,6 +241,9 @@ export function CrmWorkspace({
         stage: filters.stage,
         unreadOnly: filters.unreadOnly || undefined,
         followUpDue: filters.followUpDue || undefined,
+        // Without this the next page comes back newest first, so Load more
+        // would restart the order halfway down the list.
+        sort: filters.sort,
         page: Math.floor(threads.length / page.pageSize) + 1,
       })
       // Filtered by id: a message arriving mid-scroll reorders the list on the
@@ -307,6 +322,41 @@ export function CrmWorkspace({
     }
   }
 
+  /**
+   * Blocks the address this conversation is with, and closes the thread.
+   *
+   * Two writes, reported separately. The block goes first because it is the
+   * half that matters, and a close that then fails is said out loud rather
+   * than folded into one message: "nothing worked" when the address is in fact
+   * blocked would send somebody to Settings looking for a row that is there.
+   */
+  const blockSender = async () => {
+    const address = lead?.lead.email ?? openRow?.leadEmail ?? null
+    if (!conversation || !address) return
+
+    try {
+      await blockAddress(address, "Blocked from the conversation")
+    } catch (error) {
+      showErrorToast(getBlockedSenderErrorMessage(error))
+      return
+    }
+
+    try {
+      await setConversationStatus(conversation.id, "closed")
+    } catch {
+      showErrorToast(
+        `Mail from ${address} is blocked, but this conversation did not close. Press Close to shut it.`
+      )
+      reloadBoth()
+      return
+    }
+
+    toast.success(
+      `Mail from ${address} will not reach the inbox. Settings → Email unblocks it.`
+    )
+    reloadBoth()
+  }
+
   const markUnread = async () => {
     if (!conversation) return
     try {
@@ -370,10 +420,6 @@ export function CrmWorkspace({
     />
   )
 
-  // The row in the list already knows who the conversation is with, so the
-  // header has a name to draw before the lead panel's own fetch lands.
-  const openRow = threads.find((thread) => thread.id === openThreadId) ?? null
-
   const middle = (
     <ConversationPanel
       conversation={conversation}
@@ -386,6 +432,7 @@ export function CrmWorkspace({
       onReplyDraftChange={changeReplyDraft}
       onStatusChange={changeStatus}
       onMarkUnread={markUnread}
+      onBlockSender={blockSender}
       onFetchBody={refetchBody}
       onSent={reloadBoth}
       onDraft={async () => {

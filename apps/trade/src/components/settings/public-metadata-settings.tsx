@@ -16,13 +16,8 @@ import {
   cleanSocialHandleInput,
   MAX_PUBLIC_SEO_DESCRIPTION_LENGTH,
   MAX_PUBLIC_SEO_TITLE_LENGTH,
-  MAX_PUBLIC_SYSTEM_BODY_LENGTH,
-  MAX_PUBLIC_SYSTEM_HEADING_LENGTH,
   MAX_SOCIAL_HANDLE_LENGTH,
-  resolveMaintenanceCopy,
-  resolveNotFoundCopy,
   SOCIAL_CARD_TYPES,
-  type PublicSystemCopy,
   type SocialCardType,
 } from "@/lib/pages/public-metadata"
 
@@ -108,48 +103,6 @@ export function PublicSeoSettings({
   return (
     <CardGroup>
       <CollapsibleSettingsCard
-        storageId="public-seo-home"
-        title="Home page"
-        description="Set the browser and search text used only for the public front page."
-        contentClassName="grid gap-4"
-      >
-        <div className="grid gap-2">
-          <FieldLabel
-            htmlFor="public-seo-home-title"
-            hint="Leave this empty to keep the standard front-page title."
-          >
-            Home page title
-          </FieldLabel>
-          <Input
-            id="public-seo-home-title"
-            value={config.publicSeo.homeTitle}
-            maxLength={MAX_PUBLIC_SEO_TITLE_LENGTH}
-            placeholder="Front page title"
-            onChange={(event) => updateSeo({ homeTitle: event.target.value })}
-          />
-        </div>
-
-        <div className="grid gap-2">
-          <FieldLabel
-            htmlFor="public-seo-home-description"
-            hint="Leave this empty to use the default page description below, then the standard front-page description."
-          >
-            Home page description
-          </FieldLabel>
-          <Textarea
-            id="public-seo-home-description"
-            rows={1}
-            value={config.publicSeo.homeDescription}
-            maxLength={MAX_PUBLIC_SEO_DESCRIPTION_LENGTH}
-            placeholder="Describe the public front page"
-            onChange={(event) =>
-              updateSeo({ homeDescription: event.target.value })
-            }
-          />
-        </div>
-      </CollapsibleSettingsCard>
-
-      <CollapsibleSettingsCard
         storageId="public-seo-written-pages"
         title="Written pages"
         description="Set one pattern for every public page created in Pages."
@@ -232,108 +185,5 @@ export function PublicSeoSettings({
         />
       </CollapsibleSettingsCard>
     </CardGroup>
-  )
-}
-
-export function PublicSystemPagesSettings({
-  config,
-  onConfigChange,
-}: PublicSettingsProps) {
-  const updateCopy = (patch: Partial<PublicSystemCopy>) =>
-    onConfigChange({
-      ...config,
-      publicSystemCopy: { ...config.publicSystemCopy, ...patch },
-    })
-
-  return (
-    <CollapsibleSettingsCard
-      storageId="public-system-pages"
-      title="404 and maintenance text"
-      description="Write the short heading and message visitors see when a page is missing or the app is closed."
-      contentClassName="space-y-6"
-    >
-      <SystemPageCopyFields
-        kind="not-found"
-        title="Page not found"
-        heading={config.publicSystemCopy.notFoundHeading}
-        body={config.publicSystemCopy.notFoundBody}
-        preview={resolveNotFoundCopy(config.publicSystemCopy)}
-        onHeadingChange={(notFoundHeading) => updateCopy({ notFoundHeading })}
-        onBodyChange={(notFoundBody) => updateCopy({ notFoundBody })}
-      />
-      <SystemPageCopyFields
-        kind="maintenance"
-        title="Maintenance"
-        heading={config.publicSystemCopy.maintenanceHeading}
-        body={config.publicSystemCopy.maintenanceBody}
-        preview={resolveMaintenanceCopy(config.publicSystemCopy)}
-        onHeadingChange={(maintenanceHeading) =>
-          updateCopy({ maintenanceHeading })
-        }
-        onBodyChange={(maintenanceBody) => updateCopy({ maintenanceBody })}
-      />
-    </CollapsibleSettingsCard>
-  )
-}
-
-function SystemPageCopyFields({
-  kind,
-  title,
-  heading,
-  body,
-  preview,
-  onHeadingChange,
-  onBodyChange,
-}: {
-  kind: "not-found" | "maintenance"
-  title: string
-  heading: string
-  body: string
-  preview: { heading: string; body: string }
-  onHeadingChange: (value: string) => void
-  onBodyChange: (value: string) => void
-}) {
-  return (
-    <section className="grid gap-4" aria-labelledby={`${kind}-copy-title`}>
-      <h3 id={`${kind}-copy-title`} className="text-sm font-medium">
-        {title}
-      </h3>
-      <div className="grid gap-2">
-        <FieldLabel
-          htmlFor={`${kind}-heading`}
-          hint="Leave this empty to use the standard heading."
-        >
-          Heading
-        </FieldLabel>
-        <Input
-          id={`${kind}-heading`}
-          value={heading}
-          maxLength={MAX_PUBLIC_SYSTEM_HEADING_LENGTH}
-          placeholder={preview.heading}
-          onChange={(event) => onHeadingChange(event.target.value)}
-        />
-      </div>
-      <div className="grid gap-2">
-        <FieldLabel
-          htmlFor={`${kind}-body`}
-          hint="Plain text only. Leave this empty to use the standard message."
-        >
-          Message
-        </FieldLabel>
-        <Textarea
-          id={`${kind}-body`}
-          rows={1}
-          value={body}
-          maxLength={MAX_PUBLIC_SYSTEM_BODY_LENGTH}
-          placeholder={preview.body}
-          onChange={(event) => onBodyChange(event.target.value)}
-        />
-      </div>
-      <div className="grid gap-1 rounded-lg border bg-muted/30 p-3">
-        <p className="text-xs text-muted-foreground">Preview</p>
-        <p className="text-sm font-medium">{preview.heading}</p>
-        <p className="text-sm text-muted-foreground">{preview.body}</p>
-      </div>
-    </section>
   )
 }

@@ -19,12 +19,13 @@ import { z } from "zod"
  * one rule, but there are no nested groups or brackets.
  */
 
-/** The four things a contact's status can be — the same list the table checks. */
+/** The five things a contact's status can be — the same list the table checks. */
 export const CONTACT_SEGMENT_STATUSES = [
   "subscribed",
   "unsubscribed",
   "bounced",
   "complained",
+  "cold",
 ] as const
 
 export type ContactSegmentStatus = (typeof CONTACT_SEGMENT_STATUSES)[number]
@@ -42,6 +43,16 @@ const MAX_TAG_LENGTH = 100
  * rule, and short enough that a mistyped number is refused rather than saved.
  */
 export const MAX_RULE_DAYS = 3650
+
+/**
+ * The most recent emails an "opened any of the last N" rule can look back
+ * over.
+ *
+ * Fifty, the same ceiling as the gone-quiet rule, because they ask the same
+ * question of the same rows and two different limits would be two answers to
+ * "how far back does recent go".
+ */
+export const MAX_RULE_EMAILS = 50
 
 const segmentConditionSchema = z.discriminatedUnion("type", [
   z.object({
@@ -76,6 +87,40 @@ const segmentConditionSchema = z.discriminatedUnion("type", [
     type: z.literal("emailed"),
     operator: z.enum(["within", "before", "never"]),
     days: z.number().int().min(1).max(MAX_RULE_DAYS),
+  }),
+  /**
+   * When they last opened or clicked anything you sent.
+   *
+   * Opens AND clicks, which is what makes it "engaged" rather than "opened".
+   * An open is a hidden image, so a mail client that blocks pictures reports
+   * nothing on a message somebody read and clicked a link in. A click cannot
+   * happen by accident, so it is the stronger of the two, and a rule that
+   * ignored it would call that person unengaged.
+   *
+   * Counted in days, like "when they joined". The rule below counts emails
+   * instead, which is the real difference between the two.
+   */
+  z.object({
+    type: z.literal("engaged"),
+    operator: z.enum(["within", "before", "never"]),
+    days: z.number().int().min(1).max(MAX_RULE_DAYS),
+  }),
+  /**
+   * Whether they opened any of the last few things you sent them.
+   *
+   * No clock at all: "the last 5 emails" are the last 5 you sent that person,
+   * whenever that was. Stop sending for six months and nobody falls out of this
+   * rule, because the last five are still the same five. That is what makes it
+   * the re-engagement rule rather than the one above — it follows your sending
+   * instead of the calendar.
+   *
+   * Opens only. A click without an open does not count here, which is the
+   * deliberate difference from `engaged`.
+   */
+  z.object({
+    type: z.literal("opened"),
+    operator: z.enum(["has", "hasnt"]),
+    emails: z.number().int().min(1).max(MAX_RULE_EMAILS),
   }),
   z.object({
     type: z.literal("account"),
@@ -208,6 +253,8 @@ export const segmentConditionLabels: Record<SegmentConditionType, string> = {
   source: "Where they came from",
   joined: "When they joined",
   emailed: "When they were last emailed",
+  engaged: "When they last opened or clicked",
+  opened: "Opens in their last few emails",
   account: "Has an account",
   plan: "Plan",
   in: "In another segment",
@@ -220,6 +267,59 @@ export const segmentStatusLabels: Record<ContactSegmentStatus, string> = {
   unsubscribed: "Opted out",
   bounced: "Bouncing",
   complained: "Marked it spam",
+  cold: "Gone quiet",
+}
+
+/**
+ * How each status is drawn wherever one is shown as a badge.
+ *
+ * Gone quiet is `outline`, not `destructive`. Red says something went wrong, and
+ * nothing did: they are still on the list and still being mailed. The three
+ * that really are a problem keep the red.
+ */
+export const segmentStatusBadgeVariant: Record<
+  ContactSegmentStatus,
+  "secondary" | "destructive" | "outline"
+> = {
+  subscribed: "secondary",
+  unsubscribed: "destructive",
+  bounced: "destructive",
+  complained: "destructive",
+  cold: "outline",
+}
+
+/**
+ * What to say after somebody's status was set by hand.
+ *
+ * A sentence each rather than "is now " plus the label, because the labels are
+ * not written to finish that sentence: "is now marked it spam" is not English,
+ * and a message an admin has to re-read is worse than no message.
+ *
+ * `%s` is the address, and callers substitute it with a function rather than a
+ * string — a `$` in a local part is legal, and `String.replace` reads `$&` and
+ * friends in a string replacement as instructions.
+ */
+export const segmentStatusSaidDone: Record<ContactSegmentStatus, string> = {
+  subscribed: "%s is back on the list.",
+  unsubscribed: "%s will not get any more.",
+  bounced: "%s is marked as bouncing.",
+  complained: "%s is marked as having reported spam.",
+  cold: "%s is marked as gone quiet.",
+}
+
+/**
+ * What each status means, for the dropdown that sets one by hand.
+ *
+ * The two the mail provider reports say so, because setting one of those
+ * yourself does not make the mail arrive and somebody should be told that
+ * before they pick it rather than after.
+ */
+export const segmentStatusHints: Record<ContactSegmentStatus, string> = {
+  subscribed: "They get everything you send.",
+  unsubscribed: "They asked to stop. They get nothing.",
+  bounced: "Their mail server refused it. Reported by Resend.",
+  complained: "They marked a message as spam. Reported by Resend.",
+  cold: "They stopped opening. Still mailable, and one open puts them back.",
 }
 
 /** A fresh condition of each kind, for the moment one is added to the list. */
@@ -239,6 +339,16 @@ export function newSegmentCondition(
       // Ninety days, because the rule this exists for is the re-engagement
       // one — "we have not talked to these people in three months".
       return { type: "emailed", operator: "before", days: 90 }
+    case "engaged":
+      // Ninety days, to match "when they were last emailed" — the two get
+      // written side by side, and a pair of rules with different numbers in
+      // them reads as a decision somebody made rather than a default.
+      return { type: "engaged", operator: "before", days: 90 }
+    case "opened":
+      // Seven, the same run the gone-quiet rule uses, so "opened none of the
+      // last 7" and "has gone quiet" agree out of the box instead of being two
+      // nearly-identical groups.
+      return { type: "opened", operator: "hasnt", emails: 7 }
     case "account":
       return { type: "account", operator: "has" }
     case "plan":
@@ -291,6 +401,15 @@ export function describeSegmentCondition(
       return condition.operator === "within"
         ? `emailed in the last ${condition.days} days`
         : `not emailed in the last ${condition.days} days`
+    case "engaged":
+      if (condition.operator === "never") return "never opened or clicked"
+      return condition.operator === "within"
+        ? `opened or clicked in the last ${condition.days} days`
+        : `nothing opened or clicked in the last ${condition.days} days`
+    case "opened":
+      return condition.operator === "has"
+        ? `opened one of their last ${condition.emails} emails`
+        : `opened none of their last ${condition.emails} emails`
     case "account":
       return condition.operator === "has"
         ? "has an account"

@@ -15,6 +15,7 @@ export function describeBulkResult({
   one,
   many,
   verb,
+  keptReason,
 }: {
   /** How many went through. */
   done: number
@@ -23,6 +24,9 @@ export function describeBulkResult({
   /**
    * How many were already that way, so nothing was written to them. Only a
    * change has this pile; deleting does not, and leaves it out.
+   *
+   * It came from CMS, which had its own copy of this file for it. The two
+   * copies were merged on 5 Oct 2026 so there is one again.
    */
   same?: number
   /** The thing's name, singular — "workspace". */
@@ -31,6 +35,17 @@ export function describeBulkResult({
   many: string
   /** What happened to them, past tense — "deleted". */
   verb: string
+  /**
+   * Why the rest did not change, without the count and without the full stop —
+   * "already closed". It becomes a sentence of its own: "17 closed. 3 were
+   * already closed."
+   *
+   * Leave it out when the rest genuinely failed, and the line falls back to
+   * "could not be deleted". The two are not the same thing, and a conversation
+   * that was already closed being reported as one that could not be closed
+   * sends somebody looking for a bug.
+   */
+  keptReason?: string
 }) {
   const were = plural(same, "was", "were")
   // Nothing changed because nothing needed to. The already-pile leads the
@@ -44,6 +59,10 @@ export function describeBulkResult({
         `${done} ${plural(done, one, many)} ${verb}`,
         ...(same ? [`${same} ${were} already ${verb}`] : []),
       ]
-  if (kept) parts.push(`${kept} could not be ${verb}`)
-  return `${parts.join(", ")}.`
+  // A reason gets a sentence of its own below, so it does not also become a
+  // "could not be" clause here.
+  if (kept && !keptReason) parts.push(`${kept} could not be ${verb}`)
+  const line = `${parts.join(", ")}.`
+  if (!kept || !keptReason) return line
+  return `${line} ${kept} ${plural(kept, "was", "were")} ${keptReason}.`
 }

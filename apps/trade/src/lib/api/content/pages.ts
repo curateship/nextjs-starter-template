@@ -8,9 +8,11 @@ import {
   type ShellPageOverrides,
 } from "@/lib/pages/page-visibility"
 import { adminGet, adminPost } from "@/server/guards"
+import { writePageBlock } from "@/server/content/page-blocks"
+import { createFrontPageRowDraft } from "@/lib/pages/front-page"
 import {
+  publicPagesWorkspaceId,
   visitorWorkspaceId,
-  workspaceIdForRequest,
 } from "@/server/workspaces/for-request"
 import {
   loadPagesOverview as loadPagesOverviewQuery,
@@ -87,7 +89,11 @@ export function getPageVisibilityErrorMessage(error: unknown) {
 const loadPagesOverviewFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .handler(async ({ context }): Promise<PagesOverview> => {
-    return loadPagesOverviewQuery(await workspaceIdForRequest(context.user.id))
+    // The site whose public pages are being built, for every part of this
+    // screen. A page, its blocks, who may see it and how many visits it had
+    // are four facts about one page, and reading them from two different sites
+    // is how an admin writes a page they then cannot find.
+    return loadPagesOverviewQuery(await publicPagesWorkspaceId(context.user.id))
   })
 
 export function loadPagesOverview() {
@@ -114,7 +120,7 @@ const setPageVisibilityFn = createServerFn({ method: "POST" })
     })
   )
   .handler(async ({ data, context }): Promise<ShellPageOverrides> => {
-    return setPageVisibility(await workspaceIdForRequest(context.user.id), data)
+    return setPageVisibility(await publicPagesWorkspaceId(context.user.id), data)
   })
 
 export function savePageVisibility(input: {
@@ -181,11 +187,6 @@ export async function requirePageVisible(path: string): Promise<void> {
 const writtenPageInput = z.object({
   path: z.string().min(1).max(160),
   title: z.string().min(1).max(MAX_WRITTEN_PAGE_TITLE),
-  // The body is checked by `cleanWrittenPageBody` on the server rather than
-  // here: this is a tree of unknown depth, and the rule for it is "keep only
-  // what is allowed", which a cleaner expresses better than a schema. Anything
-  // at all may arrive; only the allowed shapes survive.
-  body: z.unknown(),
   hiddenFromSearch: z.boolean(),
   // Checked rather than merely bounded on the server: `normalizeCanonicalUrl`
   // turns anything it does not recognise into empty, so a wrong address never
@@ -193,11 +194,30 @@ const writtenPageInput = z.object({
   canonicalUrl: z.string().max(MAX_CANONICAL_URL_LENGTH),
 })
 
+/**
+ * A new page arrives with a name and an address. Everything else about it has
+ * a default, and what goes on it is blocks, written in the editor this opens.
+ */
 const createWrittenPageFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
-  .inputValidator(writtenPageInput)
+  .inputValidator(
+    writtenPageInput.partial({ hiddenFromSearch: true, canonicalUrl: true })
+  )
   .handler(async ({ data, context }): Promise<WrittenPage> => {
-    return createWrittenPage(await workspaceIdForRequest(context.user.id), data)
+    const workspaceId = await publicPagesWorkspaceId(context.user.id)
+    const page = await createWrittenPage(workspaceId, data)
+    // One empty block of words, so the editor opens on something to type into
+    // rather than on an empty page with a picker beside it.
+    await writePageBlock(context.user.id, workspaceId, {
+      path: page.path,
+      block: {
+        ...createFrontPageRowDraft("words"),
+        id: `words-${page.id}`,
+        heading: page.title,
+        layout: "narrow",
+      },
+    })
+    return page
   })
 
 const updateWrittenPageFn = createServerFn({ method: "POST" })
@@ -206,7 +226,7 @@ const updateWrittenPageFn = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<WrittenPage> => {
     const { id, ...rest } = data
     return updateWrittenPage(
-      await workspaceIdForRequest(context.user.id),
+      await publicPagesWorkspaceId(context.user.id),
       id,
       rest
     )
@@ -216,7 +236,10 @@ const deleteWrittenPageFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(z.object({ id: z.string().min(1) }))
   .handler(async ({ data, context }): Promise<{ path: string }> => {
-    return deleteWrittenPage(await workspaceIdForRequest(context.user.id), data.id)
+    return deleteWrittenPage(
+      await publicPagesWorkspaceId(context.user.id),
+      data.id
+    )
   })
 
 /**
@@ -281,16 +304,13 @@ const readWrittenPageForEditFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .inputValidator(z.object({ path: z.string().min(1).max(160) }))
   .handler(async ({ data, context }): Promise<WrittenPage | null> => {
-    return findWrittenPage(await workspaceIdForRequest(context.user.id), data.path)
+    return findWrittenPage(
+      await publicPagesWorkspaceId(context.user.id),
+      data.path
+    )
   })
 
-export function saveNewWrittenPage(input: {
-  path: string
-  title: string
-  body: unknown
-  hiddenFromSearch: boolean
-  canonicalUrl: string
-}) {
+export function saveNewWrittenPage(input: { path: string; title: string }) {
   return createWrittenPageFn({ data: input })
 }
 
@@ -298,7 +318,6 @@ export function saveWrittenPage(input: {
   id: string
   path?: string
   title?: string
-  body?: unknown
   hiddenFromSearch?: boolean
   canonicalUrl?: string
 }) {

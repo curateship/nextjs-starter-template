@@ -6,8 +6,10 @@ import {
   listInboxThreads,
   listThreadMessages,
   markThreadRead,
+  markThreadsRead,
   markThreadUnread,
   setThreadStatus,
+  setThreadStatuses,
 } from "@/server/crm/inbox"
 import { getLead, updateLead } from "@/server/crm/leads"
 import { type CustomShellDb } from "@/server/db"
@@ -203,6 +205,57 @@ describe("the reads the CRM screen makes", () => {
       expect(due.map((row) => row.id)).toEqual(["thread-1"])
     })
 
+    /**
+     * Both orders, run against a real database rather than type checked.
+     * `asc(sql`col nulls last`)` builds SQL Postgres refuses and passes every
+     * type check, which is the whole reason this file exists.
+     */
+    it("puts the longest waiting first, and newest first puts it last", async () => {
+      const newest = await listInboxThreads(
+        workspaceId,
+        { sort: "newest" },
+        db
+      )
+      expect(newest.map((row) => row.id)).toEqual(["thread-1", "thread-2"])
+
+      const oldest = await listInboxThreads(
+        workspaceId,
+        { sort: "oldest" },
+        db
+      )
+      expect(oldest.map((row) => row.id)).toEqual(["thread-2", "thread-1"])
+    })
+
+    it("orders newest first when no order is asked for", async () => {
+      const threads = await listInboxThreads(workspaceId, {}, db)
+      expect(threads.map((row) => row.id)).toEqual(["thread-1", "thread-2"])
+    })
+
+    it("keeps the order over the same filtered set", async () => {
+      const oldest = await listInboxThreads(
+        workspaceId,
+        { sort: "oldest", status: "all" },
+        db
+      )
+      expect(oldest.map((row) => row.id)).toEqual(["thread-2", "thread-1"])
+    })
+
+    /** One row per page, so paging is what the order has to survive. */
+    it("pages through the longest-waiting order without repeating a row", async () => {
+      const first = await listInboxThreads(
+        workspaceId,
+        { sort: "oldest", limit: 1, offset: 0 },
+        db
+      )
+      const second = await listInboxThreads(
+        workspaceId,
+        { sort: "oldest", limit: 1, offset: 1 },
+        db
+      )
+      expect(first.map((row) => row.id)).toEqual(["thread-2"])
+      expect(second.map((row) => row.id)).toEqual(["thread-1"])
+    })
+
     it("searches the subject, the person and the words in the mail", async () => {
       const bySubject = await listInboxThreads(
         workspaceId,
@@ -311,6 +364,129 @@ describe("the reads the CRM screen makes", () => {
       expect(open?.status).toBe("open")
       // Reopening clears the date rather than leaving one nothing reads.
       expect(open?.snoozedUntil).toBeNull()
+    })
+  })
+
+  /**
+   * The ticked-rows writes. The fixtures are already the mixed set these need:
+   * thread-1 is open and unread, thread-2 is closed and read, and
+   * thread-elsewhere belongs to somebody else.
+   */
+  describe("many conversations at once", () => {
+    const everything = ["thread-1", "thread-2", "thread-elsewhere"]
+
+    it("marks the unread ones read and counts the rest as already read", async () => {
+      expect(await markThreadsRead(workspaceId, ["thread-1", "thread-2"], db))
+        .toEqual({ changed: 1, unchanged: 1 })
+      expect((await countInboxThreads(workspaceId, {}, db)).unread).toBe(0)
+    })
+
+    it("closes the open ones and counts the rest as already closed", async () => {
+      expect(
+        await setThreadStatuses(
+          workspaceId,
+          ["thread-1", "thread-2"],
+          "closed",
+          null,
+          db
+        )
+      ).toEqual({ changed: 1, unchanged: 1 })
+      expect((await getThread(workspaceId, "thread-1", db))?.status).toBe(
+        "closed"
+      )
+    })
+
+    it("snoozes several and keeps the date on each", async () => {
+      const until = new Date("2026-11-01T09:00:00.000Z")
+      expect(
+        await setThreadStatuses(
+          workspaceId,
+          ["thread-1", "thread-2"],
+          "snoozed",
+          until,
+          db
+        )
+      ).toEqual({ changed: 2, unchanged: 0 })
+
+      for (const id of ["thread-1", "thread-2"]) {
+        const thread = await getThread(workspaceId, id, db)
+        expect(thread?.status).toBe("snoozed")
+        expect(thread?.snoozedUntil?.toISOString()).toBe(until.toISOString())
+      }
+    })
+
+    it("counts a second press of the same snooze date as no change", async () => {
+      const until = new Date("2026-11-01T09:00:00.000Z")
+      await setThreadStatuses(workspaceId, ["thread-1"], "snoozed", until, db)
+      expect(
+        await setThreadStatuses(workspaceId, ["thread-1"], "snoozed", until, db)
+      ).toEqual({ changed: 0, unchanged: 1 })
+    })
+
+    /**
+     * A snoozed row with no date is still a row that needs the date. The
+     * comparison used to answer NULL on it, which skipped it from the write
+     * and then reported it as already snoozed until then.
+     */
+    it("gives a dateless snoozed conversation the date", async () => {
+      await setThreadStatus(workspaceId, "thread-1", "snoozed", null, db)
+      expect(
+        (await getThread(workspaceId, "thread-1", db))?.snoozedUntil
+      ).toBeNull()
+
+      const until = new Date("2026-11-01T09:00:00.000Z")
+      expect(
+        await setThreadStatuses(workspaceId, ["thread-1"], "snoozed", until, db)
+      ).toEqual({ changed: 1, unchanged: 0 })
+      expect(
+        (await getThread(workspaceId, "thread-1", db))?.snoozedUntil?.toISOString()
+      ).toBe(until.toISOString())
+    })
+
+    /**
+     * The one these functions exist to get right. An id from another
+     * workspace in the list must not be written, and must not be counted
+     * either way — claiming it was "already closed" would be a lie about
+     * somebody else's data.
+     */
+    it("never touches or counts another workspace's conversation", async () => {
+      expect(
+        await setThreadStatuses(workspaceId, everything, "closed", null, db)
+      ).toEqual({ changed: 1, unchanged: 1 })
+      expect(
+        (await getThread(otherWorkspaceId, "thread-elsewhere", db))?.status
+      ).toBe("open")
+
+      expect(await markThreadsRead(workspaceId, everything, db)).toEqual({
+        changed: 1,
+        unchanged: 1,
+      })
+      expect(
+        (await getThread(otherWorkspaceId, "thread-elsewhere", db))?.readAt
+      ).toBeNull()
+    })
+
+    it("counts an id that no longer exists as neither", async () => {
+      expect(
+        await setThreadStatuses(
+          workspaceId,
+          ["thread-1", "thread-gone"],
+          "closed",
+          null,
+          db
+        )
+      ).toEqual({ changed: 1, unchanged: 0 })
+    })
+
+    it("writes nothing when nothing is ticked", async () => {
+      expect(await markThreadsRead(workspaceId, [], db)).toEqual({
+        changed: 0,
+        unchanged: 0,
+      })
+      expect(
+        await setThreadStatuses(workspaceId, [], "closed", null, db)
+      ).toEqual({ changed: 0, unchanged: 0 })
+      expect((await countInboxThreads(workspaceId, {}, db)).unread).toBe(1)
     })
   })
 

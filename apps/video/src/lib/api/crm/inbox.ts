@@ -3,7 +3,9 @@ import { z } from "zod"
 
 import {
   CRM_INBOX_PAGE_SIZE,
+  CRM_INBOX_SORTS,
   CRM_MAX_BODY_LENGTH,
+  CRM_MAX_THREADS_PER_PRESS,
   CRM_STAGES,
   CRM_THREAD_STATUSES,
   type CrmAttachment,
@@ -17,8 +19,11 @@ import {
   listInboxThreads,
   listThreadMessages,
   markThreadRead,
+  markThreadsRead,
   markThreadUnread,
   setThreadStatus,
+  setThreadStatuses,
+  type ManyThreadsResult,
 } from "@/server/crm/inbox"
 import { fillMessageBody, MAX_BODY_ATTEMPTS } from "@/server/crm/inbound"
 import { sendCrmReply } from "@/server/crm/reply"
@@ -109,10 +114,31 @@ const listSchema = z.object({
   stage: z.enum([...CRM_STAGES, "all"]).optional(),
   unreadOnly: z.boolean().optional(),
   followUpDue: z.boolean().optional(),
+  sort: z.enum(CRM_INBOX_SORTS).optional(),
   page: z.number().int().min(1).max(10_000).optional(),
 })
 
 const threadSchema = z.object({ threadId: z.string().min(1).max(36) })
+
+/**
+ * The ticked rows, for the actions that work on a handful at once.
+ *
+ * Capped, because the ids arrive from the browser and an uncapped array is an
+ * invitation to send a hundred thousand of them. The cap is the same number
+ * the bar in the inbox checks before it sends.
+ */
+const threadIdsSchema = z.object({
+  threadIds: z
+    .array(z.string().min(1).max(36))
+    .min(1)
+    .max(CRM_MAX_THREADS_PER_PRESS),
+})
+
+/**
+ * What a ticked-rows press did, re-exported so the screen can name it without
+ * reaching into `@/server`.
+ */
+export type { ManyThreadsResult }
 
 const loadInboxFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
@@ -260,6 +286,45 @@ const markUnreadFn = createServerFn({ method: "POST" })
   })
 
 /**
+ * Marks every ticked conversation read, in one request.
+ *
+ * One request rather than one per row: twenty rows is one trip, and the list
+ * is asked again once rather than twenty times.
+ */
+const markManyReadFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(threadIdsSchema)
+  .handler(async ({ data, context }): Promise<ManyThreadsResult> => {
+    const workspaceId = await currentWorkspaceId(context.user.id)
+    return markThreadsRead(workspaceId, data.threadIds)
+  })
+
+/**
+ * Opens, snoozes or closes every ticked conversation, in one request.
+ *
+ * No `CRM_THREAD_NOT_FOUND` here, unlike the one-thread version. A ticked set
+ * where one row has since been dealt with elsewhere should still write the
+ * other nineteen, and the counts that come back say what happened.
+ */
+const setManyStatusFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(
+    threadIdsSchema.extend({
+      status: z.enum(CRM_THREAD_STATUSES),
+      snoozedUntil: z.string().datetime().nullable().optional(),
+    })
+  )
+  .handler(async ({ data, context }): Promise<ManyThreadsResult> => {
+    const workspaceId = await currentWorkspaceId(context.user.id)
+    return setThreadStatuses(
+      workspaceId,
+      data.threadIds,
+      data.status,
+      data.snoozedUntil ? new Date(data.snoozedUntil) : null
+    )
+  })
+
+/**
  * Asks Resend again for one message's body, at somebody's request.
  *
  * The same work the background pass does, on a button, because waiting fifteen
@@ -311,6 +376,18 @@ export function setConversationStatus(
 
 export function markConversationRead(threadId: string) {
   return markReadFn({ data: { threadId } })
+}
+
+export function markConversationsRead(threadIds: string[]) {
+  return markManyReadFn({ data: { threadIds } })
+}
+
+export function setConversationsStatus(
+  threadIds: string[],
+  status: CrmThreadStatus,
+  snoozedUntil?: string | null
+) {
+  return setManyStatusFn({ data: { threadIds, status, snoozedUntil } })
 }
 
 export function markConversationUnread(threadId: string) {

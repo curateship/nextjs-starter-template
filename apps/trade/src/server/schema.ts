@@ -1381,7 +1381,6 @@ export const customShellWrittenPages = pgTable(
     /** The address it answers on, always starting with "/". */
     path: varchar("path", { length: 160 }).notNull(),
     title: varchar("title", { length: 200 }).notNull(),
-    body: jsonb("body").notNull(),
     /**
      * True puts `noindex` in the page's head and drops it from the sitemap.
      * It does not hide the page from people: the link still works. Who may
@@ -1408,6 +1407,56 @@ export const customShellWrittenPages = pgTable(
     uniqueIndex("ux_written_pages_workspace_path").on(
       table.workspaceId,
       table.path
+    ),
+  ]
+)
+
+/**
+ * The blocks a public page is built from, one row per block.
+ *
+ * They were an array in the settings blob until 4 Oct 2026. One row each is
+ * what lets a second page have any, and what stops an edit to one block
+ * rewriting every setting the app has — see
+ * `0086_custom_shell_page_blocks.sql`.
+ *
+ * A page needs no row here to exist. It is declared by a `*.page.ts` file
+ * beside its route, and only a page whose card says `blocks` is drawn from
+ * this table at all.
+ */
+export const customShellPageBlocks = pgTable(
+  "page_blocks",
+  {
+    /**
+     * The block's own id, the one the editor and the page both know it by. It
+     * is unique within a site rather than across the deployment, which is why
+     * the key below is the pair: copying a front page onto two sites would
+     * otherwise have to rename one of them for a reason nobody could see.
+     */
+    id: varchar("id", { length: 96 }).notNull(),
+    /** The site this block belongs to. */
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    /** The page it is on, always starting with "/". */
+    path: varchar("path", { length: 160 }).notNull(),
+    /** Where it sits on the page, counted from 0. */
+    position: integer("position").notNull(),
+    /** One of the shell's kinds, or "app" when the app added the kind. */
+    kind: varchar("kind", { length: 40 }).notNull(),
+    /** Which of the app's own kinds, when `kind` is "app". */
+    appKind: varchar("app_kind", { length: 60 }),
+    /** Every other field of the block, in the shape the editor saves. */
+    settings: jsonb("settings").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.workspaceId, table.id] }),
+    // How every read asks for them: this site's blocks, on this page, in order.
+    index("ix_page_blocks_workspace_path_position").on(
+      table.workspaceId,
+      table.path,
+      table.position
     ),
   ]
 )
@@ -1809,8 +1858,11 @@ export const customShellContacts = pgTable(
   (table) => [
     check(
       "contacts_status_check",
-      // 'bounced' and 'complained' arrive by Resend webhook, never by hand.
-      sql`${table.status} in ('subscribed', 'unsubscribed', 'bounced', 'complained')`
+      // 'bounced' and 'complained' arrive by Resend webhook. 'cold' is written
+      // by `markQuietContacts` after a run of unopened sends, and cleared by
+      // the webhook the moment one is opened. All five can also be set by hand
+      // from the contact's own window.
+      sql`${table.status} in ('subscribed', 'unsubscribed', 'bounced', 'complained', 'cold')`
     ),
     uniqueIndex("ux_contacts_workspace_email").on(
       table.workspaceId,
@@ -1878,6 +1930,18 @@ export const customShellAutomationDeliveries = pgTable(
     index("ix_automation_deliveries_provider_message").on(
       table.providerMessageId
     ),
+    /**
+     * "Who opened or clicked an automation email", which is half of what
+     * "when they last opened or clicked" asks.
+     *
+     * Partial on purpose: the rows worth looking at are the small share that
+     * were opened or clicked, so a full index over every send ever made would
+     * be mostly nulls. The matching one on `deliveries` answers the other half.
+     * Added in `0090_custom_shell_automation_engagement_index.sql`.
+     */
+    index("ix_automation_deliveries_engaged")
+      .on(table.contactId)
+      .where(sql`${table.openedAt} is not null or ${table.clickedAt} is not null`),
     uniqueIndex("ux_automation_deliveries_run_node_contact")
       .on(table.runId, table.nodeId, table.contactId)
       .where(sql`${table.contactId} is not null`),
@@ -2154,6 +2218,32 @@ export const customShellDeliveries = pgTable(
      * arrives. Two separate facts, two separate columns.
      */
     bouncedAt: timestamp("bounced_at", { withTimezone: true }),
+    /**
+     * The first open Resend reported for this message, or null for one nobody
+     * has opened.
+     *
+     * An estimate, not proof of reading: it is a hidden image, so a mail client
+     * that blocks pictures leaves this null on a message somebody read. That is
+     * why nothing here calls an unopened message ignored, and why the only
+     * thing reading the column is `markQuietContacts`, which needs a *run* of
+     * them before it says anything.
+     *
+     * Added in `0088_custom_shell_contact_cold_status.sql`. Automation mail
+     * records the same fact in its own table, which has had the column all
+     * along.
+     */
+    openedAt: timestamp("opened_at", { withTimezone: true }),
+    /**
+     * The first link click Resend reported, or null for a message nobody
+     * clicked.
+     *
+     * Worth recording beside the open because it is the stronger of the two
+     * signals and the one that survives a mail client blocking pictures:
+     * somebody who clicked read the message, whatever the open says. "When
+     * they last opened or clicked" reads both. Added in
+     * `0089_custom_shell_delivery_clicks.sql`.
+     */
+    clickedAt: timestamp("clicked_at", { withTimezone: true }),
     error: text("error"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   },
@@ -2386,6 +2476,16 @@ export const customShellEmailSettings = pgTable("email_settings", {
    * later leaves newsletters that already exist alone.
    */
   dripDefaults: jsonb("drip_defaults"),
+  /**
+   * How many sends in a row with nothing opened before somebody is marked
+   * 'cold' — see `markQuietContacts`.
+   *
+   * `not null default 7` rather than nullable, so a workspace that predates the
+   * setting behaves the same as a new one. Seven is what systemeverything.com
+   * had been running on. Added in
+   * `0088_custom_shell_contact_cold_status.sql`.
+   */
+  quietAfterEmails: integer("quiet_after_emails").notNull().default(7),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 })
@@ -2645,6 +2745,42 @@ export const customShellCrmMessages = pgTable(
   ]
 )
 
+/**
+ * One address, or one whole domain, whose mail must not reach the inbox.
+ *
+ * **Nothing is deleted on a match.** The mail is still written; the thread it
+ * lands in is closed and stamped read, so it stays out of the default inbox
+ * and is still there under a different status filter. A customer blocked by
+ * accident is the risk this table is shaped around, which is why the note and
+ * the date are kept and why unblocking is one press.
+ */
+export const customShellCrmBlockedSenders = pgTable(
+  "crm_blocked_senders",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    /**
+     * A whole address (`spam@example.com`), or a whole domain written with a
+     * leading at sign (`@example.com`). Stored lowered, because mail arrives
+     * with whatever capitals the sender's client used.
+     */
+    pattern: varchar("pattern", { length: 255 }).notNull(),
+    /** Why it was blocked, in the person's own words. The date is `createdAt`. */
+    note: varchar("note", { length: 500 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    // One row per pattern per workspace, and the index the inbound lookup
+    // reads: workspace plus the lowered address or domain.
+    uniqueIndex("ux_crm_blocked_senders_workspace_pattern").on(
+      table.workspaceId,
+      sql`lower(${table.pattern})`
+    ),
+  ]
+)
+
 export type CustomShellUser = typeof customShellUsers.$inferSelect
 export type CustomShellChangelogEntry =
   typeof customShellChangelogEntries.$inferSelect
@@ -2686,3 +2822,5 @@ export type CustomShellCrmLead = typeof customShellCrmLeads.$inferSelect
 export type CustomShellCrmThread = typeof customShellCrmThreads.$inferSelect
 export type CustomShellCrmMessage =
   typeof customShellCrmMessages.$inferSelect
+export type CustomShellCrmBlockedSender =
+  typeof customShellCrmBlockedSenders.$inferSelect

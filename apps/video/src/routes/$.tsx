@@ -5,10 +5,11 @@ import {
   getVisitorPageErrorMessage,
   visitorRouteErrorComponent,
 } from "@/components/shell/route-error"
-import { WrittenPageBody } from "@/components/pages/written-page-body"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { FrontPageRows } from "@/components/marketing/front-page-rows"
 import { catchAllOverride } from "@/lib/app-options"
+import { loadPublicPageBlocks } from "@/lib/api/content/page-blocks"
 import { loadWrittenPage } from "@/lib/api/content/pages"
+import { frontPageHeroRunsUnderMenu } from "@/lib/pages/front-page"
 import { resolveAppName } from "@/lib/branding"
 import { resolveCanonicalUrl } from "@/lib/pages/page-indexing"
 import {
@@ -72,6 +73,10 @@ export const Route = createFileRoute("/$")({
     return {
       source: "written" as const,
       page: view.page,
+      // The page's content, which is blocks like the front page's. Read after
+      // the page itself, because the read above is what decides whether this
+      // visitor may see the address at all.
+      blocks: await loadPublicPageBlocks(path),
       branding: view.branding,
     }
   },
@@ -132,18 +137,18 @@ function CatchAllRoute() {
     return AppComponent ? <AppComponent data={loaderData.data} /> : null
   }
 
-  const page = loaderData.page
-
+  // Drawn exactly as the front page is, because it is built the same way. A
+  // page whose blocks are all gone still answers, with its header and footer
+  // and nothing between them, rather than throwing.
   return (
-    <PublicPageFrame>
-      <Card className="w-full max-w-2xl">
-        <CardHeader>
-          <CardTitle>{page.title}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <WrittenPageBody body={page.body} />
-        </CardContent>
-      </Card>
+    <PublicPageFrame
+      // The registry has nothing to say about this address, so the frame is
+      // told: a page an admin added is built from blocks and is drawn the way
+      // the front page is, from the top of the window down.
+      layout="marketing"
+      heroRunsUnderMenu={frontPageHeroRunsUnderMenu(loaderData.blocks)}
+    >
+      <FrontPageRows rows={loaderData.blocks} />
     </PublicPageFrame>
   )
 }

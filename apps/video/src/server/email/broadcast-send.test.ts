@@ -735,3 +735,51 @@ describe("sent to a saved segment", () => {
     ).rejects.toThrow("SEGMENT_GONE")
   })
 })
+
+/**
+ * Who is left out, which is the one rule in this file that decides whether a
+ * real person is written to.
+ */
+describe("who a newsletter reaches", () => {
+  async function setStatus(index: number, status: string) {
+    await db
+      .update(customShellContacts)
+      .set({ status })
+      .where(eq(customShellContacts.id, `contact-${String(index).padStart(4, "0")}`))
+  }
+
+  it("leaves out everybody who opted out, bounced or complained", async () => {
+    await insertContacts(5)
+    await setStatus(0, "unsubscribed")
+    await setStatus(1, "bounced")
+    await setStatus(2, "complained")
+
+    expect(await countBroadcastAudience(WORKSPACE_ID, { kind: "all" }, db)).toBe(2)
+  })
+
+  it("still writes to somebody who has gone quiet", async () => {
+    await insertContacts(3)
+    await setStatus(0, "cold")
+    await setStatus(1, "cold")
+
+    // All three: being quiet is why you send to them, not a reason not to.
+    // Taking them out would leave no message for them to open, and opening one
+    // is the only way back on the list.
+    expect(await countBroadcastAudience(WORKSPACE_ID, { kind: "all" }, db)).toBe(3)
+  })
+
+  it("a send that goes to the quiet ones really writes to them", async () => {
+    await insertContacts(3)
+    await setStatus(0, "cold")
+    await setStatus(1, "unsubscribed")
+    await insertBroadcast()
+
+    await tick(MORNING)
+
+    // Counted by who was written to rather than by how many, because the send
+    // syncs the workspace's own accounts into the list first and the owner is
+    // one of them.
+    expect(sentTo).toContain("person0@example.test")
+    expect(sentTo).not.toContain("person1@example.test")
+  })
+})

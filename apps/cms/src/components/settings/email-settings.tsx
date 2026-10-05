@@ -2,6 +2,7 @@ import * as React from "react"
 import { InfoIcon, Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 
+import { BlockedSendersCard } from "@/components/settings/blocked-senders-card"
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { DripSettingsFields } from "@/components/shared/drip-settings-fields"
 import { useShellRuntime } from "@/components/shell/shell-layout"
@@ -13,6 +14,10 @@ import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { NumberField } from "@/components/ui/number-field"
+import {
+  QUIET_AFTER_EMAILS_MAX,
+  QUIET_AFTER_EMAILS_MIN,
+} from "@/lib/contacts/gone-quiet"
 import { SettingsSwitchRow } from "@/components/settings/settings-switch-row"
 import { Textarea } from "@/components/ui/textarea"
 import {
@@ -29,6 +34,7 @@ import {
   saveAuthLinkExpirySetting,
   saveEmailSenderSettings,
   saveCrmQuoteRepliesSetting,
+  saveQuietAfterEmailsSetting,
   saveCrmReplyNameSetting,
   saveCrmReplySignatureSetting,
   saveInboundAddressSetting,
@@ -83,6 +89,8 @@ export function EmailSettings() {
   } | null>(null)
   // The pace a new newsletter starts from, as edited; null until the load.
   const [drip, setDrip] = React.useState<DripConfig | null>(null)
+  // The run of unopened sends that marks somebody quiet; null until the load.
+  const [quietAfter, setQuietAfter] = React.useState<number | null>(null)
   const [linkExpiry, setLinkExpiry] = React.useState<AuthLinkExpiry | null>(null)
   // The key and webhook secret as typed but not yet saved.
   const [keyDraft, setKeyDraft] = React.useState("")
@@ -106,6 +114,7 @@ export function EmailSettings() {
     | "key"
     | "webhook"
     | "drip"
+    | "quietAfter"
     | "linkExpiry"
     | null
   >(null)
@@ -158,6 +167,7 @@ export function EmailSettings() {
           }
         )
         setDrip((prev) => prev ?? next.dripDefaults)
+        setQuietAfter((prev) => prev ?? next.quietAfterEmails)
         setLinkExpiry((prev) => prev ?? next.authLinkExpiry)
         setLoadError(null)
       })
@@ -359,6 +369,39 @@ export function EmailSettings() {
       return
     }
     void saveLinkExpiry(linkExpiry)
+  }
+
+  const saveQuiet = async (next: number) => {
+    setSaving("quietAfter")
+    setSaveStatus("saving")
+    dismissErrorToast()
+    try {
+      setStatus(await saveQuietAfterEmailsSetting(next))
+      setSaveStatus("saved")
+    } catch (error) {
+      setSaveStatus("idle")
+      showErrorToast(getEmailSettingsErrorMessage(error))
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  const scheduleQuietSave = (next: number) => {
+    clearTimeout(timers.current.quietAfter)
+    timers.current.quietAfter = setTimeout(
+      () => void saveQuiet(next),
+      SAVE_DELAY_MS
+    )
+  }
+
+  const flushQuietSave = () => {
+    if (quietAfter === null) return
+    clearTimeout(timers.current.quietAfter)
+    if (saving !== null) {
+      scheduleQuietSave(quietAfter)
+      return
+    }
+    void saveQuiet(quietAfter)
   }
 
   const scheduleDripSave = (next: DripConfig) => {
@@ -876,6 +919,10 @@ export function EmailSettings() {
         )}
       </CollapsibleSettingsCard>
 
+      {/* Next to the address mail arrives at, because that card is where the
+          inbound side of email is set up. It fetches its own list. */}
+      <BlockedSendersCard />
+
       <CollapsibleSettingsCard
         storageId="system-email-link-expiry"
         title="System email link expiry"
@@ -984,6 +1031,40 @@ export function EmailSettings() {
         ) : (
           <LoadingRow
             label="Loading newsletter sending settings…"
+            className="min-h-13 py-2"
+          />
+        )}
+      </CollapsibleSettingsCard>
+
+      <CollapsibleSettingsCard
+        storageId="contacts-gone-quiet"
+        title="When somebody has gone quiet"
+        description="Someone who never opens anything drags every message to everybody else towards the spam folder, so after a run of unopened sends their status becomes Gone quiet. They still get what you send, and the first thing they open puts them back on the list."
+      >
+        {status && quietAfter !== null ? (
+          <div
+            onBlur={(event) => {
+              if (event.currentTarget.contains(event.relatedTarget)) return
+              flushQuietSave()
+            }}
+          >
+            <NumberField
+              id="contacts-quiet-after"
+              label="Unopened sends in a row"
+              hint="From 2 to 50. Seven is a good place to start. An open is a hidden image, so a mail client that blocks pictures never reports one — which is why this counts a run rather than a single message."
+              value={quietAfter}
+              min={QUIET_AFTER_EMAILS_MIN}
+              max={QUIET_AFTER_EMAILS_MAX}
+              onChange={(next) => {
+                setQuietAfter(next)
+                scheduleQuietSave(next)
+              }}
+              onCommit={flushQuietSave}
+            />
+          </div>
+        ) : (
+          <LoadingRow
+            label="Loading the gone-quiet rule…"
             className="min-h-13 py-2"
           />
         )}

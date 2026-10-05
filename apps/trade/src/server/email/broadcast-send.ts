@@ -1,4 +1,4 @@
-import { and, arrayOverlaps, asc, eq, lte, sql } from "drizzle-orm"
+import { and, arrayOverlaps, asc, eq, inArray, lte, sql } from "drizzle-orm"
 
 import {
   parseAudienceFilter,
@@ -24,6 +24,7 @@ import {
   segmentConditions,
 } from "@/server/people/contact-segments"
 import { syncContactsFromUsers } from "@/server/people/contacts"
+import { markQuietContacts } from "@/server/people/quiet-contacts"
 import { db, type CustomShellDb } from "@/server/db"
 import { getEmailProvider } from "@/server/email/provider"
 import { emailBrandName, protectSentEmailLogos } from "@/server/email/branding"
@@ -81,9 +82,17 @@ async function audienceConditions(
 ) {
   const conditions = [
     eq(customShellContacts.workspaceId, workspaceId),
-    // Anybody who unsubscribed is simply not in the audience — there is no
-    // second place that has to remember to skip them.
-    eq(customShellContacts.status, "subscribed"),
+    // The three statuses that mean "must not be mailed" are simply not in the
+    // audience — there is no second place that has to remember to skip them.
+    //
+    // 'cold' is deliberately not one of them. Somebody cold stopped opening,
+    // which is a reason to leave them out of the weekly send and the whole
+    // reason to write them a different one, and the only way back on the list
+    // is opening something they were sent. Excluding them here would make cold
+    // a room with no door. A send that does not want them says so with a
+    // segment rule, which is also what makes "who is this going to" readable
+    // instead of a rule hidden in the sender.
+    inArray(customShellContacts.status, ["subscribed", "cold"]),
   ]
   if (filter.kind === "tags") {
     conditions.push(arrayOverlaps(customShellContacts.tags, filter.tags))
@@ -588,6 +597,8 @@ async function processBroadcastBatch(
   }
 
   let stopped = false
+  /** Who was actually handed to the provider, which a paused batch cuts short. */
+  const written: string[] = []
   for (const [index, contact] of batch.entries()) {
     if (index > 0 && index % CLAIM_REFRESH_EVERY === 0) {
       await database
@@ -655,7 +666,13 @@ async function processBroadcastBatch(
         createdAt: nowFn(),
       })
       .onConflictDoNothing()
+    written.push(contact.id)
   }
+
+  // Who has now had one more message that may go unopened. Asked once for the
+  // batch and after the sends rather than during them, so each person's run is
+  // counted with the message that just went out included.
+  await markQuietContacts(broadcast.workspaceId, written, database)
 
   const totals = await finalizeTotals()
   const attempts = totals.sent + totals.failed

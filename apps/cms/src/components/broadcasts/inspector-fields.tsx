@@ -1,15 +1,8 @@
 import * as React from "react"
-import { ChevronDown } from "lucide-react"
 
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible"
+import { InspectorCard as SharedInspectorCard } from "@/components/shared/inspector-card"
 import { Slider } from "@/components/ui/slider"
 import { Switch } from "@/components/ui/switch"
-import { focusRingInset } from "@/lib/layout/focus-ring"
-import { collapseStorageKey, useRememberedCollapse } from "@/lib/remembered-choice"
 import { cn } from "@/lib/utils"
 
 /**
@@ -22,9 +15,24 @@ import { cn } from "@/lib/utils"
  * the app uses.
  */
 
-/** Names this family in the remembered open/shut state. */
+/**
+ * Names this family in the remembered open/shut state, and builds the key the
+ * same way it always did, so a card somebody had shut stays shut. Plain
+ * characters only: the script that keeps a shut card shut before the first
+ * paint skips any key it does not recognise on sight.
+ */
 const CARD_SCOPE = "broadcast-block"
 
+function cardStorageId(title: string) {
+  return `${CARD_SCOPE}-${title.toLowerCase().replace(/[^\w-]+/g, "-")}`
+}
+
+/**
+ * This panel's card, which is the shared one with this panel's own storage
+ * scope filled in. The component moved to `shared/` on 5 Oct 2026, when the
+ * front page editor's panel became the second to use it; the key is still
+ * built the same way, so a card somebody had shut stays shut.
+ */
 export function InspectorCard({
   title,
   description,
@@ -34,50 +42,14 @@ export function InspectorCard({
   description?: string
   children: React.ReactNode
 }) {
-  const [open, setOpen, noFlashKey] = useRememberedCollapse(
-    // Plain characters only — the script that keeps a shut card shut before the
-    // first paint skips any key it does not recognise on sight.
-    collapseStorageKey.settingsCard(
-      `${CARD_SCOPE}-${title.toLowerCase().replace(/[^\w-]+/g, "-")}`
-    )
-  )
-
   return (
-    <Collapsible
-      open={open}
-      onOpenChange={setOpen}
-      className={cn(
-        "group/card rounded-lg border bg-muted/40 p-4",
-        // Fields sit on the page background rather than the transparent the
-        // shared Input defaults to. On a grey card, transparent means the card
-        // shows through and a box you type into looks like a box you cannot.
-        // Set here, once, so a field added to this panel later cannot forget.
-        "[&_[data-slot=input]]:bg-background [&_[data-slot=select-trigger]]:bg-background [&_[data-slot=textarea]]:bg-background"
-      )}
+    <SharedInspectorCard
+      storageId={cardStorageId(title)}
+      title={title}
+      description={description}
     >
-      <h2 className="text-[15px] font-semibold">
-        <CollapsibleTrigger asChild>
-          <button
-            type="button"
-            className={cn(
-              "flex w-full cursor-pointer items-center justify-between gap-2 rounded-md text-left select-none",
-              focusRingInset
-            )}
-          >
-            <span>{title}</span>
-            <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=closed]/card:-rotate-90" />
-          </button>
-        </CollapsibleTrigger>
-      </h2>
-      <CollapsibleContent data-collapse-key={noFlashKey}>
-        {description ? (
-          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-            {description}
-          </p>
-        ) : null}
-        <div className="mt-4 grid gap-5">{children}</div>
-      </CollapsibleContent>
-    </Collapsible>
+      {children}
+    </SharedInspectorCard>
   )
 }
 

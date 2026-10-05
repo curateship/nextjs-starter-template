@@ -221,15 +221,17 @@ export function StickyHeaderLeftNav({
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" className="max-w-28 min-w-0 shrink gap-1.5">
+          {/* No width cap. The button takes the room its name needs and gives
+              way only when the row genuinely runs out, which `min-w-0 shrink`
+              and the truncate below already handle. A fixed cap cut "Hyper
+              Liquid" down to "Hyper Li…" on a header with room to spare. */}
+          <Button variant="ghost" className="min-w-0 shrink gap-1.5">
             {activeLink.icon ? (
               <span className="flex h-3.5 w-3.5 items-center justify-center">
                 {activeLink.icon}
               </span>
             ) : null}
-            <span className="max-w-20 min-w-0 truncate">
-              {activeLink.label}
-            </span>
+            <span className="min-w-0 truncate">{activeLink.label}</span>
             <ChevronDownIcon className="size-3" />
           </Button>
         </DropdownMenuTrigger>

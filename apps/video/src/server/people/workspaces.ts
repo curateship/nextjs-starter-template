@@ -1,8 +1,6 @@
 import { and, asc, eq, inArray } from "drizzle-orm"
 
 import {
-  normalizeFrontPageRows,
-  type FrontPageRow,
 } from "@/lib/pages/front-page"
 import {
   normalizePublicFaviconSet,
@@ -75,6 +73,7 @@ import {
 } from "@/server/workspaces/host"
 import {
   customShellUsers,
+  customShellPageBlocks,
   customShellWrittenPages,
   customShellWorkspaces,
   type CustomShellWorkspace,
@@ -490,16 +489,6 @@ export type WorkspaceSettings = {
   publicNavigation: PublicNavigationItem[]
   publicFooter: PublicNavigationLink[]
   publicFooterCopyright: string
-  /**
-   * The rows this site's front page is built from.
-   *
-   * Per site for the same reason as the menu and the footer above it: an app
-   * serving several websites has a front page per website, and one app-wide set
-   * of rows would open every one of them with the first one's hero. A one-site
-   * app never reads this — its rows stay in the app-wide row, the same way its
-   * menu does.
-   */
-  frontPageRows: FrontPageRow[]
   /** The brand colour used by this site's signed-out pages. */
   publicTheme: PublicBrandTheme
   topRightNavigation: ShellTopRightNavigationItem[]
@@ -1013,7 +1002,32 @@ export async function copyUserWorkspace(
           workspaceId: created.id,
           path: page.path,
           title: page.title,
-          body: page.body,
+          hiddenFromSearch: page.hiddenFromSearch,
+          canonicalUrl: page.canonicalUrl,
+          createdAt,
+          updatedAt: createdAt,
+        }))
+      )
+    }
+
+    // Every page's blocks, which is the front page's as well as the written
+    // ones'. A copied site that arrived with its addresses and none of their
+    // content would be a site of empty pages. The ids come across unchanged:
+    // they are unique within a site, and this is a different site.
+    const blocks = await tx
+      .select()
+      .from(customShellPageBlocks)
+      .where(eq(customShellPageBlocks.workspaceId, sourceWorkspaceId))
+    if (blocks.length) {
+      await tx.insert(customShellPageBlocks).values(
+        blocks.map((block) => ({
+          id: block.id,
+          workspaceId: created.id,
+          path: block.path,
+          position: block.position,
+          kind: block.kind,
+          appKind: block.appKind,
+          settings: block.settings,
           createdAt,
           updatedAt: createdAt,
         }))
@@ -2690,7 +2704,6 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
       publicFooterCopyright: cleanPublicFooterCopyright(
         settings.publicFooterCopyright
       ),
-      frontPageRows: normalizeFrontPageRows(settings.frontPageRows),
       publicTheme: normalizePublicBrandTheme(
         settings.publicTheme,
         settings.accentColor
@@ -2754,7 +2767,6 @@ function cleanWorkspaceSettings(
     publicFooterCopyright: cleanPublicFooterCopyright(
       settings.publicFooterCopyright
     ),
-    frontPageRows: normalizeFrontPageRows(settings.frontPageRows),
     publicTheme: normalizePublicBrandTheme(settings.publicTheme),
     topRightNavigation: Array.isArray(settings.topRightNavigation)
       ? settings.topRightNavigation
@@ -2848,9 +2860,6 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
     publicNavigation: createDefaultPublicNavigation(),
     publicFooter: [],
     publicFooterCopyright: "",
-    // A new site has no front page until somebody builds one, and a site with
-    // no rows draws its header and its footer with nothing between them.
-    frontPageRows: [],
     publicTheme: normalizePublicBrandTheme(undefined),
     topRightNavigation: createDefaultTopRightNavigation(),
     sections: createDefaultWorkspaceSections(),

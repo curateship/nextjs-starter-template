@@ -1358,6 +1358,12 @@ describe("custom shell workspaces", () => {
       },
       {
         type: "item",
+        label: "CRM",
+        href: "/admin/crm",
+        visible: true,
+      },
+      {
+        type: "item",
         label: "AI usage",
         href: "/admin/ai",
         visible: true,
@@ -1942,6 +1948,7 @@ describe("membership section", () => {
     // children last so the shell can draw it in the top-left menu.
     expect(upgraded.sections[0].entries.map((entry) => entry.id)).toEqual([
       "item-admin-overview",
+      "item-crm",
       "item-admin-ai-usage",
       "item-admin-traffic",
       "item-admin-pages",
@@ -1987,9 +1994,11 @@ describe("membership section", () => {
         )
       ).settings
     )
-    // AI usage, Traffic, Pages and Newsletter stay. Metered usage was a child
-    // of the Overview, so deleting that group removes its menu entry too.
+    // The CRM, AI usage, Traffic, Pages and Newsletter stay. Metered usage was
+    // a child of the Overview, so deleting that group removes its menu entry
+    // too; the CRM was a sibling, not a child, so it stands where it was.
     expect(reloaded.sections[0].entries.map((entry) => entry.id)).toEqual([
+      "item-crm",
       "item-admin-ai-usage",
       "item-admin-traffic",
       "item-admin-pages",
@@ -2274,6 +2283,8 @@ describe("overview link", () => {
     expect(upgraded.navVersion).toBe(NAVIGATION_VERSION)
     expect(idsIn(upgraded.sections, 0)).toEqual([
       "item-admin-overview",
+      // The CRM hangs under the Overview, which is where navVersion 20 puts it.
+      "item-crm",
       // Navigation upgrades hand the usage, Traffic and Pages links to every
       // older workspace. Membership is not on the list: navVersion 14 folds it
       // into the Overview after those have used it as their anchor.
@@ -2308,6 +2319,7 @@ describe("overview link", () => {
       ).settings
     )
     expect(idsIn(reloaded.sections, 0)).toEqual([
+      "item-crm",
       "item-admin-ai-usage",
       "item-admin-traffic",
       "item-admin-pages",
@@ -2488,6 +2500,7 @@ describe("metered usage link", () => {
     expect(upgraded.navVersion).toBe(NAVIGATION_VERSION)
     expect(upgraded.sections[0].entries.map((entry) => entry.id)).toEqual([
       "item-admin-overview",
+      "item-crm",
       "item-admin-ai-usage",
     ])
     expect(
@@ -2668,6 +2681,9 @@ describe("traffic link", () => {
     )
     expect(upgraded.navVersion).toBe(NAVIGATION_VERSION)
     expect(idsIn(upgraded.sections, 0)).toEqual([
+      // No Overview link to hang it under, so the CRM stands at the front of
+      // the section rather than nowhere.
+      "item-crm",
       "item-admin-ai-usage",
       "item-admin-traffic",
       "item-admin-pages",
@@ -2700,8 +2716,9 @@ describe("traffic link", () => {
       ).settings
     )
     // Pages stays: the same upgrade handed it out, and it was not what was
-    // deleted.
+    // deleted. So does the CRM.
     expect(idsIn(reloaded.sections, 0)).toEqual([
+      "item-crm",
       "item-admin-ai-usage",
       "item-admin-pages",
       "item-admin-metered-usage",
@@ -3291,6 +3308,7 @@ describe("revenue folds into membership", () => {
     // Overview link to hand them to, so the two stand where their parent stood
     // rather than disappearing with it.
     expect(upgraded.sections[0].entries.map((entry) => entry.id)).toEqual([
+      "item-crm",
       "item-admin-users",
       "item-admin-plans",
       "item-admin-traffic",
@@ -4039,6 +4057,7 @@ describe("feeds section", () => {
     expect(upgraded.navVersion).toBe(NAVIGATION_VERSION)
     expect(upgraded.sections[0].entries.map((entry) => entry.id)).toEqual([
       "item-admin-overview",
+      "item-crm",
       "item-admin-ai-usage",
       "item-admin-traffic",
       "item-admin-pages",
@@ -4086,6 +4105,7 @@ describe("feeds section", () => {
       ).settings
     )
     expect(reloaded.sections[0].entries.map((entry) => entry.id)).toEqual([
+      "item-crm",
       "item-admin-ai-usage",
       "item-admin-traffic",
       "item-admin-pages",

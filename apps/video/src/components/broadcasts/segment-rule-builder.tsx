@@ -32,6 +32,7 @@ import {
 import {
   CONTACT_SEGMENT_STATUSES,
   MAX_RULE_DAYS,
+  MAX_RULE_EMAILS,
   MAX_SEGMENT_CONDITIONS,
   newSegmentCondition,
   segmentConditionIsComplete,
@@ -93,6 +94,8 @@ export function SegmentRuleBuilder({
     ...(options.sources.length ? (["source"] as const) : []),
     "joined",
     "emailed",
+    "engaged",
+    "opened",
     "account",
     ...(options.plans.length ? (["plan"] as const) : []),
     ...(options.segments.some((other) => other.id !== excludeSegmentId)
@@ -125,7 +128,13 @@ export function SegmentRuleBuilder({
                     Add a rule
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
+                {/* Wide enough for the longest rule name on one line.
+                    `DropdownMenuContent` is `w-(--radix-dropdown-menu-trigger-width)`
+                    by default, so without this the menu is exactly as wide as
+                    the Add a rule button and seven of the eleven names wrap
+                    onto two lines, "When they last opened or clicked" onto
+                    three. */}
+                <DropdownMenuContent align="end" className="w-72">
                   {availableTypes.map((type) => (
                     <DropdownMenuItem
                       key={type}
@@ -372,10 +381,10 @@ function ConditionRow({
                 })
               }
             />
-            <DaysInput
+            <AmountInput
               id={`${id}-days`}
               index={index}
-              days={condition.days}
+              amount={condition.days}
               suffix={condition.operator === "within" ? "days" : "days ago"}
               onChange={(days) => onChange({ ...condition, days })}
             />
@@ -404,14 +413,73 @@ function ConditionRow({
                 rule rather than reset, so switching back and forth does not
                 quietly lose it. */}
             {condition.operator === "never" ? null : (
-              <DaysInput
+              <AmountInput
                 id={`${id}-days`}
                 index={index}
-                days={condition.days}
+                amount={condition.days}
                 suffix="days"
                 onChange={(days) => onChange({ ...condition, days })}
               />
             )}
+          </>
+        ) : null}
+
+        {condition.type === "engaged" ? (
+          <>
+            <OperatorSelect
+              id={`${id}-operator`}
+              aria-label={operatorLabel}
+              value={condition.operator}
+              options={[
+                { value: "within", label: "in the last" },
+                { value: "before", label: "not in the last" },
+                { value: "never", label: "never" },
+              ]}
+              onChange={(operator) =>
+                onChange({
+                  ...condition,
+                  operator: operator as "within" | "before" | "never",
+                })
+              }
+            />
+            {/* "Never" has no number to fill in, and the typed one is kept in
+                the rule rather than reset, so switching back and forth does not
+                quietly lose it. */}
+            {condition.operator === "never" ? null : (
+              <AmountInput
+                id={`${id}-days`}
+                index={index}
+                amount={condition.days}
+                suffix="days"
+                onChange={(days) => onChange({ ...condition, days })}
+              />
+            )}
+          </>
+        ) : null}
+
+        {condition.type === "opened" ? (
+          <>
+            <OperatorSelect
+              id={`${id}-operator`}
+              aria-label={operatorLabel}
+              value={condition.operator}
+              options={[
+                { value: "has", label: "opened one of the last" },
+                { value: "hasnt", label: "opened none of the last" },
+              ]}
+              onChange={(operator) =>
+                onChange({ ...condition, operator: operator as "has" | "hasnt" })
+              }
+            />
+            <AmountInput
+              id={`${id}-emails`}
+              index={index}
+              amount={condition.emails}
+              suffix="emails"
+              unit="emails"
+              max={MAX_RULE_EMAILS}
+              onChange={(emails) => onChange({ ...condition, emails })}
+            />
           </>
         ) : null}
 
@@ -505,30 +573,45 @@ function ConditionRow({
  * Uses the same 1–3650 limits as the saved shape, and only passes a valid whole
  * number back to the rule.
  */
-function DaysInput({
+/**
+ * The number beside an operator, whether it counts days or emails.
+ *
+ * One box rather than one per unit: only the word after it and the ceiling
+ * differ, and a second copy would be a second place to fix the next time this
+ * box changes.
+ *
+ * `suffix` is what a reader sees and can change with the operator ("days", "days
+ * ago"); `unit` is the fixed word the screen reader hears, so the spoken label
+ * does not wobble when the dropdown beside it moves.
+ */
+function AmountInput({
   id,
   index,
-  days,
+  amount,
   suffix,
+  unit = "days",
+  max = MAX_RULE_DAYS,
   onChange,
 }: {
   id: string
   index: number
-  days: number
+  amount: number
   suffix: string
-  onChange: (days: number) => void
+  unit?: string
+  max?: number
+  onChange: (amount: number) => void
 }) {
   return (
     <div className="flex flex-1 items-center gap-2">
       <NumberField
         id={id}
-        label={`Number of days for rule ${index + 1}`}
+        label={`Number of ${unit} for rule ${index + 1}`}
         labelClassName="sr-only"
         className="w-24 shrink-0 gap-0"
         inputClassName="w-24"
         min={1}
-        max={MAX_RULE_DAYS}
-        value={days}
+        max={max}
+        value={amount}
         onChange={onChange}
       />
       <span className="text-sm text-muted-foreground">{suffix}</span>

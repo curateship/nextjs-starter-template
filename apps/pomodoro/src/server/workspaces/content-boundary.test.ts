@@ -287,22 +287,17 @@ describe("media stays on its own site", () => {
 })
 
 describe("written pages stay on their own site", () => {
-  const words = (text: string) => ({
-    type: "doc",
-    content: [{ type: "paragraph", content: [{ type: "text", text }] }],
-  })
-
-  it("lets both sites have an /about, each with its own words", async () => {
+  it("lets both sites have an /about, each its own page", async () => {
     // The whole reason the unique index had to change. Before this, the second
     // of these threw and a deployment could serve exactly one site.
     await createWrittenPage(
       alpha,
-      { path: "/about", title: "About Alpha", body: words("We are Alpha.") },
+      { path: "/about", title: "About Alpha" },
       database
     )
     await createWrittenPage(
       beta,
-      { path: "/about", title: "About Beta", body: words("We are Beta.") },
+      { path: "/about", title: "About Beta" },
       database
     )
 
@@ -315,7 +310,7 @@ describe("written pages stay on their own site", () => {
   it("makes one site's page a dead end on the other's domain", async () => {
     await createWrittenPage(
       beta,
-      { path: "/terms", title: "Beta terms", body: words("Beta's rules.") },
+      { path: "/terms", title: "Beta terms" },
       database
     )
 
@@ -329,7 +324,7 @@ describe("written pages stay on their own site", () => {
   it("refuses to edit or delete the other site's page", async () => {
     const theirs = await createWrittenPage(
       beta,
-      { path: "/terms", title: "Beta terms", body: words("Beta's rules.") },
+      { path: "/terms", title: "Beta terms" },
       database
     )
 

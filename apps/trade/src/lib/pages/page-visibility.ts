@@ -24,6 +24,17 @@ export const PAGE_VISIBILITY_LABELS: Record<PageVisibility, string> = {
   off: "Switched off",
 }
 
+/**
+ * The same choice as the end of a sentence, for the toast that confirms a
+ * change: "Pricing is now members only." Two screens change this setting, so
+ * the wording lives here rather than in each of them.
+ */
+export const PAGE_VISIBILITY_SENTENCES: Record<PageVisibility, string> = {
+  everyone: "open to everyone.",
+  members: "members only.",
+  off: "switched off.",
+}
+
 /** What is stored about one page. Only visibility today; later tasks add more. */
 export type PageOverride = {
   visibility: PageVisibility

@@ -18,6 +18,19 @@
 export type PageLayout = "marketing" | "card"
 
 /**
+ * Where the front page answers. It is the one address an app cannot claim with
+ * a new file, and the one page built from blocks, so the screens that care name
+ * it from here rather than writing `"/"` and hoping.
+ */
+export const FRONT_PAGE_PATH = "/"
+
+/**
+ * The longest address a page may have, matching the `written_pages.path`
+ * column. Anything longer is not a page this app has.
+ */
+export const MAX_PAGE_PATH_LENGTH = 160
+
+/**
  * Who ships a page: `"shell"` for the pages this template comes with,
  * `"app"` for the ones an app built on top of it added itself.
  *
@@ -58,6 +71,15 @@ export type PageDeclaration = {
    * place that knows.
    */
   source?: PageSource
+  /**
+   * Whether this page is built from blocks an admin arranges, rather than from
+   * markup the page itself draws. Defaults to false, so a page says one word to
+   * opt in and no page can sprout blocks it never renders.
+   *
+   * A page that opts in has to draw them, by rendering the saved blocks
+   * somewhere in its own component. The front page does; nothing else does yet.
+   */
+  blocks?: boolean
 }
 
 /**
@@ -83,6 +105,8 @@ export type PageDescriptor = {
    * exactly as every page does today.
    */
   source: PageSource
+  /** Whether an admin builds this page out of blocks. */
+  blocks: boolean
 }
 
 /** Identity helper so declaration literals stay fully typed where they are written. */

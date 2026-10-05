@@ -14,7 +14,7 @@ import {
   sql,
 } from "drizzle-orm"
 
-import type { CrmStage, CrmThreadStatus } from "@/lib/crm/crm"
+import type { CrmInboxSort, CrmStage, CrmThreadStatus } from "@/lib/crm/crm"
 import { messageSnippet } from "@/lib/crm/message-text"
 import { now } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
@@ -31,6 +31,8 @@ export type InboxFilter = {
   unreadOnly?: boolean
   /** Only threads whose lead has a chase date that has already passed. */
   followUpDue?: boolean
+  /** Which end of the conversation list comes first. Newest when unsaid. */
+  sort?: CrmInboxSort
   limit?: number
   offset?: number
 }
@@ -128,7 +130,15 @@ export async function countInboxThreads(
 }
 
 /**
- * One page of the inbox, newest message first.
+ * One page of the inbox, newest message first unless `sort` says otherwise.
+ *
+ * `sort: "oldest"` puts the person who has waited longest at the top, which is
+ * the order for clearing the inbox rather than reading it.
+ *
+ * Both orders are plain `asc`/`desc` on `last_message_at`, which is `NOT NULL`,
+ * so neither needs a `NULLS LAST`. That matters: Drizzle's
+ * `asc(sql`col nulls last`)` builds SQL Postgres refuses, and it type checks
+ * fine. `src/server/crm/reads.test.ts` runs both orders for that reason.
  *
  * The snippet is fetched in a second query rather than as a correlated
  * subquery on the first. Thirty threads means one extra read, and it keeps the
@@ -162,7 +172,11 @@ export async function listInboxThreads(
       eq(customShellCrmLeads.id, customShellCrmThreads.leadId)
     )
     .where(where)
-    .orderBy(desc(customShellCrmThreads.lastMessageAt))
+    .orderBy(
+      filter.sort === "oldest"
+        ? asc(customShellCrmThreads.lastMessageAt)
+        : desc(customShellCrmThreads.lastMessageAt)
+    )
     .limit(filter.limit ?? 30)
     .offset(filter.offset ?? 0)
 

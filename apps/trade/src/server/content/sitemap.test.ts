@@ -9,6 +9,8 @@ import {
   renderSitemapXml,
 } from "@/server/content/sitemap"
 import { createWrittenPage } from "@/server/content/written-pages"
+import { writePageBlock } from "@/server/content/page-blocks"
+import { createFrontPageRowDraft } from "@/lib/pages/front-page"
 import {
   createTestDatabase,
   insertWorkspace,
@@ -25,6 +27,34 @@ const body = (words: string) => ({
   content: [{ type: "paragraph", content: [{ type: "text", text: words }] }],
 })
 
+/**
+ * A page and the words on it. The words are a block now, so a test that wants
+ * a page with something written on it makes both, the way the app does.
+ */
+async function writePage(
+  workspaceId: string,
+  input: { path: string; title: string; words?: string }
+) {
+  const { words, ...page } = input
+  const created = await createWrittenPage(workspaceId, page, database)
+  if (words !== undefined) {
+    await writePageBlock(
+      "admin",
+      workspaceId,
+      {
+        path: created.path,
+        block: {
+          ...createFrontPageRowDraft("words"),
+          id: `words-${created.id}`,
+          heading: created.title,
+          body: body(words),
+        },
+      }
+    )
+  }
+  return created
+}
+
 beforeEach(async () => {
   const testDb = await createTestDatabase()
   client = testDb.client
@@ -39,34 +69,29 @@ afterEach(async () => {
 
 describe("one site's sitemap entries", () => {
   it("contains only public pages belonging to that site", async () => {
-    await createWrittenPage(
+    await writePage(
       alpha,
-      { path: "/alpha-only", title: "Alpha", body: body("Alpha") },
-      database
+      { path: "/alpha-only", title: "Alpha", words: "Alpha" },
     )
-    await createWrittenPage(
+    await writePage(
       alpha,
-      { path: "/alpha-private", title: "Private", body: body("Private") },
-      database
+      { path: "/alpha-private", title: "Private", words: "Private" },
     )
-    await createWrittenPage(
+    await writePage(
       beta,
-      { path: "/beta-only", title: "Beta", body: body("Beta") },
-      database
+      { path: "/beta-only", title: "Beta", words: "Beta" },
     )
     await setPageVisibility(
       alpha,
       { path: "/pricing", visibility: "off" },
-      database
     )
     await setPageVisibility(
       alpha,
       { path: "/alpha-private", visibility: "members" },
-      database
     )
 
-    const alphaEntries = await readSitemapEntries(alpha, database)
-    const betaEntries = await readSitemapEntries(beta, database)
+    const alphaEntries = await readSitemapEntries(alpha)
+    const betaEntries = await readSitemapEntries(beta)
     const alphaPaths = alphaEntries.map((entry) => entry.path)
     const betaPaths = betaEntries.map((entry) => entry.path)
 

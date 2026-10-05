@@ -24,6 +24,7 @@ import {
 import { TopLeftNavigationSettings } from "@/components/settings/top-left-navigation-settings"
 import { StickyHeaderLeftNav } from "@/components/shell/sticky-header/sticky-header-left-nav"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { appSettingsTabs } from "@/lib/app-options"
 import { createDefaultShellConfig } from "@/lib/custom-shell"
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
@@ -58,20 +59,32 @@ describe("Navigation settings", () => {
     )
   })
 
-  it("puts the rail in two cards, and everything claimable in the app's", () => {
+  it("puts Members and Public in the Platform card, above the app's own", () => {
     const html = markup("general")
     expect(html).toContain("Platform settings")
     expect(html).toContain("App settings")
-    // Members and Public are blocks of the App settings card. The rows under
-    // them keep short names; the heading is what says whose Navigation it is.
+    // Members and Public are blocks of the Platform settings card. The rows
+    // under them keep short names; the heading says whose Navigation it is.
     expect(html).toContain(">Members<")
     expect(html).toContain(">Public<")
-    // Platform settings ends at Payments, so the Public rows sit after the
-    // App settings title rather than before it.
+    // Both headings sit between the two card titles, which is what puts them
+    // in the first card rather than the second.
     const platform = html.indexOf("Platform settings")
     const appCard = html.indexOf("App settings")
-    expect(platform).toBeLessThan(appCard)
-    expect(appCard).toBeLessThan(html.indexOf(">Public<"))
+    expect(platform).toBeLessThan(html.indexOf(">Members<"))
+    expect(html.indexOf(">Public<")).toBeLessThan(appCard)
+    // The App settings card holds what this app added and nothing else, so what
+    // belongs in it depends on the app the test is running inside. An app that
+    // added nothing gets the sentence rather than an empty box; one that added
+    // rows gets the rows. Asserting the sentence outright passed in the shell
+    // and failed in every app that has tabs of its own.
+    const ownRows = appSettingsTabs()
+    if (ownRows.length === 0) {
+      expect(html).toContain("This app has no settings of its own.")
+    } else {
+      expect(html).not.toContain("This app has no settings of its own.")
+      for (const tab of ownRows) expect(html).toContain(`>${tab.label}<`)
+    }
     // The four that became cards on General settings are no longer rows.
     expect(html).toContain("AI provider keys")
     expect(html).toContain("Cloudflare R2")

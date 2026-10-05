@@ -2,14 +2,18 @@ import { describe, expect, it } from "vitest"
 
 import {
   APP_FRONT_PAGE_ROW_KIND,
+  FRONT_PAGE_ROW_KIND_LABELS,
   FRONT_PAGE_ROW_KINDS,
   FRONT_PAGE_ROW_LAYOUTS,
   MAX_APP_FRONT_PAGE_ROW_SETTINGS_LENGTH,
   MAX_FRONT_PAGE_FAQ_ITEMS,
   MAX_FRONT_PAGE_LOGOS,
+  MAX_FRONT_PAGE_ROW_SPACE,
   MAX_FRONT_PAGE_ROWS,
   MAX_FRONT_PAGE_SCREENSHOTS,
   MAX_FRONT_PAGE_TESTIMONIALS,
+  createAppFrontPageRowDraft,
+  createFrontPageRowDraft,
   frontPageHasPlans,
   frontPageHeroBandColors,
   frontPageRowImageUrls,
@@ -56,6 +60,8 @@ describe("front page rows", () => {
         showNumbers: true,
         showCaptions: true,
         device: "all",
+        spaceAbove: null,
+        spaceBelow: null,
       },
       {
         id: "pricing",
@@ -76,6 +82,8 @@ describe("front page rows", () => {
         showNumbers: true,
         showCaptions: true,
         device: "all",
+        spaceAbove: null,
+        spaceBelow: null,
       },
     ])
     expect(frontPageHasPlans(rows)).toBe(true)
@@ -113,6 +121,8 @@ describe("front page rows", () => {
         showNumbers: true,
         showCaptions: true,
         device: "all",
+        spaceAbove: null,
+        spaceBelow: null,
       },
       {
         id: "front-page-row-2-2",
@@ -133,6 +143,8 @@ describe("front page rows", () => {
         showNumbers: true,
         showCaptions: true,
         device: "all",
+        spaceAbove: null,
+        spaceBelow: null,
       },
     ])
   })
@@ -260,7 +272,7 @@ describe("front page rows", () => {
     ])
   })
 
-  it("drops empty content rows and unsafe image addresses", () => {
+  it("strips an unusable entry and keeps the block it was in", () => {
     const rows = normalizeFrontPageRows([
       {
         id: "empty-faq",
@@ -275,7 +287,7 @@ describe("front page rows", () => {
         items: [{ image: "javascript:alert(1)", alt: "Bad logo" }],
       },
       {
-        id: "safe-testimonial",
+        id: "safe-testimonial-2",
         heading: "Customers",
         kind: "testimonials",
         items: [
@@ -288,9 +300,20 @@ describe("front page rows", () => {
       },
     ])
 
-    expect(rows).toEqual([
-      {
-        id: "safe-testimonial",
+    // The half-typed question and the `javascript:` logo are gone, and the two
+    // blocks that held them stay, empty, with their headings. A block is a
+    // place for entries; it does not stop being one because the entry somebody
+    // tried to put in it was unusable.
+    expect(rows.map((row) => [row.id, row.kind])).toEqual([
+      ["empty-faq", "faq"],
+      ["safe-testimonial", "logos"],
+      ["safe-testimonial-2", "testimonials"],
+    ])
+    expect(rows[0]).toMatchObject({ kind: "faq", items: [] })
+    expect(rows[1]).toMatchObject({ kind: "logos", items: [] })
+
+    expect(rows[2]).toEqual({
+        id: "safe-testimonial-2",
         heading: "Customers",
         intro: "",
         kind: "testimonials",
@@ -308,6 +331,8 @@ describe("front page rows", () => {
         showNumbers: true,
         showCaptions: true,
         device: "all",
+        spaceAbove: null,
+        spaceBelow: null,
         items: [
           {
             id: "front-page-testimonial-1",
@@ -317,8 +342,7 @@ describe("front page rows", () => {
             picture: "",
           },
         ],
-      },
-    ])
+    })
   })
 
   it("caps the number of entries stored by every content kind", () => {
@@ -424,6 +448,53 @@ describe("front page rows", () => {
   })
 })
 
+describe("a block's own spacing", () => {
+  const rowWith = (space: Record<string, unknown>) =>
+    normalizeFrontPageRows([{ kind: "text", heading: "Words", ...space }])[0]
+
+  it("keeps a whole number on either side, zero included", () => {
+    const row = rowWith({ spaceAbove: 0, spaceBelow: 120 })
+    expect(row.spaceAbove).toBe(0)
+    expect(row.spaceBelow).toBe(120)
+  })
+
+  it("reads a block saved before these existed as following the page", () => {
+    const row = rowWith({})
+    expect(row.spaceAbove).toBeNull()
+    expect(row.spaceBelow).toBeNull()
+  })
+
+  /**
+   * Null is "follow the page", so anything unusable has to land there rather
+   * than on a number nobody chose. A hand-edited row can only ever fall back
+   * to the page's own spacing.
+   */
+  it("falls back to the page for anything out of range or not a number", () => {
+    for (const bad of [-1, 161, 1e9, Number.NaN, "80", null, {}, []]) {
+      expect(rowWith({ spaceAbove: bad }).spaceAbove).toBeNull()
+    }
+  })
+
+  it("rounds a fraction rather than storing one", () => {
+    expect(rowWith({ spaceAbove: 41.6 }).spaceAbove).toBe(42)
+  })
+
+  it("caps at the page's own ceiling", () => {
+    expect(MAX_FRONT_PAGE_ROW_SPACE).toBe(160)
+    expect(rowWith({ spaceBelow: MAX_FRONT_PAGE_ROW_SPACE }).spaceBelow).toBe(
+      160
+    )
+  })
+
+  it("starts a new block following the page on both sides", () => {
+    for (const kind of FRONT_PAGE_ROW_KINDS) {
+      const draft = createFrontPageRowDraft(kind)
+      expect(draft.spaceAbove).toBeNull()
+      expect(draft.spaceBelow).toBeNull()
+    }
+  })
+})
+
 describe("hero background", () => {
   it("keeps a muted grey and a hex, and drops anything else", () => {
     expect(normalizeFrontPageHeroBackground(" Grey-50 ")).toBe("grey-50")
@@ -453,5 +524,65 @@ describe("hero background", () => {
       dark: "#f4f4f5",
     })
     expect(frontPageHeroBandColors("url(evil)")).toEqual({ light: "", dark: "" })
+  })
+})
+
+describe("a new block's starting values", () => {
+  /**
+   * Every kind, with nothing typed into it, survives the save. That is what
+   * makes picking a kind the same thing as adding a block: the four list kinds
+   * used to be dropped while they were empty, so an FAQ could not be written
+   * at all and sat in the editor's list marked "Not added yet" with no way
+   * out.
+   */
+  it("keeps a block of every kind the moment it is made", () => {
+    for (const kind of FRONT_PAGE_ROW_KINDS) {
+      const draft = createFrontPageRowDraft(kind)
+      const [row] = normalizeFrontPageRows([{ ...draft, id: kind }])
+
+      expect(row, `${kind} should survive`).toBeDefined()
+      expect(row.kind).toBe(kind)
+      // Nothing is lost or invented on the way through: what the editor starts
+      // a block with is what the save keeps.
+      expect(row).toEqual({ ...draft, id: kind })
+    }
+  })
+
+  /**
+   * Every kind arrives named after itself, so the block is something the page
+   * can draw from the moment it is picked and joins the page there and then.
+   * Left empty, a new block could not be added until a heading was typed,
+   * which read as a block that could not be added at all.
+   */
+  it("names every kind after itself, so a new block can go on the page at once", () => {
+    for (const kind of FRONT_PAGE_ROW_KINDS) {
+      const draft = createFrontPageRowDraft(kind)
+      expect(draft.heading).toBe(FRONT_PAGE_ROW_KIND_LABELS[kind])
+      expect(draft.heading.trim()).not.toBe("")
+    }
+    // The divider's name is for the list beside it; its heading never reaches
+    // the page at all.
+    expect(createFrontPageRowDraft("divider").heading).toBe("Divider")
+  })
+
+  it("names an app's block after the app's own label for the kind", () => {
+    expect(createAppFrontPageRowDraft("listings", "Latest listings").heading).toBe(
+      "Latest listings"
+    )
+    // No label is still a name the page can draw rather than nothing.
+    expect(createAppFrontPageRowDraft("listings").heading.trim()).not.toBe("")
+  })
+
+  it("starts an app's own block with no settings at all", () => {
+    const draft = createAppFrontPageRowDraft("listings")
+    expect(draft.kind).toBe(APP_FRONT_PAGE_ROW_KIND)
+    const [row] = normalizeFrontPageRows([
+      { ...draft, id: "listings", heading: "Latest listings" },
+    ])
+    expect(row).toEqual({
+      ...draft,
+      id: "listings",
+      heading: "Latest listings",
+    })
   })
 })

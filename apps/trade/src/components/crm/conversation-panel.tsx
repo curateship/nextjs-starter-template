@@ -2,6 +2,7 @@ import * as React from "react"
 import {
   ArchiveIcon,
   ArchiveRestoreIcon,
+  BanIcon,
   ClockIcon,
   MailIcon,
   MailOpenIcon,
@@ -13,6 +14,7 @@ import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
 import { EmptyRow } from "@/components/shared/feed-card"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { DatePicker } from "@/components/ui/date-picker"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -20,6 +22,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { Conversation, ConversationMessage } from "@/lib/api/crm/inbox"
 import type { CrmThreadStatus } from "@/lib/crm/crm"
+import type { ReplyDraftUpdate } from "@/lib/crm/reply-drafts"
 import { initialsFor } from "@/lib/crm/inbox-time"
 import { htmlToText, splitQuotedText } from "@/lib/crm/message-text"
 import { formatClockTime, formatDate } from "@/lib/format/format-time"
@@ -46,8 +49,11 @@ export function ConversationPanel({
   loading,
   canSend,
   replyFrom,
+  replyDraft,
+  onReplyDraftChange,
   onStatusChange,
   onMarkUnread,
+  onBlockSender,
   onFetchBody,
   onSent,
   onDraft,
@@ -62,14 +68,21 @@ export function ConversationPanel({
    * null when there is no address for mail to arrive at.
    */
   replyFrom: string | null
+  /** What is half typed in the reply box for this conversation. */
+  replyDraft: string
+  onReplyDraftChange: (threadId: string, update: ReplyDraftUpdate) => void
   onStatusChange: (status: CrmThreadStatus, snoozedUntil?: string | null) => void
   onMarkUnread: () => void
+  /** Blocks the address this conversation is with, and closes the thread. */
+  onBlockSender: () => Promise<void>
   onFetchBody: (messageId: string) => Promise<void>
   onSent: () => void
   onDraft: () => Promise<string>
 }) {
   const endRef = React.useRef<HTMLDivElement | null>(null)
   const [snoozeOpen, setSnoozeOpen] = React.useState(false)
+  const [blockOpen, setBlockOpen] = React.useState(false)
+  const [blocking, setBlocking] = React.useState(false)
 
   // The newest mail is at the bottom, so that is where the panel opens. Every
   // mail client does this, and starting at the top of a long thread means
@@ -191,6 +204,12 @@ export function ConversationPanel({
           </Popover>
 
           <HeaderAction
+            label="Block this address"
+            onClick={() => setBlockOpen(true)}
+            icon={<BanIcon className="size-4" />}
+          />
+
+          <HeaderAction
             label={closed ? "Reopen this conversation" : "Close it"}
             onClick={() => onStatusChange(closed ? "open" : "closed")}
             active={closed}
@@ -238,9 +257,32 @@ export function ConversationPanel({
         </div>
       </ScrollArea>
 
+      {/* A confirmation, although nothing is destroyed. The button sits in a
+          row of four square icons, and a misclick that silently stopped a real
+          customer's mail reaching the inbox is the one failure this feature is
+          shaped around. */}
+      <ConfirmDialog
+        open={blockOpen}
+        onOpenChange={setBlockOpen}
+        destructive={false}
+        title="Block mail from this address?"
+        description={`Mail from ${leadEmail ?? "this address"} stops reaching the inbox and this conversation closes. Nothing is deleted: every message is still recorded, and Settings → Email → Blocked senders unblocks the address in one press.`}
+        confirmLabel="Block the address"
+        loading={blocking}
+        onConfirm={() => {
+          setBlocking(true)
+          void onBlockSender().finally(() => {
+            setBlocking(false)
+            setBlockOpen(false)
+          })
+        }}
+      />
+
       <ReplyComposer
         threadId={conversation.id}
+        body={replyDraft}
         canSend={canSend}
+        onBodyChange={onReplyDraftChange}
         replyFrom={replyFrom}
         onSent={onSent}
         onDraft={onDraft}
@@ -249,7 +291,7 @@ export function ConversationPanel({
   )
 }
 
-/** One of the square buttons in the header, so the three cannot drift apart. */
+/** One of the square buttons in the header, so they cannot drift apart. */
 function HeaderAction({
   label,
   icon,

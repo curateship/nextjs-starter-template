@@ -32,12 +32,31 @@ export type ShellStyling = {
   cardBorderColor: ShellBackground
   /** Divider lines: the rules inside cards and tables, and the sidebar edge. */
   dividerColor: ShellBackground
-  /** Main content area background. */
+  /**
+   * Main content area background. **The signed-in app no longer reads this.**
+   * The page colour is `--shell-canvas` in theme.css, which is a shade under
+   * `--card` in both light and dark, so a card always reads as raised. This
+   * setting blended toward `--muted`, which sits below `--card` in light mode
+   * and above it in dark, so the same saved number turned the page darker than
+   * the cards in one mode and lighter in the other. The field stays because
+   * Settings → Public site → Styling still saves a value of its own through
+   * `publicShellStyling`, and because a saved row must never lose a field.
+   */
   content: ShellBackground
-  /** Sidebar + sticky header background. */
+  /**
+   * Sidebar + sticky header background. **The signed-in app no longer reads
+   * this**, for the same reason as `content`: the saved "muted at 27%" put the
+   * sidebar at 40 out of 255 in dark mode against cards at 46, the darkest
+   * strip on the screen, while the identical number was invisible in light
+   * mode. The rail and the sticky bar follow the theme's own `--sidebar`,
+   * which sits between the page and a card in both modes. Kept for the public
+   * side and for the saved row.
+   */
   chrome: ShellBackground
   /** Dialog / modal styling. */
   modal: ShellModalStyling
+  /** How dark the dark mode is. Ignored in light mode. */
+  darkShade: DarkShadeId
 }
 
 export type ShellModalStyling = {
@@ -57,6 +76,79 @@ export type ShellModalStyling = {
   cardBorderWidth: number
   /** Border color of cards inside the modal. */
   cardBorderColor: ShellBackground
+}
+
+/**
+ * How dark the dark mode is, as four steps from the shell's original near
+ * black up to a soft grey. Tyler asked for the same control Pomodoro has,
+ * where the near-black canvas "is too dark and hurts the eye".
+ *
+ * `lift` is added to the lightness of every grey surface in the `.dark` block
+ * of theme.css, so one number moves the whole palette together. The steps
+ * match Pomodoro's four canvas colours: #0b0b0e, #17171a, #212125, #2b2b31.
+ */
+export const DARK_SHADES = [
+  {
+    id: "black",
+    label: "Near black",
+    help: "The original: almost no light in the canvas.",
+    lift: 0,
+    swatch: "#0b0b0e",
+  },
+  {
+    id: "charcoal",
+    label: "Charcoal",
+    help: "A step up, still clearly dark.",
+    lift: 0.055,
+    swatch: "#17171a",
+  },
+  {
+    id: "graphite",
+    label: "Graphite",
+    help: "Mid grey. Easiest on the eyes for a long session.",
+    lift: 0.098,
+    swatch: "#212125",
+  },
+  {
+    id: "ash",
+    label: "Soft grey",
+    help: "The lightest dark mode, closest to grey paper.",
+    lift: 0.141,
+    swatch: "#2b2b31",
+  },
+] as const
+
+export type DarkShadeId = (typeof DARK_SHADES)[number]["id"]
+
+/** The ids alone, in the shape zod's `enum` wants. */
+export const DARK_SHADE_IDS = DARK_SHADES.map((shade) => shade.id) as [
+  DarkShadeId,
+  ...DarkShadeId[],
+]
+
+/** Near black is the look every existing workspace already has, so it stays the default. */
+export const DEFAULT_DARK_SHADE: DarkShadeId = "black"
+
+/**
+ * The styling a generated app starts with, as its scaffold file declares it.
+ *
+ * `darkShade` is optional, and the rest is not. A scaffold captured before dark
+ * shades existed does not carry one, which `createDefaultStyling` below has
+ * always handled by falling back when the value is missing or unrecognised.
+ * `ShellStyling` says it is required, so Pomodoro's captured styling stopped
+ * typechecking the moment the field was added. The code was right and the type
+ * was wrong. It lives here rather than in `scaffold-styling.ts`, because every
+ * generated app replaces that file with its own captured value.
+ */
+export type ScaffoldStyling = Omit<ShellStyling, "darkShade"> &
+  Partial<Pick<ShellStyling, "darkShade">>
+
+export function isDarkShadeId(value: unknown): value is DarkShadeId {
+  return DARK_SHADES.some((shade) => shade.id === value)
+}
+
+export function darkShade(id: DarkShadeId) {
+  return DARK_SHADES.find((shade) => shade.id === id) ?? DARK_SHADES[0]
 }
 
 export const MIN_CONTENT_GUTTER = 0
@@ -121,6 +213,10 @@ export function createDefaultStyling(): ShellStyling {
   if (scaffoldStyling) {
     return {
       ...scaffoldStyling,
+      // A scaffold captured before dark shades existed has no `darkShade`.
+      darkShade: isDarkShadeId(scaffoldStyling.darkShade)
+        ? scaffoldStyling.darkShade
+        : DEFAULT_DARK_SHADE,
       cardBorderColor: { ...scaffoldStyling.cardBorderColor },
       dividerColor: { ...scaffoldStyling.dividerColor },
       content: { ...scaffoldStyling.content },
@@ -137,6 +233,7 @@ export function createDefaultStyling(): ShellStyling {
 
   return {
     gutter: 14,
+    darkShade: DEFAULT_DARK_SHADE,
     cardBorderWidth: 1,
     cardBorderColor: { mode: "muted", strength: 7, color: "#d4d4d8" },
     // Starting value only — Tyler tunes this live, then it gets captured here.
@@ -172,6 +269,9 @@ export function normalizeStyling(value: unknown): ShellStyling {
   const styling = value as Partial<ShellStyling>
   return {
     gutter: clampGutter(styling.gutter ?? fallback.gutter),
+    darkShade: isDarkShadeId(styling.darkShade)
+      ? styling.darkShade
+      : fallback.darkShade,
     cardBorderWidth: clampCardBorderWidth(
       styling.cardBorderWidth ?? fallback.cardBorderWidth
     ),
@@ -329,3 +429,19 @@ export const BORDER_STYLE_VAR_NAMES = [
   "--shell-card-border-width",
   "--shell-card-border-color",
 ] as const
+
+/**
+ * The dark-shade CSS variable, applied to the document root (via an effect in
+ * ShellLayout) so it reaches the `.dark` block in theme.css. Both sit on
+ * <html>, and an inline style beats a stylesheet rule on the same element, so
+ * this overrides the `--shell-dark-lift: 0` the block declares. Light mode
+ * never reads the variable.
+ */
+export function getDarkShadeVars(styling: ShellStyling): Record<string, string> {
+  return {
+    "--shell-dark-lift": String(darkShade(styling.darkShade).lift),
+  }
+}
+
+/** The dark-shade CSS variable names, used to clear stale values. */
+export const DARK_SHADE_VAR_NAMES = ["--shell-dark-lift"] as const

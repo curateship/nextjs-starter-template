@@ -41,11 +41,20 @@ function getSystemTheme(): ResolvedTheme {
   return "light"
 }
 
+/**
+ * Freeze every transition for the two frames a theme change takes, so the
+ * whole page does not fade from light to dark one colour at a time.
+ *
+ * `[data-keep-motion]` is the way out, and the colour-mode switcher's own
+ * sliding pill uses it. Changing the mode moves that pill and repaints the
+ * page in the same instant, and without the exemption the blanket rule caught
+ * the pill too and it jumped to the new mode with no slide.
+ */
 function disableTransitionsTemporarily() {
   const style = document.createElement("style")
   style.appendChild(
     document.createTextNode(
-      "*,*::before,*::after{-webkit-transition:none!important;transition:none!important}"
+      "*:not([data-keep-motion]),*::before,*::after{-webkit-transition:none!important;transition:none!important}"
     )
   )
   document.head.appendChild(style)

@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { loadCurrentUser, logout } from "@/lib/api/auth/auth"
 import { renderShellIcon } from "@/lib/custom-shell"
+import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { isInternalHref, toLinkProps } from "@/lib/nav/nav-href"
 import type {
@@ -58,6 +59,12 @@ import { cn } from "@/lib/utils"
  * centred menu, logo size, header border, its own width or the page width,
  * blur, the Search item and its saved position, and dropdown groups.
  */
+
+/**
+ * How tall the public bar is, as a length on the document root. The front
+ * page's first hero reads it when its colour runs under the menu.
+ */
+export const PUBLIC_HEADER_HEIGHT_VAR = "--shell-public-header-height"
 
 /**
  * The blur behind the see-through bar. Medium is the `backdrop-blur-xl` the
@@ -122,8 +129,16 @@ function IconLabel({ icon, label }: { icon: string; label: string }) {
   )
 }
 
-/** A menu word: full-contrast text that dims on hover. */
-const menuWord = "text-foreground duration-150 hover:opacity-80"
+/**
+ * A menu word: full-contrast text that dims on hover.
+ *
+ * `text-[length:inherit]` is what lets the Menu text size setting reach it.
+ * `PublicMenuLink` carries `text-sm` for the footer and the missing-page
+ * screen, and without this that fixed size would win over the size set on the
+ * menu's own list.
+ */
+const menuWord =
+  "text-[length:inherit] text-foreground duration-150 hover:opacity-80"
 
 export function PublicMenuLink({
   link,
@@ -194,15 +209,16 @@ export function PublicNavigation({
   logoDark,
   logoSize,
   logoGap,
+  menuFontSize,
   navigation,
   sticky,
   menuAlignment,
   headerBorder,
   widthStyle,
-  edgeStyle,
   blur,
   userPanel,
   chromeBackground,
+  seeThrough = false,
   showThemeToggle,
   headerActions,
   showSearch,
@@ -217,22 +233,25 @@ export function PublicNavigation({
    * button.
    */
   logoGap: number
+  /** The size of the menu words, in pixels. */
+  menuFontSize: number
   navigation: PublicNavigationItem[]
   sticky: boolean
   menuAlignment: PublicHeaderMenuAlignment
   headerBorder: boolean
   /** Caps the header's contents; undefined keeps the built-in 1152px. */
   widthStyle: { maxWidth: number | "none" } | undefined
-  /**
-   * The page's left and right padding, from the frame. Undefined keeps the
-   * `px-4` default. The header never picks its own, or the logo stops lining
-   * up with the content below it.
-   */
-  edgeStyle: { paddingInline: number } | undefined
   blur: PublicHeaderBlur
   userPanel: PublicUserPanel
   /** Public styling's header and footer colour, or undefined for the theme's. */
   chromeBackground: string | undefined
+  /**
+   * True when something behind the bar is meant to show through it: a front
+   * page hero running its colour under the menu. The bar then paints no
+   * background of its own and keeps only its blur, so what is behind it is
+   * what you see.
+   */
+  seeThrough?: boolean
   showThemeToggle: boolean
   /** The right-hand controls, in the order an admin dragged them into. */
   headerActions: PublicHeaderActionId[]
@@ -298,6 +317,42 @@ export function PublicNavigation({
     setMenuPathname(pathname)
     setMenuState(false)
   }
+
+  // How tall the bar is, written where the page can read it.
+  //
+  // A front page hero that runs its colour under the menu has to know, because
+  // its band starts above its own row and nothing inside the page can measure
+  // a bar that sits outside it. Measured only when something behind the bar
+  // needs the number, so every other public page keeps its plain document
+  // root and no observer at all.
+  //
+  // Before the paint, so the band is the right height in the first frame
+  // rather than growing a beat after the page appears.
+  useEffectBeforePaint(() => {
+    const header = headerRef.current
+    if (!header || !seeThrough) return
+
+    const root = document.documentElement
+    const write = () => {
+      root.style.setProperty(
+        PUBLIC_HEADER_HEIGHT_VAR,
+        `${Math.round(header.getBoundingClientRect().height)}px`
+      )
+    }
+
+    write()
+    // The bar grows a line taller when the window narrows and the menu wraps,
+    // so the height is watched rather than read once. Watched only where
+    // there is something to watch with: jsdom has no ResizeObserver, and one
+    // reading is right there anyway.
+    const observer =
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(write)
+    observer?.observe(header)
+    return () => {
+      observer?.disconnect()
+      root.style.removeProperty(PUBLIC_HEADER_HEIGHT_VAR)
+    }
+  }, [seeThrough])
 
   React.useEffect(() => {
     if (!menuState) return
@@ -481,7 +536,12 @@ export function PublicNavigation({
 
   const desktopNavigation = desktopItems.length ? (
     <nav aria-label="Main navigation" className="hidden lg:block">
-      <ul className="flex items-center gap-8 text-base font-medium">
+      {/* The size lands on the list, so every word under it inherits: a plain
+          link, the word that opens a group, and the links inside that group. */}
+      <ul
+        className="flex items-center gap-8 font-medium"
+        style={{ fontSize: menuFontSize }}
+      >
         {desktopItems.map((item, index) =>
           isPublicNavigationGroup(item) ? (
             <li key={`${item.label}-group-${index}`} className="relative">
@@ -539,7 +599,7 @@ export function PublicNavigation({
       data-phone-menu=""
       className="mb-6 hidden w-full space-y-8 rounded-3xl border bg-background p-6 shadow-2xl in-data-[state=active]:block lg:hidden"
     >
-      <ul className="space-y-6 text-base">
+      <ul className="space-y-6" style={{ fontSize: menuFontSize }}>
         {phoneSearch}
         {phoneItems.map((item, index) =>
           isPublicNavigationGroup(item) ? (
@@ -550,7 +610,9 @@ export function PublicNavigation({
                   <li key={`${link.label}-${link.href}-${linkIndex}`}>
                     <PublicMenuLink
                       link={link}
-                      className={cn("text-sm", menuWord)}
+                      // The same size as the words above it, which is what a
+                      // link inside a group has always drawn at.
+                      className={menuWord}
                       onClick={closeMenu}
                     />
                   </li>
@@ -576,19 +638,21 @@ export function PublicNavigation({
       ref={headerRef}
       data-menu-alignment={menuAlignment}
       className={cn(
-        "z-40 w-full",
-        edgeStyle ? undefined : "px-4",
+        "z-40 w-full px-4",
         HEADER_BLUR_CLASS[blur],
         // A chosen colour is drawn solid, the way the signed-in sidebar and
         // sticky bar are, so the header reads the same over any page content.
-        chromeBackground ? undefined : "bg-background/90",
+        // Unless something behind it is meant to show through, in which case
+        // the bar paints nothing and the blur does the work.
+        seeThrough || chromeBackground ? undefined : "bg-background/90",
         headerBorder && "border-b",
         sticky && "sticky top-0"
       )}
-      style={{
-        ...(chromeBackground ? { backgroundColor: chromeBackground } : {}),
-        ...edgeStyle,
-      }}
+      style={
+        chromeBackground && !seeThrough
+          ? { backgroundColor: chromeBackground }
+          : undefined
+      }
     >
       <nav data-state={menuState ? "active" : undefined} className="w-full">
         <div className="mx-auto w-full max-w-6xl" style={widthStyle}>

@@ -107,6 +107,7 @@ import { Route as AuthenticatedAccountBillingSuccessRouteImport } from './routes
 import { Route as AuthenticatedAdminAutomationsAutomationIdRouteImport } from './routes/_authenticated/admin/automations_.$automationId'
 import { Route as AuthenticatedAdminAutomationsTemplatesRouteImport } from './routes/_authenticated/admin/automations_.templates'
 import { Route as AuthenticatedAdminNewsletterBroadcastIdRouteImport } from './routes/_authenticated/admin/newsletter_.$broadcastId'
+import { Route as AuthenticatedAdminPagesEditRouteImport } from './routes/_authenticated/admin/pages_.edit'
 import { Route as AuthenticatedAdminRecipesRecipeIdRouteImport } from './routes/_authenticated/admin/recipes_.$recipeId'
 import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
 import { Route as AuthenticatedAdminSettingsGoalsRouteImport } from './routes/_authenticated/admin/settings_.goals'
@@ -657,6 +658,12 @@ const AuthenticatedAdminNewsletterBroadcastIdRoute =
     path: '/newsletter/$broadcastId',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminPagesEditRoute =
+  AuthenticatedAdminPagesEditRouteImport.update({
+    id: '/pages_/edit',
+    path: '/pages/edit',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminRecipesRecipeIdRoute =
   AuthenticatedAdminRecipesRecipeIdRouteImport.update({
     id: '/recipes_/$recipeId',
@@ -836,6 +843,7 @@ export interface FileRoutesByFullPath {
   '/admin/automations/$automationId': typeof AuthenticatedAdminAutomationsAutomationIdRoute
   '/admin/automations/templates': typeof AuthenticatedAdminAutomationsTemplatesRoute
   '/admin/newsletter/$broadcastId': typeof AuthenticatedAdminNewsletterBroadcastIdRoute
+  '/admin/pages/edit': typeof AuthenticatedAdminPagesEditRoute
   '/admin/recipes/$recipeId': typeof AuthenticatedAdminRecipesRecipeIdRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/admin/settings/goals': typeof AuthenticatedAdminSettingsGoalsRoute
@@ -947,6 +955,7 @@ export interface FileRoutesByTo {
   '/admin/automations/$automationId': typeof AuthenticatedAdminAutomationsAutomationIdRoute
   '/admin/automations/templates': typeof AuthenticatedAdminAutomationsTemplatesRoute
   '/admin/newsletter/$broadcastId': typeof AuthenticatedAdminNewsletterBroadcastIdRoute
+  '/admin/pages/edit': typeof AuthenticatedAdminPagesEditRoute
   '/admin/recipes/$recipeId': typeof AuthenticatedAdminRecipesRecipeIdRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/admin/settings/goals': typeof AuthenticatedAdminSettingsGoalsRoute
@@ -1062,6 +1071,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/automations_/$automationId': typeof AuthenticatedAdminAutomationsAutomationIdRoute
   '/_authenticated/admin/automations_/templates': typeof AuthenticatedAdminAutomationsTemplatesRoute
   '/_authenticated/admin/newsletter_/$broadcastId': typeof AuthenticatedAdminNewsletterBroadcastIdRoute
+  '/_authenticated/admin/pages_/edit': typeof AuthenticatedAdminPagesEditRoute
   '/_authenticated/admin/recipes_/$recipeId': typeof AuthenticatedAdminRecipesRecipeIdRoute
   '/_authenticated/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/_authenticated/admin/settings_/goals': typeof AuthenticatedAdminSettingsGoalsRoute
@@ -1177,6 +1187,7 @@ export interface FileRouteTypes {
     | '/admin/automations/$automationId'
     | '/admin/automations/templates'
     | '/admin/newsletter/$broadcastId'
+    | '/admin/pages/edit'
     | '/admin/recipes/$recipeId'
     | '/admin/settings/$tab'
     | '/admin/settings/goals'
@@ -1288,6 +1299,7 @@ export interface FileRouteTypes {
     | '/admin/automations/$automationId'
     | '/admin/automations/templates'
     | '/admin/newsletter/$broadcastId'
+    | '/admin/pages/edit'
     | '/admin/recipes/$recipeId'
     | '/admin/settings/$tab'
     | '/admin/settings/goals'
@@ -1402,6 +1414,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/automations_/$automationId'
     | '/_authenticated/admin/automations_/templates'
     | '/_authenticated/admin/newsletter_/$broadcastId'
+    | '/_authenticated/admin/pages_/edit'
     | '/_authenticated/admin/recipes_/$recipeId'
     | '/_authenticated/admin/settings/$tab'
     | '/_authenticated/admin/settings_/goals'
@@ -2146,6 +2159,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminNewsletterBroadcastIdRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/pages_/edit': {
+      id: '/_authenticated/admin/pages_/edit'
+      path: '/pages/edit'
+      fullPath: '/admin/pages/edit'
+      preLoaderRoute: typeof AuthenticatedAdminPagesEditRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/recipes_/$recipeId': {
       id: '/_authenticated/admin/recipes_/$recipeId'
       path: '/recipes/$recipeId'
@@ -2311,6 +2331,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminAutomationsAutomationIdRoute: typeof AuthenticatedAdminAutomationsAutomationIdRoute
   AuthenticatedAdminAutomationsTemplatesRoute: typeof AuthenticatedAdminAutomationsTemplatesRoute
   AuthenticatedAdminNewsletterBroadcastIdRoute: typeof AuthenticatedAdminNewsletterBroadcastIdRoute
+  AuthenticatedAdminPagesEditRoute: typeof AuthenticatedAdminPagesEditRoute
   AuthenticatedAdminRecipesRecipeIdRoute: typeof AuthenticatedAdminRecipesRecipeIdRoute
   AuthenticatedAdminSettingsGoalsRoute: typeof AuthenticatedAdminSettingsGoalsRoute
   AuthenticatedAdminSettingsMarketsRoute: typeof AuthenticatedAdminSettingsMarketsRoute
@@ -2363,6 +2384,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
     AuthenticatedAdminAutomationsTemplatesRoute,
   AuthenticatedAdminNewsletterBroadcastIdRoute:
     AuthenticatedAdminNewsletterBroadcastIdRoute,
+  AuthenticatedAdminPagesEditRoute: AuthenticatedAdminPagesEditRoute,
   AuthenticatedAdminRecipesRecipeIdRoute:
     AuthenticatedAdminRecipesRecipeIdRoute,
   AuthenticatedAdminSettingsGoalsRoute: AuthenticatedAdminSettingsGoalsRoute,

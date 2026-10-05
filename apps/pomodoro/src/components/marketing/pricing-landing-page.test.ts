@@ -12,10 +12,15 @@ const api = vi.hoisted(() => ({
   loadPublicPricing: vi.fn(),
   loadBillingOverview: vi.fn(),
   loadBranding: vi.fn(),
+  loadPublicPageBlocks: vi.fn(),
 }))
 
 vi.mock("@/lib/api/shell", () => ({
   loadBranding: api.loadBranding,
+}))
+
+vi.mock("@/lib/api/content/page-blocks", () => ({
+  loadPublicPageBlocks: api.loadPublicPageBlocks,
 }))
 
 vi.mock("@/lib/api/auth/auth", () => ({
@@ -49,8 +54,9 @@ describe("front page row loading", () => {
     })
     api.loadBillingOverview.mockReset()
     api.loadBranding.mockReset().mockImplementation(async () => ({
-      frontPageRows: api.rows,
+      hostIsSite: false,
     }))
+    api.loadPublicPageBlocks.mockReset().mockImplementation(async () => api.rows)
   })
 
   it("keeps the existing pricing landing data when no rows are saved", async () => {
@@ -122,9 +128,13 @@ describe("front page row loading", () => {
       },
     ]
 
-    const data = await loadPricingLandingDataWithRoot(rows)
+    api.rows = rows
+
+    const data = await loadPricingLandingDataWithRoot(false)
 
     expect(data.frontPageRows).toEqual(rows)
+    // The root route already knows whether this address is one of the
+    // deployment's sites, so the front page does not read branding again.
     expect(api.loadBranding).not.toHaveBeenCalled()
   })
 })

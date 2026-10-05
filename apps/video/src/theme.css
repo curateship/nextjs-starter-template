@@ -421,19 +421,78 @@ body.app-font {
  * too much padding at the sides of a phone, which is what sharing one number
  * produced. Flat mode still collapses it, the same as it collapses card
  * borders and corners.
+ *
+ * It is each row's own margin rather than the grid's `gap`, because a gap
+ * belongs to the container and a block has to be able to name its own. Each
+ * row takes half the page's number above and half below, so two blocks still
+ * sit the full number apart, and a block that names a side writes
+ * `--shell-row-space-above` or `--shell-row-space-below` and that side becomes
+ * the number it asked for. The halves add up: 0 below one block and nothing
+ * set on the next leaves half the page's number between them.
+ *
+ * Margins on a grid item never collapse, so the two halves always add rather
+ * than one swallowing the other.
  */
 [data-front-page-rows] {
-    gap: var(--shell-front-page-row-gap-phone, 3.5rem);
+    gap: 0;
+}
+
+[data-front-page-rows] > * {
+    margin-top: var(
+        --shell-row-space-above-phone,
+        calc(var(--shell-front-page-row-gap-phone, 3.5rem) / 2)
+    );
+    margin-bottom: var(
+        --shell-row-space-below-phone,
+        calc(var(--shell-front-page-row-gap-phone, 3.5rem) / 2)
+    );
 }
 
 @media (min-width: 768px) {
-    [data-front-page-rows] {
-        gap: var(--shell-front-page-row-gap, 5rem);
+    [data-front-page-rows] > * {
+        margin-top: var(
+            --shell-row-space-above,
+            calc(var(--shell-front-page-row-gap, 5rem) / 2)
+        );
+        margin-bottom: var(
+            --shell-row-space-below,
+            calc(var(--shell-front-page-row-gap, 5rem) / 2)
+        );
     }
 }
 
-[data-flat="true"] [data-front-page-rows] {
-    gap: 0;
+/*
+ * The page's two ends. There is no block above the first one or below the last
+ * one, so there is no gap to take half of: the space there belongs to the page,
+ * not to the blocks. A block that names that side still gets what it asked for,
+ * which is the same variable with a different fallback.
+ */
+[data-front-page-rows] > *:first-child {
+    margin-top: var(--shell-row-space-above-phone, 0px);
+}
+
+[data-front-page-rows] > *:last-child {
+    margin-bottom: var(--shell-row-space-below-phone, 0px);
+}
+
+@media (min-width: 768px) {
+    [data-front-page-rows] > *:first-child {
+        margin-top: var(--shell-row-space-above, 0px);
+    }
+
+    [data-front-page-rows] > *:last-child {
+        margin-bottom: var(--shell-row-space-below, 0px);
+    }
+}
+
+/*
+ * Flat mode collapses a block's own spacing too, not only the page's. Flat is
+ * the whole site saying it wants no air anywhere, and a page where half the
+ * blocks kept their gaps would be neither one thing nor the other.
+ */
+[data-flat="true"] [data-front-page-rows] > * {
+    margin-top: 0;
+    margin-bottom: 0;
 }
 
 /*
@@ -509,8 +568,12 @@ html[data-public-button-casing="uppercase"] [data-slot="button"] {
 }
 
 @layer base {
+  /* The border colour is NOT set here. `border-first.css` owns it, imported
+     first by `styles.css` so the lines are not drawn black for the first frames
+     of a fresh load. Two homes for one rule and the later one silently wins, so
+     there is only the one. */
   * {
-    @apply border-border outline-ring/50;
+    @apply outline-ring/50;
     }
 
   body {

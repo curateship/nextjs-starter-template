@@ -119,3 +119,53 @@ Three shell dev scripts are deliberately not carried: `crm-samples.mjs`,
 `crm-samples.test.mjs` and `send-sample-inbound.mjs`. They seed sample leads
 into the local database on `npm run db:setup`, and Trade's local database is
 the live one, so sample data here would be sample data in production.
+
+## Shell merge, 5 October 2026
+
+The shell was merged in again on 5 Oct 2026, from `apps/custom-shell` in ws-4.
+Shell-origin files were replaced wholesale after each one was proved to be an
+unmodified older shell version: the app's copy was hashed and matched against
+every version of that file in the repository's history. A file with no match is
+a real fork and was left alone.
+
+**Never overwritten, in any app.** `src/app/options.ts`,
+`src/app/server-options.ts`, `src/app/open-endpoints.ts`, `src/routeTree.gen.ts`
+and `src/lib/layout/scaffold-styling.ts`. The first three are the app's own
+answers to the shell, the route tree is generated per app, and the styling file
+is the live Custom Shell styling that Personal IDE writes into a generated app.
+
+**What arrived.** The CRM, page blocks, the front page editor at
+`/admin/pages/edit`, the sliding tab pill, the three-tier dark canvas, blocked
+senders, and the smaller fixes between the app's last merge and this one. Plus
+the three changes made in the shell the same day: the external-link button that
+appears when the pointer is on the workspace block at the top of the sidebar,
+Members and Public moving back into the Platform settings card, and
+`src/border-first.css`, which stops every divider being drawn near-black for the
+first frames of a fresh page load.
+
+**What was deleted.** The shell replaced the settings-based front page row
+editor with the page-blocks editor, and moved two of its files into
+`src/components/pages/`. The old copies were still sitting in this app, out of
+step with the shell they were written against. Every file removed was proved to
+have come from the shell, to be gone from the shell now, and to be imported by
+nothing outside the group removed with it.
+
+**The route tree was regenerated** with `@tanstack/router-generator` rather than
+by starting a dev server. The generator drops the trailing
+`declare module '@tanstack/react-start'` Register block that the Vite plugin
+writes, and it typechecks fine without it, so the block was put back from the
+committed file and the resulting diff checked to be purely additive.
+
+**This app.** 76 shell files updated, 35 added and 8 removed. Eight migrations
+were carried: the shell's `0080` and `0081`, which Trade had skipped, plus
+`0086` through `0091`, as Trade's `0204` through `0211`.
+
+Two of the eight removed files were `lib/email/email-change.ts` and
+`lib/email/sign-in-link.ts`. The shell moved them to `server/people/` and
+`server/auth/`, the new copies arrived in this merge, and nothing imported the
+old paths.
+
+**Trade's local database is the live one.** The migrations are written and not
+applied. Applying them locally is a production change, so it waits for Tyler.
+`scripts/crm-samples.mjs` and `send-sample-inbound.mjs` are deliberately not
+carried for the same reason: they seed sample CRM leads during `db:setup`.

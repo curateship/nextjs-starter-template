@@ -6,7 +6,9 @@ import { Button } from "@/components/ui/button"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { Textarea } from "@/components/ui/textarea"
 import { CRM_MAX_BODY_LENGTH } from "@/lib/crm/crm"
+import type { ReplyDraftUpdate } from "@/lib/crm/reply-drafts"
 import { getCrmErrorMessage, sendReply } from "@/lib/api/crm/inbox"
+import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
@@ -19,15 +21,23 @@ import { showErrorToast } from "@/lib/toast/error-toast"
  *
  * What is typed stays in the box when a send fails. Clearing it would lose the
  * words over something the person could just try again.
+ *
+ * The words themselves live on the CRM screen, not here, because this
+ * component is thrown away and rebuilt every time another conversation is
+ * opened. See `src/lib/crm/reply-drafts.ts`.
  */
 export function ReplyComposer({
   threadId,
+  body,
   canSend,
   replyFrom,
+  onBodyChange,
   onSent,
   onDraft,
 }: {
   threadId: string
+  /** What is in the box, held by the screen so it survives a switch. */
+  body: string
   canSend: boolean
   /**
    * The whole From line the reply will carry, worked out on the server. Shown
@@ -39,22 +49,33 @@ export function ReplyComposer({
    * Send.
    */
   replyFrom: string | null
+  /**
+   * Carries the conversation's id, so a send that lands late cannot empty the
+   * box of whichever conversation is open by then.
+   */
+  onBodyChange: (threadId: string, update: ReplyDraftUpdate) => void
   onSent: () => void
   onDraft: () => Promise<string>
 }) {
-  const [body, setBody] = React.useState("")
   const [sending, setSending] = React.useState(false)
   const [drafting, setDrafting] = React.useState(false)
+  const boxRef = React.useRef<HTMLTextAreaElement | null>(null)
 
-  // A different conversation is a different reply, so the box empties. Checked
-  // during the render rather than in an effect: an effect would paint the old
-  // conversation's words once before clearing them, and setting state in an
-  // effect body is what `react-hooks/set-state-in-effect` refuses.
-  const [lastThreadId, setLastThreadId] = React.useState(threadId)
-  if (lastThreadId !== threadId) {
-    setLastThreadId(threadId)
-    setBody("")
-  }
+  const setBody = (update: ReplyDraftUpdate) => onBodyChange(threadId, update)
+
+  // Coming back to a conversation you left half answered puts the caret after
+  // the last word, so you carry on typing instead of hunting for the end.
+  // Before the paint, so the caret is never seen at the start first.
+  //
+  // Only when there is something to come back to: a conversation opened with
+  // an empty box should not take the focus off the list you are arrowing
+  // through.
+  useEffectBeforePaint(() => {
+    const box = boxRef.current
+    if (!box || !box.value) return
+    box.focus()
+    box.setSelectionRange(box.value.length, box.value.length)
+  }, [threadId])
 
   const send = async () => {
     if (!body.trim() || sending) return
@@ -96,6 +117,7 @@ export function ReplyComposer({
   return (
     <div className="grid shrink-0 gap-2 border-t p-3">
       <Textarea
+        ref={boxRef}
         value={body}
         maxLength={CRM_MAX_BODY_LENGTH}
         onChange={(event) => setBody(event.target.value)}

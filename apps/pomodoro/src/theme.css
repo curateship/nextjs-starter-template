@@ -154,6 +154,16 @@
     --shell-sidebar-ring: oklch(0.708 0 0);
     --background: oklch(1 0 0);
     --foreground: oklch(0.145 0 0);
+    /* The page behind the cards. Its own colour rather than --muted, which is
+       a fill for badges and quiet buttons and only lands below --card by luck
+       in light mode. Three tiers, darkest first: the page, then the sidebar
+       rail and sticky bar, then the cards. Each pair is about five steps out
+       of 255 apart, in both palettes. */
+    --shell-canvas: oklch(0.970 0 0);
+    /* The rail and the sticky bar, halfway between the page and a card, so
+       they read as off white here and off black in the dark block without
+       either being set by hand twice. */
+    --shell-rail: color-mix(in oklab, var(--card) 50%, var(--shell-canvas));
     --card: oklch(1 0 0);
     --card-foreground: oklch(0.145 0 0);
     --popover: oklch(1 0 0);
@@ -180,7 +190,7 @@
     --chart-4: oklch(0.371 0 0);
     --chart-5: oklch(0.269 0 0);
     --radius: 0.625rem;
-    --sidebar: oklch(0.985 0 0);
+    --sidebar: var(--shell-rail);
     --sidebar-foreground: oklch(0.145 0 0);
     --sidebar-primary: var(--shell-sidebar-primary);
     --sidebar-primary-foreground: var(--shell-sidebar-primary-foreground);
@@ -190,7 +200,22 @@
     --sidebar-ring: var(--shell-sidebar-ring);
 }
 
+/*
+ * How dark the dark mode is. Every grey surface below is its own lightness
+ * plus `--shell-dark-lift`, so one number lifts the whole dark palette
+ * together. Settings -> Styling -> Dark mode writes that number onto <html>
+ * as an inline style, which beats this rule because both sit on the same
+ * element. The lift is 0 here, so a workspace that has never chosen a shade
+ * keeps the near-black canvas it has always had.
+ *
+ * Only the greys move. The text, the accent, the destructive red, the chart
+ * colours and both border alphas are the same at every shade, so nothing
+ * loses contrast as the canvas lifts. `--muted-foreground` is the one
+ * exception: it rises at about a third of the lift, because the same grey on
+ * a lighter canvas would read as washed out.
+ */
 .dark {
+    --shell-dark-lift: 0;
     --shell-primary: var(--shell-public-primary-dark, oklch(0.922 0 0));
     --shell-primary-foreground: var(
       --shell-public-primary-foreground-dark,
@@ -201,22 +226,27 @@
     --shell-ring: var(--shell-public-primary-dark, oklch(0.556 0 0));
     --shell-sidebar-primary: oklch(0.488 0.243 264.376);
     --shell-sidebar-primary-foreground: oklch(0.985 0 0);
-    --shell-sidebar-accent: oklch(0.269 0 0);
+    --shell-sidebar-accent: oklch(calc(0.269 + var(--shell-dark-lift, 0)) 0 0);
     --shell-sidebar-accent-foreground: oklch(0.985 0 0);
     --shell-sidebar-ring: oklch(0.556 0 0);
-    --background: oklch(0.145 0 0);
+    --background: oklch(calc(0.145 + var(--shell-dark-lift, 0)) 0 0);
     --foreground: oklch(0.985 0 0);
-    --card: oklch(0.205 0 0);
+    /* A shade under --card, so the cards read as raised here exactly as they
+       do in light mode. It carries the shade lift like every other grey, and
+       --shell-rail is derived from it, so all three tiers lift together. */
+    --shell-canvas: oklch(calc(0.162 + var(--shell-dark-lift, 0)) 0 0);
+    --shell-rail: color-mix(in oklab, var(--card) 50%, var(--shell-canvas));
+    --card: oklch(calc(0.205 + var(--shell-dark-lift, 0)) 0 0);
     --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.205 0 0);
+    --popover: oklch(calc(0.205 + var(--shell-dark-lift, 0)) 0 0);
     --popover-foreground: oklch(0.985 0 0);
     --primary: var(--shell-primary);
     --primary-foreground: var(--shell-primary-foreground);
-    --secondary: oklch(0.269 0 0);
+    --secondary: oklch(calc(0.269 + var(--shell-dark-lift, 0)) 0 0);
     --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
+    --muted: oklch(calc(0.269 + var(--shell-dark-lift, 0)) 0 0);
+    --muted-foreground: oklch(calc(0.708 + var(--shell-dark-lift, 0) * 0.35) 0 0);
+    --accent: oklch(calc(0.269 + var(--shell-dark-lift, 0)) 0 0);
     --accent-foreground: oklch(0.985 0 0);
     --destructive: oklch(0.704 0.191 22.216);
     --border: oklch(1 0 0 / 10%);
@@ -228,7 +258,7 @@
     --chart-3: oklch(0.439 0 0);
     --chart-4: oklch(0.371 0 0);
     --chart-5: oklch(0.269 0 0);
-    --sidebar: oklch(0.205 0 0);
+    --sidebar: var(--shell-rail);
     --sidebar-foreground: oklch(0.985 0 0);
     --sidebar-primary: var(--shell-sidebar-primary);
     --sidebar-primary-foreground: var(--shell-sidebar-primary-foreground);
@@ -288,24 +318,121 @@ body.app-font {
 }
 
 /*
+ * The gutter: the gap between the blocks down a public page and between the
+ * cards in every grid on it. The frame sets the two ends as variables and this
+ * picks one, because an inline value beats a media query and a number written
+ * on the element could never change with the window.
+ *
+ * 640px is where the card grids stop being one per line, so it is where a page
+ * stops being a phone layout. Below it the gap matches the page's own 16px
+ * edge, or the site's own number when that is smaller, so a phone is never
+ * more spaced out than the desktop.
+ */
+[data-public-canvas] {
+    --shell-gutter: var(--shell-gutter-phone, 0.75rem);
+}
+
+@media (min-width: 640px) {
+    [data-public-canvas] {
+        --shell-gutter: var(--shell-gutter-wide, 0.75rem);
+    }
+}
+
+/*
  * The space between two blocks on a front page. It is its own number rather
  * than the page's side edge: a gap wide enough to tell two blocks apart is far
  * too much padding at the sides of a phone, which is what sharing one number
  * produced. Flat mode still collapses it, the same as it collapses card
  * borders and corners.
+ *
+ * It is each row's own margin rather than the grid's `gap`, because a gap
+ * belongs to the container and a block has to be able to name its own. Each
+ * row takes half the page's number above and half below, so two blocks still
+ * sit the full number apart, and a block that names a side writes
+ * `--shell-row-space-above` or `--shell-row-space-below` and that side becomes
+ * the number it asked for. The halves add up: 0 below one block and nothing
+ * set on the next leaves half the page's number between them.
+ *
+ * Margins on a grid item never collapse, so the two halves always add rather
+ * than one swallowing the other.
  */
 [data-front-page-rows] {
-    gap: var(--shell-front-page-row-gap-phone, 3.5rem);
+    gap: 0;
+}
+
+[data-front-page-rows] > * {
+    margin-top: var(
+        --shell-row-space-above-phone,
+        calc(var(--shell-front-page-row-gap-phone, 3.5rem) / 2)
+    );
+    margin-bottom: var(
+        --shell-row-space-below-phone,
+        calc(var(--shell-front-page-row-gap-phone, 3.5rem) / 2)
+    );
 }
 
 @media (min-width: 768px) {
-    [data-front-page-rows] {
-        gap: var(--shell-front-page-row-gap, 5rem);
+    [data-front-page-rows] > * {
+        margin-top: var(
+            --shell-row-space-above,
+            calc(var(--shell-front-page-row-gap, 5rem) / 2)
+        );
+        margin-bottom: var(
+            --shell-row-space-below,
+            calc(var(--shell-front-page-row-gap, 5rem) / 2)
+        );
     }
 }
 
-[data-flat="true"] [data-front-page-rows] {
-    gap: 0;
+/*
+ * The page's two ends. There is no block above the first one or below the last
+ * one, so there is no gap to take half of: the space there belongs to the page,
+ * not to the blocks. A block that names that side still gets what it asked for,
+ * which is the same variable with a different fallback.
+ */
+[data-front-page-rows] > *:first-child {
+    margin-top: var(--shell-row-space-above-phone, 0px);
+}
+
+[data-front-page-rows] > *:last-child {
+    margin-bottom: var(--shell-row-space-below-phone, 0px);
+}
+
+@media (min-width: 768px) {
+    [data-front-page-rows] > *:first-child {
+        margin-top: var(--shell-row-space-above, 0px);
+    }
+
+    [data-front-page-rows] > *:last-child {
+        margin-bottom: var(--shell-row-space-below, 0px);
+    }
+}
+
+/*
+ * Flat mode collapses a block's own spacing too, not only the page's. Flat is
+ * the whole site saying it wants no air anywhere, and a page where half the
+ * blocks kept their gaps would be neither one thing nor the other.
+ */
+[data-flat="true"] [data-front-page-rows] > * {
+    margin-top: 0;
+    margin-bottom: 0;
+}
+
+/*
+ * A hero's own air, above and below. Its own number rather than the page's
+ * Main spacing, which skips the front page entirely, and rather than the gap
+ * between rows, which sits outside a hero's background colour while this sits
+ * inside it. The fallbacks are what a hero drew before the number was
+ * anybody's to set.
+ */
+[data-front-page-hero] {
+    padding-block: var(--shell-hero-space-phone, 3rem);
+}
+
+@media (min-width: 768px) {
+    [data-front-page-hero] {
+        padding-block: var(--shell-hero-space, 4rem);
+    }
 }
 
 html[data-public-brand] [data-slot="button"][data-variant="default"]:hover {
@@ -364,8 +491,12 @@ html[data-public-button-casing="uppercase"] [data-slot="button"] {
 }
 
 @layer base {
+  /* The border colour is NOT set here. `border-first.css` owns it, imported
+     first by `styles.css` so the lines are not drawn black for the first frames
+     of a fresh load. Two homes for one rule and the later one silently wins, so
+     there is only the one. */
   * {
-    @apply border-border outline-ring/50;
+    @apply outline-ring/50;
     }
 
   body {
@@ -625,6 +756,30 @@ body:has(
   filter: blur(4px);
 }
 
+/*
+ * The blur eases in instead of switching on, so it moves with the overlay fade
+ * and the window's own entrance rather than snapping ahead of them. Spreading
+ * it over the same 150ms also spreads the paint cost across those frames
+ * instead of landing it on one.
+ *
+ * It is not what makes a slow window feel slow. Measured with the processor
+ * slowed to a quarter speed, the blur costs about 50ms of the wait before a
+ * window appears and nothing at all while the window sits open. See
+ * "Windows opening and closing" in docs/shell/user-interface.md for what does.
+ *
+ * The transition lives on the canvas rather than inside the :has() rule above
+ * so that closing a window un-blurs on the same curve.
+ */
+[data-slot="app-canvas"] {
+  transition: filter 150ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-slot="app-canvas"] {
+    transition: none;
+  }
+}
+
 [data-slot="dialog-content"] {
   background-color: var(--shell-modal-bg, var(--popover));
   --tw-ring-shadow: 0 0 #0000;
@@ -719,4 +874,33 @@ body:has(
       --shell-modal-card-border-color,
       color-mix(in oklab, var(--foreground) 10%, transparent)
     );
+}
+
+@layer base {
+  /*
+   * The app canvas: the flat colour behind a page's cards, and the ground the
+   * whole shell sits on. A class rather than a Tailwind arbitrary value so the
+   * three elements that need it share one rule and the colour cannot be missed
+   * by Tailwind's class scanner.
+   */
+  .shell-canvas {
+    background-color: var(--shell-canvas);
+  }
+}
+
+@layer base {
+  /*
+   * A hero's background band. It carries a colour for each mode as two custom
+   * properties set inline on the element, because an inline `background-color`
+   * is one colour and cannot change when the page turns dark. A muted grey has
+   * a real pair, pale in light mode and dark in dark mode; a fixed hex is the
+   * same colour in both, which is what a hex means.
+   */
+  [data-hero-band] {
+    background-color: var(--shell-hero-band-light);
+  }
+
+  .dark [data-hero-band] {
+    background-color: var(--shell-hero-band-dark);
+  }
 }
