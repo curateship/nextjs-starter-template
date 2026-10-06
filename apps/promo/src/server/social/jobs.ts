@@ -21,11 +21,22 @@ import { promoJobs } from "./schema"
  * count so an abandoned job stops instead of being retried forever in silence.
  */
 
-/** A claim older than this belonged to a worker that is gone. */
-const CLAIM_TIMEOUT_MINUTES = 5
+/**
+ * A claim older than this belonged to a worker that is gone.
+ *
+ * Ten minutes, longer than the slowest real job: opening a cold browser can
+ * take five, and a comment typed at a person's pace up to four more. Shorter,
+ * a second copy of the browser program could call a comment still being typed
+ * abandoned, and report a comment that posted as failed.
+ */
+const CLAIM_TIMEOUT_MINUTES = 10
 
-/** Three goes, then the job stays failed and says so on screen. */
+/** Three goes, then the job stays failed and says so on screen. A comment gets one. */
 const MAX_ATTEMPTS = 3
+
+/** What an abandoned comment says, since it is never tried again. */
+const COMMENT_ABANDONED =
+  "The browser stopped part-way through posting. It is not tried again, because the comment may already be on Reddit. Check the post before posting again."
 
 export type QueuedJob = {
   id: string
@@ -107,6 +118,10 @@ export async function claimNextJob(
  * A job that has been abandoned three times is marked failed rather than
  * queued again, because the fourth attempt would fail the same way and the
  * loop would never notice it was stuck.
+ *
+ * A comment is never handed back. Its worker may have died after Reddit took
+ * the comment, and a second go would post it twice, so it is marked failed on
+ * the first abandonment and a person checks the post.
  */
 export async function failExpiredClaims(
   db: CustomShellDb = defaultDb
@@ -114,17 +129,21 @@ export async function failExpiredClaims(
   const recovered = await db.execute(sql`
     UPDATE "promo_jobs"
     SET "status" = CASE
+          WHEN "promo_jobs"."kind" = 'comment' THEN 'failed'
           WHEN "promo_jobs"."attempts" >= ${MAX_ATTEMPTS} THEN 'failed'
           ELSE 'queued'
         END,
         "claim_token" = NULL,
         "claimed_at" = NULL,
         "last_error" = CASE
+          WHEN "promo_jobs"."kind" = 'comment'
+            THEN ${COMMENT_ABANDONED}
           WHEN "promo_jobs"."attempts" >= ${MAX_ATTEMPTS}
             THEN 'The browser stopped part-way through, three times.'
           ELSE "promo_jobs"."last_error"
         END,
         "finished_at" = CASE
+          WHEN "promo_jobs"."kind" = 'comment' THEN now()
           WHEN "promo_jobs"."attempts" >= ${MAX_ATTEMPTS} THEN now()
           ELSE NULL
         END
@@ -257,7 +276,7 @@ export async function lastFailedProfileJob(
   return row.lastError
 }
 
-/** The open, close and check jobs waiting or running, by profile. */
+/** The open, close, check and site-check jobs waiting or running, by profile. */
 export async function pendingProfileJobs(
   userId: string,
   db: CustomShellDb = defaultDb
@@ -269,7 +288,7 @@ export async function pendingProfileJobs(
       and(
         eq(promoJobs.userId, userId),
         inArray(promoJobs.status, ["queued", "running"]),
-        inArray(promoJobs.kind, ["open", "close", "check"])
+        inArray(promoJobs.kind, ["open", "close", "check", "site_check"])
       )
     )
   return rows

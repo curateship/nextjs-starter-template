@@ -15,6 +15,7 @@ import {
   listProfiles,
   moveProfiles,
   ownsProfile,
+  requestNewIdentity,
   profileHistory,
   renameFolder,
   renameLabel,
@@ -60,9 +61,10 @@ export const getProfileErrorMessage = createErrorMessage(
 /** A profile row on the dashboard: the record and the accounts signed in inside it. */
 export type ProfileRow = ProfileRecord & {
   accounts: Array<{ id: string; platform: string; handle: string; blocked: boolean }>
-  /** A close or check is waiting for the browser program. */
+  /** A close, check or site check is waiting for the browser program. */
   closing: boolean
   checking: boolean
+  siteChecking: boolean
 }
 
 export type ProfilesPage = {
@@ -102,6 +104,7 @@ const listFn = createServerFn({ method: "GET" })
         browser: profile.browser === "stopped" && waiting("open", profile.id) ? "opening" : profile.browser,
         closing: waiting("close", profile.id),
         checking: waiting("check", profile.id),
+        siteChecking: waiting("site_check", profile.id),
         accounts: accounts.get(profile.id) ?? [],
       })),
       ...groups,
@@ -297,7 +300,12 @@ export function loadProfileBrowser(id: string) {
  */
 const jobFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
-  .inputValidator(z.object({ id: z.string().min(1), kind: z.enum(["open", "close", "check", "restart"]) }))
+  .inputValidator(
+    z.object({
+      id: z.string().min(1),
+      kind: z.enum(["open", "close", "check", "site_check", "restart"]),
+    })
+  )
   .handler(async ({ context, data }): Promise<void> => {
     const userId = context.user.id
     if (!(await ownsProfile(userId, data.id))) throw new Error("That browser profile does not exist.")
@@ -310,6 +318,19 @@ const jobFn = createServerFn({ method: "POST" })
     }
   })
 
-export function profileJob(id: string, kind: "open" | "close" | "check" | "restart") {
+export function profileJob(
+  id: string,
+  kind: "open" | "close" | "check" | "site_check" | "restart"
+) {
   return jobFn({ data: { id, kind } })
+}
+
+/** Asks for a new identity on the profile's next launch. */
+const newIdentityFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ id: z.string().min(1) }))
+  .handler(async ({ context, data }): Promise<void> => requestNewIdentity(context.user.id, data.id))
+
+export function askForNewIdentity(id: string) {
+  return newIdentityFn({ data: { id } })
 }

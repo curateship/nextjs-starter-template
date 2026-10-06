@@ -19,8 +19,30 @@ vi.mock("./docker", async (importOriginal) => {
 
 vi.mock("./command", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./command")>()
-  return { ...actual, browserHealth: vi.fn().mockResolvedValue({ ok: true }) }
+  return {
+    ...actual,
+    browserHealth: vi.fn().mockResolvedValue({ ok: true }),
+    browserIdentityId: vi.fn(),
+    browserIdentity: vi.fn(),
+  }
 })
+
+const command = await import("./command")
+const identityId = vi.mocked(command.browserIdentityId)
+const identityReading = vi.mocked(command.browserIdentity)
+const reading = {
+  userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:156.0) Gecko/20100101 Firefox/156.0",
+  platform: "Win32",
+  oscpu: "",
+  hardwareConcurrency: 8,
+  screen: { width: 1536, height: 960, colorDepth: 24 },
+  devicePixelRatio: 1,
+  gpuVendor: "",
+  gpuRenderer: "ANGLE (NVIDIA, NVIDIA GeForce GTX 980 Direct3D11 vs_5_0 ps_5_0), or similar",
+  fonts: ["Arial"],
+  timezone: "UTC",
+  languages: ["en-US"],
+}
 
 const { dockerRequest } = await import("./docker")
 const docker = vi.mocked(dockerRequest)
@@ -56,6 +78,8 @@ describe("looking after the browsers", () => {
 
   beforeEach(async () => {
     docker.mockReset()
+    identityId.mockReset().mockResolvedValue({ id: "machine-1", made: true })
+    identityReading.mockReset().mockResolvedValue(reading)
     const made = await createTestDatabase()
     client = made.client
     db = made.db
@@ -160,6 +184,70 @@ describe("looking after the browsers", () => {
 
     expect(await reapIdleSessions(db)).toBe(1)
     expect((await row(id)).endedBy).toBe("idle")
+  })
+
+  /** Docker that answers a create with an id and an inspect with an image. */
+  function dockerThatStarts(image = "sha256:build-1") {
+    docker.mockImplementation(async (_connection, method, path) => {
+      if (path.startsWith("/containers/create")) return { Id: "new-container" }
+      if (method === "GET" && path.endsWith("/json")) return { Image: image }
+      return {}
+    })
+  }
+
+  async function profileRow() {
+    const [profile] = await db.select().from(promoProfiles)
+    return profile
+  }
+
+  it("keeps the identity a first launch made, and what a page read through it", async () => {
+    dockerThatStarts()
+    const live = await ensureSession(userId, profileId, db)
+
+    const { fingerprint } = await profileRow()
+    expect(fingerprint).toMatchObject({ id: "machine-1", seen: reading })
+    expect((await row(live.id)).imageId).toBe("sha256:build-1")
+    // The first launch asked for no particular identity.
+    const env = (docker.mock.calls.find(([, , path]) => path.startsWith("/containers/create"))?.[3] as { Env: string[] }).Env
+    expect(env).not.toContain("FP_NEW_IDENTITY=1")
+  })
+
+  it("still opens when Docker will not say which image a container runs", async () => {
+    docker.mockImplementation(async (_connection, method, path) => {
+      if (path.startsWith("/containers/create")) return { Id: "new-container" }
+      if (method === "GET" && path.endsWith("/json")) throw new DockerRequestError("GET", path, 500, "busy")
+      return {}
+    })
+
+    const live = await ensureSession(userId, profileId, db)
+
+    expect((await row(live.id)).status).toBe("running")
+    expect((await row(live.id)).imageId).toBe("")
+  })
+
+  it("does not read the page again when the same identity comes back", async () => {
+    dockerThatStarts()
+    await ensureSession(userId, profileId, db)
+    await stopSession(profileId, db)
+    identityReading.mockClear()
+    identityId.mockResolvedValue({ id: "machine-1", made: false })
+
+    await ensureSession(userId, profileId, db)
+
+    expect(identityReading).not.toHaveBeenCalled()
+  })
+
+  it("asks for a new identity once, and clears the request at that launch", async () => {
+    dockerThatStarts()
+    await db.update(promoProfiles).set({ fingerprint: { id: "machine-1", seen: reading, renew: true } })
+    identityId.mockRejectedValue(new Error("the identity could not be read"))
+
+    await ensureSession(userId, profileId, db)
+
+    const env = (docker.mock.calls.find(([, , path]) => path.startsWith("/containers/create"))?.[3] as { Env: string[] }).Env
+    expect(env).toContain("FP_NEW_IDENTITY=1")
+    // Even with the read failing, the next launch will not make yet another.
+    expect((await profileRow()).fingerprint?.renew).toBeUndefined()
   })
 
   it("gives a second profile a volume of its own", async () => {

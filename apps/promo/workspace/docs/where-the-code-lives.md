@@ -48,6 +48,11 @@ registered.
 Two networks can each have a routine called `search` without colliding, because
 `routines/__init__.py` gathers them under a prefixed name.
 
+Two pieces belong to no network. `routines/browser.py` reads what the browser
+itself gives away, its identity and what a website sees, and is asked for as
+`/browser/identity` and `/browser/site_check`. `human.py`, beside `routines/`,
+is the person-pace helper every network's routines type and read with.
+
 ## Adding the next network
 
 1. `docker/browser/routines/instagram.py`, exposing the same routines: what it

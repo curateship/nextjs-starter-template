@@ -75,7 +75,7 @@ describe("the browser work queue", () => {
     // The worker died without finishing: its claim goes stale.
     await db
       .update(promoJobs)
-      .set({ claimedAt: new Date(Date.now() - 10 * 60_000) })
+      .set({ claimedAt: new Date(Date.now() - 20 * 60_000) })
       .where(eq(promoJobs.id, claimed!.id))
 
     expect(await failExpiredClaims(db)).toBe(1)
@@ -84,6 +84,23 @@ describe("the browser work queue", () => {
     expect(again?.id).toBe(claimed!.id)
     // The abandoned try counted, so this cannot loop forever.
     expect(again?.attempts).toBe(2)
+  })
+
+  it("never hands back a comment whose worker vanished", async () => {
+    await queueJob(userId, "comment", { findId: "f1", text: "Hello." }, db)
+    const claimed = await claimNextJob(uuid(), db)
+    await db
+      .update(promoJobs)
+      .set({ claimedAt: new Date(Date.now() - 20 * 60_000) })
+      .where(eq(promoJobs.id, claimed!.id))
+
+    await failExpiredClaims(db)
+
+    // The comment may already be on Reddit, so a second go could post it twice.
+    const [row] = await db.select().from(promoJobs)
+    expect(row.status).toBe("failed")
+    expect(row.lastError).toContain("may already be on Reddit")
+    expect(await claimNextJob(uuid(), db)).toBeNull()
   })
 
   it("gives up on a job abandoned three times", async () => {
@@ -96,7 +113,7 @@ describe("the browser work queue", () => {
         status: "running",
         attempts: JOB_MAX_ATTEMPTS,
         claimToken: uuid(),
-        claimedAt: new Date(Date.now() - 10 * 60_000),
+        claimedAt: new Date(Date.now() - 20 * 60_000),
       })
       .where(eq(promoJobs.id, row.id))
 

@@ -10,6 +10,35 @@ read them, edit one if you like, press Post. A failed post stays failed and
 visible rather than being tried again, because a comment that quietly posted
 twice is worse than one that did not post.
 
+**A comment job is tried once, whatever went wrong.** Every other browser job
+gets three tries, and until 6 Oct 2026 a comment did too, which contradicted
+this page. The app can give up waiting while the browser is still typing; the
+comment then lands on Reddit, the app records a failure, and a retry would post
+it a second time. So a failed comment is marked failed at once, and one whose
+browser program died part-way is marked failed with "the comment may already be
+on Reddit. Check the post before posting again." rather than handed back.
+
+## Typing like a person
+
+The browser no longer pastes a comment in a burst. It used to type 83 characters
+a second at a fixed pace, starting the moment the page loaded: 900 characters in
+11 seconds on a page nobody had scrolled.
+
+- **It reads the post first,** scrolling down and back, for longer the longer the
+  post is: between about 4 and 30 seconds.
+- **It types with uneven gaps between keys,** drawn from a range rather than a
+  list, so two comments never share a rhythm, with longer pauses after the end
+  of a sentence and the occasional stop mid-sentence.
+- **It waits a moment before pressing Comment.**
+- **The cursor moves like a hand on a mouse,** as it always has.
+
+Measured on 6 Oct 2026 in the same browser, typing into a blank box: 900
+characters took 2.5 and 2.6 minutes from opening the page to pressing, with gaps
+from 60 thousandths of a second to just over a second, typically 114. The
+browser gives a comment 4 minutes and the app waits 4.5, so the app hears the
+browser's own answer. The helper is `docker/browser/human.py`, beside the
+network routines, so the next network types the same way.
+
 ## What the AI is told
 
 - **The post**, its title and its own words.

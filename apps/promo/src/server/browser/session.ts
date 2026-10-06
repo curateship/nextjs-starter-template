@@ -9,7 +9,12 @@ import { db as defaultDb, type CustomShellDb } from "@/server/db"
 
 import type { SessionEndedBy } from "@/lib/social/options"
 
-import { browserHealth, type CommandTarget } from "./command"
+import {
+  browserHealth,
+  browserIdentity,
+  browserIdentityId,
+  type CommandTarget,
+} from "./command"
 import {
   DockerRequestError,
   dockerConnection,
@@ -292,8 +297,20 @@ export async function ensureSession(
 
     await db
       .update(promoBrowserSessions)
-      .set({ containerId })
+      .set({ containerId, imageId: await imageOf(connection, containerId) })
       .where(eq(promoBrowserSessions.id, sessionId))
+
+    // A requested new identity is made by this launch and no other, so the
+    // request is cleared now. Left until the identity was read back, a failed
+    // read would have made a new machine on every later launch.
+    if (profile.fingerprint?.renew) {
+      const rest = { ...profile.fingerprint }
+      delete rest.renew
+      await db
+        .update(promoProfiles)
+        .set({ fingerprint: rest })
+        .where(eq(promoProfiles.id, profile.id))
+    }
 
     commandKeys.set(sessionId, token)
 
@@ -303,6 +320,8 @@ export async function ensureSession(
       .update(promoBrowserSessions)
       .set({ status: "running", lastActivityAt: new Date() })
       .where(eq(promoBrowserSessions.id, sessionId))
+
+    await keepIdentity(profile, { port: claimed.commandPort, token }, db)
 
     return {
       id: sessionId,
@@ -601,7 +620,12 @@ function containerEnv(
     "NEKO_WEBRTC_ICELITE=true",
     `COMMAND_PORT=${ports.commandPort}`,
     `COMMAND_TOKEN=${token}`,
-    `FP_OS=${fingerprintOs(profile.fingerprint)}`,
+    // Every profile claims Windows: the most common desktop, and the one its
+    // fonts and graphics cards are drawn to match. The rest of the identity is
+    // the profile's own, kept in its volume (see docker/browser/launch.py).
+    "FP_OS=windows",
+    // Asked for by "Make a new identity" on the Browser profiles dashboard.
+    ...(profile.fingerprint?.renew ? ["FP_NEW_IDENTITY=1"] : []),
     "START_URL=https://www.reddit.com/",
   ]
 
@@ -618,17 +642,61 @@ function containerEnv(
 }
 
 /**
- * Which operating system the fingerprint claims. Only this one field reaches
- * the container today, exactly as in anti-detect: Camoufox's own BrowserForge
- * fills in the screen, the GPU and the fonts to match whatever is said here.
- * Sending a half-chosen identity would be worse than sending one word.
+ * Which image build a container runs, so the profile's history can say "first
+ * run on a new build" beside a profile that started misbehaving. Blank when
+ * Docker would not say, logged, because a missing note must not stop a
+ * browser opening.
  */
-function fingerprintOs(fingerprint: unknown): "windows" | "macos" | "linux" {
-  if (fingerprint && typeof fingerprint === "object" && !Array.isArray(fingerprint)) {
-    const os = (fingerprint as Record<string, unknown>).os
-    if (os === "windows" || os === "macos" || os === "linux") return os
+async function imageOf(connection: DockerConnection, containerId: string): Promise<string> {
+  try {
+    const inspected = await dockerRequest<{ Image?: string }>(
+      connection,
+      "GET",
+      `/containers/${encodeURIComponent(containerId)}/json`
+    )
+    return (inspected.Image ?? "").slice(0, 80)
+  } catch (error) {
+    console.error(`Could not read which image container ${containerId} runs`, error)
+    return ""
   }
-  return "windows"
+}
+
+/**
+ * Writes down which identity the browser launched with, and what a page reads
+ * through it, on the profile.
+ *
+ * The identity itself is a file in the profile's volume; the app keeps its id,
+ * so it can tell when the machine changed, and the reading, so the dashboard
+ * can show the machine without asking a browser. The page is read only when
+ * the identity is new or has never been read, because reading it opens a tab
+ * for a moment in a window a person may be watching.
+ *
+ * Never fails the open. A browser that could not be read is still a browser.
+ */
+async function keepIdentity(
+  profile: typeof promoProfiles.$inferSelect,
+  target: CommandTarget,
+  db: CustomShellDb
+): Promise<void> {
+  try {
+    const { id, made } = await browserIdentityId(target)
+    const stored = profile.fingerprint
+    if (!made && stored?.id === id && stored.seen) return
+    const now = new Date().toISOString()
+    await db
+      .update(promoProfiles)
+      .set({
+        fingerprint: {
+          id,
+          madeAt: made || !stored?.madeAt ? now : stored.madeAt,
+          seen: await browserIdentity(target),
+          seenAt: now,
+        },
+      })
+      .where(eq(promoProfiles.id, profile.id))
+  } catch (error) {
+    console.error(`Could not read the identity of profile ${profile.id}`, error)
+  }
 }
 
 /**

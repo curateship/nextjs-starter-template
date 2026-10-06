@@ -32,6 +32,8 @@ vi.mock("@/server/browser/command", async (importOriginal) => {
   }
 })
 
+vi.mock("./reddit/post-comment", () => ({ postComment: vi.fn() }))
+
 vi.mock("./reddit/search", () => ({
   runKeywordSearch: vi.fn(),
   loadFindThread: vi.fn(),
@@ -214,6 +216,21 @@ describe("running a browser job", () => {
     // ensureSession is faked here, so the guard that matters is the one that
     // reads accounts: only the job owner's accounts are ever looked at.
     expect(fullState).not.toHaveBeenCalled()
+  })
+
+  it("tries a comment once and never again, whatever went wrong", async () => {
+    vi.mocked((await import("./reddit/post-comment")).postComment).mockRejectedValueOnce(
+      new Error("The browser did not answer reddit/comment within 300 seconds.")
+    )
+    const id = await queueJob(userId, "comment", { findId: "f1", text: "Hello.", accountId }, db)
+
+    await runOneJob("worker", db)
+
+    const failed = await job(id)
+    expect(failed.status).toBe("failed")
+    expect(failed.attempts).toBe(1)
+    // Nothing is waiting to post it a second time.
+    expect(await runOneJob("worker", db)).toEqual({ did: "nothing" })
   })
 
   it("fails a refusal at once instead of trying it three times", async () => {

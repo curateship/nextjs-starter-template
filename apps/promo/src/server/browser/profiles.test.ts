@@ -35,6 +35,7 @@ const {
   listFoldersAndLabels,
   listProfiles,
   profileHistory,
+  requestNewIdentity,
   tagProfiles,
   updateProfile,
 } = await import("./profiles")
@@ -180,7 +181,7 @@ describe("browser profiles", () => {
   it("duplicates with the same settings, its own volume, and none of the identity", async () => {
     const proxyId = await proxy()
     const id = await createProfile(userId, { name: "Main", proxyId, tags: ["warm"] }, db)
-    await db.update(promoProfiles).set({ fingerprint: { os: "macos", seed: 1 } }).where(eq(promoProfiles.id, id))
+    await db.update(promoProfiles).set({ fingerprint: { id: "the-original-machine", seen: undefined } }).where(eq(promoProfiles.id, id))
 
     const copyId = await duplicateProfile(userId, id, db)
 
@@ -229,6 +230,16 @@ describe("browser profiles", () => {
     })
   })
 
+  it("asks for a new identity without touching the one in use", async () => {
+    const id = await createProfile(userId, { name: "Main" }, db)
+    await db.update(promoProfiles).set({ fingerprint: { id: "machine-1" } })
+
+    await requestNewIdentity(userId, id, db)
+
+    const [row] = await db.select().from(promoProfiles)
+    expect(row.fingerprint).toEqual({ id: "machine-1", renew: true })
+  })
+
   it("starts a person with Ready, Warming and Banned", async () => {
     const { labels } = await listFoldersAndLabels(userId, db)
     expect(labels.map((one) => one.name)).toEqual(["Ready", "Warming", "Banned"])
@@ -273,6 +284,20 @@ describe("browser profiles", () => {
       expect(failed.kind === "run" && failed.reason).toBe(
         "The browser did not become ready within 120 seconds."
       )
+    })
+
+    it("marks the first run on a new browser build", async () => {
+      const id = await createProfile(userId, { name: "Main" }, db)
+      const at = (minutes: number) => new Date(Date.UTC(2099, 0, 1, 12, minutes))
+      await run(id, { status: "stopped", startedAt: at(0), imageId: "" })
+      await run(id, { status: "stopped", startedAt: at(10), imageId: "sha256:a" })
+      await run(id, { status: "stopped", startedAt: at(20), imageId: "sha256:a" })
+      await run(id, { status: "stopped", startedAt: at(30), imageId: "sha256:b" })
+
+      const runs = (await profileHistory(userId, id, db)).filter((entry) => entry.kind === "run")
+
+      // Newest first: only the run that moved from build a to build b says so.
+      expect(runs.map((entry) => entry.kind === "run" && entry.newBuild)).toEqual([true, false, false, false])
     })
 
     it("shows nothing of another person's profile", async () => {

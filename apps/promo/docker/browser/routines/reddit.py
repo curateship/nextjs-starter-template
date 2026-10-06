@@ -26,6 +26,8 @@ import json
 import time
 import urllib.parse
 
+import human
+
 # How long to wait for a navigation before giving up. Reddit behind a
 # residential proxy is slow, and a real captcha never resolves at all, so this
 # is generous but finite.
@@ -423,10 +425,23 @@ def reddit_comment(page, args):
 
     before = _own_comment_urls(page, state["handle"])
 
-    editor.click()
-    # Typed rather than pasted, with a delay, because Reddit's editor listens
+    # Read the post first, for longer the longer it is, then type at a
+    # person's pace. Typed rather than pasted, because Reddit's editor listens
     # for real key events and a pasted value can leave the Comment button off.
-    editor.type(text, delay=12)
+    body_length = page.evaluate(
+        "() => (document.querySelector('shreddit-post') || document.body).innerText.length"
+    )
+    human.read_page(page, body_length)
+    started = time.monotonic()
+    editor.click()
+    gaps = human.type_text(editor, text)
+    human.pause_before_submit(page)
+    # To the container log, so a test run can show the gaps vary.
+    print(
+        "comment typed: %d characters in %d seconds; %s"
+        % (len(text), time.monotonic() - started, human.describe_gaps(gaps)),
+        flush=True,
+    )
 
     buttons = [
         "shreddit-composer button[slot='submit-button']",

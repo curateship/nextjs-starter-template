@@ -174,7 +174,8 @@ export function ProfilesDashboard({
   // A browser takes a minute to open and a close waits its turn in the queue,
   // so the list is read again every two seconds until nothing is changing.
   const changing = profiles.some(
-    (profile) => profile.browser === "opening" || profile.closing || profile.checking
+    (profile) =>
+      profile.browser === "opening" || profile.closing || profile.checking || profile.siteChecking
   )
   React.useEffect(() => {
     if (!changing) return
@@ -620,6 +621,7 @@ export function ProfilesDashboard({
           setCreating(false)
           setOpen(undefined)
         }}
+        onChanged={refresh}
       />
 
       <BrowserWindowDialog

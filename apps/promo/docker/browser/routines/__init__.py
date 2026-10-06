@@ -10,9 +10,12 @@ below. Nothing else changes: not the launcher, not the command server, not the
 image.
 """
 
-from . import reddit
+from . import browser, reddit
 
+# "browser" is not a network. Its routines read what the browser itself gives
+# away, for any profile, and sit here so they ride the same command port.
 NETWORKS = {
+    "browser": browser,
     "reddit": reddit,
 }
 

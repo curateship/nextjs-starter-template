@@ -2,6 +2,7 @@ import * as React from "react"
 import { Loader2Icon, RotateCwIcon, Trash2Icon } from "lucide-react"
 import { toast } from "sonner"
 
+import { ProfileIdentityPanel } from "@/components/browser/profile-identity-panel"
 import { ProxyTestBadge } from "@/components/browser/proxy-test-badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -86,6 +87,7 @@ export function ProfileDialog({
   onDelete,
   onClose,
   onSaved,
+  onChanged,
 }: {
   open: boolean
   /** Null to make a new one. */
@@ -95,12 +97,14 @@ export function ProfileDialog({
   onDelete: (profile: ProfileRow) => void
   onClose: () => void
   onSaved: (id: string) => Promise<void>
+  /** The record behind the window changed without a save: a check, a new identity. */
+  onChanged: () => Promise<void>
 }) {
   const initial = React.useMemo(() => formFrom(profile), [profile])
   const [form, setForm] = React.useState(initial)
   const [saving, setSaving] = React.useState(false)
   const [restarting, setRestarting] = React.useState(false)
-  const [tab, setTab] = React.useState<"settings" | "history">("settings")
+  const [tab, setTab] = React.useState<"settings" | "identity" | "history">("settings")
   const dirty = JSON.stringify(form) !== JSON.stringify(initial)
   const set = <K extends keyof Form>(key: K, value: Form[K]) =>
     setForm((current) => ({ ...current, [key]: value }))
@@ -138,7 +142,7 @@ export function ProfileDialog({
         <DialogContent variant="admin" className="h-[48rem]">
           <Tabs
             value={tab}
-            onValueChange={(value) => setTab(value as "settings" | "history")}
+            onValueChange={(value) => setTab(value as "settings" | "identity" | "history")}
             className="flex min-h-0 flex-1 flex-col gap-0"
           >
             <DialogHeader>
@@ -147,6 +151,7 @@ export function ProfileDialog({
                 {profile ? (
                   <TabsList>
                     <TabsTrigger value="settings">Settings</TabsTrigger>
+                    <TabsTrigger value="identity">Identity</TabsTrigger>
                     <TabsTrigger value="history">History</TabsTrigger>
                   </TabsList>
                 ) : null}
@@ -307,6 +312,11 @@ export function ProfileDialog({
                   </div>
                 </TabsContent>
                 {profile ? (
+                  <TabsContent value="identity" className="min-w-0">
+                    <ProfileIdentityPanel profile={profile} onChanged={onChanged} />
+                  </TabsContent>
+                ) : null}
+                {profile ? (
                   <TabsContent value="history" className="min-w-0">
                     {tab === "history" ? <ProfileHistory profileId={profile.id} /> : null}
                   </TabsContent>
@@ -385,6 +395,9 @@ function ProfileHistory({ profileId }: { profileId: string }) {
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <span className="font-medium">
                 {entry.kind === "run" ? RUN_ENDINGS[entry.ending] ?? entry.ending : EVENT_WORDS[entry.kind]}
+                {entry.kind === "run" && entry.newBuild ? (
+                  <span className="font-normal text-muted-foreground"> · First run on a new browser build</span>
+                ) : null}
               </span>
               <span className="text-xs text-muted-foreground">{formatDateTime(entry.at)}</span>
             </div>

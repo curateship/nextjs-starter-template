@@ -22,6 +22,7 @@ thread does every page action, one at a time. One browser, one driver, no locks
 to get wrong.
 """
 
+import hashlib
 import json
 import os
 import queue
@@ -31,7 +32,9 @@ import threading
 import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+from camoufox.fingerprints import generate_fingerprint
 from camoufox.sync_api import Camoufox
+from camoufox.utils import get_screen_cons
 
 from routines import ROUTINES
 
@@ -49,6 +52,11 @@ if not COMMAND_TOKEN:
 # A page action that has not finished in this long is abandoned, so one stuck
 # navigation cannot wedge the queue for every later request.
 WORK_TIMEOUT_SECONDS = 90
+
+# Routines that are slow on purpose get longer. A comment is typed at a
+# person's speed after reading the post: about two minutes for 900 characters,
+# never more than four. The app waits a little longer than this.
+ROUTINE_TIMEOUT_SECONDS = {"reddit.comment": 240}
 
 work = queue.Queue()
 
@@ -79,12 +87,13 @@ class Handler(BaseHTTPRequestHandler):
             return
         answer = queue.Queue(maxsize=1)
         work.put((routine, args, answer))
+        limit = ROUTINE_TIMEOUT_SECONDS.get(routine, WORK_TIMEOUT_SECONDS)
         try:
-            ok, result = answer.get(timeout=WORK_TIMEOUT_SECONDS)
+            ok, result = answer.get(timeout=limit)
         except queue.Empty:
             self._reply(
                 504,
-                {"error": "%s did not finish within %d seconds" % (routine, WORK_TIMEOUT_SECONDS)},
+                {"error": "%s did not finish within %d seconds" % (routine, limit)},
             )
             return
         self._reply(200 if ok else 500, result if ok else {"error": result})
@@ -96,6 +105,12 @@ class Handler(BaseHTTPRequestHandler):
         # "the container is up" from "the browser can reach Reddit".
         if self.path == "/health":
             self._reply(200, {"ok": True})
+            return
+        # Which identity this browser launched with, as a short id, and
+        # whether it was made on this launch. The app keeps the id so it can
+        # tell a profile's machine changed.
+        if self.path == "/identity":
+            self._reply(200, {"id": IDENTITY_ID, "made": IDENTITY_MADE})
             return
         # One network's state, asked for as /reddit/state. Named rather than
         # bare, because a second network has a state of its own.
@@ -140,6 +155,59 @@ if os.environ.get("PROXY_SERVER"):
 start_url = os.environ.get("START_URL", "https://www.reddit.com/")
 
 
+# Where a profile's identity is kept: beside its cookies, in its own volume.
+IDENTITY_FILE = "/data/profile/promo-identity.json"
+
+# Left in this container once a requested renewal is done. Supervisord
+# restarts the launcher if it crashes, with the same settings, so without this
+# a crash would make yet another identity while the app kept the first one's
+# id. The container's own /tmp goes with the container.
+RENEWED_MARKER = "/tmp/promo-identity-renewed"
+
+
+def load_identity():
+    """The profile's identity: the one saved in its volume, or a new one.
+
+    A profile is one machine. Left alone, Camoufox draws a new screen, graphics
+    card and font list on every launch: measured on 6 Oct 2026, one profile
+    launched three times read 1536x864, 1536x864 and 1920x1080, an AMD, an
+    Intel and an AMD card, and 42, 39 and 39 fonts. So the identity is made
+    once and handed back on every later launch.
+
+    Camoufox salts every draw it makes from a fingerprint (fonts, graphics
+    card, media devices, audio) with that fingerprint itself, so the same
+    fingerprint gives the same machine. A new one goes through JSON before use,
+    so the first launch is handed exactly what later launches read back.
+
+    It is kept as a file in the profile's own volume rather than passed in by
+    the app: it measured about 400KB, mostly the list of media types the
+    machine plays, far past what a container's settings can carry. Kept with
+    the cookies, it lives and dies with them, which is right: a new volume is
+    a new machine. FP_NEW_IDENTITY asks for a fresh one on purpose.
+
+    The clock and the languages are not part of it. They follow the proxy's
+    country at every launch, through geoip below.
+    """
+    fresh = os.environ.get("FP_NEW_IDENTITY", "") == "1" and not os.path.exists(RENEWED_MARKER)
+    if not fresh and os.path.exists(IDENTITY_FILE):
+        with open(IDENTITY_FILE, "r", encoding="utf-8") as saved:
+            text = saved.read()
+        return json.loads(text), hashlib.sha256(text.encode("utf-8")).hexdigest(), False
+    made = generate_fingerprint(
+        os=os.environ.get("FP_OS", "windows"),
+        screen=get_screen_cons(False),
+    )
+    text = json.dumps(made, default=str, sort_keys=True)
+    with open(IDENTITY_FILE, "w", encoding="utf-8") as saved:
+        saved.write(text)
+    if fresh:
+        open(RENEWED_MARKER, "w").close()
+    return json.loads(text), hashlib.sha256(text.encode("utf-8")).hexdigest(), True
+
+
+IDENTITY, IDENTITY_ID, IDENTITY_MADE = load_identity()
+
+
 def stop_gently(_signum, _frame):
     """Leaves the `with` block below, which closes Firefox properly.
 
@@ -160,18 +228,26 @@ signal.signal(signal.SIGTERM, stop_gently)
 # persistent_context + user_data_dir -> cookies/storage survive container restarts,
 #                                      which is what makes one hand sign-in last.
 # geoip=True      -> align timezone/locale/geolocation to the proxy exit IP.
-# os=             -> seed a consistent fingerprint; BrowserForge fills the rest.
+# fingerprint=    -> this profile's own identity, the same on every launch.
+# humanize=True   -> the cursor travels like a hand on a mouse.
 with Camoufox(
     headless=False,
     proxy=proxy,
     geoip=bool(proxy),
     humanize=True,
     os=os.environ.get("FP_OS", "windows"),
+    fingerprint=IDENTITY,
     persistent_context=True,
     user_data_dir="/data/profile",
 ) as context:
     page = context.pages[0] if context.pages else context.new_page()
-    page.goto(start_url)
+    # Not fatal. A tab the profile reopened can interrupt this first load, and
+    # a slow proxy can time it out; either used to crash the launcher and
+    # restart the whole browser. The window works without it.
+    try:
+        page.goto(start_url)
+    except Exception:  # noqa: BLE001 - logged, and the browser carries on
+        traceback.print_exc()
 
     threading.Thread(target=serve, daemon=True).start()
     print("command server listening on %d" % COMMAND_PORT, flush=True)

@@ -99,7 +99,7 @@ async function loop(): Promise<void> {
  * Stop taking new work and let the turn in flight finish.
  *
  * A job claimed but not finished when this goes follows the same stale-claim
- * rule as a container that was killed outright: it is handed back after five
+ * rule as a container that was killed outright: it is handed back after ten
  * minutes, and given up after three goes.
  */
 async function shutdown(signal: string): Promise<void> {

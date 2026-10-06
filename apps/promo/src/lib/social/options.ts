@@ -36,7 +36,14 @@ export type FindStatus = (typeof FIND_STATUSES)[number]
  * browser open writes an `open` job and reads the session row, rather than
  * starting one itself and leaving the browser program without the key to it.
  */
-export type JobKind = "search" | "thread" | "comment" | "open" | "close" | "check"
+export type JobKind =
+  | "search"
+  | "thread"
+  | "comment"
+  | "open"
+  | "close"
+  | "check"
+  | "site_check"
 
 /**
  * What every Reddit job and the settings tab say when the account's browser
@@ -60,6 +67,52 @@ export type SessionStatus = "starting" | "running" | "stopped" | "error"
  * dead, failed to start, or replaced after the browser program restarted.
  */
 export type SessionEndedBy = "closed" | "idle" | "dead" | "failed" | "replaced"
+
+/**
+ * A profile's identity as the app keeps it. The identity itself, about 400KB,
+ * lives in the profile's own volume beside its cookies; this is its short id
+ * and what a page read through it. See `docker/browser/launch.py`.
+ */
+export type ProfileIdentity = {
+  /** sha256 of the identity file. A different id is a different machine. */
+  id?: string
+  madeAt?: string
+  /** What a page read the last time anyone looked. */
+  seen?: IdentityReading
+  seenAt?: string
+  /** Set by "Make a new identity"; the next launch makes one and clears it. */
+  renew?: boolean
+}
+
+/** What a page reads about the machine, as `routines/browser.py` returns it. */
+export type IdentityReading = {
+  userAgent: string
+  platform: string
+  oscpu: string
+  hardwareConcurrency: number
+  screen: { width: number; height: number; colorDepth: number }
+  devicePixelRatio: number
+  gpuVendor: string
+  gpuRenderer: string
+  fonts: string[]
+  timezone: string
+  languages: string[]
+}
+
+/** One line of "Check what a site sees". */
+export type SiteCheckLine = {
+  label: string
+  verdict: "matches" | "differs" | "noted"
+  text: string
+}
+
+/** The saved result of "Check what a site sees". */
+export type SiteCheckResult = {
+  checkedAt: string
+  /** Null when the profile has no proxy. */
+  proxy: { name: string; address: string; country: string; timezone: string } | null
+  lines: SiteCheckLine[]
+}
 
 /** What the history in a profile's window records besides its runs. */
 export type ProfileEventKind = "proxy_changed" | "browser_dead" | "proxy_refused"
