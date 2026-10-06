@@ -13,15 +13,6 @@ window, `browser-window-dialog.tsx` for the browser itself, and
 `profile-groups-dialog.tsx` for folders and labels, all in
 `src/components/browser/`. [Browser profiles](profiles.md) explains the record.
 
-## The line above the table
-
-"1 of 3 browsers open, using about 0.7GB. Change the limit." How many browsers
-are open on this machine against the limit, and the memory Docker says they
-use, with a link to the Browsers tab of Settings. It is read on its own, every
-half minute and whenever a browser opens or closes, because asking Docker takes
-a moment per browser and the table is read every two seconds while one opens.
-[The isolated browser](isolated-sessions.md) explains the limit.
-
 ## The table
 
 - **Profile.** Its name, its label, its folder and its tags.

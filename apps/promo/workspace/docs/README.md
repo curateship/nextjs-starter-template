@@ -24,9 +24,9 @@ the repo's `docs/`, and is never copied here.
   or leftover one is cleared.
 - [Browser profiles](browser/profiles.md) — one isolated browser as a record of
   its own, which an account points at, and how the first accounts were adopted.
-- [The Browser profiles dashboard](browser/profiles-dashboard.md) — the line
-  saying how full the machine is, the table, the browser inside the app, a
-  profile's backups and history, folders, labels and tags.
+- [The Browser profiles dashboard](browser/profiles-dashboard.md) — the table,
+  the browser inside the app, a profile's backups and history, folders, labels
+  and tags.
 - [Backing a profile up](browser/backups.md) — the volume, encrypted with the
   server's key and kept in R2, restoring it here or on another machine, and the
   newest five kept.

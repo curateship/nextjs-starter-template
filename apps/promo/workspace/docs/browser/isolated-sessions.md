@@ -247,12 +247,6 @@ Reddit searches: memory peaked at 1.04GB, so it stayed; half a processor sat at
 its cap the whole time and a warm search took 9 to 10 seconds against 1 to 2 on
 a full one, so it became one.
 
-**How full it is, on the dashboard.** The Browser profiles dashboard opens with
-a line: "1 of 3 browsers open, using about 0.7GB." The memory is Docker's own
-figure for each browser, the same one `docker stats` prints. A browser Docker
-will not report on is counted at its full 1.5GB, so the figure errs high
-rather than hiding one.
-
 **A port something else holds is stepped over.** Each browser takes three ports
 counted up from 7900, 8900 and 9900, and the database says which are free. A
 port can still be held where the database cannot see it: by a browser being

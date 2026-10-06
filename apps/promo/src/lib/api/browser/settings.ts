@@ -2,18 +2,16 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import { adminGet, adminPost } from "@/server/guards"
-import { browserLoad, type BrowserLoad } from "@/server/browser/load"
 import { IDLE_MINUTES_RANGE, MAX_OPEN_RANGE } from "@/lib/browser/limits"
 import { readBrowserSettings, saveBrowserSettings, type BrowserSettings } from "@/server/browser/settings"
 
 import { createErrorMessage } from "../error-message"
 
-export type { BrowserLoad, BrowserSettings }
+export type { BrowserSettings }
 
 /**
- * The machine's browser settings, on the Browsers tab of Settings, and how
- * full the machine is, on the Browser profiles dashboard. Admin-only. Both
- * are the machine's rather than a person's, like the memory they protect.
+ * The machine's browser settings, on the Browsers tab of Settings. Admin-only,
+ * and the machine's rather than a person's, like the memory they protect.
  */
 
 // The panel checks both numbers before saving, so a refusal here is rare.
@@ -42,12 +40,4 @@ const saveFn = createServerFn({ method: "POST" })
 
 export function saveBrowserSettingsFn(settings: BrowserSettings) {
   return saveFn({ data: settings })
-}
-
-const loadOnMachineFn = createServerFn({ method: "GET" })
-  .middleware([adminGet])
-  .handler(async (): Promise<BrowserLoad> => browserLoad())
-
-export function loadBrowserLoad() {
-  return loadOnMachineFn()
 }

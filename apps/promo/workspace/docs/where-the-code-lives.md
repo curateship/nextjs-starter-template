@@ -15,7 +15,7 @@ an app wide feature, not just a reddit feature."
 
 | Folder | What is in it |
 | --- | --- |
-| `src/server/browser/` | The isolated browser and everything it needs: the proxy, profile and session tables, proxy testing and the guard against inside addresses, making a profile, Docker, the typed command client, opening, closing and watching a browser, the limit on how many are open (`settings.ts`, `load.ts`), and backups (`backups.ts`). It knows nothing about any network. |
+| `src/server/browser/` | The isolated browser and everything it needs: the proxy, profile and session tables, proxy testing and the guard against inside addresses, making a profile, Docker, the typed command client, opening, closing and watching a browser, the limit on how many are open (`settings.ts`), and backups (`backups.ts`). It knows nothing about any network. |
 | `src/server/social/` | The accounts, saved keywords, the job queue with one lane per profile, the runner that takes a job to its account, its profile and its browser, AI drafting, and the regular upkeep. |
 | `src/lib/social/` | What both halves of the app need at runtime: statuses, job kinds, proxy kinds, the comment length cap, and the wordings. |
 | `src/lib/browser/` | The Proxies and Browser profiles dashboards' wordings, the bounds of the browser settings, and how the bell draws a dead-proxy notice. |

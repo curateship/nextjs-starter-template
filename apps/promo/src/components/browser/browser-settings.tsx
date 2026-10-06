@@ -1,5 +1,4 @@
 import * as React from "react"
-import { Link } from "@tanstack/react-router"
 import { Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 
@@ -88,15 +87,6 @@ function BrowserSettingsPanel() {
             {maxOpen === 1 ? "browser takes" : "browsers take"} up to {formatGigabytes(maxOpen * 1.5)}.
             Opening one more is refused and says why. Profiles also work side by side up to
             this many, so a comment on one profile does not hold up a search on another.
-            How many are open now is shown on the{" "}
-            <Link
-              to="/admin/profiles"
-              search={{ open: undefined }}
-              className="font-medium text-foreground underline underline-offset-2"
-            >
-              Browser profiles dashboard
-            </Link>
-            .
           </p>
         </CardContent>
       </Card>

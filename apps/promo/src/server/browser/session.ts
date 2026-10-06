@@ -111,7 +111,7 @@ const STOP_GRACE_SECONDS = 10
 const READY_TIMEOUT_MS = 300_000
 const READY_POLL_MS = 3_000
 
-export const LIVE_STATUSES = ["starting", "running"] as const
+const LIVE_STATUSES = ["starting", "running"] as const
 
 export type LiveSession = {
   id: string

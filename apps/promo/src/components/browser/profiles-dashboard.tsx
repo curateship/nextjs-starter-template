@@ -17,7 +17,6 @@ import { BrowserWindowDialog } from "@/components/browser/browser-window-dialog"
 import { ProfileDialog } from "@/components/browser/profile-dialog"
 import { ProfileGroupsDialog } from "@/components/browser/profile-groups-dialog"
 import { ProxyTestBadge } from "@/components/browser/proxy-test-badge"
-import { BrowserLoadLine } from "@/components/browser/browser-load-line"
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import {
   DashboardToolbarButton,
@@ -294,7 +293,6 @@ export function ProfilesDashboard({
 
   return (
     <>
-      <BrowserLoadLine version={profiles.map((profile) => profile.browser).join()} />
       <DashboardTable
         title="Browser profiles"
         icon={<MonitorIcon />}

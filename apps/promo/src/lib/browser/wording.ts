@@ -164,19 +164,3 @@ export function graphicsCardName(renderer: string): string {
     .replace(/\)$/, "")
   return name.trim() || "Not reported"
 }
-
-/** "2 of 3 browsers open, using about 2.1GB." */
-export function loadWords(load: { open: number; maxOpen: number; memoryBytes: number }): string {
-  if (!load.open) {
-    return `No browsers open. Up to ${load.maxOpen} can be open at once.`
-  }
-  const gigabytes = (load.memoryBytes / 1024 ** 3).toFixed(1)
-  // More open than the limit happens when the limit was lowered under them;
-  // they stay open, and no more open until enough have closed.
-  if (load.open > load.maxOpen) {
-    return `${load.open} browsers open, over the limit of ${load.maxOpen}, using about ${gigabytes}GB.`
-  }
-  const count = `${load.open} of ${load.maxOpen} ${load.maxOpen === 1 ? "browser" : "browsers"} open`
-  const full = load.open === load.maxOpen ? ", which is the limit" : ""
-  return `${count}${full}, using about ${gigabytes}GB.`
-}
