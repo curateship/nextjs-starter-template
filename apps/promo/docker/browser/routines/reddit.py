@@ -320,25 +320,61 @@ def reddit_state(page, args=None):
         data = me.get("data") or {}
         handle = data.get("name") or None
 
-    script = """
-    () => {
-      const text = (document.body.textContent || "").toLowerCase()
-      const challenge = Boolean(document.querySelector('form input[name="solution"]'))
-      const captcha = Boolean(
-        document.querySelector('iframe[src*="recaptcha"], iframe[src*="hcaptcha"], iframe[title*="challenge" i]')
-      )
-      const blocked = text.includes("whoa there") || text.includes("you've been blocked")
-      return { challenge, captcha, blocked, url: location.href }
-    }
-    """
-    signs = page.evaluate(script) or {}
-    blocked = bool(signs.get("challenge") or signs.get("captcha") or signs.get("blocked"))
+    signs = _page_signs(page)
 
     return {
         "handle": handle,
-        "blocked": blocked,
-        "reason": "a challenge or captcha is on screen" if blocked else "",
+        "blocked": signs["blocked"],
+        "reason": signs["reason"],
+        "url": signs["url"],
+    }
+
+
+def _page_signs(page):
+    """Whether the page on screen is a challenge only a person can clear.
+
+    Reads the page as it is and never moves it.
+
+    A captcha counts only when a person could see it. Reddit loads Google's
+    invisible reCAPTCHA on every page, a 256 by 60 frame that is never shown,
+    and counting any reCAPTCHA frame read every page as blocked. Measured on
+    5 Oct 2026: the search page that had just returned 25 posts carried one
+    such frame, hidden, and nothing else.
+    """
+    script = """
+    () => {
+      const text = ((document.body && document.body.textContent) || "").toLowerCase()
+      const shown = (el) => {
+        const box = el.getBoundingClientRect()
+        if (box.width < 100 || box.height < 60) return false
+        return typeof el.checkVisibility === "function"
+          ? el.checkVisibility({ opacityProperty: true, visibilityProperty: true })
+          : el.offsetParent !== null
+      }
+      const challenge = Boolean(document.querySelector('form input[name="solution"]'))
+      const captcha = [
+        ...document.querySelectorAll(
+          'iframe[src*="recaptcha"], iframe[src*="hcaptcha"], iframe[title*="challenge" i]'
+        ),
+      ].some((frame) => !String(frame.src).includes("size=invisible") && shown(frame))
+      const refused = text.includes("whoa there") || text.includes("you've been blocked")
+      return { challenge, captcha, refused, url: location.href, host: location.hostname }
+    }
+    """
+    signs = page.evaluate(script) or {}
+    if signs.get("refused"):
+        reason = "Reddit says this browser is blocked"
+    elif signs.get("captcha"):
+        reason = "a captcha is on screen"
+    elif signs.get("challenge"):
+        reason = "Reddit is asking the browser to prove it is a person"
+    else:
+        reason = ""
+    return {
+        "blocked": bool(reason),
+        "reason": reason,
         "url": signs.get("url") or "",
+        "host": signs.get("host") or "",
     }
 
 
@@ -427,13 +463,33 @@ def reddit_comment(page, args):
     )
 
 
-def reddit_state_quick(page):
-    """Who is signed in, without navigating. For use mid-routine."""
+def reddit_state_quick(page, args=None):
+    """Who is signed in, and whether a challenge is on screen, without navigating.
+
+    The app asks this after every Reddit job, so it must never move the page:
+    a person may be halfway through typing into a sign-in form in the same
+    window. It reads Reddit's own "who am I" with the page's cookies and looks
+    at whatever is already on screen.
+
+    `checked` is False when the page is not on Reddit. A cookie read from
+    another site's page fails, and that failure would otherwise be written down
+    as "signed out" about an account that is signed in.
+    """
+    signs = _page_signs(page)
+    host = signs["host"]
+    if host != "reddit.com" and not host.endswith(".reddit.com"):
+        return {"checked": False, "handle": None, "blocked": False, "reason": ""}
+
     me = _fetch_json(page, "https://www.reddit.com/api/me.json")
     handle = None
     if isinstance(me, dict):
         handle = (me.get("data") or {}).get("name") or None
-    return {"handle": handle}
+    return {
+        "checked": True,
+        "handle": handle,
+        "blocked": signs["blocked"],
+        "reason": signs["reason"],
+    }
 
 
 def _own_comment_urls(page, handle):
@@ -458,6 +514,7 @@ def _own_comment_urls(page, handle):
 # to drive the browser anywhere else.
 ROUTINES = {
     "state": reddit_state,
+    "quick_state": reddit_state_quick,
     "search": reddit_search,
     "thread": reddit_thread,
     "comment": reddit_comment,

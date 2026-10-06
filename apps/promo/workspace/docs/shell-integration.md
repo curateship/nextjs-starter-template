@@ -23,27 +23,38 @@ promo created, which has no shell version and so can never conflict.
 
 - **`workspaces.whoMayHave: "off"`** — promo is one site. It is a tool one person
   runs against their own accounts, not something with tenants.
-- **`settings.tabs`** — one tab, "Reddit account", holding the account, the proxy
-  and the voice the AI writes in.
+- **`settings.tabs`** — one tab, "Reddit account", picking which browser profile
+  and which voice the account uses.
+- **`notifications.describe`** — a dead-proxy notice in the bell gets a globe
+  tile and opens that proxy on the Proxies dashboard. Worked out from the
+  notice's own id and words, so no server is asked.
 
 `src/app/server-options.ts`, which the browser never sees:
 
-- **`background.workers`** — two quick jobs on the shell's ticker: re-testing one
-  proxy every ten minutes, and shutting down a browser nobody has used for an
-  hour. The slow browser work is deliberately not here; see below.
+- **`background.workers`** — two quick jobs on the shell's ticker: re-testing the
+  three proxies that have waited longest, and looking after the browsers (closing an idle one,
+  marking a dead one, removing a container nothing claims). Both only ask
+  Docker or a proxy. The slow browser work is deliberately not here; see below.
 
 ## The tables it owns
 
-Nine, all named `promo_*` and all in `src/server/social/schema.ts`, which is
-promo's own file. The shell's tables stay in `src/server/schema.ts`, which promo
-never opens.
+Fifteen, all named `promo_*`, in two files of promo's own. The shell's tables
+stay in `src/server/schema.ts`, which promo never opens.
 
-`promo_proxies`, `promo_accounts`, `promo_browser_sessions`, `promo_keywords`,
-`promo_searches`, `promo_finds`, `promo_drafts`, `promo_comments`, `promo_jobs`.
+- `src/server/browser/schema.ts`: `promo_proxies`, `promo_proxy_addresses`,
+  `promo_profiles`, `promo_profile_folders`, `promo_profile_labels`,
+  `promo_profile_events`, `promo_browser_sessions`. These belong to no network.
+- `src/server/social/schema.ts`: `promo_voices`, `promo_accounts`, `promo_keywords`,
+  `promo_searches`, `promo_finds`, `promo_drafts`, `promo_comments`,
+  `promo_jobs`.
 
-The SQL is hand-written in `drizzle/0091_promo_reddit.sql` and
-`drizzle/0092_promo_reddit_relevance.sql`, numbered past the shell's so a future
-shell migration cannot collide with them.
+The SQL is hand-written in `drizzle/0091_promo_reddit.sql`,
+`drizzle/0092_promo_reddit_relevance.sql`,
+`drizzle/0094_promo_browser_profiles.sql`,
+`drizzle/0095_promo_proxy_and_profile_dashboards.sql` and
+`drizzle/0096_promo_voices.sql`. The runner records each file by its
+whole name, so a shell file that happens to share a number does not collide
+with a promo one.
 
 ## Two things that look like shell edits and are not
 

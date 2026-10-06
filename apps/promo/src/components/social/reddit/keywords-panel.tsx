@@ -287,7 +287,11 @@ function KeywordCard({
   return (
     <div
       className={cn(
-        "flex items-start gap-2 rounded-lg border p-3",
+        // `min-w-0` lets the card shrink to the panel. A grid item will not go
+        // narrower than its longest unbroken line by default, so at the
+        // panel's narrowest the card ran under the edge instead of the term
+        // and its subline truncating. Found 6 Oct 2026.
+        "flex min-w-0 items-start gap-2 rounded-lg border p-3",
         selected && "bg-muted"
       )}
     >

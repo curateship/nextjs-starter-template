@@ -120,7 +120,14 @@ export function FindsPanel({
     <DashboardTable
       // No card of its own: the panel around it is the card, and a surface
       // inside one would draw a second border a pixel in from the first.
-      className="min-h-0 border-0 bg-transparent shadow-none"
+      //
+      // The toolbar's top, bottom and right padding drops from 16px to 12px,
+      // so the tabs sit the same distance from all three edges and the header
+      // is 56px: the column headings' top line then lands on the same pixel
+      // row as the 57px headers of the panels either side (56 plus their 1px
+      // border). Set here rather than in the shell's toolbar, which every
+      // other table shares.
+      className="min-h-0 border-0 bg-transparent shadow-none [&>div:first-child]:py-3 [&>div:first-child]:pr-3"
       fillHeight
       title={keywordTerm ? `"${keywordTerm}"` : "Posts worth answering"}
       count={shown.length}
@@ -214,8 +221,14 @@ export function FindsPanel({
                   // A line down the left edge rather than a fill, so the chosen
                   // row reads as chosen at a glance without the whole row
                   // changing colour and fighting the band headings above it.
-                  "border-l-2 border-l-transparent",
-                  find.id === selectedId && "border-l-foreground bg-muted"
+                  //
+                  // Drawn inside the first cell, not as the row's border. A
+                  // row's border in this table sits outside its cells, so when
+                  // the chosen row scrolled up under the sticky column
+                  // headings the headings covered the cells and left the black
+                  // border showing beside them. Found 6 Oct 2026.
+                  find.id === selectedId &&
+                    "bg-muted [&>td:first-child]:shadow-[inset_2px_0_0_var(--foreground)]"
                 )}
               >
                 <TableCell column="select">

@@ -1,8 +1,12 @@
 # The isolated browser
 
-Everything the app does on Reddit happens inside one real browser running in a
+Everything the app does on Reddit happens inside a real browser running in a
 container, routed through a proxy, with its own fingerprint and its own cookies.
 It is not an extra: Reddit does not answer anything else.
+
+Which proxy, which fingerprint and which cookies is a browser profile's
+business, not the Reddit account's. [Browser profiles](profiles.md) explains
+that record.
 
 ## What it is
 
@@ -18,14 +22,19 @@ human, and promo's has to take instructions.
 ## How code drives it
 
 The container runs a small server on a port bound to this machine only, and it
-accepts four named instructions and nothing else:
+accepts five named instructions and nothing else:
 
-- **what it can see** — signed in as whom, and whether a challenge is in the way
+- **what it can see** — signed in as whom, and whether a challenge is in the way.
+  Goes to Reddit's front page to find out.
+- **a quick look** — the same two answers without moving the page. It reads
+  Reddit's own "who am I" with the page's cookies and looks at what is already
+  on screen. If the page is not on Reddit it says it could not tell, rather than
+  "signed out".
 - **search** — a keyword, and the posts come back as data
 - **thread** — a post, and its replies come back
 - **comment** — a post and some words, and the new comment's address comes back
 
-Four named instructions rather than a general way to drive a browser. The page
+Named instructions rather than a general way to drive a browser. The page
 knowledge lives in one Python file beside the browser, so when Reddit redesigns
 the fix is in one file. Everything else, the queue, the order, the drafting and
 the database, stays in TypeScript.
@@ -46,30 +55,45 @@ steady, so it is the fallback, and a search says which of the two answered.
 
 ## Signing in happens once
 
-Open the browser in Settings, sign in to Reddit in the window it streams, and the
-cookies land in that account's own storage, which outlives every restart of the
-container. It is not asked again.
+Open the profile's browser on the Browser profiles dashboard and the browser
+shows inside the app, in a large window over the list. Turn on the switch under
+the picture to take control, sign in to Reddit, and the cookies land in the
+profile's own storage, which outlives every restart of the container. It is not
+asked again. Then press **Check who is signed in**, so the Reddit dashboard
+knows the name. [The Browser profiles dashboard](profiles-dashboard.md) has the
+details.
 
-**The window asks for a name and a password.** Any name will do. The password is
-shown on the Settings screen beside the link, is new every time the browser is
-opened, is held in the app's memory and nowhere else, and only works on this
-computer. Without it the window cannot be opened at all, which is why it is
-shown rather than kept.
+**Pressing Open does not open anything itself.** It writes an `open` job, and the
+browser program opens the browser. The window says what it is waiting for until
+the browser answers: the browser program to pick the job up, then the container.
+
+**Nobody types the window's password.** The stream asks for a name and a password
+before it shows anything, and Neko's own page reads both from `?usr=` and `?pwd=`
+in its address. The window is handed that address. The password is new every
+time the browser opens, only works on this computer, and is stored on the
+session row encrypted with the shell's `encryptSecret`, because the dashboard is
+not the program that opened the browser.
 
 **A cold start takes a while.** The image has to come up, Neko has to bring up a
 display, and Camoufox has to launch a patched Firefox on it: between 30 and 90
-seconds on a Mac. The browser counts as ready when it answers, not when Reddit
-has finished loading, so the window's address appears as soon as there is a
-window to watch.
+seconds on a Mac, and 14 seconds once the image is warm. The browser counts as
+ready when it answers, not when Reddit has finished loading.
 
 The same window is where a captcha gets cleared. When Reddit shows one mid-search
-the job stops, the post keeps the status it had, and the screen hands over the
-link to the window rather than retrying.
+the job stops, the post keeps the status it had, and the Reddit dashboard links
+to the profile on the Browser profiles dashboard rather than retrying.
 
 ## The proxy
 
 Optional, and the thing to set before posting regularly. Without one, Reddit sees
-this computer's own address.
+this computer's own address. A profile picks its proxy on the Browser profiles
+dashboard, and proxies are added, tested and deleted on the
+[Proxies dashboard](proxies-dashboard.md).
+
+**A browser never opens behind a dead proxy.** When a profile's proxy failed its
+last test, opening is refused at once with the proxy's name: "The proxy
+US-residential-3 failed its last test at 14:02. Test it on the Proxies
+dashboard." Before, it waited five minutes and blamed the browser.
 
 Testing a proxy sends one request through it to a service that echoes back what
 the far end saw: the address, the country, the city, the network and the clock.
@@ -81,15 +105,50 @@ Otherwise a proxy row would be a way to make the server fetch its own
 neighbours.
 
 The password is encrypted where it is stored and never comes back out to a
-browser. The only thing that ever decrypts it is the code starting the container.
+browser. The only things that ever decrypt it are the code starting the
+container and the proxy test.
 
-## One browser per account, and it gets shut down
+## Who is signed in, without asking the browser
 
-One live browser per account, held to one by the database rather than by hoping.
-A second container opening the same cookie storage would corrupt it.
+After every job, the browser program takes the quick look and writes down what
+it saw on the Reddit account: the signed-in name, whether Reddit is asking the
+browser something, what, and when that was read. A job that failed still gets
+the look, because a failed search is often a sign-out or a captcha.
 
-A browser nobody has used for an hour is shut down, because an idle one still
-holds about 1.5GB of memory. The cookies stay; only the container goes.
+The Reddit dashboard and Settings read those saved answers and never ask a
+browser. They used to, and the question sent the page to Reddit's front page.
+The Reddit dashboard asks every two seconds while a search runs, so a sign-in
+form being typed into in the window was replaced every two seconds.
+
+The look that moves the page runs only for a `check` job, which is the **Check
+who is signed in** button.
+
+## One browser per profile, closed gently
+
+One live browser per browser profile, held to one by the database rather than by
+hoping. A second container opening the same cookie storage would corrupt it.
+
+**Closing asks first.** The browser is asked to stop and given ten seconds,
+then removed, the way anti-detect does it. The launcher answers the ask by
+closing Firefox properly, because Firefox writes cookies to disk on a delay and
+a browser removed seconds after a sign-in could lose the sign-in. The cookies
+stay; only the container goes.
+
+**An idle one is closed.** A browser nobody has used for an hour is shut down,
+because an idle one still holds about 1.5GB of memory.
+
+**A dead one is noticed.** Every pass of the shell's ticker asks Docker whether
+each browser marked running still is. One that stopped on its own, or was
+removed by hand, is marked `error` with the reason and the time. The next job
+opens a fresh one instead of failing three times against a port nothing
+answers on.
+
+**A leftover one is removed.** Every promo browser carries promo's label and the
+id of its session row. On the same pass, any container no live row claims is
+closed and removed, keeping its volume. Several worktrees share this Mac's
+Docker, each with its own promo database, so a container also carries a mark
+made from its database's address, and only containers with this database's
+mark are ever touched.
 
 ## Why it runs in its own process
 
@@ -103,5 +162,16 @@ the browser process picks it up. Two copies of that process are safe: a job is
 claimed before any work starts, and a claim that goes stale is handed back after
 five minutes and given up after three tries.
 
+**It is the only program that opens, drives or closes a browser.** The command
+key a browser is started with lives in that program's memory and nowhere else.
+When Settings opened browsers from the site, the site and the browser program
+each held keys the other did not, and each closed any browser it had no key
+for. Signing in from Settings and then pressing Search closed the browser that
+had just been signed in. Now open, close and check are jobs like a search.
+
+A restart of the browser program loses its keys. On the next job it closes the
+browser it can no longer talk to and opens a fresh one on the same cookies.
+With one owner there is no other program's browser to close by mistake.
+
 The shared loop keeps only the quick jobs: re-testing a proxy every ten minutes,
-and shutting down an idle browser.
+and the three browser checks above, none of which needs a key.

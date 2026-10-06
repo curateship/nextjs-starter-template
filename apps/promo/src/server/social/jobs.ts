@@ -1,4 +1,4 @@
-import { and, eq, sql } from "drizzle-orm"
+import { and, desc, eq, inArray, sql } from "drizzle-orm"
 
 import { uuid } from "@/server/auth/security"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
@@ -227,3 +227,52 @@ export async function jobCounts(
 }
 
 export const JOB_MAX_ATTEMPTS = MAX_ATTEMPTS
+
+/**
+ * Why the newest job of this kind for a profile failed, or null when it did
+ * not. Only a failure newer than `since` counts, so a browser that has opened
+ * since is not shown an old refusal.
+ */
+export async function lastFailedProfileJob(
+  userId: string,
+  kind: JobKind,
+  profileId: string,
+  since: Date | null,
+  db: CustomShellDb = defaultDb
+): Promise<string | null> {
+  const [row] = await db
+    .select({ status: promoJobs.status, lastError: promoJobs.lastError, finishedAt: promoJobs.finishedAt })
+    .from(promoJobs)
+    .where(
+      and(
+        eq(promoJobs.userId, userId),
+        eq(promoJobs.kind, kind),
+        sql`${promoJobs.payload}->>'profileId' = ${profileId}`
+      )
+    )
+    .orderBy(desc(promoJobs.createdAt))
+    .limit(1)
+  if (!row || row.status !== "failed" || !row.lastError) return null
+  if (since && row.finishedAt && row.finishedAt < since) return null
+  return row.lastError
+}
+
+/** The open, close and check jobs waiting or running, by profile. */
+export async function pendingProfileJobs(
+  userId: string,
+  db: CustomShellDb = defaultDb
+): Promise<Array<{ kind: JobKind; profileId: string }>> {
+  const rows = await db
+    .select({ kind: promoJobs.kind, payload: promoJobs.payload })
+    .from(promoJobs)
+    .where(
+      and(
+        eq(promoJobs.userId, userId),
+        inArray(promoJobs.status, ["queued", "running"]),
+        inArray(promoJobs.kind, ["open", "close", "check"])
+      )
+    )
+  return rows
+    .map((row) => ({ kind: row.kind, profileId: String(row.payload?.profileId ?? "") }))
+    .filter((row) => row.profileId)
+}

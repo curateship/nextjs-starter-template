@@ -28,13 +28,41 @@ export const FIND_STATUSES = [
 ] as const
 export type FindStatus = (typeof FIND_STATUSES)[number]
 
-/** The kinds of work the browser process does. */
-export type JobKind = "search" | "thread" | "comment"
+/**
+ * The kinds of work the browser process does.
+ *
+ * `open`, `close` and `check` exist because the browser program is the only
+ * thing that ever starts, stops or drives a browser. A dashboard that wants a
+ * browser open writes an `open` job and reads the session row, rather than
+ * starting one itself and leaving the browser program without the key to it.
+ */
+export type JobKind = "search" | "thread" | "comment" | "open" | "close" | "check"
+
+/**
+ * What every Reddit job and the settings tab say when the account's browser
+ * profile is gone. Here rather than beside the code that throws it, because
+ * the settings tab's error lookup needs the same words at runtime.
+ */
+export const NO_PROFILE_MESSAGE =
+  "This Reddit account has no browser profile. Pick one in Settings."
 
 export const PROXY_PROTOCOLS = ["http", "https", "socks5"] as const
 export type ProxyProtocol = (typeof PROXY_PROTOCOLS)[number]
 
+/** What kind of line a proxy is. Residential is the default. */
+export const PROXY_KINDS = ["residential", "mobile", "datacenter"] as const
+export type ProxyKind = (typeof PROXY_KINDS)[number]
+
 export type SessionStatus = "starting" | "running" | "stopped" | "error"
+
+/**
+ * How a browser's run ended: closed by a person, shut for being idle, found
+ * dead, failed to start, or replaced after the browser program restarted.
+ */
+export type SessionEndedBy = "closed" | "idle" | "dead" | "failed" | "replaced"
+
+/** What the history in a profile's window records besides its runs. */
+export type ProfileEventKind = "proxy_changed" | "browser_dead" | "proxy_refused"
 export type SearchStatus = "running" | "done" | "failed"
 export type DraftStatus = "draft" | "sent" | "discarded"
 export type JobStatus = "queued" | "running" | "done" | "failed"

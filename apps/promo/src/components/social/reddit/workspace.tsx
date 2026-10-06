@@ -362,6 +362,7 @@ export function RedditWorkspace({
       loading={detailLoading}
       working={working}
       disabledReason={postingBlockedReason(status, detail)}
+      voiceName={status.voice?.name ?? null}
       onRead={async (findId: string) => {
         try {
           await readThread(findId)
@@ -442,7 +443,9 @@ export function RedditWorkspace({
           panelRef={keywordsPanelRef}
           collapsible
           collapsedSize="0%"
-          defaultSize="19%"
+          // Opens at its narrowest, so the posts get the room. Tyler, 6 Oct
+          // 2026: each side panel's default is its minimum width.
+          defaultSize="15%"
           minSize="15%"
           maxSize="32%"
           onResize={(size) => setKeywordsCollapsed(size.asPercentage < 0.5)}
@@ -458,7 +461,7 @@ export function RedditWorkspace({
 
         <ResizableHandle gap collapsed={keywordsCollapsed} />
 
-        <ResizablePanel id="finds" defaultSize="47%" minSize="30%">
+        <ResizablePanel id="finds" defaultSize="61%" minSize="30%">
           <WorkspacePanel className="relative flex flex-col">
             {findsPanel}
             {keywordsCollapsed ? (
@@ -485,7 +488,7 @@ export function RedditWorkspace({
           panelRef={answerPanelRef}
           collapsible
           collapsedSize="0%"
-          defaultSize="34%"
+          defaultSize="24%"
           minSize="24%"
           maxSize="50%"
           onResize={(size) => setAnswerCollapsed(size.asPercentage < 0.5)}

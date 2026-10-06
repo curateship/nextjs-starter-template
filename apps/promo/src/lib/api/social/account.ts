@@ -2,211 +2,100 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import { adminGet, adminPost } from "@/server/guards"
+import { listProfiles } from "@/server/browser/profiles"
 import {
+  accountsByProfile,
   readAccount,
+  readBrowserStatus,
   saveAccount,
-  testAccountProxy,
   type AccountView,
+  type BrowserStatus,
 } from "@/server/social/accounts"
-import { findLiveSession, stopSession } from "@/server/browser/session"
-import { redditState } from "@/server/browser/command"
-import { jobCounts, type JobCounts } from "@/server/social/jobs"
-import type { ProxyTestResult } from "@/lib/social/options"
+import { listVoices } from "@/server/social/voices"
 
 import { createErrorMessage } from "../error-message"
 
+export type { AccountView, BrowserStatus }
+
 /**
- * The Reddit account settings tab, and the browser behind it.
+ * The Reddit account settings tab: which browser profile the account signs in
+ * inside, and which voice it drafts with.
  *
- * Signing in happens by hand, once: this hands over the address of the live
- * browser's video stream and a person signs in there. The cookies land in the
- * container's own volume and outlive every restart, so it is not asked again.
+ * The browser itself is on the Browser profiles dashboard and the words are on
+ * the Voices dashboard. Nothing here starts, stops or drives a browser.
  */
 
 export const getAccountErrorMessage = createErrorMessage(
   {
-    "no proxy saved": "There is no proxy saved to test.",
-    "has to be a number": "A proxy port has to be a number between 1 and 65535.",
-    "needs a host": "A proxy needs a host.",
-    "resolve to a public address":
-      "That proxy host points back inside the network, so it was refused.",
+    "already has a Reddit account": "That profile already has a Reddit account in it. Pick another, or make a new profile.",
+    "browser profile does not exist": "That browser profile is not there any more. Pick another.",
+    "voice does not exist": "That voice is not there any more. Pick another.",
   },
   "That did not work. Please try again."
 )
 
-const proxyInput = z
-  .object({
-    label: z.string().trim().max(120).default(""),
-    protocol: z.enum(["http", "https", "socks5"]),
-    host: z.string().trim().min(1).max(255),
-    port: z.number().int().min(1).max(65_535),
-    username: z.string().trim().max(255).default(""),
-    /** Left out entirely to keep whatever password is stored. */
-    password: z.string().max(500).optional(),
-  })
-  .nullable()
-
-const loadAccountFn = createServerFn({ method: "GET" })
-  .middleware([adminGet])
-  .handler(async ({ context }): Promise<AccountView | null> =>
-    readAccount(context.user.id)
-  )
-
-export function loadRedditAccount() {
-  return loadAccountFn()
+export type AccountSettings = {
+  account: AccountView | null
+  /**
+   * The profiles this account could use: every profile with no other Reddit
+   * account in it. One Reddit account per profile, or they sign in over each
+   * other.
+   */
+  profiles: Array<{ id: string; name: string }>
+  /** Every voice, since any number of accounts may share one. */
+  voices: Array<{ id: string; name: string }>
 }
 
-const saveAccountFn = createServerFn({ method: "POST" })
+const loadFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .handler(async ({ context }): Promise<AccountSettings> => {
+    const userId = context.user.id
+    const [account, profiles, voices] = await Promise.all([
+      readAccount(userId),
+      listProfiles(userId),
+      listVoices(userId),
+    ])
+    const accounts = await accountsByProfile(userId, profiles.map((profile) => profile.id))
+    return {
+      account,
+      profiles: profiles
+        .filter((profile) =>
+          (accounts.get(profile.id) ?? []).every(
+            (other) => other.platform !== "reddit" || other.id === account?.id
+          )
+        )
+        .map(({ id, name }) => ({ id, name })),
+      voices: voices.map(({ id, name }) => ({ id, name })),
+    }
+  })
+
+export function loadRedditAccount() {
+  return loadFn()
+}
+
+const saveFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(
     z.object({
-      voice: z.string().max(4_000).default(""),
-      product: z.string().max(4_000).default(""),
-      commentRules: z.string().max(4_000).default(""),
-      proxy: proxyInput,
+      profileId: z.string().min(1).nullable(),
+      voiceId: z.string().min(1).nullable(),
     })
   )
-  .handler(async ({ context, data }): Promise<AccountView> =>
-    saveAccount(context.user.id, data)
-  )
+  .handler(async ({ context, data }): Promise<AccountView> => saveAccount(context.user.id, data))
 
-export function saveRedditAccount(data: {
-  voice: string
-  product: string
-  commentRules: string
-  proxy: z.input<typeof proxyInput>
-}) {
-  return saveAccountFn({ data })
-}
-
-const testProxyFn = createServerFn({ method: "POST" })
-  .middleware([adminPost])
-  .handler(async ({ context }): Promise<ProxyTestResult> =>
-    testAccountProxy(context.user.id)
-  )
-
-export function testRedditProxy() {
-  return testProxyFn()
-}
-
-export type BrowserStatus = {
-  /** Null when no browser is open. */
-  streamUrl: string | null
-  /**
-   * What the stream asks for before it shows the window, or null when none is
-   * open. Not a secret worth keeping from the person it belongs to: the stream
-   * is on this machine only, and without the password the window cannot be
-   * opened to sign in to Reddit at all.
-   */
-  streamPassword: string | null
-  /** The Reddit handle the browser is signed in as, or null. */
-  handle: string | null
-  /** True when a challenge or captcha needs a person at the stream. */
-  blocked: boolean
-  reason: string
-  /** What the queue is doing, including which keywords are being searched. */
-  jobs: JobCounts
+export function saveRedditAccount(data: { profileId: string | null; voiceId: string | null }) {
+  return saveFn({ data })
 }
 
 /**
- * What the browser is doing right now.
- *
- * Deliberately does not start one. Starting a browser takes a minute and
- * holds 1.5GB, so it happens when a person asks for it, never because a
- * settings page was opened.
+ * What the Reddit dashboard needs to know about the browser, from the saved
+ * rows. Asks no browser anything, so the dashboard can ask every two seconds
+ * and nothing moves.
  */
 const browserStatusFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
-  .handler(async ({ context }): Promise<BrowserStatus> => {
-    const jobs = await jobCounts(context.user.id)
-    const account = await readAccount(context.user.id)
-    if (!account) {
-      return {
-        streamUrl: null,
-        streamPassword: null,
-        handle: null,
-        blocked: false,
-        reason: "",
-        jobs,
-      }
-    }
-
-    const session = await findLiveSession(account.id)
-    if (!session) {
-      return {
-        streamUrl: null,
-        streamPassword: null,
-        handle: account.handle || null,
-        blocked: false,
-        reason: "",
-        jobs,
-      }
-    }
-
-    try {
-      const state = await redditState(session.target)
-      return {
-        streamUrl: session.streamUrl,
-        streamPassword: session.streamPassword,
-        handle: state.handle,
-        blocked: state.blocked,
-        reason: state.reason,
-        jobs,
-      }
-    } catch (error) {
-      // The browser is open but not answering. That is worth saying as it is,
-      // rather than reporting "signed out" and sending somebody to sign in
-      // again when the real problem is the container.
-      return {
-        streamUrl: session.streamUrl,
-        streamPassword: session.streamPassword,
-        handle: null,
-        blocked: true,
-        reason: error instanceof Error ? error.message : String(error),
-        jobs,
-      }
-    }
-  })
+  .handler(async ({ context }): Promise<BrowserStatus> => readBrowserStatus(context.user.id))
 
 export function loadBrowserStatus() {
   return browserStatusFn()
-}
-
-/**
- * Opens the browser so a person can sign in or clear a captcha.
- *
- * Starting it takes about a minute, so this returns the stream address as soon
- * as the container answers rather than waiting for Reddit to finish painting.
- */
-const openBrowserFn = createServerFn({ method: "POST" })
-  .middleware([adminPost])
-  .handler(
-    async ({
-      context,
-    }): Promise<{ streamUrl: string; streamPassword: string }> => {
-      const account = await readAccount(context.user.id)
-      if (!account) throw new Error("Set up a Reddit account first, in Settings.")
-      const { ensureSession } = await import("@/server/browser/session")
-      const session = await ensureSession(context.user.id, account.id)
-      return {
-        streamUrl: session.streamUrl,
-        streamPassword: session.streamPassword,
-      }
-    }
-  )
-
-export function openBrowser() {
-  return openBrowserFn()
-}
-
-const closeBrowserFn = createServerFn({ method: "POST" })
-  .middleware([adminPost])
-  .handler(async ({ context }): Promise<void> => {
-    const account = await readAccount(context.user.id)
-    if (!account) return
-    await stopSession(account.id)
-  })
-
-export function closeBrowser() {
-  return closeBrowserFn()
 }

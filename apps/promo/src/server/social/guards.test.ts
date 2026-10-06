@@ -12,10 +12,11 @@ import {
   dockerConnection,
 } from "@/server/browser/docker"
 
-import { saveAccount } from "./accounts"
+import { createProxy, importProxies, updateProxy } from "@/server/browser/proxies"
+import { assertPublicProxyHost, testProxyConnection } from "@/server/browser/proxy-probe"
+import { promoProxies } from "@/server/browser/schema"
+
 import { cleanSubreddit, cleanSubreddits } from "./keywords"
-import { promoProxies } from "./schema"
-import { assertPublicProxyHost } from "./proxies"
 
 /**
  * The three checks that stop something bad rather than making something work.
@@ -184,57 +185,37 @@ describe("saving a proxy", () => {
 
   const proxy = {
     label: "",
+    kind: "residential" as const,
     protocol: "http" as const,
     host: "169.254.169.254",
     port: 8080,
     username: "",
   }
 
-  it("refuses a host that points back inside the network", async () => {
+  it("refuses a host that points back inside the network, on save and on edit", async () => {
     // The hole this closes: the guard used to run only when Test was pressed,
-    // so a proxy saved and never tested was handed to the browser container
-    // unchecked.
-    await expect(
-      saveAccount(
-        userId,
-        { voice: "", product: "", commentRules: "", proxy },
-        db
-      )
-    ).rejects.toThrow("public address")
-  })
+    // so a proxy saved and never tested was handed to the browser unchecked.
+    await expect(createProxy(userId, proxy, db)).rejects.toThrow("public address")
 
-  it("stores nothing when the host is refused", async () => {
-    await saveAccount(
-      userId,
-      { voice: "A voice.", product: "", commentRules: "", proxy: null },
-      db
-    ).catch(() => {})
-
-    await expect(
-      saveAccount(
-        userId,
-        { voice: "A voice.", product: "", commentRules: "", proxy },
-        db
-      )
-    ).rejects.toThrow("public address")
-
-    // The refusal comes before the write, so no half-saved proxy is left behind.
-    expect(await db.select().from(promoProxies)).toHaveLength(0)
-  })
-
-  it("saves an ordinary public host", async () => {
-    const saved = await saveAccount(
-      userId,
-      {
-        voice: "",
-        product: "",
-        commentRules: "",
-        proxy: { ...proxy, host: "8.8.8.8", label: "A line" },
-      },
-      db
+    const id = await createProxy(userId, { ...proxy, host: "8.8.8.8" }, db)
+    await expect(updateProxy(userId, id, { ...proxy, host: "127.0.0.1" }, db)).rejects.toThrow(
+      "public address"
     )
-    expect(saved.proxy?.host).toBe("8.8.8.8")
-    // The password is stored encrypted and never handed back.
-    expect(saved.proxy).not.toHaveProperty("password")
+    const [stored] = await db.select().from(promoProxies)
+    expect(stored.host).toBe("8.8.8.8")
+  })
+
+  it("refuses one on import, naming the line", async () => {
+    const result = await importProxies(userId, "127.0.0.1:8080", db)
+    expect(result).toEqual({
+      added: 0,
+      problems: [{ line: 1, reason: "points inside the network" }],
+    })
+  })
+
+  it("refuses one on test, before anything is sent through it", async () => {
+    const result = await testProxyConnection({ protocol: "http", host: "127.0.0.1", port: 8080 })
+    expect(result.ok).toBe(false)
+    expect(result.error).toContain("public address")
   })
 })

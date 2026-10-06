@@ -115,12 +115,28 @@ function getThroughAgent(
       res.on("data", (chunk) => {
         data += chunk
       })
-      res.on("end", () => resolve({ status: res.statusCode ?? 0, body: data }))
+      res.on("end", () => {
+        clearTimeout(deadline)
+        resolve({ status: res.statusCode ?? 0, body: data })
+      })
     })
-    // Node's 'timeout' only fires the event; the socket has to be destroyed here
-    // or the request hangs on past the deadline it just announced.
+    // One deadline for the whole test, connecting included, and it settles
+    // the answer itself. Node's own `timeout` only counts silence on a socket
+    // that already exists, and a request still connecting through the proxy
+    // agent does not report being destroyed, so a proxy that drops the
+    // connection attempt kept a test, and the ticker pass waiting on it,
+    // hanging past a minute. Measured on 5 Oct 2026 against 8.8.4.4:8080,
+    // which answers nothing.
+    const deadline = setTimeout(() => {
+      const error = new Error("The proxy did not answer in time.")
+      reject(error)
+      req.destroy(error)
+    }, timeoutMs)
     req.on("timeout", () => req.destroy(new Error("The proxy did not answer in time.")))
-    req.on("error", reject)
+    req.on("error", (error) => {
+      clearTimeout(deadline)
+      reject(error)
+    })
     req.end()
   })
 }

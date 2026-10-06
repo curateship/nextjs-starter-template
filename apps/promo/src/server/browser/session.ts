@@ -1,35 +1,44 @@
-import { randomBytes } from "node:crypto"
+import { createHash, randomBytes } from "node:crypto"
 
-import { and, eq, inArray, lt } from "drizzle-orm"
+import { and, desc, eq, inArray, lt } from "drizzle-orm"
 
-import { decryptSecret } from "@/server/auth/encryption"
+import { decryptSecret, encryptSecret } from "@/server/auth/encryption"
 import { uuid } from "@/server/auth/security"
+import { getDatabaseUrl } from "@/server/database-url"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
-import {
-  promoAccounts,
-  promoBrowserSessions,
-  promoProxies,
-} from "@/server/social/schema"
+
+import type { SessionEndedBy } from "@/lib/social/options"
 
 import { browserHealth, type CommandTarget } from "./command"
 import {
+  DockerRequestError,
   dockerConnection,
   dockerCreateOptions,
   dockerRequest,
   publicDockerError,
+  type DockerConnection,
 } from "./docker"
+import { recordProfileEvent } from "./events"
+import { Refusal } from "./refusal"
+import { deadProxyMessage } from "./proxies"
+import { promoBrowserSessions, promoProfiles, promoProxies } from "./schema"
 
 /**
- * Starting, stopping and reaping the one isolated browser an account uses.
+ * Starting, stopping and watching the isolated browser a profile uses.
  *
  * The shape follows anti-detect's orchestrator, with the parts promo does not
  * need left out: no node inventory, no capacity reservations, no per-user
- * concurrency cap. Promo runs one account at a time on one machine, and the
- * database's own unique indexes are the whole lock.
+ * concurrency cap. The database's own unique indexes are the whole lock.
  *
- * Cookies live in a Docker volume named after the account, so signing in by
- * hand once outlives every container. That is the only state that matters:
- * a container can be thrown away at any time.
+ * Cookies live in the profile's Docker volume, so signing in by hand once
+ * outlives every container. That is the only state that matters: a container
+ * can be thrown away at any time.
+ *
+ * **Who calls what.** Only the browser program (`worker/src/social-browser.ts`)
+ * starts a browser or drives one, because only it holds the command key. The
+ * shell's ticker calls the three housekeeping steps at the bottom, which ask
+ * Docker and need no key. A dashboard calls nothing in this file except the
+ * read that turns a session row into the window's address and password.
  */
 
 const IMAGE = process.env.PROMO_BROWSER_IMAGE?.trim() || "promo-browser:latest"
@@ -40,6 +49,23 @@ const IMAGE = process.env.PROMO_BROWSER_IMAGE?.trim() || "promo-browser:latest"
  * is loopback and changing it has to be deliberate.
  */
 const BIND_HOST = process.env.PROMO_BROWSER_BIND_HOST?.trim() || "127.0.0.1"
+
+/** Every promo browser container carries this, and the orphan sweep reads it. */
+const APP_LABEL = "com.systemeverything.app"
+const SESSION_LABEL = "com.systemeverything.session-id"
+
+/**
+ * Which database a container belongs to. Several worktrees share one Docker on
+ * this Mac, each with its own promo database, so a container that no row in
+ * *this* database claims may still belong to another one. The orphan sweep
+ * only ever removes containers carrying this database's mark.
+ *
+ * A hash of the address rather than the address, because the address holds
+ * the database password and labels are readable by anything that can list
+ * containers.
+ */
+const OWNER_LABEL = "com.systemeverything.promo-owner"
+const OWNER = createHash("sha256").update(getDatabaseUrl()).digest("hex").slice(0, 16)
 
 /** Where the three published ports are picked from. */
 const COMMAND_PORT_BASE = 7900
@@ -53,6 +79,15 @@ const PORT_ATTEMPTS = 40
 const IDLE_MINUTES = 60
 
 /**
+ * How long a browser gets to close itself before Docker removes it.
+ *
+ * Firefox writes cookies to disk on a delay, so removing a container seconds
+ * after a sign-in could lose the sign-in. Anti-detect asks first and waits ten
+ * seconds; this copies it. The launcher closes Firefox properly on the signal.
+ */
+const STOP_GRACE_SECONDS = 10
+
+/**
  * How long to wait for the container's command server to answer.
  *
  * Generous because it is a cold start: the image has to come up, Neko has to
@@ -63,113 +98,126 @@ const IDLE_MINUTES = 60
 const READY_TIMEOUT_MS = 300_000
 const READY_POLL_MS = 3_000
 
+const LIVE_STATUSES = ["starting", "running"] as const
+
 export type LiveSession = {
   id: string
-  accountId: string
-  commandPort: number
-  streamPort: number
-  /** Where a person watches and takes over. */
-  streamUrl: string
-  /**
-   * What the stream asks for before it lets anybody watch.
-   *
-   * Handed back rather than kept secret: Neko runs in multiuser mode and asks
-   * for a password, so a password nobody can read is a window nobody can open
-   * — and opening that window is the only way to sign in to Reddit in the
-   * first place.
-   */
-  streamPassword: string
+  profileId: string
   target: CommandTarget
 }
 
 /**
- * The secrets a session was started with, kept in this process only.
+ * The command keys of the browsers this process started, kept in memory only.
  *
- * Deliberately not database columns. The command token is what lets anything
- * drive a signed-in Reddit account, and a row is read by more code than this
- * file. A restarted server loses them and reaps the container it can no longer
- * talk to, which is the right trade: a stale container is cheap to replace and
- * a leaked token is not.
+ * Deliberately not a database column. The key is what lets anything drive a
+ * signed-in account, and a row is read by more code than this file. A restart
+ * loses them, and the browser program then closes the browser it can no
+ * longer talk to and opens a fresh one on the next job. With one program
+ * owning every browser that is safe: there is no other program's browser to
+ * close by mistake.
  */
-const sessionSecrets = new Map<
-  string,
-  { token: string; streamPassword: string }
->()
+const commandKeys = new Map<string, string>()
 
-/** The live session for an account, or null. Never starts one. */
-export async function findLiveSession(
-  accountId: string,
+/** The window a person watches, from a session row. Never starts anything. */
+export function streamWindow(row: {
+  streamPort: number | null
+  streamPasswordEncrypted: string
+}): { streamUrl: string; streamPassword: string } | null {
+  if (!row.streamPort || !row.streamPasswordEncrypted) return null
+  return {
+    streamUrl: `http://${BIND_HOST}:${row.streamPort}/`,
+    streamPassword: decryptSecret(row.streamPasswordEncrypted),
+  }
+}
+
+/** The live session row for a profile, or null. Never starts one. */
+export async function liveSessionRow(
+  profileId: string,
   db: CustomShellDb = defaultDb
-): Promise<LiveSession | null> {
+) {
   const [row] = await db
     .select()
     .from(promoBrowserSessions)
     .where(
       and(
-        eq(promoBrowserSessions.accountId, accountId),
-        inArray(promoBrowserSessions.status, ["starting", "running"])
+        eq(promoBrowserSessions.profileId, profileId),
+        inArray(promoBrowserSessions.status, [...LIVE_STATUSES])
       )
     )
     .limit(1)
+  return row ?? null
+}
 
-  if (!row || !row.commandPort || !row.streamPort) return null
-  const secrets = sessionSecrets.get(row.id)
-  if (!secrets) {
-    // This process did not start it, so it cannot talk to it. Saying so is
-    // better than handing back a session every command will refuse.
-    return null
-  }
+/** When the profile's newest browser run started, or null if it never has. */
+export async function lastRunStartedAt(
+  profileId: string,
+  db: CustomShellDb = defaultDb
+): Promise<Date | null> {
+  const [row] = await db
+    .select({ startedAt: promoBrowserSessions.startedAt })
+    .from(promoBrowserSessions)
+    .where(eq(promoBrowserSessions.profileId, profileId))
+    .orderBy(desc(promoBrowserSessions.startedAt))
+    .limit(1)
+  return row?.startedAt ?? null
+}
+
+/** The live session this process can drive, or null. Never starts one. */
+async function findLiveSession(
+  profileId: string,
+  db: CustomShellDb = defaultDb
+): Promise<LiveSession | null> {
+  const row = await liveSessionRow(profileId, db)
+  if (!row || row.status !== "running" || !row.commandPort) return null
+
+  const token = commandKeys.get(row.id)
+  // This process did not start it, so it cannot talk to it. Saying so is
+  // better than handing back a session every command will refuse.
+  if (!token) return null
 
   return {
     id: row.id,
-    accountId: row.accountId,
-    commandPort: row.commandPort,
-    streamPort: row.streamPort,
-    streamUrl: `http://${BIND_HOST}:${row.streamPort}/`,
-    streamPassword: secrets.streamPassword,
-    target: { port: row.commandPort, token: secrets.token },
+    profileId: row.profileId,
+    target: { port: row.commandPort, token },
   }
 }
 
 /**
- * The live session for an account, started if there is not one.
+ * The profile's live browser, started if there is not one.
  *
  * Two callers racing both try to insert, and the partial unique index on the
- * account means one of them loses. The loser reads the winner's row rather
- * than starting a second container on the same cookie volume, which would
- * corrupt the profile.
+ * profile means one of them loses. The loser never starts a second container
+ * on the same cookie volume, which would corrupt it.
  */
 export async function ensureSession(
   userId: string,
-  accountId: string,
+  profileId: string,
   db: CustomShellDb = defaultDb
 ): Promise<LiveSession> {
-  const existing = await findLiveSession(accountId, db)
+  const existing = await findLiveSession(profileId, db)
   if (existing) return existing
 
-  // A row says this account has a live browser but this process has no token
-  // for it, so it cannot be driven and it is holding the account's one
-  // session. That happens on every restart, because tokens live in memory on
-  // purpose. Shut it down and take its place: a stale container is cheap to
-  // replace, and leaving it there means every later start fails on the unique
-  // index with a message about ports that has nothing to do with the problem.
-  await stopUnreachableSession(accountId, db)
+  // A row says this profile has a live browser but this process holds no key
+  // for it, so it cannot be driven and it is holding the profile's one
+  // browser. That happens after every restart of the browser program, because
+  // keys live in memory on purpose. Close it and take its place.
+  await stopUnreachableSession(profileId, db)
 
-  const [account] = await db
+  const [profile] = await db
     .select()
-    .from(promoAccounts)
-    .where(and(eq(promoAccounts.id, accountId), eq(promoAccounts.userId, userId)))
+    .from(promoProfiles)
+    .where(and(eq(promoProfiles.id, profileId), eq(promoProfiles.userId, userId)))
     .limit(1)
-  if (!account) throw new Error("That account does not exist.")
+  if (!profile) throw new Refusal("That browser profile does not exist.")
 
-  const proxy = account.proxyId
+  const proxy = profile.proxyId
     ? (
         await db
           .select()
           .from(promoProxies)
           .where(
             and(
-              eq(promoProxies.id, account.proxyId),
+              eq(promoProxies.id, profile.proxyId),
               eq(promoProxies.userId, userId)
             )
           )
@@ -177,24 +225,43 @@ export async function ensureSession(
       )[0] ?? null
     : null
 
+  // Never behind a proxy whose last test failed. Otherwise the open waits five
+  // minutes and then blames the browser, which sends a person to Docker when
+  // the fix is on the Proxies dashboard.
+  const refusal = proxy ? deadProxyMessage(proxy) : null
+  if (refusal) {
+    await recordProfileEvent(userId, profileId, "proxy_refused", refusal, db)
+    throw new Refusal(refusal)
+  }
+
   const sessionId = uuid()
   const token = randomBytes(32).toString("hex")
   const streamPassword = randomBytes(9).toString("base64url")
-  const volumeName = `promo-profile-${accountId}`
-  const containerName = `promo-reddit-${sessionId.slice(0, 8)}`
+  const containerName = `promo-browser-${sessionId.slice(0, 8)}`
 
   // Claiming the ports IS the insert. A port already taken by a live session
   // loses on the unique index, so the next one is tried instead of two
   // containers fighting over one port.
-  const claimed = await claimPorts(sessionId, userId, accountId, db)
+  const claimed = await claimPorts(
+    {
+      id: sessionId,
+      userId,
+      profileId,
+      volumeName: profile.volumeName,
+      streamPasswordEncrypted: encryptSecret(streamPassword),
+      proxyId: proxy?.id ?? null,
+      exitCountry: proxy?.lastTestResult?.country?.slice(0, 2).toUpperCase() || proxy?.country || "",
+    },
+    db
+  )
 
   const connection = dockerConnection()
   let containerId = ""
 
   try {
     await dockerRequest(connection, "POST", "/volumes/create", {
-      Name: volumeName,
-      Labels: { "com.systemeverything.app": "promo" },
+      Name: profile.volumeName,
+      Labels: { [APP_LABEL]: "promo" },
     })
 
     const created = await dockerRequest<{ Id?: string; id?: string }>(
@@ -204,13 +271,14 @@ export async function ensureSession(
       dockerCreateOptions({
         image: IMAGE,
         name: containerName,
-        env: containerEnv(account, proxy, token, streamPassword, claimed),
+        env: containerEnv(profile, proxy, token, streamPassword, claimed),
         labels: {
-          "com.systemeverything.app": "promo",
-          "com.systemeverything.account-id": accountId,
-          "com.systemeverything.session-id": sessionId,
+          [APP_LABEL]: "promo",
+          [OWNER_LABEL]: OWNER,
+          "com.systemeverything.profile-id": profileId,
+          [SESSION_LABEL]: sessionId,
         },
-        volumeName,
+        volumeName: profile.volumeName,
         bindHost: BIND_HOST,
         commandPort: claimed.commandPort,
         streamPort: claimed.streamPort,
@@ -224,10 +292,10 @@ export async function ensureSession(
 
     await db
       .update(promoBrowserSessions)
-      .set({ containerId, volumeName })
+      .set({ containerId })
       .where(eq(promoBrowserSessions.id, sessionId))
 
-    sessionSecrets.set(sessionId, { token, streamPassword })
+    commandKeys.set(sessionId, token)
 
     await waitUntilReady({ port: claimed.commandPort, token })
 
@@ -238,30 +306,22 @@ export async function ensureSession(
 
     return {
       id: sessionId,
-      accountId,
-      commandPort: claimed.commandPort,
-      streamPort: claimed.streamPort,
-      streamUrl: `http://${BIND_HOST}:${claimed.streamPort}/`,
-      streamPassword,
+      profileId,
       target: { port: claimed.commandPort, token },
     }
   } catch (error) {
     // A half-started session must not hold its ports or look live, or the next
     // attempt loses the unique index to a container that is not there.
-    sessionSecrets.delete(sessionId)
+    commandKeys.delete(sessionId)
     const message = error instanceof Error ? error.message : String(error)
     await db
       .update(promoBrowserSessions)
-      .set({ status: "error", lastError: message, endedAt: new Date() })
+      .set({ status: "error", endedBy: "failed", lastError: message, endedAt: new Date() })
       .where(eq(promoBrowserSessions.id, sessionId))
 
     if (containerId) {
       try {
-        await dockerRequest(
-          connection,
-          "DELETE",
-          `/containers/${containerId}?force=true&v=false`
-        )
+        await removeContainer(connection, containerId)
       } catch (removal) {
         // The container is wedged. Say so loudly; the row is already marked
         // failed, so this never hides the original problem.
@@ -272,100 +332,245 @@ export async function ensureSession(
   }
 }
 
-/**
- * Shuts down a live session this process cannot talk to.
- *
- * Only ever the ones with no token here, so a second worker's healthy session
- * is never taken away: it has its own token and its own process, and this one
- * has no business closing it.
- */
+/** Closes a live browser this process cannot talk to. */
 async function stopUnreachableSession(
-  accountId: string,
+  profileId: string,
   db: CustomShellDb
 ): Promise<void> {
-  const [row] = await db
-    .select()
-    .from(promoBrowserSessions)
-    .where(
-      and(
-        eq(promoBrowserSessions.accountId, accountId),
-        inArray(promoBrowserSessions.status, ["starting", "running"])
-      )
-    )
-    .limit(1)
-  if (!row || sessionSecrets.has(row.id)) return
+  const row = await liveSessionRow(profileId, db)
+  if (!row || commandKeys.has(row.id)) return
 
   console.log(
     `Browser session ${row.id} was left behind by an earlier run; shutting it down`
   )
-  await stopSession(accountId, db)
+  await stopSession(profileId, db, "replaced")
 }
 
-/** Stops the container and keeps the cookie volume. */
+/**
+ * Closes the profile's browser and keeps its cookie volume.
+ *
+ * Asked to stop first, with ten seconds to save its cookies, then removed.
+ */
 export async function stopSession(
-  accountId: string,
-  db: CustomShellDb = defaultDb
+  profileId: string,
+  db: CustomShellDb = defaultDb,
+  endedBy: SessionEndedBy = "closed"
 ): Promise<void> {
-  const [row] = await db
-    .select()
-    .from(promoBrowserSessions)
-    .where(
-      and(
-        eq(promoBrowserSessions.accountId, accountId),
-        inArray(promoBrowserSessions.status, ["starting", "running"])
-      )
-    )
-    .limit(1)
+  const row = await liveSessionRow(profileId, db)
   if (!row) return
 
-  // Marked stopped first. If Docker then refuses, the row does not keep an
-  // account locked out of ever opening a browser again, and the orphan
-  // container shows up in the log.
+  // Marked stopped first. If Docker then refuses, the row does not keep a
+  // profile locked out of ever opening a browser again, and the leftover
+  // container is removed by the orphan sweep on the next ticker pass.
   await db
     .update(promoBrowserSessions)
-    .set({ status: "stopped", endedAt: new Date() })
+    .set({ status: "stopped", endedBy, endedAt: new Date() })
     .where(eq(promoBrowserSessions.id, row.id))
-  sessionSecrets.delete(row.id)
+  commandKeys.delete(row.id)
 
   if (!row.containerId) return
   try {
-    const connection = dockerConnection()
-    await dockerRequest(
-      connection,
-      "DELETE",
-      // `v=false` is the whole point: the profile volume holding the Reddit
-      // cookies outlives the container, so signing in by hand happens once.
-      `/containers/${row.containerId}?force=true&v=false`
-    )
+    await closeContainer(dockerConnection(), row.containerId)
   } catch (error) {
     console.error("A browser container could not be stopped", error)
   }
 }
 
 /**
+ * Asks a container to stop, waits for it, then removes it.
+ *
+ * `v=false` on the removal is the whole point: the profile volume holding the
+ * cookies outlives the container, so signing in by hand happens once.
+ */
+async function closeContainer(
+  connection: DockerConnection,
+  containerId: string
+): Promise<void> {
+  try {
+    await dockerRequest(
+      connection,
+      "POST",
+      `/containers/${encodeURIComponent(containerId)}/stop?t=${STOP_GRACE_SECONDS}`
+    )
+  } catch (error) {
+    // Already gone, or already stopped, is not a reason to skip the removal.
+    if (!(error instanceof DockerRequestError) || error.status >= 500) throw error
+  }
+  await removeContainer(connection, containerId)
+}
+
+async function removeContainer(
+  connection: DockerConnection,
+  containerId: string
+): Promise<void> {
+  try {
+    await dockerRequest(
+      connection,
+      "DELETE",
+      `/containers/${encodeURIComponent(containerId)}?force=true&v=false`
+    )
+  } catch (error) {
+    if (error instanceof DockerRequestError && error.status === 404) return
+    throw error
+  }
+}
+
+/**
  * Shuts down a browser nobody has used for an hour.
  *
- * Runs on the shell's ticker, which is right for this: it is a read and at
- * most one Docker call, not the slow browser work.
+ * Runs on the shell's ticker, which is right for this: it is a read and a
+ * Docker call per idle browser, not browser work, and it needs no key.
  */
 export async function reapIdleSessions(
   db: CustomShellDb = defaultDb
 ): Promise<number> {
   const cutoff = new Date(Date.now() - IDLE_MINUTES * 60_000)
   const stale = await db
-    .select({ accountId: promoBrowserSessions.accountId })
+    .select({ profileId: promoBrowserSessions.profileId })
     .from(promoBrowserSessions)
     .where(
       and(
-        inArray(promoBrowserSessions.status, ["starting", "running"]),
+        inArray(promoBrowserSessions.status, [...LIVE_STATUSES]),
         lt(promoBrowserSessions.lastActivityAt, cutoff)
       )
     )
 
   for (const row of stale) {
-    await stopSession(row.accountId, db)
+    await stopSession(row.profileId, db, "idle")
   }
   return stale.length
+}
+
+/**
+ * Marks a browser dead when its container has stopped on its own.
+ *
+ * Without this a crashed browser stays "running" until the hourly reaper,
+ * and every job in the meantime fails three times against a port nothing
+ * answers on. Docker is asked whether the container is running, which needs
+ * no key, so the ticker can ask about a browser the browser program opened.
+ *
+ * Only "running" rows: a "starting" row's container may not exist yet, and
+ * the browser program is already waiting on it with a deadline of its own.
+ * Copied from the idea of anti-detect's `detectCrashedSessions`.
+ */
+export async function markDeadSessions(
+  db: CustomShellDb = defaultDb
+): Promise<number> {
+  const running = await db
+    .select({
+      id: promoBrowserSessions.id,
+      userId: promoBrowserSessions.userId,
+      profileId: promoBrowserSessions.profileId,
+      containerId: promoBrowserSessions.containerId,
+    })
+    .from(promoBrowserSessions)
+    .where(eq(promoBrowserSessions.status, "running"))
+  if (!running.length) return 0
+
+  const connection = dockerConnection()
+  let dead = 0
+
+  for (const row of running) {
+    const reason = await whyContainerIsDead(connection, row.containerId)
+    if (!reason) continue
+
+    // The status is in the WHERE clause so a browser closed on purpose in the
+    // meantime keeps "stopped" rather than being called a crash.
+    const marked = await db
+      .update(promoBrowserSessions)
+      .set({ status: "error", endedBy: "dead", lastError: reason, endedAt: new Date() })
+      .where(
+        and(
+          eq(promoBrowserSessions.id, row.id),
+          eq(promoBrowserSessions.status, "running")
+        )
+      )
+      .returning({ id: promoBrowserSessions.id })
+    if (!marked.length) continue
+
+    commandKeys.delete(row.id)
+    dead += 1
+    console.error(`Browser session ${row.id} is dead: ${reason}`)
+    await recordProfileEvent(row.userId, row.profileId, "browser_dead", reason, db)
+  }
+
+  return dead
+}
+
+/** Why a container is not running, or null when it is. */
+async function whyContainerIsDead(
+  connection: DockerConnection,
+  containerId: string
+): Promise<string | null> {
+  if (!containerId) return "The browser was marked running with no container."
+  try {
+    const found = await dockerRequest<{
+      State?: { Running?: boolean; ExitCode?: number; Error?: string }
+    }>(connection, "GET", `/containers/${encodeURIComponent(containerId)}/json`)
+    if (found.State?.Running) return null
+    const code = found.State?.ExitCode
+    return `The browser stopped on its own${
+      typeof code === "number" ? ` with exit code ${code}` : ""
+    }${found.State?.Error ? `: ${found.State.Error}` : "."}`
+  } catch (error) {
+    if (error instanceof DockerRequestError && error.status === 404) {
+      return "The browser's container is gone. It was removed outside the app."
+    }
+    // Docker not answering is not proof the browser died. Leave the row alone
+    // and let the next pass ask again.
+    throw publicDockerError(error, "be checked")
+  }
+}
+
+/**
+ * Removes promo browser containers that no live session row claims.
+ *
+ * Each one holds about 1.5GB. They come from a close where Docker refused,
+ * or a browser program killed between starting a container and writing it
+ * down. The volume is kept, as with every close.
+ *
+ * A container is claimed by the session id on its label, never by its
+ * container id: the row is written before the container exists, so a browser
+ * that is still starting is always claimed.
+ */
+export async function removeOrphanContainers(
+  db: CustomShellDb = defaultDb
+): Promise<number> {
+  // Every container this database ever started has a session row, so with no
+  // rows there is nothing of ours to find. This keeps an install that has
+  // never opened a browser, and may have no Docker at all, from asking Docker
+  // on every pass.
+  const [anySession] = await db
+    .select({ id: promoBrowserSessions.id })
+    .from(promoBrowserSessions)
+    .limit(1)
+  if (!anySession) return 0
+
+  const connection = dockerConnection()
+  const filters = JSON.stringify({ label: [`${OWNER_LABEL}=${OWNER}`] })
+  const containers = await dockerRequest<
+    Array<{ Id: string; Labels?: Record<string, string> }>
+  >(connection, "GET", `/containers/json?all=true&filters=${encodeURIComponent(filters)}`)
+  if (!Array.isArray(containers) || !containers.length) return 0
+
+  const live = await db
+    .select({ id: promoBrowserSessions.id })
+    .from(promoBrowserSessions)
+    .where(inArray(promoBrowserSessions.status, [...LIVE_STATUSES]))
+  const claimed = new Set(live.map((row) => row.id))
+
+  let removed = 0
+  for (const container of containers) {
+    const sessionId = container.Labels?.[SESSION_LABEL] ?? ""
+    if (sessionId && claimed.has(sessionId)) continue
+    try {
+      await closeContainer(connection, container.Id)
+      removed += 1
+    } catch (error) {
+      console.error("A leftover browser container could not be removed", error)
+    }
+  }
+  return removed
 }
 
 /** Moves a session's clock forward, so the reaper leaves it alone. */
@@ -380,7 +585,7 @@ export async function touchSession(
 }
 
 function containerEnv(
-  account: typeof promoAccounts.$inferSelect,
+  profile: typeof promoProfiles.$inferSelect,
   proxy: typeof promoProxies.$inferSelect | null,
   token: string,
   streamPassword: string,
@@ -396,7 +601,7 @@ function containerEnv(
     "NEKO_WEBRTC_ICELITE=true",
     `COMMAND_PORT=${ports.commandPort}`,
     `COMMAND_TOKEN=${token}`,
-    `FP_OS=${fingerprintOs(account.fingerprint)}`,
+    `FP_OS=${fingerprintOs(profile.fingerprint)}`,
     "START_URL=https://www.reddit.com/",
   ]
 
@@ -434,9 +639,15 @@ function fingerprintOs(fingerprint: unknown): "windows" | "macos" | "linux" {
  * index cannot be raced.
  */
 async function claimPorts(
-  sessionId: string,
-  userId: string,
-  accountId: string,
+  row: {
+    id: string
+    userId: string
+    profileId: string
+    volumeName: string
+    streamPasswordEncrypted: string
+    proxyId: string | null
+    exitCountry: string
+  },
   db: CustomShellDb
 ): Promise<{ commandPort: number; streamPort: number; webrtcPort: number }> {
   let lastError: unknown = null
@@ -449,9 +660,7 @@ async function claimPorts(
     }
     try {
       await db.insert(promoBrowserSessions).values({
-        id: sessionId,
-        userId,
-        accountId,
+        ...row,
         status: "starting",
         ...ports,
       })
@@ -459,26 +668,15 @@ async function claimPorts(
     } catch (error) {
       lastError = error
       // Only a port collision should land here: the caller has already closed
-      // any session this account was holding. Anything else will fail the same
-      // way on all forty tries, so the check below names it rather than
+      // any browser this profile was holding. Anything else will fail the
+      // same way on all forty tries, so the check below names it rather than
       // blaming ports.
     }
   }
 
-  const stillLive = await db
-    .select({ id: promoBrowserSessions.id })
-    .from(promoBrowserSessions)
-    .where(
-      and(
-        eq(promoBrowserSessions.accountId, accountId),
-        inArray(promoBrowserSessions.status, ["starting", "running"])
-      )
-    )
-    .limit(1)
-
-  if (stillLive.length) {
+  if (await liveSessionRow(row.profileId, db)) {
     throw new Error(
-      "That account already has a browser open. Shut it down in Settings and try again."
+      "That browser profile already has a browser open. Close it and try again."
     )
   }
 
@@ -498,9 +696,6 @@ async function claimPorts(
  * start budget and failed the whole launch, and a person watching could not
  * have the window's address until a page they were not waiting for had
  * finished painting.
- *
- * Whether Reddit is reachable is the status endpoint's question, which already
- * reports it and says what to do about it.
  */
 async function waitUntilReady(target: CommandTarget): Promise<void> {
   const deadline = Date.now() + READY_TIMEOUT_MS

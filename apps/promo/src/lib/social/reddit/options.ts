@@ -29,5 +29,10 @@ export type RedditWindow = (typeof REDDIT_WINDOWS)[number]
  * `useRememberedPanelLayout` takes any string, and the `promo-` prefix is what
  * keeps this from colliding with a shell key. The value is what a browser has
  * already saved under, so it does not change when the constant moves.
+ *
+ * The `-2` is deliberate. On 6 Oct 2026 the side panels' default widths became
+ * their minimum widths, and a remembered layout outranks the default, so a
+ * browser that had already drawn the old widths would keep them and the change
+ * would appear to do nothing. A new key starts every browser on the new widths.
  */
-export const REDDIT_PANEL_LAYOUT_KEY = "promo-reddit-workspace"
+export const REDDIT_PANEL_LAYOUT_KEY = "promo-reddit-workspace-2"

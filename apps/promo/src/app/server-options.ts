@@ -32,21 +32,22 @@ export const appServerOptions: AppServerOptions = {
       {
         name: "promo-proxy-health",
         /**
-         * Re-tests one proxy that has not been checked for ten minutes, so a
-         * line that has died is marked dead before a search finds out the
-         * hard way. One per pass, because the point of being here is speed.
+         * Re-tests the three proxies that have waited longest, never-tested
+         * ones first, so a line that has died is marked dead, and rings the
+         * bell once, before a browser finds out the hard way.
          */
         tick: async () => {
-          const { sweepProxyHealth } = await import("@/server/social/upkeep")
+          const { sweepProxyHealth } = await import("@/server/browser/proxies")
           await sweepProxyHealth()
         },
       },
       {
         name: "promo-browser-reaper",
         /**
-         * Shuts down a browser nobody has used for an hour. An idle Camoufox
-         * still holds about 1.5GB of memory, so leaving one open all day
-         * costs more than starting it again costs.
+         * Shuts down a browser nobody has used for an hour, marks one whose
+         * container died as dead, and removes containers no session row
+         * claims. An idle or leftover Camoufox still holds about 1.5GB of
+         * memory. All three ask Docker and need no key to the browser.
          */
         tick: async () => {
           const { reapBrowsers } = await import("@/server/social/upkeep")

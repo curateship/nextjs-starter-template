@@ -14,14 +14,22 @@
  *
  * So the slow work lives here and the two talk through `promo_jobs`. The
  * screen writes a row and returns; this claims it and does the work. The
- * shell's ticker keeps only the quick jobs: sweeping proxy health and shutting
- * down a browser nobody has used for an hour.
+ * shell's ticker keeps only the quick jobs that ask Docker and need no key:
+ * sweeping proxy health, shutting down a browser nobody has used for an hour,
+ * marking a dead one, and removing containers nothing claims.
+ *
+ * **The only program that opens, drives or closes a browser.** Opening one
+ * hands this process the command key, kept in its memory and nowhere else.
+ * When the site opened browsers too, each program closed the other's as one
+ * it held no key for, so signing in from Settings and then pressing Search
+ * closed the browser that had just been signed in. Now a dashboard writes an
+ * `open`, `close` or `check` job and reads the rows this writes.
  *
  * **Two copies are safe.** A job is claimed with `FOR UPDATE SKIP LOCKED`
  * before any work starts, so a second copy steps over a row the first is
  * taking rather than doing it twice. What is *not* safe twice is the browser
- * itself, and that is held to one by a unique index on the account rather than
- * by hoping only one of these is running.
+ * itself, and that is held to one by a unique index on the browser profile
+ * rather than by hoping only one of these is running.
  *
  * Start it with `npm run social:browser`, built by `npm run build:social-browser`.
  */

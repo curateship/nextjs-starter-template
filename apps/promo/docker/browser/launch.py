@@ -25,6 +25,7 @@ to get wrong.
 import json
 import os
 import queue
+import signal
 import sys
 import threading
 import traceback
@@ -137,6 +138,23 @@ if os.environ.get("PROXY_SERVER"):
         proxy["password"] = os.environ.get("PROXY_PASSWORD", "")
 
 start_url = os.environ.get("START_URL", "https://www.reddit.com/")
+
+
+def stop_gently(_signum, _frame):
+    """Leaves the `with` block below, which closes Firefox properly.
+
+    The app closes a browser by asking Docker to stop it and waiting ten
+    seconds before removing it. Docker's ask arrives here as SIGTERM, and
+    Python's default answer to it is to die on the spot. Firefox writes cookies
+    to disk on a delay, so dying on the spot seconds after a sign-in could lose
+    the sign-in. Raising SystemExit instead unwinds through Camoufox's own
+    close, which saves the profile first. A routine's `except Exception` does
+    not catch it, so it gets out from the middle of a page action too.
+    """
+    raise SystemExit(0)
+
+
+signal.signal(signal.SIGTERM, stop_gently)
 
 # headless=False  -> render to $DISPLAY (Neko's Xvfb), so the stream shows a window.
 # persistent_context + user_data_dir -> cookies/storage survive container restarts,

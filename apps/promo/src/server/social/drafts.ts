@@ -18,6 +18,7 @@ import {
 } from "@/lib/social/options"
 
 import { promoAccounts, promoDrafts, promoFinds } from "./schema"
+import { wordsForAccount } from "./voices"
 
 /**
  * Asking an AI to write a Reddit comment.
@@ -290,14 +291,15 @@ export async function draftComments(
     )
   }
 
+  // The account's voice, shared with any other account pointed at it. An
+  // account with none drafts plainly.
+  const words = await wordsForAccount(request.userId, account.id, db)
   const prompt = buildDraftPrompt({
     subreddit: find.subreddit,
     title: find.title,
     body: find.thread?.body || find.body,
     replies: find.thread?.replies ?? [],
-    voice: account.voice,
-    product: account.product,
-    commentRules: account.commentRules,
+    ...words,
     count: DRAFT_COUNT,
   })
 

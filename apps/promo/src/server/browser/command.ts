@@ -159,6 +159,18 @@ const stateShape = z.object({
 
 export type BrowserState = z.infer<typeof stateShape>
 
+const quickStateShape = z.object({
+  /**
+   * False when the page is not on the network's site, so a cookie read from
+   * it would say "signed out" about an account that is signed in. Nothing is
+   * written down from an answer that was not checked.
+   */
+  checked: z.boolean(),
+  handle: z.string().nullable(),
+  blocked: z.boolean(),
+  reason: z.string().default(""),
+})
+
 const commentShape = z.object({ commentUrl: z.string() })
 
 const healthShape = z.object({ ok: z.boolean() })
@@ -174,9 +186,23 @@ export function browserHealth(target: CommandTarget) {
   return call(target, "health", null, healthShape, HEALTH_TIMEOUT_MS)
 }
 
-/** Who the browser is signed in to Reddit as, and whether anything is in the way. */
+/**
+ * Who the browser is signed in to Reddit as, and whether anything is in the
+ * way. Sends the page to Reddit's front page to find out, so it runs only for
+ * a `check` job a person asked for. A sign-in form being typed into would be
+ * replaced.
+ */
 export function redditState(target: CommandTarget) {
   return call(target, "reddit/state", null, stateShape)
+}
+
+/**
+ * The same question without moving the page: Reddit's own "who am I" read
+ * with the page's cookies, and the challenge signs on whatever is on screen.
+ * The browser program asks this after every Reddit job.
+ */
+export function redditQuickState(target: CommandTarget) {
+  return call(target, "reddit/quick_state", {}, quickStateShape)
 }
 
 export function redditSearch(

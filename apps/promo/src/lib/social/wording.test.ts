@@ -5,6 +5,8 @@ import {
   postedDateText,
   postingBlockedReason,
   splitIntoBlocks,
+  voiceDeleteWords,
+  voiceUsersWords,
 } from "./wording"
 
 const NOW = new Date("2099-06-10T12:00:00.000Z")
@@ -67,39 +69,45 @@ describe("what a saved keyword searches", () => {
 
 describe("why posting is off", () => {
   const ready = {
-    streamUrl: "http://127.0.0.1:8900/",
-    streamPassword: "watch-me",
     handle: "a_persona",
     blocked: false,
     reason: "",
     jobs: { queued: 0, running: 0, failed: 0, searchingKeywordIds: [] },
+    profile: { id: "p1", name: "Main" },
+    voice: { id: "v1", name: "Main voice" },
   }
+  const read = { thread: { body: "", replies: [] } }
 
   it("asks for the replies to be read first", () => {
-    expect(postingBlockedReason(ready, { thread: null })).toContain(
+    expect(postingBlockedReason(ready, { thread: null })?.text).toContain(
       "Read the replies first"
     )
   })
 
-  it("says to sign in when nobody has", () => {
-    expect(
-      postingBlockedReason({ ...ready, handle: null }, { thread: { body: "", replies: [] } })
-    ).toContain("not signed in")
+  it("says to sign in, naming the profile", () => {
+    const reason = postingBlockedReason({ ...ready, handle: null }, read)
+    expect(reason?.text).toBe(
+      "The browser is not signed in to Reddit. Open the profile Main on the Browser profiles dashboard and sign in once."
+    )
   })
 
-  it("names what Reddit is asking when something is in the way", () => {
-    expect(
-      postingBlockedReason(
-        { ...ready, blocked: true, reason: "a captcha is on screen" },
-        { thread: { body: "", replies: [] } }
-      )
-    ).toContain("a captcha is on screen")
+  it("names what Reddit is asking and the profile to clear it in", () => {
+    const reason = postingBlockedReason(
+      { ...ready, blocked: true, reason: "a captcha is on screen" },
+      read
+    )
+    expect(reason?.text).toBe(
+      "Reddit is asking the browser something: a captcha is on screen. Open the profile Main on the Browser profiles dashboard and clear it."
+    )
+  })
+
+  it("sends a person to Settings when the account has no profile", () => {
+    const reason = postingBlockedReason({ ...ready, profile: null }, read)
+    expect(reason?.text).toContain("Pick one in Settings")
   })
 
   it("is off when everything is ready", () => {
-    expect(
-      postingBlockedReason(ready, { thread: { body: "", replies: [] } })
-    ).toBeNull()
+    expect(postingBlockedReason(ready, read)).toBeNull()
   })
 })
 
@@ -178,5 +186,23 @@ describe("a post that is mostly quoted", () => {
     const blocks = splitIntoBlocks(">\n>\n>Only this.\n>\n>")
     expect(blocks).toHaveLength(1)
     expect(blocks[0].text).toBe("Only this.")
+  })
+})
+
+describe("who uses a voice", () => {
+  it("names the accounts, signed in or not", () => {
+    expect(
+      voiceUsersWords([
+        { platform: "reddit", handle: "a_persona" },
+        { platform: "reddit", handle: "" },
+      ])
+    ).toBe("Used by Reddit u/a_persona and a Reddit account.")
+    expect(voiceUsersWords([])).toBe("No account uses it yet.")
+  })
+
+  it("says what deleting does to them", () => {
+    expect(voiceDeleteWords([{ platform: "reddit", handle: "a_persona" }])).toBe(
+      "Reddit u/a_persona loses it, and will draft plainly, never mentioning what you make, until given another voice in Settings."
+    )
   })
 })

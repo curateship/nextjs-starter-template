@@ -9,24 +9,30 @@ import {
 } from "@/server/test-support"
 
 import {
-  promoAccounts,
   promoBrowserSessions,
+  promoProfiles,
+  promoProxies,
+} from "@/server/browser/schema"
+
+import {
+  promoAccounts,
   promoComments,
   promoDrafts,
   promoFinds,
   promoJobs,
   promoKeywords,
-  promoProxies,
   promoSearches,
 } from "./schema"
 
 /**
- * Proves the hand-written SQL in `drizzle/0091_promo_reddit.sql` and this
- * folder's Drizzle tables describe the same database. A column named in one
- * and not the other fails here rather than at the first real read.
+ * Proves the hand-written SQL in `drizzle/0091_promo_reddit.sql` and
+ * `drizzle/0094_promo_browser_profiles.sql` and the Drizzle tables describe the
+ * same database. A column named in one and not the other fails here rather
+ * than at the first real read.
  *
- * It also pins the three rules the SQL enforces rather than the code: one post
- * per keyword, one live session per account, and one keyword per person.
+ * It also pins the rules the SQL enforces rather than the code: one post per
+ * keyword, one live browser per profile, one account per network inside a
+ * profile, one profile per cookie volume, and one keyword per person.
  */
 describe("promo reddit tables", () => {
   let client: PGlite
@@ -62,16 +68,27 @@ describe("promo reddit tables", () => {
     return proxy
   }
 
-  async function insertAccount(proxyId: string | null) {
+  async function insertProfile(proxyId: string | null = null) {
+    const id = uuid()
+    const [profile] = await db
+      .insert(promoProfiles)
+      .values({ id, userId, name: "Main", proxyId, volumeName: `promo-profile-${id}` })
+      .returning()
+    return profile
+  }
+
+  async function insertAccount(
+    profileId: string | null = null,
+    platform = "reddit"
+  ) {
     const [account] = await db
       .insert(promoAccounts)
       .values({
         id: uuid(),
         userId,
+        platform,
         handle: "a_persona",
-        proxyId,
-        voice: "Plain and helpful, never salesy.",
-        product: "A tool that finds Reddit threads worth answering.",
+        profileId,
       })
       .returning()
     return account
@@ -104,32 +121,75 @@ describe("promo reddit tables", () => {
     expect(proxy.country).toBe("")
   })
 
-  it("keeps an account when its proxy is deleted", async () => {
+  it("keeps a profile when its proxy is deleted", async () => {
     const proxy = await insertProxy()
-    const account = await insertAccount(proxy.id)
-    expect(account.proxyId).toBe(proxy.id)
+    const profile = await insertProfile(proxy.id)
+    expect(profile.proxyId).toBe(proxy.id)
 
     await db.delete(promoProxies)
 
-    const [after] = await db.select().from(promoAccounts)
-    // Losing the proxy must not lose the account and its cookies with it.
+    const [after] = await db.select().from(promoProfiles)
+    // Losing the proxy must not lose the profile and its cookies with it.
     expect(after.proxyId).toBeNull()
+    expect(after.volumeName).toBe(profile.volumeName)
+  })
+
+  it("keeps an account, with no profile, when its profile is deleted", async () => {
+    const profile = await insertProfile()
+    await insertAccount(profile.id)
+
+    await db.delete(promoProfiles)
+
+    const [after] = await db.select().from(promoAccounts)
+    expect(after.profileId).toBeNull()
     expect(after.handle).toBe("a_persona")
+  })
+
+  it("allows one account per network inside a profile", async () => {
+    const profile = await insertProfile()
+    await insertAccount(profile.id, "reddit")
+
+    // Two Reddit accounts in one browser would be signed in over each other.
+    await expect(insertAccount(profile.id, "reddit")).rejects.toThrow()
+
+    // A different network in the same browser is fine, and so is a second
+    // Reddit account in a profile of its own, or in none.
+    await insertAccount(profile.id, "instagram")
+    await insertAccount((await insertProfile()).id, "reddit")
+    await insertAccount(null, "reddit")
+    await insertAccount(null, "reddit")
+
+    expect(await db.select().from(promoAccounts)).toHaveLength(5)
+  })
+
+  it("refuses two profiles on one cookie volume", async () => {
+    const first = await insertProfile()
+    await expect(
+      db.insert(promoProfiles).values({
+        id: uuid(),
+        userId,
+        name: "Copy",
+        volumeName: first.volumeName,
+      })
+    ).rejects.toThrow()
   })
 
   it("starts an account with unknown karma rather than zero", async () => {
     const account = await insertAccount(null)
     expect(account.karma).toBeNull()
     expect(account.lastPostedAt).toBeNull()
+    // Nothing has looked at the browser for it yet.
+    expect(account.stateReadAt).toBeNull()
+    expect(account.blocked).toBe(false)
   })
 
-  it("allows one live session per account and a second once it stops", async () => {
-    const account = await insertAccount(null)
+  it("allows one live browser per profile and a second once it stops", async () => {
+    const profile = await insertProfile()
 
     await db.insert(promoBrowserSessions).values({
       id: uuid(),
       userId,
-      accountId: account.id,
+      profileId: profile.id,
       status: "running",
       commandPort: 7001,
       streamPort: 8001,
@@ -139,7 +199,7 @@ describe("promo reddit tables", () => {
       db.insert(promoBrowserSessions).values({
         id: uuid(),
         userId,
-        accountId: account.id,
+        profileId: profile.id,
         status: "starting",
         commandPort: 7002,
         streamPort: 8002,
@@ -148,11 +208,11 @@ describe("promo reddit tables", () => {
 
     await db.update(promoBrowserSessions).set({ status: "stopped" })
 
-    // Once the first has stopped the account can open another.
+    // Once the first has stopped the profile can open another.
     await db.insert(promoBrowserSessions).values({
       id: uuid(),
       userId,
-      accountId: account.id,
+      profileId: profile.id,
       status: "running",
       commandPort: 7002,
       streamPort: 8002,
@@ -163,13 +223,13 @@ describe("promo reddit tables", () => {
   })
 
   it("refuses two live sessions on one command port", async () => {
-    const first = await insertAccount(null)
-    const second = await insertAccount(null)
+    const first = await insertProfile()
+    const second = await insertProfile()
 
     await db.insert(promoBrowserSessions).values({
       id: uuid(),
       userId,
-      accountId: first.id,
+      profileId: first.id,
       status: "running",
       commandPort: 7001,
       streamPort: 8001,
@@ -179,7 +239,7 @@ describe("promo reddit tables", () => {
       db.insert(promoBrowserSessions).values({
         id: uuid(),
         userId,
-        accountId: second.id,
+        profileId: second.id,
         status: "starting",
         commandPort: 7001,
         streamPort: 8002,

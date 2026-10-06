@@ -1,7 +1,6 @@
 import { daysBetween } from "@/lib/format/format-time"
 import type { BrowserStatus } from "@/lib/api/social/account"
-import type { AccountView } from "@/server/social/accounts"
-import type { FindThread } from "@/lib/social/options"
+import { NO_PROFILE_MESSAGE, type FindThread } from "@/lib/social/options"
 
 /**
  * The sentences the Reddit screens put in front of a person.
@@ -19,51 +18,39 @@ import type { FindThread } from "@/lib/social/options"
 /** Just enough of a post for the wording below. */
 type FindLike = { thread: FindThread | null }
 
+/** Why Post is off, in words a person can act on. */
+export type BlockedReason = { text: string }
+
 /**
  * Why Post cannot be pressed, in words, or null when it can.
  *
  * Every one of these is something a person goes and fixes, so each says what
- * to do rather than just refusing. A button that is simply off with no reason
- * beside it is the thing this avoids.
+ * to do rather than just refusing. A browser problem names the profile it is
+ * in and the dashboard to find it on. The panel shows it in the Post button's
+ * tooltip.
  */
 export function postingBlockedReason(
   status: BrowserStatus,
   detail: FindLike | null
-): string | null {
+): BlockedReason | null {
   if (detail && detail.thread === null) {
-    return "Read the replies first, so the comment does not repeat one of them."
+    return { text: "Read the replies first, so the comment does not repeat one of them." }
   }
+  const profile = status.profile
+  if (!profile) return { text: NO_PROFILE_MESSAGE }
   if (status.blocked) {
-    return status.reason
-      ? `Reddit is asking the browser something: ${status.reason}. Open the browser in Settings and clear it.`
-      : "Reddit is showing a challenge. Open the browser in Settings and clear it."
+    return {
+      text: status.reason
+        ? `Reddit is asking the browser something: ${status.reason}. Open the profile ${profile.name} on the Browser profiles dashboard and clear it.`
+        : `Reddit is showing a challenge. Open the profile ${profile.name} on the Browser profiles dashboard and clear it.`,
+    }
   }
   if (!status.handle) {
-    return "The browser is not signed in to Reddit. Open it in Settings and sign in once."
+    return {
+      text: `The browser is not signed in to Reddit. Open the profile ${profile.name} on the Browser profiles dashboard and sign in once.`,
+    }
   }
   return null
-}
-
-/** What the browser is doing, as one sentence a person can act on. */
-export function describeBrowser(
-  status: BrowserStatus | null,
-  account: AccountView | null
-): string {
-  if (!account) {
-    return "Save this page once and the browser can be opened."
-  }
-  if (!status?.streamUrl) {
-    return account.handle
-      ? `No browser is open. The last sign-in was u/${account.handle}, and those cookies are still stored.`
-      : "No browser is open, and Reddit has never been signed in to."
-  }
-  if (status.blocked) {
-    return `The browser is open and Reddit is asking it something. ${status.reason || "Open the window and clear it."}`
-  }
-  if (!status.handle) {
-    return "The browser is open but signed out. Open the window and sign in to Reddit."
-  }
-  return `The browser is open and signed in as u/${status.handle}.`
 }
 
 /**
@@ -185,4 +172,31 @@ export function splitIntoBlocks(body: string): PostBlock[] {
 
   flush()
   return blocks
+}
+
+/** "Reddit u/name", or "a Reddit account" when nobody has signed in yet. */
+function accountName(account: { platform: string; handle: string }): string {
+  const network = account.platform === "reddit" ? "Reddit" : account.platform
+  if (!account.handle) return `a ${network} account`
+  return account.platform === "reddit" ? `Reddit u/${account.handle}` : `${network} ${account.handle}`
+}
+
+/** "Reddit u/a and Reddit u/b", for the accounts drafting with a voice. */
+export function voiceUsersList(usedBy: ReadonlyArray<{ platform: string; handle: string }>): string {
+  const names = usedBy.map(accountName)
+  return names.length <= 1
+    ? (names[0] ?? "")
+    : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`
+}
+
+/** Who drafts with a voice, as one sentence. */
+export function voiceUsersWords(usedBy: ReadonlyArray<{ platform: string; handle: string }>): string {
+  return usedBy.length ? `Used by ${voiceUsersList(usedBy)}.` : "No account uses it yet."
+}
+
+/** What deleting voices does to the accounts using them, as one sentence. */
+export function voiceDeleteWords(usedBy: ReadonlyArray<{ platform: string; handle: string }>): string {
+  if (!usedBy.length) return "No account uses it, so nothing else changes."
+  const list = voiceUsersList(usedBy)
+  return `${list.charAt(0).toUpperCase()}${list.slice(1)} ${usedBy.length === 1 ? "loses it" : "lose it"}, and will draft plainly, never mentioning what you make, until given another voice in Settings.`
 }

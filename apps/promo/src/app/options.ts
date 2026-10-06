@@ -1,4 +1,5 @@
 import type { AppOptions } from "@/lib/app-options"
+import { describePromoNotice } from "@/lib/browser/notices"
 
 /**
  * What this app changes about the shell.
@@ -22,6 +23,13 @@ export const appOptions: AppOptions = {
      * against their own social accounts, not something with tenants.
      */
     whoMayHave: "off",
+  },
+  notifications: {
+    /**
+     * A proxy that stopped working rings the bell once, and clicking the
+     * notice opens that proxy on the Proxies dashboard.
+     */
+    describe: describePromoNotice,
   },
   settings: {
     tabs: [

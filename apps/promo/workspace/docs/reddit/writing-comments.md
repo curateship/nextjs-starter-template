@@ -17,10 +17,14 @@ twice is worse than one that did not post.
   their upvotes. This is the part that earns its place: without it a draft
   confidently repeats whatever the top reply already said.
 - **The subreddit's name.**
-- **Your voice**, in your words, from Settings.
-- **What you make**, also from Settings, and only when it genuinely answers what
-  was asked. Leave that box empty and no draft will ever mention a product.
-- **Your rules**, the lines it must not cross.
+- **Your voice**, in your words, from the voice the account uses. Voices are
+  kept on the [Voices dashboard](../voices-dashboard.md) and picked in Settings.
+- **What you make**, from the same voice, and only when it genuinely answers
+  what was asked. Leave that box empty and no draft will ever mention a product.
+- **Your rules**, the lines it must not cross, from the same voice.
+
+An account with no voice is told none of the three, and the Reddit dashboard
+says "No voice picked, so drafts are plain" beside Write with AI.
 
 It is also told, every time, that a comment reading as an advert gets the
 account banned, which is worse than a comment nobody clicks.

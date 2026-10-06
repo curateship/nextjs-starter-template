@@ -9,10 +9,15 @@ import {
 
 import { CardTop } from "@/components/shared/feed-card"
 import { Button } from "@/components/ui/button"
+import { DisabledReason } from "@/components/ui/disabled-reason"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
 import { MAX_COMMENT_CHARS, type FindThread } from "@/lib/social/options"
-import { postedDateText, splitIntoBlocks } from "@/lib/social/wording"
+import {
+  postedDateText,
+  splitIntoBlocks,
+  type BlockedReason,
+} from "@/lib/social/wording"
 import { cn } from "@/lib/utils"
 
 export type FindDetail = {
@@ -54,6 +59,7 @@ export function AnswerPanel({
   loading,
   working,
   disabledReason,
+  voiceName,
   onRead,
   onDraft,
   onPost,
@@ -68,7 +74,9 @@ export function AnswerPanel({
   /** A browser job is waiting or running. */
   working: boolean
   /** Why posting is impossible right now, in words, or null. */
-  disabledReason: string | null
+  disabledReason: BlockedReason | null
+  /** The voice drafts are written in, or null when the account has none. */
+  voiceName: string | null
   onRead: (findId: string) => Promise<void>
   onDraft: (findId: string) => Promise<void>
   onPost: (input: {
@@ -95,6 +103,15 @@ export function AnswerPanel({
   }
 
   const over = text.length > MAX_COMMENT_CHARS
+  // Every reason Post can be off, in the order a person fixes them.
+  const postReason =
+    disabledReason?.text ??
+    (over
+      ? `That is ${text.length} characters, and a comment stops at ${MAX_COMMENT_CHARS}.`
+      : !text.trim()
+        ? "Write the comment first, or pick a draft."
+        : null)
+  const postOff = posting || Boolean(postReason)
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -183,9 +200,10 @@ export function AnswerPanel({
       </ScrollArea>
 
       {find ? (
-        <div className="grid gap-3 border-t p-4">
-          <p className="text-sm font-medium">What to post</p>
-
+        // A light ground, the same muted tone the shell's table headers and
+        // footers use, so the writing area reads as its own section under
+        // the post. The box and the drafts keep the page colour on it.
+        <div className="grid gap-3 border-t bg-muted/50 p-4">
           {drafts.length ? (
             <div className="grid grid-cols-2 gap-2">
               {drafts.slice(0, 2).map((draft) => (
@@ -198,7 +216,7 @@ export function AnswerPanel({
                     setFromDraft(draft.id)
                   }}
                   className={cn(
-                    "h-16 overflow-hidden rounded-lg border p-2 text-left text-xs leading-relaxed",
+                    "h-16 overflow-hidden rounded-lg border bg-background p-2 text-left text-xs leading-relaxed",
                     fromDraft === draft.id ? "border-foreground bg-muted" : null
                   )}
                 >
@@ -210,8 +228,13 @@ export function AnswerPanel({
 
           <Textarea
             id="promo-comment-text"
+            aria-label="What to post"
+            // Three lines tall before anything is typed, then it grows. The
+            // shared Textarea sizes itself to its content, so `rows` alone
+            // does nothing; this is three lines of text plus its padding and
+            // border. Tyler asked for three rows on 6 Oct 2026.
+            className="min-h-[calc(3lh+1rem+2px)] bg-background"
             value={text}
-            rows={3}
             onChange={(event) => {
               setText(event.target.value)
               // Edited past the draft it came from, so the record stops
@@ -230,21 +253,20 @@ export function AnswerPanel({
             }
           />
 
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p
-              className={cn(
-                "min-w-0 flex-1 text-xs",
-                over ? "text-destructive" : "text-muted-foreground"
-              )}
-            >
-              {disabledReason ??
-                `${text.length} of ${MAX_COMMENT_CHARS} characters`}
-            </p>
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <div className="flex items-center gap-2">
+              {/* Said beside the button, because a plain draft that never
+                  mentions what you make is otherwise a puzzle. */}
+              {voiceName === null ? (
+                <span className="text-xs text-muted-foreground">
+                  No voice picked, so drafts are plain
+                </span>
+              ) : null}
               <Button
                 type="button"
                 variant="outline"
                 disabled={drafting}
+                title={voiceName ? `Drafts in the voice ${voiceName}` : undefined}
                 onClick={async () => {
                   setDrafting(true)
                   try {
@@ -261,11 +283,13 @@ export function AnswerPanel({
                 )}
                 Write with AI
               </Button>
+              {/* Why Post is off lives in the button's own tooltip rather than a
+                  line under the box, which Tyler asked to be removed on 6 Oct
+                  2026. */}
+              <DisabledReason reason={postReason ?? "Posting now."} disabled={postOff}>
               <Button
                 type="button"
-                disabled={
-                  !text.trim() || over || posting || Boolean(disabledReason)
-                }
+                disabled={postOff}
                 title={handle ? `Posts as u/${handle}` : undefined}
                 onClick={async () => {
                   setPosting(true)
@@ -285,6 +309,7 @@ export function AnswerPanel({
                 {posting ? <Loader2Icon className="animate-spin" /> : null}
                 Post to Reddit
               </Button>
+              </DisabledReason>
             </div>
           </div>
         </div>

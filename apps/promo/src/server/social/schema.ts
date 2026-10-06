@@ -18,64 +18,49 @@ import {
   type FindThread,
   type JobKind,
   type JobStatus,
-  type ProxyProtocol,
-  type ProxyTestResult,
   type SearchStatus,
-  type SessionStatus,
 } from "@/lib/social/options"
 import {
   type RedditSort,
   type RedditWindow,
 } from "@/lib/social/reddit/options"
+import { promoProfiles } from "@/server/browser/schema"
 import { customShellUsers } from "@/server/schema"
 
 /**
- * Promo's own tables. This file belongs to the app, not the shell — the
+ * Promo's own social tables. This file belongs to the app, not the shell — the
  * shell's tables live in `@/server/schema`, which an app never edits, so the
  * app's tables get a schema module of their own. The matching SQL is
- * `drizzle/0091_promo_reddit.sql`.
+ * `drizzle/0091_promo_reddit.sql`, with the account's link to its browser
+ * profile added by `drizzle/0094_promo_browser_profiles.sql`.
  *
  * The shape follows one decision. Reddit answers a plain request with a 403,
  * answers its own search page with a JavaScript puzzle instead of results, and
  * closes its public API in March 2027. So every read and every post goes
- * through one isolated browser, and these tables describe that browser, the
- * posts it found, and what was written back.
+ * through an isolated browser. The browser's own tables, the proxies, the
+ * profiles and the open browsers, are in `@/server/browser/schema`, because
+ * they belong to no network. These describe the accounts, the posts found and
+ * what was written back.
  *
  * Everything is scoped by user id rather than workspace: promo is one site.
  */
 
-/** A proxy the browser routes through. */
-export const promoProxies = pgTable(
-  "promo_proxies",
+/**
+ * How the AI should write: the voice, the product and the rules. Any number of
+ * accounts on any network may share one. The SQL is
+ * `drizzle/0096_promo_voices.sql`.
+ */
+export const promoVoices = pgTable(
+  "promo_voices",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
     userId: varchar("user_id", { length: 36 })
       .notNull()
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
-    label: varchar("label", { length: 120 }).notNull().default(""),
-    /** 'http', 'https' or 'socks5'. */
-    protocol: varchar("protocol", { length: 20 })
-      .$type<ProxyProtocol>()
-      .notNull()
-      .default("http"),
-    host: varchar("host", { length: 255 }).notNull(),
-    port: integer("port").notNull(),
-    username: varchar("username", { length: 255 }).notNull().default(""),
-    /**
-     * AES-256-GCM through the shell's own `encryptSecret`, as
-     * `iv:authTag:ciphertext`. Never sent to a browser: the read that builds a
-     * row for the screen leaves this field out entirely.
-     */
-    passwordEncrypted: text("password_encrypted").notNull().default(""),
-    /**
-     * Two-letter country of the exit IP, written by a successful test rather
-     * than typed. The fingerprint's timezone follows it, because a US exit on
-     * a Moscow clock is an instant tell.
-     */
-    country: varchar("country", { length: 2 }).notNull().default(""),
-    lastTestedAt: timestamp("last_tested_at", { withTimezone: true }),
-    /** The whole answer from the last test, kept so a screen can show any part. */
-    lastTestResult: jsonb("last_test_result").$type<ProxyTestResult | null>(),
+    name: varchar("name", { length: 120 }).notNull(),
+    voice: text("voice").notNull().default(""),
+    product: text("product").notNull().default(""),
+    commentRules: text("comment_rules").notNull().default(""),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -83,13 +68,18 @@ export const promoProxies = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (table) => [index("ix_promo_proxies_user").on(table.userId)]
+  (table) => [index("ix_promo_voices_user").on(table.userId)]
 )
 
 /**
- * The account posts go out from. Build one has one, on Reddit, so the voice
- * and the product sit here as columns rather than in a personas table. A
- * second account is when they move out.
+ * The account posts go out from.
+ *
+ * The account owns neither its browser nor its words. It points at a browser
+ * profile, which holds the proxy, the identity and the cookies, and at a voice,
+ * which holds what the AI is told. The table still has `proxy_id`,
+ * `fingerprint`, `voice`, `product` and `comment_rules` from before those
+ * moves. They are kept, as every stored column is, and nothing reads them any
+ * more, which is why they are not listed here.
  */
 export const promoAccounts = pgTable(
   "promo_accounts",
@@ -100,18 +90,31 @@ export const promoAccounts = pgTable(
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
     /** 'reddit' today. The other networks share this table when they land. */
     platform: varchar("platform", { length: 30 }).notNull().default("reddit"),
-    /** The handle without the u/ prefix. Empty until a sign-in reports it. */
+    /**
+     * The handle without the u/ prefix. Written by the browser program after
+     * every job it runs on this network, so a dashboard reads it here instead
+     * of asking a browser. Empty means signed out, or never read.
+     */
     handle: varchar("handle", { length: 120 }).notNull().default(""),
-    /** Null means the account browses from this machine's own IP. */
-    proxyId: varchar("proxy_id", { length: 36 }).references(
-      () => promoProxies.id,
+    /**
+     * The browser profile this account signs in inside. Null when the profile
+     * was deleted, which leaves the account and refuses its jobs with a reason
+     * a person can act on.
+     */
+    profileId: varchar("profile_id", { length: 36 }).references(
+      () => promoProfiles.id,
       { onDelete: "set null" }
     ),
-    /** The generated identity the browser launches with, whole in one column. */
-    fingerprint: jsonb("fingerprint").$type<Record<string, unknown> | null>(),
-    voice: text("voice").notNull().default(""),
-    product: text("product").notNull().default(""),
-    commentRules: text("comment_rules").notNull().default(""),
+    /** True when the site was last seen asking the browser something only a person can answer. */
+    blocked: boolean("blocked").notNull().default(false),
+    /** What it was asking, in the browser's words. Empty when not blocked. */
+    blockedReason: text("blocked_reason").notNull().default(""),
+    /** When the browser program last read the handle and the block. Null means never. */
+    stateReadAt: timestamp("state_read_at", { withTimezone: true }),
+    /** What the AI writes with. Null when its voice was deleted, or none was picked. */
+    voiceId: varchar("voice_id", { length: 36 }).references(() => promoVoices.id, {
+      onDelete: "set null",
+    }),
     /**
      * Last karma reading, or null when nothing has read it. Never 0 as a
      * stand-in: no karma and unknown karma are different answers.
@@ -125,65 +128,16 @@ export const promoAccounts = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (table) => [index("ix_promo_accounts_user").on(table.userId)]
-)
-
-/**
- * A live isolated browser: one container, one Docker volume holding the
- * cookies, one proxy. The three partial unique indexes are the locks. The
- * first stops a second container ever opening the same profile volume, which
- * would corrupt it. The other two make a port claim an insert that can lose,
- * so two launches racing never start two containers on one port.
- */
-export const promoBrowserSessions = pgTable(
-  "promo_browser_sessions",
-  {
-    id: varchar("id", { length: 36 }).primaryKey(),
-    userId: varchar("user_id", { length: 36 })
-      .notNull()
-      .references(() => customShellUsers.id, { onDelete: "cascade" }),
-    accountId: varchar("account_id", { length: 36 })
-      .notNull()
-      .references(() => promoAccounts.id, { onDelete: "cascade" }),
-    status: varchar("status", { length: 20 })
-      .$type<SessionStatus>()
-      .notNull()
-      .default("starting"),
-    containerId: varchar("container_id", { length: 80 }).notNull().default(""),
-    /** Survives the container, which is the point: the cookies live here. */
-    volumeName: varchar("volume_name", { length: 120 }).notNull().default(""),
-    /** Where the command server answers, bound to 127.0.0.1 only. */
-    commandPort: integer("command_port"),
-    /** Where the video stream answers, so a person can watch and take over. */
-    streamPort: integer("stream_port"),
-    webrtcPort: integer("webrtc_port"),
-    lastError: text("last_error").notNull().default(""),
-    startedAt: timestamp("started_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-    endedAt: timestamp("ended_at", { withTimezone: true }),
-    /**
-     * Moved forward by every command. An hour of silence gets the container
-     * reaped, because an idle Camoufox still holds about 1.5GB.
-     */
-    lastActivityAt: timestamp("last_activity_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
   (table) => [
-    uniqueIndex("ux_promo_sessions_live_account")
-      .on(table.accountId)
-      .where(sql`${table.status} IN ('starting', 'running')`),
-    uniqueIndex("ux_promo_sessions_live_command_port")
-      .on(table.commandPort)
-      .where(
-        sql`${table.status} IN ('starting', 'running') AND ${table.commandPort} IS NOT NULL`
-      ),
-    uniqueIndex("ux_promo_sessions_live_stream_port")
-      .on(table.streamPort)
-      .where(
-        sql`${table.status} IN ('starting', 'running') AND ${table.streamPort} IS NOT NULL`
-      ),
+    index("ix_promo_accounts_user").on(table.userId),
+    /**
+     * One account per network inside a profile. Two Reddit accounts in one
+     * browser would be signed in over each other; a Reddit account and an
+     * Instagram account sharing one is fine.
+     */
+    uniqueIndex("ux_promo_accounts_profile_platform")
+      .on(table.profileId, table.platform)
+      .where(sql`${table.profileId} IS NOT NULL`),
   ]
 )
 
