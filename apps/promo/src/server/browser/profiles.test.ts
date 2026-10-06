@@ -13,6 +13,7 @@ import {
 import { DockerRequestError } from "./docker"
 import {
   promoBrowserSessions,
+  promoProfileBackups,
   promoProfileEvents,
   promoProfiles,
   promoProxies,
@@ -23,8 +24,12 @@ vi.mock("./docker", async (importOriginal) => {
   return { ...actual, dockerRequest: vi.fn() }
 })
 
+vi.mock("@/server/media/storage", () => ({ deleteFromR2: vi.fn() }))
+
 const { dockerRequest } = await import("./docker")
 const docker = vi.mocked(dockerRequest)
+const storage = await import("@/server/media/storage")
+const deleteFromR2 = vi.mocked(storage.deleteFromR2)
 
 const {
   createLabel,
@@ -53,6 +58,7 @@ describe("browser profiles", () => {
   beforeEach(async () => {
     docker.mockReset()
     docker.mockResolvedValue({})
+    deleteFromR2.mockReset()
     const made = await createTestDatabase()
     client = made.client
     db = made.db
@@ -327,6 +333,41 @@ describe("browser profiles", () => {
       const saved = await saveAccount(userId, { profileId: id, voiceId: null }, db)
 
       expect(saved.profile).toEqual({ id, name: "Main" })
+    })
+  })
+
+  describe("deleting a profile with backups", () => {
+    async function backedUp() {
+      const id = await createProfile(userId, { name: "Kept" }, db)
+      await db.insert(promoProfileBackups).values({
+        id: uuid(),
+        userId,
+        profileId: id,
+        objectKey: `promo-backups/${id}/one.bin`,
+        sizeBytes: 10,
+      })
+      return id
+    }
+
+    it("removes its backups from R2 as well as the list", async () => {
+      const id = await backedUp()
+
+      const result = await deleteProfiles(userId, [id], db)
+
+      expect(result.deleted).toEqual([id])
+      expect(deleteFromR2).toHaveBeenCalledWith(`promo-backups/${id}/one.bin`)
+      expect(await db.select().from(promoProfileBackups)).toHaveLength(0)
+    })
+
+    it("keeps the profile, and says why, when R2 will not remove a backup", async () => {
+      const id = await backedUp()
+      deleteFromR2.mockRejectedValue(new Error("R2 is down"))
+
+      const result = await deleteProfiles(userId, [id], db)
+
+      expect(result.kept).toEqual([{ id, name: "Kept", reason: "its backups could not be removed from R2" }])
+      expect(await db.select().from(promoProfiles).where(eq(promoProfiles.id, id))).toHaveLength(1)
+      expect(await db.select().from(promoProfileBackups)).toHaveLength(1)
     })
   })
 })

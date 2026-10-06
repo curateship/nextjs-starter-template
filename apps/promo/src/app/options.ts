@@ -44,6 +44,12 @@ export const appOptions: AppOptions = {
          */
         panel: () => import("@/components/social/account-settings"),
       },
+      {
+        id: "browsers",
+        label: "Browsers",
+        /** How many browsers may be open at once, and when an unused one closes. */
+        panel: () => import("@/components/browser/browser-settings"),
+      },
     ],
   },
 }

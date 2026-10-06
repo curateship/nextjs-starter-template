@@ -27,7 +27,7 @@ window, `browser-window-dialog.tsx` for the browser itself, and
 - **Actions.** Open or show the browser, stop it, duplicate, settings, delete.
 
 The list reads itself again every two seconds while a browser is opening,
-closing or being checked, and stops when nothing is changing.
+closing, being checked or being backed up, and stops when nothing is changing.
 
 ## The browser, inside the app
 
@@ -50,7 +50,7 @@ file 05's part 20, and only the address the window is handed has to change.
 ## A profile's own window
 
 Clicking a profile opens it over the list, with `?open=<id>` in the address.
-Three tabs:
+Four tabs:
 
 - **Settings.** Name and notes; the proxy, with its test badge, the warning
   about a change of country, and the restart offer for an open browser; the
@@ -60,19 +60,25 @@ Three tabs:
   "Make a new identity" button that asks again inline before it does anything.
   Below it, "Check what a site sees" and the last result line by line. See
   [the isolated browser](isolated-sessions.md).
+- **Backups.** "Back up now", the backups kept with when each was taken and
+  its size, and Restore beside each. A restore that would replace browser data
+  already on this machine comes back refused with the reason, and only then is
+  "Replace and restore" offered. While one runs the tab says "Backing up" or
+  "Restoring". See [backups](backups.md).
 - **History.** Every run of the browser and everything else that happened,
   newest first: when it opened, how long it ran, and how it ended. A run ends
   closed by a person, shut after an hour unused, died, failed to start, or
   closed when the browser program restarted. Besides runs it lists a proxy
-  change, a browser found dead, and an open refused because the proxy was dead.
+  change, a browser found dead, an open refused because the proxy was dead, a
+backup, and a restore.
   A run on a different browser image than the one before says "First run on a
   new browser build".
   Runs from before endings were kept are read from their status and words.
 
 ## Deleting
 
-The question says what goes: the cookie volume, and so every sign-in inside,
-naming the accounts that are signed out. Those accounts are kept with no
+The question says what goes: the cookie volume and the backups, and so every
+sign-in inside, naming the accounts that are signed out. Those accounts are kept with no
 profile until one is picked in Settings.
 
 A profile whose browser is open or opening is kept, and says so: removing a
@@ -80,6 +86,10 @@ volume a browser is writing to would corrupt it. The volume is removed before
 the row, and if Docker refuses, the profile is kept and says why, so no cookies
 are left behind with nothing pointing at them. A profile whose browser never
 opened has no volume yet, so Docker is not asked at all.
+
+The backups go first, from R2 and from the list. If R2 will not remove one, the
+profile is kept and says "its backups could not be removed from R2", so no
+encrypted cookies are left in the bucket with nothing to find them by.
 
 ## Folders, labels and tags
 

@@ -1,4 +1,5 @@
 import {
+  bigint,
   index,
   integer,
   jsonb,
@@ -325,5 +326,41 @@ export const promoProfileEvents = pgTable(
       table.profileId,
       table.createdAt.desc()
     ),
+  ]
+)
+
+/**
+ * The machine's browser settings, one row with id "default": how many browsers
+ * may be open at once and how long an unused one stays open. Changed in
+ * Settings, read by the browser program and the ticker.
+ */
+export const promoBrowserSettings = pgTable("promo_browser_settings", {
+  id: varchar("id", { length: 20 }).primaryKey(),
+  maxOpen: integer("max_open").notNull().default(3),
+  idleMinutes: integer("idle_minutes").notNull().default(60),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+})
+
+/**
+ * A backup of a profile's volume: its cookies and its identity, encrypted with
+ * the server's key and kept in R2. The newest few per profile are kept.
+ */
+export const promoProfileBackups = pgTable(
+  "promo_profile_backups",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    profileId: varchar("profile_id", { length: 36 })
+      .notNull()
+      .references(() => promoProfiles.id, { onDelete: "cascade" }),
+    objectKey: varchar("object_key", { length: 300 }).notNull(),
+    /** The encrypted size, which is what R2 holds. */
+    sizeBytes: bigint("size_bytes", { mode: "number" }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("ix_promo_profile_backups_profile").on(table.profileId, table.createdAt.desc()),
   ]
 )

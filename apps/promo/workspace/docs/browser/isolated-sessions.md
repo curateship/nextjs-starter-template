@@ -209,7 +209,8 @@ a browser removed seconds after a sign-in could lose the sign-in. The cookies
 stay; only the container goes.
 
 **An idle one is closed.** A browser nobody has used for an hour is shut down,
-because an idle one still holds about 1.5GB of memory.
+because an idle one still holds memory. The hour is a setting, on the Browsers
+tab of Settings, from 5 minutes to a day.
 
 **A dead one is noticed.** Every pass of the shell's ticker asks Docker whether
 each browser marked running still is. One that stopped on its own, or was
@@ -224,6 +225,36 @@ Docker, each with its own promo database, so a container also carries a mark
 made from its database's address, and only containers with this database's
 mark are ever touched.
 
+## How many run at once
+
+**A limit, for the whole machine.** The Browsers tab of Settings says how many
+browsers may be open at once: 3 by default, from 1 to 20. It counts every
+person's, because the memory is the machine's. Opening one more is refused at
+once, in words, never queued: "2 browsers are open, which is the limit. Stop
+one on the Browser profiles dashboard, or raise the limit in Settings." Before
+the limit, the only ceiling was the forty ports the code tries, about 60GB.
+
+The count and the opening happen as one step under a database lock every copy
+of the browser program shares, so two opens at the same moment cannot both
+slip under it. Lowering the limit closes nothing: the browsers already open
+stay, and no more open until enough have closed.
+
+**A ceiling on each browser.** Each runs with 1,536MB of memory, no swap on
+top, and one processor. Past the memory line Docker stops it, and the
+dead-browser check below says so. The figures started from anti-detect's
+1,536MB and half a processor, then were measured on 6 Oct 2026 with real
+Reddit searches: memory peaked at 1.04GB, so it stayed; half a processor sat at
+its cap the whole time and a warm search took 9 to 10 seconds against 1 to 2 on
+a full one, so it became one.
+
+**A port something else holds is stepped over.** Each browser takes three ports
+counted up from 7900, 8900 and 9900, and the database says which are free. A
+port can still be held where the database cannot see it: by a browser being
+closed, which keeps its ports for up to ten seconds after its row says stopped,
+or by another program on the machine. When Docker refuses one, that attempt is
+removed without a trace in the profile's history and the next free ports are
+tried. Running profiles side by side found this on the first try.
+
 ## Why it runs in its own process
 
 A search through a real browser takes tens of seconds. The app's shared
@@ -237,6 +268,22 @@ claimed before any work starts, and a claim that goes stale is handed back after
 ten minutes and given up after three tries. Ten, because opening a cold browser
 can take five and a comment typed at a person's pace up to four more; a comment
 is never handed back at all.
+
+**Several profiles work at the same time.** Each job is filed under the
+profile it works in, its lane: a dashboard job names its profile, and a Reddit
+job works in its account's, the person's oldest Reddit account when the job
+names none. The queue and the runner pick that account by one rule, so a job
+always runs in the profile it was filed under. Jobs in one lane run one at a time and in order,
+because a browser has one page and one driver. Jobs in different lanes run side
+by side, as many at once as the limit above allows, so a two-minute comment on
+one profile no longer holds up a search on another. The claim skips any profile
+that already has a job running, in the same statement, under a lock every copy
+of the program shares, so two copies cannot both start work on one profile.
+Measured on 6 Oct 2026: site checks on two profiles both started in the same
+second, while a second check on the first waited for the first to finish.
+
+Told to stop, the program takes no new work and waits for every job in flight.
+A raised limit is used within fifteen seconds, without a restart.
 
 **It is the only program that opens, drives or closes a browser.** The command
 key a browser is started with lives in that program's memory and nowhere else.

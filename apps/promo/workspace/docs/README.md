@@ -19,12 +19,17 @@ the repo's `docs/`, and is never copied here.
 
 - [The isolated browser](browser/isolated-sessions.md) — Camoufox in a container,
   the pinned image, one identity per profile, checking what a website sees,
-  signing in once, the proxy, why only the browser program opens one, and how a
-  dead or leftover one is cleared.
+  signing in once, the proxy, the limit on how many run at once, profiles
+  working side by side, why only the browser program opens one, and how a dead
+  or leftover one is cleared.
 - [Browser profiles](browser/profiles.md) — one isolated browser as a record of
   its own, which an account points at, and how the first accounts were adopted.
 - [The Browser profiles dashboard](browser/profiles-dashboard.md) — the table,
-  the browser inside the app, a profile's history, folders, labels and tags.
+  the browser inside the app, a profile's backups and history, folders, labels
+  and tags.
+- [Backing a profile up](browser/backups.md) — the volume, encrypted with the
+  server's key and kept in R2, restoring it here or on another machine, and the
+  newest five kept.
 - [The Proxies dashboard](browser/proxies-dashboard.md) — the table, pasting in
   a list, the re-test that reaches every proxy, the dead-proxy notice, and the
   record of each proxy's outside address.

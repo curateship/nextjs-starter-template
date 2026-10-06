@@ -2,6 +2,7 @@ import * as React from "react"
 import { Loader2Icon, RotateCwIcon, Trash2Icon } from "lucide-react"
 import { toast } from "sonner"
 
+import { ProfileBackupsPanel } from "@/components/browser/profile-backups-panel"
 import { ProfileIdentityPanel } from "@/components/browser/profile-identity-panel"
 import { ProxyTestBadge } from "@/components/browser/proxy-test-badge"
 import { Button } from "@/components/ui/button"
@@ -104,7 +105,7 @@ export function ProfileDialog({
   const [form, setForm] = React.useState(initial)
   const [saving, setSaving] = React.useState(false)
   const [restarting, setRestarting] = React.useState(false)
-  const [tab, setTab] = React.useState<"settings" | "identity" | "history">("settings")
+  const [tab, setTab] = React.useState<"settings" | "identity" | "backups" | "history">("settings")
   const dirty = JSON.stringify(form) !== JSON.stringify(initial)
   const set = <K extends keyof Form>(key: K, value: Form[K]) =>
     setForm((current) => ({ ...current, [key]: value }))
@@ -142,7 +143,7 @@ export function ProfileDialog({
         <DialogContent variant="admin" className="h-[48rem]">
           <Tabs
             value={tab}
-            onValueChange={(value) => setTab(value as "settings" | "identity" | "history")}
+            onValueChange={(value) => setTab(value as "settings" | "identity" | "backups" | "history")}
             className="flex min-h-0 flex-1 flex-col gap-0"
           >
             <DialogHeader>
@@ -152,6 +153,7 @@ export function ProfileDialog({
                   <TabsList>
                     <TabsTrigger value="settings">Settings</TabsTrigger>
                     <TabsTrigger value="identity">Identity</TabsTrigger>
+                    <TabsTrigger value="backups">Backups</TabsTrigger>
                     <TabsTrigger value="history">History</TabsTrigger>
                   </TabsList>
                 ) : null}
@@ -314,6 +316,11 @@ export function ProfileDialog({
                 {profile ? (
                   <TabsContent value="identity" className="min-w-0">
                     <ProfileIdentityPanel profile={profile} onChanged={onChanged} />
+                  </TabsContent>
+                ) : null}
+                {profile ? (
+                  <TabsContent value="backups" className="min-w-0">
+                    {tab === "backups" ? <ProfileBackupsPanel profile={profile} onChanged={onChanged} /> : null}
                   </TabsContent>
                 ) : null}
                 {profile ? (

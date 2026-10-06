@@ -10,7 +10,13 @@ import {
 } from "@/server/test-support"
 
 import { DockerRequestError } from "./docker"
-import { promoBrowserSessions, promoProfileEvents, promoProfiles, promoProxies } from "./schema"
+import {
+  promoBrowserSessions,
+  promoBrowserSettings,
+  promoProfileEvents,
+  promoProfiles,
+  promoProxies,
+} from "./schema"
 
 vi.mock("./docker", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./docker")>()
@@ -186,6 +192,16 @@ describe("looking after the browsers", () => {
     expect((await row(id)).endedBy).toBe("idle")
   })
 
+  it("shuts an idle browser after the minutes set in Settings, not before", async () => {
+    await db.update(promoBrowserSettings).set({ idleMinutes: 180 })
+    const id = await liveSession()
+    await db.update(promoBrowserSessions).set({ lastActivityAt: new Date(Date.now() - 2 * 60 * 60_000) })
+    docker.mockResolvedValue({})
+
+    expect(await reapIdleSessions(db)).toBe(0)
+    expect((await row(id)).status).toBe("running")
+  })
+
   /** Docker that answers a create with an id and an inspect with an image. */
   function dockerThatStarts(image = "sha256:build-1") {
     docker.mockImplementation(async (_connection, method, path) => {
@@ -248,6 +264,73 @@ describe("looking after the browsers", () => {
     expect(env).toContain("FP_NEW_IDENTITY=1")
     // Even with the read failing, the next launch will not make yet another.
     expect((await profileRow()).fingerprint?.renew).toBeUndefined()
+  })
+
+  it("refuses one browser past the limit, counting every open one, and says how many", async () => {
+    await db.update(promoBrowserSettings).set({ maxOpen: 2 })
+    await liveSession("starting")
+    const other = await createProfile(userId, { name: "Other" }, db)
+    dockerThatStarts()
+    await ensureSession(userId, other, db)
+    const third = await createProfile(userId, { name: "Third" }, db)
+
+    await expect(ensureSession(userId, third, db)).rejects.toThrow(
+      "2 browsers are open, which is the limit. Stop one on the Browser profiles dashboard, or raise the limit in Settings."
+    )
+    const rows = await db.select().from(promoBrowserSessions)
+    expect(rows.filter((each) => each.profileId === third)).toHaveLength(0)
+  })
+
+  it("gives each browser a memory and processor ceiling with no swap on top", async () => {
+    dockerThatStarts()
+
+    await ensureSession(userId, profileId, db)
+
+    const options = docker.mock.calls.find(([, , path]) => path.startsWith("/containers/create"))?.[3] as {
+      HostConfig: { Memory: number; MemorySwap: number; NanoCpus: number }
+    }
+    expect(options.HostConfig.Memory).toBe(1536 * 1024 * 1024)
+    expect(options.HostConfig.MemorySwap).toBe(options.HostConfig.Memory)
+    expect(options.HostConfig.NanoCpus).toBe(1e9)
+  })
+
+  it("moves to the next ports when Docker says one is taken, leaving no failed run behind", async () => {
+    let starts = 0
+    docker.mockImplementation(async (_connection, method, path) => {
+      if (path.startsWith("/containers/create")) return { Id: `container-${starts}` }
+      if (path.endsWith("/start")) {
+        starts += 1
+        if (starts === 1) {
+          throw new DockerRequestError(
+            "POST",
+            path,
+            500,
+            '{"message":"Bind for 127.0.0.1:7900 failed: port is already allocated"}'
+          )
+        }
+      }
+      if (method === "GET" && path.endsWith("/json")) return { Image: "sha256:build-1" }
+      return {}
+    })
+
+    const live = await ensureSession(userId, profileId, db)
+
+    expect(live.target.port).toBe(7901)
+    const rows = await db.select().from(promoBrowserSessions)
+    expect(rows.map((each) => each.status)).toEqual(["running"])
+    expect(docker.mock.calls.some(([, method, path]) => method === "DELETE" && path.startsWith("/containers/container-0"))).toBe(true)
+  })
+
+  it("still fails at once on a start error that is not about ports", async () => {
+    docker.mockImplementation(async (_connection, _method, path) => {
+      if (path.startsWith("/containers/create")) return { Id: "new-container" }
+      if (path.endsWith("/start")) throw new DockerRequestError("POST", path, 500, '{"message":"no such image"}')
+      return {}
+    })
+
+    await expect(ensureSession(userId, profileId, db)).rejects.toThrow()
+    const rows = await db.select().from(promoBrowserSessions)
+    expect(rows.map((each) => each.status)).toEqual(["error"])
   })
 
   it("gives a second profile a volume of its own", async () => {

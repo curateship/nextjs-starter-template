@@ -99,14 +99,16 @@ function isLocalDockerHost(hostname: string) {
   )
 }
 
+type DockerMethod = "DELETE" | "GET" | "POST" | "PUT"
+
 export class DockerRequestError extends Error {
-  readonly method: "DELETE" | "GET" | "POST"
+  readonly method: DockerMethod
   readonly path: string
   readonly status: number
   readonly responseText: string
 
   constructor(
-    method: "DELETE" | "GET" | "POST",
+    method: DockerMethod,
     path: string,
     status: number,
     responseText: string
@@ -121,12 +123,12 @@ export class DockerRequestError extends Error {
 }
 
 export class DockerConnectionError extends Error {
-  readonly method: "DELETE" | "GET" | "POST"
+  readonly method: DockerMethod
   readonly path: string
   readonly causeMessage: string
 
   constructor(
-    method: "DELETE" | "GET" | "POST",
+    method: DockerMethod,
     path: string,
     causeMessage: string
   ) {
@@ -175,22 +177,7 @@ export async function dockerRequest<T = unknown>(
     headers["Content-Length"] = Buffer.byteLength(payload).toString()
   }
 
-  const options: RequestOptions =
-    connection.type === "socket"
-      ? { socketPath: connection.socketPath, method, path: `/${API_VERSION}${path}`, headers }
-      : {
-          protocol: connection.protocol,
-          hostname: connection.hostname,
-          port: connection.port,
-          method,
-          path: `/${API_VERSION}${path}`,
-          headers,
-        }
-
-  const requestFn =
-    connection.type === "http" && connection.protocol === "https:"
-      ? httpsRequest
-      : httpRequest
+  const { options, requestFn } = requestFor(connection, method, path, headers)
 
   return new Promise<T>((resolve, reject) => {
     const req = requestFn(options, (res) => {
@@ -245,6 +232,79 @@ export async function dockerRequest<T = unknown>(
   })
 }
 
+function requestFor(
+  connection: DockerConnection,
+  method: DockerMethod,
+  path: string,
+  headers: Record<string, string>
+) {
+  const options: RequestOptions =
+    connection.type === "socket"
+      ? { socketPath: connection.socketPath, method, path: `/${API_VERSION}${path}`, headers }
+      : {
+          protocol: connection.protocol,
+          hostname: connection.hostname,
+          port: connection.port,
+          method,
+          path: `/${API_VERSION}${path}`,
+          headers,
+        }
+  const requestFn =
+    connection.type === "http" && connection.protocol === "https:" ? httpsRequest : httpRequest
+  return { options, requestFn }
+}
+
+/**
+ * A Docker call whose body or reply is bytes rather than JSON: a folder read
+ * out of a container as an archive, or an archive written into one. Held in
+ * memory, never on disk, up to `maxBytes`.
+ */
+export async function dockerBytes(
+  connection: DockerConnection,
+  method: "GET" | "PUT",
+  path: string,
+  options: { body?: Buffer; maxBytes: number }
+): Promise<Buffer> {
+  const headers: Record<string, string> = {}
+  if (options.body) {
+    headers["Content-Type"] = "application/x-tar"
+    headers["Content-Length"] = options.body.length.toString()
+  }
+  const { options: request, requestFn } = requestFor(connection, method, path, headers)
+
+  return new Promise<Buffer>((resolve, reject) => {
+    const req = requestFn(request, (res) => {
+      const chunks: Buffer[] = []
+      let bytes = 0
+      let tooLarge = false
+      res.on("data", (chunk: Buffer) => {
+        if (tooLarge) return
+        bytes += chunk.length
+        if (bytes > options.maxBytes) {
+          tooLarge = true
+          res.destroy()
+          reject(new DockerConnectionError(method, path, `the Docker reply went past ${options.maxBytes} bytes`))
+          return
+        }
+        chunks.push(chunk)
+      })
+      res.on("end", () => {
+        if (tooLarge) return
+        const data = Buffer.concat(chunks)
+        const status = res.statusCode ?? 500
+        if (status >= 400) {
+          reject(new DockerRequestError(method, path, status, data.toString("utf8").slice(0, 2_000)))
+          return
+        }
+        resolve(data)
+      })
+    })
+    req.on("error", (error: Error) => reject(new DockerConnectionError(method, path, error.message)))
+    if (options.body) req.write(options.body)
+    req.end()
+  })
+}
+
 export type ContainerSpec = {
   image: string
   name: string
@@ -256,6 +316,10 @@ export type ContainerSpec = {
   commandPort: number
   streamPort: number
   webrtcPort: number
+  /** The most memory the container may hold, swap included. */
+  memoryBytes: number
+  /** Processor share, in billionths of one processor. */
+  nanoCpus: number
 }
 
 /**
@@ -295,6 +359,12 @@ export function dockerCreateOptions(spec: ContainerSpec) {
       Binds: [`${spec.volumeName}:/data/profile`],
       ShmSize: 2 * 1024 * 1024 * 1024,
       PortBindings: portBindings,
+      // A ceiling per browser, so one runaway Firefox cannot take the machine.
+      // MemorySwap equal to Memory means no swap on top: past the line the
+      // container's process is stopped, which the dead-browser check reports.
+      Memory: spec.memoryBytes,
+      MemorySwap: spec.memoryBytes,
+      NanoCpus: spec.nanoCpus,
     },
   }
 }

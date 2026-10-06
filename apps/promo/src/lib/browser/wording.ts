@@ -102,6 +102,8 @@ export const EVENT_WORDS: Record<string, string> = {
   proxy_changed: "Proxy changed",
   browser_dead: "Browser found dead",
   proxy_refused: "Open refused, the proxy was dead",
+  backed_up: "Backed up",
+  restored: "Restored from a backup",
 }
 
 /**

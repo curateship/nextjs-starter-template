@@ -386,6 +386,12 @@ export const promoJobs = pgTable(
       .notNull()
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
     kind: varchar("kind", { length: 30 }).$type<JobKind>().notNull(),
+    /**
+     * The profile the job works in. Jobs in one lane run one at a time, in
+     * order; jobs in different lanes run side by side. Null on jobs from
+     * before lanes, each of which is its own.
+     */
+    lane: varchar("lane", { length: 36 }),
     /** A keyword id, a find id, or a find id plus the text to post. */
     payload: jsonb("payload").$type<Record<string, unknown>>().notNull().default({}),
     status: varchar("status", { length: 20 })

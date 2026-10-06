@@ -175,7 +175,11 @@ export function ProfilesDashboard({
   // so the list is read again every two seconds until nothing is changing.
   const changing = profiles.some(
     (profile) =>
-      profile.browser === "opening" || profile.closing || profile.checking || profile.siteChecking
+      profile.browser === "opening" ||
+      profile.closing ||
+      profile.checking ||
+      profile.siteChecking ||
+      profile.backingUp
   )
   React.useEffect(() => {
     if (!changing) return
@@ -673,8 +677,8 @@ export function ProfilesDashboard({
         title={deleteTargets.length === 1 ? "Delete this profile?" : `Delete ${deleteTargets.length} profiles?`}
         description={[
           deleteTargets.length === 1
-            ? "Its cookies go with it, so every sign-in inside is lost for good."
-            : "Their cookies go with them, so every sign-in inside is lost for good.",
+            ? "Its cookies and its backups go with it, so every sign-in inside is lost for good."
+            : "Their cookies and their backups go with them, so every sign-in inside is lost for good.",
           signedOut ?? "Nothing is signed in inside.",
           "A profile whose browser is open is kept until it is stopped.",
         ].join(" ")}

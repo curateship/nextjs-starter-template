@@ -10,6 +10,7 @@ import type {
 import { uuid } from "@/server/auth/security"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 
+import { deleteAllBackups } from "./backups"
 import { DockerRequestError, dockerConnection, dockerRequest, publicDockerError } from "./docker"
 import { recordProfileEvent } from "./events"
 import {
@@ -225,6 +226,16 @@ export async function deleteProfiles(
   for (const row of rows) {
     if (open.has(row.id)) {
       result.kept.push({ id: row.id, name: row.name, reason: "its browser is open" })
+      continue
+    }
+    // Backups first: a profile whose backups R2 would not remove is kept, so
+    // its encrypted cookies are never left in the bucket with no row to find
+    // them by.
+    try {
+      await deleteAllBackups(userId, row.id, db)
+    } catch (error) {
+      console.error(`Could not remove the backups of profile ${row.id}`, error)
+      result.kept.push({ id: row.id, name: row.name, reason: "its backups could not be removed from R2" })
       continue
     }
     try {
