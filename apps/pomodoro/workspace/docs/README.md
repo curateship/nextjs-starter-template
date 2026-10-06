@@ -8,6 +8,9 @@ cover this one.
   frontend.
 - [The account menu](account-menu.md) — the photo at the right of the
   header: what the menu holds, who sees each row, and where the photo is set.
+- [Notifications](notifications.md) — the bell beside your photo, how a
+  Pomodoro notice is told apart in the shell's tray, and the rules every notice
+  follows.
 - [The Pomoder look](pomoder-look.md) — the ported design tokens, fonts and
   orange accent for the member-facing screens, and the PomodoroShell wrapper
   that switches them on.

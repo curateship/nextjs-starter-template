@@ -1,6 +1,7 @@
 import * as React from "react"
 
 import type { AccountMenuUser } from "@/components/pomodoro/account-menu"
+import type { HeaderBell } from "@/components/pomodoro/pomodoro-shell"
 import { definePublicPage } from "@/lib/app-options"
 import type { AccountMenuFacts } from "@/lib/api/pomodoro/profile"
 
@@ -20,6 +21,7 @@ import type { AccountMenuFacts } from "@/lib/api/pomodoro/profile"
 export type LandingData = {
   user: AccountMenuUser | null
   accountMenu: AccountMenuFacts | null
+  bell: HeaderBell
 }
 
 const LandingTimer = React.lazy(
@@ -29,12 +31,16 @@ const LandingTimer = React.lazy(
 export const pomodoroLandingPage = definePublicPage<LandingData>({
   loader: async () => {
     const { loadShellBootstrap } = await import("@/lib/api/shell")
-    const { user } = await loadShellBootstrap()
-    if (!user) return { user: null, accountMenu: null }
+    const { user, unseenNotifications, settings } = await loadShellBootstrap()
+    const bell = {
+      unseen: unseenNotifications,
+      live: settings?.liveNotifications ?? true,
+    }
+    if (!user) return { user: null, accountMenu: null, bell }
     // The same facts, and the same rule on failure, as the `_pomodoro` layout.
     const { loadAccountMenu } = await import("@/lib/api/pomodoro/profile")
     const accountMenu = await loadAccountMenu().catch(() => null)
-    return { user, accountMenu }
+    return { user, accountMenu, bell }
   },
   head: () => {
     const meta: Array<Record<string, string>> = [

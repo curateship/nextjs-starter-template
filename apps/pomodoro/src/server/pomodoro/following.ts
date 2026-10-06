@@ -4,13 +4,16 @@ import { and, count, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm"
 import { findAchievement } from "@/lib/pomodoro/achievements"
 import { CHEERS_PER_DAY, findCheer } from "@/lib/pomodoro/cheers"
 import { MAX_FOLLOWING } from "@/lib/pomodoro/following"
+import { cheerNoticeMessage } from "@/lib/pomodoro/notices"
 import { db } from "@/server/db"
+import { publishNotificationCreated } from "@/server/notifications/events"
 import { blockedUserIdsFor, isBlockedBetween } from "@/server/pomodoro/blocks"
 import { forgetPublicProfile } from "@/server/pomodoro/public-profile"
 import {
   pomodoroAchievements,
   pomodoroCheers,
   pomodoroFollows,
+  pomodoroNoticeLinks,
   pomodoroProfiles,
 } from "@/server/pomodoro/schema"
 import { customShellNotifications } from "@/server/schema"
@@ -301,18 +304,25 @@ export async function sendCheer({
   await db.transaction(async (tx) => {
     await tx.insert(pomodoroCheers).values({ fromUserId, toUserId, cheerId })
     if (!deliver) return
+    const noticeId = randomUUID()
     await tx.insert(customShellNotifications).values({
-      id: randomUUID(),
+      id: noticeId,
       recipientUserId: toUserId,
       actorUserId: fromUserId,
       // The shell restricts `type` to a fixed list and `app_activity` is the
       // slot it keeps for an app writing about somebody's own activity. A
       // name of our own is refused by a CHECK constraint on the table.
       type: "app_activity",
-      message: `${senderName} cheered you on.`,
+      message: cheerNoticeMessage(senderName),
       detail: findCheer(cheerId)?.label ?? null,
       createdAt: new Date(),
     })
+    // What the notice is, for the bell's tab and link. See
+    // `workspace/docs/notifications.md` for the rules every notice follows.
+    await tx.insert(pomodoroNoticeLinks).values({ noticeId, kind: "cheer" })
+    // An open bell hears about it now rather than on its slow check. Sent on
+    // the transaction, so the nudge waits for the commit.
+    await publishNotificationCreated(toUserId, tx)
   })
   return { sent: true }
 }

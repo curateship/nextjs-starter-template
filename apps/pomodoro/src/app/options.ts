@@ -1,12 +1,18 @@
-import { ClockIcon, UsersIcon } from "lucide-react"
+import { ClockIcon, PartyPopperIcon, UsersIcon } from "lucide-react"
 
-import type { AppOptions } from "@/lib/app-options"
+import type { AppNoticeDetail, AppOptions } from "@/lib/app-options"
 import { pomodoroLandingPage } from "@/components/pomodoro/landing-page"
 import {
   POMODORO_ROW_HINTS,
   POMODORO_ROW_KEYS,
   POMODORO_ROW_LABELS,
 } from "@/lib/pomodoro/front-page-rows"
+import {
+  NOTICE_KIND_CATEGORY,
+  noticeKindFromWords,
+  POMODORO_NOTICE_CATEGORIES,
+  type PomodoroNoticeKind,
+} from "@/lib/pomodoro/notices"
 
 /** Which panel edits each of this app's row kinds, and which component draws it. */
 const ROW_PANELS = {
@@ -18,6 +24,19 @@ const ROW_CONTENT = {
   "focus-hours": "FocusHoursRowContent",
   "open-rooms": "OpenRoomsRowContent",
 } as const
+
+/**
+ * How each of this app's notices is drawn in the bell: its tab and its tile.
+ * The tile takes the theme's primary colour, so it is the Pomoder orange on a
+ * product screen and the workspace's own colour in the admin's bell.
+ */
+const NOTICE_LOOK: Record<PomodoroNoticeKind, AppNoticeDetail> = {
+  cheer: {
+    categoryId: NOTICE_KIND_CATEGORY.cheer,
+    icon: PartyPopperIcon,
+    toneClassName: "bg-primary/10 text-primary",
+  },
+}
 
 /** The picture on each kind's card in the shell's Add row window. */
 const ROW_ICONS = {
@@ -105,5 +124,41 @@ export const appOptions: AppOptions = {
           default: module[ROW_CONTENT[key]],
         })),
     })),
+  },
+  notifications: {
+    categories: POMODORO_NOTICE_CATEGORIES,
+    /**
+     * A row's look, from the notice's own words, so it is right on the first
+     * paint. The sentences are this app's (`src/lib/pomodoro/notices.ts`), so
+     * this is the app reading its own handwriting.
+     */
+    describe: (notice) => {
+      const kind = noticeKindFromWords(notice)
+      return kind ? NOTICE_LOOK[kind] : null
+    },
+    /**
+     * Where each notice leads, which only the server can say: a cheer opens
+     * the sender's public page while that page opens for this reader.
+     *
+     * The saved kind decides the look here, so a notice whose words were not
+     * recognised above still lands under the right tab. A failed request costs
+     * the links and nothing else; the shell keeps what `describe` drew.
+     */
+    detailsFor: async (notices) => {
+      const mine = notices.filter((notice) => notice.type === "app_activity")
+      if (mine.length === 0) return {}
+      const { loadPomodoroNoticeDetails } = await import(
+        "@/lib/api/pomodoro/notices"
+      )
+      const found = await loadPomodoroNoticeDetails(
+        mine.map((notice) => notice.id)
+      )
+      return Object.fromEntries(
+        Object.entries(found).map(([id, detail]) => [
+          id,
+          { ...NOTICE_LOOK[detail.kind], href: detail.href ?? undefined },
+        ])
+      )
+    },
   },
 }

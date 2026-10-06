@@ -58,7 +58,9 @@ A short line sent to somebody you follow, chosen from five.
 - **Three a day per pair.** Enough to be encouraging, far too few to be a way
   to pester somebody. The cap is per pair, so following many people is never
   limited by how much you cheered one of them.
-- **It arrives as a notification**, through the shell's own notifications.
+- **It arrives as a notification** in the bell beside your photo, under the
+  Social tab. Clicking it opens the sender's public page while that page opens
+  for you. See [Notifications](notifications.md).
 - **It can be switched off** on Settings → Profile, and off means no
   notification at all.
 

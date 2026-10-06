@@ -27,6 +27,7 @@ import QuickControlsHeader from "@/components/pomodoro/quick-controls-header"
 import { SceneBackdrop } from "@/components/pomodoro/scene-backdrop"
 import SoundPlayerHeader from "@/components/pomodoro/sound-player-header"
 import { SavedLink } from "@/components/shell/public-navigation"
+import { NotificationCenter } from "@/components/shell/sticky-header/notification-center"
 import { useTheme } from "@/components/shell/sticky-header/light-dark-switcher"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -221,6 +222,13 @@ function ThemeTogglePill() {
 const pageGutterClass = "px-6 sm:px-10"
 
 /**
+ * What the header's bell starts from, read by the layout with the rest of the
+ * shell's page data: how many notices arrived since the bell was last opened,
+ * and whether the live connection is switched on.
+ */
+export type HeaderBell = { unseen: number; live: boolean }
+
+/**
  * One row in the sidebar: a nav link or the collapse button. Both are the
  * same pill so the column reads down one edge, and both keep their icon in
  * the same place when the sidebar narrows.
@@ -231,10 +239,12 @@ const sidebarRowClass =
 export function PomodoroShell({
   user,
   accountMenu,
+  bell,
   children,
 }: {
   user: AccountMenuUser | null
   accountMenu: AccountMenuFacts | null
+  bell: HeaderBell
   children: React.ReactNode
 }) {
   const [menuOpen, setMenuOpen] = React.useState(false)
@@ -438,7 +448,17 @@ export function PomodoroShell({
           <div className="flex items-center gap-3">
             <ThemeTogglePill />
             {user ? (
-              <AccountMenu user={user} facts={accountMenu} />
+              <>
+                {/* The shell's own bell and tray, just left of the photo, where
+                    Tyler asked for it on 6 Oct 2026. Admins also get the tray's
+                    two links to the admin's notice screens. */}
+                <NotificationCenter
+                  initialUnseenCount={bell.unseen}
+                  live={bell.live}
+                  canOpenSettings={user.role === "admin"}
+                />
+                <AccountMenu user={user} facts={accountMenu} />
+              </>
             ) : (
               <>
                 <Link

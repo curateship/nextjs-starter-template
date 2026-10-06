@@ -10,6 +10,7 @@ import {
   loadLifetimeTotals,
 } from "@/server/pomodoro/achievements"
 import { requirePomodoroPerk } from "@/server/pomodoro/entitlements"
+import { markRoomNoticesRead } from "@/server/pomodoro/notices"
 import {
   applyHostRoomAction,
   banRoomMember,
@@ -95,11 +96,28 @@ const listRoomsFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .handler(async () => listPublicRooms())
 
+/**
+ * Marks a room's bell notices read, and never stands between somebody and the
+ * room. The marking is bookkeeping: a failure is logged and the room opens
+ * anyway, with the notices still unread in the bell.
+ */
+async function clearRoomNotices(userId: string, roomId: string) {
+  try {
+    await markRoomNoticesRead(userId, roomId)
+  } catch (error) {
+    console.error("room notices could not be marked read", error)
+  }
+}
+
 const currentRoomFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .handler(async ({ context }) => {
     const roomId = await findActiveRoomId(context.user.id)
-    return roomId ? roomSnapshot(roomId, context.user.id) : null
+    if (!roomId) return null
+    // The Rooms page opening on your room is you opening it, so the bell's
+    // notices about it are read. See `workspace/docs/notifications.md`.
+    await clearRoomNotices(context.user.id, roomId)
+    return roomSnapshot(roomId, context.user.id)
   })
 
 // Signed-out on purpose: the invite page names the room and prompts guests
@@ -218,6 +236,7 @@ const joinRoomFn = createServerFn({ method: "POST" })
     for (const closedRoomId of closedRoomIds)
       await notifyRoom(closedRoomId, "phase")
     await notifyRoom(room.id, "membership")
+    await clearRoomNotices(context.user.id, room.id)
     return roomSnapshot(room.id, context.user.id)
   })
 

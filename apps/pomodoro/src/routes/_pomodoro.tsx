@@ -29,7 +29,14 @@ export const Route = createFileRoute("/_pomodoro")({
     // off rather than failing the page: guessing "Free" would tell a paying
     // member the wrong thing.
     const accountMenu = user ? await loadAccountMenu().catch(() => null) : null
-    return { user: user ?? null, accountMenu }
+    return {
+      user: user ?? null,
+      accountMenu,
+      bell: {
+        unseen: shell.unseenNotifications,
+        live: shell.settings?.liveNotifications ?? true,
+      },
+    }
   },
   errorComponent: routeErrorComponent(
     () => "The app could not load. Reload to try again."
@@ -38,7 +45,7 @@ export const Route = createFileRoute("/_pomodoro")({
 })
 
 function PomodoroLayout() {
-  const { user, accountMenu } = Route.useLoaderData()
+  const { user, accountMenu, bell } = Route.useLoaderData()
   const authenticated = Boolean(user)
 
   // The engines read this one fact instead of asking the server (which
@@ -53,7 +60,7 @@ function PomodoroLayout() {
   }, [authenticated])
 
   return (
-    <PomodoroShell user={user} accountMenu={accountMenu}>
+    <PomodoroShell user={user} accountMenu={accountMenu} bell={bell}>
       <Outlet />
     </PomodoroShell>
   )

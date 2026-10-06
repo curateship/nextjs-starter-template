@@ -7,7 +7,8 @@ translucent blurred sidebar of pill links (Dashboard, Rooms, Pricing,
 Theme, Sounds, Leaderboard, History, Tasks; Settings at the foot), the
 transparent sticky header (brand, the glassy Timer / Leaderboard / Theme
 pills, the sound player, the moon-knob colour toggle, Log in + orange
-Register or [the account menu](account-menu.md)), and the chosen scene as a 720px hero
+Register or [the bell](notifications.md) and [the account menu](account-menu.md)),
+and the chosen scene as a 720px hero
 that fades into the canvas on every edge. Pages overlap the hero's lower
 half (the shell's -mt-40), which is what makes the timer ring float on
 the image exactly like the old dashboard. **The product is dark by

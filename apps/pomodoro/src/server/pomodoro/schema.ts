@@ -16,7 +16,12 @@ import {
 } from "drizzle-orm/pg-core"
 
 import type { PublicSocialLink } from "@/lib/pages/public-social"
-import { customShellMedia, customShellUsers } from "@/server/schema"
+import type { PomodoroNoticeKind } from "@/lib/pomodoro/notices"
+import {
+  customShellMedia,
+  customShellNotifications,
+  customShellUsers,
+} from "@/server/schema"
 
 /**
  * The pomodoro app's own tables, apart from the shell's schema the way trade
@@ -908,6 +913,38 @@ export const roomReports = pgTable(
       table.messageId
     ),
     index("room_reports_status_created_idx").on(table.status, table.createdAt),
+  ]
+)
+
+/**
+ * What one of this app's bell notices is about, saved beside it.
+ *
+ * Every Pomodoro notice is the shell's `app_activity` type, so the shell's
+ * row cannot say whether it is a cheer or a room notice, or which room. This
+ * row does, and it is written in the same transaction as the notice. The link
+ * the bell follows is worked out from it when the tray is read, never stored:
+ * a handle can change and a room can close after the notice was written.
+ */
+export const pomodoroNoticeLinks = pgTable(
+  "pomodoro_notice_links",
+  {
+    noticeId: varchar("notice_id", { length: 36 })
+      .primaryKey()
+      .references(() => customShellNotifications.id, { onDelete: "cascade" }),
+    kind: varchar("kind", { length: 30 }).$type<PomodoroNoticeKind>().notNull(),
+    /**
+     * The room a room notice is about. Opening that room marks its notices
+     * read. Kept, as null, when the room is deleted, so the notice keeps its
+     * kind and simply stops leading anywhere.
+     */
+    roomId: uuid("room_id").references(() => rooms.id, {
+      onDelete: "set null",
+    }),
+  },
+  (table) => [
+    index("pomodoro_notice_links_room_idx")
+      .on(table.roomId)
+      .where(sql`${table.roomId} is not null`),
   ]
 )
 
