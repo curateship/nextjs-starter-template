@@ -8,7 +8,7 @@ these as well as an admin, and sees only their own wallets and orders there —
 
 ```
 ┌────────────┬─────────────────────┬────────────┐
-│ Scanner    │ MARKET HEADER       │ Smart/Bots │
+│ Scanner    │ MARKET HEADER       │ Grid/DCA   │
 │            │ ─────────────────── ├────────────┤
 │            │ Chart               │ Manual     │
 │            │                     │            │
@@ -149,8 +149,8 @@ these as well as an admin, and sees only their own wallets and orders there —
   The rows use 12px inside gutters and 14px primary labels.
   Money is monospaced and tabular. Wallet and smart-order profit use the same
   12px type and end on the same right edge.
-- **Right, two separate order panels.** Smart orders and Bots share the upper
-  tabbed panel. Manual orders is its own panel below. It lists the coins you
+- **Right, two separate order panels.** Smart orders is the upper panel, with
+  a Grid tab and a DCA tab. Manual orders is its own panel below. It lists the coins you
   are holding by hand first, each with what it is up or down, then the
   hand-placed prices still waiting. A draggable divider changes their heights and the account
   remembers the split. When the column is collapsed, a bot icon opens both
@@ -178,27 +178,27 @@ shadow instead of a black underline. The component and its tabs live in
 `src/components/shared/dashboard-card-header.tsx`, changed in Custom Shell first
 and carried here unchanged.
 
-The upper-right panel opens on **Smart orders**. The Smart orders tab keeps the
-hand-placed ladders and grids it already showed. The header has only the Smart
-orders and Bots tabs, with no working, holding or running summary beside them.
-The **Bots** tab lists every running bot for the exchange on the page. Each row
-shows the bot's name, strategy, banked money, and how many of its coins are
-working. A bot with no closed trade shows a dash for money, never a made-up
-zero. The name opens that run's results dashboard. A stopped bot leaves the
-list on the next read.
+The upper-right panel has two tabs, **Grid** first and **DCA** second, and opens
+on Grid every time (Tyler, 6 Oct 2026). Grid lists the grids you placed by
+hand. DCA lists the DCA ladders you placed by hand. Both tabs have the same four
+columns, the same sorting and the same details card. The header has only the
+two tabs, with no working, holding or running summary beside them. The code is
+`src/components/trade/smart-orders-panel.tsx`.
 
-The row's three-dot button opens the same small popover shape as a wallet row.
-It shows the wallet, real or practice money, closed trades, working and held
-coins, and when the bot was switched on. Pause leaves every order and position
-where it is. Stop opens the shared confirmation before it calls off orders
-that have not bought anything. Coins already held keep their stops and targets.
-
-The Bots tab has a cached first answer when the dashboard opens, then asks for
-a fresh one as soon as the tab is pressed. The cached rows stay on screen while
-that answer lands. While Bots stays open, the list checks again every six
-seconds. A failed first read says the bots could not be read and offers Try
-again. A later failure keeps the last answer on screen and says the refresh
-failed. An empty answer says no bot is running on this exchange.
+- **A flow's grids and ladders are not here.** They stay on that run's own
+  dashboard, as before. A paused one does show here, in its kind's tab, because
+  this panel owns the Resume button.
+- **A paused signal trade shows under DCA.** It is the one other kind the panel
+  lets through, and the Positions tab leaves its coin out, so with no tab its
+  holding would vanish from the screen. The ladder engine runs signal trades,
+  so DCA is its nearest home. Its details card says "Signals".
+- **Each tab's empty answer names its own kind.** "No grid of your own is
+  working" on Grid, "No DCA ladder of your own is working" on DCA. Still reading
+  and could-not-read are separate answers, as before.
+- **Running bots are no longer on this dashboard.** Until 6 Oct 2026 the second
+  tab was Bots, a list of every switched-on flow with Pause and Stop. The
+  trading overview's Running bots card lists them now, and a run's own page
+  has Pause and Stop.
 
 **A smaller window shrinks the chart, never the panels.** The Market scanner panel,
 the Smart orders column and the bottom Positions panel keep the pixel size they

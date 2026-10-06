@@ -20,11 +20,13 @@ import {
 import { FieldLabel } from "@/components/ui/field-label"
 import { FormDialog } from "@/components/ui/form-dialog"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import {
   getWrittenPageErrorMessage,
   saveNewWrittenPage,
   type WrittenPage,
 } from "@/lib/api/content/pages"
+import { MAX_WRITTEN_PAGE_DESCRIPTION } from "@/lib/pages/front-page"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
 /**
@@ -59,6 +61,7 @@ export function WrittenPageDialog({
   const [path, setPath] = React.useState("")
   const [image, setImage] = React.useState("")
   const [imageAlt, setImageAlt] = React.useState("")
+  const [description, setDescription] = React.useState("")
   const [saving, setSaving] = React.useState(false)
 
   // Reset on every open, so a second open never shows the last one's words.
@@ -69,15 +72,22 @@ export function WrittenPageDialog({
     setPath("")
     setImage("")
     setImageAlt("")
+    setDescription("")
   }
 
-  const dirty = title.trim() !== "" || path.trim() !== "" || image !== ""
+  const dirty =
+    title.trim() !== "" ||
+    path.trim() !== "" ||
+    image !== "" ||
+    description.trim() !== ""
 
   async function create() {
     dismissErrorToast()
     setSaving(true)
     try {
-      onCreated(await saveNewWrittenPage({ title, path, image, imageAlt }))
+      onCreated(
+        await saveNewWrittenPage({ title, path, image, imageAlt, description })
+      )
     } catch (error) {
       // The server's refusals are already sentences an admin can act on —
       // "Pricing already answers on /pricing" — so they are shown as-is.
@@ -135,6 +145,22 @@ export function WrittenPageDialog({
                     placeholder="/about"
                     disabled={saving}
                     onChange={(event) => setPath(event.target.value)}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <FieldLabel
+                    htmlFor="written-page-description"
+                    hint="Optional. A line or two about the page. It is shown under the page's name on any Pages list that lists it, and search engines are told it too."
+                  >
+                    Description
+                  </FieldLabel>
+                  <Textarea
+                    id="written-page-description"
+                    rows={2}
+                    value={description}
+                    maxLength={MAX_WRITTEN_PAGE_DESCRIPTION}
+                    disabled={saving}
+                    onChange={(event) => setDescription(event.target.value)}
                   />
                 </div>
                 <ImageUpload

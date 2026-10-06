@@ -92,7 +92,7 @@ vi.mock("@/components/trade/manual-orders-panel", () => ({
 vi.mock("@/components/trade/smart-orders-menu", () => ({
   SmartOrdersMenu: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="smart-orders-menu">
-      <button type="button" aria-label="Open orders and bots" />
+      <button type="button" aria-label="Open smart and manual orders" />
       {children}
     </div>
   ),
@@ -501,7 +501,6 @@ describe("the trade workspace chart full screen", () => {
               activeNamedId: null,
               named: [],
             }}
-            initialRunningBots={{ rows: [], error: null }}
             initialWallets={{
               rows: [],
               summaries: [],
@@ -568,7 +567,7 @@ describe("the trade workspace chart full screen", () => {
     )
     expect(
       host.querySelector(
-        '[data-testid="market-header"] button[aria-label="Open orders and bots"]'
+        '[data-testid="market-header"] button[aria-label="Open smart and manual orders"]'
       )
     ).not.toBeNull()
     expect(
@@ -582,7 +581,7 @@ describe("the trade workspace chart full screen", () => {
           '[data-testid="market-header"] button'
         )
       ).at(-1)?.ariaLabel
-    ).toBe("Open orders and bots")
+    ).toBe("Open smart and manual orders")
     expect(
       host.querySelector(
         '[data-testid="market-header"] button[aria-label="Show chart full screen"]'

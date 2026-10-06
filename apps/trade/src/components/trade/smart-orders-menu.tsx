@@ -37,7 +37,7 @@ export function SmartOrdersMenu({ children }: { children: ReactNode }) {
           variant="outline"
           size="icon"
           className="bg-muted/60 dark:bg-muted/60"
-          aria-label="Open orders and bots"
+          aria-label="Open smart and manual orders"
           onMouseEnter={openFromHover}
           onMouseLeave={closeFromHover}
         >

@@ -1407,6 +1407,12 @@ export const customShellWrittenPages = pgTable(
     image: varchar("image", { length: 2048 }).notNull().default(""),
     /** What a screen reader says in place of that picture. */
     imageAlt: varchar("image_alt", { length: 160 }).notNull().default(""),
+    /**
+     * A line or two about the page, or empty for none. Shown under the page's
+     * name on every Pages list card that lists it, and told to search engines
+     * as the page's description.
+     */
+    description: varchar("description", { length: 300 }).notNull().default(""),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },

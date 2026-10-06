@@ -3,7 +3,7 @@
 import { act, useState, type ComponentProps } from "react"
 import { createRoot } from "react-dom/client"
 import { renderToStaticMarkup } from "react-dom/server"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 Object.assign(globalThis, {
   ResizeObserver: class {
@@ -12,37 +12,6 @@ Object.assign(globalThis, {
     disconnect() {}
   },
 })
-
-const flowRunsApi = vi.hoisted(() => ({
-  loadRunningBots: vi.fn(),
-  getRunningBotsErrorMessage: vi.fn(
-    () => "The running bots could not be read."
-  ),
-}))
-const flowTradingApi = vi.hoisted(() => ({
-  pauseFlow: vi.fn(),
-  stopFlow: vi.fn(),
-  flowActionProblem: vi.fn(() => "The bot action failed."),
-}))
-
-vi.mock("@/lib/api/trade/flow-runs", () => flowRunsApi)
-vi.mock("@/lib/api/trade/flow-trading", () => flowTradingApi)
-
-vi.mock("@tanstack/react-router", () => ({
-  Link: ({
-    to,
-    params,
-    children,
-    ...props
-  }: ComponentProps<"a"> & {
-    to: string
-    params: { runId: string }
-  }) => (
-    <a href={to.replace("$runId", params.runId)} {...props}>
-      {children}
-    </a>
-  ),
-}))
 
 import { SmartOrdersPanel as SmartOrdersPanelContent } from "@/components/trade/smart-orders-panel"
 import { TooltipProvider } from "@/components/ui/tooltip"
@@ -76,26 +45,14 @@ function SmartOrdersPanel(
  * half is not an answer. `settled` is both halves being in.
  */
 
-const EMPTY = "No ladder or grid of your own is working"
-const READING = "Reading your smart orders"
+const EMPTY = "No grid of your own is working"
+const READING = "Reading your grids"
 
 afterEach(() => {
-  flowRunsApi.loadRunningBots.mockReset()
-  flowTradingApi.pauseFlow.mockReset()
-  flowTradingApi.stopFlow.mockReset()
   vi.useRealTimers()
 })
 
-beforeEach(() => {
-  flowRunsApi.loadRunningBots.mockResolvedValue([])
-  flowTradingApi.pauseFlow.mockResolvedValue({ summary: "Paused." })
-  flowTradingApi.stopFlow.mockResolvedValue({ summary: "Stopped." })
-})
-
 const shared = {
-  protocol: "hyperliquid" as const,
-  initialBots: [],
-  initialBotsError: null,
   cacheScope: "test:hyperliquid",
   positions: [],
   fills: [],
@@ -107,23 +64,6 @@ const shared = {
   onRetry: () => {},
   onResumeSmartOrder: vi.fn(async () => true),
   onSelectMarket: () => {},
-}
-
-const runningBot = {
-  runId: "run-1",
-  automationId: "flow-1",
-  name: "Buy the dip",
-  strategy: "DCA ladder" as const,
-  marketCount: 12,
-  workingCount: 3,
-  holdingCount: 2,
-  netUsd: 24.5,
-  tradesClosed: 4,
-  walletLabel: "Practice",
-  real: false,
-  startedAt: Date.now() - 60_000,
-  paused: false,
-  stopping: false,
 }
 
 /** One hand-placed ladder with a single rung still waiting. */
@@ -182,6 +122,9 @@ const grid = {
   },
 } as unknown as SmartOrder
 
+/** A long grid on the same coin, for tests that are about the table itself. */
+const xmrGrid = { ...grid, id: "xmr-grid" } as SmartOrder
+
 const bitcoin: SmartOrder = {
   ...ladder,
   id: "two",
@@ -232,10 +175,11 @@ function draw(state: {
   return renderToStaticMarkup(<SmartOrdersPanel {...shared} {...state} />)
 }
 
-async function openBots(host: HTMLElement) {
-  const trigger = host.querySelector<HTMLButtonElement>(
-    '[data-slot="tabs-trigger"][aria-selected="false"]'
-  )
+/** Presses one of the panel's two tabs by its label. */
+async function openTab(host: HTMLElement, label: "Grid" | "DCA") {
+  const trigger = Array.from(
+    host.querySelectorAll<HTMLButtonElement>('[data-slot="tabs-trigger"]')
+  ).find((button) => button.textContent?.trim() === label)
   await act(async () => {
     trigger?.dispatchEvent(
       new MouseEvent("mousedown", { bubbles: true, button: 0 })
@@ -254,7 +198,7 @@ async function openSmartOrderDetails(host: HTMLElement, symbol = "XMR") {
 
 describe("the Smart orders panel", () => {
   it("gives its order list a bounded scroll area", () => {
-    const html = draw({ smartOrders: [ladder], settled: true, failed: false })
+    const html = draw({ smartOrders: [xmrGrid], settled: true, failed: false })
     const document = new DOMParser().parseFromString(html, "text/html")
     const smartTab = document.querySelector(
       '[data-slot="tabs-content"][data-state="active"]'
@@ -304,78 +248,69 @@ describe("the Smart orders panel", () => {
   })
 
   it("draws the orders the landed half brought, without waiting for the other", () => {
-    const half = draw({ smartOrders: [ladder], settled: false, failed: false })
+    const half = draw({ smartOrders: [xmrGrid], settled: false, failed: false })
     expect(half).toContain("XMR")
     expect(half).not.toContain(READING)
   })
 
-  it("lists each running bot and links its name to the run dashboard", async () => {
-    ;(
-      globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
-    ).IS_REACT_ACT_ENVIRONMENT = true
-    const host = document.createElement("div")
-    document.body.appendChild(host)
-    const root = createRoot(host)
-
-    flowRunsApi.loadRunningBots.mockResolvedValue([runningBot])
-    await act(async () => {
-      root.render(
-        <SmartOrdersPanel
-          {...shared}
-          initialBots={[runningBot]}
-          smartOrders={[]}
-          settled
-          failed={false}
-        />
-      )
-    })
-    await openBots(host)
-
-    const link = host.querySelector<HTMLAnchorElement>(
-      'a[href="/flow-runs/run-1"]'
+  // Grid first and DCA second, in place of Smart orders and Bots (Tyler,
+  // 6 Oct 2026).
+  it("opens on a Grid tab beside a DCA tab, and nothing else", () => {
+    const html = draw({ smartOrders: [], settled: true, failed: false })
+    const document = new DOMParser().parseFromString(html, "text/html")
+    const tabs = Array.from(
+      document.querySelectorAll('[data-slot="tabs-trigger"]')
     )
-    expect(link?.textContent).toContain("Buy the dip")
-    expect(link?.textContent).toContain("DCA ladder")
-    expect(link?.textContent).toContain("+$24.50")
-    expect(link?.textContent).toContain("3 of 12 working")
-    expect(flowRunsApi.loadRunningBots).toHaveBeenCalledTimes(1)
-    expect(host.textContent).not.toContain("none running")
-    expect(host.textContent).not.toMatch(/working.*holding/i)
-    await act(async () => root.unmount())
-    host.remove()
+
+    expect(tabs.map((tab) => tab.textContent?.trim())).toEqual(["Grid", "DCA"])
+    expect(tabs[0]?.getAttribute("aria-selected")).toBe("true")
+    expect(html).not.toContain("Bots")
   })
 
-  it("does not call a failed bot read an empty list", async () => {
+  it("lists grids under Grid and ladders under DCA", async () => {
     ;(
       globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
     ).IS_REACT_ACT_ENVIRONMENT = true
     const host = document.createElement("div")
     const root = createRoot(host)
-    flowRunsApi.loadRunningBots.mockRejectedValue(new Error("offline"))
+    const btcGrid = {
+      ...grid,
+      id: "btc-grid",
+      marketKey: bitcoin.marketKey,
+    } as SmartOrder
 
     await act(async () => {
       root.render(
         <SmartOrdersPanel
           {...shared}
-          initialBotsError="The running bots could not be read."
-          smartOrders={[]}
+          smartOrders={[ladder, btcGrid]}
           settled
           failed={false}
         />
       )
     })
-    await openBots(host)
+    expect(host.querySelector("tbody")?.textContent).toContain("BTC")
+    expect(host.querySelector("tbody")?.textContent).not.toContain("XMR")
 
-    expect(host.textContent).toContain("could not be read")
-    expect(host.textContent).not.toContain("No bot is running")
+    await openTab(host, "DCA")
+    expect(host.querySelector("tbody")?.textContent).toContain("XMR")
+    expect(host.querySelector("tbody")?.textContent).not.toContain("BTC")
     await act(async () => root.unmount())
   })
 
-  it("keeps the last bot list when its immediate refresh fails", async () => {
+  // The Positions tab leaves out every coin this panel lists, so a paused
+  // signal trade with no tab would take its holding off the screen.
+  it("lists a paused signal trade under DCA so its coin is never hidden", async () => {
     ;(
       globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
     ).IS_REACT_ACT_ENVIRONMENT = true
-    flowRunsApi.loadRunningBots.mockRejectedValue(new Error("offline"))
+    const signal = {
+      ...ladder,
+      id: "signal",
+      kind: "signal",
+      flowRunId: "run-1",
+      plan: { phase: "holding", paused: true, pauseReason: "Refused." },
+    } as unknown as SmartOrder
     const host = document.createElement("div")
     const root = createRoot(host)
 
@@ -383,30 +318,23 @@ describe("the Smart orders panel", () => {
       root.render(
         <SmartOrdersPanel
           {...shared}
-          initialBots={[runningBot]}
-          smartOrders={[]}
+          smartOrders={[signal]}
           settled
           failed={false}
         />
       )
     })
-    await openBots(host)
+    expect(host.textContent).toContain(EMPTY)
 
-    expect(flowRunsApi.loadRunningBots).toHaveBeenCalledWith("hyperliquid")
-    expect(host.textContent).toContain("Buy the dip")
-    expect(host.textContent).toContain("The list could not be refreshed")
+    await openTab(host, "DCA")
+    expect(host.querySelector("tbody")?.textContent).toContain("XMR")
     await act(async () => root.unmount())
   })
 
-  it("rests while the browser tab is hidden and refreshes when it returns", async () => {
+  it("names the DCA tab's own kind when nothing is working there", async () => {
     ;(
       globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
     ).IS_REACT_ACT_ENVIRONMENT = true
-    vi.useFakeTimers()
-    let hidden = false
-    const hiddenSpy = vi
-      .spyOn(document, "hidden", "get")
-      .mockImplementation(() => hidden)
     const host = document.createElement("div")
     const root = createRoot(host)
 
@@ -415,77 +343,10 @@ describe("the Smart orders panel", () => {
         <SmartOrdersPanel {...shared} smartOrders={[]} settled failed={false} />
       )
     })
-    await openBots(host)
-    expect(flowRunsApi.loadRunningBots).toHaveBeenCalledTimes(1)
+    await openTab(host, "DCA")
 
-    hidden = true
-    await act(async () => {
-      document.dispatchEvent(new Event("visibilitychange"))
-      await vi.advanceTimersByTimeAsync(300_000)
-    })
-    expect(flowRunsApi.loadRunningBots).toHaveBeenCalledTimes(1)
-
-    hidden = false
-    await act(async () => {
-      document.dispatchEvent(new Event("visibilitychange"))
-    })
-    expect(flowRunsApi.loadRunningBots).toHaveBeenCalledTimes(2)
-
+    expect(host.textContent).toContain("No DCA ladder of your own is working")
     await act(async () => root.unmount())
-    hiddenSpy.mockRestore()
-  })
-
-  it("shows the bot figures and confirms Stop before acting", async () => {
-    ;(
-      globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
-    ).IS_REACT_ACT_ENVIRONMENT = true
-    flowRunsApi.loadRunningBots
-      .mockResolvedValueOnce([runningBot])
-      .mockResolvedValueOnce([])
-    const host = document.createElement("div")
-    document.body.appendChild(host)
-    const root = createRoot(host)
-
-    await act(async () => {
-      root.render(
-        <SmartOrdersPanel
-          {...shared}
-          initialBots={[runningBot]}
-          smartOrders={[]}
-          settled
-          failed={false}
-        />
-      )
-    })
-    await openBots(host)
-    await act(async () => {
-      host
-        .querySelector<HTMLButtonElement>(
-          'button[aria-label="Open Buy the dip bot details"]'
-        )
-        ?.click()
-    })
-
-    expect(document.body.textContent).toContain("Made or lost+$24.50")
-    expect(document.body.textContent).toContain("Coins working3 of 12")
-    expect(document.body.textContent).toContain("Practice money")
-
-    const stop = Array.from(document.body.querySelectorAll("button")).find(
-      (button) => button.textContent?.trim() === "Stop"
-    )
-    await act(async () => stop?.click())
-    expect(document.body.textContent).toContain("Stop this bot?")
-    expect(flowTradingApi.stopFlow).not.toHaveBeenCalled()
-
-    const confirm = Array.from(document.body.querySelectorAll("button")).find(
-      (button) => button.textContent?.trim() === "Stop it"
-    )
-    await act(async () => confirm?.click())
-
-    expect(flowTradingApi.stopFlow).toHaveBeenCalledWith("flow-1")
-    expect(host.textContent).not.toContain("Buy the dip")
-    await act(async () => root.unmount())
-    host.remove()
   })
 
   it("draws the last complete answer while the new read is still landing", async () => {
@@ -511,6 +372,7 @@ describe("the Smart orders panel", () => {
         />
       )
     })
+    await openTab(host, "DCA")
 
     expect(host.textContent).toContain("XMR")
     expect(host.textContent).toContain("+$20.00")
@@ -538,6 +400,7 @@ describe("the Smart orders panel", () => {
         />
       )
     })
+    await openTab(host, "DCA")
 
     const headerButtons = Array.from(host.querySelectorAll("thead button"))
     const headers = headerButtons.map((button) => button.textContent)
@@ -613,7 +476,7 @@ describe("the Smart orders panel", () => {
       root.render(
         <SmartOrdersPanel
           {...shared}
-          smartOrders={[ladder, short]}
+          smartOrders={[xmrGrid, short]}
           settled
           failed={false}
         />
@@ -648,21 +511,21 @@ describe("the Smart orders panel", () => {
   })
 
   it("uses the coin name instead of exchange contract affixes", () => {
-    const aster: SmartOrder = {
-      ...ladder,
+    const aster = {
+      ...grid,
       id: "aster-hype",
       marketKey: "aster:mainnet:HYPEUSDT",
-    }
-    const kucoin: SmartOrder = {
-      ...ladder,
+    } as SmartOrder
+    const kucoin = {
+      ...grid,
       id: "kucoin-sol",
       marketKey: "kucoin:mainnet:SOLUSDTM",
-    }
-    const hyperliquid: SmartOrder = {
-      ...ladder,
+    } as SmartOrder
+    const hyperliquid = {
+      ...grid,
       id: "hyperliquid-tsla",
       marketKey: "hyperliquid:mainnet:xyz:TSLA",
-    }
+    } as SmartOrder
     const html = renderToStaticMarkup(
       <SmartOrdersPanel
         {...shared}
@@ -724,6 +587,7 @@ describe("the Smart orders panel", () => {
         />
       )
     })
+    await openTab(host, "DCA")
 
     await openSmartOrderDetails(host)
 
@@ -758,6 +622,7 @@ describe("the Smart orders panel", () => {
     }
 
     await act(async () => root.render(<SelectedSmartOrder />))
+    await openTab(host, "DCA")
     const ticker = Array.from(host.querySelectorAll("tbody .font-semibold"))
       .find((label) => label.textContent?.trim() === "XMR")
       ?.closest("button")
@@ -829,6 +694,7 @@ describe("the Smart orders panel", () => {
         />
       )
     })
+    await openTab(host, "DCA")
     const cells = host.querySelectorAll("tbody tr")[0]?.querySelectorAll("td")
     // Whole dollars in the column; the tooltip keeps the cents.
     expect(cells?.[2]?.textContent).toBe("$190")
@@ -894,6 +760,7 @@ describe("the Smart orders panel", () => {
         />
       )
     })
+    await openTab(host, "DCA")
     expect(host.textContent).toContain("Paused")
     await openSmartOrderDetails(host)
     expect(document.body.textContent).toContain(
@@ -914,7 +781,7 @@ describe("the Smart orders panel", () => {
     const markup = renderToStaticMarkup(
       <SmartOrdersPanel
         {...shared}
-        smartOrders={[ladder]}
+        smartOrders={[xmrGrid]}
         wallets={[
           {
             id: "w1",
@@ -934,6 +801,6 @@ describe("the Smart orders panel", () => {
       />
     )
     expect(markup).toContain("Key expired")
-    expect(markup).not.toContain("1 rung waiting")
+    expect(markup).not.toContain("3 waiting")
   })
 })

@@ -15,7 +15,7 @@ many trips each one makes after the check.
 The page's account-specific opening data arrives through two authenticated
 calls that leave together, both in `src/lib/api/trade/dashboard.ts`. The
 first, `loadDashboardCore`, is database reads only: the preference row
-(including the sound switch), folders, running bots, chart drawings and the
+(including the sound switch), folders, chart drawings and the
 opening sound cursor. The route loader waits for that one alone, so the
 document goes out as soon as the database answers and the page paints in its
 saved arrangement. The second, `loadDashboardExchange`, is everything that
@@ -100,22 +100,18 @@ preferences and all, every time the connection blinked. It now asks for the
 market list alone (`useDashboardMarkets`), and keeps the list already on
 screen if that ask fails.
 
-The Bots tab gets its first list from that same opening call. Pressing the tab
-asks again at once, so the figures do not wait up to six seconds for the first
-timer. While the tab is open it checks every six seconds, because a bot can
-stop without a click on the dashboard. Leaving the tab stops those checks.
-Hiding the whole browser page stops them too. The old timer made 50 server
-calls during five hidden minutes. It now makes none, and asks once as soon as
-the page is visible again. A failed refresh keeps the last list rather than
-replacing it with an empty answer.
+The opening call no longer reads running bots. Until 6 Oct 2026 it did, for a
+Bots tab on the dashboard that checked again every six seconds. That tab became
+the DCA tab, and running bots are listed on the trading overview instead.
 
-The server reads only the active order rows placed by the runs in the list.
+The run list's server read takes only the active order rows placed by the runs
+in the list.
 Fill history and permanent order ownership are limited to the wallets and
 coins those runs use, including coins they placed and later removed from their
 settings. Ownership from an older run on the same wallet and coin stays in the
 answer because a position can outlive the run that opened it. The visible
 money, finished trades and coins held therefore keep the same attribution
-without pulling unrelated wallet history into every six-second refresh.
+without pulling unrelated wallet history into every refresh.
 
 The bot count does not bring each smart order's plan back from the database.
 PostgreSQL checks whether a DCA plan contains a waiting rung and returns one

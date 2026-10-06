@@ -19,8 +19,8 @@ fixed in one is fixed in both.
 - **The cap is a share of the column, not a fixed height.** A taller column
   lets Smart orders show more rows before it starts scrolling, with no code
   change.
-- **The Bots tab lives inside the top panel**, so it scrolls in whatever height
-  Smart orders has.
+- **The Grid and DCA tabs live inside the top panel**, so each scrolls in
+  whatever height Smart orders has.
 - The dividers beside the chart and above Positions still drag.
 - **Left and right shut all the way to nothing.** A slim tab appears on the
   middle panel's edge where each one disappeared, and brings it back. **Both
@@ -150,7 +150,7 @@ Designed with the wide one, not bolted on.
 - The middle panel takes the whole width and stays the main thing.
 - Two labelled buttons in the market header slide the side panels in. The
   Markets sheet holds the full market list. The right sheet holds the separate
-  Smart orders and Manual orders panels, plus Bots. Wallet management stays in
+  Smart orders and Manual orders panels. Wallet management stays in
   the chart header on every width.
 - A sheet closes toward the same edge it opened from. Closing the order panels
   keeps the sheet on the right until it is gone; it never turns into Markets on

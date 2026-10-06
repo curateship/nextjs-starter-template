@@ -124,7 +124,6 @@ import {
 } from "@/lib/trade/panel-layout"
 import { hidePnlNow } from "@/lib/trade/hide-pnl"
 import type { QuickOrderPrefs } from "@/lib/trade/quick-order"
-import type { RunningBot } from "@/lib/trade/running-bots"
 import {
   ALL_ROW,
   favFolder,
@@ -226,7 +225,6 @@ export function TradeWorkspace({
   initialCardFolds,
   initialQuickOrder,
   initialPanelLayouts,
-  initialRunningBots,
   initialWallets,
   selectedKey,
   onSelectMarket,
@@ -273,8 +271,6 @@ export function TradeWorkspace({
   initialQuickOrder: QuickOrderPrefs
   /** Divider positions and named arrangements owned by this account. */
   initialPanelLayouts: TradePanelLayouts
-  /** The Bots tab's first answer from the dashboard's one opening call. */
-  initialRunningBots: { rows: RunningBot[]; error: string | null }
   /** The account panel's first answer from the same opening call. */
   initialWallets: DashboardBootstrap["wallets"]
   /** The picked market's key, carried in the address bar. */
@@ -987,9 +983,6 @@ export function TradeWorkspace({
   const smartOrdersPanel = (
     <SmartOrdersPanel
       key={protocol}
-      protocol={protocol}
-      initialBots={initialRunningBots.rows}
-      initialBotsError={initialRunningBots.error}
       cacheScope={dashboardCacheScope}
       smartOrders={trading.smartOrders}
       positions={trading.positions}
@@ -1576,7 +1569,7 @@ export function TradeWorkspace({
             <SheetHeader className="sr-only">
               <SheetTitle>
                 {sideSheet.side === "smart-orders"
-                  ? "Orders and bots"
+                  ? "Smart and manual orders"
                   : "Markets"}
               </SheetTitle>
             </SheetHeader>

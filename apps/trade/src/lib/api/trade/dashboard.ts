@@ -25,10 +25,6 @@ import type { TradePanelLayouts } from "@/lib/trade/panel-layout"
 import type { PriceAlert } from "@/lib/trade/price-alerts"
 import { DEFAULT_CHART_INTERVAL } from "@/lib/trade/chart-interval"
 import type { Drawing } from "@/lib/trade/drawings"
-import {
-  RUNNING_BOTS_READ_ERROR,
-  type RunningBot,
-} from "@/lib/trade/running-bots"
 import type { MarketFolder, MarketPanelRows } from "@/lib/trade/market-folders"
 import type {
   TradeSoundCursor,
@@ -47,7 +43,6 @@ import { loadMarketFolders } from "@/server/trade/market-folders"
 import { tradeSoundEventsAfter } from "@/server/trade/notice-links"
 import { loadArmedPriceAlerts } from "@/server/trade/price-alerts"
 import { loadDashboardPrefs, loadLastWalletIds } from "@/server/trade/prefs"
-import { listRunningBots } from "@/server/trade/running-bots"
 import { loadWalletSummaries } from "@/server/trade/wallets"
 
 import { getCandlesErrorMessage } from "./candles"
@@ -94,8 +89,6 @@ export type DashboardCore = {
    */
   smartDca: DcaParams | null
   smartGrid: GridParams | null
-  /** The Bots tab's first answer, carried with the rest of the dashboard. */
-  runningBots: { rows: RunningBot[]; error: string | null }
   /** The remembered market's saved lines, read without another session check. */
   drawings: {
     marketKey: string | null
@@ -217,7 +210,6 @@ const loadDashboardCoreFn = createServerFn({ method: "GET" })
     const [
       prefs,
       folders,
-      runningBots,
       drawings,
       priceAlerts,
       tradeSounds,
@@ -227,15 +219,6 @@ const loadDashboardCoreFn = createServerFn({ method: "GET" })
       // Losing folders must not keep the rest of the dashboard from opening.
       loadMarketFolders(context.user.id, data.protocol, data.network).catch(
         () => [] as MarketFolder[]
-      ),
-      // The bot list must not take the trading screen down. Its own tab says
-      // when this read failed and can retry it without reloading the page.
-      listRunningBots(context.user.id, data.protocol).then(
-        (rows) => ({ rows, error: null as string | null }),
-        () => ({
-          rows: [] as RunningBot[],
-          error: RUNNING_BOTS_READ_ERROR,
-        })
       ),
       drawingsPromise,
       loadArmedPriceAlerts(context.user.id).then(
@@ -282,7 +265,6 @@ const loadDashboardCoreFn = createServerFn({ method: "GET" })
       panelLayouts: prefs.panelLayouts,
       smartDca: prefs.smartDca,
       smartGrid: prefs.smartGrid,
-      runningBots,
       drawings,
       priceAlerts,
       tradeSounds,

@@ -8,9 +8,15 @@ import {
 import { FrontPageRows } from "@/components/marketing/front-page-rows"
 import { WrittenPagePicture } from "@/components/pages/written-page-picture"
 import { catchAllOverride } from "@/lib/app-options"
-import { loadPublicPageBlocks } from "@/lib/api/content/page-blocks"
+import {
+  loadPublicListedPages,
+  loadPublicPageBlocks,
+} from "@/lib/api/content/page-blocks"
 import { loadWrittenPage } from "@/lib/api/content/pages"
-import { frontPageHeroRunsUnderMenu } from "@/lib/pages/front-page"
+import {
+  frontPageHasListedPages,
+  frontPageHeroRunsUnderMenu,
+} from "@/lib/pages/front-page"
 import { resolveAppName } from "@/lib/branding"
 import { resolveCanonicalUrl } from "@/lib/pages/page-indexing"
 import {
@@ -71,13 +77,21 @@ export const Route = createFileRoute("/$")({
       throw redirect({ to: "/login", search: { redirect: path } })
     }
 
+    // The page's content, which is blocks like the front page's. Read after
+    // the page itself, because the read above is what decides whether this
+    // visitor may see the address at all.
+    const blocks = await loadPublicPageBlocks(path)
+
     return {
       source: "written" as const,
       page: view.page,
-      // The page's content, which is blocks like the front page's. Read after
-      // the page itself, because the read above is what decides whether this
-      // visitor may see the address at all.
-      blocks: await loadPublicPageBlocks(path),
+      blocks,
+      // The cards a Pages list block shows, asked for only when there is one.
+      // A failure leaves that block as its heading, as it does on the front
+      // page, rather than turning the whole page into an error.
+      listedPages: frontPageHasListedPages(blocks)
+        ? await loadPublicListedPages(path).catch(() => ({}))
+        : {},
       branding: view.branding,
     }
   },
@@ -92,6 +106,9 @@ export const Route = createFileRoute("/$")({
     const appName = resolveAppName(loaderData.branding.appName)
     const metadata = resolveWrittenPageSeoMetadata({
       pageTitle: loaderData.page.title,
+      // The page's own description, when it has one, beats the template in
+      // Settings > Public > SEO. It is the same line its Pages list cards show.
+      pageSeoDescription: loaderData.page.description,
       appName,
       seo: loaderData.branding.publicSeo,
     })
@@ -157,7 +174,10 @@ function CatchAllRoute() {
         alt={loaderData.page.imageAlt}
         title={loaderData.page.title}
       />
-      <FrontPageRows rows={loaderData.blocks} />
+      <FrontPageRows
+        rows={loaderData.blocks}
+        listedPages={loaderData.listedPages}
+      />
     </PublicPageFrame>
   )
 }

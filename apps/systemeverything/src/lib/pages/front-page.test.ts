@@ -18,6 +18,8 @@ import {
   frontPageHeroBandColors,
   frontPageRowImageUrls,
   normalizeFrontPageHeroBackground,
+  MAX_FRONT_PAGE_LISTED_PAGES,
+  normalizeFrontPageListedPageIds,
   normalizeFrontPageRows,
 } from "@/lib/pages/front-page"
 
@@ -584,5 +586,36 @@ describe("a new block's starting values", () => {
       id: "listings",
       heading: "Latest listings",
     })
+  })
+})
+
+describe("a Pages list block", () => {
+  it("keeps the ids it names, once each, in order, and drops anything else", () => {
+    const [row] = normalizeFrontPageRows([
+      {
+        id: "list",
+        kind: "pages",
+        heading: "What's on",
+        pageIds: ["b", "a", "b", 7, "", "not an id", "x".repeat(37)],
+      },
+    ])
+    expect(row).toMatchObject({ kind: "pages", pageIds: ["b", "a"] })
+  })
+
+  it("is kept with nothing picked yet, so it can be added and filled later", () => {
+    const [row] = normalizeFrontPageRows([
+      { ...createFrontPageRowDraft("pages"), id: "list" },
+    ])
+    expect(row).toMatchObject({ kind: "pages", pageIds: [] })
+  })
+
+  it("names at most as many pages as a block may show", () => {
+    const ids = Array.from(
+      { length: MAX_FRONT_PAGE_LISTED_PAGES + 5 },
+      (_, index) => `page-${index}`
+    )
+    expect(normalizeFrontPageListedPageIds(ids)).toHaveLength(
+      MAX_FRONT_PAGE_LISTED_PAGES
+    )
   })
 })

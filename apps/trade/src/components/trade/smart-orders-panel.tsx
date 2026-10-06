@@ -1,14 +1,10 @@
-import { FlowPauseButton } from "@/components/flow-run/flow-pause-button"
 import * as React from "react"
-import { Link } from "@tanstack/react-router"
-import { toast } from "sonner"
 import {
-  BotIcon,
   EllipsisVerticalIcon,
   Grid2x2Icon,
+  LayersIcon,
   Loader2Icon,
   PlayIcon,
-  SquareIcon,
 } from "lucide-react"
 
 import { MarketIcon } from "@/components/trade/market-icon"
@@ -18,12 +14,9 @@ import {
   DashboardCardTabsHeader,
 } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
-import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   Popover,
   PopoverContent,
-  PopoverHeader,
-  PopoverTitle,
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { LoadingRow } from "@/components/ui/loading-row"
@@ -39,19 +32,10 @@ import {
   TableRow,
   TableSortButton,
 } from "@/components/ui/table"
-import {
-  getRunningBotsErrorMessage,
-  loadRunningBots,
-} from "@/lib/api/trade/flow-runs"
-import {
-  marketSymbol,
-  type MarketRow,
-  type ProtocolId,
-} from "@/lib/protocols/contracts"
+import { marketSymbol, type MarketRow } from "@/lib/protocols/contracts"
 import {
   formatClockTime,
   formatDateTime,
-  formatRelativeTime,
   formatTimeAgo,
 } from "@/lib/format/format-time"
 import { PnlAmount } from "@/components/trade/pnl-amount"
@@ -70,7 +54,6 @@ import {
 } from "@/lib/trade/live-trades"
 import type { TradePosition } from "@/lib/trade/paper"
 import { LOST_MONEY, moneyTone, WARNING } from "@/lib/trade/money-tone"
-import type { RunningBot } from "@/lib/trade/running-bots"
 import {
   smartOrdersYouPlaced,
   type SmartOrder,
@@ -87,8 +70,6 @@ import {
   writeSmartOrdersCache,
 } from "@/lib/trade/dashboard-cache"
 import { cn } from "@/lib/utils"
-import { flowActionProblem, pauseFlow, stopFlow } from "@/lib/api/trade/flow-trading"
-import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
  * Every coin a smart order is working right now, under the wallets.
@@ -137,9 +118,6 @@ function sortedValue(
   return column === "held" ? row.held : row.openProfit
 }
 
-/** A running bot can stop on its own, so the open tab checks again. */
-const BOTS_REFRESH_MS = 6_000
-
 type SmartOrdersViewProps = {
   cacheScope: string
   smartOrders: readonly SmartOrder[]
@@ -163,63 +141,27 @@ type SmartOrdersViewProps = {
   onSelectMarket: (marketKey: string) => void
 }
 
-type SmartOrdersPanelProps = SmartOrdersViewProps & {
-  protocol: ProtocolId
-  initialBots: RunningBot[]
-  initialBotsError: string | null
+/** The panel's two tabs, one per kind of smart order placed by hand. */
+type SmartOrdersTab = "grid" | "dca"
+
+/** How each tab names what it lists, in its empty and failed answers. */
+const TAB_WORDS: Record<SmartOrdersTab, { one: string; many: string }> = {
+  grid: { one: "grid", many: "grids" },
+  dca: { one: "DCA ladder", many: "DCA ladders" },
 }
 
-export function SmartOrdersPanel({
-  protocol,
-  initialBots,
-  initialBotsError,
-  ...smartOrdersProps
-}: SmartOrdersPanelProps) {
-  const [tab, setTab] = React.useState<"smart" | "bots">("smart")
-  const [bots, setBots] = React.useState(initialBots)
-  const [botsError, setBotsError] = React.useState(initialBotsError)
-  const [botsKnown, setBotsKnown] = React.useState(initialBotsError === null)
-  const [botsBusy, setBotsBusy] = React.useState(false)
-  const botsReading = React.useRef(false)
-  const botsKnownRef = React.useRef(initialBotsError === null)
-
-  const refreshBots = React.useCallback(async () => {
-    if (document.hidden || botsReading.current) return
-    botsReading.current = true
-    const wasKnown = botsKnownRef.current
-    if (!wasKnown) setBotsBusy(true)
-    try {
-      setBots(await loadRunningBots(protocol))
-      setBotsError(null)
-      setBotsKnown(true)
-      botsKnownRef.current = true
-    } catch (error) {
-      setBotsError(getRunningBotsErrorMessage(error))
-    } finally {
-      botsReading.current = false
-      if (!wasKnown) setBotsBusy(false)
-    }
-  }, [protocol])
-
-  React.useEffect(() => {
-    if (tab !== "bots") return
-    const refreshWhenVisible = () => void refreshBots()
-    const timer = window.setInterval(refreshWhenVisible, BOTS_REFRESH_MS)
-    document.addEventListener("visibilitychange", refreshWhenVisible)
-    return () => {
-      window.clearInterval(timer)
-      document.removeEventListener("visibilitychange", refreshWhenVisible)
-    }
-  }, [refreshBots, tab])
+/**
+ * Grids and DCA ladders, each in its own tab, Grid first (Tyler, 6 Oct 2026).
+ * Before that one tab listed both, beside a Bots tab of running flows. Running
+ * flows are listed on the trading overview's Running bots card instead.
+ */
+export function SmartOrdersPanel(props: SmartOrdersViewProps) {
+  const [tab, setTab] = React.useState<SmartOrdersTab>("grid")
 
   return (
     <Tabs
       value={tab}
-      onValueChange={(value) => {
-        const next = value as "smart" | "bots"
-        setTab(next)
-        if (next === "bots") void refreshBots()
-      }}
+      onValueChange={(value) => setTab(value as SmartOrdersTab)}
       // The panel fills the box it was given and scrolls inside it, in its
       // own column and in the collapsed-column menu alike. Both boxes are a
       // flex column with a height cap, so one class covers them.
@@ -227,299 +169,24 @@ export function SmartOrdersPanel({
     >
       <DashboardCardTabsHeader>
         <DashboardCardTab
-          value="smart"
+          value="grid"
           icon={<Grid2x2Icon className="size-4" />}
-          label="Smart orders"
+          label="Grid"
         />
         <DashboardCardTab
-          value="bots"
-          icon={<BotIcon className="size-4" />}
-          label="Bots"
+          value="dca"
+          icon={<LayersIcon className="size-4" />}
+          label="DCA"
         />
       </DashboardCardTabsHeader>
 
-      <TabsContent
-        value="smart"
-        className="flex min-h-0 flex-1 flex-col"
-      >
-        <SmartOrdersView {...smartOrdersProps} />
+      <TabsContent value="grid" className="flex min-h-0 flex-1 flex-col">
+        <SmartOrdersView {...props} kind="grid" />
       </TabsContent>
-      <TabsContent
-        value="bots"
-        className="min-h-0 flex-1"
-      >
-        <BotsView
-          bots={bots}
-          error={botsError}
-          known={botsKnown}
-          busy={botsBusy}
-          onRetry={() => void refreshBots()}
-          onRefresh={refreshBots}
-        />
+      <TabsContent value="dca" className="flex min-h-0 flex-1 flex-col">
+        <SmartOrdersView {...props} kind="dca" />
       </TabsContent>
     </Tabs>
-  )
-}
-
-function BotsView({
-  bots,
-  error,
-  known,
-  busy,
-  onRetry,
-  onRefresh,
-}: {
-  bots: readonly RunningBot[]
-  error: string | null
-  known: boolean
-  busy: boolean
-  onRetry: () => void
-  onRefresh: () => Promise<void>
-}) {
-  const [stopping, setStopping] = React.useState<RunningBot | null>(null)
-  const [actingId, setActingId] = React.useState<string | null>(null)
-
-  const act = async (
-    bot: RunningBot,
-    action: () => Promise<{ summary: string }>
-  ) => {
-    if (actingId) return
-    setActingId(bot.runId)
-    try {
-      const answer = await action()
-      toast.success(answer.summary)
-      setStopping(null)
-      await onRefresh()
-    } catch (actionError) {
-      showErrorToast(flowActionProblem(actionError, bot.walletLabel))
-    } finally {
-      setActingId(null)
-    }
-  }
-
-  if (!known && busy) {
-    return (
-      <LoadingRow
-        label="Reading your running bots"
-        className="h-full"
-      />
-    )
-  }
-
-  if (!known && error) {
-    return <ErrorRow message={error} onRetry={onRetry} className="h-full" />
-  }
-
-  const refreshError = error ? (
-    <p className="border-b px-3 py-2 text-xs text-muted-foreground">
-      The list could not be refreshed. The last answer is still shown.{" "}
-      <button type="button" className="underline" onClick={onRetry}>
-        Try again
-      </button>
-    </p>
-  ) : null
-
-  if (bots.length === 0) {
-    return (
-      <div className="flex h-full flex-col">
-        {refreshError}
-        <p className="flex flex-1 items-center justify-center p-6 text-center text-sm text-muted-foreground">
-          No bot is running on this exchange. Switch one on from its automation
-          canvas and it will appear here.
-        </p>
-      </div>
-    )
-  }
-
-  return (
-    <>
-      <ScrollArea className="min-h-0 flex-1">
-        {refreshError}
-        <ul>
-          {bots.map((bot) => (
-            <BotRow
-              key={bot.runId}
-              bot={bot}
-              busy={actingId === bot.runId}
-              onPause={() =>
-                void act(bot, () => pauseFlow(bot.automationId, !bot.paused))
-              }
-              onStop={() => setStopping(bot)}
-            />
-          ))}
-        </ul>
-      </ScrollArea>
-      <ConfirmDialog
-        open={stopping !== null}
-        onOpenChange={(open) => {
-          if (!open) setStopping(null)
-        }}
-        title="Stop this bot?"
-        description={
-          <>
-            The bot stops looking for coins and calls off the orders that have
-            not bought anything. Coins already held keep their stops and
-            targets. Use Pause to leave every order where it is.
-          </>
-        }
-        confirmLabel="Stop it"
-        loading={stopping !== null && actingId === stopping.runId}
-        onConfirm={() => {
-          if (stopping)
-            void act(stopping, () => stopFlow(stopping.automationId))
-        }}
-      />
-    </>
-  )
-}
-
-function BotRow({
-  bot,
-  busy,
-  onPause,
-  onStop,
-}: {
-  bot: RunningBot
-  busy: boolean
-  onPause: () => void
-  onStop: () => void
-}) {
-  const [open, setOpen] = React.useState(false)
-  const working = bot.stopping
-    ? `${bot.workingCount} left`
-    : `${bot.workingCount} of ${bot.marketCount}`
-
-  return (
-    <li className="border-b last:border-b-0">
-      <div className="flex items-center transition-colors hover:bg-muted/40">
-        <Link
-          to="/flow-runs/$runId"
-          params={{ runId: bot.runId }}
-          className={cn(
-            "flex min-h-12 min-w-0 flex-1 items-center justify-between gap-3 px-3 py-1.5 text-left",
-            focusRing
-          )}
-        >
-          <span className="min-w-0">
-            <span
-              className="block truncate text-sm font-medium hover:underline"
-              title={bot.name}
-            >
-              {bot.name}
-            </span>
-            <span className="block truncate text-xs text-muted-foreground">
-              {bot.stopping ? "Stopping" : bot.paused ? "Paused" : bot.strategy}
-            </span>
-          </span>
-          <span className="shrink-0 text-right text-xs tabular-nums">
-            <PnlAmount
-              className={cn(
-                "block font-medium",
-                bot.tradesClosed > 0 && moneyTone(bot.netUsd)
-              )}
-            >
-              {bot.tradesClosed > 0 ? formatSignedUsd(bot.netUsd) : "—"}
-            </PnlAmount>
-            <span className="block text-muted-foreground">
-              {working} working
-            </span>
-          </span>
-        </Link>
-        <Popover open={open} onOpenChange={setOpen}>
-          <PopoverTrigger asChild>
-            <Button
-              type="button"
-              size="icon-sm"
-              variant="ghost"
-              className="mr-1"
-              aria-label={`Open ${bot.name} bot details`}
-            >
-              <EllipsisVerticalIcon className="size-4" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent align="end" className="w-80 gap-0 p-0">
-            <PopoverHeader className="border-b p-3">
-              <PopoverTitle>{bot.name}</PopoverTitle>
-            </PopoverHeader>
-            <div className="grid gap-3 p-3">
-              <div className="flex flex-col gap-1 text-sm">
-                <BotFigureRow label="Made or lost">
-                  <PnlAmount
-                    className={cn(
-                      "tabular-nums",
-                      bot.tradesClosed > 0 && moneyTone(bot.netUsd)
-                    )}
-                  >
-                    {bot.tradesClosed > 0 ? formatSignedUsd(bot.netUsd) : "—"}
-                  </PnlAmount>
-                </BotFigureRow>
-                <BotFigureRow label="Closed trades">
-                  <span className="tabular-nums">{bot.tradesClosed}</span>
-                </BotFigureRow>
-                <BotFigureRow label="Coins working">
-                  <span className="tabular-nums">{working}</span>
-                </BotFigureRow>
-                <BotFigureRow label="Coins held">
-                  <span className="tabular-nums">{bot.holdingCount}</span>
-                </BotFigureRow>
-                <BotFigureRow label="Wallet">{bot.walletLabel}</BotFigureRow>
-                <BotFigureRow label="Money">
-                  {bot.real ? "Real money" : "Practice money"}
-                </BotFigureRow>
-                <BotFigureRow label="Switched on">
-                  <span title={formatDateTime(new Date(bot.startedAt))}>
-                    {formatRelativeTime(new Date(bot.startedAt))}
-                  </span>
-                </BotFigureRow>
-              </div>
-            </div>
-            {bot.stopping ? null : (
-              <div className="flex gap-2 border-t p-3">
-                <FlowPauseButton
-                  paused={bot.paused}
-                  busy={busy}
-                  className="flex-1"
-                  onClick={() => {
-                    setOpen(false)
-                    onPause()
-                  }}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="flex-1"
-                  disabled={busy}
-                  onClick={() => {
-                    setOpen(false)
-                    onStop()
-                  }}
-                >
-                  <SquareIcon className="size-4" />
-                  Stop
-                </Button>
-              </div>
-            )}
-          </PopoverContent>
-        </Popover>
-      </div>
-    </li>
-  )
-}
-
-function BotFigureRow({
-  label,
-  children,
-}: {
-  label: string
-  children: React.ReactNode
-}) {
-  return (
-    <div className="flex items-baseline justify-between gap-3">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="min-w-0 truncate text-right font-medium">
-        {children}
-      </span>
-    </div>
   )
 }
 
@@ -538,7 +205,8 @@ function SmartOrdersView({
   onRetry,
   onResumeSmartOrder,
   onSelectMarket,
-}: SmartOrdersViewProps) {
+  kind,
+}: SmartOrdersViewProps & { kind: SmartOrdersTab }) {
   const [cached, setCached] = React.useState<ReturnType<
     typeof readSmartOrdersCache
   >>(null)
@@ -563,9 +231,17 @@ function SmartOrdersView({
   // written before that was recorded reads as a hand-placed one — which is
   // what it looks like on screen anyway. The Positions tab leaves out the
   // coins this same list covers, so both come from one function.
+  //
+  // Grid lists grids. DCA lists ladders and the one other kind that function
+  // lets through, a paused signal trade. That row has to be listed somewhere,
+  // because the Positions tab leaves its coin out, and the ladder engine is
+  // what runs a signal trade.
   const mine = React.useMemo(
-    () => smartOrdersYouPlaced(shownOrders),
-    [shownOrders]
+    () =>
+      smartOrdersYouPlaced(shownOrders).filter((order) =>
+        kind === "grid" ? order.kind === "grid" : order.kind !== "grid"
+      ),
+    [kind, shownOrders]
   )
   const marks = useLiveMarks(mine.map((one) => one.marketKey))
   const held = React.useMemo(
@@ -686,19 +362,20 @@ function SmartOrdersView({
     <>
       {rows.length === 0 && !settled && cached === null ? (
         <LoadingRow
-          label="Reading your smart orders"
+          label={`Reading your ${TAB_WORDS[kind].many}`}
           className="flex-1 text-xs"
         />
       ) : rows.length === 0 && failed ? (
         <ErrorRow
-          message="The smart orders could not be read, so it is not known whether a ladder or a grid is working."
+          message={`The smart orders could not be read, so it is not known whether a ${TAB_WORDS[kind].one} is working.`}
           onRetry={onRetry}
           className="flex-1 p-6 text-sm"
         />
       ) : rows.length === 0 ? (
         <p className="flex flex-1 items-center justify-center p-6 text-center text-sm text-muted-foreground">
-          No ladder or grid of your own is working. Right-click the chart to
-          place one — a flow&rsquo;s orders live on its own dashboard.
+          No {TAB_WORDS[kind].one} of your own is working. Right-click the
+          chart to place one. A flow&rsquo;s {TAB_WORDS[kind].many} live on its
+          own dashboard.
         </p>
       ) : (
         <ScrollArea className="min-h-0 flex-1">

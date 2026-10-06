@@ -171,6 +171,7 @@ async function open(config: ShellConfig = createDefaultShellConfig()) {
           page={page}
           writtenPage={null}
           initialBlocks={[]}
+          pageChoices={[]}
           config={config}
           onConfigChange={() => undefined}
         />

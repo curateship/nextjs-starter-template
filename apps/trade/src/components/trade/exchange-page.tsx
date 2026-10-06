@@ -35,7 +35,6 @@ import { seedSmartPrefs } from "@/lib/trade/smart-prefs-cache"
 import { defaultIndicatorSettings } from "@/lib/trade/indicators/registry"
 import { DEFAULT_MARKET_PANEL_ROWS } from "@/lib/trade/market-folders"
 import { busiestMarketKey } from "@/lib/trade/market-volume"
-import { RUNNING_BOTS_READ_ERROR } from "@/lib/trade/running-bots"
 import { dashboardBootstrapVersion } from "@/lib/trade/dashboard-bootstrap-cache"
 import { seedTradeSounds } from "@/lib/trade/trade-sounds"
 import { useStreamed } from "@/lib/trade/use-streamed"
@@ -133,10 +132,6 @@ function coreUnanswered(): DashboardCore {
     panelLayouts: emptyTradePanelLayouts(),
     smartDca: null,
     smartGrid: null,
-    runningBots: {
-      rows: [],
-      error: RUNNING_BOTS_READ_ERROR,
-    },
     drawings: { marketKey: null, rows: [], error: null },
     priceAlerts: { rows: [], error: null },
     tradeSounds: {
@@ -390,7 +385,6 @@ function ExchangeDashboard({ protocol, label }: ExchangePage) {
       initialCardFolds={core.cardFolds}
       initialQuickOrder={core.quickOrder}
       initialPanelLayouts={core.panelLayouts}
-      initialRunningBots={core.runningBots}
       initialWallets={wallets}
       selectedKey={shownKey}
       onSelectMarket={(key) => {

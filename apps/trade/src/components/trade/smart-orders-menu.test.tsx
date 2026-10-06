@@ -39,22 +39,22 @@ describe("the collapsed smart-orders menu", () => {
     await act(async () => {
       root.render(
         <SmartOrdersMenu>
-          <div>Smart orders and Bots</div>
+          <div>Smart orders and Manual orders</div>
         </SmartOrdersMenu>
       )
     })
 
     const trigger = host.querySelector<HTMLButtonElement>(
-      'button[aria-label="Open orders and bots"]'
+      'button[aria-label="Open smart and manual orders"]'
     )!
     expect(trigger.dataset.slot).toBe("popover-trigger")
-    expect(document.body.textContent).not.toContain("Smart orders and Bots")
+    expect(document.body.textContent).not.toContain("Smart orders and Manual orders")
 
     await act(async () => {
       trigger.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }))
     })
 
-    expect(document.body.textContent).toContain("Smart orders and Bots")
+    expect(document.body.textContent).toContain("Smart orders and Manual orders")
     const menu = document.body.querySelector<HTMLElement>(
       '[data-slot="popover-content"]'
     )!
