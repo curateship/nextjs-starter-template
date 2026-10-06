@@ -24,6 +24,20 @@ KuCoin marks `isActive: false` or `status: done` before drawing the portfolio.
 A finished stop cannot appear as current position protection or as an order
 with a cancel button.
 
+A field KuCoin leaves blank arrives as `null`, not as missing. A plain limit
+order carries `"stopPrice": null`, and until 6 Oct 2026 Trade's reader
+accepted only a number or an absent field there, so it threw the whole order
+away. Trade then read the account as holding no open orders. A close it had
+just placed looked lost from the moment it was sent, and because a lost close
+is never assumed gone, the engine waited forever and never followed the price.
+The chart read "Placing order..." for a sell of 5813 ARB at 0.20739 while
+KuCoin listed that order as open the whole time. Every field KuCoin may leave
+blank is now read as blank, in `src/server/protocols/kucoin/orders.ts`
+(`orderRowSchema`). The same reader confirms an order after placing it, so
+that confirmation also failed silently before the fix. After the deploy the
+engine sees the order on its next pass, clears its "missing" mark and resumes
+following the price. Nothing in the database needs changing.
+
 Trade sends protection added to an open KuCoin position with the exact number
 of contracts held at that moment. KuCoin accepted the more general
 `closeOrder` form and returned an order id, but the exchange marked those stops

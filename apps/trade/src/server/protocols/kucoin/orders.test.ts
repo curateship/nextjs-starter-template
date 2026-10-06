@@ -293,6 +293,8 @@ describe("placing", () => {
             isActive: false,
             filledSize: 12,
             filledValue: 828,
+            // KuCoin writes a blank stop price as null on a plain order.
+            stopPrice: null,
           }),
         },
       ],
@@ -1139,6 +1141,76 @@ describe("reading the account back", () => {
 
     expect(portfolio.orders).toEqual([
       expect.objectContaining({ orderId: "open-1", trigger: false }),
+    ])
+  })
+
+  it("reads a plain limit order whose blank fields KuCoin sends as null", async () => {
+    // The row KuCoin answered for order 496741503503216640 on 6 Oct 2026,
+    // trimmed to the fields Trade reads. Every blank is `null`, not missing,
+    // and the one on `stopPrice` used to fail the whole row — so Trade saw no
+    // open orders and a close it had just placed looked lost for good.
+    stubExchange(
+      [
+        { path: "/api/v1/contracts/active", answer: CONTRACTS },
+        { path: "/api/v1/positions", answer: ok([]) },
+        {
+          path: "/api/v1/orders",
+          answer: ok({
+            currentPage: 1,
+            totalPage: 1,
+            items: [
+              {
+                id: "496741503503216640",
+                symbol: "XBTUSDTM",
+                type: "limit",
+                side: "sell",
+                price: "0.20739",
+                size: 5813,
+                value: "1205.55807",
+                dealValue: "0",
+                dealSize: 0,
+                stp: "",
+                stop: "",
+                stopPriceType: "",
+                stopTriggered: false,
+                stopPrice: null,
+                timeInForce: "GTC",
+                postOnly: true,
+                closeOrder: false,
+                remark: null,
+                isActive: true,
+                cancelExist: false,
+                endAt: null,
+                filledValue: "0",
+                filledSize: 0,
+                status: "open",
+                reduceOnly: true,
+              },
+            ],
+          }),
+        },
+        {
+          path: "/api/v1/stopOrders",
+          answer: ok({ currentPage: 1, totalPage: 1, items: [] }),
+        },
+      ],
+      []
+    )
+
+    const portfolio = await fetchKucoinPortfolio(
+      "mainnet",
+      "key-id",
+      () => AUTH.agentKey
+    )
+
+    expect(portfolio.orders).toEqual([
+      expect.objectContaining({
+        orderId: "496741503503216640",
+        side: "sell",
+        px: 0.20739,
+        trigger: false,
+        reduceOnly: true,
+      }),
     ])
   })
 

@@ -146,7 +146,7 @@ export function triggerDirection(
 
 /** Which leg an untriggered order is, read back off a position it guards. */
 function legOf(
-  stop: string | undefined,
+  stop: string | null | undefined,
   long: boolean
 ): "stop" | "target" | null {
   if (stop !== "up" && stop !== "down") return null
@@ -155,27 +155,38 @@ function legOf(
 
 // ----- Reading orders back -------------------------------------------------
 
+/**
+ * **A field KuCoin leaves blank arrives as `null`, not as missing.** A plain
+ * limit order carries `"stopPrice": null`, and a shape that allowed only a
+ * number or an absence threw the whole row away for that one field. Trade then
+ * read the account as holding no open orders at all, so a close it had just
+ * placed was "missing" from the moment it was sent. A missing close is never
+ * allowed to count as gone, so it waited forever and never followed the price:
+ * on 6 Oct 2026 a sell of 5813 ARB sat at 0.20739 with the chart reading
+ * "Placing order..." while KuCoin listed the order as open the whole time.
+ * Every field KuCoin may leave blank is read as blank here.
+ */
 const orderRowSchema = z.object({
   id: z.string(),
   symbol: z.string(),
-  side: z.string().optional(),
-  type: z.string().optional(),
-  price: z.union([z.string(), z.number()]).optional(),
-  size: z.union([z.string(), z.number()]).optional(),
-  filledSize: z.union([z.string(), z.number()]).optional(),
-  dealSize: z.union([z.string(), z.number()]).optional(),
-  dealValue: z.union([z.string(), z.number()]).optional(),
-  filledValue: z.union([z.string(), z.number()]).optional(),
-  value: z.union([z.string(), z.number()]).optional(),
-  status: z.string().optional(),
-  isActive: z.boolean().optional(),
-  cancelExist: z.boolean().optional(),
-  reduceOnly: z.boolean().optional(),
-  closeOrder: z.boolean().optional(),
-  stop: z.string().optional(),
-  stopPrice: z.union([z.string(), z.number()]).optional(),
-  stopPriceType: z.string().optional(),
-  stopTriggered: z.boolean().optional(),
+  side: z.string().nullish(),
+  type: z.string().nullish(),
+  price: z.union([z.string(), z.number()]).nullish(),
+  size: z.union([z.string(), z.number()]).nullish(),
+  filledSize: z.union([z.string(), z.number()]).nullish(),
+  dealSize: z.union([z.string(), z.number()]).nullish(),
+  dealValue: z.union([z.string(), z.number()]).nullish(),
+  filledValue: z.union([z.string(), z.number()]).nullish(),
+  value: z.union([z.string(), z.number()]).nullish(),
+  status: z.string().nullish(),
+  isActive: z.boolean().nullish(),
+  cancelExist: z.boolean().nullish(),
+  reduceOnly: z.boolean().nullish(),
+  closeOrder: z.boolean().nullish(),
+  stop: z.string().nullish(),
+  stopPrice: z.union([z.string(), z.number()]).nullish(),
+  stopPriceType: z.string().nullish(),
+  stopTriggered: z.boolean().nullish(),
 })
 
 type OrderRow = z.infer<typeof orderRowSchema>
