@@ -177,6 +177,13 @@ named as "the page title and page description". So each card shows:
 The whole card is a link to the page. Three cards sit in a row on a wide
 screen, two on a tablet and one on a phone.
 
+**The space between the cards is Settings > Public > Styling > Content
+spacing**, the same number that sets the space at the sides of public content
+and the gap between any grid of cards on a public page. It was a fixed 12px on
+a phone and 16px on a desktop until Tyler pointed at it on 6 October 2026: a
+site asking for 40px of air got 16, and a site set to 0, where no card draws an
+edge at all, still had its cards standing 16px apart.
+
 **The block stores which pages, never what they say.** It keeps the pages' ids,
 and the name, picture and description are read from each page every time the
 block is drawn. Renaming a page, or giving it a new picture, changes its card on

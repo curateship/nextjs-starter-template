@@ -12,6 +12,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import {
   MAX_CARRIED_EMAIL_LENGTH,
 } from "@/lib/billing/pricing-choice"
+import { pageGutter } from "@/lib/layout/shell-gutter"
 import {
   DEFAULT_FRONT_PAGE_HERO_SPACING,
   FRONT_PAGE_HERO_SPACING_PHONE_SHARE,
@@ -437,6 +438,13 @@ export function FrontPageScreenshots({
  * Three to a row on a wide screen, two on a tablet, one on a phone. The grid
  * runs the full width of the row, so the row's Alignment moves the heading
  * above it and not the cards.
+ *
+ * **The gap between the cards is Content spacing**, read through `pageGutter`,
+ * which is what `theme.css` says that setting is: the space at the sides of
+ * public content and between the cards in every grid on it. It was a fixed
+ * 12px on a phone and 16px on a desktop until Tyler pointed at it on
+ * 6 Oct 2026. A site asking for 40px of air got 16, and a site at 0, where no
+ * card draws an edge at all, still had its cards standing 16px apart.
  */
 export function FrontPageListedPages({
   pages,
@@ -448,7 +456,10 @@ export function FrontPageListedPages({
   if (pages.length === 0) return null
 
   return (
-    <ul className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 md:gap-4 lg:grid-cols-3">
+    <ul
+      className="grid w-full grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
+      style={{ gap: pageGutter }}
+    >
       {pages.map((page) => (
         <li key={page.id} className="min-w-0">
           <SavedLink
