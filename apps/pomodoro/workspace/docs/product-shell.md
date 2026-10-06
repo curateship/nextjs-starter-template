@@ -7,7 +7,7 @@ translucent blurred sidebar of pill links (Dashboard, Rooms, Pricing,
 Theme, Sounds, Leaderboard, History, Tasks; Settings at the foot), the
 transparent sticky header (brand, the glassy Timer / Leaderboard / Theme
 pills, the sound player, the moon-knob colour toggle, Log in + orange
-Register or the account actions), and the chosen scene as a 720px hero
+Register or [the account menu](account-menu.md)), and the chosen scene as a 720px hero
 that fades into the canvas on every edge. Pages overlap the hero's lower
 half (the shell's -mt-40), which is what makes the timer ring float on
 the image exactly like the old dashboard. **The product is dark by
@@ -55,11 +55,11 @@ than the content's 48px, because the row of controls fits a 1024px window with
 40px of edge and needs a second line with 48px.
 
 **The header row is allowed a second line.** It holds the menu button, the
-brand, three pills, the whole sound player, the colour toggle and either Log out
-or Log in plus Register, and how much room that needs depends on what is in it:
-the sound player only exists while a sound is chosen, and Log in plus Register is
-wider than Log out. So no single breakpoint covers every case, and the row wraps
-instead. A window wide enough for one line is unchanged, and the header's resting
+brand, three pills, the whole sound player, the colour toggle and either the
+account photo or Log in plus Register, and how much room that needs depends on
+what is in it: the sound player only exists while a sound is chosen, and Log in
+plus Register is wider than the photo. So no single breakpoint covers every
+case, and the row wraps instead. A window wide enough for one line is unchanged, and the header's resting
 height is still 86px.
 
 **Below 768px a second line is not enough either**, so two things change:
@@ -81,6 +81,23 @@ rather than one styled two ways, and `useNarrowScreen`
 (`src/lib/pomodoro/narrow-screen.ts`) answers that. It starts wide so the server
 and the browser draw the same first render, then measures before the browser
 paints, so a phone never shows the wide shape in a frame anyone sees.
+
+## The blur behind an open window
+
+**When a window opens, the left menu stays where it is and blurs with the rest
+of the page.** The shell blurs the whole page canvas behind any open window by
+putting a `filter` on it. A filter on an element makes everything inside it
+that is pinned to the window (`position: fixed`) pin to that element instead.
+The product's left menu is pinned, so on a page scrolled down it jumped up and
+off the screen the moment a window opened, such as the photo picker on
+Settings. Tyler saw it on 6 Oct 2026.
+
+The fix is in this app's `theme.css`, because the shell's `src/theme.css` is a
+shell file. On a product screen the canvas keeps no filter, and the left menu
+and the column beside it each get the same 4px blur. A filter on the pinned
+menu itself does not move it. The blur switches on without the shell's 150ms
+ease, because a transition there would replace the menu's own width
+transition.
 
 ## The three header popovers
 

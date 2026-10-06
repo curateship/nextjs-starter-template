@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils"
  * (`src/server/media/library.ts`) is what stops anyone setting a stranger's
  * upload as their own. Tyler's call, 2 Oct 2026.
  *
+ * The header's account menu draws it too, because there it is your own face.
  * Everywhere else in this app — the leaderboard, room chat — stays initials.
  */
 export function ProfilePhoto({

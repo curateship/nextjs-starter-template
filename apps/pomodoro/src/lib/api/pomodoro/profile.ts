@@ -3,6 +3,7 @@ import { z } from "zod"
 
 import { userGet, userPost } from "@/server/guards"
 import {
+  loadAccountMenu as loadAccountMenuRow,
   loadOrCreateProfile,
   updateProfile as updateProfileRow,
 } from "@/server/pomodoro/profile"
@@ -33,6 +34,14 @@ const updateProfileFn = createServerFn({ method: "POST" })
     return updateProfileRow(context.user.id, data)
   })
 
+// What the header's account menu adds to the shell's user: the plan and the
+// public page's address. Signed-in only; the layout never asks for a guest.
+const loadAccountMenuFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .handler(async ({ context }) => loadAccountMenuRow(context.user.id))
+
+export const loadAccountMenu = () => loadAccountMenuFn()
+export type AccountMenuFacts = Awaited<ReturnType<typeof loadAccountMenu>>
 export const loadPomodoroProfile = (timezone: string) =>
   loadProfileFn({ data: { timezone } })
 export const updatePomodoroProfile = (data: z.infer<typeof profileSchema>) =>

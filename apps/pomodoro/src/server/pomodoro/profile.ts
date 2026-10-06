@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm"
 
-import { db } from "@/server/db"
+import { db, type CustomShellDb } from "@/server/db"
+import { loadPomodoroEntitlements } from "@/server/pomodoro/entitlements"
 import { pomodoroProfiles } from "@/server/pomodoro/schema"
 import { localDateFor } from "@/server/pomodoro/productivity"
 
@@ -67,4 +68,38 @@ export async function updateProfile(
     })
     .returning()
   return updated
+}
+
+/**
+ * The two facts the header's account menu needs that the shell's user record
+ * does not carry: whether the person is on a paid plan, and the address of
+ * their public page.
+ *
+ * `profileHandle` is set only when `/u/<handle>` would actually open. A handle
+ * on a page that is switched off, or that an operator hid, answers the same
+ * 404 a stranger gets, and a menu row leading there would read as broken.
+ */
+export async function loadAccountMenu(
+  userId: string,
+  database: CustomShellDb = db
+) {
+  const [[profile], entitlements] = await Promise.all([
+    database
+      .select({
+        handle: pomodoroProfiles.handle,
+        profilePublic: pomodoroProfiles.profilePublic,
+        hiddenAt: pomodoroProfiles.hiddenAt,
+      })
+      .from(pomodoroProfiles)
+      .where(eq(pomodoroProfiles.userId, userId))
+      .limit(1),
+    loadPomodoroEntitlements(userId, database),
+  ])
+  const pageOpens = Boolean(
+    profile?.handle && profile.profilePublic && !profile.hiddenAt
+  )
+  return {
+    isPaid: entitlements.isPaid,
+    profileHandle: pageOpens ? (profile?.handle ?? null) : null,
+  }
 }

@@ -104,8 +104,10 @@ uploaded themselves is their choice rather than an assignment, and
 `isOwnedImageUrl` is what stops anyone setting a stranger's upload as their
 own face. Tyler's call, 2 Oct 2026.
 
-Everywhere else still shows initials. The leaderboard and room chat are
-unchanged.
+The photo is picked on Settings → Profile, on the Your profile card, and the
+Your public page card below it shows the same one. The header's account menu
+draws it too. Everywhere else still shows initials. The leaderboard and room
+chat are unchanged.
 
 ## The banner
 

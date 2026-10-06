@@ -4,7 +4,7 @@ The whole product works without an account: timer, tasks, settings, sound,
 background, theme and presets all save in the browser. The `_pomodoro`
 layout admits guests (it only forwards to `/login` for pages that truly
 need an account, like History's data), and the product header shows Log in
-/ Register instead of the account actions.
+/ Register instead of the account menu.
 
 ## How it is wired
 

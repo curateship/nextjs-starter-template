@@ -253,3 +253,38 @@ html:root.dark[data-dark-shade="ash"]:has([data-pomodoro-screen]) {
   --p-text-subtle: #a8a6b0;
   --p-text-faint: #918d99;
 }
+
+/*
+ * The blur behind an open window, moved off the canvas and onto the product
+ * shell's own pieces.
+ *
+ * The shell blurs the whole page canvas while a dialog or sheet is open
+ * (`src/theme.css`, `[data-slot="app-canvas"]`). A filter on an element makes
+ * it the box that `position: fixed` children are placed against, instead of
+ * the window. The product's left menu is fixed, so on a page scrolled down by
+ * 1056px the menu jumped 1056px up and off the screen the moment a window
+ * opened. Measured on Settings with the photo picker, 6 Oct 2026.
+ *
+ * So on a product screen the canvas keeps no filter, and the sidebar and the
+ * column beside it are blurred instead. A filter on the fixed menu itself does
+ * not move it; only a filter on something around it does. The look is the
+ * same 4px. The shell's 150ms ease-in is not copied, because a `transition`
+ * here would replace the sidebar's own width and padding transitions.
+ */
+body:has(
+    [data-slot="dialog-overlay"][data-state="open"],
+    [data-slot="sheet-overlay"][data-state="open"]
+  )
+  > [data-slot="app-canvas"]:has(> [data-pomodoro-screen]) {
+  filter: none;
+}
+
+body:has(
+    [data-slot="dialog-overlay"][data-state="open"],
+    [data-slot="sheet-overlay"][data-state="open"]
+  )
+  > [data-slot="app-canvas"]
+  > [data-pomodoro-screen]
+  > * {
+  filter: blur(4px);
+}

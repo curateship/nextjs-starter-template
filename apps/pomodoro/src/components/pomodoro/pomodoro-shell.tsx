@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Link, useNavigate, useRouterState } from "@tanstack/react-router"
+import { Link, useRouterState } from "@tanstack/react-router"
 import {
   BarChart3Icon,
   CheckSquareIcon,
@@ -19,6 +19,10 @@ import {
   XIcon,
 } from "lucide-react"
 
+import {
+  AccountMenu,
+  type AccountMenuUser,
+} from "@/components/pomodoro/account-menu"
 import QuickControlsHeader from "@/components/pomodoro/quick-controls-header"
 import { SceneBackdrop } from "@/components/pomodoro/scene-backdrop"
 import SoundPlayerHeader from "@/components/pomodoro/sound-player-header"
@@ -26,7 +30,7 @@ import { SavedLink } from "@/components/shell/public-navigation"
 import { useTheme } from "@/components/shell/sticky-header/light-dark-switcher"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { logout } from "@/lib/api/auth/auth"
+import type { AccountMenuFacts } from "@/lib/api/pomodoro/profile"
 import { usePublicNavigation } from "@/lib/branding"
 import { useBackgroundSelection } from "@/lib/pomodoro/background-store"
 import {
@@ -226,14 +230,15 @@ const sidebarRowClass =
 
 export function PomodoroShell({
   user,
+  accountMenu,
   children,
 }: {
-  user: { name: string; role: string } | null
+  user: AccountMenuUser | null
+  accountMenu: AccountMenuFacts | null
   children: React.ReactNode
 }) {
   const [menuOpen, setMenuOpen] = React.useState(false)
   const [collapsed, setCollapsed] = React.useState(false)
-  const navigate = useNavigate()
   const pathname = useRouterState({ select: (state) => state.location.pathname })
   const { background, fallBackToDefault } = useBackgroundSelection()
   const { setTheme } = useTheme()
@@ -395,7 +400,8 @@ export function PomodoroShell({
 
             How much room the row needs depends on what is in it — the sound
             player only exists while a sound is chosen, and Log in plus Register
-            is wider than Log out — so no single breakpoint covers every case.
+            is wider than the account photo — so no single breakpoint covers
+            every case.
             `flex-wrap` does, because it asks the question at the width the
             window actually is. One line stays one line: from about 1100px up it
             never wraps in any state, and `min-h-[86px]` holds the old height.
@@ -432,24 +438,7 @@ export function PomodoroShell({
           <div className="flex items-center gap-3">
             <ThemeTogglePill />
             {user ? (
-              <>
-                {user.role === "admin" ? (
-                  <Link
-                    to="/admin"
-                    className="px-1 text-[14.5px] font-medium text-muted-foreground hover:text-foreground"
-                  >
-                    Admin
-                  </Link>
-                ) : null}
-                <button
-                  className="px-2 text-[14.5px] font-medium hover:text-[var(--p-accent-2)]"
-                  onClick={() => {
-                    void logout().then(() => navigate({ to: "/login" }))
-                  }}
-                >
-                  Log out
-                </button>
-              </>
+              <AccountMenu user={user} facts={accountMenu} />
             ) : (
               <>
                 <Link

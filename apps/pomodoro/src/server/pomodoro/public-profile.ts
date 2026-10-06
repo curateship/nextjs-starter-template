@@ -753,13 +753,8 @@ async function readMyPublicProfile(userId: string) {
         listed: pomodoroProfiles.listed,
         cheersEnabled: pomodoroProfiles.cheersEnabled,
         hiddenAt: pomodoroProfiles.hiddenAt,
-        avatarUrl: customShellUsers.avatarUrl,
       })
       .from(pomodoroProfiles)
-      .innerJoin(
-        customShellUsers,
-        eq(customShellUsers.id, pomodoroProfiles.userId)
-      )
       .where(eq(pomodoroProfiles.userId, userId))
       .limit(1),
     db
@@ -785,7 +780,6 @@ async function readMyPublicProfile(userId: string) {
     cheersEnabled: row?.cheersEnabled ?? true,
     /** Set when an operator hid the page. The card says so plainly. */
     hiddenAt: row?.hiddenAt ?? null,
-    avatarUrl: row?.avatarUrl ?? null,
     /** What may be pinned. The card offers only badges already earned. */
     earnedBadgeIds: earned
       .map((badge) => badge.badgeId)

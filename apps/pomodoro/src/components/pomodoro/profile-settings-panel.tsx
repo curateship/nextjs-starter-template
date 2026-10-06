@@ -1,9 +1,11 @@
 import * as React from "react"
+import { getRouteApi, useRouter } from "@tanstack/react-router"
 import { toast } from "sonner"
 
 import BlockedAccountsCard from "@/components/pomodoro/blocked-accounts-card"
 import PublicProfileSettingsPanel from "@/components/pomodoro/public-profile-settings-panel"
 import StreakBadgeCard from "@/components/pomodoro/streak-badge-card"
+import { ImageUpload } from "@/components/shared/image-upload"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ErrorRow } from "@/components/ui/error-row"
@@ -12,6 +14,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { Switch } from "@/components/ui/switch"
+import { getAuthErrorMessage, updateProfile } from "@/lib/api/auth/auth"
 import {
   loadPomodoroProfile,
   updatePomodoroProfile,
@@ -19,12 +22,58 @@ import {
 import { browserTimezone } from "@/lib/pomodoro/timer"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
+const productLayout = getRouteApi("/_pomodoro")
+
 /**
- * The Profile tab on Settings: the public display name, the timezone that
- * anchors the day boundary for goals and streaks, and the leaderboard
- * opt-in, then the public page and the streak badge in their own cards
- * below. Account name, email, password and deletion stay with the shell's
- * account dialog.
+ * The account's photo: the one the header's account menu and the public page
+ * both draw. It is the shell's own `avatarUrl`, saved through the shell's own
+ * `updateProfile`, which refuses a picture this account did not upload.
+ *
+ * It saves the moment a picture is picked or removed, unlike the fields below
+ * it, because picking from the media window is already the deliberate step.
+ * The layout is reloaded afterwards so the menu changes without a page reload.
+ */
+function AccountPhotoField() {
+  const { user } = productLayout.useLoaderData()
+  const router = useRouter()
+  const [saving, setSaving] = React.useState(false)
+  if (!user) return null
+
+  const save = async (avatarUrl: string) => {
+    setSaving(true)
+    try {
+      await updateProfile(user.name, avatarUrl)
+      await router.invalidate()
+      toast.success(avatarUrl ? "Photo saved." : "Photo removed.")
+    } catch (cause) {
+      showErrorToast(getAuthErrorMessage(cause))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <ImageUpload
+      label="Photo"
+      value={user.avatarUrl}
+      onChange={(avatarUrl) => void save(avatarUrl)}
+      aspect="square"
+      emptyLabel="Add photo"
+      hint="Shown on your account menu and on your public page. With no photo, your initials are drawn instead. It saves as soon as you pick or remove one."
+      disabled={saving}
+      // The media window opens over the page, so the field only needs room
+      // for the square itself.
+      className="max-w-20"
+    />
+  )
+}
+
+/**
+ * The Profile tab on Settings: the account photo, the public display name,
+ * the timezone that anchors the day boundary for goals and streaks, and the
+ * leaderboard opt-in, then the public page and the streak badge in their own
+ * cards below. Account name, email, password and deletion stay with the
+ * shell's account dialog.
  */
 export default function ProfileSettingsPanel() {
   const [displayName, setDisplayName] = React.useState("")
@@ -90,6 +139,7 @@ export default function ProfileSettingsPanel() {
           <CardTitle>Your profile</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4">
+          <AccountPhotoField />
           {/* The fields arrive with the saved profile in them, so they are not
               offered before it lands: typing into an empty name and having the
               load overwrite it a moment later is the worse outcome. */}

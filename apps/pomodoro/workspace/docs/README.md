@@ -6,6 +6,8 @@ cover this one.
 - [The product shell](product-shell.md) — the `_pomodoro` layout: the app's
   own sidebar, header and settings page; the admin chrome is never the
   frontend.
+- [The account menu](account-menu.md) — the photo at the right of the
+  header: what the menu holds, who sees each row, and where the photo is set.
 - [The Pomoder look](pomoder-look.md) — the ported design tokens, fonts and
   orange accent for the member-facing screens, and the PomodoroShell wrapper
   that switches them on.

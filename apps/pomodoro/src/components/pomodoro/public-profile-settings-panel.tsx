@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Link } from "@tanstack/react-router"
+import { getRouteApi, Link, useRouter } from "@tanstack/react-router"
 import { PlusIcon, Trash2Icon } from "lucide-react"
 import { toast } from "sonner"
 
@@ -89,9 +89,14 @@ type Draft = {
 
 type UploadOption = { mediaId: string; name: string; url: string }
 
+const productLayout = getRouteApi("/_pomodoro")
+
 export default function PublicProfileSettingsPanel() {
+  // The account's own photo, from the layout rather than this card's load, so
+  // a new one picked on the Your profile card above shows here at once.
+  const avatarUrl = productLayout.useLoaderData().user?.avatarUrl || null
+  const router = useRouter()
   const [draft, setDraft] = React.useState<Draft | null>(null)
-  const [avatarUrl, setAvatarUrl] = React.useState<string | null>(null)
   const [hiddenAt, setHiddenAt] = React.useState<Date | string | null>(null)
   const [earnedBadgeIds, setEarnedBadgeIds] = React.useState<string[]>([])
   const [uploads, setUploads] = React.useState<UploadOption[]>([])
@@ -129,7 +134,6 @@ export default function PublicProfileSettingsPanel() {
           cheersEnabled: profile.cheersEnabled,
         })
         setHiddenAt(profile.hiddenAt)
-        setAvatarUrl(profile.avatarUrl)
         setEarnedBadgeIds(profile.earnedBadgeIds)
         setUploads(
           library.uploads
@@ -199,6 +203,9 @@ export default function PublicProfileSettingsPanel() {
         pinnedBadges: saved.pinnedBadges,
         bannerRef: saved.bannerRef,
       })
+      // The header's account menu offers "Your profile" only while this page
+      // opens, so a handle or the on switch changing has to reach it.
+      await router.invalidate()
       toast.success("Public page saved.")
     } catch (cause) {
       showErrorToast(saveMessage(cause))
@@ -326,8 +333,8 @@ export default function PublicProfileSettingsPanel() {
                 />
                 <p className="text-sm text-muted-foreground">
                   {avatarUrl
-                    ? "Change it in your account settings."
-                    : "Add one in your account settings, or leave it and your initials are drawn."}
+                    ? "Change it on the Your profile card above."
+                    : "Add one on the Your profile card above, or leave it and your initials are drawn."}
                 </p>
               </div>
             </section>

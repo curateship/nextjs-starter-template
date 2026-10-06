@@ -1,6 +1,8 @@
 import * as React from "react"
 
+import type { AccountMenuUser } from "@/components/pomodoro/account-menu"
 import { definePublicPage } from "@/lib/app-options"
+import type { AccountMenuFacts } from "@/lib/api/pomodoro/profile"
 
 /**
  * The front page is the timer itself, exactly like the old app: a visitor
@@ -15,7 +17,10 @@ import { definePublicPage } from "@/lib/app-options"
  * (and it did, in the page tests, before this shape).
  */
 
-type LandingData = { user: { name: string; role: string } | null }
+export type LandingData = {
+  user: AccountMenuUser | null
+  accountMenu: AccountMenuFacts | null
+}
 
 const LandingTimer = React.lazy(
   () => import("@/components/pomodoro/landing-timer")
@@ -25,7 +30,11 @@ export const pomodoroLandingPage = definePublicPage<LandingData>({
   loader: async () => {
     const { loadShellBootstrap } = await import("@/lib/api/shell")
     const { user } = await loadShellBootstrap()
-    return { user: user ?? null }
+    if (!user) return { user: null, accountMenu: null }
+    // The same facts, and the same rule on failure, as the `_pomodoro` layout.
+    const { loadAccountMenu } = await import("@/lib/api/pomodoro/profile")
+    const accountMenu = await loadAccountMenu().catch(() => null)
+    return { user, accountMenu }
   },
   head: () => {
     const meta: Array<Record<string, string>> = [

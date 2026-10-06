@@ -1,6 +1,7 @@
 import * as React from "react"
 
 import { FrontPageRows } from "@/components/marketing/front-page-rows"
+import type { LandingData } from "@/components/pomodoro/landing-page"
 import { PomodoroShell } from "@/components/pomodoro/pomodoro-shell"
 import { TimerDashboard } from "@/components/pomodoro/timer-dashboard"
 import { loadPublicPageBlocks } from "@/lib/api/content/page-blocks"
@@ -15,11 +16,7 @@ import { reloadPomodoroData } from "@/lib/pomodoro/use-pomodoro"
  * The `/` page's body: the product shell around the timer dashboard, and under
  * it the live-figure rows an admin placed on the front page.
  */
-export default function LandingTimer({
-  data,
-}: {
-  data: { user: { name: string; role: string } | null }
-}) {
+export default function LandingTimer({ data }: { data: LandingData }) {
   const user = data.user
   const authenticated = Boolean(user)
   React.useEffect(() => {
@@ -31,7 +28,7 @@ export default function LandingTimer({
   }, [authenticated])
 
   return (
-    <PomodoroShell user={user}>
+    <PomodoroShell user={user} accountMenu={data.accountMenu}>
       <TimerDashboard />
       {authenticated ? null : <LiveFigureRows />}
     </PomodoroShell>

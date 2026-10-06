@@ -3,6 +3,7 @@ import { createFileRoute, Outlet, redirect } from "@tanstack/react-router"
 
 import { PomodoroShell } from "@/components/pomodoro/pomodoro-shell"
 import { routeErrorComponent } from "@/components/shell/route-error"
+import { loadAccountMenu } from "@/lib/api/pomodoro/profile"
 import { loadShellBootstrap } from "@/lib/api/shell"
 import { setProductAuthenticated } from "@/lib/pomodoro/auth-state"
 import { maybeImportGuestState } from "@/lib/pomodoro/guest-import"
@@ -24,7 +25,11 @@ export const Route = createFileRoute("/_pomodoro")({
     if (shell.settings?.maintenance.enabled && user?.role !== "admin") {
       throw redirect({ to: "/maintenance", replace: true })
     }
-    return { user: user ?? null }
+    // The account menu's plan line and profile row. A failure leaves both
+    // off rather than failing the page: guessing "Free" would tell a paying
+    // member the wrong thing.
+    const accountMenu = user ? await loadAccountMenu().catch(() => null) : null
+    return { user: user ?? null, accountMenu }
   },
   errorComponent: routeErrorComponent(
     () => "The app could not load. Reload to try again."
@@ -33,7 +38,7 @@ export const Route = createFileRoute("/_pomodoro")({
 })
 
 function PomodoroLayout() {
-  const { user } = Route.useLoaderData()
+  const { user, accountMenu } = Route.useLoaderData()
   const authenticated = Boolean(user)
 
   // The engines read this one fact instead of asking the server (which
@@ -48,7 +53,7 @@ function PomodoroLayout() {
   }, [authenticated])
 
   return (
-    <PomodoroShell user={user}>
+    <PomodoroShell user={user} accountMenu={accountMenu}>
       <Outlet />
     </PomodoroShell>
   )
