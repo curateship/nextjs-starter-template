@@ -380,8 +380,8 @@ built in `use-trading.ts`, so they can never disagree.
 - **On the chart of its own coin**, as the line the order would have been.
 - **Under Open orders** in the bottom panel, mixed in with real and practice
   orders, because a watched price IS an open order to the person who placed it.
-- **Under Manual orders**, a separate draggable panel below Smart orders and
-  Bots on the right. That
+- **Under Manual orders**, a separate draggable panel below Smart orders on
+  the right. That
   is the only one of the three that answers "what am I waiting on across all my
   coins" without changing market. Each market appears once. When several
   orders wait on the same market, the row shows the order nearest today's

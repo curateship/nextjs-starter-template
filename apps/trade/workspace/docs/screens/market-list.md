@@ -142,7 +142,7 @@ Saved folders remain in the chart header's folder menu.
 ### The Manual orders panel
 
 Every price you are waiting at, across every coin and every wallet on this
-exchange. This is a separate draggable panel under Smart orders and Bots on
+exchange. This is a separate draggable panel under Smart orders on
 the right. A plain order does not rest on the exchange any more. The app holds
 the level and sends nothing until the market comes to it, which
 `../orders/watched-orders.md` explains — and those levels were only ever visible one coin

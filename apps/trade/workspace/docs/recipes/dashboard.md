@@ -103,11 +103,12 @@ Reload the list to read changes made from another screen.
 The run page has no separate recipe-name header or divider. Run controls sit
 immediately before Chart and Canvas in the chart header.
 
-Pause and Resume use the same button and server action as the Bots tab. Pause
+Pause and Resume use the shared `FlowPauseButton` and the `pauseFlow` server
+action. Pause
 stops the search for new coins and leaves placed orders alone. The button
 changes immediately and returns to its previous state if the server refuses.
 The run page reads again every five seconds while running or paused, so a
-change from Bots reaches this page too.
+change made in another browser tab reaches this page too.
 
 Stop keeps the existing whole-run cancellation behavior. A stopped run offers
 Run again immediately before Chart and Canvas in the chart header, on its original wallet. The confirmation says that today's saved
