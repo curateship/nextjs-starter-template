@@ -1,4 +1,4 @@
-import type { ProxyKind, ProxyTestResult } from "@/lib/social/options"
+import type { IdentityReading, ProxyKind, ProxyTestResult } from "@/lib/social/options"
 
 /**
  * The sentences the Proxies and Browser profiles dashboards put in front of a
@@ -119,4 +119,46 @@ export function deleteSignOutWords(
   )
   const one = accounts.length === 1
   return `The ${namesList(names, 5)} inside ${one ? "is" : "are"} signed out, and kept with no profile until one is picked in Settings.`
+}
+
+/**
+ * A profile's identity as rows a person can read: the operating system and
+ * browser it claims, its screen, graphics card and fonts, and the clock and
+ * language it last had, which follow its proxy's country.
+ */
+export function identityRows(seen: IdentityReading): Array<{ label: string; value: string }> {
+  const firefox = seen.userAgent.match(/Firefox\/(\d+)/)?.[1]
+  const system = /Windows/.test(seen.userAgent)
+    ? "Windows"
+    : /Mac OS X/.test(seen.userAgent)
+      ? "macOS"
+      : /Linux/.test(seen.userAgent)
+        ? "Linux"
+        : seen.platform
+  return [
+    { label: "Operating system", value: system },
+    { label: "Browser", value: firefox ? `Firefox ${firefox}` : seen.userAgent },
+    { label: "Screen", value: `${seen.screen.width} × ${seen.screen.height}` },
+    { label: "Graphics card", value: graphicsCardName(seen.gpuRenderer) },
+    { label: "Fonts", value: `${seen.fonts.length} of the common ones` },
+    { label: "Clock", value: seen.timezone || "Not set" },
+    { label: "Language", value: seen.languages.join(", ") || "Not set" },
+  ]
+}
+
+/**
+ * "ANGLE (NVIDIA, NVIDIA GeForce GTX 980 Direct3D11 vs_5_0 ps_5_0), or similar"
+ * reads as "NVIDIA GeForce GTX 980".
+ */
+export function graphicsCardName(renderer: string): string {
+  // Peeled from the outside in, not matched in one go: a card's own name can
+  // hold brackets, as "Intel(R) HD Graphics" does, which cut a single pattern
+  // off at "Intel(R".
+  if (!renderer.startsWith("ANGLE (")) return renderer.trim() || "Not reported"
+  const name = renderer
+    .replace(/^ANGLE \([^,]+, /, "")
+    .replace(/, or similar$/, "")
+    .replace(/ Direct3D[^)]*\)$/, "")
+    .replace(/\)$/, "")
+  return name.trim() || "Not reported"
 }

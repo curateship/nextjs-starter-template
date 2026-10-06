@@ -49,17 +49,24 @@ file 05's part 20, and only the address the window is handed has to change.
 
 ## A profile's own window
 
-Clicking a profile opens it over the list, with `?open=<id>` in the address,
-which is where the Reddit dashboard's "Open Main" link leads. Two tabs:
+Clicking a profile opens it over the list, with `?open=<id>` in the address.
+Three tabs:
 
 - **Settings.** Name and notes; the proxy, with its test badge, the warning
   about a change of country, and the restart offer for an open browser; the
   folder, the label and the tags.
+- **Identity.** The machine the profile presents, as a page read it: operating
+  system, browser, screen, graphics card, fonts, clock and language, with a
+  "Make a new identity" button that asks again inline before it does anything.
+  Below it, "Check what a site sees" and the last result line by line. See
+  [the isolated browser](isolated-sessions.md).
 - **History.** Every run of the browser and everything else that happened,
   newest first: when it opened, how long it ran, and how it ended. A run ends
   closed by a person, shut after an hour unused, died, failed to start, or
   closed when the browser program restarted. Besides runs it lists a proxy
   change, a browser found dead, and an open refused because the proxy was dead.
+  A run on a different browser image than the one before says "First run on a
+  new browser build".
   Runs from before endings were kept are read from their status and words.
 
 ## Deleting

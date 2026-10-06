@@ -21,6 +21,14 @@ const DEFAULT_TIMEOUT_MS = 60_000
 /** Starting a container and waiting for Reddit's first paint takes a while. */
 const HEALTH_TIMEOUT_MS = 5_000
 
+/**
+ * A comment is typed at a person's pace after reading the post: about two
+ * minutes for 900 characters. The launcher gives it 240 seconds; the app waits
+ * a little longer so it hears the launcher's own answer rather than giving up
+ * first. Whatever happens, a comment job is never tried twice.
+ */
+const COMMENT_TIMEOUT_MS = 270_000
+
 export class BrowserCommandError extends Error {
   readonly routine: string
   readonly status: number
@@ -175,6 +183,41 @@ const commentShape = z.object({ commentUrl: z.string() })
 
 const healthShape = z.object({ ok: z.boolean() })
 
+const identityIdShape = z.object({
+  /** sha256 of the identity file in the profile's volume. */
+  id: z.string(),
+  /** True when this launch made it: the profile's first, or a renewal. */
+  made: z.boolean(),
+})
+
+const identityReadingShape = z.object({
+  userAgent: z.string(),
+  platform: z.string(),
+  oscpu: z.string().default(""),
+  hardwareConcurrency: z.number(),
+  screen: z.object({ width: z.number(), height: z.number(), colorDepth: z.number() }),
+  devicePixelRatio: z.number(),
+  gpuVendor: z.string(),
+  gpuRenderer: z.string(),
+  fonts: z.array(z.string()),
+  timezone: z.string(),
+  languages: z.array(z.string()),
+})
+
+const siteCheckShape = z.object({
+  address: z.string(),
+  country: z.string(),
+  addressTimezone: z.string(),
+  webrtc: z.object({
+    available: z.boolean(),
+    addresses: z.array(z.string()),
+    error: z.string().optional(),
+  }),
+  identity: identityReadingShape,
+})
+
+export type BrowserSiteCheck = z.infer<typeof siteCheckShape>
+
 /**
  * Is the container's command server up? Says nothing about any network.
  *
@@ -184,6 +227,24 @@ const healthShape = z.object({ ok: z.boolean() })
  */
 export function browserHealth(target: CommandTarget) {
   return call(target, "health", null, healthShape, HEALTH_TIMEOUT_MS)
+}
+
+/** Which identity the browser launched with, and whether it made it just now. */
+export function browserIdentityId(target: CommandTarget) {
+  return call(target, "identity", null, identityIdShape, HEALTH_TIMEOUT_MS)
+}
+
+/** The machine a site believes it is talking to, read in a tab of its own. */
+export function browserIdentity(target: CommandTarget) {
+  return call(target, "browser/identity", {}, identityReadingShape)
+}
+
+/**
+ * What a website sees through this browser: its outside address, country and
+ * clock, every address offered for a video call, and the identity.
+ */
+export function browserSiteCheck(target: CommandTarget) {
+  return call(target, "browser/site_check", {}, siteCheckShape)
 }
 
 /**
@@ -227,5 +288,5 @@ export function redditComment(
   target: CommandTarget,
   args: { permalink: string; text: string }
 ) {
-  return call(target, "reddit/comment", { ...args }, commentShape)
+  return call(target, "reddit/comment", { ...args }, commentShape, COMMENT_TIMEOUT_MS)
 }

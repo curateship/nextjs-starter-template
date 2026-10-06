@@ -51,8 +51,9 @@ stay in `src/server/schema.ts`, which promo never opens.
 The SQL is hand-written in `drizzle/0091_promo_reddit.sql`,
 `drizzle/0092_promo_reddit_relevance.sql`,
 `drizzle/0094_promo_browser_profiles.sql`,
-`drizzle/0095_promo_proxy_and_profile_dashboards.sql` and
-`drizzle/0096_promo_voices.sql`. The runner records each file by its
+`drizzle/0095_promo_proxy_and_profile_dashboards.sql`,
+`drizzle/0096_promo_voices.sql` and
+`drizzle/0097_promo_identity_and_site_check.sql`. The runner records each file by its
 whole name, so a shell file that happens to share a number does not collide
 with a promo one.
 

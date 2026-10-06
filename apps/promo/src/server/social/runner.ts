@@ -7,6 +7,7 @@ import {
 } from "@/server/browser/command"
 import { Refusal } from "@/server/browser/refusal"
 import { promoProfiles } from "@/server/browser/schema"
+import { runSiteCheck } from "@/server/browser/site-check"
 import {
   ensureSession,
   stopSession,
@@ -53,17 +54,27 @@ export async function runOneJob(
     return { did: "job", kind: job.kind, jobId: job.id, ok: true }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    // A refusal fails at once: another try would only say it again.
-    const attempts = error instanceof Refusal ? JOB_MAX_ATTEMPTS : job.attempts
+    // Fails at once, never re-queued, for two reasons. A refusal would only
+    // say the same thing again. A comment may already be on Reddit: the app
+    // can give up waiting while the browser is still typing, and a retry
+    // would then post it twice.
+    const final = error instanceof Refusal || job.kind === "comment"
+    const attempts = final ? JOB_MAX_ATTEMPTS : job.attempts
     await failJob(job.id, claimToken, message, attempts, db)
     return { did: "job", kind: job.kind, jobId: job.id, ok: false, error: message }
   }
 }
 
 async function runJob(job: QueuedJob, db: CustomShellDb): Promise<void> {
-  // Open, close and check name a profile, because a profile's browser is not
-  // any one network's. They come from the Browser profiles dashboard.
-  if (job.kind === "open" || job.kind === "close" || job.kind === "check") {
+  // Open, close, check and the site check name a profile, because a
+  // profile's browser is not any one network's. They come from the Browser
+  // profiles dashboard.
+  if (
+    job.kind === "open" ||
+    job.kind === "close" ||
+    job.kind === "check" ||
+    job.kind === "site_check"
+  ) {
     const profileId = String(job.payload.profileId ?? "")
     if (!profileId) throw new Error(`That ${job.kind} job names no browser profile.`)
     if (job.kind === "close") {
@@ -80,6 +91,10 @@ async function runJob(job: QueuedJob, db: CustomShellDb): Promise<void> {
     }
     const session = await ensureSession(job.userId, profileId, db)
     await touchSession(session.id, db)
+    if (job.kind === "site_check") {
+      await runSiteCheck(job.userId, profileId, session.target, db)
+      return
+    }
     await readSignIns(job.userId, profileId, session.target, db, job.kind === "check")
     return
   }

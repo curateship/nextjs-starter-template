@@ -14,7 +14,9 @@ import {
   type ProxyKind,
   type ProxyProtocol,
   type ProfileEventKind,
+  type ProfileIdentity,
   type ProxyTestResult,
+  type SiteCheckResult,
   type SessionEndedBy,
   type SessionStatus,
 } from "@/lib/social/options"
@@ -167,8 +169,15 @@ export const promoProfiles = pgTable(
       () => promoProxies.id,
       { onDelete: "set null" }
     ),
-    /** The generated identity the browser launches with, whole in one column. */
-    fingerprint: jsonb("fingerprint").$type<Record<string, unknown> | null>(),
+    /**
+     * The profile's identity as the app keeps it: the identity file's id and
+     * what a page read through it. The identity itself is a file in the
+     * profile's volume, beside its cookies, because it is about 400KB.
+     */
+    fingerprint: jsonb("fingerprint").$type<ProfileIdentity | null>(),
+    /** The last "Check what a site sees", or null until one is run. */
+    siteCheck: jsonb("site_check").$type<SiteCheckResult | null>(),
+    siteCheckedAt: timestamp("site_checked_at", { withTimezone: true }),
     /**
      * The Docker volume holding the cookies. Stored rather than worked out
      * from the id, because the profiles made from the first accounts kept the
@@ -260,6 +269,8 @@ export const promoBrowserSessions = pgTable(
     ),
     /** The country the browser went out from, as its proxy last tested. */
     exitCountry: varchar("exit_country", { length: 2 }).notNull().default(""),
+    /** Docker's id for the image this run used. Blank before it was kept. */
+    imageId: varchar("image_id", { length: 80 }).notNull().default(""),
     startedAt: timestamp("started_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

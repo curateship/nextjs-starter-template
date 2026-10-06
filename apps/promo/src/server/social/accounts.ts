@@ -208,7 +208,7 @@ async function readAccountRow(userId: string, db: CustomShellDb) {
 /** Whether a job of this kind for this profile is already waiting or running. */
 export async function hasPendingJob(
   userId: string,
-  kind: "open" | "close" | "check",
+  kind: "open" | "close" | "check" | "site_check",
   profileId: string,
   db: CustomShellDb = defaultDb
 ): Promise<boolean> {

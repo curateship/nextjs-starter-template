@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest"
 
 import {
   addressWords,
+  graphicsCardName,
+  identityRows,
   deleteSignOutWords,
   countryJumpWarning,
   namesList,
@@ -88,5 +90,43 @@ describe("what deleting a profile signs out", () => {
       "The Reddit account inside is signed out, and kept with no profile until one is picked in Settings."
     )
     expect(deleteSignOutWords([])).toBeNull()
+  })
+})
+
+describe("a profile's identity in words", () => {
+  it("reads a graphics card the way a person names one", () => {
+    expect(
+      graphicsCardName("ANGLE (NVIDIA, NVIDIA GeForce GTX 980 Direct3D11 vs_5_0 ps_5_0), or similar")
+    ).toBe("NVIDIA GeForce GTX 980")
+    expect(graphicsCardName("Mesa Intel(R) UHD Graphics")).toBe("Mesa Intel(R) UHD Graphics")
+    // A bracket inside the card's own name, read from a real launch on 6 Oct 2026.
+    expect(
+      graphicsCardName("ANGLE (Intel, Intel(R) HD Graphics Direct3D11 vs_5_0 ps_5_0), or similar")
+    ).toBe("Intel(R) HD Graphics")
+  })
+
+  it("lists the machine, then the clock and language", () => {
+    const rows = identityRows({
+      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:156.0) Gecko/20100101 Firefox/156.0",
+      platform: "Win32",
+      oscpu: "Windows NT 10.0; Win64; x64",
+      hardwareConcurrency: 8,
+      screen: { width: 1536, height: 960, colorDepth: 24 },
+      devicePixelRatio: 1,
+      gpuVendor: "Google Inc. (NVIDIA)",
+      gpuRenderer: "ANGLE (NVIDIA, NVIDIA GeForce GTX 980 Direct3D11 vs_5_0 ps_5_0), or similar",
+      fonts: ["Arial", "Calibri"],
+      timezone: "UTC",
+      languages: ["en-US", "en"],
+    })
+    expect(Object.fromEntries(rows.map((row) => [row.label, row.value]))).toEqual({
+      "Operating system": "Windows",
+      Browser: "Firefox 156",
+      Screen: "1536 × 960",
+      "Graphics card": "NVIDIA GeForce GTX 980",
+      Fonts: "2 of the common ones",
+      Clock: "UTC",
+      Language: "en-US, en",
+    })
   })
 })

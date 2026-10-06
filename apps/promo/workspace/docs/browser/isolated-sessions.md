@@ -19,6 +19,80 @@ app's image would put two apps in one file, which is the thing the shell's rules
 exist to prevent: anti-detect's browser sleeps forever on purpose, waiting for a
 human, and promo's has to take instructions.
 
+**The image is pinned.** Neko's base is pinned to the digest its "latest" pointed
+at on 6 Oct 2026, and Camoufox's Python package to 0.5.7, which pins its own
+browser build (Firefox 156.0.1, Camoufox beta.34). A build with no cached
+layers made that day came out with the same browser. Moving to a newer one is
+a deliberate edit to two lines in the Dockerfile, and a thing to test, rather
+than whatever was newest on the day of a rebuild.
+
+**The compiler never ships.** One dependency builds itself from C, so the image is
+built in two stages: the compiler, the build and the download happen in the
+first, and only Python, the browser and the launcher are copied into the
+second. The old single stage installed the compiler in one layer (351MB) and
+"removed" it in a later one, which saved nothing. The image went from 6.43GB to
+5.95GB. Most of what is left is the browser's bundled fonts, 2.1GB for all
+three operating systems.
+
+**Each run records its build.** A session row keeps Docker's id for the image it
+ran on, and a profile's history marks the first run on a new build.
+
+## One identity per profile, the same on every launch
+
+An identity is what a site can read about the machine: its screen, graphics
+card, fonts, operating system and browser. A profile is meant to look like the
+same machine every time.
+
+**It did not.** Only the operating system reached the browser and Camoufox made
+the rest up at every launch. Measured on 6 Oct 2026, one profile launched three
+times read 1536x864, 1536x864 and 1920x1080, an AMD, an Intel and an AMD
+graphics card, and 42, 39 and 39 fonts.
+
+**Now the first launch makes one and every later launch is handed it back.**
+Camoufox draws everything from a fingerprint and salts each draw with that
+fingerprint, so the same fingerprint gives the same machine. Measured after the
+change: one profile launched three times read the same screen, graphics card
+and 42 fonts each time, and a second profile read differently on all three.
+Through the app, Main kept the same identity across three launches and a check
+a page made later read the same screen, card and fonts.
+
+- **Where it is kept.** In the profile's own volume, beside its cookies, as a
+  file. It is about 400KB, mostly the media types the machine plays, too big
+  for a container's settings. Kept with the cookies, it lives and dies with
+  them: a new volume is a new machine, which is why a duplicate profile gets its
+  own on its first launch.
+- **What the app keeps.** The identity's id, so it can tell the machine changed,
+  and what a page read through it, so the Browser profiles dashboard shows the
+  machine without asking a browser.
+- **What follows the proxy.** The clock and the language follow the proxy's
+  country at every launch. The screen, graphics card, fonts and operating system
+  never change.
+- **Every profile claims Windows,** the most common desktop.
+- **A new identity is deliberate:** a button on the profile's Identity tab, with a
+  warning that every signed-in site will see a different machine. The next
+  launch makes it, once.
+
+## What a website sees
+
+The proxy test proves a proxy works from the server. It says nothing about
+whether the browser itself uses it for everything, or what else the browser
+gives away. "Check what a site sees" on a profile's Identity tab writes a job;
+the browser program opens a tab of its own and reads the outside address and
+country a site sees, from the same echo service the proxy test uses, the clock,
+the languages, and every address the browser offers for a video call, the usual
+way a real address leaks past a proxy. At the same moment the proxy is tested
+from the server, or this computer's own address is read when there is no proxy.
+
+Each line says what was seen and whether it matches. A line only gets a verdict
+when the comparison is certain; otherwise it says what was seen and leaves the
+conclusion to the reader. The result is kept on the profile with when it was
+taken.
+
+**Found on its first run, 6 Oct 2026:** with no proxy, the browser's clock was
+on UTC and its language en-US while this computer's address is in Toronto. The
+clock only follows an address when there is a proxy, so a profile with none
+sits on UTC.
+
 ## How code drives it
 
 The container runs a small server on a port bound to this machine only, and it
@@ -160,7 +234,9 @@ So the browser has a process of its own, started with `npm run social:browser`,
 and the two talk through a job table. Pressing Search writes a row and returns;
 the browser process picks it up. Two copies of that process are safe: a job is
 claimed before any work starts, and a claim that goes stale is handed back after
-five minutes and given up after three tries.
+ten minutes and given up after three tries. Ten, because opening a cold browser
+can take five and a comment typed at a person's pace up to four more; a comment
+is never handed back at all.
 
 **It is the only program that opens, drives or closes a browser.** The command
 key a browser is started with lives in that program's memory and nowhere else.

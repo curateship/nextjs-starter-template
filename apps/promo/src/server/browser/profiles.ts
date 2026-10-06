@@ -1,6 +1,12 @@
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm"
 
-import type { ProfileEventKind, ProxyTestResult, SessionEndedBy } from "@/lib/social/options"
+import type {
+  ProfileEventKind,
+  ProfileIdentity,
+  ProxyTestResult,
+  SessionEndedBy,
+  SiteCheckResult,
+} from "@/lib/social/options"
 import { uuid } from "@/server/auth/security"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 
@@ -280,6 +286,29 @@ export async function duplicateProfile(
   )
 }
 
+/**
+ * Asks for a new identity on the profile's next launch. Deliberate, never a
+ * side effect of an edit: the sites it is signed in to will see a different
+ * machine. The current identity stays until then, so nothing changes while
+ * its browser is open.
+ */
+export async function requestNewIdentity(
+  userId: string,
+  profileId: string,
+  db: CustomShellDb = defaultDb
+): Promise<void> {
+  const [profile] = await db
+    .select({ fingerprint: promoProfiles.fingerprint })
+    .from(promoProfiles)
+    .where(and(eq(promoProfiles.id, profileId), eq(promoProfiles.userId, userId)))
+    .limit(1)
+  if (!profile) throw new Error("That browser profile does not exist.")
+  await db
+    .update(promoProfiles)
+    .set({ fingerprint: { ...profile.fingerprint, renew: true }, updatedAt: new Date() })
+    .where(and(eq(promoProfiles.id, profileId), eq(promoProfiles.userId, userId)))
+}
+
 /** Whether the profile is this person's. */
 export async function ownsProfile(
   userId: string,
@@ -506,6 +535,10 @@ export type ProfileRecord = {
   onOldProxy: boolean
   /** The country its browser last went out from, or blank when never known. */
   lastCountry: string
+  /** Its identity's id and what a page last read through it. Null before its first launch. */
+  identity: ProfileIdentity | null
+  /** The last "Check what a site sees", or null until one is run. */
+  siteCheck: SiteCheckResult | null
   lastRanAt: Date | null
   createdAt: Date
 }
@@ -561,6 +594,8 @@ export async function listProfiles(
             (proxy && proxy.updatedAt > run.startedAt))
       ),
       lastCountry: run?.exitCountry ?? "",
+      identity: profile.fingerprint,
+      siteCheck: profile.siteCheck,
       lastRanAt: run?.startedAt ?? null,
       createdAt: profile.createdAt,
     }
@@ -575,6 +610,8 @@ export type HistoryEntry =
       endedAt: Date | null
       ending: "running" | "opening" | SessionEndedBy | "stopped"
       reason: string
+      /** The first run on a different browser image than the run before it. */
+      newBuild: boolean
     }
   | { kind: ProfileEventKind; id: string; at: Date; detail: string }
 
@@ -604,7 +641,7 @@ export async function profileHistory(
     .limit(100)
 
   const entries: HistoryEntry[] = [
-    ...runs.map((run) => ({
+    ...runs.map((run, index) => ({
       kind: "run" as const,
       id: run.id,
       at: run.startedAt,
@@ -616,6 +653,11 @@ export async function profileHistory(
             ? ("opening" as const)
             : run.endedBy || legacyEnding(run.status, run.lastError),
       reason: run.lastError,
+      // Runs are newest first, so the run before this one is the next in the
+      // list. Blank ids are runs from before builds were kept.
+      newBuild: Boolean(
+        run.imageId && runs[index + 1]?.imageId && runs[index + 1].imageId !== run.imageId
+      ),
     })),
     ...events.map((event) => ({
       kind: event.kind,

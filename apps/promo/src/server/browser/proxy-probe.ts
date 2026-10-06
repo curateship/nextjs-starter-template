@@ -105,7 +105,8 @@ function buildAgent(input: ProxyTestInput): Agent {
 
 function getThroughAgent(
   url: string,
-  agent: Agent,
+  /** Undefined asks directly, from this computer's own address. */
+  agent: Agent | undefined,
   timeoutMs: number
 ): Promise<{ status: number; body: string }> {
   return new Promise((resolve, reject) => {
@@ -187,5 +188,29 @@ export async function testProxyConnection(
       error: error instanceof Error ? error.message : "The proxy test failed.",
       latencyMs: Date.now() - startedAt,
     }
+  }
+}
+
+/**
+ * What the echo service sees when this computer asks it directly, with no
+ * proxy: this computer's own outside address. "Check what a site sees" on a
+ * profile with no proxy compares against this. Null when it did not answer.
+ */
+export async function thisComputersAddress(): Promise<{
+  ip: string
+  country: string
+  timezone: string
+} | null> {
+  try {
+    const { status, body } = await getThroughAgent(PROBE_URL, undefined, TIMEOUT_MS)
+    if (status < 200 || status >= 300) return null
+    const echo = JSON.parse(body) as Record<string, unknown>
+    return {
+      ip: typeof echo.ip === "string" ? echo.ip : "",
+      country: typeof echo.country === "string" ? echo.country : "",
+      timezone: typeof echo.timezone === "string" ? echo.timezone : "",
+    }
+  } catch {
+    return null
   }
 }
