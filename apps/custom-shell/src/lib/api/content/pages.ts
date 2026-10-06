@@ -14,6 +14,7 @@ import {
   createFrontPageRowDraft,
   MAX_FRONT_PAGE_IMAGE_ALT_LENGTH,
   MAX_FRONT_PAGE_IMAGE_URL_LENGTH,
+  MAX_WRITTEN_PAGE_DESCRIPTION,
   normalizeFrontPageImageUrl,
 } from "@/lib/pages/front-page"
 import {
@@ -206,6 +207,9 @@ const writtenPageInput = z.object({
   // The library's own name for that file, which the picker hands over, so
   // nobody is asked to type one.
   imageAlt: z.string().max(MAX_FRONT_PAGE_IMAGE_ALT_LENGTH),
+  // A line or two about the page, for the cards that list it and for search
+  // engines. Empty is a page that says nothing about itself.
+  description: z.string().max(MAX_WRITTEN_PAGE_DESCRIPTION),
 })
 
 /**
@@ -245,6 +249,7 @@ const createWrittenPageFn = createServerFn({ method: "POST" })
       canonicalUrl: true,
       image: true,
       imageAlt: true,
+      description: true,
     })
   )
   .handler(async ({ data, context }): Promise<WrittenPage> => {
@@ -376,6 +381,8 @@ export function saveNewWrittenPage(input: {
   image?: string
   /** The library's own name for that picture, for a screen reader. */
   imageAlt?: string
+  /** A line or two about the page, or empty for none. */
+  description?: string
 }) {
   return createWrittenPageFn({ data: input })
 }
@@ -390,6 +397,8 @@ export function saveWrittenPage(input: {
   image?: string
   /** The library's own name for that picture, for a screen reader. */
   imageAlt?: string
+  /** A line or two about the page, or empty to clear it. */
+  description?: string
 }) {
   return updateWrittenPageFn({ data: input })
 }

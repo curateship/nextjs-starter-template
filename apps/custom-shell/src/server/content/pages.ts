@@ -1,6 +1,10 @@
 import { and, eq, gte, sql } from "drizzle-orm"
 
 import type { PageDescriptor } from "@/lib/pages/page-descriptor"
+import type {
+  FrontPageListedPage,
+  FrontPageRow,
+} from "@/lib/pages/front-page"
 import type { PublicNotFoundDiscovery } from "@/lib/pages/not-found-discovery"
 import { flattenPublicNavigationLinks } from "@/lib/pages/public-navigation"
 import { pageForPath, publicPages } from "@/lib/pages/page-registry"
@@ -25,6 +29,7 @@ import { OTHER_KEY, trafficDay } from "@/server/traffic"
 import {
   findWrittenPage,
   listWrittenPages,
+  listWrittenPagesByIds,
   normalizeWrittenPagePath,
   type WrittenPage,
 } from "@/server/content/written-pages"
@@ -250,6 +255,64 @@ export async function readWrittenPageForViewer(
   if (visibility === "members" && !signedIn) return { status: "signIn" }
 
   return { status: "ok", page }
+}
+
+/**
+ * The cards every Pages list block on a page shows, by block id.
+ *
+ * **Only pages this visitor could open.** A page switched off is left out, and
+ * so is a members-only page for a visitor with no session, by the same rule
+ * the page itself answers with. A card is a link, and a link that lands on
+ * not-found or a sign-in wall is a card that should not have been drawn. It
+ * also keeps a hidden page's name and description out of the page source.
+ *
+ * One read of the pages and one of the visibility map for the whole page,
+ * however many blocks it has.
+ */
+export async function readListedPages(
+  workspaceId: string,
+  blocks: readonly FrontPageRow[],
+  signedIn: boolean,
+  database: CustomShellDb = db
+): Promise<Record<string, FrontPageListedPage[]>> {
+  const lists = blocks.flatMap((block) =>
+    block.kind === "pages" ? [block] : []
+  )
+  if (lists.length === 0) return {}
+
+  const ids = [...new Set(lists.flatMap((block) => block.pageIds))]
+  const [pages, overrides] = await Promise.all([
+    listWrittenPagesByIds(workspaceId, ids, database),
+    readWorkspacePageOverrides(workspaceId, database),
+  ])
+
+  const open = new Map<string, FrontPageListedPage>()
+  for (const page of pages) {
+    const visibility = pageVisibility(overrides, {
+      path: page.path,
+      canSwitchOff: true,
+    })
+    if (visibility === "off") continue
+    if (visibility === "members" && !signedIn) continue
+    open.set(page.id, {
+      id: page.id,
+      path: page.path,
+      title: page.title,
+      description: page.description,
+      image: page.image,
+      imageAlt: page.imageAlt,
+    })
+  }
+
+  return Object.fromEntries(
+    lists.map((block) => [
+      block.id,
+      block.pageIds.flatMap((id) => {
+        const page = open.get(id)
+        return page ? [page] : []
+      }),
+    ])
+  )
 }
 
 /**

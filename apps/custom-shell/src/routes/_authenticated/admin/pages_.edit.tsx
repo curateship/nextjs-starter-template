@@ -55,14 +55,30 @@ export const Route = createFileRoute("/_authenticated/admin/pages_/edit")({
       loadPageBlocks(path),
       page.writtenPageId ? loadWrittenPageForEdit(path) : null,
     ])
-    return { page, blocks, writtenPage }
+    // What a Pages list block may pick from: every page added to this site,
+    // in the Pages screen's own order. Read off the overview this loader
+    // already has, so it costs no request of its own. The page being built is
+    // left out, because a card linking to the page it sits on goes nowhere.
+    const pageChoices = overview.rows.flatMap((row) =>
+      row.writtenPageId && row.path !== path
+        ? [
+            {
+              id: row.writtenPageId,
+              title: row.name,
+              path: row.path,
+              visibility: row.visibility,
+            },
+          ]
+        : []
+    )
+    return { page, blocks, writtenPage, pageChoices }
   },
   component: AdminFrontPageEditorRoute,
   errorComponent: routeErrorComponent(getPagesErrorMessage),
 })
 
 function AdminFrontPageEditorRoute() {
-  const { page, blocks, writtenPage } = Route.useLoaderData()
+  const { page, blocks, writtenPage, pageChoices } = Route.useLoaderData()
   const runtime = useShellRuntime()
 
   return (
@@ -70,6 +86,7 @@ function AdminFrontPageEditorRoute() {
       page={page}
       writtenPage={writtenPage}
       initialBlocks={blocks}
+      pageChoices={pageChoices}
       config={runtime.config}
       onConfigChange={runtime.onConfigChange}
     />

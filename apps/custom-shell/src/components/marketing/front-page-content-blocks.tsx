@@ -1,6 +1,6 @@
 import * as React from "react"
 import { useNavigate } from "@tanstack/react-router"
-import { StarIcon } from "lucide-react"
+import { FileTextIcon, StarIcon } from "lucide-react"
 
 import { MediaThumbnail } from "@/components/media/media-thumbnail"
 import { publicContentAlignmentRowClassName } from "@/components/shell/public-content-alignment"
@@ -20,6 +20,7 @@ import {
   type FrontPageDividerStyle,
   type FrontPageHeroAction,
   type FrontPageFaqItem,
+  type FrontPageListedPage,
   type FrontPageLogo,
   type FrontPageScreenshot,
   type FrontPageTestimonial,
@@ -421,6 +422,79 @@ export function FrontPageScreenshots({
         </Card>
       ))}
     </div>
+  )
+}
+
+/**
+ * A Pages list block: one card per page, each a link to it.
+ *
+ * The card is the one Tyler drew on 6 Oct 2026: the page's picture across the
+ * top, its name under it, and one grey line under that, which is the page's
+ * own description. A page with no description shows its name alone, and one
+ * with no picture keeps a plain grey panel in the picture's place, so the
+ * cards in a row stay the same height.
+ *
+ * Three to a row on a wide screen, two on a tablet, one on a phone. The grid
+ * runs the full width of the row, so the row's Alignment moves the heading
+ * above it and not the cards.
+ */
+export function FrontPageListedPages({
+  pages,
+  eager = false,
+}: {
+  pages: FrontPageListedPage[]
+  eager?: boolean
+}) {
+  if (pages.length === 0) return null
+
+  return (
+    <ul className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 md:gap-4 lg:grid-cols-3">
+      {pages.map((page) => (
+        <li key={page.id} className="min-w-0">
+          <SavedLink
+            href={page.path}
+            className="group/page-card block h-full rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            <Card className="h-full gap-0 py-0 text-left transition-shadow group-hover/page-card:ring-foreground/25">
+              {page.image ? (
+                <MediaThumbnail
+                  url={page.image}
+                  fileType="image"
+                  // No fallback to the page's name: the heading under the
+                  // picture already says it, and a link that reads its name
+                  // out twice helps nobody. A picture with no name of its own
+                  // is left as decoration.
+                  alt={page.imageAlt}
+                  fit="cover"
+                  className="aspect-video w-full"
+                  // A third of the window on a wide screen, half on a tablet
+                  // and all of it on a phone, matching the grid above.
+                  sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+                  eager={eager}
+                />
+              ) : (
+                <div
+                  aria-hidden="true"
+                  className="flex aspect-video w-full items-center justify-center bg-muted text-muted-foreground"
+                >
+                  <FileTextIcon className="size-6" />
+                </div>
+              )}
+              <div className="grid gap-1 px-4 py-3">
+                <h3 className="text-base font-medium text-balance md:text-lg">
+                  {page.title}
+                </h3>
+                {page.description ? (
+                  <p className="line-clamp-2 text-sm text-muted-foreground md:text-base">
+                    {page.description}
+                  </p>
+                ) : null}
+              </div>
+            </Card>
+          </SavedLink>
+        </li>
+      ))}
+    </ul>
   )
 }
 

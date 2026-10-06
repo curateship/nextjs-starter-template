@@ -69,3 +69,26 @@ app was exactly seven files behind and gained one new file.
 Nothing was deleted and nothing forked. CMS's `lib/format/bulk-result.ts` is no
 longer a fork at all: the previous merge folded its "already that way" count
 into the shell's own copy, and this merge confirms the two are identical again.
+
+## Shell merge, 6 October 2026
+
+Two shell changes came across together, because the second needs the first.
+
+- **A page an admin adds has a picture of its own** (shell commit 40b3c3270),
+  chosen in the Add a page window and in Page settings and drawn at the top of
+  the page. This app had not taken it yet.
+- **The Pages list block and a description on every added page**, built in the
+  shell for this app on 6 Oct 2026. Pages list is a grid of cards for the pages
+  ticked in its panel, each card showing the page's picture, name and
+  description. The shell's `workspace/docs/content/building-the-front-page.md`
+  describes both.
+
+Every app copy replaced was proved to be an unmodified shell version first:
+the app's file matched either the shell's last committed copy or the copy from
+just before the picture change. Nothing here was a fork. 22 shell files updated
+and 2 added (`written-page-picture.tsx`, `front-page-listed-pages-editor.tsx`).
+
+**Two migrations, keeping the shell's numbers**, since this app's next free
+number was 0092: `0092_custom_shell_written_page_picture.sql` and
+`0093_custom_shell_written_page_description.sql`. Both have been applied to
+the local database only.

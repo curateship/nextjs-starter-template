@@ -4,6 +4,10 @@ import { SlidersHorizontalIcon, XIcon } from "lucide-react"
 import { AppFrontPageRowEditor } from "@/components/pages/app-front-page-row-editor"
 import { FrontPageRowContentEditor } from "@/components/pages/front-page-row-content-editor"
 import {
+  FrontPageListedPagesEditor,
+  type FrontPageListedPageChoice,
+} from "@/components/pages/front-page-listed-pages-editor"
+import {
   InspectorCard,
   InspectorCollapseAllButton,
   InspectorCollapseAllProvider,
@@ -110,6 +114,7 @@ export function FrontPageBlockInspector({
   first,
   pageGap,
   heldBack,
+  pageChoices,
   onChange,
   onClose,
 }: {
@@ -132,6 +137,8 @@ export function FrontPageBlockInspector({
    * stays quiet.
    */
   heldBack: boolean
+  /** The pages a Pages list block may show: every page added to this site. */
+  pageChoices: readonly FrontPageListedPageChoice[]
   onChange: (draft: FrontPageRowDraft) => void
   /** Closes the panel and goes back to the page's own settings. */
   onClose: () => void
@@ -494,6 +501,14 @@ export function FrontPageBlockInspector({
                 kind={appKind}
                 settings={draft.settings}
                 onChange={(settings) => onChange({ ...draft, settings })}
+              />
+            ) : null}
+
+            {draft.kind === "pages" ? (
+              <FrontPageListedPagesEditor
+                choices={pageChoices}
+                pageIds={draft.pageIds}
+                onChange={(pageIds) => onChange({ ...draft, pageIds })}
               />
             ) : null}
 

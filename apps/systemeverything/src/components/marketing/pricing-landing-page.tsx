@@ -14,14 +14,19 @@ import {
   type PlanOption,
 } from "@/lib/api/billing/billing"
 import { loadAppFrontPageRows, loadBranding } from "@/lib/api/shell"
-import { loadPublicPageBlocks } from "@/lib/api/content/page-blocks"
+import {
+  loadPublicListedPages,
+  loadPublicPageBlocks,
+} from "@/lib/api/content/page-blocks"
 import { FRONT_PAGE_PATH } from "@/lib/pages/page-descriptor"
 import { useAppName } from "@/lib/branding"
 import type { BillingInterval } from "@/lib/billing/pricing-choice"
 import {
   APP_FRONT_PAGE_ROW_KIND,
+  frontPageHasListedPages,
   frontPageHasPlans,
   frontPageHeroRunsUnderMenu,
+  type FrontPageListedPage,
   type FrontPageRow,
 } from "@/lib/pages/front-page"
 
@@ -35,6 +40,8 @@ type LandingData = {
   trialUsed: boolean
   /** What the app's own rows hold on this request, by row id. */
   appRowData: Record<string, unknown>
+  /** The cards each Pages list block shows, by row id. */
+  listedPages: Record<string, FrontPageListedPage[]>
 }
 
 /**
@@ -72,9 +79,18 @@ export async function loadPricingLandingData(
   // Asked for only when the page has a row of the app's own on it, and the
   // rows it answers about are the saved ones, read again on the server — never
   // the list the browser is holding.
-  const fills = savedRows.some((row) => row.kind === APP_FRONT_PAGE_ROW_KIND)
-    ? await loadAppFrontPageRows().catch(() => null)
-    : null
+  //
+  // The cards for a Pages list block go alongside, asked for only when the
+  // page has one. A failure leaves those blocks as their headings rather than
+  // turning the front page into an error page.
+  const [fills, listedPages] = await Promise.all([
+    savedRows.some((row) => row.kind === APP_FRONT_PAGE_ROW_KIND)
+      ? loadAppFrontPageRows().catch(() => null)
+      : null,
+    frontPageHasListedPages(savedRows)
+      ? loadPublicListedPages(FRONT_PAGE_PATH).catch(() => ({}))
+      : {},
+  ])
   const dropped = new Set(fills?.dropped ?? [])
   // A row the app answered "nothing" for comes off the page, the same as one
   // whose category has nothing published in it.
@@ -98,6 +114,7 @@ export async function loadPricingLandingData(
       plans: [],
       trialUsed: false,
       appRowData,
+      listedPages,
     }
   }
 
@@ -127,6 +144,7 @@ export async function loadPricingLandingData(
     plans: pricing.plans,
     trialUsed: Boolean(overview?.trialUsed),
     appRowData,
+    listedPages,
   }
 }
 
@@ -139,6 +157,7 @@ function PricingLanding({ data }: { data: LandingData }) {
     plans,
     trialUsed,
     appRowData,
+    listedPages,
   } = data
   const appName = useAppName()
   const navigate = useNavigate()
@@ -175,6 +194,7 @@ function PricingLanding({ data }: { data: LandingData }) {
         <FrontPageRows
           rows={frontPageRows}
           appRowData={appRowData}
+          listedPages={listedPages}
           plans={plans}
           trialUsed={trialUsed}
           interval={interval}

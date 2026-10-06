@@ -37,6 +37,7 @@ import {
   canonicalUrlProblem,
   MAX_CANONICAL_URL_LENGTH,
 } from "@/lib/pages/page-indexing"
+import { MAX_WRITTEN_PAGE_DESCRIPTION } from "@/lib/pages/front-page"
 import {
   PAGE_VISIBILITIES,
   PAGE_VISIBILITY_LABELS,
@@ -88,6 +89,9 @@ export function FrontPageSettingsPanel({
   )
   const [image, setImage] = React.useState(writtenPage?.image ?? "")
   const [imageAlt, setImageAlt] = React.useState(writtenPage?.imageAlt ?? "")
+  const [description, setDescription] = React.useState(
+    writtenPage?.description ?? ""
+  )
   const [canonicalInvalid, setCanonicalInvalid] = React.useState(false)
 
   const pageDirty = Boolean(
@@ -97,7 +101,8 @@ export function FrontPageSettingsPanel({
         hiddenFromSearch !== writtenPage.hiddenFromSearch ||
         canonicalUrl !== writtenPage.canonicalUrl ||
         image !== writtenPage.image ||
-        imageAlt !== writtenPage.imageAlt)
+        imageAlt !== writtenPage.imageAlt ||
+        description !== writtenPage.description)
   )
 
   /**
@@ -124,6 +129,7 @@ export function FrontPageSettingsPanel({
         canonicalUrl,
         image,
         imageAlt,
+        description,
       })
       toast.success(`${saved.title} was saved.`)
       // The address can have changed, and this screen is keyed by it, so the
@@ -230,6 +236,22 @@ export function FrontPageSettingsPanel({
                         </a>
                       </Button>
                     </div>
+                  </div>
+                  <div className="grid gap-2">
+                    <FieldLabel
+                      htmlFor="written-page-settings-description"
+                      hint="A line or two about the page. It is shown under the page's name on any Pages list that lists it, and search engines are told it as the page's description. Leave it empty and the description template in Settings > Public > SEO is used instead."
+                    >
+                      Description
+                    </FieldLabel>
+                    <Textarea
+                      id="written-page-settings-description"
+                      rows={2}
+                      value={description}
+                      maxLength={MAX_WRITTEN_PAGE_DESCRIPTION}
+                      disabled={savingPage}
+                      onChange={(event) => setDescription(event.target.value)}
+                    />
                   </div>
                   {/* The page's own picture, beside its name and address
                       because it belongs to the page the same way they do.

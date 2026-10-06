@@ -12,6 +12,7 @@ import {
 import { SettingsSwitchRow } from "@/components/settings/settings-switch-row"
 import { SettingsSliderRow } from "@/components/settings/settings-slider-row"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
+import { ImageUpload } from "@/components/shared/image-upload"
 import { Button } from "@/components/ui/button"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
@@ -36,6 +37,7 @@ import {
   canonicalUrlProblem,
   MAX_CANONICAL_URL_LENGTH,
 } from "@/lib/pages/page-indexing"
+import { MAX_WRITTEN_PAGE_DESCRIPTION } from "@/lib/pages/front-page"
 import {
   PAGE_VISIBILITIES,
   PAGE_VISIBILITY_LABELS,
@@ -85,6 +87,11 @@ export function FrontPageSettingsPanel({
   const [canonicalUrl, setCanonicalUrl] = React.useState(
     writtenPage?.canonicalUrl ?? ""
   )
+  const [image, setImage] = React.useState(writtenPage?.image ?? "")
+  const [imageAlt, setImageAlt] = React.useState(writtenPage?.imageAlt ?? "")
+  const [description, setDescription] = React.useState(
+    writtenPage?.description ?? ""
+  )
   const [canonicalInvalid, setCanonicalInvalid] = React.useState(false)
 
   const pageDirty = Boolean(
@@ -92,7 +99,10 @@ export function FrontPageSettingsPanel({
       (title !== writtenPage.title ||
         path !== writtenPage.path ||
         hiddenFromSearch !== writtenPage.hiddenFromSearch ||
-        canonicalUrl !== writtenPage.canonicalUrl)
+        canonicalUrl !== writtenPage.canonicalUrl ||
+        image !== writtenPage.image ||
+        imageAlt !== writtenPage.imageAlt ||
+        description !== writtenPage.description)
   )
 
   /**
@@ -117,6 +127,9 @@ export function FrontPageSettingsPanel({
         path,
         hiddenFromSearch,
         canonicalUrl,
+        image,
+        imageAlt,
+        description,
       })
       toast.success(`${saved.title} was saved.`)
       // The address can have changed, and this screen is keyed by it, so the
@@ -224,6 +237,45 @@ export function FrontPageSettingsPanel({
                       </Button>
                     </div>
                   </div>
+                  <div className="grid gap-2">
+                    <FieldLabel
+                      htmlFor="written-page-settings-description"
+                      hint="A line or two about the page. It is shown under the page's name on any Pages list that lists it, and search engines are told it as the page's description. Leave it empty and the description template in Settings > Public > SEO is used instead."
+                    >
+                      Description
+                    </FieldLabel>
+                    <Textarea
+                      id="written-page-settings-description"
+                      rows={2}
+                      value={description}
+                      maxLength={MAX_WRITTEN_PAGE_DESCRIPTION}
+                      disabled={savingPage}
+                      onChange={(event) => setDescription(event.target.value)}
+                    />
+                  </div>
+                  {/* The page's own picture, beside its name and address
+                      because it belongs to the page the same way they do.
+                      Save page, at the foot of this panel, writes it with
+                      them. */}
+                  <ImageUpload
+                    label="Picture"
+                    hint="Optional. It is drawn at the top of the page, above every block on it."
+                    value={image}
+                    aspect="square"
+                    fit="cover"
+                    emptyLabel="Add picture"
+                    className="max-w-24"
+                    disabled={savingPage}
+                    onChange={(picked, altText) => {
+                      setImage(picked)
+                      // The library's own name for the file is what a screen
+                      // reader says, so there is no field here to type it in.
+                      // Set whatever came back, empty included: a new picture
+                      // keeping the last one's name would have a screen reader
+                      // describing the wrong picture.
+                      setImageAlt(altText ?? "")
+                    }}
+                  />
                 </>
               ) : (
                 <>
@@ -375,24 +427,6 @@ export function FrontPageSettingsPanel({
               )}
             </InspectorCard>
 
-            {writtenPage ? (
-              /* The page's own row saves on a button, unlike everything else on
-                 this screen: its address is what the editor is keyed by, so a
-                 half-typed one must not be written as it is typed. */
-              <div className="flex items-center justify-end gap-2">
-                <Button
-                  type="button"
-                  disabled={savingPage || !pageDirty}
-                  onClick={() => void savePage()}
-                >
-                  {savingPage ? (
-                    <Loader2Icon className="size-4 animate-spin" />
-                  ) : null}
-                  Save page
-                </Button>
-              </div>
-            ) : null}
-
             <InspectorCard
               storageId="front-page-page-spacing"
               title="Spacing"
@@ -423,6 +457,30 @@ export function FrontPageSettingsPanel({
           </div>
         </InspectorCollapseAllProvider>
       </ScrollArea>
+
+      {/* The page's own row saves on a button, unlike everything else on this
+          screen: its address is what the editor is keyed by, so a half-typed
+          one must not be written as it is typed.
+
+          It sits at the foot of the panel rather than between two cards, where
+          it used to be — Tyler's call on 6 Oct 2026. A press that writes the
+          whole page belongs under everything it writes, and from here it is on
+          screen whichever card is open and however far the panel is scrolled.
+          The same footer the block panel had, so the two panels measure alike. */}
+      {writtenPage ? (
+        <div className="flex shrink-0 items-center justify-end gap-2 border-t p-3">
+          <Button
+            type="button"
+            disabled={savingPage || !pageDirty}
+            onClick={() => void savePage()}
+          >
+            {savingPage ? (
+              <Loader2Icon className="size-4 animate-spin" />
+            ) : null}
+            Save page
+          </Button>
+        </div>
+      ) : null}
     </div>
   )
 }

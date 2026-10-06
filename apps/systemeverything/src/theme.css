@@ -409,12 +409,35 @@ body.app-font {
 }
 
 /*
+ * A page's own picture, drawn above every block on it.
+ *
+ * It keeps the same half of the page's Space between blocks that the block
+ * under it keeps above itself, so the picture and the first block sit exactly
+ * as far apart as any two blocks. It cannot be a margin written in the
+ * component, because that number is Settings > Styling > Space between blocks
+ * and a phone draws a smaller one.
+ */
+[data-page-picture] {
+    margin-bottom: calc(var(--shell-front-page-row-gap-phone, 3.5rem) / 2);
+}
+
+@media (min-width: 768px) {
+    [data-page-picture] {
+        margin-bottom: calc(var(--shell-front-page-row-gap, 5rem) / 2);
+    }
+}
+
+/*
  * Flat mode collapses a block's own spacing too, not only the page's. Flat is
  * the whole site saying it wants no air anywhere, and a page where half the
  * blocks kept their gaps would be neither one thing nor the other.
  */
 [data-flat="true"] [data-front-page-rows] > * {
     margin-top: 0;
+    margin-bottom: 0;
+}
+
+[data-flat="true"] [data-page-picture] {
     margin-bottom: 0;
 }
 

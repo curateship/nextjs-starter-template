@@ -148,8 +148,8 @@ beside it shows what was stored.
 
 ## What a block can hold
 
-Nine kinds come with the shell: plain text, rich text, hero, plans,
-testimonials, FAQ, logo strip, screenshots and divider. An app adds its own kinds on top, and
+Ten kinds come with the shell: plain text, rich text, hero, plans,
+testimonials, FAQ, logo strip, screenshots, pages list and divider. An app adds its own kinds on top, and
 CMS has five. Every kind has a heading and an optional introduction line; the
 rest depends on the kind.
 
@@ -161,6 +161,39 @@ introduction line of 500 characters.
 **Plans is the front page's own.** A plans block needs the public prices and the
 machinery to offer them, which the front page loads and no other page does, so a
 plans block anywhere else draws nothing.
+
+**Pages list is a grid of cards, one for each page you tick.** Tyler asked for
+it on 6 October 2026 with a picture of the card he wanted: the page's picture
+across the top, its name under it, and one grey line under that, which he
+named as "the page title and page description". So each card shows:
+
+- **The picture** from the page's own Page settings, cropped to a wide 16 by 9
+  shape. A page with no picture gets a plain grey panel with a page mark in it,
+  so the cards in a row stay the same height.
+- **The name**, the page's own.
+- **The description**, the page's own, cut off after two lines. A page with no
+  description shows its name alone.
+
+The whole card is a link to the page. Three cards sit in a row on a wide
+screen, two on a tablet and one on a phone.
+
+**The block stores which pages, never what they say.** It keeps the pages' ids,
+and the name, picture and description are read from each page every time the
+block is drawn. Renaming a page, or giving it a new picture, changes its card on
+every list it is on without anybody opening those blocks. An id and not an
+address, so a page whose address changes stays on the list.
+
+**Only pages an admin added can be ticked.** They are the ones with a picture
+and a description to put on a card. The page being built is left off its own
+list, because a card linking to the page it sits on goes nowhere. The cards
+follow the order of the list in the panel, which is the Pages screen's own order
+by address, so there is nothing to drag. One block shows up to 24 pages.
+
+**A card is left out for a visitor who could not open its page.** A switched-off
+page never shows, and a members-only page shows only to somebody signed in. The
+panel still lets either be ticked and says which it is beside the name, and its
+card comes back by itself once the page is switched on. A deleted page drops off
+the list the same way.
 
 **A block keeps the kind it was made with.** It is chosen once, on the left, and
 the right panel offers no way to change it, because changing it would leave the
@@ -192,8 +225,8 @@ door and not that site's.
 With no block selected the right panel holds what belongs to the page rather
 than to anything on it:
 
-- **This page.** On a page an admin added, its name, its address, its picture
-  and the two search settings below are fields, and one **Save page** at the
+- **This page.** On a page an admin added, its name, its address, its
+  description, its picture and the two search settings below are fields, and one **Save page** at the
   foot of the panel writes all of them; changing the address
   changes where the page answers and the old one stops working. On the front page both are facts: they
   live in its own file. Underneath either is who can see the page, except on the
@@ -261,8 +294,8 @@ outside the block entirely, where no background reaches.
 
 ## Adding a page
 
-Press **Add a page** on the Pages screen. It asks for a name, an address and a
-picture, makes the page, and opens it in the editor with one empty rich text
+Press **Add a page** on the Pages screen. It asks for a name, an address, a
+description and a picture, makes the page, and opens it in the editor with one empty rich text
 block waiting.
 Everything else about the page is built there, including its own settings.
 
@@ -282,6 +315,13 @@ page whose file was tidied out of the library months ago could not have its
 name changed again. Clearing the field takes the picture off the page and the
 name with it: a name with no picture would be read out by a screen reader with
 nothing to read it about.
+
+**The description is optional too, and it does two jobs.** It is the grey line
+under the page's name on every Pages list card that lists it, and it is what
+search engines and link previews are told about the page. Up to 300 characters.
+Left empty, a card shows the name alone and search engines get the description
+template from Settings > Public > SEO, which is what every page had before the
+field existed. Like the picture, it is also in Page settings afterwards.
 
 A page added this way can hold any block the front page can. That is the whole
 point of it: writing a page and building a page used to be two different things,
