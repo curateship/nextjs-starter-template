@@ -318,12 +318,72 @@ book models a watched level as an order the bar's wick fills, so crash-day
 results stay comparable with everything measured before. On a real book there
 are no exceptions left.
 
-The ladder has four take-profit choices. Average price keeps one target above
+The ladder has five take-profit choices. Average price keeps one target above
 the changing average. Previous rung gives each buy its own sell one rung up.
-Nearest rung sells everything at the first rung above the deepest buy. Sell
-back up the ladder uses the clicked or base anchor as Exit 1. Exit 1 is the
+Nearest rung sells everything at the first rung above the deepest buy. First
+rung sells everything one rung above rung 1. Sell back up the ladder uses the
+clicked or base anchor as Exit 1. Exit 1 is the
 first level above Rung 1, not a second step above it. Later exits continue
 upward using the gaps between the remaining buy rungs.
+
+**"Sell everything at first rung" never moves its sell** (Tyler, 6 Oct 2026).
+The sell sits one rung above rung 1, at the price the ladder hangs off, so
+rung 1 alone still sells at a profit. Take a ladder hung off $100 with rungs at
+$95, $90 and $85.
+
+- **Only $95 has bought:** everything sells at $100, the same as nearest rung.
+- **$95, $90 and $85 have bought:** everything still sells at $100. Nearest
+  rung would have slid down to $90.
+- **Rung 1 bought at the market:** the sell uses "Rung 1 exit %" above that
+  buy until rung 2 buys, the same as nearest rung. After that it sits at the
+  price the ladder hangs off.
+- **The rule lives in one place**, `rungExit` in
+  `src/server/trade/smart-ladders.ts`. Placing, settling and switching a live
+  ladder's exit all read it, for real, practice and backtest ladders alike.
+
+**"Sell with a limit order" is a checkbox on the three one-sell exits**
+(Tyler, 6 Oct 2026): at the average price, nearest rung and first rung. It is
+off unless ticked, and a ladder placed before it existed reads as off.
+
+- **Off, the exchange holds a target.** When price touches it, the exchange
+  sells everything at the market. Hyperliquid sends a trigger with
+  `isMarket: true`, Phemex a "MarketIfTouched", KuCoin a market order, and
+  Binance, Aster, ApeX and edgeX a "TAKE_PROFIT_MARKET". Lighter sends a limit
+  priced 3% under the target so that it always fills, so a $100 target can
+  sell at $97. On a big position that sale can slip, and it pays the higher fee.
+- **On, one limit sell for everything waits on the book** at the exit price.
+  It is reduce-only, so it can only shrink the position. It is post-only, so
+  the exchange refuses it rather than fill it at the market. It fills at its
+  price or better, at the lower fee. The position carries no target beside it.
+- **It moves only when the rule or the size changes.** Another rung buying
+  makes it bigger, and "at the average price" re-aims it after every buy. Each
+  change costs a cancel and a place. Nothing else touches it.
+- **It never rests below the market.** If price is already above the exit,
+  the sell waits just above today's price instead, which is still at or above
+  the exit.
+- **It can part-fill.** If price brushes the exit and turns back, some coins
+  sell and the rest stay on the book at the same price. The ladder carries on
+  with what is left.
+- **The stop stays a market order.** A stop has to get out, and a limit can sit
+  unfilled while price keeps falling.
+- **On the chart it is a "Sell all" line that does not drag.** Move it by
+  changing the exit in the ladder's settings. Setting a target on the position
+  by hand still overrides the ladder: the exit turns "fixed" and the limit sell
+  comes off.
+- **Practice wallets always filled a target this way**, at its own price with
+  the lower fee (`src/server/trade/paper-replay.ts`), so practice results did
+  not show the slip a real exchange gives.
+- **Where it lives:** `reconcileLimitExit` in
+  `src/server/trade/smart-ladders.ts`. The order is `limitExitOrder` on the
+  plan, and `limitExitApplies` in `src/lib/trade/dca.ts` says when it is on.
+
+**Changing a holding ladder's exit on a real wallet re-aims its target.** Until
+6 Oct 2026 the exit edit wiped the ladder's memory of the target it last set.
+The next pass then read the exchange's unchanged target as one moved by hand,
+froze the exit as "fixed" at the old price, and dropped the new rule. Switching
+a $210 target to "10% above the average" left it at $210. The memory now
+survives the edit, and the next pass moves the target to $220
+(`updateLiveLadderExitsOnce` in `src/server/trade/live-smart-orders.ts`).
 
 Sell back up the ladder reverses the buy sizes. If the buys are $100, $200 and
 $300 as price falls, the exits are $300, $200 and $100 as price rises. The

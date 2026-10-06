@@ -42,6 +42,7 @@ import {
   DCA_TP_MODE_HINTS,
   DCA_TP_MODE_LABELS,
   DCA_TP_MODES,
+  LIMIT_EXIT_MODES,
   DEFAULT_BASE_STOP_RECLAIM_DAYS,
   DEFAULT_BASE_STOP_UNDER_PCT,
   DEFAULT_DCA_STOP_LOSS_PCT,
@@ -536,6 +537,30 @@ export default function TradeDcaFields({
               setParams({ takeProfit: { ...params.takeProfit!, pct } })
             }
           />
+        ) : null}
+
+        {params.takeProfit &&
+        (LIMIT_EXIT_MODES as readonly string[]).includes(
+          params.takeProfit.mode
+        ) ? (
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id={`dca-${node.id}-tp-limit`}
+              checked={params.takeProfit.limit === true}
+              onCheckedChange={(next) =>
+                setParams({
+                  takeProfit: { ...params.takeProfit!, limit: next === true },
+                })
+              }
+            />
+            <FieldLabel
+              htmlFor={`dca-${node.id}-tp-limit`}
+              className="text-xs"
+              hint="Off, the exchange holds a target that sells everything at the market once price touches it, which can slip on a big position. On, one limit sell for everything waits on the book at the exit price and fills there or better, at the lower fee."
+            >
+              Sell with a limit order
+            </FieldLabel>
+          </div>
         ) : null}
       </InspectorCard>
 

@@ -34,6 +34,8 @@ export type DcaSettingsFormState = {
   tpMode: DcaTpMode
   tpPct: string
   exitGapPct: string
+  /** Sell with a waiting limit order; only the one-sell exits read it. */
+  tpLimit: boolean
   slOn: boolean
   slReference: "average" | "lastRung" | "base"
   slPct: string
@@ -71,6 +73,7 @@ export function dcaSettingsFormState(
     exitGapPct: String(
       settings.takeProfit?.exitGapPct ?? DEFAULT_DCA_EXIT_GAP_PCT
     ),
+    tpLimit: settings.takeProfit?.limit === true,
     slOn: settings.stopLoss !== null,
     slReference: settings.stopLoss?.base
       ? "base"
@@ -203,6 +206,7 @@ export function inspectDcaSettingsForm(
                   form.tpMode === "exitLadder"
                     ? (exitGapPct as number)
                     : DEFAULT_DCA_EXIT_GAP_PCT,
+                limit: form.tpLimit,
               }
             : null,
           stopLoss: form.slOn

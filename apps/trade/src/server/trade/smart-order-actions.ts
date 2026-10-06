@@ -225,11 +225,19 @@ export async function updateLadderExitsPlan(
     if (!staysExitLadder) plan.exitRungs = []
   }
   if (!wasExitLadder && staysExitLadder) plan.exitLadderVersion = 2
+  // Any edit to the exits takes the limit sell for everything off the book.
+  // The next engine pass places it again under the new rules, if they still
+  // want one.
+  if (plan.limitExitOrder) {
+    await cancelSell(plan.limitExitOrder.orderId)
+    plan.limitExitOrder = null
+  }
   plan.takeProfit = input.takeProfit
     ? {
         mode: input.takeProfit.mode,
         pct: input.takeProfit.mode === "average" ? input.takeProfit.pct : null,
         exitGapPct: input.takeProfit.mode === "exitLadder" ? nextExitGapPct : 0,
+        limit: input.takeProfit.limit === true,
       }
     : null
   plan.stopLoss = input.stopLoss

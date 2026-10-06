@@ -43,6 +43,7 @@ import {
   reshapeLiveLadder,
   resetRefusalHolds,
   resetRowFailureHolds,
+  updateLiveLadderExits,
 } from "@/server/trade/live-smart-orders"
 import { resetWatchChaseGate } from "@/server/trade/smart-watch"
 import { loadLiveRefusals } from "@/server/trade/live-fills"
@@ -933,6 +934,190 @@ describe("live Smart orders", () => {
     )
     const target = setBrackets.mock.calls.at(-1)?.[2]?.targets?.[0]?.px
     expect(target).toBeCloseTo(210, 9)
+  })
+
+  it("sends a live limit-exit as a post-only sell, never a target", async () => {
+    prices.mockResolvedValue(new Map([["BTC", 200]]))
+    place.mockResolvedValue({
+      status: "filled",
+      orderId: "first-rung",
+      avgPx: 200,
+      filledSz: null,
+    })
+    const result = await placeLiveDcaLadder(userId, wallet, {
+      marketKey: MARKET,
+      clickPx: 200,
+      interval: "1m",
+      params: params({
+        marketBuyFirst: true,
+        takeProfit: { mode: "firstRung", pct: 2, limit: true },
+      }),
+    })
+    const settleAgain = async () => {
+      await database
+        .update(tradeSmartLadders)
+        .set({ updatedAt: new Date(Date.now() - 3_000) })
+        .where(eq(tradeSmartLadders.id, result.ladder.id))
+      await reconcileLiveLadders(userId, wallet)
+    }
+    await settleAgain()
+    const bought = (await ladder()).rungs[0]
+    portfolio.mockResolvedValue({
+      positions: [
+        {
+          marketId: "BTC",
+          szi: bought.sz,
+          entryPx: 200,
+          leverage: 1,
+          marginUsed: bought.budget,
+          liquidationPx: null,
+          targets: [],
+          tpPx: null,
+          tpSz: null,
+          tpOrderId: null,
+          slPx: null,
+          slOrderId: null,
+          protectionOrderIds: [],
+        },
+      ],
+      orders: [],
+    })
+    place.mockClear()
+    setBrackets.mockClear()
+    place.mockResolvedValue({ status: "resting", orderId: "limit-exit" })
+
+    await settleAgain()
+
+    expect(place).toHaveBeenCalledTimes(1)
+    const sell = place.mock.calls[0]?.[2]
+    expect(sell).toMatchObject({
+      side: "sell",
+      kind: "postOnly",
+      reduceOnly: true,
+    })
+    expect(sell?.px).toBeCloseTo(210, 9)
+    expect(sell?.sz).toBeCloseTo(bought.sz, 9)
+    for (const call of setBrackets.mock.calls) {
+      expect(call[2]?.targets ?? []).toEqual([])
+    }
+    expect((await ladder()).limitExitOrder).toMatchObject({
+      orderId: "limit-exit",
+      aimPx: 210,
+    })
+
+    // Half of it sells and the rest keeps resting. The order on the book is
+    // already the right size for what is left, so it stays: cancelling it
+    // would forget the half that sold and leave the ladder counting coins it
+    // no longer has.
+    const half = Math.round((bought.sz / 2) * 1000) / 1000
+    portfolio.mockResolvedValue({
+      positions: [
+        {
+          marketId: "BTC",
+          szi: half,
+          entryPx: 200,
+          leverage: 1,
+          marginUsed: bought.budget / 2,
+          liquidationPx: null,
+          targets: [],
+          tpPx: null,
+          tpSz: null,
+          tpOrderId: null,
+          slPx: null,
+          slOrderId: null,
+          protectionOrderIds: [],
+        },
+      ],
+      orders: [
+        {
+          orderId: "limit-exit",
+          marketId: "BTC",
+          side: "sell",
+          px: 210,
+          sz: half,
+          reduceOnly: true,
+          trigger: false,
+        },
+      ],
+    })
+    place.mockClear()
+    cancel.mockClear()
+    await settleAgain()
+    expect(cancel).not.toHaveBeenCalled()
+    expect(place).not.toHaveBeenCalled()
+    expect((await ladder()).limitExitOrder?.orderId).toBe("limit-exit")
+  })
+
+  // The exchange still carries the old target when an exit edit lands. The
+  // edit is the ladder's own, so the next pass must re-aim that target to the
+  // new rule, never read it as one a hand moved and freeze the ladder there.
+  it("re-aims a live target after its exit mode is changed", async () => {
+    prices.mockResolvedValue(new Map([["BTC", 200]]))
+    place.mockResolvedValue({
+      status: "filled",
+      orderId: "first-rung",
+      avgPx: 200,
+      filledSz: null,
+    })
+    const result = await placeLiveDcaLadder(userId, wallet, {
+      marketKey: MARKET,
+      clickPx: 200,
+      interval: "1m",
+      params: params({
+        marketBuyFirst: true,
+        takeProfit: { mode: "nearestRung", pct: 2 },
+      }),
+    })
+    const settleAgain = async () => {
+      await database
+        .update(tradeSmartLadders)
+        .set({ updatedAt: new Date(Date.now() - 3_000) })
+        .where(eq(tradeSmartLadders.id, result.ladder.id))
+      await reconcileLiveLadders(userId, wallet)
+    }
+    await settleAgain()
+    const bought = (await ladder()).rungs[0]
+    const heldWithTarget = (tpPx: number | null) => ({
+      positions: [
+        {
+          marketId: "BTC",
+          szi: bought.sz,
+          entryPx: 200,
+          leverage: 1,
+          marginUsed: bought.budget,
+          liquidationPx: null,
+          targets: tpPx === null ? [] : [{ px: tpPx, sz: null, orderId: "tp" }],
+          tpPx,
+          tpSz: null,
+          tpOrderId: tpPx === null ? null : "tp",
+          slPx: null,
+          slOrderId: null,
+          protectionOrderIds: tpPx === null ? [] : ["tp"],
+        },
+      ],
+      orders: [],
+    })
+    portfolio.mockResolvedValue(heldWithTarget(null))
+    await settleAgain()
+    expect(setBrackets.mock.calls.at(-1)?.[2]?.targets?.[0]?.px).toBeCloseTo(
+      210,
+      9
+    )
+
+    // The exchange now holds that $210 target. Switch to 10% above average.
+    portfolio.mockResolvedValue(heldWithTarget(210))
+    setBrackets.mockClear()
+    await updateLiveLadderExits(userId, wallet, {
+      ladderId: result.ladder.id,
+      takeProfit: { mode: "average", pct: 10 },
+      stopLoss: null,
+    })
+
+    expect((await ladder()).takeProfit?.mode).toBe("average")
+    expect(setBrackets.mock.calls.at(-1)?.[2]?.targets?.[0]?.px).toBeCloseTo(
+      220,
+      9
+    )
   })
 
   it("buys only rung 1 when market-first overrides two-green confirmation", async () => {

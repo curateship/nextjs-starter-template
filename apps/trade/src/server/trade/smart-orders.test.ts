@@ -1162,7 +1162,7 @@ describe("placing a ladder", () => {
     expect(await orders()).toHaveLength(0)
   })
 
-  it.each(["prevRung", "nearestRung", "exitLadder"] as const)(
+  it.each(["prevRung", "nearestRung", "firstRung", "exitLadder"] as const)(
     "uses an independent market-first exit percentage with %s",
     async (mode) => {
       const placed = await place({
@@ -1173,7 +1173,7 @@ describe("placing a ladder", () => {
       expect(placed.ladder.plan.marketFirstExitPct).toBe(10)
       const [held] = await positions()
       expect(held.entryPx).toBe(100)
-      if (mode === "nearestRung") {
+      if (mode === "nearestRung" || mode === "firstRung") {
         expect(held.tpPx).toBeCloseTo(110, 9)
       } else {
         const sells = (await orders()).filter((order) => order.side === "sell")
@@ -1746,6 +1746,107 @@ describe("the ladder at work", () => {
     expect((await positions())[0].tpPx).toBeCloseTo(95, 9)
   })
 
+  // Rung 1 buys at $95 under a ladder hung off $100. The one sell for
+  // everything sits at $100 and stays there as rung 2 buys at $87.40, then
+  // sells the lot when price climbs back (Tyler, 6 Oct 2026).
+  it("holds the first-rung sell one rung above rung 1 however deep it buys", async () => {
+    await place({ takeProfit: { mode: "firstRung", pct: 2 } })
+    await backdate()
+
+    await dipTo(95)
+    expect((await positions())[0].tpPx).toBeCloseTo(100, 9)
+
+    await dipTo(87.4)
+    const held = (await positions())[0]
+    expect(held.tpPx).toBeCloseTo(100, 9)
+    expect(held.szi).toBeGreaterThan(0)
+
+    marks.set("BTC", 100.01)
+    await settle()
+    expect(await positions()).toHaveLength(0)
+  })
+
+  // "Sell with a limit order" (Tyler, 6 Oct 2026): the one sell for
+  // everything waits on the book as a limit order, and the position carries
+  // no target that would fire a market sell at the same price.
+  it("rests one limit sell for everything at the first-rung exit", async () => {
+    await place({ takeProfit: { mode: "firstRung", pct: 2, limit: true } })
+    await backdate()
+
+    await dipTo(95)
+    let held = (await positions())[0]
+    expect(held.tpPx).toBeNull()
+    let sells = (await orders()).filter((row) => row.side === "sell")
+    expect(sells).toHaveLength(1)
+    expect(sells[0]).toMatchObject({ reduceOnly: true })
+    expect(sells[0].px).toBeCloseTo(100, 9)
+    expect(sells[0].sz).toBeCloseTo(held.szi, 9)
+
+    // Rung 2 buys: the sell grows to everything held and stays at $100.
+    await dipTo(87.4)
+    held = (await positions())[0]
+    sells = (await orders()).filter((row) => row.side === "sell")
+    expect(sells).toHaveLength(1)
+    expect(sells[0].px).toBeCloseTo(100, 9)
+    expect(sells[0].sz).toBeCloseTo(held.szi, 9)
+    expect((await onlyLadder()).plan.limitExitOrder?.orderId).toBe(sells[0].id)
+
+    marks.set("BTC", 100.01)
+    await settle()
+    expect(await positions()).toHaveLength(0)
+    expect((await onlyLadder()).status).toBe("done")
+    expect((await onlyLadder()).plan.limitExitOrder).toBeNull()
+    expect((await orders()).filter((row) => row.side === "sell")).toEqual([])
+  })
+
+  it("re-aims the limit sell above the average after every fill", async () => {
+    await place({ takeProfit: { mode: "average", pct: 2, limit: true } })
+    await backdate()
+
+    await dipTo(95)
+    let sells = (await orders()).filter((row) => row.side === "sell")
+    expect(sells).toHaveLength(1)
+    expect(sells[0].px).toBeCloseTo(95 * 1.02, 9)
+
+    await dipTo(87.4)
+    const held = (await positions())[0]
+    sells = (await orders()).filter((row) => row.side === "sell")
+    expect(sells).toHaveLength(1)
+    expect(sells[0].px).toBeCloseTo(held.entryPx * 1.02, 9)
+    expect(held.tpPx).toBeNull()
+  })
+
+  it("swaps the limit sell for a target when the switch goes off", async () => {
+    await place({ takeProfit: { mode: "firstRung", pct: 2, limit: true } })
+    await backdate()
+    await dipTo(95)
+    expect((await orders()).filter((row) => row.side === "sell")).toHaveLength(
+      1
+    )
+
+    const ladder = await onlyLadder()
+    await updateLadderExits(userId, wallet, {
+      ladderId: ladder.id,
+      takeProfit: { mode: "firstRung", pct: 2, limit: false },
+      stopLoss: null,
+    })
+
+    expect((await orders()).filter((row) => row.side === "sell")).toEqual([])
+    expect((await positions())[0].tpPx).toBeCloseTo(100, 9)
+    expect((await onlyLadder()).plan.limitExitOrder).toBeNull()
+
+    // And back on: the target comes off and the limit sell returns.
+    await updateLadderExits(userId, wallet, {
+      ladderId: ladder.id,
+      takeProfit: { mode: "firstRung", pct: 2, limit: true },
+      stopLoss: null,
+    })
+    expect((await positions())[0].tpPx).toBeNull()
+    const sells = (await orders()).filter((row) => row.side === "sell")
+    expect(sells).toHaveLength(1)
+    expect(sells[0].px).toBeCloseTo(100, 9)
+  })
+
   it("re-aims the average-price target after every fill", async () => {
     await place({ takeProfit: { mode: "average", pct: 2 } })
     await backdate()
@@ -2109,6 +2210,27 @@ describe("the ladder at work", () => {
     expect(sells).toHaveLength(1)
     expect(sells[0].px).toBeCloseTo(100, 9)
     expect((await onlyLadder()).plan.takeProfit?.mode).toBe("prevRung")
+  })
+
+  it("aims the first-rung sell above rung 1 when a running ladder switches to it", async () => {
+    await place({ takeProfit: { mode: "nearestRung", pct: 2 } })
+    await backdate()
+    await dipTo(95)
+    await dipTo(87.4)
+    expect((await positions())[0].tpPx).toBeCloseTo(95, 9)
+
+    const ladder = await onlyLadder()
+    await updateLadderExits(userId, wallet, {
+      ladderId: ladder.id,
+      takeProfit: { mode: "firstRung", pct: 2 },
+      stopLoss: null,
+    })
+
+    expect((await positions())[0].tpPx).toBeCloseTo(100, 9)
+    // The next settle reads that price as the ladder's own, not a hand drag.
+    await settle()
+    expect((await onlyLadder()).plan.takeProfit?.mode).toBe("firstRung")
+    expect((await positions())[0].tpPx).toBeCloseTo(100, 9)
   })
 
   it("cancels the mirrored sells when a running ladder changes modes", async () => {

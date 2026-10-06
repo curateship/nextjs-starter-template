@@ -243,13 +243,19 @@ const dcaRungsSchema = z.array(dcaRungSchema).min(1).max(20)
  * buy price after every fill; "prevRung" rests each rung's own sell at the
  * price of the rung above it; "nearestRung" keeps one sell for everything at
  * the nearest rung above the deepest buy, sliding down as deeper rungs fill;
+ * "firstRung" keeps one sell for everything one rung above rung 1, the price
+ * the ladder hangs off, and never moves it however deep the ladder buys;
  * "exitLadder" mirrors the entry gaps above the anchor and sells the largest
  * buys first at the closest exits.
+ *
+ * Only ever added to. A saved ladder or flow carrying a mode missing from
+ * this list fails to parse.
  */
 export const DCA_TP_MODES = [
   "average",
   "prevRung",
   "nearestRung",
+  "firstRung",
   "exitLadder",
 ] as const
 export type DcaTpMode = (typeof DCA_TP_MODES)[number]
@@ -258,6 +264,7 @@ export const DCA_TP_MODE_LABELS: Record<DcaTpMode, string> = {
   average: "At the average price",
   prevRung: "Sell at previous rung",
   nearestRung: "Sell everything at nearest rung",
+  firstRung: "Sell everything at first rung",
   exitLadder: "Sell back up the ladder",
 }
 
@@ -269,8 +276,31 @@ export const DCA_TP_MODE_HINTS: Record<DcaTpMode, string> = {
     "Each buy sells at the price of the buy above it — the first at the clicked price itself.",
   nearestRung:
     "One sell for everything at the rung above the deepest buy; it slides deeper as more rungs fill.",
+  firstRung:
+    "One sell for everything one rung above the first buy, the price the ladder hangs off. It stays there however many rungs fill, so even the first buy alone sells at a profit.",
   exitLadder:
     "Mirrors the buy steps above the anchor, with the biggest buys selling first at the closest exits. Drag an exit line to move every exit and change the gap above the buys.",
+}
+
+/**
+ * The exits that keep one sell for everything the ladder holds. Each can sell
+ * with the exchange's target, which fires a market order when price touches
+ * it, or with a waiting limit order at the same price (Tyler, 6 Oct 2026).
+ */
+export const LIMIT_EXIT_MODES: readonly DcaTpMode[] = [
+  "average",
+  "nearestRung",
+  "firstRung",
+]
+
+/** Whether this exit sells with a waiting limit order instead of a target. */
+export function limitExitApplies(
+  takeProfit: { mode: string; limit?: boolean } | null | undefined
+): boolean {
+  return (
+    takeProfit?.limit === true &&
+    (LIMIT_EXIT_MODES as readonly string[]).includes(takeProfit.mode)
+  )
 }
 
 /**
@@ -336,6 +366,11 @@ export const dcaParamsSchema = z.object({
       pct: z.number().positive().max(999),
       /** Extra room above the mirrored exits. Missing on older saved settings. */
       exitGapPct: z.number().min(0).max(MAX_DCA_EXIT_GAP_PCT).optional(),
+      /**
+       * Sell with a waiting limit order instead of the exchange's target. Only
+       * the one-sell modes read it; see `limitExitApplies`. Missing is off.
+       */
+      limit: z.boolean().optional(),
     })
     .nullable(),
   /**
@@ -667,6 +702,21 @@ const ladderTakeProfitSchema = z.object({
     .min(0)
     .max(MAX_DCA_EXIT_GAP_PCT)
     .default(DEFAULT_DCA_EXIT_GAP_PCT),
+  /** Sell with a waiting limit order; see `limitExitApplies`. Missing is off. */
+  limit: z.boolean().optional(),
+})
+
+/**
+ * The one waiting limit sell that "Sell with a limit order" keeps for
+ * everything the ladder holds. `aimPx` is the exit price the rule asked for;
+ * `px` is where the order really rests, which is higher when the market was
+ * already above the aim and the sell had to wait just above it instead.
+ */
+const limitExitOrderSchema = z.object({
+  orderId: z.string(),
+  aimPx: z.number().positive(),
+  px: z.number().positive(),
+  sz: z.number().positive(),
 })
 
 const exitLadderRungSchema = z.object({
@@ -821,6 +871,8 @@ export const ladderPlanSchema = z.object({
    */
   aimedTpPx: z.number().nullable(),
   aimedSlPx: z.number().nullable(),
+  /** The limit sell for everything, while "Sell with a limit order" is on. */
+  limitExitOrder: limitExitOrderSchema.nullable().default(null),
   /**
    * When a hand last set this coin's protection, in epoch milliseconds, or
    * null if it never has. Same field, same reason and same rule as the grid's
@@ -962,6 +1014,7 @@ export function dcaLadderSettingsFromPlan(
               : plan.takeProfit.mode,
           pct: plan.takeProfit.pct ?? DEFAULT_DCA_TAKE_PROFIT_PCT,
           exitGapPct: plan.takeProfit.exitGapPct ?? DEFAULT_DCA_EXIT_GAP_PCT,
+          limit: plan.takeProfit.limit === true,
         }
   const stopLoss =
     plan.stopLoss === null
@@ -1204,6 +1257,7 @@ export function reshapeLadderSettingsPlan(
               ? checked.takeProfit.pct
               : null,
           exitGapPct: checked.takeProfit.exitGapPct ?? DEFAULT_DCA_EXIT_GAP_PCT,
+          limit: checked.takeProfit.limit === true,
         }
       : null,
     stopLoss: checked.stopLoss

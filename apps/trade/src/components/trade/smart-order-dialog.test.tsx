@@ -349,6 +349,61 @@ describe("the DCA ladder window", () => {
     )
   })
 
+  it("offers a limit sell on the one-sell exits and places with it", async () => {
+    const render = async (mode: "firstRung" | "exitLadder") => {
+      rememberDcaPrefs({
+        ...defaultDcaParams(),
+        takeProfit: { mode, pct: 2, exitGapPct: 0 },
+      })
+      const onPlace = vi.fn(async () => false)
+      await act(async () => {
+        root.render(
+          <TooltipProvider>
+            <SmartOrderDialog
+              key={mode}
+              state={{ px: 105, x: 20, y: 20 }}
+              market={market}
+              equity={10_000}
+              free={10_000}
+              interval="15m"
+              busy={false}
+              onPreview={() => undefined}
+              onPlace={onPlace}
+              onClose={() => undefined}
+            />
+          </TooltipProvider>
+        )
+        await Promise.resolve()
+      })
+      return onPlace
+    }
+
+    // Selling back up the ladder already rests limit sells; no box there.
+    await render("exitLadder")
+    expect(host.querySelector("#smart-tp-limit")).toBeNull()
+
+    const onPlace = await render("firstRung")
+    const limit = host.querySelector<HTMLButtonElement>("#smart-tp-limit")
+    expect(limit).not.toBeNull()
+    expect(limit?.getAttribute("aria-checked")).toBe("false")
+    await act(async () => limit?.click())
+
+    const place = [...host.querySelectorAll<HTMLButtonElement>("button")].find(
+      (button) => button.textContent?.startsWith("Place")
+    )
+    await act(async () => place?.click())
+    expect(onPlace).toHaveBeenCalledWith(
+      expect.objectContaining({
+        params: expect.objectContaining({
+          takeProfit: expect.objectContaining({
+            mode: "firstRung",
+            limit: true,
+          }),
+        }),
+      })
+    )
+  })
+
   it("puts each take-profit field on its own full-width row", async () => {
     rememberDcaPrefs({
       ...defaultDcaParams(),

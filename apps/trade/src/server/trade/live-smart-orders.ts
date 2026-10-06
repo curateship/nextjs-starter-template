@@ -431,6 +431,7 @@ function ladderPlan(
           mode: takeProfit.mode,
           pct: takeProfit.mode === "average" ? takeProfit.pct : null,
           exitGapPct: takeProfit.exitGapPct ?? 0,
+          limit: takeProfit.limit === true,
         }
       : null,
     stopLoss: input.params.stopLoss
@@ -445,6 +446,7 @@ function ladderPlan(
       : null,
     aimedTpPx: null,
     aimedSlPx: null,
+    limitExitOrder: null,
     handSetAt: null,
     twoGreen: input.params.twoGreen,
     greenInterval: input.params.twoGreen ? input.interval : null,
@@ -679,6 +681,9 @@ async function cancelLiveLadderRestOnce(
       )
     )
   )
+  if (ladder.plan.limitExitOrder) {
+    planIds.add(ladder.plan.limitExitOrder.orderId)
+  }
   const hasFill = ladder.plan.rungs.some((rung) => rung.status === "filled")
   const market = parseMarketKey(ladder.marketKey)
   const hasPosition = portfolio
@@ -774,8 +779,11 @@ async function updateLiveLadderExitsOnce(
     await saveLadderPlan(userId, ladder.id, ladder.plan, "active")
     throw error
   }
-  ladder.plan.aimedTpPx = null
-  ladder.plan.aimedSlPx = null
+  // The memory of what the ladder last aimed stays as it was. The exchange
+  // still carries exactly that, so the next pass reads it as the ladder's own
+  // and re-aims it to the new rule. Wiping it made the next pass read the old
+  // target as a hand-moved one, freeze the exit as "fixed", and drop the new
+  // rule for good.
   await saveLadderPlan(userId, ladder.id, ladder.plan, "active")
 }
 
@@ -1513,6 +1521,14 @@ export async function reconcileLiveLaddersOnce(
         sz: exit.armedSz,
       })
     }
+    if (plan.limitExitOrder) {
+      managedOrders.set(plan.limitExitOrder.orderId, {
+        marketKey: row.marketKey,
+        side: "sell",
+        px: plan.limitExitOrder.px,
+        sz: plan.limitExitOrder.sz,
+      })
+    }
   }
   const managedFillTotals = new Map<
     string,
@@ -1845,6 +1861,22 @@ export async function reconcileLiveLaddersOnce(
                 // A finished row is no longer reconciled. Keep it active while
                 // the old reduce-only sell may still be live so the next pass
                 // retries the cancellation instead of abandoning the order.
+                statusToSave = "active"
+              }
+              // The same for the limit sell for everything. Its cancel usually
+              // fails because it already sold, and a replacement sent then is
+              // a second sell for coins that are gone. Keep the old one on the
+              // plan, send nothing new, and look again next pass.
+              const oldLimitExit = before.limitExitOrder
+              if (oldLimitExit && failedCancels.has(oldLimitExit.orderId)) {
+                const pendingLimitId = current.limitExitOrder?.orderId
+                if (pendingLimitId?.startsWith("pending:")) {
+                  const index = pendingPlaces.findIndex(
+                    (pending) => pending.tempId === pendingLimitId
+                  )
+                  if (index >= 0) pendingPlaces.splice(index, 1)
+                }
+                current.limitExitOrder = structuredClone(oldLimitExit)
                 statusToSave = "active"
               }
             }
@@ -2884,6 +2916,33 @@ export async function reconcileLiveLaddersOnce(
           reason: "order",
           fillTime: total.at,
         })
+      }
+      // The limit sell for everything, read back the same way. A part fill
+      // comes off the rungs here and the engine sells the rest afresh; a whole
+      // one becomes the fill the engine claims.
+      const limitExit = plan.limitExitOrder
+      if (limitExit && !liveOrderIds.has(limitExit.orderId)) {
+        const total = managedFillTotals.get(limitExit.orderId)
+        if (total && total.sz > 0) {
+          if (total.sz < limitExit.sz - 1e-9) {
+            consumeSoldFromRungs(plan, total.sz)
+            plan.limitExitOrder = null
+          } else {
+            book.fills.push({
+              id: `managed:${total.fillId}`,
+              orderId: limitExit.orderId,
+              walletId: wallet.id,
+              marketKey: raw.marketKey,
+              side: "sell",
+              px: limitExit.px,
+              sz: limitExit.sz,
+              fee: 0,
+              closedPnl: 0,
+              reason: "order",
+              fillTime: total.at,
+            })
+          }
+        }
       }
       await advanceRow(raw, entry, advanceOne as never)
     } catch (error) {

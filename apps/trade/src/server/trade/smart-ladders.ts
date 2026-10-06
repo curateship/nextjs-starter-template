@@ -17,6 +17,7 @@ import {
   lastRungStopPx,
   ladderHeldSz,
   ladderWatchInterval,
+  limitExitApplies,
   rungBudget,
   type LadderPlan,
 } from "@/lib/trade/dca"
@@ -550,6 +551,17 @@ export async function advanceOne(
     }
   }
 
+  // The limit sell for everything is gone: it sold, or it was cancelled. What
+  // it sold comes off the rungs. Whatever is still held gets a fresh sell
+  // below, at the size and price the rule asks for then.
+  if (plan.limitExitOrder && !live.has(plan.limitExitOrder.orderId)) {
+    const gone = plan.limitExitOrder
+    plan.limitExitOrder = null
+    const fill = fillFor("sell", gone.px, gone.sz, gone.orderId)
+    if (fill) consumeSoldFromRungs(plan, fill.sz)
+    changed = true
+  }
+
   // Temporary cutover for sells already placed by the empty-anchor shape.
   // The owner and exact deletion condition are in smart-orders.md.
   if (plan.takeProfit?.mode === "exitLadder" && plan.exitLadderVersion === 1) {
@@ -720,6 +732,12 @@ export async function advanceOne(
       exit.orderId = null
       exit.armedSz = 0
     }
+    if (plan.limitExitOrder) {
+      if (live.has(plan.limitExitOrder.orderId)) {
+        deps.dropOrder(book, plan.limitExitOrder.orderId)
+      }
+      plan.limitExitOrder = null
+    }
     await persistLadder(input, deps, row, "done")
     return
   }
@@ -778,6 +796,21 @@ export async function advanceOne(
       // stamp moves so a bracket cannot be fired by candles older than itself.
       held.updatedAt = now
       book.touchedMarkets.add(row.marketKey)
+      changed = true
+    }
+
+    if (
+      await reconcileLimitExit(plan, {
+        book,
+        deps,
+        marketKey: row.marketKey,
+        held,
+        mark: input.marks.get(row.marketKey) ?? null,
+        boughtThisPass: boughtThisPass.size > 0,
+        now,
+        roundPx,
+      })
+    ) {
       changed = true
     }
 
@@ -989,11 +1022,17 @@ function aimBrackets(
       tp.pct = null
       plan.aimedTpPx = position.tpPx
       changed = true
+    } else if (limitExitApplies(tp)) {
+      // A waiting limit sell does this job instead (`reconcileLimitExit`), so
+      // the exchange's target comes off. Left on, it would fire a market sell
+      // at the same price the limit is waiting at.
+      if (position.tpPx !== null) {
+        position.tpPx = null
+        plan.aimedTpPx = null
+        changed = true
+      }
     } else {
-      const desired =
-        tp.mode === "average"
-          ? roundPx(position.entryPx * (1 + (tp.pct ?? 0) / 100))
-          : nearestRungExit(plan, position.entryPx, mark, roundPx)
+      const desired = wantedTargetPx(plan, position.entryPx, mark, roundPx)
       if (desired !== null && !nearNullable(desired, position.tpPx)) {
         position.tpPx = desired
         plan.aimedTpPx = desired
@@ -1057,10 +1096,19 @@ export function wantedStopPx(
 }
 
 /**
- * "Sell everything at nearest rung": one exit for the whole position at the
- * rung above the deepest buy — it slides deeper as deeper rungs fill.
+ * The two "sell everything" exits: one exit for the whole position, a rung
+ * above a buy.
+ *
+ * "Sell everything at nearest rung" aims at the rung above the deepest buy,
+ * so it slides deeper as deeper rungs fill. "Sell everything at first rung"
+ * aims at the rung above rung 1, the price the ladder hangs off, and stays
+ * there (Tyler, 6 Oct 2026). On a ladder hung off $100 with rungs at $95, $90
+ * and $85, all three bought, nearest rung sells at $90 and first rung at $100.
+ *
+ * While only rung 1 has bought, the two agree, and a rung 1 bought at the
+ * market uses its own "Rung 1 exit %" exactly as before.
  */
-function nearestRungExit(
+export function rungExit(
   plan: LadderPlan,
   entryPx: number,
   mark: number | null,
@@ -1071,10 +1119,119 @@ function nearestRungExit(
     if (rung.status === "filled" || rung.status === "sold") deepest = index
   }
   if (deepest < 0) return null
-  const wanted = ladderExitLevels(plan)[deepest]
+  const level = plan.takeProfit?.mode === "firstRung" ? 0 : deepest
+  const wanted = ladderExitLevels(plan)[level]
   return plan.marketBuyFirst && deepest === 0
     ? marketFirstLadderSellPx(plan, wanted, entryPx, mark, roundPx)
     : roundPx(wanted)
+}
+
+/**
+ * Where a one-sell exit wants its price: the percent above the average buy,
+ * or a rung above a buy (`rungExit`). Null until anything has bought.
+ */
+function wantedTargetPx(
+  plan: LadderPlan,
+  entryPx: number,
+  mark: number | null,
+  roundPx: (px: number) => number
+): number | null {
+  const tp = plan.takeProfit
+  if (!tp) return null
+  return tp.mode === "average"
+    ? roundPx(entryPx * (1 + (tp.pct ?? 0) / 100))
+    : rungExit(plan, entryPx, mark, roundPx)
+}
+
+/**
+ * "Sell with a limit order": one waiting limit sell for everything the ladder
+ * holds, at the price its exit asks for (Tyler, 6 Oct 2026). The exchange's
+ * target fires a market order when price touches it, and on a big position
+ * that sale gives up money to slippage and pays the higher fee. A limit sell
+ * fills at its price or better.
+ *
+ * - **Replaced only when the aim changes or the size grows.** Another rung
+ *   buying makes it bigger, and "At the average price" re-aims after every
+ *   buy. A part fill leaves it alone: the exchange already shrank it, and its
+ *   fills are read when it is gone. Nothing else moves it, so it does not cost
+ *   a cancel and a place each pass.
+ * - **Never resting below the market.** When price is already above the aim
+ *   the sell waits just above today's price instead, because an order that
+ *   would fill at once is refused. That is still at or above the aim.
+ * - **Sized to the ladder's own coins**, capped at what the position holds, so
+ *   a grid paired above the ladder keeps its coins.
+ * - **Not placed in the pass a rung bought.** On a real exchange that buy is
+ *   not in the position until the next pass, and a sell sent first is refused.
+ *
+ * Switched off, or on an exit that keeps several sells, any sell it left is
+ * taken off the book.
+ */
+async function reconcileLimitExit(
+  plan: LadderPlan,
+  input: {
+    book: WalletBook
+    deps: LadderEngineDeps
+    marketKey: string
+    held: { szi: number; entryPx: number; leverage: number }
+    mark: number | null
+    boughtThisPass: boolean
+    now: number
+    roundPx: (px: number) => number
+  }
+): Promise<boolean> {
+  const { book, deps, held, roundPx } = input
+  const live = liveOrderIds(book)
+  const current = plan.limitExitOrder
+  const wanted = limitExitApplies(plan.takeProfit)
+  if (!wanted) {
+    if (!current) return false
+    if (live.has(current.orderId)) deps.dropOrder(book, current.orderId)
+    plan.limitExitOrder = null
+    return true
+  }
+  if (input.boughtThisPass) return false
+
+  // The aim is read without the market, so it moves only with the rule. The
+  // market only decides where the order can rest.
+  const aimPx = wantedTargetPx(plan, held.entryPx, null, roundPx)
+  const sz = floorSize(
+    Math.min(held.szi, ladderHeldSz(plan)),
+    plan.sizeDecimals
+  )
+  let changed = false
+  // Only a bigger size calls for a new order. A smaller one is the order's own
+  // part fill: the exchange has already shrunk it to what is left, and
+  // cancelling it here would forget what it sold.
+  if (
+    current &&
+    (aimPx === null ||
+      !(sz > 0) ||
+      !near(current.aimPx, aimPx) ||
+      (sz > current.sz && !near(current.sz, sz)))
+  ) {
+    if (live.has(current.orderId)) deps.dropOrder(book, current.orderId)
+    plan.limitExitOrder = null
+    changed = true
+  }
+  if (plan.limitExitOrder || aimPx === null || !(sz > 0)) return changed
+
+  const restingAbovePx = plan.marketBuyFirst
+    ? Math.max(input.mark ?? 0, held.entryPx)
+    : (input.mark ?? 0)
+  const px = restingLadderSellPx(aimPx, restingAbovePx, roundPx)
+  if (px === null) return changed
+  const orderId = await deps.insertOrder({
+    marketKey: input.marketKey,
+    side: "sell",
+    px,
+    sz,
+    leverage: held.leverage,
+    maxLeverage: plan.maxLeverage,
+    reduceOnly: true,
+    now: input.now,
+  })
+  plan.limitExitOrder = { orderId, aimPx, px, sz }
+  return true
 }
 
 /**

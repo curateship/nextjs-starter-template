@@ -242,8 +242,10 @@ add up to.
   gets two cancel attempts. If both fail, the coin is named in the result and
   in a critical bell notice.
 - **Rungs buy deeper as price falls, sizes ramping, and each sold rung exits
-  by the chosen mode** — at the rung above, at the nearest rung, or a percent
-  above the average. The percent means nothing outside the average mode and
+  by the chosen mode** — at the rung above, at the nearest rung, one rung above
+  rung 1, or a percent above the average. The three one-sell exits can sell
+  with a waiting limit order instead of the exchange's target, which sells at
+  the market. The percent means nothing outside the average mode and
   is never shown as if it did.
 - **A liquidation takes the position, never the plan.** The waiting rungs have
   spent nothing and keep waiting. This must hold at any moment inside a

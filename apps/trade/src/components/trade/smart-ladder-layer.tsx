@@ -860,6 +860,38 @@ function LadderLines({
         )
       })}
 
+      {plan.limitExitOrder
+        ? (() => {
+            // "Sell with a limit order": the one sell for everything, waiting
+            // on the book. The ladder owns it, so it is drawn here rather than
+            // as a plain order, and it does not drag.
+            const limitExit = plan.limitExitOrder
+            const exitPx = orderPrices.get(limitExit.orderId) ?? limitExit.px
+            const y = yFor(exitPx)
+            if (y === null) return null
+            return (
+              <div className="absolute inset-x-0" style={{ top: y }}>
+                <div
+                  className="border-t border-dashed"
+                  style={{ borderColor: colors.down }}
+                />
+                <span
+                  data-chart-order-bar
+                  className={TAG_CLASS}
+                  style={{
+                    borderColor: colors.down,
+                    color: colors.down,
+                    pointerEvents: controls,
+                  }}
+                  title="One limit sell for everything the ladder holds. The ladder manages it, so it cannot be dragged. Change the exit in the ladder's settings to move it."
+                >
+                  Sell all · {formatUsdRounded(exitPx * limitExit.sz)}
+                </span>
+              </div>
+            )
+          })()
+        : null}
+
       {!shapeMoves && (
         <ExitLadderLines
           ladder={ladder}

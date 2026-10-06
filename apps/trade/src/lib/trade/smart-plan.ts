@@ -321,4 +321,11 @@ export function forEachPlanOrderId(
       rung.orderId = next
     })
   }
+  const limitExit = ladder.limitExitOrder
+  if (limitExit) {
+    visit(limitExit.orderId, (next) => {
+      ladder.limitExitOrder =
+        next === null ? null : { ...limitExit, orderId: next }
+    })
+  }
 }

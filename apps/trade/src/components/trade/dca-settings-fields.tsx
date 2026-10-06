@@ -28,6 +28,7 @@ import {
   DCA_TP_MODE_HINTS,
   DCA_TP_MODE_LABELS,
   DCA_TP_MODES,
+  LIMIT_EXIT_MODES,
   type DcaAnchor,
   type DcaTpMode,
 } from "@/lib/trade/dca"
@@ -351,6 +352,22 @@ export function DcaSettingsFields({
                   onChange={(value) => change("exitGapPct", value)}
                   onBlur={onBlur}
                 />
+              </div>
+            ) : null}
+            {(LIMIT_EXIT_MODES as readonly string[]).includes(form.tpMode) ? (
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id={id("tp-limit")}
+                  checked={form.tpLimit}
+                  disabled={busy}
+                  onCheckedChange={(value) => change("tpLimit", value === true)}
+                />
+                <FieldLabel
+                  htmlFor={id("tp-limit")}
+                  hint="Off, the exchange holds a target that sells everything at the market once price touches it, which can slip on a big position. On, one limit sell for everything waits on the book at the exit price and fills there or better, at the lower fee. If price brushes the exit and turns back, part of it may be left waiting."
+                >
+                  Sell with a limit order
+                </FieldLabel>
               </div>
             ) : null}
           </div>

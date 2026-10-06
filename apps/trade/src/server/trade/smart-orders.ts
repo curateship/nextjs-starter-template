@@ -7,7 +7,7 @@ import {
   dcaLadderPlan,
   floorSize,
   ladderBaseStopOf,
-  ladderExitLevels,
+  limitExitApplies,
   reshapeLadderSettingsPlan,
   reshapeLadderPlan,
   type DcaLadderSettings,
@@ -72,7 +72,7 @@ import {
   saveBook,
   settleWallet,
 } from "@/server/trade/paper"
-import { deleteFinishedWatch, wantedStopPx } from "./smart-ladders"
+import { deleteFinishedWatch, rungExit, wantedStopPx } from "./smart-ladders"
 import {
   tradeFlowRuns,
   tradePaperOrders,
@@ -335,6 +335,7 @@ export function draftDcaLadder(input: LadderDraftInput): LadderDraft {
           mode: tp.mode,
           pct: tp.mode === "average" ? tp.pct : null,
           exitGapPct: tp.exitGapPct ?? 0,
+          limit: tp.limit === true,
         }
       : null,
     stopLoss: params.stopLoss
@@ -347,6 +348,7 @@ export function draftDcaLadder(input: LadderDraftInput): LadderDraft {
       : null,
     aimedTpPx: null,
     aimedSlPx: null,
+    limitExitOrder: null,
     handSetAt: null,
     twoGreen,
     // **Forced, never read from the settings — everywhere.** Nothing this app
@@ -1138,14 +1140,18 @@ export async function updateLadderExits(
   let tpPx: number | null = null
   let slPx: number | null = null
   if (position && position.szi > 0) {
-    if (plan.takeProfit?.mode === "average") {
+    if (limitExitApplies(plan.takeProfit)) {
+      // A waiting limit sell does this job, placed by the next settle.
+      tpPx = null
+    } else if (plan.takeProfit?.mode === "average") {
       tpPx = roundPx(position.entryPx * (1 + (plan.takeProfit.pct ?? 0) / 100))
-    } else if (plan.takeProfit?.mode === "nearestRung") {
-      let deepest = -1
-      for (const [index, rung] of plan.rungs.entries()) {
-        if (rung.status === "filled" || rung.status === "sold") deepest = index
-      }
-      tpPx = deepest >= 0 ? roundPx(ladderExitLevels(plan)[deepest]) : null
+    } else if (
+      plan.takeProfit?.mode === "nearestRung" ||
+      plan.takeProfit?.mode === "firstRung"
+    ) {
+      // The engine's own rule, so the next settle reads this price as its
+      // own rather than as a hand-moved target.
+      tpPx = rungExit(plan, position.entryPx, null, roundPx)
     }
     slPx = wantedStopPx(plan, position.entryPx, roundPx)
     await db
