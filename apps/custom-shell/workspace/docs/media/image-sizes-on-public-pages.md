@@ -88,6 +88,8 @@ the box is at its narrowest and the picture at its tallest.
 
 - The logo above every signed-out page.
 - Front-page hero rows, logo rows and screenshot rows.
+- The picture a page an admin added carries, which asks for 384px once the
+  window is 640px wide and the window's width below that.
 - The media library grid and its list rows.
 - The media picker's grid and its rows.
 

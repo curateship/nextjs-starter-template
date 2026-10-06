@@ -179,6 +179,106 @@ describe("changing and removing a page", () => {
   })
 })
 
+describe("a page's own picture", () => {
+  const picture = "https://media.example.test/workshop.png"
+
+  it("stores the picture and the name beside it", async () => {
+    const page = await createWrittenPage(
+      site,
+      {
+        path: "/about",
+        title: "About",
+        image: picture,
+        imageAlt: "The workshop bench",
+      },
+      database
+    )
+
+    expect(page.image).toBe(picture)
+    expect(page.imageAlt).toBe("The workshop bench")
+    // And it comes back on the read the public page uses.
+    const read = await findWrittenPage(site, "/about", database)
+    expect(read?.image).toBe(picture)
+  })
+
+  it("keeps a page with no picture empty rather than refusing it", async () => {
+    const page = await createWrittenPage(
+      site,
+      { path: "/about", title: "About" },
+      database
+    )
+
+    expect(page.image).toBe("")
+    expect(page.imageAlt).toBe("")
+  })
+
+  /**
+   * The stored value reaches a visitor's page inside an `src`, so anything
+   * that is not a web address is stored as nothing at all. The name goes with
+   * it: a name with no picture would be read out by a screen reader with
+   * nothing to read it about.
+   */
+  it("drops an address that is not a picture's, and its name with it", async () => {
+    const page = await createWrittenPage(
+      site,
+      {
+        path: "/about",
+        title: "About",
+        image: "javascript:alert(1)",
+        imageAlt: "Sneaky",
+      },
+      database
+    )
+
+    expect(page.image).toBe("")
+    expect(page.imageAlt).toBe("")
+  })
+
+  it("changes the picture, and takes it off when the field is cleared", async () => {
+    const page = await createWrittenPage(
+      site,
+      { path: "/about", title: "About", image: picture, imageAlt: "Bench" },
+      database
+    )
+
+    const swapped = await updateWrittenPage(
+      site,
+      page.id,
+      { image: "https://media.example.test/other.png", imageAlt: "Other" },
+      database
+    )
+    expect(swapped.image).toBe("https://media.example.test/other.png")
+
+    const cleared = await updateWrittenPage(
+      site,
+      page.id,
+      { image: "", imageAlt: "Bench" },
+      database
+    )
+    expect(cleared.image).toBe("")
+    expect(cleared.imageAlt).toBe("")
+  })
+
+  it("leaves the picture alone when the save is about something else", async () => {
+    const page = await createWrittenPage(
+      site,
+      { path: "/about", title: "About", image: picture, imageAlt: "Bench" },
+      database
+    )
+
+    const renamed = await updateWrittenPage(
+      site,
+      page.id,
+      { title: "About us" },
+      database
+    )
+
+    expect(renamed.title).toBe("About us")
+    expect(renamed.image).toBe(picture)
+    expect(renamed.imageAlt).toBe("Bench")
+  })
+})
+
 describe("a written page is an ordinary page", () => {
   it("appears in the pages list beside the coded ones, in address order", async () => {
     await createWrittenPage(site, { path: "/about", title: "About us" },

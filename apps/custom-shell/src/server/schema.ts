@@ -1395,6 +1395,18 @@ export const customShellWrittenPages = pgTable(
     canonicalUrl: varchar("canonical_url", { length: 2048 })
       .notNull()
       .default(""),
+    /**
+     * The page's own picture, drawn at the top of the page above its blocks,
+     * or empty for a page with none. An address inside this app's own media
+     * bucket, checked against the admin's library on the way in.
+     *
+     * A column rather than a block: the picture is part of what the page is,
+     * chosen where its name and address are chosen. Tyler's call on
+     * 6 Oct 2026.
+     */
+    image: varchar("image", { length: 2048 }).notNull().default(""),
+    /** What a screen reader says in place of that picture. */
+    imageAlt: varchar("image_alt", { length: 160 }).notNull().default(""),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },

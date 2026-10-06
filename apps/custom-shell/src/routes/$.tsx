@@ -6,6 +6,7 @@ import {
   visitorRouteErrorComponent,
 } from "@/components/shell/route-error"
 import { FrontPageRows } from "@/components/marketing/front-page-rows"
+import { WrittenPagePicture } from "@/components/pages/written-page-picture"
 import { catchAllOverride } from "@/lib/app-options"
 import { loadPublicPageBlocks } from "@/lib/api/content/page-blocks"
 import { loadWrittenPage } from "@/lib/api/content/pages"
@@ -148,6 +149,14 @@ function CatchAllRoute() {
       layout="marketing"
       heroRunsUnderMenu={frontPageHeroRunsUnderMenu(loaderData.blocks)}
     >
+      {/* The page's own picture, above every block on it. A page with none
+          draws nothing here, so a page written before the field existed looks
+          exactly as it did. */}
+      <WrittenPagePicture
+        image={loaderData.page.image}
+        alt={loaderData.page.imageAlt}
+        title={loaderData.page.title}
+      />
       <FrontPageRows rows={loaderData.blocks} />
     </PublicPageFrame>
   )
