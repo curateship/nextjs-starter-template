@@ -9,7 +9,13 @@ import {
 } from "@/lib/pages/page-visibility"
 import { adminGet, adminPost } from "@/server/guards"
 import { writePageBlock } from "@/server/content/page-blocks"
-import { createFrontPageRowDraft } from "@/lib/pages/front-page"
+import { isOwnedImageUrl } from "@/server/media/library"
+import {
+  createFrontPageRowDraft,
+  MAX_FRONT_PAGE_IMAGE_ALT_LENGTH,
+  MAX_FRONT_PAGE_IMAGE_URL_LENGTH,
+  normalizeFrontPageImageUrl,
+} from "@/lib/pages/front-page"
 import {
   publicPagesWorkspaceId,
   visitorWorkspaceId,
@@ -36,6 +42,7 @@ import {
   createWrittenPage,
   deleteWrittenPage,
   findWrittenPage,
+  findWrittenPageById,
   MAX_WRITTEN_PAGE_TITLE,
   updateWrittenPage,
   type WrittenPage,
@@ -192,20 +199,62 @@ const writtenPageInput = z.object({
   // turns anything it does not recognise into empty, so a wrong address never
   // reaches a canonical tag.
   canonicalUrl: z.string().max(MAX_CANONICAL_URL_LENGTH),
+  // The page's own picture. Bounded here; whether it is a picture in this
+  // admin's own media library is checked by `ownedPicture` below, and an
+  // empty string is the page having none.
+  image: z.string().trim().max(MAX_FRONT_PAGE_IMAGE_URL_LENGTH),
+  // The library's own name for that file, which the picker hands over, so
+  // nobody is asked to type one.
+  imageAlt: z.string().max(MAX_FRONT_PAGE_IMAGE_ALT_LENGTH),
 })
 
 /**
- * A new page arrives with a name and an address. Everything else about it has
- * a default, and what goes on it is blocks, written in the editor this opens.
+ * The picture as it will be stored, once it is known to be this admin's own.
+ *
+ * **Checked here rather than deeper down, because this is the layer that knows
+ * who is asking.** The same rule a block's picture follows: a new picture has
+ * to be one of theirs, and the sentence says what to do about it. A page that
+ * is already drawing a picture is not asked to re-own it — `was` is what it
+ * had — or a page whose file was tidied out of the library months ago could
+ * never have its name changed again.
+ */
+async function ownedPicture(
+  userId: string,
+  input: { image?: string; imageAlt?: string },
+  was: string
+) {
+  const image = normalizeFrontPageImageUrl(input.image)
+  if (image && image !== was && !(await isOwnedImageUrl(userId, image))) {
+    throw new Error(
+      "That picture is no longer in your media library. Pick another one."
+    )
+  }
+  return { image, imageAlt: input.imageAlt ?? "" }
+}
+
+/**
+ * A new page arrives with a name, an address and a picture if it wants one.
+ * Everything else about it has a default, and what goes on it is blocks,
+ * written in the editor this opens.
  */
 const createWrittenPageFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(
-    writtenPageInput.partial({ hiddenFromSearch: true, canonicalUrl: true })
+    writtenPageInput.partial({
+      hiddenFromSearch: true,
+      canonicalUrl: true,
+      image: true,
+      imageAlt: true,
+    })
   )
   .handler(async ({ data, context }): Promise<WrittenPage> => {
     const workspaceId = await publicPagesWorkspaceId(context.user.id)
-    const page = await createWrittenPage(workspaceId, data)
+    const page = await createWrittenPage(workspaceId, {
+      ...data,
+      // Refused before the page exists, so a picture that is not this admin's
+      // leaves no half-built page behind.
+      ...(await ownedPicture(context.user.id, data, "")),
+    })
     // One empty block of words, so the editor opens on something to type into
     // rather than on an empty page with a picker beside it.
     await writePageBlock(context.user.id, workspaceId, {
@@ -225,11 +274,21 @@ const updateWrittenPageFn = createServerFn({ method: "POST" })
   .inputValidator(writtenPageInput.partial().extend({ id: z.string().min(1) }))
   .handler(async ({ data, context }): Promise<WrittenPage> => {
     const { id, ...rest } = data
-    return updateWrittenPage(
-      await publicPagesWorkspaceId(context.user.id),
-      id,
-      rest
-    )
+    const workspaceId = await publicPagesWorkspaceId(context.user.id)
+    if (rest.image === undefined) {
+      return updateWrittenPage(workspaceId, id, rest)
+    }
+
+    // The picture the page is drawing now. Looked up by id, because the
+    // address is one of the things this save may be changing, and handed to
+    // the check so an unchanged picture is never asked to be owned again.
+    const saved = await findWrittenPageById(workspaceId, id)
+    if (!saved) throw new Error("That page no longer exists.")
+
+    return updateWrittenPage(workspaceId, id, {
+      ...rest,
+      ...(await ownedPicture(context.user.id, rest, saved.image)),
+    })
   })
 
 const deleteWrittenPageFn = createServerFn({ method: "POST" })
@@ -310,7 +369,14 @@ const readWrittenPageForEditFn = createServerFn({ method: "GET" })
     )
   })
 
-export function saveNewWrittenPage(input: { path: string; title: string }) {
+export function saveNewWrittenPage(input: {
+  path: string
+  title: string
+  /** A picture for the top of the page, or empty for none. */
+  image?: string
+  /** The library's own name for that picture, for a screen reader. */
+  imageAlt?: string
+}) {
   return createWrittenPageFn({ data: input })
 }
 
@@ -320,6 +386,10 @@ export function saveWrittenPage(input: {
   title?: string
   hiddenFromSearch?: boolean
   canonicalUrl?: string
+  /** A picture for the top of the page, or empty to take it off. */
+  image?: string
+  /** The library's own name for that picture, for a screen reader. */
+  imageAlt?: string
 }) {
   return updateWrittenPageFn({ data: input })
 }

@@ -192,9 +192,10 @@ door and not that site's.
 With no block selected the right panel holds what belongs to the page rather
 than to anything on it:
 
-- **This page.** On a page an admin added, its name and its address are fields,
-  and **Save page** writes them; changing the address changes where the page
-  answers and the old one stops working. On the front page both are facts: they
+- **This page.** On a page an admin added, its name, its address, its picture
+  and the two search settings below are fields, and one **Save page** at the
+  foot of the panel writes all of them; changing the address
+  changes where the page answers and the old one stops working. On the front page both are facts: they
   live in its own file. Underneath either is who can see the page, except on the
   front page, which cannot be switched off and says so in a sentence rather than
   offering a dropdown that could never be used.
@@ -208,6 +209,16 @@ than to anything on it:
   public styling rather than with the blocks, so a site that sets its own public
   look sets its own spacing too. A block can ask for something else on either
   of its sides; the next section is how.
+
+**This panel is the one place on the screen with a Save button**, and it sits
+in a strip at the foot of the panel, under everything it writes, where it stays
+while the panel is scrolled. It was between two of the cards until Tyler moved
+it on 6 October 2026. It is greyed out until something changes.
+
+**Why a button here when a block saves itself:** the page's address is what the
+editor is keyed by. A half-typed `/ab` written as it is typed would rename the
+page, move its blocks to that address and break every link to it, four times
+over while somebody types `/about`.
 
 ## A block can set its own spacing
 
@@ -250,10 +261,27 @@ outside the block entirely, where no background reaches.
 
 ## Adding a page
 
-Press **Add a page** on the Pages screen. It asks for a name and an address,
-makes the page, and opens it in the editor with one empty rich text block
-waiting.
+Press **Add a page** on the Pages screen. It asks for a name, an address and a
+picture, makes the page, and opens it in the editor with one empty rich text
+block waiting.
 Everything else about the page is built there, including its own settings.
+
+**The picture is optional and it belongs to the page**, like its name and its
+address, rather than being a block on it. The same field is in the editor's
+Page settings panel afterwards, so choosing it here only saves opening that
+panel straight away. It is drawn at the top of the page, above every block, as
+a square 384px across, and it is the square 96px field every other picture in
+the app is chosen in. Tyler asked for it on 6 October 2026, after seeing it
+built as a block kind first: "we dont need a picture block. We just need to add
+it to the modal and the page setting."
+
+The picture has to be one in the signed-in admin's own media library, and that
+is checked before the page is made, so a refused picture leaves no half-built
+page behind. A picture the page is already drawing is never re-checked, or a
+page whose file was tidied out of the library months ago could not have its
+name changed again. Clearing the field takes the picture off the page and the
+name with it: a name with no picture would be read out by a screen reader with
+nothing to read it about.
 
 A page added this way can hold any block the front page can. That is the whole
 point of it: writing a page and building a page used to be two different things,

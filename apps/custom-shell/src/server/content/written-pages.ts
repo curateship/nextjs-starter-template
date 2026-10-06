@@ -1,5 +1,9 @@
 import { asc, eq, ne, and } from "drizzle-orm"
 
+import {
+  MAX_FRONT_PAGE_IMAGE_ALT_LENGTH,
+  normalizeFrontPageImageUrl,
+} from "@/lib/pages/front-page"
 import { normalizeCanonicalUrl } from "@/lib/pages/page-indexing"
 import { pageForPath } from "@/lib/pages/page-registry"
 import { db, type CustomShellDb } from "@/server/db"
@@ -31,6 +35,13 @@ export type WrittenPage = {
   hiddenFromSearch: boolean
   /** The address that counts when the same words answer on two addresses. */
   canonicalUrl: string
+  /**
+   * The page's own picture, drawn at the top of the page above its blocks, or
+   * empty for a page with none.
+   */
+  image: string
+  /** What a screen reader says in place of that picture. */
+  imageAlt: string
   createdAt: Date
   updatedAt: Date
 }
@@ -93,6 +104,8 @@ function toWrittenPage(row: {
   title: string
   hiddenFromSearch: boolean
   canonicalUrl: string
+  image: string
+  imageAlt: string
   createdAt: Date
   updatedAt: Date
 }): WrittenPage {
@@ -104,8 +117,25 @@ function toWrittenPage(row: {
     // Cleaned on the way out for the same reason the body is, and it is the
     // last point before the address reaches a canonical tag.
     canonicalUrl: normalizeCanonicalUrl(row.canonicalUrl),
+    // And the picture on the way out as well, so a row edited by hand cannot
+    // put anything but a web address of a picture into a page's `src`.
+    image: normalizeFrontPageImageUrl(row.image),
+    imageAlt: row.imageAlt,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+  }
+}
+
+/** The picture and its name as they are stored: a web address, or nothing. */
+function pictureValues(input: { image?: string; imageAlt?: string }) {
+  const image = normalizeFrontPageImageUrl(input.image)
+  return {
+    image,
+    // No picture is no name either. A name left behind by a cleared picture
+    // would be read out by a screen reader with nothing to read it about.
+    imageAlt: image
+      ? (input.imageAlt ?? "").trim().slice(0, MAX_FRONT_PAGE_IMAGE_ALT_LENGTH)
+      : "",
   }
 }
 
@@ -173,6 +203,31 @@ export async function findWrittenPage(
   return row ? toWrittenPage(row) : null
 }
 
+/**
+ * One page by its id, within one site, or null.
+ *
+ * The address is the usual way in, which is why `findWrittenPage` takes one.
+ * This one exists for a save that may be *changing* the address, and for the
+ * picture check that has to know what the page is drawing now.
+ */
+export async function findWrittenPageById(
+  workspaceId: string,
+  id: string,
+  database: CustomShellDb = db
+): Promise<WrittenPage | null> {
+  const [row] = await database
+    .select()
+    .from(customShellWrittenPages)
+    .where(
+      and(
+        eq(customShellWrittenPages.workspaceId, workspaceId),
+        eq(customShellWrittenPages.id, id)
+      )
+    )
+    .limit(1)
+  return row ? toWrittenPage(row) : null
+}
+
 async function pathIsTaken(
   workspaceId: string,
   path: string,
@@ -200,6 +255,8 @@ export async function createWrittenPage(
     title: string
     hiddenFromSearch?: boolean
     canonicalUrl?: string
+    image?: string
+    imageAlt?: string
   },
   database: CustomShellDb = db
 ): Promise<WrittenPage> {
@@ -224,6 +281,7 @@ export async function createWrittenPage(
       title,
       hiddenFromSearch: input.hiddenFromSearch ?? false,
       canonicalUrl: normalizeCanonicalUrl(input.canonicalUrl),
+      ...pictureValues(input),
       createdAt: at,
       updatedAt: at,
     })
@@ -241,6 +299,8 @@ export async function updateWrittenPage(
     title?: string
     hiddenFromSearch?: boolean
     canonicalUrl?: string
+    image?: string
+    imageAlt?: string
   },
   database: CustomShellDb = db
 ): Promise<WrittenPage> {
@@ -283,6 +343,12 @@ export async function updateWrittenPage(
   // is the page having no opinion, the same as never having filled it in.
   if (input.canonicalUrl !== undefined) {
     values.canonicalUrl = normalizeCanonicalUrl(input.canonicalUrl)
+  }
+
+  // An empty address is a picture being taken off the page, which is a real
+  // edit, so the field is read whenever the caller sent one at all.
+  if (input.image !== undefined) {
+    Object.assign(values, pictureValues(input))
   }
 
   const [row] = await database

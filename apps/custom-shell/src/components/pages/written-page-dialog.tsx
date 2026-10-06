@@ -1,5 +1,6 @@
 import * as React from "react"
 
+import { ImageUpload } from "@/components/shared/image-upload"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -27,12 +28,17 @@ import {
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
 /**
- * Adding a page: a name and an address, and that is the whole window.
+ * Adding a page: a name, an address, and a picture if the page wants one.
  *
  * **What the page holds is not asked here.** Every page an admin adds is built
  * from blocks, like the front page, so creating one drops them into the editor
  * with an empty block of words waiting. Tyler's call on 4 Oct 2026, after
  * finding that a page he had written could not be given a hero.
+ *
+ * **The picture is the exception, and it is optional.** It belongs to the page
+ * rather than to anything on it, like the name and the address beside it, and
+ * the same field is in the editor's Page settings panel afterwards. Choosing
+ * it here only saves opening that panel straight away.
  *
  * The page's own settings — its name, its address, and what search engines are
  * told about it — are edited in that editor's right-hand panel, which is where
@@ -51,6 +57,8 @@ export function WrittenPageDialog({
 }) {
   const [title, setTitle] = React.useState("")
   const [path, setPath] = React.useState("")
+  const [image, setImage] = React.useState("")
+  const [imageAlt, setImageAlt] = React.useState("")
   const [saving, setSaving] = React.useState(false)
 
   // Reset on every open, so a second open never shows the last one's words.
@@ -59,15 +67,17 @@ export function WrittenPageDialog({
     setWasOpen(open)
     setTitle("")
     setPath("")
+    setImage("")
+    setImageAlt("")
   }
 
-  const dirty = title.trim() !== "" || path.trim() !== ""
+  const dirty = title.trim() !== "" || path.trim() !== "" || image !== ""
 
   async function create() {
     dismissErrorToast()
     setSaving(true)
     try {
-      onCreated(await saveNewWrittenPage({ title, path }))
+      onCreated(await saveNewWrittenPage({ title, path, image, imageAlt }))
     } catch (error) {
       // The server's refusals are already sentences an admin can act on —
       // "Pricing already answers on /pricing" — so they are shown as-is.
@@ -84,8 +94,8 @@ export function WrittenPageDialog({
           <DialogHeader>
             <DialogTitle>Add a page</DialogTitle>
             <DialogDescription>
-              A name and an address. What goes on the page comes next, in the
-              editor.
+              A name, an address, and a picture if you want one. What goes on
+              the page comes next, in the editor.
             </DialogDescription>
           </DialogHeader>
 
@@ -127,6 +137,22 @@ export function WrittenPageDialog({
                     onChange={(event) => setPath(event.target.value)}
                   />
                 </div>
+                <ImageUpload
+                  label="Picture"
+                  hint="Optional. It is drawn at the top of the page, above everything on it, and Page settings can change it or take it off later."
+                  value={image}
+                  aspect="square"
+                  fit="cover"
+                  emptyLabel="Add picture"
+                  className="max-w-24"
+                  disabled={saving}
+                  onChange={(picked, altText) => {
+                    setImage(picked)
+                    // The library's own name for the file is what a screen
+                    // reader says, so nobody is asked to type one here.
+                    setImageAlt(altText ?? "")
+                  }}
+                />
               </CardContent>
             </Card>
           </DialogBody>
