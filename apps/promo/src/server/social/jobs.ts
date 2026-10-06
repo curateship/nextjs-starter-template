@@ -1,11 +1,11 @@
-import { and, desc, eq, inArray, sql } from "drizzle-orm"
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm"
 
 import { uuid } from "@/server/auth/security"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 
 import type { JobKind } from "@/lib/social/options"
 
-import { promoJobs } from "./schema"
+import { promoAccounts, promoJobs } from "./schema"
 
 /**
  * The queue between the screen and the browser.
@@ -46,6 +46,13 @@ export type QueuedJob = {
   attempts: number
 }
 
+/**
+ * Serialises claims across every copy of the browser program, so checking
+ * that a lane is free and taking its job happen as one step. The number is
+ * arbitrary and only ever compared with itself.
+ */
+const CLAIM_LOCK_KEY = 7718235309136512n
+
 /** Adds a job. The screen never waits for it. */
 export async function queueJob(
   userId: string,
@@ -54,17 +61,65 @@ export async function queueJob(
   db: CustomShellDb = defaultDb
 ): Promise<string> {
   const id = uuid()
-  await db.insert(promoJobs).values({ id, userId, kind, payload })
+  const lane = await laneFor(userId, payload, db)
+  await db.insert(promoJobs).values({ id, userId, kind, payload, lane })
   return id
 }
 
 /**
- * Takes the oldest waiting job, or null.
+ * The account a job works as, the one rule both the queue and the runner use.
  *
- * `FOR UPDATE SKIP LOCKED` means a second worker steps over the row this one
- * is taking instead of queueing behind it, so two copies never claim the same
- * job. Every column is qualified: an unqualified name in a raw statement
- * resolves against the wrong table without complaining about it.
+ * A comment names its account, because it was written for one. A search or a
+ * thread is the person's Reddit work: their oldest Reddit account. Ordered,
+ * so the lane a job is filed under is the profile it then runs in; with two
+ * accounts and no order, the two could pick different ones, and two jobs would
+ * drive one browser at once.
+ */
+export async function jobAccount(
+  userId: string,
+  payload: Record<string, unknown>,
+  db: CustomShellDb = defaultDb
+): Promise<typeof promoAccounts.$inferSelect | null> {
+  const named = typeof payload.accountId === "string" ? payload.accountId : ""
+  const [account] = await db
+    .select()
+    .from(promoAccounts)
+    .where(
+      named
+        ? and(eq(promoAccounts.id, named), eq(promoAccounts.userId, userId))
+        : and(eq(promoAccounts.userId, userId), eq(promoAccounts.platform, "reddit"))
+    )
+    .orderBy(asc(promoAccounts.createdAt), asc(promoAccounts.id))
+    .limit(1)
+  return account ?? null
+}
+
+/**
+ * The profile a job works in, which is its lane: the one a dashboard job
+ * names, or its account's. Null when there is none, so the job is its own
+ * lane and is refused when it runs.
+ */
+async function laneFor(
+  userId: string,
+  payload: Record<string, unknown>,
+  db: CustomShellDb
+): Promise<string | null> {
+  if (typeof payload.profileId === "string" && payload.profileId) return payload.profileId
+  return (await jobAccount(userId, payload, db))?.profileId ?? null
+}
+
+/**
+ * Takes the oldest waiting job in a lane that has nothing running, or null.
+ *
+ * Jobs for one profile run one at a time and in order, because a browser has
+ * one page and one driver; jobs for different profiles run side by side. The
+ * check and the claim are one statement, made under a lock every copy of the
+ * browser program shares, so two copies cannot both start work on one
+ * profile. A job from before lanes has none and is never held back.
+ *
+ * `FOR UPDATE SKIP LOCKED` keeps a reader outside the lock from blocking on a
+ * row being taken. Every column is qualified: an unqualified name in a raw
+ * statement resolves against the wrong table without complaining about it.
  */
 export async function claimNextJob(
   claimToken: string,
@@ -72,25 +127,35 @@ export async function claimNextJob(
 ): Promise<QueuedJob | null> {
   await failExpiredClaims(db)
 
-  const claimed = await db.execute(sql`
-    UPDATE "promo_jobs"
-    SET "claim_token" = ${claimToken},
-        "claimed_at" = now(),
-        "status" = 'running',
-        "attempts" = "promo_jobs"."attempts" + 1
-    WHERE "promo_jobs"."id" IN (
-      SELECT "inner"."id" FROM "promo_jobs" AS "inner"
-      WHERE "inner"."status" = 'queued'
-      ORDER BY "inner"."created_at" ASC
-      LIMIT 1
-      FOR UPDATE SKIP LOCKED
-    )
-    RETURNING "promo_jobs"."id",
-              "promo_jobs"."user_id",
-              "promo_jobs"."kind",
-              "promo_jobs"."payload",
-              "promo_jobs"."attempts"
-  `)
+  const claimed = await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(${CLAIM_LOCK_KEY.toString()}::bigint)`)
+    return tx.execute(sql`
+      UPDATE "promo_jobs"
+      SET "claim_token" = ${claimToken},
+          "claimed_at" = now(),
+          "status" = 'running',
+          "attempts" = "promo_jobs"."attempts" + 1
+      WHERE "promo_jobs"."id" IN (
+        SELECT "inner"."id" FROM "promo_jobs" AS "inner"
+        WHERE "inner"."status" = 'queued'
+          AND (
+            "inner"."lane" IS NULL
+            OR NOT EXISTS (
+              SELECT 1 FROM "promo_jobs" AS "busy"
+              WHERE "busy"."status" = 'running' AND "busy"."lane" = "inner"."lane"
+            )
+          )
+        ORDER BY "inner"."created_at" ASC
+        LIMIT 1
+        FOR UPDATE SKIP LOCKED
+      )
+      RETURNING "promo_jobs"."id",
+                "promo_jobs"."user_id",
+                "promo_jobs"."kind",
+                "promo_jobs"."payload",
+                "promo_jobs"."attempts"
+    `)
+  })
 
   const row = (
     claimed.rows as Array<{
@@ -276,7 +341,45 @@ export async function lastFailedProfileJob(
   return row.lastError
 }
 
-/** The open, close, check and site-check jobs waiting or running, by profile. */
+export type LastBackupJob = {
+  kind: "backup" | "restore"
+  status: string
+  lastError: string | null
+  /** The backup a restore was for. */
+  backupId: string | null
+}
+
+/**
+ * The newest backup or restore for a profile, finished or not, so its tab can
+ * say what happened last: still going, done, or refused and why.
+ */
+export async function lastBackupJob(
+  userId: string,
+  profileId: string,
+  db: CustomShellDb = defaultDb
+): Promise<LastBackupJob | null> {
+  const [row] = await db
+    .select({ kind: promoJobs.kind, status: promoJobs.status, lastError: promoJobs.lastError, payload: promoJobs.payload })
+    .from(promoJobs)
+    .where(
+      and(
+        eq(promoJobs.userId, userId),
+        inArray(promoJobs.kind, ["backup", "restore"]),
+        sql`${promoJobs.payload}->>'profileId' = ${profileId}`
+      )
+    )
+    .orderBy(desc(promoJobs.createdAt))
+    .limit(1)
+  if (!row) return null
+  return {
+    kind: row.kind as "backup" | "restore",
+    status: row.status,
+    lastError: row.lastError,
+    backupId: typeof row.payload?.backupId === "string" ? row.payload.backupId : null,
+  }
+}
+
+/** The jobs a profile's row on the dashboard waits on, by profile. */
 export async function pendingProfileJobs(
   userId: string,
   db: CustomShellDb = defaultDb
@@ -288,7 +391,7 @@ export async function pendingProfileJobs(
       and(
         eq(promoJobs.userId, userId),
         inArray(promoJobs.status, ["queued", "running"]),
-        inArray(promoJobs.kind, ["open", "close", "check", "site_check"])
+        inArray(promoJobs.kind, ["open", "close", "check", "site_check", "backup", "restore"])
       )
     )
   return rows

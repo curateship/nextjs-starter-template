@@ -44,6 +44,8 @@ export type JobKind =
   | "close"
   | "check"
   | "site_check"
+  | "backup"
+  | "restore"
 
 /**
  * What every Reddit job and the settings tab say when the account's browser
@@ -115,7 +117,12 @@ export type SiteCheckResult = {
 }
 
 /** What the history in a profile's window records besides its runs. */
-export type ProfileEventKind = "proxy_changed" | "browser_dead" | "proxy_refused"
+export type ProfileEventKind =
+  | "proxy_changed"
+  | "browser_dead"
+  | "proxy_refused"
+  | "backed_up"
+  | "restored"
 export type SearchStatus = "running" | "done" | "failed"
 export type DraftStatus = "draft" | "sent" | "discarded"
 export type JobStatus = "queued" | "running" | "done" | "failed"

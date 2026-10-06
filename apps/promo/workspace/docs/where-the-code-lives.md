@@ -15,12 +15,12 @@ an app wide feature, not just a reddit feature."
 
 | Folder | What is in it |
 | --- | --- |
-| `src/server/browser/` | The isolated browser and everything it needs: the proxy, profile and session tables, proxy testing and the guard against inside addresses, making a profile, Docker, the typed command client, and opening, closing and watching a browser. It knows nothing about any network. |
-| `src/server/social/` | The accounts, saved keywords, the job queue, the runner that takes a job to its account, its profile and its browser, AI drafting, and the regular upkeep. |
+| `src/server/browser/` | The isolated browser and everything it needs: the proxy, profile and session tables, proxy testing and the guard against inside addresses, making a profile, Docker, the typed command client, opening, closing and watching a browser, the limit on how many are open (`settings.ts`, `load.ts`), and backups (`backups.ts`). It knows nothing about any network. |
+| `src/server/social/` | The accounts, saved keywords, the job queue with one lane per profile, the runner that takes a job to its account, its profile and its browser, AI drafting, and the regular upkeep. |
 | `src/lib/social/` | What both halves of the app need at runtime: statuses, job kinds, proxy kinds, the comment length cap, and the wordings. |
-| `src/lib/browser/` | The Proxies and Browser profiles dashboards' wordings, and how the bell draws a dead-proxy notice. |
-| `src/lib/api/browser/` | The two dashboards' endpoints. Open, close, restart and check never touch a browser; each writes a job. |
-| `src/components/browser/` | The Proxies and Browser profiles dashboards, their windows, and the browser window inside the app. |
+| `src/lib/browser/` | The Proxies and Browser profiles dashboards' wordings, the bounds of the browser settings, and how the bell draws a dead-proxy notice. |
+| `src/lib/api/browser/` | The two dashboards' endpoints and the Browsers tab's. Open, close, restart, check, backup and restore never touch a browser; each writes a job. |
+| `src/components/browser/` | The Proxies and Browser profiles dashboards, their windows, the browser window inside the app, and the Browsers tab in Settings. |
 | `src/server/social/voices.ts` | Voices: the words the AI is told, shared by any number of accounts on any network. |
 | `src/lib/api/social/account.ts` | The Reddit account and the status the Reddit dashboard reads, as endpoints. |
 | `src/lib/api/social/voices.ts` | The Voices dashboard's endpoints. |

@@ -17,6 +17,7 @@ import { BrowserWindowDialog } from "@/components/browser/browser-window-dialog"
 import { ProfileDialog } from "@/components/browser/profile-dialog"
 import { ProfileGroupsDialog } from "@/components/browser/profile-groups-dialog"
 import { ProxyTestBadge } from "@/components/browser/proxy-test-badge"
+import { BrowserLoadLine } from "@/components/browser/browser-load-line"
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import {
   DashboardToolbarButton,
@@ -175,7 +176,11 @@ export function ProfilesDashboard({
   // so the list is read again every two seconds until nothing is changing.
   const changing = profiles.some(
     (profile) =>
-      profile.browser === "opening" || profile.closing || profile.checking || profile.siteChecking
+      profile.browser === "opening" ||
+      profile.closing ||
+      profile.checking ||
+      profile.siteChecking ||
+      profile.backingUp
   )
   React.useEffect(() => {
     if (!changing) return
@@ -289,6 +294,7 @@ export function ProfilesDashboard({
 
   return (
     <>
+      <BrowserLoadLine version={profiles.map((profile) => profile.browser).join()} />
       <DashboardTable
         title="Browser profiles"
         icon={<MonitorIcon />}
@@ -673,8 +679,8 @@ export function ProfilesDashboard({
         title={deleteTargets.length === 1 ? "Delete this profile?" : `Delete ${deleteTargets.length} profiles?`}
         description={[
           deleteTargets.length === 1
-            ? "Its cookies go with it, so every sign-in inside is lost for good."
-            : "Their cookies go with them, so every sign-in inside is lost for good.",
+            ? "Its cookies and its backups go with it, so every sign-in inside is lost for good."
+            : "Their cookies and their backups go with them, so every sign-in inside is lost for good.",
           signedOut ?? "Nothing is signed in inside.",
           "A profile whose browser is open is kept until it is stopped.",
         ].join(" ")}

@@ -31,12 +31,19 @@ import {
 import { listProxies } from "@/server/browser/proxies"
 import { lastRunStartedAt, liveSessionRow, streamWindow } from "@/server/browser/session"
 import { accountsByProfile, hasPendingJob } from "@/server/social/accounts"
-import { lastFailedProfileJob, pendingProfileJobs, queueJob } from "@/server/social/jobs"
+import {
+  lastBackupJob,
+  lastFailedProfileJob,
+  pendingProfileJobs,
+  queueJob,
+  type LastBackupJob,
+} from "@/server/social/jobs"
+import { listBackups, type BackupView } from "@/server/browser/backups"
 import type { ProxyTestResult } from "@/lib/social/options"
 
 import { createErrorMessage } from "../error-message"
 
-export type { BulkResult, DeleteResult, FolderView, HistoryEntry, LabelView }
+export type { BackupView, BulkResult, DeleteResult, FolderView, HistoryEntry, LabelView }
 
 /**
  * The Browser profiles dashboard's endpoints. Every one is admin-only and
@@ -65,6 +72,8 @@ export type ProfileRow = ProfileRecord & {
   closing: boolean
   checking: boolean
   siteChecking: boolean
+  /** A backup or a restore is waiting or running. */
+  backingUp: boolean
 }
 
 export type ProfilesPage = {
@@ -105,6 +114,7 @@ const listFn = createServerFn({ method: "GET" })
         closing: waiting("close", profile.id),
         checking: waiting("check", profile.id),
         siteChecking: waiting("site_check", profile.id),
+        backingUp: waiting("backup", profile.id) || waiting("restore", profile.id),
         accounts: accounts.get(profile.id) ?? [],
       })),
       ...groups,
@@ -303,7 +313,7 @@ const jobFn = createServerFn({ method: "POST" })
   .inputValidator(
     z.object({
       id: z.string().min(1),
-      kind: z.enum(["open", "close", "check", "site_check", "restart"]),
+      kind: z.enum(["open", "close", "check", "site_check", "backup", "restart"]),
     })
   )
   .handler(async ({ context, data }): Promise<void> => {
@@ -320,7 +330,7 @@ const jobFn = createServerFn({ method: "POST" })
 
 export function profileJob(
   id: string,
-  kind: "open" | "close" | "check" | "site_check" | "restart"
+  kind: "open" | "close" | "check" | "site_check" | "backup" | "restart"
 ) {
   return jobFn({ data: { id, kind } })
 }
@@ -333,4 +343,43 @@ const newIdentityFn = createServerFn({ method: "POST" })
 
 export function askForNewIdentity(id: string) {
   return newIdentityFn({ data: { id } })
+}
+
+export type ProfileBackups = {
+  backups: BackupView[]
+  /** The newest backup or restore: still going, done, or refused and why. */
+  last: LastBackupJob | null
+}
+
+const backupsFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .inputValidator(z.object({ id: z.string().min(1) }))
+  .handler(async ({ context, data }): Promise<ProfileBackups> => {
+    const userId = context.user.id
+    if (!(await ownsProfile(userId, data.id))) throw new Error("That browser profile does not exist.")
+    const [backups, last] = await Promise.all([listBackups(userId, data.id), lastBackupJob(userId, data.id)])
+    return { backups, last }
+  })
+
+export function loadProfileBackups(id: string) {
+  return backupsFn({ data: { id } })
+}
+
+/**
+ * Writes a restore job. `replace` is the person saying the browser data
+ * already on this machine may go; without it a restore over a volume that
+ * exists is refused.
+ */
+const restoreFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ id: z.string().min(1), backupId: z.string().min(1), replace: z.boolean() }))
+  .handler(async ({ context, data }): Promise<void> => {
+    const userId = context.user.id
+    if (!(await ownsProfile(userId, data.id))) throw new Error("That browser profile does not exist.")
+    if (await hasPendingJob(userId, "restore", data.id)) return
+    await queueJob(userId, "restore", { profileId: data.id, backupId: data.backupId, replace: data.replace })
+  })
+
+export function restoreProfileBackup(id: string, backupId: string, replace: boolean) {
+  return restoreFn({ data: { id, backupId, replace } })
 }

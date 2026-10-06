@@ -23,8 +23,9 @@ promo created, which has no shell version and so can never conflict.
 
 - **`workspaces.whoMayHave: "off"`** — promo is one site. It is a tool one person
   runs against their own accounts, not something with tenants.
-- **`settings.tabs`** — one tab, "Reddit account", picking which browser profile
-  and which voice the account uses.
+- **`settings.tabs`** — two tabs. "Reddit account" picks which browser profile
+  and which voice the account uses. "Browsers" holds the machine's limit on
+  open browsers and the minutes before an unused one closes.
 - **`notifications.describe`** — a dead-proxy notice in the bell gets a globe
   tile and opens that proxy on the Proxies dashboard. Worked out from the
   notice's own id and words, so no server is asked.
@@ -38,12 +39,13 @@ promo created, which has no shell version and so can never conflict.
 
 ## The tables it owns
 
-Fifteen, all named `promo_*`, in two files of promo's own. The shell's tables
+Seventeen, all named `promo_*`, in two files of promo's own. The shell's tables
 stay in `src/server/schema.ts`, which promo never opens.
 
 - `src/server/browser/schema.ts`: `promo_proxies`, `promo_proxy_addresses`,
   `promo_profiles`, `promo_profile_folders`, `promo_profile_labels`,
-  `promo_profile_events`, `promo_browser_sessions`. These belong to no network.
+  `promo_profile_events`, `promo_browser_sessions`, `promo_browser_settings`,
+  `promo_profile_backups`. These belong to no network.
 - `src/server/social/schema.ts`: `promo_voices`, `promo_accounts`, `promo_keywords`,
   `promo_searches`, `promo_finds`, `promo_drafts`, `promo_comments`,
   `promo_jobs`.
@@ -52,8 +54,9 @@ The SQL is hand-written in `drizzle/0091_promo_reddit.sql`,
 `drizzle/0092_promo_reddit_relevance.sql`,
 `drizzle/0094_promo_browser_profiles.sql`,
 `drizzle/0095_promo_proxy_and_profile_dashboards.sql`,
-`drizzle/0096_promo_voices.sql` and
-`drizzle/0097_promo_identity_and_site_check.sql`. The runner records each file by its
+`drizzle/0096_promo_voices.sql`,
+`drizzle/0097_promo_identity_and_site_check.sql` and
+`drizzle/0098_promo_limits_lanes_backups.sql`. The runner records each file by its
 whole name, so a shell file that happens to share a number does not collide
 with a promo one.
 

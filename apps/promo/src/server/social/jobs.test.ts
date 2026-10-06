@@ -14,11 +14,14 @@ import {
   failExpiredClaims,
   failJob,
   finishJob,
+  jobAccount,
   jobCounts,
   queueJob,
   JOB_MAX_ATTEMPTS,
 } from "./jobs"
-import { promoJobs } from "./schema"
+import { createProfile } from "@/server/browser/profiles"
+
+import { promoAccounts, promoJobs } from "./schema"
 
 describe("the browser work queue", () => {
   let client: PGlite
@@ -60,6 +63,84 @@ describe("the browser work queue", () => {
     expect(first).not.toBeNull()
     // The second worker finds nothing rather than the same job.
     expect(second).toBeNull()
+  })
+
+  describe("one lane per profile", () => {
+    /** Queues a job and pushes it back in time, so claim order is certain. */
+    async function queueAt(secondsAgo: number, payload: Record<string, unknown>) {
+      const id = await queueJob(userId, "search", payload, db)
+      await db
+        .update(promoJobs)
+        .set({ createdAt: new Date(Date.now() - secondsAgo * 1000) })
+        .where(eq(promoJobs.id, id))
+      return id
+    }
+
+    it("puts a Reddit job in its account's profile, and a dashboard job in the one it names", async () => {
+      const profileId = await createProfile(userId, { name: "Main" }, db)
+      const named = await createProfile(userId, { name: "Named" }, db)
+      await db.insert(promoAccounts).values({ id: uuid(), userId, profileId })
+
+      const reddit = await queueJob(userId, "search", { keywordId: "a" }, db)
+      const dashboard = await queueJob(userId, "open", { profileId: named }, db)
+
+      const rows = await db.select().from(promoJobs)
+      expect(rows.find((row) => row.id === reddit)?.lane).toBe(profileId)
+      expect(rows.find((row) => row.id === dashboard)?.lane).toBe(named)
+    })
+
+    it("files a search under the same account's profile the runner will use, with two Reddit accounts", async () => {
+      const older = await createProfile(userId, { name: "Older" }, db)
+      const newer = await createProfile(userId, { name: "Newer" }, db)
+      // Inserted newest first, so an unordered read would likely take it.
+      await db.insert(promoAccounts).values({ id: uuid(), userId, profileId: newer, createdAt: new Date() })
+      await db
+        .insert(promoAccounts)
+        .values({ id: uuid(), userId, profileId: older, createdAt: new Date(Date.now() - 60_000) })
+
+      const id = await queueJob(userId, "search", { keywordId: "a" }, db)
+
+      const [row] = await db.select().from(promoJobs).where(eq(promoJobs.id, id))
+      expect(row.lane).toBe(older)
+      expect((await jobAccount(userId, {}, db))?.profileId).toBe(older)
+    })
+
+    it("holds a profile's next job while one runs, and lets another profile's go ahead", async () => {
+      const a1 = await queueAt(30, { profileId: "profile-a" })
+      const a2 = await queueAt(20, { profileId: "profile-a" })
+      const b1 = await queueAt(10, { profileId: "profile-b" })
+
+      const token = uuid()
+      expect((await claimNextJob(token, db))?.id).toBe(a1)
+      // a2 is older than b1, but its profile is busy.
+      expect((await claimNextJob(uuid(), db))?.id).toBe(b1)
+      expect(await claimNextJob(uuid(), db)).toBeNull()
+
+      await finishJob(a1, token, db)
+      expect((await claimNextJob(uuid(), db))?.id).toBe(a2)
+    })
+
+    it("never holds back a job from before lanes", async () => {
+      await queueAt(20, { profileId: "profile-a" })
+      const old = await queueAt(10, {})
+      await db.update(promoJobs).set({ lane: null }).where(eq(promoJobs.id, old))
+
+      await claimNextJob(uuid(), db)
+      expect((await claimNextJob(uuid(), db))?.id).toBe(old)
+    })
+
+    it("lets two workers claiming at once take different profiles, never one profile twice", async () => {
+      await queueAt(30, { profileId: "profile-a" })
+      await queueAt(20, { profileId: "profile-a" })
+      await queueAt(10, { profileId: "profile-b" })
+
+      const claimed = await Promise.all([claimNextJob(uuid(), db), claimNextJob(uuid(), db), claimNextJob(uuid(), db)])
+
+      const rows = await db.select().from(promoJobs)
+      const running = rows.filter((row) => row.status === "running").map((row) => row.lane).sort()
+      expect(running).toEqual(["profile-a", "profile-b"])
+      expect(claimed.filter(Boolean)).toHaveLength(2)
+    })
   })
 
   it("answers with nothing when the queue is empty", async () => {

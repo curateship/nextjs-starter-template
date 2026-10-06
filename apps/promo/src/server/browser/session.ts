@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto"
 
-import { and, desc, eq, inArray, lt } from "drizzle-orm"
+import { and, desc, eq, inArray, lt, sql } from "drizzle-orm"
 
 import { decryptSecret, encryptSecret } from "@/server/auth/encryption"
 import { uuid } from "@/server/auth/security"
@@ -25,6 +25,7 @@ import {
 } from "./docker"
 import { recordProfileEvent } from "./events"
 import { Refusal } from "./refusal"
+import { BROWSER_CPUS, BROWSER_MEMORY_MB, limitMessage, readBrowserSettings } from "./settings"
 import { deadProxyMessage } from "./proxies"
 import { promoBrowserSessions, promoProfiles, promoProxies } from "./schema"
 
@@ -46,7 +47,7 @@ import { promoBrowserSessions, promoProfiles, promoProxies } from "./schema"
  * read that turns a session row into the window's address and password.
  */
 
-const IMAGE = process.env.PROMO_BROWSER_IMAGE?.trim() || "promo-browser:latest"
+export const IMAGE = process.env.PROMO_BROWSER_IMAGE?.trim() || "promo-browser:latest"
 
 /**
  * Published to this address and no other. A browser signed in to Reddit on an
@@ -56,7 +57,7 @@ const IMAGE = process.env.PROMO_BROWSER_IMAGE?.trim() || "promo-browser:latest"
 const BIND_HOST = process.env.PROMO_BROWSER_BIND_HOST?.trim() || "127.0.0.1"
 
 /** Every promo browser container carries this, and the orphan sweep reads it. */
-const APP_LABEL = "com.systemeverything.app"
+export const APP_LABEL = "com.systemeverything.app"
 const SESSION_LABEL = "com.systemeverything.session-id"
 
 /**
@@ -77,11 +78,18 @@ const COMMAND_PORT_BASE = 7900
 const STREAM_PORT_BASE = 8900
 const WEBRTC_PORT_BASE = 9900
 
-/** How many ports to try before giving up, which is also the session ceiling. */
+/**
+ * How many port triples to try. Not the limit on open browsers, which is the
+ * setting in `./settings`; this only has to be comfortably above it.
+ */
 const PORT_ATTEMPTS = 40
 
-/** A container idle this long is holding 1.5GB for nothing. */
-const IDLE_MINUTES = 60
+/**
+ * Serialises opening a browser across every copy of the browser program, so
+ * counting the open ones and taking a place are one step and two opens racing
+ * cannot both slip under the limit. Only ever compared with itself.
+ */
+const OPEN_LOCK_KEY = 5512980443760931n
 
 /**
  * How long a browser gets to close itself before Docker removes it.
@@ -103,7 +111,7 @@ const STOP_GRACE_SECONDS = 10
 const READY_TIMEOUT_MS = 300_000
 const READY_POLL_MS = 3_000
 
-const LIVE_STATUSES = ["starting", "running"] as const
+export const LIVE_STATUSES = ["starting", "running"] as const
 
 export type LiveSession = {
   id: string
@@ -239,116 +247,148 @@ export async function ensureSession(
     throw new Refusal(refusal)
   }
 
-  const sessionId = uuid()
   const token = randomBytes(32).toString("hex")
   const streamPassword = randomBytes(9).toString("base64url")
-  const containerName = `promo-browser-${sessionId.slice(0, 8)}`
-
-  // Claiming the ports IS the insert. A port already taken by a live session
-  // loses on the unique index, so the next one is tried instead of two
-  // containers fighting over one port.
-  const claimed = await claimPorts(
-    {
-      id: sessionId,
-      userId,
-      profileId,
-      volumeName: profile.volumeName,
-      streamPasswordEncrypted: encryptSecret(streamPassword),
-      proxyId: proxy?.id ?? null,
-      exitCountry: proxy?.lastTestResult?.country?.slice(0, 2).toUpperCase() || proxy?.country || "",
-    },
-    db
-  )
-
   const connection = dockerConnection()
-  let containerId = ""
 
-  try {
-    await dockerRequest(connection, "POST", "/volumes/create", {
-      Name: profile.volumeName,
-      Labels: { [APP_LABEL]: "promo" },
-    })
+  // Ports Docker refused although no live row holds them: a browser still
+  // being closed holds them for up to ten seconds after its row says stopped,
+  // and any other program on the machine can hold one. Each is skipped and
+  // the next free ports are tried, with a new session, as many times as there
+  // are ports to try.
+  const refusedOffsets = new Set<number>()
 
-    const created = await dockerRequest<{ Id?: string; id?: string }>(
-      connection,
-      "POST",
-      `/containers/create?name=${encodeURIComponent(containerName)}`,
-      dockerCreateOptions({
-        image: IMAGE,
-        name: containerName,
-        env: containerEnv(profile, proxy, token, streamPassword, claimed),
-        labels: {
-          [APP_LABEL]: "promo",
-          [OWNER_LABEL]: OWNER,
-          "com.systemeverything.profile-id": profileId,
-          [SESSION_LABEL]: sessionId,
-        },
+  for (;;) {
+    const sessionId = uuid()
+    const containerName = `promo-browser-${sessionId.slice(0, 8)}`
+
+    // Claiming the ports IS the insert. A port already taken by a live session
+    // loses on the unique index, so the next one is tried instead of two
+    // containers fighting over one port.
+    const claimed = await claimPorts(
+      {
+        id: sessionId,
+        userId,
+        profileId,
         volumeName: profile.volumeName,
-        bindHost: BIND_HOST,
-        commandPort: claimed.commandPort,
-        streamPort: claimed.streamPort,
-        webrtcPort: claimed.webrtcPort,
-      })
+        streamPasswordEncrypted: encryptSecret(streamPassword),
+        proxyId: proxy?.id ?? null,
+        exitCountry: proxy?.lastTestResult?.country?.slice(0, 2).toUpperCase() || proxy?.country || "",
+      },
+      refusedOffsets,
+      db
     )
-    containerId = created.Id || created.id || ""
-    if (!containerId) throw new Error("Docker created a container with no id.")
 
-    await dockerRequest(connection, "POST", `/containers/${containerId}/start`)
+    let containerId = ""
 
-    await db
-      .update(promoBrowserSessions)
-      .set({ containerId, imageId: await imageOf(connection, containerId) })
-      .where(eq(promoBrowserSessions.id, sessionId))
+    try {
+      await dockerRequest(connection, "POST", "/volumes/create", {
+        Name: profile.volumeName,
+        Labels: { [APP_LABEL]: "promo" },
+      })
 
-    // A requested new identity is made by this launch and no other, so the
-    // request is cleared now. Left until the identity was read back, a failed
-    // read would have made a new machine on every later launch.
-    if (profile.fingerprint?.renew) {
-      const rest = { ...profile.fingerprint }
-      delete rest.renew
+      const created = await dockerRequest<{ Id?: string; id?: string }>(
+        connection,
+        "POST",
+        `/containers/create?name=${encodeURIComponent(containerName)}`,
+        dockerCreateOptions({
+          image: IMAGE,
+          name: containerName,
+          env: containerEnv(profile, proxy, token, streamPassword, claimed),
+          labels: {
+            [APP_LABEL]: "promo",
+            [OWNER_LABEL]: OWNER,
+            "com.systemeverything.profile-id": profileId,
+            [SESSION_LABEL]: sessionId,
+          },
+          volumeName: profile.volumeName,
+          bindHost: BIND_HOST,
+          commandPort: claimed.commandPort,
+          streamPort: claimed.streamPort,
+          webrtcPort: claimed.webrtcPort,
+          memoryBytes: BROWSER_MEMORY_MB * 1024 * 1024,
+          nanoCpus: Math.round(BROWSER_CPUS * 1e9),
+        })
+      )
+      containerId = created.Id || created.id || ""
+      if (!containerId) throw new Error("Docker created a container with no id.")
+
+      await dockerRequest(connection, "POST", `/containers/${containerId}/start`)
+
       await db
-        .update(promoProfiles)
-        .set({ fingerprint: rest })
-        .where(eq(promoProfiles.id, profile.id))
-    }
+        .update(promoBrowserSessions)
+        .set({ containerId, imageId: await imageOf(connection, containerId) })
+        .where(eq(promoBrowserSessions.id, sessionId))
 
-    commandKeys.set(sessionId, token)
-
-    await waitUntilReady({ port: claimed.commandPort, token })
-
-    await db
-      .update(promoBrowserSessions)
-      .set({ status: "running", lastActivityAt: new Date() })
-      .where(eq(promoBrowserSessions.id, sessionId))
-
-    await keepIdentity(profile, { port: claimed.commandPort, token }, db)
-
-    return {
-      id: sessionId,
-      profileId,
-      target: { port: claimed.commandPort, token },
-    }
-  } catch (error) {
-    // A half-started session must not hold its ports or look live, or the next
-    // attempt loses the unique index to a container that is not there.
-    commandKeys.delete(sessionId)
-    const message = error instanceof Error ? error.message : String(error)
-    await db
-      .update(promoBrowserSessions)
-      .set({ status: "error", endedBy: "failed", lastError: message, endedAt: new Date() })
-      .where(eq(promoBrowserSessions.id, sessionId))
-
-    if (containerId) {
-      try {
-        await removeContainer(connection, containerId)
-      } catch (removal) {
-        // The container is wedged. Say so loudly; the row is already marked
-        // failed, so this never hides the original problem.
-        console.error("A failed browser container could not be removed", removal)
+      // A requested new identity is made by this launch and no other, so the
+      // request is cleared now. Left until the identity was read back, a failed
+      // read would have made a new machine on every later launch.
+      if (profile.fingerprint?.renew) {
+        const rest = { ...profile.fingerprint }
+        delete rest.renew
+        await db
+          .update(promoProfiles)
+          .set({ fingerprint: rest })
+          .where(eq(promoProfiles.id, profile.id))
       }
+
+      commandKeys.set(sessionId, token)
+
+      await waitUntilReady({ port: claimed.commandPort, token })
+
+      await db
+        .update(promoBrowserSessions)
+        .set({ status: "running", lastActivityAt: new Date() })
+        .where(eq(promoBrowserSessions.id, sessionId))
+
+      await keepIdentity(profile, { port: claimed.commandPort, token }, db)
+
+      return {
+        id: sessionId,
+        profileId,
+        target: { port: claimed.commandPort, token },
+      }
+    } catch (error) {
+      // A half-started session must not hold its ports or look live, or the next
+      // attempt loses the unique index to a container that is not there.
+      commandKeys.delete(sessionId)
+      const portRefused = isPortTaken(error) && refusedOffsets.size < PORT_ATTEMPTS - 1
+      if (portRefused) {
+        // It never ran, so it is not a failed run in the profile's history.
+        await db.delete(promoBrowserSessions).where(eq(promoBrowserSessions.id, sessionId))
+      } else {
+        const message = error instanceof Error ? error.message : String(error)
+        await db
+          .update(promoBrowserSessions)
+          .set({ status: "error", endedBy: "failed", lastError: message, endedAt: new Date() })
+          .where(eq(promoBrowserSessions.id, sessionId))
+      }
+
+      if (containerId) {
+        try {
+          await removeContainer(connection, containerId)
+        } catch (removal) {
+          // The container is wedged. Say so loudly; the row is already marked
+          // failed, so this never hides the original problem.
+          console.error("A failed browser container could not be removed", removal)
+        }
+      }
+      if (portRefused) {
+        console.log(`Port ${claimed.commandPort} or its pair is taken outside the app; trying the next`)
+        refusedOffsets.add(claimed.commandPort - COMMAND_PORT_BASE)
+        continue
+      }
+      throw publicDockerError(error, "start")
     }
-    throw publicDockerError(error, "start")
   }
+}
+
+/** Docker refused a port because something already holds it. */
+function isPortTaken(error: unknown): boolean {
+  return (
+    error instanceof DockerRequestError &&
+    /port is already allocated|address already in use/i.test(error.responseText)
+  )
 }
 
 /** Closes a live browser this process cannot talk to. */
@@ -443,7 +483,8 @@ async function removeContainer(
 export async function reapIdleSessions(
   db: CustomShellDb = defaultDb
 ): Promise<number> {
-  const cutoff = new Date(Date.now() - IDLE_MINUTES * 60_000)
+  const { idleMinutes } = await readBrowserSettings(db)
+  const cutoff = new Date(Date.now() - idleMinutes * 60_000)
   const stale = await db
     .select({ profileId: promoBrowserSessions.profileId })
     .from(promoBrowserSessions)
@@ -716,43 +757,62 @@ async function claimPorts(
     proxyId: string | null
     exitCountry: string
   },
+  refusedOffsets: ReadonlySet<number>,
   db: CustomShellDb
 ): Promise<{ commandPort: number; streamPort: number; webrtcPort: number }> {
-  let lastError: unknown = null
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(${OPEN_LOCK_KEY.toString()}::bigint)`)
 
-  for (let offset = 0; offset < PORT_ATTEMPTS; offset += 1) {
-    const ports = {
-      commandPort: COMMAND_PORT_BASE + offset,
-      streamPort: STREAM_PORT_BASE + offset,
-      webrtcPort: WEBRTC_PORT_BASE + offset,
-    }
-    try {
-      await db.insert(promoBrowserSessions).values({
-        ...row,
-        status: "starting",
-        ...ports,
-      })
-      return ports
-    } catch (error) {
-      lastError = error
-      // Only a port collision should land here: the caller has already closed
-      // any browser this profile was holding. Anything else will fail the
-      // same way on all forty tries, so the check below names it rather than
-      // blaming ports.
-    }
-  }
+    // The machine's limit, counted across every person, because memory is
+    // the machine's. Refused, never queued, so a person who pressed Open reads
+    // why at once.
+    const { maxOpen } = await readBrowserSettings(tx)
+    const [{ open }] = await tx
+      .select({ open: sql<number>`count(*)::int` })
+      .from(promoBrowserSessions)
+      .where(inArray(promoBrowserSessions.status, [...LIVE_STATUSES]))
+    if (open >= maxOpen) throw new Refusal(limitMessage(open, maxOpen))
 
-  if (await liveSessionRow(row.profileId, db)) {
+    let lastError: unknown = null
+    for (let offset = 0; offset < PORT_ATTEMPTS; offset += 1) {
+      if (refusedOffsets.has(offset)) continue
+      const ports = {
+        commandPort: COMMAND_PORT_BASE + offset,
+        streamPort: STREAM_PORT_BASE + offset,
+        webrtcPort: WEBRTC_PORT_BASE + offset,
+      }
+      try {
+        // Its own savepoint, so a port collision undoes only this insert and
+        // the next ports can be tried in the same transaction.
+        await tx.transaction(async (attempt) => {
+          await attempt.insert(promoBrowserSessions).values({
+            ...row,
+            status: "starting",
+            ...ports,
+          })
+        })
+        return ports
+      } catch (error) {
+        lastError = error
+        // Only a port collision should land here: the caller has already
+        // closed any browser this profile was holding. Anything else will fail
+        // the same way on all forty tries, so the check below names it rather
+        // than blaming ports.
+      }
+    }
+
+    if (await liveSessionRow(row.profileId, tx)) {
+      throw new Error(
+        "That browser profile already has a browser open. Close it and try again."
+      )
+    }
+
     throw new Error(
-      "That browser profile already has a browser open. Close it and try again."
+      `No free browser ports after ${PORT_ATTEMPTS} tries. ${
+        lastError instanceof Error ? lastError.message : ""
+      }`.trim()
     )
-  }
-
-  throw new Error(
-    `No free browser ports after ${PORT_ATTEMPTS} tries. ${
-      lastError instanceof Error ? lastError.message : ""
-    }`.trim()
-  )
+  })
 }
 
 /**

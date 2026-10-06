@@ -9,6 +9,7 @@ import {
   namesList,
   proxyTestWords,
   signedInWords,
+  loadWords,
 } from "./wording"
 
 const NOW = new Date("2099-06-10T12:00:00.000Z")
@@ -128,5 +129,14 @@ describe("a profile's identity in words", () => {
       Clock: "UTC",
       Language: "en-US, en",
     })
+  })
+
+  it("says how full the machine is in one line", () => {
+    const gigabyte = 1024 ** 3
+    expect(loadWords({ open: 0, maxOpen: 3, memoryBytes: 0 })).toBe("No browsers open. Up to 3 can be open at once.")
+    expect(loadWords({ open: 2, maxOpen: 3, memoryBytes: 2.14 * gigabyte })).toBe("2 of 3 browsers open, using about 2.1GB.")
+    expect(loadWords({ open: 1, maxOpen: 1, memoryBytes: gigabyte })).toBe("1 of 1 browser open, which is the limit, using about 1.0GB.")
+    // A limit lowered under browsers already open still reads as full.
+    expect(loadWords({ open: 3, maxOpen: 2, memoryBytes: 3 * gigabyte })).toBe("3 browsers open, over the limit of 2, using about 3.0GB.")
   })
 })

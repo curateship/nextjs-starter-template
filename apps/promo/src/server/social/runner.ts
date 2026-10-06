@@ -7,6 +7,7 @@ import {
 } from "@/server/browser/command"
 import { Refusal } from "@/server/browser/refusal"
 import { promoProfiles } from "@/server/browser/schema"
+import { backupProfile, restoreProfile } from "@/server/browser/backups"
 import { runSiteCheck } from "@/server/browser/site-check"
 import {
   ensureSession,
@@ -17,7 +18,7 @@ import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { NO_PROFILE_MESSAGE } from "@/lib/social/options"
 
 import { postComment } from "./reddit/post-comment"
-import { JOB_MAX_ATTEMPTS, claimNextJob, failJob, finishJob, type QueuedJob } from "./jobs"
+import { JOB_MAX_ATTEMPTS, claimNextJob, failJob, finishJob, jobAccount, type QueuedJob } from "./jobs"
 import { loadFindThread, runKeywordSearch } from "./reddit/search"
 import { promoAccounts } from "./schema"
 
@@ -66,6 +67,24 @@ export async function runOneJob(
 }
 
 async function runJob(job: QueuedJob, db: CustomShellDb): Promise<void> {
+  // A backup and a restore name a profile and need its browser closed, so
+  // they never open one.
+  if (job.kind === "backup" || job.kind === "restore") {
+    const profileId = String(job.payload.profileId ?? "")
+    if (!profileId) throw new Error(`That ${job.kind} job names no browser profile.`)
+    if (job.kind === "backup") {
+      await backupProfile(job.userId, profileId, db)
+    } else {
+      await restoreProfile(
+        job.userId,
+        profileId,
+        { backupId: String(job.payload.backupId ?? ""), replace: job.payload.replace === true },
+        db
+      )
+    }
+    return
+  }
+
   // Open, close, check and the site check name a profile, because a
   // profile's browser is not any one network's. They come from the Browser
   // profiles dashboard.
@@ -141,25 +160,9 @@ async function runJob(job: QueuedJob, db: CustomShellDb): Promise<void> {
   }
 }
 
-/**
- * The account a job works as.
- *
- * A comment names its account, because it was written for one. A search or a
- * thread is Reddit work for the person who asked, and promo has one Reddit
- * account per person today, so it is that one. Keywords do not name an
- * account yet; that comes with more than one browser at a time.
- */
+/** The account a job works as, by the rule its lane was filed by (`jobAccount`). */
 async function accountForJob(job: QueuedJob, db: CustomShellDb): Promise<Account> {
-  const named = job.payload.accountId ? String(job.payload.accountId) : ""
-  const [account] = await db
-    .select()
-    .from(promoAccounts)
-    .where(
-      named
-        ? and(eq(promoAccounts.id, named), eq(promoAccounts.userId, job.userId))
-        : and(eq(promoAccounts.userId, job.userId), eq(promoAccounts.platform, "reddit"))
-    )
-    .limit(1)
+  const account = await jobAccount(job.userId, job.payload, db)
   if (!account) {
     throw new Error("There is no Reddit account set up, so there is nothing to browse with.")
   }
