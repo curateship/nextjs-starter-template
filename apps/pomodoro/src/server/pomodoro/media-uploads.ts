@@ -13,6 +13,12 @@ import {
   uploadToR2,
 } from "@/server/media/storage"
 import { loadPomodoroEntitlements } from "@/server/pomodoro/entitlements"
+import { writeNotices } from "@/server/pomodoro/notices"
+import {
+  MEDIA_PAGE,
+  mediaFailedMessage,
+  mediaReadyMessage,
+} from "@/lib/pomodoro/notices"
 import {
   pomodoroMediaUploads,
   userPreferences,
@@ -512,14 +518,21 @@ export async function finishUploadJob({
           eq(pomodoroMediaUploads.status, "processing")
         )
       )
-      .returning({ mediaId: pomodoroMediaUploads.mediaId })
+      .returning({
+        userId: pomodoroMediaUploads.userId,
+        purpose: pomodoroMediaUploads.purpose,
+      })
 
     if (!rows.length) return false
 
-    await tx
+    const [media] = await tx
       .update(customShellMedia)
       .set({ storagePath, mimeType, fileSize, updatedAt: now() })
       .where(eq(customShellMedia.id, mediaId))
+      .returning({ originalName: customShellMedia.originalName })
+    await writeNotices(tx, [
+      uploadNotice(rows[0], true, media?.originalName ?? null),
+    ])
     return true
   })
 
@@ -546,19 +559,47 @@ export async function finishUploadJob({
 export async function failUploadJob(
   job: PomodoroMediaUpload,
   reason: string,
-  /** `retry: false` for a failure no amount of trying again can fix. */
-  { retry = true }: { retry?: boolean } = {}
+  /**
+   * `retry: false` for a failure no amount of trying again can fix.
+   * `tell: false` when the member caused it themselves, by deleting the file,
+   * and a notice about it would be noise.
+   */
+  { retry = true, tell = true }: { retry?: boolean; tell?: boolean } = {}
 ) {
   const giveUp = !retry || job.attempts >= MAX_ATTEMPTS
-  await db
-    .update(pomodoroMediaUploads)
-    .set({
-      status: giveUp ? "failed" : "queued",
-      failureReason: reason.slice(0, 200),
-      claimedAt: null,
-      updatedAt: new Date(),
-    })
-    .where(eq(pomodoroMediaUploads.mediaId, job.mediaId))
+  await db.transaction(async (tx) => {
+    await tx
+      .update(pomodoroMediaUploads)
+      .set({
+        status: giveUp ? "failed" : "queued",
+        failureReason: reason.slice(0, 200),
+        claimedAt: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(pomodoroMediaUploads.mediaId, job.mediaId))
+    // A retry is not an ending, so only giving up tells the member. The
+    // reason is the same sentence the picker shows, never the raw error.
+    if (giveUp && tell)
+      await writeNotices(tx, [uploadNotice(job, false, reason)])
+  })
+}
+
+/**
+ * The notice an upload's re-encode leaves in the bell: ready, with the file's
+ * name, or given up, with the reason the picker shows.
+ */
+function uploadNotice(
+  job: { userId: string; purpose: string },
+  ready: boolean,
+  detail: string | null
+) {
+  return {
+    recipientUserId: job.userId,
+    kind: ready ? ("media_ready" as const) : ("media_failed" as const),
+    message: ready ? mediaReadyMessage("upload") : mediaFailedMessage("upload"),
+    detail,
+    href: job.purpose === "sound" ? MEDIA_PAGE.sound : MEDIA_PAGE.background,
+  }
 }
 
 /**

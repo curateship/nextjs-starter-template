@@ -66,6 +66,14 @@ are in it, and joins on one button.
 Following the same link twice leaves you in the group once, not twice on the
 board.
 
+## The bell
+
+The owner hears in the bell when somebody joins through the invite link, and a
+second join while that notice is unread folds into it: "Sam and 1 other joined
+your group Study Buddies." A member the owner removes is told they were removed
+from the group, and never by whom. Leaving on your own, and the owner joining
+their own group, tell nobody. See [Notifications](notifications.md).
+
 ## What never leaves the server
 
 - **No user ids, on any board.** Your own row is marked on the server and the id

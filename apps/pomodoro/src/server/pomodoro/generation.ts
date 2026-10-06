@@ -14,7 +14,17 @@ import {
 } from "@/server/pomodoro/schema"
 import { customShellMedia } from "@/server/schema"
 import { getPublicMediaUrl } from "@/server/media/storage"
-import type { GenerationKind } from "@/lib/pomodoro/generation"
+import { writeNotices } from "@/server/pomodoro/notices"
+import {
+  GENERATION_PURPOSE,
+  type GenerationKind,
+} from "@/lib/pomodoro/generation"
+import {
+  creditsLowMessage,
+  MEDIA_PAGE,
+  mediaFailedMessage,
+  mediaReadyMessage,
+} from "@/lib/pomodoro/notices"
 
 /**
  * The credit ledger and the queue behind AI backgrounds and soundscapes.
@@ -96,13 +106,52 @@ export async function reserveGenerationCredit(
     const spent = usage.reserved - usage.refunded
     if (spent >= limit) throw new Error("GENERATION_LIMIT_REACHED")
 
+    const left = limit - (spent + 1)
+    // One left, or none: say so once each per month and kind, before the next
+    // request is refused rather than after. The stamp is what stops a refund
+    // that lifts the count back up from sending the same warning twice.
+    const warn =
+      left === 1 && !usage.warnedLowAt
+        ? ({ warnedLowAt: new Date() } as const)
+        : left === 0 && !usage.warnedEmptyAt
+          ? ({ warnedEmptyAt: new Date() } as const)
+          : null
+
     await tx
       .update(pomodoroGenerationUsage)
-      .set({ reserved: usage.reserved + 1, updatedAt: new Date() })
+      .set({ reserved: usage.reserved + 1, updatedAt: new Date(), ...warn })
       .where(eq(pomodoroGenerationUsage.id, usage.id))
 
-    return { month, left: limit - (spent + 1) }
+    if (warn) {
+      await writeNotices(tx, [
+        {
+          recipientUserId: userId,
+          kind: "credits_low",
+          message: creditsLowMessage(kind, left === 1 ? 1 : 0),
+          detail:
+            left === 0
+              ? `They come back on ${creditsReturnDay(month)}.`
+              : null,
+          href: MEDIA_PAGE[GENERATION_PURPOSE[kind]],
+        },
+      ])
+    }
+
+    return { month, left }
   })
+}
+
+/**
+ * The day a month's credits come back, said the way a person says it:
+ * "1 November". Months are counted in UTC, the same as `generationMonth`.
+ */
+export function creditsReturnDay(month: string) {
+  const [year, monthNumber] = month.split("-").map(Number)
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "long",
+    timeZone: "UTC",
+  }).format(new Date(Date.UTC(year, monthNumber, 1)))
 }
 
 /**
@@ -322,8 +371,30 @@ export async function finishGeneration(
       true,
       tx
     )
+    await writeNotices(tx, [generationNotice(job, true)])
     return { settled: true }
   })
+}
+
+/**
+ * The notice a finished or abandoned AI request leaves in the bell. A retry is
+ * not an ending, so only these two write one.
+ */
+function generationNotice(job: PomodoroGeneration, ready: boolean) {
+  const kind = job.kind as GenerationKind
+  const file = kind === "background" ? "AI background" : "AI soundscape"
+  return {
+    recipientUserId: job.userId,
+    kind: ready ? ("media_ready" as const) : ("media_failed" as const),
+    message: ready ? mediaReadyMessage(file) : mediaFailedMessage(file),
+    detail: ready ? promptPreview(job.prompt) : "The credit is back.",
+    href: MEDIA_PAGE[GENERATION_PURPOSE[kind]],
+  }
+}
+
+/** The prompt, short enough for the line under a notice's heading. */
+function promptPreview(prompt: string) {
+  return prompt.length > 80 ? `${prompt.slice(0, 80)}...` : prompt
 }
 
 /**
@@ -370,6 +441,9 @@ export async function failGeneration(
         false,
         tx
       )
+      // Written with the refund, so a member is never told the credit is
+      // back when it is not, or left without a word when it is.
+      await writeNotices(tx, [generationNotice(job, false)])
     }
     return { refunded: giveUp }
   })

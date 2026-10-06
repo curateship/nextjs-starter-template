@@ -1,4 +1,21 @@
-import { ClockIcon, PartyPopperIcon, UsersIcon } from "lucide-react"
+import {
+  AtSignIcon,
+  AwardIcon,
+  CalendarClockIcon,
+  CircleCheckIcon,
+  ClockIcon,
+  DoorClosedIcon,
+  DoorOpenIcon,
+  FlameIcon,
+  GaugeIcon,
+  MessageSquareIcon,
+  PartyPopperIcon,
+  SmilePlusIcon,
+  TriangleAlertIcon,
+  UserMinusIcon,
+  UserPlusIcon,
+  UsersIcon,
+} from "lucide-react"
 
 import type { AppNoticeDetail, AppOptions } from "@/lib/app-options"
 import { pomodoroLandingPage } from "@/components/pomodoro/landing-page"
@@ -27,15 +44,42 @@ const ROW_CONTENT = {
 
 /**
  * How each of this app's notices is drawn in the bell: its tab and its tile.
- * The tile takes the theme's primary colour, so it is the Pomoder orange on a
- * product screen and the workspace's own colour in the admin's bell.
+ *
+ * The tiles use the theme's own colours, so they are the Pomoder orange on a
+ * product screen and the workspace's colours in the admin's bell: primary for
+ * good news, destructive for a file that will not arrive, muted for news that
+ * is neither.
  */
+const GOOD = "bg-primary/10 text-primary"
+const BAD = "bg-destructive/10 text-destructive"
+const PLAIN = "bg-muted text-muted-foreground"
+
 const NOTICE_LOOK: Record<PomodoroNoticeKind, AppNoticeDetail> = {
-  cheer: {
-    categoryId: NOTICE_KIND_CATEGORY.cheer,
-    icon: PartyPopperIcon,
-    toneClassName: "bg-primary/10 text-primary",
-  },
+  // The detail holds the first joiner's name for folding, and the heading
+  // already says it, so the line under the heading is left empty.
+  room_join: { icon: UserPlusIcon, toneClassName: GOOD, body: "" },
+  room_chat: { icon: MessageSquareIcon, toneClassName: GOOD },
+  room_mention: { icon: AtSignIcon, toneClassName: GOOD },
+  room_reaction: { icon: SmilePlusIcon, toneClassName: GOOD },
+  room_invite: { icon: CalendarClockIcon, toneClassName: GOOD },
+  room_open: { icon: DoorOpenIcon, toneClassName: GOOD },
+  room_removed: { icon: DoorClosedIcon, toneClassName: PLAIN },
+  followed_room: { icon: UsersIcon, toneClassName: GOOD },
+  cheer: { icon: PartyPopperIcon, toneClassName: GOOD },
+  // The detail holds the first joiner's name for folding, and the heading
+  // already says it, so the line under the heading is left empty.
+  group_join: { icon: UserPlusIcon, toneClassName: GOOD, body: "" },
+  group_removed: { icon: UserMinusIcon, toneClassName: PLAIN },
+  followed_streak: { icon: FlameIcon, toneClassName: GOOD },
+  badge: { icon: AwardIcon, toneClassName: GOOD },
+  media_ready: { icon: CircleCheckIcon, toneClassName: GOOD },
+  media_failed: { icon: TriangleAlertIcon, toneClassName: BAD },
+  credits_low: { icon: GaugeIcon, toneClassName: PLAIN },
+}
+
+/** A kind's whole look: its tile and the tab it is filed under. */
+function noticeLook(kind: PomodoroNoticeKind): AppNoticeDetail {
+  return { ...NOTICE_LOOK[kind], categoryId: NOTICE_KIND_CATEGORY[kind] }
 }
 
 /** The picture on each kind's card in the shell's Add row window. */
@@ -134,11 +178,12 @@ export const appOptions: AppOptions = {
      */
     describe: (notice) => {
       const kind = noticeKindFromWords(notice)
-      return kind ? NOTICE_LOOK[kind] : null
+      return kind ? noticeLook(kind) : null
     },
     /**
-     * Where each notice leads, which only the server can say: a cheer opens
-     * the sender's public page while that page opens for this reader.
+     * Where each notice leads, which only the server can say: a cheer or a
+     * streak opens that person's public page while it opens for this reader,
+     * and the rest open the page saved with them.
      *
      * The saved kind decides the look here, so a notice whose words were not
      * recognised above still lands under the right tab. A failed request costs
@@ -156,7 +201,7 @@ export const appOptions: AppOptions = {
       return Object.fromEntries(
         Object.entries(found).map(([id, detail]) => [
           id,
-          { ...NOTICE_LOOK[detail.kind], href: detail.href ?? undefined },
+          { ...noticeLook(detail.kind), href: detail.href ?? undefined },
         ])
       )
     },

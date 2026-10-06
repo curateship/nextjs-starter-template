@@ -1,22 +1,23 @@
-import { randomUUID } from "node:crypto"
 import { and, count, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm"
 
 import { findAchievement } from "@/lib/pomodoro/achievements"
 import { CHEERS_PER_DAY, findCheer } from "@/lib/pomodoro/cheers"
 import { MAX_FOLLOWING } from "@/lib/pomodoro/following"
-import { cheerNoticeMessage } from "@/lib/pomodoro/notices"
+import {
+  cheerNoticeMessage,
+  followedStreakMessage,
+  noticeName,
+} from "@/lib/pomodoro/notices"
 import { db } from "@/server/db"
-import { publishNotificationCreated } from "@/server/notifications/events"
 import { blockedUserIdsFor, isBlockedBetween } from "@/server/pomodoro/blocks"
+import { followersToTell, writeNotices } from "@/server/pomodoro/notices"
 import { forgetPublicProfile } from "@/server/pomodoro/public-profile"
 import {
   pomodoroAchievements,
   pomodoroCheers,
   pomodoroFollows,
-  pomodoroNoticeLinks,
   pomodoroProfiles,
 } from "@/server/pomodoro/schema"
-import { customShellNotifications } from "@/server/schema"
 
 /**
  * Following, and the two things it carries: a short list of what the people
@@ -304,27 +305,77 @@ export async function sendCheer({
   await db.transaction(async (tx) => {
     await tx.insert(pomodoroCheers).values({ fromUserId, toUserId, cheerId })
     if (!deliver) return
-    const noticeId = randomUUID()
-    await tx.insert(customShellNotifications).values({
-      id: noticeId,
-      recipientUserId: toUserId,
-      actorUserId: fromUserId,
-      // The shell restricts `type` to a fixed list and `app_activity` is the
-      // slot it keeps for an app writing about somebody's own activity. A
-      // name of our own is refused by a CHECK constraint on the table.
-      type: "app_activity",
-      message: cheerNoticeMessage(senderName),
-      detail: findCheer(cheerId)?.label ?? null,
-      createdAt: new Date(),
-    })
-    // What the notice is, for the bell's tab and link. See
+    // The kind and the live nudge come with it. See
     // `workspace/docs/notifications.md` for the rules every notice follows.
-    await tx.insert(pomodoroNoticeLinks).values({ noticeId, kind: "cheer" })
-    // An open bell hears about it now rather than on its slow check. Sent on
-    // the transaction, so the nudge waits for the commit.
-    await publishNotificationCreated(toUserId, tx)
+    await writeNotices(tx, [
+      {
+        recipientUserId: toUserId,
+        actorUserId: fromUserId,
+        kind: "cheer",
+        message: cheerNoticeMessage(senderName),
+        detail: findCheer(cheerId)?.label ?? null,
+      },
+    ])
   })
   return { sent: true }
+}
+
+/** The most streak notices one person is sent in any seven days. */
+export const STREAK_NOTICES_PER_WEEK = 5
+
+/**
+ * Somebody reached a streak milestone: tell the people who follow them, with
+ * a link to their page so a cheer is one click away.
+ *
+ * Only what their own page publishes. A streak is under "Hours and streaks"
+ * (`showFigures`), so with that switch off, or the page off or hidden, nobody
+ * is told. A block in either direction drops that follower. And nobody gets
+ * more than five of these a week, however many people they follow, so
+ * following fifty busy people does not turn the bell into a feed.
+ *
+ * The caller decides that a milestone was just reached; this decides who
+ * hears about it. Answers how many were told.
+ */
+export async function tellFollowersOfStreak(userId: string, days: number) {
+  const [profile] = await db
+    .select({
+      handle: pomodoroProfiles.handle,
+      publicDisplayName: pomodoroProfiles.publicDisplayName,
+      profilePublic: pomodoroProfiles.profilePublic,
+      hiddenAt: pomodoroProfiles.hiddenAt,
+      showFigures: pomodoroProfiles.showFigures,
+    })
+    .from(pomodoroProfiles)
+    .where(eq(pomodoroProfiles.userId, userId))
+    .limit(1)
+  if (
+    !profile?.handle ||
+    !profile.profilePublic ||
+    profile.hiddenAt ||
+    !profile.showFigures
+  )
+    return 0
+
+  const recipients = await followersToTell(userId, "followed_streak", {
+    cap: STREAK_NOTICES_PER_WEEK,
+    withinMs: 7 * 24 * 60 * 60_000,
+  })
+  if (recipients.length === 0) return 0
+
+  const message = followedStreakMessage(noticeName(profile), days)
+  await db.transaction((tx) =>
+    writeNotices(
+      tx,
+      recipients.map((recipientUserId) => ({
+        recipientUserId,
+        actorUserId: userId,
+        kind: "followed_streak" as const,
+        message,
+        detail: "Send them a cheer from their page.",
+      }))
+    )
+  )
+  return recipients.length
 }
 
 /** Whether this person accepts cheers at all. */

@@ -2,9 +2,12 @@ import { count, eq, sql } from "drizzle-orm"
 
 import {
   earnedAchievementIds,
+  findAchievement,
   type AchievementCounters,
 } from "@/lib/pomodoro/achievements"
+import { badgeMessage } from "@/lib/pomodoro/notices"
 import { db } from "@/server/db"
+import { writeNotices } from "@/server/pomodoro/notices"
 import { loadFocusStreaks } from "@/server/pomodoro/productivity"
 import {
   dailyFocusStats,
@@ -85,12 +88,30 @@ export async function awardAchievements(
 ) {
   const earned = earnedAchievementIds(counters)
   if (!earned.length) return []
-  const inserted = await db
-    .insert(pomodoroAchievements)
-    .values(earned.map((badgeId) => ({ userId, badgeId })))
-    .onConflictDoNothing()
-    .returning({ badgeId: pomodoroAchievements.badgeId })
-  return inserted.map((row) => row.badgeId)
+  return db.transaction(async (tx) => {
+    const inserted = await tx
+      .insert(pomodoroAchievements)
+      .values(earned.map((badgeId) => ({ userId, badgeId })))
+      .onConflictDoNothing()
+      .returning({ badgeId: pomodoroAchievements.badgeId })
+    const badgeIds = inserted.map((row) => row.badgeId)
+    // One notice for everything this finished focus earned, so a new account
+    // that earns three badges at once gets one line rather than three. A badge
+    // is only ever new once, so neither is the notice.
+    const names = badgeIds.flatMap((id) => findAchievement(id)?.name ?? [])
+    if (names.length) {
+      await writeNotices(tx, [
+        {
+          recipientUserId: userId,
+          kind: "badge",
+          message: badgeMessage(names),
+          detail: names.length > 1 ? names.join(", ") : null,
+          href: "/history",
+        },
+      ])
+    }
+    return badgeIds
+  })
 }
 
 /** What the badges panel reads: the dated earnings plus today's counters. */

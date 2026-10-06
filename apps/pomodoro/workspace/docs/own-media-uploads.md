@@ -74,6 +74,14 @@ server a moment later. The right answer, arrived at the wrong way round. The
 padlock and the tooltip also wait, so a paying member is never briefly told that
 uploading is a perk they do not have.
 
+## The bell
+
+A video or sound that had to be converted says in the bell when it is ready,
+with its file name, or that it could not be prepared, with the same reason the
+picker shows. Only giving up says anything; a retry does not. An upload the
+member deleted before it was converted says nothing. See
+[Notifications](notifications.md).
+
 ## Where the files live
 
 In the shell's own media library (the `media` table) and its R2 bucket, exactly

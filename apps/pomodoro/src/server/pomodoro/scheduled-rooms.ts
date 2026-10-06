@@ -16,7 +16,15 @@ import {
   type Room,
 } from "@/server/pomodoro/schema"
 import { customShellUsers as users } from "@/server/schema"
-import { phaseUpdate, type RoomSettings } from "@/server/pomodoro/rooms"
+import { blockedUserIdsFor } from "@/server/pomodoro/blocks"
+import { dropUnreadRoomNotices, writeNotices } from "@/server/pomodoro/notices"
+import {
+  phaseUpdate,
+  roomHref,
+  roomName,
+  type RoomSettings,
+} from "@/server/pomodoro/rooms"
+import { roomInviteMessage, roomOpenMessage } from "@/lib/pomodoro/notices"
 import { formatRoomStart } from "@/lib/pomodoro/scheduled-rooms"
 
 /**
@@ -56,6 +64,12 @@ export async function scheduleRoomWithInvites(
   database: CustomShellDb = db
 ) {
   const { startsAt, invites, ...settings } = input
+  // Invitees who have an account hear in the bell too, read before the
+  // transaction. The host is told nothing about which addresses matched.
+  const [invitees, hostName] = await Promise.all([
+    inviteeAccounts(userId, invites, database),
+    roomName(database, userId),
+  ])
   return database.transaction(async (tx) => {
     const [room] = await tx
       .insert(rooms)
@@ -67,8 +81,53 @@ export async function scheduleRoomWithInvites(
         .values(invites.map((email) => ({ roomId: room.id, email })))
         .onConflictDoNothing()
     }
+    await writeNotices(
+      tx,
+      invitees.map((invitee) => ({
+        recipientUserId: invitee.userId,
+        actorUserId: userId,
+        kind: "room_invite" as const,
+        message: roomInviteMessage(hostName, room.name),
+        // In the reader's own timezone. The email names the host's, because
+        // it cannot know the reader's; the bell can.
+        detail: formatRoomStart(startsAt, invitee.timezone),
+        roomId: room.id,
+        href: roomHref(room.slug),
+      }))
+    )
     return room
   })
+}
+
+/**
+ * The accounts behind these invited addresses: verified addresses only, never
+ * the host, nobody across a block with the host, each once. Somebody invited
+ * by an address with no account gets the email and nothing else, as before.
+ */
+async function inviteeAccounts(
+  hostUserId: string,
+  emails: readonly string[],
+  database: CustomShellDb
+) {
+  if (emails.length === 0) return []
+  const [accounts, blocked] = await Promise.all([
+    database
+      .select({
+        userId: users.id,
+        timezone: sql<string>`coalesce(${pomodoroProfiles.timezone}, 'UTC')`,
+      })
+      .from(users)
+      .leftJoin(pomodoroProfiles, eq(pomodoroProfiles.userId, users.id))
+      .where(
+        and(
+          inArray(sql`lower(${users.email})`, emails.map((email) => email.toLowerCase())),
+          sql`${users.emailVerifiedAt} is not null`,
+          sql`${users.id} <> ${hostUserId}`
+        )
+      ),
+    blockedUserIdsFor(hostUserId),
+  ])
+  return accounts.filter((account) => !blocked.has(account.userId))
 }
 
 /**
@@ -94,6 +153,8 @@ export async function cancelScheduledRoom(
 
     const { set } = phaseUpdate(room, "closed", timestamp)
     await tx.update(rooms).set(set).where(eq(rooms.id, room.id))
+    // An unread invitation to a room that will not happen goes with it.
+    await dropUnreadRoomNotices(tx, [room.id], ["room_invite", "room_open"])
     const stopped = await tx
       .update(roomInvites)
       .set({ status: "cancelled" })
@@ -202,6 +263,9 @@ export async function openScheduledRoom(
   database: CustomShellDb = db,
   timestamp = new Date()
 ): Promise<ScheduledRoomOpenResult> {
+  // Who hears that it is open: the host, and every invitee with an account
+  // whose invitation was not cancelled. Read before the transaction.
+  const recipients = await openNoticeRecipients(roomId, database)
   return database.transaction(async (tx) => {
     const [room] = await tx
       .select()
@@ -214,8 +278,40 @@ export async function openScheduledRoom(
     }
     const { set } = phaseUpdate(room, room.autoStart ? "focus" : "waiting", timestamp)
     const [updated] = await tx.update(rooms).set(set).where(eq(rooms.id, room.id)).returning()
+    // "It's open" replaces "you're invited", so the tray does not hold both.
+    await dropUnreadRoomNotices(tx, [room.id], ["room_invite"])
+    await writeNotices(
+      tx,
+      recipients.map((recipientUserId) => ({
+        recipientUserId,
+        kind: "room_open" as const,
+        message: roomOpenMessage(room.name),
+        roomId: room.id,
+        href: roomHref(room.slug),
+      }))
+    )
     return { kind: "opened", room: updated }
   })
+}
+
+/** The host plus the invitees with accounts, for the "is open now" notice. */
+async function openNoticeRecipients(roomId: string, database: CustomShellDb) {
+  const [room] = await database
+    .select({ hostUserId: rooms.hostUserId })
+    .from(rooms)
+    .where(eq(rooms.id, roomId))
+    .limit(1)
+  if (!room) return []
+  const invited = await database
+    .select({ email: roomInvites.email })
+    .from(roomInvites)
+    .where(and(eq(roomInvites.roomId, roomId), sql`${roomInvites.status} <> 'cancelled'`))
+  const invitees = await inviteeAccounts(
+    room.hostUserId,
+    invited.map((row) => row.email),
+    database
+  )
+  return [room.hostUserId, ...invitees.map((invitee) => invitee.userId)]
 }
 
 /**

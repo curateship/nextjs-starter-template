@@ -461,8 +461,12 @@ export function PomodoroShell({
               </>
             ) : (
               <>
+                {/* Signing in brings you back to the page you were on rather
+                    than to the shell's /home. The login route checks the
+                    address is a path inside this app before following it. */}
                 <Link
                   to="/login"
+                  search={pathname === "/" ? {} : { redirect: pathname }}
                   className="px-2 text-[14.5px] font-medium hover:text-[var(--p-accent-2)]"
                 >
                   Log in

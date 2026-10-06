@@ -45,7 +45,8 @@ export async function processNextMediaUpload() {
       await failUploadJob(
         job,
         "The file was removed before it could be prepared.",
-        { retry: false }
+        // They deleted it, so they already know; the bell says nothing.
+        { retry: false, tell: false }
       )
       return
     }

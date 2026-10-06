@@ -60,6 +60,14 @@ Several at once is not the normal case. It happens to an imported account, or
 when a new badge ships and the account already passed its rule. Six toasts
 stacked up would bury the screen, so past two they become one line.
 
+## The bell
+
+The badges one finished focus earns also arrive in the bell as one notice,
+under the Account tab, leading to History: the badge's name for one, a count
+with the names underneath for several. It is written in the same transaction as
+the badge, so a badge recorded once is announced once. See
+[Notifications](notifications.md).
+
 ## The panel
 
 Earned badges carry the day they were earned and a filled orange disc. Locked

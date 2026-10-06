@@ -48,6 +48,22 @@ people you follow.
 - A new follow drops the held copy, so somebody you just followed appears on
   the next load rather than in three minutes.
 
+## Streaks in the bell
+
+When somebody you follow reaches a 7, 30, 100 or 365-day streak, you hear about
+it in the bell, with a link to their page so a cheer is one click away. Only
+somebody whose page opens and has "Hours and streaks" switched on is announced,
+and nobody gets more than five of these a week. This is not the "followed you"
+notice ruled out above: it is about their streak. See
+[Notifications](notifications.md).
+
+## Rooms in the bell
+
+When somebody you follow opens a public room, you hear about it in the bell, at
+most three a day, and the notice goes away if the room closes before you read
+it. This is not the "followed you" notice ruled out above: it is about their
+room. See [Notifications](notifications.md).
+
 ## Cheering
 
 A short line sent to somebody you follow, chosen from five.

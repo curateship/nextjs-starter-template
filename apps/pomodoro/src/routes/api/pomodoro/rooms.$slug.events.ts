@@ -4,7 +4,12 @@ import { eq } from "drizzle-orm"
 
 import { db, getDatabaseUrl } from "@/server/db"
 import { findCurrentUser } from "@/server/auth/security"
-import { roomChannel, roomSnapshot } from "@/server/pomodoro/rooms"
+import {
+  keepWatching,
+  roomChannel,
+  roomSnapshot,
+  stopWatching,
+} from "@/server/pomodoro/rooms"
 import { rooms } from "@/server/pomodoro/schema"
 
 /**
@@ -19,6 +24,11 @@ import { rooms } from "@/server/pomodoro/schema"
  * viewer whose membership ends mid-stream gets a `room_gone` event instead
  * of an error.
  */
+/** A failed watching write costs at most a notice nobody needed; say so in the log. */
+function logWatchingFailure(error: unknown) {
+  console.error("room watching could not be saved", error)
+}
+
 export const Route = createFileRoute("/api/pomodoro/rooms/$slug/events")({
   server: {
     handlers: {
@@ -64,6 +74,7 @@ export const Route = createFileRoute("/api/pomodoro/rooms/$slug/events")({
               closed = true
               if (heartbeat) clearInterval(heartbeat)
               void client.end()
+              void stopWatching(room.id, user.id).catch(logWatchingFailure)
               controller.close()
             }
             const send = async (event: string) => {
@@ -95,9 +106,16 @@ export const Route = createFileRoute("/api/pomodoro/rooms/$slug/events")({
               })
               await client.query(`LISTEN ${channel}`)
               await send("snapshot")
+              // While this connection is open the member is looking at the
+              // room, so the bell stays quiet about joins, chat and reactions
+              // they can already see. The heartbeat renews it; the close
+              // clears it. A failed write only means a notice they did not
+              // need, so it never ends the stream.
+              void keepWatching(room.id, user.id).catch(logWatchingFailure)
               heartbeat = setInterval(() => {
-                if (!closed)
-                  controller.enqueue(encoder.encode(": heartbeat\n\n"))
+                if (closed) return
+                controller.enqueue(encoder.encode(": heartbeat\n\n"))
+                void keepWatching(room.id, user.id).catch(logWatchingFailure)
               }, 15_000)
             } catch (error) {
               if (!closed) {
@@ -114,6 +132,7 @@ export const Route = createFileRoute("/api/pomodoro/rooms/$slug/events")({
           cancel() {
             closed = true
             if (heartbeat) clearInterval(heartbeat)
+            void stopWatching(room.id, user.id).catch(logWatchingFailure)
             return client.end()
           },
         })

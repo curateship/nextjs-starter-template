@@ -88,6 +88,17 @@ so the log can never disagree with what happened. The old app wrote the
 shell's `admin_audit_logs`; this shell has no such table, so the app owns
 one. The admin sections write to the same table.
 
+## Notices
+
+The bell tells room members about what they did not see. A line written while
+you were away from the room folds into one notice per room ("3 new messages in
+Deep Work."). A line that names you with `@handle` always reaches you. People
+reacting to your line fold into one notice per line, counted in people, and
+taking the reactions back takes it away. Deleting a line deletes its mention
+and reaction notices. Removing or banning somebody tells them, naming the room
+and never the host. "Away" means the room is not open in a visible tab. The
+whole set of rules is in [Notifications](notifications.md).
+
 ## Where the code is
 
 - Server logic: `src/server/pomodoro/rooms.ts` (`postRoomMessage`,

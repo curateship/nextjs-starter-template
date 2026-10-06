@@ -16,6 +16,7 @@ import {
   saveSessionNote,
   startProductivitySession,
 } from "@/server/pomodoro/productivity"
+import { tellFollowersOfStreak } from "@/server/pomodoro/following"
 import { loadOrCreateProfile, userToday } from "@/server/pomodoro/profile"
 import { listProjects } from "@/server/pomodoro/projects"
 import { pomodoroProfiles } from "@/server/pomodoro/schema"
@@ -27,6 +28,7 @@ import {
   toggleTaskStatus,
   updateTaskPlan,
 } from "@/server/pomodoro/tasks"
+import { STREAK_MILESTONES } from "@/lib/pomodoro/notices"
 import { SESSION_NOTE_MAX_LENGTH } from "@/lib/pomodoro/session-notes"
 import { EVERY_DAY } from "@/lib/pomodoro/task-repeats"
 import {
@@ -393,6 +395,7 @@ const completeSessionFn = createServerFn({ method: "POST" })
       today,
       preferences.dailyGoalSessions
     )
+    await tellFollowersOfMilestone(context.user.id, summary)
     return {
       ...completion,
       today,
@@ -407,6 +410,29 @@ const completeSessionFn = createServerFn({ method: "POST" })
       ),
     }
   })
+
+/**
+ * Tells the people who follow you when this focus took your streak to 7, 30,
+ * 100 or 365 days.
+ *
+ * Only the day's first finished focus can do that, because that is the focus
+ * that adds today to the streak; the second focus of a 30-day day is still a
+ * 30-day streak and must not tell anybody again. Swallowed like the badges:
+ * the session is already saved, and a notice is never worth failing it.
+ */
+async function tellFollowersOfMilestone(
+  userId: string,
+  summary: { todayCompletedSessions: number; currentStreak: number }
+) {
+  if (summary.todayCompletedSessions !== 1) return
+  if (!(STREAK_MILESTONES as readonly number[]).includes(summary.currentStreak))
+    return
+  try {
+    await tellFollowersOfStreak(userId, summary.currentStreak)
+  } catch (error) {
+    console.error("followers could not be told about a streak", error)
+  }
+}
 
 /**
  * Badges earned by the focus that just finished, or an empty list.

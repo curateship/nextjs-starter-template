@@ -70,6 +70,15 @@ the link and the time, and the room opens itself with nobody's browser open.
   to strand, and a host who books 7pm and then runs a room at three o'clock
   means to do both.
 
+## In the bell
+
+An invitee whose address belongs to an account with a verified email also
+gets the invitation in the bell, with the start time in their own timezone.
+When the room opens, they and the host get "… is open now.", which replaces the
+unread invitation. Cancelling the booking takes the unread invitation away. The
+host is never told which addresses matched an account. See
+[Notifications](notifications.md).
+
 ## Where it lives
 
 - Rules shared by the window and the endpoint:

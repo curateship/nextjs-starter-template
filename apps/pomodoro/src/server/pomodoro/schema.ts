@@ -746,6 +746,14 @@ export const roomMemberships = pgTable(
       .notNull()
       .defaultNow(),
     leftAt: timestamp("left_at", { withTimezone: true }),
+    /**
+     * Until when this member counts as looking at the room. The room's live
+     * connection sets it forty seconds ahead when it opens and every fifteen
+     * seconds after, and clears it when it closes. In the future means the
+     * room is on their screen, so the bell stays quiet about what they can
+     * already see. Null, or in the past, means away.
+     */
+    watchingUntil: timestamp("watching_until", { withTimezone: true }),
   },
   (table) => [
     check(
@@ -940,11 +948,37 @@ export const pomodoroNoticeLinks = pgTable(
     roomId: uuid("room_id").references(() => rooms.id, {
       onDelete: "set null",
     }),
+    /**
+     * The chat message a mention or reaction notice is about, so reactions
+     * fold per message and a host deleting the message takes its notices too.
+     */
+    messageId: uuid("message_id").references(() => roomMessages.id, {
+      onDelete: "set null",
+    }),
+    /** The group a group notice is about, so later joins fold into it. */
+    groupId: uuid("group_id").references(() => pomodoroGroups.id, {
+      onDelete: "set null",
+    }),
+    /**
+     * How many events this one unread notice stands for. A second join while
+     * the first is unread raises this and rewrites the sentence rather than
+     * adding a row.
+     */
+    foldCount: integer("fold_count").notNull().default(1),
+    /**
+     * Where a notice about a fixed page of this app leads: History, the
+     * leaderboard, the backgrounds or sounds page. Null for a notice whose
+     * link is a person's page, which is worked out when the tray is read.
+     */
+    href: varchar("href", { length: 200 }),
   },
   (table) => [
     index("pomodoro_notice_links_room_idx")
       .on(table.roomId)
       .where(sql`${table.roomId} is not null`),
+    index("pomodoro_notice_links_message_idx")
+      .on(table.messageId)
+      .where(sql`${table.messageId} is not null`),
   ]
 )
 
@@ -1072,6 +1106,13 @@ export const pomodoroGenerationUsage = pgTable(
     reserved: integer("reserved").notNull().default(0),
     completed: integer("completed").notNull().default(0),
     refunded: integer("refunded").notNull().default(0),
+    /**
+     * When the "one left" and "none left" notices went out for this month and
+     * kind. Each goes out once: a refund that lifts the count back up must not
+     * send the same warning a second time.
+     */
+    warnedLowAt: timestamp("warned_low_at", { withTimezone: true }),
+    warnedEmptyAt: timestamp("warned_empty_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

@@ -72,6 +72,7 @@ import {
   scheduleProblemMessage,
 } from "@/lib/pomodoro/scheduled-rooms"
 import { useProductAuth } from "@/lib/pomodoro/auth-state"
+import { usePageVisible } from "@/lib/pomodoro/use-page-visible"
 import { PRO_PERKS } from "@/lib/pomodoro/pro"
 
 export type RoomSnapshotClient = NonNullable<
@@ -173,8 +174,16 @@ export function RoomsPage() {
     [refreshRooms]
   )
 
+  // The live connection is held only while this tab is on screen. The server
+  // counts an open connection as somebody looking at the room, and keeps the
+  // bell quiet about chat, joins and reactions they can already see. A room in
+  // a tab behind other tabs is not being looked at, so its connection closes
+  // and the bell tells them what they missed. Coming back reconnects, and the
+  // first message is a full snapshot, so nothing on screen is stale.
+  const pageVisible = usePageVisible()
+
   React.useEffect(() => {
-    if (!activeRoomSlug) return
+    if (!activeRoomSlug || !pageVisible) return
     const source = new EventSource(
       `/api/pomodoro/rooms/${activeRoomSlug}/events`
     )
@@ -196,7 +205,7 @@ export function RoomsPage() {
       setReconnecting(false)
       source.close()
     }
-  }, [activeRoomSlug, applySnapshot, refreshRooms])
+  }, [activeRoomSlug, applySnapshot, pageVisible, refreshRooms])
 
   const performJoin = async (slug: string) => {
     setError("")

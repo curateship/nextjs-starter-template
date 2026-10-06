@@ -68,3 +68,13 @@ Server logic: `src/server/pomodoro/rooms.ts` (ported nearly whole from the
 old app). Endpoints: `src/lib/api/pomodoro/rooms.ts`. Tables (rooms,
 memberships, messages, reactions, bans, reports and the session room
 link): migration `0089_pomodoro_rooms.sql`.
+
+## Notices
+
+The host hears in the bell when somebody joins while the host is away from the
+room, folded per room. Followers of the host hear when a public room opens, at
+most three a day, and the notice disappears if the room closes before they read
+it. Opening your room from the Rooms page marks that room's notices read. The
+live connection that keeps a room on screen is also what tells the server you
+are looking at it, and it is held only while the tab is visible. See
+[Notifications](notifications.md).

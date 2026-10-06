@@ -63,6 +63,15 @@ Provider keys come from the shell's AI settings (Settings → AI), not from this
 app's own environment, so an operator fills them in once and every AI feature
 can see them.
 
+## The bell
+
+A finished background or soundscape says so in the bell, with the prompt
+underneath, and leads to the page it was made on. One that gave up says the
+credit is back. Both are written in the same transaction as the credit being
+counted or refunded. The bell also warns once at one credit left and once at
+none left, per month and kind, and the none-left notice names the day they come
+back. See [Notifications](notifications.md).
+
 ## What the provider is never allowed to do
 
 The two adapters in `generation-providers.ts` are the only code in this app that

@@ -83,6 +83,32 @@ rather than one styled two ways, and `useNarrowScreen`
 and the browser draw the same first render, then measures before the browser
 paints, so a phone never shows the wide shape in a frame anyone sees.
 
+## Where signing in lands
+
+**A member who signs in lands on the timer, not on the shell's `/home`.** The
+shell's sign-in page sends everybody to `/home` unless the link carries a
+return address, and `/home` is the shell's own member dashboard. Two things
+stop a member ever seeing it:
+
+- **Settings → General settings → Member home route is `/timer`.** `/home`
+  forwards a member there before it draws anything, which covers every way in:
+  the sign-in form, Google, a passkey, a new registration, and an email that
+  links to `/home`. The field is a saved setting, not code, so it has to be set
+  on each database. It was set locally on 6 Oct 2026 and is owed on live.
+- **The header's Log in carries the page you were on.** Pressing Log in on
+  History brings you back to History. The front page sends none, because
+  Member home already lands on the timer.
+
+Admins are forwarded by the Admin home route next to it instead, which is
+empty and so opens the admin's Overview. Whether an admin should land on the
+timer too is Tyler's call.
+
+**The sign-in pages still draw in the shell's frame**, not the product's. All
+ten of them (sign in, register, forgot and reset password, verify email and
+the rest) go through one shell component, `AuthShell`, and no app option
+reaches it. See "Every member-facing screen goes under `_pomodoro`" above for
+why the route files cannot simply move.
+
 ## The blur behind an open window
 
 **When a window opens, the left menu stays where it is and blurs with the rest

@@ -2,7 +2,15 @@ import { and, desc, eq, inArray, lte, sql } from "drizzle-orm"
 
 import { db, type CustomShellDb } from "@/server/db"
 import { enforceRateLimit } from "@/server/auth/rate-limit"
-import { blockedUserIdsFor } from "@/server/pomodoro/blocks"
+import { blockedUserIdsFor, isBlockedBetween } from "@/server/pomodoro/blocks"
+import {
+  dropMessageNotices,
+  dropUnreadMessageNotice,
+  dropUnreadRoomNotices,
+  foldNotice,
+  followersToTell,
+  writeNotices,
+} from "@/server/pomodoro/notices"
 import {
   pomodoroAuditLogs,
   pomodoroProfiles,
@@ -16,6 +24,16 @@ import {
 } from "@/server/pomodoro/schema"
 import { customShellUsers as users } from "@/server/schema"
 import { isRoomReactionEmoji, roomReactionOrder } from "@/lib/pomodoro/room-reactions"
+import {
+  followedRoomMessage,
+  linePreview,
+  mentionedHandles,
+  roomChatMessage,
+  roomJoinMessage,
+  roomMentionMessage,
+  roomReactionMessage,
+  roomRemovedMessage,
+} from "@/lib/pomodoro/notices"
 
 type PomoderDb = CustomShellDb
 type PomoderTransaction = Parameters<Parameters<PomoderDb["transaction"]>[0]>[0]
@@ -133,17 +151,55 @@ export type RoomSettings = {
   autoStart: boolean
 }
 
+/**
+ * The most "Sam opened a room" notices in a day: per follower, and per host.
+ *
+ * Both, because closing a room takes its unread notices away, which frees the
+ * follower's count again. Without the host's own limit, opening and closing a
+ * room over and over would ping every follower each time. The host's limit is
+ * counted from the rooms themselves, which closing does not delete.
+ */
+export const FOLLOWED_ROOMS_PER_DAY = 3
+const DAY_MS = 24 * 60 * 60_000
+
+/** Whether this host has public rooms left to announce today. */
+async function mayAnnounceRoom(hostId: string, database: PomoderDb, timestamp: Date) {
+  const [{ opened }] = await database.select({ opened: sql<number>`count(*)::int` }).from(rooms).where(and(eq(rooms.hostUserId, hostId), eq(rooms.visibility, "public"), sql`${rooms.createdAt} > ${new Date(timestamp.getTime() - DAY_MS)}`))
+  return opened < FOLLOWED_ROOMS_PER_DAY
+}
+
 export async function createRoomWithHost(userId: string, slug: string, settings: RoomSettings, database: PomoderDb = db, timestamp = new Date()) {
+  // A public room tells the people who follow its host, read before the
+  // transaction because the follower and block reads use the shared handle.
+  // An unlisted room is somebody's private session and tells nobody.
+  const followers = settings.visibility === "public" && (await mayAnnounceRoom(userId, database, timestamp))
+    ? await followersToTell(userId, "followed_room", { cap: FOLLOWED_ROOMS_PER_DAY, withinMs: DAY_MS })
+    : []
+  const hostName = followers.length ? await roomName(database, userId) : ""
   return database.transaction(async (tx) => {
     const closedRoomIds = await closeRoomsHostedBy(tx, userId, timestamp)
     await tx.update(roomMemberships).set({ leftAt: timestamp }).where(and(eq(roomMemberships.userId, userId), sql`${roomMemberships.leftAt} is null`))
     const [created] = await tx.insert(rooms).values({ ...settings, hostUserId: userId, slug }).returning()
     await tx.insert(roomMemberships).values({ roomId: created.id, userId, role: "host" })
+    await writeNotices(tx, followers.map((recipientUserId) => ({
+      recipientUserId,
+      actorUserId: userId,
+      kind: "followed_room" as const,
+      message: followedRoomMessage(hostName, created.name),
+      detail: "Join them while it's open.",
+      roomId: created.id,
+      href: roomHref(created.slug),
+    })))
     return { room: created, closedRoomIds }
   })
 }
 
 export async function joinRoomBySlug(slug: string, userId: string, database: PomoderDb = db, timestamp = new Date()) {
+  // Whether a block stands between the joiner and the host, read before the
+  // transaction: a read on the shared handle from inside one waits on a
+  // second connection.
+  const [target] = await database.select({ hostUserId: rooms.hostUserId }).from(rooms).where(eq(rooms.slug, slug)).limit(1)
+  const blockedFromHost = target ? await isBlockedBetween(target.hostUserId, userId) : false
   // The room is locked and re-checked inside the transaction so a join cannot
   // race a concurrent host action past the closed/focus-lock rules.
   return database.transaction(async (tx) => {
@@ -153,10 +209,37 @@ export async function joinRoomBySlug(slug: string, userId: string, database: Pom
     if (isScheduledRoom(room.phase)) throw new Error("ROOM_NOT_OPEN_YET")
     if (!canJoinRoom(room.phase)) throw new Error("ROOM_LOCKED")
     await assertNotBanned(room.id, userId, tx)
+    // Somebody already in this room pressing Join again has not joined it.
+    const [already] = await tx.select({ id: roomMemberships.id }).from(roomMemberships).where(and(eq(roomMemberships.roomId, room.id), eq(roomMemberships.userId, userId), sql`${roomMemberships.leftAt} is null`)).limit(1)
     const closedRoomIds = await closeRoomsHostedBy(tx, userId, timestamp, room.id)
     await tx.update(roomMemberships).set({ leftAt: timestamp }).where(and(eq(roomMemberships.userId, userId), sql`${roomMemberships.leftAt} is null`))
     await tx.insert(roomMemberships).values({ roomId: room.id, userId, role: room.hostUserId === userId ? "host" : "member" }).onConflictDoNothing()
+    if (!already && room.hostUserId !== userId && !blockedFromHost) await noteRoomJoin(tx, room, userId, timestamp)
     return { room, closedRoomIds }
+  })
+}
+
+/**
+ * Tells the host somebody joined, folding into their unread notice about the
+ * same room. A host with the room on screen already sees the join, so the
+ * bell stays quiet for them.
+ */
+async function noteRoomJoin(tx: PomoderTransaction, room: Room, joinerId: string, timestamp: Date) {
+  if (await isWatching(tx, room.id, room.hostUserId, timestamp)) return
+  const joinerName = await roomName(tx, joinerId)
+  await foldNotice(tx, {
+    recipientUserId: room.hostUserId,
+    actorUserId: joinerId,
+    kind: "room_join",
+    subject: { roomId: room.id },
+    href: roomHref(room.slug),
+    compose: (waiting) => {
+      // The first joiner's name is kept as the detail, which the bell hides
+      // because the heading already says it.
+      const first = waiting?.detail ?? joinerName
+      const foldCount = (waiting?.foldCount ?? 0) + 1
+      return { message: roomJoinMessage(first, foldCount - 1, room.name), detail: first, foldCount }
+    },
   })
 }
 
@@ -397,11 +480,62 @@ async function requireActiveMembership(roomId: string, userId: string, database:
 // budget, and closing a room ends every membership, so a closed room refuses
 // chat by the same check.
 export async function postRoomMessage(slug: string, userId: string, body: string, database: PomoderDb = db) {
-  const [room] = await database.select({ id: rooms.id }).from(rooms).where(eq(rooms.slug, slug)).limit(1)
+  const [room] = await database.select({ id: rooms.id, name: rooms.name, slug: rooms.slug }).from(rooms).where(eq(rooms.slug, slug)).limit(1)
   if (!room) throw new Error("ROOM_NOT_FOUND")
   await requireActiveMembership(room.id, userId, database)
   await enforceRateLimit(`room-chat:${room.id}:${userId}`, CHAT_LIMIT, database)
-  await database.insert(roomMessages).values({ roomId: room.id, userId, body })
+
+  // Who hears about this line, read before the transaction. Somebody named
+  // with @ always does. Everybody else in the room does only while they are
+  // away from it, because the room on their screen already shows it. Nobody
+  // across a block hears either way.
+  const timestamp = new Date()
+  const [members, blocked, writerName] = await Promise.all([
+    database
+      .select({ userId: roomMemberships.userId, watchingUntil: roomMemberships.watchingUntil, handle: pomodoroProfiles.handle })
+      .from(roomMemberships)
+      .leftJoin(pomodoroProfiles, eq(pomodoroProfiles.userId, roomMemberships.userId))
+      .where(and(eq(roomMemberships.roomId, room.id), sql`${roomMemberships.leftAt} is null`, sql`${roomMemberships.userId} <> ${userId}`)),
+    blockedUserIdsFor(userId),
+    roomName(database, userId),
+  ])
+  const named = new Set(mentionedHandles(body))
+  const reachable = members.filter((member) => !blocked.has(member.userId))
+  const mentioned = reachable.filter((member) => member.handle && named.has(member.handle))
+  const away = reachable.filter((member) =>
+    !mentioned.includes(member) && !(member.watchingUntil && member.watchingUntil > timestamp))
+
+  await database.transaction(async (tx) => {
+    const [message] = await tx.insert(roomMessages).values({ roomId: room.id, userId, body }).returning({ id: roomMessages.id })
+    await writeNotices(tx, mentioned.map((member) => ({
+      recipientUserId: member.userId,
+      actorUserId: userId,
+      kind: "room_mention" as const,
+      message: roomMentionMessage(writerName, room.name),
+      detail: linePreview(body),
+      roomId: room.id,
+      messageId: message.id,
+      href: roomHref(room.slug),
+    })))
+    for (const member of away) {
+      await foldNotice(tx, {
+        recipientUserId: member.userId,
+        actorUserId: userId,
+        kind: "room_chat",
+        subject: { roomId: room.id },
+        href: roomHref(room.slug),
+        compose: (waiting) => {
+          const foldCount = (waiting?.foldCount ?? 0) + 1
+          return {
+            message: roomChatMessage(writerName, foldCount, room.name),
+            // One line shows the words; a count shows the latest and who said it.
+            detail: foldCount === 1 ? linePreview(body) : `${writerName}: ${linePreview(body)}`,
+            foldCount,
+          }
+        },
+      })
+    }
+  })
   // The room's own snapshot carries the message back to everyone, the sender
   // included, so there is nothing to return here.
   return { roomId: room.id }
@@ -436,14 +570,69 @@ export async function toggleRoomReaction(slug: string, reactorId: string, messag
   if (!room) throw new Error("ROOM_NOT_FOUND")
   await requireActiveMembership(room.id, reactorId, database)
   await enforceRateLimit(`room-reaction:${room.id}:${reactorId}`, REACTION_LIMIT, database)
+  // Whom the author has blocked, read before the transaction, so a blocked
+  // reactor is never counted in the author's notice.
+  const [target] = await database.select({ userId: roomMessages.userId }).from(roomMessages).where(and(eq(roomMessages.id, messageId), eq(roomMessages.roomId, room.id))).limit(1)
+  const blocked = target && target.userId !== reactorId ? await blockedUserIdsFor(target.userId) : new Set<string>()
   return database.transaction(async (tx) => {
-    const [message] = await tx.select({ id: roomMessages.id, deletedAt: roomMessages.deletedAt }).from(roomMessages).where(and(eq(roomMessages.id, messageId), eq(roomMessages.roomId, room.id))).limit(1)
+    const [message] = await tx.select({ id: roomMessages.id, deletedAt: roomMessages.deletedAt, userId: roomMessages.userId, body: roomMessages.body }).from(roomMessages).where(and(eq(roomMessages.id, messageId), eq(roomMessages.roomId, room.id))).limit(1)
     if (!message) throw new Error("MESSAGE_NOT_FOUND")
     if (message.deletedAt) throw new Error("MESSAGE_DELETED")
     const removed = await tx.delete(roomMessageReactions).where(and(eq(roomMessageReactions.messageId, messageId), eq(roomMessageReactions.userId, reactorId), eq(roomMessageReactions.emoji, emoji))).returning({ id: roomMessageReactions.id })
-    if (removed.length) return { room, added: false }
-    await tx.insert(roomMessageReactions).values({ messageId, userId: reactorId, emoji }).onConflictDoNothing()
-    return { room, added: true }
+    if (!removed.length) await tx.insert(roomMessageReactions).values({ messageId, userId: reactorId, emoji }).onConflictDoNothing()
+    const added = !removed.length
+    // Reacting to your own line tells nobody.
+    if (message.userId !== reactorId) await syncReactionNotice(tx, room, message, blocked, added)
+    return { room, added }
+  })
+}
+
+/**
+ * Keeps the author's reaction notice in step with who has reacted.
+ *
+ * Recounted from the reactions themselves on every toggle, so the notice says
+ * how many people reacted rather than how many presses there were, and the
+ * last reaction taken back takes the notice with it. A taken-back reaction
+ * only corrects a notice already waiting; it never writes a new one or moves
+ * one back to the top. An author with the room on screen sees the reactions
+ * there, so a new one says nothing in the bell.
+ */
+async function syncReactionNotice(
+  tx: PomoderTransaction,
+  room: Room,
+  message: { id: string; userId: string; body: string },
+  blocked: Set<string>,
+  added: boolean
+) {
+  const reactors = (
+    await tx
+      .select({ userId: roomMessageReactions.userId })
+      .from(roomMessageReactions)
+      .where(and(eq(roomMessageReactions.messageId, message.id), sql`${roomMessageReactions.userId} <> ${message.userId}`))
+      .groupBy(roomMessageReactions.userId)
+      .orderBy(sql`min(${roomMessageReactions.createdAt})`)
+  ).filter((row) => !blocked.has(row.userId))
+
+  if (reactors.length === 0) {
+    await dropUnreadMessageNotice(tx, message.userId, "room_reaction", message.id)
+    return
+  }
+  if (added && (await isWatching(tx, room.id, message.userId, new Date()))) return
+
+  const firstName = await roomName(tx, reactors[0].userId)
+  await foldNotice(tx, {
+    recipientUserId: message.userId,
+    actorUserId: reactors[0].userId,
+    kind: "room_reaction",
+    subject: { roomId: room.id, messageId: message.id },
+    href: roomHref(room.slug),
+    bump: added,
+    onlyIfWaiting: !added,
+    compose: () => ({
+      message: roomReactionMessage(firstName, reactors.length - 1, room.name),
+      detail: linePreview(message.body),
+      foldCount: reactors.length,
+    }),
   })
 }
 
@@ -476,6 +665,8 @@ export async function deleteRoomMessage(slug: string, hostId: string, messageId:
     if (!message) throw new Error("MESSAGE_NOT_FOUND")
     if (message.deletedAt) return { room, deleted: false }
     await tx.update(roomMessages).set({ deletedAt: timestamp }).where(eq(roomMessages.id, messageId))
+    // A mention or reaction notice would quote a line the room no longer shows.
+    await dropMessageNotices(tx, messageId)
     await writeModerationAudit(tx, hostId, "delete_message", [messageId])
     return { room, deleted: true }
   })
@@ -484,11 +675,15 @@ export async function deleteRoomMessage(slug: string, hostId: string, messageId:
 // Removal targets a membership id because snapshots never expose user ids.
 export async function removeRoomMember(slug: string, hostId: string, membershipId: string, database: PomoderDb = db, timestamp = new Date()) {
   await requireHostModeration(slug, hostId, database)
+  const tell = await mayTellRemoved(database, hostId, membershipId)
   return database.transaction(async (tx) => {
     const room = await lockRoomForHost(tx, slug, hostId)
     const membership = await findRoomMembership(tx, room.id, membershipId, hostId)
     const ended = await tx.update(roomMemberships).set({ leftAt: timestamp }).where(and(eq(roomMemberships.id, membershipId), sql`${roomMemberships.leftAt} is null`)).returning({ id: roomMemberships.id })
-    if (ended.length) await writeModerationAudit(tx, hostId, "remove_member", [membership.id])
+    if (ended.length) {
+      await writeModerationAudit(tx, hostId, "remove_member", [membership.id])
+      if (tell) await writeNotices(tx, [removedNotice(room, membership.userId, false)])
+    }
     return { room, removed: ended.length > 0 }
   })
 }
@@ -497,14 +692,37 @@ export async function removeRoomMember(slug: string, hostId: string, membershipI
 // a member who already left still works, so hosts can stop a rejoin loop.
 export async function banRoomMember(slug: string, hostId: string, membershipId: string, database: PomoderDb = db, timestamp = new Date()) {
   await requireHostModeration(slug, hostId, database)
+  const tell = await mayTellRemoved(database, hostId, membershipId)
   return database.transaction(async (tx) => {
     const room = await lockRoomForHost(tx, slug, hostId)
     const membership = await findRoomMembership(tx, room.id, membershipId, hostId)
-    await tx.insert(roomBans).values({ roomId: room.id, userId: membership.userId, bannedByUserId: hostId }).onConflictDoNothing()
+    const banned = await tx.insert(roomBans).values({ roomId: room.id, userId: membership.userId, bannedByUserId: hostId }).onConflictDoNothing().returning({ id: roomBans.id })
     await tx.update(roomMemberships).set({ leftAt: timestamp }).where(and(eq(roomMemberships.roomId, room.id), eq(roomMemberships.userId, membership.userId), sql`${roomMemberships.leftAt} is null`))
     await writeModerationAudit(tx, hostId, "ban_member", [membership.id])
+    // A second ban of the same person changes nothing, so it says nothing.
+    if (banned.length && tell) await writeNotices(tx, [removedNotice(room, membership.userId, true)])
     return { room }
   })
+}
+
+/**
+ * Whether the person a host is removing may be told, read before the
+ * transaction: not across a block. The notice names the room and never the
+ * host, but a block means neither side hears anything about the other.
+ */
+async function mayTellRemoved(database: PomoderDb, hostId: string, membershipId: string) {
+  const [target] = await database.select({ userId: roomMemberships.userId }).from(roomMemberships).where(eq(roomMemberships.id, membershipId)).limit(1)
+  return target ? !(await isBlockedBetween(hostId, target.userId)) : false
+}
+
+/** "You were removed from the room …" or "You can't rejoin the room …", with nowhere to go. */
+function removedNotice(room: Room, userId: string, banned: boolean) {
+  return {
+    recipientUserId: userId,
+    kind: "room_removed" as const,
+    message: roomRemovedMessage(room.name, banned),
+    roomId: room.id,
+  }
 }
 
 async function findRoomMembership(tx: PomoderTransaction, roomId: string, membershipId: string, hostId: string) {
@@ -525,6 +743,40 @@ export function roomChannel(roomId: string) { return `pomodoro_room_${roomId.rep
 
 async function endActiveMemberships(tx: PomoderTransaction, roomId: string, timestamp: Date) {
   await tx.update(roomMemberships).set({ leftAt: timestamp }).where(and(eq(roomMemberships.roomId, roomId), sql`${roomMemberships.leftAt} is null`))
+  // Every way a running room closes comes through here, so this is where the
+  // notices inviting people into it stop: an unread "Sam opened …" or "… is
+  // open now" for a closed room would be a link to nothing.
+  await dropUnreadRoomNotices(tx, [roomId], ["followed_room", "room_open", "room_invite"])
+}
+
+/** Where a room notice leads: the room's own address, which answers for every state the room can be in. */
+export function roomHref(slug: string) {
+  return `/rooms/${slug}`
+}
+
+/** The name a room shows for this person: their public name, else their account name. */
+export async function roomName(database: PomoderDb | PomoderTransaction, userId: string) {
+  const [row] = await database.select({ name: displayName }).from(users).leftJoin(pomodoroProfiles, eq(pomodoroProfiles.userId, users.id)).where(eq(users.id, userId)).limit(1)
+  return row?.name?.trim() || "Someone"
+}
+
+/** Whether this member has the room on screen right now. See `watchingUntil` in the schema. */
+async function isWatching(database: PomoderDb | PomoderTransaction, roomId: string, userId: string, timestamp: Date) {
+  const [row] = await database.select({ id: roomMemberships.id }).from(roomMemberships).where(and(eq(roomMemberships.roomId, roomId), eq(roomMemberships.userId, userId), sql`${roomMemberships.leftAt} is null`, sql`${roomMemberships.watchingUntil} > ${timestamp}`)).limit(1)
+  return Boolean(row)
+}
+
+/**
+ * Records that this member has the room open, for forty seconds from now. The
+ * room's live connection calls it when it opens and on every fifteen-second
+ * heartbeat; `stopWatching` clears it when the connection closes.
+ */
+export async function keepWatching(roomId: string, userId: string, timestamp = new Date()) {
+  await db.update(roomMemberships).set({ watchingUntil: new Date(timestamp.getTime() + 40_000) }).where(and(eq(roomMemberships.roomId, roomId), eq(roomMemberships.userId, userId), sql`${roomMemberships.leftAt} is null`))
+}
+
+export async function stopWatching(roomId: string, userId: string) {
+  await db.update(roomMemberships).set({ watchingUntil: null }).where(and(eq(roomMemberships.roomId, roomId), eq(roomMemberships.userId, userId)))
 }
 
 // Hosting is single-tenancy: starting or joining another room abandons any

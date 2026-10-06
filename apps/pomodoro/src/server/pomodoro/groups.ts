@@ -9,9 +9,12 @@ import {
   leaderboardStartDate,
   type LeaderboardWindow,
 } from "@/lib/pomodoro/leaderboard-windows"
+import { groupRemovedMessage, noticeName } from "@/lib/pomodoro/notices"
 import { db } from "@/server/db"
+import { isBlockedBetween } from "@/server/pomodoro/blocks"
 import { readLeaderboardRows } from "@/server/pomodoro/leaderboard"
 import { localDateFor } from "@/server/pomodoro/productivity"
+import { noteGroupJoin, writeNotices } from "@/server/pomodoro/notices"
 import { loadOrCreateProfile } from "@/server/pomodoro/profile"
 import {
   pomodoroGroupMembers,
@@ -158,7 +161,11 @@ export async function lookupGroupInvite(token: string) {
  */
 export async function joinGroupByToken(userId: string, token: string) {
   const [group] = await db
-    .select({ id: pomodoroGroups.id, name: pomodoroGroups.name })
+    .select({
+      id: pomodoroGroups.id,
+      name: pomodoroGroups.name,
+      ownerUserId: pomodoroGroups.ownerUserId,
+    })
     .from(pomodoroGroups)
     .where(eq(pomodoroGroups.joinToken, token))
     .limit(1)
@@ -181,10 +188,39 @@ export async function joinGroupByToken(userId: string, token: string) {
   if ((await countMembers(group.id)) >= MAX_GROUP_MEMBERS)
     throw new Error("GROUP_FULL")
 
-  await db
-    .insert(pomodoroGroupMembers)
-    .values({ groupId: group.id, userId })
-    .onConflictDoNothing()
+  // Read before the transaction, not inside it: a read on the shared handle
+  // from inside a transaction waits on a second connection.
+  const tellOwner =
+    group.ownerUserId !== userId &&
+    !(await isBlockedBetween(group.ownerUserId, userId))
+
+  // The join and the owner's notice commit together. A repeat that the unique
+  // pair drops is not a join, so it tells nobody.
+  await db.transaction(async (tx) => {
+    const [joined] = await tx
+      .insert(pomodoroGroupMembers)
+      .values({ groupId: group.id, userId })
+      .onConflictDoNothing()
+      .returning({ id: pomodoroGroupMembers.id })
+    if (!joined || !tellOwner) return
+    const [joiner] = await tx
+      .select({
+        publicDisplayName: pomodoroProfiles.publicDisplayName,
+        handle: pomodoroProfiles.handle,
+      })
+      .from(pomodoroProfiles)
+      .where(eq(pomodoroProfiles.userId, userId))
+      .limit(1)
+    await noteGroupJoin(tx, {
+      ownerUserId: group.ownerUserId,
+      joinerUserId: userId,
+      joinerName: noticeName(
+        joiner ?? { publicDisplayName: null, handle: null }
+      ),
+      groupId: group.id,
+      groupName: group.name,
+    })
+  })
   return { id: group.id, name: group.name }
 }
 
@@ -229,24 +265,46 @@ export async function removeGroupMember(
   membershipId: string
 ) {
   const [group] = await db
-    .select({ ownerUserId: pomodoroGroups.ownerUserId })
+    .select({ ownerUserId: pomodoroGroups.ownerUserId, name: pomodoroGroups.name })
     .from(pomodoroGroups)
     .where(eq(pomodoroGroups.id, groupId))
     .limit(1)
   if (!group || group.ownerUserId !== userId) throw new Error("GROUP_NOT_OWNER")
 
-  const removed = await db
-    .delete(pomodoroGroupMembers)
-    .where(
-      and(
-        eq(pomodoroGroupMembers.id, membershipId),
-        eq(pomodoroGroupMembers.groupId, groupId),
-        // The owner is not removable, only the group is deletable.
-        sql`${pomodoroGroupMembers.userId} <> ${userId}`
-      )
-    )
-    .returning({ id: pomodoroGroupMembers.id })
-  if (removed.length === 0) throw new Error("GROUP_NOT_MEMBER")
+  const membership = and(
+    eq(pomodoroGroupMembers.id, membershipId),
+    eq(pomodoroGroupMembers.groupId, groupId),
+    // The owner is not removable, only the group is deletable.
+    sql`${pomodoroGroupMembers.userId} <> ${userId}`
+  )
+  // Who is being removed, and whether a block stands between them, read
+  // before the transaction so nothing inside it waits on a second connection.
+  const [target] = await db
+    .select({ userId: pomodoroGroupMembers.userId })
+    .from(pomodoroGroupMembers)
+    .where(membership)
+    .limit(1)
+  if (!target) throw new Error("GROUP_NOT_MEMBER")
+  const tellThem = !(await isBlockedBetween(userId, target.userId))
+
+  await db.transaction(async (tx) => {
+    const [removed] = await tx
+      .delete(pomodoroGroupMembers)
+      .where(membership)
+      .returning({ userId: pomodoroGroupMembers.userId })
+    if (!removed) throw new Error("GROUP_NOT_MEMBER")
+    // The removed person is told, so a board that vanished does not look like
+    // a fault. The notice names the group and never the owner.
+    if (!tellThem) return
+    await writeNotices(tx, [
+      {
+        recipientUserId: removed.userId,
+        kind: "group_removed",
+        message: groupRemovedMessage(group.name),
+        groupId,
+      },
+    ])
+  })
 }
 
 /** The owner deletes the group. Its memberships go with it, by the cascade. */
