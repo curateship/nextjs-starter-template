@@ -30,6 +30,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
 import { formatLongDay, formatShortDay } from "@/lib/format/calendar-day"
@@ -49,6 +56,7 @@ import {
   type ReportRange,
 } from "@/lib/pomodoro/focus-history"
 import { useProductAuth } from "@/lib/pomodoro/auth-state"
+import { targetProgressLabel } from "@/lib/pomodoro/project-targets"
 import { browserTimezone } from "@/lib/pomodoro/timer"
 import { dismissErrorToast } from "@/lib/toast/error-toast"
 
@@ -557,8 +565,10 @@ function TopTasksCard({
  */
 function TopProjectsCard({
   topProjects,
+  projectTargets,
 }: {
   topProjects: FocusHistoryResult["topProjects"]
+  projectTargets: FocusHistoryResult["projectTargets"]
 }) {
   const maxSeconds = Math.max(
     1,
@@ -594,6 +604,12 @@ function TopProjectsCard({
                   {project.sessions}{" "}
                   {project.sessions === 1 ? "session" : "sessions"}
                 </small>
+                <ProjectTargetLine
+                  name={project.name}
+                  progress={projectTargets.find(
+                    (target) => target.projectId === project.projectId
+                  )}
+                />
               </li>
             ))}
           </ul>
@@ -607,23 +623,93 @@ function TopProjectsCard({
   )
 }
 
+/**
+ * The project's own target, under its share of the range. The target reads
+ * its own week or month whatever range is picked, so the line names the
+ * period, and the bar is the muted one so it never reads as the range's.
+ */
+function ProjectTargetLine({
+  name,
+  progress,
+}: {
+  name: string | null
+  progress: FocusHistoryResult["projectTargets"][number] | undefined
+}) {
+  if (!progress || !name) return null
+  const label = targetProgressLabel(
+    progress.focusSeconds,
+    progress.targetHours,
+    progress.targetPeriod
+  )
+  return (
+    <>
+      <Meter
+        size="sm"
+        tone="muted"
+        label={`${name} against its target`}
+        value={progress.focusSeconds}
+        max={progress.targetHours * 3_600}
+        valueText={label}
+      />
+      <small className="font-mono text-[10px] text-muted-foreground">
+        Target: {label}
+      </small>
+    </>
+  )
+}
+
+const ALL_TAGS = "all"
+
 function SessionsCard({
   sessions,
   page,
   onPage,
+  tags,
+  onTagChange,
 }: {
   sessions: FocusHistoryResult["sessions"]
   page: number
   onPage: (page: number) => void
+  tags: FocusHistoryResult["tags"]
+  onTagChange: (tagId: string | null) => void
 }) {
   const pageCount = Math.max(1, Math.ceil(sessions.totalRows / sessions.pageSize))
+  const tagName = tags.find((tag) => tag.id === sessions.tagId)?.name
   return (
     <Card>
-      <CardHeader className="flex-row items-baseline justify-between">
+      <CardHeader className="flex-row flex-wrap items-center justify-between gap-2">
         <CardTitle>Completed sessions</CardTitle>
-        <span className="text-xs text-muted-foreground">
-          {sessions.totalRows} in range
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">
+            {tagName
+              ? `${sessions.totalRows} tagged ${tagName} · ${formatFocusDuration(sessions.totalSeconds)}`
+              : `${sessions.totalRows} in range`}
+          </span>
+          {tags.length ? (
+            <Select
+              value={sessions.tagId ?? ALL_TAGS}
+              onValueChange={(value) =>
+                onTagChange(value === ALL_TAGS ? null : value)
+              }
+            >
+              <SelectTrigger
+                size="default"
+                className="text-xs"
+                aria-label="Show sessions on tasks with this tag"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_TAGS}>All tags</SelectItem>
+                {tags.map((tag) => (
+                  <SelectItem key={tag.id} value={tag.id}>
+                    #{tag.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : null}
+        </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         {sessions.rows.length ? (
@@ -681,7 +767,9 @@ function SessionsCard({
           </Table>
         ) : (
           <p className="text-sm text-muted-foreground">
-            No completed focus sessions in this range yet.
+            {tagName
+              ? `No completed focus in this range was on a task tagged ${tagName}.`
+              : "No completed focus sessions in this range yet."}
           </p>
         )}
         {pageCount > 1 ? (
@@ -717,6 +805,7 @@ export function HistoryPage() {
   const { authenticated } = useProductAuth()
   const [range, setRange] = React.useState<ReportRange>("7d")
   const [page, setPage] = React.useState(0)
+  const [tagId, setTagId] = React.useState<string | null>(null)
   const [report, setReport] = React.useState<FocusHistoryResult | null>(null)
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState("")
@@ -735,7 +824,7 @@ export function HistoryPage() {
     const requestId = ++requestRef.current
     setLoading(true)
     setError("")
-    loadFocusHistory({ range, page, timezone: browserTimezone() })
+    loadFocusHistory({ range, page, tagId, timezone: browserTimezone() })
       .then((result) => {
         if (requestRef.current !== requestId) return
         setReport(result)
@@ -753,7 +842,7 @@ export function HistoryPage() {
     // `authenticated` belongs here. It starts false on a direct load of this
     // address, because the layout sets it a tick later; without it in the list
     // the effect never runs again and the page sits on "Loading…" for good.
-  }, [authenticated, range, page, rangeLocked, reloadKey])
+  }, [authenticated, range, page, tagId, rangeLocked, reloadKey])
 
   const changeRange = (next: ReportRange) => {
     if (next === range) return
@@ -766,8 +855,10 @@ export function HistoryPage() {
     setExporting(true)
     setNotice("")
     try {
+      // The file holds what the table shows, so a tag filter narrows it too.
       const result = await exportFocusHistory({
         range,
+        tagId,
         timezone: browserTimezone(),
       })
       const url = URL.createObjectURL(
@@ -999,9 +1090,21 @@ export function HistoryPage() {
                     by project, so one glance compares them. */}
                 <section className="grid gap-3 lg:grid-cols-2">
                   <TopTasksCard topTasks={report.topTasks} />
-                  <TopProjectsCard topProjects={report.topProjects} />
+                  <TopProjectsCard
+                    topProjects={report.topProjects}
+                    projectTargets={report.projectTargets}
+                  />
                 </section>
-                <SessionsCard sessions={report.sessions} page={page} onPage={setPage} />
+                <SessionsCard
+                  sessions={report.sessions}
+                  page={page}
+                  onPage={setPage}
+                  tags={report.tags}
+                  onTagChange={(next) => {
+                    setTagId(next)
+                    setPage(0)
+                  }}
+                />
               </>
             )}
           </>

@@ -73,3 +73,9 @@ about a figure. See [Following](following.md).
 
 Somebody blocked in either direction appears on neither board. See
 [Reporting and blocking](reporting-and-blocking.md).
+
+## Who you focus with
+
+Under the ranking, a card lists the five people you have shared the most room
+time with in the last 12 months. Both of you need the leaderboard opt-in and a
+display name. How the time is worked out is in [Focus rooms](rooms.md).

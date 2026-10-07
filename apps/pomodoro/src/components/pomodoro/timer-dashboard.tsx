@@ -353,8 +353,8 @@ export function TimerDashboard() {
         {/* The same list and the same add box as the Tasks page, without
             the drag handles: the day is planned there, and focused on here. */}
         <div className="flex flex-col gap-3 px-3 py-3">
-          <TodayTaskList pomodoro={pomodoro} reorderable={false} />
-          <NewTaskForm pomodoro={pomodoro} />
+          <TodayTaskList pomodoro={pomodoro} />
+          <NewTaskForm onAdd={pomodoro.addTask} />
         </div>
       </section>
       {discardDialog}

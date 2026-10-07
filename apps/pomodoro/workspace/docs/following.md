@@ -77,7 +77,7 @@ A short line sent to somebody you follow, chosen from five.
 - **It arrives as a notification** in the bell beside your photo, under the
   Social tab. Clicking it opens the sender's public page while that page opens
   for you. See [Notifications](notifications.md).
-- **It can be switched off** on Settings → Profile, and off means no
+- **It can be switched off** on Settings → Public page, and off means no
   notification at all.
 
 Only one of the three ways a cheer can fail is visible to the sender. The

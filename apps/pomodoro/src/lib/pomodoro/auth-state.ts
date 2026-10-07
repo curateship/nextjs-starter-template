@@ -11,11 +11,18 @@ import * as React from "react"
 type ProductAuth = { known: boolean; authenticated: boolean }
 
 let auth: ProductAuth = { known: false, authenticated: false }
+// Which account, not only whether there is one. Signing in does not reload the
+// page, so logging out and straight back in as somebody else used to look like
+// no change at all, and every engine kept the first account's scene, sound and
+// Pro answer until a reload.
+let account: string | null = null
 const listeners = new Set<() => void>()
 
-export function setProductAuthenticated(authenticated: boolean) {
-  if (auth.known && auth.authenticated === authenticated) return
-  auth = { known: true, authenticated }
+/** The signed-in account's email, or null for a guest. */
+export function setProductAccount(email: string | null) {
+  if (auth.known && account === email) return
+  account = email
+  auth = { known: true, authenticated: email !== null }
   for (const listener of listeners) listener()
 }
 

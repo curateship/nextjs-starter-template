@@ -1,11 +1,34 @@
 # Timer settings and rhythm presets
 
-The product's Settings page (`/settings`, card
+The Timer tab of the product's Settings page (`/settings`, card
 `src/components/pomodoro/timer-settings-panel.tsx`) holds the old app's
 "Focus rhythm" card: the three durations (1-90 minutes each), the daily goal
 (1-20), how many focuses come before the long break (2-8), auto-start, and the
 rhythm presets. The long-break number has its own doc,
 [Sessions before the long break](sessions-before-long-break.md).
+
+## The tabs on Settings
+
+Settings is five tabs rather than one long column, so you open the part you
+came for (`src/components/pomodoro/settings-page.tsx`, the list in
+`src/lib/pomodoro/settings-tabs.ts`):
+
+- **Timer**: the focus rhythm card this doc describes.
+- **Appearance**: the dark mode shade. See [The dark mode shade](dark-mode-shade.md).
+- **Profile**: the photo, display name, timezone and the two switches. See
+  [Profile](profile.md).
+- **Public page**: the card that publishes `/u/<handle>`. See
+  [The public profile](public-profile.md).
+- **Privacy**: [blocked people](reporting-and-blocking.md) and the
+  [streak badge](streak-badge.md).
+
+The chosen tab is in the address, `/settings?tab=public`, so a link can open one
+tab and Back steps between them. Timer is the plain `/settings`, and an unknown
+`tab` falls back to it. A guest gets Timer, Appearance and Profile, and their
+Profile tab is the "Sync across devices" card asking them to sign in. A guest
+sent to a members-only tab sees Timer. The tabs are the shared `ui/tabs.tsx`
+pills, h-8, and arrow keys move between them. On a phone the row scrolls
+sideways inside itself rather than pushing the page wider.
 
 ## Presets
 

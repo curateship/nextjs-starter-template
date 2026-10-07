@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, lte, sql } from "drizzle-orm"
+import { and, desc, eq, gt, inArray, isNull, lte, or, sql } from "drizzle-orm"
 
 import { db, type CustomShellDb } from "@/server/db"
 import { enforceRateLimit } from "@/server/auth/rate-limit"
@@ -12,6 +12,7 @@ import {
   writeNotices,
 } from "@/server/pomodoro/notices"
 import {
+  focusSessions,
   pomodoroAuditLogs,
   pomodoroProfiles,
   roomBans,
@@ -20,6 +21,7 @@ import {
   roomMessages,
   roomReports,
   rooms,
+  tasks,
   type Room,
 } from "@/server/pomodoro/schema"
 import { customShellUsers as users } from "@/server/schema"
@@ -36,7 +38,7 @@ import {
 } from "@/lib/pomodoro/notices"
 
 type PomoderDb = CustomShellDb
-type PomoderTransaction = Parameters<Parameters<PomoderDb["transaction"]>[0]>[0]
+export type PomoderTransaction = Parameters<Parameters<PomoderDb["transaction"]>[0]>[0]
 
 export type RoomPhase = "scheduled" | "waiting" | "focus" | "short" | "long" | "closed"
 export type RoomHostAction = "start_focus" | "start_break" | "next_phase" | "close"
@@ -180,7 +182,7 @@ export async function createRoomWithHost(userId: string, slug: string, settings:
     const closedRoomIds = await closeRoomsHostedBy(tx, userId, timestamp)
     await tx.update(roomMemberships).set({ leftAt: timestamp }).where(and(eq(roomMemberships.userId, userId), sql`${roomMemberships.leftAt} is null`))
     const [created] = await tx.insert(rooms).values({ ...settings, hostUserId: userId, slug }).returning()
-    await tx.insert(roomMemberships).values({ roomId: created.id, userId, role: "host" })
+    await tx.insert(roomMemberships).values({ roomId: created.id, userId, role: "host", saved: true, joinedAt: timestamp })
     await writeNotices(tx, followers.map((recipientUserId) => ({
       recipientUserId,
       actorUserId: userId,
@@ -213,7 +215,8 @@ export async function joinRoomBySlug(slug: string, userId: string, database: Pom
     const [already] = await tx.select({ id: roomMemberships.id }).from(roomMemberships).where(and(eq(roomMemberships.roomId, room.id), eq(roomMemberships.userId, userId), sql`${roomMemberships.leftAt} is null`)).limit(1)
     const closedRoomIds = await closeRoomsHostedBy(tx, userId, timestamp, room.id)
     await tx.update(roomMemberships).set({ leftAt: timestamp }).where(and(eq(roomMemberships.userId, userId), sql`${roomMemberships.leftAt} is null`))
-    await tx.insert(roomMemberships).values({ roomId: room.id, userId, role: room.hostUserId === userId ? "host" : "member" }).onConflictDoNothing()
+    // Every join keeps the room on My rooms until Leave for good clears it.
+    await tx.insert(roomMemberships).values({ roomId: room.id, userId, role: room.hostUserId === userId ? "host" : "member", saved: true, joinedAt: timestamp }).onConflictDoNothing()
     if (!already && room.hostUserId !== userId && !blockedFromHost) await noteRoomJoin(tx, room, userId, timestamp)
     return { room, closedRoomIds }
   })
@@ -318,7 +321,10 @@ export type RoomSnapshot = {
   // `handle` is the public address of that person's profile, and null when
   // they have none that reads. It is what turns a name in a room into a link
   // without a lookup per row.
-  members: { id: string; name: string; handle: string | null; role: string; avatarIndex: number; joinedAt: Date }[]
+  // `task` is the title of the focus this member is running right now, and
+  // only for a member who switched on "Show my task to people in my room".
+  // Null otherwise.
+  members: { id: string; name: string; handle: string | null; role: string; avatarIndex: number; joinedAt: Date; task: string | null }[]
   messages: { id: string; body: string; authorName: string; handle: string | null; mine: boolean; deleted: boolean; createdAt: Date; reactions: RoomReactionSummary[] }[]
 }
 
@@ -361,7 +367,7 @@ export async function roomSnapshot(roomId: string, userId: string, database: Pom
   if (!membership) throw new Error("ROOM_MEMBERSHIP_REQUIRED")
   const [memberRows, messageRows] = await Promise.all([
     database
-      .select({ id: roomMemberships.id, userId: roomMemberships.userId, role: roomMemberships.role, joinedAt: roomMemberships.joinedAt, name: displayName, handle: readableHandle })
+      .select({ id: roomMemberships.id, userId: roomMemberships.userId, role: roomMemberships.role, joinedAt: roomMemberships.joinedAt, name: displayName, handle: readableHandle, sharesTask: pomodoroProfiles.shareTaskInRooms })
       .from(roomMemberships)
       .innerJoin(users, eq(roomMemberships.userId, users.id))
       .leftJoin(pomodoroProfiles, eq(pomodoroProfiles.userId, users.id))
@@ -382,15 +388,62 @@ export async function roomSnapshot(roomId: string, userId: string, database: Pom
   // A block holds inside a room as well: neither of you appears in the other's
   // member list and neither sees the other's messages. One query for the whole
   // snapshot, through the one function every list in this app uses.
-  const blocked = await blockedUserIdsFor(userId)
+  const [blocked, tasksByUser] = await Promise.all([
+    blockedUserIdsFor(userId),
+    runningTaskTitles(memberRows.filter((member) => member.sharesTask).map((member) => member.userId), database),
+  ])
   return {
     room: safeRoom,
     you: { role: membership.role as "host" | "member", timezone },
-    members: memberRows.filter((member) => !blocked.has(member.userId)).map(({ userId: memberUserId, ...member }) => ({ ...member, avatarIndex: avatarIndexFor(memberUserId), handle: member.handle })),
+    members: memberRows.filter((member) => !blocked.has(member.userId)).map(({ userId: memberUserId, sharesTask, ...member }) => ({
+      ...member,
+      avatarIndex: avatarIndexFor(memberUserId),
+      handle: member.handle,
+      task: sharesTask ? tasksByUser.get(memberUserId) ?? null : null,
+    })),
     // Soft-deleted messages stay in the timeline as empty tombstones so
     // members see that moderation happened without ever receiving the body.
     messages: messageRows.filter((message) => !blocked.has(message.userId)).map(({ userId: authorUserId, deletedAt, body, ...message }) => ({ ...message, body: deletedAt ? "" : body, deleted: Boolean(deletedAt), mine: authorUserId === userId, reactions: deletedAt ? [] : reactionsByMessage.get(message.id) ?? [] })),
   }
+}
+
+/**
+ * The task each of these people is focusing on right now: the task on their
+ * newest focus that is still counting down. A paused focus does not count,
+ * because paused sessions are left behind for days when a tab closes, and a
+ * focus whose end time has passed is not running whatever its status says.
+ * Someone with no such focus, or a focus with no task picked, is left out.
+ * Only ever called with the people in one room who switched sharing on.
+ */
+async function runningTaskTitles(userIds: string[], database: PomoderDb, timestamp = new Date()) {
+  const titles = new Map<string, string>()
+  if (!userIds.length) return titles
+  const rows = await database
+    .selectDistinctOn([focusSessions.userId], { userId: focusSessions.userId, title: tasks.title })
+    .from(focusSessions)
+    .leftJoin(tasks, and(eq(tasks.id, focusSessions.taskId), eq(tasks.userId, focusSessions.userId)))
+    .where(and(inArray(focusSessions.userId, userIds), eq(focusSessions.mode, "focus"), eq(focusSessions.status, "running"), gt(focusSessions.targetEndsAt, timestamp)))
+    .orderBy(focusSessions.userId, desc(focusSessions.createdAt))
+  for (const row of rows) if (row.title) titles.set(row.userId, row.title)
+  return titles
+}
+
+/**
+ * Sends a fresh snapshot to the room this person is in, when what the room
+ * shows about them may have changed. A focus starting or ending only matters
+ * to the room when they share their task, so those pass `onlyWhenSharing`;
+ * switching sharing itself always refreshes, off included. Does nothing for
+ * somebody in no room.
+ */
+export async function refreshMyRoom(userId: string, { onlyWhenSharing = false } = {}) {
+  const [row] = await db
+    .select({ roomId: roomMemberships.roomId, sharesTask: pomodoroProfiles.shareTaskInRooms })
+    .from(roomMemberships)
+    .leftJoin(pomodoroProfiles, eq(pomodoroProfiles.userId, roomMemberships.userId))
+    .where(and(eq(roomMemberships.userId, userId), sql`${roomMemberships.leftAt} is null`))
+    .limit(1)
+  if (!row || (onlyWhenSharing && !row.sharesTask)) return
+  await notifyRoom(row.roomId, "membership")
 }
 
 // Tallies reactions per emoji for the given messages. A reaction only counts
@@ -839,4 +892,151 @@ export async function advanceDueRooms(timestamp = new Date()) {
     if (result.kind === "advanced") await notifyRoom(room.id, "phase")
   }
   return due.length
+}
+
+/** How long a closed room stays on My rooms before it drops off by itself. */
+export const SAVED_CLOSED_ROOM_DAYS = 30
+const MY_ROOMS_LIMIT = 20
+
+export type MyRoom = {
+  id: string
+  slug: string
+  name: string
+  phase: string
+  hostName: string
+  hosting: boolean
+  /** You are in this room right now. */
+  current: boolean
+  closedAt: Date | null
+  lastJoinedAt: Date
+}
+
+/**
+ * The rooms on this person's My rooms list: every room they joined or hosted
+ * and have not left for good, newest first. A closed room stays for thirty
+ * days so a group can see its room ended, then drops off by itself. A room
+ * they were banned from never shows, and neither does a host across a block.
+ *
+ * Saving is not joining: this reads `saved`, never `left_at`, so the
+ * one-active-room rule is untouched.
+ */
+export async function listMyRooms(userId: string, database: PomoderDb = db, timestamp = new Date()): Promise<MyRoom[]> {
+  const closedFloor = new Date(timestamp.getTime() - SAVED_CLOSED_ROOM_DAYS * DAY_MS)
+  const [rows, blocked] = await Promise.all([
+    database
+      .select({
+        id: rooms.id,
+        slug: rooms.slug,
+        name: rooms.name,
+        phase: rooms.phase,
+        hostUserId: rooms.hostUserId,
+        hostName: displayName,
+        closedAt: rooms.closedAt,
+        current: sql<boolean>`bool_or(${roomMemberships.leftAt} is null)`,
+        lastJoinedAt: sql<Date>`max(${roomMemberships.joinedAt})`,
+      })
+      .from(roomMemberships)
+      .innerJoin(rooms, eq(rooms.id, roomMemberships.roomId))
+      .innerJoin(users, eq(users.id, rooms.hostUserId))
+      .leftJoin(pomodoroProfiles, eq(pomodoroProfiles.userId, users.id))
+      .leftJoin(roomBans, and(eq(roomBans.roomId, rooms.id), eq(roomBans.userId, userId)))
+      .where(
+        and(
+          eq(roomMemberships.userId, userId),
+          eq(roomMemberships.saved, true),
+          isNull(roomBans.id),
+          or(isNull(rooms.closedAt), gt(rooms.closedAt, closedFloor))
+        )
+      )
+      .groupBy(rooms.id, users.id, pomodoroProfiles.publicDisplayName)
+      .orderBy(sql`${rooms.closedAt} is not null`, desc(sql`max(${roomMemberships.joinedAt})`))
+      .limit(MY_ROOMS_LIMIT),
+    blockedUserIdsFor(userId),
+  ])
+  return rows
+    .filter((row) => !blocked.has(row.hostUserId))
+    .map(({ hostUserId, lastJoinedAt, current, ...row }) => ({
+      ...row,
+      hosting: hostUserId === userId,
+      current: Boolean(current),
+      lastJoinedAt: new Date(lastJoinedAt),
+    }))
+}
+
+/**
+ * Leave for good: the room comes off My rooms, and if you are in it you leave
+ * it too, by the same rules as Leave, so a host leaving still closes it for
+ * everyone. Joining again later puts it back.
+ */
+export async function leaveRoomForGood(slug: string, userId: string, database: PomoderDb = db, timestamp = new Date()) {
+  const [room] = await database.select({ id: rooms.id }).from(rooms).where(eq(rooms.slug, slug)).limit(1)
+  if (!room) throw new Error("ROOM_NOT_FOUND")
+  const [active] = await database.select({ id: roomMemberships.id }).from(roomMemberships).where(and(eq(roomMemberships.roomId, room.id), eq(roomMemberships.userId, userId), sql`${roomMemberships.leftAt} is null`)).limit(1)
+  const left = active ? await leaveRoom(slug, userId, database, timestamp) : null
+  await database.update(roomMemberships).set({ saved: false }).where(and(eq(roomMemberships.roomId, room.id), eq(roomMemberships.userId, userId)))
+  return { roomId: room.id, closed: left?.closed ?? false, left: left?.left ?? false }
+}
+
+/** How far back "focused with" looks. A year, so the read stays one bounded range. */
+export const FOCUSED_WITH_DAYS = 365
+const FOCUSED_WITH_LIMIT = 5
+
+export type FocusedWithRow = { name: string; seconds: number }
+
+/**
+ * The people this person has shared the most room time with, over the last
+ * year: for each pair of memberships in the same room, the stretch both were
+ * in it at once, added up per person.
+ *
+ * Both sides must have "Show me on the leaderboard" on and a display name, so
+ * somebody who has not opted in is named to nobody, and sees nobody either.
+ * Display names only. A membership still open counts up to now.
+ *
+ * Bounded twice: the viewer's own memberships come off the user and date
+ * index, and the other side is matched per room on the room index.
+ */
+export async function readFocusedWith(userId: string, database: PomoderDb = db, timestamp = new Date()): Promise<{ optedIn: boolean; people: FocusedWithRow[] }> {
+  const [viewer] = await database
+    .select({ optedIn: pomodoroProfiles.leaderboardOptIn, name: pomodoroProfiles.publicDisplayName })
+    .from(pomodoroProfiles)
+    .where(eq(pomodoroProfiles.userId, userId))
+    .limit(1)
+  if (!viewer?.optedIn || !viewer.name) return { optedIn: false, people: [] }
+
+  const floor = new Date(timestamp.getTime() - FOCUSED_WITH_DAYS * DAY_MS)
+  // Left out inside the query, before the limit, so a blocked person never
+  // takes one of the five places.
+  const blocked = [...(await blockedUserIdsFor(userId))]
+  const notBlocked = blocked.length
+    ? sql`and other.user_id not in (${sql.join(blocked.map((id) => sql`${id}`), sql`, `)})`
+    : sql``
+  const result = await database.execute<{ user_id: string; name: string; seconds: number }>(sql`
+    with mine as (
+      select room_id, joined_at, coalesce(left_at, ${timestamp}) as ended_at
+      from room_memberships
+      where user_id = ${userId} and joined_at >= ${floor}
+    )
+    select other.user_id, profile.public_display_name as name,
+      sum(extract(epoch from least(mine.ended_at, coalesce(other.left_at, ${timestamp}))
+        - greatest(mine.joined_at, other.joined_at)))::int as seconds
+    from mine
+    join room_memberships other
+      on other.room_id = mine.room_id
+      and other.user_id <> ${userId}
+      ${notBlocked}
+      and other.joined_at < mine.ended_at
+      and coalesce(other.left_at, ${timestamp}) > mine.joined_at
+    join pomodoro_profiles profile
+      on profile.user_id = other.user_id
+      and profile.leaderboard_opt_in
+      and profile.public_display_name is not null
+    group by other.user_id, profile.public_display_name
+    order by seconds desc
+    limit ${FOCUSED_WITH_LIMIT}
+  `)
+  // Ids stay here: the answer carries names and seconds, nothing else.
+  const people = result.rows
+    .filter((row) => row.seconds > 0)
+    .map((row) => ({ name: row.name, seconds: Number(row.seconds) }))
+  return { optedIn: true, people }
 }

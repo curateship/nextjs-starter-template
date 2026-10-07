@@ -517,6 +517,8 @@ function ManageGroupDialog({
   )
   const [confirmingDelete, setConfirmingDelete] = React.useState(false)
   const [confirmingLeave, setConfirmingLeave] = React.useState(false)
+  // The member the owner pressed the bin beside, until they confirm or back out.
+  const [removing, setRemoving] = React.useState<Member | null>(null)
   const [run, busy] = useAsyncAction(groupErrorMessage)
 
   const refreshMembers = React.useCallback(async () => {
@@ -677,16 +679,7 @@ function ManageGroupDialog({
                               variant="ghost"
                               disabled={busy}
                               aria-label={`Remove ${member.name ?? "this person"}`}
-                              onClick={() =>
-                                void run(async () => {
-                                  await removeFocusGroupMember(
-                                    group.id,
-                                    member.membershipId
-                                  )
-                                  await refreshMembers()
-                                  await onChanged()
-                                }, "Removed from the group.")
-                              }
+                              onClick={() => setRemoving(member)}
                             >
                               <Trash2Icon aria-hidden="true" />
                             </Button>
@@ -745,6 +738,25 @@ function ManageGroupDialog({
             setConfirmingDelete(false)
             await onGone()
           }, "Group deleted.")
+        }
+      />
+      <ConfirmDialog
+        open={removing !== null}
+        onOpenChange={(next) => {
+          if (!next) setRemoving(null)
+        }}
+        title={`Remove ${removing?.name ?? "this person"} from ${group.name}?`}
+        description="They come off the group's board straight away. They can rejoin with the invite link."
+        confirmLabel={`Remove ${removing?.name ?? "them"}`}
+        loading={busy}
+        onConfirm={() =>
+          void run(async () => {
+            if (!removing) return
+            await removeFocusGroupMember(group.id, removing.membershipId)
+            setRemoving(null)
+            await refreshMembers()
+            await onChanged()
+          }, "Removed from the group.")
         }
       />
       <ConfirmDialog

@@ -1,4 +1,5 @@
-import { and, asc, eq, inArray, lte, or, sql } from "drizzle-orm"
+import { randomBytes } from "node:crypto"
+import { and, asc, eq, inArray, isNull, lte, or, sql } from "drizzle-orm"
 
 import { db, type CustomShellDb } from "@/server/db"
 import { appUrlFor } from "@/server/app-url"
@@ -11,10 +12,13 @@ import { getSendableEmailConfig } from "@/server/email/settings"
 import { findWorkspaceIdForRequest } from "@/server/workspaces/for-request"
 import {
   pomodoroProfiles,
+  pomodoroRoomRepeats,
   roomInvites,
   rooms,
+  type PomodoroRoomRepeat,
   type Room,
 } from "@/server/pomodoro/schema"
+import { requirePomodoroPerk } from "@/server/pomodoro/entitlements"
 import { customShellUsers as users } from "@/server/schema"
 import { blockedUserIdsFor } from "@/server/pomodoro/blocks"
 import { dropUnreadRoomNotices, writeNotices } from "@/server/pomodoro/notices"
@@ -22,10 +26,17 @@ import {
   phaseUpdate,
   roomHref,
   roomName,
+  type PomoderTransaction,
   type RoomSettings,
 } from "@/server/pomodoro/rooms"
 import { roomInviteMessage, roomOpenMessage } from "@/lib/pomodoro/notices"
 import { formatRoomStart } from "@/lib/pomodoro/scheduled-rooms"
+import {
+  describeRoomRepeat,
+  MAX_ROOM_REPEATS_PER_HOST,
+  nextRoomOccurrence,
+  ROOM_REPEAT_LEAD_HOURS,
+} from "@/lib/pomodoro/room-repeats"
 
 /**
  * Booked rooms: a host picks a start time, the room opens itself on that time
@@ -48,6 +59,8 @@ const INTERRUPTED_SEND =
 export type ScheduleRoomInput = RoomSettings & {
   startsAt: Date
   invites: string[]
+  /** Set when the weekly worker books one of a rule's days. */
+  repeat?: { id: string; occurrenceDate: string }
 }
 
 /**
@@ -63,40 +76,76 @@ export async function scheduleRoomWithInvites(
   input: ScheduleRoomInput,
   database: CustomShellDb = db
 ) {
-  const { startsAt, invites, ...settings } = input
-  // Invitees who have an account hear in the bell too, read before the
-  // transaction. The host is told nothing about which addresses matched.
+  const recipients = await bookingRecipients(userId, input.invites, database)
+  const room = await database.transaction((tx) => writeBooking(tx, userId, slug, input, recipients))
+  if (!room) throw new Error("ROOM_NOT_CREATED")
+  return room
+}
+
+/**
+ * Who hears about a booking, read before any transaction: a read on the
+ * shared handle from inside one waits on a second connection. Invitees with
+ * an account hear in the bell too. The host is told nothing about which
+ * addresses matched.
+ */
+async function bookingRecipients(userId: string, invites: string[], database: CustomShellDb) {
   const [invitees, hostName] = await Promise.all([
     inviteeAccounts(userId, invites, database),
     roomName(database, userId),
   ])
-  return database.transaction(async (tx) => {
-    const [room] = await tx
-      .insert(rooms)
-      .values({ ...settings, hostUserId: userId, slug, phase: "scheduled", startsAt })
-      .returning()
-    if (invites.length) {
-      await tx
-        .insert(roomInvites)
-        .values(invites.map((email) => ({ roomId: room.id, email })))
-        .onConflictDoNothing()
-    }
-    await writeNotices(
-      tx,
-      invitees.map((invitee) => ({
-        recipientUserId: invitee.userId,
-        actorUserId: userId,
-        kind: "room_invite" as const,
-        message: roomInviteMessage(hostName, room.name),
-        // In the reader's own timezone. The email names the host's, because
-        // it cannot know the reader's; the bell can.
-        detail: formatRoomStart(startsAt, invitee.timezone),
-        roomId: room.id,
-        href: roomHref(room.slug),
-      }))
-    )
-    return room
-  })
+  return { invitees, hostName }
+}
+
+/**
+ * The booking itself, inside the caller's transaction. Answers null when a
+ * weekly rule's day was already booked, which is the one conflict expected
+ * here: a second pass racing this one meets the unique index on (repeat_id,
+ * occurrence_date), inserts nothing, and so writes no invitations and no
+ * notices either.
+ */
+async function writeBooking(
+  tx: PomoderTransaction,
+  userId: string,
+  slug: string,
+  input: ScheduleRoomInput,
+  { invitees, hostName }: Awaited<ReturnType<typeof bookingRecipients>>
+) {
+  const { startsAt, invites, repeat, ...settings } = input
+  const [room] = await tx
+    .insert(rooms)
+    .values({
+      ...settings,
+      hostUserId: userId,
+      slug,
+      phase: "scheduled",
+      startsAt,
+      repeatId: repeat?.id ?? null,
+      occurrenceDate: repeat?.occurrenceDate ?? null,
+    })
+    .onConflictDoNothing()
+    .returning()
+  if (!room) return null
+  if (invites.length) {
+    await tx
+      .insert(roomInvites)
+      .values(invites.map((email) => ({ roomId: room.id, email })))
+      .onConflictDoNothing()
+  }
+  await writeNotices(
+    tx,
+    invitees.map((invitee) => ({
+      recipientUserId: invitee.userId,
+      actorUserId: userId,
+      kind: "room_invite" as const,
+      message: roomInviteMessage(hostName, room.name),
+      // In the reader's own timezone. The email names the host's, because
+      // it cannot know the reader's; the bell can.
+      detail: formatRoomStart(startsAt, invitee.timezone),
+      roomId: room.id,
+      href: roomHref(room.slug),
+    }))
+  )
+  return room
 }
 
 /**
@@ -150,18 +199,25 @@ export async function cancelScheduledRoom(
     if (room.hostUserId !== userId) throw new Error("ROOM_HOST_REQUIRED")
     if (room.closedAt || room.phase === "closed") throw new Error("ROOM_CLOSED")
     if (room.phase !== "scheduled") throw new Error("ROOM_ALREADY_OPEN")
-
-    const { set } = phaseUpdate(room, "closed", timestamp)
-    await tx.update(rooms).set(set).where(eq(rooms.id, room.id))
-    // An unread invitation to a room that will not happen goes with it.
-    await dropUnreadRoomNotices(tx, [room.id], ["room_invite", "room_open"])
-    const stopped = await tx
-      .update(roomInvites)
-      .set({ status: "cancelled" })
-      .where(and(eq(roomInvites.roomId, room.id), eq(roomInvites.status, "queued")))
-      .returning({ id: roomInvites.id })
-    return { cancelledInvites: stopped.length }
+    return { cancelledInvites: await closeBookedRoom(tx, room, timestamp) }
   })
+}
+
+/**
+ * Closes a locked, still-booked room and stops its unsent invitations.
+ * Answers how many invitations were stopped.
+ */
+async function closeBookedRoom(tx: PomoderTransaction, room: Room, timestamp: Date) {
+  const { set } = phaseUpdate(room, "closed", timestamp)
+  await tx.update(rooms).set(set).where(eq(rooms.id, room.id))
+  // An unread invitation to a room that will not happen goes with it.
+  await dropUnreadRoomNotices(tx, [room.id], ["room_invite", "room_open"])
+  const stopped = await tx
+    .update(roomInvites)
+    .set({ status: "cancelled" })
+    .where(and(eq(roomInvites.roomId, room.id), eq(roomInvites.status, "queued")))
+    .returning({ id: roomInvites.id })
+  return stopped.length
 }
 
 export type UpcomingRoom = {
@@ -175,6 +231,10 @@ export type UpcomingRoom = {
   mine: boolean
   invitedCount: number
   emailedCount: number
+  /** "every Tuesday at 09:00, Europe/London time" when a weekly rule booked this room. */
+  repeatLabel: string | null
+  /** The rule's id, for the host's own Cancel the series only. */
+  repeatId: string | null
 }
 
 /**
@@ -199,10 +259,15 @@ export async function listUpcomingRooms(
       focusMinutes: rooms.focusMinutes,
       hostUserId: rooms.hostUserId,
       hostName: displayName,
+      repeatId: rooms.repeatId,
+      repeatWeekdays: pomodoroRoomRepeats.weekdays,
+      repeatStartMinute: pomodoroRoomRepeats.startMinute,
+      repeatTimezone: pomodoroRoomRepeats.timezone,
     })
     .from(rooms)
     .innerJoin(users, eq(rooms.hostUserId, users.id))
     .leftJoin(pomodoroProfiles, eq(pomodoroProfiles.userId, users.id))
+    .leftJoin(pomodoroRoomRepeats, eq(pomodoroRoomRepeats.id, rooms.repeatId))
     .where(
       and(
         eq(rooms.phase, "scheduled"),
@@ -227,18 +292,26 @@ export async function listUpcomingRooms(
     : []
   const byRoom = new Map(counts.map((row) => [row.roomId, row]))
 
-  return rows.flatMap(({ hostUserId, startsAt, ...row }) => {
+  return rows.flatMap(({ hostUserId, startsAt, repeatId, repeatWeekdays, repeatStartMinute, repeatTimezone, ...row }) => {
     // The column is nullable for every room that was never booked, but the
     // phase check constraint means a scheduled one always has it.
     if (!startsAt) return []
     const count = byRoom.get(row.id)
+    const mine = hostUserId === userId
     return [
       {
         ...row,
         startsAt,
-        mine: hostUserId === userId,
+        mine,
         invitedCount: count?.invited ?? 0,
         emailedCount: count?.emailed ?? 0,
+        // The host's clock, named, because the reader's may differ. The date
+        // line on the card is already in the reader's own.
+        repeatLabel:
+          repeatWeekdays !== null && repeatStartMinute !== null
+            ? `${describeRoomRepeat(repeatWeekdays, repeatStartMinute)}, ${repeatTimezone} time`
+            : null,
+        repeatId: mine ? repeatId : null,
       },
     ]
   })
@@ -325,6 +398,9 @@ export async function openDueRooms(
   database: CustomShellDb = db,
   timestamp = new Date()
 ) {
+  // Weekly rules first, so a day booked this pass has its invitations sent by
+  // the same pass.
+  const booked = await bookDueRepeatRooms(database, timestamp)
   const due = await database
     .select({ id: rooms.id, sequence: rooms.sequence })
     .from(rooms)
@@ -341,7 +417,7 @@ export async function openDueRooms(
     if (result.kind === "opened") opened += 1
   }
   const emailed = await sendQueuedRoomInvites(database, timestamp)
-  return { opened, emailed }
+  return { booked, opened, emailed }
 }
 
 /**
@@ -495,7 +571,11 @@ async function deliverInvite(database: CustomShellDb, invite: InviteEmail) {
   }
 }
 
-/** How many rooms this person already has booked and not yet cancelled. */
+/**
+ * How many one-off rooms this person already has booked and not yet
+ * cancelled. A weekly rule's booked day is not counted: weekly rooms have
+ * their own limit, MAX_ROOM_REPEATS_PER_HOST.
+ */
 export async function countScheduledRoomsHostedBy(
   userId: string,
   database: CustomShellDb = db
@@ -503,6 +583,288 @@ export async function countScheduledRoomsHostedBy(
   const [row] = await database
     .select({ total: sql<number>`count(*)::int` })
     .from(rooms)
-    .where(and(eq(rooms.hostUserId, userId), eq(rooms.phase, "scheduled"), sql`${rooms.closedAt} is null`))
+    .where(and(eq(rooms.hostUserId, userId), eq(rooms.phase, "scheduled"), sql`${rooms.closedAt} is null`, isNull(rooms.repeatId)))
   return row?.total ?? 0
+}
+
+/* ------------------------------------------------------------------------ */
+/* Weekly rooms                                                              */
+/* ------------------------------------------------------------------------ */
+
+const REPEATS_PER_PASS = 25
+const LEAD_MS = ROOM_REPEAT_LEAD_HOURS * 60 * 60_000
+
+export type RoomRepeatInput = RoomSettings & {
+  weekdays: number
+  startMinute: number
+  timezone: string
+  invites: string[]
+}
+
+/**
+ * Saves a weekly rule and books its first day straight away when that day is
+ * within the lead time, so a room for tomorrow morning is under Upcoming the
+ * moment the window closes rather than fifteen seconds later.
+ */
+export async function createRoomRepeat(
+  userId: string,
+  input: RoomRepeatInput,
+  database: CustomShellDb = db,
+  timestamp = new Date()
+) {
+  const [{ live }] = await database
+    .select({ live: sql<number>`count(*)::int` })
+    .from(pomodoroRoomRepeats)
+    .where(and(eq(pomodoroRoomRepeats.hostUserId, userId), isNull(pomodoroRoomRepeats.cancelledAt)))
+  if (live >= MAX_ROOM_REPEATS_PER_HOST) throw new Error("ROOM_REPEAT_LIMIT")
+  const next = nextRoomOccurrence(input, timestamp)
+  if (!next) throw new Error("ROOM_REPEAT_NO_OCCURRENCE")
+  const [rule] = await database
+    .insert(pomodoroRoomRepeats)
+    .values({ ...input, hostUserId: userId, nextStartsAt: next.startsAt })
+    .returning()
+  await bookDueRepeatRooms(database, timestamp, rule.id)
+  return { rule, next }
+}
+
+/**
+ * The worker's half: books the day of every live rule whose next start is
+ * within the lead time, then moves the rule on to the day after.
+ *
+ * Booking goes through writeBooking, the same insert a one-off booking
+ * uses, so a weekly day is an ordinary booked room with its own invitation
+ * rows, and the sender's claim stops any one of them going out twice. The unique index on the rule and the
+ * day stops two passes booking the same day.
+ *
+ * A host who is no longer allowed to host is skipped, not cancelled: the rule
+ * moves on without booking, and books again if the plan comes back. A day
+ * whose start has already passed, because the worker was down, is skipped the
+ * same way rather than opened late.
+ */
+export async function bookDueRepeatRooms(
+  database: CustomShellDb = db,
+  timestamp = new Date(),
+  onlyRuleId?: string
+) {
+  const due = await database
+    .select()
+    .from(pomodoroRoomRepeats)
+    .where(
+      and(
+        isNull(pomodoroRoomRepeats.cancelledAt),
+        lte(pomodoroRoomRepeats.nextStartsAt, new Date(timestamp.getTime() + LEAD_MS)),
+        onlyRuleId ? eq(pomodoroRoomRepeats.id, onlyRuleId) : undefined
+      )
+    )
+    .orderBy(asc(pomodoroRoomRepeats.nextStartsAt))
+    .limit(REPEATS_PER_PASS)
+
+  let booked = 0
+  for (const rule of due) {
+    if (await bookRepeatDay(rule, database, timestamp)) booked += 1
+  }
+  return booked
+}
+
+async function bookRepeatDay(
+  seen: PomodoroRoomRepeat,
+  database: CustomShellDb,
+  timestamp: Date
+) {
+  if (!seen.nextStartsAt) return false
+  const day = occurrenceAt(seen, seen.nextStartsAt)
+  const bookable = Boolean(day && day.startsAt > timestamp)
+  // Read before the transaction, like every other read on the shared handle.
+  const [allowed, recipients] = await Promise.all([
+    bookable ? mayHost(seen.hostUserId, database) : false,
+    bookable ? bookingRecipients(seen.hostUserId, seen.invites, database) : null,
+  ])
+  return database.transaction(async (tx) => {
+    // Locked and matched on the cursor this pass read, so a skip or another
+    // pass that moved it meanwhile wins and this one does nothing.
+    const [rule] = await tx
+      .select()
+      .from(pomodoroRoomRepeats)
+      .where(
+        and(
+          eq(pomodoroRoomRepeats.id, seen.id),
+          isNull(pomodoroRoomRepeats.cancelledAt),
+          eq(pomodoroRoomRepeats.nextStartsAt, seen.nextStartsAt!)
+        )
+      )
+      .for("update")
+      .limit(1)
+    if (!rule?.nextStartsAt) return false
+
+    let made = false
+    if (day && recipients && allowed) {
+      const room = await writeBooking(
+        tx,
+        rule.hostUserId,
+        randomBytes(18).toString("base64url"),
+        {
+          name: rule.name,
+          visibility: rule.visibility as RoomSettings["visibility"],
+          focusMinutes: rule.focusMinutes,
+          shortBreakMinutes: rule.shortBreakMinutes,
+          longBreakMinutes: rule.longBreakMinutes,
+          autoStart: rule.autoStart,
+          startsAt: day.startsAt,
+          invites: rule.invites,
+          repeat: { id: rule.id, occurrenceDate: day.date },
+        },
+        recipients
+      )
+      made = room !== null
+    }
+    // Move on from whichever is later, the day just handled or now, so a rule
+    // that fell behind catches up in one step instead of booking the past.
+    const from = rule.nextStartsAt > timestamp ? rule.nextStartsAt : timestamp
+    await tx
+      .update(pomodoroRoomRepeats)
+      .set({ nextStartsAt: nextRoomOccurrence(rule, from)?.startsAt ?? null, updatedAt: timestamp })
+      .where(eq(pomodoroRoomRepeats.id, rule.id))
+    return made
+  })
+}
+
+/** The rule's day that starts at exactly `startsAt`, worked out again from the rule. */
+function occurrenceAt(rule: PomodoroRoomRepeat, startsAt: Date) {
+  const day = nextRoomOccurrence(rule, new Date(startsAt.getTime() - 1))
+  return day && day.startsAt.getTime() === startsAt.getTime() ? day : null
+}
+
+async function mayHost(userId: string, database: CustomShellDb) {
+  try {
+    await requirePomodoroPerk(userId, "hostRooms", database)
+    return true
+  } catch {
+    return false
+  }
+}
+
+export type MyRoomRepeat = {
+  id: string
+  name: string
+  visibility: string
+  label: string
+  timezone: string
+  inviteCount: number
+  /** The next day that will happen, after any skipped one. */
+  nextStartsAt: Date | null
+  /** Whether that day already has its room under Upcoming. */
+  nextIsBooked: boolean
+}
+
+/** The host's own live weekly rules, soonest first. */
+export async function listMyRoomRepeats(
+  userId: string,
+  database: CustomShellDb = db
+): Promise<MyRoomRepeat[]> {
+  const rules = await database
+    .select()
+    .from(pomodoroRoomRepeats)
+    .where(and(eq(pomodoroRoomRepeats.hostUserId, userId), isNull(pomodoroRoomRepeats.cancelledAt)))
+    .orderBy(asc(pomodoroRoomRepeats.nextStartsAt))
+    .limit(MAX_ROOM_REPEATS_PER_HOST * 2)
+  const ids = rules.map((rule) => rule.id)
+  const bookedRows = ids.length
+    ? await database
+        .select({ repeatId: rooms.repeatId, startsAt: rooms.startsAt })
+        .from(rooms)
+        .where(and(inArray(rooms.repeatId, ids), eq(rooms.phase, "scheduled"), sql`${rooms.closedAt} is null`))
+    : []
+  const bookedByRule = new Map(bookedRows.map((row) => [row.repeatId, row.startsAt]))
+  return rules.map((rule) => {
+    const bookedAt = bookedByRule.get(rule.id) ?? null
+    return {
+      id: rule.id,
+      name: rule.name,
+      visibility: rule.visibility,
+      label: describeRoomRepeat(rule.weekdays, rule.startMinute),
+      timezone: rule.timezone,
+      inviteCount: rule.invites.length,
+      nextStartsAt: bookedAt ?? rule.nextStartsAt,
+      nextIsBooked: Boolean(bookedAt),
+    }
+  })
+}
+
+/**
+ * Cancel this week: the series stays and only its next day is called off.
+ *
+ * When that day already has its room, the room is cancelled the way any
+ * booking is, invitations and all. When it does not yet, the rule's cursor
+ * moves past it, so the worker never books it.
+ */
+export async function skipNextRoomRepeat(
+  userId: string,
+  repeatId: string,
+  database: CustomShellDb = db,
+  timestamp = new Date()
+) {
+  return database.transaction(async (tx) => {
+    const rule = await lockOwnRule(tx, userId, repeatId)
+    const [booked] = await tx
+      .select()
+      .from(rooms)
+      .where(and(eq(rooms.repeatId, rule.id), eq(rooms.phase, "scheduled"), sql`${rooms.closedAt} is null`))
+      .orderBy(asc(rooms.startsAt))
+      .for("update")
+      .limit(1)
+    if (booked?.startsAt) {
+      const cancelledInvites = await closeBookedRoom(tx, booked, timestamp)
+      return { skippedStartsAt: booked.startsAt, cancelledInvites }
+    }
+    if (!rule.nextStartsAt) throw new Error("ROOM_REPEAT_NO_OCCURRENCE")
+    const skipped = rule.nextStartsAt
+    const from = skipped > timestamp ? skipped : timestamp
+    await tx
+      .update(pomodoroRoomRepeats)
+      .set({ nextStartsAt: nextRoomOccurrence(rule, from)?.startsAt ?? null, updatedAt: timestamp })
+      .where(eq(pomodoroRoomRepeats.id, rule.id))
+    return { skippedStartsAt: skipped, cancelledInvites: 0 }
+  })
+}
+
+/**
+ * Cancel the series: no more days are booked, and a day already booked but
+ * not yet open is cancelled with it. Rooms that already ran, or are running
+ * now, are not touched.
+ */
+export async function cancelRoomRepeat(
+  userId: string,
+  repeatId: string,
+  database: CustomShellDb = db,
+  timestamp = new Date()
+) {
+  return database.transaction(async (tx) => {
+    const rule = await lockOwnRule(tx, userId, repeatId)
+    await tx
+      .update(pomodoroRoomRepeats)
+      .set({ cancelledAt: timestamp, nextStartsAt: null, updatedAt: timestamp })
+      .where(eq(pomodoroRoomRepeats.id, rule.id))
+    const booked = await tx
+      .select()
+      .from(rooms)
+      .where(and(eq(rooms.repeatId, rule.id), eq(rooms.phase, "scheduled"), sql`${rooms.closedAt} is null`))
+      .for("update")
+    let cancelledInvites = 0
+    for (const room of booked) cancelledInvites += await closeBookedRoom(tx, room, timestamp)
+    return { name: rule.name, cancelledRooms: booked.length, cancelledInvites }
+  })
+}
+
+async function lockOwnRule(tx: PomoderTransaction, userId: string, repeatId: string) {
+  const [rule] = await tx
+    .select()
+    .from(pomodoroRoomRepeats)
+    .where(eq(pomodoroRoomRepeats.id, repeatId))
+    .for("update")
+    .limit(1)
+  // Somebody else's rule answers the same as no rule, so an id cannot be
+  // probed for whether it exists.
+  if (!rule || rule.hostUserId !== userId) throw new Error("ROOM_REPEAT_NOT_FOUND")
+  if (rule.cancelledAt) throw new Error("ROOM_REPEAT_CANCELLED")
+  return rule
 }

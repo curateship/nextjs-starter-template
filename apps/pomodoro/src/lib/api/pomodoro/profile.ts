@@ -7,9 +7,11 @@ import {
   loadOrCreateProfile,
   updateProfile as updateProfileRow,
 } from "@/server/pomodoro/profile"
+import { refreshMyRoom } from "@/server/pomodoro/rooms"
 
 /**
- * The app profile: public display name, timezone, leaderboard opt-in.
+ * The app profile: public display name, timezone, leaderboard opt-in, and
+ * whether the people in a room with you see the task you are focusing on.
  * The account's own name, email, password and deletion stay with the
  * shell's account dialog.
  */
@@ -18,6 +20,7 @@ const profileSchema = z.object({
   publicDisplayName: z.string().trim().min(1).max(50).nullable(),
   timezone: z.string().min(1).max(80),
   leaderboardOptIn: z.boolean(),
+  shareTaskInRooms: z.boolean(),
 })
 
 const loadProfileFn = createServerFn({ method: "GET" })
@@ -31,7 +34,16 @@ const updateProfileFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(profileSchema)
   .handler(async ({ data, context }) => {
-    return updateProfileRow(context.user.id, data)
+    const profile = await updateProfileRow(context.user.id, data)
+    // The room you are in shows your task or stops showing it on its next
+    // snapshot, so send one now rather than whenever the room next changes.
+    // The profile is already saved, so a failed nudge only logs.
+    try {
+      await refreshMyRoom(context.user.id)
+    } catch (error) {
+      console.error("the room could not be told about a profile change", error)
+    }
+    return profile
   })
 
 // What the header's account menu adds to the shell's user: the plan and the

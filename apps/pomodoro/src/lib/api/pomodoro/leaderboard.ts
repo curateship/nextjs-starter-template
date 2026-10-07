@@ -3,6 +3,7 @@ import { z } from "zod"
 
 import { userGet } from "@/server/guards"
 import { readLeaderboardRows } from "@/server/pomodoro/leaderboard"
+import { readFocusedWith } from "@/server/pomodoro/rooms"
 import { loadOrCreateProfile } from "@/server/pomodoro/profile"
 import { localDateFor } from "@/server/pomodoro/productivity"
 import {
@@ -62,3 +63,14 @@ export const loadLeaderboard = (
   window: LeaderboardWindow = DEFAULT_LEADERBOARD_WINDOW,
   following = false
 ) => loadLeaderboardFn({ data: { timezone, window, following } })
+
+/**
+ * The five people you have shared the most room time with in the last year.
+ * Both of you must be on the leaderboard to be named; somebody who is not
+ * gets an empty list, and the card says why. Names and seconds only.
+ */
+const loadFocusedWithFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .handler(async ({ context }) => readFocusedWith(context.user.id))
+
+export const loadFocusedWith = () => loadFocusedWithFn()

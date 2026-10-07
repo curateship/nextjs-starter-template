@@ -19,6 +19,8 @@ import {
   findActiveRoomId,
   joinRoomBySlug,
   leaveRoom,
+  leaveRoomForGood,
+  listMyRooms,
   listPublicRooms,
   lookupRoomBySlug,
   notifyRoom,
@@ -31,16 +33,26 @@ import {
 } from "@/server/pomodoro/rooms"
 import { ROOM_REACTION_EMOJIS } from "@/lib/pomodoro/room-reactions"
 import {
+  cancelRoomRepeat,
   cancelScheduledRoom,
   countScheduledRoomsHostedBy,
+  createRoomRepeat,
+  listMyRoomRepeats,
   listUpcomingRooms,
   scheduleRoomWithInvites,
+  skipNextRoomRepeat,
 } from "@/server/pomodoro/scheduled-rooms"
+import { validTimezone } from "@/server/pomodoro/profile"
 import {
   parseInviteEmails,
   scheduleProblem,
   scheduleProblemMessage,
 } from "@/lib/pomodoro/scheduled-rooms"
+import {
+  MAX_ROOM_REPEATS_PER_HOST,
+  roomRepeatProblem,
+  roomRepeatProblemMessage,
+} from "@/lib/pomodoro/room-repeats"
 
 /**
  * The rooms endpoints, ported from the old app. No delayed-job queue here:
@@ -76,6 +88,16 @@ const scheduleRoomSchema = createRoomSchema.extend({
   // scheduleProblem; this only stops a caller posting a novel.
   invitesTyped: z.string().max(6_000).default(""),
 })
+// A weekly room: the same settings, the days as the task repeats' seven-bit
+// set, and the time as minutes after midnight on the clock of the device it
+// was typed on, the same clock a one-off booking's date and time is read on.
+const repeatRoomSchema = createRoomSchema.extend({
+  weekdays: z.number().int().min(1).max(127),
+  startMinute: z.number().int().min(0).max(1439),
+  timezone: z.string().min(1).max(80),
+  invitesTyped: z.string().max(6_000).default(""),
+})
+const repeatIdSchema = z.object({ repeatId: z.string().uuid() })
 const slugSchema = z.object({ slug: z.string().min(12).max(80) })
 const actionSchema = slugSchema.extend({
   action: z.enum(["start_focus", "start_break", "next_phase", "close"]),
@@ -195,6 +217,66 @@ const scheduleRoomFn = createServerFn({ method: "POST" })
     return { slug: room.slug, name: room.name, startsAt: room.startsAt, invited: invites.length }
   })
 
+/**
+ * Saves a room that repeats every week. Hosting is Pro, so this is too, and
+ * it spends the same hourly booking allowance a one-off booking does.
+ *
+ * The days and time are read on the timezone of the device the host typed
+ * them on, because that is the clock they were looking at. The invitation
+ * email still writes the time in the host's profile timezone and names it,
+ * so the instant agrees even when the two zones differ.
+ */
+const repeatRoomFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(repeatRoomSchema)
+  .handler(async ({ data, context }) => {
+    await requirePomodoroPerk(context.user.id, "hostRooms")
+    await enforceRateLimit(`room-schedule:${context.user.id}`, {
+      maxAttempts: 10,
+      windowSeconds: 3_600,
+    })
+    const { invitesTyped, ...settings } = data
+    const invites = parseInviteEmails(invitesTyped)
+    const problem = roomRepeatProblem(settings.weekdays, settings.startMinute, invites)
+    if (problem) throw new Error(`SCHEDULE_REJECTED: ${roomRepeatProblemMessage(problem)}`)
+    if (!validTimezone(settings.timezone)) {
+      throw new Error("SCHEDULE_REJECTED: This device's timezone is not one the server knows. Set a timezone in Settings and try again.")
+    }
+
+    try {
+      const { rule, next } = await createRoomRepeat(context.user.id, {
+        ...settings,
+        invites,
+      })
+      return { name: rule.name, timezone: rule.timezone, nextStartsAt: next.startsAt }
+    } catch (cause) {
+      if (cause instanceof Error && cause.message === "ROOM_REPEAT_LIMIT") {
+        throw new Error(
+          `SCHEDULE_REJECTED: You already have ${MAX_ROOM_REPEATS_PER_HOST} weekly rooms. Cancel a series to start another.`
+        )
+      }
+      throw cause
+    }
+  })
+
+const myRepeatsFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .handler(async ({ context }) => listMyRoomRepeats(context.user.id))
+
+const skipRepeatFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(repeatIdSchema)
+  .handler(async ({ data, context }) =>
+    skipNextRoomRepeat(context.user.id, data.repeatId)
+  )
+
+const cancelRepeatFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(repeatIdSchema)
+  .handler(async ({ data, context }) =>
+    cancelRoomRepeat(context.user.id, data.repeatId)
+  )
+
 const upcomingRoomsFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .handler(async ({ context }) => listUpcomingRooms(context.user.id))
@@ -250,6 +332,25 @@ const leaveRoomFn = createServerFn({ method: "POST" })
     if (closed || left)
       await notifyRoom(room.id, closed ? "phase" : "membership")
     return { closed }
+  })
+
+const myRoomsFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .handler(async ({ context }) => listMyRooms(context.user.id))
+
+// Leave for good also leaves the room when you are in it, so it broadcasts
+// the same way Leave does, and only when a membership really ended.
+const leaveForGoodFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(slugSchema)
+  .handler(async ({ data, context }) => {
+    const { roomId, closed, left } = await leaveRoomForGood(
+      data.slug,
+      context.user.id
+    )
+    if (closed || left)
+      await notifyRoom(roomId, closed ? "phase" : "membership")
+    return { closed, left }
   })
 
 const roomActionFn = createServerFn({ method: "POST" })
@@ -350,8 +451,18 @@ export const createRoom = (data: z.infer<typeof createRoomSchema>) =>
 export const scheduleRoom = (data: z.infer<typeof scheduleRoomSchema>) =>
   scheduleRoomFn({ data })
 export const listUpcoming = () => upcomingRoomsFn()
+export const repeatRoom = (data: z.infer<typeof repeatRoomSchema>) =>
+  repeatRoomFn({ data })
+export const listMyRepeats = () => myRepeatsFn()
+export const skipNextRepeat = (repeatId: string) =>
+  skipRepeatFn({ data: { repeatId } })
+export const cancelRepeat = (repeatId: string) =>
+  cancelRepeatFn({ data: { repeatId } })
 export const cancelBookedRoom = (slug: string) =>
   cancelScheduledRoomFn({ data: { slug } })
+export const listSavedRooms = () => myRoomsFn()
+export const leaveRoomPermanently = (slug: string) =>
+  leaveForGoodFn({ data: { slug } })
 export const joinRoom = (slug: string) => joinRoomFn({ data: { slug } })
 export const leaveActiveRoom = (slug: string) =>
   leaveRoomFn({ data: { slug } })

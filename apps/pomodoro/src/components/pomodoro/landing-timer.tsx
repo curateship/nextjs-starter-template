@@ -8,7 +8,7 @@ import { loadPublicPageBlocks } from "@/lib/api/content/page-blocks"
 import { loadAppFrontPageRows } from "@/lib/api/shell"
 import { APP_FRONT_PAGE_ROW_KIND } from "@/lib/pages/front-page"
 import { FRONT_PAGE_PATH } from "@/lib/pages/page-descriptor"
-import { setProductAuthenticated } from "@/lib/pomodoro/auth-state"
+import { setProductAccount } from "@/lib/pomodoro/auth-state"
 import { maybeImportGuestState } from "@/lib/pomodoro/guest-import"
 import { reloadPomodoroData } from "@/lib/pomodoro/use-pomodoro"
 
@@ -19,13 +19,14 @@ import { reloadPomodoroData } from "@/lib/pomodoro/use-pomodoro"
 export default function LandingTimer({ data }: { data: LandingData }) {
   const user = data.user
   const authenticated = Boolean(user)
+  const accountEmail = user?.email ?? null
   React.useEffect(() => {
-    setProductAuthenticated(authenticated)
-    if (authenticated)
+    setProductAccount(accountEmail)
+    if (accountEmail)
       void maybeImportGuestState().then((imported) => {
         if (imported) void reloadPomodoroData()
       })
-  }, [authenticated])
+  }, [accountEmail])
 
   return (
     <PomodoroShell

@@ -102,6 +102,32 @@ project". The bar is drawn against the longest row, and never shorter than
 4% of it, so a row with a few minutes still shows a sliver. The spoken value
 is always the real time.
 
+## A project's target in By project
+
+A project with an hours target ([Projects](projects.md)) gets a second, muted
+bar under its row and a line such as "Target: 4h of 10h this week". The target
+always reads its own week or month, whichever range tab is picked, which is
+why the line names the period. A targeted project with no focus in the chosen
+range has no row in By project, so it shows no target line here either; the
+Projects card on `/tasks` always shows it.
+
+## Filtering the sessions table by tag
+
+The Completed sessions card has a tag picker in its header, listing every tag
+the account has ever made ([Tasks](tasks.md#tags)). Picking "admin" narrows
+the table to sessions whose task carries "admin" now, and the header reads
+"2 tagged admin · 1h 15m" in place of "N in range".
+
+- **Only the table, its count and its total follow the filter.** The stats,
+  the chart, the heatmap and the two splits above it stay whole, because they
+  are read from the per-day totals, which know nothing of tags.
+- **The CSV export follows it.** The file holds what the table shows.
+- **A tag reaches a session through its task**, the same way a project does,
+  so tagging a task later puts its earlier sessions under the tag too.
+- **Another account's tag id matches nothing.** The filter checks the tag
+  belongs to the person asking (`taggedWith` in
+  `src/server/pomodoro/focus-report.ts`).
+
 ## When a card fails to load
 
 Every card on the page that loads on its own says so inside its own frame,

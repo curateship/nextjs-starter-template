@@ -4,6 +4,8 @@
  * active or completed, with its finished-focus count and optional estimate.
  */
 
+import type { TaskStepItem } from "@/lib/pomodoro/task-steps"
+
 export type TaskPriority = "low" | "normal" | "high"
 
 /** What a new-task box says when Enter is pressed with nothing in it. */
@@ -22,6 +24,45 @@ export type TaskItem = {
   repeatWeekdays: number | null
   projectId: string | null
   projectName: string | null
+  /** The checklist under the task, in order. Always empty for a guest. */
+  steps: TaskStepItem[]
+  /** Up to three short labels. Always empty for a guest. */
+  tags: string[]
+}
+
+/**
+ * A task row as the server sends it, flattened with its rule's days, its
+ * project's name, its steps and its tags. The store and the planned-day list
+ * both read it through `taskItemFromServer`.
+ */
+export type ServerTaskRow = {
+  id: string
+  title: string
+  status: string
+  pomodoroCount: number
+  priority: string
+  estimatedPomodoros: number | null
+  repeatWeekdays: number | null
+  projectId: string | null
+  projectName: string | null
+  steps: TaskStepItem[]
+  tags: string[]
+}
+
+export function taskItemFromServer(task: ServerTaskRow): TaskItem {
+  return {
+    id: task.id,
+    title: task.title,
+    completed: task.status === "completed",
+    pomodoros: task.pomodoroCount,
+    priority: normalizeTaskPriority(task.priority),
+    estimatedPomodoros: normalizeEstimatedPomodoros(task.estimatedPomodoros),
+    repeatWeekdays: task.repeatWeekdays,
+    projectId: task.projectId,
+    projectName: task.projectName,
+    steps: task.steps,
+    tags: task.tags,
+  }
 }
 
 export function normalizeTaskPriority(value: unknown): TaskPriority {

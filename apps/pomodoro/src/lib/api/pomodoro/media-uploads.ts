@@ -135,14 +135,69 @@ const deleteFn = createServerFn({ method: "POST" })
 export const loadUploadLibrary = (purpose: PomodoroUploadPurpose) =>
   libraryFn({ data: { purpose } })
 
+/** How far an upload has got: the bytes going out, then the server's check. */
+export type UploadProgress =
+  | { phase: "sending"; percent: number }
+  | { phase: "checking" }
+
+/**
+ * A `fetch` that reports how much of the body has gone out.
+ *
+ * `fetch` cannot say how far an upload has got, and a 100 MB clip on slow wifi
+ * needs a figure to tell slow from stuck. The server function still builds the
+ * request and still reads the answer, so the address, the origin check, the
+ * cookies and the error codes are exactly those of every other call; only the
+ * wire under it changes.
+ */
+function fetchWithUploadProgress(
+  onProgress: (progress: UploadProgress) => void
+): typeof fetch {
+  return (input, init) =>
+    new Promise<Response>((resolve, reject) => {
+      const xhr = new XMLHttpRequest()
+      xhr.open(init?.method ?? "POST", String(input))
+      xhr.responseType = "blob"
+      new Headers(init?.headers).forEach((value, name) =>
+        xhr.setRequestHeader(name, value)
+      )
+      xhr.upload.onprogress = (event) => {
+        if (!event.lengthComputable) return
+        onProgress({
+          phase: "sending",
+          percent: Math.min(100, Math.floor((event.loaded / event.total) * 100)),
+        })
+      }
+      // Every byte is out, and the server is now reading and sniffing the file.
+      xhr.upload.onload = () => onProgress({ phase: "checking" })
+      xhr.onload = () => {
+        const headers = new Headers()
+        for (const line of xhr.getAllResponseHeaders().trim().split(/\r?\n/)) {
+          const at = line.indexOf(":")
+          if (at > 0) headers.append(line.slice(0, at), line.slice(at + 1).trim())
+        }
+        resolve(
+          new Response(xhr.response as Blob, {
+            status: xhr.status,
+            statusText: xhr.statusText,
+            headers,
+          })
+        )
+      }
+      // The same failure `fetch` gives when the network drops.
+      xhr.onerror = () => reject(new TypeError("Failed to fetch"))
+      xhr.send((init?.body ?? null) as XMLHttpRequestBodyInit | null)
+    })
+}
+
 export const uploadPomodoroMedia = (
   file: File,
-  purpose: PomodoroUploadPurpose
+  purpose: PomodoroUploadPurpose,
+  onProgress: (progress: UploadProgress) => void
 ) => {
   const form = new FormData()
   form.append("file", file)
   form.append("purpose", purpose)
-  return uploadFn({ data: form })
+  return uploadFn({ data: form, fetch: fetchWithUploadProgress(onProgress) })
 }
 
 export const removePomodoroUpload = (mediaId: string) =>

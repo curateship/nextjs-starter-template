@@ -101,10 +101,65 @@ the phases, and the server is the only clock.
   case it has an eighth phase, `scheduled`, and opens itself on its own
   clock: [Scheduled rooms](scheduled-rooms.md).
 
+## What everyone is working on
+
+- **A member can show the task they are focusing on**, beside their name in
+  the room's member list. The switch is "Show my task to people in my room" in
+  Settings → Profile, off for everyone until they turn it on, because a task
+  title can name a client.
+- **Only a focus that is counting down shows.** The room reads the person's
+  newest focus that is running and whose end time has not passed, and its
+  task. A paused focus shows nothing, because paused sessions are left behind
+  for days when a tab closes. A focus with no task picked shows nothing.
+- **The room's own ring does not start your timer.** The task appears only
+  while your own timer on the Timer screen runs a focus with a task picked.
+- **The room hears straight away.** Starting, pausing, resuming, finishing or
+  resetting a focus, and saving the switch, sends the room a fresh snapshot.
+  Turning the switch off takes the line away on that snapshot.
+- **Nobody outside the room sees it.** The title rides only on the room
+  snapshot, which only members receive, and never on a browse card or invite
+  page. User ids still never leave the server.
+
+## My rooms
+
+- **Every room you join or host stays on My rooms** at the top of `/rooms`,
+  so a group that meets every week finds its room again without the link.
+  Joining from Browse, from an invite link, or hosting all count.
+- **Saving is not joining.** It is a `saved` flag on the membership, and the
+  rule that you are in one room at a time is untouched. The list shows "You
+  are in it", "Open to join" with a Join button, "In session" with Locked, or
+  "Ended" with the day.
+- **A closed room drops off 30 days after it closed**, by itself. Tyler chose
+  this on 6 Oct 2026 over keeping closed rooms until somebody removes them.
+- **Leave for good takes a room off the list.** Pressed from inside the room,
+  it leaves the room too, by the same rules as Leave, so a host leaving still
+  ends it for everyone. That case asks first. Joining again puts the room
+  back.
+- **A room you were banned from never shows**, and neither does a room whose
+  host is across a block with you.
+- **The list starts empty.** Memberships from before 6 Oct 2026 were not
+  marked saved, so old one-off rooms do not flood it.
+
+## Who you focus with
+
+- **The Leaderboard has a card listing the five people you share the most
+  room time with** over the last 12 months, with the hours.
+- **The time is the overlap of your two memberships in the same room**, added
+  up across rooms. A membership still open counts up to now.
+- **Both of you must be on the leaderboard.** Somebody without "Show me on the
+  leaderboard" and a display name is named to nobody and sees nobody, and the
+  card tells them which switch to turn on. Display names only.
+- **The read is bounded.** One query starts from your own memberships of the
+  last year on the user and date index, then matches the others per room.
+- **A membership counts until it ends.** Somebody who leaves a room open in a
+  tab for two days is counted for two days, because the membership row does
+  not know when the screen was last looked at.
+
 Server logic: `src/server/pomodoro/rooms.ts` (ported nearly whole from the
 old app). Endpoints: `src/lib/api/pomodoro/rooms.ts`. Tables (rooms,
 memberships, messages, reactions, bans, reports and the session room
-link): migration `0089_pomodoro_rooms.sql`.
+link): migration `0089_pomodoro_rooms.sql`. The task switch, the `saved` flag
+and the "focused with" index: `0116_pomodoro_rooms_that_stick.sql`.
 
 ## Notices
 
