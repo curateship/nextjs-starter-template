@@ -11,6 +11,7 @@ import {
   entrySide,
   gridEndAfterRangeMove,
   gridRangeAfterMove,
+  gridRangeForGap,
   gridRangeReshapable,
   gridStopAfterWholeMove,
   gridStopPx,
@@ -528,7 +529,8 @@ export async function reshapeLiveGrid(
       input.potPct !== undefined ||
       input.leverage !== undefined ||
       input.manualSizing !== undefined ||
-      input.manualRungPcts !== undefined
+      input.manualRungPcts !== undefined ||
+      input.rungGapPct !== undefined
     if (!canReshape && (!input.rangeMove || changesSlices)) {
       throw new Error("SMART_GRID_STARTED")
     }
@@ -571,11 +573,16 @@ export async function reshapeLiveGrid(
         takerFeeRate: defaultPaperCosts().takerFeeRate,
       })
     } else {
+      const split = reshapedGridSplit(plan, input)
+      // A dragged edge, or a new gap hung off rung 1 across the new level count.
       const movedRange = input.rangeMove
         ? gridRangeAfterMove(plan, input.rangeMove)
-        : null
-      if (input.rangeMove && !movedRange) throw new Error("SMART_GRID_RANGE")
-      const split = reshapedGridSplit(plan, input)
+        : input.rungGapPct !== undefined
+          ? gridRangeForGap(plan, input.rungGapPct, split.levels)
+          : null
+      if ((input.rangeMove || input.rungGapPct !== undefined) && !movedRange) {
+        throw new Error("SMART_GRID_RANGE")
+      }
       const draft = draftGridOrder({
         marketKey: grid.marketKey,
         params: {

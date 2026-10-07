@@ -1057,6 +1057,21 @@ above it. Clicking outside or pressing Escape closes it.
 End Grid can be switched on or off, and its percentage is measured above
 today's price or the top of the range just like placement.
 
+**Gap between rungs % can change on a running grid** (Tyler, 6 Oct 2026). It
+is the first box in Slices and means what it means in the placement window: how
+far apart the rungs sit, measured off rung 1. Rung 1, the rung nearest the
+market, keeps its price, and the rest move to the new gap. Take a buying grid
+with buys at $80, $90, $100 and $110, a 9.09% gap off $110.
+
+- **At 5%:** each step is $5.50, so the buys become $93.50, $99, $104.50 and
+  $110. The range runs $93.50 to $115.50.
+- **On a selling grid** rung 1 is the lowest sell, and the rest spread upward.
+- **Percent spacing** reads the gap as the step from one rung to the next.
+- **It locks with the rest of Slices** once any level holds coin.
+- **The server works the new range out itself**, from the grid's own prices,
+  through `gridRangeForGap` in `src/lib/trade/grid.ts`. The window only sends
+  the percent.
+
 Changing Leverage redraws every waiting level with the new amount of coin.
 Leverage can change only while the grid holds no coin and still has buys
 waiting. A held position has already fixed its borrowing, and a paired DCA

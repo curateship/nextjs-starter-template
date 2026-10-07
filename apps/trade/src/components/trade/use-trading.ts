@@ -570,6 +570,8 @@ export type Trading = {
       manualSizing?: boolean
       /** The typed weights in the card's row order, top of the range first. */
       manualRungPcts?: number[]
+      /** A new gap between rungs, in percent. Rung 1 keeps its price. */
+      rungGapPct?: number
     }
   ) => Promise<boolean>
   /** Switch End Grid on or off, or change its distance above price. */
