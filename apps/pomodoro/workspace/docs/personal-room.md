@@ -81,8 +81,8 @@ Then it is the pair the host picked, until you leave.
   it and the Add buttons under it. Tyler, 7 Oct 2026: "Clicking on the theme
   should open up a popover to preview the theme (not open it in the background
   like we do now)." The page behind never changes until a theme is added.
-- **The Add buttons sit under the preview**, on the previewed sound card or in
-  the theme's popover (`MediaAddActions` in
+- **The Add buttons sit with the preview**, over the picture of the previewed
+  sound card or under the scene in the theme's popover (`MediaAddActions` in
   `src/components/pomodoro/media-add-actions.tsx`):
   - "Add to my personal room" saves it to your own room.
   - "Add to this room" is shown only to the host of the room you are in, and

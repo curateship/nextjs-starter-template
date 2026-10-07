@@ -50,36 +50,49 @@ export function LeaderboardRows({
         <article
           key={`${index}-${leader.name}`}
           className={cn(
-            "flex min-h-9 items-center gap-3 rounded-lg border px-3",
+            "flex min-h-14 items-center gap-3 rounded-2xl border border-transparent px-3 sm:min-h-[60px] sm:gap-4 sm:px-4",
             leader.isYou &&
-              "border-primary/40 bg-primary/8"
+              "border-[color:var(--p-accent)]/50 bg-[color:var(--p-accent)]/15"
           )}
         >
-          <strong className="min-w-5 shrink-0 text-center font-mono text-xs text-muted-foreground">
+          {/* The first three places read brighter than the rest. */}
+          <strong
+            className={cn(
+              "min-w-6 shrink-0 text-center font-mono text-base font-normal",
+              firstPlace + index > 3 && !leader.isYou && "text-muted-foreground"
+            )}
+          >
             {firstPlace + index}
           </strong>
-          <InitialsAvatar name={leader.name ?? "?"} />
+          <InitialsAvatar
+            name={leader.name ?? "?"}
+            className="size-8 text-xs sm:size-9 sm:text-sm"
+          />
           {/* Initials stay on the boards; a photo belongs to the profile
               page. The name is the only thing that becomes a link. */}
           {leader.handle ? (
             <Link
               to="/u/$handle"
               params={{ handle: leader.handle }}
-              className="min-w-0 truncate text-sm font-bold underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="min-w-0 truncate text-base font-semibold underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {leaderName(leader)}
             </Link>
           ) : (
-            <b className="min-w-0 truncate text-sm">{leaderName(leader)}</b>
+            <b className="min-w-0 truncate text-base font-semibold">
+              {leaderName(leader)}
+            </b>
           )}
           {leader.isYou ? (
-            <span className="shrink-0 rounded-full border border-primary/40 px-2 font-mono text-[10px] font-bold uppercase tracking-wider text-[var(--p-accent-2)]">
+            <span className="shrink-0 rounded-full border border-[color:var(--p-accent)]/60 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-[var(--p-accent-2)]">
               You
             </span>
           ) : null}
-          <span className="ml-auto shrink-0 font-mono text-xs">
-            {formatFocusDuration(leader.focusSeconds)}{" "}
-            <small className="text-muted-foreground">
+          <span className="ml-auto flex shrink-0 items-baseline gap-3 sm:gap-5">
+            <span className="font-mono text-sm tabular-nums sm:text-base">
+              {formatFocusDuration(leader.focusSeconds)}
+            </span>
+            <small className="hidden w-20 font-mono text-xs text-muted-foreground sm:inline">
               {leader.focusSessions} {plural(leader.focusSessions, "session")}
             </small>
           </span>

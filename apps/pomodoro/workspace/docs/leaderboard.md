@@ -1,8 +1,32 @@
 # Leaderboard
 
-`/leaderboard`: your own stat cards (focus today, this week, current and
-best streak, tasks done this week), a 7-day sessions chart, and the global
-ranking.
+`/leaderboard`: the global ranking, then Who you focus with and Your groups
+side by side. Your own stat cards and the 7-day sessions chart moved to
+[Focus history](history.md) on 7 Oct 2026, on Tyler's word.
+
+## How the page looks
+
+Drawn to Tyler's design of 7 Oct 2026 (`assets/pasted-image-1791398305993222000.png`).
+
+- **The header:** a large "Leaderboard" title and one line under it. The line
+  reads "Focus time across everyone on pomodoro." on Everyone and "Focus time
+  across the people you follow." on Following.
+- **The tabs sit to the right of the title:** Everyone and Following in one
+  round pill, This week, This month and All time in another. They are as large
+  and round as the timer's mode tabs, because the design draws them that way.
+  On a phone they drop under the title.
+- **Three panels share one look:** 24px corners, a small capitals label on the
+  left and the period on the right (`panel-card.tsx`, shared with the profile and History).
+- **The ranked rows:** place, initials, name, focus time and the session count,
+  with no box around a row. Places 1 to 3 read brighter than the rest. Your own
+  row has an orange border and tint. A phone hides the session count so the
+  name keeps its room.
+- **The two empty states are centred.** Who you focus with shows three dashed
+  circles and a Browse focus rooms button that opens `/rooms`. Your groups
+  shows Create a group and Join with a link as round buttons.
+- **People you follow** (the badges your follows earned) is not in the design.
+  It stays under the two panels and draws nothing when there is nothing to
+  show.
 
 - **Opt-in only, display names only.** An account appears only after
   turning on "Show me on the leaderboard" in Settings AND choosing a
@@ -31,8 +55,7 @@ ranking.
 - **One window runs both boards.** Picking This month moves the global ranking
   and every [private group](focus-groups.md) board with it. The ranking query
   is shared, so a figure cannot differ between the two.
-- **Guests** see their local stats and a sign-in card in place of the
-  ranking.
+- **Guests** see a sign-in card in place of the ranking.
 - **The header pill opens the top five.** The Leaderboard pill in the
   product header is a popover, not a link to the page: this week's top
   five with rank, initials, name and session count, your own row in the

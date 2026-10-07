@@ -84,24 +84,25 @@ export function formatFocusSpan(totalSeconds: number) {
 }
 
 /**
- * This week against last week in plain words. Hours and minutes only, never a
+ * This week against last week: more, less, the same, or no last week at
+ * all, with the difference as hours and minutes. Never a
  * percentage: a percentage change from a week of zero means nothing, and two
  * stacked percentages cannot be checked by hand.
  *
  * The two weeks are compared as whole minutes, so a week that differs by a few
  * seconds reads as the same week rather than claiming a 0m difference.
  */
-export function weekComparisonLabel(
+export function weekComparison(
   thisWeekSeconds: number,
   lastWeekSeconds: number,
   hasLastWeek: boolean
-) {
-  if (!hasLastWeek) return "This is your first week, so there is nothing to compare to yet."
+): { change: "first" | "same" | "more" | "less"; span: string } {
+  if (!hasLastWeek) return { change: "first", span: "" }
   const difference =
     Math.round(thisWeekSeconds / 60) * 60 - Math.round(lastWeekSeconds / 60) * 60
-  if (difference === 0) return "The same as last week."
-  const span = formatFocusSpan(Math.abs(difference))
-  return difference > 0
-    ? `${span} more than last week.`
-    : `${span} less than last week.`
+  if (difference === 0) return { change: "same", span: "" }
+  return {
+    change: difference > 0 ? "more" : "less",
+    span: formatFocusSpan(Math.abs(difference)),
+  }
 }

@@ -1,8 +1,9 @@
 import * as React from "react"
-import { Loader2Icon } from "lucide-react"
+import { ArrowRightIcon, CheckIcon, Loader2Icon } from "lucide-react"
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ErrorRow } from "@/components/ui/error-row"
+import { PanelCard } from "@/components/pomodoro/panel-card"
+import { TextLink } from "@/components/pomodoro/text-link"
 import { Meter } from "@/components/ui/meter"
 import { loadAchievements } from "@/lib/api/pomodoro/achievements"
 import { formatLongDay, localDateIn } from "@/lib/format/calendar-day"
@@ -18,7 +19,9 @@ import { cn } from "@/lib/utils"
 import { BADGES_CARD_ID } from "@/lib/pomodoro/achievement-toast"
 
 /**
- * The badges panel, above the focus report on /history.
+ * The badges panel, at the foot of /history: every badge as a tile, the
+ * earned ones first in the accent tint, then the locked ones with their
+ * progress. Show on profile opens the switch that publishes them.
  *
  * Every badge says what it is for. Earned ones add the day they were earned;
  * locked ones show how far along they are, which is the whole point of
@@ -66,19 +69,35 @@ export function AchievementsCard() {
   }, [attempt])
 
   const earnedCount = state?.earned.size ?? 0
+  // Earned first, each group in the ladder's own order.
+  const ordered = state
+    ? [
+        ...ACHIEVEMENTS.filter((badge) => state.earned.has(badge.id)),
+        ...ACHIEVEMENTS.filter((badge) => !state.earned.has(badge.id)),
+      ]
+    : []
 
   return (
     // The badge toast's See it scrolls here.
-    <Card id={BADGES_CARD_ID} className="scroll-mt-20">
-      <CardHeader className="flex-row items-baseline justify-between">
-        <CardTitle>Achievements</CardTitle>
-        {state ? (
-          <span className="font-mono text-xs text-muted-foreground">
-            {earnedCount} of {ACHIEVEMENTS.length} earned
-          </span>
-        ) : null}
-      </CardHeader>
-      <CardContent>
+    <PanelCard
+      id={BADGES_CARD_ID}
+      className="scroll-mt-20"
+      label={
+        state
+          ? `Achievements · ${earnedCount} of ${ACHIEVEMENTS.length}`
+          : "Achievements"
+      }
+      aside={
+        <TextLink
+          to="/settings"
+          search={{ tab: "public" }}
+          className="flex items-center gap-1 text-sm text-[var(--p-accent)]"
+        >
+          Show on profile
+          <ArrowRightIcon className="size-3.5" aria-hidden="true" />
+        </TextLink>
+      }
+    >
         {loading ? (
           <span
             role="status"
@@ -100,34 +119,31 @@ export function AchievementsCard() {
           />
         ) : null}
         {state ? (
-          <ul className="grid gap-2 sm:grid-cols-2">
-            {ACHIEVEMENTS.map((badge) => {
+          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {ordered.map((badge) => {
               const earnedAt = state.earned.get(badge.id)
               return (
                 <li
                   key={badge.id}
                   className={cn(
-                    "flex items-start gap-3 rounded-xl border p-3",
-                    earnedAt && "bg-primary/8"
+                    "flex items-start gap-3 rounded-[18px] border p-4",
+                    earnedAt
+                      ? "border-[color:var(--p-accent)]/45 bg-[color:var(--p-accent)]/12"
+                      : "bg-[rgba(var(--p-canvas-rgb),0.35)]"
                   )}
                 >
                   <BadgeMark earned={!!earnedAt} />
-                  <div className="flex min-w-0 flex-col gap-0.5">
-                    <span
-                      className={cn(
-                        "text-sm font-semibold",
-                        !earnedAt && "text-muted-foreground"
-                      )}
-                    >
+                  <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <span className="font-semibold">
                       {badge.name}
                     </span>
                     {/* What it took stays once it is yours: it is the part
                         people forget, and the date alone did not say it. */}
-                    <small className="text-xs text-muted-foreground">
+                    <small className="text-sm text-muted-foreground">
                       {badge.description}
                     </small>
                     {earnedAt ? (
-                      <small className="text-xs text-muted-foreground">
+                      <small className="mt-1 font-mono text-xs text-muted-foreground">
                         Earned{" "}
                         {formatLongDay(localDateIn(state.timezone, earnedAt))}
                       </small>
@@ -140,8 +156,7 @@ export function AchievementsCard() {
             })}
           </ul>
         ) : null}
-      </CardContent>
-    </Card>
+    </PanelCard>
   )
 }
 
@@ -168,7 +183,7 @@ function BadgeProgress({
           printed copy is hidden from it rather than read twice. */}
       <small
         aria-hidden="true"
-        className="font-mono text-[10px] text-muted-foreground"
+        className="mt-1 font-mono text-xs text-muted-foreground"
       >
         {progress.label}
       </small>
@@ -186,8 +201,8 @@ function BadgeProgress({
 
 /**
  * Earned and locked differ by shape as well as colour, because state must
- * never be carried by colour alone: earned is a filled disc, locked an empty
- * ring.
+ * never be carried by colour alone: earned is a filled disc with a tick,
+ * locked an empty ring.
  */
 function BadgeMark({ earned }: { earned: boolean }) {
   return (
@@ -195,10 +210,11 @@ function BadgeMark({ earned }: { earned: boolean }) {
       className={cn(
         "mt-0.5 grid size-6 shrink-0 place-items-center rounded-full",
         earned
-          ? "bg-[var(--p-accent)]"
+          ? "bg-[var(--p-accent)] text-white"
           : "border-[1.5px] border-[rgba(var(--p-fg-rgb),0.25)]"
       )}
     >
+      {earned ? <CheckIcon className="size-3.5" aria-hidden="true" /> : null}
       <span className="sr-only">{earned ? "Earned" : "Locked"}</span>
     </span>
   )

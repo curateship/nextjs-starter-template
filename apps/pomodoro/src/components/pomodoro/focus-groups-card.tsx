@@ -28,6 +28,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { PanelCard } from "@/components/pomodoro/panel-card"
 import { LeaderboardRows } from "@/components/pomodoro/leaderboard-rows"
 import {
   createFocusGroup,
@@ -155,14 +156,7 @@ export function FocusGroupsCard({
   const atLimit = (groups?.length ?? 0) >= MAX_GROUPS_PER_PERSON
 
   return (
-    <Card>
-      <CardHeader className="flex-row items-baseline justify-between">
-        <CardTitle>Your groups</CardTitle>
-        <span className="text-xs text-muted-foreground">
-          {LEADERBOARD_WINDOW_NOTES[boardWindow]}
-        </span>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
+    <PanelCard label="Your groups" note={LEADERBOARD_WINDOW_NOTES[boardWindow]}>
         {groupsFailed ? (
           <ErrorRow
             message="Your groups could not be loaded."
@@ -175,21 +169,21 @@ export function FocusGroupsCard({
         ) : groups === null ? (
           <LoadingRow label="Loading your groups" />
         ) : groups.length === 0 ? (
-          <div className="flex flex-col items-start gap-2 py-2">
-            <p className="text-sm text-muted-foreground">
+          <div className="flex flex-1 flex-col items-center justify-center gap-4 py-2 text-center">
+            <p className="max-w-md text-muted-foreground">
               A private group is a board of just the people you invite. Make one
               and share its link, or follow a link somebody sent you. You do not
               have to be on the global board to be in a group.
             </p>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap justify-center gap-2">
               <Button
-                size="sm"
+                className="rounded-full"
                 onClick={() => setCreating(true)}
               >
                 Create a group
               </Button>
               <Button
-                size="sm"
+                className="rounded-full"
                 variant="outline"
                 onClick={() => setJoining(true)}
               >
@@ -289,7 +283,6 @@ export function FocusGroupsCard({
             )}
           </>
         )}
-      </CardContent>
 
       <CreateGroupDialog
         key={`create-${creating}`}
@@ -323,7 +316,7 @@ export function FocusGroupsCard({
           }}
         />
       ) : null}
-    </Card>
+    </PanelCard>
   )
 }
 

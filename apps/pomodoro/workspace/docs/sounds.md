@@ -39,9 +39,12 @@ room."
 - **A click plays the loop on this page only**, through its own player
   (`use-preview-audio.ts`). The header's player, the timer and what is saved
   are never touched. Clicking again pauses it, and leaving the page stops it.
-- **The previewed card shows "Add to my personal room"**, and "Add to this
-  room" for the host of the room you are in. The rules are in
-  [The personal room](personal-room.md).
+- **The previewed card shows "Add to my personal room"** over the bottom-left
+  corner of its picture, and "Add to this room" beside it for the host of the
+  room you are in. Tyler moved it there from under the name on 7 Oct 2026.
+  Once added, the same corner reads "In your personal room" on a dark pill.
+  Your own uploads keep the button in the row under their card. The rules are
+  in [The personal room](personal-room.md).
 
 ## Adding one never starts it
 

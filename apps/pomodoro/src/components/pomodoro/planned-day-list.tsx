@@ -26,6 +26,9 @@ type PomodoroApi = ReturnType<typeof usePomodoro>
  * edited, given steps and tags, and removed. It cannot be ticked, picked as
  * the focus or dragged: those belong to the day itself, when the task turns
  * up on today's list.
+ *
+ * Drawn the way Today is: rows without a frame of their own, and the add box
+ * under its own full-width divider, so switching days only changes the rows.
  */
 export function PlannedDayList({
   plannedDate,
@@ -47,7 +50,7 @@ export function PlannedDayList({
 
   return (
     <>
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2 px-3 pb-2">
         {day.loading ? (
           <LoadingRow label={`Loading ${dayName}…`} className="py-4" />
         ) : null}
@@ -58,7 +61,7 @@ export function PlannedDayList({
           />
         ) : null}
         {!day.loading && !day.failed && !shown.length ? (
-          <p className="py-2 text-sm text-muted-foreground">
+          <p className="px-3 py-2 text-sm text-muted-foreground">
             {tagFilter
               ? `Nothing on ${dayName} is tagged ${tagFilter}.`
               : `Nothing planned for ${dayName} yet. Add a task below and it will be on your list that morning.`}
@@ -76,7 +79,13 @@ export function PlannedDayList({
         ))}
       </div>
       {day.failed ? null : (
-        <NewTaskForm onAdd={day.addTask} label={`New task for ${dayName}`} />
+        <div className="border-t px-3 py-3">
+          <NewTaskForm
+            onAdd={day.addTask}
+            label={`New task for ${dayName}`}
+            bare
+          />
+        </div>
       )}
     </>
   )
@@ -98,7 +107,7 @@ function PlannedTaskRow({
   const [stepsOpen, setStepsOpen] = React.useState(false)
   return (
     <TaskRowFrame
-      className="bg-card"
+      className="border-transparent bg-transparent"
       steps={
         stepsOpen ? (
           <TaskStepList

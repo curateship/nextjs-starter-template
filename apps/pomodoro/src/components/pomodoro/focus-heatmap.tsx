@@ -70,6 +70,33 @@ function squareTitle(day: HeatmapDay) {
   return `${head} · ${day.focusSessions} ${day.focusSessions === 1 ? "session" : "sessions"}`
 }
 
+/**
+ * The week column each month starts in, with its short name. The first
+ * column is named too, unless its month starts in the next one, so two names
+ * never sit on top of each other.
+ */
+function monthStarts(days: readonly HeatmapDay[], leadingBlanks: number) {
+  const starts: { date: string; column: number; label: string }[] = []
+  days.forEach((day, index) => {
+    if (index > 0 && !day.localDate.endsWith("-01")) return
+    const column = Math.floor((leadingBlanks + index) / 7)
+    if (starts.at(-1)?.column === column) starts.pop()
+    starts.push({
+      date: day.localDate,
+      column,
+      label: new Date(`${day.localDate}T12:00:00`).toLocaleDateString(
+        undefined,
+        { month: "short" }
+      ),
+    })
+  })
+  // A name needs about three columns of room before the next one.
+  return starts.filter(
+    (start, index) =>
+      index === starts.length - 1 || starts[index + 1].column - start.column >= 3
+  )
+}
+
 /** The year's total, read out instead of 365 squares. */
 function heatmapSummary(days: readonly HeatmapDay[]) {
   const total = days.reduce((sum, day) => sum + day.focusSeconds, 0)
@@ -134,6 +161,11 @@ export function FocusHeatmap({
   const activeDay = active
     ? days.find((day) => day.localDate === active)
     : undefined
+  const weeks = Math.ceil((leadingBlanks + days.length) / 7)
+  // 16px squares, so a year (53 weeks) fills the content column on a wide
+  // screen and scrolls on a phone. The month row uses the same columns.
+  const columns = { gridTemplateColumns: `repeat(${weeks}, 1rem)` }
+  const months = monthStarts(days, leadingBlanks)
 
   const show = (date: string) => {
     setActive(date)
@@ -164,12 +196,14 @@ export function FocusHeatmap({
     // page scrolled to 916px, with it the page is 390px and the squares
     // scroll inside their own box.
     <div className="flex w-0 min-w-full gap-2">
+      {/* The top padding is the month row and the grid's own inset, so each
+          name sits level with its 16px row of squares. */}
       <div
-        className="grid shrink-0 grid-rows-7 gap-1 font-mono text-[9px] text-muted-foreground"
+        className="grid shrink-0 auto-rows-[1rem] gap-1 self-start pt-[22px] font-mono text-[10px] text-muted-foreground"
         aria-hidden="true"
       >
         {WEEKDAY_LABELS.map((label, index) => (
-          <span key={index} className="h-3 leading-3">
+          <span key={index} className="flex items-center">
             {label}
           </span>
         ))}
@@ -182,10 +216,28 @@ export function FocusHeatmap({
           themed one and not the fat grey browser bar. */}
       <ScrollArea ref={scroller} className="min-w-0 flex-1">
         <div
+          aria-hidden="true"
+          className="grid h-4 w-max gap-1 px-0.5 font-mono text-[10px] leading-4 text-muted-foreground"
+          style={columns}
+        >
+          {months.map((month) => (
+            <span
+              key={month.date}
+              // No width of its own, so a name runs over the next columns
+              // instead of widening its own.
+              className="w-0 whitespace-nowrap"
+              style={{ gridColumnStart: month.column + 1 }}
+            >
+              {month.label}
+            </span>
+          ))}
+        </div>
+        <div
           role="group"
           tabIndex={0}
           aria-label={heatmapSummary(days)}
-          className="grid w-max grid-flow-col grid-rows-7 gap-1 rounded-sm p-0.5 pb-2 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="mt-1 grid w-max grid-flow-col grid-rows-7 gap-1 rounded-sm p-0.5 pb-2 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          style={columns}
           onPointerLeave={(event) => {
             if (event.pointerType === "mouse") setShown(false)
           }}
@@ -225,7 +277,7 @@ export function FocusHeatmap({
           }}
         >
           {Array.from({ length: leadingBlanks }, (_, index) => (
-            <i key={`blank-${index}`} className="size-3 rounded-[3px]" />
+            <i key={`blank-${index}`} className="size-4 rounded-[3px]" />
           ))}
           {days.map((day) => {
             const square = (
@@ -233,7 +285,7 @@ export function FocusHeatmap({
                 key={day.localDate}
                 data-date={day.localDate}
                 className={cn(
-                  "size-3 rounded-[3px]",
+                  "size-4 rounded-[3px]",
                   HEAT_CLASSES[heatLevel(day.focusSeconds, maxSeconds)],
                   day.localDate === today && "ring-1 ring-[var(--p-accent-2)]",
                   day.localDate === active &&

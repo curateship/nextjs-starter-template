@@ -7,7 +7,7 @@ import {
   startOfWeek,
   type ReportRange,
 } from "@/lib/pomodoro/focus-history"
-import { localDateFor } from "@/server/pomodoro/productivity"
+import { loadFocusSummary, localDateFor } from "@/server/pomodoro/productivity"
 import {
   dailyFocusStats,
   focusSessions,
@@ -218,8 +218,11 @@ export async function loadFocusReportSessions(userId: string, range: ReportRange
 }
 
 /**
- * This week against last week, the best day of this week, and the project that
- * took the most of this week's focus.
+ * This week against last week, the best day of this week, the project that
+ * took the most of this week's focus, the hour most of this week's sessions
+ * finished in, and the current and best streak. The History page's top strip
+ * and its This week card both read it, so none of it moves with the range
+ * tabs.
  *
  * Both weeks come from one read of `daily_focus_stats` over the fourteen-day
  * window and are split by date in JS, so the comparison never costs two
@@ -237,7 +240,7 @@ export async function loadWeekReview(userId: string, todayLocalDate: string, tim
   const weekStartsAt = localDateStartInstant(timezone, weekStart)
   const weekEndsBefore = localDateStartInstant(timezone, shiftLocalDate(todayLocalDate, 1))
 
-  const [rows, earlier, topProjects] = await Promise.all([
+  const [rows, earlier, topProjects, topHours, summary] = await Promise.all([
     db
       .select({ localDate: dailyFocusStats.localDate, focusSeconds: dailyFocusStats.focusSeconds })
       .from(dailyFocusStats)
@@ -262,6 +265,17 @@ export async function loadWeekReview(userId: string, todayLocalDate: string, tim
       .groupBy(tasks.projectId)
       .orderBy(desc(sql`sum(${focusSessions.accumulatedSeconds})`))
       .limit(1),
+    // The local hour most of this week's sessions finished in, counted the
+    // same way the report's hour chart counts. A tie goes to the earlier hour.
+    db
+      .select({ hour: sql<number>`extract(hour from ${focusSessions.completedAt} at time zone ${timezone}::text)::int`, sessions: sql<number>`count(*)::int` })
+      .from(focusSessions)
+      .where(completedFocusWithin(userId, weekStartsAt, weekEndsBefore))
+      .groupBy(sql`1`)
+      .orderBy(desc(sql`count(*)`), sql`1`)
+      .limit(1),
+    // The goal does not touch the streaks, so any goal will do here.
+    loadFocusSummary(userId, todayLocalDate, 1),
   ])
 
   let thisWeekSeconds = 0
@@ -288,5 +302,8 @@ export async function loadWeekReview(userId: string, todayLocalDate: string, tim
     hasLastWeek: lastWeekDays > 0 || earlier.length > 0,
     bestDay,
     topProject: topProject && topProject.focusSeconds > 0 ? { name: topProject.name, focusSeconds: topProject.focusSeconds } : null,
+    busiestHour: topHours[0]?.hour ?? null,
+    currentStreak: summary.currentStreak,
+    bestStreak: summary.bestStreak,
   }
 }

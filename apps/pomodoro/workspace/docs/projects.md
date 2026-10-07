@@ -11,18 +11,25 @@ uses.
 
 ## Making and managing them
 
-The Projects card sits under Today on `/tasks`, and holds every project the
-person owns.
+The Projects panel sits under the day's list on `/tasks`, and holds every
+project the person owns, three cards across on a wide screen.
 
-- **Create** with the "Add a project, press Enter…" field. A name is up to 60
-  characters.
+- **A card** shows a coloured square with the first letter, the name, the
+  public switch, the settings button and Archive along the top, and "3 tasks
+  · 2h 05m focused" along the foot, all time. A carried copy of a task is not
+  counted twice (`listProjects` in `src/server/pomodoro/projects.ts`). The
+  design shows only Archive on a card; the public switch and settings stay
+  because nothing else reaches them.
+- **Create** in the dashed New project card: type the name and press Enter.
+  A name is up to 60 characters.
 - **Edit** with the settings button on a row. It opens a small window under
   the button with the Name and the Target hours, then Cancel and "Save
   changes". The row stays as it is. Tyler asked for the window on 7 Oct 2026,
   the same one a task's settings button opens (`settings-window.tsx`). Every
   task already in the project follows a new name.
-- **Archive** with the archive button. Archived projects move to an Archived
-  group at the bottom of the card, each with one button to bring it back.
+- **Archive** with the archive button. "Archived · N" in the panel's corner
+  shows the archived projects under the cards, each with one button to bring
+  it back. They are hidden until it is pressed.
 - **Two live projects may not share a name**, ignoring case, and the attempt
   says so ("You already have a project called …"). An archived project is
   excluded from that check, so a name can be used again later.

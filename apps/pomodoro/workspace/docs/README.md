@@ -69,27 +69,29 @@ cover this one.
   to soft grey in Settings → Appearance, which greys move and which stay.
 - [Backgrounds](backgrounds.md) — the eight scenes and the backdrop every
   member screen draws behind its content.
-- [Focus history](history.md) — the four-range report: the week review,
-  stats, heatmap, the hour-of-day chart, trend, top tasks, project targets,
-  the sessions table with its tag filter, and CSV export.
-- [Achievements](achievements.md) — the ten badges, the panel above the
-  focus report with each locked badge's progress, and why a badge can only
+- [Focus history](history.md) — the four-range report as Tyler drew it: the
+  strip, By day, This week, the hour-of-day chart, top tasks and projects,
+  project targets, the sessions table with its tag filter, CSV export, and the
+  badges.
+- [Achievements](achievements.md) — the ten badges, the panel at the foot
+  of History with each locked badge's progress, and why a badge can only
   ever be awarded once.
 - [Guest mode and the one-time import](guest-mode.md) — the whole product
   without an account, and the first sign-in copying it over exactly once.
 - [The front page](landing-page.md) — `/` is the timer, for guests and
   accounts alike.
-- [Leaderboard](leaderboard.md) — the opt-in ranking over three windows and
-  your own stat cards.
+- [Leaderboard](leaderboard.md) — the opt-in ranking over three windows,
+  Who you focus with and Your groups, and how the page is drawn.
 - [Private focus groups](focus-groups.md) — an invite-only board among people
   you know, the caps, and why being in a group never lists you publicly.
 - [Live figures on the public front page](public-live-figures.md) — the hours
   and open-rooms rows a visitor sees, and the floor that hides one on a quiet
   week.
-- [Focus rooms](rooms.md) — shared timers with a host, the Rhythm preset
+- [Focus rooms](rooms.md) — the three columns (personal, joined, hosted)
+  with the one you are in lit, shared timers with a host, the Rhythm preset
   picker in Host a room, the fifteen-second
   server clock, SSE snapshots, invite links, the task beside a member's name,
-  My rooms, and who you focus with.
+  saved rooms, and who you focus with.
 - [Scheduled rooms](scheduled-rooms.md) — booking a room for later or every
   week, the invitation emails, and the worker that opens the room on time.
 - [Room chat and moderation](room-chat-and-moderation.md) — talking in a

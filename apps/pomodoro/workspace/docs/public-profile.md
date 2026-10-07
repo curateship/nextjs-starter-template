@@ -47,6 +47,59 @@ printed somewhere flatter. `focusapp.com/sarah` reads better on a business
 card, and the moment anybody moves it there, a member holding `login` is a
 problem that cannot be undone.
 
+## How the page looks
+
+Drawn to Tyler's design of 7 Oct 2026
+(`assets/pasted-image-1791400528949910000.png`), in
+`src/components/pomodoro/public-profile-page.tsx`.
+
+- **One header panel.** The round picture on the left, then the name in large
+  type with `/u/<handle>` beside it, the bio, and the follower and following
+  counts. The links sit top right as round buttons, and the owner gets Edit
+  profile beside them, which opens Settings → Public page.
+- **The four figures run along the header's foot**, split by thin lines:
+  hours focused, sessions, current streak and best streak, with the unit in
+  smaller grey type. Two across on a phone, four on a wide screen.
+- **The last year** is its own panel, with a line under the grid: active days
+  and total focus time. The design counts sessions there, but the profile
+  never publishes a day's sessions, so it counts time.
+- **The year buttons are links.** The design draws 2026 and 2025 as tabs over
+  the grid. The grid only holds the last 365 days, so each year opens that
+  year's [review](#year-in-review) instead of switching the grid.
+- **Badges · N** is a panel of tiles, four across on a wide screen. Each tile
+  has a coloured square with a short mark (1, 3d, 10, H), the badge's name
+  and the day it was earned. Sessions are blue, streaks amber, hosting green,
+  and the rest orange.
+- **Panels not in the design stay**, drawn the same way: Focusing now, the
+  room being hosted, and This week's work. Each shows only when its switch is
+  on and it has something to say.
+
+## The year grid
+
+History drew the same grid until 7 Oct 2026, when Tyler's redesign left it
+out. It now draws only here (`focus-heatmap.tsx`):
+
+- **16px squares with the month names above.** A year is 53 columns, which
+  fills the content column on a wide screen. The weekday names sit level with
+  their rows. A short range draws a few columns at the same size rather than
+  stretching them.
+
+- **It opens on the newest weeks.** The grid scrolls sideways inside its card,
+  and it starts at the right-hand end with today in view. At 390px wide it used
+  to open on last year, with today off the right edge.
+- **Every square tells you its day.** Pointing at one, tapping it, or reaching
+  it with the arrow keys shows "Tue, Oct 6, 2026 · 1h 20m · 3 sessions"
+  in the shared tooltip, and the square gets an outline. A tap anywhere else
+  puts it away. The day used to live only in a mouse-hover title, which a phone
+  never shows.
+- **One tooltip, one tab stop.** The grid is a single stop for Tab. Up and down
+  move a day, left and right move a week, and Home and End jump to the first
+  and last day. A tooltip and a tab stop for each of 365 squares could not open
+  on a tap and would bury the keyboard.
+- **A screen reader hears a summary**, such as "Focus by day from ... to ...:
+  41h over 120 days", and then each day as the arrows move. History also keeps
+  its hidden table of every day.
+
 ## What the page can show
 
 The bio, the links and the picture ride on the one switch that publishes the
@@ -87,8 +140,7 @@ publish more than people expect.
 
 ## Three pinned badges
 
-Up to three badges sit larger above the rest, and the others stay in the row
-beneath. A pinned badge the account has not earned, and a pinned id that is no
+Up to three badges lead the shelf, ahead of the rest. A pinned badge the account has not earned, and a pinned id that is no
 longer a badge at all, are both ignored when the page is built rather than
 drawn as a gap. A fourth pin is refused with a plain sentence.
 

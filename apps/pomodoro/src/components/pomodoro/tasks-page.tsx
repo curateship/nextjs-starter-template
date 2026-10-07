@@ -1,6 +1,7 @@
 import * as React from "react"
-import { Loader2Icon } from "lucide-react"
+import { ChevronDownIcon, ChevronUpIcon, Loader2Icon } from "lucide-react"
 
+import { PanelCard } from "@/components/pomodoro/panel-card"
 import { PlannedDayList } from "@/components/pomodoro/planned-day-list"
 import { ProjectsCard } from "@/components/pomodoro/projects-card"
 import {
@@ -8,10 +9,9 @@ import {
   TodayTaskList,
 } from "@/components/pomodoro/today-task-list"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Meter } from "@/components/ui/meter"
 import { InlineError } from "@/components/ui/inline-error"
 import { LoadingRow } from "@/components/ui/loading-row"
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import {
   Select,
   SelectContent,
@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Tabs, TabsCount, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useProductAuth } from "@/lib/pomodoro/auth-state"
 import { planningDays } from "@/lib/pomodoro/plan-ahead"
 import { describeArchiveCount } from "@/lib/pomodoro/task-archive"
@@ -28,6 +28,7 @@ import { loadArchivePage } from "@/lib/api/pomodoro/productivity"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { plural } from "@/lib/format/plural"
 import { contentColumn } from "@/lib/pomodoro/content-column"
+import { cn } from "@/lib/utils"
 
 const ALL_TAGS = "all"
 
@@ -148,127 +149,184 @@ export function TasksPage() {
     }, new Map<string, typeof archiveItems>()),
   ]
 
+  const [pastOpen, setPastOpen] = React.useState(true)
+  const dayTaskCount = (date: string, index: number) =>
+    index ? plannedCount(date) : pomodoro.tasks.length
+  const progressShare = pomodoro.tasks.length
+    ? completed / pomodoro.tasks.length
+    : 0
+
   return (
     <>
       <div className={`${contentColumn} flex flex-col gap-6 py-8`}>
-        <header>
-          <h2 className="text-2xl font-bold tracking-tight">Tasks</h2>
-          <p className="text-sm text-muted-foreground">
-            {days.length
-              ? "What you’re focusing on today, and the six days after it."
-              : "What you’re focusing on today."}
-          </p>
+        <header className="flex flex-wrap items-end justify-between gap-4">
+          <div className="flex flex-col gap-2">
+            <h2 className="text-4xl font-bold tracking-tight">Tasks</h2>
+            <p className="text-muted-foreground">
+              {days.length
+                ? "What you’re focusing on today, and the six days after it."
+                : "What you’re focusing on today."}
+            </p>
+          </div>
+          {tagOptions.length ? (
+            <Select value={tagFilter ?? ALL_TAGS} onValueChange={setChosenTag}>
+              <SelectTrigger
+                size="default"
+                className="rounded-full"
+                aria-label="Show tasks with this tag"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_TAGS}>All tags</SelectItem>
+                {tagOptions.map((tag) => (
+                  <SelectItem key={tag} value={tag}>
+                    #{tag}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : null}
         </header>
         {pomodoro.syncError ? (
           <InlineError>{pomodoro.syncError}</InlineError>
         ) : null}
-        {days.length || tagOptions.length ? (
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            {days.length ? (
-              <ScrollArea className="max-w-full">
-                <Tabs value={day ?? undefined} onValueChange={setChosenDay}>
-                  <TabsList aria-label="Day to plan">
-                    {days.map((date, index) => {
-                      const count = index ? plannedCount(date) : 0
-                      const longName = noonOf(date).toLocaleDateString(
-                        undefined,
-                        { weekday: "long", month: "long", day: "numeric" }
-                      )
-                      return (
-                        <TabsTrigger
-                          key={date}
-                          value={date}
-                          className="px-2.5"
-                          aria-label={
-                            index
-                              ? `${longName}, ${count} ${count === 1 ? "task" : "tasks"} planned`
-                              : `Today, ${longName}`
-                          }
-                        >
-                          {index
-                            ? noonOf(date).toLocaleDateString(undefined, {
-                                weekday: "short",
-                              })
-                            : "Today"}
-                          {count ? <TabsCount>{count}</TabsCount> : null}
-                        </TabsTrigger>
-                      )
-                    })}
-                  </TabsList>
-                </Tabs>
-                <ScrollBar orientation="horizontal" />
-              </ScrollArea>
-            ) : null}
-            {tagOptions.length ? (
-              <Select
-                value={tagFilter ?? ALL_TAGS}
-                onValueChange={setChosenTag}
-              >
-                <SelectTrigger
-                  size="default"
-                  className="text-xs"
-                  aria-label="Show tasks with this tag"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL_TAGS}>All tags</SelectItem>
-                  {tagOptions.map((tag) => (
-                    <SelectItem key={tag} value={tag}>
-                      #{tag}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : null}
-          </div>
+        {days.length ? (
+          // Seven day cards: the weekday, the date, and a dot for each task
+          // planned (up to five). Still a tab row underneath, so the arrow
+          // keys move between days and a screen reader hears a tab list.
+          <Tabs value={day ?? undefined} onValueChange={setChosenDay}>
+            <TabsList
+              aria-label="Day to plan"
+              className="grid h-auto w-full grid-cols-7 gap-1.5 bg-transparent p-0 sm:gap-3 [&>[data-slot=tabs-pill]]:hidden"
+            >
+              {days.map((date, index) => {
+                const count = dayTaskCount(date, index)
+                const longName = noonOf(date).toLocaleDateString(undefined, {
+                  weekday: "long",
+                  month: "long",
+                  day: "numeric",
+                })
+                return (
+                  <TabsTrigger
+                    key={date}
+                    value={date}
+                    aria-label={
+                      index
+                        ? `${longName}, ${count} ${count === 1 ? "task" : "tasks"} planned`
+                        : `Today, ${longName}, ${count} ${count === 1 ? "task" : "tasks"}`
+                    }
+                    className="flex h-auto min-w-0 flex-col gap-1 rounded-2xl border bg-[var(--p-surface)] px-1 py-3 text-foreground data-[state=active]:border-[color:var(--p-accent)] data-[state=active]:bg-[color:var(--p-accent)]/12 sm:py-4"
+                  >
+                    <span
+                      className={cn(
+                        "font-mono text-[10px] uppercase tracking-[0.15em] sm:text-[11px]",
+                        index ? "text-muted-foreground" : "text-[var(--p-accent)]"
+                      )}
+                    >
+                      {index
+                        ? noonOf(date).toLocaleDateString(undefined, {
+                            weekday: "short",
+                          })
+                        : "Today"}
+                    </span>
+                    <span className="text-xl font-bold sm:text-3xl">
+                      {noonOf(date).getDate()}
+                    </span>
+                    <span aria-hidden="true" className="flex h-1.5 gap-1">
+                      {Array.from({ length: Math.min(count, 5) }, (_, dot) => (
+                        <i
+                          key={dot}
+                          className="size-1.5 rounded-full bg-[var(--p-accent)]"
+                        />
+                      ))}
+                    </span>
+                  </TabsTrigger>
+                )
+              })}
+            </TabsList>
+          </Tabs>
         ) : null}
-        <Card>
-          <CardHeader className="flex-row items-center justify-between">
-            <CardTitle>{viewingToday ? "Today" : dayName}</CardTitle>
+        {/* The same flat rows and frameless add box as the timer's Tasks
+            card, with the add box under its own full-width divider. */}
+        <section
+          aria-label={viewingToday ? "Today" : dayName}
+          className="overflow-hidden rounded-[24px] border bg-[var(--p-surface)]"
+        >
+          <header className="flex flex-wrap items-center justify-between gap-3 px-6 pb-2 pt-5">
+            <h3 className="font-mono text-[11px] font-normal uppercase tracking-[0.2em] text-muted-foreground">
+              {viewingToday
+                ? `Today${dayName ? ` · ${dayName}` : ""}`
+                : dayName}
+            </h3>
             {/* "0 / 0 done" over an empty list counts nothing, so the count
                 waits for the first task. */}
             {viewingToday ? (
               pomodoro.tasks.length ? (
-                <span className="text-xs text-muted-foreground">
+                <span className="flex items-center gap-3 font-mono text-xs text-muted-foreground">
+                  <Meter
+                    size="sm"
+                    className="w-24"
+                    label="Today's tasks done"
+                    value={progressShare * 100}
+                    valueText={`${completed} of ${pomodoro.tasks.length} done`}
+                  />
                   {completed} / {pomodoro.tasks.length} done
                 </span>
               ) : null
             ) : (
-              <span className="text-xs text-muted-foreground">
+              <span className="font-mono text-xs text-muted-foreground">
                 {day ? plannedCount(day) : 0} planned
               </span>
             )}
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            {viewingToday || !day ? (
-              <>
-                <TodayTaskList pomodoro={pomodoro} tagFilter={tagFilter} />
-                <NewTaskForm onAdd={pomodoro.addTask} />
-              </>
-            ) : (
-              <PlannedDayList
-                key={day}
-                plannedDate={day}
-                dayName={dayName}
-                pomodoro={pomodoro}
-                tagFilter={tagFilter}
-              />
-            )}
-          </CardContent>
-        </Card>
+          </header>
+          {viewingToday || !day ? (
+            <>
+              <div className="px-3 pb-2">
+                <TodayTaskList
+                  pomodoro={pomodoro}
+                  tagFilter={tagFilter}
+                  flat
+                />
+              </div>
+              <div className="border-t px-3 py-3">
+                <NewTaskForm onAdd={pomodoro.addTask} bare />
+              </div>
+            </>
+          ) : (
+            <PlannedDayList
+              key={day}
+              plannedDate={day}
+              dayName={dayName}
+              pomodoro={pomodoro}
+              tagFilter={tagFilter}
+            />
+          )}
+        </section>
 
         <ProjectsCard pomodoro={pomodoro} />
 
-        <section className="flex flex-col gap-3">
-          <header className="flex items-baseline justify-between">
-            <h2 className="text-lg font-bold tracking-tight">Archive</h2>
-            {archiveItems.length ? (
-              <span className="text-xs text-muted-foreground">
-                {describeArchiveCount(archiveItems.length, archive.hasOlder)}
-              </span>
-            ) : null}
-          </header>
+        <PanelCard
+          label={describeArchiveCount(archiveItems.length, archive.hasOlder)}
+          aside={
+            archiveItems.length ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground"
+                aria-expanded={pastOpen}
+                onClick={() => setPastOpen((open) => !open)}
+              >
+                {pastOpen ? "Hide" : "Show"}
+                {pastOpen ? (
+                  <ChevronUpIcon aria-hidden="true" />
+                ) : (
+                  <ChevronDownIcon aria-hidden="true" />
+                )}
+              </Button>
+            ) : null
+          }
+        >
           {pomodoro.loading && !archiveItems.length ? (
             <LoadingRow label="Loading past days…" className="py-4" />
           ) : null}
@@ -281,38 +339,51 @@ export function TasksPage() {
                 : "Past days will show up here once a task list rolls over."}
             </p>
           ) : null}
-          {archiveGroups.map(([date, tasks]) => (
-            <div key={date} className="flex flex-col gap-1.5">
-              <h3 className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                {tasks[0]?.dateLabel}
-              </h3>
-              {tasks.map((task) => (
-                <article
-                  key={task.id}
-                  className="flex min-h-10 items-center gap-3 rounded-lg border bg-card/50 px-3"
-                >
-                  <span className="flex-1 truncate text-sm">{task.title}</span>
-                  <small className="font-mono text-[10px] text-muted-foreground">
-                    {task.pomodoroCount} {plural(task.pomodoroCount, "session")}
-                  </small>
-                  <b
-                    className={
-                      task.status === "completed"
-                        ? "text-xs font-semibold text-[var(--p-success)]"
-                        : "text-xs font-semibold text-muted-foreground"
-                    }
-                  >
-                    {archiveStatusLabels[task.status] ?? task.status}
-                  </b>
-                </article>
-              ))}
-            </div>
-          ))}
-          {archive.hasOlder ? (
+          {pastOpen
+            ? archiveGroups.map(([date, tasks]) => (
+                <div key={date} className="flex flex-col">
+                  <h4 className="pb-2 font-mono text-[11px] uppercase tracking-[0.15em] text-muted-foreground">
+                    {tasks[0]?.dateLabel}
+                  </h4>
+                  {tasks.map((task) => (
+                    <article
+                      key={task.id}
+                      className="flex min-h-12 items-center gap-3"
+                    >
+                      <i
+                        aria-hidden="true"
+                        className={cn(
+                          "size-2 shrink-0 rounded-full",
+                          task.status === "completed"
+                            ? "bg-[var(--p-success)]"
+                            : "bg-muted-foreground/60"
+                        )}
+                      />
+                      <span className="flex-1 truncate">{task.title}</span>
+                      <small className="font-mono text-xs text-muted-foreground">
+                        {task.pomodoroCount}{" "}
+                        {plural(task.pomodoroCount, "session")}
+                      </small>
+                      <b
+                        className={cn(
+                          "w-24 text-right text-sm font-normal",
+                          task.status === "completed"
+                            ? "text-[var(--p-success)]"
+                            : "text-muted-foreground"
+                        )}
+                      >
+                        {archiveStatusLabels[task.status] ?? task.status}
+                      </b>
+                    </article>
+                  ))}
+                </div>
+              ))
+            : null}
+          {pastOpen && archive.hasOlder ? (
             <Button
               type="button"
               variant="outline"
-              className="self-start"
+              className="self-start rounded-full"
               disabled={archive.loadingOlder}
               onClick={() => void archive.showOlder()}
             >
@@ -321,12 +392,12 @@ export function TasksPage() {
               ) : null}
               {archive.loadingOlder ? "Loading older days…" : "Show older"}
             </Button>
-          ) : archive.pagedBack ? (
+          ) : pastOpen && archive.pagedBack ? (
             <p className="text-sm text-muted-foreground">
               That is everything, back to your first day.
             </p>
           ) : null}
-        </section>
+        </PanelCard>
       </div>
     </>
   )

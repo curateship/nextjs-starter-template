@@ -1,19 +1,18 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import {
+  ArrowDownIcon,
+  ArrowUpIcon,
   DownloadIcon,
   Loader2Icon,
   LockKeyholeIcon,
 } from "lucide-react"
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
+import { Bar, BarChart, CartesianGrid, Cell, XAxis, YAxis } from "recharts"
 
 import { AchievementsCard } from "@/components/pomodoro/achievements-card"
-import {
-  FocusHeatmap,
-  FocusHeatmapKey,
-} from "@/components/pomodoro/focus-heatmap"
+import { PanelCard } from "@/components/pomodoro/panel-card"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { ErrorRow } from "@/components/ui/error-row"
 import { Meter } from "@/components/ui/meter"
 import {
@@ -52,7 +51,7 @@ import {
   reportRangeLabels,
   reportRanges,
   shiftLocalDate,
-  weekComparisonLabel,
+  weekComparison,
   type ReportRange,
 } from "@/lib/pomodoro/focus-history"
 import { useProductAuth } from "@/lib/pomodoro/auth-state"
@@ -62,6 +61,7 @@ import { dismissErrorToast } from "@/lib/toast/error-toast"
 import { TextLink } from "@/components/pomodoro/text-link"
 import { SignInButton } from "@/components/pomodoro/sign-in-button"
 import { contentColumn } from "@/lib/pomodoro/content-column"
+import { pillTabsList, pillTabsTrigger } from "@/lib/pomodoro/pill-tabs"
 
 type FocusHistoryResult = Awaited<ReturnType<typeof loadFocusHistory>>
 type ReportDay = FocusHistoryResult["days"][number]
@@ -114,30 +114,6 @@ function aggregateMonths(days: readonly ReportDay[]) {
 }
 
 
-function HeatmapCard({ days, today }: { days: ReportDay[]; today: string }) {
-  return (
-    <Card>
-      <CardHeader className="flex-row items-baseline justify-between">
-        <CardTitle>Focus calendar</CardTitle>
-        <span className="text-xs text-muted-foreground">
-          {formatFocusDuration(
-            days.reduce((total, day) => total + day.focusSeconds, 0)
-          )}{" "}
-          total
-        </span>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
-        {/* The same grid a public profile draws, from
-            `focus-heatmap.tsx`, so the two can never disagree square for
-            square on the same day. */}
-        <FocusHeatmap days={days} today={today} />
-        <FocusHeatmapKey />
-        <DayTable caption="Daily focus totals" days={days} />
-      </CardContent>
-    </Card>
-  )
-}
-
 // Screen-reader equivalent for the visual charts; the visuals stay hidden.
 function DayTable({
   caption,
@@ -180,24 +156,31 @@ function DayTable({
   )
 }
 
-const trendConfig = {
-  focusMinutes: { label: "Focus minutes", color: "var(--p-accent)" },
+const byDayConfig = {
+  minutes: { label: "Focus minutes", color: "var(--p-accent)" },
+  sessions: { label: "Sessions", color: "var(--p-accent)" },
 } satisfies ChartConfig
 
-function TrendCard({
+/**
+ * Focus by day (by month on the long ranges), as time or as sessions. Time is
+ * the default because it is what the strip above leads with; Sessions is one
+ * click away and lives only on the page, not in the address.
+ */
+function ByDayPanel({
   range,
   days,
 }: {
   range: ReportRange
   days: ReportDay[]
 }) {
+  const [metric, setMetric] = React.useState<"minutes" | "sessions">("minutes")
   const monthly = isLongRangeReport(range)
   const bars = monthly
     ? aggregateMonths(days).map((month) => ({
         key: month.key,
         label: axisTick(`${month.key}-15`, { month: "short" }),
-        focusMinutes: Math.round(month.focusSeconds / 60),
-        focusSessions: month.focusSessions,
+        minutes: Math.round(month.focusSeconds / 60),
+        sessions: month.focusSessions,
       }))
     : days.map((day) => ({
         key: day.localDate,
@@ -205,58 +188,72 @@ function TrendCard({
           range === "7d"
             ? axisTick(day.localDate, { weekday: "short" })
             : axisTick(day.localDate, { day: "numeric" }),
-        focusMinutes: Math.round(day.focusSeconds / 60),
-        focusSessions: day.focusSessions,
+        minutes: Math.round(day.focusSeconds / 60),
+        sessions: day.focusSessions,
       }))
-  const peakSeconds = Math.max(0, ...days.map((day) => day.focusSeconds))
   return (
-    <Card>
-      <CardHeader className="flex-row items-baseline justify-between">
-        <CardTitle>Focus time {monthly ? "by month" : "by day"}</CardTitle>
-        <span className="text-xs text-muted-foreground">
-          peak {formatFocusDuration(peakSeconds)}
-        </span>
-      </CardHeader>
-      <CardContent>
-        <div className="h-48" aria-hidden="true">
-          <ChartContainer config={trendConfig} className="h-full w-full">
-            <BarChart data={bars}>
-              <CartesianGrid strokeDasharray="0" vertical={false} />
-              <XAxis
-                dataKey="label"
-                axisLine={false}
-                tickLine={false}
-                tick={{ fontSize: 10 }}
-                dy={6}
-                interval={bars.length > 20 ? 4 : 0}
-              />
-              <YAxis
-                axisLine={false}
-                tickLine={false}
-                tick={{ fontSize: 10, dx: -5 }}
-                width={36}
-                allowDecimals={false}
-              />
-              <ChartTooltip content={<ChartTooltipContent />} />
-              <Bar
-                dataKey="focusMinutes"
-                fill="var(--color-focusMinutes)"
-                radius={[3, 3, 0, 0]}
-                maxBarSize={28}
-              />
-            </BarChart>
-          </ChartContainer>
-        </div>
-        <DayTable
-          caption={monthly ? "Monthly focus totals" : "Daily focus totals"}
-          days={bars.map((bar) => ({
-            localDate: bar.key,
-            focusSeconds: bar.focusMinutes * 60,
-            focusSessions: bar.focusSessions,
-          }))}
-        />
-      </CardContent>
-    </Card>
+    <PanelCard
+      label={monthly ? "By month" : "By day"}
+      aside={
+        <Tabs
+          value={metric}
+          onValueChange={(value) => setMetric(value as "minutes" | "sessions")}
+        >
+          <TabsList
+            aria-label="Show focus as"
+            className="rounded-full [&>[data-slot=tabs-pill]]:rounded-full"
+          >
+            <TabsTrigger value="minutes" className="rounded-full px-3">
+              Time
+            </TabsTrigger>
+            <TabsTrigger value="sessions" className="rounded-full px-3">
+              Sessions
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      }
+    >
+      <div className="h-56" aria-hidden="true">
+        <ChartContainer config={byDayConfig} className="h-full w-full">
+          <BarChart data={bars}>
+            <CartesianGrid strokeDasharray="0" vertical={false} />
+            <XAxis
+              dataKey="label"
+              axisLine={false}
+              tickLine={false}
+              tick={{ fontSize: 11 }}
+              dy={6}
+              interval={bars.length > 20 ? 4 : 0}
+            />
+            <YAxis
+              axisLine={false}
+              tickLine={false}
+              tick={{ fontSize: 10, dx: -5 }}
+              width={40}
+              allowDecimals={false}
+              tickFormatter={(value: number) =>
+                metric === "minutes" ? `${value}m` : String(value)
+              }
+            />
+            <ChartTooltip content={<ChartTooltipContent />} />
+            <Bar
+              dataKey={metric}
+              fill={`var(--color-${metric})`}
+              radius={[6, 6, 0, 0]}
+              maxBarSize={56}
+            />
+          </BarChart>
+        </ChartContainer>
+      </div>
+      <DayTable
+        caption={monthly ? "Monthly focus totals" : "Daily focus totals"}
+        days={bars.map((bar) => ({
+          localDate: bar.key,
+          focusSeconds: bar.minutes * 60,
+          focusSessions: bar.sessions,
+        }))}
+      />
+    </PanelCard>
   )
 }
 
@@ -288,7 +285,7 @@ const hourConfig = {
  * The axis is always all 24 hours so its shape never moves between ranges. A
  * range with nothing in it says so instead of drawing 24 empty bars.
  */
-function HourOfDayCard({ hours }: { hours: FocusHistoryResult["hours"] }) {
+function HourOfDayPanel({ hours }: { hours: FocusHistoryResult["hours"] }) {
   const total = hours.reduce((sum, hour) => sum + hour.sessions, 0)
   const busiest = hours.reduce(
     (best, hour) => (hour.sessions > best.sessions ? hour : best),
@@ -299,88 +296,85 @@ function HourOfDayCard({ hours }: { hours: FocusHistoryResult["hours"] }) {
     label: hourLabel(hour.hour),
   }))
   return (
-    <Card>
-      <CardHeader className="flex-row items-baseline justify-between">
-        <CardTitle>When you focus</CardTitle>
-        <span className="text-xs text-muted-foreground">
-          {total
-            ? `busiest hour ${hourLabel(busiest.hour)} · ${total} ${total === 1 ? "session" : "sessions"}`
-            : "by hour of day"}
-        </span>
-      </CardHeader>
-      <CardContent>
-        {total ? (
-          <>
-            <div className="h-40" aria-hidden="true">
-              <ChartContainer config={hourConfig} className="h-full w-full">
-                <BarChart data={bars}>
-                  <CartesianGrid strokeDasharray="0" vertical={false} />
-                  <XAxis
-                    dataKey="label"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fontSize: 10 }}
-                    dy={6}
-                    interval={2}
-                  />
-                  <YAxis
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fontSize: 10, dx: -5 }}
-                    width={36}
-                    allowDecimals={false}
-                  />
-                  <ChartTooltip content={<ChartTooltipContent />} />
-                  <Bar
-                    dataKey="sessions"
-                    fill="var(--color-sessions)"
-                    radius={[3, 3, 0, 0]}
-                    maxBarSize={18}
-                  />
-                </BarChart>
-              </ChartContainer>
-            </div>
-            {/* Screen-reader equivalent of the bars above. */}
-            <table className="sr-only">
-              <caption>Focus sessions finished by hour of day</caption>
-              <thead>
-                <tr>
-                  <th scope="col">Hour</th>
-                  <th scope="col">Sessions</th>
-                  <th scope="col">Focus time</th>
-                </tr>
-              </thead>
-              <tbody>
-                {bars
-                  .filter((hour) => hour.sessions > 0)
-                  .map((hour) => (
-                    <tr key={hour.hour}>
-                      <th scope="row">{hour.label}</th>
-                      <td>{hour.sessions}</td>
-                      <td>{formatFocusDuration(hour.focusSeconds)}</td>
-                    </tr>
+    <PanelCard
+      label="When you focus"
+      note={total ? `busiest hour ${hourLabel(busiest.hour)}` : "by hour of day"}
+    >
+      {total ? (
+        <>
+          <div className="h-44" aria-hidden="true">
+            <ChartContainer config={hourConfig} className="h-full w-full">
+              <BarChart data={bars}>
+                <CartesianGrid strokeDasharray="0" vertical={false} />
+                <XAxis
+                  dataKey="label"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fontSize: 10 }}
+                  dy={6}
+                  interval={5}
+                />
+                <YAxis
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fontSize: 10, dx: -5 }}
+                  width={28}
+                  allowDecimals={false}
+                />
+                <ChartTooltip content={<ChartTooltipContent />} />
+                {/* The busiest hour in full orange, the rest a step down,
+                    so the answer in the corner is also the brightest bar. */}
+                <Bar dataKey="sessions" radius={[4, 4, 0, 0]} maxBarSize={18}>
+                  {bars.map((hour) => (
+                    <Cell
+                      key={hour.hour}
+                      fill="var(--color-sessions)"
+                      fillOpacity={hour.hour === busiest.hour ? 1 : 0.6}
+                    />
                   ))}
-              </tbody>
-            </table>
-          </>
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            Finish a focus session and the hour it ended in shows up here.
-          </p>
-        )}
-      </CardContent>
-    </Card>
+                </Bar>
+              </BarChart>
+            </ChartContainer>
+          </div>
+          {/* Screen-reader equivalent of the bars above. */}
+          <table className="sr-only">
+            <caption>Focus sessions finished by hour of day</caption>
+            <thead>
+              <tr>
+                <th scope="col">Hour</th>
+                <th scope="col">Sessions</th>
+                <th scope="col">Focus time</th>
+              </tr>
+            </thead>
+            <tbody>
+              {bars
+                .filter((hour) => hour.sessions > 0)
+                .map((hour) => (
+                  <tr key={hour.hour}>
+                    <th scope="row">{hour.label}</th>
+                    <td>{hour.sessions}</td>
+                    <td>{formatFocusDuration(hour.focusSeconds)}</td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          Finish a focus session and the hour it ended in shows up here.
+        </p>
+      )}
+    </PanelCard>
   )
 }
 
 /**
- * This week against last week, at the top of the page.
- *
- * It ignores the range tabs, because it is always this week against last week,
- * which is why it loads on its own rather than arriving with the report. The
- * week runs Monday to Sunday, the same first day the calendar's rows start on.
+ * The week review: this week, Monday to today, against last week, with the
+ * best day, the project that took the most time, and the busiest hour. It
+ * ignores the range tabs, so it loads on its own rather than arriving with the
+ * report, and the page hands the same answer to the strip above (the streak).
  */
-function WeekReviewCard() {
+function useWeekReview(enabled: boolean) {
   const [review, setReview] = React.useState<WeekReview | null>(null)
   const [error, setError] = React.useState("")
   const [loading, setLoading] = React.useState(true)
@@ -388,6 +382,8 @@ function WeekReviewCard() {
   const [attempt, setAttempt] = React.useState(0)
 
   React.useEffect(() => {
+    // A guest has no week, and asking would only answer 401.
+    if (!enabled) return
     let live = true
     loadFocusWeekReview(browserTimezone())
       .then((result) => {
@@ -404,227 +400,276 @@ function WeekReviewCard() {
     return () => {
       live = false
     }
-  }, [attempt])
+  }, [attempt, enabled])
 
+  const retry = () => {
+    dismissErrorToast()
+    setError("")
+    setLoading(true)
+    setAttempt((count) => count + 1)
+  }
+  return { review, error, loading, retry }
+}
+
+/** Up and green for more than last week, down and quiet for less. */
+function WeekChange({
+  review,
+  long,
+}: {
+  review: WeekReview
+  /** "more than last week" rather than "vs last week". */
+  long?: boolean
+}) {
+  const { change, span } = weekComparison(
+    review.thisWeekSeconds,
+    review.lastWeekSeconds,
+    review.hasLastWeek
+  )
+  if (change === "first")
+    return (
+      <span className="text-sm text-muted-foreground">
+        Your first week, so nothing to compare yet
+      </span>
+    )
+  if (change === "same")
+    return (
+      <span className="text-sm text-muted-foreground">
+        The same as last week
+      </span>
+    )
+  const up = change === "more"
+  const Arrow = up ? ArrowUpIcon : ArrowDownIcon
   return (
-    <Card>
-      <CardHeader className="flex-row items-baseline justify-between">
-        <CardTitle>Your week</CardTitle>
-        {review ? (
-          <span className="text-xs text-muted-foreground">
-            {formatShortDay(review.weekStart)} –{" "}
-            {formatShortDay(review.endDate)}
-          </span>
-        ) : null}
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
-        {loading ? (
-          <span
-            role="status"
-            className="flex items-center gap-1 text-sm text-muted-foreground"
-          >
-            <Loader2Icon className="size-3 animate-spin" aria-hidden="true" />
-            Loading…
-          </span>
-        ) : null}
-        {error ? (
-          <ErrorRow
-            message={error}
-            onRetry={() => {
-              dismissErrorToast()
-              setError("")
-              setLoading(true)
-              setAttempt((count) => count + 1)
-            }}
-          />
-        ) : null}
-        {review ? (
-          <>
-            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-              <strong className="text-2xl">
-                {formatFocusSpan(review.thisWeekSeconds)}
-              </strong>
-              <span className="text-sm text-muted-foreground">
-                {weekComparisonLabel(
-                  review.thisWeekSeconds,
-                  review.lastWeekSeconds,
-                  review.hasLastWeek
-                )}
-              </span>
-            </div>
-            <dl className="grid gap-3 sm:grid-cols-2">
-              <WeekFact
-                label="Best day"
-                value={
-                  review.bestDay
-                    ? formatLongDay(review.bestDay.localDate)
-                    : "No focus yet this week"
-                }
-                hint={
-                  review.bestDay
-                    ? formatFocusDuration(review.bestDay.focusSeconds)
-                    : null
-                }
-              />
-              <WeekFact
-                label="Most time on"
-                value={
-                  review.topProject
-                    ? (review.topProject.name ?? "No project")
-                    : "No focus yet this week"
-                }
-                hint={
-                  review.topProject
-                    ? formatFocusDuration(review.topProject.focusSeconds)
-                    : null
-                }
-              />
-            </dl>
-          </>
-        ) : null}
-      </CardContent>
-    </Card>
+    <span
+      className={cn(
+        "flex items-center gap-1 text-sm",
+        up ? "text-[var(--p-success)]" : "text-muted-foreground"
+      )}
+    >
+      <Arrow className="size-3.5" aria-hidden="true" />
+      {span} {long ? (up ? "more than" : "less than") : "vs"} last week
+    </span>
   )
 }
 
-function WeekFact({
+function ThisWeekPanel({
+  review,
+  error,
+  loading,
+  onRetry,
+}: {
+  review: WeekReview | null
+  error: string
+  loading: boolean
+  onRetry: () => void
+}) {
+  return (
+    <PanelCard
+      label="This week"
+      note={
+        review
+          ? `${formatShortDay(review.weekStart)} – ${formatShortDay(review.endDate)}`
+          : undefined
+      }
+    >
+      {loading ? (
+        <span
+          role="status"
+          className="flex items-center gap-1 text-sm text-muted-foreground"
+        >
+          <Loader2Icon className="size-3 animate-spin" aria-hidden="true" />
+          Loading…
+        </span>
+      ) : null}
+      {error ? <ErrorRow message={error} onRetry={onRetry} /> : null}
+      {review ? (
+        <>
+          <div className="flex flex-col gap-1">
+            <strong className="text-4xl font-bold tracking-tight">
+              {formatFocusSpan(review.thisWeekSeconds)}
+            </strong>
+            <WeekChange review={review} long />
+          </div>
+          <dl className="flex flex-col divide-y border-t">
+            <WeekFact
+              label="Best day"
+              value={
+                review.bestDay
+                  ? `${formatLongDay(review.bestDay.localDate)} · ${formatFocusDuration(review.bestDay.focusSeconds)}`
+                  : "No focus yet"
+              }
+            />
+            <WeekFact
+              label="Most time on"
+              value={
+                review.topProject
+                  ? `${review.topProject.name ?? "No project"} · ${formatFocusDuration(review.topProject.focusSeconds)}`
+                  : "No focus yet"
+              }
+            />
+            <WeekFact
+              label="Busiest hour"
+              value={
+                review.busiestHour === null
+                  ? "No focus yet"
+                  : hourLabel(review.busiestHour)
+              }
+            />
+          </dl>
+        </>
+      ) : null}
+    </PanelCard>
+  )
+}
+
+/** One figure in the strip under the title, with its line under it. */
+function StripFigure({
   label,
   value,
   hint,
 }: {
   label: string
   value: string
-  hint: string | null
+  hint: React.ReactNode
 }) {
   return (
-    <div className="flex flex-col gap-0.5">
-      <dt className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+    <div className="flex flex-col gap-1.5 bg-[var(--p-surface)] p-5 sm:p-6">
+      <dt className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
         {label}
       </dt>
-      <dd className="text-sm">
-        {value}
-        {hint ? (
-          <span className="text-muted-foreground"> · {hint}</span>
-        ) : null}
-      </dd>
+      <dd className="text-3xl font-bold tracking-tight">{value}</dd>
+      <dd className="text-sm text-muted-foreground">{hint}</dd>
     </div>
   )
 }
 
-function TopTasksCard({
-  topTasks,
-}: {
-  topTasks: FocusHistoryResult["topTasks"]
-}) {
-  const maxSeconds = Math.max(1, ...topTasks.map((task) => task.focusSeconds))
+function WeekFact({ label, value }: { label: string; value: string }) {
   return (
-    <Card>
-      <CardHeader className="flex-row items-baseline justify-between">
-        <CardTitle>Top tasks</CardTitle>
-        <span className="text-xs text-muted-foreground">by focus time</span>
-      </CardHeader>
-      <CardContent>
-        {topTasks.length ? (
-          <ul className="flex flex-col gap-3">
-            {topTasks.map((task) => (
-              <li key={task.taskId ?? "no-task"} className="flex flex-col gap-1">
-                <span
-                  className={cn(
-                    "text-sm",
-                    !task.title && "text-muted-foreground"
-                  )}
-                >
-                  {task.title ?? "No task"}
-                </span>
-                <Meter
-                  label={`Focus time on ${task.title ?? "no task"}`}
-                  value={barValue(task.focusSeconds, maxSeconds)}
-                  max={maxSeconds}
-                  valueText={`${formatFocusDuration(task.focusSeconds)} of ${formatFocusDuration(maxSeconds)}, the most on any task`}
-                />
-                <small className="font-mono text-[10px] text-muted-foreground">
-                  {formatFocusDuration(task.focusSeconds)} · {task.sessions}{" "}
-                  {task.sessions === 1 ? "session" : "sessions"}
-                </small>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            Focus sessions you complete will rank their tasks here.
-          </p>
-        )}
-      </CardContent>
-    </Card>
+    <div className="flex items-baseline justify-between gap-4 py-3 text-sm">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="text-right">{value}</dd>
+    </div>
   )
 }
 
 /**
- * The same focus time one level up: by project rather than by task. Sessions
- * on a task in no project, and sessions on no task at all, share the "No
- * project" row instead of being dropped, so the bars always add up to the
+ * The range's focus split twice in one panel: by task, then by project.
+ * Sessions on a task in no project, and sessions on no task at all, share the
+ * "No project" row instead of being dropped, so the bars always add up to the
  * range's total. An archived project still appears — leaving the picker never
  * erases the hours it earned.
  */
-function TopProjectsCard({
+function WorkSplitPanel({
+  topTasks,
   topProjects,
   projectTargets,
+  tasksCompleted,
 }: {
+  topTasks: FocusHistoryResult["topTasks"]
   topProjects: FocusHistoryResult["topProjects"]
   projectTargets: FocusHistoryResult["projectTargets"]
+  tasksCompleted: number
 }) {
-  const maxSeconds = Math.max(
+  const maxTask = Math.max(1, ...topTasks.map((task) => task.focusSeconds))
+  const maxProject = Math.max(
     1,
     ...topProjects.map((project) => project.focusSeconds)
   )
   return (
-    <Card>
-      <CardHeader className="flex-row items-baseline justify-between">
-        <CardTitle>By project</CardTitle>
-        <span className="text-xs text-muted-foreground">by focus time</span>
-      </CardHeader>
-      <CardContent>
-        {topProjects.length ? (
-          <ul className="flex flex-col gap-3">
-            {topProjects.map((project) => (
-              <li
-                key={project.projectId ?? "no-project"}
-                className="flex flex-col gap-1"
-              >
-                <span
-                  className={cn("text-sm", !project.name && "text-muted-foreground")}
-                >
-                  {project.name ?? "No project"}
-                </span>
-                <Meter
-                  label={`Focus time on ${project.name ?? "no project"}`}
-                  value={barValue(project.focusSeconds, maxSeconds)}
-                  max={maxSeconds}
-                  valueText={`${formatFocusDuration(project.focusSeconds)} of ${formatFocusDuration(maxSeconds)}, the most on any project`}
-                />
-                <small className="font-mono text-[10px] text-muted-foreground">
-                  {formatFocusDuration(project.focusSeconds)} ·{" "}
-                  {project.sessions}{" "}
-                  {project.sessions === 1 ? "session" : "sessions"}
-                </small>
-                <ProjectTargetLine
-                  name={project.name}
-                  progress={projectTargets.find(
-                    (target) => target.projectId === project.projectId
-                  )}
-                />
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            Put a task in a project on the{" "}
-            <TextLink to="/tasks">Tasks page</TextLink> and its hours land
-            here.
-          </p>
-        )}
-      </CardContent>
-    </Card>
+    <PanelCard
+      label="Top tasks"
+      note={`${tasksCompleted} ${tasksCompleted === 1 ? "task" : "tasks"} completed`}
+    >
+      {topTasks.length ? (
+        <ul className="flex flex-col gap-4">
+          {topTasks.map((task) => (
+            <SplitRow
+              key={task.taskId ?? "no-task"}
+              name={task.title}
+              fallback="No task"
+              seconds={task.focusSeconds}
+              sessions={task.sessions}
+              maxSeconds={maxTask}
+              most="the most on any task"
+            />
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          Focus sessions you complete will rank their tasks here.
+        </p>
+      )}
+      <h4 className="mt-2 border-t pt-5 font-mono text-[11px] font-normal uppercase tracking-[0.2em] text-muted-foreground">
+        By project
+      </h4>
+      {topProjects.length ? (
+        <ul className="flex flex-col gap-4">
+          {topProjects.map((project) => (
+            <SplitRow
+              key={project.projectId ?? "no-project"}
+              name={project.name}
+              fallback="No project"
+              seconds={project.focusSeconds}
+              sessions={project.sessions}
+              maxSeconds={maxProject}
+              most="the most on any project"
+            >
+              <ProjectTargetLine
+                name={project.name}
+                progress={projectTargets.find(
+                  (target) => target.projectId === project.projectId
+                )}
+              />
+            </SplitRow>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          Put a task in a project on the{" "}
+          <TextLink to="/tasks">Tasks page</TextLink> and its hours land here.
+        </p>
+      )}
+    </PanelCard>
+  )
+}
+
+/** One name with its time and sessions on the right, and its bar under. */
+function SplitRow({
+  name,
+  fallback,
+  seconds,
+  sessions,
+  maxSeconds,
+  most,
+  children,
+}: {
+  name: string | null
+  fallback: string
+  seconds: number
+  sessions: number
+  maxSeconds: number
+  most: string
+  children?: React.ReactNode
+}) {
+  return (
+    <li className="flex flex-col gap-2">
+      <div className="flex items-baseline justify-between gap-3">
+        <span className={cn("truncate", !name && "text-muted-foreground")}>
+          {name ?? fallback}
+        </span>
+        <small className="shrink-0 font-mono text-xs text-muted-foreground">
+          {formatFocusDuration(seconds)} · {sessions}{" "}
+          {sessions === 1 ? "session" : "sessions"}
+        </small>
+      </div>
+      <Meter
+        label={`Focus time on ${name ?? fallback.toLowerCase()}`}
+        value={barValue(seconds, maxSeconds)}
+        max={maxSeconds}
+        valueText={`${formatFocusDuration(seconds)} of ${formatFocusDuration(maxSeconds)}, ${most}`}
+      />
+      {children}
+    </li>
   )
 }
 
@@ -681,16 +726,14 @@ function SessionsCard({
   const pageCount = Math.max(1, Math.ceil(sessions.totalRows / sessions.pageSize))
   const tagName = tags.find((tag) => tag.id === sessions.tagId)?.name
   return (
-    <Card>
-      <CardHeader className="flex-row flex-wrap items-center justify-between gap-2">
-        <CardTitle>Completed sessions</CardTitle>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">
-            {tagName
-              ? `${sessions.totalRows} tagged ${tagName} · ${formatFocusDuration(sessions.totalSeconds)}`
-              : `${sessions.totalRows} in range`}
-          </span>
-          {tags.length ? (
+    <PanelCard
+      label={
+        tagName
+          ? `Completed sessions · ${sessions.totalRows} tagged ${tagName} · ${formatFocusDuration(sessions.totalSeconds)}`
+          : `Completed sessions · ${sessions.totalRows}`
+      }
+      aside={
+        tags.length ? (
             <Select
               value={sessions.tagId ?? ALL_TAGS}
               onValueChange={(value) =>
@@ -699,7 +742,7 @@ function SessionsCard({
             >
               <SelectTrigger
                 size="default"
-                className="text-xs"
+                className="rounded-full text-xs"
                 aria-label="Show sessions on tasks with this tag"
               >
                 <SelectValue />
@@ -713,14 +756,13 @@ function SessionsCard({
                 ))}
               </SelectContent>
             </Select>
-          ) : null}
-        </div>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
+        ) : null
+      }
+    >
         {sessions.rows.length ? (
           <Table>
             <TableHeader>
-              <TableRow>
+              <TableRow className="[&>th]:font-mono [&>th]:text-[11px] [&>th]:font-normal [&>th]:uppercase [&>th]:tracking-[0.15em] [&>th]:text-muted-foreground">
                 <TableHead>Date</TableHead>
                 <TableHead>Time</TableHead>
                 <TableHead>Task</TableHead>
@@ -735,7 +777,7 @@ function SessionsCard({
                   <TableCell>
                     {formatLongDay(session.localDate)}
                   </TableCell>
-                  <TableCell className="font-mono text-xs">
+                  <TableCell className="font-mono">
                     {session.localTime}
                   </TableCell>
                   <TableCell
@@ -743,10 +785,10 @@ function SessionsCard({
                   >
                     {session.taskTitle ?? "No task"}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="font-mono">
                     {formatFocusDuration(session.plannedSeconds)}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="font-mono">
                     {formatFocusDuration(session.accumulatedSeconds)}
                   </TableCell>
                   {/* An unnoted session shows an em dash rather than words,
@@ -800,8 +842,7 @@ function SessionsCard({
             </Button>
           </footer>
         ) : null}
-      </CardContent>
-    </Card>
+    </PanelCard>
   )
 }
 
@@ -828,6 +869,7 @@ export function HistoryPage({
   >(null)
   const [reloadKey, setReloadKey] = React.useState(0)
   const requestRef = React.useRef(0)
+  const week = useWeekReview(authenticated)
   const rangeLocked = isLongRangeReport(range) && longRangeUnlocked === false
 
   React.useEffect(() => {
@@ -906,10 +948,10 @@ export function HistoryPage({
 
   if (!authenticated) {
     return (
-      <div className={`${contentColumn} flex flex-col gap-4 py-8`}>
-        <header>
-          <h2 className="text-2xl font-bold tracking-tight">Focus history</h2>
-          <p className="text-sm text-muted-foreground">
+      <div className={`${contentColumn} flex flex-col gap-6 py-8`}>
+        <header className="flex flex-col gap-2">
+          <h2 className="text-4xl font-bold tracking-tight">Focus history</h2>
+          <p className="text-muted-foreground">
             Your private record of completed focus sessions.
           </p>
         </header>
@@ -932,61 +974,60 @@ export function HistoryPage({
     )
   }
 
+  const todayRow = days.find((day) => day.localDate === today)
+
   return (
     <>
-      <div className={`${contentColumn} flex flex-col gap-4 py-8`}>
-        <header>
-          <h2 className="text-2xl font-bold tracking-tight">Focus history</h2>
-          <p className="text-sm text-muted-foreground">{rangeSummary}</p>
-        </header>
-
-        {/* This week, then the milestones, then the numbers for the chosen
-            range. Both of these read their own fixed period and ignore the
-            range tabs, which is why they sit outside the block the range
-            redraws. */}
-        <WeekReviewCard />
-        <AchievementsCard />
-
-        <div className="flex flex-wrap items-center gap-3">
-          <Tabs
-            value={range}
-            onValueChange={(value) => changeRange(value as ReportRange)}
-          >
-            <TabsList aria-label="Report range">
-              {reportRanges.map((option) => (
-                <TabsTrigger key={option} value={option}>
-                  {reportRangeLabels[option]}
-                  {isLongRangeReport(option) && longRangeUnlocked === false ? (
-                    <LockKeyholeIcon aria-hidden="true" />
-                  ) : null}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
-          {loading ? (
-            <span
-              role="status"
-              className="flex items-center gap-1 text-xs text-muted-foreground"
+      <div className={`${contentColumn} flex flex-col gap-6 py-8`}>
+        <header className="flex flex-wrap items-end justify-between gap-4">
+          <div className="flex flex-col gap-2">
+            <h2 className="text-4xl font-bold tracking-tight">Focus history</h2>
+            <p className="text-muted-foreground">{rangeSummary}</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            {loading ? (
+              <span
+                role="status"
+                className="flex items-center gap-1 text-xs text-muted-foreground"
+              >
+                <Loader2Icon className="size-3 animate-spin" aria-hidden="true" />
+                Loading…
+              </span>
+            ) : null}
+            <Tabs
+              value={range}
+              onValueChange={(value) => changeRange(value as ReportRange)}
             >
-              <Loader2Icon className="size-3 animate-spin" aria-hidden="true" />
-              Loading…
-            </span>
-          ) : null}
-          <Button
-            variant="outline"
-            size="sm"
-            className="ml-auto"
-            disabled={exporting || rangeLocked || empty}
-            onClick={() => void exportCsv()}
-          >
-            {exporting ? (
-              <Loader2Icon className="animate-spin" aria-hidden="true" />
-            ) : (
-              <DownloadIcon aria-hidden="true" />
-            )}
-            Export CSV
-          </Button>
-        </div>
+              <TabsList aria-label="Report range" className={pillTabsList}>
+                {reportRanges.map((option) => (
+                  <TabsTrigger
+                    key={option}
+                    value={option}
+                    className={pillTabsTrigger}
+                  >
+                    {reportRangeLabels[option]}
+                    {isLongRangeReport(option) && longRangeUnlocked === false ? (
+                      <LockKeyholeIcon aria-hidden="true" />
+                    ) : null}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+            <Button
+              variant="outline"
+              className="h-12 rounded-full px-5"
+              disabled={exporting || rangeLocked || empty}
+              onClick={() => void exportCsv()}
+            >
+              {exporting ? (
+                <Loader2Icon className="animate-spin" aria-hidden="true" />
+              ) : (
+                <DownloadIcon aria-hidden="true" />
+              )}
+              Export CSV
+            </Button>
+          </div>
+        </header>
 
         {error ? (
           <Card>
@@ -1031,47 +1072,41 @@ export function HistoryPage({
           </Card>
         ) : report ? (
           <>
-            <section
-              className="grid grid-cols-2 gap-3 sm:grid-cols-4"
+            {/* The 1px gap shows the line colour behind the cells, so the
+                lines between them are right in two columns and in four. */}
+            <dl
               aria-label="Range totals"
+              className="grid grid-cols-2 gap-px overflow-hidden rounded-[24px] border bg-[rgba(var(--p-fg-rgb),0.08)] md:grid-cols-4"
             >
-              {(
-                [
-                  [
-                    "Focus time",
-                    formatFocusDuration(report.totals.focusSeconds),
-                    reportRangeLabels[report.range],
-                  ],
-                  [
-                    "Focus sessions",
-                    String(report.totals.focusSessions),
-                    "completed only",
-                  ],
-                  [
-                    "Active days",
-                    String(report.totals.activeDays),
-                    `of ${days.length} days`,
-                  ],
-                  [
-                    "Tasks completed",
-                    String(report.totals.tasksCompleted),
-                    reportRangeLabels[report.range],
-                  ],
-                ] as const
-              ).map(([label, value, hint]) => (
-                <Card key={label}>
-                  <CardContent className="flex flex-col gap-0.5 py-4">
-                    <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                      {label}
-                    </span>
-                    <strong className="text-xl">{value}</strong>
-                    <small className="text-xs text-muted-foreground">
-                      {hint}
-                    </small>
-                  </CardContent>
-                </Card>
-              ))}
-            </section>
+              <StripFigure
+                label="Focus time"
+                value={formatFocusDuration(report.totals.focusSeconds)}
+                hint={reportRangeLabels[report.range]}
+              />
+              <StripFigure
+                label="Sessions"
+                value={String(report.totals.focusSessions)}
+                hint={`${formatFocusDuration(todayRow?.focusSeconds ?? 0)} today · ${todayRow?.focusSessions ?? 0} ${(todayRow?.focusSessions ?? 0) === 1 ? "session" : "sessions"}`}
+              />
+              <StripFigure
+                label="Active days"
+                value={String(report.totals.activeDays)}
+                hint={`of ${days.length} days`}
+              />
+              <StripFigure
+                label="Streak"
+                value={
+                  week.review
+                    ? `${week.review.currentStreak} ${week.review.currentStreak === 1 ? "day" : "days"}`
+                    : "…"
+                }
+                hint={
+                  week.review
+                    ? `best ${week.review.bestStreak} ${week.review.bestStreak === 1 ? "day" : "days"}`
+                    : ""
+                }
+              />
+            </dl>
 
             {empty ? (
               <Card>
@@ -1091,18 +1126,24 @@ export function HistoryPage({
               </Card>
             ) : (
               <>
-                <HeatmapCard days={days} today={today} />
-                <HourOfDayCard hours={report.hours} />
-                <TrendCard range={report.range} days={days} />
-                {/* Side by side on desktop: the same focus time by task and
-                    by project, so one glance compares them. */}
-                <section className="grid gap-3 lg:grid-cols-2">
-                  <TopTasksCard topTasks={report.topTasks} />
-                  <TopProjectsCard
+                <div className="grid gap-6 lg:grid-cols-[1.6fr_1fr]">
+                  <ByDayPanel range={report.range} days={days} />
+                  <ThisWeekPanel
+                    review={week.review}
+                    error={week.error}
+                    loading={week.loading}
+                    onRetry={week.retry}
+                  />
+                </div>
+                <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
+                  <HourOfDayPanel hours={report.hours} />
+                  <WorkSplitPanel
+                    topTasks={report.topTasks}
                     topProjects={report.topProjects}
                     projectTargets={report.projectTargets}
+                    tasksCompleted={report.totals.tasksCompleted}
                   />
-                </section>
+                </div>
                 <SessionsCard
                   sessions={report.sessions}
                   page={page}
@@ -1117,6 +1158,9 @@ export function HistoryPage({
             )}
           </>
         ) : null}
+
+        {/* The ladder reads its own counters and ignores the range. */}
+        <AchievementsCard />
       </div>
     </>
   )

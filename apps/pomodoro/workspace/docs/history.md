@@ -1,14 +1,48 @@
 # Focus history
 
-The report page at `/history`, over four ranges — 7 days, 30 days, 12
-months, this year. A week review card at the top, the badges panel, four stat
-cards (focus time, sessions, active days, tasks done), a calendar heatmap, an
-hour-of-day chart, a focus-time trend chart (the shell's chart component,
-monthly bars on the long ranges), the top 8 tasks by focus time beside the
-same time split by project, a completed-sessions table paged 20 at a time, and
-CSV export. The per-project card is described in [Projects](projects.md), the
-badges panel in [Achievements](achievements.md), and the sessions table's Note
-column in [Session notes](session-notes.md).
+The report page at `/history`, over four ranges: 7 days, 30 days, 12 months
+and this year. Drawn to Tyler's design of 7 Oct 2026
+(`assets/pasted-image-1791402090336300000.png`), top to bottom:
+
+- **The header:** the title and the dates, with the range tabs and Export CSV
+  on the right.
+- **The strip:** four figures in one panel. Focus time, Sessions (with
+  today's time and sessions under it), Active days, and Streak (with the best
+  under it).
+- **By day** (by month on the long ranges), with a Time or Sessions switch,
+  beside **This week**.
+- **When you focus** beside **Top tasks**, which holds By project under a line.
+- **Completed sessions**, the table, with the tag filter on the right.
+- **Achievements · N of 10**, with Show on profile, which opens Settings →
+  Public page where badges are published.
+
+The per-project rows are described in [Projects](projects.md), the badges in
+[Achievements](achievements.md), and the table's Note column in
+[Session notes](session-notes.md). Every panel uses the shared
+`panel-card.tsx`.
+
+## The strip
+
+- **Focus time, Sessions and Active days follow the range tabs.** The line
+  under Focus time names the range.
+- **Sessions also says today**, as "1h 40m today · 4 sessions", whatever
+  range is picked. The figures under it moved here on 7 Oct 2026 from the
+  "Your stats" cards, which the redesign folded away.
+- **Streak never follows the range.** It is the current run of days in a
+  row, with the best under it, and arrives with the week review.
+- **The design puts "↑ 1h 15m vs last week" under Focus time. The page does
+  not.** That comparison is Monday to today against last week, while Focus
+  time is the range, such as the last 7 days. Under a 7-day total of 2h 05m
+  it would have read as if 2h 05m were the week. The comparison lives in This
+  week instead, next to the figure it is about.
+- **Tasks completed** is no longer a figure of its own. It is the note on Top
+  tasks.
+
+## By day
+
+Bars of focus per day, or per month on 12 months and This year. The switch
+in the corner shows Time (minutes, the default) or Sessions. The switch is
+not kept in the address.
 
 ## The range is in the address
 
@@ -22,29 +56,31 @@ shows the same locked card whether it was clicked or typed into the address.
 It used to be held only on the page, so opening something and pressing Back
 put you on 7 days again.
 
-## Your week
+## This week
 
-The card at the top of the page. It shows this week's focus time, how that
-compares with last week, the best day of this week, and the project that took
-the most of this week.
+The panel beside By day. It shows this week's focus time, how that compares
+with last week (green with an up arrow when it is more), the best day, the
+project that took the most time, and the busiest hour: the hour most of this
+week's sessions finished in, with a tie going to the earlier hour.
 
-The week runs **Monday to Sunday**, the same first day the calendar heatmap's
-rows already start on, so the two never disagree about which days a week holds.
+The week runs **Monday to Sunday**, the same first day the profile's year
+grid starts its rows on.
 
 The comparison is written in hours and minutes and never as a percentage. A
 percentage change from a week of nothing means nothing, and two stacked
-percentages cannot be checked by hand. It reads "2h 10m more than last week",
+percentages cannot be checked by hand. It reads "↑ 2h 10m more than last week",
 "1h 5m less than last week", or "The same as last week" when the two weeks
 match to the minute.
 
-A first week says "This is your first week, so there is nothing to compare to
-yet" rather than claiming a difference against zero. "There is no last week"
+A first week says "Your first week, so nothing to compare yet" rather than claiming a difference against zero. "There is no last week"
 means the account had recorded nothing at all before last Monday. An account
 that was quiet last week but active before it has a last week of zero, which is
 a real comparison and is shown as one.
 
-This card ignores the range tabs, because it is always this week against last
+This panel ignores the range tabs, because it is always this week against last
 week, which is why it loads on its own rather than arriving with the report.
+The same request brings the streak for the strip and the busiest hour
+(`loadWeekReview` in `src/server/pomodoro/focus-report.ts`).
 It is free on every plan.
 
 ## When you focus
@@ -84,7 +120,7 @@ views stay a Pro perk.
   path and a way back to 30 days.
 - **One way of writing a day.** `src/lib/format/calendar-day.ts` holds two
   forms. The long one, "Tue, Oct 6, 2026", is used by the sessions table, the
-  heatmap's tooltip, the best day in Your week and the badges panel. The short
+  profile's year grid tooltip, the best day in This week and the badges panel. The short
   one, "Oct 6", is used for the two ends of a range, where the year is plain.
   The ticks under the chart's bars ("Tue", "6", "Oct") are not dates on their
   own and stay as they are.
@@ -104,28 +140,7 @@ views stay a Pro perk.
 Endpoints: `src/lib/api/pomodoro/history.ts`, all three guarded (the report,
 the CSV export and the week review). Screen:
 `src/components/pomodoro/history-page.tsx`, with hidden data tables behind
-the visual heatmap and chart for screen readers.
-
-## The calendar heatmap
-
-The same grid draws here and on a public profile (`focus-heatmap.tsx`), so both
-behave the same:
-
-- **It opens on the newest weeks.** The grid scrolls sideways inside its card,
-  and it starts at the right-hand end with today in view. At 390px wide it used
-  to open on last year, with today off the right edge.
-- **Every square tells you its day.** Pointing at one, tapping it, or reaching
-  it with the arrow keys shows "Tue, Oct 6, 2026 · 1h 20m · 3 sessions"
-  in the shared tooltip, and the square gets an outline. A tap anywhere else
-  puts it away. The day used to live only in a mouse-hover title, which a phone
-  never shows.
-- **One tooltip, one tab stop.** The grid is a single stop for Tab. Up and down
-  move a day, left and right move a week, and Home and End jump to the first
-  and last day. A tooltip and a tab stop for each of 365 squares could not open
-  on a tap and would bury the keyboard.
-- **A screen reader hears a summary**, such as "Focus by day from ... to ...:
-  41h over 120 days", and then each day as the arrows move. History also keeps
-  its hidden table of every day.
+the By day and When you focus charts for screen readers.
 
 ## The bars in Top tasks and By project
 
@@ -152,7 +167,7 @@ the table to sessions whose task carries "admin" now, and the header reads
 "2 tagged admin · 1h 15m" in place of "N in range".
 
 - **Only the table, its count and its total follow the filter.** The stats,
-  the chart, the heatmap and the two splits above it stay whole, because they
+  the charts and the two splits above it stay whole, because they
   are read from the per-day totals, which know nothing of tags.
 - **The CSV export follows it.** The file holds what the table shows.
 - **A tag reaches a session through its task**, the same way a project does,

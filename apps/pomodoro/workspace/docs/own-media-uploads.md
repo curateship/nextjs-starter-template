@@ -7,17 +7,21 @@ the picker beside the eight that ship with the app.
 
 On both `/sounds` and `/backgrounds` the uploads sit in one card, drawn to
 Tyler's Sounds design of 7 Oct 2026: a "YOUR OWN" heading with the space used
-beside it ("4.3 MB of 2.0 GB"), a dashed box that says "Upload a loop" (or
-"Upload a background") over the file limits, and the uploads in a grid under
-it once there are any.
+beside it ("4.3 MB of 2.0 GB"), two buttons, the file limits under them, and
+the uploads in a grid once there are any.
 
-- **Click the box or drop a file on it.** Both go through the same checks. The
-  box lights orange while a file is dragged over it.
-- **A box that cannot take a file says why inside it**, with the way forward
-  beside the reason: Sign in for a guest, See the plans for a free account,
-  and a line about deleting something when the storage is full. It shows a
-  padlock instead of the upload arrow, and a spinner while the page is still
-  asking.
+- **Two buttons, no drop box.** Tyler, 7 Oct 2026: "remove the upload box
+  ... Clicking the button is enough." Sounds has Upload sound and Generate
+  with AI. Theme has Upload clip and Generate with AI. Dragging a file onto
+  the page does nothing.
+- **Upload opens the file picker**, limited to the types that page takes.
+- **Generate with AI scrolls to the generator card** further down the same
+  page, and puts the cursor in its prompt when the prompt is open to you
+  (`useGeneratorJump` in `src/lib/pomodoro/use-generator-jump.ts`).
+- **Upload is never dead.** A guest sees Sign in in its place. On a free
+  account it shows a padlock and opens the plans. On a full account it says
+  to delete something first, in the line under the buttons. While the page is
+  still asking, it shows a spinner.
 
 ## What is allowed
 
@@ -59,7 +63,7 @@ body is already in memory, which is the hole it would otherwise open.
 
 ## The upload counts up
 
-While a file goes up, the box reads "Uploading… 40%", and once every byte is
+While a file goes up, the Upload button reads "Uploading… 40%", and once every byte is
 out it reads "Checking the file…" while the server sniffs and stores it. A 100
 MB clip on slow wifi used to show a spinner for minutes, with no way to tell
 slow from stuck.
@@ -98,9 +102,9 @@ goes back in the queue twice; after that the card says so in words instead of
 spinning forever. A server with no FFmpeg says "Sound and video cannot be
 prepared yet."
 
-## The box waits before it lets you press anything
+## The button waits before it lets you press anything
 
-The upload box starts shut on every visit and opens only once the server has
+The Upload button starts shut on every visit and opens only once the server has
 said whether this account may upload. Every screen in the product hydrates in
 the browser — guests have no server session, so no page under `_pomodoro` has a
 route loader — and for a signed-in member this strip therefore asks for its
@@ -109,8 +113,8 @@ list, the Pro answer and the space used in one request when the page opens.
 **A guest is never asked for.** The layout already knows whether anybody is
 signed in (`useProductAuth`), so the strip reads that instead of asking the
 server, which would answer 401 and put a red "Please sign in again." on a page
-that was working perfectly well. A guest gets a settled, quiet answer: the
-box is shut and says to sign in on a Pro plan.
+that was working perfectly well. A guest gets a settled, quiet answer: a Sign
+in button and a line saying to sign in on a Pro plan.
 
 Treating "not known yet" as allowed was a bug: on a free account you could open
 the file picker by clicking quickly, and the upload was then refused by the

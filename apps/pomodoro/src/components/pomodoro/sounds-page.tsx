@@ -20,6 +20,7 @@ import {
 } from "@/components/pomodoro/media-add-actions"
 import { MediaUploadsSection } from "@/components/pomodoro/media-uploads-section"
 import { MediaGeneratorSection } from "@/components/pomodoro/media-generator-section"
+import { useGeneratorJump } from "@/lib/pomodoro/use-generator-jump"
 import { contentColumn } from "@/lib/pomodoro/content-column"
 import { CatalogPager } from "@/components/pomodoro/catalog-pager"
 import { useCatalogPage } from "@/lib/pomodoro/use-catalog-page"
@@ -51,6 +52,7 @@ export function SoundsPage() {
     () => setReloadToken((token) => token + 1),
     []
   )
+  const { generatorRef, goToGenerator } = useGeneratorJump()
 
   const { page, pages, first, shown, setPage } = useCatalogPage(curatedSounds)
 
@@ -77,7 +79,7 @@ export function SoundsPage() {
               <Card
                 key={sound.key}
                 className={cn(
-                  "gap-0 overflow-hidden rounded-[18px] p-0",
+                  "relative gap-0 overflow-hidden rounded-[18px] p-0",
                   inUse && "ring-2 ring-[var(--p-accent)]"
                 )}
               >
@@ -146,11 +148,18 @@ export function SoundsPage() {
                     </small>
                   </CardContent>
                 </button>
+                {/* Over the picture's bottom-left corner, while the card is
+                    previewed. A layer of its own the same size as the
+                    picture, because a button cannot sit inside the card's
+                    preview button; only the add buttons take clicks. */}
                 {previewed ? (
-                  <div className="px-[18px] pb-4">
-                    <MediaAddActions
-                      item={{ kind: "sound", reference, label: sound.label }}
-                    />
+                  <div className="pointer-events-none absolute inset-x-0 top-0 aspect-[8/5]">
+                    <div className="pointer-events-auto absolute bottom-3 left-3">
+                      <MediaAddActions
+                        item={{ kind: "sound", reference, label: sound.label }}
+                        onPicture
+                      />
+                    </div>
                   </div>
                 ) : null}
               </Card>
@@ -181,7 +190,8 @@ export function SoundsPage() {
           reloadToken={reloadToken}
           purpose="sound"
           title="Your own"
-          uploadLabel="Upload a loop"
+          uploadLabel="Upload sound"
+          onGenerate={goToGenerator}
           description="Click one to hear it, then add it to your personal room."
           isSelected={(upload) =>
             sameSoundReference(media.sound, {
@@ -220,7 +230,9 @@ export function SoundsPage() {
           renderThumbnail={() => null}
         />
 
-        <MediaGeneratorSection kind="soundscape" onFinished={reloadUploads} />
+        <div ref={generatorRef} className="scroll-mt-6">
+          <MediaGeneratorSection kind="soundscape" onFinished={reloadUploads} />
+        </div>
       </div>
     </>
   )

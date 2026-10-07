@@ -2,6 +2,7 @@ import * as React from "react"
 
 import { MusicIcon } from "lucide-react"
 
+import { InitialsAvatar } from "@/components/pomodoro/initials-avatar"
 import { cn } from "@/lib/utils"
 import { sceneFor, soundLabelFor } from "@/lib/pomodoro/media-pair"
 import { vibeFor } from "@/lib/pomodoro/room-vibe"
@@ -57,15 +58,23 @@ function RoomVibeBanner({
   gradient,
   scene,
   soundName,
+  tall = false,
 }: {
   gradient: string
   /** The scene's thumbnail name, when the room has a theme. */
   scene: string | null
   soundName: string | null
+  /** The Open to join card: a taller picture, the sound named top right. */
+  tall?: boolean
 }) {
   return (
     <div
-      className="relative h-[108px] overflow-hidden rounded-[14px] bg-[length:200%_200%] motion-reduce:animate-none"
+      className={cn(
+        "relative overflow-hidden bg-[length:200%_200%] motion-reduce:animate-none",
+        // The tall card's picture runs edge to edge, cut by the card's own
+        // corners; the short one sits inset with corners of its own.
+        tall ? "h-48" : "h-[108px] rounded-[14px]"
+      )}
       style={
         scene
           ? undefined
@@ -86,11 +95,24 @@ function RoomVibeBanner({
           banner is faded into the page before any text sits on it. */}
       <span
         aria-hidden="true"
-        className="absolute inset-0 bg-[linear-gradient(180deg,transparent_45%,rgba(var(--p-canvas-rgb),0.55))]"
+        className={cn(
+          "absolute inset-0",
+          // The tall card's name sits over the foot of the picture, so the
+          // picture fades all the way into the card behind it.
+          tall
+            ? "bg-[linear-gradient(180deg,transparent_50%,var(--p-surface))]"
+            : "bg-[linear-gradient(180deg,transparent_45%,rgba(var(--p-canvas-rgb),0.55))]"
+        )}
       />
-      <LiveVibePill />
+      <LiveVibePill tall={tall} />
       {soundName ? (
-        <span className="absolute bottom-2.5 left-2.5 z-[1] flex items-center gap-1.5 rounded-full border border-[rgba(var(--p-fg-rgb),0.14)] bg-[rgba(var(--p-canvas-rgb),0.5)] px-2.5 py-1 text-[11px] text-[var(--p-text)] backdrop-blur-[6px]">
+        <span
+          className={cn(
+            "absolute z-[1] flex items-center gap-1.5",
+            tall ? "top-4 right-4" : "bottom-2.5 left-2.5",
+            " rounded-full border border-[rgba(var(--p-fg-rgb),0.14)] bg-[rgba(var(--p-canvas-rgb),0.5)] px-2.5 py-1 text-[11px] text-[var(--p-text)] backdrop-blur-[6px]"
+          )}
+        >
           <MusicIcon className="size-3" aria-hidden="true" />
           {soundName}
         </span>
@@ -99,9 +121,16 @@ function RoomVibeBanner({
   )
 }
 
-function LiveVibePill() {
+function LiveVibePill({ tall }: { tall: boolean }) {
   return (
-    <span className="absolute top-2.5 left-2.5 z-[1] flex items-center gap-1.5 rounded-full border border-[rgba(var(--p-fg-rgb),0.14)] bg-[rgba(var(--p-canvas-rgb),0.5)] py-1 pr-2.5 pl-2 backdrop-blur-[6px]">
+    <span
+      className={cn(
+        "absolute z-[1] flex items-center gap-1.5 rounded-full",
+        // Clear of the card's own 24px corner when the picture runs to it.
+        tall ? "top-4 left-4" : "top-2.5 left-2.5",
+        "border border-[rgba(var(--p-fg-rgb),0.14)] bg-[rgba(var(--p-canvas-rgb),0.5)] py-1 pr-2.5 pl-2 backdrop-blur-[6px]"
+      )}
+    >
       <span aria-hidden="true" className="flex h-[9px] items-end gap-[2px]">
         {[0, 0.2, 0.4].map((delay) => (
           <b
@@ -194,7 +223,10 @@ export function RoomGroupEmpty({ children }: { children: React.ReactNode }) {
   )
 }
 
-/** The group's own heading: a title, a monospace aside, and any action. */
+/**
+ * The group's own heading: a small capitals title on the left, a monospace
+ * aside on the right, and any action after it.
+ */
 export function RoomGroupHeading({
   title,
   subtitle,
@@ -205,12 +237,137 @@ export function RoomGroupHeading({
   children?: React.ReactNode
 }) {
   return (
-    <div className="flex items-baseline gap-2.5">
-      <h3 className="text-[22px] tracking-[-0.01em]">{title}</h3>
+    <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+      <h3 className="mr-auto font-mono text-xs font-normal uppercase tracking-[0.2em]">
+        {title}
+      </h3>
       <span className="font-mono text-xs text-[var(--p-text-subtle)]">
         {subtitle}
       </span>
       {children}
     </div>
+  )
+}
+
+/**
+ * A room in Open to join, drawn to Tyler's design of 7 Oct 2026: a tall
+ * picture running edge to edge with the LIVE VIBE pill, the host's initials overlapping its foot
+ * beside the room's name, the room's state in colour, the people in it, and
+ * the next focus beside a black Join pill.
+ *
+ * The small circles for the people in it carry no initials. The browse list
+ * sends a count and never names, the privacy rule kept since a real leak, so
+ * only the host, who is named on every public room already, gets letters.
+ */
+export function OpenRoomCard({
+  roomId,
+  background,
+  sound,
+  name,
+  hostName,
+  phase,
+  phaseEndsAt,
+  memberCount,
+  nextFocusMinutes,
+  joinButton,
+  problem,
+}: {
+  roomId: string
+  background: string | null
+  sound: string | null
+  name: string
+  hostName: string
+  phase: string
+  phaseEndsAt: Date | string | null
+  memberCount: number
+  nextFocusMinutes: number
+  joinButton: React.ReactNode
+  problem?: React.ReactNode
+}) {
+  const onBreak = phase === "short" || phase === "long"
+  return (
+    <article className="flex flex-col overflow-hidden rounded-[24px] border bg-[var(--p-surface)] pb-6">
+      <RoomVibeBanner
+        gradient={vibeFor(roomId)}
+        scene={sceneFor(background)?.thumb ?? null}
+        soundName={soundLabelFor(sound)}
+        tall
+      />
+      <div className="relative z-[1] -mt-7 flex items-end gap-3 px-6">
+        <span className="relative shrink-0">
+          <InitialsAvatar
+            name={hostName}
+            className="size-12 text-base ring-4 ring-[var(--p-surface)]"
+          />
+          <i
+            aria-hidden="true"
+            className={cn(
+              "absolute -right-0.5 -bottom-0.5 size-3.5 rounded-full border-2 border-[var(--p-surface)]",
+              onBreak ? "bg-amber-400" : "bg-[var(--p-success)]"
+            )}
+          />
+        </span>
+        <h4 className="min-w-0 truncate pb-1 text-2xl font-semibold tracking-tight">
+          {name}
+        </h4>
+      </div>
+      <div className="mt-4 flex flex-col gap-4 px-6">
+        <p
+          className={cn(
+            "font-mono text-sm",
+            onBreak ? "text-amber-400" : "text-[var(--p-success)]"
+          )}
+        >
+          {onBreak ? (
+            <>
+              on break · <BreakClock endsAt={phaseEndsAt} />
+            </>
+          ) : (
+            "waiting to start"
+          )}
+        </p>
+        <p className="flex items-center gap-3 font-mono text-sm text-[var(--p-text-subtle)]">
+          <span aria-hidden="true" className="flex">
+            {Array.from({ length: Math.min(memberCount, 3) }, (_, index) => (
+              <i
+                key={index}
+                className="-ml-1.5 size-6 rounded-full border-2 border-[var(--p-surface)] bg-[rgba(var(--p-fg-rgb),0.18)] first:ml-0"
+              />
+            ))}
+          </span>
+          {memberCount} focusing
+        </p>
+        <div className="mt-2 flex items-center justify-between gap-3">
+          <span className="text-[15px] text-[rgba(var(--p-text-rgb),0.6)]">
+            Next: {nextFocusMinutes} min focus
+          </span>
+          {joinButton}
+        </div>
+        {problem}
+      </div>
+    </article>
+  )
+}
+
+/**
+ * "3:12" left on the break, counted down every second against the end time
+ * the list arrived with. Drawn only in the browser, because the seconds depend
+ * on the reader's clock.
+ */
+function BreakClock({ endsAt }: { endsAt: Date | string | null }) {
+  const [left, setLeft] = React.useState<number | null>(null)
+  React.useEffect(() => {
+    if (!endsAt) return
+    const end = new Date(endsAt).getTime()
+    const tick = () => setLeft(Math.max(0, Math.ceil((end - Date.now()) / 1000)))
+    tick()
+    const timer = window.setInterval(tick, 1000)
+    return () => window.clearInterval(timer)
+  }, [endsAt])
+  if (left === null) return null
+  return (
+    <span className="tabular-nums">
+      {Math.floor(left / 60)}:{String(left % 60).padStart(2, "0")}
+    </span>
   )
 }

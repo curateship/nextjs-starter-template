@@ -3,29 +3,80 @@
 Shared rooms at `/rooms`: several people run one timer, the host drives
 the phases, and the server is the only clock.
 
+## Your three rooms
+
+The top of `/rooms` is three columns, drawn to Tyler's design of 7 Oct 2026
+(`assets/pasted-image-1791399800306436000.png`), in
+`src/components/pomodoro/room-columns.tsx`.
+
+- **My personal room, Room I joined, My hosted room**, left to right. Tyler:
+  "Only one of this room should be highlighed because I can only be on one
+  room at a time."
+- **The room you are in is lit** with an orange border and a "You're here"
+  label. Its Open room button goes to `/`, where the room is drawn.
+- **The personal room always has a card**, because it can never be deleted.
+  It reads "<first name>'s room · Always open · just you". While you are in
+  another room it is unlit and its button is Go back to it.
+- **Go back to it leaves the room you are in.** It asks first. A member is
+  told they go back to their own sound and theme. A host is told leaving ends
+  the room, and for how many other people.
+- **A room you are not in is a dashed box** with the way to get one. Room I
+  joined has Browse open rooms, which scrolls down to Open to join. My hosted
+  room has Host a room.
+- **Hosting needs you out of a joined room first.** While you are in someone
+  else's room, the hosted box says to go back to your personal room first,
+  and the Host a room button in the page header is hidden.
+
+## Open to join on the front page
+
+Tyler, 7 Oct 2026: "add the open to join on the index under the task. If user
+is not logged in, that should link to the login page."
+
+- **Under the Tasks card on `/`**, with 40px above it so it reads as its own
+  block. The same heading and cards as `/rooms` (`OpenRoomsSection` in
+  `src/components/pomodoro/open-rooms.tsx`), read on arrival and every minute
+  while the tab is on screen.
+- **Join moves you straight into the room.** The front page is your personal
+  room, so it then draws the joined room in its place. Leaving puts the timer
+  and this list back.
+- **A guest sees the heading and one dashed card** that opens the login page
+  and comes back to `/` afterwards. The list itself needs an account, because
+  a host with no public display name is listed by their account name.
+- **It only shows on the timer.** While you are in a room the front page is
+  that room, so there is nothing to join from there.
+
 ## How it behaves
 
-- **Browse** shows "Open to join" (waiting or on break) and "In session"
-  (joins locked until the break). Public cards show member counts, never
-  names — the old privacy rule after a real leak.
+- **Browse** shows "Open to join" (waiting or on break) under the three
+  columns, three cards across on a wide screen. A room mid-focus is not
+  listed, because nobody can join it until its break. Tyler removed the "In
+  session" list and the "My rooms" list on 7 Oct 2026. Public cards show
+  member counts, never names — the old privacy rule after a real leak.
 - **The lists stay current on their own.** While the Rooms tab is on screen,
   the open rooms and the booked ones are read again every minute, and once
   more the moment you come back to the tab, so a room that has closed leaves
   the page within a minute. These reads are quiet: one that fails keeps the
   cards already showing and puts up no toast. A hidden tab reads nothing.
-- **A room card is the old app's card**, rebuilt from its values rather than
-  its classes: a 108px banner with a LIVE VIBE pill, a status dot and a
-  monospace clock beside the name, the member count, and a row ending in the
-  card's one pill button. Green means open, orange means locked. The banner
-  is the room's own scene, with its sound named at the foot, so people can
-  pick a room by its mood. A room from before rooms carried a pair keeps one
-  of four gradients, picked from the room's own id so a card keeps its colour
-  when the list shuffles. A group with no rooms shows a dashed box saying so.
-  The pieces live in `src/components/pomodoro/room-card.tsx`, the gradients
-  in `src/lib/pomodoro/room-vibe.ts`, and the two animations in
-  `src/components/pomodoro/theme.css`. The page is the shared 1,140px column
-  (see [The product shell](product-shell.md)) with 36px between its groups,
-  the old app's spacing for this screen.
+- **An Open to join card**, drawn to Tyler's design of 7 Oct 2026
+  (`assets/pasted-image-1791404158696439000.png`, `OpenRoomCard` in
+  `src/components/pomodoro/room-card.tsx`), has a tall picture with the LIVE
+  VIBE pill, then the host's initials overlapping the picture's foot beside the
+  room's name in large type. Under the name: "waiting to start" in green, or
+  "on break · 3:12" in amber counting down each second; then a row of small
+  circles and "3 focusing"; then "Next: 25 min focus" beside a black Join
+  pill. The dot on the host's initials is green or amber to match.
+- **The small circles carry no initials.** The design draws the members'
+  initials, but the browse list sends a count and never names, and that rule
+  stays. Only the host, who is already named on every public room, gets
+  letters.
+- **The picture is the room's own scene**, with its sound named in the top
+  right corner, so people can pick a room by its mood. A room from before
+  rooms carried a pair keeps one of four gradients, picked from the room's own
+  id so a card keeps its colour when the list shuffles. The section heading is
+  "Open to join" in large type, and an empty list shows a dashed box saying
+  so. Upcoming still uses the shorter card. The gradients live in
+  `src/lib/pomodoro/room-vibe.ts` and the two animations in
+  `src/components/pomodoro/theme.css`.
 - **Hosting is Pro** (`requirePomodoroPerk("hostRooms")`): name, public or
   unlisted, three durations, auto-start, a sound and a theme. One room per
   person; hosting again or joining another room closes the old one so nobody
@@ -77,7 +128,7 @@ the phases, and the server is the only clock.
   invite takes you to `/`, which draws the room's panel instead of the timer,
   in the room's sound and theme (`HomeRoom` and `JoinedRoom`,
   `src/components/pomodoro/home-room.tsx` and `active-room.tsx`). `/rooms`
-  shows one line, "You are in …", with Open the room. Leaving puts the timer
+  lights that room's column, with Open room. Leaving puts the timer
   and your own pair back on `/`. The panel names the room's sound and theme;
   the host is pointed at Sounds and Backgrounds to change them.
 - **Host actions**: start focus, start break, next phase, close (with
@@ -155,25 +206,12 @@ the phases, and the server is the only clock.
   snapshot, which only members receive, and never on a browse card or invite
   page. User ids still never leave the server.
 
-## My rooms
+## Saved rooms are gone
 
-- **Every room you join or host stays on My rooms** at the top of `/rooms`,
-  so a group that meets every week finds its room again without the link.
-  Joining from Browse, from an invite link, or hosting all count.
-- **Saving is not joining.** It is a `saved` flag on the membership, and the
-  rule that you are in one room at a time is untouched. The list shows "You
-  are in it", "Open to join" with a Join button, "In session" with Locked, or
-  "Ended" with the day.
-- **A closed room drops off 30 days after it closed**, by itself. Tyler chose
-  this on 6 Oct 2026 over keeping closed rooms until somebody removes them.
-- **Leave for good takes a room off the list.** Pressed from inside the room,
-  it leaves the room too, by the same rules as Leave, so a host leaving still
-  ends it for everyone. That case asks first. Joining again puts the room
-  back.
-- **A room you were banned from never shows**, and neither does a room whose
-  host is across a block with you.
-- **The list starts empty.** Memberships from before 6 Oct 2026 were not
-  marked saved, so old one-off rooms do not flood it.
+Tyler took the My rooms list off `/rooms` on 7 Oct 2026, and the code behind
+it went with it: the list and Leave for good endpoints, and the `saved` flag a
+join or a new room used to set. The `room_memberships.saved` column stays,
+because stored fields are never removed; nothing writes or reads it now.
 
 ## Who you focus with
 

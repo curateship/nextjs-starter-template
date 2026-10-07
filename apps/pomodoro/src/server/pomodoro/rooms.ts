@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, inArray, isNull, lte, or, sql } from "drizzle-orm"
+import { and, desc, eq, gt, inArray, lte, sql } from "drizzle-orm"
 
 import { db, type CustomShellDb } from "@/server/db"
 import { enforceRateLimit } from "@/server/auth/rate-limit"
@@ -191,7 +191,7 @@ export async function createRoomWithHost(userId: string, slug: string, settings:
     const closedRoomIds = await closeRoomsHostedBy(tx, userId, timestamp)
     await tx.update(roomMemberships).set({ leftAt: timestamp }).where(and(eq(roomMemberships.userId, userId), sql`${roomMemberships.leftAt} is null`))
     const [created] = await tx.insert(rooms).values({ ...settings, hostUserId: userId, slug }).returning()
-    await tx.insert(roomMemberships).values({ roomId: created.id, userId, role: "host", saved: true, joinedAt: timestamp })
+    await tx.insert(roomMemberships).values({ roomId: created.id, userId, role: "host", joinedAt: timestamp })
     await writeNotices(tx, followers.map((recipientUserId) => ({
       recipientUserId,
       actorUserId: userId,
@@ -224,8 +224,7 @@ export async function joinRoomBySlug(slug: string, userId: string, database: Pom
     const [already] = await tx.select({ id: roomMemberships.id }).from(roomMemberships).where(and(eq(roomMemberships.roomId, room.id), eq(roomMemberships.userId, userId), sql`${roomMemberships.leftAt} is null`)).limit(1)
     const closedRoomIds = await closeRoomsHostedBy(tx, userId, timestamp, room.id)
     await tx.update(roomMemberships).set({ leftAt: timestamp }).where(and(eq(roomMemberships.userId, userId), sql`${roomMemberships.leftAt} is null`))
-    // Every join keeps the room on My rooms until Leave for good clears it.
-    await tx.insert(roomMemberships).values({ roomId: room.id, userId, role: room.hostUserId === userId ? "host" : "member", saved: true, joinedAt: timestamp }).onConflictDoNothing()
+    await tx.insert(roomMemberships).values({ roomId: room.id, userId, role: room.hostUserId === userId ? "host" : "member", joinedAt: timestamp }).onConflictDoNothing()
     if (!already && room.hostUserId !== userId && !blockedFromHost) await noteRoomJoin(tx, room, userId, timestamp)
     return { room, closedRoomIds }
   })
@@ -943,89 +942,6 @@ export async function advanceDueRooms(timestamp = new Date()) {
     if (result.kind === "advanced") await notifyRoom(room.id, "phase")
   }
   return due.length
-}
-
-/** How long a closed room stays on My rooms before it drops off by itself. */
-export const SAVED_CLOSED_ROOM_DAYS = 30
-const MY_ROOMS_LIMIT = 20
-
-export type MyRoom = {
-  id: string
-  slug: string
-  name: string
-  phase: string
-  hostName: string
-  hosting: boolean
-  /** You are in this room right now. */
-  current: boolean
-  closedAt: Date | null
-  lastJoinedAt: Date
-}
-
-/**
- * The rooms on this person's My rooms list: every room they joined or hosted
- * and have not left for good, newest first. A closed room stays for thirty
- * days so a group can see its room ended, then drops off by itself. A room
- * they were banned from never shows, and neither does a host across a block.
- *
- * Saving is not joining: this reads `saved`, never `left_at`, so the
- * one-active-room rule is untouched.
- */
-export async function listMyRooms(userId: string, database: PomoderDb = db, timestamp = new Date()): Promise<MyRoom[]> {
-  const closedFloor = new Date(timestamp.getTime() - SAVED_CLOSED_ROOM_DAYS * DAY_MS)
-  const [rows, blocked] = await Promise.all([
-    database
-      .select({
-        id: rooms.id,
-        slug: rooms.slug,
-        name: rooms.name,
-        phase: rooms.phase,
-        hostUserId: rooms.hostUserId,
-        hostName: displayName,
-        closedAt: rooms.closedAt,
-        current: sql<boolean>`bool_or(${roomMemberships.leftAt} is null)`,
-        lastJoinedAt: sql<Date>`max(${roomMemberships.joinedAt})`,
-      })
-      .from(roomMemberships)
-      .innerJoin(rooms, eq(rooms.id, roomMemberships.roomId))
-      .innerJoin(users, eq(users.id, rooms.hostUserId))
-      .leftJoin(pomodoroProfiles, eq(pomodoroProfiles.userId, users.id))
-      .leftJoin(roomBans, and(eq(roomBans.roomId, rooms.id), eq(roomBans.userId, userId)))
-      .where(
-        and(
-          eq(roomMemberships.userId, userId),
-          eq(roomMemberships.saved, true),
-          isNull(roomBans.id),
-          or(isNull(rooms.closedAt), gt(rooms.closedAt, closedFloor))
-        )
-      )
-      .groupBy(rooms.id, users.id, pomodoroProfiles.publicDisplayName)
-      .orderBy(sql`${rooms.closedAt} is not null`, desc(sql`max(${roomMemberships.joinedAt})`))
-      .limit(MY_ROOMS_LIMIT),
-    blockedUserIdsFor(userId),
-  ])
-  return rows
-    .filter((row) => !blocked.has(row.hostUserId))
-    .map(({ hostUserId, lastJoinedAt, current, ...row }) => ({
-      ...row,
-      hosting: hostUserId === userId,
-      current: Boolean(current),
-      lastJoinedAt: new Date(lastJoinedAt),
-    }))
-}
-
-/**
- * Leave for good: the room comes off My rooms, and if you are in it you leave
- * it too, by the same rules as Leave, so a host leaving still closes it for
- * everyone. Joining again later puts it back.
- */
-export async function leaveRoomForGood(slug: string, userId: string, database: PomoderDb = db, timestamp = new Date()) {
-  const [room] = await database.select({ id: rooms.id }).from(rooms).where(eq(rooms.slug, slug)).limit(1)
-  if (!room) throw new Error("ROOM_NOT_FOUND")
-  const [active] = await database.select({ id: roomMemberships.id }).from(roomMemberships).where(and(eq(roomMemberships.roomId, room.id), eq(roomMemberships.userId, userId), sql`${roomMemberships.leftAt} is null`)).limit(1)
-  const left = active ? await leaveRoom(slug, userId, database, timestamp) : null
-  await database.update(roomMemberships).set({ saved: false }).where(and(eq(roomMemberships.roomId, room.id), eq(roomMemberships.userId, userId)))
-  return { roomId: room.id, closed: left?.closed ?? false, left: left?.left ?? false }
 }
 
 /** How far back "focused with" looks. A year, so the read stays one bounded range. */

@@ -6,6 +6,26 @@ optional estimate of 1 to 20 sessions, a done count shown as
 `done/estimate sessions` ("2/4 sessions"), an optional repeat rule, an optional project
 ([Projects](projects.md)), up to ten steps and up to three tags.
 
+## How the page looks
+
+Drawn to Tyler's design of 7 Oct 2026
+(`assets/pasted-image-1791402542044283000.png`), in
+`src/components/pomodoro/tasks-page.tsx`.
+
+- **The header:** a 36px "Tasks" title and one line under it, with All tags
+  on the right.
+- **Seven day cards** in a row: the weekday, the date in large type, and an
+  orange dot per task (up to five). Today's weekday reads TODAY in orange,
+  and the chosen card has an orange border. Underneath they are still a tab
+  row, so the arrow keys move between days.
+- **The day's panel** reads "Today · Wednesday", with a bar and "0 / 3 done"
+  on the right (or "2 planned" for a later day). Its rows have no frame of
+  their own, and the add box sits under a full-width line with an Add task
+  button. Today and the days ahead are drawn the same way, and so is the
+  Tasks card on `/timer`, because they share the rows and the add box.
+- **Projects** as cards, then **Past tasks**. See [Projects](projects.md) and
+  [Rollover and archive](#rollover-and-archive).
+
 ## How it behaves
 
 - **Create** with the "Add a task, press Enter…" field.
@@ -108,10 +128,10 @@ optional estimate of 1 to 20 sessions, a done count shown as
 
 ## Planning the week ahead
 
-A strip of seven day buttons sits above the list on `/tasks`: Today, then the
-next six days by name ("Thu", "Fri" and so on). Pick Thursday and the card
-shows Thursday's list, with its own "Add a task, press Enter…" box. A day
-holding tasks shows how many on its button. Tyler picked seven days on
+Seven day cards sit above the list on `/tasks`: Today, then the next six
+days ("Thu 8", "Fri 9" and so on). Pick Thursday and the panel shows
+Thursday's list, with its own "Add a task, press Enter…" box. A day holding
+tasks shows an orange dot for each, up to five. Tyler picked seven days on
 7 Oct 2026.
 
 - **A task planned for Thursday is on Thursday and nowhere else.** It is not
@@ -223,8 +243,9 @@ itself; there is no scheduled job).
 - **A repeat rule's copy starts with no steps** and wears the tags of the
   rule's last copy.
 
-The archive section under Today groups past days newest first, with a badge per
-row: Completed (green) or Abandoned (grey).
+The Past tasks panel at the foot of the page groups past days newest first.
+Each row has a dot and a word on the right: green for Completed, grey for
+Abandoned. Hide folds the list away for the visit, and Show brings it back.
 
 - **A carried task is listed once.** Its copy is in Today, or further up the
   archive if it moved again, so the carried original is not drawn at all, and
@@ -239,10 +260,10 @@ row: Completed (green) or Abandoned (grey).
   of the day the 50th task falls on, so a day is never cut in half
   (`listArchivePage` in `src/server/pomodoro/tasks.ts`). A cut at exactly 50
   rows used to drop the rest of the last day without saying so.
-- **The heading says when it is a cut-off.** "Your last 52 past tasks" while
-  older days exist, and the plain "12 past tasks" once everything is shown
-  (`src/lib/pomodoro/task-archive.ts`). It used to read "50 past tasks", which
-  looked like a total.
+- **The label says when it is a cut-off.** "Past tasks · 52+" while older
+  days exist, the plain "Past tasks · 12" once everything is shown, and no
+  number while nothing is listed (`src/lib/pomodoro/task-archive.ts`). It used
+  to read "50 past tasks", which looked like a total.
 - **Show older loads the days before the oldest one on screen.** When nothing
   older is left, the button goes and a line says "That is everything, back to
   your first day." A member with one page or less never sees the button.

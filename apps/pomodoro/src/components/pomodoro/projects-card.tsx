@@ -8,9 +8,9 @@ import {
   PlusIcon,
 } from "lucide-react"
 
+import { PanelCard } from "@/components/pomodoro/panel-card"
 import { SettingsWindow } from "@/components/pomodoro/settings-window"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { InlineError } from "@/components/ui/inline-error"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -23,6 +23,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useProductAuth } from "@/lib/pomodoro/auth-state"
+import { formatFocusDuration } from "@/lib/pomodoro/focus-history"
+import { cn } from "@/lib/utils"
 import {
   TARGET_HOURS_MAX,
   targetPeriodLabels,
@@ -67,24 +69,35 @@ export function ProjectsCard({ pomodoro }: { pomodoro: PomodoroApi }) {
   const live = pomodoro.projects.filter((project) => !project.archivedAt)
   const archived = pomodoro.projects.filter((project) => project.archivedAt)
 
+  const [showArchived, setShowArchived] = React.useState(false)
+
   if (!authenticated) return null
 
   return (
-    <Card>
-      <CardHeader className="flex-row items-center justify-between">
-        <CardTitle>Projects</CardTitle>
-        <span className="text-xs text-muted-foreground">
-          {live.length} {live.length === 1 ? "project" : "projects"}
-        </span>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
-        {!pomodoro.projects.length ? (
-          <p className="text-sm text-muted-foreground">
-            Put tasks in a project and History tells you where the month went.
-          </p>
-        ) : null}
+    <PanelCard
+      label={`Projects · ${live.length}`}
+      aside={
+        archived.length ? (
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-full"
+            aria-expanded={showArchived}
+            onClick={() => setShowArchived((open) => !open)}
+          >
+            Archived · {archived.length}
+          </Button>
+        ) : null
+      }
+    >
+      {!pomodoro.projects.length ? (
+        <p className="text-sm text-muted-foreground">
+          Put tasks in a project and History tells you where the month went.
+        </p>
+      ) : null}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {live.map((project) => (
-          <ProjectRowItem
+          <ProjectTile
             key={project.id}
             project={project}
             pomodoro={pomodoro}
@@ -95,7 +108,7 @@ export function ProjectsCard({ pomodoro }: { pomodoro: PomodoroApi }) {
           />
         ))}
         <form
-          className="flex flex-col gap-2"
+          className="flex min-h-36 flex-col gap-3 rounded-[18px] border-2 border-dashed border-[rgba(var(--p-fg-rgb),0.14)] p-5"
           onSubmit={async (event) => {
             event.preventDefault()
             if (creating) return
@@ -107,29 +120,30 @@ export function ProjectsCard({ pomodoro }: { pomodoro: PomodoroApi }) {
               setNameProblem(result.nameProblem ?? "")
               return
             }
-            // Anything typed while the request was out is a new name, not
-            // the one just saved, so only the saved one is cleared.
             setName((current) => (current === submitted ? "" : current))
             setNameProblem("")
           }}
         >
+          <Label
+            htmlFor="new-project-name"
+            className="flex items-center gap-2 text-base font-semibold"
+          >
+            <PlusIcon className="size-4" aria-hidden="true" />
+            New project
+          </Label>
           <div className="relative">
-            <PlusIcon
-              aria-hidden="true"
-              className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-            />
             <Input
+              id="new-project-name"
               value={name}
               onChange={(event) => {
                 setName(event.target.value)
                 setNameProblem("")
               }}
               maxLength={60}
-              placeholder="Add a project, press Enter…"
-              aria-label="New project"
+              placeholder="Name it, press Enter"
               aria-invalid={nameProblem ? true : undefined}
               aria-describedby={nameProblem ? "new-project-problem" : undefined}
-              className="pl-9"
+              className="h-10"
             />
             {creating ? (
               <Loader2Icon
@@ -142,19 +156,20 @@ export function ProjectsCard({ pomodoro }: { pomodoro: PomodoroApi }) {
             <InlineError id="new-project-problem">{nameProblem}</InlineError>
           ) : null}
         </form>
-        {archived.length ? (
-          <section className="flex flex-col gap-1.5">
-            <h3 className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-              Archived
-            </h3>
+      </div>
+      {showArchived && archived.length ? (
+        <section className="flex flex-col gap-3 border-t pt-5">
+          <h4 className="font-mono text-[11px] font-normal uppercase tracking-[0.2em] text-muted-foreground">
+            Archived
+          </h4>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {archived.map((project) => (
               <div
                 key={project.id}
-                className="flex min-h-10 items-center gap-3 rounded-lg border bg-card/50 px-3"
+                className="flex items-center gap-3 rounded-[18px] border p-4 text-muted-foreground"
               >
-                <span className="flex-1 truncate text-sm text-muted-foreground">
-                  {project.name}
-                </span>
+                <ProjectInitial name={project.name} muted />
+                <span className="flex-1 truncate">{project.name}</span>
                 <Button
                   variant="ghost"
                   size="icon-sm"
@@ -167,14 +182,47 @@ export function ProjectsCard({ pomodoro }: { pomodoro: PomodoroApi }) {
                 </Button>
               </div>
             ))}
-          </section>
-        ) : null}
-      </CardContent>
-    </Card>
+          </div>
+        </section>
+      ) : null}
+    </PanelCard>
   )
 }
 
-function ProjectRowItem({
+/**
+ * The coloured square on a project card: its first letter, in one of five
+ * tints picked from the name, so a card keeps its colour across visits.
+ */
+const INITIAL_TONES = [
+  "bg-sky-400/15 text-sky-300",
+  "bg-amber-400/15 text-amber-300",
+  "bg-emerald-400/15 text-emerald-300",
+  "bg-violet-400/15 text-violet-300",
+  "bg-[color:var(--p-accent)]/15 text-[var(--p-accent)]",
+]
+
+function ProjectInitial({ name, muted }: { name: string; muted?: boolean }) {
+  let hash = 0
+  for (const char of name) hash = (hash * 31 + char.charCodeAt(0)) % 997
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        "grid size-10 shrink-0 place-items-center rounded-xl text-lg font-bold",
+        muted ? "bg-muted text-muted-foreground" : INITIAL_TONES[hash % INITIAL_TONES.length]
+      )}
+    >
+      {name.trim().charAt(0).toUpperCase() || "?"}
+    </span>
+  )
+}
+
+/**
+ * One live project as a card: its initial and name, the public switch, the
+ * edit window and Archive along the top, and its tasks and hours along the
+ * foot, with the target bar when it has one.
+ */
+function ProjectTile({
   project,
   pomodoro,
   renaming,
@@ -189,62 +237,75 @@ function ProjectRowItem({
     (entry) => entry.projectId === project.id
   )
   return (
-    <div className="flex flex-col rounded-lg border bg-card">
-      <div className="flex min-h-9 items-center gap-2 px-2">
-        <span className="flex-1 truncate px-1 text-sm">{project.name}</span>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          onClick={() =>
-            void pomodoro.setProjectPublic(project.id, !project.isPublic)
-          }
-          // The state is in the icon and in the name of the button, never
-          // in colour alone.
-          aria-pressed={project.isPublic}
-          aria-label={
-            project.isPublic
-              ? `Stop showing ${project.name} on your public profile`
-              : `Show ${project.name} on your public profile`
-          }
-          title={
-            project.isPublic ? "On your public profile" : "Private to you"
-          }
-        >
-          {project.isPublic ? (
-            <GlobeIcon aria-hidden="true" />
-          ) : (
-            <LockIcon aria-hidden="true" className="text-muted-foreground" />
-          )}
-        </Button>
-        <SettingsWindow
-          label={`Edit ${project.name}`}
-          open={renaming}
-          onOpenChange={onRenamingChange}
-        >
-          {/* Mounted only while the window is open, so the fields start from
-              the saved values every time without an effect copying them. */}
-          <ProjectRenameForm
-            project={project}
-            onCancel={() => onRenamingChange(false)}
-            onSave={async (name, target) => {
-              if (await pomodoro.renameProject(project.id, name, target))
-                onRenamingChange(false)
-            }}
-          />
-        </SettingsWindow>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          onClick={() => void pomodoro.setProjectArchived(project.id, true)}
-          aria-label={`Archive ${project.name}`}
-        >
-          <ArchiveIcon aria-hidden="true" />
-        </Button>
+    <article
+      aria-label={project.name}
+      className="flex min-h-36 flex-col gap-4 rounded-[18px] border bg-[rgba(var(--p-canvas-rgb),0.35)] p-5"
+    >
+      <div className="flex items-center gap-3">
+        <ProjectInitial name={project.name} />
+        <strong className="min-w-0 flex-1 truncate text-lg">
+          {project.name}
+        </strong>
+        <div className="flex shrink-0 items-center">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() =>
+              void pomodoro.setProjectPublic(project.id, !project.isPublic)
+            }
+            aria-pressed={project.isPublic}
+            aria-label={
+              project.isPublic
+                ? `Stop showing ${project.name} on your public profile`
+                : `Show ${project.name} on your public profile`
+            }
+            title={
+              project.isPublic ? "On your public profile" : "Private to you"
+            }
+          >
+            {project.isPublic ? (
+              <GlobeIcon aria-hidden="true" />
+            ) : (
+              <LockIcon aria-hidden="true" className="text-muted-foreground" />
+            )}
+          </Button>
+          <SettingsWindow
+            label={`Edit ${project.name}`}
+            open={renaming}
+            onOpenChange={onRenamingChange}
+          >
+            {/* Mounted only while the window is open, so the fields start
+                from the saved values every time without an effect copying
+                them. */}
+            <ProjectRenameForm
+              project={project}
+              onCancel={() => onRenamingChange(false)}
+              onSave={async (name, target) => {
+                if (await pomodoro.renameProject(project.id, name, target))
+                  onRenamingChange(false)
+              }}
+            />
+          </SettingsWindow>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => void pomodoro.setProjectArchived(project.id, true)}
+            aria-label={`Archive ${project.name}`}
+          >
+            <ArchiveIcon aria-hidden="true" />
+          </Button>
+        </div>
       </div>
-      {progress ? (
-        <TargetBar projectName={project.name} progress={progress} />
-      ) : null}
-    </div>
+      <div className="mt-auto flex flex-col gap-2">
+        {progress ? (
+          <TargetBar projectName={project.name} progress={progress} />
+        ) : null}
+        <small className="font-mono text-xs text-muted-foreground">
+          {project.taskCount} {project.taskCount === 1 ? "task" : "tasks"} ·{" "}
+          {formatFocusDuration(project.focusSeconds)} focused
+        </small>
+      </div>
+    </article>
   )
 }
 
@@ -266,7 +327,7 @@ export function TargetBar({
     progress.targetPeriod
   )
   return (
-    <div className="flex flex-col gap-1 px-3 pb-2">
+    <div className="flex flex-col gap-1">
       <small className="font-mono text-[10px] text-muted-foreground">
         {label}
       </small>

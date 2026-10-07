@@ -181,7 +181,8 @@ export function TodayTaskList({
         <LoadingRow label="Loading your tasks…" className="py-4" />
       ) : null}
       {!pomodoro.loading && !pomodoro.loadFailed && !shownActive.length ? (
-        <p className="py-2 text-sm text-muted-foreground">
+        // Inset in a flat card, so the line starts under the card's heading.
+        <p className={cn("py-2 text-sm text-muted-foreground", flat && "px-3")}>
           {tagFilter
             ? `No active tasks tagged ${tagFilter}.`
             : "No active tasks. Add one below to choose your next focus."}

@@ -1,11 +1,6 @@
 import * as React from "react"
-import { Link, useNavigate } from "@tanstack/react-router"
-import {
-  Loader2Icon,
-  LockKeyholeIcon,
-  PlusIcon,
-  UsersIcon,
-} from "lucide-react"
+import { getRouteApi, Link, useNavigate } from "@tanstack/react-router"
+import { PlusIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -23,7 +18,6 @@ import {
 } from "@/components/ui/dialog"
 import { ErrorRow } from "@/components/ui/error-row"
 import { FieldLabel } from "@/components/ui/field-label"
-import { InlineError } from "@/components/ui/inline-error"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -39,10 +33,9 @@ import {
   cancelRepeat,
   createRoom,
   joinRoom,
-  leaveRoomPermanently,
+  leaveActiveRoom,
   listMyRepeats,
   listRooms,
-  listSavedRooms,
   listUpcoming,
   repeatRoom,
   scheduleRoom,
@@ -59,15 +52,12 @@ import {
   type SeriesTarget,
   type UpcomingRoomRow,
 } from "@/components/pomodoro/upcoming-rooms"
-import { MyRooms, type MyRoomRow } from "@/components/pomodoro/my-rooms"
+import { RoomColumns } from "@/components/pomodoro/room-columns"
 import {
-  RoomCard,
-  RoomCardAction,
-  RoomCardDetail,
-  RoomCardTitle,
-  RoomGroupEmpty,
-  RoomGroupHeading,
-} from "@/components/pomodoro/room-card"
+  OpenRoomsSection,
+  type JoinProblem,
+} from "@/components/pomodoro/open-rooms"
+import { joinRefusalMessage } from "@/lib/pomodoro/room-join"
 import { RhythmMinutesFields } from "@/components/pomodoro/rhythm-minutes-fields"
 import { curatedBackgrounds } from "@/lib/pomodoro/background-catalog"
 import { curatedSounds } from "@/lib/pomodoro/sound-catalog"
@@ -111,13 +101,17 @@ import {
 } from "@/lib/pomodoro/timer-presets"
 
 /**
- * The rooms page, ported from the old app: your active room's live panel on
- * top, then "Open to join" (waiting or on break) and "In session" (joins
- * locked). Public cards show member counts, never names — the old privacy
- * rule after a real leak.
+ * The rooms page: your three rooms side by side (personal, joined, hosted,
+ * with the one you are in lit), then "Open to join" (waiting or on break) and
+ * the rooms you booked. A room mid-focus is not listed, since nobody can join
+ * it until its break. Public cards show member counts, never names — the old
+ * privacy rule after a real leak.
  */
 export function RoomsPage() {
   const { authenticated } = useProductAuth()
+  const { user } = getRouteApi("/_pomodoro").useLoaderData()
+  const openRoomsRef = React.useRef<HTMLElement>(null)
+  const [leavingRoom, setLeavingRoom] = React.useState(false)
   const navigate = useNavigate()
   const [roomRows, setRoomRows] = React.useState<
     Awaited<ReturnType<typeof listRooms>>
@@ -129,17 +123,12 @@ export function RoomsPage() {
   const joiningRef = React.useRef("")
   // A refused join belongs to the card that was pressed, so it is drawn there
   // as well as in the toast. Cleared by the next join.
-  const [joinProblem, setJoinProblem] = React.useState<{
-    slug: string
-    message: string
-  } | null>(null)
+  const [joinProblem, setJoinProblem] = React.useState<JoinProblem>(null)
   const [confirm, setConfirm] = React.useState<ConfirmRequest | null>(null)
   const [upcoming, setUpcoming] = React.useState<UpcomingRoomRow[]>([])
   const [series, setSeries] = React.useState<MyRepeatRow[]>([])
-  const [savedRooms, setSavedRooms] = React.useState<MyRoomRow[]>([])
   // The slug or weekly rule a cancel is running for.
   const [cancellingKey, setCancellingKey] = React.useState("")
-  const [leavingSlug, setLeavingSlug] = React.useState("")
 
   const refreshRooms = React.useCallback(() => {
     if (!authenticated) return
@@ -152,9 +141,6 @@ export function RoomsPage() {
     void listMyRepeats()
       .then(setSeries)
       .catch(() => showErrorToast("Your weekly rooms could not be loaded."))
-    void listSavedRooms()
-      .then(setSavedRooms)
-      .catch(() => showErrorToast("My rooms could not be loaded."))
   }, [authenticated])
   React.useEffect(refreshRooms, [refreshRooms])
 
@@ -201,18 +187,10 @@ export function RoomsPage() {
     dismissErrorToast()
     try {
       const snapshot = await joinRoom(slug)
-      // A join puts the room on My rooms, and marks it as the one you are in.
       refreshRooms()
       goToRoom(snapshot)
     } catch (cause) {
-      const text = cause instanceof Error ? cause.message : ""
-      const message = text.includes("ROOM_LOCKED")
-        ? "That room is mid-focus. Join again during its break."
-        : text.includes("ROOM_CLOSED")
-          ? "That room has ended."
-          : text.includes("ROOM_BANNED")
-            ? "You can't join that room."
-            : "This room is not available to join."
+      const message = joinRefusalMessage(cause)
       setJoinProblem({ slug, message })
       showErrorToast(message)
       refreshRooms()
@@ -335,40 +313,48 @@ export function RoomsPage() {
       onConfirm: () => void cancelSeries(target),
     })
 
-  const leaveForGood = async (room: MyRoomRow) => {
+  // Going back to your personal room is leaving the room you are in. A host
+  // leaving ends the room for everyone, so that is asked first.
+  const backToPersonal = async () => {
+    if (!activeRoom) return
     dismissErrorToast()
-    setLeavingSlug(room.slug)
+    setLeavingRoom(true)
     try {
-      const { closed } = await leaveRoomPermanently(room.slug)
-      if (room.current)
-        live.leftRoom(
-          room.slug,
-          closed ? "You closed the room." : "You left the room."
-        )
-      toast.success(`${room.name} is off your list. Joining it again puts it back.`)
-    } catch {
-      showErrorToast("That room could not be taken off your list. Try again.")
-    } finally {
-      setLeavingSlug("")
+      const { closed } = await leaveActiveRoom(activeRoom.room.slug)
+      live.leftRoom(
+        activeRoom.room.slug,
+        closed ? "You closed the room." : "You left the room."
+      )
       refreshRooms()
+    } catch {
+      showErrorToast("Leaving the room failed. Try again.")
+    } finally {
+      setLeavingRoom(false)
     }
   }
 
-  // Leaving for good from inside a room is a real Leave, so it asks the same
-  // question Leave & close does when it would end the room for others.
-  const confirmLeaveForGood = (room: MyRoomRow) => {
-    if (!room.current) {
-      void leaveForGood(room)
-      return
-    }
-    setConfirm({
-      title: `Leave ${room.name} for good?`,
-      description: room.hosting
-        ? "You are hosting it, so leaving ends the room for everyone in it. It also comes off your list."
-        : "You leave the room now, and it comes off your list.",
-      confirmLabel: "Leave for good",
-      onConfirm: () => void leaveForGood(room),
-    })
+  const confirmBackToPersonal = () => {
+    if (!activeRoom) return
+    const others = activeRoom.members.length - 1
+    setConfirm(
+      activeRoom.you.role === "host"
+        ? {
+            title: "Close your room and go back?",
+            description:
+              others > 0
+                ? `You host ${activeRoom.room.name}, so leaving ends it. The session stops for the ${others} ${others === 1 ? "other person" : "other people"} in it.`
+                : `You host ${activeRoom.room.name}, so leaving ends it. Nobody else is in it.`,
+            confirmLabel: "Leave & close",
+            onConfirm: () => void backToPersonal(),
+          }
+        : {
+            title: `Leave ${activeRoom.room.name}?`,
+            description:
+              "You go back to your personal room, with your own sound and theme. You can join again while the room is open.",
+            confirmLabel: "Leave room",
+            onConfirm: () => void backToPersonal(),
+          }
+    )
   }
 
   const confirmCancelBooking = (room: UpcomingRoomRow) =>
@@ -382,18 +368,25 @@ export function RoomsPage() {
     })
 
   const openRooms = roomRows.filter(({ room }) => room.phase !== "focus")
-  const liveRooms = roomRows.filter(({ room }) => room.phase === "focus")
 
-  // 860px wide with a 36px gap between groups are the old app's own numbers
-  // for this screen. Two room cards side by side need the width.
+  const hostFromHere =
+    authenticated && !activeRoom ? () => setShowHostForm(true) : undefined
+
   return (
     <div className={`${contentColumn} flex flex-col gap-9 py-8`}>
-      <header>
-        <h2 className="text-2xl font-bold tracking-tight">Focus rooms</h2>
-        <p className="text-sm text-muted-foreground">
-          Run one timer together. The host drives the phases; the server keeps
-          the clock.
-        </p>
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div className="flex max-w-xl flex-col gap-2">
+          <h2 className="text-4xl font-bold tracking-tight">Focus rooms</h2>
+          <p className="text-muted-foreground">
+            Run one timer together. The host drives the phases; the server
+            keeps the clock.
+          </p>
+        </div>
+        {hostFromHere ? (
+          <Button size="lg" className="rounded-full" onClick={hostFromHere}>
+            <PlusIcon aria-hidden="true" /> Host a room
+          </Button>
+        ) : null}
       </header>
       <HostRoomDialog
         open={showHostForm && !activeRoom}
@@ -424,7 +417,6 @@ export function RoomsPage() {
           }}
         />
       ) : null}
-      {activeRoom ? <YouAreInRoom snapshot={activeRoom} /> : null}
       {!authenticated ? (
         <Card>
           <CardContent className="flex flex-col items-start gap-2 py-6">
@@ -451,12 +443,25 @@ export function RoomsPage() {
         </Card>
       ) : (
         <>
-          <MyRooms
-            rooms={savedRooms}
+          <RoomColumns
+            activeRoom={activeRoom}
+            ownerName={user?.name ?? ""}
+            leaving={leavingRoom}
+            onBackToPersonal={confirmBackToPersonal}
+            onBrowse={() =>
+              openRoomsRef.current?.scrollIntoView({
+                behavior: "smooth",
+                block: "start",
+              })
+            }
+            onHost={hostFromHere}
+          />
+          <OpenRoomsSection
+            sectionRef={openRoomsRef}
+            rooms={openRooms}
             joiningSlug={joiningSlug}
-            busySlug={leavingSlug}
+            joinProblem={joinProblem}
             onJoin={(slug) => void joinBySlug(slug)}
-            onLeaveForGood={confirmLeaveForGood}
           />
           <UpcomingRooms
             rooms={upcoming}
@@ -467,49 +472,9 @@ export function RoomsPage() {
             onCancelSeries={confirmCancelSeries}
             onReachedStart={refreshRooms}
           />
-          <RoomGroup
-            title="Open to join"
-            subtitle="on break · waiting to start"
-            rooms={openRooms}
-            open
-            onJoin={joinBySlug}
-            joiningSlug={joiningSlug}
-            joinProblem={joinProblem}
-            onHost={!activeRoom ? () => setShowHostForm((value) => !value) : undefined}
-          />
-          <RoomGroup
-            title="In session"
-            subtitle="focused · joins locked until break"
-            rooms={liveRooms}
-            open={false}
-            onJoin={async () => undefined}
-            joiningSlug=""
-            joinProblem={joinProblem}
-          />
         </>
       )}
     </div>
-  )
-}
-
-/**
- * The room you are in, as one line on the Rooms page. The room itself is on
- * the front page, so this only names it and goes there.
- */
-function YouAreInRoom({ snapshot }: { snapshot: RoomSnapshotClient }) {
-  return (
-    <Card className="border-primary/35">
-      <CardContent className="flex flex-wrap items-center gap-3 py-4">
-        <span className="size-2 rounded-full bg-[var(--p-success)]" aria-hidden="true" />
-        <span className="text-sm">
-          You are in <strong>{snapshot.room.name}</strong>
-          {snapshot.you.role === "host" ? ", which you host." : "."}
-        </span>
-        <Button asChild size="sm" className="ml-auto">
-          <Link to="/">Open the room</Link>
-        </Button>
-      </CardContent>
-    </Card>
   )
 }
 
@@ -1047,116 +1012,5 @@ export function HostRoomDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
-}
-
-function RoomGroup({
-  title,
-  subtitle,
-  rooms,
-  open,
-  onJoin,
-  joiningSlug,
-  joinProblem,
-  onHost,
-}: {
-  title: string
-  subtitle: string
-  rooms: Awaited<ReturnType<typeof listRooms>>
-  open: boolean
-  onJoin: (slug: string) => Promise<void>
-  /** The room a join is in flight for; every Join waits while one is. */
-  joiningSlug: string
-  /** Why the last join was refused, drawn on that room's own card. */
-  joinProblem: { slug: string; message: string } | null
-  onHost?: () => void
-}) {
-  const now = new Date()
-  return (
-    <section className="flex flex-col gap-3.5">
-      <RoomGroupHeading title={title} subtitle={subtitle}>
-        {/* Ghost rather than outline: outline paints its own background and
-            border again in dark mode, which would cover the orange. */}
-        {onHost ? (
-          <Button
-            variant="ghost"
-            className="ml-auto border-primary/40 bg-primary/10 text-[var(--p-accent-2)] hover:bg-primary/20 hover:text-[var(--p-accent-2)] dark:hover:bg-primary/20"
-            onClick={onHost}
-          >
-            <PlusIcon aria-hidden="true" /> Host a room
-          </Button>
-        ) : null}
-      </RoomGroupHeading>
-      <div className="grid gap-3.5 sm:grid-cols-2">
-        {rooms.map(({ room, memberCount }) => {
-          const end = room.phaseEndsAt ? new Date(room.phaseEndsAt).getTime() : 0
-          const remaining = Math.max(0, Math.ceil((end - now.getTime()) / 60_000))
-          return (
-            <RoomCard
-              key={room.id}
-              roomId={room.id}
-              background={room.background}
-              sound={room.sound}
-              dimmed={!open}
-            >
-              <RoomCardTitle
-                name={room.name}
-                tone={open ? "open" : "locked"}
-                status={
-                  room.phase === "waiting"
-                    ? "waiting to start"
-                    : `${remaining} min left`
-                }
-              />
-              <RoomCardDetail>
-                <UsersIcon className="size-3.5" aria-hidden="true" />
-                {memberCount} focusing
-              </RoomCardDetail>
-              <RoomCardAction
-                note={
-                  room.phase === "focus"
-                    ? `Session ${Math.min(room.cycleFocusCount + 1, 4)} of 4`
-                    : `Next: ${room.focusMinutes} min focus`
-                }
-              >
-                {open ? (
-                  <Button
-                    className="px-4"
-                    disabled={joiningSlug !== ""}
-                    onClick={() => void onJoin(room.slug)}
-                  >
-                    {joiningSlug === room.slug ? (
-                      <>
-                        <Loader2Icon className="animate-spin" aria-hidden="true" />
-                        Joining…
-                      </>
-                    ) : (
-                      "Join"
-                    )}
-                  </Button>
-                ) : (
-                  <Button
-                    variant="outline"
-                    className="px-4"
-                    disabled
-                  >
-                    <LockKeyholeIcon aria-hidden="true" />
-                    Locked
-                  </Button>
-                )}
-              </RoomCardAction>
-              {joinProblem?.slug === room.slug ? (
-                <InlineError className="px-3 text-xs">
-                  {joinProblem.message}
-                </InlineError>
-              ) : null}
-            </RoomCard>
-          )
-        })}
-        {!rooms.length ? (
-          <RoomGroupEmpty>No rooms here yet.</RoomGroupEmpty>
-        ) : null}
-      </div>
-    </section>
   )
 }

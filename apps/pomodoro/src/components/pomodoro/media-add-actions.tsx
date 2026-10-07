@@ -3,6 +3,7 @@ import { CheckIcon, Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 import { saveHostedRoomMedia } from "@/lib/api/pomodoro/rooms"
 import { useProductAuth } from "@/lib/pomodoro/auth-state"
 import {
@@ -41,7 +42,17 @@ type Item =
  * - A member of somebody else's room gets nothing here: the host picked the
  *   room's pair, and the page says so at the top (`MediaRoomNote`).
  */
-export function MediaAddActions({ item }: { item: Item }) {
+export function MediaAddActions({
+  item,
+  onPicture = false,
+}: {
+  item: Item
+  /**
+   * Drawn over a card's picture (Sounds): the "in your room" labels get a
+   * dark glass pill, so they read on a bright picture as well as a dark one.
+   */
+  onPicture?: boolean
+}) {
   const { authenticated } = useProductAuth()
   const media = useRoomMedia()
   const [busy, setBusy] = React.useState<"" | "personal" | "room">("")
@@ -131,7 +142,7 @@ export function MediaAddActions({ item }: { item: Item }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
       {inPersonal ? (
-        <InUse>
+        <InUse onPicture={onPicture}>
           {authenticated ? "In your personal room" : "On for this visit"}
         </InUse>
       ) : (
@@ -148,7 +159,7 @@ export function MediaAddActions({ item }: { item: Item }) {
       )}
       {room && catalogue ? (
         inRoom ? (
-          <InUse>In {room.name}</InUse>
+          <InUse onPicture={onPicture}>In {room.name}</InUse>
         ) : (
           <Button
             size="sm"
@@ -181,9 +192,22 @@ export function CurrentlySelectedLabel() {
   )
 }
 
-function InUse({ children }: { children: React.ReactNode }) {
+function InUse({
+  onPicture,
+  children,
+}: {
+  onPicture: boolean
+  children: React.ReactNode
+}) {
   return (
-    <span className="flex h-7 items-center gap-1 text-xs text-muted-foreground">
+    <span
+      className={cn(
+        "flex h-7 items-center gap-1 text-xs",
+        onPicture
+          ? "rounded-full bg-black/55 px-2.5 text-white backdrop-blur-sm"
+          : "text-muted-foreground"
+      )}
+    >
       <CheckIcon className="size-3.5" aria-hidden="true" />
       {children}
     </span>
@@ -204,5 +228,5 @@ export function MediaRoomNote({ thing }: { thing: "sound" | "theme" }) {
     : authenticated
       ? `Click a ${thing} to try it. Nothing changes until you add it to your personal room.`
       : `Click a ${thing} to try it. Sign in to keep one in a personal room of your own.`
-  return <p className="max-w-xl text-sm text-muted-foreground">{text}</p>
+  return <p className="max-w-xl text-muted-foreground">{text}</p>
 }

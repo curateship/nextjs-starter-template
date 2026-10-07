@@ -7,7 +7,9 @@ import {
 import { db, type CustomShellDb } from "@/server/db"
 import { customShellUsers } from "@/server/schema"
 import {
-  PRO_PERKS,
+  PAID_DEFAULTS,
+  planNumber,
+  planPerkAllowed,
   type PomodoroEntitlements,
   type ProPerk,
 } from "@/lib/pomodoro/pro"
@@ -25,26 +27,14 @@ import {
  */
 
 function perkAllowed(entitlements: Entitlements, perk: ProPerk): boolean {
-  const value = entitlements.features[PRO_PERKS[perk].key]
-  if (value === undefined) return entitlements.isPaid
-  return value !== false && value !== null && value !== 0 && value !== ""
+  return planPerkAllowed(entitlements.features, entitlements.isPaid, perk)
 }
-
-/** The old app's Pro numbers, used when a plan does not name its own. */
-const PAID_DEFAULTS = {
-  storageLimitBytes: 2 * 1024 * 1024 * 1024,
-  monthlyBackgrounds: 5,
-  monthlySoundscapes: 20,
-} as const
 
 function numericFeature(
   entitlements: Entitlements,
   key: keyof typeof PAID_DEFAULTS
 ): number {
-  const value = entitlements.features[key]
-  if (typeof value === "number" && Number.isFinite(value) && value >= 0)
-    return value
-  return entitlements.isPaid ? PAID_DEFAULTS[key] : 0
+  return planNumber(entitlements.features, entitlements.isPaid, key)
 }
 
 /**

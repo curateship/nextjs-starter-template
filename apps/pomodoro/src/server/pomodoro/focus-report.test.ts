@@ -320,4 +320,23 @@ describe("the week review", () => {
     const review = await loadWeekReview(userId, TODAY, UTC)
     expect(review.topProject).toEqual({ name: null, focusSeconds: 1500 })
   })
+
+  it("names the hour most of this week's sessions finished in", async () => {
+    await addFocusAt("2026-09-22T16:10:00Z", 25)
+    await addFocusAt("2026-09-23T16:40:00Z", 25)
+    await addFocusAt("2026-09-24T09:00:00Z", 25)
+    // Three sessions at 08:00 last week must not outvote this week's two.
+    await addFocusAt("2026-09-15T08:00:00Z", 25)
+    await addFocusAt("2026-09-16T08:00:00Z", 25)
+    await addFocusAt("2026-09-17T08:00:00Z", 25)
+
+    const review = await loadWeekReview(userId, TODAY, UTC)
+    expect(review.busiestHour).toBe(16)
+  })
+
+  it("names no busiest hour on an empty week", async () => {
+    const review = await loadWeekReview(userId, TODAY, UTC)
+    expect(review.busiestHour).toBeNull()
+    expect(review.currentStreak).toBe(0)
+  })
 })

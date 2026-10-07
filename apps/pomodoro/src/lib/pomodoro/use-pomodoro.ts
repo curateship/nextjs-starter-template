@@ -1388,7 +1388,8 @@ export function renameProject(
       setState({
         projects: orderProjects(
           state.projects.map((project) =>
-            project.id === projectId ? updated : project
+            // Merged, so the card's task count and hours survive an edit.
+            project.id === projectId ? { ...project, ...updated } : project
           )
         ),
         tasks: state.tasks.map((task) =>
@@ -1488,7 +1489,7 @@ export function setProjectPublic(projectId: string, isPublic: boolean) {
       setState({
         projects: orderProjects(
           state.projects.map((project) =>
-            project.id === projectId ? updated : project
+            project.id === projectId ? { ...project, ...updated } : project
           )
         ),
         syncError: "",
@@ -1510,7 +1511,7 @@ export function setProjectArchived(projectId: string, archived: boolean) {
       setState({
         projects: orderProjects(
           state.projects.map((project) =>
-            project.id === projectId ? updated : project
+            project.id === projectId ? { ...project, ...updated } : project
           )
         ),
         syncError: "",

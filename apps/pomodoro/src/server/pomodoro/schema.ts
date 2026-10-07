@@ -997,10 +997,9 @@ export const roomMemberships = pgTable(
      */
     watchingUntil: timestamp("watching_until", { withTimezone: true }),
     /**
-     * Whether this membership keeps the room on the person's My rooms list
-     * after they leave. Every join and every hosted room sets it; Leave for
-     * good clears it on every membership that person had in the room. It is
-     * not joining, so the one-active-room index below ignores it.
+     * Kept the room on the person's My rooms list. The list was removed on
+     * 7 Oct 2026 and nothing writes or reads this any more; the column stays
+     * because a stored field is never removed.
      */
     saved: boolean("saved").notNull().default(false),
   },

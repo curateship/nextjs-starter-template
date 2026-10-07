@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/popover"
 import { MediaUploadsSection } from "@/components/pomodoro/media-uploads-section"
 import { MediaGeneratorSection } from "@/components/pomodoro/media-generator-section"
+import { useGeneratorJump } from "@/lib/pomodoro/use-generator-jump"
 import { contentColumn } from "@/lib/pomodoro/content-column"
 import { CatalogPager } from "@/components/pomodoro/catalog-pager"
 import { useCatalogPage } from "@/lib/pomodoro/use-catalog-page"
@@ -64,13 +65,14 @@ export function BackgroundsPage() {
     () => setReloadToken((token) => token + 1),
     []
   )
+  const { generatorRef, goToGenerator } = useGeneratorJump()
   const inUse = media.room?.background ?? media.personalBackground
 
   return (
     <>
       <div className={`${contentColumn} flex flex-col gap-6 py-8`}>
-        <header className="flex flex-col gap-1">
-          <h2 className="text-2xl font-bold tracking-tight">Backgrounds</h2>
+        <header className="flex flex-col gap-2">
+          <h2 className="text-4xl font-bold tracking-tight">Backgrounds</h2>
           <MediaRoomNote thing="theme" />
         </header>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -169,7 +171,8 @@ export function BackgroundsPage() {
           reloadToken={reloadToken}
           purpose="background"
           title="Your own"
-          uploadLabel="Upload a background"
+          uploadLabel="Upload clip"
+          onGenerate={goToGenerator}
           description="Click one to preview it, then add it to your personal room."
           isSelected={(upload) =>
             sameBackgroundReference(inUse, {
@@ -204,7 +207,9 @@ export function BackgroundsPage() {
           }
         />
 
-        <MediaGeneratorSection kind="background" onFinished={reloadUploads} />
+        <div ref={generatorRef} className="scroll-mt-6">
+          <MediaGeneratorSection kind="background" onFinished={reloadUploads} />
+        </div>
       </div>
     </>
   )

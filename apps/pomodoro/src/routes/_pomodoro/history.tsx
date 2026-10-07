@@ -5,7 +5,7 @@ import { reportRanges, type ReportRange } from "@/lib/pomodoro/focus-history"
 
 const DEFAULT_RANGE: ReportRange = "7d"
 
-/** The focus report: stats, heatmap, trend, top tasks, sessions, CSV. */
+/** The focus report: the range strip, by-day and hour charts, trend, top tasks, sessions, CSV. */
 export const Route = createFileRoute("/_pomodoro/history")({
   // The range lives in the address so a reload or Back keeps it, and a link
   // can open 12 months. The default is left off, and anything unknown falls

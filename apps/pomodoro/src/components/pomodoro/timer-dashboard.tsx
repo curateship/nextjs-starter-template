@@ -48,6 +48,7 @@ import { TextLink } from "@/components/pomodoro/text-link"
 import { plural } from "@/lib/format/plural"
 import { cn } from "@/lib/utils"
 import { contentColumn } from "@/lib/pomodoro/content-column"
+import { HomeOpenRooms } from "@/components/pomodoro/open-rooms"
 
 const ringRadius = 144
 const circumference = 2 * Math.PI * ringRadius
@@ -501,6 +502,9 @@ export function TimerDashboard() {
           <NewTaskForm onAdd={pomodoro.addTask} bare />
         </div>
       </section>
+      {/* Its own block under Tasks, with more room above it than the cards
+          above share, so it reads as the next thing rather than part of Tasks. */}
+      <HomeOpenRooms className={`${contentColumn} mt-10`} />
       {discardDialog}
     </div>
   )

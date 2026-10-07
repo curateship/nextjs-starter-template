@@ -1,7 +1,8 @@
 # Achievements
 
-Badges for milestones. Ten of them, shown in a panel at the top of
-`/history`, above the focus report.
+Badges for milestones. Ten of them, shown in a panel at the foot of
+`/history`: earned ones first in an orange tile with a tick, then the locked
+ones with their progress. Show on profile opens Settings → Public page.
 
 ## The ten badges
 

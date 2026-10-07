@@ -7,6 +7,7 @@ import {
   fillHeatmapDays,
 } from "@/components/pomodoro/focus-heatmap"
 import { ProfileActions } from "@/components/pomodoro/profile-actions"
+import { PanelCard } from "@/components/pomodoro/panel-card"
 import { ProfilePhoto } from "@/components/pomodoro/profile-photo"
 import { SocialMarkLink } from "@/components/pomodoro/social-marks"
 import { Button } from "@/components/ui/button"
@@ -41,18 +42,21 @@ const PHASE_WORDS: Record<string, string> = {
 }
 
 export function PublicProfilePage({ profile }: { profile: PublicProfileView }) {
-  const pinned = (profile.badges ?? []).filter((badge) =>
-    profile.pinnedBadgeIds.includes(badge.id)
-  )
-  const rest = (profile.badges ?? []).filter(
-    (badge) => !profile.pinnedBadgeIds.includes(badge.id)
-  )
+  // Pinned badges lead the shelf, then the rest in the order they arrived.
+  const badges = [
+    ...(profile.badges ?? []).filter((badge) =>
+      profile.pinnedBadgeIds.includes(badge.id)
+    ),
+    ...(profile.badges ?? []).filter(
+      (badge) => !profile.pinnedBadgeIds.includes(badge.id)
+    ),
+  ]
 
   return (
     // The product's own content column, the same one History and the other
     // app screens use. This page draws inside `_pomodoro`, not the shell's
     // public frame, so the width is the page's own to set.
-    <div className={`${contentColumn} flex flex-col gap-4 py-8`}>
+    <div className={`${contentColumn} flex flex-col gap-6 py-8`}>
       <ProfileHeader profile={profile} />
 
       {profile.focusingNow ? (
@@ -63,100 +67,43 @@ export function PublicProfilePage({ profile }: { profile: PublicProfileView }) {
       ) : null}
 
       {profile.room ? (
-        <Card>
-          <CardHeader className="flex-row items-center justify-between">
-            <CardTitle>{profile.room.name}</CardTitle>
-            <Button asChild size="sm">
+        <PanelCard
+          label="In a room"
+          aside={
+            <Button asChild size="sm" className="rounded-full">
               <Link to="/rooms/$slug" params={{ slug: profile.room.slug }}>
                 Join room
               </Link>
             </Button>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
+          }
+        >
+          <p>
+            <strong className="font-semibold">{profile.room.name}</strong>
+            <span className="text-muted-foreground">
+              {" · "}
               {PHASE_WORDS[profile.room.phase] ?? "Open"}
-            </p>
-          </CardContent>
-        </Card>
+            </span>
+          </p>
+        </PanelCard>
       ) : null}
 
-      {profile.figures ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Focus record</CardTitle>
-          </CardHeader>
-          <CardContent className="grid grid-cols-2 gap-4 md:grid-cols-4">
-            <Figure
-              label="Hours focused"
-              value={profile.figures.focusHours.toLocaleString()}
-            />
-            <Figure
-              label="Sessions finished"
-              value={profile.figures.focusSessions.toLocaleString()}
-            />
-            <Figure
-              label="Current streak"
-              value={`${profile.figures.currentStreak} ${profile.figures.currentStreak === 1 ? "day" : "days"}`}
-            />
-            <Figure
-              label="Best streak"
-              value={`${profile.figures.bestStreak} ${profile.figures.bestStreak === 1 ? "day" : "days"}`}
-            />
-          </CardContent>
-        </Card>
-      ) : null}
+      {profile.heatmap ? <LastYearPanel profile={profile} /> : null}
 
       {/* An account with no badges shows no shelf at all, rather than an
           empty one saying nothing. */}
-      {profile.badges?.length ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Badges</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            {pinned.length ? (
-              <div className="flex flex-wrap gap-2">
-                {pinned.map((badge) => (
-                  <BadgeTile key={badge.id} badge={badge} pinned />
-                ))}
-              </div>
-            ) : null}
-            {rest.length ? (
-              <div className="flex flex-wrap gap-2">
-                {rest.map((badge) => (
-                  <BadgeTile key={badge.id} badge={badge} />
-                ))}
-              </div>
-            ) : null}
-          </CardContent>
-        </Card>
-      ) : null}
-
-      {profile.heatmap ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>The last year</CardTitle>
-          </CardHeader>
-          <CardContent className="flex min-w-0 flex-col gap-3">
-            <FocusHeatmap
-              days={fillHeatmapDays(
-                profile.heatmap.startDate,
-                profile.heatmap.endDate,
-                profile.heatmap.days
-              )}
-              today={profile.heatmap.endDate}
-            />
-            <FocusHeatmapKey />
-          </CardContent>
-        </Card>
+      {badges.length ? (
+        <PanelCard label={`Badges · ${badges.length}`}>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {badges.map((badge) => (
+              <BadgeTile key={badge.id} badge={badge} />
+            ))}
+          </div>
+        </PanelCard>
       ) : null}
 
       {profile.projects?.length ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>This week&rsquo;s work</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-2">
+        <PanelCard label="This week’s work">
+          <div className="flex flex-col gap-2">
             {profile.projects.map((project) => (
               <div
                 key={project.name}
@@ -168,36 +115,67 @@ export function PublicProfilePage({ profile }: { profile: PublicProfileView }) {
                 </span>
               </div>
             ))}
-          </CardContent>
-        </Card>
-      ) : null}
-
-      {profile.recapYears.length ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Year in review</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-2">
-            {profile.recapYears.map((year) => (
-              <Button key={year} asChild variant="outline" size="sm">
-                <Link
-                  to="/u/$handle/$year"
-                  params={{ handle: profile.handle, year: String(year) }}
-                >
-                  {year}
-                </Link>
-              </Button>
-            ))}
-          </CardContent>
-        </Card>
+          </div>
+        </PanelCard>
       ) : null}
     </div>
   )
 }
 
-function ProfileHeader({ profile }: { profile: PublicProfileView }) {
+/**
+ * The year of focus as a grid, with the count under it. The years with a
+ * recap sit where the design draws year tabs: each one opens that year's
+ * review, since the grid itself only ever holds the last 365 days.
+ */
+function LastYearPanel({ profile }: { profile: PublicProfileView }) {
+  const heatmap = profile.heatmap!
+  const active = heatmap.days.filter((day) => day.focusSeconds > 0)
+  const seconds = active.reduce((total, day) => total + day.focusSeconds, 0)
   return (
-    <Card className="overflow-hidden">
+    <PanelCard
+      label="The last year"
+      aside={
+        profile.recapYears.length ? (
+          <nav
+            aria-label="Year in review"
+            className="flex items-center gap-1 rounded-full border p-1"
+          >
+            {profile.recapYears.map((year) => (
+              <Link
+                key={year}
+                to="/u/$handle/$year"
+                params={{ handle: profile.handle, year: String(year) }}
+                className="rounded-full px-3 py-1 text-sm text-muted-foreground duration-150 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {year}
+              </Link>
+            ))}
+          </nav>
+        ) : null
+      }
+    >
+      <FocusHeatmap
+        days={fillHeatmapDays(heatmap.startDate, heatmap.endDate, heatmap.days)}
+        today={heatmap.endDate}
+      />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">
+          {active.length} active {active.length === 1 ? "day" : "days"} ·{" "}
+          {formatFocusDuration(seconds)} focused
+        </p>
+        <FocusHeatmapKey />
+      </div>
+    </PanelCard>
+  )
+}
+
+function ProfileHeader({ profile }: { profile: PublicProfileView }) {
+  const figures = profile.figures
+  return (
+    <section
+      aria-label={profile.name}
+      className="overflow-hidden rounded-[24px] border bg-[var(--p-surface)]"
+    >
       {profile.bannerUrl ? (
         // A banner that points at a deleted upload never gets here: the
         // server answers null for it, and the page below looks finished
@@ -217,95 +195,178 @@ function ProfileHeader({ profile }: { profile: PublicProfileView }) {
           />
         </div>
       ) : null}
-      <CardContent
-        className={cn(
-          "flex flex-col gap-3",
-          profile.bannerUrl && "-mt-8 md:-mt-10"
-        )}
-      >
+      <div className="flex flex-col gap-5 p-5 sm:p-6 md:flex-row md:items-start">
         <ProfilePhoto
           name={profile.name}
           avatarUrl={profile.avatarUrl}
           className={cn(
-            "size-16 text-xl md:size-20 md:text-2xl",
-            profile.bannerUrl && "ring-4 ring-card"
+            "size-20 shrink-0 text-2xl ring-4 ring-[rgba(var(--p-fg-rgb),0.06)] md:size-24 md:text-3xl",
+            profile.bannerUrl && "-mt-14 ring-[var(--p-surface)] md:-mt-16"
           )}
         />
-        <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-bold tracking-tight">{profile.name}</h1>
-          <p className="font-mono text-xs text-muted-foreground">
-            /u/{profile.handle}
-          </p>
-        </div>
-        {/* Free text somebody typed, drawn as text. React escapes it, which
-            is the reason there is no "rich bio" here. */}
-        {profile.bio ? (
-          <p className="max-w-prose whitespace-pre-line text-sm text-muted-foreground">
-            {profile.bio}
-          </p>
-        ) : null}
-        {profile.socialLinks.length ? (
-          <div className="flex flex-wrap gap-2">
-            {profile.socialLinks.map((link) => (
-              <SocialMarkLink key={link.platform} link={link} />
-            ))}
+        <div className="flex min-w-0 flex-1 flex-col gap-3">
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <h1 className="text-3xl font-bold tracking-tight md:text-4xl">
+              {profile.name}
+            </h1>
+            <span className="font-mono text-sm text-muted-foreground">
+              /u/{profile.handle}
+            </span>
           </div>
-        ) : null}
-        <p className="text-xs text-muted-foreground">
-          <strong className="font-semibold text-foreground">
-            {profile.followers.toLocaleString()}
-          </strong>{" "}
-          {profile.followers === 1 ? "follower" : "followers"}
-          {" · "}
-          <strong className="font-semibold text-foreground">
-            {profile.following.toLocaleString()}
-          </strong>{" "}
-          following
-        </p>
-        <ProfileActions
-          handle={profile.handle}
-          name={profile.name}
-          isOwner={profile.isOwner}
-        />
-      </CardContent>
-    </Card>
+          {/* Free text somebody typed, drawn as text. React escapes it,
+              which is the reason there is no "rich bio" here. */}
+          {profile.bio ? (
+            <p className="max-w-prose whitespace-pre-line text-muted-foreground">
+              {profile.bio}
+            </p>
+          ) : null}
+          <p className="flex gap-5 text-sm text-muted-foreground">
+            <span>
+              <strong className="font-semibold text-foreground">
+                {profile.followers.toLocaleString()}
+              </strong>{" "}
+              {profile.followers === 1 ? "follower" : "followers"}
+            </span>
+            <span>
+              <strong className="font-semibold text-foreground">
+                {profile.following.toLocaleString()}
+              </strong>{" "}
+              following
+            </span>
+          </p>
+          <ProfileActions
+            handle={profile.handle}
+            name={profile.name}
+            isOwner={profile.isOwner}
+          />
+        </div>
+        <div className="flex flex-wrap gap-2 md:justify-end">
+          {profile.socialLinks.map((link) => (
+            <SocialMarkLink
+              key={link.platform}
+              link={link}
+              className="h-10 rounded-full bg-transparent px-4"
+            />
+          ))}
+          {profile.isOwner ? (
+            <Button asChild variant="outline" className="h-10 rounded-full px-4">
+              <Link to="/settings" search={{ tab: "public" }}>
+                Edit profile
+              </Link>
+            </Button>
+          ) : null}
+        </div>
+      </div>
+      {figures ? (
+        // The 1px gap shows the line colour behind the cells, so the lines
+        // between them are right in two columns and in four.
+        <dl className="grid grid-cols-2 gap-px border-t bg-[rgba(var(--p-fg-rgb),0.08)] md:grid-cols-4">
+          <Figure
+            label="Hours focused"
+            value={figures.focusHours.toLocaleString()}
+            unit="h"
+          />
+          <Figure
+            label="Sessions"
+            value={figures.focusSessions.toLocaleString()}
+          />
+          <Figure
+            label="Current streak"
+            value={String(figures.currentStreak)}
+            unit={figures.currentStreak === 1 ? "day" : "days"}
+          />
+          <Figure
+            label="Best streak"
+            value={String(figures.bestStreak)}
+            unit={figures.bestStreak === 1 ? "day" : "days"}
+          />
+        </dl>
+      ) : null}
+    </section>
   )
 }
 
-function Figure({ label, value }: { label: string; value: string }) {
+/** One number along the foot of the header, with its unit in smaller type. */
+function Figure({
+  label,
+  value,
+  unit,
+}: {
+  label: string
+  value: string
+  unit?: string
+}) {
   return (
-    <div className="flex flex-col gap-1">
-      <span className="font-mono text-2xl font-bold">{value}</span>
-      <span className="text-xs text-muted-foreground">{label}</span>
+    <div className="flex flex-col gap-2 bg-[var(--p-surface)] p-5 sm:p-6">
+      <dt className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
+        {label}
+      </dt>
+      <dd className="text-3xl font-bold tracking-tight">
+        {value}
+        {unit ? (
+          <span className="ml-1 text-lg font-normal text-muted-foreground">
+            {unit}
+          </span>
+        ) : null}
+      </dd>
     </div>
   )
 }
 
-function BadgeTile({
-  badge,
-  pinned,
-}: {
-  badge: PublicProfileBadge
-  pinned?: boolean
-}) {
+/**
+ * The square on a badge tile: a short mark for what was earned, in one of
+ * four colours by kind, so a shelf reads at a glance. Sessions are blue,
+ * streaks amber, hosting green, and everything else the accent.
+ */
+const BADGE_MARKS: Record<string, { mark: string; tone: string }> = {
+  "first-focus": { mark: "1", tone: "accent" },
+  "ten-sessions": { mark: "10", tone: "blue" },
+  "fifty-sessions": { mark: "50", tone: "blue" },
+  "hundred-sessions": { mark: "100", tone: "blue" },
+  "three-day-streak": { mark: "3d", tone: "amber" },
+  "seven-day-streak": { mark: "7d", tone: "amber" },
+  "thirty-day-streak": { mark: "30d", tone: "amber" },
+  "ten-hours": { mark: "10h", tone: "accent" },
+  "fifty-tasks": { mark: "50", tone: "green" },
+  "first-room": { mark: "H", tone: "green" },
+}
+
+const BADGE_TONES: Record<string, string> = {
+  accent: "bg-[color:var(--p-accent)]/15 text-[var(--p-accent)]",
+  blue: "bg-sky-400/15 text-sky-300",
+  amber: "bg-amber-400/15 text-amber-300",
+  green: "bg-emerald-400/15 text-emerald-300",
+}
+
+function BadgeTile({ badge }: { badge: PublicProfileBadge }) {
+  const look = BADGE_MARKS[badge.id] ?? {
+    mark: badge.name.slice(0, 1).toUpperCase(),
+    tone: "accent",
+  }
   return (
     <div
-      className={cn(
-        "flex flex-col gap-0.5 rounded-lg border px-3 py-2",
-        pinned ? "min-w-40 bg-muted/60" : "bg-card"
-      )}
+      className="flex items-center gap-4 rounded-[18px] border bg-[rgba(var(--p-canvas-rgb),0.35)] p-4"
       title={badge.description}
     >
-      <span className={cn("font-semibold", pinned ? "text-base" : "text-sm")}>
-        {badge.name}
+      <span
+        aria-hidden="true"
+        className={cn(
+          "grid size-12 shrink-0 place-items-center rounded-xl font-mono text-lg font-bold",
+          BADGE_TONES[look.tone]
+        )}
+      >
+        {look.mark}
       </span>
-      <span className="text-xs text-muted-foreground">
-        {new Date(badge.earnedOn).toLocaleDateString(undefined, {
-          year: "numeric",
-          month: "short",
-          day: "numeric",
-        })}
-      </span>
+      <div className="flex min-w-0 flex-col">
+        <span className="truncate font-semibold">{badge.name}</span>
+        <span className="font-mono text-xs text-muted-foreground">
+          {new Date(badge.earnedOn).toLocaleDateString(undefined, {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+          })}
+        </span>
+      </div>
     </div>
   )
 }

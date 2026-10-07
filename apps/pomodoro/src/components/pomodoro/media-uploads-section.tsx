@@ -4,6 +4,7 @@ import {
   Loader2Icon,
   LockIcon,
   MusicIcon,
+  SparklesIcon,
   Trash2Icon,
   TriangleAlertIcon,
   UploadIcon,
@@ -38,12 +39,12 @@ import { useOpenPlans } from "@/lib/pomodoro/use-open-plans"
 
 /**
  * A member's own backgrounds or sound loops, under the curated ones: one card
- * with a "YOUR OWN" heading and the space used, a dashed box to click or drop
- * a file on, and the uploads under it. Drawn to Tyler's Sounds design of
- * 7 Oct 2026, and the Theme page shares it.
+ * with a "YOUR OWN" heading and the space used, two buttons (upload a file,
+ * or go to the AI generator below), and the uploads under it. Tyler, 7 Oct
+ * 2026: "remove the upload box ... Clicking the button is enough."
  *
  * The same card serves both pickers: what changes is which file types the
- * box takes and what a finished upload does when it is picked. A free
+ * picker takes and what a finished upload does when it is picked. A free
  * account still sees the card, locked, because a perk nobody can see is a perk
  * nobody upgrades for.
  */
@@ -56,6 +57,7 @@ export function MediaUploadsSection({
   title,
   uploadLabel,
   description,
+  onGenerate,
   reloadToken = 0,
   isSelected,
   isPreviewed,
@@ -66,10 +68,12 @@ export function MediaUploadsSection({
 }: {
   purpose: PomodoroUploadPurpose
   title: string
-  /** The words in the drop box: "Upload a loop". */
+  /** The upload button's words: "Upload sound". */
   uploadLabel: string
-  /** Said after the file limits inside the drop box. */
+  /** Said after the file limits, under the buttons. */
   description: string
+  /** Generate with AI: takes the reader to the generator on the same page. */
+  onGenerate: () => void
   /**
    * Bump this to make the strip read its list again. The generator below uses
    * it: an AI file lands as an ordinary upload, so it belongs in this grid, and
@@ -191,7 +195,7 @@ export function MediaUploadsSection({
         ) : null}
       </header>
 
-      <UploadDropzone
+      <UploadActions
         accept={UPLOAD_ACCEPT[purpose]}
         label={uploadLabel}
         hint={`${UPLOAD_HINT[purpose]} ${description}`}
@@ -202,6 +206,7 @@ export function MediaUploadsSection({
         full={full}
         inputRef={fileInput}
         onFile={(file) => void send(file)}
+        onGenerate={onGenerate}
       />
 
       {error ? (
@@ -270,13 +275,14 @@ const eyebrowClass =
   "font-mono text-[11px] uppercase tracking-[0.2em] text-foreground/75"
 
 /**
- * The dashed box that starts an upload: click it or drop a file on it.
+ * The two buttons: Upload, which opens the file picker, and Generate with AI,
+ * which goes to the generator further down the page.
  *
- * Never a dead box: a guest, a free account and a full account each see why
- * inside it, with the way forward beside the reason, instead of a grey area
- * with nothing to say.
+ * Upload is never dead. A guest is sent to sign in, a free account to the
+ * plans, and a full account is told why under the buttons, each with the
+ * reason beside it, rather than a grey button with nothing to say.
  */
-function UploadDropzone({
+function UploadActions({
   accept,
   label,
   hint,
@@ -287,6 +293,7 @@ function UploadDropzone({
   full,
   inputRef,
   onFile,
+  onGenerate,
 }: {
   accept: string
   label: string
@@ -299,11 +306,11 @@ function UploadDropzone({
   full: boolean
   inputRef: React.RefObject<HTMLInputElement | null>
   onFile: (file: File) => void
+  onGenerate: () => void
 }) {
   const { openPlans } = useOpenPlans()
-  const [dragging, setDragging] = React.useState(false)
+  const [fullNotice, setFullNotice] = React.useState(false)
   const busy = progress !== null
-  const open = known && !locked && !full && !busy
   // Nothing is said until the answer is in. A paying member must not be told,
   // even for a moment, that uploading is a perk they do not have.
   const reason = !known
@@ -312,96 +319,75 @@ function UploadDropzone({
       ? "Sign in on a Pro plan to put your own backgrounds and sounds here."
       : locked
         ? PRO_PERKS.uploadMedia.lockedReason
-        : full
+        : full && fullNotice
           ? "Your storage is full. Delete something you no longer use first."
           : null
 
-  const frame =
-    "flex min-h-40 w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed px-6 py-8 text-center"
-
-  const input = (
-    <input
-      ref={inputRef}
-      type="file"
-      accept={accept}
-      className="sr-only"
-      tabIndex={-1}
-      aria-hidden="true"
-      onChange={(event) => {
-        const file = event.target.files?.[0]
-        // Cleared straight away, so picking the same file twice in a row
-        // still fires a change event and still uploads.
-        event.target.value = ""
-        if (file) onFile(file)
-      }}
-    />
-  )
-
-  if (!open) {
-    return (
-      <div className={frame}>
-        {input}
-        <span className="sr-only" aria-live="polite">
-          {spokenProgress(progress)}
-        </span>
-        <span className="grid size-11 place-items-center rounded-full bg-muted text-muted-foreground">
-          {busy || !known ? (
-            <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
-          ) : (
-            <LockIcon className="size-4" aria-hidden="true" />
-          )}
-        </span>
-        <strong className="text-[15px] font-semibold">
-          {progress === null
-            ? label
-            : progress.phase === "checking"
-              ? "Checking the file…"
-              : `Uploading… ${progress.percent}%`}
-        </strong>
-        {reason ? (
-          <p className="max-w-md text-sm text-muted-foreground">{reason}</p>
-        ) : null}
-        {reason && !signedIn ? (
-          <SignInButton />
-        ) : reason && locked ? (
-          <Button type="button" variant="outline" onClick={openPlans}>
-            See the plans
-          </Button>
-        ) : null}
-      </div>
-    )
-  }
-
   return (
-    <>
-      {input}
-      <button
-        type="button"
-        className={cn(
-          frame,
-          "transition-colors hover:bg-[rgba(var(--p-fg-rgb),0.03)] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
-          dragging && "border-primary bg-primary/8"
-        )}
-        onClick={() => inputRef.current?.click()}
-        onDragOver={(event) => {
-          event.preventDefault()
-          setDragging(true)
-        }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={(event) => {
-          event.preventDefault()
-          setDragging(false)
-          const file = event.dataTransfer.files?.[0]
+    <div className="flex flex-col gap-3">
+      <input
+        ref={inputRef}
+        type="file"
+        accept={accept}
+        className="sr-only"
+        tabIndex={-1}
+        aria-hidden="true"
+        onChange={(event) => {
+          const file = event.target.files?.[0]
+          // Cleared straight away, so picking the same file twice in a row
+          // still fires a change event and still uploads.
+          event.target.value = ""
           if (file) onFile(file)
         }}
-      >
-        <span className="grid size-11 place-items-center rounded-full bg-muted">
-          <UploadIcon className="size-4" aria-hidden="true" />
-        </span>
-        <strong className="text-[15px] font-semibold">{label}</strong>
-        <span className="max-w-md text-sm text-muted-foreground">{hint}</span>
-      </button>
-    </>
+      />
+      <span className="sr-only" aria-live="polite">
+        {spokenProgress(progress)}
+      </span>
+      <div className="flex flex-wrap gap-2">
+        {!known ? (
+          <Button type="button" className="rounded-full" disabled>
+            <Loader2Icon className="animate-spin" aria-hidden="true" />
+            {label}
+          </Button>
+        ) : !signedIn ? (
+          <SignInButton variant="default" />
+        ) : (
+          <Button
+            type="button"
+            className="rounded-full"
+            disabled={busy}
+            onClick={() => {
+              if (locked) openPlans()
+              else if (full) setFullNotice(true)
+              else inputRef.current?.click()
+            }}
+          >
+            {busy ? (
+              <Loader2Icon className="animate-spin" aria-hidden="true" />
+            ) : locked ? (
+              <LockIcon aria-hidden="true" />
+            ) : (
+              <UploadIcon aria-hidden="true" />
+            )}
+            {progress === null
+              ? label
+              : progress.phase === "checking"
+                ? "Checking the file…"
+                : `Uploading… ${progress.percent}%`}
+          </Button>
+        )}
+        <Button
+          type="button"
+          variant="outline"
+          className="rounded-full"
+          onClick={onGenerate}
+        >
+          <SparklesIcon aria-hidden="true" />
+          Generate with AI
+        </Button>
+      </div>
+      <p className="text-sm text-muted-foreground">{reason ?? hint}</p>
+    </div>
   )
 }
 

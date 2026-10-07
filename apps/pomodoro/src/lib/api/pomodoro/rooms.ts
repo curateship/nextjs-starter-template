@@ -22,8 +22,6 @@ import {
   findActiveRoomId,
   joinRoomBySlug,
   leaveRoom,
-  leaveRoomForGood,
-  listMyRooms,
   listPublicRooms,
   lookupRoomBySlug,
   notifyRoom,
@@ -372,25 +370,6 @@ const leaveRoomFn = createServerFn({ method: "POST" })
     return { closed }
   })
 
-const myRoomsFn = createServerFn({ method: "GET" })
-  .middleware([userGet])
-  .handler(async ({ context }) => listMyRooms(context.user.id))
-
-// Leave for good also leaves the room when you are in it, so it broadcasts
-// the same way Leave does, and only when a membership really ended.
-const leaveForGoodFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
-  .inputValidator(slugSchema)
-  .handler(async ({ data, context }) => {
-    const { roomId, closed, left } = await leaveRoomForGood(
-      data.slug,
-      context.user.id
-    )
-    if (closed || left)
-      await notifyRoom(roomId, closed ? "phase" : "membership")
-    return { closed, left }
-  })
-
 const roomActionFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(actionSchema)
@@ -515,9 +494,6 @@ export const cancelRepeat = (repeatId: string) =>
   cancelRepeatFn({ data: { repeatId } })
 export const cancelBookedRoom = (slug: string) =>
   cancelScheduledRoomFn({ data: { slug } })
-export const listSavedRooms = () => myRoomsFn()
-export const leaveRoomPermanently = (slug: string) =>
-  leaveForGoodFn({ data: { slug } })
 export const joinRoom = (slug: string) => joinRoomFn({ data: { slug } })
 export const leaveActiveRoom = (slug: string) =>
   leaveRoomFn({ data: { slug } })

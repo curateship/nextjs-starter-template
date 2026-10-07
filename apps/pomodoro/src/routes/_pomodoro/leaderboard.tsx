@@ -12,7 +12,7 @@ import {
 
 type LeaderboardSearch = { show?: "following"; window?: LeaderboardWindow }
 
-/** The opt-in weekly ranking and your own stat cards. */
+/** The opt-in ranking, the Following board and your groups. */
 export const Route = createFileRoute("/_pomodoro/leaderboard")({
   // Who is on the board and over which window live in the address, so a
   // reload or Back keeps them. Defaults are left off; anything unknown falls
