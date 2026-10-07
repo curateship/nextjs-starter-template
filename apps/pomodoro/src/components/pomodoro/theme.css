@@ -122,6 +122,24 @@ html:root:has([data-pomodoro-screen]) body.app-font {
  * them carry `motion-reduce:animate-none`, so both stop for anyone who has
  * asked their machine for less movement.
  */
+/*
+ * The Pomoder button: round and bold. Every shared Button on a member screen
+ * takes its shape from here instead of each call writing `rounded-full
+ * font-bold`, which seventeen calls did and several forgot. It reaches
+ * dialogs and popovers too, because the gate is on the page root.
+ *
+ * Here rather than in the shared button: `src/components/ui/button.tsx` is a
+ * shell file an app may not edit, and the rest of the Pomoder look already
+ * switches on from this file. `data-slot="button"` is what the shared Button
+ * (and anything it renders through asChild) carries; raw <button>s are not
+ * touched. Unlayered, so it wins over the button's own `rounded-lg` and
+ * `font-medium` utilities.
+ */
+html:root:has([data-pomodoro-screen]) [data-slot="button"] {
+  border-radius: 9999px;
+  font-weight: 700;
+}
+
 @keyframes pomodoro-vibe {
   0% { background-position: 0 50%; }
   50% { background-position: 100% 50%; }

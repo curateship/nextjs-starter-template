@@ -1,15 +1,12 @@
-import * as React from "react"
-import { PlusIcon } from "lucide-react"
-
 import { ProjectsCard } from "@/components/pomodoro/projects-card"
-import { TodayTaskList } from "@/components/pomodoro/today-task-list"
+import {
+  NewTaskForm,
+  TodayTaskList,
+} from "@/components/pomodoro/today-task-list"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { InlineError } from "@/components/ui/inline-error"
-import { Input } from "@/components/ui/input"
 import { LoadingRow } from "@/components/ui/loading-row"
-import { BLANK_TASK_TITLE } from "@/lib/pomodoro/tasks"
 import { usePomodoro } from "@/lib/pomodoro/use-pomodoro"
-import { showErrorToast } from "@/lib/toast/error-toast"
 
 const archiveStatusLabels: Record<string, string> = {
   completed: "Completed",
@@ -25,10 +22,6 @@ const archiveStatusLabels: Record<string, string> = {
  */
 export function TasksPage() {
   const pomodoro = usePomodoro()
-  const [title, setTitle] = React.useState("")
-  // Set by a blank submit and cleared by the next keystroke. The box keeps
-  // whatever was in it either way.
-  const [titleInvalid, setTitleInvalid] = React.useState(false)
   const completed = pomodoro.tasks.filter((task) => task.completed).length
   const archiveItems = pomodoro.archive.map((task) => ({
     ...task,
@@ -65,35 +58,7 @@ export function TasksPage() {
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
             <TodayTaskList pomodoro={pomodoro} />
-            <form
-              className="relative"
-              onSubmit={(event) => {
-                event.preventDefault()
-                if (!pomodoro.addTask(title)) {
-                  setTitleInvalid(true)
-                  showErrorToast(BLANK_TASK_TITLE)
-                  return
-                }
-                setTitle("")
-              }}
-            >
-              <PlusIcon
-                aria-hidden="true"
-                className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-              />
-              <Input
-                value={title}
-                onChange={(event) => {
-                  setTitle(event.target.value)
-                  setTitleInvalid(false)
-                }}
-                aria-invalid={titleInvalid || undefined}
-                maxLength={160}
-                placeholder="Add a task, press Enter…"
-                aria-label="New task"
-                className="pl-9"
-              />
-            </form>
+            <NewTaskForm pomodoro={pomodoro} />
           </CardContent>
         </Card>
 

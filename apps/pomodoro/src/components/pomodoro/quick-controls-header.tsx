@@ -81,7 +81,7 @@ const modeLabels: Array<[TimerMode, string]> = [
  * `aria-label`, so hiding the words costs the button no name.
  */
 export const quickPillClass =
-  "flex h-8 items-center gap-2 whitespace-nowrap rounded-full border border-[rgba(var(--p-fg-rgb),0.14)] bg-[rgba(var(--p-fg-rgb),0.07)] py-0 pl-3 pr-3.5 text-[13.5px] font-semibold text-foreground backdrop-blur-[12px] hover:bg-[rgba(var(--p-fg-rgb),0.16)] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none max-md:px-2.5"
+  "flex h-8 items-center gap-2 whitespace-nowrap rounded-full border bg-[rgba(var(--p-fg-rgb),0.07)] py-0 pl-3 pr-3.5 text-[13.5px] font-semibold text-foreground backdrop-blur-[12px] hover:bg-[rgba(var(--p-fg-rgb),0.16)] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none max-md:px-2.5"
 
 /**
  * A pill's words: on from 768px up, gone below it.
@@ -219,7 +219,7 @@ function TimerQuickControl() {
         <div className="flex gap-2">
           <Button
             size="sm"
-            className="flex-1 rounded-full"
+            className="flex-1"
             onClick={
               pomodoro.onBreak ? pomodoro.skipBreak : pomodoro.toggleTimer
             }
@@ -243,7 +243,6 @@ function TimerQuickControl() {
             <Button
               size="sm"
               variant="outline"
-              className="rounded-full"
               onClick={pomodoro.toggleTimer}
               aria-label={
                 pomodoro.timer.running ? "Pause the break" : "Start the break"
@@ -259,7 +258,6 @@ function TimerQuickControl() {
           <Button
             size="sm"
             variant="outline"
-            className="rounded-full"
             onClick={requestReset}
             aria-label="Reset timer"
           >
@@ -284,7 +282,6 @@ function TimerQuickControl() {
               <Button
                 variant="outline"
                 size="icon-sm"
-                className="rounded-full"
                 disabled={!pomodoro.timerIdle}
                 onClick={() => changeDuration(key, -1)}
                 aria-label={`One minute less ${label.toLowerCase()}`}
@@ -297,7 +294,6 @@ function TimerQuickControl() {
               <Button
                 variant="outline"
                 size="icon-sm"
-                className="rounded-full"
                 disabled={!pomodoro.timerIdle}
                 onClick={() => changeDuration(key, 1)}
                 aria-label={`One minute more ${label.toLowerCase()}`}
@@ -528,6 +524,13 @@ function LeaderboardQuickControl() {
                 )}
               >
                 {leader.name ?? "Someone"}
+                {/* Your row is told apart by more than its colour. */}
+                {leader.isYou ? (
+                  <span className="font-normal text-muted-foreground">
+                    {" "}
+                    · you
+                  </span>
+                ) : null}
               </strong>
               <b className="shrink-0 font-mono text-xs font-normal text-[var(--p-accent-2)]">
                 {leader.focusSessions} 🍅

@@ -15,10 +15,6 @@
 export const PAUSE_TO_CHOOSE_REASON =
   "Pause or finish the focus to choose a different task."
 
-/** A finished task cannot be the thing you are about to work on. */
-export const REOPEN_TO_FOCUS_REASON =
-  "Reopen this task to focus on it again."
-
 /** Durations and presets are the rhythm the running countdown is using. */
 export const RESET_TO_CHANGE_RHYTHM_REASON =
   "Reset or finish the timer to change durations or presets."

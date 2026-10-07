@@ -32,7 +32,8 @@ function leaderName(leader: BoardLeader) {
  *
  * Shared by the global ranking and the private group boards, so the two read as
  * one list in two places rather than two lists that drift. Your own row is in
- * the accent colour.
+ * the accent tint and says "You" after the name, so it can be found with the
+ * colour ignored, and a screen reader hears it.
  */
 export function LeaderboardRows({ leaders }: { leaders: readonly BoardLeader[] }) {
   return (
@@ -43,7 +44,7 @@ export function LeaderboardRows({ leaders }: { leaders: readonly BoardLeader[] }
           className={cn(
             "flex min-h-9 items-center gap-3 rounded-lg border px-3",
             leader.isYou &&
-              "border-[rgba(255,90,60,0.4)] bg-[rgba(255,90,60,0.08)]"
+              "border-primary/40 bg-primary/8"
           )}
         >
           <strong className="w-5 text-center font-mono text-xs text-muted-foreground">
@@ -56,14 +57,19 @@ export function LeaderboardRows({ leaders }: { leaders: readonly BoardLeader[] }
             <Link
               to="/u/$handle"
               params={{ handle: leader.handle }}
-              className="flex-1 truncate text-sm font-bold underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="min-w-0 truncate text-sm font-bold underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {leaderName(leader)}
             </Link>
           ) : (
-            <b className="flex-1 truncate text-sm">{leaderName(leader)}</b>
+            <b className="min-w-0 truncate text-sm">{leaderName(leader)}</b>
           )}
-          <span className="font-mono text-xs">
+          {leader.isYou ? (
+            <span className="shrink-0 rounded-full border border-primary/40 px-2 font-mono text-[10px] font-bold uppercase tracking-wider text-[var(--p-accent-2)]">
+              You
+            </span>
+          ) : null}
+          <span className="ml-auto shrink-0 font-mono text-xs">
             {formatFocusDuration(leader.focusSeconds)}{" "}
             <small className="text-muted-foreground">
               {leader.focusSessions} sessions

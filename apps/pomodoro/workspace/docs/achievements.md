@@ -76,7 +76,10 @@ is the day in the account's timezone: the endpoint returns that timezone
 beside the badges so a browser elsewhere cannot shift it. Locked
 ones stay on screen with an empty ring, the rule in plain words, and how far
 they have got: "62 of 100 sessions", "best so far: 4 of 7 days", "6h 20m of
-10h", with a small bar showing the same thing. A locked badge is never hidden,
+10h", with a small bar showing the same thing. The bar is the shared `Meter`
+and is read aloud as "Progress towards Ten sessions, 7 of 10 sessions"; the
+printed count beside it is hidden from screen readers so it is not read
+twice. A locked badge is never hidden,
 so the next one is always visible.
 
 The count and the bar both come from `achievementProgress` in

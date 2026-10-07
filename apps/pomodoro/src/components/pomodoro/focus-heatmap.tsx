@@ -49,9 +49,9 @@ function heatLevel(focusSeconds: number, maxSeconds: number) {
 
 const HEAT_CLASSES = [
   "bg-[rgba(var(--p-fg-rgb),0.08)]",
-  "bg-[rgba(255,90,60,0.25)]",
-  "bg-[rgba(255,90,60,0.45)]",
-  "bg-[rgba(255,90,60,0.7)]",
+  "bg-primary/25",
+  "bg-primary/45",
+  "bg-primary/70",
   "bg-[var(--p-accent)]",
 ]
 

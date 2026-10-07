@@ -1,7 +1,5 @@
 import * as React from "react"
-import { Link } from "@tanstack/react-router"
 import {
-  CheckIcon,
   MaximizeIcon,
   MinusIcon,
   PauseIcon,
@@ -9,14 +7,16 @@ import {
   PlayIcon,
   PlusIcon,
   RotateCcwIcon,
-  XIcon,
 } from "lucide-react"
 
 import { useDiscardFocusConfirm } from "@/components/pomodoro/discard-focus-confirm"
 import { SessionNotePrompt } from "@/components/pomodoro/session-note-prompt"
+import {
+  NewTaskForm,
+  TodayTaskList,
+} from "@/components/pomodoro/today-task-list"
 import { ZenMode } from "@/components/pomodoro/zen-mode"
 import { Button } from "@/components/ui/button"
-import { DisabledReason } from "@/components/ui/disabled-reason"
 import { InlineError } from "@/components/ui/inline-error"
 import { Label } from "@/components/ui/label"
 import {
@@ -24,7 +24,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { LoadingRow } from "@/components/ui/loading-row"
+import { Meter } from "@/components/ui/meter"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
@@ -32,14 +32,6 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { focusRing } from "@/lib/layout/focus-ring"
-import { cn } from "@/lib/utils"
-import {
-  PAUSE_TO_CHOOSE_REASON,
-  REOPEN_TO_FOCUS_REASON,
-} from "@/lib/pomodoro/disabled-reasons"
-import { BLANK_TASK_TITLE, taskProgressLabel } from "@/lib/pomodoro/tasks"
-import { showErrorToast } from "@/lib/toast/error-toast"
 import {
   cycleSessionLabel,
   MODE_LABELS,
@@ -89,7 +81,7 @@ function ModeTabs({
  * they were 44px, which is not one of the four.
  */
 const ringIconButtonClass =
-  "rounded-full border-[rgba(var(--p-fg-rgb),0.14)] bg-transparent text-muted-foreground hover:border-[rgba(var(--p-fg-rgb),0.3)] hover:bg-transparent hover:text-foreground dark:border-[rgba(var(--p-fg-rgb),0.14)] dark:bg-transparent dark:hover:bg-transparent"
+  "bg-transparent text-muted-foreground hover:bg-transparent hover:text-foreground dark:border-border dark:bg-transparent dark:hover:bg-transparent"
 
 /**
  * The pencil beside the goal bar: how many focus sessions today is meant to
@@ -111,7 +103,7 @@ function DailyGoalEditor({
         <Button
           variant="ghost"
           size="icon-sm"
-          className="size-6 rounded-full text-muted-foreground hover:text-foreground"
+          className="size-6 text-muted-foreground hover:text-foreground"
           aria-label="Edit the daily session goal"
         >
           <PencilIcon className="size-3" aria-hidden="true" />
@@ -124,7 +116,6 @@ function DailyGoalEditor({
           <Button
             variant="outline"
             size="icon-sm"
-            className="rounded-full"
             disabled={goal <= DAILY_GOAL_MIN}
             onClick={() => onChange(goal - 1)}
             aria-label="One session fewer"
@@ -137,7 +128,6 @@ function DailyGoalEditor({
           <Button
             variant="outline"
             size="icon-sm"
-            className="rounded-full"
             disabled={goal >= DAILY_GOAL_MAX}
             onClick={() => onChange(goal + 1)}
             aria-label="One session more"
@@ -165,10 +155,6 @@ export function TimerDashboard() {
   const pomodoro = usePomodoro()
   const { requestReset, requestMode, discardDialog } =
     useDiscardFocusConfirm(pomodoro)
-  const [taskTitle, setTaskTitle] = React.useState("")
-  // Set by a blank submit and cleared by the next keystroke. The box keeps
-  // whatever was in it either way.
-  const [taskTitleInvalid, setTaskTitleInvalid] = React.useState(false)
   const [zen, setZen] = React.useState(false)
   const zenButton = React.useRef<HTMLButtonElement>(null)
   // Leaving unmounts zen mode and mounts this screen again, so the focus move
@@ -240,7 +226,7 @@ export function TimerDashboard() {
             <Button
               size="lg"
               variant="outline"
-              className="mt-1.5 rounded-full border-[rgba(var(--p-fg-rgb),0.14)] bg-[var(--p-canvas)] px-[30px] text-[14.5px] font-bold hover:bg-[var(--p-surface-2)] dark:border-[rgba(var(--p-fg-rgb),0.14)] dark:bg-[var(--p-canvas)] dark:hover:bg-[var(--p-surface-2)]"
+              className="mt-1.5 bg-[var(--p-canvas)] px-[30px] text-[14.5px] hover:bg-[var(--p-surface-2)] dark:border-border dark:bg-[var(--p-canvas)] dark:hover:bg-[var(--p-surface-2)]"
               onClick={
                 pomodoro.onBreak ? pomodoro.skipBreak : pomodoro.toggleTimer
               }
@@ -316,26 +302,15 @@ export function TimerDashboard() {
           </InlineError>
         ) : null}
 
-        <div className="flex w-full flex-col items-center gap-4 border-t border-[rgba(var(--p-fg-rgb),0.07)] pt-5">
+        <div className="flex w-full flex-col items-center gap-4 border-t pt-5">
           <div className="flex items-center justify-center gap-3">
-            <span
-              role="meter"
-              aria-label={`${pomodoro.todayFocusSessions} of ${pomodoro.dailyGoalSessions} completed focus sessions`}
-              aria-valuenow={Math.min(
-                pomodoro.todayFocusSessions,
-                pomodoro.dailyGoalSessions
-              )}
-              aria-valuemin={0}
-              aria-valuemax={pomodoro.dailyGoalSessions}
-              className="block h-2 w-[120px] overflow-hidden rounded-full bg-[rgba(var(--p-fg-rgb),0.12)]"
-            >
-              <span
-                className="block h-full rounded-full bg-[var(--p-accent)]"
-                style={{
-                  width: `${Math.min(100, Math.round((pomodoro.todayFocusSessions / pomodoro.dailyGoalSessions) * 100))}%`,
-                }}
-              />
-            </span>
+            <Meter
+              label="Today's daily goal"
+              value={pomodoro.todayFocusSessions}
+              max={pomodoro.dailyGoalSessions}
+              valueText={`${pomodoro.todayFocusSessions} of ${pomodoro.dailyGoalSessions} sessions`}
+              className="h-2 w-[120px]"
+            />
             <span className="font-mono text-xs text-muted-foreground">
               {pomodoro.todayFocusSessions} of {pomodoro.dailyGoalSessions}{" "}
               sessions completed today{goalReached ? " · Goal reached" : ""}
@@ -368,148 +343,19 @@ export function TimerDashboard() {
         </div>
       </section>
 
-      <section className="mx-auto w-full max-w-[860px] overflow-hidden rounded-3xl border border-[rgba(var(--p-fg-rgb),0.08)] bg-[var(--p-surface)]">
-        <header className="flex items-center gap-3 border-b border-[rgba(var(--p-fg-rgb),0.07)] px-6 py-[18px]">
+      <section className="mx-auto w-full max-w-[860px] overflow-hidden rounded-3xl border bg-[var(--p-surface)]">
+        <header className="flex items-center gap-3 border-b px-6 py-[18px]">
           <strong className="text-base tracking-tight">Tasks</strong>
           <span className="ml-auto font-mono text-xs text-muted-foreground">
             {completedTasks} / {pomodoro.tasks.length} done
           </span>
         </header>
-        <div className="flex flex-col px-3 py-2">
-          {/* Loading and empty mean opposite things, so the card says which
-              one it is instead of claiming an empty list on every visit. */}
-          {pomodoro.loading && !pomodoro.tasks.length ? (
-            <LoadingRow label="Loading your tasks…" className="py-[18px]" />
-          ) : null}
-          {!pomodoro.loading &&
-          !pomodoro.loadFailed &&
-          !pomodoro.tasks.length ? (
-            <p className="px-3 py-[18px] text-center text-[13.5px] text-muted-foreground">
-              No active tasks.{" "}
-              <Link
-                to="/tasks"
-                className="font-bold text-[var(--p-accent-2)]"
-              >
-                Create a task
-              </Link>{" "}
-              to focus on.
-            </p>
-          ) : null}
-          {pomodoro.tasks.map((task) => {
-            const selected = pomodoro.selectedTaskId === task.id
-            const busy = pomodoro.taskBusy(task.id)
-            return (
-              <div
-                key={task.id}
-                className={cn(
-                  "flex items-center gap-3.5 rounded-xl px-3 py-2.5 hover:bg-[rgba(var(--p-fg-rgb),0.04)]",
-                  selected &&
-                    "bg-[rgba(255,90,60,0.1)] shadow-[inset_3px_0_var(--p-accent)]"
-                )}
-              >
-                <button
-                  className={cn(
-                    "grid size-6 shrink-0 place-items-center rounded-full disabled:cursor-not-allowed disabled:opacity-50",
-                    focusRing,
-                    task.completed
-                      ? "bg-[var(--p-success)] text-[var(--p-on-accent)]"
-                      : "border-[1.5px] border-[rgba(var(--p-fg-rgb),0.25)] text-transparent"
-                  )}
-                  disabled={busy}
-                  onClick={() => pomodoro.toggleTask(task.id)}
-                  aria-label={`${task.completed ? "Reopen" : "Complete"} ${task.title}`}
-                >
-                  {task.completed ? (
-                    <CheckIcon
-                      className="size-3"
-                      strokeWidth={3.5}
-                      aria-hidden="true"
-                    />
-                  ) : null}
-                </button>
-                {/* Faded with no word was the commonest reason someone
-                    thought the list was broken, so the reason rides with the
-                    button. Wrapped only while it is off, and the wrapper is
-                    what a keyboard lands on, because a disabled button cannot
-                    take focus. */}
-                <DisabledReason
-                  className="min-w-0 flex-1"
-                  disabled={task.completed || !pomodoro.canSelectTask}
-                  reason={
-                    task.completed
-                      ? REOPEN_TO_FOCUS_REASON
-                      : PAUSE_TO_CHOOSE_REASON
-                  }
-                >
-                <button
-                  className={cn(
-                    "flex min-w-0 flex-1 items-center gap-3 rounded-lg py-1 text-left",
-                    focusRing
-                  )}
-                  disabled={task.completed || !pomodoro.canSelectTask}
-                  aria-pressed={selected}
-                  // Tapping the chosen task again clears it. It is the only
-                  // way to focus on nothing now that the FOCUS TASK pill
-                  // and its clear button are gone.
-                  onClick={() => pomodoro.selectTask(selected ? null : task.id)}
-                >
-                  <span
-                    className={cn(
-                      "min-w-0 flex-1 truncate text-[14.5px]",
-                      task.completed &&
-                        "text-muted-foreground line-through"
-                    )}
-                  >
-                    {task.title}
-                  </span>
-                  <small className="shrink-0 font-mono text-[11px] text-muted-foreground">
-                    {taskProgressLabel(task)}
-                  </small>
-                </button>
-                </DisabledReason>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  className="shrink-0 rounded-full text-muted-foreground hover:bg-[rgba(var(--p-fg-rgb),0.08)] hover:text-foreground"
-                  disabled={busy}
-                  onClick={() => pomodoro.removeTask(task.id)}
-                  aria-label={`Remove ${task.title}`}
-                >
-                  <XIcon className="size-[13px]" aria-hidden="true" />
-                </Button>
-              </div>
-            )
-          })}
+        {/* The same list and the same add box as the Tasks page, without
+            the drag handles: the day is planned there, and focused on here. */}
+        <div className="flex flex-col gap-3 px-3 py-3">
+          <TodayTaskList pomodoro={pomodoro} reorderable={false} />
+          <NewTaskForm pomodoro={pomodoro} />
         </div>
-        <form
-          className="flex items-center gap-3 border-t border-[rgba(var(--p-fg-rgb),0.07)] bg-[var(--p-surface-2)] px-6 py-3.5 text-muted-foreground"
-          onSubmit={(event) => {
-            event.preventDefault()
-            if (!pomodoro.addTask(taskTitle)) {
-              setTaskTitleInvalid(true)
-              showErrorToast(BLANK_TASK_TITLE)
-              return
-            }
-            setTaskTitle("")
-          }}
-        >
-          <PlusIcon className="size-4 shrink-0" aria-hidden="true" />
-          <input
-            value={taskTitle}
-            onChange={(event) => {
-              setTaskTitle(event.target.value)
-              setTaskTitleInvalid(false)
-            }}
-            aria-invalid={taskTitleInvalid || undefined}
-            maxLength={160}
-            placeholder="Add a task, press Enter…"
-            aria-label="New task"
-            className={cn(
-              "h-8 min-w-0 flex-1 rounded-lg border-0 bg-transparent px-1 text-[14.5px] text-foreground aria-invalid:ring-2 aria-invalid:ring-destructive/50",
-              focusRing
-            )}
-          />
-        </form>
       </section>
       {discardDialog}
     </div>

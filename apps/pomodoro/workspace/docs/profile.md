@@ -10,8 +10,17 @@ app-level facts about a person, in `pomodoro_profiles` (migration
   [the public profile](public-profile.md). It used to be the only name
   anybody ever saw; since the public profile exists, a person with no
   display name is named by their handle there instead.
-- **Timezone** — an IANA name; an unrecognised one is refused with a plain
-  sentence. Every "today" the app computes (goals, streaks, task days, the
+- **Timezone** — picked from a list you can search, not typed. The list is
+  every zone the browser knows (`Intl.supportedValuesOf("timeZone")`, plus
+  `UTC`), shown with spaces for underscores, so "lisbon" or "new york" finds
+  its zone. Your browser's own zone is first and marked "your browser", and
+  the help beside the label still says which zone the browser reports. A
+  saved zone the list does not contain is kept and shown at the top, ticked,
+  rather than swapped for another, because swapping it would move your day
+  boundary the next time you pressed Save. The server still refuses an
+  unrecognised name with a plain sentence. The picker is
+  `src/components/pomodoro/timezone-picker.tsx`, app-owned, built like the
+  shared `MultiCombobox` because the shared Select cannot search. Every "today" the app computes (goals, streaks, task days, the
   rollover) goes through `userToday` in `src/server/pomodoro/profile.ts`:
   the saved timezone wins, and until one is saved the browser's own is used
   and quietly recorded, so travelling never silently moves the day
@@ -38,7 +47,7 @@ raises a success toast that clears itself, a save that failed raises the
 shared error toast that stays until dismissed, and no inline line sits beside
 the Save button.
 
-Save is pressable with the timezone box empty. Pressing it then says what is
+Save is pressable with no timezone picked. Pressing it then says what is
 missing rather than the button quietly doing nothing, and the box is marked
 `aria-invalid` so it is clear which one is at fault after the toast is gone.
 

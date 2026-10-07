@@ -40,6 +40,14 @@ ranking.
   it only asks for it when the popover is opened. The sidebar still has a
   Leaderboard link, so nothing lost a way in.
 
+## Your own row
+
+Your row has the accent tint and a small "You" beside your name, on the
+global board, the Following board and every group board, because they share
+`leaderboard-rows.tsx`. The tint alone said nothing to a screen reader or with
+the colour ignored. The header's leaderboard popover adds "· you" after your
+name for the same reason.
+
 ## When the board fails to load
 
 The ranking card says "The leaderboard could not be loaded" inside the card,

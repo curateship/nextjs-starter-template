@@ -1,5 +1,5 @@
 import * as React from "react"
-import { useNavigate } from "@tanstack/react-router"
+import { Link, useNavigate } from "@tanstack/react-router"
 import {
   CheckIcon,
   CopyIcon,
@@ -272,7 +272,7 @@ export function RoomsPage() {
 
   const joinBySlug = async (slug: string) => {
     if (!authenticated) {
-      void navigate({ to: "/login" })
+      void navigate({ to: "/login", search: { redirect: "/rooms" } })
       return
     }
     if (activeRoom?.you.role === "host") {
@@ -385,8 +385,10 @@ export function RoomsPage() {
               Rooms are where people focus together on one clock. Sign in to
               browse the open rooms and join one.
             </p>
-            <Button asChild size="sm" className="rounded-full font-bold">
-              <a href="/login">Sign in</a>
+            <Button asChild size="sm">
+              <Link to="/login" search={{ redirect: "/rooms" }}>
+                Sign in
+              </Link>
             </Button>
           </CardContent>
         </Card>
@@ -890,8 +892,9 @@ function ActiveRoomPanel({
         ),
     })
 
+  // The one card outlined in the accent on purpose: it is the room you are in.
   return (
-    <Card className="border-[rgba(255,90,60,0.35)]">
+    <Card className="border-primary/35">
       <CardContent className="flex flex-col gap-4 py-5">
         <div className="flex flex-wrap items-center gap-3">
           <span className="size-2 rounded-full bg-[var(--p-success)]" aria-hidden="true" />
@@ -1103,7 +1106,7 @@ function RoomGroup({
         {onHost ? (
           <Button
             variant="ghost"
-            className="ml-auto rounded-full border-primary/40 bg-primary/10 font-bold text-[var(--p-accent-2)] hover:bg-primary/20 hover:text-[var(--p-accent-2)] dark:hover:bg-primary/20"
+            className="ml-auto border-primary/40 bg-primary/10 text-[var(--p-accent-2)] hover:bg-primary/20 hover:text-[var(--p-accent-2)] dark:hover:bg-primary/20"
             onClick={onHost}
           >
             <PlusIcon aria-hidden="true" /> Host a room
@@ -1138,7 +1141,7 @@ function RoomGroup({
               >
                 {open ? (
                   <Button
-                    className="rounded-full px-4 font-bold"
+                    className="px-4"
                     disabled={joiningSlug !== ""}
                     onClick={() => void onJoin(room.slug)}
                   >
@@ -1154,7 +1157,7 @@ function RoomGroup({
                 ) : (
                   <Button
                     variant="outline"
-                    className="rounded-full px-4 font-bold"
+                    className="px-4"
                     disabled
                   >
                     <LockKeyholeIcon aria-hidden="true" />

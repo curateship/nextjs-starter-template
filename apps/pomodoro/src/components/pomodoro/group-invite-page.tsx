@@ -87,7 +87,7 @@ export function GroupInvitePage() {
                 A focus group is a board of the people in it, so joining needs an
                 account. Sign in and this link will still work.
               </p>
-              <Button asChild className="rounded-full font-bold">
+              <Button asChild>
                 <Link to="/login" search={{ redirect: `/groups/join/${token}` }}>
                   Sign in
                 </Link>
@@ -102,7 +102,6 @@ export function GroupInvitePage() {
               <Button
                 asChild
                 variant="outline"
-                className="rounded-full font-bold"
               >
                 <Link to="/leaderboard">Back to the leaderboard</Link>
               </Button>
@@ -121,7 +120,6 @@ export function GroupInvitePage() {
                 Joining shows your display name on its board and nowhere else.
               </p>
               <Button
-                className="rounded-full font-bold"
                 disabled={joining}
                 onClick={() => void join()}
               >

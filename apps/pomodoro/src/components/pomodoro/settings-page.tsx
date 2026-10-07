@@ -36,7 +36,7 @@ export function SettingsPage() {
               Everything here saves in this browser. Sign in to keep your
               focus history, join rooms and appear on the leaderboard.
             </p>
-            <Button asChild className="rounded-full font-bold">
+            <Button asChild>
               <Link to="/register">Create free account</Link>
             </Button>
           </CardContent>

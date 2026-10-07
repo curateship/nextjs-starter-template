@@ -77,7 +77,7 @@ export function RoomInvitePage() {
               <p className="text-sm text-muted-foreground">
                 The invite could not be checked.
               </p>
-              <Button className="rounded-full font-bold" onClick={refresh}>
+              <Button onClick={refresh}>
                 Try again
               </Button>
             </>
@@ -92,7 +92,7 @@ export function RoomInvitePage() {
                 This invite link isn’t valid. Check that it was copied
                 completely.
               </p>
-              <Button asChild variant="outline" className="rounded-full">
+              <Button asChild variant="outline">
                 <Link to="/rooms">Browse rooms</Link>
               </Button>
             </>
@@ -102,7 +102,7 @@ export function RoomInvitePage() {
               <p className="text-sm text-muted-foreground">
                 This room has ended.
               </p>
-              <Button asChild variant="outline" className="rounded-full">
+              <Button asChild variant="outline">
                 <Link to="/rooms">Browse rooms</Link>
               </Button>
             </>
@@ -127,15 +127,15 @@ export function RoomInvitePage() {
                 link at the time and you are in.
               </p>
               <div className="flex gap-2">
-                <Button className="rounded-full font-bold" onClick={refresh}>
+                <Button onClick={refresh}>
                   Check again
                 </Button>
                 {authenticated ? (
-                  <Button asChild variant="outline" className="rounded-full">
+                  <Button asChild variant="outline">
                     <Link to="/rooms">Browse rooms</Link>
                   </Button>
                 ) : (
-                  <Button asChild variant="outline" className="rounded-full">
+                  <Button asChild variant="outline">
                     <Link to="/register">Create free account</Link>
                   </Button>
                 )}
@@ -147,7 +147,7 @@ export function RoomInvitePage() {
               <p className="text-sm text-muted-foreground">
                 You can’t join this room.
               </p>
-              <Button asChild variant="outline" className="rounded-full">
+              <Button asChild variant="outline">
                 <Link to="/rooms">Browse rooms</Link>
               </Button>
             </>
@@ -157,7 +157,7 @@ export function RoomInvitePage() {
               <p className="text-sm text-muted-foreground">
                 You’re already in this room.
               </p>
-              <Button asChild className="rounded-full font-bold">
+              <Button asChild>
                 <Link to="/rooms">Go to your room</Link>
               </Button>
             </>
@@ -175,10 +175,10 @@ export function RoomInvitePage() {
                 </p>
               ) : null}
               <div className="flex gap-2">
-                <Button className="rounded-full font-bold" onClick={refresh}>
+                <Button onClick={refresh}>
                   Check again
                 </Button>
-                <Button asChild variant="outline" className="rounded-full">
+                <Button asChild variant="outline">
                   <Link to="/rooms">Browse rooms</Link>
                 </Button>
               </div>
@@ -201,7 +201,6 @@ export function RoomInvitePage() {
               ) : null}
               {authenticated ? (
                 <Button
-                  className="rounded-full font-bold"
                   disabled={joining}
                   onClick={() => void join()}
                 >
@@ -210,13 +209,17 @@ export function RoomInvitePage() {
               ) : (
                 <>
                   <p className="text-sm text-muted-foreground">
-                    Sign in to join, then open this invite again.
+                    Sign in and you come straight back to this invite to join.
                   </p>
                   <div className="flex gap-2">
-                    <Button asChild className="rounded-full font-bold">
-                      <Link to="/login">Sign in to join</Link>
+                    <Button asChild>
+                      {/* The login page re-checks this is a path inside the
+                          app before following it (`safeRedirectPath`). */}
+                      <Link to="/login" search={{ redirect: `/rooms/${slug}` }}>
+                        Sign in to join
+                      </Link>
                     </Button>
-                    <Button asChild variant="outline" className="rounded-full">
+                    <Button asChild variant="outline">
                       <Link to="/register">Create free account</Link>
                     </Button>
                   </div>

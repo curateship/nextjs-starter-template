@@ -94,6 +94,14 @@ the CSV export and the week review). Screen:
 `src/components/pomodoro/history-page.tsx`, with hidden data tables behind
 the visual heatmap and chart for screen readers.
 
+## The bars in Top tasks and By project
+
+Each row's bar is the shared `Meter`, so a screen reader hears its name and
+its value, for example "Focus time on Thesis, 42m of 3h 10m, the most on any
+project". The bar is drawn against the longest row, and never shorter than
+4% of it, so a row with a few minutes still shows a sliver. The spoken value
+is always the real time.
+
 ## When a card fails to load
 
 Every card on the page that loads on its own says so inside its own frame,

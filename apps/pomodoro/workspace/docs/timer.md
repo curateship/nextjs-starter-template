@@ -132,7 +132,8 @@ used to do. Zen mode still shows the name.
   Timer edits the same number. `setDailyGoal` in
   `src/lib/pomodoro/use-pomodoro.ts` is the one saver for both.
 - **The goal bar** shows finished focus sessions today against the daily goal
-  (default 4, 1-20, saved per user). Its label says "0 of 4 sessions
+  (default 4, 1-20, saved per user). It is the shared `Meter`, so a screen
+  reader hears "Today's daily goal, 3 of 4 sessions". Its label says "0 of 4 sessions
   completed today", naming what was counted, with "Goal reached" once passed, and
   under it the streak line: consecutive days with at least one finished
   focus, current and best. The day math runs in JS on yyyy-mm-dd strings in

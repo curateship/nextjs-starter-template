@@ -38,6 +38,14 @@ the phases, and the server is the only clock.
   member, locked mid-focus, joinable. The lookup endpoint works signed out
   (listed in `src/app/open-endpoints.ts`) and answers a status, a name and
   a member count only.
+- **Signing in brings you back.** Signed out, "Sign in" on `/rooms` and "Sign
+  in to join" on an invite carry `?redirect=` with the page you were on, so
+  after signing in you are on Rooms or on that invite again, not the
+  dashboard. Both are router links, so the press does not reload the app. The
+  login page only follows a plain path inside the app (`safeRedirectPath`),
+  checked again at the moment it navigates, so a crafted link cannot send
+  anyone elsewhere. "Create free account" still lands on the dashboard: the
+  register page is the shell's and does not read a return address.
 - **Host actions**: start focus, start break, next phase, close (with
   confirmation). Hosts move through the canonical sequence only; the 4th
   focus earns the long break; a break returns to focus (auto-start) or to

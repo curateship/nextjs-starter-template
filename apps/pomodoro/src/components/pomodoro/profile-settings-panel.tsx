@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { Switch } from "@/components/ui/switch"
+import { TimezonePicker } from "@/components/pomodoro/timezone-picker"
 import { getAuthErrorMessage, updateProfile } from "@/lib/api/auth/auth"
 import {
   loadPomodoroProfile,
@@ -108,7 +109,7 @@ export default function ProfileSettingsPanel() {
   const save = async () => {
     if (!timezone.trim()) {
       showErrorToast(
-        "Enter a timezone before saving. An IANA name like Europe/Berlin is what the day boundary needs."
+        "Pick a timezone before saving. It decides when your day rolls over."
       )
       return
     }
@@ -124,7 +125,7 @@ export default function ProfileSettingsPanel() {
       const text = cause instanceof Error ? cause.message : ""
       showErrorToast(
         text.includes("INVALID_TIMEZONE")
-          ? "That timezone is not recognised. Use an IANA name like Europe/Berlin."
+          ? "That timezone is not recognised. Pick another one from the list."
           : "The profile could not be saved."
       )
     } finally {
@@ -183,12 +184,12 @@ export default function ProfileSettingsPanel() {
                 >
                   Timezone
                 </FieldLabel>
-                <Input
+                <TimezonePicker
                   id="profile-timezone"
-                  maxLength={80}
                   value={timezone}
-                  aria-invalid={timezone.trim() ? undefined : true}
-                  onChange={(event) => setTimezone(event.target.value)}
+                  browserZone={browserTimezone()}
+                  invalid={!timezone.trim()}
+                  onChange={setTimezone}
                 />
               </div>
               <div className="flex items-center gap-2">

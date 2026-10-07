@@ -53,7 +53,7 @@ function SessionNoteField({
 
   return (
     <form
-      className="flex min-h-9 w-full max-w-[min(520px,calc(100vw-36px))] flex-wrap items-center gap-2.5 rounded-[14px] border border-[rgba(var(--p-fg-rgb),0.1)] bg-[rgba(var(--p-canvas-rgb),0.75)] py-2 pl-3.5 pr-2.5"
+      className="flex min-h-9 w-full max-w-[min(520px,calc(100vw-36px))] flex-wrap items-center gap-2.5 rounded-[14px] border bg-[rgba(var(--p-canvas-rgb),0.75)] py-2 pl-3.5 pr-2.5"
       onSubmit={(event) => {
         event.preventDefault()
         if (busy) return
@@ -107,7 +107,7 @@ function SessionNoteField({
         variant="ghost"
         size="icon-sm"
         disabled={busy}
-        className="shrink-0 rounded-full text-muted-foreground hover:bg-[rgba(var(--p-fg-rgb),0.08)] hover:text-foreground"
+        className="shrink-0 text-muted-foreground hover:bg-[rgba(var(--p-fg-rgb),0.08)] hover:text-foreground"
         aria-label="Save this session note"
       >
         <CheckIcon className="size-[13px]" aria-hidden="true" />
@@ -117,7 +117,7 @@ function SessionNoteField({
         variant="ghost"
         size="icon-sm"
         onClick={onDismiss}
-        className="shrink-0 rounded-full text-muted-foreground hover:bg-[rgba(var(--p-fg-rgb),0.08)] hover:text-foreground"
+        className="shrink-0 text-muted-foreground hover:bg-[rgba(var(--p-fg-rgb),0.08)] hover:text-foreground"
         aria-label="Skip the note for this session"
       >
         <XIcon className="size-[13px]" aria-hidden="true" />

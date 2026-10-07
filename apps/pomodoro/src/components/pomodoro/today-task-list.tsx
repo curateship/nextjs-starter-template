@@ -21,6 +21,7 @@ import {
   CheckIcon,
   GripVerticalIcon,
   Loader2Icon,
+  PlusIcon,
   RepeatIcon,
   SettingsIcon,
   XIcon,
@@ -45,6 +46,7 @@ import { PAUSE_TO_CHOOSE_REASON } from "@/lib/pomodoro/disabled-reasons"
 import { useProductAuth } from "@/lib/pomodoro/auth-state"
 import type { usePomodoro } from "@/lib/pomodoro/use-pomodoro"
 import {
+  BLANK_TASK_TITLE,
   taskPriorities,
   taskProgressLabel,
   type TaskItem,
@@ -93,13 +95,24 @@ const GUEST_PROJECT_REASON =
   "Projects need an account, because they are saved with your focus history."
 
 /**
- * Today's tasks, ported from the old app's task-plan-list: drag to reorder
- * by mouse, touch or keyboard with dnd-kit (announced to screen readers),
- * inline edit with priority and a 1-20 estimate, complete/reopen, remove,
- * and picking the focus task while the timer is idle. Completed tasks group
- * below the active ones.
+ * Today's tasks, ported from the old app's task-plan-list, and the one list
+ * both the timer and the Tasks page draw: drag to reorder by mouse, touch or
+ * keyboard with dnd-kit (announced to screen readers), inline edit with
+ * priority and a 1-20 estimate, complete/reopen, remove, and picking the focus
+ * task while the timer is idle. Completed tasks sit in their own group under a
+ * "Done today" heading.
+ *
+ * `reorderable` is the one thing the timer turns off: its card has no room for
+ * a drag handle, and the Tasks page is where the day is planned. Everything
+ * else, down to the row, is shared, so a fix to one list is a fix to both.
  */
-export function TodayTaskList({ pomodoro }: { pomodoro: PomodoroApi }) {
+export function TodayTaskList({
+  pomodoro,
+  reorderable = true,
+}: {
+  pomodoro: PomodoroApi
+  reorderable?: boolean
+}) {
   const [editingId, setEditingId] = React.useState<string | null>(null)
   const activeTasks = pomodoro.tasks.filter((task) => !task.completed)
   const completedTasks = pomodoro.tasks.filter((task) => task.completed)
@@ -127,6 +140,12 @@ export function TodayTaskList({ pomodoro }: { pomodoro: PomodoroApi }) {
     )
   }
 
+  const editingProps = (task: TaskItem) => ({
+    editing: editingId === task.id,
+    onEditingChange: (editing: boolean) =>
+      setEditingId(editing ? task.id : null),
+  })
+
   return (
     <div className="flex flex-col gap-2">
       {/* A loading list and an empty list mean opposite things, so the card
@@ -139,86 +158,127 @@ export function TodayTaskList({ pomodoro }: { pomodoro: PomodoroApi }) {
           No active tasks. Add one below to choose your next focus.
         </p>
       ) : null}
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragEnd={handleDragEnd}
-        accessibility={{
-          screenReaderInstructions: {
-            draggable:
-              "To reorder a task, press space or enter on its reorder handle, move it with the arrow keys, then press space or enter again to drop it. Press escape to cancel.",
-          },
-          announcements: {
-            onDragStart: ({ active }) =>
-              `Picked up ${titleOf(active.id)}, position ${positionOf(active.id)} of ${activeTasks.length}.`,
-            onDragOver: ({ active, over }) =>
-              over
-                ? `${titleOf(active.id)} is now at position ${positionOf(over.id)} of ${activeTasks.length}.`
-                : undefined,
-            onDragEnd: ({ active, over }) =>
-              over
-                ? `${titleOf(active.id)} dropped at position ${positionOf(over.id)} of ${activeTasks.length}.`
-                : `${titleOf(active.id)} dropped.`,
-            onDragCancel: ({ active }) =>
-              `Reordering cancelled. ${titleOf(active.id)} returned to its original position.`,
-          },
-        }}
-      >
-        <SortableContext
-          items={activeTasks.map((task) => task.id)}
-          strategy={verticalListSortingStrategy}
+      {reorderable ? (
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+          accessibility={{
+            screenReaderInstructions: {
+              draggable:
+                "To reorder a task, press space or enter on its reorder handle, move it with the arrow keys, then press space or enter again to drop it. Press escape to cancel.",
+            },
+            announcements: {
+              onDragStart: ({ active }) =>
+                `Picked up ${titleOf(active.id)}, position ${positionOf(active.id)} of ${activeTasks.length}.`,
+              onDragOver: ({ active, over }) =>
+                over
+                  ? `${titleOf(active.id)} is now at position ${positionOf(over.id)} of ${activeTasks.length}.`
+                  : undefined,
+              onDragEnd: ({ active, over }) =>
+                over
+                  ? `${titleOf(active.id)} dropped at position ${positionOf(over.id)} of ${activeTasks.length}.`
+                  : `${titleOf(active.id)} dropped.`,
+              onDragCancel: ({ active }) =>
+                `Reordering cancelled. ${titleOf(active.id)} returned to its original position.`,
+            },
+          }}
         >
-          {activeTasks.map((task) => (
-            <SortableTaskRow
+          <SortableContext
+            items={activeTasks.map((task) => task.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            {activeTasks.map((task) => (
+              <SortableTaskRow
+                key={task.id}
+                task={task}
+                pomodoro={pomodoro}
+                {...editingProps(task)}
+              />
+            ))}
+          </SortableContext>
+        </DndContext>
+      ) : (
+        activeTasks.map((task) => (
+          <TaskRow
+            key={task.id}
+            task={task}
+            pomodoro={pomodoro}
+            {...editingProps(task)}
+          />
+        ))
+      )}
+      {completedTasks.length ? (
+        <section
+          aria-labelledby="done-today-heading"
+          className="flex flex-col gap-2 pt-2"
+        >
+          <h3
+            id="done-today-heading"
+            className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground"
+          >
+            Done today · {completedTasks.length}
+          </h3>
+          {completedTasks.map((task) => (
+            <TaskRow
               key={task.id}
               task={task}
               pomodoro={pomodoro}
-              editing={editingId === task.id}
-              onEditingChange={(editing) =>
-                setEditingId(editing ? task.id : null)
-              }
+              editing={false}
+              onEditingChange={() => undefined}
             />
           ))}
-        </SortableContext>
-      </DndContext>
-      {completedTasks.map((task) => (
-        <div
-          key={task.id}
-          className="flex min-h-9 items-center gap-3 rounded-lg border bg-card/50 px-3"
-        >
-          <Checkbox
-            checked
-            disabled={pomodoro.taskBusy(task.id)}
-            onCheckedChange={() => pomodoro.toggleTask(task.id)}
-            aria-label={`Reopen ${task.title}`}
-          />
-          <span className="flex-1 truncate text-sm text-muted-foreground line-through">
-            {task.title}
-          </span>
-          <small className="font-mono text-[10px] text-muted-foreground">
-            {taskProgressLabel(task)}
-          </small>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            disabled={pomodoro.taskBusy(task.id)}
-            onClick={() => pomodoro.removeTask(task.id)}
-            aria-label={`Remove ${task.title}`}
-          >
-            <XIcon aria-hidden="true" />
-          </Button>
-        </div>
-      ))}
+        </section>
+      ) : null}
     </div>
   )
 }
 
-function SortableTaskRow({
-  task,
-  pomodoro,
-  editing,
-  onEditingChange,
-}: {
+/**
+ * The box under either list that adds a task. Shared, so the timer and the
+ * Tasks page refuse a blank title the same way: nothing is sent, the text
+ * stays, the box is marked and the toast says why.
+ */
+export function NewTaskForm({ pomodoro }: { pomodoro: PomodoroApi }) {
+  const [title, setTitle] = React.useState("")
+  // Set by a blank submit and cleared by the next keystroke. The box keeps
+  // whatever was in it either way.
+  const [invalid, setInvalid] = React.useState(false)
+
+  return (
+    <form
+      className="relative"
+      onSubmit={(event) => {
+        event.preventDefault()
+        if (!pomodoro.addTask(title)) {
+          setInvalid(true)
+          showErrorToast(BLANK_TASK_TITLE)
+          return
+        }
+        setTitle("")
+      }}
+    >
+      <PlusIcon
+        aria-hidden="true"
+        className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+      />
+      <Input
+        value={title}
+        onChange={(event) => {
+          setTitle(event.target.value)
+          setInvalid(false)
+        }}
+        aria-invalid={invalid || undefined}
+        maxLength={160}
+        placeholder="Add a task, press Enter…"
+        aria-label="New task"
+        className="pl-9"
+      />
+    </form>
+  )
+}
+
+function SortableTaskRow(props: {
   task: TaskItem
   pomodoro: PomodoroApi
   editing: boolean
@@ -232,18 +292,71 @@ function SortableTaskRow({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: task.id, disabled: editing })
+  } = useSortable({ id: props.task.id, disabled: props.editing })
+
+  return (
+    <TaskRow
+      {...props}
+      rowRef={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={cn(isDragging && "z-10 opacity-80 shadow-lg")}
+      dragHandle={
+        // 28px, the rulebook's small control, so a keyboard landing on it
+        // can see where it is.
+        <button
+          ref={setActivatorNodeRef}
+          className={cn(
+            "grid size-7 shrink-0 cursor-grab touch-none place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground",
+            focusRing
+          )}
+          {...attributes}
+          {...listeners}
+          aria-label={`Reorder ${props.task.title}`}
+        >
+          <GripVerticalIcon className="size-4" aria-hidden="true" />
+        </button>
+      }
+    />
+  )
+}
+
+/**
+ * One task, wherever it is listed. An active row can be picked as the focus
+ * task and edited; a completed one is struck through and can only be reopened
+ * or removed, because the server refuses edits to a finished task. Both carry
+ * the same repeat, project and priority marks.
+ */
+function TaskRow({
+  task,
+  pomodoro,
+  editing,
+  onEditingChange,
+  dragHandle,
+  rowRef,
+  style,
+  className,
+}: {
+  task: TaskItem
+  pomodoro: PomodoroApi
+  editing: boolean
+  onEditingChange: (editing: boolean) => void
+  dragHandle?: React.ReactNode
+  rowRef?: (node: HTMLElement | null) => void
+  style?: React.CSSProperties
+  className?: string
+}) {
   const selected = pomodoro.selectedTaskId === task.id
   const busy = pomodoro.taskBusy(task.id)
 
   return (
     <div
-      ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
+      ref={rowRef}
+      style={style}
       className={cn(
-        "flex min-h-9 items-center gap-2 rounded-lg border bg-card px-2",
+        "flex min-h-9 items-center gap-2 rounded-lg border px-2",
+        task.completed ? "bg-card/50" : "bg-card",
         selected && "border-l-2 border-l-primary",
-        isDragging && "z-10 opacity-80 shadow-lg"
+        className
       )}
     >
       {editing ? (
@@ -273,90 +386,52 @@ function SortableTaskRow({
         />
       ) : (
         <>
-          {/* 28px, the rulebook's small control. It had no size or padding
-              class at all, so it was a 16px icon to aim at and nothing showed
-              when a keyboard landed on it — even though the keyboard
-              reordering behind it already worked. */}
-          <button
-            ref={setActivatorNodeRef}
-            className={cn(
-              "grid size-7 shrink-0 cursor-grab touch-none place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground",
-              focusRing
-            )}
-            {...attributes}
-            {...listeners}
-            aria-label={`Reorder ${task.title}`}
-          >
-            <GripVerticalIcon className="size-4" aria-hidden="true" />
-          </button>
+          {dragHandle}
           <Checkbox
             checked={task.completed}
             disabled={busy}
             onCheckedChange={() => pomodoro.toggleTask(task.id)}
-            aria-label={`Complete ${task.title}`}
+            aria-label={`${task.completed ? "Reopen" : "Complete"} ${task.title}`}
           />
-          <DisabledReason
-            className="min-w-0 flex-1"
-            disabled={!pomodoro.canSelectTask}
-            reason={PAUSE_TO_CHOOSE_REASON}
-          >
-          <button
-            className={cn(
-              "flex min-w-0 flex-1 items-center gap-2 rounded-lg py-2 text-left",
-              focusRing
-            )}
-            disabled={!pomodoro.canSelectTask}
-            aria-pressed={selected}
-            // Tapping the chosen task again clears it, the same as the
-            // dashboard's own list.
-            onClick={() => pomodoro.selectTask(selected ? null : task.id)}
-          >
-            <span className="truncate text-sm">{task.title}</span>
-            {/* The repeat rule is in the button's own name rather than in a
-                tooltip. The tooltip hung off a bare `<svg>`, which nothing
-                can focus, so the rule was mouse-only; a focusable trigger
-                inside this button would not be valid HTML either. */}
-            {task.repeatWeekdays !== null ? (
-              <>
-                <RepeatIcon
-                  className="size-3 shrink-0 text-muted-foreground"
-                  aria-hidden="true"
-                />
-                <span className="sr-only">
-                  . Repeats {describeWeekdaySet(task.repeatWeekdays)}
-                </span>
-              </>
-            ) : null}
-            {task.projectName ? (
-              <b className="max-w-28 truncate text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                {task.projectName}
-              </b>
-            ) : null}
-            {task.priority !== "normal" ? (
-              <b
+          {task.completed ? (
+            <span className="flex min-w-0 flex-1 items-center gap-2 py-2">
+              <span className="truncate text-sm text-muted-foreground line-through">
+                {task.title}
+              </span>
+              <TaskMarks task={task} />
+            </span>
+          ) : (
+            <DisabledReason
+              className="min-w-0 flex-1"
+              disabled={!pomodoro.canSelectTask}
+              reason={PAUSE_TO_CHOOSE_REASON}
+            >
+              <button
                 className={cn(
-                  "text-[10px] font-semibold uppercase tracking-wide",
-                  task.priority === "high"
-                    ? "text-[var(--p-accent-2)]"
-                    : "text-muted-foreground"
+                  "flex min-w-0 flex-1 items-center gap-2 rounded-lg py-2 text-left",
+                  focusRing
                 )}
+                disabled={!pomodoro.canSelectTask}
+                aria-pressed={selected}
+                // Tapping the chosen task again clears it, which is the only
+                // way to focus on nothing.
+                onClick={() => pomodoro.selectTask(selected ? null : task.id)}
               >
-                {priorityLabels[task.priority]}
-              </b>
-            ) : null}
-            <small className="ml-auto shrink-0 font-mono text-[10px] text-muted-foreground">
-              {taskProgressLabel(task)}
-            </small>
-          </button>
-          </DisabledReason>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => onEditingChange(true)}
-            aria-label={`Edit ${task.title}`}
-          >
-            <SettingsIcon aria-hidden="true" />
-          </Button>
+                <span className="truncate text-sm">{task.title}</span>
+                <TaskMarks task={task} />
+              </button>
+            </DisabledReason>
+          )}
+          {task.completed ? null : (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => onEditingChange(true)}
+              aria-label={`Edit ${task.title}`}
+            >
+              <SettingsIcon aria-hidden="true" />
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="icon-sm"
@@ -369,6 +444,47 @@ function SortableTaskRow({
         </>
       )}
     </div>
+  )
+}
+
+/** The repeat, project and priority marks and the done count, after a title. */
+function TaskMarks({ task }: { task: TaskItem }) {
+  return (
+    <>
+      {/* The repeat rule is in the row's own words rather than a tooltip on
+          a bare icon, which nothing could focus. */}
+      {task.repeatWeekdays !== null ? (
+        <>
+          <RepeatIcon
+            className="size-3 shrink-0 text-muted-foreground"
+            aria-hidden="true"
+          />
+          <span className="sr-only">
+            . Repeats {describeWeekdaySet(task.repeatWeekdays)}
+          </span>
+        </>
+      ) : null}
+      {task.projectName ? (
+        <b className="max-w-28 truncate text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          {task.projectName}
+        </b>
+      ) : null}
+      {task.priority !== "normal" ? (
+        <b
+          className={cn(
+            "text-[10px] font-semibold uppercase tracking-wide",
+            task.priority === "high"
+              ? "text-[var(--p-accent-2)]"
+              : "text-muted-foreground"
+          )}
+        >
+          {priorityLabels[task.priority]}
+        </b>
+      ) : null}
+      <small className="ml-auto shrink-0 font-mono text-[10px] text-muted-foreground">
+        {taskProgressLabel(task)}
+      </small>
+    </>
   )
 }
 

@@ -322,7 +322,7 @@ function PlanCard({
       <Button
         variant={featured ? "default" : "ghost"}
         className={cn(
-          "w-full rounded-full font-bold",
+          "w-full",
           !featured && "border border-foreground/15 hover:bg-foreground/[0.07]"
         )}
         disabled={current || busy || (!free && !purchasable)}

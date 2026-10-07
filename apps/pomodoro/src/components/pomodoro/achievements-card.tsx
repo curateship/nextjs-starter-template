@@ -3,6 +3,7 @@ import { Loader2Icon } from "lucide-react"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ErrorRow } from "@/components/ui/error-row"
+import { Meter } from "@/components/ui/meter"
 import { loadAchievements } from "@/lib/api/pomodoro/achievements"
 import { formatLongDay, localDateIn } from "@/lib/format/calendar-day"
 import {
@@ -104,7 +105,7 @@ export function AchievementsCard() {
                   key={badge.id}
                   className={cn(
                     "flex items-start gap-3 rounded-xl border p-3",
-                    earnedAt && "bg-[rgba(255,90,60,0.08)]"
+                    earnedAt && "bg-primary/8"
                   )}
                 >
                   <BadgeMark earned={!!earnedAt} />
@@ -141,8 +142,9 @@ export function AchievementsCard() {
  * showing the same thing. Both come from `achievementProgress`, so the words and
  * the bar can never disagree with the rule.
  *
- * The bar is decoration. The count beside it is the real answer, because
- * progress must never be carried by a drawing alone.
+ * The bar is the shared `Meter`, so a screen reader hears its name and the
+ * same words printed above it. The printed count stays, because progress must
+ * never be carried by a drawing alone.
  */
 function BadgeProgress({
   badge,
@@ -154,18 +156,22 @@ function BadgeProgress({
   const progress = achievementProgress(badge, counters)
   return (
     <>
-      <small className="font-mono text-[10px] text-muted-foreground">
+      {/* The bar below says the same words to a screen reader, so the
+          printed copy is hidden from it rather than read twice. */}
+      <small
+        aria-hidden="true"
+        className="font-mono text-[10px] text-muted-foreground"
+      >
         {progress.label}
       </small>
-      <i
-        aria-hidden="true"
-        className="mt-0.5 block h-1 overflow-hidden rounded-full bg-[rgba(var(--p-fg-rgb),0.08)]"
-      >
-        <b
-          className="block h-full rounded-full bg-[var(--p-accent)]"
-          style={{ width: `${Math.round(progress.ratio * 100)}%` }}
-        />
-      </i>
+      <Meter
+        label={`Progress towards ${badge.name}`}
+        value={progress.value}
+        max={progress.threshold}
+        valueText={progress.label}
+        size="sm"
+        className="mt-0.5"
+      />
     </>
   )
 }

@@ -145,7 +145,7 @@ export function RoomCardAction({
 /** What a group shows when it holds no rooms. */
 export function RoomGroupEmpty({ children }: { children: React.ReactNode }) {
   return (
-    <p className="col-span-full m-0 rounded-[20px] border border-dashed border-[rgba(var(--p-fg-rgb),0.12)] p-10 text-center text-[var(--p-text-subtle)]">
+    <p className="col-span-full m-0 rounded-[20px] border border-dashed p-10 text-center text-[var(--p-text-subtle)]">
       {children}
     </p>
   )

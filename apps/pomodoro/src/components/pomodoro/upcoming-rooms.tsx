@@ -147,7 +147,6 @@ function UpcomingRoomCard({
                 <Button
                   variant="outline"
                   size="icon"
-                  className="rounded-full"
                   disabled={busy}
                   aria-label={
                     copied ? "Invite link copied" : "Copy the invite link"
@@ -169,7 +168,6 @@ function UpcomingRoomCard({
                 it cancels, since "Cancel" alone reads like closing a window. */}
             <Button
               variant="destructive"
-              className="rounded-full font-bold"
               disabled={busy}
               onClick={onCancel}
             >

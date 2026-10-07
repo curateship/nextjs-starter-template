@@ -12,6 +12,53 @@ task 01 on 24 Sep 2026, "The task is actually wrong. It's supposed to set the
 stage for the frontend, not the backend" — frontend meaning the member
 screens (dashboard, rooms, sounds, tasks and the rest), not the admin.
 
+## Every button is round and bold
+
+Every shared `Button` on a member screen is a pill with bold text. The shape
+comes from one rule in `theme.css`, on `[data-slot="button"]` under the same
+`:has([data-pomodoro-screen])` gate as the tokens, so no call site writes
+`rounded-full` or `font-bold`. Before, 44 calls pasted those classes and the
+rest forgot, so square buttons sat next to round ones.
+
+- **Why the theme and not the button.** `src/components/ui/button.tsx` is a
+  shell file, and an app may never edit one. The rest of the Pomoder look
+  already switches on from `theme.css`, so the shape joins it there and no
+  shell file is touched.
+- **It reaches dialogs and popovers**, because the gate is on the page root
+  and those layers are portaled under it.
+- **Raw `<button>`s are not touched.** The header's quick-control pills, the
+  sidebar rows and the popover's preset rows draw their own shape on purpose.
+- **The rule is unlayered**, so it wins over the button's own `rounded-lg`
+  and `font-medium`. A member-screen button cannot be made square from a call
+  site, which is the point.
+
+## Lines and tints come from the theme
+
+Every divider and frame line on a member screen is a plain `border`,
+`border-t`, `border-b` or `border-r` with no colour class, so it takes
+`--border` and moves with the Divider lines setting. That covers the timer
+card and its header, the goal row, the add-task row, the left menu's edge and
+its saved-links divider, the header's quick-control pills, the session-note
+box, the theme switch, the zen-mode leave button and the empty Rooms box.
+They used to be written as `rgba(var(--p-fg-rgb), …)`, which looked right at
+the default and then never moved.
+
+An orange tint uses `primary` at the same strength rather than a pasted
+`rgba(255,90,60,…)`, so the colour is unchanged: `--primary` is `--p-accent`
+on these screens. The selected left-menu row is `bg-primary/14`, an earned
+badge `bg-primary/8`, the heatmap's three shades `bg-primary/25`, `/45` and
+`/70`, and your own board row `bg-primary/8` with `border-primary/40`.
+
+Three things keep a colour of their own on purpose, because they are
+drawings rather than dividing lines:
+
+- **The room you are in** is outlined in `border-primary/35`. It is the one
+  card on Rooms marked as yours, and the accent is what marks it.
+- **The LIVE VIBE pill on a room card** sits on the card's coloured picture,
+  where a divider shade would vanish.
+- **A locked badge's empty ring and a colour swatch's outline** draw a state
+  and a sample, not a line between two things.
+
 ## Where the look lives
 
 - `src/components/pomodoro/theme.css` holds the `--p-*` design tokens, copied

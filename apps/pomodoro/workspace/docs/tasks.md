@@ -29,7 +29,17 @@ optional project ([Projects](projects.md)).
   rolls back on screen and reloads the list.
 - **Complete and reopen** with the row checkbox. Completing adds one to the
   day's `tasks_completed` stat, reopening takes it back. Completed tasks
-  group below the active ones.
+  sit in their own group under a "Done today · 2" heading, struck through,
+  with the same repeat, project and priority marks as an active row. A
+  completed row has no edit button, because the server refuses edits to a
+  finished task; reopen it first.
+- **The timer and the Tasks page draw the same list.** Both use
+  `TodayTaskList` and its one `TaskRow` in `today-task-list.tsx`, built from
+  the shared Checkbox, Button and Input, and the same `NewTaskForm` add box.
+  The timer passes `reorderable={false}`, so its rows have no drag handle;
+  that is the only difference. The timer used to keep its own copy with a
+  tick drawn in CSS, bare buttons and a native input, and the two had drifted
+  apart. A fix to one list is now a fix to both.
 - **Remove** marks the row `abandoned`; it keeps its finished sessions.
 - **A tick and a removal land on the press, not on the answer.** The row moves
   straight away and the request goes afterwards, so three tasks ticked in a row
@@ -60,9 +70,8 @@ optional project ([Projects](projects.md)).
   focus adds one to the task's count (`completeProductivitySession`).
 - **A row you cannot pick says why.** While a focus is counting down the title
   button is off and reads "Pause or finish the focus to choose a different
-  task"; a finished row reads "Reopen this task to focus on it again". The
-  sentences come from `src/lib/pomodoro/disabled-reasons.ts` so the dashboard
-  and this page cannot word the same rule differently.
+  task". A finished row has no pick button at all, only its struck-through
+  title. The sentence comes from `src/lib/pomodoro/disabled-reasons.ts`.
 
 ## Using the list by keyboard
 

@@ -257,7 +257,7 @@ export function LeaderboardPage() {
                 Sign in and opt in from Settings to see the ranking and take
                 your place on it. Only chosen display names ever show.
               </p>
-              <Button asChild size="sm" className="rounded-full font-bold">
+              <Button asChild size="sm">
                 <Link to="/login">Sign in</Link>
               </Button>
             </div>

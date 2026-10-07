@@ -263,7 +263,7 @@ export function ZenMode({
       >
         <button
           ref={leaveButton}
-          className="flex h-11 items-center gap-2.5 rounded-full border border-[rgba(var(--p-fg-rgb),0.14)] bg-[rgba(var(--p-canvas-rgb),0.75)] px-5 text-[13.5px] font-semibold text-muted-foreground hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+          className="flex h-11 items-center gap-2.5 rounded-full border bg-[rgba(var(--p-canvas-rgb),0.75)] px-5 text-[13.5px] font-semibold text-muted-foreground hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
           onClick={leave}
           onFocus={() => setChromeFocused(true)}
           onBlur={() => setChromeFocused(false)}

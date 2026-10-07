@@ -183,7 +183,6 @@ export function FocusGroupsCard({
             <div className="flex flex-wrap gap-2">
               <Button
                 size="sm"
-                className="rounded-full font-bold"
                 onClick={() => setCreating(true)}
               >
                 Create a group
@@ -191,7 +190,6 @@ export function FocusGroupsCard({
               <Button
                 size="sm"
                 variant="outline"
-                className="rounded-full font-bold"
                 onClick={() => setJoining(true)}
               >
                 Join with a link
@@ -271,7 +269,6 @@ export function FocusGroupsCard({
                 <Button
                   size="sm"
                   variant="outline"
-                  className="rounded-full font-bold"
                   onClick={() => setCreating(true)}
                 >
                   Create a group
@@ -279,7 +276,6 @@ export function FocusGroupsCard({
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="rounded-full font-bold"
                   onClick={() => setJoining(true)}
                 >
                   Join with a link

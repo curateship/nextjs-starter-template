@@ -15,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ErrorRow } from "@/components/ui/error-row"
+import { Meter } from "@/components/ui/meter"
 import {
   ChartContainer,
   ChartTooltip,
@@ -246,6 +247,15 @@ function TrendCard({
       </CardContent>
     </Card>
   )
+}
+
+/**
+ * How long a Top tasks or By project bar is drawn: its share of the longest,
+ * but never under 4% of it, so a row with a few minutes still shows a sliver
+ * beside its name. The bar's spoken value states the real time.
+ */
+function barValue(seconds: number, maxSeconds: number) {
+  return Math.max(seconds, maxSeconds * 0.04)
 }
 
 /** "9am", "12pm", "11pm" — the plainest name for an hour of the day. */
@@ -515,17 +525,12 @@ function TopTasksCard({
                 >
                   {task.title ?? "No task"}
                 </span>
-                <i
-                  aria-hidden="true"
-                  className="block h-1.5 overflow-hidden rounded-full bg-[rgba(var(--p-fg-rgb),0.08)]"
-                >
-                  <b
-                    className="block h-full rounded-full bg-[var(--p-accent)]"
-                    style={{
-                      width: `${Math.max(4, Math.round((task.focusSeconds / maxSeconds) * 100))}%`,
-                    }}
-                  />
-                </i>
+                <Meter
+                  label={`Focus time on ${task.title ?? "no task"}`}
+                  value={barValue(task.focusSeconds, maxSeconds)}
+                  max={maxSeconds}
+                  valueText={`${formatFocusDuration(task.focusSeconds)} of ${formatFocusDuration(maxSeconds)}, the most on any task`}
+                />
                 <small className="font-mono text-[10px] text-muted-foreground">
                   {formatFocusDuration(task.focusSeconds)} · {task.sessions}{" "}
                   {task.sessions === 1 ? "session" : "sessions"}
@@ -578,17 +583,12 @@ function TopProjectsCard({
                 >
                   {project.name ?? "No project"}
                 </span>
-                <i
-                  aria-hidden="true"
-                  className="block h-1.5 overflow-hidden rounded-full bg-[rgba(var(--p-fg-rgb),0.08)]"
-                >
-                  <b
-                    className="block h-full rounded-full bg-[var(--p-accent)]"
-                    style={{
-                      width: `${Math.max(4, Math.round((project.focusSeconds / maxSeconds) * 100))}%`,
-                    }}
-                  />
-                </i>
+                <Meter
+                  label={`Focus time on ${project.name ?? "no project"}`}
+                  value={barValue(project.focusSeconds, maxSeconds)}
+                  max={maxSeconds}
+                  valueText={`${formatFocusDuration(project.focusSeconds)} of ${formatFocusDuration(maxSeconds)}, the most on any project`}
+                />
                 <small className="font-mono text-[10px] text-muted-foreground">
                   {formatFocusDuration(project.focusSeconds)} ·{" "}
                   {project.sessions}{" "}
@@ -820,10 +820,10 @@ export function HistoryPage() {
               only you can see them.
             </p>
             <div className="flex gap-2">
-              <Button asChild className="rounded-full font-bold">
+              <Button asChild>
                 <Link to="/login">Sign in</Link>
               </Button>
-              <Button asChild variant="outline" className="rounded-full">
+              <Button asChild variant="outline">
                 <Link to="/register">Create free account</Link>
               </Button>
             </div>

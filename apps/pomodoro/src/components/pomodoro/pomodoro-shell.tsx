@@ -184,7 +184,7 @@ function ThemeTogglePill() {
 
   return (
     <button
-      className="relative flex h-8 w-14 items-center rounded-full border border-[rgba(var(--p-fg-rgb),0.14)] bg-[rgba(var(--p-fg-rgb),0.07)] px-1"
+      className="relative flex h-8 w-14 items-center rounded-full border bg-[rgba(var(--p-fg-rgb),0.07)] px-1"
       role="switch"
       aria-checked={dark}
       aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
@@ -332,7 +332,7 @@ export function PomodoroShell({
         className={cn(
           sidebarRowClass,
           active &&
-            "bg-[rgba(255,90,60,0.14)] text-[var(--p-accent-2)] hover:bg-[rgba(255,90,60,0.14)] hover:text-[var(--p-accent-2)]",
+            "bg-primary/14 text-[var(--p-accent-2)] hover:bg-primary/14 hover:text-[var(--p-accent-2)]",
           footer && "mt-auto"
         )}
       >
@@ -349,7 +349,7 @@ export function PomodoroShell({
     <div data-pomodoro-screen className="flex min-h-screen bg-background">
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 flex h-screen w-56 shrink-0 flex-col gap-1.5 overflow-hidden border-r border-[rgba(var(--p-fg-rgb),0.07)] bg-[rgba(var(--p-canvas-rgb),0.35)] px-3.5 py-[22px] backdrop-blur-[14px] transition-[width] duration-300 max-lg:-translate-x-full max-lg:bg-[var(--p-canvas)] max-lg:transition-transform",
+          "fixed inset-y-0 left-0 z-40 flex h-screen w-56 shrink-0 flex-col gap-1.5 overflow-hidden border-r bg-[rgba(var(--p-canvas-rgb),0.35)] px-3.5 py-[22px] backdrop-blur-[14px] transition-[width] duration-300 max-lg:-translate-x-full max-lg:bg-[var(--p-canvas)] max-lg:transition-transform",
           collapsed && "lg:w-[76px]",
           menuOpen && "max-lg:translate-x-0"
         )}
@@ -382,7 +382,7 @@ export function PomodoroShell({
               product's own screens, never instead of them: a menu edit must
               not be able to take the timer away from a member. */}
           {savedLinks.length ? (
-            <div className="mt-1.5 flex flex-col gap-1.5 border-t border-[rgba(var(--p-fg-rgb),0.07)] pt-1.5">
+            <div className="mt-1.5 flex flex-col gap-1.5 border-t pt-1.5">
               {savedLinks.map((link) => (
                 <SavedLink
                   key={link.href}
@@ -516,7 +516,7 @@ export function PomodoroShell({
                     rulebook asks for; only the colours are the app's. */}
                 <Button
                   asChild
-                  className="rounded-full bg-[var(--p-accent)] px-5 text-[14.5px] font-bold text-[var(--p-on-accent)] hover:bg-[var(--p-accent-2)]"
+                  className="bg-[var(--p-accent)] px-5 text-[14.5px] text-[var(--p-on-accent)] hover:bg-[var(--p-accent-2)]"
                 >
                   <Link to="/register">Register</Link>
                 </Button>
