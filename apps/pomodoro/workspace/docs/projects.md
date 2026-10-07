@@ -23,6 +23,12 @@ person owns.
 - **Two live projects may not share a name**, ignoring case, and the attempt
   says so ("You already have a project called …"). An archived project is
   excluded from that check, so a name can be used again later.
+- **The new-project box keeps your text until the server says yes.** A name
+  that is taken, or blank, stays in the box, the box is marked with
+  `aria-invalid`, and the reason sits in red directly under it. It used to
+  clear the box at once and put the reason at the very top of the Tasks page.
+  Any other failure raises the error toast and still keeps the text. Typing
+  again clears the reason.
 - **Guests have no projects.** The card is not drawn and the picker in the
   task row is shut with the reason, because a project is saved with the focus
   history and a guest has none on the server.

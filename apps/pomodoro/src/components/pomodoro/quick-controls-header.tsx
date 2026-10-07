@@ -17,6 +17,7 @@ import {
 
 import { Button } from "@/components/ui/button"
 import { DisabledReason } from "@/components/ui/disabled-reason"
+import { ErrorRow } from "@/components/ui/error-row"
 import { Label } from "@/components/ui/label"
 import {
   Popover,
@@ -25,6 +26,7 @@ import {
 } from "@/components/ui/popover"
 import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/utils"
+import { dismissErrorToast } from "@/lib/toast/error-toast"
 import { RESET_TO_CHANGE_RHYTHM_REASON } from "@/lib/pomodoro/disabled-reasons"
 import { loadLeaderboard } from "@/lib/api/pomodoro/leaderboard"
 import { listTimerPresets } from "@/lib/api/pomodoro/timer-presets"
@@ -137,6 +139,11 @@ function TimerQuickControl() {
   const { requestReset, discardDialog } = useDiscardFocusConfirm(pomodoro)
   const { authenticated } = useProductAuth()
   const [presets, setPresets] = React.useState<CustomTimerPreset[]>([])
+  // Your own rhythms failed to load. Said out loud, because the built-ins on
+  // their own would look as if your presets had been deleted.
+  const [presetsFailed, setPresetsFailed] = React.useState(false)
+  // Bumped by Try again, which runs the same load once more.
+  const [presetAttempt, setPresetAttempt] = React.useState(0)
   const [open, setOpen] = React.useState(false)
 
   React.useEffect(() => {
@@ -150,15 +157,20 @@ function TimerQuickControl() {
       return
     }
     let cancelled = false
-    void listTimerPresets()
-      .then((rows) => {
-        if (!cancelled) setPresets(rows)
-      })
-      .catch(() => undefined)
+    void listTimerPresets().then(
+      (rows) => {
+        if (cancelled) return
+        setPresetsFailed(false)
+        setPresets(rows)
+      },
+      () => {
+        if (!cancelled) setPresetsFailed(true)
+      }
+    )
     return () => {
       cancelled = true
     }
-  }, [open, authenticated])
+  }, [open, authenticated, presetAttempt])
 
   const minutes = Math.floor(pomodoro.remainingSeconds / 60)
   const seconds = pomodoro.remainingSeconds % 60
@@ -359,6 +371,16 @@ function TimerQuickControl() {
           })}
         </div>
         </DisabledReason>
+        {authenticated && presetsFailed ? (
+          <ErrorRow
+            className="px-0 py-2"
+            message="Your own rhythms could not be loaded. Only the built-in ones are listed above."
+            onRetry={() => {
+              dismissErrorToast()
+              setPresetAttempt((attempt) => attempt + 1)
+            }}
+          />
+        ) : null}
         {/* The loose paragraph that used to explain the greyed-out rows is
             gone: the reason now rides on the controls it is about. What is
             left is not a disabled reason, it is a fact about the current

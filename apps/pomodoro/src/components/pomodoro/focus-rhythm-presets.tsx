@@ -284,19 +284,7 @@ export function FocusRhythmPresets({
                 {preset.name} · {presetSummary(preset)}
               </SelectItem>
             ))}
-            {/* A dismissed toast must not leave the block silently empty, so the
-          failure stays here too. ErrorRow raises the shared toast itself. */}
-      {listFailed ? (
-        <ErrorRow
-          message="Your presets could not be loaded."
-          onRetry={() => {
-            dismissErrorToast()
-            setListFailed(false)
-            setAttempt((count) => count + 1)
-          }}
-        />
-      ) : null}
-      {presets.map((preset) => (
+            {presets.map((preset) => (
               <SelectItem key={preset.id} value={preset.id}>
                 {preset.name} · {presetSummary(preset)}
               </SelectItem>

@@ -873,9 +873,13 @@ export function applyDurations(
   return true
 }
 
+/**
+ * Adds a task to today. Returns false, sending nothing, when the title is
+ * blank, so the form can keep what was typed and say what it needs.
+ */
 export function addTask(title: string) {
   const cleanTitle = title.trim().slice(0, 160)
-  if (!cleanTitle) return
+  if (!cleanTitle) return false
   const temporaryId = crypto.randomUUID()
   setState({
     tasks: orderTasksForDisplay([
@@ -895,7 +899,7 @@ export function addTask(title: string) {
   })
   if (!isAuthed()) {
     persistGuest()
-    return
+    return true
   }
   void createTask(cleanTitle, browserTimezone())
     .then((created) =>
@@ -918,6 +922,7 @@ export function addTask(title: string) {
       })
       setSyncError("The task could not be created.")
     })
+  return true
 }
 
 export function toggleTask(taskId: string) {
@@ -1064,8 +1069,10 @@ export function updateTaskDetails(
       return true
     },
     () => {
+      // The edit row stays open with the typed changes still in it, so the
+      // toast is the whole report; the row itself snaps back underneath.
       setState({ tasks: previousTasks })
-      setSyncError("The task could not be updated.")
+      showErrorToast("Your changes to the task could not be saved.")
       return false
     }
   )
@@ -1076,23 +1083,33 @@ export function updateTaskDetails(
  * with null. Switching off deletes the rule, which stops future copies and
  * leaves every day it already made alone.
  */
-export function setTaskRepeat(taskId: string, weekdays: number | null) {
+export function setTaskRepeat(
+  taskId: string,
+  weekdays: number | null
+): Promise<boolean> {
   const target = state.tasks.find((task) => task.id === taskId)
-  if (!target || target.completed || !isAuthed()) return
+  if (!target || target.completed || !isAuthed()) return Promise.resolve(false)
   const previousTasks = state.tasks
   setState({
     tasks: state.tasks.map((task) =>
       task.id === taskId ? { ...task, repeatWeekdays: weekdays } : task
     ),
   })
-  void setTaskRepeatRule({
+  return setTaskRepeatRule({
     taskId,
     timezone: browserTimezone(),
     weekdays,
-  }).then(clearSyncError, () => {
-    setState({ tasks: previousTasks })
-    setSyncError("The repeat could not be saved.")
-  })
+  }).then(
+    () => {
+      clearSyncError()
+      return true
+    },
+    () => {
+      setState({ tasks: previousTasks })
+      showErrorToast("The task was saved, but its repeat could not be.")
+      return false
+    }
+  )
 }
 
 /**
@@ -1108,23 +1125,41 @@ function orderProjects(projects: ProjectRow[]) {
   )
 }
 
-export function createProject(name: string) {
+/**
+ * What became of a new project. `nameProblem` is a refusal about the name
+ * itself, which the form shows beside the box it was typed in. Any other
+ * failure has already been reported with the error toast.
+ */
+export type CreateProjectResult =
+  | { created: true }
+  | { created: false; nameProblem?: string }
+
+export function createProject(name: string): Promise<CreateProjectResult> {
   const cleanName = name.trim().slice(0, 60)
-  if (!cleanName || !isAuthed()) return Promise.resolve()
-  return createProjectRequest(cleanName)
-    .then((created) =>
+  if (!cleanName)
+    return Promise.resolve({
+      created: false,
+      nameProblem: "Type a name for the project first.",
+    })
+  if (!isAuthed()) return Promise.resolve({ created: false })
+  return createProjectRequest(cleanName).then(
+    (created): CreateProjectResult => {
       setState({
         projects: orderProjects([...state.projects, created]),
         syncError: "",
       })
-    )
-    .catch((error: unknown) =>
-      setSyncError(
-        String(error).includes("PROJECT_NAME_TAKEN")
-          ? `You already have a project called "${cleanName}".`
-          : "The project could not be created."
-      )
-    )
+      return { created: true }
+    },
+    (error: unknown): CreateProjectResult => {
+      if (String(error).includes("PROJECT_NAME_TAKEN"))
+        return {
+          created: false,
+          nameProblem: `You already have a project called "${cleanName}".`,
+        }
+      showErrorToast("The project could not be created.")
+      return { created: false }
+    }
+  )
 }
 
 export function renameProject(projectId: string, name: string) {

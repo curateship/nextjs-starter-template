@@ -38,7 +38,8 @@ import {
   PAUSE_TO_CHOOSE_REASON,
   REOPEN_TO_FOCUS_REASON,
 } from "@/lib/pomodoro/disabled-reasons"
-import { taskProgressLabel } from "@/lib/pomodoro/tasks"
+import { BLANK_TASK_TITLE, taskProgressLabel } from "@/lib/pomodoro/tasks"
+import { showErrorToast } from "@/lib/toast/error-toast"
 import {
   cycleSessionLabel,
   MODE_LABELS,
@@ -165,6 +166,9 @@ export function TimerDashboard() {
   const { requestReset, requestMode, discardDialog } =
     useDiscardFocusConfirm(pomodoro)
   const [taskTitle, setTaskTitle] = React.useState("")
+  // Set by a blank submit and cleared by the next keystroke. The box keeps
+  // whatever was in it either way.
+  const [taskTitleInvalid, setTaskTitleInvalid] = React.useState(false)
   const [zen, setZen] = React.useState(false)
   const zenButton = React.useRef<HTMLButtonElement>(null)
   // Leaving unmounts zen mode and mounts this screen again, so the focus move
@@ -481,19 +485,27 @@ export function TimerDashboard() {
           className="flex items-center gap-3 border-t border-[rgba(var(--p-fg-rgb),0.07)] bg-[var(--p-surface-2)] px-6 py-3.5 text-muted-foreground"
           onSubmit={(event) => {
             event.preventDefault()
-            pomodoro.addTask(taskTitle)
+            if (!pomodoro.addTask(taskTitle)) {
+              setTaskTitleInvalid(true)
+              showErrorToast(BLANK_TASK_TITLE)
+              return
+            }
             setTaskTitle("")
           }}
         >
           <PlusIcon className="size-4 shrink-0" aria-hidden="true" />
           <input
             value={taskTitle}
-            onChange={(event) => setTaskTitle(event.target.value)}
+            onChange={(event) => {
+              setTaskTitle(event.target.value)
+              setTaskTitleInvalid(false)
+            }}
+            aria-invalid={taskTitleInvalid || undefined}
             maxLength={160}
             placeholder="Add a task, press Enter…"
             aria-label="New task"
             className={cn(
-              "h-8 min-w-0 flex-1 rounded-lg border-0 bg-transparent px-1 text-[14.5px] text-foreground",
+              "h-8 min-w-0 flex-1 rounded-lg border-0 bg-transparent px-1 text-[14.5px] text-foreground aria-invalid:ring-2 aria-invalid:ring-destructive/50",
               focusRing
             )}
           />

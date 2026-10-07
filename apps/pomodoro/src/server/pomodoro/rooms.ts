@@ -314,7 +314,7 @@ export type RoomSnapshot = {
     cycleFocusCount: number
     closedAt: Date | null
   }
-  you: { role: "host" | "member" }
+  you: { role: "host" | "member"; timezone: string }
   // `handle` is the public address of that person's profile, and null when
   // they have none that reads. It is what turns a name in a room into a link
   // without a lookup per row.
@@ -329,8 +329,15 @@ export type RoomReactionSummary = { emoji: string; count: number; mine: boolean 
 // The snapshot is broadcast over SSE, so it carries only what the room UI
 // renders: display names, roles, and chat bodies — never account fields.
 export async function roomSnapshot(roomId: string, userId: string, database: PomoderDb = db): Promise<RoomSnapshot> {
-  const [room] = await database.select().from(rooms).where(eq(rooms.id, roomId)).limit(1)
+  const [[room], [profile]] = await Promise.all([
+    database.select().from(rooms).where(eq(rooms.id, roomId)).limit(1),
+    database.select({ timezone: pomodoroProfiles.timezone }).from(pomodoroProfiles).where(eq(pomodoroProfiles.userId, userId)).limit(1),
+  ])
   if (!room) throw new Error("ROOM_NOT_FOUND")
+  // The viewer's own day boundary, so the chat's day lines fall where the rest
+  // of the app puts midnight. A viewer with no profile row yet gets the same
+  // UTC a new profile starts with.
+  const timezone = profile?.timezone ?? "UTC"
   const safeRoom = {
     slug: room.slug,
     name: room.name,
@@ -348,7 +355,7 @@ export async function roomSnapshot(roomId: string, userId: string, database: Pom
   }
   const role: "host" | "member" = room.hostUserId === userId ? "host" : "member"
   if (room.closedAt || room.phase === "closed") {
-    return { room: safeRoom, you: { role }, members: [], messages: [] }
+    return { room: safeRoom, you: { role, timezone }, members: [], messages: [] }
   }
   const [membership] = await database.select({ role: roomMemberships.role }).from(roomMemberships).where(and(eq(roomMemberships.roomId, roomId), eq(roomMemberships.userId, userId), sql`${roomMemberships.leftAt} is null`)).limit(1)
   if (!membership) throw new Error("ROOM_MEMBERSHIP_REQUIRED")
@@ -378,7 +385,7 @@ export async function roomSnapshot(roomId: string, userId: string, database: Pom
   const blocked = await blockedUserIdsFor(userId)
   return {
     room: safeRoom,
-    you: { role: membership.role as "host" | "member" },
+    you: { role: membership.role as "host" | "member", timezone },
     members: memberRows.filter((member) => !blocked.has(member.userId)).map(({ userId: memberUserId, ...member }) => ({ ...member, avatarIndex: avatarIndexFor(memberUserId), handle: member.handle })),
     // Soft-deleted messages stay in the timeline as empty tombstones so
     // members see that moderation happened without ever receiving the body.

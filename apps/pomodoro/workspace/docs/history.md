@@ -70,12 +70,36 @@ views stay a Pro perk.
   a free 12 months would make gating the year meaningless). The server
   refuses with PRO_REQUIRED; the page shows the lock card with the upgrade
   path and a way back to 30 days.
+- **One way of writing a day.** `src/lib/format/calendar-day.ts` holds two
+  forms. The long one, "Tue, Oct 6, 2026", is used by the sessions table, the
+  heatmap's tooltip, the best day in Your week and the badges panel. The short
+  one, "Oct 6", is used for the two ends of a range, where the year is plain.
+  The ticks under the chart's bars ("Tue", "6", "Oct") are not dates on their
+  own and stay as they are.
+- **Every day is the account's day.** The server works out each session's
+  `YYYY-MM-DD` in the profile's timezone, and the page prints that string as
+  it is, so a browser in another timezone cannot move a session to the day
+  before.
 - **CSV export** (up to 20,000 rows, oldest first) quotes per RFC 4180 and
   prefixes formula-looking cells with an apostrophe so a spreadsheet never
   executes them (`src/lib/pomodoro/report-csv.ts`). File names carry the
   local date range, so repeated exports stay stable.
+- **The CSV writes the same day as `2026-10-06`, not "Tue, Oct 6, 2026".**
+  It is the same day in the same timezone, written the one way every
+  spreadsheet reads as a date in every country. "Tue, Oct 6, 2026" lands in
+  a spreadsheet as text, which cannot be sorted or summed by date.
 
 Endpoints: `src/lib/api/pomodoro/history.ts`, all three guarded (the report,
 the CSV export and the week review). Screen:
 `src/components/pomodoro/history-page.tsx`, with hidden data tables behind
 the visual heatmap and chart for screen readers.
+
+## When a card fails to load
+
+Every card on the page that loads on its own says so inside its own frame,
+with a Try again button that runs that card's load again: "Your week could
+not be loaded", "Your achievements could not be loaded", and the report's
+"Your focus history could not be loaded". Nothing asks you to reload the page,
+which would restart a running timer for a card that failed. The red error
+toast appears too, and dismissing it never leaves an empty card. A later load
+that works takes the warning down.

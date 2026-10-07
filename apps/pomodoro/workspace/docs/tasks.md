@@ -9,6 +9,19 @@ optional project ([Projects](projects.md)).
 
 - **Create** with the "Add a task, press Enter…" field. **Edit inline** with
   the settings button on a row: title, priority (shadcn Select) and estimate.
+- **What you typed is never thrown away.** Enter on an empty or all-spaces
+  box sends nothing, keeps whatever was in the box, marks it with
+  `aria-invalid` and raises the error toast saying a task needs words. The box
+  clears only when a task was actually added. The same holds in the timer's
+  task list and on the Tasks page (`addTask` returns false for a blank title).
+- **An edit row stays open until its save has landed.** Save turns into a
+  spinner while the request is out, and a second press does nothing. On
+  success the row closes. On a failure the row stays open with your edits
+  still in it, the error toast says what failed, and Save can be pressed
+  again. A blank title is refused before anything is sent, the same way.
+- **The repeat is checked too.** It is saved after the task, and if the repeat
+  is refused the toast says "The task was saved, but its repeat could not be",
+  and the row stays open so it can be picked again.
 - **Reorder by drag** — mouse, touch or keyboard — with dnd-kit, announced to
   screen readers (`src/components/pomodoro/today-task-list.tsx`). The server
   only accepts an order that names today's full active list exactly once

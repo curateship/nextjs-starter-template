@@ -11,13 +11,16 @@ const togglePersistentTask = vi.fn()
 const abandonTask = vi.fn()
 const loadProductivity = vi.fn()
 const showErrorToast = vi.fn()
+const createTask = vi.fn()
+const updateTask = vi.fn()
+const createProjectRequest = vi.fn()
 
 vi.mock("@/lib/api/pomodoro/productivity", () => ({
   togglePersistentTask: (...args: unknown[]) => togglePersistentTask(...args),
   abandonTask: (...args: unknown[]) => abandonTask(...args),
   loadProductivity: (...args: unknown[]) => loadProductivity(...args),
-  createTask: vi.fn(),
-  updateTask: vi.fn(),
+  createTask: (...args: unknown[]) => createTask(...args),
+  updateTask: (...args: unknown[]) => updateTask(...args),
   reorderTasks: vi.fn(),
   setTaskRepeatRule: vi.fn(),
   updatePreferences: vi.fn(),
@@ -27,6 +30,14 @@ vi.mock("@/lib/api/pomodoro/productivity", () => ({
   cancelFocusSession: vi.fn(),
   completeFocusSession: vi.fn(),
   saveFocusSessionNote: vi.fn(),
+}))
+
+vi.mock("@/lib/api/pomodoro/projects", () => ({
+  createProject: (...args: unknown[]) => createProjectRequest(...args),
+  renameProject: vi.fn(),
+  setProjectArchived: vi.fn(),
+  setProjectPublic: vi.fn(),
+  listProjects: vi.fn(),
 }))
 
 vi.mock("@/lib/toast/error-toast", () => ({
@@ -40,10 +51,13 @@ vi.stubGlobal("window", globalThis)
 
 const { setProductAuthenticated } = await import("@/lib/pomodoro/auth-state")
 const {
+  addTask,
+  createProject,
   pomodoroEngineState,
   reloadPomodoroData,
   removeTask,
   toggleTask,
+  updateTaskDetails,
 } = await import("@/lib/pomodoro/use-pomodoro")
 
 function serverTask(id: string, title: string, status = "active") {
@@ -262,5 +276,41 @@ describe("the warning line", () => {
     toggleTask("a")
     await nothingInFlight()
     expect(pomodoroEngineState().syncError).toBe("")
+  })
+})
+
+describe("typing something the app refuses", () => {
+  it("sends nothing for a blank task and says it was refused", () => {
+    expect(addTask("   ")).toBe(false)
+    expect(createTask).not.toHaveBeenCalled()
+    createTask.mockReturnValue(new Promise(() => {}))
+    expect(addTask("Write the intro")).toBe(true)
+  })
+
+  it("hands a taken project name back to the form instead of the page", async () => {
+    createProjectRequest.mockRejectedValue(new Error("PROJECT_NAME_TAKEN"))
+    await expect(createProject("Thesis")).resolves.toEqual({
+      created: false,
+      nameProblem: 'You already have a project called "Thesis".',
+    })
+    expect(pomodoroEngineState().syncError).toBe("")
+    expect(showErrorToast).not.toHaveBeenCalled()
+  })
+
+  it("asks for a name before sending a blank project", async () => {
+    const result = await createProject("  ")
+    expect(result.created).toBe(false)
+    expect(createProjectRequest).not.toHaveBeenCalled()
+  })
+
+  it("answers false and raises the toast when a task edit fails", async () => {
+    updateTask.mockRejectedValue(new Error("offline"))
+    await expect(
+      updateTaskDetails("a", { title: "Write the other thing" })
+    ).resolves.toBe(false)
+    expect(taskById("a")?.title).toBe("Write the thing")
+    expect(showErrorToast).toHaveBeenCalledWith(
+      "Your changes to the task could not be saved."
+    )
   })
 })

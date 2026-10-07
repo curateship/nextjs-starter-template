@@ -4,6 +4,7 @@ import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { ErrorRow } from "@/components/ui/error-row"
 import {
   ChartContainer,
   ChartTooltip,
@@ -28,6 +29,7 @@ import {
 } from "@/lib/pomodoro/leaderboard-windows"
 import { browserTimezone } from "@/lib/pomodoro/timer"
 import { usePomodoro } from "@/lib/pomodoro/use-pomodoro"
+import { dismissErrorToast } from "@/lib/toast/error-toast"
 
 type Leaderboard = Awaited<ReturnType<typeof loadLeaderboard>>
 type Productivity = Awaited<ReturnType<typeof loadProductivity>>
@@ -50,6 +52,8 @@ export function LeaderboardPage() {
   const [board, setBoard] = React.useState<Leaderboard | null>(null)
   const [stats, setStats] = React.useState<Productivity | null>(null)
   const [error, setError] = React.useState("")
+  // Bumped by Try again, which runs the same load once more.
+  const [attempt, setAttempt] = React.useState(0)
   // Which board is shown: everybody who opted in, or just the people you
   // follow. It is the same ranking query with a filter, so the two can never
   // disagree about a figure.
@@ -63,16 +67,19 @@ export function LeaderboardPage() {
     let cancelled = false
     void loadLeaderboard(browserTimezone(), boardWindow, scope === "following")
       .then((result) => {
-        if (!cancelled) setBoard(result)
+        if (cancelled) return
+        // A load that works takes down the warning a failed one left, so a
+        // board that recovers on its own stops saying it failed.
+        setError("")
+        setBoard(result)
       })
       .catch(() => {
-        if (!cancelled)
-          setError("The leaderboard could not be loaded. Reload to try again.")
+        if (!cancelled) setError("The leaderboard could not be loaded.")
       })
     return () => {
       cancelled = true
     }
-  }, [known, authenticated, boardWindow, scope])
+  }, [known, authenticated, boardWindow, scope, attempt])
 
   // Your own cards and chart are always the last 7 days, so they load once and
   // a window change does not fetch them again.
@@ -148,12 +155,6 @@ export function LeaderboardPage() {
           Your focus this week, and how you stack up.
         </p>
       </header>
-      {error ? (
-        <p role="alert" className="text-sm text-destructive">
-          {error}
-        </p>
-      ) : null}
-
       <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
         Your stats
       </span>
@@ -260,6 +261,15 @@ export function LeaderboardPage() {
                 <Link to="/login">Sign in</Link>
               </Button>
             </div>
+          ) : error ? (
+            <ErrorRow
+              message={error}
+              onRetry={() => {
+                dismissErrorToast()
+                setError("")
+                setAttempt((count) => count + 1)
+              }}
+            />
           ) : board && board.leaders.length === 0 ? (
             <p className="py-2 text-sm text-muted-foreground">
               {scope === "following"

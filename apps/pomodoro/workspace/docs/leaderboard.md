@@ -9,6 +9,12 @@ ranking.
   public display name; real names and emails never show. Avatars are
   coloured initials seeded from the display name — the old stock faces
   were not ported.
+- **A row is never blank.** Every board's query already leaves out anyone
+  with no display name, so this should never be needed. If a nameless row
+  ever does arrive, the row reads "Someone", the word the header's leaderboard
+  already uses, and the initials show "?". A screen reader then hears a place,
+  "Someone" and a time, never a place and a time with nobody
+  (`leaderboard-rows.tsx`).
 - **Three windows, and This week is the default.** Tabs for This week, This
   month and All time. This week is the last 7 local days, This month is the
   calendar month, All time is everything since 1 January 2025 (a floor, so the
@@ -33,6 +39,14 @@ ranking.
   It reads the same ranking the page does, with the same opt-in rule, and
   it only asks for it when the popover is opened. The sidebar still has a
   Leaderboard link, so nothing lost a way in.
+
+## When the board fails to load
+
+The ranking card says "The leaderboard could not be loaded" inside the card,
+with Try again, which asks again without reloading the page. It used to sit at
+the top of the page and tell you to reload. Switching tabs or windows and
+getting an answer takes the warning down. The "Your stats" cards and chart
+still fail in silence, which was offered as a fix and turned down.
 
 ## Names on the board are links
 

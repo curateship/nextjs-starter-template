@@ -83,6 +83,13 @@ their own group, tell nobody. See [Notifications](notifications.md).
 - **"Not your group" and "no such group" are one answer.** An owner check that
   said which was which would tell a stranger the group exists.
 
+## When a load fails
+
+The list of your groups and the board of the group in view each say so inside
+the card, with Try again, which runs that one load again. A failed list is
+never drawn as an empty one, because "you are in no groups" invites somebody
+to make a group they already have. Neither asks you to reload the page.
+
 ## Where the code is
 
 - `src/server/pomodoro/leaderboard.ts` — the one ranking query, global and

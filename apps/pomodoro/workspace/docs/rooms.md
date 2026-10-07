@@ -58,6 +58,35 @@ the phases, and the server is the only clock.
   membership ends gets `room_gone`.
 - **A host leaving closes the room for everyone**; a member leaving only
   ends their own membership.
+- **"Leave & close" asks first**, the same way Close room does, because the
+  two end the room for everyone in exactly the same way. The question says how
+  many other people are in the room: "The session stops for the 3 other
+  people in it, and it cannot be undone." A host alone in the room is still
+  asked, since the room still ends, but is told nobody else is affected.
+  Cancel leaves the host in the room with the clock running. A member's
+  "Leave room" closes nothing and still acts on one click.
+- **Join is pressed once.** While a join is out, every Join button on the page
+  is disabled and the pressed one reads "Joining…" with the spinner. A second
+  press, or a press on another card, sends nothing. Join, Host a room, Locked
+  and the booked-room buttons are all the shared `Button` at the standard
+  32px height, in the theme's own orange (`bg-primary`, `border-primary/40`,
+  `bg-primary/10`), not a pasted colour.
+- **What the page tells you after an action is a toast**, not a line at the
+  top of the page. A room you left, a room you closed, a booking made and a
+  booking cancelled are success toasts that clear themselves. Failures use
+  the persistent error toast, which stays until dismissed or until the next
+  attempt starts. Nothing is left over from an earlier action.
+- **A room ending is announced once.** Your own "You closed the room." and the
+  broadcast's "This room has ended." share one toast per room, so whichever
+  arrives second replaces the first instead of stacking, and a broadcast
+  never overwrites the reason your own action gave.
+- **A refused join is also written on the room's own card**, under its
+  button, for example "That room is mid-focus. Join again during its break."
+  The next join clears it.
+- **If the page cannot check whether you are already in a room**, it says so
+  in a card with Try again, and the list of rooms stays hidden. Showing the
+  list on its own would tell somebody sitting in a room that they had left
+  it. Try again asks again, and the room panel comes back if you are in one.
 - **Chat, reactions and moderation** sit inside the room panel and have
   their own doc: [Room chat and moderation](room-chat-and-moderation.md).
 - **A room can be booked for a later time** instead of started now, in which

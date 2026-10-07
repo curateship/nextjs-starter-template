@@ -7,7 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { InlineError } from "@/components/ui/inline-error"
 import { Input } from "@/components/ui/input"
 import { LoadingRow } from "@/components/ui/loading-row"
+import { BLANK_TASK_TITLE } from "@/lib/pomodoro/tasks"
 import { usePomodoro } from "@/lib/pomodoro/use-pomodoro"
+import { showErrorToast } from "@/lib/toast/error-toast"
 
 const archiveStatusLabels: Record<string, string> = {
   completed: "Completed",
@@ -24,6 +26,9 @@ const archiveStatusLabels: Record<string, string> = {
 export function TasksPage() {
   const pomodoro = usePomodoro()
   const [title, setTitle] = React.useState("")
+  // Set by a blank submit and cleared by the next keystroke. The box keeps
+  // whatever was in it either way.
+  const [titleInvalid, setTitleInvalid] = React.useState(false)
   const completed = pomodoro.tasks.filter((task) => task.completed).length
   const archiveItems = pomodoro.archive.map((task) => ({
     ...task,
@@ -64,7 +69,11 @@ export function TasksPage() {
               className="relative"
               onSubmit={(event) => {
                 event.preventDefault()
-                pomodoro.addTask(title)
+                if (!pomodoro.addTask(title)) {
+                  setTitleInvalid(true)
+                  showErrorToast(BLANK_TASK_TITLE)
+                  return
+                }
                 setTitle("")
               }}
             >
@@ -74,7 +83,11 @@ export function TasksPage() {
               />
               <Input
                 value={title}
-                onChange={(event) => setTitle(event.target.value)}
+                onChange={(event) => {
+                  setTitle(event.target.value)
+                  setTitleInvalid(false)
+                }}
+                aria-invalid={titleInvalid || undefined}
                 maxLength={160}
                 placeholder="Add a task, press Enter…"
                 aria-label="New task"

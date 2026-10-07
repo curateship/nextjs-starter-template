@@ -3,11 +3,13 @@ import { useNavigate } from "@tanstack/react-router"
 import {
   CheckIcon,
   CopyIcon,
+  Loader2Icon,
   LockKeyholeIcon,
   PlusIcon,
   UsersIcon,
   WifiOffIcon,
 } from "lucide-react"
+import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -22,7 +24,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { ErrorRow } from "@/components/ui/error-row"
 import { FieldLabel } from "@/components/ui/field-label"
+import { InlineError } from "@/components/ui/inline-error"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -74,6 +78,7 @@ import {
 import { useProductAuth } from "@/lib/pomodoro/auth-state"
 import { usePageVisible } from "@/lib/pomodoro/use-page-visible"
 import { PRO_PERKS } from "@/lib/pomodoro/pro"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
 export type RoomSnapshotClient = NonNullable<
   Awaited<ReturnType<typeof getCurrentRoom>>
@@ -123,8 +128,23 @@ export function RoomsPage() {
     null
   )
   const [showHostForm, setShowHostForm] = React.useState(false)
-  const [error, setError] = React.useState("")
-  const [notice, setNotice] = React.useState("")
+  // Whether asking the server which room you are in failed. While it has, the
+  // page does not know, so it draws no list that would imply "none".
+  const [roomCheckFailed, setRoomCheckFailed] = React.useState(false)
+  // The room a Join is in flight for. One join at a time, however many
+  // presses: the ref answers at once, the state redraws the button.
+  const [joiningSlug, setJoiningSlug] = React.useState("")
+  const joiningRef = React.useRef("")
+  // A refused join belongs to the card that was pressed, so it is drawn there
+  // as well as in the toast. Cleared by the next join.
+  const [joinProblem, setJoinProblem] = React.useState<{
+    slug: string
+    message: string
+  } | null>(null)
+  // The room whose ending has already been explained by the person's own
+  // action, so a broadcast arriving afterwards does not explain it again in
+  // vaguer words.
+  const endExplainedRef = React.useRef("")
   const [reconnecting, setReconnecting] = React.useState(false)
   const [confirm, setConfirm] = React.useState<ConfirmRequest | null>(null)
   const [upcoming, setUpcoming] = React.useState<UpcomingRoomRow[]>([])
@@ -135,25 +155,43 @@ export function RoomsPage() {
     if (!authenticated) return
     void listRooms()
       .then(setRoomRows)
-      .catch(() => setError("Rooms could not be loaded."))
+      .catch(() => showErrorToast("Rooms could not be loaded."))
     void listUpcoming()
       .then(setUpcoming)
-      .catch(() => setError("Upcoming rooms could not be loaded."))
+      .catch(() => showErrorToast("Upcoming rooms could not be loaded."))
   }, [authenticated])
   React.useEffect(refreshRooms, [refreshRooms])
-  React.useEffect(() => {
+
+  // Which room you are in. A failure here is said out loud rather than read as
+  // "no room": the browse list on its own would tell somebody sitting in a
+  // room that they had left it.
+  const checkCurrentRoom = React.useCallback(() => {
     if (!authenticated) return
-    void getCurrentRoom()
-      .then((snapshot) => {
+    void getCurrentRoom().then(
+      (snapshot) => {
+        setRoomCheckFailed(false)
         if (snapshot) setActiveRoom((current) => current ?? snapshot)
-      })
-      .catch(() => undefined)
+      },
+      () => setRoomCheckFailed(true)
+    )
   }, [authenticated])
+  React.useEffect(checkCurrentRoom, [checkCurrentRoom])
+
+  /** Says how a room you were in came to an end, once per room. */
+  const announceRoomEnd = React.useCallback(
+    (slug: string, message: string, deliberate: boolean) => {
+      if (!deliberate && endExplainedRef.current === slug) return
+      if (deliberate) endExplainedRef.current = slug
+      // One toast per room: a broadcast that beat the person's own answer is
+      // replaced by it rather than stacked under it.
+      toast.success(message, { id: `room-ended:${slug}` })
+    },
+    []
+  )
 
   // The SSE broadcast and a mutation's own response race in either order,
-  // so only a deliberate action (force) may overwrite an existing closed
-  // notice; the broadcast just fills the notice in when nothing explained
-  // the close.
+  // so only a deliberate action (force) may replace the room-ended toast; the
+  // broadcast speaks only when nothing has explained the close yet.
   const applySnapshot = React.useCallback(
     (
       snapshot: RoomSnapshotClient,
@@ -162,16 +200,13 @@ export function RoomsPage() {
     ) => {
       if (snapshot.room.phase === "closed") {
         setActiveRoom(null)
-        setNotice((current) =>
-          forceClosedNotice ? closedNotice : current || closedNotice
-        )
+        announceRoomEnd(snapshot.room.slug, closedNotice, forceClosedNotice)
         refreshRooms()
         return
       }
-      setNotice("")
       setActiveRoom(snapshot)
     },
-    [refreshRooms]
+    [announceRoomEnd, refreshRooms]
   )
 
   // The live connection is held only while this tab is on screen. The server
@@ -195,9 +230,9 @@ export function RoomsPage() {
     })
     source.addEventListener("room_gone", () => {
       setActiveRoom(null)
-      // A deliberate leave/close already explained itself; only fill the
-      // notice when the membership ended from the other side.
-      setNotice((current) => current || "You are no longer in this room.")
+      // A deliberate leave/close already explained itself; this only speaks
+      // when the membership ended from the other side.
+      announceRoomEnd(activeRoomSlug, "You are no longer in this room.", false)
       refreshRooms()
     })
     source.onerror = () => setReconnecting(true)
@@ -205,24 +240,33 @@ export function RoomsPage() {
       setReconnecting(false)
       source.close()
     }
-  }, [activeRoomSlug, applySnapshot, pageVisible, refreshRooms])
+  }, [activeRoomSlug, announceRoomEnd, applySnapshot, pageVisible, refreshRooms])
 
   const performJoin = async (slug: string) => {
-    setError("")
+    if (joiningRef.current) return
+    joiningRef.current = slug
+    setJoiningSlug(slug)
+    setJoinProblem(null)
+    dismissErrorToast()
     try {
-      applySnapshot(await joinRoom(slug))
+      const snapshot = await joinRoom(slug)
+      endExplainedRef.current = ""
+      applySnapshot(snapshot)
     } catch (cause) {
-      const message = cause instanceof Error ? cause.message : ""
-      setError(
-        message.includes("ROOM_LOCKED")
-          ? "That room is mid-focus. Join again during its break."
-          : message.includes("ROOM_CLOSED")
-            ? "That room has ended."
-            : message.includes("ROOM_BANNED")
-              ? "You can't join that room."
-              : "This room is not available to join."
-      )
+      const text = cause instanceof Error ? cause.message : ""
+      const message = text.includes("ROOM_LOCKED")
+        ? "That room is mid-focus. Join again during its break."
+        : text.includes("ROOM_CLOSED")
+          ? "That room has ended."
+          : text.includes("ROOM_BANNED")
+            ? "You can't join that room."
+            : "This room is not available to join."
+      setJoinProblem({ slug, message })
+      showErrorToast(message)
       refreshRooms()
+    } finally {
+      joiningRef.current = ""
+      setJoiningSlug("")
     }
   }
 
@@ -245,18 +289,18 @@ export function RoomsPage() {
   }
 
   const cancelBooking = async (room: UpcomingRoomRow) => {
-    setError("")
+    dismissErrorToast()
     setCancellingSlug(room.slug)
     try {
       const { cancelledInvites } = await cancelBookedRoom(room.slug)
-      setNotice(
+      toast.success(
         cancelledInvites
           ? `${room.name} is cancelled. ${cancelledInvites} ${cancelledInvites === 1 ? "invitation that had not gone out was" : "invitations that had not gone out were"} stopped.`
           : `${room.name} is cancelled.`
       )
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : ""
-      setError(
+      showErrorToast(
         message.includes("ROOM_ALREADY_OPEN")
           ? "That room already opened, so it has to be closed from inside instead."
           : message.includes("ROOM_HOST_REQUIRED")
@@ -303,7 +347,7 @@ export function RoomsPage() {
         }}
         onBooked={(message) => {
           setShowHostForm(false)
-          setNotice(message)
+          toast.success(message)
           refreshRooms()
         }}
       />
@@ -322,27 +366,16 @@ export function RoomsPage() {
           }}
         />
       ) : null}
-      {error ? (
-        <p role="alert" className="text-sm text-destructive">
-          {error}
-        </p>
-      ) : null}
-      {notice ? (
-        <p role="status" className="text-sm text-muted-foreground">
-          {notice}
-        </p>
-      ) : null}
       {activeRoom ? (
         <ActiveRoomPanel
           snapshot={activeRoom}
           reconnecting={reconnecting}
           onSnapshot={applySnapshot}
           onLeft={(message) => {
+            announceRoomEnd(activeRoom.room.slug, message, true)
             setActiveRoom(null)
-            setNotice(message)
             refreshRooms()
           }}
-          onActionError={setError}
         />
       ) : null}
       {!authenticated ? (
@@ -356,6 +389,17 @@ export function RoomsPage() {
               <a href="/login">Sign in</a>
             </Button>
           </CardContent>
+        </Card>
+      ) : roomCheckFailed && !activeRoom ? (
+        <Card>
+          <ErrorRow
+            message="We could not check whether you are already in a room, so the list of rooms is hidden rather than shown as if you were in none."
+            onRetry={() => {
+              dismissErrorToast()
+              setRoomCheckFailed(false)
+              checkCurrentRoom()
+            }}
+          />
         </Card>
       ) : (
         <>
@@ -371,6 +415,8 @@ export function RoomsPage() {
             rooms={openRooms}
             open
             onJoin={joinBySlug}
+            joiningSlug={joiningSlug}
+            joinProblem={joinProblem}
             onHost={!activeRoom ? () => setShowHostForm((value) => !value) : undefined}
           />
           <RoomGroup
@@ -379,6 +425,8 @@ export function RoomsPage() {
             rooms={liveRooms}
             open={false}
             onJoin={async () => undefined}
+            joiningSlug=""
+            joinProblem={joinProblem}
           />
         </>
       )}
@@ -676,7 +724,6 @@ function ActiveRoomPanel({
   reconnecting,
   onSnapshot,
   onLeft,
-  onActionError,
 }: {
   snapshot: RoomSnapshotClient
   reconnecting: boolean
@@ -686,7 +733,6 @@ function ActiveRoomPanel({
     forceClosedNotice?: boolean
   ) => void
   onLeft: (message: string) => void
-  onActionError: (message: string) => void
 }) {
   const { room, you, members, messages } = snapshot
   const isHost = you.role === "host"
@@ -703,7 +749,7 @@ function ActiveRoomPanel({
   const sessionLabel = `Session ${Math.min(room.cycleFocusCount + 1, 4)} of 4`
 
   const runAction = async (action: RoomHostActionClient) => {
-    onActionError("")
+    dismissErrorToast()
     setPending(action)
     try {
       onSnapshot(
@@ -712,7 +758,7 @@ function ActiveRoomPanel({
         true
       )
     } catch (cause) {
-      onActionError(
+      showErrorToast(
         cause instanceof Error && cause.message.includes("ROOM_HOST_REQUIRED")
           ? "Only the host can control the room."
           : "The room could not be updated."
@@ -723,13 +769,13 @@ function ActiveRoomPanel({
   }
 
   const leave = async () => {
-    onActionError("")
+    dismissErrorToast()
     setPending("leave")
     try {
       const result = await leaveActiveRoom(room.slug)
       onLeft(result.closed ? "You closed the room." : "You left the room.")
     } catch {
-      onActionError("Leaving the room failed. Try again.")
+      showErrorToast("Leaving the room failed. Try again.")
     } finally {
       setPending("")
     }
@@ -754,7 +800,7 @@ function ActiveRoomPanel({
     successNotice: string,
     failureNotice: string
   ) => {
-    onActionError("")
+    dismissErrorToast()
     setPanelNotice("")
     setPending(key)
     try {
@@ -762,7 +808,7 @@ function ActiveRoomPanel({
       setPanelNotice(successNotice)
     } catch (cause) {
       const text = cause instanceof Error ? cause.message : ""
-      onActionError(
+      showErrorToast(
         text.includes("RATE_LIMITED")
           ? "Too many moderation actions at once. Wait a moment and try again."
           : text.includes("ROOM_HOST_REQUIRED")
@@ -780,13 +826,13 @@ function ActiveRoomPanel({
   const toggleMessageReaction = async (messageId: string, emoji: string) => {
     const key = `${messageId}:${emoji}`
     if (reactionPending.has(key)) return
-    onActionError("")
+    dismissErrorToast()
     setReactionPending((current) => new Set(current).add(key))
     try {
       await toggleReaction(room.slug, messageId, emoji)
     } catch (cause) {
       const text = cause instanceof Error ? cause.message : ""
-      onActionError(
+      showErrorToast(
         text.includes("RATE_LIMITED")
           ? "You're reacting a little fast. Wait a moment and try again."
           : "Your reaction didn't go through. Try again."
@@ -932,7 +978,14 @@ function ActiveRoomPanel({
               size="sm"
               variant="ghost"
               disabled={pending !== ""}
-              onClick={() => void leave()}
+              onClick={() =>
+                setConfirm({
+                  title: "Leave and close this room?",
+                  description: leaveAndCloseConsequence(members.length - 1),
+                  confirmLabel: "Leave & close",
+                  onConfirm: () => void leave(),
+                })
+              }
             >
               Leave &amp; close
             </Button>
@@ -970,6 +1023,7 @@ function ActiveRoomPanel({
           <RoomChatPanel
             slug={room.slug}
             messages={messages}
+            timezone={you.timezone}
             isHost={isHost}
             busy={pending !== ""}
             reactionPending={reactionPending}
@@ -977,7 +1031,7 @@ function ActiveRoomPanel({
               void toggleMessageReaction(messageId, emoji)
             }
             onDeleteMessage={confirmDeleteMessage}
-            onError={onActionError}
+            onError={showErrorToast}
             onNotice={setPanelNotice}
           />
           <RoomMemberList
@@ -1008,12 +1062,25 @@ function ActiveRoomPanel({
   )
 }
 
+/**
+ * What the host is told before "Leave & close": a host leaving ends the room,
+ * so the sentence says for whom. `others` is everybody in the room but the
+ * host.
+ */
+function leaveAndCloseConsequence(others: number) {
+  if (others <= 0)
+    return "Nobody else is in the room, so nobody else is affected, but the room ends when you leave and cannot be reopened."
+  return `When the host leaves, the room ends. The session stops for the ${others} ${others === 1 ? "other person" : "other people"} in it, and it cannot be undone.`
+}
+
 function RoomGroup({
   title,
   subtitle,
   rooms,
   open,
   onJoin,
+  joiningSlug,
+  joinProblem,
   onHost,
 }: {
   title: string
@@ -1021,20 +1088,26 @@ function RoomGroup({
   rooms: Awaited<ReturnType<typeof listRooms>>
   open: boolean
   onJoin: (slug: string) => Promise<void>
+  /** The room a join is in flight for; every Join waits while one is. */
+  joiningSlug: string
+  /** Why the last join was refused, drawn on that room's own card. */
+  joinProblem: { slug: string; message: string } | null
   onHost?: () => void
 }) {
   const now = new Date()
   return (
     <section className="flex flex-col gap-3.5">
       <RoomGroupHeading title={title} subtitle={subtitle}>
+        {/* Ghost rather than outline: outline paints its own background and
+            border again in dark mode, which would cover the orange. */}
         {onHost ? (
-          <button
-            type="button"
-            className="ml-auto flex items-center gap-1.5 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 rounded-full border border-[rgba(255,90,60,0.4)] bg-[rgba(255,90,60,0.1)] px-[15px] py-2 text-[12.5px] font-bold text-[var(--p-accent-2)]"
+          <Button
+            variant="ghost"
+            className="ml-auto rounded-full border-primary/40 bg-primary/10 font-bold text-[var(--p-accent-2)] hover:bg-primary/20 hover:text-[var(--p-accent-2)] dark:hover:bg-primary/20"
             onClick={onHost}
           >
-            <PlusIcon className="size-3.5" aria-hidden="true" /> Host a room
-          </button>
+            <PlusIcon aria-hidden="true" /> Host a room
+          </Button>
         ) : null}
       </RoomGroupHeading>
       <div className="grid gap-3.5 sm:grid-cols-2">
@@ -1064,24 +1137,36 @@ function RoomGroup({
                 }
               >
                 {open ? (
-                  <button
-                    type="button"
-                    className="outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 rounded-full bg-[var(--p-accent)] px-6 py-2.5 text-[13.5px] font-bold text-[var(--p-on-accent)] hover:bg-[var(--p-accent-2)]"
+                  <Button
+                    className="rounded-full px-4 font-bold"
+                    disabled={joiningSlug !== ""}
                     onClick={() => void onJoin(room.slug)}
                   >
-                    Join
-                  </button>
+                    {joiningSlug === room.slug ? (
+                      <>
+                        <Loader2Icon className="animate-spin" aria-hidden="true" />
+                        Joining…
+                      </>
+                    ) : (
+                      "Join"
+                    )}
+                  </Button>
                 ) : (
-                  <button
-                    type="button"
+                  <Button
+                    variant="outline"
+                    className="rounded-full px-4 font-bold"
                     disabled
-                    className="flex cursor-not-allowed items-center gap-[7px] outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 rounded-full border px-5 py-2.5 text-[13.5px] font-bold text-[var(--p-text-subtle)]"
                   >
-                    <LockKeyholeIcon className="size-3" aria-hidden="true" />
+                    <LockKeyholeIcon aria-hidden="true" />
                     Locked
-                  </button>
+                  </Button>
                 )}
               </RoomCardAction>
+              {joinProblem?.slug === room.slug ? (
+                <InlineError className="px-3 text-xs">
+                  {joinProblem.message}
+                </InlineError>
+              ) : null}
             </RoomCard>
           )
         })}
