@@ -1,6 +1,7 @@
 import * as React from "react"
 import { toast } from "sonner"
 
+import { CompletionChimeFields } from "@/components/pomodoro/completion-chime-fields"
 import { FocusRhythmPresets } from "@/components/pomodoro/focus-rhythm-presets"
 import { RhythmMinutesFields } from "@/components/pomodoro/rhythm-minutes-fields"
 import { Button } from "@/components/ui/button"
@@ -288,6 +289,12 @@ export default function TimerSettingsPanel() {
               {alertHelp}
             </span>
           </div>
+          <CompletionChimeFields
+            focusChime={player.state.focusChime}
+            breakChime={player.state.breakChime}
+            alertsOn={player.state.completionAlerts}
+            onChange={player.setChime}
+          />
           <div className="flex items-center gap-3">
             <Button disabled={saving || !loaded} onClick={() => void save()}>
               {saving ? "Saving…" : "Save focus rhythm"}

@@ -8,7 +8,11 @@ import {
   readGuestJson,
   writeGuestJson,
 } from "@/lib/pomodoro/guest-storage"
-import { setCompletionAlertsEnabled } from "@/lib/pomodoro/completion-alerts"
+import {
+  setCompletionAlertsEnabled,
+  setCompletionChimes,
+} from "@/lib/pomodoro/completion-alerts"
+import { normalizeChime, type ChimeId } from "@/lib/pomodoro/chimes"
 import {
   clampSoundVolume,
   curatedSounds,
@@ -86,6 +90,8 @@ function preferenceSnapshot(current: Snapshot) {
     soundVolume: current.volume,
     soundMuted: current.muted,
     completionAlerts: current.completionAlerts,
+    focusChime: current.focusChime,
+    breakChime: current.breakChime,
   })
 }
 
@@ -104,6 +110,8 @@ function schedulePersist() {
       soundVolume: state.volume,
       soundMuted: state.muted,
       completionAlerts: state.completionAlerts,
+      focusChime: state.focusChime,
+      breakChime: state.breakChime,
     }
     if (!productAuth().authenticated) {
       writeGuestJson(GUEST_SOUND_KEY, payload)
@@ -188,6 +196,8 @@ export function ensureSoundEngine() {
       volume: clampSoundVolume(saved.soundVolume),
       muted: saved.soundMuted === true,
       completionAlerts: saved.completionAlerts === true,
+      focusChime: normalizeChime(saved.focusChime),
+      breakChime: normalizeChime(saved.breakChime),
       notice: null,
       canUsePremiumMedia: false,
     }
@@ -195,6 +205,7 @@ export function ensureSoundEngine() {
     fader?.setUserGain(state.volume / 100)
     fader?.setMuted(state.muted)
     setCompletionAlertsEnabled(state.completionAlerts)
+    setCompletionChimes({ focus: state.focusChime, break: state.breakChime })
     hydrated = true
     emit()
     return
@@ -221,6 +232,8 @@ export function ensureSoundEngine() {
         volume,
         muted: saved.soundMuted === true,
         completionAlerts: saved.completionAlerts === true,
+        focusChime: normalizeChime(saved.focusChime),
+        breakChime: normalizeChime(saved.breakChime),
         notice: null,
         canUsePremiumMedia: saved.canUsePremiumMedia === true,
       }
@@ -228,6 +241,7 @@ export function ensureSoundEngine() {
       fader?.setUserGain(state.volume / 100)
       fader?.setMuted(state.muted)
       setCompletionAlertsEnabled(state.completionAlerts)
+      setCompletionChimes({ focus: state.focusChime, break: state.breakChime })
       hydrated = true
       emit()
     })
@@ -308,6 +322,12 @@ export function toggleMuted() {
 export function setCompletionAlerts(enabled: boolean) {
   dispatch({ type: "set-completion-alerts", enabled })
   setCompletionAlertsEnabled(enabled)
+}
+
+/** Chooses the chime for a focus ending or a break ending. */
+export function setChime(moment: "focus" | "break", chime: ChimeId) {
+  dispatch({ type: "set-chime", moment, chime })
+  setCompletionChimes({ focus: state.focusChime, break: state.breakChime })
 }
 
 // The sleep timer only fades the audio out; the focus timer is never touched.

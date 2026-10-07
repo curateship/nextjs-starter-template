@@ -16,6 +16,9 @@ cover this one.
   that switches them on.
 - [The timer](timer.md) — the ring at `/timer`, the 4-focus cycle, auto-start,
   and the session rows and daily stats every run writes.
+- [One timer across devices](timer-across-devices.md) — the session row is
+  the truth, every page polls it every 5 seconds, the last action wins, and a
+  completion counts once.
 - [The tab countdown](tab-countdown.md) — the time left in the browser tab's
   title and a filling ring in its icon, the worker that keeps them moving in a
   background tab, and how both go back on stop.
@@ -55,6 +58,8 @@ cover this one.
   holds everywhere.
 - [Streak badge](streak-badge.md) — the opt-in image you can embed on a blog,
   the secret address that serves it, and what revoking does.
+- [Completion chimes](completion-chimes.md) — a separate chime for a focus
+  ending and a break ending, five choices including silence, with Preview.
 - [Sounds](sounds.md) — the eight ambient loops, the header player that
   survives navigation, the sleep timer and the completion chime.
 - [The dark mode shade](dark-mode-shade.md) — the four steps from near black

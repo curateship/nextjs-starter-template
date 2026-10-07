@@ -1,3 +1,8 @@
+import {
+  DEFAULT_CHIME,
+  findChime,
+  type ChimeId,
+} from "@/lib/pomodoro/chimes"
 import type { TimerMode } from "@/lib/pomodoro/timer"
 
 // One alert per completed timer transition, even when several timer ticks or
@@ -26,6 +31,11 @@ declare global {
 }
 
 let alertsEnabled = false
+/** The chime for a focus ending and for a break ending. */
+let chimes: { focus: ChimeId; break: ChimeId } = {
+  focus: DEFAULT_CHIME,
+  break: DEFAULT_CHIME,
+}
 let chimeContext: AudioContext | null = null
 let gesturePrimerAttached = false
 const gate = createCompletionAlertGate()
@@ -76,31 +86,62 @@ export async function enableCompletionAlerts(): Promise<NotificationPermission |
   }
 }
 
-function playChime(context: AudioContext) {
+export function setCompletionChimes(next: { focus: ChimeId; break: ChimeId }) {
+  chimes = next
+}
+
+function playChime(context: AudioContext, chimeId: ChimeId) {
   const start = context.currentTime + 0.02
-  for (const [offset, frequency] of [
-    [0, 659.26],
-    [0.22, 987.77],
-  ] as const) {
+  for (const tone of findChime(chimeId).tones) {
     const oscillator = context.createOscillator()
     const gain = context.createGain()
-    oscillator.type = "sine"
-    oscillator.frequency.value = frequency
-    gain.gain.setValueAtTime(0, start + offset)
-    gain.gain.linearRampToValueAtTime(0.22, start + offset + 0.02)
-    gain.gain.exponentialRampToValueAtTime(0.0001, start + offset + 0.9)
+    oscillator.type = tone.wave
+    oscillator.frequency.value = tone.frequency
+    gain.gain.setValueAtTime(0, start + tone.offset)
+    gain.gain.linearRampToValueAtTime(tone.gain, start + tone.offset + 0.02)
+    gain.gain.exponentialRampToValueAtTime(
+      0.0001,
+      start + tone.offset + tone.decay
+    )
     oscillator.connect(gain)
     gain.connect(context.destination)
-    oscillator.start(start + offset)
-    oscillator.stop(start + offset + 1)
+    oscillator.start(start + tone.offset)
+    oscillator.stop(start + tone.offset + tone.decay + 0.1)
   }
 }
 
-export function fireCompletionAlert(key: string, message: string) {
+/**
+ * Plays a chime now, from a Preview press. Works with alerts switched off and
+ * no timer running: the press is the gesture the browser needs to make sound.
+ */
+export function previewChime(chimeId: ChimeId) {
+  try {
+    const context = createChimeContext()
+    if (!context) return false
+    if (context.state === "running") playChime(context, chimeId)
+    // A context that is still waking plays once it can.
+    else void context.resume().then(() => playChime(context, chimeId))
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * The alert for a finished phase. A focus ending and a break ending each have
+ * their own chime, because they mean opposite things: stop working, and start
+ * again.
+ */
+export function fireCompletionAlert(
+  key: string,
+  message: string,
+  completedMode: TimerMode
+) {
   if (!alertsEnabled || !gate(key)) return false
   try {
     const context = createChimeContext()
-    if (context && context.state === "running") playChime(context)
+    const chimeId = completedMode === "focus" ? chimes.focus : chimes.break
+    if (context && context.state === "running") playChime(context, chimeId)
   } catch {
     // A blocked chime must never interfere with timer completion.
   }

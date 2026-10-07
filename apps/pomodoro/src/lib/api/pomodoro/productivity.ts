@@ -57,6 +57,12 @@ import {
   tasks,
   userPreferences,
 } from "@/server/pomodoro/schema"
+import {
+  pauseLiveSession,
+  readLiveSession,
+  readSessionEnding,
+  resumeLiveSession,
+} from "@/server/pomodoro/live-session"
 
 /**
  * The timer's endpoints, ported from the old app's productivity API. Every
@@ -182,10 +188,6 @@ const sessionProgressSchema = z.object({
 const sessionNoteSchema = z.object({
   sessionId: z.string().uuid(),
   note: z.string().max(SESSION_NOTE_MAX_LENGTH),
-})
-const resumeSessionSchema = z.object({
-  sessionId: z.string().uuid(),
-  remainingSeconds: z.number().int().min(1).max(5_400),
 })
 
 const loadProductivityFn = createServerFn({ method: "GET" })
@@ -407,53 +409,45 @@ const startSessionFn = createServerFn({ method: "POST" })
     return session
   })
 
+/**
+ * The account's live session and the server's clock, for every open page to
+ * draw the same countdown. `knownSessionId` is the session this page was
+ * showing: when it is no longer live, the answer says whether it finished
+ * somewhere else or was cancelled, so the page can move on the same way.
+ */
+const loadLiveSessionFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .inputValidator(z.object({ knownSessionId: z.string().uuid().nullable() }))
+  .handler(async ({ data, context }) => {
+    const session = await readLiveSession(context.user.id)
+    const ending =
+      data.knownSessionId && session?.id !== data.knownSessionId
+        ? await readSessionEnding(context.user.id, data.knownSessionId)
+        : null
+    return { session, ending, serverNow: Date.now() }
+  })
+
+/**
+ * Pause and resume work out the time on the server's clock. A session that
+ * another device already paused, resumed or ended answers null rather than
+ * an error, and the page reads the live session again.
+ */
 const pauseSessionFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .inputValidator(sessionProgressSchema.omit({ timezone: true }))
+  .inputValidator(z.object({ sessionId: z.string().uuid() }))
   .handler(async ({ data, context }) => {
-    const [updated] = await db
-      .update(focusSessions)
-      .set({
-        status: "paused",
-        accumulatedSeconds: data.accumulatedSeconds,
-        targetEndsAt: null,
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(focusSessions.id, data.sessionId),
-          eq(focusSessions.userId, context.user.id),
-          eq(focusSessions.status, "running")
-        )
-      )
-      .returning()
-    if (!updated) throw new Error("SESSION_NOT_FOUND")
-    if (updated.mode === "focus") await refreshSharedTask(context.user.id)
-    return updated
+    const session = await pauseLiveSession(context.user.id, data.sessionId)
+    if (session?.mode === "focus") await refreshSharedTask(context.user.id)
+    return { session, serverNow: Date.now() }
   })
 
 const resumeSessionFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .inputValidator(resumeSessionSchema)
+  .inputValidator(z.object({ sessionId: z.string().uuid() }))
   .handler(async ({ data, context }) => {
-    const [updated] = await db
-      .update(focusSessions)
-      .set({
-        status: "running",
-        targetEndsAt: new Date(Date.now() + data.remainingSeconds * 1_000),
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(focusSessions.id, data.sessionId),
-          eq(focusSessions.userId, context.user.id),
-          eq(focusSessions.status, "paused")
-        )
-      )
-      .returning()
-    if (!updated) throw new Error("SESSION_NOT_FOUND")
-    if (updated.mode === "focus") await refreshSharedTask(context.user.id)
-    return updated
+    const session = await resumeLiveSession(context.user.id, data.sessionId)
+    if (session?.mode === "focus") await refreshSharedTask(context.user.id)
+    return { session, serverNow: Date.now() }
   })
 
 const saveSessionNoteFn = createServerFn({ method: "POST" })
@@ -672,12 +666,12 @@ export const updatePreferences = (data: z.infer<typeof preferencesSchema>) =>
   updatePreferencesFn({ data })
 export const startFocusSession = (data: z.infer<typeof startSessionSchema>) =>
   startSessionFn({ data })
-export const pauseFocusSession = (data: {
-  sessionId: string
-  accumulatedSeconds: number
-}) => pauseSessionFn({ data })
-export const resumeFocusSession = (data: z.infer<typeof resumeSessionSchema>) =>
-  resumeSessionFn({ data })
+export const loadLiveSession = (knownSessionId: string | null) =>
+  loadLiveSessionFn({ data: { knownSessionId } })
+export const pauseFocusSession = (sessionId: string) =>
+  pauseSessionFn({ data: { sessionId } })
+export const resumeFocusSession = (sessionId: string) =>
+  resumeSessionFn({ data: { sessionId } })
 export const cancelFocusSession = (sessionId: string) =>
   cancelSessionFn({ data: { sessionId } })
 export const saveFocusSessionNote = (sessionId: string, note: string) =>

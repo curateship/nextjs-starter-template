@@ -8,6 +8,7 @@ import {
   cancelFocusSession,
   completeFocusSession,
   createTask,
+  loadLiveSession,
   loadProductivity,
   pauseFocusSession,
   reorderTasks,
@@ -198,6 +199,162 @@ let hydrating = false
 let lastLoadedAt = 0
 let completing = false
 
+// ---------------------------------------------------------------------------
+// One timer across devices. See workspace/docs/timer-across-devices.md.
+// ---------------------------------------------------------------------------
+
+/** How often an open, visible page asks for the account's live session. */
+const LIVE_SYNC_MS = 5_000
+/** The server's clock minus this browser's, from the last answer. */
+let clockOffsetMs = 0
+/**
+ * Bumped by every press that changes the timer. A live-session answer that
+ * left before the press is thrown away, so a slow poll can never undo what
+ * somebody just did on this device.
+ */
+let timerActionSeq = 0
+/** A start is on its way to the server and its session id is not known yet. */
+let startPending = false
+let syncing = false
+let liveSyncTimer: number | null = null
+
+type LiveSessionAnswer = Awaited<ReturnType<typeof loadLiveSession>>
+type LiveSession = NonNullable<LiveSessionAnswer["session"]>
+
+function noteServerClock(serverNow: number, sentAt: number) {
+  clockOffsetMs = serverNow - (sentAt + Date.now()) / 2
+}
+
+/** The local timer a live session draws as, on this browser's clock. */
+function timerFromLive(session: LiveSession): PomodoroTimer {
+  const durationMinutes = session.plannedSeconds / 60
+  if (session.status === "running" && session.targetEndsAt) {
+    const targetTimestamp =
+      new Date(session.targetEndsAt).getTime() - clockOffsetMs
+    return {
+      mode: session.mode,
+      durationMinutes,
+      running: true,
+      targetTimestamp,
+      remainingSeconds: Math.max(
+        0,
+        Math.ceil((targetTimestamp - Date.now()) / 1000)
+      ),
+    }
+  }
+  return {
+    mode: session.mode,
+    durationMinutes,
+    running: false,
+    targetTimestamp: null,
+    remainingSeconds: Math.max(
+      1,
+      session.plannedSeconds - session.accumulatedSeconds
+    ),
+  }
+}
+
+/**
+ * Puts the server's live session on this page, unless the page already shows
+ * it to within a second and a half, so a poll that agrees redraws nothing.
+ */
+function adoptLiveSession(session: LiveSession) {
+  const timer = timerFromLive(session)
+  const current = state.timer
+  const agrees =
+    state.serverSessionId === session.id &&
+    current.running === timer.running &&
+    current.mode === timer.mode &&
+    (timer.running
+      ? Math.abs((current.targetTimestamp ?? 0) - (timer.targetTimestamp ?? 0)) <
+        1_500
+      : Math.abs(current.remainingSeconds - timer.remainingSeconds) <= 1)
+  if (agrees) return
+  const selectedTaskId =
+    session.mode === "focus" &&
+    session.taskId &&
+    state.tasks.some((task) => task.id === session.taskId)
+      ? session.taskId
+      : state.selectedTaskId
+  setState({
+    timer,
+    remainingSeconds: getRemainingSeconds(timer),
+    serverSessionId: session.id,
+    selectedTaskId,
+  })
+  announceRunning(timer.running)
+}
+
+/**
+ * Reads the account's live session and brings this page into line with it.
+ * A session that ended on another device moves this page on the same way:
+ * to the next phase when it finished, back to the start of the same phase
+ * when it was cancelled.
+ */
+export function syncLiveSession() {
+  if (typeof window === "undefined" || !isAuthed()) return Promise.resolve()
+  if (syncing || completing || startPending) return Promise.resolve()
+  syncing = true
+  const seq = timerActionSeq
+  const known = state.serverSessionId
+  const sentAt = Date.now()
+  return loadLiveSession(known)
+    .then(({ session, ending, serverNow }) => {
+      noteServerClock(serverNow, sentAt)
+      if (seq !== timerActionSeq || completing || startPending) return
+      if (session) {
+        adoptLiveSession(session)
+        return
+      }
+      if (!known || state.serverSessionId !== known) return
+      const finished = ending?.status === "completed"
+      const { nextMode, completedFocusSessions } = finished
+        ? advanceCycle(
+            ending.mode as TimerMode,
+            state.cycleFocusSessions,
+            state.sessionsBeforeLongBreak
+          )
+        : {
+            nextMode: state.timer.mode,
+            completedFocusSessions: state.cycleFocusSessions,
+          }
+      const timer = createTimer(nextMode, state.durations[nextMode])
+      setState({
+        timer,
+        remainingSeconds: timer.remainingSeconds,
+        serverSessionId: null,
+        cycleFocusSessions: completedFocusSessions,
+      })
+      announceRunning(false)
+      // Today's count and streak moved on the other device.
+      if (finished) void reloadPomodoroData()
+    })
+    .catch(() => undefined)
+    .finally(() => {
+      syncing = false
+    })
+}
+
+function syncWhenVisible() {
+  if (document.visibilityState === "visible") void syncLiveSession()
+}
+
+/** Asks every few seconds while a screen is mounted, and on coming back. */
+function startLiveSync() {
+  if (typeof window === "undefined" || liveSyncTimer !== null) return
+  liveSyncTimer = window.setInterval(syncWhenVisible, LIVE_SYNC_MS)
+  document.addEventListener("visibilitychange", syncWhenVisible)
+  window.addEventListener("focus", syncWhenVisible)
+}
+
+function stopLiveSync() {
+  if (liveSyncTimer === null) return
+  window.clearInterval(liveSyncTimer)
+  liveSyncTimer = null
+  document.removeEventListener("visibilitychange", syncWhenVisible)
+  window.removeEventListener("focus", syncWhenVisible)
+}
+
 function emit() {
   for (const listener of listeners) listener()
 }
@@ -292,6 +449,7 @@ function beginServerSession(
   // writing about, so the note prompt goes then — not when the break starts,
   // which with auto-start would be the same instant the prompt appeared.
   if (mode === "focus" && state.noteSession) setState({ noteSession: null })
+  startPending = true
   void startFocusSession({
     mode,
     plannedSeconds,
@@ -304,6 +462,9 @@ function beginServerSession(
       if (session) setState({ serverSessionId: session.id })
     })
     .catch(() => setSyncError("Your focus session could not be saved to your account."))
+    .finally(() => {
+      startPending = false
+    })
 }
 
 function isAuthed() {
@@ -551,6 +712,9 @@ export function reloadPomodoroData({
     .finally(() => {
       hydrating = false
       setState({ loading: false })
+      // A focus started on another device, or before this page reloaded,
+      // comes back from the server rather than from this browser.
+      void syncLiveSession()
     })
 }
 
@@ -558,6 +722,7 @@ export function reloadPomodoroData({
 function handleCompletion() {
   if (completing) return
   completing = true
+  timerActionSeq += 1
   const current = state
 
   // One chime and notification per finished countdown, gated on the
@@ -565,7 +730,8 @@ function handleCompletion() {
   if (current.timer.targetTimestamp !== null)
     fireCompletionAlert(
       `${current.timer.mode}:${current.timer.targetTimestamp}`,
-      completionAlertMessage(current.timer.mode)
+      completionAlertMessage(current.timer.mode),
+      current.timer.mode
     )
 
   if (!isAuthed() && current.timer.mode === "focus") {
@@ -595,7 +761,12 @@ function handleCompletion() {
       timezone: browserTimezone(),
     })
       .then((result) => {
-        if (!result) return
+        // Another device recorded this session first. It is counted once,
+        // there, and this page catches up on the count.
+        if (!result) {
+          void reloadPomodoroData()
+          return
+        }
         announceAchievements(result.newAchievements)
         if (result.session.mode === "focus")
           announceGoalReached(
@@ -663,6 +834,7 @@ function tick() {
 }
 
 export function selectMode(mode: TimerMode) {
+  timerActionSeq += 1
   if (isAuthed() && state.serverSessionId)
     void cancelFocusSession(state.serverSessionId).catch(() => undefined)
   const timer = createTimer(mode, state.durations[mode])
@@ -676,15 +848,12 @@ export function selectMode(mode: TimerMode) {
 }
 
 export function toggleTimer() {
+  timerActionSeq += 1
   const current = state
   if (current.timer.running) {
     const next = pauseTimer(current.timer)
     if (isAuthed() && current.serverSessionId)
-      void pauseFocusSession({
-        sessionId: current.serverSessionId,
-        accumulatedSeconds:
-          current.timer.durationMinutes * 60 - next.remainingSeconds,
-      }).catch(() => undefined)
+      settleLiveAction(pauseFocusSession(current.serverSessionId))
     setState({ timer: next, remainingSeconds: next.remainingSeconds })
     announceRunning(false)
     persistGuest()
@@ -692,10 +861,7 @@ export function toggleTimer() {
   }
   const next = startTimer(current.timer)
   if (isAuthed() && current.serverSessionId) {
-    void resumeFocusSession({
-      sessionId: current.serverSessionId,
-      remainingSeconds: current.timer.remainingSeconds,
-    }).catch(() => setSyncError("Your focus session could not be saved to your account."))
+    settleLiveAction(resumeFocusSession(current.serverSessionId))
   } else {
     beginServerSession(
       current.timer.mode,
@@ -709,6 +875,7 @@ export function toggleTimer() {
 }
 
 export function resetPomodoroTimer() {
+  timerActionSeq += 1
   if (isAuthed() && state.serverSessionId)
     void cancelFocusSession(state.serverSessionId).catch(() => undefined)
   const timer = resetTimer(state.timer)
@@ -734,6 +901,7 @@ export function resetPomodoroTimer() {
 export function skipBreak() {
   const current = state
   if (current.timer.mode === "focus") return
+  timerActionSeq += 1
   if (isAuthed() && current.serverSessionId)
     void cancelFocusSession(current.serverSessionId).catch(() => undefined)
   const { nextMode, completedFocusSessions } = advanceCycle(
@@ -757,6 +925,32 @@ export function skipBreak() {
   })
   announceRunning(timer.running)
   persistGuest()
+}
+
+/**
+ * The server's answer to this page's own pause or resume. It carries the time
+ * worked out on the server's clock, which this page adopts. No session means
+ * another device acted first, so the page reads the live session instead.
+ */
+function settleLiveAction(
+  request: Promise<{ session: LiveSession | null; serverNow: number }>
+) {
+  const sentAt = Date.now()
+  // Called right after the press bumped the counter, so this is the press's
+  // own number. A later press makes this answer out of date.
+  const seq = timerActionSeq
+  void request
+    .then(({ session, serverNow }) => {
+      noteServerClock(serverNow, sentAt)
+      clearSyncError()
+      if (seq !== timerActionSeq) return
+      if (session && state.serverSessionId === session.id)
+        adoptLiveSession(session)
+      else if (!session) void syncLiveSession()
+    })
+    .catch(() =>
+      setSyncError("Your focus session could not be saved to your account.")
+    )
 }
 
 export function setAutoStart(autoStart: boolean) {
@@ -1401,8 +1595,10 @@ if (typeof window !== "undefined")
 
 function subscribe(listener: () => void) {
   listeners.add(listener)
+  startLiveSync()
   return () => {
     listeners.delete(listener)
+    if (listeners.size === 0) stopLiveSync()
   }
 }
 

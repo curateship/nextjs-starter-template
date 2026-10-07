@@ -15,6 +15,7 @@ import {
   curatedSounds,
   parseSoundReference,
 } from "@/lib/pomodoro/sound-catalog"
+import { CHIME_IDS, normalizeChime } from "@/lib/pomodoro/chimes"
 
 /**
  * The sound player's saved state. Saving a premium loop is refused for a
@@ -27,6 +28,8 @@ const soundPreferenceSchema = z.object({
   soundVolume: z.number().int().min(0).max(100),
   soundMuted: z.boolean(),
   completionAlerts: z.boolean(),
+  focusChime: z.enum(CHIME_IDS),
+  breakChime: z.enum(CHIME_IDS),
 })
 
 const loadSoundPreferencesFn = createServerFn({ method: "GET" })
@@ -49,6 +52,8 @@ const loadSoundPreferencesFn = createServerFn({ method: "GET" })
       soundVolume: preferences.soundVolume,
       soundMuted: preferences.soundMuted,
       completionAlerts: preferences.completionAlerts,
+      focusChime: normalizeChime(preferences.focusChime),
+      breakChime: normalizeChime(preferences.breakChime),
       canUsePremiumMedia: entitlements.canUsePremiumMedia,
       selectedUploadUrl: upload?.url ?? null,
     }
@@ -85,6 +90,8 @@ const saveSoundPreferencesFn = createServerFn({ method: "POST" })
         soundVolume: data.soundVolume,
         soundMuted: data.soundMuted,
         completionAlerts: data.completionAlerts,
+        focusChime: data.focusChime,
+        breakChime: data.breakChime,
         updatedAt: new Date(),
       })
       .where(eq(userPreferences.userId, context.user.id))

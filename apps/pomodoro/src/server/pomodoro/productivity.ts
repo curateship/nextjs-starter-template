@@ -8,6 +8,7 @@ import {
   tasks,
   userPreferences,
 } from "@/server/pomodoro/schema"
+import { cancelOtherLiveSessions } from "@/server/pomodoro/live-session"
 
 /**
  * The timer's server half, ported from the old app
@@ -57,7 +58,12 @@ export async function startProductivitySession(
     })
     .onConflictDoNothing()
     .returning()
-  if (created) return created
+  if (created) {
+    // The last action wins: a session started here ends any other this
+    // account had live on another device.
+    await cancelOtherLiveSessions(userId, created.id, db, created.createdAt)
+    return created
+  }
   // The duplicate guard: a retried start finds the row its key already made.
   const [existing] = await db
     .select()

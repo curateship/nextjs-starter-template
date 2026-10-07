@@ -56,6 +56,14 @@ export const userPreferences = pgTable(
     soundVolume: integer("sound_volume").notNull().default(70),
     soundMuted: boolean("sound_muted").notNull().default(false),
     completionAlerts: boolean("completion_alerts").notNull().default(false),
+    /** The chime when a focus ends, an id from src/lib/pomodoro/chimes.ts. */
+    focusChime: varchar("focus_chime", { length: 30 })
+      .notNull()
+      .default("two-tone"),
+    /** The chime when a break ends. */
+    breakChime: varchar("break_chime", { length: 30 })
+      .notNull()
+      .default("two-tone"),
     /** The evening streak reminder in the bell. Off until switched on. */
     streakReminderBell: boolean("streak_reminder_bell").notNull().default(false),
     /** The member's own local hour, 12 to 23, the reminder may go from. */
@@ -375,6 +383,10 @@ export const focusSessions = pgTable(
       table.userId,
       table.completedAt
     ),
+    // Every open page asks for this account's live session every few seconds.
+    index("focus_sessions_user_active_idx")
+      .on(table.userId)
+      .where(sql`${table.status} in ('running', 'paused')`),
   ]
 )
 

@@ -5,6 +5,7 @@ import {
   clearSound,
   ensureSoundEngine,
   selectSound,
+  setChime,
   setCompletionAlerts,
   setVolume,
   soundEngineState,
@@ -35,6 +36,7 @@ export function useSoundPlayer() {
     setVolume,
     toggleMuted,
     setCompletionAlerts,
+    setChime,
     startSleepTimer,
     cancelSleepTimer,
   }

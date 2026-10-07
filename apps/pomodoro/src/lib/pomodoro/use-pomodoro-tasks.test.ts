@@ -25,6 +25,7 @@ vi.mock("@/lib/api/pomodoro/productivity", () => ({
   setTaskRepeatRule: vi.fn(),
   updatePreferences: vi.fn(),
   startFocusSession: vi.fn(),
+  loadLiveSession: vi.fn(async () => ({ session: null, ending: null, serverNow: Date.now() })),
   pauseFocusSession: vi.fn(),
   resumeFocusSession: vi.fn(),
   cancelFocusSession: vi.fn(),
