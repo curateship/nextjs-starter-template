@@ -291,6 +291,38 @@ describe("DCA chart ladders", () => {
     ).toBeNull()
   })
 
+  it("draws the first-rung exit at the price the ladder hangs off", async () => {
+    await act(async () =>
+      root.render(
+        <SmartLadderLayer
+          surface={surface}
+          colors={colors}
+          marketKey="market"
+          ladders={[]}
+          preview={{
+            anchorPx: 110,
+            rungs: [
+              { px: 100, dollars: 250 },
+              { px: 90, dollars: 500 },
+            ],
+            firstRungExit: true,
+            onMove: vi.fn(),
+            onResize: vi.fn(),
+          }}
+          tool={null}
+          walletName={() => "Wallet"}
+        />
+      )
+    )
+    const line = host.querySelector<HTMLElement>(
+      "[data-dca-first-rung-exit]"
+    )!
+    expect(line.style.top).toBe("90px")
+    expect(line.textContent).toBe("Sell everything above first rung")
+    // Rung 1 alone: 2.5 coins bought at $100 sell at $110.
+    expect(line.querySelector("span")!.title).toContain("+$25.00")
+  })
+
   it("shows order dollars instead of coin prices", async () => {
     await act(async () => {
       root.render(

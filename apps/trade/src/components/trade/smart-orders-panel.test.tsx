@@ -21,12 +21,15 @@ import type { MarketRow } from "@/lib/protocols/contracts"
 import type { TradePosition } from "@/lib/trade/paper"
 import type { SmartOrder } from "@/lib/trade/smart-plan"
 
-function SmartOrdersPanel(
-  props: ComponentProps<typeof SmartOrdersPanelContent>
-) {
+function SmartOrdersPanel({
+  kind = "grid",
+  ...props
+}: Omit<ComponentProps<typeof SmartOrdersPanelContent>, "kind"> & {
+  kind?: "grid" | "dca"
+}) {
   return (
     <TooltipProvider>
-      <SmartOrdersPanelContent {...props} />
+      <SmartOrdersPanelContent kind={kind} {...props} />
     </TooltipProvider>
   )
 }
@@ -175,18 +178,6 @@ function draw(state: {
   return renderToStaticMarkup(<SmartOrdersPanel {...shared} {...state} />)
 }
 
-/** Presses one of the panel's two tabs by its label. */
-async function openTab(host: HTMLElement, label: "Grid" | "DCA") {
-  const trigger = Array.from(
-    host.querySelectorAll<HTMLButtonElement>('[data-slot="tabs-trigger"]')
-  ).find((button) => button.textContent?.trim() === label)
-  await act(async () => {
-    trigger?.dispatchEvent(
-      new MouseEvent("mousedown", { bubbles: true, button: 0 })
-    )
-  })
-}
-
 async function openSmartOrderDetails(host: HTMLElement, symbol = "XMR") {
   const trigger = host.querySelector<HTMLButtonElement>(
     `[aria-label="${symbol} smart order details"]`
@@ -200,14 +191,12 @@ describe("the Smart orders panel", () => {
   it("gives its order list a bounded scroll area", () => {
     const html = draw({ smartOrders: [xmrGrid], settled: true, failed: false })
     const document = new DOMParser().parseFromString(html, "text/html")
-    const smartTab = document.querySelector(
-      '[data-slot="tabs-content"][data-state="active"]'
-    )
+    const panel = document.querySelector("[data-smart-orders-panel]")
 
-    expect(smartTab?.className).toContain("flex-col")
-    const scroller = smartTab?.querySelector('[data-slot="scroll-area"]')
+    expect(panel?.className).toContain("flex-col")
+    const scroller = panel?.querySelector('[data-slot="scroll-area"]')
     expect(scroller).not.toBeNull()
-    // It fills the tab rather than growing with its rows, so the rows past
+    // It fills the panel rather than growing with its rows, so the rows past
     // the fold are reached by scrolling.
     expect(scroller?.className.split(/\s+/)).toContain("flex-1")
     expect(scroller?.className.split(/\s+/)).toContain("min-h-0")
@@ -223,10 +212,10 @@ describe("the Smart orders panel", () => {
       <SmartOrdersPanel {...shared} smartOrders={[]} settled failed={false} />
     )
 
-    const tabs = host.querySelector<HTMLElement>('[data-slot="tabs"]')!
-    expect(tabs.className.split(/\s+/)).toContain("flex-1")
-    expect(tabs.className.split(/\s+/)).toContain("min-h-0")
-    expect(tabs.className).not.toContain("max-h-")
+    const panel = host.querySelector<HTMLElement>("[data-smart-orders-panel]")!
+    expect(panel.className.split(/\s+/)).toContain("flex-1")
+    expect(panel.className.split(/\s+/)).toContain("min-h-0")
+    expect(panel.className).not.toContain("max-h-")
   })
 
   it("says nothing is working only once both halves have answered", () => {
@@ -253,18 +242,23 @@ describe("the Smart orders panel", () => {
     expect(half).not.toContain(READING)
   })
 
-  // Grid first and DCA second, in place of Smart orders and Bots (Tyler,
-  // 6 Oct 2026).
-  it("opens on a Grid tab beside a DCA tab, and nothing else", () => {
-    const html = draw({ smartOrders: [], settled: true, failed: false })
-    const document = new DOMParser().parseFromString(html, "text/html")
-    const tabs = Array.from(
-      document.querySelectorAll('[data-slot="tabs-trigger"]')
+  // Grid and DCA are two panels, not tabs (Tyler, 6 Oct 2026).
+  it("titles each panel with its own kind and draws no tabs", () => {
+    const grid = draw({ smartOrders: [], settled: true, failed: false })
+    const dca = renderToStaticMarkup(
+      <SmartOrdersPanel
+        {...shared}
+        kind="dca"
+        smartOrders={[]}
+        settled
+        failed={false}
+      />
     )
 
-    expect(tabs.map((tab) => tab.textContent?.trim())).toEqual(["Grid", "DCA"])
-    expect(tabs[0]?.getAttribute("aria-selected")).toBe("true")
-    expect(html).not.toContain("Bots")
+    expect(grid).toContain(">Grid</h2>")
+    expect(dca).toContain(">DCA</h2>")
+    expect(grid + dca).not.toContain('data-slot="tabs')
+    expect(grid + dca).not.toContain("Bots")
   })
 
   it("lists grids under Grid and ladders under DCA", async () => {
@@ -281,20 +275,27 @@ describe("the Smart orders panel", () => {
 
     await act(async () => {
       root.render(
-        <SmartOrdersPanel
-          {...shared}
-          smartOrders={[ladder, btcGrid]}
-          settled
-          failed={false}
-        />
+        <>
+          {(["grid", "dca"] as const).map((kind) => (
+            <SmartOrdersPanel
+              key={kind}
+              kind={kind}
+              {...shared}
+              smartOrders={[ladder, btcGrid]}
+              settled
+              failed={false}
+            />
+          ))}
+        </>
       )
     })
-    expect(host.querySelector("tbody")?.textContent).toContain("BTC")
-    expect(host.querySelector("tbody")?.textContent).not.toContain("XMR")
-
-    await openTab(host, "DCA")
-    expect(host.querySelector("tbody")?.textContent).toContain("XMR")
-    expect(host.querySelector("tbody")?.textContent).not.toContain("BTC")
+    const panel = (kind: string) =>
+      host.querySelector(`[data-smart-orders-panel="${kind}"] tbody`)
+        ?.textContent
+    expect(panel("grid")).toContain("BTC")
+    expect(panel("grid")).not.toContain("XMR")
+    expect(panel("dca")).toContain("XMR")
+    expect(panel("dca")).not.toContain("BTC")
     await act(async () => root.unmount())
   })
 
@@ -317,6 +318,7 @@ describe("the Smart orders panel", () => {
     await act(async () => {
       root.render(
         <SmartOrdersPanel
+          kind="dca"
           {...shared}
           smartOrders={[signal]}
           settled
@@ -324,9 +326,6 @@ describe("the Smart orders panel", () => {
         />
       )
     })
-    expect(host.textContent).toContain(EMPTY)
-
-    await openTab(host, "DCA")
     expect(host.querySelector("tbody")?.textContent).toContain("XMR")
     await act(async () => root.unmount())
   })
@@ -340,10 +339,15 @@ describe("the Smart orders panel", () => {
 
     await act(async () => {
       root.render(
-        <SmartOrdersPanel {...shared} smartOrders={[]} settled failed={false} />
+        <SmartOrdersPanel
+          kind="dca"
+          {...shared}
+          smartOrders={[]}
+          settled
+          failed={false}
+        />
       )
     })
-    await openTab(host, "DCA")
 
     expect(host.textContent).toContain("No DCA ladder of your own is working")
     await act(async () => root.unmount())
@@ -364,6 +368,7 @@ describe("the Smart orders panel", () => {
     await act(async () => {
       root.render(
         <SmartOrdersPanel
+          kind="dca"
           {...shared}
           smartOrders={[]}
           markets={pnlMarkets}
@@ -372,7 +377,6 @@ describe("the Smart orders panel", () => {
         />
       )
     })
-    await openTab(host, "DCA")
 
     expect(host.textContent).toContain("XMR")
     expect(host.textContent).toContain("+$20.00")
@@ -391,6 +395,7 @@ describe("the Smart orders panel", () => {
     await act(async () => {
       root.render(
         <SmartOrdersPanel
+          kind="dca"
           {...shared}
           smartOrders={[ladder, bitcoin]}
           positions={pnlPositions}
@@ -400,7 +405,6 @@ describe("the Smart orders panel", () => {
         />
       )
     })
-    await openTab(host, "DCA")
 
     const headerButtons = Array.from(host.querySelectorAll("thead button"))
     const headers = headerButtons.map((button) => button.textContent)
@@ -564,6 +568,7 @@ describe("the Smart orders panel", () => {
     await act(async () => {
       root.render(
         <SmartOrdersPanel
+          kind="dca"
           {...shared}
           smartOrders={[ladder]}
           fills={[
@@ -587,7 +592,6 @@ describe("the Smart orders panel", () => {
         />
       )
     })
-    await openTab(host, "DCA")
 
     await openSmartOrderDetails(host)
 
@@ -611,6 +615,7 @@ describe("the Smart orders panel", () => {
       )
       return (
         <SmartOrdersPanel
+          kind="dca"
           {...shared}
           smartOrders={[ladder]}
           selectedMarketKey={selectedMarketKey}
@@ -622,7 +627,6 @@ describe("the Smart orders panel", () => {
     }
 
     await act(async () => root.render(<SelectedSmartOrder />))
-    await openTab(host, "DCA")
     const ticker = Array.from(host.querySelectorAll("tbody .font-semibold"))
       .find((label) => label.textContent?.trim() === "XMR")
       ?.closest("button")
@@ -687,6 +691,7 @@ describe("the Smart orders panel", () => {
     await act(async () => {
       root.render(
         <SmartOrdersPanel
+          kind="dca"
           {...shared}
           smartOrders={[bought]}
           settled
@@ -694,7 +699,6 @@ describe("the Smart orders panel", () => {
         />
       )
     })
-    await openTab(host, "DCA")
     const cells = host.querySelectorAll("tbody tr")[0]?.querySelectorAll("td")
     // Whole dollars in the column; the tooltip keeps the cents.
     expect(cells?.[2]?.textContent).toBe("$190")
@@ -752,6 +756,7 @@ describe("the Smart orders panel", () => {
     await act(async () => {
       root.render(
         <SmartOrdersPanel
+          kind="dca"
           {...shared}
           smartOrders={[paused]}
           onResumeSmartOrder={onResumeSmartOrder}
@@ -760,7 +765,6 @@ describe("the Smart orders panel", () => {
         />
       )
     })
-    await openTab(host, "DCA")
     expect(host.textContent).toContain("Paused")
     await openSmartOrderDetails(host)
     expect(document.body.textContent).toContain(

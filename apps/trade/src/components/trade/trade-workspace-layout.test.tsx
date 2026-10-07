@@ -84,7 +84,9 @@ vi.mock("@/components/trade/activity-panel", () => ({
   ),
 }))
 vi.mock("@/components/trade/smart-orders-panel", () => ({
-  SmartOrdersPanel: () => <div data-testid="smart-orders-panel" />,
+  SmartOrdersPanel: ({ kind }: { kind: string }) => (
+    <div data-testid="smart-orders-panel" data-kind={kind} />
+  ),
 }))
 vi.mock("@/components/trade/manual-orders-panel", () => ({
   ManualOrdersPanel: () => <div data-testid="manual-orders-panel" />,
@@ -524,22 +526,32 @@ describe("the trade workspace chart full screen", () => {
     })
     expect(layoutOf("vertical")).toEqual({ workspace: 72, activity: 28 })
     expect(host.querySelector('[data-panel-group="orders"]')).toBeNull()
-    expect(host.querySelector("[data-order-panels]")?.children).toHaveLength(2)
+    expect(host.querySelector("[data-order-panels]")?.children).toHaveLength(3)
     expect(
       host.querySelector('[data-testid="manual-orders-panel"]')
     ).not.toBeNull()
     expect(
       host.querySelector("[data-order-panels]")?.parentElement?.className
     ).toContain("h-full")
-    // Smart orders sits at its own rows and stops at 55% of the column, so its
-    // card never ends in empty space, and Manual orders below it takes the
-    // rest of the column however short either list is.
-    const [smartFrame, manualFrame] = Array.from(
+    // Grid sits above DCA. Each panel starts at its own rows; spare height
+    // goes to Manual orders, and a short column takes height from all three
+    // by what they hold, so an empty Manual orders hands its room to Grid.
+    const [gridFrame, dcaFrame, manualFrame] = Array.from(
       host.querySelector("[data-order-panels]")?.children ?? []
     )
-    expect(smartFrame?.className).toContain("max-h-[55%]")
-    expect(smartFrame?.className).toContain("flex-none")
-    expect(manualFrame?.className).toContain("flex-auto")
+    for (const frame of [gridFrame, dcaFrame]) {
+      expect(frame?.className).toContain("flex-[0_1_auto]")
+      expect(frame?.className).not.toContain("max-h-")
+    }
+    expect(
+      gridFrame?.querySelector('[data-testid="smart-orders-panel"]')
+        ?.getAttribute("data-kind")
+    ).toBe("grid")
+    expect(
+      dcaFrame?.querySelector('[data-testid="smart-orders-panel"]')
+        ?.getAttribute("data-kind")
+    ).toBe("dca")
+    expect(manualFrame?.className).toContain("flex-[1_1_auto]")
     expect(
       host.querySelector(
         '[data-testid="market-header"] button[aria-label="Open alerts"]'

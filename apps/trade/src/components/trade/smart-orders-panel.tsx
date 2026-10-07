@@ -9,10 +9,7 @@ import {
 
 import { MarketIcon } from "@/components/trade/market-icon"
 import { TradeBadge } from "@/components/trade/trade-badge"
-import {
-  DashboardCardTab,
-  DashboardCardTabsHeader,
-} from "@/components/shared/dashboard-card-header"
+import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
 import {
   Popover,
@@ -22,7 +19,6 @@ import {
 import { LoadingRow } from "@/components/ui/loading-row"
 import { ErrorRow } from "@/components/ui/error-row"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
-import { Tabs, TabsContent } from "@/components/ui/tabs"
 import {
   Table,
   TableBody,
@@ -141,52 +137,46 @@ type SmartOrdersViewProps = {
   onSelectMarket: (marketKey: string) => void
 }
 
-/** The panel's two tabs, one per kind of smart order placed by hand. */
-type SmartOrdersTab = "grid" | "dca"
+/** The two panels, one per kind of smart order placed by hand. */
+export type SmartOrdersPanelKind = "grid" | "dca"
 
-/** How each tab names what it lists, in its empty and failed answers. */
-const TAB_WORDS: Record<SmartOrdersTab, { one: string; many: string }> = {
+/** How each panel names what it lists, in its empty and failed answers. */
+const PANEL_WORDS: Record<SmartOrdersPanelKind, { one: string; many: string }> = {
   grid: { one: "grid", many: "grids" },
   dca: { one: "DCA ladder", many: "DCA ladders" },
 }
 
 /**
- * Grids and DCA ladders, each in its own tab, Grid first (Tyler, 6 Oct 2026).
- * Before that one tab listed both, beside a Bots tab of running flows. Running
- * flows are listed on the trading overview's Running bots card instead.
+ * Grids or DCA ladders, one kind per panel. The dashboard stacks the Grid
+ * panel above the DCA panel (Tyler, 6 Oct 2026). Before that the two were tabs
+ * of one panel, and before that one tab listed both beside a Bots tab of
+ * running flows. Running flows are listed on the trading overview's Running
+ * bots card instead.
  */
-export function SmartOrdersPanel(props: SmartOrdersViewProps) {
-  const [tab, setTab] = React.useState<SmartOrdersTab>("grid")
-
+export function SmartOrdersPanel({
+  kind,
+  ...props
+}: SmartOrdersViewProps & { kind: SmartOrdersPanelKind }) {
   return (
-    <Tabs
-      value={tab}
-      onValueChange={(value) => setTab(value as SmartOrdersTab)}
-      // The panel fills the box it was given and scrolls inside it, in its
-      // own column and in the collapsed-column menu alike. Both boxes are a
-      // flex column with a height cap, so one class covers them.
-      className="min-h-0 flex-1 gap-0 overflow-hidden bg-card"
+    // The panel fills the box it was given and scrolls inside it, in its own
+    // column and in the collapsed-column menu alike. Both boxes are a flex
+    // column with a height cap, so one class covers them.
+    <section
+      data-smart-orders-panel={kind}
+      className="flex min-h-0 flex-1 flex-col overflow-hidden bg-card"
     >
-      <DashboardCardTabsHeader>
-        <DashboardCardTab
-          value="grid"
-          icon={<Grid2x2Icon className="size-4" />}
-          label="Grid"
-        />
-        <DashboardCardTab
-          value="dca"
-          icon={<LayersIcon className="size-4" />}
-          label="DCA"
-        />
-      </DashboardCardTabsHeader>
-
-      <TabsContent value="grid" className="flex min-h-0 flex-1 flex-col">
-        <SmartOrdersView {...props} kind="grid" />
-      </TabsContent>
-      <TabsContent value="dca" className="flex min-h-0 flex-1 flex-col">
-        <SmartOrdersView {...props} kind="dca" />
-      </TabsContent>
-    </Tabs>
+      <DashboardCardTitleHeader
+        icon={
+          kind === "grid" ? (
+            <Grid2x2Icon className="size-4" />
+          ) : (
+            <LayersIcon className="size-4" />
+          )
+        }
+        title={kind === "grid" ? "Grid" : "DCA"}
+      />
+      <SmartOrdersView {...props} kind={kind} />
+    </section>
   )
 }
 
@@ -206,7 +196,7 @@ function SmartOrdersView({
   onResumeSmartOrder,
   onSelectMarket,
   kind,
-}: SmartOrdersViewProps & { kind: SmartOrdersTab }) {
+}: SmartOrdersViewProps & { kind: SmartOrdersPanelKind }) {
   const [cached, setCached] = React.useState<ReturnType<
     typeof readSmartOrdersCache
   >>(null)
@@ -362,19 +352,19 @@ function SmartOrdersView({
     <>
       {rows.length === 0 && !settled && cached === null ? (
         <LoadingRow
-          label={`Reading your ${TAB_WORDS[kind].many}`}
+          label={`Reading your ${PANEL_WORDS[kind].many}`}
           className="flex-1 text-xs"
         />
       ) : rows.length === 0 && failed ? (
         <ErrorRow
-          message={`The smart orders could not be read, so it is not known whether a ${TAB_WORDS[kind].one} is working.`}
+          message={`The smart orders could not be read, so it is not known whether a ${PANEL_WORDS[kind].one} is working.`}
           onRetry={onRetry}
           className="flex-1 p-6 text-sm"
         />
       ) : rows.length === 0 ? (
         <p className="flex flex-1 items-center justify-center p-6 text-center text-sm text-muted-foreground">
-          No {TAB_WORDS[kind].one} of your own is working. Right-click the
-          chart to place one. A flow&rsquo;s {TAB_WORDS[kind].many} live on its
+          No {PANEL_WORDS[kind].one} of your own is working. Right-click the
+          chart to place one. A flow&rsquo;s {PANEL_WORDS[kind].many} live on its
           own dashboard.
         </p>
       ) : (

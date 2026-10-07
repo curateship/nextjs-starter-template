@@ -530,6 +530,17 @@ function PreviewLines({
         </div>
       ) : null}
 
+      {preview.firstRungExit ? (
+        <FirstRungExitLine
+          px={shownAnchorPx}
+          rungs={shownRungs}
+          colors={colors}
+          yFor={yFor}
+          controls={controls}
+          faded={!placed}
+        />
+      ) : null}
+
       {shownExitLevels.map((px, index) => {
         const y = yFor(px)
         if (y === null) return null
@@ -650,6 +661,10 @@ function LadderLines({
     (rung) => rung.status === "waiting" || rung.status === "skipped"
   )
   const settledSummaryY = ladderSummaryY(visibleRungs, yFor, chartHeight)
+  // Before anything buys there is no sell yet, so the first-rung exit is drawn
+  // from the plan. Once rung 1 buys, the position's own target line takes over.
+  const firstRungExit =
+    plan.takeProfit?.mode === "firstRung" && !plan.marketBuyFirst && !bought
 
   // Whole-ladder controls sit after the final rung instead of covering the
   // anchor. In exit-ladder mode the anchor is Exit 1, and the exit line already
@@ -720,6 +735,7 @@ function LadderLines({
               plan.takeProfit?.mode === "exitLadder"
                 ? (plan.takeProfit.exitGapPct ?? 0)
                 : null,
+            firstRungExit,
             onMoveExit: (exitIndex, exitPx) =>
               onReshapeLadder?.(ladder, { exitIndex, exitPx }) ?? false,
             onMove: (anchorPx) =>
@@ -819,6 +835,20 @@ function LadderLines({
         })
       )}
 
+      {!shapeMoves && firstRungExit ? (
+        <FirstRungExitLine
+          px={plan.anchorPx}
+          rungs={plan.rungs.map((rung) => ({
+            px: rung.px,
+            dollars: rung.px * rung.sz,
+          }))}
+          colors={colors}
+          yFor={yFor}
+          controls={controls}
+          faded={false}
+        />
+      ) : null}
+
       {!shapeMoves && !bought && settledSummaryY !== null ? (
         <div
           data-dca-ladder-summary
@@ -908,6 +938,56 @@ function LadderLines({
         />
       )}
     </>
+  )
+}
+
+/**
+ * Where "Sell everything above first rung" will sell, drawn before anything
+ * has bought: one line at the price the ladder hangs off. The tooltip gives
+ * the profit if rung 1 alone fills, the smallest win this exit can take.
+ */
+function FirstRungExitLine({
+  px,
+  rungs,
+  colors,
+  yFor,
+  controls,
+  faded,
+}: {
+  px: number
+  rungs: readonly { px: number; dollars: number }[]
+  colors: ChartColors
+  yFor: (price: number) => number | null
+  controls: "none" | "auto"
+  faded: boolean
+}) {
+  const y = yFor(px)
+  const first = rungs[0]
+  if (y === null || !first || !(first.px > 0)) return null
+  const profit = (px - first.px) * (first.dollars / first.px)
+  return (
+    <div
+      data-dca-first-rung-exit
+      className={cn("absolute inset-x-0", faded && "opacity-40")}
+      style={{ top: y }}
+    >
+      <div
+        className="border-t border-dashed"
+        style={{ borderColor: colors.down }}
+      />
+      <span
+        data-chart-order-bar
+        className={cn(TAG_CLASS, faded && "opacity-80")}
+        style={{
+          borderColor: colors.down,
+          color: colors.down,
+          pointerEvents: controls,
+        }}
+        title={`Everything the ladder buys sells here, at ${formatPrice(px)}, however many rungs fill. If only rung 1 buys, that sell makes ${formatSignedUsd(profit)} before fees.`}
+      >
+        Sell everything above first rung
+      </span>
+    </div>
   )
 }
 

@@ -264,7 +264,7 @@ export const DCA_TP_MODE_LABELS: Record<DcaTpMode, string> = {
   average: "At the average price",
   prevRung: "Sell at previous rung",
   nearestRung: "Sell everything at nearest rung",
-  firstRung: "Sell everything at first rung",
+  firstRung: "Sell everything above first rung",
   exitLadder: "Sell back up the ladder",
 }
 

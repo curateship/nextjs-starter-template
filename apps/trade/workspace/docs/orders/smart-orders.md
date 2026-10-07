@@ -326,7 +326,7 @@ clicked or base anchor as Exit 1. Exit 1 is the
 first level above Rung 1, not a second step above it. Later exits continue
 upward using the gaps between the remaining buy rungs.
 
-**"Sell everything at first rung" never moves its sell** (Tyler, 6 Oct 2026).
+**"Sell everything above first rung" never moves its sell** (Tyler, 6 Oct 2026).
 The sell sits one rung above rung 1, at the price the ladder hangs off, so
 rung 1 alone still sells at a profit. Take a ladder hung off $100 with rungs at
 $95, $90 and $85.
@@ -337,6 +337,12 @@ $95, $90 and $85.
 - **Rung 1 bought at the market:** the sell uses "Rung 1 exit %" above that
   buy until rung 2 buys, the same as nearest rung. After that it sits at the
   price the ladder hangs off.
+- **The chart shows the sell before anything buys** (Tyler, 6 Oct 2026). A red
+  line labelled "Sell everything above first rung" sits at the price the
+  ladder hangs off, faded in the placement preview and solid once placed. Its
+  tooltip gives the profit if only rung 1 buys. Once rung 1 buys, the
+  position's own target line replaces it. A ladder whose rung 1 buys at the
+  market draws no such line, because its sell waits on that buy's price.
 - **The rule lives in one place**, `rungExit` in
   `src/server/trade/smart-ladders.ts`. Placing, settling and switching a live
   ladder's exit all read it, for real, practice and backtest ladders alike.

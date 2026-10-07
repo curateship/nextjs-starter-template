@@ -66,6 +66,12 @@ export type DcaPreview = {
   rungs: readonly { px: number; dollars: number }[]
   /** Null unless the mirrored exit mode is on. */
   exitGapPct?: number | null
+  /**
+   * "Sell everything above first rung" is the exit, so its one sell is drawn
+   * at the price the ladder hangs off. False when rung 1 buys at the market,
+   * because then the sell waits on that buy's own price.
+   */
+  firstRungExit?: boolean
   /** Move the complete shape without changing the gaps between its rungs. */
   onMove: (anchorPx: number) => void | Promise<boolean>
   /** Move the deepest rung and spread every gap by the same proportion. */
@@ -310,6 +316,9 @@ export function SmartOrderDialog({
               params?.takeProfit?.mode === "exitLadder"
                 ? (params.takeProfit.exitGapPct ?? DEFAULT_DCA_EXIT_GAP_PCT)
                 : null,
+            firstRungExit:
+              params?.takeProfit?.mode === "firstRung" &&
+              !params.marketBuyFirst,
             onMove: movePreview,
             onResize: resizePreview,
             onMoveExit: moveExitPreview,
