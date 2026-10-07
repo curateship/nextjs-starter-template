@@ -25,7 +25,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { Meter } from "@/components/ui/meter"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
@@ -50,7 +49,56 @@ import { plural } from "@/lib/format/plural"
 import { cn } from "@/lib/utils"
 import { contentColumn } from "@/lib/pomodoro/content-column"
 
-const circumference = 2 * Math.PI * 132
+const ringRadius = 144
+const circumference = 2 * Math.PI * ringRadius
+
+/** The small spaced capitals that name each part of the screen. */
+const eyebrowClass =
+  "font-mono text-[11px] uppercase tracking-[0.2em] text-foreground/75"
+
+const statCellClass = "flex min-w-0 flex-col gap-2 px-5 py-4"
+
+const statValueClass = "text-lg font-semibold leading-6 tracking-tight"
+
+/**
+ * Today's goal as one short bar per session, filled orange as each focus
+ * finishes and green once the goal is met. It reads out like the shared
+ * `Meter` does ("Today's daily goal, 3 of 4 sessions"); the shared one draws a
+ * single fill, which cannot show the sessions apart.
+ */
+function GoalSegments({
+  done,
+  goal,
+  reached,
+}: {
+  done: number
+  goal: number
+  reached: boolean
+}) {
+  const filled = Math.min(Math.max(done, 0), goal)
+  return (
+    <div
+      role="meter"
+      aria-label="Today's daily goal"
+      aria-valuenow={filled}
+      aria-valuemin={0}
+      aria-valuemax={goal}
+      aria-valuetext={`${done} of ${goal} ${plural(goal, "session")}${reached ? ", goal reached" : ""}`}
+      className="mt-1 flex gap-1"
+    >
+      {Array.from({ length: goal }, (_, index) => (
+        <span
+          key={index}
+          className={cn(
+            "h-[3px] flex-1 rounded-full bg-foreground/15 transition-colors motion-reduce:transition-none",
+            index < filled &&
+              (reached ? "bg-[var(--p-success)]" : "bg-primary")
+          )}
+        />
+      ))}
+    </div>
+  )
+}
 
 /**
  * The three mode tabs.
@@ -71,9 +119,21 @@ function ModeTabs({
 }) {
   return (
     <Tabs value={mode} onValueChange={(value) => onSelect(value as TimerMode)}>
-      <TabsList aria-label="Timer mode">
+      {/* Larger and rounder than every other tab row, on Tyler's word on
+          7 Oct 2026: "the focus, short break, long break tabs should be large
+          like the screenshot". These three are the screen's main switch, not
+          a filter, so they are the one row allowed past 32px. A phone gets
+          tighter padding so the row fits a 375px screen. */}
+      <TabsList
+        aria-label="Timer mode"
+        className="h-12 rounded-full border p-1.5 [&>[data-slot=tabs-pill]]:rounded-full"
+      >
         {(Object.keys(MODE_LABELS) as TimerMode[]).map((key) => (
-          <TabsTrigger key={key} value={key}>
+          <TabsTrigger
+            key={key}
+            value={key}
+            className="h-9 rounded-full px-3 text-[15px] sm:px-5 sm:text-base"
+          >
             {MODE_LABELS[key]}
           </TabsTrigger>
         ))}
@@ -83,9 +143,9 @@ function ModeTabs({
 }
 
 /**
- * The two round buttons under Start. 36px, the largest height the rulebook
- * allows, because they sit inside the ring where a 32px control looks lost;
- * they were 44px, which is not one of the four.
+ * The round buttons either side of Start. 36px, the largest height the
+ * rulebook allows, because they sit inside the ring where a 32px control looks
+ * lost; they were 44px, which is not one of the four.
  */
 const ringIconButtonClass =
   "bg-transparent text-muted-foreground hover:bg-transparent hover:text-foreground dark:border-border dark:bg-transparent dark:hover:bg-transparent"
@@ -110,7 +170,7 @@ function DailyGoalEditor({
         <Button
           variant="ghost"
           size="icon-sm"
-          className="size-6 text-muted-foreground hover:text-foreground"
+          className="-my-1 size-6 text-muted-foreground hover:text-foreground"
           aria-label="Edit the daily session goal"
         >
           <PencilIcon className="size-3" aria-hidden="true" />
@@ -155,7 +215,7 @@ function DailyGoalEditor({
           </DisabledReason>
         </div>
         <p className="text-[11.5px] leading-relaxed text-muted-foreground">
-          What the bar above is measured against.{" "}
+          What the bars under Today count towards.{" "}
           <TextLink to="/settings">Settings &rsaquo; Timer</TextLink> has the
           same number.
         </p>
@@ -165,11 +225,10 @@ function DailyGoalEditor({
 }
 
 /**
- * The timer, matched to the old app's dashboard side by side: the 300px
- * ring floating on the hero image with the muted mono digits and the dark
- * Start pill inside it, the pill-shaped mode tabs with the orange active
- * chip, the FOCUS TASK pill, the centred hint, the thin goal bar, and the
- * rounded tasks card below on the plain canvas.
+ * The timer: the ring with the session line, the countdown, the orange Start
+ * pill between Reset and Zen mode and the Space hint all inside it; the mode
+ * tabs under it; a card of three for today's goal, the streak and auto-start;
+ * and the Tasks card below.
  */
 export function TimerDashboard() {
   const pomodoro = usePomodoro()
@@ -198,8 +257,8 @@ export function TimerDashboard() {
   if (zen) return <ZenMode pomodoro={pomodoro} onLeave={leaveZen} />
 
   return (
-    <div className="flex flex-col gap-8">
-      <section className={`${contentColumn} flex flex-col items-center gap-9`}>
+    <div className="flex flex-col gap-7">
+      <section className={`${contentColumn} flex flex-col items-center gap-6`}>
         {/* The ring takes the smaller of 300px and the width the page
             actually has, so it stays whole on a narrow phone instead of
             running off the side. The percentage is of the content column, not
@@ -214,20 +273,20 @@ export function TimerDashboard() {
             <circle
               cx="150"
               cy="150"
-              r="132"
+              r={ringRadius}
               fill="none"
               stroke="rgba(var(--p-fg-rgb), 0.07)"
-              strokeWidth="10"
+              strokeWidth="8"
             />
             <circle
               cx="150"
               cy="150"
-              r="132"
+              r={ringRadius}
               fill="none"
               stroke={
                 pomodoro.timer.running ? "var(--p-success)" : "var(--p-accent)"
               }
-              strokeWidth="10"
+              strokeWidth="8"
               strokeLinecap="round"
               strokeDasharray={circumference}
               strokeDashoffset={dashOffset}
@@ -237,30 +296,22 @@ export function TimerDashboard() {
               }}
             />
           </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2.5">
-            <time className="font-mono text-[54px] font-medium leading-none tracking-tight opacity-65">
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            {/* Where this rhythm's long break is, in the short form the ring
+                has room for. */}
+            <span className={eyebrowClass}>
+              {cycleSessionLabel(
+                pomodoro.timer.mode,
+                pomodoro.cycleFocusSessions,
+                pomodoro.sessionsBeforeLongBreak,
+                { short: true }
+              )}
+            </span>
+            <time className="mt-3 font-mono text-[64px] font-semibold leading-none tracking-tight">
               {String(minutes).padStart(2, "0")}:
               {String(seconds).padStart(2, "0")}
             </time>
-            {/* The shared Button at its 36px size, which is where the
-                Pomoder pill already sat; the skin is the `--p-*` tokens on
-                top of it. Shared rather than hand-rolled so the keyboard
-                focus ring is the one every other button draws. */}
-            <Button
-              size="lg"
-              variant="outline"
-              className="mt-1.5 bg-[var(--p-canvas)] px-[30px] text-[14.5px] hover:bg-[var(--p-surface-2)] dark:border-border dark:bg-[var(--p-canvas)] dark:hover:bg-[var(--p-surface-2)]"
-              onClick={
-                pomodoro.onBreak ? pomodoro.skipBreak : pomodoro.toggleTimer
-              }
-            >
-              {pomodoro.onBreak
-                ? "Skip break"
-                : pomodoro.timer.running
-                  ? "Pause"
-                  : "Start"}
-            </Button>
-            <div className="flex items-center gap-2.5">
+            <div className="mt-6 flex items-center gap-2">
               <Button
                 variant="outline"
                 size="icon-lg"
@@ -292,6 +343,28 @@ export function TimerDashboard() {
                   )}
                 </Button>
               ) : null}
+              {/* The shared Button at its 36px size in the orange, the same
+                  skin as Register in the header. Shared rather than
+                  hand-rolled so the keyboard focus ring is the one every
+                  other button draws. */}
+              <Button
+                size="lg"
+                // Narrower on a break, where a fourth round button joins the
+                // row and the wider pill would press against the ring.
+                className={cn(
+                  "bg-[var(--p-accent)] text-[14.5px] text-[var(--p-on-accent)] hover:bg-[var(--p-accent-2)]",
+                  pomodoro.onBreak ? "px-4" : "px-7"
+                )}
+                onClick={
+                  pomodoro.onBreak ? pomodoro.skipBreak : pomodoro.toggleTimer
+                }
+              >
+                {pomodoro.onBreak
+                  ? "Skip break"
+                  : pomodoro.timer.running
+                    ? "Pause"
+                    : "Start"}
+              </Button>
               {/* The one icon on this screen whose picture does not say what
                   it does, so it keeps a tooltip while Reset does not. */}
               <Tooltip>
@@ -312,13 +385,12 @@ export function TimerDashboard() {
                 </TooltipContent>
               </Tooltip>
             </div>
+            {/* Only where there is a keyboard to press it on. */}
+            <span className="mt-5 hidden font-mono text-xs text-muted-foreground pointer-fine:inline">
+              Space to {pomodoro.timer.running ? "pause" : "start"}
+            </span>
           </div>
         </div>
-
-        {/* Only where there is a keyboard to press it on. */}
-        <span className="hidden font-mono text-xs text-muted-foreground pointer-fine:inline">
-          Space to {pomodoro.timer.running ? "pause" : "start"}
-        </span>
 
         <ModeTabs mode={pomodoro.timer.mode} onSelect={requestMode} />
 
@@ -329,32 +401,22 @@ export function TimerDashboard() {
             {pomodoro.syncError}
           </InlineError>
         ) : null}
+      </section>
 
-        <div className="flex w-full flex-col items-center gap-4 border-t pt-5">
-          <div className="flex items-center justify-center gap-3">
-            <Meter
-              label="Today's daily goal"
-              value={pomodoro.todayFocusSessions}
-              max={pomodoro.dailyGoalSessions}
-              valueText={`${pomodoro.todayFocusSessions} of ${pomodoro.dailyGoalSessions} ${plural(pomodoro.dailyGoalSessions, "session")}${goalReached ? ", goal reached" : ""}`}
-              // The bar turns to the success colour once the goal is met, so
-              // the line under it is not the only sign. The colour is set on
-              // the fill, which the shared Meter draws as its one child.
-              className={cn(
-                "h-2 w-[120px]",
-                goalReached && "[&>div]:bg-[var(--p-success)]"
-              )}
-            />
-            <span className="font-mono text-xs text-muted-foreground">
-              {pomodoro.todayFocusSessions} of {pomodoro.dailyGoalSessions}{" "}
-              {plural(pomodoro.dailyGoalSessions, "session")} completed today
+      {/* Today, the streak and auto-start side by side, one row of three on
+          a wide screen and stacked on a phone. */}
+      <section
+        aria-label="Today"
+        className={`${contentColumn} grid divide-y overflow-hidden rounded-[24px] border bg-[var(--p-surface)] sm:grid-cols-3 sm:divide-x sm:divide-y-0`}
+      >
+        <div className={statCellClass}>
+          <div className="flex items-center justify-between gap-2">
+            <span className={eyebrowClass}>
+              Today
+              {/* Darker than the grey line, not green: the light theme's
+                  green is under 4.5:1 on white at this size. */}
               {goalReached ? (
-                // Darker than the grey line, not green: the light theme's
-                // green is under 4.5:1 on white at this size.
-                <span className="font-semibold text-foreground">
-                  {" "}
-                  · Goal reached
-                </span>
+                <span className="text-foreground"> · Goal reached</span>
               ) : null}
             </span>
             <DailyGoalEditor
@@ -362,32 +424,61 @@ export function TimerDashboard() {
               onChange={pomodoro.setDailyGoal}
             />
           </div>
-          {/* Where this rhythm's long break is. Same mono treatment as the
-              goal and streak lines, and the same words the room cards use. */}
-          <span className="font-mono text-xs text-muted-foreground">
-            {cycleSessionLabel(
-              pomodoro.timer.mode,
-              pomodoro.cycleFocusSessions,
-              pomodoro.sessionsBeforeLongBreak
-            )}
+          <p className={statValueClass}>
+            {pomodoro.todayFocusSessions}
+            <span className="font-normal text-muted-foreground">
+              {" "}
+              / {pomodoro.dailyGoalSessions}{" "}
+              {plural(pomodoro.dailyGoalSessions, "session")}
+            </span>
+          </p>
+          <GoalSegments
+            done={pomodoro.todayFocusSessions}
+            goal={pomodoro.dailyGoalSessions}
+            reached={goalReached}
+          />
+        </div>
+        <div className={statCellClass}>
+          <span className={eyebrowClass}>Streak</span>
+          <p className={statValueClass}>
+            {pomodoro.currentStreak}{" "}
+            {plural(pomodoro.currentStreak, "day")}
+            <span className="font-normal text-muted-foreground">
+              {" "}
+              · best {pomodoro.bestStreak}
+            </span>
+          </p>
+        </div>
+        <div className={statCellClass}>
+          <span id="auto-start-heading" className={eyebrowClass}>
+            Auto-start
           </span>
-          <span className="font-mono text-xs text-muted-foreground">
-            {pomodoro.currentStreak} day streak · best {pomodoro.bestStreak}
-          </span>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <Switch
               id="auto-start"
               checked={pomodoro.autoStart}
               onCheckedChange={pomodoro.setAutoStart}
+              aria-labelledby="auto-start-heading auto-start-label"
             />
-            <Label htmlFor="auto-start">Auto-start the next timer</Label>
+            <Label
+              id="auto-start-label"
+              htmlFor="auto-start"
+              className="text-[15px] font-normal"
+            >
+              Next timer
+            </Label>
           </div>
         </div>
       </section>
 
-      <section className={`${contentColumn} overflow-hidden rounded-3xl border bg-[var(--p-surface)]`}>
-        <header className="flex items-center gap-3 border-b px-6 py-[18px]">
-          <strong className="text-base tracking-tight">Tasks</strong>
+      <section
+        aria-labelledby="dashboard-tasks-heading"
+        className={`${contentColumn} overflow-hidden rounded-[24px] border bg-[var(--p-surface)]`}
+      >
+        <header className="flex items-center gap-3 px-6 pb-2 pt-5">
+          <h2 id="dashboard-tasks-heading" className={eyebrowClass}>
+            Tasks
+          </h2>
           {/* Waits for the first task, the same as the Tasks page. */}
           {pomodoro.tasks.length ? (
             <span className="ml-auto font-mono text-xs text-muted-foreground">
@@ -395,11 +486,13 @@ export function TimerDashboard() {
             </span>
           ) : null}
         </header>
-        {/* The same list and the same add box as the Tasks page, without
-            the drag handles: the day is planned there, and focused on here. */}
-        <div className="flex flex-col gap-3 px-3 py-3">
-          <TodayTaskList pomodoro={pomodoro} />
-          <NewTaskForm onAdd={pomodoro.addTask} />
+        {/* The same list and the same add box as the Tasks page. The add box
+            sits under its own full-width divider with no frame of its own. */}
+        <div className="px-3 pb-2">
+          <TodayTaskList pomodoro={pomodoro} flat />
+        </div>
+        <div className="border-t px-3 py-3">
+          <NewTaskForm onAdd={pomodoro.addTask} bare />
         </div>
       </section>
       {discardDialog}

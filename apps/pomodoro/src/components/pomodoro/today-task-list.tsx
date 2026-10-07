@@ -116,18 +116,26 @@ const GUEST_TAG_REASON =
  * the timer is idle. Completed tasks sit in their own group under a "Done
  * today" heading.
  *
- * The two lists are the same down to the row, drag handle included, so a fix
- * to one list is a fix to both. Tyler asked for dragging on the timer too on
- * 7 Oct 2026. Only a tag filter turns it off.
+ * The two lists draw the same row, drag handle included, so a fix to one list
+ * is a fix to both. Tyler asked for dragging on the timer too on 7 Oct 2026.
+ * Only a tag filter turns it off. The timer passes `flat`, which takes away
+ * the row's own frame and fill and nothing else.
  */
 export function TodayTaskList({
   pomodoro,
   tagFilter = null,
+  flat = false,
 }: {
   pomodoro: PomodoroApi
   /** Shows only the tasks carrying this tag. Dragging is off while it is set. */
   tagFilter?: string | null
+  /**
+   * Rows without their own frame or fill, for the timer's Tasks card, which
+   * is drawn that way. The chosen task keeps its orange bar on the left.
+   */
+  flat?: boolean
 }) {
+  const rowClass = flat ? "border-transparent bg-transparent" : undefined
   const [editingId, setEditingId] = React.useState<string | null>(null)
   const activeTasks = pomodoro.tasks.filter((task) => !task.completed)
   const matches = (task: TaskItem) => !tagFilter || task.tags.includes(tagFilter)
@@ -216,6 +224,7 @@ export function TodayTaskList({
                 key={task.id}
                 task={task}
                 pomodoro={pomodoro}
+                className={rowClass}
                 {...editingProps(task)}
               />
             ))}
@@ -227,6 +236,7 @@ export function TodayTaskList({
             key={task.id}
             task={task}
             pomodoro={pomodoro}
+            className={rowClass}
             {...editingProps(task)}
           />
         ))
@@ -247,6 +257,7 @@ export function TodayTaskList({
               key={task.id}
               task={task}
               pomodoro={pomodoro}
+              className={rowClass}
               editing={false}
               onEditingChange={() => undefined}
             />
@@ -265,10 +276,18 @@ export function TodayTaskList({
 export function NewTaskForm({
   onAdd,
   label = "New task",
+  bare = false,
 }: {
   /** False when the title was blank and nothing was sent. */
   onAdd: (title: string) => boolean
   label?: string
+  /**
+   * No frame or fill at rest, for a card that already draws a divider above
+   * the box (the timer's Tasks card). Keyboard focus still draws the ring.
+   * An Add task button sits at the right end, because a frameless box gives
+   * no other sign that it takes a click.
+   */
+  bare?: boolean
 }) {
   const [title, setTitle] = React.useState("")
   // Set by a blank submit and cleared by the next keystroke. The box keeps
@@ -277,7 +296,7 @@ export function NewTaskForm({
 
   return (
     <form
-      className="relative"
+      className={cn("relative", bare && "flex items-center gap-2")}
       onSubmit={(event) => {
         event.preventDefault()
         if (!onAdd(title)) {
@@ -302,8 +321,15 @@ export function NewTaskForm({
         maxLength={160}
         placeholder="Add a task, press Enter…"
         aria-label={label}
-        className="pl-9"
+        className={cn(
+          "pl-9",
+          bare &&
+            "border-transparent bg-transparent shadow-none dark:bg-transparent"
+        )}
       />
+      {/* Never greyed out while the box is empty: pressing it then marks the
+          box and says why, the same as Enter does. */}
+      {bare ? <Button type="submit">Add task</Button> : null}
     </form>
   )
 }
@@ -313,6 +339,7 @@ function SortableTaskRow(props: {
   pomodoro: PomodoroApi
   editing: boolean
   onEditingChange: (editing: boolean) => void
+  className?: string
 }) {
   const {
     attributes,
@@ -329,7 +356,12 @@ function SortableTaskRow(props: {
       {...props}
       rowRef={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={cn(isDragging && "z-10 opacity-80 shadow-lg")}
+      // A flat row takes the card fill while it is lifted, so it reads as the
+      // thing being carried.
+      className={cn(
+        props.className,
+        isDragging && "z-10 bg-card opacity-80 shadow-lg"
+      )}
       dragHandle={
         // 28px, the rulebook's small control, so a keyboard landing on it
         // can see where it is.
@@ -389,8 +421,9 @@ function TaskRow({
       style={style}
       className={cn(
         task.completed ? "bg-card/50" : "bg-card",
-        selected && "border-l-2 border-l-primary",
-        className
+        className,
+        // After the caller's classes, so a flat row keeps the orange bar.
+        selected && "border-l-2 border-l-primary"
       )}
       steps={
         stepsOpen && showSteps ? (

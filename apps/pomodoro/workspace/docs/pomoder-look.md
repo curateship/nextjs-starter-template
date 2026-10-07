@@ -178,10 +178,13 @@ What moved, and what it was:
 - **The dashboard's remove button** was 30px and is the shared `Button` at
   `icon-sm`, 28px. **The session-note bar** was 42px and is 36px.
 
-Two things keep a height that is not on the list, on purpose:
+Three things keep a height that is not on the list, on purpose:
 
 - **The sidebar's nav rows stay 44px.** They are navigation, not controls,
   and 44px is the touch target a phone wants.
+- **The timer's Focus, Short break and Long break tabs are 48px**, each tab
+  36px inside the strip. Tyler asked for them large on 7 Oct 2026; see
+  [The timer](timer.md).
 - **A row's own title button has no fixed height.** It is text, and its
   height follows the line it holds.
 

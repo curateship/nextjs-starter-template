@@ -2,12 +2,40 @@
 
 The main screen, at `/` and `/timer`. A 300px SVG ring counts a focus or
 break down, orange at rest and green while running, shrinking to fit a window
-narrower than that — matched to the old
-dashboard side by side: muted mono digits and the dark Start pill inside
-the ring, which floats over the hero image; the mode tabs, which are the
-shared segmented control; the thin goal bar with its mono label; and the rounded Tasks card on the plain canvas
-below (its own row style with the circle complete button and the inset
-orange selection bar).
+narrower than that.
+
+## The layout
+
+Tyler sent the design on 7 Oct 2026 with "redesign the front page", and the
+screen is drawn to it (`src/components/pomodoro/timer-dashboard.tsx`). Top to
+bottom:
+
+- **The ring holds everything about the countdown.** A small spaced line at the
+  top says where the cycle is ("Session 1 of 4"). Under it the time sits in
+  large white mono digits. Then comes the orange Start pill between Reset and
+  Zen mode, and at the bottom the "Space to start" hint.
+- **The mode tabs sit under the ring, larger than any other tab row.** The
+  strip is 48px tall and fully round, and each tab is 36px with 16px words.
+  Tyler, 7 Oct 2026: "the focus, short break, long break tabs should be large
+  like the screenshot." They are the screen's main switch, so they are the one
+  tab row past 32px. A phone gets tighter padding and 15px words, so the strip
+  is 288px wide on a 375px screen.
+- **The cards have 24px corners**, which Tyler set the same day. The theme's
+  `rounded-3xl` works out to 28px here, so the two cards write 24px outright.
+- **One card of three boxes comes next.** Today holds the goal count and one
+  short bar per session. Streak holds the current and best run of days.
+  Auto-start holds the switch, labelled "Next timer". On a phone the three
+  stack.
+- **The Tasks card is last.** Its rows have no box of their own, unlike the
+  Tasks page, because the design draws them flat. The add box sits under a
+  divider that runs the card's full width, with no frame of its own, and an
+  orange Add task button at its right end, which Tyler asked for because a box
+  with no frame does not look like it takes a click. The button is never greyed
+  out: pressed with nothing typed, it marks the box and the toast says "Type
+  what the task is first.", the same as Enter. The chosen task still shows
+  the orange bar on its left.
+- **Every small heading is the same spaced capitals**: the cycle line, Today,
+  Streak, Auto-start and Tasks.
 
 ## The ring on a narrow window
 
@@ -29,8 +57,9 @@ because zen mode covers the window and must not be scrolled.
 
 **Space starts and pauses the timer**, on the dashboard and in zen mode. It
 calls the same `toggleTimer` the Start pill calls, so on a break it pauses and
-resumes the break, like the break's own play button. A line under the ring
-says "Space to start" or "Space to pause", and only on a screen with a mouse or
+resumes the break, like the break's own play button. A line at the bottom of
+the ring says "Space to start" or "Space to pause", and only on a screen with
+a mouse or
 trackpad (`pointer-fine`), since a phone has no Space bar to press.
 
 Space leaves the timer alone whenever something else wants the key
@@ -117,10 +146,11 @@ used to do. Zen mode still shows the name.
   pattern and 2 to 8 in general; see
   [Sessions before the long break](sessions-before-long-break.md). The rule is
   `advanceCycle` in `src/lib/pomodoro/use-pomodoro.ts`, unit-tested next to it.
-- **A mono line under the goal bar says where the cycle is:** "Session 2 of 4
-  before the long break" while focusing, and "Next: session 3 of 4 before the
-  long break" on a break, because the focus you were in is over
-  (`cycleSessionLabel` in `src/lib/pomodoro/timer.ts`).
+- **The line at the top of the ring says where the cycle is:** "Session 2 of
+  4" while focusing, and "Next: session 3 of 4" on a break, because the focus
+  you were in is over. The "4" is how many focuses earn the long break. The
+  ring has no room for "before the long break", so the dashboard asks
+  `cycleSessionLabel` in `src/lib/pomodoro/timer.ts` for the short form.
 - **Switching phase and pressing Reset ask first when a focus is in
   progress.** Nothing is recorded for a focus that does not finish, and both
   controls are one stray tap away, so the app asks before nineteen minutes go
@@ -137,33 +167,37 @@ used to do. Zen mode still shows the name.
   the dashboard, and Reset in the header's Timer popover. The minutes are
   frozen when the question is asked so the sentence does not climb while it is
   being read.
-- **Auto-start the next timer** (the switch under the goal bar) starts
+- **Auto-start the next timer** (the switch in the Auto-start box) starts
   whatever comes next, a break or a focus, on its own, and opens the next
-  server session itself. It is worded that way on the dashboard, in
-  Settings → Timer and in the preset editor because it is not only focuses
-  that it starts. Tyler, 27 September 2026: "Auto start next phase is
+  server session itself. The dashboard reads "Auto-start" over "Next
+  timer", and Settings → Timer and the preset editor spell it out, because it
+  is not only focuses that it starts. A screen reader hears "Auto-start Next
+  timer". Tyler, 27 September 2026: "Auto start next phase is
   wrong".
 - **The countdown runs in the browser** on a 250ms tick against a wall-clock
   end moment, so a throttled background tab still shows the right time
   (`src/lib/pomodoro/timer.ts`).
-- **The pencil beside the goal bar edits the goal**, as a stepper in a
+- **The pencil in the Today box edits the goal**, as a stepper in a
   popover: one tap a session, 1 to 20, saved the moment it moves. It never
   touches the countdown, so it works while the timer runs, and Settings >
   Timer edits the same number. `setDailyGoal` in
   `src/lib/pomodoro/use-pomodoro.ts` is the one saver for both.
-- **The goal bar** shows finished focus sessions today against the daily goal
-  (default 4, 1-20, saved per user). It is the shared `Meter`, so a screen
-  reader hears "Today's daily goal, 3 of 4 sessions". Its label says "0 of 4 sessions
-  completed today", naming what was counted, with "Goal reached" once passed, and
-  under it the streak line: consecutive days with at least one finished
-  focus, current and best. The day math runs in JS on yyyy-mm-dd strings in
+- **The Today box** shows finished focus sessions today against the daily
+  goal (default 4, 1-20, saved per user) as "3 / 4 sessions", with one short
+  bar per session of the goal that fills orange as each focus finishes. The
+  shared `Meter` draws a single fill and cannot show the sessions apart, so the
+  bars are the dashboard's own `GoalSegments`. They read out the way the Meter
+  does, so a screen reader hears "Today's daily goal, 3 of 4 sessions".
+- **The Streak box** shows consecutive days with at least one finished focus,
+  current and best: "3 days · best 5". The day math runs in JS on yyyy-mm-dd
+  strings in
   the user's own timezone (`calculateFocusStreaks`, unit-tested in
   `src/server/pomodoro/productivity.test.ts`); yesterday's streak stays
   current until today ends without a focus.
 - **Reaching the goal is noticeable.** Once today's count meets the goal the
-  bar's fill turns to the success colour (`--p-success`) and "Goal reached"
-  turns from grey to bold, and a screen reader hears ", goal reached". The
-  words stay the text colour rather than green, because the light theme's
+  bars turn to the success colour (`--p-success`) and the Today heading reads
+  "Today · Goal reached", and a screen reader hears ", goal reached". The
+  words are the text colour rather than green, because the light theme's
   green is under 4.5:1 on white at that size. The focus that crosses the line
   also puts up one toast, "Daily goal reached: 8 sessions today."
   (`src/lib/pomodoro/goal-toast.ts`). Only a finished focus can raise it, so

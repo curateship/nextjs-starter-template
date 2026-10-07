@@ -31,11 +31,13 @@ export const MODE_LABELS: Record<TimerMode, string> = {
 export function cycleSessionLabel(
   mode: TimerMode,
   cycleFocusSessions: number,
-  sessionsBeforeLongBreak: number
+  sessionsBeforeLongBreak: number,
+  /** "Session 1 of 4" without the long break, for the line inside the ring. */
+  { short = false }: { short?: boolean } = {}
 ) {
   const total = Math.max(1, sessionsBeforeLongBreak)
   const done = Math.min(Math.max(0, cycleFocusSessions), total)
-  const tail = `of ${total} before the long break`
+  const tail = short ? `of ${total}` : `of ${total} before the long break`
   if (mode === "focus") return `Session ${Math.min(done + 1, total)} ${tail}`
   // A finished long break has already reset the count, so "next" is the first
   // focus of the new cycle; a short break points at the one it earned.

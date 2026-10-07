@@ -38,6 +38,15 @@ describe("the session label on the dashboard", () => {
     )
   })
 
+  it("drops the long break from the short line inside the ring", () => {
+    expect(cycleSessionLabel("focus", 0, 2, { short: true })).toBe(
+      "Session 1 of 2"
+    )
+    expect(cycleSessionLabel("short", 1, 4, { short: true })).toBe(
+      "Next: session 2 of 4"
+    )
+  })
+
   it("never counts past the rhythm, even on a count left over from a longer one", () => {
     expect(cycleSessionLabel("focus", 6, 2)).toBe(
       "Session 2 of 2 before the long break"

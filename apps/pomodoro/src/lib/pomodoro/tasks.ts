@@ -9,8 +9,11 @@ import type { TaskStepItem } from "@/lib/pomodoro/task-steps"
 
 export type TaskPriority = "low" | "normal" | "high"
 
-/** What a new-task box says when Enter is pressed with nothing in it. */
-export const BLANK_TASK_TITLE = "Type what the task is before pressing Enter."
+/**
+ * What a new-task box says when it is sent with nothing in it, by Enter or by
+ * the timer's Add task button, so it names neither.
+ */
+export const BLANK_TASK_TITLE = "Type what the task is first."
 
 export const taskPriorities: readonly TaskPriority[] = ["low", "normal", "high"]
 
