@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import {
   fetchKucoinMarkets,
   clearKucoinPriceCache,
+  fetchKucoinBookTop,
   fetchKucoinPrices,
   kucoinMarketRules,
 } from "@/server/protocols/kucoin/markets"
@@ -222,6 +223,45 @@ describe("KuCoin prices", () => {
     // The engine's pass runs every second and asks every time; one small read
     // stands for two of them.
     expect(fetcher.mock.calls.length).toBe(1)
+  })
+})
+
+describe("KuCoin's best buyer and seller", () => {
+  // KuCoin's own answer for ADAUSDTM, read on 7 Oct 2026.
+  const TICKER = {
+    code: "200000",
+    data: {
+      sequence: 1714790182056,
+      symbol: "ADAUSDTM",
+      side: "buy",
+      size: 11,
+      tradeId: "1715334450261",
+      price: "0.25281",
+      bestBidPrice: "0.25278",
+      bestBidSize: 1,
+      bestAskPrice: "0.25279",
+      bestAskSize: 40,
+      ts: 1791379576718000000,
+    },
+  }
+
+  it("reads the book, not the last trade or the mark", async () => {
+    const fetcher = stubFetch({ "/api/v1/ticker": TICKER })
+    expect(await fetchKucoinBookTop("mainnet", "ADAUSDTM")).toEqual({
+      bid: 0.25278,
+      ask: 0.25279,
+    })
+    expect(String(fetcher.mock.calls[0][0])).toContain("symbol=ADAUSDTM")
+  })
+
+  it("answers nothing when a side of the book is empty", async () => {
+    stubFetch({
+      "/api/v1/ticker": {
+        code: "200000",
+        data: { ...TICKER.data, bestAskPrice: null },
+      },
+    })
+    expect(await fetchKucoinBookTop("mainnet", "ADAUSDTM")).toBeNull()
   })
 })
 

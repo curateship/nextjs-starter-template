@@ -342,6 +342,40 @@ export async function fetchKucoinPrices(
   return answer
 }
 
+const bookTopSchema = z.object({
+  bestBidPrice: z.union([z.string(), z.number()]).nullish(),
+  bestAskPrice: z.union([z.string(), z.number()]).nullish(),
+})
+
+/**
+ * The highest buyer and the lowest seller on one market, read fresh.
+ *
+ * **A waiting order is priced off these, never off the mark price.** The mark
+ * price is KuCoin's smoothed figure for liquidations, and when the coin moves
+ * fast it trails the book. A sell set a hair above the mark then lands at or
+ * under a real buyer, and KuCoin takes the order and cancels it a moment
+ * later ("Post-only order conditions not met"). On 7 Oct 2026 at 00:31:58 a
+ * close of 2,720 ADA went out at $0.26633 that way, sold nothing, and the
+ * close waited twelve hours for an order that no longer existed.
+ *
+ * Not held: the answer is read once per order sent, and a held one is the
+ * stale price this exists to avoid. `null` when either side is empty.
+ */
+export async function fetchKucoinBookTop(
+  network: NetworkId,
+  marketId: string
+): Promise<{ bid: number; ask: number } | null> {
+  const answer = await kucoinPublic(network, "/api/v1/ticker", {
+    symbol: marketId,
+  })
+  const row = bookTopSchema.safeParse(answer)
+  if (!row.success) return null
+  const bid = num(row.data.bestBidPrice)
+  const ask = num(row.data.bestAskPrice)
+  if (bid === null || ask === null || !(bid > 0) || !(ask > bid)) return null
+  return { bid, ask }
+}
+
 /**
  * Whether a refusal means "no such price here" rather than "we are broken".
  * `415000` is what the exchange answers for a market it does not mark-price,

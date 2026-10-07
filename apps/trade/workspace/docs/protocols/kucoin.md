@@ -77,6 +77,11 @@ prefix the app puts on the raw answer is stripped before it is shown, because
 a code in the middle of the sentence is what made the refusal unreadable. The
 app does not guess that an unknown code means the order is safe to repeat.
 
+KuCoin never refuses a post-only order that would trade at once. It accepts
+it and cancels it a moment later ("Post-only order conditions not met"). How
+Trade keeps a waiting close clear of that is in `orders/part-close.md`, under
+"On KuCoin the price is checked against the book".
+
 ## Market-order price bands
 
 Trade sends a KuCoin market order as an immediate-or-cancel limit, normally no
