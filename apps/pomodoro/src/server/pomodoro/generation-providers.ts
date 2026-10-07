@@ -1,4 +1,5 @@
 import { getAiKey } from "@/server/ai/keys"
+import { GENERATION_MODELS } from "@/lib/pomodoro/generation"
 
 /**
  * The two providers that make the files, ported from the old app
@@ -14,8 +15,10 @@ import { getAiKey } from "@/server/ai/keys"
 
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta"
 
+const VIDEO = GENERATION_MODELS.background
+const SOUND = GENERATION_MODELS.soundscape
+
 /** Veo renders in the background, so the request returns a job to poll. */
-const VIDEO_MODEL = "veo-3.1-lite-generate-preview"
 const VIDEO_POLL_MS = 10_000
 const VIDEO_DEADLINE_MS = 6 * 60_000
 
@@ -40,7 +43,7 @@ export async function generateBackgroundVideo(
   const apiKey = await requireKey("gemini")
 
   const started = await fetch(
-    `${GEMINI_BASE}/models/${VIDEO_MODEL}:predictLongRunning`,
+    `${GEMINI_BASE}/models/${VIDEO.model}:predictLongRunning`,
     {
       method: "POST",
       headers: { "x-goog-api-key": apiKey, "Content-Type": "application/json" },
@@ -55,7 +58,7 @@ export async function generateBackgroundVideo(
         ],
         parameters: {
           aspectRatio: "16:9",
-          durationSeconds: 8,
+          durationSeconds: VIDEO.seconds,
           resolution: "720p",
           personGeneration: "allow_adult",
         },
@@ -118,10 +121,10 @@ export async function generateSoundscapeAudio(
       },
       body: JSON.stringify({
         text: prompt,
-        duration_seconds: 30,
+        duration_seconds: SOUND.seconds,
         prompt_influence: 0.3,
         loop: true,
-        model_id: "eleven_text_to_sound_v2",
+        model_id: SOUND.model,
       }),
       signal,
     }

@@ -21,6 +21,26 @@ export const GENERATION_PURPOSE = {
   soundscape: "sound",
 } as const
 
+/**
+ * What each kind is made with, and how long it is. The provider requests read
+ * this, and so does the spend meter (`src/server/pomodoro/generation-spend.ts`),
+ * so the seconds that are priced are always the seconds that were asked for.
+ * Both models are priced per second in the shell's list,
+ * `src/lib/ai/ai-models.ts`.
+ */
+export const GENERATION_MODELS = {
+  background: {
+    provider: "gemini",
+    model: "veo-3.1-lite-generate-preview",
+    seconds: 8,
+  },
+  soundscape: {
+    provider: "elevenlabs",
+    model: "eleven_text_to_sound_v2",
+    seconds: 30,
+  },
+} as const
+
 export const GENERATION_COPY: Record<
   GenerationKind,
   {

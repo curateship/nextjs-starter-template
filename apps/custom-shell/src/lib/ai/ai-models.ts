@@ -135,6 +135,12 @@ export const AI_UNIT_PRICES: Record<
   // Veo 3.1 Standard at 720p, charged per finished second. Google does not
   // charge when generation is blocked, so callers record units only on success.
   "veo-3.1-generate-preview": { dollarsPerUnit: 0.4, unit: "second" },
+  // Veo 3.1 Lite at 720p, $0.05 per finished second, checked against the
+  // Gemini API price page on 2026-10-07. An 8-second clip is $0.40.
+  "veo-3.1-lite-generate-preview": { dollarsPerUnit: 0.05, unit: "second" },
+  // ElevenLabs sound effects, $0.12 per minute of sound made, checked against
+  // elevenlabs.io/pricing/api on 2026-10-07. A 30-second loop is $0.06.
+  eleven_text_to_sound_v2: { dollarsPerUnit: 0.002, unit: "second" },
   // Characters of text read aloud, at roughly $0.15 per 1,000 — the quicker
   // voices about half that.
   eleven_multilingual_v2: { dollarsPerUnit: 0.00015, unit: "character" },

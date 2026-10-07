@@ -7,12 +7,17 @@ import {
   generateBackgroundVideo,
   generateSoundscapeAudio,
   ProviderKeyMissingError,
+  type GeneratedFile,
 } from "@/server/pomodoro/generation-providers"
 import {
   FfmpegMissingError,
   transcodeUpload,
 } from "@/server/pomodoro/media-transcode"
 import { storePomodoroUpload } from "@/server/pomodoro/media-uploads"
+import {
+  recordGenerationFailure,
+  recordGenerationSpend,
+} from "@/server/pomodoro/generation-spend"
 import {
   GENERATION_PURPOSE,
   type GenerationKind,
@@ -30,6 +35,11 @@ import {
  * then the shell's media library and bucket, then a `pomodoro_media_uploads`
  * row — so from the picker's point of view there is no difference between
  * something a member made and something they uploaded.
+ *
+ * Every attempt that reaches a provider is also one row on the shell's AI
+ * usage page (`generation-spend.ts`): priced once the file comes back, at $0
+ * when the provider fails. A missing key never reached anybody, so it records
+ * nothing.
  */
 export async function processNextGeneration() {
   const job = await claimNextGeneration()
@@ -37,12 +47,24 @@ export async function processNextGeneration() {
 
   const kind = job.kind as GenerationKind
 
+  let generated: GeneratedFile
   try {
-    const generated =
+    generated =
       kind === "background"
         ? await generateBackgroundVideo(job.prompt)
         : await generateSoundscapeAudio(job.prompt)
+  } catch (error) {
+    if (!(error instanceof ProviderKeyMissingError))
+      await recordGenerationFailure(job, kind, error)
+    const { retry, reason } = describeFailure(error)
+    await failGeneration(job, reason, { retry })
+    return
+  }
 
+  // The provider has been paid from here on, whatever happens to the file.
+  await recordGenerationSpend(job, kind)
+
+  try {
     if (!generated.bytes.byteLength) {
       throw new Error("The provider returned an empty file.")
     }

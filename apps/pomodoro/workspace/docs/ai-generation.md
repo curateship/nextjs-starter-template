@@ -84,6 +84,46 @@ Provider keys come from the shell's AI settings (Settings → AI), not from this
 app's own environment, so an operator fills them in once and every AI feature
 can see them.
 
+## What it costs, and where an operator sees it
+
+Every attempt that reaches a provider is one row on the shell's AI usage page
+(Settings → AI, then AI usage), beside every other AI call, filed under
+"pomodoro background" or "pomodoro soundscape" with the member and the model.
+Tyler asked for this on 7 Oct 2026, because the Google bill was the only place
+the spend showed.
+
+- **A finished background is 8 seconds of `veo-3.1-lite-generate-preview`,
+  $0.40.** Google's Gemini API price page lists Veo 3.1 Lite at $0.05 a second
+  at 720p, checked on 7 Oct 2026.
+- **A finished soundscape is 30 seconds of `eleven_text_to_sound_v2`, $0.06.**
+  ElevenLabs' API price page lists sound effects at $0.12 a minute, checked on
+  7 Oct 2026.
+- **The prices live in the shell's price list**, `src/lib/ai/ai-models.ts`,
+  added in custom-shell first and copied here. When a provider changes its
+  price, that list is the one place to change, and the comment beside each
+  line says the date it was checked.
+- **The cost is booked the moment the provider hands the file back**, because
+  that is when it charges. A file that then fails in FFmpeg or storage still
+  shows as spent, and the member gets their credit back as before.
+- **An attempt the provider refused or never finished is a failed row at $0**,
+  with this app's own reason (`PROVIDER_TIMEOUT`, `PROVIDER_REQUEST_FAILED`),
+  never the provider's words. An error that is not one of this app's codes
+  is filed as `PROVIDER_FAILED`, because it can carry a piece of the
+  provider's reply. A retry is a second row.
+- **A missing key records nothing**, because nothing reached a provider.
+- **The member's limit is still the monthly credits above.** The worker never
+  checks the shell's dollar allowance before a render, so a render is never
+  refused by it. The spend does count toward that allowance and its warnings
+  if a plan ever sets `aiDollars`; Tyler chose that on 7 Oct 2026. No plan sets
+  one today.
+- **One gap:** a Veo render that times out on this side may still finish and
+  be billed by Google. It shows as a failed row at $0, so the usage page can
+  read slightly under the Google bill.
+
+The recording is `src/server/pomodoro/generation-spend.ts`, called from the
+worker, and the models and lengths both requests and the meter read are
+`GENERATION_MODELS` in `src/lib/pomodoro/generation.ts`.
+
 ## The bell
 
 A finished background or soundscape says so in the bell, with the prompt
@@ -118,6 +158,7 @@ not to be trusted.
 - `src/server/pomodoro/generation-providers.ts` — Veo and ElevenLabs.
 - `src/server/pomodoro/generation-worker.ts` — one job per tick, registered in
   `src/app/server-options.ts`.
+- `src/server/pomodoro/generation-spend.ts` — the rows on the AI usage page.
 - `src/lib/api/pomodoro/generation.ts` — two server functions, both guarded.
 - `src/components/pomodoro/media-generator-section.tsx` — the panel.
 
