@@ -47,12 +47,35 @@ decision.
 - Hiding sets `hidden_at`, which the public read already tests, so a hidden
   profile answers exactly the 404 a switched-off one does. There is no second
   kind of 404 to get wrong.
-- The owner is told, on their own Settings card, in a plain line. They are not
-  left thinking the app broke.
+- The owner is told, on their own Settings card, in a plain line, and in the
+  bell (see Notices below). They are not left thinking the app broke.
 - The hide is written to `pomodoro_audit_logs`, and it drops the held copy of
   the page, so it takes effect on the very next request.
 - Hiding leaves the report's own standing alone. An operator still resolves or
   dismisses it afterwards, exactly as they would a message.
+
+## Notices
+
+Who hears what when a report moves. Every one of these is in the bell
+(`src/server/pomodoro/notices.ts`, words in `src/lib/pomodoro/notices.ts`) and
+none of them names the reporter, the admin or the person reported.
+
+- **Every active admin hears a report land:** "New report: a profile." or "New
+  report: a room message.", leading to `/admin/pomodoro-reports`. More reports
+  while that notice is unread fold into "4 new reports." An admin who files a
+  report is not told about their own. A repeat report of the same chat line
+  adds no row, so it tells nobody again.
+- **Once nothing in the queue is open**, every admin's unread "new report"
+  notice turns read, because there is nothing left for it to point at.
+- **The reporter hears "Thanks, your report was reviewed."** when it is
+  resolved or dismissed. The words are identical for both on purpose:
+  different words would let a reporter learn what happened to somebody else.
+  It is once per report, kept by `room_reports.reporter_told_at`, so reopening
+  and closing again says nothing; one press closing several of one person's
+  reports is one notice. A signed-out reporter has no bell and hears nothing.
+- **A hidden profile's owner hears "Your public profile has been hidden. See
+  Settings for what to do."**, leading to Settings → Public page, as well as
+  the line on that card. Hiding a profile already hidden says nothing again.
 
 ## Blocking an account
 

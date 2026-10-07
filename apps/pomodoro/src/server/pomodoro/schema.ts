@@ -56,11 +56,24 @@ export const userPreferences = pgTable(
     soundVolume: integer("sound_volume").notNull().default(70),
     soundMuted: boolean("sound_muted").notNull().default(false),
     completionAlerts: boolean("completion_alerts").notNull().default(false),
+    /** The evening streak reminder in the bell. Off until switched on. */
+    streakReminderBell: boolean("streak_reminder_bell").notNull().default(false),
+    /** The member's own local hour, 12 to 23, the reminder may go from. */
+    streakReminderHour: integer("streak_reminder_hour").notNull().default(19),
+    /**
+     * The local day the reminder was last considered for this person, so a
+     * day is looked at once and nobody is nudged twice in it.
+     */
+    streakReminderOn: date("streak_reminder_on", { mode: "string" }),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
   (table) => [
+    check(
+      "preferences_streak_reminder_hour_check",
+      sql`${table.streakReminderHour} between 12 and 23`
+    ),
     check(
       "preferences_focus_check",
       sql`${table.focusMinutes} between 1 and 90`
@@ -1096,6 +1109,12 @@ export const roomReports = pgTable(
       length: 36,
     }).references(() => customShellUsers.id, { onDelete: "set null" }),
     reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    /**
+     * When the reporter was told the report was reviewed. Set on the first
+     * resolve or dismiss and never cleared, so reopening and closing again
+     * tells nobody twice.
+     */
+    reporterToldAt: timestamp("reporter_told_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

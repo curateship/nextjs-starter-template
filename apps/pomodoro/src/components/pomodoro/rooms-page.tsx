@@ -104,6 +104,13 @@ import { usePageVisible } from "@/lib/pomodoro/use-page-visible"
 import { PRO_PERKS } from "@/lib/pomodoro/pro"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { contentColumn } from "@/lib/pomodoro/content-column"
+import { listTimerPresets } from "@/lib/api/pomodoro/timer-presets"
+import {
+  builtinTimerPresets,
+  matchRoomPreset,
+  roomPresetSummary,
+  type CustomTimerPreset,
+} from "@/lib/pomodoro/timer-presets"
 
 export type RoomSnapshotClient = NonNullable<
   Awaited<ReturnType<typeof getCurrentRoom>>
@@ -626,7 +633,7 @@ function defaultStartValue() {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
-function HostRoomDialog({
+export function HostRoomDialog({
   open,
   onOpenChange,
   onCreated,
@@ -645,6 +652,41 @@ function HostRoomDialog({
   const [shortBreakMinutes, setShortBreakMinutes] = React.useState(5)
   const [longBreakMinutes, setLongBreakMinutes] = React.useState(15)
   const [autoStart, setAutoStart] = React.useState(false)
+  // The member's own rhythm presets, read when the dialog opens. A failed
+  // read still offers the built-ins and says the rest could not be loaded.
+  const [ownPresets, setOwnPresets] = React.useState<CustomTimerPreset[]>([])
+  const [presetsFailed, setPresetsFailed] = React.useState(false)
+  React.useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    listTimerPresets().then(
+      (rows) => {
+        if (cancelled) return
+        setPresetsFailed(false)
+        setOwnPresets(rows)
+      },
+      () => {
+        if (!cancelled) setPresetsFailed(true)
+      }
+    )
+    return () => {
+      cancelled = true
+    }
+  }, [open])
+  const matchedPreset = matchRoomPreset(
+    { focusMinutes, shortBreakMinutes, longBreakMinutes, autoStart },
+    ownPresets
+  )
+  const pickPreset = (id: string) => {
+    const preset = [...builtinTimerPresets, ...ownPresets].find(
+      (candidate) => candidate.id === id
+    )
+    if (!preset) return
+    setFocusMinutes(preset.focusMinutes)
+    setShortBreakMinutes(preset.shortBreakMinutes)
+    setLongBreakMinutes(preset.longBreakMinutes)
+    setAutoStart(preset.autoStart)
+  }
   const [startMode, setStartMode] = React.useState<"now" | "later" | "weekly">(
     "now"
   )
@@ -802,6 +844,36 @@ function HostRoomDialog({
                   </SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            {/* A preset fills the three timers and auto-start; the fields stay
+                editable, and any edit that matches no preset reads Custom,
+                the same rule as the timer's own picker. The room keeps plain
+                numbers, so nothing after this knows a preset was used. */}
+            <div className="grid gap-2">
+              <FieldLabel
+                htmlFor="room-preset"
+                hint="Fills the timers below. A room always takes its long break after four focuses, whatever the preset says."
+              >
+                Rhythm
+              </FieldLabel>
+              <Select value={matchedPreset?.id ?? ""} onValueChange={pickPreset}>
+                <SelectTrigger id="room-preset" aria-label="Rhythm preset">
+                  <SelectValue placeholder="Custom" />
+                </SelectTrigger>
+                <SelectContent position="popper">
+                  {[...builtinTimerPresets, ...ownPresets].map((preset) => (
+                    <SelectItem key={preset.id} value={preset.id}>
+                      {preset.name} · {roomPresetSummary(preset)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {presetsFailed ? (
+                <span className="text-xs text-muted-foreground">
+                  Your own presets could not be loaded. The built-in ones are
+                  here.
+                </span>
+              ) : null}
             </div>
             {/* The ids used to be built from the label, which put spaces in
                 them — `room-Focus minutes` — and a `htmlFor` with a space in

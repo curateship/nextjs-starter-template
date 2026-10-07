@@ -21,12 +21,23 @@ the phases, and the server is the only clock.
   the list shuffles. A group with no rooms shows a dashed box saying so.
   The pieces live in `src/components/pomodoro/room-card.tsx`, the gradients
   in `src/lib/pomodoro/room-vibe.ts`, and the two animations in
-  `src/components/pomodoro/theme.css`. The page is 860px wide with 36px
-  between its groups, which are the old app's numbers for this screen.
+  `src/components/pomodoro/theme.css`. The page is the shared 1,140px column
+  (see [The product shell](product-shell.md)) with 36px between its groups,
+  the old app's spacing for this screen.
 - **Hosting is Pro** (`requirePomodoroPerk("hostRooms")`): name, public or
   unlisted, three durations, auto-start. One room per person; hosting
   again or joining another room closes the old one so nobody is stranded
   hostless.
+- **A Rhythm picker fills the timers in one pick.** It lists the three
+  built-in presets and your own, from the same list as Settings → Timer, and
+  sets focus, short break, long break and auto-start. The boxes stay
+  editable; change any one so it matches no preset and the picker reads
+  Custom, the timer's own rule. A room always takes its long break after
+  four focuses, so a preset's own "long after" count is left out of the match
+  and the summary ("50 · 10 · 30 min"). The room stores plain numbers, so
+  nothing downstream knows a preset was used. If your own presets fail to
+  load, the built-ins are still offered and a line says so
+  (`matchRoomPreset` in `src/lib/pomodoro/timer-presets.ts`).
 - **The dialog's three minute boxes are the shared ones**,
   `RhythmMinutesFields`, the same component the Settings card and a custom
   preset use. [Timer settings](timer-settings.md) has what they do. Two

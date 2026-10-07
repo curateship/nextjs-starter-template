@@ -9,6 +9,7 @@ import {
   readOpenRoomsRow,
 } from "@/server/pomodoro/front-page-rows"
 import { listedProfilePaths } from "@/server/pomodoro/public-profile"
+import { runStreakReminderPass } from "@/server/pomodoro/streak-reminder"
 
 /**
  * What this app changes about the shell, on the server side.
@@ -100,6 +101,13 @@ export const appServerOptions: AppServerOptions = {
         // behind somebody else's video being dreamt up.
         name: "pomodoro-generations",
         tick: processNextGeneration,
+      },
+      {
+        // The evening streak reminder. At most one pass a minute; each person
+        // is claimed for the day before anything is sent, so overlapping
+        // passes and processes nudge nobody twice.
+        name: "pomodoro-streak-reminders",
+        tick: runStreakReminderPass,
       },
     ],
   },

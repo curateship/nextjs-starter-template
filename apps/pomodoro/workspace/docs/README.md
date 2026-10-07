@@ -27,6 +27,9 @@ cover this one.
 - [Projects](projects.md) — grouping tasks at the level people bill at, an
   hours target per week or month, what archiving does, and the per-project
   split in History.
+- [The streak reminder](streak-reminder.md) — the evening nudge in the bell
+  when the streak is alive and today is still empty; off until switched on,
+  once a day at most, and never by email.
 - [Session notes](session-notes.md) — the one line you jot after a focus
   finishes, why it never interrupts the break, and where it shows up.
 - [Sessions before the long break](sessions-before-long-break.md) — how many
@@ -75,7 +78,8 @@ cover this one.
 - [Live figures on the public front page](public-live-figures.md) — the hours
   and open-rooms rows a visitor sees, and the floor that hides one on a quiet
   week.
-- [Focus rooms](rooms.md) — shared timers with a host, the fifteen-second
+- [Focus rooms](rooms.md) — shared timers with a host, the Rhythm preset
+  picker in Host a room, the fifteen-second
   server clock, SSE snapshots, invite links, the task beside a member's name,
   My rooms, and who you focus with.
 - [Scheduled rooms](scheduled-rooms.md) — booking a room for later or every

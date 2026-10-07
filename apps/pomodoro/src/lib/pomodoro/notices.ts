@@ -27,6 +27,10 @@ export const POMODORO_NOTICE_KINDS = [
   "media_ready",
   "media_failed",
   "credits_low",
+  "report_new",
+  "report_reviewed",
+  "profile_hidden",
+  "streak_reminder",
 ] as const
 
 export type PomodoroNoticeKind = (typeof POMODORO_NOTICE_KINDS)[number]
@@ -66,6 +70,12 @@ export const NOTICE_KIND_CATEGORY: Record<
   media_ready: "account",
   media_failed: "account",
   credits_low: "account",
+  // Moderation is about your own account either way: the queue you work as
+  // an admin, a report you filed, or your own page being hidden.
+  report_new: "account",
+  report_reviewed: "account",
+  profile_hidden: "account",
+  streak_reminder: "account",
 }
 
 /**
@@ -119,6 +129,9 @@ const BADGE_PREFIX = "You earned "
 const READY_SUFFIX = " is ready."
 const FAILED_PATTERN = / couldn't be (made|prepared)\.$/
 const CREDITS_PATTERN = /^(1|No) AI (background|soundscape)s? left this month\.$/
+const STREAK_REMINDER_PATTERN = /^One session today keeps your \d+-day streak\.$/
+const REPORT_NEW_PREFIX = "New report: "
+const REPORTS_NEW_FOLDED = /^\d+ new reports\.$/
 
 /** "Sam" or "Sam and 2 others", the head of every folded sentence. */
 function nameAndOthers(name: string, others: number) {
@@ -265,6 +278,38 @@ export function creditsLowMessage(
 }
 
 /**
+ * The evening streak reminder: what is at stake and what keeps it, nothing
+ * more. Only ever sent while the streak is alive and today is still empty.
+ */
+export function streakReminderMessage(days: number) {
+  return `One session today keeps your ${days}-day streak.`
+}
+
+/** What a report in the queue is about, as the admins' notice names it. */
+export type ReportedThing = "profile" | "message"
+
+/**
+ * A report landed in the queue. Never names the reporter or quotes what was
+ * reported; the queue shows both. More while the notice is unread fold into
+ * a count.
+ */
+export function reportNewMessage(thing: ReportedThing, reports: number) {
+  if (reports > 1) return `${reports} new reports.`
+  return `${REPORT_NEW_PREFIX}${thing === "profile" ? "a profile" : "a room message"}.`
+}
+
+/**
+ * What a reporter hears once their report is closed. The same words whether
+ * it was resolved or dismissed, on purpose: different words would tell the
+ * reporter what happened to somebody else.
+ */
+export const REPORT_REVIEWED_MESSAGE = "Thanks, your report was reviewed."
+
+/** An operator hid your public profile. Never says who, or who reported it. */
+export const PROFILE_HIDDEN_MESSAGE =
+  "Your public profile has been hidden. See Settings for what to do."
+
+/**
  * Which kind a notice is, from its own words, for the first paint of a row.
  *
  * The bell draws a row before the server has said anything about it, and a
@@ -299,6 +344,11 @@ export function noticeKindFromWords(notice: {
   if (message.includes(GROUP_JOIN_INFIX)) return "group_join"
   if (STREAK_PATTERN.test(message)) return "followed_streak"
   if (CREDITS_PATTERN.test(message)) return "credits_low"
+  if (message.startsWith(REPORT_NEW_PREFIX) || REPORTS_NEW_FOLDED.test(message))
+    return "report_new"
+  if (message === REPORT_REVIEWED_MESSAGE) return "report_reviewed"
+  if (message === PROFILE_HIDDEN_MESSAGE) return "profile_hidden"
+  if (STREAK_REMINDER_PATTERN.test(message)) return "streak_reminder"
   if (message.startsWith(BADGE_PREFIX)) return "badge"
   if (FAILED_PATTERN.test(message)) return "media_failed"
   if (message.startsWith("Your ") && message.endsWith(READY_SUFFIX))

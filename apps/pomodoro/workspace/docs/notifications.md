@@ -76,9 +76,14 @@ saved with it.
 | media_ready | the owner of the file | Account | `/backgrounds` or `/sounds` |
 | media_failed | the owner of the file | Account | `/backgrounds` or `/sounds` |
 | credits_low | the person running low | Account | `/backgrounds` or `/sounds` |
+| report_new | every active admin but the reporter | Account | `/admin/pomodoro-reports` |
+| report_reviewed | whoever filed the report | Account | nothing |
+| profile_hidden | the owner of the hidden profile | Account | Settings → Public page |
+| streak_reminder | a member who switched it on, streak alive and today empty | Account | `/timer` |
 
 Rooms is what happens in and around focus rooms. Social is other people outside
-a room. Account is your own badges, files and credits. The tray shows them as
+a room. Account is your own badges, files and credits, and moderation: the
+queue you work as an admin, a report you filed, or your own page being hidden. The tray shows them as
 Unread, All, Rooms, Social and Account, which fits one row. The tiles use the
 theme's colours: primary for good news, destructive for a file that will not
 arrive, muted for news that is neither. A room notice leads to the room's own
@@ -167,6 +172,13 @@ The kinds outside rooms:
   remembers both warnings, so a refund that lifts the count back up does not
   send the same warning twice.
 
+The moderation kinds:
+
+- **A new report folds per admin** into "4 new reports." and turns read once
+  the queue has nothing open. **A report's outcome reads the same whether it
+  was resolved or dismissed**, so it never tells the reporter what happened
+  to somebody else. See [Reporting and blocking](reporting-and-blocking.md).
+
 ## Opening a room clears its notices
 
 When the Rooms page opens on your room, or you join a room, your unread notices
@@ -205,5 +217,7 @@ group join in `src/server/pomodoro/groups.ts` the one that folds.
 - **The link is an address inside this app.** The shell drops any other kind of
   address anyway.
 - **A notice whose kind is switched off in Settings is never written.** Today
-  only the cheer has a switch, on Settings → Public page. The card of per-kind
+  the cheer has a switch, on Settings → Public page, and the streak reminder
+  is off until switched on, on Settings → Timer
+  ([The streak reminder](streak-reminder.md)). The card of per-kind
   switches is task 02 part 5 and is not built yet.

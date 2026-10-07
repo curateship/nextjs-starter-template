@@ -6,10 +6,13 @@ import {
   ClockIcon,
   DoorClosedIcon,
   DoorOpenIcon,
+  EyeOffIcon,
+  FlagIcon,
   FlameIcon,
   GaugeIcon,
   MessageSquareIcon,
   PartyPopperIcon,
+  ShieldCheckIcon,
   SmilePlusIcon,
   TriangleAlertIcon,
   UserMinusIcon,
@@ -75,6 +78,10 @@ const NOTICE_LOOK: Record<PomodoroNoticeKind, AppNoticeDetail> = {
   media_ready: { icon: CircleCheckIcon, toneClassName: GOOD },
   media_failed: { icon: TriangleAlertIcon, toneClassName: BAD },
   credits_low: { icon: GaugeIcon, toneClassName: PLAIN },
+  report_new: { icon: FlagIcon, toneClassName: PLAIN },
+  report_reviewed: { icon: ShieldCheckIcon, toneClassName: PLAIN },
+  profile_hidden: { icon: EyeOffIcon, toneClassName: BAD },
+  streak_reminder: { icon: FlameIcon, toneClassName: GOOD },
 }
 
 /** A kind's whole look: its tile and the tab it is filed under. */

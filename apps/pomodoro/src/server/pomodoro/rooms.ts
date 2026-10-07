@@ -10,6 +10,8 @@ import {
   foldNotice,
   followersToTell,
   writeNotices,
+  noteNewReport,
+  reportQueueAdminIds,
 } from "@/server/pomodoro/notices"
 import {
   focusSessions,
@@ -611,11 +613,15 @@ export async function reportRoomMessage(slug: string, reporterId: string, messag
   await requireActiveMembership(room.id, reporterId, database)
   await enforceRateLimit(`room-report:user:${reporterId}`, REPORT_USER_LIMIT, database)
   await enforceRateLimit(`room-report:room:${room.id}`, REPORT_ROOM_LIMIT, database)
+  // Who works the queue, read before the transaction rather than inside it.
+  const adminIds = await reportQueueAdminIds(database)
   return database.transaction(async (tx) => {
     const [message] = await tx.select({ id: roomMessages.id, userId: roomMessages.userId }).from(roomMessages).where(and(eq(roomMessages.id, messageId), eq(roomMessages.roomId, room.id))).limit(1)
     if (!message) throw new Error("MESSAGE_NOT_FOUND")
     if (message.userId === reporterId) throw new Error("CANNOT_REPORT_OWN_MESSAGE")
     const inserted = await tx.insert(roomReports).values({ roomId: room.id, reporterUserId: reporterId, messageId, reason }).onConflictDoNothing().returning({ id: roomReports.id })
+    // A repeat report of the same line adds no row, so it tells nobody again.
+    if (inserted.length) await noteNewReport(tx, { adminIds, reporterUserId: reporterId, thing: "message" })
     return { reported: inserted.length > 0 }
   })
 }

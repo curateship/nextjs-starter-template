@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest"
 
 import {
   builtinTimerPresets,
+  matchRoomPreset,
   matchTimerPreset,
   normalizeCustomTimerPresets,
   normalizeSessionsBeforeLongBreak,
   presetSummary,
+  roomPresetSummary,
   validSessionsBeforeLongBreak,
 } from "@/lib/pomodoro/timer-presets"
 
@@ -91,5 +93,28 @@ describe("sessions before the long break", () => {
       },
     ])
     expect(preset.sessionsBeforeLongBreak).toBe(4)
+  })
+})
+
+describe("the host dialog's preset picker", () => {
+  const room = { focusMinutes: 50, shortBreakMinutes: 10, longBreakMinutes: 30, autoStart: false }
+
+  it("matches Deep Work without its count before the long break, which a room does not keep", () => {
+    expect(matchRoomPreset(room, [])?.name).toBe("Deep Work")
+  })
+
+  it("reads Custom once any one value is edited", () => {
+    expect(matchRoomPreset({ ...room, focusMinutes: 45 }, [])).toBeNull()
+    expect(matchRoomPreset({ ...room, autoStart: true }, [])).toBeNull()
+  })
+
+  it("matches the member's own presets after the built-ins", () => {
+    const mine = { id: "p1", name: "Writing", ...room, focusMinutes: 40, sessionsBeforeLongBreak: 3 }
+    expect(matchRoomPreset({ ...room, focusMinutes: 40 }, [mine])?.name).toBe("Writing")
+  })
+
+  it("sums up a rhythm without the long-break count", () => {
+    expect(roomPresetSummary(room)).toBe("50 · 10 · 30 min")
+    expect(roomPresetSummary({ ...room, autoStart: true })).toBe("50 · 10 · 30 min · auto")
   })
 })

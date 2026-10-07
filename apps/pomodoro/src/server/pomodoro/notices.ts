@@ -4,6 +4,8 @@ import { and, count, eq, gte, inArray, isNull, sql } from "drizzle-orm"
 
 import {
   groupJoinMessage,
+  reportNewMessage,
+  type ReportedThing,
   KINDS_LINKING_TO_THE_ACTOR,
   NOTICE_KIND_CATEGORY,
   type PomodoroNoticeCategoryId,
@@ -19,8 +21,9 @@ import {
   pomodoroFollows,
   pomodoroNoticeLinks,
   pomodoroProfiles,
+  roomReports,
 } from "@/server/pomodoro/schema"
-import { customShellNotifications } from "@/server/schema"
+import { customShellNotifications, customShellUsers } from "@/server/schema"
 
 /**
  * The database a notice is written with: the shared handle, or the
@@ -510,4 +513,98 @@ export async function markRoomNoticesRead(
     .returning({ id: customShellNotifications.id })
   if (marked.length) await publishNotificationCreated(userId, database)
   return marked.length
+}
+
+/** Where a report notice leads: the queue every report lands in. */
+export const REPORT_QUEUE_PAGE = "/admin/pomodoro-reports"
+
+/**
+ * The accounts that work the report queue: every active admin.
+ *
+ * Read with the shared handle, so call it before a transaction, never inside
+ * one.
+ */
+export async function reportQueueAdminIds(database: CustomShellDb = db) {
+  const rows = await database
+    .select({ id: customShellUsers.id })
+    .from(customShellUsers)
+    .where(
+      and(eq(customShellUsers.role, "admin"), eq(customShellUsers.status, "active"))
+    )
+  return rows.map((row) => row.id)
+}
+
+/**
+ * A report landed: tell every admin, folding into each one's unread report
+ * notice so five reports are one line. An admin who filed it is not told
+ * about their own report. The notice names nobody; the queue does.
+ */
+export async function noteNewReport(
+  database: NoticeDatabase,
+  {
+    adminIds,
+    reporterUserId,
+    thing,
+  }: {
+    adminIds: readonly string[]
+    reporterUserId: string | null
+    thing: ReportedThing
+  }
+) {
+  for (const adminId of adminIds) {
+    if (adminId === reporterUserId) continue
+    await foldNotice(database, {
+      recipientUserId: adminId,
+      actorUserId: null,
+      kind: "report_new",
+      subject: {},
+      href: REPORT_QUEUE_PAGE,
+      compose: (waiting) => {
+        const foldCount = (waiting?.foldCount ?? 0) + 1
+        return {
+          message: reportNewMessage(thing, foldCount),
+          detail: null,
+          foldCount,
+        }
+      },
+    })
+  }
+}
+
+/**
+ * Once nothing in the queue is open, every admin's unread "new report"
+ * notice turns read: there is nothing left for it to point at.
+ */
+export async function clearReportNoticesIfQueueEmpty(database: NoticeDatabase) {
+  const [open] = await database
+    .select({ value: count() })
+    .from(roomReports)
+    .where(eq(roomReports.status, "pending"))
+  if ((open?.value ?? 0) > 0) return
+
+  const now = new Date()
+  const marked = await database
+    .update(customShellNotifications)
+    .set({
+      readAt: now,
+      seenAt: sql`coalesce(${customShellNotifications.seenAt}, ${now})`,
+    })
+    .where(
+      and(
+        isNull(customShellNotifications.readAt),
+        inArray(
+          customShellNotifications.id,
+          database
+            .select({ id: pomodoroNoticeLinks.noticeId })
+            .from(pomodoroNoticeLinks)
+            .where(eq(pomodoroNoticeLinks.kind, "report_new"))
+        )
+      )
+    )
+    .returning({ recipientUserId: customShellNotifications.recipientUserId })
+  if (marked.length)
+    await publishNotificationCreatedMany(
+      [...new Set(marked.map((row) => row.recipientUserId))],
+      database
+    )
 }

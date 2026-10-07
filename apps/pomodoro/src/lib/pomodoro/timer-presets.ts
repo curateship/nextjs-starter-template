@@ -132,6 +132,34 @@ export function matchTimerPreset(
   )
 }
 
+/** The part of a rhythm a room stores: no count before the long break. */
+export type RoomRhythmValues = Omit<TimerPresetValues, "sessionsBeforeLongBreak">
+
+/**
+ * The preset a room's timers match, for the host dialog's picker; null means
+ * the picker reads "Custom". A room always takes its long break after four
+ * focuses, so a preset's own count is not part of the match.
+ */
+export function matchRoomPreset(
+  values: RoomRhythmValues,
+  customPresets: readonly CustomTimerPreset[]
+) {
+  return (
+    [...builtinTimerPresets, ...customPresets].find(
+      (preset) =>
+        preset.focusMinutes === values.focusMinutes &&
+        preset.shortBreakMinutes === values.shortBreakMinutes &&
+        preset.longBreakMinutes === values.longBreakMinutes &&
+        preset.autoStart === values.autoStart
+    ) ?? null
+  )
+}
+
+/** "50 · 10 · 30 min · auto", a room preset's summary without the count. */
+export function roomPresetSummary(values: RoomRhythmValues) {
+  return `${values.focusMinutes} · ${values.shortBreakMinutes} · ${values.longBreakMinutes} min${values.autoStart ? " · auto" : ""}`
+}
+
 /**
  * Guests keep their custom rhythms in the browser. Invalid stored rows are
  * discarded rather than repaired, so corrupt data can never resurrect

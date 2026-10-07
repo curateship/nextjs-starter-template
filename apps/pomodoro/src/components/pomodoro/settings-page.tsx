@@ -19,6 +19,7 @@ import {
 } from "@/lib/pomodoro/settings-tabs"
 import { SignInButton } from "@/components/pomodoro/sign-in-button"
 import { contentColumn } from "@/lib/pomodoro/content-column"
+import { StreakReminderCard } from "@/components/pomodoro/streak-reminder-card"
 
 /**
  * The product's Settings page, like the old app's, in five tabs: the focus
@@ -87,8 +88,9 @@ export function SettingsPage({
           </TabsList>
           <ScrollBar orientation="horizontal" />
         </ScrollArea>
-        <TabsContent value="timer">
+        <TabsContent value="timer" className="flex flex-col gap-4">
           <TimerSettingsPanel />
+          {authenticated ? <StreakReminderCard /> : null}
         </TabsContent>
         <TabsContent value="appearance">
           <AppearanceSettingsPanel />

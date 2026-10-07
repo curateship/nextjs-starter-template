@@ -435,7 +435,7 @@ export function AdminReportsDashboard({
                 <RowDecisionButton
                   decision="resolved"
                   icon={<CheckIcon className="size-4" />}
-                  label={`Resolve the report about ${row.roomName}`}
+                  label={`Resolve the report about ${reportSubject(row)}`}
                   rowId={row.id}
                   pending={pending}
                   onClick={() => void decide([row.id], "resolved", "row")}
@@ -443,7 +443,7 @@ export function AdminReportsDashboard({
                 <RowDecisionButton
                   decision="dismissed"
                   icon={<XIcon className="size-4" />}
-                  label={`Dismiss the report about ${row.roomName}`}
+                  label={`Dismiss the report about ${reportSubject(row)}`}
                   rowId={row.id}
                   pending={pending}
                   onClick={() => void decide([row.id], "dismissed", "row")}
@@ -453,7 +453,7 @@ export function AdminReportsDashboard({
               <RowDecisionButton
                 decision="pending"
                 icon={<RotateCcwIcon className="size-4" />}
-                label={`Reopen the report about ${row.roomName}`}
+                label={`Reopen the report about ${reportSubject(row)}`}
                 rowId={row.id}
                 pending={pending}
                 onClick={() => void decide([row.id], "pending", "row")}

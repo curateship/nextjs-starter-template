@@ -87,6 +87,15 @@ actually moved in `record_ids`. Either both rows commit or neither does, so the
 log can never disagree with the report's standing. A press that changed nothing
 writes no log row at all. Room moderation by a host writes to the same table.
 
+### Notices about the queue
+
+Every active admin hears a new report in the bell, folded into "4 new
+reports." while unread, and those notices turn read on their own once no
+report is open. Closing a report tells its reporter "Thanks, your report was
+reviewed." in the same words whether it was resolved or dismissed, and hiding
+a profile tells its owner. The full rules are under Notices in
+[Reporting and blocking](reporting-and-blocking.md).
+
 ## The shape of every table
 
 All five list pages have the shape every other admin table in the monorepo has:

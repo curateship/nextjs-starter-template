@@ -1,5 +1,6 @@
-import { and, eq, inArray } from "drizzle-orm"
+import { and, eq, inArray, isNull } from "drizzle-orm"
 
+import { PROFILE_HIDDEN_MESSAGE } from "@/lib/pomodoro/notices"
 import {
   PROFILE_REPORTS_PER_HOUR,
   type ProfileReportReasonId,
@@ -8,6 +9,11 @@ import { isHandleAvailableShape } from "@/lib/pomodoro/public-profile"
 import { enforceRateLimit } from "@/server/auth/rate-limit"
 import { requestIp } from "@/server/auth/origin"
 import { db } from "@/server/db"
+import {
+  noteNewReport,
+  reportQueueAdminIds,
+  writeNotices,
+} from "@/server/pomodoro/notices"
 import { forgetPublicProfile } from "@/server/pomodoro/public-profile"
 import {
   pomodoroAuditLogs,
@@ -71,11 +77,17 @@ export async function reportProfile({
   // about the reader's identity is confirmed by the answer.
   if (reporterUserId && reporterUserId === profile.userId) return
 
-  await db.insert(roomReports).values({
-    kind: "profile",
-    profileUserId: profile.userId,
-    reporterUserId,
-    reason,
+  // Read before the transaction: a read on the shared handle from inside one
+  // waits on a second connection.
+  const adminIds = await reportQueueAdminIds()
+  await db.transaction(async (tx) => {
+    await tx.insert(roomReports).values({
+      kind: "profile",
+      profileUserId: profile.userId,
+      reporterUserId,
+      reason,
+    })
+    await noteNewReport(tx, { adminIds, reporterUserId, thing: "profile" })
   })
 }
 
@@ -118,6 +130,23 @@ export async function setProfilesHidden({
     ]
     if (!userIds.length) return { changed: [], skipped: reportIds }
 
+    // Only a profile that was showing until now is newly hidden, so a second
+    // hide, or a hide over several reports about one person, tells its owner
+    // once.
+    const newlyHidden = hidden
+      ? (
+          await tx
+            .select({ userId: pomodoroProfiles.userId })
+            .from(pomodoroProfiles)
+            .where(
+              and(
+                inArray(pomodoroProfiles.userId, userIds),
+                isNull(pomodoroProfiles.hiddenAt)
+              )
+            )
+        ).map((row) => row.userId)
+      : []
+
     const updated = await tx
       .update(pomodoroProfiles)
       .set({ hiddenAt: hidden ? new Date() : null, updatedAt: new Date() })
@@ -130,6 +159,18 @@ export async function setProfilesHidden({
       resource: "pomodoro_profile",
       recordIds: reports.map((report) => report.id),
     })
+
+    // The owner hears it in the bell as well as on their Settings card, which
+    // they may never open. It names neither the operator nor the reporter.
+    await writeNotices(
+      tx,
+      newlyHidden.map((userId) => ({
+        recipientUserId: userId,
+        kind: "profile_hidden" as const,
+        message: PROFILE_HIDDEN_MESSAGE,
+        href: "/settings?tab=public",
+      }))
+    )
 
     return {
       changed: reports.map((report) => report.id),

@@ -6,6 +6,8 @@ import {
   eq,
   ilike,
   inArray,
+  isNotNull,
+  isNull,
   ne,
   or,
   sql,
@@ -15,6 +17,11 @@ import {
 import { alias } from "drizzle-orm/pg-core"
 
 import { db } from "@/server/db"
+import { REPORT_REVIEWED_MESSAGE } from "@/lib/pomodoro/notices"
+import {
+  clearReportNoticesIfQueueEmpty,
+  writeNotices,
+} from "@/server/pomodoro/notices"
 import {
   dailyFocusStats,
   focusSessions,
@@ -556,6 +563,39 @@ export async function reviewRoomReports({
         resource: "reports",
         recordIds: reviewed,
       })
+    }
+
+    if (!reopening && reviewed.length) {
+      // Each reporter hears once per report, however often it is reopened
+      // and closed again: the stamp is set here and never cleared. One press
+      // that closes several of one person's reports is one notice. The words
+      // are the same for resolved and dismissed, so a reporter cannot learn
+      // what happened to somebody else.
+      const told = await tx
+        .update(roomReports)
+        .set({ reporterToldAt: new Date() })
+        .where(
+          and(
+            inArray(roomReports.id, reviewed),
+            isNull(roomReports.reporterToldAt),
+            isNotNull(roomReports.reporterUserId)
+          )
+        )
+        .returning({ reporterUserId: roomReports.reporterUserId })
+      const reporters = [
+        ...new Set(
+          told.flatMap((row) => (row.reporterUserId ? [row.reporterUserId] : []))
+        ),
+      ]
+      await writeNotices(
+        tx,
+        reporters.map((reporterUserId) => ({
+          recipientUserId: reporterUserId,
+          kind: "report_reviewed" as const,
+          message: REPORT_REVIEWED_MESSAGE,
+        }))
+      )
+      await clearReportNoticesIfQueueEmpty(tx)
     }
 
     return { reviewed, skipped }
