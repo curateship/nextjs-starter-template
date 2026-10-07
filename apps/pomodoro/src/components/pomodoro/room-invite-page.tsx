@@ -1,11 +1,18 @@
 import * as React from "react"
 import { Link, useNavigate, useParams } from "@tanstack/react-router"
-import { CalendarClockIcon, LockKeyholeIcon, UsersIcon } from "lucide-react"
+import {
+  CalendarClockIcon,
+  LockKeyholeIcon,
+  MusicIcon,
+  UsersIcon,
+} from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { lookupRoom, joinRoom } from "@/lib/api/pomodoro/rooms"
+import { enterRoomFromSnapshot } from "@/components/pomodoro/active-room"
 import { useProductAuth } from "@/lib/pomodoro/auth-state"
+import { sceneFor, soundLabelFor } from "@/lib/pomodoro/media-pair"
 import {
   describeWaitUntil,
   formatRoomStart,
@@ -46,8 +53,9 @@ export function RoomInvitePage() {
     setJoining(true)
     setError("")
     try {
-      await joinRoom(slug)
-      void navigate({ to: "/rooms" })
+      // The room is drawn on the front page, in its own sound and theme.
+      enterRoomFromSnapshot(await joinRoom(slug))
+      void navigate({ to: "/" })
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : ""
       setError(
@@ -126,6 +134,7 @@ export function RoomInvitePage() {
                 {lookup.focusMinutes} minute focus sessions. Come back to this
                 link at the time and you are in.
               </p>
+              <InvitePair sound={lookup.sound} background={lookup.background} />
               <div className="flex gap-2">
                 <Button onClick={refresh}>
                   Check again
@@ -158,7 +167,7 @@ export function RoomInvitePage() {
                 You’re already in this room.
               </p>
               <Button asChild>
-                <Link to="/rooms">Go to your room</Link>
+                <Link to="/">Go to your room</Link>
               </Button>
             </>
           ) : lookup.status === "locked" ? (
@@ -169,6 +178,7 @@ export function RoomInvitePage() {
                 {lookup.memberCount} focusing right now — joins unlock at the
                 next break.
               </p>
+              <InvitePair sound={lookup.sound} background={lookup.background} />
               {error ? (
                 <p role="alert" className="text-sm text-destructive">
                   {error}
@@ -194,6 +204,7 @@ export function RoomInvitePage() {
                 {lookup.memberCount} in the room · {lookup.focusMinutes} min
                 focus sessions
               </p>
+              <InvitePair sound={lookup.sound} background={lookup.background} />
               {error ? (
                 <p role="alert" className="text-sm text-destructive">
                   {error}
@@ -229,6 +240,43 @@ export function RoomInvitePage() {
           )}
         </CardContent>
       </Card>
+    </div>
+  )
+}
+
+/**
+ * What the room sounds and looks like, so an invitation says what you are
+ * joining: the scene's picture and the sound's name. Nothing for a room from
+ * before rooms carried a pair.
+ */
+function InvitePair({
+  sound,
+  background,
+}: {
+  sound: string | null
+  background: string | null
+}) {
+  const scene = sceneFor(background)
+  const soundName = soundLabelFor(sound)
+  if (!scene && !soundName) return null
+  return (
+    <div className="flex items-center gap-3">
+      {scene ? (
+        <img
+          src={`/backgrounds/thumbs-${scene.thumb}.png`}
+          alt=""
+          className="h-10 w-16 rounded-md object-cover"
+        />
+      ) : null}
+      <p className="flex flex-col text-sm text-muted-foreground">
+        {scene ? <span>{scene.label}</span> : null}
+        {soundName ? (
+          <span className="flex items-center gap-1">
+            <MusicIcon className="size-3.5" aria-hidden="true" />
+            {soundName}
+          </span>
+        ) : null}
+      </p>
     </div>
   )
 }

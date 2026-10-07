@@ -15,12 +15,15 @@ second page.
 
 ## How it works
 
-- **The choice is a module store** (`src/lib/pomodoro/background-store.ts`),
-  like the sound engine: the page picks, every product screen draws, no
-  provider around the shell's tree, saves debounced. It lives on
-  `user_preferences.selected_background` (migration 0087), serialized as
-  `scene:<key>`, or `media:<uuid>` for one of your own uploads (see
+- **The theme belongs to the room you are in.** Your personal room's theme,
+  or a hosted room's while you are in one. See
+  [The personal room](personal-room.md). It is held in the room media store
+  (`src/lib/pomodoro/room-media-store.ts`), serialized as `scene:<key>`, or
+  `media:<uuid>` for one of your own uploads (see
   [Your own backgrounds and sounds](own-media-uploads.md)).
+- **Clicking a scene opens a preview popover** with the scene in it. The page
+  behind stays as it is. "Add to my personal room" in the popover saves it,
+  and the theme in use is labelled "Currently selected".
 - **The product shell renders the backdrop** under its content column
   (`SceneBackdrop` in `pomodoro-shell.tsx`), so it appears behind every
   frontend page and no shell file changes. The lofi scene is the one real
@@ -39,26 +42,25 @@ second page.
 
 ## The first frame is the saved background
 
-**A signed-in member's page is drawn with their own background from the very
-first frame.** The product layout (`src/routes/_pomodoro.tsx`) and the front
-page's loader read the saved choice with the rest of the page's data. The
-server draws with it, and the browser takes it into the background store
-before its first render, so the two agree and nothing swaps.
+**Every page is drawn with the right theme from the very first frame.** The
+product layout (`src/routes/_pomodoro.tsx`) and the front page's loader read
+the room you are in with the rest of the page's data. The server draws with
+it, and the browser takes it into the room media store before its first
+render, so the two agree and nothing swaps.
 
 Before 6 Oct 2026 the server always drew the default lofi scene and the
 browser asked for the real choice only after the page was up. Tyler, with rain
 saved, saw the lofi girl and then rain on every load: 320ms on `/` and 570ms on
 `/timer`, measured, longer on a slower connection. Every reader of the
-background shares the loader's answer through `SavedBackgroundContext`: the
-hero, the header's Theme popover, Zen mode and the backgrounds page.
+background shares the loader's answer through `MediaBootstrapContext`: the
+hero, the header's Theme pill, Zen mode and the backgrounds page.
 
 - **The loader's answer is used once.** After the first render the store is the
   truth, so a background picked on the page is never put back by a stale page
   load.
 - **A failed read draws the default**, the same as before.
-- **A guest who picked a scene still sees the default first.** A guest's choice
-  lives in the browser, so the server cannot know it while it draws the page.
-  Fixing that would mean keeping the choice in a cookie as well.
+- **A guest gets a random free scene on every visit**, picked by the loader,
+  so a guest's first frame is right too.
 
 ## Reduce Motion
 
@@ -79,9 +81,10 @@ behind their timer.
 - **The server renders as though motion is fine**, since it cannot know the
   setting, and the first paint in the browser corrects it.
 
-- **Pro gating:** saving a locked scene on a free account is refused
-  server-side (`UPGRADE_REQUIRED:premiumMedia` in
-  `src/lib/api/pomodoro/backgrounds.ts`).
+- **Pro gating:** adding a locked scene to a free account's personal room is
+  refused server-side (`UPGRADE_REQUIRED:premiumMedia` in
+  `src/server/pomodoro/personal-room.ts`). A Pro host's scene still shows for
+  a free member while they are in that room.
 - **A locked card leads to the plans page.** It keeps the padlock, the faded
   picture and the Pro tag, and pressing it opens `/plans` for a member, or
   sign-in with a return to `/plans` for a guest (`use-open-plans.ts`). It is

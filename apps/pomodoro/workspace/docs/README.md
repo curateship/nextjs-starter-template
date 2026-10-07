@@ -60,6 +60,9 @@ cover this one.
   the secret address that serves it, and what revoking does.
 - [Completion chimes](completion-chimes.md) — a separate chime for a focus
   ending and a break ending, five choices including silence, with Preview.
+- [The personal room](personal-room.md) — every account's own room holding
+  its sound and theme, a hosted room's pair replacing it while you are in
+  one, a guest's random pair, and previewing before adding.
 - [Sounds](sounds.md) — the eight ambient loops, the header player that
   survives navigation, the sleep timer and the completion chime.
 - [The dark mode shade](dark-mode-shade.md) — the four steps from near black

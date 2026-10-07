@@ -33,11 +33,11 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import type { AccountMenuFacts } from "@/lib/api/pomodoro/profile"
 import { usePublicNavigation } from "@/lib/branding"
+import type { MediaBootstrap } from "@/lib/pomodoro/media-pair"
 import {
-  SavedBackgroundContext,
-  useBackgroundSelection,
-  type SavedBackground,
-} from "@/lib/pomodoro/background-store"
+  MediaBootstrapContext,
+  useRoomMedia,
+} from "@/lib/pomodoro/room-media-store"
 import {
   publicDeviceSidebarClassName,
   savedMenuLinks,
@@ -286,22 +286,21 @@ const sidebarRowClass =
 export function PomodoroShell({
   user,
   accountMenu,
-  savedBackground,
+  media,
   bell,
   children,
 }: {
   user: AccountMenuUser | null
   accountMenu: AccountMenuFacts | null
-  /** The account's saved background from the loader, so the first frame draws it. */
-  savedBackground: SavedBackground | null
+  /** The pair of the room you are in, from the loader, so the first frame draws it. */
+  media: MediaBootstrap | null
   bell: HeaderBell
   children: React.ReactNode
 }) {
   const [menuOpen, setMenuOpen] = React.useState(false)
   const [collapsed, setCollapsed] = React.useState(false)
   const pathname = useRouterState({ select: (state) => state.location.pathname })
-  const { background, fallBackToDefault } =
-    useBackgroundSelection(savedBackground)
+  const { background, fallBackToDefault } = useRoomMedia(media)
   const { setTheme } = useTheme()
   const savedMenu = usePublicNavigation()
   const savedLinks = React.useMemo(
@@ -359,9 +358,9 @@ export function PomodoroShell({
   }
 
   return (
-    // Every screen inside reads the same saved background, so the header's
-    // Theme popover, Zen mode and the backgrounds page start from it too.
-    <SavedBackgroundContext.Provider value={savedBackground}>
+    // Every screen inside reads the same answer, so the header's player, Zen
+    // mode and the Sounds and Backgrounds pages start from it too.
+    <MediaBootstrapContext.Provider value={media}>
     <div data-pomodoro-screen className="flex min-h-screen bg-background">
       <aside
         className={cn(
@@ -580,6 +579,6 @@ export function PomodoroShell({
         </main>
       </div>
     </div>
-    </SavedBackgroundContext.Provider>
+    </MediaBootstrapContext.Provider>
   )
 }

@@ -46,6 +46,8 @@ const SETTINGS: RoomSettings = {
   shortBreakMinutes: 5,
   longBreakMinutes: 15,
   autoStart: false,
+  sound: "curated:rain",
+  background: "scene:plain",
 }
 
 let client: PGlite

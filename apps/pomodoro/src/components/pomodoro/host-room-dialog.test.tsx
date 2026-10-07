@@ -53,6 +53,19 @@ const rhythmPicker = () => {
   if (!select) throw new Error("The Rhythm picker was not drawn")
   return select as HTMLSelectElement
 }
+const pickerWith = (value: string) => {
+  const select = [...document.querySelectorAll("select")].find((element) =>
+    element.querySelector(`option[value="${value}"]`)
+  )
+  if (!select) throw new Error(`No picker offers ${value}`)
+  return select as HTMLSelectElement
+}
+const submit = () =>
+  act(async () => {
+    document
+      .getElementById("host-room-form")!
+      .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }))
+  })
 const minutes = (key: "focus" | "short" | "long") =>
   (document.getElementById(`room-${key}`) as HTMLInputElement).value
 
@@ -123,19 +136,32 @@ describe("Host a room's Rhythm picker", () => {
 
     await change(document.getElementById("room-focus") as HTMLInputElement, "50")
     await change(document.getElementById("room-name") as HTMLInputElement, "Deep Work room")
-    await act(async () => {
-      document
-        .getElementById("host-room-form")!
-        .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }))
-    })
+    await change(pickerWith("curated:rain"), "curated:rain")
+    await change(pickerWith("scene:fireplace"), "scene:fireplace")
+    await submit()
     expect(api.createRoom).toHaveBeenCalledWith(
       expect.objectContaining({
         focusMinutes: 50,
         shortBreakMinutes: 10,
         longBreakMinutes: 30,
         autoStart: false,
+        sound: "curated:rain",
+        background: "scene:fireplace",
       })
     )
+  })
+
+  it("keeps Create room pressable with no sound or theme, and says which one is missing", async () => {
+    await open()
+    await change(document.getElementById("room-name") as HTMLInputElement, "Quiet room")
+    await submit()
+    expect(api.createRoom).not.toHaveBeenCalled()
+    expect(document.body.textContent).toContain("Pick a sound for the room.")
+
+    await change(pickerWith("curated:rain"), "curated:cafe")
+    await submit()
+    expect(api.createRoom).not.toHaveBeenCalled()
+    expect(document.body.textContent).toContain("Pick a theme for the room.")
   })
 
   it("still offers the built-ins when your own presets fail to load, and says so", async () => {

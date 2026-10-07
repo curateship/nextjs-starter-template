@@ -7,6 +7,12 @@ through the shell's `landing.page` option (`src/app/options.ts` →
 visiting, a guest gets the guest engine, and a signed-in person gets
 their own dashboard at the same address.
 
+- **A signed-in person in a hosted room gets that room instead of the
+  timer**, in its sound and theme. See [Focus rooms](rooms.md).
+- **A guest gets a random free sound and theme on every visit**, picked by
+  the loader so the first frame already shows it. See
+  [The personal room](personal-room.md).
+
 Two constraints shape the file:
 
 - Everything heavy sits behind dynamic imports, because `options.ts` is

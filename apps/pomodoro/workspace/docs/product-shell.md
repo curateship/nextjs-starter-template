@@ -221,10 +221,11 @@ when the window is too narrow to hold it.
   are in it, so no real name ever appears; your own row is in the accent
   colour. Signed out, it says so rather than showing an empty list, and
   it loads when the popover is first opened rather than on every page.
-- **Theme** holds the free sounds and the first three scenes, each with
-  Upload and AI Generate beneath it. Those two are shortcuts, not the
-  thing itself: both open the full page, because choosing a file and
-  writing a prompt need more room than a popover has.
+- **Theme** says whose room the sound and theme belong to (your personal
+  room, a hosted room, or a guest's random pair) and links to Sounds and
+  Backgrounds. It picks nothing itself: since 7 Oct 2026 a sound or theme is
+  previewed on its page first and then added. See
+  [The personal room](personal-room.md).
 
 **The Custom Shell's admin chrome never appears on the frontend, and the
 frontend's look never reaches the admin.** The `data-pomodoro-screen`

@@ -36,6 +36,8 @@ const RULE: RoomRepeatInput = {
   shortBreakMinutes: 5,
   longBreakMinutes: 15,
   autoStart: false,
+  sound: "curated:rain",
+  background: "scene:plain",
   weekdays: TUESDAY,
   startMinute: 9 * 60,
   timezone: "UTC",

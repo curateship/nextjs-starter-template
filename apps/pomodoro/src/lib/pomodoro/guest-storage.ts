@@ -7,7 +7,6 @@
 
 export const GUEST_STATE_KEY = "pomodoro:guest:v1"
 export const GUEST_SOUND_KEY = "pomodoro:sound:v1"
-export const GUEST_BACKGROUND_KEY = "pomodoro:background:v1"
 export const GUEST_PRESETS_KEY = "pomodoro:presets:v1"
 
 export function readGuestJson<T>(key: string): T | null {

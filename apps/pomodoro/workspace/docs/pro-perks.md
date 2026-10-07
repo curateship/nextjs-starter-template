@@ -32,6 +32,9 @@ the old app's Pro).
   `hostRooms`, `premiumMedia`, `uploadMedia`, `longRangeReports`,
   `aiCredits`, `storageLimitBytes`, `monthlyBackgrounds`,
   `monthlySoundscapes`.
+- **A Pro host's sound and theme play for everyone in the room.** The Pro
+  check happens when the host saves the room's pair, so a free member hears
+  and sees it while in the room. Their own personal room stays locked.
 - **Locked controls always say why** — the sentences live with the perk
   list in `src/lib/pomodoro/pro.ts`, used with the shell's disabled-reason
   pattern by the screens that consume them.

@@ -42,7 +42,7 @@ import {
   ROOM_REACTION_EMOJIS,
   roomReactionLabel,
 } from "@/lib/pomodoro/room-reactions"
-import type { RoomSnapshotClient } from "@/components/pomodoro/rooms-page"
+import type { RoomSnapshotClient } from "@/components/pomodoro/active-room"
 
 type RoomMember = RoomSnapshotClient["members"][number]
 type RoomMessage = RoomSnapshotClient["messages"][number]

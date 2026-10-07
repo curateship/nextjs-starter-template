@@ -3,10 +3,11 @@ import { createFileRoute, Outlet, redirect } from "@tanstack/react-router"
 
 import { PomodoroShell } from "@/components/pomodoro/pomodoro-shell"
 import { routeErrorComponent } from "@/components/shell/route-error"
-import { loadBackgroundPreference } from "@/lib/api/pomodoro/backgrounds"
+import { loadRoomMediaBootstrap } from "@/lib/api/pomodoro/personal-room"
 import { loadAccountMenu } from "@/lib/api/pomodoro/profile"
 import { loadShellBootstrap } from "@/lib/api/shell"
 import { setProductAccount } from "@/lib/pomodoro/auth-state"
+import { guestMediaBootstrap } from "@/lib/pomodoro/media-pair"
 import { maybeImportGuestState } from "@/lib/pomodoro/guest-import"
 import { reloadPomodoroData } from "@/lib/pomodoro/use-pomodoro"
 
@@ -29,18 +30,20 @@ export const Route = createFileRoute("/_pomodoro")({
     // The account menu's plan line and profile row. A failure leaves both
     // off rather than failing the page: guessing "Free" would tell a paying
     // member the wrong thing.
-    // The saved background is read here too, so the first frame draws it
-    // rather than the default scene. A failure draws the default, as before.
-    const [accountMenu, savedBackground] = user
+    // The sound and theme of the room you are in are read here too, so the
+    // first frame draws them rather than the default scene. A failure draws
+    // the default. A guest gets a random free pair, picked here so the server
+    // and the browser draw the same one.
+    const [accountMenu, media] = user
       ? await Promise.all([
           loadAccountMenu().catch(() => null),
-          loadBackgroundPreference().catch(() => null),
+          loadRoomMediaBootstrap().catch(() => null),
         ])
-      : [null, null]
+      : [null, guestMediaBootstrap()]
     return {
       user: user ?? null,
       accountMenu,
-      savedBackground,
+      media,
       bell: {
         unseen: shell.unseenNotifications,
         live: shell.settings?.liveNotifications ?? true,
@@ -54,7 +57,7 @@ export const Route = createFileRoute("/_pomodoro")({
 })
 
 function PomodoroLayout() {
-  const { user, accountMenu, savedBackground, bell } = Route.useLoaderData()
+  const { user, accountMenu, media, bell } = Route.useLoaderData()
 
   // The engines read this one fact instead of asking the server (which
   // would 401 for guests); the guest import runs after it is set so the
@@ -72,7 +75,7 @@ function PomodoroLayout() {
     <PomodoroShell
       user={user}
       accountMenu={accountMenu}
-      savedBackground={savedBackground}
+      media={media}
       bell={bell}
     >
       <Outlet />

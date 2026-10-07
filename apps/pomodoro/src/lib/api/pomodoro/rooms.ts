@@ -9,7 +9,10 @@ import {
   awardAchievements,
   loadLifetimeTotals,
 } from "@/server/pomodoro/achievements"
-import { requirePomodoroPerk } from "@/server/pomodoro/entitlements"
+import {
+  loadPomodoroEntitlements,
+  requirePomodoroPerk,
+} from "@/server/pomodoro/entitlements"
 import { markRoomNoticesRead } from "@/server/pomodoro/notices"
 import {
   applyHostRoomAction,
@@ -28,10 +31,16 @@ import {
   removeRoomMember,
   reportRoomMessage,
   roomSnapshot,
+  saveRoomMedia,
   toggleRoomReaction,
   type RoomHostAction,
 } from "@/server/pomodoro/rooms"
 import { ROOM_REACTION_EMOJIS } from "@/lib/pomodoro/room-reactions"
+import {
+  pairUsesPro,
+  roomPairProblem,
+  roomPairProblemMessage,
+} from "@/lib/pomodoro/media-pair"
 import {
   cancelRoomRepeat,
   cancelScheduledRoom,
@@ -77,6 +86,9 @@ const createRoomSchema = z.object({
   shortBreakMinutes: z.number().int().min(1).max(90).default(5),
   longBreakMinutes: z.number().int().min(1).max(90).default(15),
   autoStart: z.boolean().default(false),
+  // The pair everyone in the room gets. Required; checked by assertRoomPair.
+  sound: z.string().max(60),
+  background: z.string().max(60),
 })
 // A booking is the same room settings plus when it opens and who to tell.
 // The time arrives as an ISO instant, so the host's clock and the server's
@@ -113,6 +125,29 @@ const reportSchema = messageIdSchema.extend({
   reason: z.string().trim().min(3).max(300),
 })
 const memberSchema = slugSchema.extend({ membershipId: z.string().uuid() })
+const roomMediaSchema = slugSchema.extend({
+  sound: z.string().max(60),
+  background: z.string().max(60),
+})
+
+/**
+ * Every room, booking and weekly rule needs a catalogue sound and a catalogue
+ * theme. A host who cannot use Pro media cannot hand it to a room either,
+ * although hosting is already Pro, so in practice this only ever fires on a
+ * hand-made request.
+ */
+async function assertRoomPair(
+  userId: string,
+  pair: { sound: string; background: string }
+) {
+  const problem = roomPairProblem(pair.sound, pair.background)
+  if (problem) throw new Error(`ROOM_PAIR_REJECTED: ${roomPairProblemMessage(problem)}`)
+  if (pairUsesPro(pair.sound, pair.background)) {
+    const entitlements = await loadPomodoroEntitlements(userId)
+    if (!entitlements.canUsePremiumMedia)
+      throw new Error("UPGRADE_REQUIRED:premiumMedia")
+  }
+}
 
 const listRoomsFn = createServerFn({ method: "GET" })
   .middleware([userGet])
@@ -157,6 +192,7 @@ const createRoomFn = createServerFn({ method: "POST" })
   .inputValidator(createRoomSchema)
   .handler(async ({ data, context }) => {
     await requirePomodoroPerk(context.user.id, "hostRooms")
+    await assertRoomPair(context.user.id, data)
     const slug = randomBytes(18).toString("base64url")
     const { room, closedRoomIds } = await createRoomWithHost(
       context.user.id,
@@ -188,6 +224,7 @@ const scheduleRoomFn = createServerFn({ method: "POST" })
   .inputValidator(scheduleRoomSchema)
   .handler(async ({ data, context }) => {
     await requirePomodoroPerk(context.user.id, "hostRooms")
+    await assertRoomPair(context.user.id, data)
     // Every booking costs an attempt whether or not it emails anyone, and the
     // limit comes before the reads below so a burst cannot spend the
     // database on requests that were never going to be allowed.
@@ -231,6 +268,7 @@ const repeatRoomFn = createServerFn({ method: "POST" })
   .inputValidator(repeatRoomSchema)
   .handler(async ({ data, context }) => {
     await requirePomodoroPerk(context.user.id, "hostRooms")
+    await assertRoomPair(context.user.id, data)
     await enforceRateLimit(`room-schedule:${context.user.id}`, {
       maxAttempts: 10,
       windowSeconds: 3_600,
@@ -366,6 +404,23 @@ const roomActionFn = createServerFn({ method: "POST" })
     return roomSnapshot(room.id, context.user.id)
   })
 
+/**
+ * The host changes the room's sound and theme from Sounds or Backgrounds.
+ * Everybody in the room gets the new pair on the snapshot this sends.
+ */
+const saveRoomMediaFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(roomMediaSchema)
+  .handler(async ({ data, context }) => {
+    await assertRoomPair(context.user.id, data)
+    const roomId = await saveRoomMedia(data.slug, context.user.id, {
+      sound: data.sound,
+      background: data.background,
+    })
+    await notifyRoom(roomId, "media")
+    return roomSnapshot(roomId, context.user.id)
+  })
+
 const sendMessageFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(messageSchema)
@@ -466,6 +521,10 @@ export const leaveRoomPermanently = (slug: string) =>
 export const joinRoom = (slug: string) => joinRoomFn({ data: { slug } })
 export const leaveActiveRoom = (slug: string) =>
   leaveRoomFn({ data: { slug } })
+export const saveHostedRoomMedia = (
+  slug: string,
+  pair: { sound: string; background: string }
+) => saveRoomMediaFn({ data: { slug, ...pair } })
 export const applyRoomAction = (slug: string, action: RoomHostAction) =>
   roomActionFn({ data: { slug, action } })
 export const sendRoomMessage = (slug: string, body: string) =>

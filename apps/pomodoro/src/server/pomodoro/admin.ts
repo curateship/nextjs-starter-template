@@ -32,7 +32,7 @@ import {
   roomReports,
   rooms,
   tasks,
-  userPreferences,
+  pomodoroPersonalRooms,
 } from "@/server/pomodoro/schema"
 import { customShellUsers as users } from "@/server/schema"
 import type {
@@ -362,7 +362,7 @@ export type AdminMediaUsage = {
 }
 
 /**
- * How many accounts have each scene and each loop selected right now.
+ * How many personal rooms have each scene and each loop right now.
  *
  * The catalogue itself is eight scenes and eight loops fixed in code
  * (`src/lib/pomodoro/background-catalog.ts` and `sound-catalog.ts`), so there
@@ -376,15 +376,15 @@ export async function loadAdminMediaUsage(): Promise<AdminMediaUsage> {
   const [backgroundRows, soundRows] = await Promise.all([
     db
       .select({
-        value: userPreferences.selectedBackground,
+        value: pomodoroPersonalRooms.background,
         total: count(),
       })
-      .from(userPreferences)
-      .groupBy(userPreferences.selectedBackground),
+      .from(pomodoroPersonalRooms)
+      .groupBy(pomodoroPersonalRooms.background),
     db
-      .select({ value: userPreferences.selectedSound, total: count() })
-      .from(userPreferences)
-      .groupBy(userPreferences.selectedSound),
+      .select({ value: pomodoroPersonalRooms.sound, total: count() })
+      .from(pomodoroPersonalRooms)
+      .groupBy(pomodoroPersonalRooms.sound),
   ])
 
   return {

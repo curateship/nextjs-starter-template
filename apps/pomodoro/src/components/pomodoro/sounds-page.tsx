@@ -1,10 +1,5 @@
 import * as React from "react"
-import {
-  CheckIcon,
-  LockIcon,
-  PauseIcon,
-  PlayIcon,
-} from "lucide-react"
+import { LockIcon, PauseIcon, PlayIcon } from "lucide-react"
 
 import { Card, CardContent } from "@/components/ui/card"
 import {
@@ -16,7 +11,13 @@ import { cn } from "@/lib/utils"
 import { PRO_PERKS } from "@/lib/pomodoro/pro"
 import { useOpenPlans } from "@/lib/pomodoro/use-open-plans"
 import { curatedSounds, sameSoundReference } from "@/lib/pomodoro/sound-catalog"
-import { useSoundPlayer } from "@/lib/pomodoro/use-sound-player"
+import { useRoomMedia } from "@/lib/pomodoro/room-media-store"
+import { usePreviewAudio } from "@/lib/pomodoro/use-preview-audio"
+import {
+  CurrentlySelectedLabel,
+  MediaAddActions,
+  MediaRoomNote,
+} from "@/components/pomodoro/media-add-actions"
 import { MediaUploadsSection } from "@/components/pomodoro/media-uploads-section"
 import { MediaGeneratorSection } from "@/components/pomodoro/media-generator-section"
 import { contentColumn } from "@/lib/pomodoro/content-column"
@@ -30,15 +31,16 @@ import { useCatalogPage } from "@/lib/pomodoro/use-catalog-page"
  * "Generate your own" card. Four loops are free and four are Pro; a locked
  * card says why instead of going dead.
  *
- * Picking a card chooses that loop and saves the choice. It does not start
- * it: the sound begins when the timer starts, or when you press play, on
- * the header's player or on the chosen card itself. Only the chosen card
- * carries a play button, so a picture never plays a sound by being
- * clicked.
+ * Clicking a card previews it on this page only, through `usePreviewAudio`,
+ * never through the header's player, so it cannot fight the timer's Start.
+ * Tyler, 7 Oct 2026: "Make it preview the sound on the sound page only and
+ * add a button to be able to add it to your personal room." The previewed
+ * card then shows the Add buttons. The card outlined in orange is the sound
+ * of the room you are in.
  */
 export function SoundsPage() {
-  const player = useSoundPlayer()
-  const { state } = player
+  const media = useRoomMedia()
+  const preview = usePreviewAudio()
   const { signedIn, openPlans } = useOpenPlans()
   // An AI soundscape arrives as an ordinary upload, so finishing one means the
   // grid above has a new card and has to read its list again.
@@ -57,46 +59,42 @@ export function SoundsPage() {
       <div className={`${contentColumn} flex flex-col gap-6 py-8`}>
         <header className="flex flex-col gap-2">
           <h2 className="text-4xl font-bold tracking-tight">Sounds</h2>
-          <p className="max-w-xl text-base text-foreground/75">
-            A loop for the background. Pick one here; it starts when the
-            timer does, or when you press play.
-          </p>
+          <MediaRoomNote thing="sound" />
         </header>
-        {state.notice ? (
+        {preview.failed ? (
           <p role="status" className="text-sm text-muted-foreground">
-            {state.notice}
+            That preview could not be played. Click the card to try again.
           </p>
         ) : null}
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           {shown.map((sound) => {
             const reference = { type: "curated", key: sound.key } as const
-            const selected = sameSoundReference(state.selected, reference)
-            const playing = selected && state.status === "playing"
-            const locked = sound.locked && !state.canUsePremiumMedia
+            const inUse = sameSoundReference(media.sound, reference)
+            const previewed = sameSoundReference(preview.previewing, reference)
+            const playing = previewed && preview.playing
+            const locked = sound.locked && !media.canUsePremiumMedia
             const card = (
               <Card
                 key={sound.key}
                 className={cn(
-                  "overflow-hidden rounded-[18px] p-0",
-                  selected && "ring-2 ring-[var(--p-accent)]"
+                  "gap-0 overflow-hidden rounded-[18px] p-0",
+                  inUse && "ring-2 ring-[var(--p-accent)]"
                 )}
               >
                 <button
                   className="group w-full text-left outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid"
-                  aria-pressed={locked ? undefined : selected}
+                  aria-pressed={locked ? undefined : playing}
                   aria-label={
                     locked
                       ? `${sound.label}, a Pro sound. ${signedIn ? "See the plans" : "Sign in to see the plans"}`
-                      : !selected
-                        ? `Choose ${sound.label}`
-                        : playing
-                          ? `Pause ${sound.label}`
-                          : `Play ${sound.label}`
+                      : playing
+                        ? `Stop the ${sound.label} preview`
+                        : `Preview ${sound.label}`
                   }
                   // A locked card is never dead: it leads to the plans page.
                   onClick={() => {
                     if (locked) openPlans()
-                    else player.selectSound(reference, sound.label)
+                    else preview.toggle(reference)
                   }}
                 >
                   {/* The square waveform picture, cropped to a wide frame
@@ -110,14 +108,15 @@ export function SoundsPage() {
                         locked && "opacity-40 grayscale"
                       )}
                     />
+                    {inUse ? <CurrentlySelectedLabel /> : null}
                     <span className="absolute inset-0 grid place-items-center">
                       <span
                         className={cn(
                           "grid size-11 place-items-center rounded-full bg-black/45 text-white backdrop-blur-sm",
-                          // Unchosen cards show the tick only on hover or
-                          // keyboard focus, since clicking one chooses it.
+                          // A card not being previewed shows its play button
+                          // only on hover or keyboard focus.
                           !locked &&
-                            !selected &&
+                            !previewed &&
                             "opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
                         )}
                       >
@@ -125,10 +124,8 @@ export function SoundsPage() {
                           <LockIcon className="size-4" aria-hidden="true" />
                         ) : playing ? (
                           <PauseIcon className="size-5" aria-hidden="true" />
-                        ) : selected ? (
-                          <PlayIcon className="size-5" aria-hidden="true" />
                         ) : (
-                          <CheckIcon className="size-5" aria-hidden="true" />
+                          <PlayIcon className="size-5" aria-hidden="true" />
                         )}
                       </span>
                     </span>
@@ -149,6 +146,13 @@ export function SoundsPage() {
                     </small>
                   </CardContent>
                 </button>
+                {previewed ? (
+                  <div className="px-[18px] pb-4">
+                    <MediaAddActions
+                      item={{ kind: "sound", reference, label: sound.label }}
+                    />
+                  </div>
+                ) : null}
               </Card>
             )
             if (!locked) return card
@@ -178,23 +182,39 @@ export function SoundsPage() {
           purpose="sound"
           title="Your own"
           uploadLabel="Upload a loop"
-          description="It plays and pauses with the timer like the rest."
+          description="Click one to hear it, then add it to your personal room."
           isSelected={(upload) =>
-            sameSoundReference(state.selected, {
+            sameSoundReference(media.sound, {
+              type: "media",
+              mediaId: upload.mediaId,
+            })
+          }
+          isPreviewed={(upload) =>
+            sameSoundReference(preview.previewing, {
               type: "media",
               mediaId: upload.mediaId,
             })
           }
           onPick={(upload) =>
-            player.selectSound(
-              {
-                type: "media",
-                mediaId: upload.mediaId,
-                mediaUrl: upload.url,
-              },
-              upload.name
-            )
+            preview.toggle({
+              type: "media",
+              mediaId: upload.mediaId,
+              mediaUrl: upload.url,
+            })
           }
+          renderActions={(upload) => (
+            <MediaAddActions
+              item={{
+                kind: "sound",
+                reference: {
+                  type: "media",
+                  mediaId: upload.mediaId,
+                  mediaUrl: upload.url,
+                },
+                label: upload.name,
+              }}
+            />
+          )}
           // A sound has no picture of its own, so the card keeps the muted
           // square the icon sits in rather than inventing artwork.
           renderThumbnail={() => null}

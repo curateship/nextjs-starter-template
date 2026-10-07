@@ -21,7 +21,7 @@ import {
 } from "@/lib/pomodoro/notices"
 import {
   pomodoroMediaUploads,
-  userPreferences,
+  pomodoroPersonalRooms,
   type PomodoroMediaUpload,
 } from "@/server/pomodoro/schema"
 import { customShellMedia } from "@/server/schema"
@@ -416,22 +416,24 @@ export async function deletePomodoroUpload(userId: string, mediaId: string) {
 
   const reference = `media:${mediaId}`
   await db.transaction(async (tx) => {
+    // A personal room holding the file goes back to the default scene or to
+    // silence. A hosted room never holds an upload, so only this one row can.
     await tx
-      .update(userPreferences)
-      .set({ selectedBackground: null, updatedAt: new Date() })
+      .update(pomodoroPersonalRooms)
+      .set({ background: null, updatedAt: new Date() })
       .where(
         and(
-          eq(userPreferences.userId, userId),
-          eq(userPreferences.selectedBackground, reference)
+          eq(pomodoroPersonalRooms.userId, userId),
+          eq(pomodoroPersonalRooms.background, reference)
         )
       )
     await tx
-      .update(userPreferences)
-      .set({ selectedSound: null, updatedAt: new Date() })
+      .update(pomodoroPersonalRooms)
+      .set({ sound: null, updatedAt: new Date() })
       .where(
         and(
-          eq(userPreferences.userId, userId),
-          eq(userPreferences.selectedSound, reference)
+          eq(pomodoroPersonalRooms.userId, userId),
+          eq(pomodoroPersonalRooms.sound, reference)
         )
       )
     // The library row goes, and the job row follows it through the cascade.

@@ -153,6 +153,13 @@ export type RoomSettings = {
   shortBreakMinutes: number
   longBreakMinutes: number
   autoStart: boolean
+  /**
+   * The pair everyone in the room gets: `curated:<key>` and `scene:<key>`.
+   * Every new room has both; only a weekly rule saved before 7 Oct 2026 books
+   * rooms without them.
+   */
+  sound: string | null
+  background: string | null
 }
 
 /**
@@ -274,6 +281,35 @@ export async function findActiveRoomId(userId: string, database: PomoderDb = db)
   return membership?.roomId ?? null
 }
 
+/**
+ * The open hosted room this person is in, with the sound and theme its host
+ * picked, or null when they are in their own personal room. Every page reads
+ * this to draw the right pair from its first frame.
+ */
+export async function findActiveRoomMedia(userId: string, database: PomoderDb = db) {
+  const [row] = await database
+    .select({ slug: rooms.slug, name: rooms.name, role: roomMemberships.role, sound: rooms.sound, background: rooms.background })
+    .from(roomMemberships)
+    .innerJoin(rooms, eq(rooms.id, roomMemberships.roomId))
+    .where(and(eq(roomMemberships.userId, userId), sql`${roomMemberships.leftAt} is null`, sql`${rooms.closedAt} is null`, sql`${rooms.phase} <> 'closed'`))
+    .limit(1)
+  if (!row) return null
+  return { ...row, role: row.role === "host" ? ("host" as const) : ("member" as const) }
+}
+
+/**
+ * The host changes the room's sound and theme. Everybody in the room gets the
+ * new pair on the next snapshot, which the caller sends with notifyRoom.
+ */
+export async function saveRoomMedia(slug: string, userId: string, pair: { sound: string; background: string }, database: PomoderDb = db) {
+  const [room] = await database.select({ id: rooms.id, hostUserId: rooms.hostUserId, closedAt: rooms.closedAt, phase: rooms.phase }).from(rooms).where(eq(rooms.slug, slug)).limit(1)
+  if (!room) throw new Error("ROOM_NOT_FOUND")
+  if (room.hostUserId !== userId) throw new Error("ROOM_HOST_REQUIRED")
+  if (room.closedAt || room.phase === "closed") throw new Error("ROOM_CLOSED")
+  await database.update(rooms).set({ sound: pair.sound, background: pair.background, updatedAt: new Date() }).where(eq(rooms.id, room.id))
+  return room.id
+}
+
 const displayName = sql<string>`coalesce(${pomodoroProfiles.publicDisplayName}, ${users.name})`
 /**
  * The handle, only when that profile is actually readable. A name beside a
@@ -287,7 +323,7 @@ const readableHandle = sql<string | null>`case
 export async function listPublicRooms(database: PomoderDb = db) {
   return database
     .select({
-      room: { id: rooms.id, slug: rooms.slug, name: rooms.name, phase: rooms.phase, phaseEndsAt: rooms.phaseEndsAt, focusMinutes: rooms.focusMinutes, cycleFocusCount: rooms.cycleFocusCount },
+      room: { id: rooms.id, slug: rooms.slug, name: rooms.name, phase: rooms.phase, phaseEndsAt: rooms.phaseEndsAt, focusMinutes: rooms.focusMinutes, cycleFocusCount: rooms.cycleFocusCount, sound: rooms.sound, background: rooms.background },
       hostName: displayName,
       memberCount: sql<number>`count(${roomMemberships.id})::int`,
     })
@@ -316,6 +352,9 @@ export type RoomSnapshot = {
     shortBreakMinutes: number
     longBreakMinutes: number
     autoStart: boolean
+    /** The pair everyone in the room gets. Null on rooms made before 7 Oct 2026. */
+    sound: string | null
+    background: string | null
     cycleFocusCount: number
     closedAt: Date | null
   }
@@ -358,6 +397,8 @@ export async function roomSnapshot(roomId: string, userId: string, database: Pom
     shortBreakMinutes: room.shortBreakMinutes,
     longBreakMinutes: room.longBreakMinutes,
     autoStart: room.autoStart,
+    sound: room.sound,
+    background: room.background,
     cycleFocusCount: room.cycleFocusCount,
     closedAt: room.closedAt,
   }
@@ -479,11 +520,14 @@ async function loadMessageReactions(roomId: string, userId: string, messageIds: 
 export type RoomLookup =
   | { status: "not_found" }
   | { status: "closed"; name: string }
-  | { status: "scheduled"; name: string; startsAt: Date; focusMinutes: number }
+  | { status: "scheduled"; name: string; startsAt: Date; focusMinutes: number } & RoomLookupPair
   | { status: "banned"; name: string }
-  | { status: "member"; name: string; memberCount: number }
-  | { status: "locked"; name: string; memberCount: number }
-  | { status: "joinable"; name: string; memberCount: number; phase: string; focusMinutes: number }
+  | { status: "member"; name: string; memberCount: number } & RoomLookupPair
+  | { status: "locked"; name: string; memberCount: number } & RoomLookupPair
+  | { status: "joinable"; name: string; memberCount: number; phase: string; focusMinutes: number } & RoomLookupPair
+
+/** The room's sound and theme, for the invite page to show what it is joining. */
+type RoomLookupPair = { sound: string | null; background: string | null }
 
 // Direct-entry contract for invite links: unlisted slugs resolve here but
 // never appear in listPublicRooms. Works signed-out so the invite page can
@@ -498,16 +542,17 @@ export async function lookupRoomBySlug(slug: string, userId: string | null, data
   }
   // An invite email is sent before the room opens, so the link has to be able
   // to say "not yet" and when. Nobody is in the room, so no count is shown.
+  const pair = { sound: room.sound, background: room.background }
   if (isScheduledRoom(room.phase) && room.startsAt) {
-    return { status: "scheduled", name: room.name, startsAt: room.startsAt, focusMinutes: room.focusMinutes }
+    return { status: "scheduled", name: room.name, startsAt: room.startsAt, focusMinutes: room.focusMinutes, ...pair }
   }
   const [{ memberCount }] = await database.select({ memberCount: sql<number>`count(*)::int` }).from(roomMemberships).where(and(eq(roomMemberships.roomId, room.id), sql`${roomMemberships.leftAt} is null`))
   if (userId) {
     const [membership] = await database.select({ id: roomMemberships.id }).from(roomMemberships).where(and(eq(roomMemberships.roomId, room.id), eq(roomMemberships.userId, userId), sql`${roomMemberships.leftAt} is null`)).limit(1)
-    if (membership) return { status: "member", name: room.name, memberCount }
+    if (membership) return { status: "member", name: room.name, memberCount, ...pair }
   }
-  if (!canJoinRoom(room.phase)) return { status: "locked", name: room.name, memberCount }
-  return { status: "joinable", name: room.name, memberCount, phase: room.phase, focusMinutes: room.focusMinutes }
+  if (!canJoinRoom(room.phase)) return { status: "locked", name: room.name, memberCount, ...pair }
+  return { status: "joinable", name: room.name, memberCount, phase: room.phase, focusMinutes: room.focusMinutes, ...pair }
 }
 
 export async function notifyRoom(roomId: string, event: string) {

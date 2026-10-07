@@ -32,7 +32,8 @@ export function SceneBackdrop({
 }: {
   background: BackgroundReference
   onMediaError: () => void
-  shading: "hero" | "zen"
+  /** "none" is the Backgrounds page's preview, which shows the picture as it is. */
+  shading: "hero" | "zen" | "none"
 }) {
   const stillOnly = usePrefersReducedMotion()
 
@@ -94,7 +95,7 @@ export function SceneBackdrop({
           onError={onMediaError}
         />
       )}
-      {shading === "hero" ? (
+      {shading === "none" ? null : shading === "hero" ? (
         <>
           <div
             aria-hidden="true"

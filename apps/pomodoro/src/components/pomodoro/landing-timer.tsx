@@ -3,7 +3,7 @@ import * as React from "react"
 import { FrontPageRows } from "@/components/marketing/front-page-rows"
 import type { LandingData } from "@/components/pomodoro/landing-page"
 import { PomodoroShell } from "@/components/pomodoro/pomodoro-shell"
-import { TimerDashboard } from "@/components/pomodoro/timer-dashboard"
+import { HomeRoom } from "@/components/pomodoro/home-room"
 import { loadPublicPageBlocks } from "@/lib/api/content/page-blocks"
 import { loadAppFrontPageRows } from "@/lib/api/shell"
 import { APP_FRONT_PAGE_ROW_KIND } from "@/lib/pages/front-page"
@@ -32,10 +32,10 @@ export default function LandingTimer({ data }: { data: LandingData }) {
     <PomodoroShell
       user={user}
       accountMenu={data.accountMenu}
-      savedBackground={data.savedBackground}
+      media={data.media}
       bell={data.bell}
     >
-      <TimerDashboard />
+      <HomeRoom />
       {authenticated ? null : <LiveFigureRows />}
     </PomodoroShell>
   )

@@ -29,6 +29,11 @@ import {
   SLEEP_TIMER_PRESETS,
 } from "@/lib/pomodoro/sleep-timer"
 import { useSoundPlayer } from "@/lib/pomodoro/use-sound-player"
+import {
+  addSoundToPersonalRoom,
+  useRoomMedia,
+} from "@/lib/pomodoro/room-media-store"
+import { showErrorToast } from "@/lib/toast/error-toast"
 
 type Player = ReturnType<typeof useSoundPlayer>
 
@@ -74,7 +79,7 @@ export default function SoundPlayerHeader() {
           <SleepTimerControl player={player} />
         </>
       ) : null}
-      <StopButton player={player} />
+      <StopButton />
       <PlayerNotice player={player} />
     </div>
   )
@@ -105,7 +110,7 @@ function CollapsedPlayer({ player }: { player: Player }) {
         <div className="flex items-center gap-1.5">
           <PlayPauseButton player={player} />
           <SoundName player={player} />
-          <StopButton player={player} />
+          <StopButton />
         </div>
         <div className="flex items-center gap-1.5">
           <MuteButton player={player} />
@@ -215,25 +220,33 @@ function VolumeSlider({
 }
 
 /**
- * Turns the sound off for good: the choice is forgotten and the player goes.
+ * Turns the sound off for good: the personal room goes silent and the player
+ * goes.
  * It used to be an X labelled "Stop sound", which read as a pause, so the
  * toast after it says where to pick a sound again.
  */
-function StopButton({ player }: { player: Player }) {
+function StopButton() {
+  const { room } = useRoomMedia()
+  // In somebody's room the host picked the sound for everybody. Pause and
+  // mute still work; taking the sound away is the host's to do.
+  if (room) return null
   return (
     <Button
       variant="ghost"
       size="icon-sm"
       onClick={() => {
-        player.clearSound()
-        toast.success(
-          <span>
-            Sound off. Pick one again on{" "}
-            <Link to="/sounds" className="underline underline-offset-2">
-              Sounds
-            </Link>
-            .
-          </span>
+        addSoundToPersonalRoom(null).then(
+          () =>
+            toast.success(
+              <span>
+                Sound off. Pick one again on{" "}
+                <Link to="/sounds" className="underline underline-offset-2">
+                  Sounds
+                </Link>
+                .
+              </span>
+            ),
+          () => showErrorToast("The sound could not be turned off. Try again.")
         )
       }}
       aria-label="Turn sound off"

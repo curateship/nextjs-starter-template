@@ -4,7 +4,7 @@ import { MinimizeIcon } from "lucide-react"
 
 import { SceneBackdrop } from "@/components/pomodoro/scene-backdrop"
 import { cn } from "@/lib/utils"
-import { useBackgroundSelection } from "@/lib/pomodoro/background-store"
+import { useRoomMedia } from "@/lib/pomodoro/room-media-store"
 import { MODE_LABELS } from "@/lib/pomodoro/timer"
 import type { usePomodoro } from "@/lib/pomodoro/use-pomodoro"
 
@@ -44,7 +44,7 @@ export function ZenMode({
   pomodoro: PomodoroApi
   onLeave: () => void
 }) {
-  const { background, fallBackToDefault } = useBackgroundSelection()
+  const { background, fallBackToDefault } = useRoomMedia()
   const [pointerAwake, setPointerAwake] = React.useState(true)
   const [chromeFocused, setChromeFocused] = React.useState(false)
   const overlay = React.useRef<HTMLDivElement>(null)

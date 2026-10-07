@@ -91,8 +91,13 @@ hand.
   rule keeps the timezone, so 9am stays 9am for the host through a clock
   change. A day whose time the clock skips, such as 2:30am on the night the
   clocks go forward, has no room that week.
+- **A booked room carries the sound and theme the host picked**, like any
+  room, and its card under Upcoming shows them. A weekly rule saved before
+  7 Oct 2026 has no pair, and the rooms it books draw the default scene with
+  no sound.
 - **A weekly rule is not a room.** It lives in `pomodoro_room_repeats`: days,
-  time, timezone, the room settings and the invite list. The worker turns each
+  time, timezone, the room settings (sound and theme included) and the invite
+  list. The worker turns each
   day into an ordinary booked room 24 hours before it starts, so everything
   above about booked rooms holds for each week's room: it opens itself, it
   cannot be joined early, and its invitations are queued and sent once.

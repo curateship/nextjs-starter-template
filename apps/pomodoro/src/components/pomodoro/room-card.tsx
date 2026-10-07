@@ -1,12 +1,19 @@
 import * as React from "react"
 
+import { MusicIcon } from "lucide-react"
+
 import { cn } from "@/lib/utils"
+import { sceneFor, soundLabelFor } from "@/lib/pomodoro/media-pair"
 import { vibeFor } from "@/lib/pomodoro/room-vibe"
 
 /**
  * The shape every room card on `/rooms` is built from, ported from the old
  * app's room cards by value: a tall gradient banner with a LIVE VIBE pill, a
  * title row, a line of detail, and a row that ends in the card's one button.
+ *
+ * A room that has a theme shows its scene in the banner, with its sound named
+ * at the foot, so people can pick a room by its mood. A room from before rooms
+ * carried a pair keeps one of the four gradients.
  *
  * The four gradients and both motions come from the old app's stylesheet, not
  * from its classes. The keyframes are declared in theme.css beside the rest
@@ -16,10 +23,16 @@ import { vibeFor } from "@/lib/pomodoro/room-vibe"
 
 export function RoomCard({
   roomId,
+  background,
+  sound,
   dimmed,
   children,
 }: {
   roomId: string
+  /** The room's theme, `scene:<key>`; null draws a gradient. */
+  background?: string | null
+  /** The room's sound, `curated:<key>`; null names none. */
+  sound?: string | null
   dimmed?: boolean
   children: React.ReactNode
 }) {
@@ -30,21 +43,45 @@ export function RoomCard({
         dimmed && "opacity-75"
       )}
     >
-      <RoomVibeBanner gradient={vibeFor(roomId)} />
+      <RoomVibeBanner
+        gradient={vibeFor(roomId)}
+        scene={sceneFor(background ?? null)?.thumb ?? null}
+        soundName={soundLabelFor(sound ?? null)}
+      />
       {children}
     </article>
   )
 }
 
-function RoomVibeBanner({ gradient }: { gradient: string }) {
+function RoomVibeBanner({
+  gradient,
+  scene,
+  soundName,
+}: {
+  gradient: string
+  /** The scene's thumbnail name, when the room has a theme. */
+  scene: string | null
+  soundName: string | null
+}) {
   return (
     <div
       className="relative h-[108px] overflow-hidden rounded-[14px] bg-[length:200%_200%] motion-reduce:animate-none"
-      style={{
-        backgroundImage: gradient,
-        animation: "pomodoro-vibe 12s ease infinite",
-      }}
+      style={
+        scene
+          ? undefined
+          : {
+              backgroundImage: gradient,
+              animation: "pomodoro-vibe 12s ease infinite",
+            }
+      }
     >
+      {scene ? (
+        <img
+          src={`/backgrounds/thumbs-${scene}.png`}
+          alt=""
+          className="absolute inset-0 size-full object-cover"
+        />
+      ) : null}
       {/* The room's own colour is behind the pill, so the bottom of the
           banner is faded into the page before any text sits on it. */}
       <span
@@ -52,6 +89,12 @@ function RoomVibeBanner({ gradient }: { gradient: string }) {
         className="absolute inset-0 bg-[linear-gradient(180deg,transparent_45%,rgba(var(--p-canvas-rgb),0.55))]"
       />
       <LiveVibePill />
+      {soundName ? (
+        <span className="absolute bottom-2.5 left-2.5 z-[1] flex items-center gap-1.5 rounded-full border border-[rgba(var(--p-fg-rgb),0.14)] bg-[rgba(var(--p-canvas-rgb),0.5)] px-2.5 py-1 text-[11px] text-[var(--p-text)] backdrop-blur-[6px]">
+          <MusicIcon className="size-3" aria-hidden="true" />
+          {soundName}
+        </span>
+      ) : null}
     </div>
   )
 }

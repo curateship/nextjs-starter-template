@@ -16,9 +16,7 @@ import { normalizeChime, type ChimeId } from "@/lib/pomodoro/chimes"
 import {
   clampSoundVolume,
   curatedSounds,
-  parseSoundReference,
   sameSoundReference,
-  serializeSoundReference,
   soundSourceUrl,
   type SoundReference,
 } from "@/lib/pomodoro/sound-catalog"
@@ -38,6 +36,11 @@ import {
  * created once per browser session, appended to <body>, reachable from the
  * header control, the sounds page and the timer alike. Playback survives
  * every route change because nothing React ever owns the audio.
+ *
+ * Which loop it holds is not its own choice. It follows the room you are in
+ * (`room-media-store.ts`), through `followSound`: your personal room's sound,
+ * or the hosted room's while you are in one. What it saves is only how it
+ * sounds: volume, mute, the alerts and the chimes.
  *
  * Everything below is a no-op on the server; the first browser caller
  * initialises the engine.
@@ -66,7 +69,12 @@ let lastSaved = ""
 let saveTimer: number | null = null
 let sleepDeadline: { deadline: number; minutes: number } | null = null
 let sleepInterval: number | null = null
-let previousRunning: boolean | null = null
+// The last running edge from each clock: your own timer, and the hosted
+// room's phases. Kept apart so one never cancels the other's edge.
+const previousRunning: Record<"timer" | "room", boolean | null> = {
+  timer: null,
+  room: null,
+}
 
 function emit() {
   for (const listener of listeners) listener()
@@ -86,7 +94,6 @@ function dispatch(event: SoundPlayerEvent) {
 
 function preferenceSnapshot(current: Snapshot) {
   return JSON.stringify({
-    selectedSound: serializeSoundReference(current.selected),
     soundVolume: current.volume,
     soundMuted: current.muted,
     completionAlerts: current.completionAlerts,
@@ -106,7 +113,6 @@ function schedulePersist() {
     saveTimer = null
     lastSaved = preferenceSnapshot(state)
     const payload = {
-      selectedSound: serializeSoundReference(state.selected),
       soundVolume: state.volume,
       soundMuted: state.muted,
       completionAlerts: state.completionAlerts,
@@ -155,27 +161,95 @@ function ensureFader() {
   media.addEventListener("change", applyMotion)
 
   // The timer's start fades the sound in and its pause/stop fades it out.
-  // Only genuine running edges count, so navigating between pages (which
-  // remounts the timer hook) never fights a manual pause.
   window.addEventListener("pomodoro:timer-running", ((event: Event) => {
-    const running = (event as CustomEvent<{ running: boolean }>).detail.running
-    const wasRunning = previousRunning
-    previousRunning = running
-    if (running && wasRunning !== true) {
-      if (state.selected && state.status !== "playing") {
-        dispatch({
-          type: "select",
-          reference: state.selected,
-          label: state.label ?? labelForReference(state.selected) ?? "",
-        })
-        fader?.playSource(soundSourceUrl(state.selected))
-      }
-    } else if (!running && wasRunning === true) {
-      if (state.status === "playing" || state.status === "loading")
-        fader?.fadeOutPause()
-    }
+    runningEdge(
+      "timer",
+      (event as CustomEvent<{ running: boolean }>).detail.running
+    )
   }) as EventListener)
   return fader
+}
+
+/**
+ * Only genuine running edges count, so navigating between pages (which
+ * remounts the timer hook) never fights a manual pause.
+ */
+function runningEdge(clock: "timer" | "room", running: boolean) {
+  const wasRunning = previousRunning[clock]
+  previousRunning[clock] = running
+  if (running && wasRunning !== true) {
+    if (state.selected && state.status !== "playing") {
+      dispatch({
+        type: "select",
+        reference: state.selected,
+        label: state.label ?? labelForReference(state.selected) ?? "",
+      })
+      fader?.playSource(soundSourceUrl(state.selected))
+    }
+  } else if (!running && wasRunning === true) {
+    if (state.status === "playing" || state.status === "loading")
+      fader?.fadeOutPause()
+  }
+}
+
+/**
+ * The hosted room's clock counts as the timer: its focus or break starting
+ * starts the room's sound, and the room going back to waiting fades it out.
+ *
+ * `initial` is the first snapshot a page sees. It only records where the
+ * room's clock is, because a reload never autoplays: a room found mid-focus
+ * on arrival waits for its next edge, or for play.
+ */
+export function followRoomRunning(running: boolean, initial = false) {
+  if (typeof window === "undefined") return
+  ensureFader()
+  if (initial) previousRunning.room = running
+  else runningEdge("room", running)
+}
+
+/**
+ * Holds the sound of the room you are in. Called by the room media store
+ * whenever that changes.
+ *
+ * - `prime` is the page's first frame: the sound is held, silent, and nobody
+ *   is told, because nothing has been drawn yet.
+ * - `pick` is you putting a sound in your own room. Tyler's rule, 27 Sep
+ *   2026: picking never plays, and the loop that was playing stops.
+ * - `room` is the room changing under you: joining, leaving, or the host
+ *   picking a new sound. A sound that was playing crossfades into the new
+ *   one, so a room keeps one sound for everybody; a paused one stays paused.
+ */
+export function followSound(
+  reference: SoundReference | null,
+  reason: "prime" | "pick" | "room"
+) {
+  if (typeof window === "undefined") return
+  if (sameSoundReference(state.selected, reference)) return
+  const label = labelForReference(reference)
+  if (reason === "prime") {
+    state = {
+      ...state,
+      selected: reference,
+      label,
+      status: reference ? "paused" : "idle",
+    }
+    return
+  }
+  const active = ensureFader()
+  if (!reference) {
+    active?.fadeOutStop()
+    cancelSleepTimer()
+    dispatch({ type: "clear" })
+    return
+  }
+  const playing = state.status === "playing" || state.status === "loading"
+  if (reason === "room" && playing) {
+    dispatch({ type: "select", reference, label: label ?? "" })
+    active?.playSource(soundSourceUrl(reference))
+    return
+  }
+  active?.fadeOutStop()
+  dispatch({ type: "choose", reference, label: label ?? "" })
 }
 
 /** Loads the saved preferences once; safe to call from every consumer. */
@@ -187,12 +261,8 @@ export function ensureSoundEngine() {
   if (!productAuth().authenticated) {
     // A guest's sound lives in the browser; premium loops stay locked.
     const saved = readGuestJson<Record<string, unknown>>(GUEST_SOUND_KEY) ?? {}
-    const selected = parseSoundReference(saved.selectedSound)
     state = {
       ...state,
-      selected,
-      label: labelForReference(selected),
-      status: selected ? "paused" : "idle",
       volume: clampSoundVolume(saved.soundVolume),
       muted: saved.soundMuted === true,
       completionAlerts: saved.completionAlerts === true,
@@ -213,22 +283,9 @@ export function ensureSoundEngine() {
   hydrating = true
   void loadSoundPreferences()
     .then((saved) => {
-      const parsed = parseSoundReference(saved.selectedSound)
-      // An upload the server would not resolve — deleted, still being
-      // prepared, or not theirs — is dropped rather than left selected with
-      // nothing to play.
-      const selected =
-        parsed?.type === "media"
-          ? saved.selectedUploadUrl
-            ? { ...parsed, mediaUrl: saved.selectedUploadUrl }
-            : null
-          : parsed
       const volume = clampSoundVolume(saved.soundVolume)
       state = {
         ...state,
-        selected,
-        label: labelForReference(selected),
-        status: selected ? "paused" : "idle",
         volume,
         muted: saved.soundMuted === true,
         completionAlerts: saved.completionAlerts === true,
@@ -268,25 +325,6 @@ export function soundEngineState(): Snapshot {
   return state
 }
 
-/**
- * Picks a sound. Tyler's rule, 27 Sep 2026: "when I select a theme, it
- * shouldn't play right away. It should just be selected and the play
- * happens when I press play on the big button." So a new sound arrives
- * chosen and silent, and anything already playing stops.
- *
- * Picking the sound that is already chosen is not a choice, it is the
- * play/pause control on its own card, so that one toggles.
- */
-export function selectSound(reference: SoundReference, label: string) {
-  const active = ensureFader()
-  if (sameSoundReference(state.selected, reference)) {
-    togglePlayback()
-    return
-  }
-  active?.fadeOutStop()
-  dispatch({ type: "choose", reference, label })
-}
-
 export function togglePlayback() {
   const active = ensureFader()
   if (!state.selected) return
@@ -300,12 +338,6 @@ export function togglePlayback() {
     label: state.label ?? labelForReference(state.selected) ?? "",
   })
   active?.playSource(soundSourceUrl(state.selected))
-}
-
-export function clearSound() {
-  ensureFader()?.fadeOutStop()
-  cancelSleepTimer()
-  dispatch({ type: "clear" })
 }
 
 export function setVolume(volume: number) {

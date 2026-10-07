@@ -30,7 +30,7 @@ export default function SignInFrame({
     <PomodoroShell
       user={user}
       accountMenu={null}
-      savedBackground={null}
+      media={null}
       bell={{ unseen: 0, live: false }}
     >
       {/* Lifted up the scene, the way the timer ring floats on it, so the

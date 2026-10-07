@@ -125,6 +125,8 @@ describe("a new report", () => {
       shortBreakMinutes: 5,
       longBreakMinutes: 15,
       autoStart: false,
+      sound: "curated:rain",
+      background: "scene:plain",
     }, db)
     await joinRoomBySlug(room.slug, sam, db)
     await postRoomMessage(room.slug, sam, "something rude", db)

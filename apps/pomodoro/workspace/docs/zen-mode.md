@@ -50,8 +50,8 @@ reader's reach, which is what the screen already claims by being a modal.
 
 ## The scene behind it
 
-The background you picked in Theme fills the whole screen, under a wash that
-dims it. The dashboard shades the same picture differently, because there the
+The theme of the room you are in fills the whole screen, under a wash that
+dims it: your personal room's, or a hosted room's while you are in one. The dashboard shades the same picture differently, because there the
 ring sits over the part of the hero that has already faded, and in zen mode it
 sits over the middle of the picture. Both draw the same `<img>` or `<video>`
 from `src/components/pomodoro/scene-backdrop.tsx`, so opening zen mode never

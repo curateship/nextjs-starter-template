@@ -14,20 +14,28 @@ the phases, and the server is the only clock.
   the page within a minute. These reads are quiet: one that fails keeps the
   cards already showing and puts up no toast. A hidden tab reads nothing.
 - **A room card is the old app's card**, rebuilt from its values rather than
-  its classes: a 108px gradient banner with a LIVE VIBE pill, a status dot
-  and a monospace clock beside the name, the member count, and a row ending
-  in the card's one pill button. Green means open, orange means locked. Four
-  gradients, picked from the room's own id so a card keeps its colour when
-  the list shuffles. A group with no rooms shows a dashed box saying so.
+  its classes: a 108px banner with a LIVE VIBE pill, a status dot and a
+  monospace clock beside the name, the member count, and a row ending in the
+  card's one pill button. Green means open, orange means locked. The banner
+  is the room's own scene, with its sound named at the foot, so people can
+  pick a room by its mood. A room from before rooms carried a pair keeps one
+  of four gradients, picked from the room's own id so a card keeps its colour
+  when the list shuffles. A group with no rooms shows a dashed box saying so.
   The pieces live in `src/components/pomodoro/room-card.tsx`, the gradients
   in `src/lib/pomodoro/room-vibe.ts`, and the two animations in
   `src/components/pomodoro/theme.css`. The page is the shared 1,140px column
   (see [The product shell](product-shell.md)) with 36px between its groups,
   the old app's spacing for this screen.
 - **Hosting is Pro** (`requirePomodoroPerk("hostRooms")`): name, public or
-  unlisted, three durations, auto-start. One room per person; hosting
-  again or joining another room closes the old one so nobody is stranded
-  hostless.
+  unlisted, three durations, auto-start, a sound and a theme. One room per
+  person; hosting again or joining another room closes the old one so nobody
+  is stranded hostless.
+- **A room has its own sound and theme, and both are required.** Tyler, 7 Oct
+  2026: "User must select sound and theme." Nothing is picked to start with,
+  and Create room stays pressable: pressing it with a pick missing names the
+  missing one and marks its field. The picks are the eight loops and the
+  eight scenes, never an upload. Everyone in the room gets the pair; see
+  [The personal room](personal-room.md).
 - **A Rhythm picker fills the timers in one pick.** It lists the three
   built-in presets and your own, from the same list as Settings → Timer, and
   sets focus, short break, long break and auto-start. The boxes stay
@@ -52,8 +60,10 @@ the phases, and the server is the only clock.
   it from nesting under the browse page — the old routing trap) with the
   old seven states: checking, failed, not found, closed, banned, already a
   member, locked mid-focus, joinable. The lookup endpoint works signed out
-  (listed in `src/app/open-endpoints.ts`) and answers a status, a name and
-  a member count only.
+  (listed in `src/app/open-endpoints.ts`) and answers a status, a name,
+  a member count, and the room's sound and theme, which the page shows as
+  the scene's picture and the sound's name. Joining from an invite lands on
+  the front page, inside the room.
 - **Signing in brings you back.** Signed out, "Sign in" on `/rooms` and "Sign
   in to join" on an invite carry `?redirect=` with the page you were on, so
   after signing in you are on Rooms or on that invite again, not the
@@ -62,6 +72,14 @@ the phases, and the server is the only clock.
   checked again at the moment it navigates, so a crafted link cannot send
   anyone elsewhere. "Create free account" still lands on the dashboard: the
   register page is the shell's and does not read a return address.
+- **The front page is the room you are in.** Tyler, 7 Oct 2026: "the index
+  page will be replaced with the joined room." Joining, hosting, or opening an
+  invite takes you to `/`, which draws the room's panel instead of the timer,
+  in the room's sound and theme (`HomeRoom` and `JoinedRoom`,
+  `src/components/pomodoro/home-room.tsx` and `active-room.tsx`). `/rooms`
+  shows one line, "You are in …", with Open the room. Leaving puts the timer
+  and your own pair back on `/`. The panel names the room's sound and theme;
+  the host is pointed at Sounds and Backgrounds to change them.
 - **Host actions**: start focus, start break, next phase, close (with
   confirmation). Hosts move through the canonical sequence only; the 4th
   focus earns the long break; a break returns to focus (auto-start) or to
@@ -78,7 +96,8 @@ the phases, and the server is the only clock.
   every change; the client reconnects on drop and recomputes the
   countdown locally from server timestamps, so the clock's up-to-15s
   advance lag never shows on the ring. Snapshots carry display names,
-  roles and chat bodies — never emails or user ids. A viewer whose
+  roles, chat bodies and the room's sound and theme — never emails or user
+  ids. A host changing the pair sends a snapshot like any other change. A viewer whose
   membership ends gets `room_gone`.
 - **A host leaving closes the room for everyone**; a member leaving only
   ends their own membership.

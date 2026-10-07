@@ -227,6 +227,9 @@ export type UpcomingRoom = {
   visibility: string
   startsAt: Date
   focusMinutes: number
+  /** The pair the room opens with, for the card's picture and sound line. */
+  sound: string | null
+  background: string | null
   hostName: string
   mine: boolean
   invitedCount: number
@@ -257,6 +260,8 @@ export async function listUpcomingRooms(
       visibility: rooms.visibility,
       startsAt: rooms.startsAt,
       focusMinutes: rooms.focusMinutes,
+      sound: rooms.sound,
+      background: rooms.background,
       hostUserId: rooms.hostUserId,
       hostName: displayName,
       repeatId: rooms.repeatId,
@@ -709,6 +714,10 @@ async function bookRepeatDay(
           shortBreakMinutes: rule.shortBreakMinutes,
           longBreakMinutes: rule.longBreakMinutes,
           autoStart: rule.autoStart,
+          // A rule saved before rooms carried a pair has none; its rooms
+          // draw the default scene with no sound, like any older room.
+          sound: rule.sound,
+          background: rule.background,
           startsAt: day.startsAt,
           invites: rule.invites,
           repeat: { id: rule.id, occurrenceDate: day.date },
@@ -754,6 +763,9 @@ export type MyRoomRepeat = {
   nextStartsAt: Date | null
   /** Whether that day already has its room under Upcoming. */
   nextIsBooked: boolean
+  /** The pair every room the rule books opens with. */
+  sound: string | null
+  background: string | null
 }
 
 /** The host's own live weekly rules, soonest first. */
@@ -786,6 +798,8 @@ export async function listMyRoomRepeats(
       inviteCount: rule.invites.length,
       nextStartsAt: bookedAt ?? rule.nextStartsAt,
       nextIsBooked: Boolean(bookedAt),
+      sound: rule.sound,
+      background: rule.background,
     }
   })
 }

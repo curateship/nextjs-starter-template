@@ -204,7 +204,7 @@ function SeriesCard({
   const readerTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
   const next = rule.nextStartsAt ? new Date(rule.nextStartsAt) : null
   return (
-    <RoomCard roomId={rule.id}>
+    <RoomCard roomId={rule.id} background={rule.background} sound={rule.sound}>
       <RoomCardTitle
         name={rule.name}
         tone="locked"
@@ -266,7 +266,7 @@ function UpcomingRoomCard({
   }
 
   return (
-    <RoomCard roomId={room.id}>
+    <RoomCard roomId={room.id} background={room.background} sound={room.sound}>
       <RoomCardTitle
         name={room.name}
         tone="locked"

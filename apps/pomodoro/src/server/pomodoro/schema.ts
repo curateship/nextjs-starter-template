@@ -51,6 +51,12 @@ export const userPreferences = pgTable(
       .notNull()
       .default(4),
     autoStart: boolean("auto_start").notNull().default(false),
+    /**
+     * No longer written. The sound and theme belong to the personal room
+     * since 7 Oct 2026 (`pomodoroPersonalRooms`); migration 0122 copied these
+     * two into it. Kept rather than dropped, because stored fields are never
+     * renamed or removed.
+     */
     selectedSound: varchar("selected_sound", { length: 60 }),
     selectedBackground: varchar("selected_background", { length: 60 }),
     soundVolume: integer("sound_volume").notNull().default(70),
@@ -104,6 +110,30 @@ export const userPreferences = pgTable(
     ),
   ]
 )
+
+/**
+ * The personal room: one per account, holding the sound and the theme that
+ * account sees when it is in nobody else's room. Nobody else ever joins it,
+ * and there is no way to close or delete it; it goes only with the account.
+ * See `workspace/docs/personal-room.md`.
+ *
+ * Both are stored the way the catalogues serialize them: `curated:<key>` or
+ * `media:<uuid>` for the sound, `scene:<key>` or `media:<uuid>` for the theme.
+ * A null sound is silence; a null theme draws the default scene.
+ */
+export const pomodoroPersonalRooms = pgTable("pomodoro_personal_rooms", {
+  userId: varchar("user_id", { length: 36 })
+    .primaryKey()
+    .references(() => customShellUsers.id, { onDelete: "cascade" }),
+  sound: varchar("sound", { length: 60 }),
+  background: varchar("background", { length: 60 }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+})
 
 /**
  * A project groups tasks at the level people bill and think at. Archiving is
@@ -777,6 +807,7 @@ export const userTimerPresets = pgTable(
 )
 
 export type UserPreferences = typeof userPreferences.$inferSelect
+export type PomodoroPersonalRoom = typeof pomodoroPersonalRooms.$inferSelect
 export type FocusSession = typeof focusSessions.$inferSelect
 export type DailyFocusStat = typeof dailyFocusStats.$inferSelect
 export type Task = typeof tasks.$inferSelect
@@ -822,6 +853,13 @@ export const rooms = pgTable(
     shortBreakMinutes: integer("short_break_minutes").notNull().default(5),
     longBreakMinutes: integer("long_break_minutes").notNull().default(15),
     autoStart: boolean("auto_start").notNull().default(false),
+    /**
+     * The sound and theme everybody in the room gets, picked by the host:
+     * `curated:<key>` and `scene:<key>`, catalogue only. Null on rooms made
+     * before 7 Oct 2026, which draw the default scene with no sound.
+     */
+    sound: varchar("sound", { length: 60 }),
+    background: varchar("background", { length: 60 }),
     cycleFocusCount: integer("cycle_focus_count").notNull().default(0),
     closedAt: timestamp("closed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -892,6 +930,9 @@ export const pomodoroRoomRepeats = pgTable(
     shortBreakMinutes: integer("short_break_minutes").notNull().default(5),
     longBreakMinutes: integer("long_break_minutes").notNull().default(15),
     autoStart: boolean("auto_start").notNull().default(false),
+    /** Copied onto every room the rule books, the same as the timers. */
+    sound: varchar("sound", { length: 60 }),
+    background: varchar("background", { length: 60 }),
     /** Lowercased addresses. Copied onto each room's own invites when it is made. */
     invites: jsonb("invites").$type<string[]>().notNull().default([]),
     /**

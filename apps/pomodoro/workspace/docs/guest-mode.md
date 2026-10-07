@@ -29,6 +29,9 @@ need an account, like History's data), and the product header shows Log in
   storage.
 - **Premium stays locked for guests** (sounds, scenes), and guests keep
   curated scenes only — they never own uploads.
+- **A guest's sound and theme are random on every visit**, free items only,
+  and nothing about them is kept in the browser. See
+  [The personal room](personal-room.md).
 
 ## The import
 

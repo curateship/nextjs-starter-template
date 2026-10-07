@@ -1,6 +1,5 @@
 import * as React from "react"
 import {
-  CheckIcon,
   ImageIcon,
   Loader2Icon,
   LockIcon,
@@ -34,6 +33,7 @@ import {
   type UploadProgress,
 } from "@/lib/api/pomodoro/media-uploads"
 import { SignInButton } from "@/components/pomodoro/sign-in-button"
+import { CurrentlySelectedLabel } from "@/components/pomodoro/media-add-actions"
 import { useOpenPlans } from "@/lib/pomodoro/use-open-plans"
 
 /**
@@ -58,7 +58,10 @@ export function MediaUploadsSection({
   description,
   reloadToken = 0,
   isSelected,
+  isPreviewed,
   onPick,
+  renderActions,
+  renderPreview,
   renderThumbnail,
 }: {
   purpose: PomodoroUploadPurpose
@@ -73,8 +76,23 @@ export function MediaUploadsSection({
    * nothing else would tell the grid it is there.
    */
   reloadToken?: number
+  /** Whether this upload is the one in use in the room you are in. */
   isSelected: (upload: StoredUpload) => boolean
-  onPick: (upload: StoredUpload) => void
+  /**
+   * Sounds previews on the page: `onPick` plays the upload, and the Add
+   * buttons from `renderActions` are drawn under the one `isPreviewed` names.
+   */
+  isPreviewed?: (upload: StoredUpload) => boolean
+  onPick?: (upload: StoredUpload) => void
+  renderActions?: (upload: StoredUpload) => React.ReactNode
+  /**
+   * Backgrounds previews in a popover instead: it wraps the card's button in
+   * one, and the popover holds the preview and the Add buttons.
+   */
+  renderPreview?: (
+    upload: StoredUpload,
+    card: React.ReactElement
+  ) => React.ReactNode
   renderThumbnail: (upload: StoredUpload) => React.ReactNode
 }) {
   const [library, setLibrary] = React.useState<UploadLibrary | null>(null)
@@ -199,7 +217,15 @@ export function MediaUploadsSection({
               key={upload.mediaId}
               upload={upload}
               selected={isSelected(upload)}
-              onPick={() => onPick(upload)}
+              actions={
+                isPreviewed?.(upload) ? (renderActions?.(upload) ?? null) : null
+              }
+              onPick={() => onPick?.(upload)}
+              wrapPick={
+                renderPreview
+                  ? (card) => renderPreview(upload, card)
+                  : undefined
+              }
               onDelete={() => setPendingDelete(upload)}
               thumbnail={renderThumbnail(upload)}
             />
@@ -397,25 +423,90 @@ const KIND_ICONS = {
 } as const
 
 /**
- * One upload. A finished one can be picked; one still being prepared says so
- * and cannot be, because the file behind it is still the raw original.
+ * One upload. A finished one can be previewed; one still being prepared says
+ * so and cannot be, because the file behind it is still the raw original.
  */
 function UploadCard({
   upload,
   selected,
+  actions,
   onPick,
+  wrapPick,
   onDelete,
   thumbnail,
 }: {
   upload: StoredUpload
+  /** In use in the room you are in. */
   selected: boolean
+  /** The Add buttons, while this upload is being previewed. */
+  actions: React.ReactNode
   onPick: () => void
+  /** Wraps a finished card's button, for a page that previews in a popover. */
+  wrapPick?: (card: React.ReactElement) => React.ReactNode
   onDelete: () => void
   thumbnail: React.ReactNode
 }) {
   const ready = upload.status === "ready"
   const failed = upload.status === "failed"
   const KindIcon = KIND_ICONS[upload.kind]
+
+  const pickButton = (
+    <button
+      type="button"
+      className="group w-full text-left disabled:cursor-not-allowed"
+      aria-label={
+        ready
+          ? `Preview ${upload.name}`
+          : failed
+            ? `${upload.name} could not be prepared`
+            : `${upload.name} is still being prepared`
+      }
+      disabled={!ready}
+      onClick={() => {
+        if (ready) onPick()
+      }}
+    >
+      <span
+        className={cn(
+          "relative block bg-muted",
+          upload.kind === "audio" ? "aspect-square" : "aspect-video"
+        )}
+      >
+        {ready ? thumbnail : null}
+        {selected ? <CurrentlySelectedLabel /> : null}
+        <span className="absolute inset-0 grid place-items-center">
+          {failed ? (
+            <TriangleAlertIcon
+              className="size-6 text-destructive"
+              aria-hidden="true"
+            />
+          ) : !ready ? (
+            <Loader2Icon
+              className="size-6 animate-spin text-muted-foreground"
+              aria-hidden="true"
+            />
+          ) : (
+            <KindIcon
+              className="size-6 text-white opacity-0 drop-shadow transition-opacity group-hover:opacity-100"
+              aria-hidden="true"
+            />
+          )}
+        </span>
+      </span>
+      <CardContent className="flex flex-col gap-0.5 p-3">
+        <strong className="truncate text-sm" title={upload.name}>
+          {upload.name}
+        </strong>
+        <small className="truncate text-xs text-muted-foreground">
+          {failed
+            ? (upload.failureReason ?? "It could not be prepared.")
+            : ready
+              ? formatBytes(upload.fileSize)
+              : "Getting it ready…"}
+        </small>
+      </CardContent>
+    </button>
+  )
 
   return (
     <Card
@@ -424,67 +515,9 @@ function UploadCard({
         selected && "ring-2 ring-[var(--p-accent)]"
       )}
     >
-      <button
-        type="button"
-        className="group w-full text-left disabled:cursor-not-allowed"
-        aria-pressed={selected}
-        aria-label={
-          ready
-            ? `Use ${upload.name}`
-            : failed
-              ? `${upload.name} could not be prepared`
-              : `${upload.name} is still being prepared`
-        }
-        disabled={!ready}
-        onClick={() => {
-          if (ready) onPick()
-        }}
-      >
-        <span
-          className={cn(
-            "relative block bg-muted",
-            upload.kind === "audio" ? "aspect-square" : "aspect-video"
-          )}
-        >
-          {ready ? thumbnail : null}
-          <span className="absolute inset-0 grid place-items-center">
-            {failed ? (
-              <TriangleAlertIcon
-                className="size-6 text-destructive"
-                aria-hidden="true"
-              />
-            ) : !ready ? (
-              <Loader2Icon
-                className="size-6 animate-spin text-muted-foreground"
-                aria-hidden="true"
-              />
-            ) : selected ? (
-              <CheckIcon
-                className="size-6 text-white drop-shadow"
-                aria-hidden="true"
-              />
-            ) : (
-              <KindIcon
-                className="size-6 text-white opacity-0 drop-shadow transition-opacity group-hover:opacity-100"
-                aria-hidden="true"
-              />
-            )}
-          </span>
-        </span>
-        <CardContent className="flex flex-col gap-0.5 p-3">
-          <strong className="truncate text-sm" title={upload.name}>
-            {upload.name}
-          </strong>
-          <small className="truncate text-xs text-muted-foreground">
-            {failed
-              ? (upload.failureReason ?? "It could not be prepared.")
-              : ready
-                ? formatBytes(upload.fileSize)
-                : "Getting it ready…"}
-          </small>
-        </CardContent>
-      </button>
-      <div className="flex justify-end border-t px-2 py-1">
+      {ready && wrapPick ? wrapPick(pickButton) : pickButton}
+      <div className="flex items-center justify-end gap-2 border-t px-2 py-1">
+        {actions ? <div className="mr-auto">{actions}</div> : null}
         <Button
           type="button"
           variant="ghost"

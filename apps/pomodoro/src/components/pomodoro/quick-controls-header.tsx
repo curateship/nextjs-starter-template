@@ -3,16 +3,16 @@ import { Link } from "@tanstack/react-router"
 import {
   BarChart3Icon,
   CheckIcon,
+  ImageIcon,
   Clock3Icon,
   MinusIcon,
+  MusicIcon,
   PaletteIcon,
   PauseIcon,
   PlayIcon,
   PlusIcon,
   RotateCcwIcon,
   SkipForwardIcon,
-  SparklesIcon,
-  UploadIcon,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -38,14 +38,7 @@ import {
   readGuestJson,
 } from "@/lib/pomodoro/guest-storage"
 import { normalizeCustomTimerPresets } from "@/lib/pomodoro/timer-presets"
-import {
-  curatedBackgrounds,
-} from "@/lib/pomodoro/background-catalog"
-import { useBackgroundSelection } from "@/lib/pomodoro/background-store"
-import {
-  curatedSounds,
-  sameSoundReference,
-} from "@/lib/pomodoro/sound-catalog"
+import { useRoomMedia } from "@/lib/pomodoro/room-media-store"
 import {
   builtinTimerPresets,
   matchTimerPreset,
@@ -54,7 +47,6 @@ import {
 } from "@/lib/pomodoro/timer-presets"
 import { browserTimezone, type TimerMode } from "@/lib/pomodoro/timer"
 import { usePomodoro } from "@/lib/pomodoro/use-pomodoro"
-import { useSoundPlayer } from "@/lib/pomodoro/use-sound-player"
 import { TextLink } from "@/components/pomodoro/text-link"
 import { SignInButton } from "@/components/pomodoro/sign-in-button"
 import { plural } from "@/lib/format/plural"
@@ -111,20 +103,9 @@ function QuickPillLabel({ children }: { children: React.ReactNode }) {
  * rule, the way the old app separated a popover's parts. The rule is a bare
  * `border-t` so it takes the theme's own border colour.
  */
-function QuickSectionHeading({
-  children,
-  first,
-}: {
-  children: React.ReactNode
-  first?: boolean
-}) {
+function QuickSectionHeading({ children }: { children: React.ReactNode }) {
   return (
-    <strong
-      className={cn(
-        "font-mono text-[11px] font-normal uppercase tracking-[0.16em] text-muted-foreground",
-        !first && "border-t pt-3.5"
-      )}
-    >
+    <strong className="border-t pt-3.5 font-mono text-[11px] font-normal uppercase tracking-[0.16em] text-muted-foreground">
       {children}
     </strong>
   )
@@ -407,48 +388,6 @@ function TimerQuickControl() {
   )
 }
 
-/**
- * The pair of shortcuts under each half of the Theme popover. Both open the
- * full page, because uploading a file and writing a prompt each need more
- * room than a popover has; the popover only says the two doors exist.
- */
-function QuickActions({
-  to,
-  thing,
-}: {
-  to: "/sounds" | "/backgrounds"
-  thing: "sound" | "background"
-}) {
-  const base =
-    "flex h-8 flex-1 items-center justify-center gap-[7px] rounded-full text-[12.5px] font-semibold focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-  return (
-    <div className="flex gap-2">
-      <Link
-        to={to}
-        className={cn(
-          base,
-          "border border-dashed border-foreground/25 text-muted-foreground hover:text-foreground"
-        )}
-      >
-        <UploadIcon className="size-3.5" aria-hidden="true" />
-        Upload
-        <span className="sr-only">your own {thing}</span>
-      </Link>
-      <Link
-        to={to}
-        className={cn(
-          base,
-          "border border-primary/40 bg-primary/10 text-[var(--p-accent-2)] hover:bg-primary/20"
-        )}
-      >
-        <SparklesIcon className="size-3.5" aria-hidden="true" />
-        AI Generate
-        <span className="sr-only">a {thing}</span>
-      </Link>
-    </div>
-  )
-}
-
 type Leaderboard = Awaited<ReturnType<typeof loadLeaderboard>>
 
 /**
@@ -573,9 +512,23 @@ function LeaderboardQuickControl() {
   )
 }
 
+/**
+ * The header's Theme pill. It used to pick a sound and a scene in one click,
+ * which started the loop through the header's player and fought the timer's
+ * Start on the front page. Tyler, 7 Oct 2026: preview first, then add. So
+ * the pill now only says whose room the pair belongs to and opens the two
+ * pages where a sound or a theme is previewed and added.
+ */
 function ThemeQuickControl() {
-  const player = useSoundPlayer()
-  const { background, chooseBackground } = useBackgroundSelection()
+  const { room } = useRoomMedia()
+  const { authenticated } = useProductAuth()
+  const owner = room
+    ? room.role === "host"
+      ? `${room.name}, the room you host`
+      : `${room.name}, picked by its host`
+    : authenticated
+      ? "Your personal room"
+      : "Picked at random for this visit"
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -584,139 +537,21 @@ function ThemeQuickControl() {
           <QuickPillLabel>Theme</QuickPillLabel>
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-80 gap-3.5 p-4">
-        <strong className="text-sm font-semibold">Theme</strong>
-
-        <QuickSectionHeading first>Sound</QuickSectionHeading>
+      <PopoverContent className="w-72 gap-3.5 p-4">
+        <span className="flex flex-col gap-0.5">
+          <strong className="text-sm font-semibold">Theme</strong>
+          <small className="text-xs text-muted-foreground">{owner}</small>
+        </span>
         <div className="flex flex-col gap-1">
-          {curatedSounds
-            .filter((sound) => !sound.locked)
-            .map((sound) => {
-              const reference = { type: "curated", key: sound.key } as const
-              const selected = sameSoundReference(
-                player.state.selected,
-                reference
-              )
-              const playing = selected && player.state.status === "playing"
-              return (
-                <button
-                  key={sound.key}
-                  className={cn(
-                    quickRowClass,
-                    selected && quickRowSelectedClass
-                  )}
-                  aria-pressed={selected}
-                  aria-label={
-                    !selected
-                      ? `Choose ${sound.label}`
-                      : playing
-                        ? `Pause ${sound.label}`
-                        : `Play ${sound.label}`
-                  }
-                  onClick={() => player.selectSound(reference, sound.label)}
-                >
-                  {/* Only the chosen sound carries a play control, because
-                      picking one of the others chooses it without playing
-                      it. The empty circle keeps every row the same width. */}
-                  <span className="grid size-7 shrink-0 place-items-center rounded-full bg-foreground/5 ring-1 ring-foreground/15">
-                    {!selected ? null : playing ? (
-                      <PauseIcon
-                        className="size-3 fill-current"
-                        aria-hidden="true"
-                      />
-                    ) : (
-                      <PlayIcon
-                        className="size-3 fill-current"
-                        aria-hidden="true"
-                      />
-                    )}
-                  </span>
-                  <span className="flex min-w-0 flex-1 flex-col">
-                    <strong className="truncate text-[13.5px]">
-                      {sound.label}
-                    </strong>
-                    <small className="truncate text-[11.5px] text-muted-foreground">
-                      {sound.hint}
-                    </small>
-                  </span>
-                  {selected ? (
-                    <CheckIcon
-                      className="size-3.5 shrink-0"
-                      aria-hidden="true"
-                    />
-                  ) : null}
-                </button>
-              )
-            })}
-          <button
-            className={cn(
-              quickRowClass,
-              !player.state.selected && quickRowSelectedClass
-            )}
-            aria-pressed={!player.state.selected}
-            onClick={() => player.clearSound()}
-          >
-            <span className="size-7 shrink-0" aria-hidden="true" />
-            <span className="flex min-w-0 flex-1 flex-col">
-              <strong className="truncate text-[13.5px]">Silence</strong>
-              <small className="truncate text-[11.5px] text-muted-foreground">
-                No sound at all
-              </small>
-            </span>
-            {!player.state.selected ? (
-              <CheckIcon className="size-3.5 shrink-0" aria-hidden="true" />
-            ) : null}
-          </button>
+          <Link to="/sounds" className={quickRowClass}>
+            <MusicIcon className="size-4 shrink-0" aria-hidden="true" />
+            <strong className="text-[13.5px]">Choose a sound</strong>
+          </Link>
+          <Link to="/backgrounds" className={quickRowClass}>
+            <ImageIcon className="size-4 shrink-0" aria-hidden="true" />
+            <strong className="text-[13.5px]">Choose a theme</strong>
+          </Link>
         </div>
-        <QuickActions to="/sounds" thing="sound" />
-
-        <QuickSectionHeading>Background</QuickSectionHeading>
-        <div className="grid grid-cols-3 gap-2">
-          {curatedBackgrounds.slice(0, 3).map((scene) => {
-            const selected =
-              background.type === "scene" && background.key === scene.key
-            return (
-              <button
-                key={scene.key}
-                className="flex min-w-0 flex-col gap-1.5 rounded-lg text-left focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-                aria-pressed={selected}
-                onClick={() =>
-                  chooseBackground({ type: "scene", key: scene.key })
-                }
-              >
-                <span
-                  className={cn(
-                    "relative block overflow-hidden rounded-lg ring-2 ring-foreground/10",
-                    selected && "ring-[var(--p-accent)]"
-                  )}
-                >
-                  <img
-                    src={`/backgrounds/thumbs-${scene.thumb}.png`}
-                    alt=""
-                    className="block aspect-[5/3] w-full object-cover"
-                  />
-                  {selected ? (
-                    <i className="absolute right-1 top-1 grid size-4 place-items-center rounded-full bg-[var(--p-accent)] text-[var(--p-on-accent)]">
-                      <CheckIcon
-                        className="size-2.5 stroke-[4]"
-                        aria-hidden="true"
-                      />
-                    </i>
-                  ) : null}
-                </span>
-                <strong
-                  className={cn(
-                    "truncate text-xs font-semibold text-muted-foreground",
-                    selected && "text-[var(--p-accent-2)]"
-                  )}
-                >
-                  {scene.label}
-                </strong>
-              </button>
-            )
-          })}
-        </div>
-        <QuickActions to="/backgrounds" thing="background" />
       </PopoverContent>
     </Popover>
   )

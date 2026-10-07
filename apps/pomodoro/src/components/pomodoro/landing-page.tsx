@@ -16,7 +16,10 @@ import type { AccountMenuUser } from "@/components/pomodoro/account-menu"
 import type { HeaderBell } from "@/components/pomodoro/pomodoro-shell"
 import { definePublicPage } from "@/lib/app-options"
 import type { AccountMenuFacts } from "@/lib/api/pomodoro/profile"
-import type { SavedBackground } from "@/lib/pomodoro/background-store"
+import {
+  guestMediaBootstrap,
+  type MediaBootstrap,
+} from "@/lib/pomodoro/media-pair"
 
 /**
  * The front page is the timer itself, exactly like the old app: a visitor
@@ -34,7 +37,8 @@ import type { SavedBackground } from "@/lib/pomodoro/background-store"
 export type LandingData = {
   user: AccountMenuUser | null
   accountMenu: AccountMenuFacts | null
-  savedBackground: SavedBackground | null
+  /** The pair of the room you are in; a guest's is random on every visit. */
+  media: MediaBootstrap | null
   bell: HeaderBell
 }
 
@@ -50,17 +54,21 @@ export const pomodoroLandingPage = definePublicPage<LandingData>({
       unseen: unseenNotifications,
       live: settings?.liveNotifications ?? true,
     }
-    if (!user) return { user: null, accountMenu: null, savedBackground: null, bell }
+    // Tyler, 7 Oct 2026: a guest's front page gets a random sound and theme.
+    // Picked here, in the loader, so the server draws the same pair the
+    // browser then holds, and nothing swaps on the first frame.
+    if (!user)
+      return { user: null, accountMenu: null, media: guestMediaBootstrap(), bell }
     // The same facts, and the same rule on failure, as the `_pomodoro` layout.
-    const [{ loadAccountMenu }, { loadBackgroundPreference }] = await Promise.all([
+    const [{ loadAccountMenu }, { loadRoomMediaBootstrap }] = await Promise.all([
       import("@/lib/api/pomodoro/profile"),
-      import("@/lib/api/pomodoro/backgrounds"),
+      import("@/lib/api/pomodoro/personal-room"),
     ])
-    const [accountMenu, savedBackground] = await Promise.all([
+    const [accountMenu, media] = await Promise.all([
       loadAccountMenu().catch(() => null),
-      loadBackgroundPreference().catch(() => null),
+      loadRoomMediaBootstrap().catch(() => null),
     ])
-    return { user, accountMenu, savedBackground, bell }
+    return { user, accountMenu, media, bell }
   },
   head: () => {
     const meta: Array<Record<string, string>> = [

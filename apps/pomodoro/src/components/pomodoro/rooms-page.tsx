@@ -1,13 +1,10 @@
 import * as React from "react"
 import { Link, useNavigate } from "@tanstack/react-router"
 import {
-  CheckIcon,
-  CopyIcon,
   Loader2Icon,
   LockKeyholeIcon,
   PlusIcon,
   UsersIcon,
-  WifiOffIcon,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -38,30 +35,24 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
-  applyRoomAction,
-  banMember,
   cancelBookedRoom,
   cancelRepeat,
   createRoom,
-  deleteMessage,
-  getCurrentRoom,
   joinRoom,
-  leaveActiveRoom,
   leaveRoomPermanently,
   listMyRepeats,
   listRooms,
   listSavedRooms,
   listUpcoming,
-  removeMember,
   repeatRoom,
   scheduleRoom,
   skipNextRepeat,
-  toggleReaction,
 } from "@/lib/api/pomodoro/rooms"
 import {
-  RoomChatPanel,
-  RoomMemberList,
-} from "@/components/pomodoro/room-chat"
+  useActiveRoom,
+  type ConfirmRequest,
+  type RoomSnapshotClient,
+} from "@/components/pomodoro/active-room"
 import {
   UpcomingRooms,
   type MyRepeatRow,
@@ -78,6 +69,13 @@ import {
   RoomGroupHeading,
 } from "@/components/pomodoro/room-card"
 import { RhythmMinutesFields } from "@/components/pomodoro/rhythm-minutes-fields"
+import { curatedBackgrounds } from "@/lib/pomodoro/background-catalog"
+import { curatedSounds } from "@/lib/pomodoro/sound-catalog"
+import {
+  roomPairProblem,
+  roomPairProblemMessage,
+  type RoomPairProblem,
+} from "@/lib/pomodoro/media-pair"
 import {
   formatRoomStart,
   MAX_ROOM_INVITES,
@@ -112,38 +110,6 @@ import {
   type CustomTimerPreset,
 } from "@/lib/pomodoro/timer-presets"
 
-export type RoomSnapshotClient = NonNullable<
-  Awaited<ReturnType<typeof getCurrentRoom>>
->
-type RoomHostActionClient = "start_focus" | "start_break" | "next_phase" | "close"
-type ConfirmRequest = {
-  title: string
-  description: string
-  confirmLabel: string
-  onConfirm: () => void
-}
-
-export function useRoomCountdown(phaseEndsAt: Date | string | null) {
-  const endsAtTime = phaseEndsAt ? new Date(phaseEndsAt).getTime() : null
-  const [now, setNow] = React.useState(() => Date.now())
-  React.useEffect(() => {
-    if (!endsAtTime) return
-    setNow(Date.now())
-    const interval = setInterval(() => setNow(Date.now()), 500)
-    return () => clearInterval(interval)
-  }, [endsAtTime])
-  if (!endsAtTime) return null
-  const totalSeconds = Math.max(0, Math.ceil((endsAtTime - now) / 1000))
-  return `${Math.floor(totalSeconds / 60)}:${String(totalSeconds % 60).padStart(2, "0")}`
-}
-
-const phaseLabels: Record<string, string> = {
-  waiting: "Waiting to start",
-  focus: "Focus",
-  short: "Short break",
-  long: "Long break",
-}
-
 /**
  * The rooms page, ported from the old app: your active room's live panel on
  * top, then "Open to join" (waiting or on break) and "In session" (joins
@@ -156,13 +122,7 @@ export function RoomsPage() {
   const [roomRows, setRoomRows] = React.useState<
     Awaited<ReturnType<typeof listRooms>>
   >([])
-  const [activeRoom, setActiveRoom] = React.useState<RoomSnapshotClient | null>(
-    null
-  )
   const [showHostForm, setShowHostForm] = React.useState(false)
-  // Whether asking the server which room you are in failed. While it has, the
-  // page does not know, so it draws no list that would imply "none".
-  const [roomCheckFailed, setRoomCheckFailed] = React.useState(false)
   // The room a Join is in flight for. One join at a time, however many
   // presses: the ref answers at once, the state redraws the button.
   const [joiningSlug, setJoiningSlug] = React.useState("")
@@ -173,11 +133,6 @@ export function RoomsPage() {
     slug: string
     message: string
   } | null>(null)
-  // The room whose ending has already been explained by the person's own
-  // action, so a broadcast arriving afterwards does not explain it again in
-  // vaguer words.
-  const endExplainedRef = React.useRef("")
-  const [reconnecting, setReconnecting] = React.useState(false)
   const [confirm, setConfirm] = React.useState<ConfirmRequest | null>(null)
   const [upcoming, setUpcoming] = React.useState<UpcomingRoomRow[]>([])
   const [series, setSeries] = React.useState<MyRepeatRow[]>([])
@@ -185,7 +140,6 @@ export function RoomsPage() {
   // The slug or weekly rule a cancel is running for.
   const [cancellingKey, setCancellingKey] = React.useState("")
   const [leavingSlug, setLeavingSlug] = React.useState("")
-  const activeRoomSlug = activeRoom?.room.slug
 
   const refreshRooms = React.useCallback(() => {
     if (!authenticated) return
@@ -204,85 +158,21 @@ export function RoomsPage() {
   }, [authenticated])
   React.useEffect(refreshRooms, [refreshRooms])
 
-  // Which room you are in. A failure here is said out loud rather than read as
-  // "no room": the browse list on its own would tell somebody sitting in a
-  // room that they had left it.
-  const checkCurrentRoom = React.useCallback(() => {
-    if (!authenticated) return
-    void getCurrentRoom().then(
-      (snapshot) => {
-        setRoomCheckFailed(false)
-        if (snapshot) setActiveRoom((current) => current ?? snapshot)
-      },
-      () => setRoomCheckFailed(true)
-    )
-  }, [authenticated])
-  React.useEffect(checkCurrentRoom, [checkCurrentRoom])
+  // Which room you are in, kept live by the same hook the front page uses.
+  // A failure is said out loud rather than read as "no room": the browse
+  // list on its own would tell somebody sitting in a room that they had left
+  // it. The room itself is drawn on the front page; this page links to it.
+  const live = useActiveRoom({ onEnded: refreshRooms })
+  const activeRoom = live.activeRoom
+  const roomCheckFailed = live.checkFailed
 
-  /** Says how a room you were in came to an end, once per room. */
-  const announceRoomEnd = React.useCallback(
-    (slug: string, message: string, deliberate: boolean) => {
-      if (!deliberate && endExplainedRef.current === slug) return
-      if (deliberate) endExplainedRef.current = slug
-      // One toast per room: a broadcast that beat the person's own answer is
-      // replaced by it rather than stacked under it.
-      toast.success(message, { id: `room-ended:${slug}` })
-    },
-    []
-  )
+  /** You are now in this room: the front page is where it is drawn. */
+  const goToRoom = (snapshot: RoomSnapshotClient) => {
+    live.applySnapshot(snapshot)
+    void navigate({ to: "/" })
+  }
 
-  // The SSE broadcast and a mutation's own response race in either order,
-  // so only a deliberate action (force) may replace the room-ended toast; the
-  // broadcast speaks only when nothing has explained the close yet.
-  const applySnapshot = React.useCallback(
-    (
-      snapshot: RoomSnapshotClient,
-      closedNotice = "This room has ended.",
-      forceClosedNotice = false
-    ) => {
-      if (snapshot.room.phase === "closed") {
-        setActiveRoom(null)
-        announceRoomEnd(snapshot.room.slug, closedNotice, forceClosedNotice)
-        refreshRooms()
-        return
-      }
-      setActiveRoom(snapshot)
-    },
-    [announceRoomEnd, refreshRooms]
-  )
-
-  // The live connection is held only while this tab is on screen. The server
-  // counts an open connection as somebody looking at the room, and keeps the
-  // bell quiet about chat, joins and reactions they can already see. A room in
-  // a tab behind other tabs is not being looked at, so its connection closes
-  // and the bell tells them what they missed. Coming back reconnects, and the
-  // first message is a full snapshot, so nothing on screen is stale.
   const pageVisible = usePageVisible()
-
-  React.useEffect(() => {
-    if (!activeRoomSlug || !pageVisible) return
-    const source = new EventSource(
-      `/api/pomodoro/rooms/${activeRoomSlug}/events`
-    )
-    source.addEventListener("snapshot", (event) => {
-      setReconnecting(false)
-      applySnapshot(
-        JSON.parse((event as MessageEvent<string>).data) as RoomSnapshotClient
-      )
-    })
-    source.addEventListener("room_gone", () => {
-      setActiveRoom(null)
-      // A deliberate leave/close already explained itself; this only speaks
-      // when the membership ended from the other side.
-      announceRoomEnd(activeRoomSlug, "You are no longer in this room.", false)
-      refreshRooms()
-    })
-    source.onerror = () => setReconnecting(true)
-    return () => {
-      setReconnecting(false)
-      source.close()
-    }
-  }, [activeRoomSlug, announceRoomEnd, applySnapshot, pageVisible, refreshRooms])
 
   // The open and booked lists are of live things, so they are read again
   // every minute while this tab is on screen, and once on coming back to it.
@@ -311,10 +201,9 @@ export function RoomsPage() {
     dismissErrorToast()
     try {
       const snapshot = await joinRoom(slug)
-      endExplainedRef.current = ""
-      applySnapshot(snapshot)
       // A join puts the room on My rooms, and marks it as the one you are in.
       refreshRooms()
+      goToRoom(snapshot)
     } catch (cause) {
       const text = cause instanceof Error ? cause.message : ""
       const message = text.includes("ROOM_LOCKED")
@@ -451,14 +340,11 @@ export function RoomsPage() {
     setLeavingSlug(room.slug)
     try {
       const { closed } = await leaveRoomPermanently(room.slug)
-      if (room.current) {
-        announceRoomEnd(
+      if (room.current)
+        live.leftRoom(
           room.slug,
-          closed ? "You closed the room." : "You left the room.",
-          true
+          closed ? "You closed the room." : "You left the room."
         )
-        setActiveRoom(null)
-      }
       toast.success(`${room.name} is off your list. Joining it again puts it back.`)
     } catch {
       showErrorToast("That room could not be taken off your list. Try again.")
@@ -514,8 +400,8 @@ export function RoomsPage() {
         onOpenChange={setShowHostForm}
         onCreated={(snapshot) => {
           setShowHostForm(false)
-          applySnapshot(snapshot)
           refreshRooms()
+          goToRoom(snapshot)
         }}
         onBooked={(message) => {
           setShowHostForm(false)
@@ -538,18 +424,7 @@ export function RoomsPage() {
           }}
         />
       ) : null}
-      {activeRoom ? (
-        <ActiveRoomPanel
-          snapshot={activeRoom}
-          reconnecting={reconnecting}
-          onSnapshot={applySnapshot}
-          onLeft={(message) => {
-            announceRoomEnd(activeRoom.room.slug, message, true)
-            setActiveRoom(null)
-            refreshRooms()
-          }}
-        />
-      ) : null}
+      {activeRoom ? <YouAreInRoom snapshot={activeRoom} /> : null}
       {!authenticated ? (
         <Card>
           <CardContent className="flex flex-col items-start gap-2 py-6">
@@ -570,8 +445,7 @@ export function RoomsPage() {
             message="We could not check whether you are already in a room, so the list of rooms is hidden rather than shown as if you were in none."
             onRetry={() => {
               dismissErrorToast()
-              setRoomCheckFailed(false)
-              checkCurrentRoom()
+              live.checkCurrentRoom()
             }}
           />
         </Card>
@@ -618,6 +492,27 @@ export function RoomsPage() {
   )
 }
 
+/**
+ * The room you are in, as one line on the Rooms page. The room itself is on
+ * the front page, so this only names it and goes there.
+ */
+function YouAreInRoom({ snapshot }: { snapshot: RoomSnapshotClient }) {
+  return (
+    <Card className="border-primary/35">
+      <CardContent className="flex flex-wrap items-center gap-3 py-4">
+        <span className="size-2 rounded-full bg-[var(--p-success)]" aria-hidden="true" />
+        <span className="text-sm">
+          You are in <strong>{snapshot.room.name}</strong>
+          {snapshot.you.role === "host" ? ", which you host." : "."}
+        </span>
+        <Button asChild size="sm" className="ml-auto">
+          <Link to="/">Open the room</Link>
+        </Button>
+      </CardContent>
+    </Card>
+  )
+}
+
 /** What the browser's own clock makes of the typed date and time. */
 function startValueAsDate(value: string) {
   if (!value) return null
@@ -652,6 +547,13 @@ export function HostRoomDialog({
   const [shortBreakMinutes, setShortBreakMinutes] = React.useState(5)
   const [longBreakMinutes, setLongBreakMinutes] = React.useState(15)
   const [autoStart, setAutoStart] = React.useState(false)
+  // The pair everyone in the room gets. Nothing is picked to start with:
+  // Tyler, 7 Oct 2026, "User must select sound and theme."
+  const [roomSound, setRoomSound] = React.useState("")
+  const [roomBackground, setRoomBackground] = React.useState("")
+  const [pairProblem, setPairProblem] = React.useState<RoomPairProblem | null>(
+    null
+  )
   // The member's own rhythm presets, read when the dialog opens. A failed
   // read still offers the built-ins and says the rest could not be loaded.
   const [ownPresets, setOwnPresets] = React.useState<CustomTimerPreset[]>([])
@@ -715,6 +617,12 @@ export function HostRoomDialog({
 
   const submit = async () => {
     setError("")
+    const missing = roomPairProblem(roomSound || null, roomBackground || null)
+    setPairProblem(missing)
+    if (missing) {
+      setError(roomPairProblemMessage(missing))
+      return
+    }
     if (startMode === "later" && booking) {
       setError(scheduleProblemMessage(booking))
       return
@@ -731,6 +639,8 @@ export function HostRoomDialog({
       shortBreakMinutes,
       longBreakMinutes,
       autoStart,
+      sound: roomSound,
+      background: roomBackground,
     }
     try {
       if (startMode === "weekly") {
@@ -774,6 +684,8 @@ export function HostRoomDialog({
           ? PRO_PERKS.hostRooms.lockedReason
           : message.includes("SCHEDULE_REJECTED")
             ? message.split("SCHEDULE_REJECTED: ")[1]
+            : message.includes("ROOM_PAIR_REJECTED")
+              ? message.split("ROOM_PAIR_REJECTED: ")[1]
             : message.includes("RATE_LIMITED")
               ? "That is a lot of bookings in one hour. Wait a while and try again."
               : startMode === "now"
@@ -799,8 +711,9 @@ export function HostRoomDialog({
         <DialogHeader>
           <DialogTitle>Host a room</DialogTitle>
           <DialogDescription>
-            Pick the timers, then start it now, book a time, or book the same
-            time every week. You control the session once people join.
+            Pick the timers, the sound and the theme, then start it now, book a
+            time, or book the same time every week. You control the session
+            once people join.
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
@@ -897,6 +810,80 @@ export function HostRoomDialog({
               <Label htmlFor="room-auto-start">
                 Auto-start the next focus after each break
               </Label>
+            </div>
+            {/* Each pick gets its own row: a theme's name is long enough that
+                two side by side would truncate on a phone. */}
+            <div className="grid gap-2">
+              <FieldLabel
+                htmlFor="room-sound"
+                hint="Everyone in the room hears it. It starts when the room's focus does."
+              >
+                Sound
+              </FieldLabel>
+              <Select
+                value={roomSound}
+                onValueChange={(value) => {
+                  setRoomSound(value)
+                  setPairProblem(null)
+                }}
+              >
+                <SelectTrigger
+                  id="room-sound"
+                  aria-label="Sound"
+                  aria-invalid={
+                    pairProblem === "no_sound" || pairProblem === "bad_sound"
+                  }
+                >
+                  <SelectValue placeholder="Pick a sound" />
+                </SelectTrigger>
+                <SelectContent position="popper">
+                  {curatedSounds.map((sound) => (
+                    <SelectItem key={sound.key} value={`curated:${sound.key}`}>
+                      {sound.label}
+                      {sound.locked ? " · Pro" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <FieldLabel
+                htmlFor="room-theme"
+                hint="Everyone in the room sees it behind the page while they are in the room."
+              >
+                Theme
+              </FieldLabel>
+              <Select
+                value={roomBackground}
+                onValueChange={(value) => {
+                  setRoomBackground(value)
+                  setPairProblem(null)
+                }}
+              >
+                <SelectTrigger
+                  id="room-theme"
+                  aria-label="Theme"
+                  aria-invalid={
+                    pairProblem === "no_background" ||
+                    pairProblem === "bad_background"
+                  }
+                >
+                  <SelectValue placeholder="Pick a theme" />
+                </SelectTrigger>
+                <SelectContent position="popper">
+                  {curatedBackgrounds.map((scene) => (
+                    <SelectItem key={scene.key} value={`scene:${scene.key}`}>
+                      <img
+                        src={`/backgrounds/thumbs-${scene.thumb}.png`}
+                        alt=""
+                        className="h-4 w-7 rounded-sm object-cover"
+                      />
+                      {scene.label}
+                      {scene.locked ? " · Pro" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="room-start-mode">Starts at</Label>
@@ -1063,361 +1050,6 @@ export function HostRoomDialog({
   )
 }
 
-function ActiveRoomPanel({
-  snapshot,
-  reconnecting,
-  onSnapshot,
-  onLeft,
-}: {
-  snapshot: RoomSnapshotClient
-  reconnecting: boolean
-  onSnapshot: (
-    snapshot: RoomSnapshotClient,
-    closedNotice?: string,
-    forceClosedNotice?: boolean
-  ) => void
-  onLeft: (message: string) => void
-}) {
-  const { room, you, members, messages } = snapshot
-  const isHost = you.role === "host"
-  const countdown = useRoomCountdown(room.phaseEndsAt)
-  const [pending, setPending] = React.useState("")
-  const [copied, setCopied] = React.useState(false)
-  const [copyFailed, setCopyFailed] = React.useState(false)
-  const [confirm, setConfirm] = React.useState<ConfirmRequest | null>(null)
-  const [panelNotice, setPanelNotice] = React.useState("")
-  const [reactionPending, setReactionPending] = React.useState<
-    ReadonlySet<string>
-  >(() => new Set())
-  const inviteUrl = `${window.location.origin}/rooms/${room.slug}`
-  const sessionLabel = `Session ${Math.min(room.cycleFocusCount + 1, 4)} of 4`
-
-  const runAction = async (action: RoomHostActionClient) => {
-    dismissErrorToast()
-    setPending(action)
-    try {
-      onSnapshot(
-        await applyRoomAction(room.slug, action),
-        "You closed the room.",
-        true
-      )
-    } catch (cause) {
-      showErrorToast(
-        cause instanceof Error && cause.message.includes("ROOM_HOST_REQUIRED")
-          ? "Only the host can control the room."
-          : "The room could not be updated."
-      )
-    } finally {
-      setPending("")
-    }
-  }
-
-  const leave = async () => {
-    dismissErrorToast()
-    setPending("leave")
-    try {
-      const result = await leaveActiveRoom(room.slug)
-      onLeft(result.closed ? "You closed the room." : "You left the room.")
-    } catch {
-      showErrorToast("Leaving the room failed. Try again.")
-    } finally {
-      setPending("")
-    }
-  }
-
-  const copyInvite = async () => {
-    setCopyFailed(false)
-    try {
-      await navigator.clipboard.writeText(inviteUrl)
-      setCopied(true)
-      window.setTimeout(() => setCopied(false), 2_000)
-    } catch {
-      setCopyFailed(true)
-    }
-  }
-
-  // Every moderation action answers with a fresh snapshot, so the panel
-  // redraws from the server rather than guessing what changed.
-  const moderate = async (
-    key: string,
-    action: () => Promise<RoomSnapshotClient>,
-    successNotice: string,
-    failureNotice: string
-  ) => {
-    dismissErrorToast()
-    setPanelNotice("")
-    setPending(key)
-    try {
-      onSnapshot(await action())
-      setPanelNotice(successNotice)
-    } catch (cause) {
-      const text = cause instanceof Error ? cause.message : ""
-      showErrorToast(
-        text.includes("RATE_LIMITED")
-          ? "Too many moderation actions at once. Wait a moment and try again."
-          : text.includes("ROOM_HOST_REQUIRED")
-            ? "Only the host can do that."
-            : failureNotice
-      )
-    } finally {
-      setPending("")
-    }
-  }
-
-  // Reaction counts reach everyone through the SSE snapshot, so the only
-  // guard needed is against firing the same toggle twice while one is
-  // in flight.
-  const toggleMessageReaction = async (messageId: string, emoji: string) => {
-    const key = `${messageId}:${emoji}`
-    if (reactionPending.has(key)) return
-    dismissErrorToast()
-    setReactionPending((current) => new Set(current).add(key))
-    try {
-      await toggleReaction(room.slug, messageId, emoji)
-    } catch (cause) {
-      const text = cause instanceof Error ? cause.message : ""
-      showErrorToast(
-        text.includes("RATE_LIMITED")
-          ? "You're reacting a little fast. Wait a moment and try again."
-          : "Your reaction didn't go through. Try again."
-      )
-    } finally {
-      setReactionPending((current) => {
-        const next = new Set(current)
-        next.delete(key)
-        return next
-      })
-    }
-  }
-
-  const confirmDeleteMessage = (message: { id: string }) =>
-    setConfirm({
-      title: "Delete message?",
-      description:
-        "The message disappears for everyone and members see that it was removed.",
-      confirmLabel: "Delete message",
-      onConfirm: () =>
-        void moderate(
-          `delete-message:${message.id}`,
-          () => deleteMessage(room.slug, message.id),
-          "The message was deleted.",
-          "The message could not be deleted."
-        ),
-    })
-
-  const confirmRemoveMember = (member: { id: string; name: string }) =>
-    setConfirm({
-      title: `Remove ${member.name}?`,
-      description: "They leave this room immediately but can join again later.",
-      confirmLabel: "Remove member",
-      onConfirm: () =>
-        void moderate(
-          `remove-member:${member.id}`,
-          () => removeMember(room.slug, member.id),
-          `${member.name} was removed from the room.`,
-          "The member could not be removed."
-        ),
-    })
-
-  const confirmBanMember = (member: { id: string; name: string }) =>
-    setConfirm({
-      title: `Ban ${member.name}?`,
-      description:
-        "They are removed immediately and cannot rejoin this room. The ban ends when the room does.",
-      confirmLabel: "Ban member",
-      onConfirm: () =>
-        void moderate(
-          `ban-member:${member.id}`,
-          () => banMember(room.slug, member.id),
-          `${member.name} was banned from the room.`,
-          "The member could not be banned."
-        ),
-    })
-
-  // The one card outlined in the accent on purpose: it is the room you are in.
-  return (
-    <Card className="border-primary/35">
-      <CardContent className="flex flex-col gap-4 py-5">
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="size-2 rounded-full bg-[var(--p-success)]" aria-hidden="true" />
-          <strong className="text-lg">{room.name}</strong>
-          <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-            {phaseLabels[room.phase] ?? room.phase} · {sessionLabel}
-          </span>
-          <span className="flex items-center gap-1 text-xs text-muted-foreground">
-            <UsersIcon className="size-3.5" aria-hidden="true" />
-            {members.length} {members.length === 1 ? "person" : "people"}
-          </span>
-          {reconnecting ? (
-            <span
-              role="status"
-              className="flex items-center gap-1 text-xs text-muted-foreground"
-            >
-              <WifiOffIcon className="size-3" aria-hidden="true" />
-              Reconnecting…
-            </span>
-          ) : null}
-          <span className="ml-auto font-mono text-3xl tabular-nums">
-            {countdown ?? "—:—"}
-          </span>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          {isHost ? (
-            <>
-              {["waiting", "short", "long"].includes(room.phase) ? (
-                <Button
-                  size="sm"
-                  disabled={pending !== ""}
-                  onClick={() => void runAction("start_focus")}
-                >
-                  Start focus
-                </Button>
-              ) : null}
-              {room.phase === "focus" ? (
-                <Button
-                  size="sm"
-                  disabled={pending !== ""}
-                  onClick={() => void runAction("start_break")}
-                >
-                  Start break
-                </Button>
-              ) : null}
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={pending !== "" || room.phase === "waiting"}
-                onClick={() => void runAction("next_phase")}
-              >
-                Next phase
-              </Button>
-              <Button
-                size="sm"
-                variant="destructive"
-                disabled={pending !== ""}
-                onClick={() =>
-                  setConfirm({
-                    title: "Close this room?",
-                    description:
-                      "This ends the session for everyone in the room and cannot be undone.",
-                    confirmLabel: "Close room",
-                    onConfirm: () => void runAction("close"),
-                  })
-                }
-              >
-                Close room
-              </Button>
-            </>
-          ) : (
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={pending !== ""}
-              onClick={() => void leave()}
-            >
-              Leave room
-            </Button>
-          )}
-          {isHost ? (
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled={pending !== ""}
-              onClick={() =>
-                setConfirm({
-                  title: "Leave and close this room?",
-                  description: leaveAndCloseConsequence(members.length - 1),
-                  confirmLabel: "Leave & close",
-                  onConfirm: () => void leave(),
-                })
-              }
-            >
-              Leave &amp; close
-            </Button>
-          ) : null}
-          <Button
-            size="sm"
-            variant="outline"
-            className="ml-auto"
-            onClick={() => void copyInvite()}
-          >
-            {copied ? (
-              <CheckIcon aria-hidden="true" />
-            ) : (
-              <CopyIcon aria-hidden="true" />
-            )}
-            {copied ? "Copied" : "Copy invite link"}
-          </Button>
-        </div>
-        {copyFailed ? (
-          <p className="text-xs text-muted-foreground">
-            Copying failed — the link is {inviteUrl}
-          </p>
-        ) : null}
-
-        {panelNotice ? (
-          <p role="status" className="text-xs text-muted-foreground">
-            {panelNotice}
-          </p>
-        ) : null}
-
-        <div className="grid gap-4 md:grid-cols-[240px_minmax(0,1fr)]">
-          {/* The chat is written first so a phone reads it first. The member
-              list takes the left column back on desktop with `md:order-first`,
-              so the two-column layout is unchanged. */}
-          <RoomChatPanel
-            slug={room.slug}
-            messages={messages}
-            timezone={you.timezone}
-            isHost={isHost}
-            busy={pending !== ""}
-            reactionPending={reactionPending}
-            onToggleReaction={(messageId, emoji) =>
-              void toggleMessageReaction(messageId, emoji)
-            }
-            onDeleteMessage={confirmDeleteMessage}
-            onError={showErrorToast}
-            onNotice={setPanelNotice}
-          />
-          <RoomMemberList
-            members={members}
-            isHost={isHost}
-            busy={pending !== ""}
-            onRemove={confirmRemoveMember}
-            onBan={confirmBanMember}
-          />
-        </div>
-        {confirm ? (
-          <ConfirmDialog
-            open
-            onOpenChange={(open) => {
-              if (!open) setConfirm(null)
-            }}
-            title={confirm.title}
-            description={confirm.description}
-            confirmLabel={confirm.confirmLabel}
-            onConfirm={() => {
-              confirm.onConfirm()
-              setConfirm(null)
-            }}
-          />
-        ) : null}
-      </CardContent>
-    </Card>
-  )
-}
-
-/**
- * What the host is told before "Leave & close": a host leaving ends the room,
- * so the sentence says for whom. `others` is everybody in the room but the
- * host.
- */
-function leaveAndCloseConsequence(others: number) {
-  if (others <= 0)
-    return "Nobody else is in the room, so nobody else is affected, but the room ends when you leave and cannot be reopened."
-  return `When the host leaves, the room ends. The session stops for the ${others} ${others === 1 ? "other person" : "other people"} in it, and it cannot be undone.`
-}
-
 function RoomGroup({
   title,
   subtitle,
@@ -1460,7 +1092,13 @@ function RoomGroup({
           const end = room.phaseEndsAt ? new Date(room.phaseEndsAt).getTime() : 0
           const remaining = Math.max(0, Math.ceil((end - now.getTime()) / 60_000))
           return (
-            <RoomCard key={room.id} roomId={room.id} dimmed={!open}>
+            <RoomCard
+              key={room.id}
+              roomId={room.id}
+              background={room.background}
+              sound={room.sound}
+              dimmed={!open}
+            >
               <RoomCardTitle
                 name={room.name}
                 tone={open ? "open" : "locked"}

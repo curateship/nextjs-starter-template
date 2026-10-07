@@ -2,9 +2,7 @@ import * as React from "react"
 
 import {
   cancelSleepTimer,
-  clearSound,
   ensureSoundEngine,
-  selectSound,
   setChime,
   setCompletionAlerts,
   setVolume,
@@ -30,9 +28,7 @@ export function useSoundPlayer() {
   }, [])
   return {
     state,
-    selectSound,
     togglePlayback,
-    clearSound,
     setVolume,
     toggleMuted,
     setCompletionAlerts,
