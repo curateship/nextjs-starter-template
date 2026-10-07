@@ -149,18 +149,20 @@ these as well as an admin, and sees only their own wallets and orders there —
   The rows use 12px inside gutters and 14px primary labels.
   Money is monospaced and tabular. Wallet and smart-order profit use the same
   12px type and end on the same right edge.
-- **Right, two separate order panels.** Smart orders is the upper panel, with
-  a Grid tab and a DCA tab. Manual orders is its own panel below. It lists the coins you
+- **Right, three separate order panels.** Grid is on top, DCA under it, and
+  Manual orders below both (Tyler, 6 Oct 2026). How the three share the
+  column's height is in `panels-and-loading.md`. Manual orders lists the coins you
   are holding by hand first, each with what it is up or down, then the
   hand-placed prices still waiting. A draggable divider changes their heights and the account
-  remembers the split. When the column is collapsed, a bot icon opens both
-  panels in one dropdown. Dragging the right divider open returns both panels.
+  remembers the split. When the column is collapsed, a bot icon opens all
+  three panels in one dropdown. Dragging the right divider open returns them.
   The dropdown is as wide as the side panel and grows with what is in it, up
-  to 44rem or the screen height when that is smaller. Inside it, Smart orders
-  is as tall as its own rows and Manual orders takes whatever is left, the
-  same shape the docked column has. Smart orders stops 9rem short of the
-  bottom, so a long list of ladders cannot squeeze Manual orders down to its
-  heading, and each half scrolls on its own once it runs out of room. A fixed
+  to 44rem or the screen height when that is smaller. Inside it, Grid and DCA
+  are each as tall as their own rows and Manual orders takes whatever is left.
+  Grid and DCA split all but the bottom 9rem between them, so long lists
+  cannot squeeze Manual orders down to its heading, and each panel scrolls on
+  its own once it runs out of room. Unlike the docked column, an empty Manual
+  orders keeps its 9rem here rather than handing it to Grid. A fixed
   half each showed four rows under a dropdown with empty space below it
   (Tyler, 3 Oct 2026); before that, a panel sized to its rows ran past the
   bottom of the dropdown and the rows below the fold could not be reached
@@ -178,18 +180,19 @@ shadow instead of a black underline. The component and its tabs live in
 `src/components/shared/dashboard-card-header.tsx`, changed in Custom Shell first
 and carried here unchanged.
 
-The upper-right panel has two tabs, **Grid** first and **DCA** second, and opens
-on Grid every time (Tyler, 6 Oct 2026). Grid lists the grids you placed by
-hand. DCA lists the DCA ladders you placed by hand. Both tabs have the same four
-columns, the same sorting and the same details card. The header has only the
-two tabs, with no working, holding or running summary beside them. The code is
-`src/components/trade/smart-orders-panel.tsx`.
+**Grid and DCA are two panels, Grid above DCA** (Tyler, 6 Oct 2026). Earlier
+the same day they were two tabs of one panel. Grid lists the grids you placed
+by hand. DCA lists the DCA ladders you placed by hand. Both panels have the
+same four columns, the same sorting and the same details card. Each header
+holds only its title, with no working, holding or running summary beside it.
+The code is `src/components/trade/smart-orders-panel.tsx`, drawn once per kind
+from `src/components/trade/trade-workspace.tsx`.
 
 - **A flow's grids and ladders are not here.** They stay on that run's own
-  dashboard, as before. A paused one does show here, in its kind's tab, because
+  dashboard, as before. A paused one does show here, in its kind's panel, because
   this panel owns the Resume button.
 - **A paused signal trade shows under DCA.** It is the one other kind the panel
-  lets through, and the Positions tab leaves its coin out, so with no tab its
+  lets through, and the Positions tab leaves its coin out, so with no panel its
   holding would vanish from the screen. The ladder engine runs signal trades,
   so DCA is its nearest home. Its details card says "Signals".
 - **Each tab's empty answer names its own kind.** "No grid of your own is

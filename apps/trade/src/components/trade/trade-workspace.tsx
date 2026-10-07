@@ -27,7 +27,10 @@ import {
   ActivityPanel,
   type ActivityTab,
 } from "@/components/trade/activity-panel"
-import { SmartOrdersPanel } from "@/components/trade/smart-orders-panel"
+import {
+  SmartOrdersPanel,
+  type SmartOrdersPanelKind,
+} from "@/components/trade/smart-orders-panel"
 import { SmartOrdersMenu } from "@/components/trade/smart-orders-menu"
 import { ManualOrdersPanel } from "@/components/trade/manual-orders-panel"
 import { useTrading } from "@/components/trade/use-trading"
@@ -980,9 +983,12 @@ export function TradeWorkspace({
     />
   )
 
-  const smartOrdersPanel = (
+  // Grids and DCA ladders are two panels, Grid above DCA (Tyler, 6 Oct 2026),
+  // fed the same read.
+  const smartOrderPanel = (kind: SmartOrdersPanelKind) => (
     <SmartOrdersPanel
-      key={protocol}
+      kind={kind}
+      key={`${protocol}:${kind}`}
       cacheScope={dashboardCacheScope}
       smartOrders={trading.smartOrders}
       positions={trading.positions}
@@ -1001,6 +1007,8 @@ export function TradeWorkspace({
       onSelectMarket={onSelectMarket}
     />
   )
+  const gridPanel = smartOrderPanel("grid")
+  const dcaPanel = smartOrderPanel("dca")
 
   const manualOrdersPanel = (
     <ManualOrdersPanel
@@ -1019,19 +1027,24 @@ export function TradeWorkspace({
     />
   )
 
-  // Smart orders is exactly as tall as its own rows, so its card never ends in
-  // empty space, and Manual orders below it takes the rest of the column.
-  // Smart orders still stops at 55% of the column, so a long list of them
-  // cannot push Manual orders down to a strip with no rows in it.
+  // Each panel starts at the height its own rows need. When the column has
+  // room to spare, Manual orders takes it, so no card ends in empty space
+  // above another that scrolls. When it is short, all three give up height in
+  // proportion to what they hold, so an empty Manual orders hands its room to
+  // a long Grid list instead of holding a blank box (Tyler, 6 Oct 2026). The
+  // floors keep each one's header and a row or its empty message on screen.
   const orderPanels = (
     <div
       data-order-panels
       className="flex h-full min-h-0 flex-col gap-(--shell-gutter)"
     >
-      <WorkspacePanel className="flex h-auto max-h-[55%] min-h-0 flex-none flex-col">
-        {smartOrdersPanel}
+      <WorkspacePanel className="flex h-auto min-h-32 flex-[0_1_auto] flex-col">
+        {gridPanel}
       </WorkspacePanel>
-      <WorkspacePanel className="flex h-auto min-h-0 flex-auto flex-col">
+      <WorkspacePanel className="flex h-auto min-h-32 flex-[0_1_auto] flex-col">
+        {dcaPanel}
+      </WorkspacePanel>
+      <WorkspacePanel className="flex h-auto min-h-44 flex-[1_1_auto] flex-col">
         {manualOrdersPanel}
       </WorkspacePanel>
     </div>
@@ -1222,15 +1235,19 @@ export function TradeWorkspace({
               {walletManagement}
               {desktop && smartOrdersCollapsed && !chartFullscreen ? (
                 <SmartOrdersMenu>
-                  {/* The same shape as the docked column: Smart orders is as
-                      tall as its own rows and Manual orders takes the rest.
-                      A fixed half each meant four rows showed under a menu
-                      with empty space below it. Smart orders still stops
-                      9rem short of the bottom, so a long list cannot squeeze
-                      Manual orders down to its heading. */}
-                  <div className="grid max-h-[min(44rem,var(--radix-popover-content-available-height))] grid-rows-[minmax(0,auto)_minmax(0,1fr)] overflow-hidden">
-                    <div className="flex max-h-[calc(min(44rem,var(--radix-popover-content-available-height))-9rem)] min-h-0 flex-col">
-                      {smartOrdersPanel}
+                  {/* Grid and DCA are as tall as their own rows and Manual
+                      orders takes the rest. A fixed share each meant four
+                      rows showed under a menu with empty space below it.
+                      Grid and DCA split all but 9rem between them, so long
+                      lists cannot squeeze Manual orders down to its heading.
+                      Unlike the docked column, an empty Manual orders does
+                      not hand its share to Grid here. */}
+                  <div className="grid max-h-[min(44rem,var(--radix-popover-content-available-height))] grid-rows-[minmax(0,auto)_minmax(0,auto)_minmax(0,1fr)] overflow-hidden">
+                    <div className="flex max-h-[calc((min(44rem,var(--radix-popover-content-available-height))-9rem)/2)] min-h-0 flex-col">
+                      {gridPanel}
+                    </div>
+                    <div className="flex max-h-[calc((min(44rem,var(--radix-popover-content-available-height))-9rem)/2)] min-h-0 flex-col border-t">
+                      {dcaPanel}
                     </div>
                     <div className="min-h-0 border-t">{manualOrdersPanel}</div>
                   </div>

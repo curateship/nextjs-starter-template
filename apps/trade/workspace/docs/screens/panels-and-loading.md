@@ -5,22 +5,23 @@
 The same panel parts as the Automation Canvas, not a second system. Anything
 fixed in one is fixed in both.
 
-- The divider between Smart orders and Manual orders is gone. The
-  two panels size to their contents and fill the right column between them.
+- The divider between the order panels is gone. Grid, DCA and Manual orders
+  size to their contents and fill the right column between them.
   The old 60/40 split is no longer saved or read.
-- **Smart orders is exactly as tall as its own rows, and Manual orders takes
-  the rest of the column.** The top card never ends in empty space, however
-  few smart orders there are, because the space under its last row belongs to
-  the panel below it. In a 900px column, 6 smart orders make the top card 374px
-  and Manual orders 518px.
-- **Smart orders stops at 55% of the column.** A long list of them scrolls
-  there rather than pushing Manual orders down to a strip with no rows in it.
-  The same 900px column gives Smart orders 495px and Manual orders 397px.
-- **The cap is a share of the column, not a fixed height.** A taller column
-  lets Smart orders show more rows before it starts scrolling, with no code
-  change.
-- **The Grid and DCA tabs live inside the top panel**, so each scrolls in
-  whatever height Smart orders has.
+- **Each order panel starts at the height its own rows need.** When the
+  column has height to spare, Manual orders takes it, so no card ends in empty
+  space above a panel that scrolls.
+- **A short column takes height from all three in proportion to what they
+  hold** (Tyler, 6 Oct 2026). An empty Manual orders shrinks to its heading and
+  its one message, and hands the rest to Grid and DCA. Before this, Grid and
+  DCA stopped at 35% of the column each and Manual orders kept a blank box
+  while Grid scrolled.
+- **Each panel has a floor.** Grid and DCA keep 8rem, enough for the heading
+  and a row. Manual orders keeps 11rem, enough for its empty message.
+- **Worked example, a 859px column:** 13 grids want 567px, 6 ladders 315px and
+  an empty Manual orders 176px, which is 1,058px against 847px of room. Grid
+  gets 431px and shows 10 of its 13 rows, DCA gets 240px and shows 5 of its
+  6, and Manual orders sits on its 176px floor.
 - The dividers beside the chart and above Positions still drag.
 - **Left and right shut all the way to nothing.** A slim tab appears on the
   middle panel's edge where each one disappeared, and brings it back. **Both
