@@ -162,6 +162,7 @@ import {
 } from "@/server/protocols/kucoin/live-prices"
 import { kucoinLiveTicket } from "@/server/protocols/kucoin/live-ticket"
 import {
+  fetchKucoinBookTop,
   fetchKucoinMarkets,
   fetchKucoinPrices,
   kucoinPricesWereRationed,
@@ -524,6 +525,16 @@ export type ProtocolEntry = {
      * that a refused order has just shown to be out of date (Hyperliquid).
      */
     forgetPrice?(network: NetworkId, marketId: string): void
+    /**
+     * The highest buyer and the lowest seller right now, read fresh. Present
+     * where the price the engine watches is not the book (KuCoin's is the
+     * mark price), so an order that must wait in line can be priced off the
+     * book instead and never land under a buyer. `null` when a side is empty.
+     */
+    bookTop?(
+      network: NetworkId,
+      marketId: string
+    ): Promise<{ bid: number; ask: number } | null>
     /**
      * A market that is not in the list, found by name or address. Present on
      * an open network whose coins outnumber any list (Solana); absent where
@@ -1101,6 +1112,7 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       history: fetchKucoinCandleHistory,
       intervalMs: kucoinIntervalMs,
       prices: fetchKucoinPrices,
+      bookTop: fetchKucoinBookTop,
       roundPx: roundKucoinPx,
       pricesWereRationed: kucoinPricesWereRationed,
     },

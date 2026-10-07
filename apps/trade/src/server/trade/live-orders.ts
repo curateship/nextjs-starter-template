@@ -321,6 +321,14 @@ export async function placeLiveOrder(
     limitOnly?: boolean
     /** The watched-order engine owns safe retries and their progress notice. */
     retryPostOnly?: boolean
+    /**
+     * A waiting order that follows the price is checked against the book as
+     * it is sent, not against the mark price: one that would meet a buyer
+     * (or a seller) is moved back to the front of its own side. Only where
+     * the venue offers `markets.bookTop`; elsewhere `px` stands. See
+     * `fetchKucoinBookTop` for the day this was for.
+     */
+    joinBook?: boolean
     /** Fill at the fresh venue price and keep out of the resting-order path. */
     marketOnly?: boolean
     /** A smart order is skipped if the fresh quote left its trigger level. */
@@ -390,15 +398,38 @@ export async function placeLiveOrder(
     // The slippage cap rides along in the same round: a swap venue reads it
     // and a book venue ignores it, and asking after the price would put one
     // more wait between the level and the order.
-    const [prices, rules, portfolio, quickPrefs] = await Promise.all([
+    const bookTop =
+      input.restingOnly && input.joinBook
+        ? protocol.markets.bookTop
+        : undefined
+    const [prices, rules, portfolio, quickPrefs, book] = await Promise.all([
       protocol.markets.prices(row.network, [ref.marketId]),
       marketRules(row.protocol, row.network, ref.marketId),
       ordersOf(protocol).portfolio(row.network, row.address ?? "", () =>
         credentialFor(row)
       ),
       loadQuickOrder(userId).catch(() => null),
+      // A failed read falls back to the price the engine asked for, which is
+      // how every order went out before the book was read at all.
+      bookTop
+        ? bookTop(row.network, ref.marketId).catch(() => null)
+        : Promise.resolve(null),
     ])
     const tFetch = Date.now()
+    // Only a price that would meet the other side moves, and only away from
+    // it: a sell at or under the highest buyer goes up to the lowest seller,
+    // a buy at or over the lowest seller comes down to the highest buyer. A
+    // price already waiting stays exactly as asked, so reading the book never
+    // sells lower or buys higher than the engine wanted.
+    const px = !book
+      ? input.px
+      : input.side === "sell"
+        ? input.px <= book.bid
+          ? book.ask
+          : input.px
+        : input.px >= book.ask
+          ? book.bid
+          : input.px
     const mark = prices.get(ref.marketId)
     if (mark === undefined) throw new Error("LIVE_NO_PRICE")
     if (
@@ -409,12 +440,12 @@ export async function placeLiveOrder(
       throw new Error("LIVE_SMART_ORDER_PRICE_MOVED")
     }
     const marketable =
-      input.marketOnly || isMarketable(input.side, input.px, mark)
+      input.marketOnly || (!book && isMarketable(input.side, px, mark))
     if (input.restingOnly && marketable) {
       if (input.retryPostOnly) throw new Error(POST_ONLY_RETRY)
       throw new Error("LIVE_SMART_ORDER_NOT_RESTING")
     }
-    const entryPx = marketable ? mark : input.px
+    const entryPx = marketable ? mark : px
     const minimum = rules ? checkOrderMinimum(rules, entryPx, input.sz) : null
     const orderSize = minimum?.size ?? input.sz
     if (minimum?.tooSmall || orderSize <= 0) {
@@ -476,7 +507,7 @@ export async function placeLiveOrder(
           : marketable
             ? "market"
             : "limit",
-      px: input.limitOnly ? input.px : marketable ? mark : input.px,
+      px: input.limitOnly ? input.px : marketable ? mark : px,
       priceTick: rules?.priceTick ?? null,
       priceMultiplierUp: rules?.priceMultiplierUp ?? null,
       priceMultiplierDown: rules?.priceMultiplierDown ?? null,

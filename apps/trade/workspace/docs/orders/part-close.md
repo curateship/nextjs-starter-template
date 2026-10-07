@@ -141,6 +141,40 @@ Standing further off is always in your favour on price and never against it: a
 sell asks for more and a buy offers less. What it costs is queue position, so
 the part may take longer to fill.
 
+### On KuCoin the price is checked against the book
+
+KuCoin does not refuse a post-only order that would sell at once. It accepts
+it, hands back an order number, and cancels it a moment later with the note
+"Post-only order conditions not met. Order canceled." The retry above never
+runs, because nothing was refused.
+
+The price Trade watches on KuCoin is the mark price, KuCoin's smoothed figure
+for liquidations. When the coin moves fast the mark trails the real buyers and
+sellers, and a sell set a hair above the mark can land under a buyer. On
+7 Oct 2026 at 00:31:58 the mark read $0.26628, the close went out at $0.26633,
+a buyer was already paying that, and KuCoin cancelled it with nothing sold.
+
+So on KuCoin, Trade reads the highest buyer and the lowest seller as each
+waiting order is sent:
+
+- A sell at or under the highest buyer goes up to the lowest seller. With the
+  buyer at $0.26634 and the seller at $0.26635, the $0.26633 sell goes out at
+  $0.26635.
+- A buy at or over the lowest seller comes down to the highest buyer.
+- A price already clear of the other side is sent exactly as asked. Reading the
+  book never sells lower or buys higher than Trade's own price.
+- If the book cannot be read, the order goes out at Trade's own price, as it did
+  before.
+
+The price can still move in the split second between the read and the order
+arriving, and KuCoin can still cancel the order then. That case is not handled
+yet: the close keeps waiting, as described under "A missing order does not mean
+a part close is gone". The × on the close ends it.
+
+`fetchKucoinBookTop` in `src/server/protocols/kucoin/markets.ts` reads the book,
+and `placeLiveOrder` in `src/server/trade/live-orders.ts` moves the price when
+`joinBook` is set. The engine sets it for every waiting close and copy order.
+
 The popup and watched row say the order is still trying. The popup clears when
 Trade records an accepted order or an immediate fill, or the watch is removed.
 Repeated refusals use the existing consecutive-refusal limit, five by default.

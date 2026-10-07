@@ -42,6 +42,7 @@ const setBrackets = vi.fn()
 const portfolio = vi.fn()
 const actionPortfolio = vi.fn()
 const accountFetch = vi.fn()
+const bookTop = vi.fn()
 let marketFloor: number | null = null
 let marketMinSize: number | null = null
 let marketTick: number | null = null
@@ -65,6 +66,7 @@ vi.mock("@/server/protocols/registry", async (importOriginal) => {
         label: actual.label,
         markets: {
           prices,
+          bookTop,
           fetch: async () => ({
             rows: [
               {
@@ -496,6 +498,81 @@ describe("the rails around placing", () => {
 
     const [, , params] = place.mock.calls[0]
     expect(params.kind).toBe("postOnly")
+  })
+
+  describe("a waiting order that follows the price, checked against the book", () => {
+    // 7 Oct 2026, 00:31:58: KuCoin's mark price read $0.26628, so a close was
+    // set a hair above it at $0.26633 — while a buyer was already paying
+    // that. KuCoin took the post-only order and cancelled it a moment later.
+    const adaClose = (walletId: string) => ({
+      ...orderInput(walletId),
+      side: "sell" as const,
+      px: 0.26633,
+      sz: 10,
+      restingOnly: true,
+      retryPostOnly: true,
+    })
+
+    beforeEach(() => {
+      prices.mockResolvedValue(new Map([["BTC", 0.26628]]))
+      bookTop.mockReset()
+      bookTop.mockResolvedValue({ bid: 0.26634, ask: 0.26635 })
+    })
+
+    it("moves a sell that would meet a buyer up to the lowest seller", async () => {
+      const userId = await person()
+      const walletId = await liveWallet(userId)
+
+      await placeLiveOrder(userId, { ...adaClose(walletId), joinBook: true })
+
+      const [, , params] = place.mock.calls[0]
+      expect(params.kind).toBe("postOnly")
+      expect(params.px).toBe(0.26635)
+    })
+
+    it("sent the crossing price before the book was read", async () => {
+      const userId = await person()
+      const walletId = await liveWallet(userId)
+
+      await placeLiveOrder(userId, adaClose(walletId))
+
+      expect(bookTop).not.toHaveBeenCalled()
+      expect(place.mock.calls[0][2].px).toBe(0.26633)
+    })
+
+    it("leaves a sell already above every buyer exactly where it was asked", async () => {
+      const userId = await person()
+      const walletId = await liveWallet(userId)
+      bookTop.mockResolvedValue({ bid: 0.26601, ask: 0.26602 })
+
+      await placeLiveOrder(userId, { ...adaClose(walletId), joinBook: true })
+
+      expect(place.mock.calls[0][2].px).toBe(0.26633)
+    })
+
+    it("moves a buy that would meet a seller down to the highest buyer", async () => {
+      const userId = await person()
+      const walletId = await liveWallet(userId)
+
+      await placeLiveOrder(userId, {
+        ...adaClose(walletId),
+        side: "buy",
+        px: 0.2664,
+        joinBook: true,
+      })
+
+      expect(place.mock.calls[0][2].px).toBe(0.26634)
+    })
+
+    it("falls back to the asked price when the book cannot be read", async () => {
+      const userId = await person()
+      const walletId = await liveWallet(userId)
+      bookTop.mockRejectedValue(new Error("EXCHANGE_BUSY"))
+
+      await placeLiveOrder(userId, { ...adaClose(walletId), joinBook: true })
+
+      expect(place.mock.calls[0][2].px).toBe(0.26633)
+    })
   })
 
   it("refuses a Smart rung that already crossed the market", async () => {

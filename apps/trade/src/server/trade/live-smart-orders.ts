@@ -1894,6 +1894,7 @@ export async function reconcileLiveLaddersOnce(
                 restingOnly: entry.kind !== "watch" || entry.plan.maker,
                 limitOnly: entry.kind === "watch" && !entry.plan.maker,
                 retryPostOnly: entry.kind === "watch" && entry.plan.maker,
+                joinBook: entry.kind === "watch" && entry.plan.maker,
                 clientOrderId:
                   entry.kind === "watch"
                     ? entry.plan.clientOrderId
