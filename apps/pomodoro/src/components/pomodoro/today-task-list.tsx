@@ -48,7 +48,6 @@ import {
 import { cn } from "@/lib/utils"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { focusRing } from "@/lib/layout/focus-ring"
-import { PAUSE_TO_CHOOSE_REASON } from "@/lib/pomodoro/disabled-reasons"
 import { useProductAuth } from "@/lib/pomodoro/auth-state"
 import type { usePomodoro } from "@/lib/pomodoro/use-pomodoro"
 import {
@@ -454,26 +453,20 @@ function TaskRow({
           <TaskMarks task={task} />
         </span>
       ) : (
-        <DisabledReason
-          className="min-w-0 flex-1"
+        <button
+          className={cn(
+            "flex min-w-0 flex-1 items-center gap-2 rounded-lg py-2 text-left",
+            focusRing
+          )}
           disabled={!pomodoro.canSelectTask}
-          reason={PAUSE_TO_CHOOSE_REASON}
+          aria-pressed={selected}
+          // Tapping the chosen task again clears it, which is the only
+          // way to focus on nothing.
+          onClick={() => pomodoro.selectTask(selected ? null : task.id)}
         >
-          <button
-            className={cn(
-              "flex min-w-0 flex-1 items-center gap-2 rounded-lg py-2 text-left",
-              focusRing
-            )}
-            disabled={!pomodoro.canSelectTask}
-            aria-pressed={selected}
-            // Tapping the chosen task again clears it, which is the only
-            // way to focus on nothing.
-            onClick={() => pomodoro.selectTask(selected ? null : task.id)}
-          >
-            <span className="truncate text-sm">{task.title}</span>
-            <TaskMarks task={task} />
-          </button>
-        </DisabledReason>
+          <span className="truncate text-sm">{task.title}</span>
+          <TaskMarks task={task} />
+        </button>
       )}
       {showSteps ? (
         <TaskStepsToggle
@@ -560,7 +553,13 @@ export function TaskRowFrame({
     <div
       ref={rowRef}
       style={style}
-      className={cn("flex flex-col rounded-lg border", className)}
+      className={cn(
+        "flex flex-col rounded-lg border transition-colors",
+        className,
+        // After the caller's classes: a light wash under the pointer, on
+        // flat and boxed rows alike.
+        "hover:bg-foreground/5"
+      )}
     >
       <div className="flex min-h-9 items-center gap-2 px-2">{children}</div>
       {steps}

@@ -90,22 +90,23 @@ you could see your way around.
   at the bottom.
 - **A control that is switched off is still reachable.** A disabled button
   cannot take focus, so the reason sits on a wrapper that can
-  (`ui/disabled-reason.tsx`). Tab on to a greyed-out task row and the reason
-  appears, the same sentence the mouse gets on hover.
+  (`ui/disabled-reason.tsx`). Tab on to the greyed-out minute rows in the
+  header's Timer popover and the reason appears, the same sentence the mouse
+  gets on hover.
 
 ## Controls that have gone dead say why
 
 A faded button with no explanation is the commonest reason someone decides an
 app is broken, so every control the timer switches off names the thing that
 would switch it back on. The sentences are written as the action, not the
-state — "Pause or finish the focus to choose a different task", never "Timer
-is running" — and they live together in
-`src/lib/pomodoro/disabled-reasons.ts`, because the same rule greys controls
-out on three screens and three copies of one sentence drift apart.
+state — "Reset or finish the timer to change durations or presets", never
+"Timer is running" — and they live together in
+`src/lib/pomodoro/disabled-reasons.ts`, so one sentence is never kept in two
+copies that drift apart.
 
-- **Picking a task** is off while a focus is counting down: "Pause or finish
-  the focus to choose a different task." A finished task reads "Reopen this
-  task to focus on it again."
+- **Picking a task** is off while a focus is counting down, and it is the one
+  switched-off control with no tooltip: Tyler asked for it gone on 7 Oct 2026.
+  The task still cannot be picked until the focus is paused or finished.
 - **The header's minute steppers and preset rows** are off for the same
   reason: "Reset or finish the timer to change durations or presets." That
   sentence used to sit in a loose paragraph at the bottom of the popover with

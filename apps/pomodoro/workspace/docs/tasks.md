@@ -23,6 +23,10 @@ Drawn to Tyler's design of 7 Oct 2026
   their own, and the add box sits under a full-width line with an Add task
   button. Today and the days ahead are drawn the same way, and so is the
   Tasks card on `/timer`, because they share the rows and the add box.
+- **A row lightens under the pointer**, on every one of those lists, because
+  the wash sits on the shared row frame (`TaskRowFrame` in
+  `today-task-list.tsx`). It shows mid-focus too, while the task cannot be
+  picked.
 - **Projects** as cards, then **Past tasks**. See [Projects](projects.md) and
   [Rollover and archive](#rollover-and-archive).
 
