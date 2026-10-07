@@ -26,6 +26,7 @@ import {
   formatBytes,
   UPLOAD_ACCEPT,
   UPLOAD_HINT,
+  uploadRefusal,
   type PomodoroUploadPurpose,
 } from "@/lib/pomodoro/media-limits"
 import {
@@ -35,6 +36,7 @@ import {
   uploadPomodoroMedia,
   type StoredUpload,
   type UploadLibrary,
+  type UploadProgress,
 } from "@/lib/api/pomodoro/media-uploads"
 
 /**
@@ -73,7 +75,8 @@ export function MediaUploadsSection({
 }) {
   const [library, setLibrary] = React.useState<UploadLibrary | null>(null)
   const [error, setError] = React.useState<string | null>(null)
-  const [busy, setBusy] = React.useState(false)
+  // Non-null for the whole of an upload, so it doubles as "busy".
+  const [progress, setProgress] = React.useState<UploadProgress | null>(null)
   const [pendingDelete, setPendingDelete] = React.useState<StoredUpload | null>(
     null
   )
@@ -116,15 +119,24 @@ export function MediaUploadsSection({
   }, [refresh, waiting])
 
   async function send(file: File) {
-    setBusy(true)
+    // The page already knows the limits and the space left, so a file that
+    // cannot fit is turned away here instead of after the whole upload.
+    const refusal = library
+      ? uploadRefusal(file, library.limitBytes - library.usedBytes)
+      : null
+    if (refusal) {
+      setError(refusal)
+      return
+    }
+    setProgress({ phase: "sending", percent: 0 })
     setError(null)
     try {
-      await uploadPomodoroMedia(file, purpose)
+      await uploadPomodoroMedia(file, purpose, setProgress)
       await refresh()
     } catch (uploadError) {
       setError(getPomodoroUploadErrorMessage(uploadError))
     } finally {
-      setBusy(false)
+      setProgress(null)
     }
   }
 
@@ -147,7 +159,7 @@ export function MediaUploadsSection({
         </div>
         <UploadButton
           accept={UPLOAD_ACCEPT[purpose]}
-          busy={busy}
+          progress={progress}
           known={known}
           signedIn={signedIn}
           locked={locked}
@@ -237,7 +249,7 @@ export function MediaUploadsSection({
  */
 function UploadButton({
   accept,
-  busy,
+  progress,
   known,
   signedIn,
   locked,
@@ -246,7 +258,7 @@ function UploadButton({
   onFile,
 }: {
   accept: string
-  busy: boolean
+  progress: UploadProgress | null
   /** The answer is settled — either the server replied, or nobody is signed in. */
   known: boolean
   signedIn: boolean
@@ -255,6 +267,7 @@ function UploadButton({
   inputRef: React.RefObject<HTMLInputElement | null>
   onFile: (file: File) => void
 }) {
+  const busy = progress !== null
   const disabled = busy || locked || full
   // No tooltip until the answer is in. A paying member hovering during that
   // moment must not be told uploading is a perk they do not have.
@@ -284,7 +297,11 @@ function UploadButton({
       ) : (
         <UploadIcon className="size-4" aria-hidden="true" />
       )}
-      {busy ? "Uploading…" : "Upload your own"}
+      {progress === null
+        ? "Upload your own"
+        : progress.phase === "checking"
+          ? "Checking the file…"
+          : `Uploading… ${progress.percent}%`}
     </Button>
   )
 
@@ -303,6 +320,9 @@ function UploadButton({
           if (file) onFile(file)
         }}
       />
+      <span className="sr-only" aria-live="polite">
+        {spokenProgress(progress)}
+      </span>
       {reason ? (
         <Tooltip>
           <TooltipTrigger asChild>
@@ -315,6 +335,17 @@ function UploadButton({
       )}
     </div>
   )
+}
+
+/**
+ * What a screen reader hears, in quarters. The button's own figure moves every
+ * percent, and reading each one out would talk over everything else.
+ */
+function spokenProgress(progress: UploadProgress | null) {
+  if (progress === null) return ""
+  if (progress.phase === "checking") return "Uploaded. Checking the file."
+  const quarter = Math.floor(progress.percent / 25) * 25
+  return quarter > 0 ? `Uploading, ${quarter}%` : "Uploading"
 }
 
 const KIND_ICONS = {

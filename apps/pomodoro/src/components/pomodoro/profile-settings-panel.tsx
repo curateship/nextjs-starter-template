@@ -2,9 +2,6 @@ import * as React from "react"
 import { getRouteApi, useRouter } from "@tanstack/react-router"
 import { toast } from "sonner"
 
-import BlockedAccountsCard from "@/components/pomodoro/blocked-accounts-card"
-import PublicProfileSettingsPanel from "@/components/pomodoro/public-profile-settings-panel"
-import StreakBadgeCard from "@/components/pomodoro/streak-badge-card"
 import { ImageUpload } from "@/components/shared/image-upload"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -72,9 +69,9 @@ function AccountPhotoField() {
 /**
  * The Profile tab on Settings: the account photo, the public display name,
  * the timezone that anchors the day boundary for goals and streaks, the
- * leaderboard opt-in and the room task switch, then the public page and the streak badge in their own
- * cards below. Account name, email, password and deletion stay with the
- * shell's account dialog.
+ * leaderboard opt-in and the room task switch. The public page, blocked
+ * people and the streak badge have tabs of their own. Account name, email,
+ * password and deletion stay with the shell's account dialog.
  */
 export default function ProfileSettingsPanel() {
   const [displayName, setDisplayName] = React.useState("")
@@ -137,102 +134,97 @@ export default function ProfileSettingsPanel() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <Card size="sm">
-        <CardHeader>
-          <CardTitle>Your profile</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4">
-          <AccountPhotoField />
-          {/* The fields arrive with the saved profile in them, so they are not
-              offered before it lands: typing into an empty name and having the
-              load overwrite it a moment later is the worse outcome. */}
-          {!loaded && !loadFailed ? (
-            <LoadingRow label="Loading your profile…" />
-          ) : null}
-          {/* The failure stays in the card as well as in the toast, because a
-              toast can be dismissed and an empty card explains nothing.
-              ErrorRow raises the shared toast itself. */}
-          {loadFailed ? (
-            <ErrorRow
-              message="Your profile could not be loaded."
-              onRetry={() => {
-                dismissErrorToast()
-                setLoadFailed(false)
-                setAttempt((count) => count + 1)
-              }}
-            />
-          ) : null}
-          {loaded ? (
-            <>
-              <div className="grid gap-2">
-                <FieldLabel
-                  htmlFor="profile-display-name"
-                  hint="The name other people see on the leaderboard, in rooms and on your public page. Leave it empty and your handle is used instead."
-                >
-                  Public display name
-                </FieldLabel>
-                <Input
-                  id="profile-display-name"
-                  maxLength={50}
-                  value={displayName}
-                  placeholder="Shown on the leaderboard and in rooms"
-                  onChange={(event) => setDisplayName(event.target.value)}
-                />
-              </div>
-              <div className="grid gap-2">
-                <FieldLabel
-                  htmlFor="profile-timezone"
-                  hint={`Your days, goals and streaks roll over at midnight in this timezone. Yours right now is ${browserTimezone()}.`}
-                >
-                  Timezone
-                </FieldLabel>
-                <TimezonePicker
-                  id="profile-timezone"
-                  value={timezone}
-                  browserZone={browserTimezone()}
-                  invalid={!timezone.trim()}
-                  onChange={setTimezone}
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <Switch
-                  id="profile-leaderboard"
-                  checked={leaderboard}
-                  onCheckedChange={setLeaderboard}
-                />
-                <Label htmlFor="profile-leaderboard">
-                  Show me on the leaderboard
-                </Label>
-              </div>
-              <div className="flex items-center gap-2">
-                <Switch
-                  id="profile-share-task"
-                  checked={shareTask}
-                  onCheckedChange={setShareTask}
-                />
-                <FieldLabel
-                  htmlFor="profile-share-task"
-                  hint="While you are in a focus room and your own timer is counting down a focus with a task picked, that task's title shows beside your name. Everyone in that room sees it, and nobody outside it. Pausing hides it, and turning this off takes it away as soon as you save."
-                >
-                  Show my task to people in my room
-                </FieldLabel>
-              </div>
-            </>
-          ) : null}
-          <div className="flex items-center gap-3">
-            {/* Enabled with an empty timezone on purpose: the rulebook keeps
-                the action pressable and names the problem on the press, so an
-                empty box gets a sentence instead of a dead button. */}
-            <Button disabled={!loaded || saving} onClick={() => void save()}>
-              {saving ? "Saving…" : "Save profile"}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-      <PublicProfileSettingsPanel />
-      <BlockedAccountsCard />
-      <StreakBadgeCard />
-    </div>
+    <Card size="sm">
+      <CardHeader>
+        <CardTitle>Your profile</CardTitle>
+      </CardHeader>
+      <CardContent className="grid gap-4">
+        <AccountPhotoField />
+        {/* The fields arrive with the saved profile in them, so they are not
+            offered before it lands: typing into an empty name and having the
+            load overwrite it a moment later is the worse outcome. */}
+        {!loaded && !loadFailed ? (
+          <LoadingRow label="Loading your profile…" />
+        ) : null}
+        {/* The failure stays in the card as well as in the toast, because a
+            toast can be dismissed and an empty card explains nothing.
+            ErrorRow raises the shared toast itself. */}
+        {loadFailed ? (
+          <ErrorRow
+            message="Your profile could not be loaded."
+            onRetry={() => {
+              dismissErrorToast()
+              setLoadFailed(false)
+              setAttempt((count) => count + 1)
+            }}
+          />
+        ) : null}
+        {loaded ? (
+          <>
+            <div className="grid gap-2">
+              <FieldLabel
+                htmlFor="profile-display-name"
+                hint="The name other people see on the leaderboard, in rooms and on your public page. Leave it empty and your handle is used instead."
+              >
+                Public display name
+              </FieldLabel>
+              <Input
+                id="profile-display-name"
+                maxLength={50}
+                value={displayName}
+                placeholder="Shown on the leaderboard and in rooms"
+                onChange={(event) => setDisplayName(event.target.value)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <FieldLabel
+                htmlFor="profile-timezone"
+                hint={`Your days, goals and streaks roll over at midnight in this timezone. Yours right now is ${browserTimezone()}.`}
+              >
+                Timezone
+              </FieldLabel>
+              <TimezonePicker
+                id="profile-timezone"
+                value={timezone}
+                browserZone={browserTimezone()}
+                invalid={!timezone.trim()}
+                onChange={setTimezone}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                id="profile-leaderboard"
+                checked={leaderboard}
+                onCheckedChange={setLeaderboard}
+              />
+              <Label htmlFor="profile-leaderboard">
+                Show me on the leaderboard
+              </Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                id="profile-share-task"
+                checked={shareTask}
+                onCheckedChange={setShareTask}
+              />
+              <FieldLabel
+                htmlFor="profile-share-task"
+                hint="While you are in a focus room and your own timer is counting down a focus with a task picked, that task's title shows beside your name. Everyone in that room sees it, and nobody outside it. Pausing hides it, and turning this off takes it away as soon as you save."
+              >
+                Show my task to people in my room
+              </FieldLabel>
+            </div>
+          </>
+        ) : null}
+        <div className="flex items-center gap-3">
+          {/* Enabled with an empty timezone on purpose: the rulebook keeps
+              the action pressable and names the problem on the press, so an
+              empty box gets a sentence instead of a dead button. */}
+          <Button disabled={!loaded || saving} onClick={() => void save()}>
+            {saving ? "Saving…" : "Save profile"}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   )
 }

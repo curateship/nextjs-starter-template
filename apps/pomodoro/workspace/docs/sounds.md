@@ -59,6 +59,18 @@ the timer all talk to the same module. React reads it through
 Choice, volume, mute and the alerts flag live on `user_preferences`
 (migration `0086_pomodoro_sound_preferences.sql`), saved debounced through
 `src/lib/api/pomodoro/sounds.ts`. Saving a premium loop on a free account is
-refused server-side (`UPGRADE_REQUIRED:premiumMedia`); the locked cards say
-why on the page. Audio files are first-party, copied from the old app into
+refused server-side (`UPGRADE_REQUIRED:premiumMedia`). A locked card leads
+to the plans page, exactly as a locked scene does on
+[Backgrounds](backgrounds.md): `/plans` for a member, sign-in first for a
+guest, reachable by Tab, never a dead button. Audio files are first-party, copied from the old app into
 `public/sounds/`.
+
+## Turning the sound off
+
+The power button at the end of the header's player is "Turn sound off". It
+forgets the chosen loop (`clearSound`), so the player leaves the header, and a
+success toast says "Sound off. Pick one again on Sounds." with Sounds as a link
+to `/sounds`. Pause is the play button beside it, and it keeps the choice.
+
+The button used to be an X labelled "Stop sound". An X reads as "close this for
+now", and people pressed it expecting a pause, then found their sound gone.

@@ -205,5 +205,5 @@ group join in `src/server/pomodoro/groups.ts` the one that folds.
 - **The link is an address inside this app.** The shell drops any other kind of
   address anyway.
 - **A notice whose kind is switched off in Settings is never written.** Today
-  only the cheer has a switch, on Settings → Profile. The card of per-kind
+  only the cheer has a switch, on Settings → Public page. The card of per-kind
   switches is task 02 part 5 and is not built yet.

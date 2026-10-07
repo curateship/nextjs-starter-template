@@ -27,9 +27,38 @@ Three refusals, each with a plain sentence rather than a code:
 - **It is the wrong kind for the picker.** A background takes pictures and
   video; a sound takes audio.
 
+**The page turns a file away before it uploads when it already knows the
+answer.** Picking a file over its kind's limit, or bigger than the space left,
+shows the reason at once where upload errors appear, and nothing is sent: "This
+clip is 150 MB. Clips can be up to 100 MB." or "This clip is 50 MB and you have
+40 MB of space left." (`uploadRefusal` in `media-limits.ts`). The kind comes from
+the browser's file type, image, audio or video. A file the browser could not
+type gets only the space check, and the server judges it by its bytes. The
+server checks the same numbers again and has the last word, so the browser
+check is a courtesy and never the rule. A 150 MB clip used to upload for a
+minute before being refused.
+
 A request that never says how big it is is refused before a byte is read. That
 is how a chunked upload arrives, and its size cannot be checked until the whole
 body is already in memory, which is the hole it would otherwise open.
+
+## The upload button counts up
+
+While a file goes up, the button reads "Uploading… 40%", and once every byte is
+out it reads "Checking the file…" while the server sniffs and stores it. A 100
+MB clip on slow wifi used to show a spinner for minutes, with no way to tell
+slow from stuck.
+
+- **The same server function sends it.** `fetch` cannot report upload progress,
+  so `uploadPomodoroMedia` hands the server function a `fetch` built on
+  `XMLHttpRequest` (`fetchWithUploadProgress` in
+  `src/lib/api/pomodoro/media-uploads.ts`). The address, the origin check, the
+  cookies and the error codes are the ones every other call uses, and refusals
+  still go through `getPomodoroUploadErrorMessage`.
+- **A screen reader hears it in quarters**: "Uploading, 25%", 50, 75, then
+  "Uploaded. Checking the file." Reading every percent aloud would talk over
+  everything else.
+- **There is no cancel button.** Closing the page is the only way to stop one.
 
 ## What happens to the file
 

@@ -102,6 +102,8 @@ type PomodoroState = {
   remainingSeconds: number
   tasks: TaskItem[]
   archive: ArchivedTask[]
+  /** Days exist before the oldest archive day loaded with the page. */
+  archiveHasOlder: boolean
   projects: ProjectRow[]
   /** Each live project with a target, and its focus so far this period. */
   projectTargets: ProjectTargetProgress[]
@@ -157,6 +159,7 @@ const initialState: PomodoroState = {
   remainingSeconds: DEFAULT_DURATIONS.focus * 60,
   tasks: [],
   archive: [],
+  archiveHasOlder: false,
   projects: [],
   projectTargets: [],
   plannedDays: [],
@@ -419,6 +422,7 @@ function hydrateGuest() {
     remainingSeconds: getRemainingSeconds(timer),
     tasks,
     archive: [],
+    archiveHasOlder: false,
     projects: [],
     selectedTaskId: resolveSelectedTaskId(tasks, saved?.selectedTaskId),
     autoStart: saved?.autoStart === true,
@@ -515,6 +519,7 @@ export function reloadPomodoroData({
         autoStart: data.preferences.autoStart,
         tasks,
         archive: data.archivedTasks,
+        archiveHasOlder: data.archiveHasOlder,
         projects: data.projects,
         projectTargets: data.projectTargets,
         plannedDays: data.plannedDays,

@@ -14,6 +14,7 @@ import {
   type Task,
 } from "@/server/pomodoro/schema"
 import {
+  listArchivePage,
   rollOverTasks,
   setTaskRepeat,
   updateTaskPlan,
@@ -272,5 +273,51 @@ describe("projects", () => {
     await expect(setProjectArchived(userId, theirs.id, true)).rejects.toThrow(
       "PROJECT_NOT_FOUND"
     )
+  })
+})
+
+describe("the archive, a page of whole days", () => {
+  /** `count` past tasks on one day, all settled so the rollover leaves them. */
+  async function fillDay(plannedDate: string, count: number) {
+    for (let index = 0; index < count; index += 1) {
+      await addTask(plannedDate, { status: "completed" })
+    }
+  }
+
+  it("runs past 50 to finish the day the 50th task falls on", async () => {
+    await fillDay("2026-09-10", 30)
+    await fillDay("2026-09-09", 30)
+    await fillDay("2026-09-08", 5)
+
+    const first = await listArchivePage(userId, "2026-09-11")
+    expect(first.tasks).toHaveLength(60)
+    expect(new Set(first.tasks.map((task) => task.plannedDate))).toEqual(
+      new Set(["2026-09-10", "2026-09-09"])
+    )
+    expect(first.hasOlder).toBe(true)
+
+    const second = await listArchivePage(userId, "2026-09-09")
+    expect(second.tasks.map((task) => task.plannedDate)).toEqual(
+      Array(5).fill("2026-09-08")
+    )
+    expect(second.hasOlder).toBe(false)
+  })
+
+  it("says nothing is older when everything fits", async () => {
+    await fillDay("2026-09-10", 3)
+    const page = await listArchivePage(userId, "2026-09-11")
+    expect(page.tasks).toHaveLength(3)
+    expect(page.hasOlder).toBe(false)
+  })
+
+  it("never counts the day asked from, or somebody else's tasks", async () => {
+    await fillDay("2026-09-11", 2)
+    const other = await insertUser(db)
+    await db
+      .insert(tasks)
+      .values({ userId: other.id, title: "Theirs", plannedDate: "2026-09-10" })
+    const page = await listArchivePage(userId, "2026-09-11")
+    expect(page.tasks).toHaveLength(0)
+    expect(page.hasOlder).toBe(false)
   })
 })

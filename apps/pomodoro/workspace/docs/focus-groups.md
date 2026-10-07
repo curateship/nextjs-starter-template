@@ -49,6 +49,13 @@ to compete with four friends without being listed publicly.
 | Leave | no | yes |
 | Delete the group | yes | no |
 
+**Removing somebody asks first.** The bin beside a member opens "Remove Sam
+from Study Buddies?", which says they come off the board straight away and can
+rejoin with the invite link. The red button says "Remove Sam" and shows it is
+working while the removal runs. Cancel or Escape leaves them in. Deleting the
+group always asked; removing a person, the more personal of the two, used to
+happen on the first press.
+
 The owner cannot leave. A group with no owner has nobody who can kill a leaked
 link, so the owner deletes the group instead, which is a different button with a
 different question attached.

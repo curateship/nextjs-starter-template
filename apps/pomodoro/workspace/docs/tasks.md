@@ -221,9 +221,26 @@ itself; there is no scheduled job).
   land under it. Tyler's call on 7 Oct 2026: carry the leftovers, below the
   plan, rather than skip them.
 - **A repeat rule's copy starts with no steps** and wears the tags of the
-  rule's last copy. The archive section under Today groups past days
-newest first, up to 50 rows, with a badge per row: Completed (green), Carried
-over (orange) or Abandoned (grey).
+  rule's last copy.
+
+The archive section under Today groups past days newest first, with a badge per
+row: Completed (green), Carried over (orange) or Abandoned (grey).
+
+- **It loads whole days, about 50 tasks at a time.** The page runs on to the end
+  of the day the 50th task falls on, so a day is never cut in half
+  (`listArchivePage` in `src/server/pomodoro/tasks.ts`). A cut at exactly 50
+  rows used to drop the rest of the last day without saying so.
+- **The heading says when it is a cut-off.** "Your last 52 past tasks" while
+  older days exist, and the plain "12 past tasks" once everything is shown
+  (`src/lib/pomodoro/task-archive.ts`). It used to read "50 past tasks", which
+  looked like a total.
+- **Show older loads the days before the oldest one on screen.** When nothing
+  older is left, the button goes and a line says "That is everything, back to
+  your first day." A member with one page or less never sees the button.
+- **A day never shows twice.** Each press asks for days strictly before the
+  oldest shown. If the page's own load returns a first page ending on a
+  different day, which only the midnight rollover does, the older pages are
+  dropped and Show older starts again.
 
 ## Repeating a task
 

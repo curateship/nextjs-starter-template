@@ -32,9 +32,9 @@ cover this one.
 - [Sessions before the long break](sessions-before-long-break.md) — how many
   focuses earn the long break, why it belongs to each preset, and what
   changing it does to the count.
-- [Timer settings and rhythm presets](timer-settings.md) — the Settings →
-  Timer tab: durations, daily goal, auto-start, and built-in plus custom
-  rhythms.
+- [Timer settings and rhythm presets](timer-settings.md) — the five tabs on
+  Settings, and the Timer tab: durations, daily goal, auto-start, and built-in
+  plus custom rhythms.
 - [Pro perks](pro-perks.md) — what a paid plan unlocks and the one module
   that answers every can-do question.
 - [The plans page](plans-page.md) — `/plans`, the product's own pricing

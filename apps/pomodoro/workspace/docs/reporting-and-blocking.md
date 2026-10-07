@@ -91,7 +91,7 @@ board costs one extra query rather than a hundred.
 
 ### Unblocking
 
-In Settings → Profile, in a card that is not drawn at all when nobody is
+In Settings → Privacy, in a card that is not drawn at all when nobody is
 blocked. It is undone there and nowhere else, because once you have blocked
 somebody their page is a 404 to you, so there is no Unblock button to put on
 it. Unblocking does not restore the follows the block removed.

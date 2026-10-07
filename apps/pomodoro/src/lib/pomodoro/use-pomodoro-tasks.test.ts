@@ -49,7 +49,7 @@ vi.mock("@/lib/toast/error-toast", () => ({
 // before the engine is imported.
 vi.stubGlobal("window", globalThis)
 
-const { setProductAuthenticated } = await import("@/lib/pomodoro/auth-state")
+const { setProductAccount } = await import("@/lib/pomodoro/auth-state")
 const {
   addTask,
   createProject,
@@ -127,7 +127,7 @@ beforeEach(async () => {
   // Priming the load first matters: flipping the auth flag makes the engine
   // reload on its own, and that pass has to have something to answer with.
   primeLoad()
-  setProductAuthenticated(true)
+  setProductAccount("member@example.test")
   await loadTwoTasks()
 })
 

@@ -1,6 +1,18 @@
-import { and, between, eq, gt, isNull, lt, lte, sql } from "drizzle-orm"
+import {
+  and,
+  between,
+  desc,
+  eq,
+  gte,
+  gt,
+  isNull,
+  lt,
+  lte,
+  sql,
+} from "drizzle-orm"
 
 import { shiftLocalDate } from "@/lib/pomodoro/focus-history"
+import { ARCHIVE_PAGE_ROWS } from "@/lib/pomodoro/task-archive"
 import { PLAN_AHEAD_DAYS } from "@/lib/pomodoro/plan-ahead"
 import { repeatsOnLocalDate } from "@/lib/pomodoro/task-repeats"
 import { db } from "@/server/db"
@@ -469,4 +481,43 @@ export async function withTaskDetails(rows: DayRow[]) {
       .map(({ id, title, done }) => ({ id, title, done })),
     tags: tags.filter((tag) => tag.taskId === row.task.id).map((tag) => tag.name),
   }))
+}
+
+/**
+ * One page of the Tasks archive: the most recent past days before `before`,
+ * about `ARCHIVE_PAGE_ROWS` tasks' worth, newest first.
+ *
+ * Always whole days. A cut at exactly 50 rows used to leave the last day shown
+ * missing some of its tasks without saying so, so the page runs on to the end
+ * of whichever day the 50th task falls on. `hasOlder` says whether a day
+ * before the oldest one returned exists, which is what the Show older button
+ * asks.
+ */
+export async function listArchivePage(userId: string, before: string) {
+  const mine = and(eq(tasks.userId, userId), lt(tasks.plannedDate, before))
+  const [boundary] = await db
+    .select({ plannedDate: tasks.plannedDate })
+    .from(tasks)
+    .where(mine)
+    .orderBy(desc(tasks.plannedDate), desc(tasks.createdAt))
+    .offset(ARCHIVE_PAGE_ROWS - 1)
+    .limit(1)
+  const rows = await db
+    .select()
+    .from(tasks)
+    .where(
+      boundary
+        ? and(mine, gte(tasks.plannedDate, boundary.plannedDate))
+        : mine
+    )
+    .orderBy(desc(tasks.plannedDate), desc(tasks.createdAt))
+  if (!boundary) return { tasks: rows, hasOlder: false }
+  const [older] = await db
+    .select({ id: tasks.id })
+    .from(tasks)
+    .where(
+      and(eq(tasks.userId, userId), lt(tasks.plannedDate, boundary.plannedDate))
+    )
+    .limit(1)
+  return { tasks: rows, hasOlder: Boolean(older) }
 }

@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { PRO_PERKS } from "@/lib/pomodoro/pro"
+import { useOpenPlans } from "@/lib/pomodoro/use-open-plans"
 import {
   curatedBackgrounds,
   sameBackgroundReference,
@@ -31,6 +32,7 @@ const descriptorLabels = {
 export function BackgroundsPage() {
   const { background, canUsePremiumMedia, chooseBackground } =
     useBackgroundSelection()
+  const { signedIn, openPlans } = useOpenPlans()
   // An AI background arrives as an ordinary upload, so finishing one means the
   // grid above has a new card and has to read its list again.
   const [reloadToken, setReloadToken] = React.useState(0)
@@ -64,17 +66,18 @@ export function BackgroundsPage() {
                 )}
               >
                 <button
-                  className="group w-full text-left disabled:cursor-not-allowed"
-                  aria-pressed={selected}
+                  className="group w-full text-left outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid"
+                  aria-pressed={locked ? undefined : selected}
                   aria-label={
                     locked
-                      ? `${scene.label} — ${PRO_PERKS.premiumMedia.lockedReason}`
+                      ? `${scene.label}, a Pro scene. ${signedIn ? "See the plans" : "Sign in to see the plans"}`
                       : `Use the ${scene.label} background`
                   }
+                  // A locked card is never dead: it leads to the plans page.
                   onClick={() => {
-                    if (!locked) chooseBackground(reference)
+                    if (locked) openPlans()
+                    else chooseBackground(reference)
                   }}
-                  disabled={locked}
                 >
                   <span className="relative block aspect-video">
                     <img

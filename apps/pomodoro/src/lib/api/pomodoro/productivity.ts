@@ -32,6 +32,7 @@ import {
 import { listPickableTags, setTaskTags } from "@/server/pomodoro/task-tags"
 import {
   countPlannedDays,
+  listArchivePage,
   listTasksForDay,
   reorderTodayTasks,
   rollOverTasks,
@@ -198,7 +199,7 @@ const loadProductivityFn = createServerFn({ method: "GET" })
     const [
       summary,
       todayTasks,
-      archivedTasks,
+      archive,
       recentStats,
       projects,
       plannedDays,
@@ -207,17 +208,7 @@ const loadProductivityFn = createServerFn({ method: "GET" })
     ] = await Promise.all([
         loadFocusSummary(context.user.id, today, preferences.dailyGoalSessions),
         listTasksForDay(context.user.id, today),
-        db
-          .select()
-          .from(tasks)
-          .where(
-            and(
-              eq(tasks.userId, context.user.id),
-              sql`${tasks.plannedDate} < ${today}`
-            )
-          )
-          .orderBy(desc(tasks.plannedDate), desc(tasks.createdAt))
-          .limit(50),
+        listArchivePage(context.user.id, today),
         db
           .select({
             localDate: dailyFocusStats.localDate,
@@ -239,7 +230,8 @@ const loadProductivityFn = createServerFn({ method: "GET" })
       today,
       summary,
       tasks: await withTaskDetails(todayTasks),
-      archivedTasks,
+      archivedTasks: archive.tasks,
+      archiveHasOlder: archive.hasOlder,
       recentStats,
       projects,
       plannedDays,
@@ -247,6 +239,14 @@ const loadProductivityFn = createServerFn({ method: "GET" })
       projectTargets,
     }
   })
+
+/** The archive's next page back, starting the day before the oldest shown. */
+const loadArchivePageFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .inputValidator(z.object({ before: localDateSchema }))
+  .handler(async ({ data, context }) =>
+    listArchivePage(context.user.id, data.before)
+  )
 
 /** One of the next six days, for the Tasks screen's day strip. */
 const loadPlannedDayFn = createServerFn({ method: "GET" })
@@ -643,6 +643,8 @@ export const createTask = (
   timezone: string,
   plannedDate?: string
 ) => createTaskFn({ data: { title, timezone, plannedDate } })
+export const loadArchivePage = (before: string) =>
+  loadArchivePageFn({ data: { before } })
 export const loadPlannedDay = (plannedDate: string, timezone: string) =>
   loadPlannedDayFn({ data: { plannedDate, timezone } })
 export const addStep = (taskId: string, title: string) =>

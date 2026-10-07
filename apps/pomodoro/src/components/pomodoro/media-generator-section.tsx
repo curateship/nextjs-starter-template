@@ -1,5 +1,10 @@
 import * as React from "react"
-import { Loader2Icon, SparklesIcon, TriangleAlertIcon } from "lucide-react"
+import {
+  Loader2Icon,
+  RotateCcwIcon,
+  SparklesIcon,
+  TriangleAlertIcon,
+} from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -55,6 +60,10 @@ export function MediaGeneratorSection({
   const [notice, setNotice] = React.useState<string | null>(null)
   const [error, setError] = React.useState<string | null>(null)
   const [busy, setBusy] = React.useState(false)
+  // Set when Generate was pressed on a prompt under the minimum, and cleared
+  // the moment the box changes.
+  const [tooShort, setTooShort] = React.useState(false)
+  const promptInput = React.useRef<HTMLInputElement>(null)
 
   // A generation that has just finished is a new file in the picker above, so
   // the page it sits on has to be told. Held in a ref rather than state: it is
@@ -96,7 +105,11 @@ export function MediaGeneratorSection({
   async function submit(event: React.FormEvent) {
     event.preventDefault()
     const text = prompt.trim()
-    if (text.length < PROMPT_MIN_LENGTH) return
+    if (text.length < PROMPT_MIN_LENGTH) {
+      setTooShort(true)
+      promptInput.current?.focus()
+      return
+    }
     setBusy(true)
     setError(null)
     setNotice(null)
@@ -119,12 +132,10 @@ export function MediaGeneratorSection({
   const allowed = Boolean(panel && panel.limit > 0)
   const ready = Boolean(panel?.providerReady)
   const hasCredit = Boolean(panel && panel.left > 0)
-  const canSubmit =
-    allowed &&
-    ready &&
-    hasCredit &&
-    !busy &&
-    prompt.trim().length >= PROMPT_MIN_LENGTH
+  // A prompt that is too short does not shut the button: pressing it says what
+  // is missing, which a grey button never did.
+  const canSubmit = allowed && ready && hasCredit && !busy
+  const editable = allowed && ready && !busy
 
   const blockedReason = !known
     ? null
@@ -133,12 +144,20 @@ export function MediaGeneratorSection({
       : !allowed
         ? "AI generation is a Pro perk. Upgrade to make your own."
         : !ready
-          ? "AI generation is not set up on this server yet. An operator needs to add the provider key under Settings → AI."
+          ? copy.notSwitchedOn
           : !hasCredit
             ? "You have used this month's AI generations. You get a fresh batch on the first."
             : null
 
   const promptId = `generate-${kind}`
+  const tooShortId = `${promptId}-too-short`
+
+  function retry(text: string) {
+    setPrompt(text)
+    setTooShort(false)
+    setNotice(null)
+    promptInput.current?.focus()
+  }
 
   return (
     <section className="flex flex-col gap-3">
@@ -165,12 +184,18 @@ export function MediaGeneratorSection({
           What should AI make?
         </Label>
         <Input
+          ref={promptInput}
           id={promptId}
           value={prompt}
-          onChange={(event) => setPrompt(event.target.value)}
+          onChange={(event) => {
+            setPrompt(event.target.value)
+            setTooShort(false)
+          }}
           placeholder={copy.placeholder}
           maxLength={PROMPT_MAX_LENGTH}
-          disabled={!allowed || !ready || busy}
+          disabled={!editable}
+          aria-invalid={tooShort || undefined}
+          aria-describedby={tooShort ? tooShortId : undefined}
           className="flex-1"
         />
         <SubmitButton
@@ -179,6 +204,11 @@ export function MediaGeneratorSection({
           reason={blockedReason}
         />
       </form>
+      {tooShort ? (
+        <p id={tooShortId} role="alert" className="text-sm text-destructive">
+          Describe it in a few more words.
+        </p>
+      ) : null}
 
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-mono text-[10px] tracking-widest text-muted-foreground uppercase">
@@ -191,8 +221,11 @@ export function MediaGeneratorSection({
             variant="outline"
             size="sm"
             className="h-7"
-            disabled={!allowed || !ready || busy}
-            onClick={() => setPrompt(suggestion)}
+            disabled={!editable}
+            onClick={() => {
+              setPrompt(suggestion)
+              setTooShort(false)
+            }}
           >
             {suggestion}
           </Button>
@@ -225,7 +258,13 @@ export function MediaGeneratorSection({
       {panel && panel.generations.length ? (
         <ul className="flex flex-col gap-1">
           {panel.generations.map((row) => (
-            <GenerationRowLine key={row.id} row={row} />
+            <GenerationRowLine
+              key={row.id}
+              row={row}
+              // Only while the box can take the words back; a box that is shut
+              // would be filled with nowhere to send them.
+              onRetry={editable ? () => retry(row.prompt) : undefined}
+            />
           ))}
         </ul>
       ) : null}
@@ -278,8 +317,11 @@ const STATUS_WORDS: Record<string, string> = {
  */
 function GenerationRowLine({
   row,
+  onRetry,
 }: {
   row: GenerationPanel["generations"][number]
+  /** Puts this row's prompt back in the box. Only a failed row offers it. */
+  onRetry?: () => void
 }) {
   const failed = row.status === "failed"
   const working = row.status === "queued" || row.status === "running"
@@ -317,6 +359,19 @@ function GenerationRowLine({
             ? "In the grid above"
             : (STATUS_WORDS[row.status] ?? row.status)}
       </span>
+      {failed && onRetry ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="xs"
+          className="shrink-0"
+          onClick={onRetry}
+          aria-label={`Try again: ${row.prompt}`}
+        >
+          <RotateCcwIcon aria-hidden="true" />
+          Try again
+        </Button>
+      ) : null}
     </li>
   )
 }

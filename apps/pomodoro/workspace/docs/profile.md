@@ -1,6 +1,6 @@
 # Profile
 
-The product's Settings page (`/settings`, card
+The Profile tab of the product's Settings page (`/settings?tab=profile`, card
 `src/components/pomodoro/profile-settings-panel.tsx`) holds the four
 app-level facts about a person, in `pomodoro_profiles` (migration
 `0085_pomodoro_profiles.sql`, the task switch in `0116_pomodoro_rooms_that_stick.sql`):
@@ -64,8 +64,9 @@ UI rules put help text.
 Account name, email, password and deletion stay with the shell's account
 dialog; this tab never duplicates them.
 
-Two more cards sit under this one on the same tab: **Your public page**, which
-is [the public profile](public-profile.md), and the
-[streak badge](streak-badge.md). They are separate cards because they are
-separate decisions. The three fields above are about the account; those two
-are each about one thing published on the open internet.
+**Your public page**, which is [the public profile](public-profile.md), has the
+Public page tab. Blocked people and the [streak badge](streak-badge.md) have the
+Privacy tab. They are separate from this card because they are separate
+decisions: the fields above are about the account, and the public page and the
+badge are each about one thing published on the open internet. See
+[Timer settings](timer-settings.md) for the five tabs.

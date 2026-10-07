@@ -73,6 +73,13 @@ behind their timer.
 
 - **Pro gating:** saving a locked scene on a free account is refused
   server-side (`UPGRADE_REQUIRED:premiumMedia` in
-  `src/lib/api/pomodoro/backgrounds.ts`); locked cards say why on the page.
+  `src/lib/api/pomodoro/backgrounds.ts`).
+- **A locked card leads to the plans page.** It keeps the padlock, the faded
+  picture and the Pro tag, and pressing it opens `/plans` for a member, or
+  sign-in with a return to `/plans` for a guest (`use-open-plans.ts`). It is
+  never a disabled button, so Tab reaches it and a screen reader hears
+  "Fireplace, a Pro scene. See the plans". The tooltip with the reason stays
+  for anyone hovering. A locked card used to be `disabled`, so a click did
+  nothing and the keyboard skipped it.
 
 Assets are first-party, copied from the old app into `public/backgrounds/`.

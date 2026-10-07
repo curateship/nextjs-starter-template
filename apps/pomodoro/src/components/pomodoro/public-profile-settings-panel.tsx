@@ -1,6 +1,6 @@
 import * as React from "react"
 import { getRouteApi, Link, useRouter } from "@tanstack/react-router"
-import { PlusIcon, Trash2Icon } from "lucide-react"
+import { CheckIcon, CopyIcon, PlusIcon, Trash2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { ProfilePhoto } from "@/components/pomodoro/profile-photo"
@@ -58,9 +58,9 @@ import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
 /**
- * The "Your public page" card on Settings → Profile.
+ * The "Your public page" card, the Public page tab on Settings.
  *
- * It sits beside "Your profile" rather than inside it because the two answer
+ * It has a tab of its own rather than sitting inside "Your profile" because the two answer
  * different questions. The display name is what other members see on the
  * leaderboard and in rooms whether anything is published or not; everything
  * here is about one page on the open internet, and a card that mixes the two
@@ -89,6 +89,63 @@ type Draft = {
 
 type UploadOption = { mediaId: string; name: string; url: string }
 
+/**
+ * The live page's full address, a Copy button and the link to open it. Shown
+ * only once the page is saved and switched on, so it never leads somewhere
+ * nobody else can see yet.
+ */
+function PageAddress({ handle }: { handle: string }) {
+  const address = `${globalThis.location?.origin ?? ""}/u/${handle}`
+  const [copied, setCopied] = React.useState(false)
+  const [copyFailed, setCopyFailed] = React.useState(false)
+  const copiedTimer = React.useRef<number | null>(null)
+  React.useEffect(
+    () => () => {
+      if (copiedTimer.current !== null) clearTimeout(copiedTimer.current)
+    },
+    []
+  )
+
+  const copy = async () => {
+    setCopyFailed(false)
+    try {
+      await navigator.clipboard.writeText(address)
+      setCopied(true)
+      if (copiedTimer.current !== null) clearTimeout(copiedTimer.current)
+      copiedTimer.current = window.setTimeout(() => setCopied(false), 2_000)
+    } catch {
+      setCopyFailed(true)
+    }
+  }
+
+  return (
+    <div className="grid grid-cols-1 gap-2">
+      <p className="font-mono text-xs break-all text-muted-foreground">
+        {address}
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" variant="outline" size="sm" onClick={() => void copy()}>
+          {copied ? <CheckIcon aria-hidden="true" /> : <CopyIcon aria-hidden="true" />}
+          {copied ? "Copied" : "Copy address"}
+        </Button>
+        <Button asChild variant="outline" size="sm">
+          <Link to="/u/$handle" params={{ handle }}>
+            Open my page
+          </Link>
+        </Button>
+      </div>
+      <span className="sr-only" aria-live="polite">
+        {copied ? "Address copied" : ""}
+      </span>
+      {copyFailed ? (
+        <p className="text-xs text-muted-foreground">
+          Copying failed. The address is {address}
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
 const productLayout = getRouteApi("/_pomodoro")
 
 export default function PublicProfileSettingsPanel() {
@@ -97,6 +154,12 @@ export default function PublicProfileSettingsPanel() {
   const avatarUrl = productLayout.useLoaderData().user?.avatarUrl || null
   const router = useRouter()
   const [draft, setDraft] = React.useState<Draft | null>(null)
+  // What the server holds, as opposed to what is typed. The link to the page
+  // follows this, because a page is only live once it is saved.
+  const [saved, setSaved] = React.useState<{
+    handle: string
+    profilePublic: boolean
+  } | null>(null)
   const [hiddenAt, setHiddenAt] = React.useState<Date | string | null>(null)
   const [earnedBadgeIds, setEarnedBadgeIds] = React.useState<string[]>([])
   const [uploads, setUploads] = React.useState<UploadOption[]>([])
@@ -132,6 +195,10 @@ export default function PublicProfileSettingsPanel() {
           showRoom: profile.showRoom,
           listed: profile.listed,
           cheersEnabled: profile.cheersEnabled,
+        })
+        setSaved({
+          handle: profile.handle ?? "",
+          profilePublic: profile.profilePublic,
         })
         setHiddenAt(profile.hiddenAt)
         setEarnedBadgeIds(profile.earnedBadgeIds)
@@ -197,6 +264,10 @@ export default function PublicProfileSettingsPanel() {
       // The saved row wins over the draft: the server drops a bad address and
       // a pin for a badge nobody earned, and the card must show what is
       // actually stored rather than what was typed.
+      setSaved({
+        handle: saved.handle ?? "",
+        profilePublic: saved.profilePublic,
+      })
       change({
         handle: saved.handle ?? "",
         socialLinks: saved.socialLinks,
@@ -219,7 +290,7 @@ export default function PublicProfileSettingsPanel() {
       <CardHeader>
         <CardTitle>Your public page</CardTitle>
       </CardHeader>
-      <CardContent className="grid gap-6">
+      <CardContent className="grid grid-cols-1 gap-6">
         {/* An operator's hide is the one thing on this card the member did
             not do themselves, so it is said first and plainly. */}
         {hiddenAt ? (
@@ -246,8 +317,8 @@ export default function PublicProfileSettingsPanel() {
 
         {draft ? (
           <>
-            <section className="grid gap-4">
-              <div className="grid gap-2">
+            <section className="grid grid-cols-1 gap-4">
+              <div className="grid grid-cols-1 gap-2">
                 <FieldLabel
                   htmlFor="profile-handle"
                   hint="3 to 30 characters: lowercase letters, digits, hyphens and underscores. This is the address people will type, so changing it breaks every link to the old one."
@@ -281,22 +352,20 @@ export default function PublicProfileSettingsPanel() {
                   Publish my page at that address
                 </Label>
               </div>
-              {draft.profilePublic && handleClean && !handleBad ? (
-                <Button
-                  asChild
-                  variant="outline"
-                  size="sm"
-                  className="justify-self-start"
-                >
-                  <Link to="/u/$handle" params={{ handle: handleClean }}>
-                    Open my page
-                  </Link>
-                </Button>
+              {saved?.profilePublic &&
+              saved.handle &&
+              draft.profilePublic &&
+              handleClean === saved.handle ? (
+                <PageAddress handle={saved.handle} />
+              ) : draft.profilePublic ? (
+                <p className="text-sm text-muted-foreground">
+                  Save to publish your page.
+                </p>
               ) : null}
             </section>
 
-            <section className="grid gap-4">
-              <div className="grid gap-2">
+            <section className="grid grid-cols-1 gap-4">
+              <div className="grid grid-cols-1 gap-2">
                 <FieldLabel
                   htmlFor="profile-bio"
                   hint="A few lines about you. It is drawn as plain text, so anything that looks like markup appears as the characters you typed."
@@ -321,7 +390,7 @@ export default function PublicProfileSettingsPanel() {
               />
             </section>
 
-            <section className="grid gap-2">
+            <section className="grid grid-cols-1 gap-2">
               <FieldLabel hint="The picture on your account is the one your page shows. With no picture your page draws your coloured initials, exactly as the leaderboard does.">
                 Your picture
               </FieldLabel>
@@ -346,7 +415,7 @@ export default function PublicProfileSettingsPanel() {
               onChange={(bannerRef) => change({ bannerRef })}
             />
 
-            <section className="grid gap-3">
+            <section className="grid grid-cols-1 gap-3">
               <FieldLabel hint="Each one is off until you switch it on, and the server reads a section only when its switch is on.">
                 What your page shows
               </FieldLabel>
@@ -360,7 +429,7 @@ export default function PublicProfileSettingsPanel() {
                       change({ [section.key]: checked } as Partial<Draft>)
                     }
                   />
-                  <div className="grid gap-0.5">
+                  <div className="grid grid-cols-1 gap-0.5">
                     <Label htmlFor={`profile-${section.key}`}>
                       {section.label}
                     </Label>
@@ -372,7 +441,7 @@ export default function PublicProfileSettingsPanel() {
               ))}
             </section>
 
-            <section className="grid gap-3">
+            <section className="grid grid-cols-1 gap-3">
               <div className="flex items-start gap-2">
                 <Switch
                   id="profile-listed"
@@ -380,7 +449,7 @@ export default function PublicProfileSettingsPanel() {
                   checked={draft.listed}
                   onCheckedChange={(checked) => change({ listed: checked })}
                 />
-                <div className="grid gap-0.5">
+                <div className="grid grid-cols-1 gap-0.5">
                   <Label htmlFor="profile-listed">List me on /users</Label>
                   <span className="text-xs text-muted-foreground">
                     A second switch on purpose. Having a page and being in a
@@ -398,7 +467,7 @@ export default function PublicProfileSettingsPanel() {
                     change({ cheersEnabled: checked })
                   }
                 />
-                <div className="grid gap-0.5">
+                <div className="grid grid-cols-1 gap-0.5">
                   <Label htmlFor="profile-cheers">Let people cheer me on</Label>
                   <span className="text-xs text-muted-foreground">
                     A short line from a fixed list, from somebody who follows
@@ -460,7 +529,7 @@ function SocialLinksField({
   }
 
   return (
-    <div className="grid gap-2">
+    <div className="grid grid-cols-1 gap-2">
       <FieldLabel
         htmlFor="profile-social-url"
         hint={`Up to ${MAX_PUBLIC_SOCIAL_LINKS} accounts, each on one of the ten platforms with a mark we can draw. Every one opens in a new tab.`}
@@ -469,7 +538,7 @@ function SocialLinksField({
       </FieldLabel>
 
       {links.length ? (
-        <ul className="grid gap-1">
+        <ul className="grid grid-cols-1 gap-1">
           {links.map((link, index) => (
             <li
               key={`${link.platform}-${index}`}
@@ -555,7 +624,7 @@ function BannerField({
   onChange: (value: string | null) => void
 }) {
   return (
-    <section className="grid gap-2">
+    <section className="grid grid-cols-1 gap-2">
       <FieldLabel hint="A strip behind your name. Your page looks finished without one, so None is the default.">
         Banner
       </FieldLabel>
@@ -673,7 +742,7 @@ function PinnedBadgesField({
   }
 
   return (
-    <section className="grid gap-2">
+    <section className="grid grid-cols-1 gap-2">
       <FieldLabel
         hint={`Up to ${MAX_PINNED_BADGES} badges sit larger above the rest. The others still show in the row beneath.`}
       >

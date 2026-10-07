@@ -59,3 +59,42 @@ export function formatBytes(bytes: number) {
   }
   return `${value < 10 ? value.toFixed(1) : Math.round(value)} ${units[unit]}`
 }
+
+/** What a member calls each kind, single and plural, for the refusal line. */
+const KIND_WORDS: Record<PomodoroUploadKind, [string, string]> = {
+  image: ["picture", "Pictures"],
+  audio: ["sound", "Sounds"],
+  video: ["clip", "Clips"],
+}
+
+function kindOfMimeType(mimeType: string): PomodoroUploadKind | null {
+  const family = mimeType.split("/")[0]
+  return family === "image" || family === "audio" || family === "video"
+    ? family
+    : null
+}
+
+/**
+ * Why a picked file will not fit, or null when it might.
+ *
+ * Asked in the browser before anything is sent, so a 150 MB clip is turned away
+ * at once instead of after a minute of uploading. It is a courtesy, not the
+ * rule: the server checks the same numbers again and has the last word. A file
+ * whose type the browser could not name gets no kind check here, and the server
+ * judges it by its bytes.
+ */
+export function uploadRefusal(
+  file: { size: number; type: string },
+  spaceLeftBytes: number
+): string | null {
+  const kind = kindOfMimeType(file.type)
+  const [single, plural] = kind ? KIND_WORDS[kind] : ["file", "Files"]
+  const size = formatBytes(file.size)
+  if (kind && file.size > uploadLimitBytes(kind)) {
+    return `This ${single} is ${size}. ${plural} can be up to ${formatBytes(uploadLimitBytes(kind))}.`
+  }
+  if (file.size > spaceLeftBytes) {
+    return `This ${single} is ${size} and you have ${formatBytes(Math.max(0, spaceLeftBytes))} of space left. Delete something you no longer use first.`
+  }
+  return null
+}

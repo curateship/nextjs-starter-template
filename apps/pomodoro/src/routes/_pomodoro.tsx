@@ -6,7 +6,7 @@ import { routeErrorComponent } from "@/components/shell/route-error"
 import { loadBackgroundPreference } from "@/lib/api/pomodoro/backgrounds"
 import { loadAccountMenu } from "@/lib/api/pomodoro/profile"
 import { loadShellBootstrap } from "@/lib/api/shell"
-import { setProductAuthenticated } from "@/lib/pomodoro/auth-state"
+import { setProductAccount } from "@/lib/pomodoro/auth-state"
 import { maybeImportGuestState } from "@/lib/pomodoro/guest-import"
 import { reloadPomodoroData } from "@/lib/pomodoro/use-pomodoro"
 
@@ -55,18 +55,18 @@ export const Route = createFileRoute("/_pomodoro")({
 
 function PomodoroLayout() {
   const { user, accountMenu, savedBackground, bell } = Route.useLoaderData()
-  const authenticated = Boolean(user)
 
   // The engines read this one fact instead of asking the server (which
   // would 401 for guests); the guest import runs after it is set so the
   // freshly imported tasks are what the reload fetches.
+  const accountEmail = user?.email ?? null
   React.useEffect(() => {
-    setProductAuthenticated(authenticated)
-    if (authenticated)
+    setProductAccount(accountEmail)
+    if (accountEmail)
       void maybeImportGuestState().then((imported) => {
         if (imported) void reloadPomodoroData()
       })
-  }, [authenticated])
+  }, [accountEmail])
 
   return (
     <PomodoroShell

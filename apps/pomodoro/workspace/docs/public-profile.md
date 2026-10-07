@@ -206,11 +206,20 @@ could put a Join button on a room that refuses the join.
 
 ## Where it is edited
 
-Settings → Profile, in a card called "Your public page", below the card
-holding the display name. Two cards rather than one: the display name is what
-other members see on the leaderboard and in rooms whether anything is
-published or not, and everything in the second card is about one page on the
-open internet. A card mixing the two cannot be read at a glance.
+Settings → Public page, in a card called "Your public page". It has its own tab
+rather than sharing one with the display name: the display name is what other
+members see on the leaderboard and in rooms whether anything is published or
+not, and everything on this card is about one page on the open internet. A card
+mixing the two cannot be read at a glance.
+
+**The address and Open my page follow what is saved, not what is typed.** Once
+the saved row is published with a handle, the card shows the full address
+(`https://<this site>/u/sarah`), a Copy address button and Open my page. Copy
+says "Copied" for two seconds; if the browser refuses the clipboard, the
+address is written out to copy by hand. While the switch or the handle on the
+card differs from what is saved, the card says "Save to publish your page."
+instead. The link used to follow the unsaved switch, so it opened a page that
+was not live yet (`public-profile-settings-panel.tsx`, `PageAddress`).
 
 ## It draws in the app's own layout, not the shell's
 

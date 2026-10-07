@@ -28,6 +28,8 @@ export const GENERATION_COPY: Record<
     description: string
     placeholder: string
     suggestions: readonly string[]
+    /** Said to a member when no provider is set up. Operator wording lives in admin. */
+    notSwitchedOn: string
   }
 > = {
   background: {
@@ -40,6 +42,7 @@ export const GENERATION_COPY: Record<
       "Sunlit library with dust motes",
       "Spaceship window over Earth",
     ],
+    notSwitchedOn: "AI backgrounds are not switched on yet.",
   },
   soundscape: {
     title: "Generate your own",
@@ -51,6 +54,7 @@ export const GENERATION_COPY: Record<
       "Quiet café with jazz in the background",
       "Ocean waves at midnight",
     ],
+    notSwitchedOn: "AI soundscapes are not switched on yet.",
   },
 }
 

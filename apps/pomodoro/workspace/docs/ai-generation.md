@@ -17,9 +17,25 @@ says why:
 - A guest is told to sign in on a Pro plan.
 - A free account is told AI generation is a Pro perk.
 - **A server with no provider key says so plainly** rather than taking the
-  request and failing a minute later: "AI generation is not set up on this
-  server yet. An operator needs to add the provider key under Settings → AI."
+  request and failing a minute later: "AI backgrounds are not switched on yet."
+  or "AI soundscapes are not switched on yet." A member cannot reach the
+  provider settings, so the line no longer tells them about operators and
+  keys. Operators see the keys on Settings → AI in the admin.
 - A member who has used the month's allowance is told when the next lot arrives.
+
+**A prompt that is too short does not grey the button out.** Prompts need 5
+characters (`PROMPT_MIN_LENGTH` in `src/lib/pomodoro/generation.ts`). Pressing
+Generate on fewer says "Describe it in a few more words." under the box, marks
+the box `aria-invalid`, and sends nothing. Typing clears the line. The button
+used to go grey with no reason at all, the one shut control in the product that
+did not say why.
+
+**A failed line has Try again.** Pressing it puts that line's prompt back in the
+box, replacing whatever was there, and moves the cursor into it. It does not
+send on its own; Generate still does that. A failed generation is refunded, so
+the only cost of trying again was retyping it. Lines that worked or are still
+running have no button, and neither does a failed line while the box is shut
+(a free plan or no provider), because the words would have nowhere to go.
 
 ## The credit rule
 

@@ -6,7 +6,7 @@ shows.
 
 ## Switching it on
 
-Settings → Profile → Streak badge. Off until you switch it on, and the
+Settings → Privacy → Streak badge. Off until you switch it on, and the
 address only exists while it is on.
 
 Switching it on writes a secret into your profile row and gives you an

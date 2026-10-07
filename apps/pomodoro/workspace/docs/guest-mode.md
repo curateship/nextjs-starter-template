@@ -8,10 +8,15 @@ need an account, like History's data), and the product header shows Log in
 
 ## How it is wired
 
-- **One fact, set once:** the layout tells
-  `src/lib/pomodoro/auth-state.ts` whether the visitor is signed in, and
-  every engine (timer, sound, background) reads it instead of calling the
-  server and getting a 401.
+- **One fact, set by the layout:** the layout tells
+  `src/lib/pomodoro/auth-state.ts` which account is signed in, by email, or
+  none for a guest (`setProductAccount`). Every engine (timer, sound,
+  background) reads it instead of calling the server and getting a 401.
+- **Switching accounts starts the engines over.** Signing in does not reload
+  the page, so the fact is the account and not only "signed in or not". When
+  it was only a yes or no, logging out and straight back in as somebody else
+  in the same tab changed nothing, and a free account kept the previous
+  admin's Pro scenes and sounds unlocked until a reload.
 - **Guest storage** (`src/lib/pomodoro/guest-storage.ts`) wraps every read
   and write, so blocked storage (private windows, cleared site data) never
   breaks the page — it just means a fresh start. Keys:

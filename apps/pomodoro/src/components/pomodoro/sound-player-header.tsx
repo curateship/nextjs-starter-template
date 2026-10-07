@@ -1,13 +1,15 @@
 import * as React from "react"
+import { Link } from "@tanstack/react-router"
 import {
   Loader2Icon,
   MoonIcon,
   PauseIcon,
   PlayIcon,
+  PowerIcon,
   Volume2Icon,
   VolumeXIcon,
-  XIcon,
 } from "lucide-react"
+import { toast } from "sonner"
 
 import { quickPillClass } from "@/components/pomodoro/quick-controls-header"
 import { Button } from "@/components/ui/button"
@@ -194,15 +196,32 @@ function VolumeSlider({
   )
 }
 
+/**
+ * Turns the sound off for good: the choice is forgotten and the player goes.
+ * It used to be an X labelled "Stop sound", which read as a pause, so the
+ * toast after it says where to pick a sound again.
+ */
 function StopButton({ player }: { player: Player }) {
   return (
     <Button
       variant="ghost"
       size="icon-sm"
-      onClick={player.clearSound}
-      aria-label="Stop sound"
+      onClick={() => {
+        player.clearSound()
+        toast.success(
+          <span>
+            Sound off. Pick one again on{" "}
+            <Link to="/sounds" className="underline underline-offset-2">
+              Sounds
+            </Link>
+            .
+          </span>
+        )
+      }}
+      aria-label="Turn sound off"
+      title="Turn sound off"
     >
-      <XIcon aria-hidden="true" />
+      <PowerIcon aria-hidden="true" />
     </Button>
   )
 }
