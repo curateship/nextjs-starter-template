@@ -71,6 +71,19 @@ import { useAppliedDark } from "@/lib/pomodoro/use-applied-dark"
  * dark; the toggle still offers light.
  */
 
+/**
+ * The quick pills' glass, put on the shell's bell button from outside it: a
+ * 36px circle with the same border, fill and hover as `quickPillClass`, and
+ * the same 18px icon. Each class reaches the button through `[&>button]`,
+ * because the button is the shell's and only its wrapper belongs to this app.
+ * Written out in full rather than built from `quickPillSurfaceClass`, because
+ * Tailwind only generates classes it can read in the source. The hover is
+ * marked important because the shell button's own dark-mode hover is the more
+ * specific rule and otherwise turns it muted grey.
+ */
+const bellPillClass =
+  "contents [&>button]:size-9 [&>button]:rounded-full [&>button]:border [&>button]:border-border [&>button]:bg-[rgba(var(--p-fg-rgb),0.07)] [&>button]:backdrop-blur-[12px] [&>button]:hover:bg-[rgba(var(--p-fg-rgb),0.16)]! [&>button_svg]:size-[18px]"
+
 const NAV_LINKS = [
   { to: "/timer", label: "Dashboard", icon: LayoutDashboardIcon },
   { to: "/rooms", label: "Rooms", icon: Users2Icon },
@@ -467,37 +480,59 @@ export function PomodoroShell({
             pageGutterClass
           )}
         >
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="lg:hidden"
-            onClick={() => setMenuOpen(true)}
-            aria-label="Open menu"
-          >
-            <MenuIcon aria-hidden="true" />
-          </Button>
-          <Link
-            to="/timer"
-            className="whitespace-nowrap text-[21px] font-bold tracking-tight max-sm:hidden"
-          >
-            pomoder<span className="text-[var(--p-accent)]">.</span>
-          </Link>
-          <div className="mx-auto flex items-center gap-2.5">
-            <QuickControlsHeader />
-            <SoundPlayerHeader />
+          {/* The left and right groups grow from nothing at the same rate,
+              so the quick pills between them sit in the middle of the header,
+              over the ring. Tyler, 7 Oct 2026: "the 3 tabs in should align to
+              the middle". A group never shrinks below what it holds, so when
+              the right one is wider than half the spare room the pills move
+              left only as far as they must. This starts at 1440px, the
+              narrowest window where a guest's row with a sound playing (the
+              widest the row gets) fits on one line. Narrower, the row can wrap,
+              and a growing left group would push the pills to the right end
+              of the first line, so there they sit in the middle of the room
+              left over instead (`mx-auto`), as before. */}
+          <div className="flex items-center gap-2 md:gap-6 min-[1440px]:flex-1 min-[1440px]:basis-0">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="lg:hidden"
+              onClick={() => setMenuOpen(true)}
+              aria-label="Open menu"
+            >
+              <MenuIcon aria-hidden="true" />
+            </Button>
+            <Link
+              to="/timer"
+              className="whitespace-nowrap text-[21px] font-bold tracking-tight max-sm:hidden"
+            >
+              pomoder<span className="text-[var(--p-accent)]">.</span>
+            </Link>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="mx-auto flex items-center gap-2.5 min-[1440px]:mx-0">
+            <QuickControlsHeader />
+          </div>
+          {/* Nothing in this group shrinks: squeezed, "Log in" broke over two
+              lines and the colour switch lost its width. */}
+          <div className="flex items-center justify-end gap-3 *:shrink-0 min-[1440px]:flex-1 min-[1440px]:basis-0">
+            {/* On the right with the other things that are about you rather
+                than about the timer. Tyler moved it here on 7 Oct 2026. */}
+            <SoundPlayerHeader />
             <ThemeTogglePill />
             {user ? (
               <>
                 {/* The shell's own bell and tray, just left of the photo, where
                     Tyler asked for it on 6 Oct 2026. Admins also get the tray's
-                    two links to the admin's notice screens. */}
-                <NotificationCenter
-                  initialUnseenCount={bell.unseen}
-                  live={bell.live}
-                  canOpenSettings={user.role === "admin"}
-                />
+                    two links to the admin's notice screens. The bell is the
+                    shell's button, so the quick buttons' glassy round pill is
+                    put on it from here rather than in the shell's file; Tyler
+                    asked for the bell in the buttons' styling on 7 Oct 2026. */}
+                <span className={bellPillClass}>
+                  <NotificationCenter
+                    initialUnseenCount={bell.unseen}
+                    live={bell.live}
+                    canOpenSettings={user.role === "admin"}
+                  />
+                </span>
                 <AccountMenu user={user} facts={accountMenu} />
               </>
             ) : (

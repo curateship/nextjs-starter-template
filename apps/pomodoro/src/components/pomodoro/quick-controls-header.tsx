@@ -73,18 +73,28 @@ const modeLabels: Array<[TimerMode, string]> = [
  * controls work identically on every page.
  */
 /**
- * The old app's glassy header pill, at the rulebook's 32px control height so
- * the row of them lines up with the colour-mode switcher and the Register
- * button beside it. It was 42px, which is not one of the four allowed
- * heights, and the switcher next to it was 32px.
+ * The glassy round surface every header control is drawn on: the quick pills,
+ * the sound player and the notification bell. One string, so the three cannot
+ * drift into three shades of glass.
+ */
+export const quickPillSurfaceClass =
+  "rounded-full border bg-[rgba(var(--p-fg-rgb),0.07)] backdrop-blur-[12px]"
+
+/** The surface's hover, for the parts of it that are buttons. */
+const quickPillHoverClass = "hover:bg-[rgba(var(--p-fg-rgb),0.16)]"
+
+/**
+ * The old app's glassy header pill, 36px tall with 15px words and an 18px
+ * icon. Tyler asked for the header's buttons 10% larger on 7 Oct 2026; they
+ * were 32px with 13.5px words, and 36px is the nearest of the four heights the
+ * rulebook allows.
  *
  * Narrow, the label inside it is hidden and the padding goes even, so the pill
- * is the icon in a circle rather than an icon pushed to one side of a pill with
- * a hole where the words were. Every one of these buttons carries its own
- * `aria-label`, so hiding the words costs the button no name.
+ * is the icon in a 36px circle rather than an icon pushed to one side of a
+ * pill with a hole where the words were. Every one of these buttons carries
+ * its own `aria-label`, so hiding the words costs the button no name.
  */
-export const quickPillClass =
-  "flex h-8 items-center gap-2 whitespace-nowrap rounded-full border bg-[rgba(var(--p-fg-rgb),0.07)] py-0 pl-3 pr-3.5 text-[13.5px] font-semibold text-foreground backdrop-blur-[12px] hover:bg-[rgba(var(--p-fg-rgb),0.16)] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none max-md:px-2.5"
+export const quickPillClass = `flex h-9 items-center gap-2 whitespace-nowrap ${quickPillSurfaceClass} ${quickPillHoverClass} py-0 pl-3.5 pr-4 text-[15px] font-semibold text-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none max-md:px-2`
 
 /**
  * A pill's words: on from 768px up, gone below it.
@@ -203,7 +213,7 @@ function TimerQuickControl() {
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button className={quickPillClass} aria-label="Timer quick controls">
-          <Clock3Icon className="size-[17px]" aria-hidden="true" />
+          <Clock3Icon className="size-[18px]" aria-hidden="true" />
           {pomodoro.timer.running || !pomodoro.timerIdle ? (
             <span className="font-mono text-xs tabular-nums">{countdown}</span>
           ) : (
@@ -479,7 +489,7 @@ function LeaderboardQuickControl() {
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button className={quickPillClass} aria-label="Leaderboard">
-          <BarChart3Icon className="size-[17px]" aria-hidden="true" />
+          <BarChart3Icon className="size-[18px]" aria-hidden="true" />
           <QuickPillLabel>Leaderboard</QuickPillLabel>
         </button>
       </PopoverTrigger>
@@ -570,7 +580,7 @@ function ThemeQuickControl() {
     <Popover>
       <PopoverTrigger asChild>
         <button className={quickPillClass} aria-label="Theme quick controls">
-          <PaletteIcon className="size-[17px]" aria-hidden="true" />
+          <PaletteIcon className="size-[18px]" aria-hidden="true" />
           <QuickPillLabel>Theme</QuickPillLabel>
         </button>
       </PopoverTrigger>

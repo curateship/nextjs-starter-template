@@ -14,7 +14,9 @@ bottom:
   top says where the cycle is ("Session 1 of 4"). Under it the time sits in
   large white mono digits. Then comes the orange Start pill between Reset and
   Zen mode, and at the bottom the "Space to start" hint.
-- **The mode tabs sit under the ring, larger than any other tab row.** The
+- **The mode tabs sit 40px under the ring, larger than any other tab row.**
+  The 40px is Tyler's "add some spacing here", 7 Oct 2026; the rest of the
+  column is 24px apart. The
   strip is 48px tall and fully round, and each tab is 36px with 16px words.
   Tyler, 7 Oct 2026: "the focus, short break, long break tabs should be large
   like the screenshot." They are the screen's main switch, so they are the one

@@ -148,9 +148,11 @@ one every time the real one changes, which is what the list below fixed.
 
 What moved, and what it was:
 
-- **The header's glassy quick pills** were 42px and are 32px
-  (`quick-controls-header.tsx`, `quickPillClass`). The colour-mode control
-  beside them was already 32px, so the row stepped up and down.
+- **The header's glassy quick pills** were 42px, then 32px, and are 36px
+  since Tyler asked for them 10% larger on 7 Oct 2026
+  (`quick-controls-header.tsx`, `quickPillClass`; see
+  [the product shell](product-shell.md)). The colour-mode toggle, the
+  account photo and Register are still 32px.
 - **Register** was 41px, built from `px-[22px] py-[11px]`, and is the shared
   `Button` at its 32px default with only the orange on top.
 - **The colour-mode toggle keeps its own moon-and-sun pill** and was not

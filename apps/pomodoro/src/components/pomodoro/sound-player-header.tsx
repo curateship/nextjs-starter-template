@@ -11,7 +11,10 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
-import { quickPillClass } from "@/components/pomodoro/quick-controls-header"
+import {
+  quickPillClass,
+  quickPillSurfaceClass,
+} from "@/components/pomodoro/quick-controls-header"
 import { Button } from "@/components/ui/button"
 import {
   Popover,
@@ -30,11 +33,15 @@ import { useSoundPlayer } from "@/lib/pomodoro/use-sound-player"
 type Player = ReturnType<typeof useSoundPlayer>
 
 /**
- * The sound player in the header (a shell header.rightActions item), ported
- * from the old app: play/pause the ambient loop, its name, mute, a volume
- * slider, the sleep timer, and stop. The audio itself lives in the
- * module-level engine, so it keeps playing while pages change; this control
- * draws nothing while no sound is selected.
+ * The sound player in the header, ported from the old app: play/pause the
+ * ambient loop, its name, mute, a volume slider, the sleep timer, and stop.
+ * The audio itself lives in the module-level engine, so it keeps playing while
+ * pages change; this control draws nothing while no sound is selected.
+ *
+ * It sits in the header's right-hand group, on the same glassy pill as the
+ * quick buttons. Tyler, 7 Oct 2026: "Move the audio player to the right. Make
+ * sure the audio player uses the same ui styling as the button." The pill is
+ * the 36px of a quick button, holding 28px controls.
  */
 export default function SoundPlayerHeader() {
   const player = useSoundPlayer()
@@ -48,7 +55,16 @@ export default function SoundPlayerHeader() {
   if (narrow && state.selected) return <CollapsedPlayer player={player} />
 
   return (
-    <div className="flex items-center gap-1.5">
+    <div
+      // The quick buttons' round pill and border, with a lighter fill and
+      // blur so more of the background shows through. Tyler, 7 Oct 2026:
+      // "make the audio player more transparent".
+      className={cn(
+        "flex h-9 items-center gap-1 px-1 text-foreground",
+        quickPillSurfaceClass,
+        "bg-[rgba(var(--p-fg-rgb),0.03)] backdrop-blur-[4px]"
+      )}
+    >
       {state.selected ? (
         <>
           <PlayPauseButton player={player} />
@@ -82,7 +98,7 @@ function CollapsedPlayer({ player }: { player: Player }) {
           className={quickPillClass}
           aria-label={`Sound ${statusWord(state.status)}: ${state.label}`}
         >
-          <PlayerStatusIcon player={player} className="size-[17px]" />
+          <PlayerStatusIcon player={player} className="size-[18px]" />
         </button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-64 gap-3 p-4">
@@ -148,7 +164,9 @@ function PlayPauseButton({ player }: { player: Player }) {
 function SoundName({ player }: { player: Player }) {
   return (
     <span
-      className="max-w-28 truncate text-xs font-semibold"
+      // Never squeezed to nothing when the header is tight; the header wraps
+      // instead. Over 128px it ends in an ellipsis.
+      className="max-w-32 shrink-0 truncate text-[15px] font-semibold"
       title={player.state.label ?? undefined}
     >
       {player.state.label}
@@ -247,7 +265,9 @@ function SleepTimerControl({ player }: { player: Player }) {
       <PopoverTrigger asChild>
         <Button
           variant={sleepTimer ? "outline" : "ghost"}
-          size="sm"
+          // A circle like its neighbours until a timer runs, when it widens
+          // to hold the time left.
+          size={remaining ? "sm" : "icon-sm"}
           aria-label={
             remaining ? `Sleep timer, ${remaining} remaining` : "Set a sleep timer"
           }

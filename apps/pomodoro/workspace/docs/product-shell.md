@@ -5,9 +5,10 @@ side: the `_pomodoro` layout route (`src/routes/_pomodoro.tsx`) wraps
 every product page in `src/components/pomodoro/pomodoro-shell.tsx` — the
 translucent blurred sidebar of pill links (Dashboard, Rooms, Pricing,
 Theme, Sounds, Leaderboard, History, Tasks; Settings at the foot), the
-transparent sticky header (brand, the glassy Timer / Leaderboard / Theme
-pills, the sound player, the moon-knob colour toggle, Log in + orange
-Register or [the bell](notifications.md) and [the account menu](account-menu.md)),
+transparent sticky header (brand; the glassy Timer / Leaderboard / Theme
+pills in the middle; then on the right the sound player, the moon-knob colour
+toggle, and Log in + orange Register or [the bell](notifications.md) and
+[the account menu](account-menu.md)),
 and the chosen scene as a 720px hero
 that fades into the canvas on every edge. Pages overlap the hero's lower
 half (the shell's -mt-40), which is what makes the timer ring float on
@@ -31,6 +32,38 @@ any CSS transition on the knob is caught by that rule and never plays. The
 rule says nothing about animations, so a keyframe animation still runs.
 That file belongs to the shell and is never edited from here, which is why
 the knob works around it rather than turning the rule off.
+
+## The header's controls
+
+Tyler set these on 7 Oct 2026: "Increase the button size for the navigation by
+10%. Move the audio player to the right. Make sure the audio player uses the
+same ui styling as the button. The notification bell as well", then "the 3
+tabs in should align to the middle" and "make the audio player more
+transparent".
+
+- **The three pills are 36px tall** with 15px words and an 18px icon. They were
+  32px, 13.5px and 17px. 36px is the nearest of the four allowed heights to
+  10% larger. `quickPillClass` in `quick-controls-header.tsx`.
+- **Every header control is drawn on one glass.** `quickPillSurfaceClass` is the
+  round shape, the border, the faint fill and the blur, shared by the pills, the
+  sound player and the bell.
+- **The sound player is one 36px pill on the right**, before the colour toggle,
+  holding its 28px controls. Its fill and blur are lighter than the pills', so
+  more of the picture shows through it.
+- **The bell is a 36px glass circle.** The button is the shell's
+  `NotificationCenter`, which this app never edits, so the classes reach it
+  from a wrapper in `pomodoro-shell.tsx` (`bellPillClass`, written out in full
+  because Tailwind only builds classes it can read in the source).
+- **The pills sit in the middle of the header, over the ring, from 1440px
+  up.** The groups either side of them grow at the same rate, so the pills are
+  centred whenever the right-hand group fits in half of the room left over.
+  With a sound playing it is wider than that below about 1900px, and the pills
+  sit left of centre only as far as they must: 52px at 1600px and 132px at
+  1440px, measured as a guest with a sound playing. Below 1440px the row can
+  wrap, so the pills sit in the middle of the space between the brand and the
+  right-hand group instead.
+- **Nothing in the right-hand group shrinks.** Squeezed, "Log in" broke over
+  two lines and the colour switch lost its width.
 
 ## Collapsing the sidebar
 

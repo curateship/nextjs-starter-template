@@ -118,7 +118,13 @@ function ModeTabs({
   onSelect: (mode: TimerMode) => void
 }) {
   return (
-    <Tabs value={mode} onValueChange={(value) => onSelect(value as TimerMode)}>
+    // 16px more room under the ring than the column's 24px gap, which Tyler
+    // asked for on 7 Oct 2026 ("add some spacing here").
+    <Tabs
+      value={mode}
+      onValueChange={(value) => onSelect(value as TimerMode)}
+      className="mt-4"
+    >
       {/* Larger and rounder than every other tab row, on Tyler's word on
           7 Oct 2026: "the focus, short break, long break tabs should be large
           like the screenshot". These three are the screen's main switch, not
