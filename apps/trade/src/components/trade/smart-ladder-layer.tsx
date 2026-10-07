@@ -541,6 +541,17 @@ function PreviewLines({
         />
       ) : null}
 
+      {preview.averageExitPct != null ? (
+        <AverageExitLine
+          pct={preview.averageExitPct}
+          rungs={shownRungs}
+          colors={colors}
+          yFor={yFor}
+          controls={controls}
+          faded={!placed}
+        />
+      ) : null}
+
       {shownExitLevels.map((px, index) => {
         const y = yFor(px)
         if (y === null) return null
@@ -665,6 +676,12 @@ function LadderLines({
   // from the plan. Once rung 1 buys, the position's own target line takes over.
   const firstRungExit =
     plan.takeProfit?.mode === "firstRung" && !plan.marketBuyFirst && !bought
+  // The same for "At the average price": until a buy sets a real average, the
+  // line sits where the sell would land if every rung bought.
+  const averageExitPct =
+    plan.takeProfit?.mode === "average" && !bought
+      ? (plan.takeProfit.pct ?? null)
+      : null
 
   // Whole-ladder controls sit after the final rung instead of covering the
   // anchor. In exit-ladder mode the anchor is Exit 1, and the exit line already
@@ -736,6 +753,7 @@ function LadderLines({
                 ? (plan.takeProfit.exitGapPct ?? 0)
                 : null,
             firstRungExit,
+            averageExitPct,
             onMoveExit: (exitIndex, exitPx) =>
               onReshapeLadder?.(ladder, { exitIndex, exitPx }) ?? false,
             onMove: (anchorPx) =>
@@ -849,6 +867,21 @@ function LadderLines({
         />
       ) : null}
 
+      {!shapeMoves && averageExitPct !== null ? (
+        <AverageExitLine
+          pct={averageExitPct}
+          // A skipped or cancelled rung will never buy, so it never moves the
+          // average.
+          rungs={plan.rungs
+            .filter((rung) => rung.status === "waiting")
+            .map((rung) => ({ px: rung.px, dollars: rung.px * rung.sz }))}
+          colors={colors}
+          yFor={yFor}
+          controls={controls}
+          faded={false}
+        />
+      ) : null}
+
       {!shapeMoves && !bought && settledSummaryY !== null ? (
         <div
           data-dca-ladder-summary
@@ -949,10 +982,7 @@ function LadderLines({
 function FirstRungExitLine({
   px,
   rungs,
-  colors,
-  yFor,
-  controls,
-  faded,
+  ...line
 }: {
   px: number
   rungs: readonly { px: number; dollars: number }[]
@@ -961,13 +991,85 @@ function FirstRungExitLine({
   controls: "none" | "auto"
   faded: boolean
 }) {
-  const y = yFor(px)
   const first = rungs[0]
-  if (y === null || !first || !(first.px > 0)) return null
+  if (!first || !(first.px > 0)) return null
   const profit = (px - first.px) * (first.dollars / first.px)
   return (
+    <PlannedExitLine
+      {...line}
+      px={px}
+      kind="data-dca-first-rung-exit"
+      label="Sell everything above first rung"
+      title={`Everything the ladder buys sells here, at ${formatPrice(px)}, however many rungs fill. If only rung 1 buys, that sell makes ${formatSignedUsd(profit)} before fees.`}
+    />
+  )
+}
+
+/**
+ * Where "At the average price" will sell if every rung buys, drawn before
+ * anything has bought. The average is weighted by coins, so a $500 rung pulls
+ * it twice as hard as a $250 one. Fewer buys leave the average higher, and the
+ * real sell moves up with it.
+ */
+function AverageExitLine({
+  pct,
+  rungs,
+  ...line
+}: {
+  pct: number
+  rungs: readonly { px: number; dollars: number }[]
+  colors: ChartColors
+  yFor: (price: number) => number | null
+  controls: "none" | "auto"
+  faded: boolean
+}) {
+  let dollars = 0
+  let coins = 0
+  for (const rung of rungs) {
+    if (!(rung.px > 0)) continue
+    dollars += rung.dollars
+    coins += rung.dollars / rung.px
+  }
+  if (!(coins > 0)) return null
+  const averagePx = dollars / coins
+  const px = averagePx * (1 + pct / 100)
+  const profit = (px - averagePx) * coins
+  return (
+    <PlannedExitLine
+      {...line}
+      px={px}
+      kind="data-dca-average-exit"
+      label={`Sell at average +${Number(pct.toFixed(2))}%`}
+      title={`If every rung buys, the average buy is ${formatPrice(averagePx)}, so everything sells here at ${formatPrice(px)} and makes ${formatSignedUsd(profit)} before fees. Fewer buys leave the average higher, and the sell moves up with it.`}
+    />
+  )
+}
+
+/** One dashed red sell line with its tag, for an exit that has not bought yet. */
+function PlannedExitLine({
+  px,
+  kind,
+  label,
+  title,
+  colors,
+  yFor,
+  controls,
+  faded,
+}: {
+  px: number
+  kind: "data-dca-first-rung-exit" | "data-dca-average-exit"
+  label: string
+  title: string
+  colors: ChartColors
+  yFor: (price: number) => number | null
+  controls: "none" | "auto"
+  faded: boolean
+}) {
+  const y = yFor(px)
+  if (y === null) return null
+  return (
     <div
-      data-dca-first-rung-exit
+      {...{ [kind]: "" }}
       className={cn("absolute inset-x-0", faded && "opacity-40")}
       style={{ top: y }}
     >
@@ -983,9 +1085,9 @@ function FirstRungExitLine({
           color: colors.down,
           pointerEvents: controls,
         }}
-        title={`Everything the ladder buys sells here, at ${formatPrice(px)}, however many rungs fill. If only rung 1 buys, that sell makes ${formatSignedUsd(profit)} before fees.`}
+        title={title}
       >
-        Sell everything above first rung
+        {label}
       </span>
     </div>
   )

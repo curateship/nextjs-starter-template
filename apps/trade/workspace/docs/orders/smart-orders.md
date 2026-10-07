@@ -326,6 +326,20 @@ clicked or base anchor as Exit 1. Exit 1 is the
 first level above Rung 1, not a second step above it. Later exits continue
 upward using the gaps between the remaining buy rungs.
 
+**"At the average price" also shows its sell before anything buys** (Tyler,
+6 Oct 2026). A red line labelled "Sell at average +X%" sits where the sell
+would land if every rung bought, faded in the placement preview and solid once
+placed. Take rungs at $100 and $50 with $250 each.
+
+- **The average counts coins, not prices:** $250 buys 2.5 coins at $100 and 5
+  coins at $50. That is 7.5 coins for $500, a $66.67 average.
+- **The line sits the exit percent above that:** at 10% it is drawn at
+  $73.33, and its tooltip says the sell makes +$50.00 before fees.
+- **Fewer buys sell higher:** if only the $100 rung buys, the real sell is
+  $110. The line shows the lowest the sell can sit.
+- **The line goes once anything buys.** From then the position's own target
+  line shows the real average and its sell.
+
 **"Sell everything above first rung" never moves its sell** (Tyler, 6 Oct 2026).
 The sell sits one rung above rung 1, at the price the ladder hangs off, so
 rung 1 alone still sells at a profit. Take a ladder hung off $100 with rungs at
