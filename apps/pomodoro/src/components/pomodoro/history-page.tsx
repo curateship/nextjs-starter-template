@@ -14,6 +14,7 @@ import {
 } from "@/components/pomodoro/focus-heatmap"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { ErrorRow } from "@/components/ui/error-row"
 import {
   ChartContainer,
   ChartTooltip,
@@ -30,6 +31,7 @@ import {
 } from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
+import { formatLongDay, formatShortDay } from "@/lib/format/calendar-day"
 import {
   exportFocusHistory,
   loadFocusHistory,
@@ -47,13 +49,19 @@ import {
 } from "@/lib/pomodoro/focus-history"
 import { useProductAuth } from "@/lib/pomodoro/auth-state"
 import { browserTimezone } from "@/lib/pomodoro/timer"
+import { dismissErrorToast } from "@/lib/toast/error-toast"
 
 type FocusHistoryResult = Awaited<ReturnType<typeof loadFocusHistory>>
 type ReportDay = FocusHistoryResult["days"][number]
 type WeekReview = Awaited<ReturnType<typeof loadFocusWeekReview>>
 
-function dayLabel(localDate: string, options: Intl.DateTimeFormatOptions) {
-  return new Date(`${localDate}T12:00:00`).toLocaleDateString(undefined, options)
+// A chart's tick under one bar: "Tue", "6" or "Oct". Not a date on its own,
+// so it is not one of the two forms in `calendar-day.ts`.
+function axisTick(localDate: string, options: Intl.DateTimeFormatOptions) {
+  return new Date(`${localDate}T12:00:00Z`).toLocaleDateString("en-US", {
+    ...options,
+    timeZone: "UTC",
+  })
 }
 
 // Fills calendar gaps so charts and the heatmap show honest zero days
@@ -145,7 +153,12 @@ function DayTable({
           .filter((day) => day.focusSessions > 0)
           .map((day) => (
             <tr key={day.localDate}>
-              <th scope="row">{day.localDate}</th>
+              <th scope="row">
+                {/* A month row's key is "2026-10", which is not a day. */}
+                {day.localDate.length === 10
+                  ? formatLongDay(day.localDate)
+                  : day.localDate}
+              </th>
               <td>{formatFocusDuration(day.focusSeconds)}</td>
               <td>{day.focusSessions}</td>
             </tr>
@@ -170,7 +183,7 @@ function TrendCard({
   const bars = monthly
     ? aggregateMonths(days).map((month) => ({
         key: month.key,
-        label: dayLabel(`${month.key}-15`, { month: "short" }),
+        label: axisTick(`${month.key}-15`, { month: "short" }),
         focusMinutes: Math.round(month.focusSeconds / 60),
         focusSessions: month.focusSessions,
       }))
@@ -178,8 +191,8 @@ function TrendCard({
         key: day.localDate,
         label:
           range === "7d"
-            ? dayLabel(day.localDate, { weekday: "short" })
-            : dayLabel(day.localDate, { day: "numeric" }),
+            ? axisTick(day.localDate, { weekday: "short" })
+            : axisTick(day.localDate, { day: "numeric" }),
         focusMinutes: Math.round(day.focusSeconds / 60),
         focusSessions: day.focusSessions,
       }))
@@ -350,12 +363,16 @@ function WeekReviewCard() {
   const [review, setReview] = React.useState<WeekReview | null>(null)
   const [error, setError] = React.useState("")
   const [loading, setLoading] = React.useState(true)
+  // Bumped by Try again, which runs the same load once more.
+  const [attempt, setAttempt] = React.useState(0)
 
   React.useEffect(() => {
     let live = true
     loadFocusWeekReview(browserTimezone())
       .then((result) => {
-        if (live) setReview(result)
+        if (!live) return
+        setError("")
+        setReview(result)
       })
       .catch(() => {
         if (live) setError("Your week could not be loaded.")
@@ -366,7 +383,7 @@ function WeekReviewCard() {
     return () => {
       live = false
     }
-  }, [])
+  }, [attempt])
 
   return (
     <Card>
@@ -374,8 +391,8 @@ function WeekReviewCard() {
         <CardTitle>Your week</CardTitle>
         {review ? (
           <span className="text-xs text-muted-foreground">
-            {dayLabel(review.weekStart, { month: "short", day: "numeric" })} –{" "}
-            {dayLabel(review.endDate, { month: "short", day: "numeric" })}
+            {formatShortDay(review.weekStart)} –{" "}
+            {formatShortDay(review.endDate)}
           </span>
         ) : null}
       </CardHeader>
@@ -390,9 +407,15 @@ function WeekReviewCard() {
           </span>
         ) : null}
         {error ? (
-          <p role="alert" className="text-sm text-destructive">
-            {error}
-          </p>
+          <ErrorRow
+            message={error}
+            onRetry={() => {
+              dismissErrorToast()
+              setError("")
+              setLoading(true)
+              setAttempt((count) => count + 1)
+            }}
+          />
         ) : null}
         {review ? (
           <>
@@ -413,11 +436,7 @@ function WeekReviewCard() {
                 label="Best day"
                 value={
                   review.bestDay
-                    ? dayLabel(review.bestDay.localDate, {
-                        weekday: "long",
-                        day: "numeric",
-                        month: "short",
-                      })
+                    ? formatLongDay(review.bestDay.localDate)
                     : "No focus yet this week"
                 }
                 hint={
@@ -623,11 +642,7 @@ function SessionsCard({
               {sessions.rows.map((session) => (
                 <TableRow key={session.id}>
                   <TableCell>
-                    {dayLabel(session.localDate, {
-                      weekday: "short",
-                      month: "short",
-                      day: "numeric",
-                    })}
+                    {formatLongDay(session.localDate)}
                   </TableCell>
                   <TableCell className="font-mono text-xs">
                     {session.localTime}
@@ -779,7 +794,7 @@ export function HistoryPage() {
   const today = report?.endDate ?? ""
   const rangeSummary =
     report && !rangeLocked
-      ? `${dayLabel(report.startDate, { month: "short", day: "numeric" })} – ${dayLabel(report.endDate, { month: "short", day: "numeric" })} · today updates as you complete sessions`
+      ? `${formatShortDay(report.startDate)} – ${formatShortDay(report.endDate)} · today updates as you complete sessions`
       : "Only completed focus sessions count — breaks and cancelled timers never do."
   const empty =
     Boolean(report) &&
@@ -875,16 +890,15 @@ export function HistoryPage() {
         </div>
 
         {error ? (
-          <p role="alert" className="text-sm text-destructive">
-            {error}{" "}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setReloadKey((key) => key + 1)}
-            >
-              Try again
-            </Button>
-          </p>
+          <Card>
+            <ErrorRow
+              message={error}
+              onRetry={() => {
+                dismissErrorToast()
+                setReloadKey((key) => key + 1)
+              }}
+            />
+          </Card>
         ) : null}
         {notice ? (
           <p role="status" className="text-sm text-muted-foreground">

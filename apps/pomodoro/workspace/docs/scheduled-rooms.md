@@ -23,8 +23,13 @@ the link and the time, and the room opens itself with nobody's browser open.
 - **Upcoming** is a third group on `/rooms`, above the other two, drawn with
   the same room card as the other two groups. Everyone sees the public
   bookings; a host also sees their own unlisted ones, with the invite tally,
-  a copy-link button and a Cancel button. Times there are drawn on the
-  reader's own clock.
+  a copy-link button and a "Cancel booking" button. Times there are drawn on
+  the reader's own clock.
+- **Cancel booking is drawn as destructive**, because it removes the
+  booking, and reads "Cancelling…" with a spinner while it runs. Both buttons
+  are the shared `Button`. The result is a toast that clears itself, still
+  with the count of invitations that were stopped, and a refusal is the
+  persistent error toast.
 - **The clock opens it.** The `pomodoro-scheduled-rooms` worker in
   `src/app/server-options.ts` runs every fifteen seconds. Each pass claims
   every booking whose start time has passed and opens it, guarded on the

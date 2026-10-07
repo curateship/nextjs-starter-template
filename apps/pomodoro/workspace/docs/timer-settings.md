@@ -30,6 +30,11 @@ rhythm presets. The long-break number has its own doc,
   running row whose end moment is still ahead. A stale paused row from a
   closed tab does not block it. Deleting a preset removes only the stored
   preset, never the saved preferences or a timer in progress.
+- **The header's Timer popover lists your own presets after the built-ins.**
+  If your own fail to load, the popover still lists the built-ins and says
+  under them that yours could not be loaded, with Try again. It used to drop
+  the failure in silence, so four saved rhythms looked as if they had been
+  deleted (`quick-controls-header.tsx`).
 
 The tab edits the same `user_preferences` row the dashboard reads on load,
 so the next visit to `/timer` picks the new rhythm up.
@@ -81,6 +86,8 @@ the rest of the visit.
 The card shows "Loading your focus rhythm…" in place of the preset picker and
 the number fields until the saved row arrives. Three empty boxes read as a
 rhythm of nothing, and a number typed into one of them would be overwritten the
-moment the load landed. If the load fails the card says so and offers a reload
-instead of spinning for ever. The Profile tab does the same with its own fields
+moment the load landed. If the load fails the card says so, inside the card,
+with a Try again button that runs the same load again without reloading the
+page, instead of spinning for ever. The preset list under it does the same
+with its own Try again. The Profile tab does the same with its own fields
 for the same reason.

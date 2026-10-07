@@ -6,6 +6,9 @@
 
 export type TaskPriority = "low" | "normal" | "high"
 
+/** What a new-task box says when Enter is pressed with nothing in it. */
+export const BLANK_TASK_TITLE = "Type what the task is before pressing Enter."
+
 export const taskPriorities: readonly TaskPriority[] = ["low", "normal", "high"]
 
 export type TaskItem = {

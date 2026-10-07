@@ -70,7 +70,10 @@ the badge, so a badge recorded once is announced once. See
 
 ## The panel
 
-Earned badges carry the day they were earned and a filled orange disc. Locked
+Earned badges carry the day they were earned and a filled orange disc. The
+day is written "Earned Tue, Oct 6, 2026", the long form History uses, and it
+is the day in the account's timezone: the endpoint returns that timezone
+beside the badges so a browser elsewhere cannot shift it. Locked
 ones stay on screen with an empty ring, the rule in plain words, and how far
 they have got: "62 of 100 sessions", "best so far: 4 of 7 days", "6h 20m of
 10h", with a small bar showing the same thing. A locked badge is never hidden,
@@ -94,6 +97,12 @@ by colour alone.
 
 A streak badge reads the **best** streak, not the current one. A week you ran
 is a week you ran, so breaking the streak never takes the badge back.
+
+## When the panel fails to load
+
+The panel says "Your achievements could not be loaded" inside its own frame,
+with Try again, which asks again without reloading the page. It used to be a
+red line with no way out. A load that works takes the warning down.
 
 ## Badges are private
 

@@ -17,6 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { ErrorRow } from "@/components/ui/error-row"
 import { FormDialog } from "@/components/ui/form-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -52,7 +53,7 @@ import {
 } from "@/lib/pomodoro/leaderboard-windows"
 import { browserTimezone } from "@/lib/pomodoro/timer"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
-import { showErrorToast } from "@/lib/toast/error-toast"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
 type Group = Awaited<ReturnType<typeof loadMyGroups>>[number]
 type Board = Awaited<ReturnType<typeof loadFocusGroupBoard>>
@@ -77,6 +78,9 @@ export function FocusGroupsCard({
 }) {
   const [groups, setGroups] = React.useState<Group[] | null>(null)
   const [groupsFailed, setGroupsFailed] = React.useState(false)
+  // Bumped by each card's Try again, which runs that same load once more.
+  const [groupsAttempt, setGroupsAttempt] = React.useState(0)
+  const [boardAttempt, setBoardAttempt] = React.useState(0)
   const [selectedId, setSelectedId] = React.useState("")
   /**
    * The board, with the group and window it belongs to. Kept together so a board
@@ -102,7 +106,9 @@ export function FocusGroupsCard({
     let cancelled = false
     void loadMyGroups()
       .then((mine) => {
-        if (!cancelled) setGroups(mine)
+        if (cancelled) return
+        setGroupsFailed(false)
+        setGroups(mine)
       })
       .catch(() => {
         // Never an empty list on a failure: that reads as "you are in no
@@ -112,7 +118,7 @@ export function FocusGroupsCard({
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [groupsAttempt])
 
   // The group in view: whatever was picked, or the first one. A group that was
   // just left or deleted falls back rather than leaving an empty board.
@@ -137,7 +143,7 @@ export function FocusGroupsCard({
     return () => {
       cancelled = true
     }
-  }, [selectedId_, boardWindow])
+  }, [selectedId_, boardWindow, boardAttempt])
 
   // Only the board that was read for the group and window now on screen.
   const shown =
@@ -157,9 +163,14 @@ export function FocusGroupsCard({
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         {groupsFailed ? (
-          <p role="alert" className="py-2 text-sm text-destructive">
-            Your groups could not be loaded. Reload to try again.
-          </p>
+          <ErrorRow
+            message="Your groups could not be loaded."
+            onRetry={() => {
+              dismissErrorToast()
+              setGroupsFailed(false)
+              setGroupsAttempt((count) => count + 1)
+            }}
+          />
         ) : groups === null ? (
           <LoadingRow label="Loading your groups" />
         ) : groups.length === 0 ? (
@@ -231,9 +242,14 @@ export function FocusGroupsCard({
             {shown === null ? (
               <LoadingRow label="Loading the board" />
             ) : shown.result === null ? (
-              <p role="alert" className="py-2 text-sm text-destructive">
-                That group's board could not be loaded. Reload to try again.
-              </p>
+              <ErrorRow
+                message="That group's board could not be loaded."
+                onRetry={() => {
+                  dismissErrorToast()
+                  setBoard(null)
+                  setBoardAttempt((count) => count + 1)
+                }}
+              />
             ) : shown.result.leaders.length === 0 ? (
               <p className="py-2 text-sm text-muted-foreground">
                 Nobody in this group has picked a public display name yet. Choose

@@ -1,6 +1,13 @@
 import * as React from "react"
-import { CalendarClockIcon, CheckIcon, CopyIcon, MailIcon } from "lucide-react"
+import {
+  CalendarClockIcon,
+  CheckIcon,
+  CopyIcon,
+  Loader2Icon,
+  MailIcon,
+} from "lucide-react"
 
+import { Button } from "@/components/ui/button"
 import {
   Tooltip,
   TooltipContent,
@@ -137,34 +144,44 @@ function UpcomingRoomCard({
           <>
             <Tooltip>
               <TooltipTrigger asChild>
-                <button
-                  type="button"
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="rounded-full"
                   disabled={busy}
                   aria-label={
                     copied ? "Invite link copied" : "Copy the invite link"
                   }
-                  className="flex size-10 shrink-0 items-center justify-center outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 rounded-full border text-[var(--p-text-subtle)] disabled:opacity-60"
                   onClick={() => void copyInvite()}
                 >
                   {copied ? (
-                    <CheckIcon className="size-4" aria-hidden="true" />
+                    <CheckIcon aria-hidden="true" />
                   ) : (
-                    <CopyIcon className="size-4" aria-hidden="true" />
+                    <CopyIcon aria-hidden="true" />
                   )}
-                </button>
+                </Button>
               </TooltipTrigger>
               <TooltipContent>
                 {copied ? "Invite link copied" : "Copy the invite link"}
               </TooltipContent>
             </Tooltip>
-            <button
-              type="button"
+            {/* Destructive, because it removes a booking. The label says what
+                it cancels, since "Cancel" alone reads like closing a window. */}
+            <Button
+              variant="destructive"
+              className="rounded-full font-bold"
               disabled={busy}
-              className="shrink-0 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 rounded-full bg-[var(--p-accent)] px-5 py-2.5 text-[13.5px] font-bold text-[var(--p-on-accent)] hover:bg-[var(--p-accent-2)] disabled:opacity-60"
               onClick={onCancel}
             >
-              Cancel
-            </button>
+              {busy ? (
+                <>
+                  <Loader2Icon className="animate-spin" aria-hidden="true" />
+                  Cancelling…
+                </>
+              ) : (
+                "Cancel booking"
+              )}
+            </Button>
           </>
         ) : null}
       </RoomCardAction>

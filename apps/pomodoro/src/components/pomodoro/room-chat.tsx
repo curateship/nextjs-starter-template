@@ -24,6 +24,11 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
+import {
+  formatClockIn,
+  formatLongDay,
+  localDateIn,
+} from "@/lib/format/calendar-day"
 import { InitialsAvatar } from "@/components/pomodoro/initials-avatar"
 import { reportMessage, sendRoomMessage } from "@/lib/api/pomodoro/rooms"
 import {
@@ -135,6 +140,7 @@ export function RoomMemberList({
 export function RoomChatPanel({
   slug,
   messages,
+  timezone,
   isHost,
   busy,
   onDeleteMessage,
@@ -145,6 +151,8 @@ export function RoomChatPanel({
 }: {
   slug: string
   messages: RoomMessage[]
+  /** The viewer's account timezone, where the chat's day lines fall. */
+  timezone: string
   isHost: boolean
   busy: boolean
   onDeleteMessage: (message: RoomMessage) => void
@@ -199,120 +207,126 @@ export function RoomChatPanel({
     >
       <ScrollArea className={cn("flex-1", CHAT_HEIGHT)}>
         <div ref={listRef} className="flex flex-col gap-3 p-4">
-          {messages.map((entry) =>
-            entry.deleted ? (
-              <p
-                key={entry.id}
-                className="text-xs italic text-muted-foreground"
-              >
-                Message removed by the host
-              </p>
-            ) : (
-              <div key={entry.id} className="group/message flex gap-2">
-                <InitialsAvatar name={entry.authorName} className="size-7" />
-                <div className="flex min-w-0 flex-col gap-1">
-                  <p className="flex items-baseline gap-2 text-[11px] text-muted-foreground">
-                    {/* A name links to its profile only when that profile
-                        actually reads; otherwise it stays plain text. */}
-                    {entry.handle ? (
-                      <Link
-                        to="/u/$handle"
-                        params={{ handle: entry.handle }}
-                        className="font-semibold text-foreground underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      >
-                        {entry.authorName}
-                      </Link>
-                    ) : (
-                      <span className="font-semibold text-foreground">
-                        {entry.authorName}
-                      </span>
-                    )}
-                    <time dateTime={new Date(entry.createdAt).toISOString()}>
-                      {new Date(entry.createdAt).toLocaleTimeString(undefined, {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </time>
+          {messages.map((entry, index) => {
+            // A line with the day above the first message and wherever the
+            // day changes, so a room that runs past midnight says which day
+            // each time belongs to without stamping the date on every line.
+            const day = localDateIn(timezone, entry.createdAt)
+            const dayChanged =
+              index === 0 ||
+              localDateIn(timezone, messages[index - 1].createdAt) !== day
+            return (
+              <React.Fragment key={entry.id}>
+                {dayChanged ? <DayDivider localDate={day} /> : null}
+                {entry.deleted ? (
+                  <p className="text-xs italic text-muted-foreground">
+                    Message removed by the host
                   </p>
-                  <span className="text-sm break-words">{entry.body}</span>
-                  {entry.reactions.length ? (
-                    <div className="flex flex-wrap gap-1 pt-0.5">
-                      {entry.reactions.map((reaction) => (
-                        <button
-                          key={reaction.emoji}
-                          type="button"
-                          aria-pressed={reaction.mine}
-                          aria-label={`${roomReactionLabel(reaction.emoji)}, ${reaction.count} ${reaction.count === 1 ? "reaction" : "reactions"}${reaction.mine ? ", including you. Press to remove your reaction" : ". Press to react"}`}
-                          disabled={reactionPending.has(
-                            `${entry.id}:${reaction.emoji}`
-                          )}
-                          onClick={() =>
-                            onToggleReaction(entry.id, reaction.emoji)
-                          }
-                          className={cn(
-                            "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-muted-foreground disabled:opacity-50",
-                            reaction.mine &&
-                              "border-primary/45 bg-primary/10 text-[var(--p-accent-2)]"
-                          )}
-                        >
-                          <span aria-hidden="true" className="text-[13px]">
-                            {reaction.emoji}
+                ) : (
+                  <div className="group/message flex gap-2">
+                    <InitialsAvatar name={entry.authorName} className="size-7" />
+                    <div className="flex min-w-0 flex-col gap-1">
+                      <p className="flex items-baseline gap-2 text-[11px] text-muted-foreground">
+                        {/* A name links to its profile only when that profile
+                            actually reads; otherwise it stays plain text. */}
+                        {entry.handle ? (
+                          <Link
+                            to="/u/$handle"
+                            params={{ handle: entry.handle }}
+                            className="font-semibold text-foreground underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          >
+                            {entry.authorName}
+                          </Link>
+                        ) : (
+                          <span className="font-semibold text-foreground">
+                            {entry.authorName}
                           </span>
-                          <b className="font-mono text-[11px] tabular-nums">
-                            {reaction.count}
-                          </b>
-                        </button>
-                      ))}
+                        )}
+                        <time dateTime={new Date(entry.createdAt).toISOString()}>
+                          {formatClockIn(timezone, entry.createdAt)}
+                        </time>
+                      </p>
+                      <span className="text-sm break-words">{entry.body}</span>
+                      {entry.reactions.length ? (
+                        <div className="flex flex-wrap gap-1 pt-0.5">
+                          {entry.reactions.map((reaction) => (
+                            <button
+                              key={reaction.emoji}
+                              type="button"
+                              aria-pressed={reaction.mine}
+                              aria-label={`${roomReactionLabel(reaction.emoji)}, ${reaction.count} ${reaction.count === 1 ? "reaction" : "reactions"}${reaction.mine ? ", including you. Press to remove your reaction" : ". Press to react"}`}
+                              disabled={reactionPending.has(
+                                `${entry.id}:${reaction.emoji}`
+                              )}
+                              onClick={() =>
+                                onToggleReaction(entry.id, reaction.emoji)
+                              }
+                              className={cn(
+                                "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-muted-foreground disabled:opacity-50",
+                                reaction.mine &&
+                                  "border-primary/45 bg-primary/10 text-[var(--p-accent-2)]"
+                              )}
+                            >
+                              <span aria-hidden="true" className="text-[13px]">
+                                {reaction.emoji}
+                              </span>
+                              <b className="font-mono text-[11px] tabular-nums">
+                                {reaction.count}
+                              </b>
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
-                  ) : null}
-                </div>
-                {/* The actions appear on hover, and stay put on a touch
-                    screen, which has no hover to reveal them with. */}
-                <span className="ml-auto flex shrink-0 gap-0.5 opacity-0 focus-within:opacity-100 group-hover/message:opacity-100 has-[[data-state=open]]:opacity-100 max-md:opacity-100">
-                  <ReactionPicker
-                    messageId={entry.id}
-                    activeEmojis={
-                      new Set(
-                        entry.reactions
-                          .filter((reaction) => reaction.mine)
-                          .map((reaction) => reaction.emoji)
-                      )
-                    }
-                    reactionPending={reactionPending}
-                    disabled={busy}
-                    onToggle={(emoji) => onToggleReaction(entry.id, emoji)}
-                  />
-                  {!entry.mine ? (
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      disabled={busy}
-                      aria-label={`Report message from ${entry.authorName}`}
-                      onClick={() =>
-                        setReporting({
-                          id: entry.id,
-                          authorName: entry.authorName,
-                        })
-                      }
-                    >
-                      <FlagIcon aria-hidden="true" />
-                    </Button>
-                  ) : null}
-                  {isHost ? (
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      disabled={busy}
-                      aria-label={`Delete message from ${entry.authorName}`}
-                      onClick={() => onDeleteMessage(entry)}
-                    >
-                      <Trash2Icon aria-hidden="true" />
-                    </Button>
-                  ) : null}
-                </span>
-              </div>
+                    {/* The actions appear on hover, and stay put on a touch
+                        screen, which has no hover to reveal them with. */}
+                    <span className="ml-auto flex shrink-0 gap-0.5 opacity-0 focus-within:opacity-100 group-hover/message:opacity-100 has-[[data-state=open]]:opacity-100 max-md:opacity-100">
+                      <ReactionPicker
+                        messageId={entry.id}
+                        activeEmojis={
+                          new Set(
+                            entry.reactions
+                              .filter((reaction) => reaction.mine)
+                              .map((reaction) => reaction.emoji)
+                          )
+                        }
+                        reactionPending={reactionPending}
+                        disabled={busy}
+                        onToggle={(emoji) => onToggleReaction(entry.id, emoji)}
+                      />
+                      {!entry.mine ? (
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          disabled={busy}
+                          aria-label={`Report message from ${entry.authorName}`}
+                          onClick={() =>
+                            setReporting({
+                              id: entry.id,
+                              authorName: entry.authorName,
+                            })
+                          }
+                        >
+                          <FlagIcon aria-hidden="true" />
+                        </Button>
+                      ) : null}
+                      {isHost ? (
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          disabled={busy}
+                          aria-label={`Delete message from ${entry.authorName}`}
+                          onClick={() => onDeleteMessage(entry)}
+                        >
+                          <Trash2Icon aria-hidden="true" />
+                        </Button>
+                      ) : null}
+                    </span>
+                  </div>
+                )}
+              </React.Fragment>
             )
-          )}
+          })}
           {!messages.length ? (
             <p className="text-xs text-muted-foreground">
               Say hi — messages appear for everyone in the room.
@@ -515,5 +529,24 @@ function ReportMessageDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+/**
+ * The line across the chat where one day ends and the next begins. A
+ * separator to a screen reader, with the day as its name.
+ */
+function DayDivider({ localDate }: { localDate: string }) {
+  const label = formatLongDay(localDate)
+  return (
+    <div
+      role="separator"
+      aria-label={label}
+      className="flex items-center gap-2 text-[11px] text-muted-foreground"
+    >
+      <span aria-hidden="true" className="flex-1 border-t" />
+      <span aria-hidden="true">{label}</span>
+      <span aria-hidden="true" className="flex-1 border-t" />
+    </div>
   )
 }

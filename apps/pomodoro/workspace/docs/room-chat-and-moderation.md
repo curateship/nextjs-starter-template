@@ -13,11 +13,18 @@ delete a message, remove a person or ban them.
   limit, so somebody who holds the room's link but never joined cannot spend
   a member's twenty. Closing a room ends every membership, so a closed room
   refuses chat by the same check.
-- **A message that fails to send goes back into the box**, with the reason
-  above the panel, so nothing typed is lost.
+- **A message that fails to send goes back into the box**, with the reason in
+  the error toast, so nothing typed is lost.
 - **Nothing is drawn from a guess.** The server saves the message, notifies
   the room's channel, and the SSE snapshot redraws the list for everyone at
   once. The last hundred messages are what a snapshot carries.
+- **A line with the day sits above the first message and wherever the day
+  changes**, such as "Tue, Oct 6, 2026". Each message keeps just its time, so
+  a room that runs past midnight says which day each time belongs to without
+  the date on every line.
+- **Times and day lines are in your account's timezone**, the one on your
+  profile, not the browser's. The snapshot carries it as `you.timezone`, so
+  midnight in the chat is the same midnight as in History and your streaks.
 
 ## How the panel shares the height
 

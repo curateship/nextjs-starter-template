@@ -20,6 +20,7 @@ import { CSS } from "@dnd-kit/utilities"
 import {
   CheckIcon,
   GripVerticalIcon,
+  Loader2Icon,
   RepeatIcon,
   SettingsIcon,
   XIcon,
@@ -38,6 +39,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
+import { showErrorToast } from "@/lib/toast/error-toast"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { PAUSE_TO_CHOOSE_REASON } from "@/lib/pomodoro/disabled-reasons"
 import { useProductAuth } from "@/lib/pomodoro/auth-state"
@@ -249,16 +251,23 @@ function SortableTaskRow({
           task={task}
           projects={pomodoro.liveProjects}
           onCancel={() => onEditingChange(false)}
-          onSave={({ repeatWeekdays, ...changes }) => {
+          onSave={async ({ repeatWeekdays, ...changes }) => {
             // The repeat is its own rule row, so it is its own request, and it
             // runs after the task update because the rule copies its title,
             // priority, estimate and project from the task row. A save that
             // failed writes no rule, or the rule would hold a title the task
             // never got.
-            void pomodoro.updateTaskDetails(task.id, changes).then((saved) => {
-              if (saved && repeatWeekdays !== task.repeatWeekdays)
-                pomodoro.setTaskRepeat(task.id, repeatWeekdays)
-            })
+            //
+            // The row closes only once both have landed. Either failure has
+            // already raised the error toast, and the row stays open with the
+            // typed changes still in it, so Save can simply be pressed again.
+            const saved = await pomodoro.updateTaskDetails(task.id, changes)
+            if (!saved) return
+            if (
+              repeatWeekdays !== task.repeatWeekdays &&
+              !(await pomodoro.setTaskRepeat(task.id, repeatWeekdays))
+            )
+              return
             onEditingChange(false)
           }}
         />
@@ -377,10 +386,14 @@ function TaskEditForm({
     estimatedPomodoros: number | null
     projectId: string | null
     repeatWeekdays: number | null
-  }) => void
+  }) => Promise<void>
   onCancel: () => void
 }) {
   const { authenticated } = useProductAuth()
+  const [saving, setSaving] = React.useState(false)
+  // Shown only once a save has been tried, so a field being emptied on the
+  // way to new words is not marked as a mistake mid-edit.
+  const [attempted, setAttempted] = React.useState(false)
   const [title, setTitle] = React.useState(task.title)
   const [priority, setPriority] = React.useState<TaskPriority>(task.priority)
   const [projectId, setProjectId] = React.useState(task.projectId)
@@ -418,16 +431,26 @@ function TaskEditForm({
   return (
     <form
       className="flex flex-1 flex-col gap-2 py-1.5"
-      onSubmit={(event) => {
+      onSubmit={async (event) => {
         event.preventDefault()
-        if (!titleValid || !estimateValid || !daysValid) return
-        onSave({
+        setAttempted(true)
+        if (saving) return
+        if (!titleValid) {
+          showErrorToast("A task needs a title before it can be saved.")
+          return
+        }
+        if (!estimateValid || !daysValid) return
+        setSaving(true)
+        await onSave({
           title: title.trim(),
           priority,
           estimatedPomodoros: parsedEstimate,
           projectId,
           repeatWeekdays,
         })
+        // A successful save unmounts this form; on a failure it is still
+        // here and goes back to waiting for another press.
+        setSaving(false)
       }}
       onKeyDown={(event) => {
         if (event.key === "Escape") onCancel()
@@ -440,6 +463,7 @@ function TaskEditForm({
           value={title}
           onChange={(event) => setTitle(event.target.value)}
           aria-label={`Title for ${task.title}`}
+          aria-invalid={attempted && !titleValid ? true : undefined}
           autoFocus
           className="flex-1"
         />
@@ -474,10 +498,18 @@ function TaskEditForm({
           type="submit"
           variant="ghost"
           size="icon-sm"
-          disabled={!titleValid || !estimateValid || !daysValid}
-          aria-label={`Save changes to ${task.title}`}
+          disabled={saving || !estimateValid || !daysValid}
+          aria-label={
+            saving
+              ? `Saving changes to ${task.title}`
+              : `Save changes to ${task.title}`
+          }
         >
-          <CheckIcon aria-hidden="true" />
+          {saving ? (
+            <Loader2Icon className="animate-spin" aria-hidden="true" />
+          ) : (
+            <CheckIcon aria-hidden="true" />
+          )}
         </Button>
         <Button
           type="button"

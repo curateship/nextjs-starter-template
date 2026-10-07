@@ -13,6 +13,14 @@ Switching it on writes a secret into your profile row and gives you an
 address like `/badge/streak/<token>.svg`. The card shows the address, a Copy
 button, a live preview, and a ready-made `<img>` tag to paste.
 
+- **Copy says "Copied" for two seconds**, then goes back to "Copy", so a
+  second press can be seen to work. Pressing it again restarts the two
+  seconds.
+- **The preview loads the real address**, so it can be slow or fail. While it
+  loads, a small spinner sits in the badge's own 220×56 frame, so nothing
+  jumps. If it fails, a red line says the badge could not be drawn, instead
+  of the browser's broken-image icon.
+
 "New link" writes a new secret, which is how you kill a link you shared
 somewhere you should not have. Switching the badge off clears the secret
 entirely.

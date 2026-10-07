@@ -4,6 +4,7 @@ import {
   ArchiveRestoreIcon,
   CheckIcon,
   GlobeIcon,
+  Loader2Icon,
   LockIcon,
   PlusIcon,
   SettingsIcon,
@@ -12,6 +13,7 @@ import {
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { InlineError } from "@/components/ui/inline-error"
 import { Input } from "@/components/ui/input"
 import { useProductAuth } from "@/lib/pomodoro/auth-state"
 import type { ProjectRow, usePomodoro } from "@/lib/pomodoro/use-pomodoro"
@@ -35,6 +37,10 @@ type PomodoroApi = ReturnType<typeof usePomodoro>
 export function ProjectsCard({ pomodoro }: { pomodoro: PomodoroApi }) {
   const { authenticated } = useProductAuth()
   const [name, setName] = React.useState("")
+  // A refusal about the name, shown under the box it was typed in. The box
+  // keeps the name until the server has accepted it.
+  const [nameProblem, setNameProblem] = React.useState("")
+  const [creating, setCreating] = React.useState(false)
   const [renamingId, setRenamingId] = React.useState<string | null>(null)
   const live = pomodoro.projects.filter((project) => !project.archivedAt)
   const archived = pomodoro.projects.filter((project) => project.archivedAt)
@@ -67,25 +73,52 @@ export function ProjectsCard({ pomodoro }: { pomodoro: PomodoroApi }) {
           />
         ))}
         <form
-          className="relative"
-          onSubmit={(event) => {
+          className="flex flex-col gap-2"
+          onSubmit={async (event) => {
             event.preventDefault()
-            void pomodoro.createProject(name)
-            setName("")
+            if (creating) return
+            setCreating(true)
+            const submitted = name
+            const result = await pomodoro.createProject(submitted)
+            setCreating(false)
+            if (!result.created) {
+              setNameProblem(result.nameProblem ?? "")
+              return
+            }
+            // Anything typed while the request was out is a new name, not
+            // the one just saved, so only the saved one is cleared.
+            setName((current) => (current === submitted ? "" : current))
+            setNameProblem("")
           }}
         >
-          <PlusIcon
-            aria-hidden="true"
-            className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-          />
-          <Input
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            maxLength={60}
-            placeholder="Add a project, press Enter…"
-            aria-label="New project"
-            className="pl-9"
-          />
+          <div className="relative">
+            <PlusIcon
+              aria-hidden="true"
+              className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+            />
+            <Input
+              value={name}
+              onChange={(event) => {
+                setName(event.target.value)
+                setNameProblem("")
+              }}
+              maxLength={60}
+              placeholder="Add a project, press Enter…"
+              aria-label="New project"
+              aria-invalid={nameProblem ? true : undefined}
+              aria-describedby={nameProblem ? "new-project-problem" : undefined}
+              className="pl-9"
+            />
+            {creating ? (
+              <Loader2Icon
+                aria-label="Creating the project"
+                className="absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-muted-foreground"
+              />
+            ) : null}
+          </div>
+          {nameProblem ? (
+            <InlineError id="new-project-problem">{nameProblem}</InlineError>
+          ) : null}
         </form>
         {archived.length ? (
           <section className="flex flex-col gap-1.5">

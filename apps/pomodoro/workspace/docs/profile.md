@@ -24,6 +24,12 @@ shows "Loading your profile…". They are not offered sooner because the load
 fills them in, and a name typed into an empty box would be overwritten the
 moment it landed.
 
+## When it fails to load
+
+The card says "Your profile could not be loaded" inside its own frame, with
+Try again, which asks again without reloading the page. The fields stay hidden
+until a load works, because an empty name box would read as having no name.
+
 ## How a save reports itself
 
 The same way every other Settings card does, and

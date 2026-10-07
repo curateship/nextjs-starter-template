@@ -1,4 +1,5 @@
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
+import { formatLongDay } from "@/lib/format/calendar-day"
 import { formatFocusDuration, shiftLocalDate } from "@/lib/pomodoro/focus-history"
 import { cn } from "@/lib/utils"
 
@@ -57,16 +58,9 @@ const HEAT_CLASSES = [
 const WEEKDAY_LABELS = ["Mon", "", "Wed", "", "Fri", "", "Sun"]
 
 function squareTitle(day: HeatmapDay) {
-  const head = `${dayLabel(day.localDate)} · ${formatFocusDuration(day.focusSeconds)}`
+  const head = `${formatLongDay(day.localDate)} · ${formatFocusDuration(day.focusSeconds)}`
   if (day.focusSessions === undefined) return head
   return `${head} · ${day.focusSessions} ${day.focusSessions === 1 ? "session" : "sessions"}`
-}
-
-function dayLabel(localDate: string) {
-  return new Date(`${localDate}T12:00:00`).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-  })
 }
 
 /**

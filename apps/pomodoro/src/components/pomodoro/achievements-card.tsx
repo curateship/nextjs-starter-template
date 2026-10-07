@@ -2,7 +2,9 @@ import * as React from "react"
 import { Loader2Icon } from "lucide-react"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { ErrorRow } from "@/components/ui/error-row"
 import { loadAchievements } from "@/lib/api/pomodoro/achievements"
+import { formatLongDay, localDateIn } from "@/lib/format/calendar-day"
 import {
   ACHIEVEMENTS,
   achievementProgress,
@@ -10,6 +12,7 @@ import {
   type AchievementCounters,
 } from "@/lib/pomodoro/achievements"
 import { browserTimezone } from "@/lib/pomodoro/timer"
+import { dismissErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
 /**
@@ -27,20 +30,25 @@ export function AchievementsCard() {
   const [state, setState] = React.useState<{
     earned: Map<string, Date>
     counters: AchievementCounters
+    timezone: string
   } | null>(null)
   const [error, setError] = React.useState("")
   const [loading, setLoading] = React.useState(true)
+  // Bumped by Try again, which runs the same load once more.
+  const [attempt, setAttempt] = React.useState(0)
 
   React.useEffect(() => {
     let live = true
     loadAchievements(browserTimezone())
       .then((result) => {
         if (!live) return
+        setError("")
         setState({
           earned: new Map(
             result.earned.map((row) => [row.badgeId, new Date(row.earnedAt)])
           ),
           counters: result.counters,
+          timezone: result.timezone,
         })
       })
       .catch(() => {
@@ -52,7 +60,7 @@ export function AchievementsCard() {
     return () => {
       live = false
     }
-  }, [])
+  }, [attempt])
 
   const earnedCount = state?.earned.size ?? 0
 
@@ -77,9 +85,15 @@ export function AchievementsCard() {
           </span>
         ) : null}
         {error ? (
-          <p role="alert" className="text-sm text-destructive">
-            {error}
-          </p>
+          <ErrorRow
+            message={error}
+            onRetry={() => {
+              dismissErrorToast()
+              setError("")
+              setLoading(true)
+              setAttempt((count) => count + 1)
+            }}
+          />
         ) : null}
         {state ? (
           <ul className="grid gap-2 sm:grid-cols-2">
@@ -105,7 +119,7 @@ export function AchievementsCard() {
                     </span>
                     <small className="text-xs text-muted-foreground">
                       {earnedAt
-                        ? `Earned ${earnedDate(earnedAt)}`
+                        ? `Earned ${formatLongDay(localDateIn(state.timezone, earnedAt))}`
                         : badge.description}
                     </small>
                     {earnedAt ? null : (
@@ -174,12 +188,4 @@ function BadgeMark({ earned }: { earned: boolean }) {
       <span className="sr-only">{earned ? "Earned" : "Locked"}</span>
     </span>
   )
-}
-
-function earnedDate(value: Date) {
-  return value.toLocaleDateString(undefined, {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  })
 }
