@@ -12,6 +12,22 @@ task 01 on 24 Sep 2026, "The task is actually wrong. It's supposed to set the
 stage for the frontend, not the backend" — frontend meaning the member
 screens (dashboard, rooms, sounds, tasks and the rest), not the admin.
 
+## The name and the tab icon
+
+People see the app called Pomoder: "pomoder." in the left menu and the phone
+header, the front page and Plans titles, the end-of-focus notification and the
+share picture. Tyler's words: "Change the name to Pomoder. Favicon is not
+wired on the frontend." He chose only what people see, so the folder, the web
+addresses, the port entry and every code name stay `pomodoro`.
+
+The tab icon is the tomato with clock hands from the left menu (`TomatoMark`
+in `pomodoro-shell.tsx`), saved as `public/favicon.ico` (16, 32 and 48px) and
+`public/apple-touch-icon.png` (180px on the light canvas colour). Browsers ask
+for both addresses on their own, so no shell file links them. An icon an admin
+uploads in the branding settings still wins, because the root route writes its
+links into the page. The other page titles read the app name saved in those
+same settings, which falls back to "Custom Shell" until it is set to Pomoder.
+
 ## Every button is round and bold
 
 Every shared `Button` on a member screen is a pill with bold text. The shape
@@ -103,8 +119,18 @@ drawings rather than dividing lines:
 - **Signed-in member screens also need the `body.app-font` override.** The
   shell switches signed-in pages to Inter through that class, which beats a
   font set on `<html>`.
-- **The on-accent text colour stays dark in both themes** (`--p-on-accent`),
-  so text on an orange button never flips to white in light mode.
+- **Text and icons on the orange are white in both themes** (`--p-on-accent`
+  is `#ffffff` in each block of `theme.css`). Tyler's rule, 7 Oct 2026: "The
+  orange button has black text on it when it should be white." He kept
+  today's orange knowing what it costs: white on `#f2502d` measures 3.5 to 1
+  in light mode and on `#ff5a3c` 3.1 to 1 in dark, both under the 4.5 to 1
+  standard for small text. Where `--p-accent-2` is the background, white
+  reads 4.8 to 1 in light (`#cc4225`) and 2.6 to 1 in dark (`#ff7a5c`). That is his decision, not an oversight, so do
+  not darken the text back or retune the orange to "fix" it. Every primary
+  button, badge and chip reads this one token through `--primary-foreground`
+  and the shell's copies of it; nothing sets white per button. The selected
+  left-menu row is not affected: it is a pale orange tint with orange text,
+  not an orange surface.
 - **The `--p-*-rgb` channel copies exist for overlays.** Screen tasks use
   them as `rgba(var(--p-canvas-rgb), .58)` for shades over timer backgrounds.
 - **Never copy pomoder's CSS files or its `.pomoder-*` classes.** Screens are

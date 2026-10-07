@@ -7,6 +7,12 @@ future merge. The app's own code is the `_pomodoro` product shell, the six
 `/admin/pomodoro-*` pages, `src/lib/pomodoro/`, `src/server/pomodoro/`,
 `src/components/pomodoro/` and the three files in `src/app/`.
 
+**The tab icon comes from the app's own `public/`.** The shell writes icon
+links only for an icon an admin uploaded. With none, the browser asks for
+`/favicon.ico` and `/apple-touch-icon.png`, and this app serves the Pomoder
+tomato at both, so no shell file changed. See
+[The Pomoder look](pomoder-look.md).
+
 ## What this app claims from the shell
 
 `src/app/options.ts` claims two things. The first is the front door: `/` serves

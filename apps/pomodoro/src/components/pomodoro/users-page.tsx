@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import type { readUsersPage } from "@/lib/api/pomodoro/public-profile"
 import { TextLink } from "@/components/pomodoro/text-link"
+import { contentColumn } from "@/lib/pomodoro/content-column"
 
 type UsersResult = Awaited<ReturnType<typeof readUsersPage>>
 
@@ -30,7 +31,7 @@ export function UsersPage({
   const pages = Math.ceil(result.total / result.pageSize)
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 py-8">
+    <div className={`${contentColumn} flex flex-col gap-4 py-8`}>
       <header>
         <h1 className="text-2xl font-bold tracking-tight">Users</h1>
         <p className="text-sm text-muted-foreground">

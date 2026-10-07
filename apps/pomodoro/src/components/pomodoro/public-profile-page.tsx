@@ -19,6 +19,7 @@ import type {
   YearInReviewView,
 } from "@/lib/pomodoro/public-profile"
 import { cn } from "@/lib/utils"
+import { contentColumn } from "@/lib/pomodoro/content-column"
 
 /**
  * The page at `/u/<handle>`.
@@ -51,7 +52,7 @@ export function PublicProfilePage({ profile }: { profile: PublicProfileView }) {
     // The product's own content column, the same one History and the other
     // app screens use. This page draws inside `_pomodoro`, not the shell's
     // public frame, so the width is the page's own to set.
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 py-8">
+    <div className={`${contentColumn} flex flex-col gap-4 py-8`}>
       <ProfileHeader profile={profile} />
 
       {profile.focusingNow ? (
@@ -312,7 +313,7 @@ function BadgeTile({
 /** The recap at `/u/<handle>/<year>`. */
 export function YearInReviewPage({ review }: { review: YearInReviewView }) {
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 py-8">
+    <div className={`${contentColumn} flex flex-col gap-4 py-8`}>
       <Card>
         <CardHeader>
           <CardTitle>

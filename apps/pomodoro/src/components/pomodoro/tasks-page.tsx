@@ -27,6 +27,7 @@ import { usePomodoro, type ArchivedTask } from "@/lib/pomodoro/use-pomodoro"
 import { loadArchivePage } from "@/lib/api/pomodoro/productivity"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { plural } from "@/lib/format/plural"
+import { contentColumn } from "@/lib/pomodoro/content-column"
 
 const ALL_TAGS = "all"
 
@@ -149,7 +150,7 @@ export function TasksPage() {
 
   return (
     <>
-      <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 py-8">
+      <div className={`${contentColumn} flex flex-col gap-6 py-8`}>
         <header>
           <h2 className="text-2xl font-bold tracking-tight">Tasks</h2>
           <p className="text-sm text-muted-foreground">

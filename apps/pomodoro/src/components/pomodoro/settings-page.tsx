@@ -18,6 +18,7 @@ import {
   type SettingsTab,
 } from "@/lib/pomodoro/settings-tabs"
 import { SignInButton } from "@/components/pomodoro/sign-in-button"
+import { contentColumn } from "@/lib/pomodoro/content-column"
 
 /**
  * The product's Settings page, like the old app's, in five tabs: the focus
@@ -64,7 +65,7 @@ export function SettingsPage({
   }, [shown, tabs.length])
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 py-8">
+    <div className={`${contentColumn} flex flex-col gap-6 py-8`}>
       <header>
         <h2 className="text-2xl font-bold tracking-tight">Settings</h2>
         <p className="text-sm text-muted-foreground">

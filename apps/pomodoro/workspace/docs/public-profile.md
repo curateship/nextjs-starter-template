@@ -105,7 +105,7 @@ uploaded themselves is their choice rather than an assignment, and
 own face. Tyler's call, 2 Oct 2026.
 
 The photo is picked on Settings → Profile, on the Your profile card, and the
-Your public page card below it shows the same one. The header's account menu
+How it looks card on Settings → Public page shows the same one. The header's account menu
 draws it too. Everywhere else still shows initials. The leaderboard and room
 chat are unchanged.
 
@@ -217,11 +217,27 @@ could put a Join button on a room that refuses the join.
 
 ## Where it is edited
 
-Settings → Public page, in a card called "Your public page". It has its own tab
-rather than sharing one with the display name: the display name is what other
-members see on the leaderboard and in rooms whether anything is published or
-not, and everything on this card is about one page on the open internet. A card
-mixing the two cannot be read at a glance.
+Settings → Public page. It has its own tab rather than sharing one with the
+display name: the display name is what other members see on the leaderboard
+and in rooms whether anything is published or not, and everything on this tab
+is about one page on the open internet. A card mixing the two cannot be read at
+a glance.
+
+The tab is four cards of related settings, in this order, with one Save button
+under the last. Tyler asked to "clean up the public page card by grouping
+related settings into its own card", and chose one Save over one per card.
+
+- **Address:** the handle, "Publish my page at that address", and the address
+  with Copy and Open my page once it is saved.
+- **How it looks:** About you, accounts elsewhere, your picture and the banner.
+- **What it shows:** the section switches and pinned badges.
+- **Being found:** List me on /users, and Let people cheer me on.
+
+**Save public page sends all four cards at once**, exactly as the single card
+did, so a bad handle still names itself on the press whichever card you were
+in. Until the settings have loaded, one "Your public page" card holds the
+loading line, or the error with Try again, so neither shows four times. An
+operator's hide notice sits above the four cards.
 
 **The address and Open my page follow what is saved, not what is typed.** Once
 the saved row is published with a handle, the card shows the full address

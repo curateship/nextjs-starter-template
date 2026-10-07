@@ -14,6 +14,7 @@ import { curatedSounds, sameSoundReference } from "@/lib/pomodoro/sound-catalog"
 import { useSoundPlayer } from "@/lib/pomodoro/use-sound-player"
 import { MediaUploadsSection } from "@/components/pomodoro/media-uploads-section"
 import { MediaGeneratorSection } from "@/components/pomodoro/media-generator-section"
+import { contentColumn } from "@/lib/pomodoro/content-column"
 
 /**
  * The sounds page: the eight curated loops as cards. Four are free, four
@@ -41,7 +42,7 @@ export function SoundsPage() {
 
   return (
     <>
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 py-8">
+      <div className={`${contentColumn} flex flex-col gap-6 py-8`}>
         <header>
           <h2 className="text-2xl font-bold tracking-tight">Sounds</h2>
           <p className="text-sm text-muted-foreground">

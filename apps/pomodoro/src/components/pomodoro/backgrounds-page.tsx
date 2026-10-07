@@ -17,6 +17,7 @@ import {
 import { useBackgroundSelection } from "@/lib/pomodoro/background-store"
 import { MediaUploadsSection } from "@/components/pomodoro/media-uploads-section"
 import { MediaGeneratorSection } from "@/components/pomodoro/media-generator-section"
+import { contentColumn } from "@/lib/pomodoro/content-column"
 
 const descriptorLabels = {
   video: "Video",
@@ -45,7 +46,7 @@ export function BackgroundsPage() {
 
   return (
     <>
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 py-8">
+      <div className={`${contentColumn} flex flex-col gap-6 py-8`}>
         <header>
           <h2 className="text-2xl font-bold tracking-tight">Backgrounds</h2>
           <p className="text-sm text-muted-foreground">

@@ -103,6 +103,22 @@ Admins are forwarded by the Admin home route next to it instead, which is
 empty and so opens the admin's Overview. Whether an admin should land on the
 timer too is Tyler's call.
 
+## One content width, 1,140px
+
+Every member page holds its content to the same column: 1,140px wide on a big
+screen, centred, and as wide as the frame allows on anything smaller, where the
+16px page edge still applies. Tyler's rule, 7 Oct 2026: "The width of the main
+content area is too narrow. Expand it 30% wider." He then chose one width for
+every member page rather than a wider copy of each page's old one (Tasks and
+Settings were 672px, History 768px, the timer and Rooms 860px, Plans 960px).
+
+The width lives in one place, `contentColumn` in
+`src/lib/pomodoro/content-column.ts`. A page writes that class and adds its own
+gap and padding, never a `max-w-*` of its own. The timer, Tasks, History,
+Rooms, Leaderboard, Sounds, Backgrounds, Settings, Plans, the people list and
+the public profile all use it. The two invite cards keep their narrow
+`max-w-md`, and the admin pages keep the shell's layout.
+
 ## The sign-in pages
 
 **The ten signed-out pages draw inside the product shell:** sign in, register,

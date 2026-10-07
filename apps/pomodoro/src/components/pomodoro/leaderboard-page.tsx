@@ -31,6 +31,7 @@ import { dismissErrorToast } from "@/lib/toast/error-toast"
 import { TextLink } from "@/components/pomodoro/text-link"
 import { plural } from "@/lib/format/plural"
 import { SignInButton } from "@/components/pomodoro/sign-in-button"
+import { contentColumn } from "@/lib/pomodoro/content-column"
 
 type Leaderboard = Awaited<ReturnType<typeof loadLeaderboard>>
 type Productivity = Awaited<ReturnType<typeof loadProductivity>>
@@ -158,7 +159,7 @@ export function LeaderboardPage({
       }))
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 py-8">
+    <div className={`${contentColumn} flex flex-col gap-4 py-8`}>
       <header>
         <h2 className="text-2xl font-bold tracking-tight">Leaderboard</h2>
         <p className="text-sm text-muted-foreground">

@@ -286,222 +286,251 @@ export default function PublicProfileSettingsPanel() {
     }
   }
 
+  // Four cards of related settings and one Save under them all, Tyler's
+  // call: the save sends every card at once, exactly as the single card did.
+  // Until the settings are in, one card stands for the set, so loading and a
+  // failure are said once rather than four times.
   return (
-    <Card size="sm">
-      <CardHeader>
-        <CardTitle>Your public page</CardTitle>
-      </CardHeader>
-      <CardContent className="grid grid-cols-1 gap-6">
-        {/* An operator's hide is the one thing on this card the member did
-            not do themselves, so it is said first and plainly. */}
-        {hiddenAt ? (
-          <p
-            role="status"
-            className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm"
-          >
-            {PROFILE_HIDDEN_NOTICE}
-          </p>
-        ) : null}
-        {!draft && !loadFailed ? (
-          <LoadingRow label="Loading your public page…" />
-        ) : null}
-        {loadFailed ? (
-          <ErrorRow
-            message="Your public page settings could not be loaded."
-            onRetry={() => {
-              dismissErrorToast()
-              setLoadFailed(false)
-              setAttempt((count) => count + 1)
-            }}
-          />
-        ) : null}
-
-        {draft ? (
-          <>
-            <section className="grid grid-cols-1 gap-4">
-              <div className="grid grid-cols-1 gap-2">
-                <FieldLabel
-                  htmlFor="profile-handle"
-                  hint="3 to 30 characters: lowercase letters, digits, hyphens and underscores. This is the address people will type, so changing it breaks every link to the old one."
-                >
-                  Handle
-                </FieldLabel>
-                <Input
-                  id="profile-handle"
-                  maxLength={HANDLE_MAX_LENGTH}
-                  value={draft.handle}
-                  placeholder="sarah"
-                  aria-invalid={handleBad ? true : undefined}
-                  onChange={(event) =>
-                    change({ handle: event.target.value.toLowerCase() })
-                  }
-                />
-                <p className="font-mono text-xs text-muted-foreground">
-                  /u/{handleClean || "your-handle"}
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Switch
-                  id="profile-public"
-                  checked={draft.profilePublic}
-                  onCheckedChange={(checked) =>
-                    change({ profilePublic: checked })
-                  }
-                />
-                <Label htmlFor="profile-public">
-                  Publish my page at that address
-                </Label>
-              </div>
-              {saved?.profilePublic &&
-              saved.handle &&
-              draft.profilePublic &&
-              handleClean === saved.handle ? (
-                <PageAddress handle={saved.handle} />
-              ) : draft.profilePublic ? (
-                <p className="text-sm text-muted-foreground">
-                  Save to publish your page.
-                </p>
-              ) : null}
-            </section>
-
-            <section className="grid grid-cols-1 gap-4">
-              <div className="grid grid-cols-1 gap-2">
-                <FieldLabel
-                  htmlFor="profile-bio"
-                  hint="A few lines about you. It is drawn as plain text, so anything that looks like markup appears as the characters you typed."
-                >
-                  About you
-                </FieldLabel>
-                <Textarea
-                  id="profile-bio"
-                  maxLength={BIO_MAX_LENGTH}
-                  value={draft.bio}
-                  placeholder="Two lines about what you are working on."
-                  onChange={(event) => change({ bio: event.target.value })}
-                />
-                <p className="text-xs text-muted-foreground">
-                  {BIO_MAX_LENGTH - draft.bio.length} characters left
-                </p>
-              </div>
-
-              <SocialLinksField
-                links={draft.socialLinks}
-                onChange={(socialLinks) => change({ socialLinks })}
+    <div className="flex flex-col gap-4">
+      {/* An operator's hide is the one thing here the member did not do
+          themselves, so it is said first and plainly. */}
+      {hiddenAt ? (
+        <p
+          role="status"
+          className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm"
+        >
+          {PROFILE_HIDDEN_NOTICE}
+        </p>
+      ) : null}
+      {!draft ? (
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle>Your public page</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loadFailed ? (
+              <ErrorRow
+                message="Your public page settings could not be loaded."
+                onRetry={() => {
+                  dismissErrorToast()
+                  setLoadFailed(false)
+                  setAttempt((count) => count + 1)
+                }}
               />
-            </section>
-
-            <section className="grid grid-cols-1 gap-2">
-              <FieldLabel hint="The picture on your account is the one your page shows. With no picture your page draws your coloured initials, exactly as the leaderboard does.">
-                Your picture
-              </FieldLabel>
-              <div className="flex items-center gap-3">
-                <ProfilePhoto
-                  name={handleClean || "you"}
-                  avatarUrl={avatarUrl}
-                  className="size-12 text-base"
-                />
-                <p className="text-sm text-muted-foreground">
-                  {/* The photo card moved to the Profile tab, so "the card
-                      above" became a link to it. */}
-                  {avatarUrl ? "Change it" : "Add one"} on the{" "}
-                  <TextLink to="/settings" search={{ tab: "profile" }}>
-                    Profile tab
-                  </TextLink>
-                  {avatarUrl
-                    ? "."
-                    : ", or leave it and your initials are drawn."}
-                </p>
-              </div>
-            </section>
-
-            <BannerField
-              value={draft.bannerRef}
-              uploads={uploads}
-              canUpload={canUpload}
-              onChange={(bannerRef) => change({ bannerRef })}
-            />
-
-            <section className="grid grid-cols-1 gap-3">
-              <FieldLabel hint="Each one is off until you switch it on. Nobody sees a section until you do.">
-                What your page shows
-              </FieldLabel>
-              {PROFILE_SECTIONS.map((section) => (
-                <div key={section.key} className="flex items-start gap-2">
-                  <Switch
-                    id={`profile-${section.key}`}
-                    className="mt-0.5"
-                    checked={draft[section.key as ProfileSectionKey]}
-                    onCheckedChange={(checked) =>
-                      change({ [section.key]: checked } as Partial<Draft>)
-                    }
-                  />
-                  <div className="grid grid-cols-1 gap-0.5">
-                    <Label htmlFor={`profile-${section.key}`}>
-                      {section.label}
-                    </Label>
-                    <span className="text-xs text-muted-foreground">
-                      {section.hint}
-                    </span>
+            ) : (
+              <LoadingRow label="Loading your public page…" />
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle>Address</CardTitle>
+            </CardHeader>
+            <CardContent className="grid grid-cols-1 gap-6">
+                <section className="grid grid-cols-1 gap-4">
+                  <div className="grid grid-cols-1 gap-2">
+                    <FieldLabel
+                      htmlFor="profile-handle"
+                      hint="3 to 30 characters: lowercase letters, digits, hyphens and underscores. This is the address people will type, so changing it breaks every link to the old one."
+                    >
+                      Handle
+                    </FieldLabel>
+                    <Input
+                      id="profile-handle"
+                      maxLength={HANDLE_MAX_LENGTH}
+                      value={draft.handle}
+                      placeholder="sarah"
+                      aria-invalid={handleBad ? true : undefined}
+                      onChange={(event) =>
+                        change({ handle: event.target.value.toLowerCase() })
+                      }
+                    />
+                    <p className="font-mono text-xs text-muted-foreground">
+                      /u/{handleClean || "your-handle"}
+                    </p>
                   </div>
-                </div>
-              ))}
-            </section>
 
-            <section className="grid grid-cols-1 gap-3">
-              <div className="flex items-start gap-2">
-                <Switch
-                  id="profile-listed"
-                  className="mt-0.5"
-                  checked={draft.listed}
-                  onCheckedChange={(checked) => change({ listed: checked })}
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="profile-public"
+                      checked={draft.profilePublic}
+                      onCheckedChange={(checked) =>
+                        change({ profilePublic: checked })
+                      }
+                    />
+                    <Label htmlFor="profile-public">
+                      Publish my page at that address
+                    </Label>
+                  </div>
+                  {saved?.profilePublic &&
+                  saved.handle &&
+                  draft.profilePublic &&
+                  handleClean === saved.handle ? (
+                    <PageAddress handle={saved.handle} />
+                  ) : draft.profilePublic ? (
+                    <p className="text-sm text-muted-foreground">
+                      Save to publish your page.
+                    </p>
+                  ) : null}
+                </section>
+            </CardContent>
+          </Card>
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle>How it looks</CardTitle>
+            </CardHeader>
+            <CardContent className="grid grid-cols-1 gap-6">
+                <section className="grid grid-cols-1 gap-4">
+                  <div className="grid grid-cols-1 gap-2">
+                    <FieldLabel
+                      htmlFor="profile-bio"
+                      hint="A few lines about you. It is drawn as plain text, so anything that looks like markup appears as the characters you typed."
+                    >
+                      About you
+                    </FieldLabel>
+                    <Textarea
+                      id="profile-bio"
+                      maxLength={BIO_MAX_LENGTH}
+                      value={draft.bio}
+                      placeholder="Two lines about what you are working on."
+                      onChange={(event) => change({ bio: event.target.value })}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {BIO_MAX_LENGTH - draft.bio.length} characters left
+                    </p>
+                  </div>
+
+                  <SocialLinksField
+                    links={draft.socialLinks}
+                    onChange={(socialLinks) => change({ socialLinks })}
+                  />
+                </section>
+
+                <section className="grid grid-cols-1 gap-2">
+                  <FieldLabel hint="The picture on your account is the one your page shows. With no picture your page draws your coloured initials, exactly as the leaderboard does.">
+                    Your picture
+                  </FieldLabel>
+                  <div className="flex items-center gap-3">
+                    <ProfilePhoto
+                      name={handleClean || "you"}
+                      avatarUrl={avatarUrl}
+                      className="size-12 text-base"
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      {/* The photo card moved to the Profile tab, so "the card
+                          above" became a link to it. */}
+                      {avatarUrl ? "Change it" : "Add one"} on the{" "}
+                      <TextLink to="/settings" search={{ tab: "profile" }}>
+                        Profile tab
+                      </TextLink>
+                      {avatarUrl
+                        ? "."
+                        : ", or leave it and your initials are drawn."}
+                    </p>
+                  </div>
+                </section>
+
+                <BannerField
+                  value={draft.bannerRef}
+                  uploads={uploads}
+                  canUpload={canUpload}
+                  onChange={(bannerRef) => change({ bannerRef })}
                 />
-                <div className="grid grid-cols-1 gap-0.5">
-                  <Label htmlFor="profile-listed">List me on /users</Label>
-                  <span className="text-xs text-muted-foreground">
-                    A second switch on purpose. Having a page and being in a
-                    directory other people browse are different wishes, and
-                    only a listed profile is offered to search engines.
-                  </span>
-                </div>
-              </div>
-              <div className="flex items-start gap-2">
-                <Switch
-                  id="profile-cheers"
-                  className="mt-0.5"
-                  checked={draft.cheersEnabled}
-                  onCheckedChange={(checked) =>
-                    change({ cheersEnabled: checked })
-                  }
+            </CardContent>
+          </Card>
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle>What it shows</CardTitle>
+            </CardHeader>
+            <CardContent className="grid grid-cols-1 gap-6">
+                <section className="grid grid-cols-1 gap-3">
+                  <FieldLabel hint="Each one is off until you switch it on. Nobody sees a section until you do.">
+                    What your page shows
+                  </FieldLabel>
+                  {PROFILE_SECTIONS.map((section) => (
+                    <div key={section.key} className="flex items-start gap-2">
+                      <Switch
+                        id={`profile-${section.key}`}
+                        className="mt-0.5"
+                        checked={draft[section.key as ProfileSectionKey]}
+                        onCheckedChange={(checked) =>
+                          change({ [section.key]: checked } as Partial<Draft>)
+                        }
+                      />
+                      <div className="grid grid-cols-1 gap-0.5">
+                        <Label htmlFor={`profile-${section.key}`}>
+                          {section.label}
+                        </Label>
+                        <span className="text-xs text-muted-foreground">
+                          {section.hint}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </section>
+
+                <PinnedBadgesField
+                  pinned={draft.pinnedBadges}
+                  earnedBadgeIds={earnedBadgeIds}
+                  onChange={(pinnedBadges) => change({ pinnedBadges })}
                 />
-                <div className="grid grid-cols-1 gap-0.5">
-                  <Label htmlFor="profile-cheers">Let people cheer me on</Label>
-                  <span className="text-xs text-muted-foreground">
-                    A short line from a fixed list, from somebody who follows
-                    you. Nothing is typed, and three a day is the most one
-                    person can send you.
-                  </span>
-                </div>
-              </div>
-            </section>
-
-            <PinnedBadgesField
-              pinned={draft.pinnedBadges}
-              earnedBadgeIds={earnedBadgeIds}
-              onChange={(pinnedBadges) => change({ pinnedBadges })}
-            />
-
-            <div className="flex items-center gap-3">
-              {/* Pressable with a bad handle on purpose: the rulebook keeps
-                  the action live and names the problem on the press. */}
-              <Button disabled={saving} onClick={() => void save()}>
-                {saving ? "Saving…" : "Save public page"}
-              </Button>
-            </div>
-          </>
-        ) : null}
-      </CardContent>
-    </Card>
+            </CardContent>
+          </Card>
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle>Being found</CardTitle>
+            </CardHeader>
+            <CardContent className="grid grid-cols-1 gap-6">
+                <section className="grid grid-cols-1 gap-3">
+                  <div className="flex items-start gap-2">
+                    <Switch
+                      id="profile-listed"
+                      className="mt-0.5"
+                      checked={draft.listed}
+                      onCheckedChange={(checked) => change({ listed: checked })}
+                    />
+                    <div className="grid grid-cols-1 gap-0.5">
+                      <Label htmlFor="profile-listed">List me on /users</Label>
+                      <span className="text-xs text-muted-foreground">
+                        A second switch on purpose. Having a page and being in a
+                        directory other people browse are different wishes, and
+                        only a listed profile is offered to search engines.
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <Switch
+                      id="profile-cheers"
+                      className="mt-0.5"
+                      checked={draft.cheersEnabled}
+                      onCheckedChange={(checked) =>
+                        change({ cheersEnabled: checked })
+                      }
+                    />
+                    <div className="grid grid-cols-1 gap-0.5">
+                      <Label htmlFor="profile-cheers">Let people cheer me on</Label>
+                      <span className="text-xs text-muted-foreground">
+                        A short line from a fixed list, from somebody who follows
+                        you. Nothing is typed, and three a day is the most one
+                        person can send you.
+                      </span>
+                    </div>
+                  </div>
+                </section>
+            </CardContent>
+          </Card>
+          <div className="flex items-center gap-3">
+            {/* Pressable with a bad handle on purpose: the rulebook keeps
+                the action live and names the problem on the press. */}
+            <Button disabled={saving} onClick={() => void save()}>
+              {saving ? "Saving…" : "Save public page"}
+            </Button>
+          </div>
+        </>
+      )}
+    </div>
   )
 }
 

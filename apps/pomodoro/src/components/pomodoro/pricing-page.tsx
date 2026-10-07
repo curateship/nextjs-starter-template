@@ -18,6 +18,7 @@ import { describeCode } from "@/lib/format/code-label"
 import { formatMoney } from "@/lib/format/money"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
+import { contentColumn } from "@/lib/pomodoro/content-column"
 
 /**
  * The plans screen, inside the product shell.
@@ -99,7 +100,7 @@ export function PricingPage({
   const sellsYearly = plans.some((plan) => plan.priceYearlyCents > 0)
 
   return (
-    <div className="mx-auto flex w-full max-w-[960px] flex-col gap-8 py-8">
+    <div className={`${contentColumn} flex flex-col gap-8 py-8`}>
       <header className="flex flex-col items-center gap-2 text-center">
         <h2 className="text-[34px] font-bold tracking-tight">
           Simple pricing

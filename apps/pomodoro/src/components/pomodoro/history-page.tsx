@@ -61,6 +61,7 @@ import { browserTimezone } from "@/lib/pomodoro/timer"
 import { dismissErrorToast } from "@/lib/toast/error-toast"
 import { TextLink } from "@/components/pomodoro/text-link"
 import { SignInButton } from "@/components/pomodoro/sign-in-button"
+import { contentColumn } from "@/lib/pomodoro/content-column"
 
 type FocusHistoryResult = Awaited<ReturnType<typeof loadFocusHistory>>
 type ReportDay = FocusHistoryResult["days"][number]
@@ -905,7 +906,7 @@ export function HistoryPage({
 
   if (!authenticated) {
     return (
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 py-8">
+      <div className={`${contentColumn} flex flex-col gap-4 py-8`}>
         <header>
           <h2 className="text-2xl font-bold tracking-tight">Focus history</h2>
           <p className="text-sm text-muted-foreground">
@@ -933,7 +934,7 @@ export function HistoryPage({
 
   return (
     <>
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 py-8">
+      <div className={`${contentColumn} flex flex-col gap-4 py-8`}>
         <header>
           <h2 className="text-2xl font-bold tracking-tight">Focus history</h2>
           <p className="text-sm text-muted-foreground">{rangeSummary}</p>

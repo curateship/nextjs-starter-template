@@ -70,7 +70,7 @@ export function renderShareCardSvg({
   const hours = `${hoursThisMonth.toLocaleString("en-GB")}`
   const streak = `${currentStreak.toLocaleString("en-GB")}`
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${SHARE_CARD_WIDTH}" height="${SHARE_CARD_HEIGHT}" viewBox="0 0 ${SHARE_CARD_WIDTH} ${SHARE_CARD_HEIGHT}" role="img" aria-label="${safeName} on Pomodoro">
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${SHARE_CARD_WIDTH}" height="${SHARE_CARD_HEIGHT}" viewBox="0 0 ${SHARE_CARD_WIDTH} ${SHARE_CARD_HEIGHT}" role="img" aria-label="${safeName} on Pomoder">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#1b1714"/>
@@ -85,6 +85,6 @@ export function renderShareCardSvg({
   <text x="80" y="446" font-family="Helvetica, Arial, sans-serif" font-size="28" fill="rgba(255,255,255,0.62)">hours focused this month</text>
   <text x="620" y="398" font-family="Helvetica, Arial, sans-serif" font-size="104" font-weight="700" fill="#ffffff">${streak}</text>
   <text x="620" y="446" font-family="Helvetica, Arial, sans-serif" font-size="28" fill="rgba(255,255,255,0.62)">day streak</text>
-  <text x="80" y="566" font-family="Helvetica, Arial, sans-serif" font-size="26" fill="rgba(255,255,255,0.45)">Pomodoro</text>
+  <text x="80" y="566" font-family="Helvetica, Arial, sans-serif" font-size="26" fill="rgba(255,255,255,0.45)">Pomoder</text>
 </svg>`
 }

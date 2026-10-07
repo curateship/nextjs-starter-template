@@ -50,14 +50,14 @@ html:root:has([data-pomodoro-screen]) {
   --p-shadow-rgb: 60, 45, 30;
   --p-accent: #f2502d;
   --p-accent-2: #cc4225;
-  --p-on-accent: #2a1a12;
+  --p-on-accent: #ffffff;
   --p-success: #12a150;
   --p-danger: #c23b32;
   --p-track: #d7cfc3;
 
   /* The shadcn variables the shell's components draw with, mapped onto the
      product tokens the way the old app's token block did. The on-accent text
-     stays dark in both themes. */
+     is white in both themes, Tyler's call (see pomoder-look.md). */
   --background: var(--p-canvas);
   --foreground: var(--p-text);
   --card: var(--p-surface);
@@ -168,7 +168,7 @@ html:root.dark:has([data-pomodoro-screen]) {
   --p-shadow-rgb: 0, 0, 0;
   --p-accent: #ff5a3c;
   --p-accent-2: #ff7a5c;
-  --p-on-accent: #0b0b0e;
+  --p-on-accent: #ffffff;
   --p-success: #4ade80;
   --p-danger: #fca5a5;
   --p-track: #303037;

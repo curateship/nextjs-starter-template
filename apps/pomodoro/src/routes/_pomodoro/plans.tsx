@@ -44,7 +44,7 @@ export const Route = createFileRoute("/_pomodoro/plans")({
   },
   head: () => ({
     meta: [
-      { title: "Plans — Pomodoro" },
+      { title: "Plans — Pomoder" },
       {
         name: "description",
         content:

@@ -48,6 +48,7 @@ import { useSpaceToggle } from "@/lib/pomodoro/use-space-toggle"
 import { TextLink } from "@/components/pomodoro/text-link"
 import { plural } from "@/lib/format/plural"
 import { cn } from "@/lib/utils"
+import { contentColumn } from "@/lib/pomodoro/content-column"
 
 const circumference = 2 * Math.PI * 132
 
@@ -198,7 +199,7 @@ export function TimerDashboard() {
 
   return (
     <div className="flex flex-col gap-8">
-      <section className="mx-auto flex w-full max-w-[860px] flex-col items-center gap-9">
+      <section className={`${contentColumn} flex flex-col items-center gap-9`}>
         {/* The ring takes the smaller of 300px and the width the page
             actually has, so it stays whole on a narrow phone instead of
             running off the side. The percentage is of the content column, not
@@ -384,7 +385,7 @@ export function TimerDashboard() {
         </div>
       </section>
 
-      <section className="mx-auto w-full max-w-[860px] overflow-hidden rounded-3xl border bg-[var(--p-surface)]">
+      <section className={`${contentColumn} overflow-hidden rounded-3xl border bg-[var(--p-surface)]`}>
         <header className="flex items-center gap-3 border-b px-6 py-[18px]">
           <strong className="text-base tracking-tight">Tasks</strong>
           {/* Waits for the first task, the same as the Tasks page. */}

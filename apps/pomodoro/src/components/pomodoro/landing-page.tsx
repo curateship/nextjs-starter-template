@@ -64,7 +64,7 @@ export const pomodoroLandingPage = definePublicPage<LandingData>({
   },
   head: () => {
     const meta: Array<Record<string, string>> = [
-      { title: "Pomodoro — a focus timer you can use right now" },
+      { title: "Pomoder — a focus timer you can use right now" },
       {
         name: "description",
         content:

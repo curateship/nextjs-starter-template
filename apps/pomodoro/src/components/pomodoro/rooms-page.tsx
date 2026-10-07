@@ -103,6 +103,7 @@ import { useProductAuth } from "@/lib/pomodoro/auth-state"
 import { usePageVisible } from "@/lib/pomodoro/use-page-visible"
 import { PRO_PERKS } from "@/lib/pomodoro/pro"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+import { contentColumn } from "@/lib/pomodoro/content-column"
 
 export type RoomSnapshotClient = NonNullable<
   Awaited<ReturnType<typeof getCurrentRoom>>
@@ -493,7 +494,7 @@ export function RoomsPage() {
   // 860px wide with a 36px gap between groups are the old app's own numbers
   // for this screen. Two room cards side by side need the width.
   return (
-    <div className="mx-auto flex w-full max-w-[860px] flex-col gap-9 py-8">
+    <div className={`${contentColumn} flex flex-col gap-9 py-8`}>
       <header>
         <h2 className="text-2xl font-bold tracking-tight">Focus rooms</h2>
         <p className="text-sm text-muted-foreground">
