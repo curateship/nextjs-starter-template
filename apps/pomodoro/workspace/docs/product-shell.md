@@ -103,11 +103,38 @@ Admins are forwarded by the Admin home route next to it instead, which is
 empty and so opens the admin's Overview. Whether an admin should land on the
 timer too is Tyler's call.
 
-**The sign-in pages still draw in the shell's frame**, not the product's. All
-ten of them (sign in, register, forgot and reset password, verify email and
-the rest) go through one shell component, `AuthShell`, and no app option
-reaches it. See "Every member-facing screen goes under `_pomodoro`" above for
-why the route files cannot simply move.
+## The sign-in pages
+
+**The ten signed-out pages draw inside the product shell:** sign in, register,
+forgot and reset password, verify email, the sign-in link, change email and its
+undo, reporting an unwanted sign-in, and maintenance. Before 6 Oct 2026 they
+drew the shell's public site frame, so pressing Log in looked like leaving the
+app.
+
+- **The card is still the shell's.** Its fields, Google, passkeys, checks and
+  redirects are the same code every app has. Only the frame around it is this
+  app's: `src/components/pomodoro/sign-in-frame.tsx`, handed to the shell
+  through `signIn.frame` in `src/app/options.ts`. The shell's route files are
+  untouched.
+- **The option lives in the shell.** `signIn.frame` was added to custom-shell
+  for this, off by default, so every other app keeps the public frame until it
+  sets one. The two shell files it changed, `app-options.ts` and
+  `auth-shell.tsx`, are the same in both apps.
+- **The card floats on the scene.** It sits 280px from the top, the way the
+  timer ring does, rather than at the product's usual content height. At that
+  height the form started 600px down a 900px window and its Google and passkey
+  buttons fell below the fold. The Sign in button is on screen at every size
+  from 320×640 up, measured.
+- **Who is signed in is asked from the browser**, the way the shell's own
+  public header asks, because these pages have no product loader. Most are
+  reached signed out and show Log in and Register; change email, reached
+  signed in, shows the account photo.
+- **Maintenance gets the frame too.** During maintenance the left menu's links
+  only lead back to the maintenance page, which Tyler accepted on 6 Oct 2026
+  for one look everywhere.
+- **Log in on one of these pages carries no return address.** Coming back to
+  `/login` after signing in would bounce to `/home`, so the member home route
+  decides instead.
 
 ## The blur behind an open window
 
@@ -170,7 +197,9 @@ The addresses the shell keeps, and why they are the exception:
 
 - `/login`, `/register`, `/pricing`, `/search` and the missing-page screen are
   the shell's own route files. Editing or moving one forks it, and a forked
-  shell file conflicts on every future merge, so they stay where they are.
+  shell file conflicts on every future merge, so they stay where they are. The
+  sign-in pages still get the product's frame, through a shell option; see
+  "The sign-in pages" below.
 - The router refuses two routes at one address, so `src/routes/_pomodoro/x.tsx`
   cannot shadow `src/routes/x.tsx`. It fails the build with "Conflicting
   configuration paths", not quietly.

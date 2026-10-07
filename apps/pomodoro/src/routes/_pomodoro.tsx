@@ -3,6 +3,7 @@ import { createFileRoute, Outlet, redirect } from "@tanstack/react-router"
 
 import { PomodoroShell } from "@/components/pomodoro/pomodoro-shell"
 import { routeErrorComponent } from "@/components/shell/route-error"
+import { loadBackgroundPreference } from "@/lib/api/pomodoro/backgrounds"
 import { loadAccountMenu } from "@/lib/api/pomodoro/profile"
 import { loadShellBootstrap } from "@/lib/api/shell"
 import { setProductAuthenticated } from "@/lib/pomodoro/auth-state"
@@ -28,10 +29,18 @@ export const Route = createFileRoute("/_pomodoro")({
     // The account menu's plan line and profile row. A failure leaves both
     // off rather than failing the page: guessing "Free" would tell a paying
     // member the wrong thing.
-    const accountMenu = user ? await loadAccountMenu().catch(() => null) : null
+    // The saved background is read here too, so the first frame draws it
+    // rather than the default scene. A failure draws the default, as before.
+    const [accountMenu, savedBackground] = user
+      ? await Promise.all([
+          loadAccountMenu().catch(() => null),
+          loadBackgroundPreference().catch(() => null),
+        ])
+      : [null, null]
     return {
       user: user ?? null,
       accountMenu,
+      savedBackground,
       bell: {
         unseen: shell.unseenNotifications,
         live: shell.settings?.liveNotifications ?? true,
@@ -45,7 +54,7 @@ export const Route = createFileRoute("/_pomodoro")({
 })
 
 function PomodoroLayout() {
-  const { user, accountMenu, bell } = Route.useLoaderData()
+  const { user, accountMenu, savedBackground, bell } = Route.useLoaderData()
   const authenticated = Boolean(user)
 
   // The engines read this one fact instead of asking the server (which
@@ -60,7 +69,12 @@ function PomodoroLayout() {
   }, [authenticated])
 
   return (
-    <PomodoroShell user={user} accountMenu={accountMenu} bell={bell}>
+    <PomodoroShell
+      user={user}
+      accountMenu={accountMenu}
+      savedBackground={savedBackground}
+      bell={bell}
+    >
       <Outlet />
     </PomodoroShell>
   )

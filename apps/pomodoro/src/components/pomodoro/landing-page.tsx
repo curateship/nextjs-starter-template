@@ -1,9 +1,22 @@
 import * as React from "react"
 
+// The Pomoder stylesheet, loaded with every page rather than with the frame.
+// The front page and the sign-in pages draw the product shell from a chunk
+// loaded on demand (see below), and a stylesheet that arrives with such a
+// chunk arrives late: measured in dev, the server's copy of the styles was
+// removed about 200ms before the chunk's own landed, so "/" showed the shell's
+// plain look in between. Imported here, it is part of the app's first load.
+// A stylesheet carries no code, so it cannot reopen the import circle the
+// lazy import exists for. Every rule in it is scoped to
+// `[data-pomodoro-screen]`, so on the admin screens it is 11KB that matches
+// nothing. The fonts stay with the shell: those download when loaded.
+import "@/components/pomodoro/theme.css"
+
 import type { AccountMenuUser } from "@/components/pomodoro/account-menu"
 import type { HeaderBell } from "@/components/pomodoro/pomodoro-shell"
 import { definePublicPage } from "@/lib/app-options"
 import type { AccountMenuFacts } from "@/lib/api/pomodoro/profile"
+import type { SavedBackground } from "@/lib/pomodoro/background-store"
 
 /**
  * The front page is the timer itself, exactly like the old app: a visitor
@@ -21,6 +34,7 @@ import type { AccountMenuFacts } from "@/lib/api/pomodoro/profile"
 export type LandingData = {
   user: AccountMenuUser | null
   accountMenu: AccountMenuFacts | null
+  savedBackground: SavedBackground | null
   bell: HeaderBell
 }
 
@@ -36,11 +50,17 @@ export const pomodoroLandingPage = definePublicPage<LandingData>({
       unseen: unseenNotifications,
       live: settings?.liveNotifications ?? true,
     }
-    if (!user) return { user: null, accountMenu: null, bell }
+    if (!user) return { user: null, accountMenu: null, savedBackground: null, bell }
     // The same facts, and the same rule on failure, as the `_pomodoro` layout.
-    const { loadAccountMenu } = await import("@/lib/api/pomodoro/profile")
-    const accountMenu = await loadAccountMenu().catch(() => null)
-    return { user, accountMenu, bell }
+    const [{ loadAccountMenu }, { loadBackgroundPreference }] = await Promise.all([
+      import("@/lib/api/pomodoro/profile"),
+      import("@/lib/api/pomodoro/backgrounds"),
+    ])
+    const [accountMenu, savedBackground] = await Promise.all([
+      loadAccountMenu().catch(() => null),
+      loadBackgroundPreference().catch(() => null),
+    ])
+    return { user, accountMenu, savedBackground, bell }
   },
   head: () => {
     const meta: Array<Record<string, string>> = [

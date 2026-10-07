@@ -113,12 +113,13 @@ export const appOptions: AppOptions = {
   /**
    * The look the shell's own signed-out pages start from.
    *
-   * Five addresses stay on the shell's public frame rather than the product
+   * Three addresses stay on the shell's public frame rather than the product
    * shell, because their route files belong to the shell and an app that edits
-   * one has forked it: `/login`, `/register`, `/pricing`, `/search` and the
-   * missing-page screen. They cannot have the product's sidebar, hero or
-   * fonts, but they can at least share its colour, so the orange Register
-   * button and the focus rings are the same orange on both sides of the seam.
+   * one has forked it: `/pricing`, `/search` and the missing-page screen. The
+   * sign-in pages get the product's frame through `signIn` below. These three
+   * cannot have the product's sidebar, hero or fonts, but they can at least
+   * share its colour, so buttons and focus rings are the same orange on both
+   * sides of the seam.
    *
    * `#ff5a3c` is the old app's accent, the dark palette's `--p-accent` in
    * `src/components/pomodoro/theme.css`. Only these two fields are set: a
@@ -134,6 +135,16 @@ export const appOptions: AppOptions = {
   },
   landing: {
     page: pomodoroLandingPage,
+  },
+  /**
+   * The sign-in pages in the product's own frame: sidebar, header and scene
+   * around the shell's own card, so a visitor who presses Log in does not land
+   * on a page that looks like a different site. The card, its forms and every
+   * redirect stay the shell's. Loaded on demand: the frame draws the product
+   * shell, which reaches server functions, and this file may not.
+   */
+  signIn: {
+    frame: () => import("@/components/pomodoro/sign-in-frame"),
   },
   pages: {
     /**

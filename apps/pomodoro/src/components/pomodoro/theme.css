@@ -224,6 +224,13 @@ html:root.dark[data-dark-shade="charcoal"]:has([data-pomodoro-screen]) {
   --p-text-subtle: #92909b;
 }
 
+/* Graphite is the default shade (DEFAULT_DARK_SHADE in
+   src/lib/pomodoro/dark-shade.ts), so it is also what draws before the script
+   that sets data-dark-shade has run. Without the :not() line every visitor saw
+   near black for the first half second and then graphite, on every page load,
+   whether or not they had ever chosen a shade. Only somebody who picked
+   another shade now sees one change, from graphite to theirs. */
+html:root.dark:not([data-dark-shade]):has([data-pomodoro-screen]),
 html:root.dark[data-dark-shade="graphite"]:has([data-pomodoro-screen]) {
   --p-canvas: #212125;
   --p-canvas-rgb: 33, 33, 37;

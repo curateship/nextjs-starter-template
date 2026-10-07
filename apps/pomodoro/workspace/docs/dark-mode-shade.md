@@ -34,8 +34,13 @@ background would read as washed out.
   shape as that block, so it wins on specificity whatever the import order.
 - `src/lib/pomodoro/dark-shade.ts` remembers the choice and puts the
   attribute on `<html>`. It runs as the module loads rather than in an
-  effect, so the canvas never flashes near black on the way to the chosen
-  step.
+  effect, but that is still after the page has first been drawn.
+- **Before the attribute arrives, the page is graphite, the default.** The
+  graphite block also matches `<html>` with no `data-dark-shade` at all. Until
+  6 Oct 2026 the attribute-less page was near black, so every load showed near
+  black for about half a second and then graphite, even for somebody who had
+  never chosen a shade. Now only somebody who picked another step sees one
+  change, from graphite to theirs, measured on `/`, `/timer` and `/login`.
 - `src/components/pomodoro/appearance-settings-panel.tsx` is the Appearance
   card: one shadcn Select, a colour dot beside each name, and a line of help
   that says what the step looks like.

@@ -33,7 +33,11 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import type { AccountMenuFacts } from "@/lib/api/pomodoro/profile"
 import { usePublicNavigation } from "@/lib/branding"
-import { useBackgroundSelection } from "@/lib/pomodoro/background-store"
+import {
+  SavedBackgroundContext,
+  useBackgroundSelection,
+  type SavedBackground,
+} from "@/lib/pomodoro/background-store"
 import {
   publicDeviceSidebarClassName,
   savedMenuLinks,
@@ -41,8 +45,12 @@ import {
 import { useTabCountdown } from "@/lib/pomodoro/use-tab-countdown"
 
 // The whole Pomoder look rides in with the product shell: the tokens
-// stylesheet and the two fonts. Nothing of it is imported from the shell's
-// graph, so the admin screens load none of it.
+// stylesheet and the two fonts. The stylesheet is also imported by
+// `landing-page.tsx` so it is on the page from the first load: the front page
+// and the sign-in pages draw this shell from a chunk loaded on demand, and the
+// stylesheet arriving with that chunk left a gap with no Pomoder styles. Every
+// rule in it is scoped to `[data-pomodoro-screen]`, so the admin screens match
+// none of it; the fonts are still loaded only here.
 import "@/components/pomodoro/theme.css"
 import "@/components/pomodoro/fonts"
 // Puts the chosen dark shade (Settings → Appearance) on <html>, where
@@ -222,6 +230,29 @@ function ThemeTogglePill() {
 const pageGutterClass = "px-6 sm:px-10"
 
 /**
+ * The shell's signed-out pages, which this shell also frames (see
+ * `sign-in-frame.tsx`). None of them is somewhere to be sent back to after
+ * signing in: back to /login would bounce straight to /home.
+ */
+const SIGN_IN_PAGES = [
+  "/login",
+  "/register",
+  "/forgot-password",
+  "/reset-password",
+  "/verify-email",
+  "/sign-in-link",
+  "/change-email",
+  "/revoke-email-change",
+  "/report-unwanted-sign-in",
+  "/maintenance",
+]
+
+/** Whether signing in from this page should come back to it. */
+function returnsHere(pathname: string) {
+  return pathname !== "/" && !SIGN_IN_PAGES.some((page) => pathname.startsWith(page))
+}
+
+/**
  * What the header's bell starts from, read by the layout with the rest of the
  * shell's page data: how many notices arrived since the bell was last opened,
  * and whether the live connection is switched on.
@@ -239,18 +270,22 @@ const sidebarRowClass =
 export function PomodoroShell({
   user,
   accountMenu,
+  savedBackground,
   bell,
   children,
 }: {
   user: AccountMenuUser | null
   accountMenu: AccountMenuFacts | null
+  /** The account's saved background from the loader, so the first frame draws it. */
+  savedBackground: SavedBackground | null
   bell: HeaderBell
   children: React.ReactNode
 }) {
   const [menuOpen, setMenuOpen] = React.useState(false)
   const [collapsed, setCollapsed] = React.useState(false)
   const pathname = useRouterState({ select: (state) => state.location.pathname })
-  const { background, fallBackToDefault } = useBackgroundSelection()
+  const { background, fallBackToDefault } =
+    useBackgroundSelection(savedBackground)
   const { setTheme } = useTheme()
   const savedMenu = usePublicNavigation()
   const savedLinks = React.useMemo(
@@ -308,6 +343,9 @@ export function PomodoroShell({
   }
 
   return (
+    // Every screen inside reads the same saved background, so the header's
+    // Theme popover, Zen mode and the backgrounds page start from it too.
+    <SavedBackgroundContext.Provider value={savedBackground}>
     <div data-pomodoro-screen className="flex min-h-screen bg-background">
       <aside
         className={cn(
@@ -463,10 +501,12 @@ export function PomodoroShell({
               <>
                 {/* Signing in brings you back to the page you were on rather
                     than to the shell's /home. The login route checks the
-                    address is a path inside this app before following it. */}
+                    address is a path inside this app before following it. A
+                    sign-in page is never the page to come back to, so on one
+                    of those the member home route decides instead. */}
                 <Link
                   to="/login"
-                  search={pathname === "/" ? {} : { redirect: pathname }}
+                  search={returnsHere(pathname) ? { redirect: pathname } : {}}
                   className="px-2 text-[14.5px] font-medium hover:text-[var(--p-accent-2)]"
                 >
                   Log in
@@ -502,5 +542,6 @@ export function PomodoroShell({
         </main>
       </div>
     </div>
+    </SavedBackgroundContext.Provider>
   )
 }

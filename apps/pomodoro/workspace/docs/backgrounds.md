@@ -29,6 +29,29 @@ screen's content with a canvas-tinted shade so text stays readable.
   `onError` alone missed the usual case. The element remembers its own failure,
   so `SceneBackdrop` asks the element once on the way in as well.
 
+## The first frame is the saved background
+
+**A signed-in member's page is drawn with their own background from the very
+first frame.** The product layout (`src/routes/_pomodoro.tsx`) and the front
+page's loader read the saved choice with the rest of the page's data. The
+server draws with it, and the browser takes it into the background store
+before its first render, so the two agree and nothing swaps.
+
+Before 6 Oct 2026 the server always drew the default lofi scene and the
+browser asked for the real choice only after the page was up. Tyler, with rain
+saved, saw the lofi girl and then rain on every load: 320ms on `/` and 570ms on
+`/timer`, measured, longer on a slower connection. Every reader of the
+background shares the loader's answer through `SavedBackgroundContext`: the
+hero, the header's Theme popover, Zen mode and the backgrounds page.
+
+- **The loader's answer is used once.** After the first render the store is the
+  truth, so a background picked on the page is never put back by a stale page
+  load.
+- **A failed read draws the default**, the same as before.
+- **A guest who picked a scene still sees the default first.** A guest's choice
+  lives in the browser, so the server cannot know it while it draws the page.
+  Fixing that would mean keeping the choice in a cookie as well.
+
 ## Reduce Motion
 
 Nobody who has asked their computer for less movement gets a looping film

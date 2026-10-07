@@ -28,7 +28,12 @@ export default function LandingTimer({ data }: { data: LandingData }) {
   }, [authenticated])
 
   return (
-    <PomodoroShell user={user} accountMenu={data.accountMenu} bell={data.bell}>
+    <PomodoroShell
+      user={user}
+      accountMenu={data.accountMenu}
+      savedBackground={data.savedBackground}
+      bell={data.bell}
+    >
       <TimerDashboard />
       {authenticated ? null : <LiveFigureRows />}
     </PomodoroShell>

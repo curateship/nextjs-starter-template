@@ -67,16 +67,15 @@ address. It built its own screen at its own address instead.
 `/pricing` still answers and still works. It is not linked from the product,
 and an admin who wants it gone can switch it off in Settings → Pages.
 
-The same wall stands in front of `/login`, `/register`, `/search` and the
-missing-page screen: all five are the shell's route files and all five draw the
-shell's public frame rather than the product shell. What they do share is the
-colour — `src/app/options.ts` sets the app's public brand colour to the
-Pomoder orange — so the Register button on the sign-in page is the same orange
-as the one in the product header.
+The same wall stands in front of `/search` and the missing-page screen: both
+are the shell's route files and both draw the shell's public frame rather than
+the product shell. What they do share is the colour, because
+`src/app/options.ts` sets the app's public brand colour to the Pomoder orange.
 
-Closing that seam properly needs a new option in the shell, letting an app wrap
-the shell's signed-out pages in its own frame. That is a change to
-`apps/custom-shell` and has not been made.
+The sign-in pages were behind the same wall until 6 Oct 2026. The shell now
+offers `signIn.frame`, which lets an app draw its own frame around the shell's
+sign-in card, and this app uses it. See "The sign-in pages" in
+[The product shell](product-shell.md).
 
 ## Where it lives
 

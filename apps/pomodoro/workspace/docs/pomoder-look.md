@@ -28,6 +28,16 @@ screens (dashboard, rooms, sounds, tasks and the rest), not the admin.
   applies through `html:root:has([data-pomodoro-screen])`; the admin routes
   never render the product shell and are untouched, and nothing app-owned is
   imported from any shell file.
+- **The stylesheet is also part of every page's first load**, imported by
+  `src/components/pomodoro/landing-page.tsx`. The front page and the sign-in
+  pages draw the product shell from a chunk loaded on demand, and a stylesheet
+  that only came with that chunk arrived late: measured on 6 Oct 2026, the
+  server's copy of the styles was removed about 200ms before the chunk's own
+  landed, and `/` showed the shell's plain white look in between. A stylesheet
+  carries no code, so this does not reopen the import circle the on-demand
+  chunk exists for. On the admin screens it is 11KB that matches nothing. The
+  fonts are not loaded this way, because loading their module starts the
+  download.
 
 ## Rules the files enforce, and why
 

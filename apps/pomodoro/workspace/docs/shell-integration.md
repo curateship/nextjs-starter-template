@@ -16,13 +16,17 @@ is not what a visitor to this app's root sees. Those rows still exist and are
 still editable; nothing draws them here.
 
 The second is the public brand colour. `publicTheme` names the Pomoder orange
-and the Pomoder corner radius, so the five signed-out pages that stay on the
-shell's frame — `/login`, `/register`, `/pricing`, `/search` and the
-missing-page screen — at least share the product's accent. Only those two
-fields are named: a value saved in Settings → Styling replaces whatever is
-named there, and everything left out keeps the shell's own look. Why those
-five pages cannot have the product shell is in
+and the Pomoder corner radius, so the signed-out pages that stay on the shell's
+frame, `/pricing`, `/search` and the missing-page screen, at least share the
+product's accent. Only those two fields are named: a value saved in Settings →
+Styling replaces whatever is named there, and everything left out keeps the
+shell's own look. Why those pages cannot have the product shell is in
 [the plans page](plans-page.md).
+
+The third is the sign-in pages' frame. `signIn.frame` hands the shell
+`src/components/pomodoro/sign-in-frame.tsx`, so sign in, register, the password
+pages and the rest draw inside the product shell around the shell's own card.
+See "The sign-in pages" in [The product shell](product-shell.md).
 
 `src/app/server-options.ts` adds four background workers: the room clock,
 booked rooms, members' media re-encodes and AI generations. Each is this app's,

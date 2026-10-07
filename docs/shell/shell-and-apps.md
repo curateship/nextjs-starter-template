@@ -114,6 +114,23 @@ the guess that one might:
   keeps only differences from the app default, so an unrelated save does not
   freeze inherited values.
 - `landing.page` — replace `/` outright: loader, `<head>` and component together
+- `signIn.frame` — the frame drawn around the shell's ten signed-out pages
+  (sign in, register, forgot and reset password, verify email, the sign-in
+  link, change email and its undo, reporting an unwanted sign-in, maintenance)
+  in place of the public site's header and footer. The card and everything in
+  it stay the shell's: fields, Google, passkeys, checks and redirects. The app's
+  component is handed the card as children and decides where it sits. It is a
+  loader, `() => import(...)`, because a frame draws the app's chrome and that
+  reaches server functions the options module may not import. `AuthShell`
+  declares the lazy component once and reads the option only when it first
+  draws, and shows nothing rather than the public frame while it loads, so the
+  old look never flashes. Unset keeps the public frame. Pomodoro uses it.
+  **Load the frame's stylesheet from an always-loaded module too**, such as
+  the file `src/app/options.ts` imports for `landing.page`. A stylesheet that
+  only arrives with the on-demand frame lands after the server's copy of the
+  styles is removed, and the page flashes unstyled in between; Pomodoro
+  measured that gap at about 200ms. A stylesheet import carries no code, so it
+  does not reopen the import circle.
 - `pages.frontPageRowKinds` — extra kinds of row in the front page builder, each
   carrying its label, its hint, an optional icon for its card in the Add row
   window, a pointer to the panel that edits its own fields
