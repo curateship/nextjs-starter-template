@@ -32,8 +32,11 @@ import {
 import { SignInButton } from "@/components/pomodoro/sign-in-button"
 
 /**
- * "Generate your own" — the prompt box, the suggestions and this month's
- * counter, under the uploads on each picker page. Ported from the old app's
+ * "Generate your own" — one card under the uploads on each picker page: a
+ * "GENERATE YOUR OWN · PRO" heading with this month's count beside it, the
+ * sentence that says what it does, the suggestions as pills, and the prompt
+ * box with Generate along the card's foot. Drawn to Tyler's Sounds design of
+ * 7 Oct 2026; the Theme page shares it. Ported from the old app's
  * CatalogPage generator.
  *
  * A finished generation becomes an ordinary upload, so it appears in the grid
@@ -160,27 +163,101 @@ export function MediaGeneratorSection({
     promptInput.current?.focus()
   }
 
+  const headingId = `${promptId}-heading`
+
   return (
-    <section className="flex flex-col gap-3">
-      <header className="flex flex-wrap items-end justify-between gap-2">
-        <div className="flex items-start gap-2">
-          <SparklesIcon
-            className="mt-1 size-5 text-[var(--p-accent)]"
-            aria-hidden="true"
-          />
-          <div>
-            <h3 className="text-lg font-semibold tracking-tight">
-              {copy.title}
-            </h3>
-            <p className="text-sm text-muted-foreground">{copy.description}</p>
+    <section
+      aria-labelledby={headingId}
+      className="flex flex-col overflow-hidden rounded-[24px] border bg-[var(--p-surface)]"
+    >
+      <div className="flex min-h-48 flex-col gap-4 p-6">
+        <header className="flex flex-wrap items-center justify-between gap-2">
+          <h3
+            id={headingId}
+            className="font-mono text-[11px] uppercase tracking-[0.2em] text-foreground/75"
+          >
+            {copy.title}{" "}
+            <span className="ml-1 text-[var(--p-accent-2)]">Pro</span>
+          </h3>
+          {/* Only where there is an allowance to count. With none, the line
+              below already says it is a Pro perk, and saying it twice reads
+              like the page is nagging. */}
+          {panel && panel.limit > 0 ? (
+            <span className="font-mono text-xs text-muted-foreground">
+              {describeCreditsLeft(panel.left, panel.limit)}
+            </span>
+          ) : null}
+        </header>
+
+        <div className="flex items-start gap-3">
+          <span className="grid size-8 shrink-0 place-items-center rounded-full bg-primary/14 text-[var(--p-accent)]">
+            <SparklesIcon className="size-4" aria-hidden="true" />
+          </span>
+          <div className="flex min-w-0 flex-col gap-3 pt-1">
+            <p className="text-[15px]">{copy.description}</p>
+            <div className="flex flex-wrap gap-2">
+              {copy.suggestions.map((suggestion) => (
+                <Button
+                  key={suggestion}
+                  type="button"
+                  variant="outline"
+                  disabled={!editable}
+                  onClick={() => {
+                    setPrompt(suggestion)
+                    setTooShort(false)
+                    promptInput.current?.focus()
+                  }}
+                >
+                  {suggestion}
+                </Button>
+              ))}
+            </div>
           </div>
         </div>
-        <small className="font-mono text-[10px] tracking-widest text-[var(--p-accent-2)] uppercase">
-          Pro
-        </small>
-      </header>
 
-      <form className="flex flex-col gap-2 sm:flex-row" onSubmit={submit}>
+        {blockedReason && !error ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm text-muted-foreground">{blockedReason}</p>
+            {known && !signedIn ? <SignInButton /> : null}
+          </div>
+        ) : null}
+        {notice ? (
+          <p role="status" className="text-sm text-muted-foreground">
+            {notice}
+          </p>
+        ) : null}
+        {error ? (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
+        ) : null}
+        {tooShort ? (
+          <p id={tooShortId} role="alert" className="text-sm text-destructive">
+            Describe it in a few more words.
+          </p>
+        ) : null}
+
+        {panel && panel.generations.length ? (
+          <ul className="flex flex-col gap-1">
+            {panel.generations.map((row) => (
+              <GenerationRowLine
+                key={row.id}
+                row={row}
+                // Only while the box can take the words back; a box that is
+                // shut would be filled with nowhere to send them.
+                onRetry={editable ? () => retry(row.prompt) : undefined}
+              />
+            ))}
+          </ul>
+        ) : null}
+      </div>
+
+      {/* The prompt runs along the card's foot under a full-width divider,
+          with no frame of its own, like the timer's add-task box. */}
+      <form
+        className="mt-auto flex items-center gap-3 border-t py-3 pl-3 pr-3"
+        onSubmit={submit}
+      >
         <Label htmlFor={promptId} className="sr-only">
           What should AI make?
         </Label>
@@ -197,7 +274,7 @@ export function MediaGeneratorSection({
           disabled={!editable}
           aria-invalid={tooShort || undefined}
           aria-describedby={tooShort ? tooShortId : undefined}
-          className="flex-1"
+          className="h-9 flex-1 border-transparent bg-transparent text-[15px] shadow-none disabled:bg-transparent dark:bg-transparent dark:disabled:bg-transparent md:text-[15px]"
         />
         <SubmitButton
           canSubmit={canSubmit}
@@ -205,73 +282,6 @@ export function MediaGeneratorSection({
           reason={blockedReason}
         />
       </form>
-      {tooShort ? (
-        <p id={tooShortId} role="alert" className="text-sm text-destructive">
-          Describe it in a few more words.
-        </p>
-      ) : null}
-
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="font-mono text-[10px] tracking-widest text-muted-foreground uppercase">
-          Try
-        </span>
-        {copy.suggestions.map((suggestion) => (
-          <Button
-            key={suggestion}
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-7"
-            disabled={!editable}
-            onClick={() => {
-              setPrompt(suggestion)
-              setTooShort(false)
-            }}
-          >
-            {suggestion}
-          </Button>
-        ))}
-      </div>
-
-      {/* Only where there is an allowance to count. With none, the line under
-          the button already says it is a Pro perk, and saying it twice reads
-          like the page is nagging. */}
-      {panel && panel.limit > 0 ? (
-        <p className="text-xs text-muted-foreground">
-          {describeCreditsLeft(panel.left, panel.limit)}
-        </p>
-      ) : null}
-
-      {blockedReason && !error ? (
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="text-sm text-muted-foreground">{blockedReason}</p>
-          {known && !signedIn ? <SignInButton /> : null}
-        </div>
-      ) : null}
-      {notice ? (
-        <p role="status" className="text-sm text-muted-foreground">
-          {notice}
-        </p>
-      ) : null}
-      {error ? (
-        <p role="alert" className="text-sm text-destructive">
-          {error}
-        </p>
-      ) : null}
-
-      {panel && panel.generations.length ? (
-        <ul className="flex flex-col gap-1">
-          {panel.generations.map((row) => (
-            <GenerationRowLine
-              key={row.id}
-              row={row}
-              // Only while the box can take the words back; a box that is shut
-              // would be filled with nowhere to send them.
-              onRetry={editable ? () => retry(row.prompt) : undefined}
-            />
-          ))}
-        </ul>
-      ) : null}
     </section>
   )
 }
@@ -287,7 +297,7 @@ function SubmitButton({
   reason: string | null
 }) {
   const button = (
-    <Button type="submit" disabled={!canSubmit} className="w-fit">
+    <Button type="submit" size="lg" disabled={!canSubmit} className="w-fit px-5">
       {busy ? (
         <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
       ) : (

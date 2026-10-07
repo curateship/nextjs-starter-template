@@ -5,6 +5,14 @@ Plain dark and Starry night free; Rainy window, Night forest, Ocean waves
 and Fireplace for Pro — and the chosen one draws behind every member
 screen's content with a canvas-tinted shade so text stays readable.
 
+## Under the scenes
+
+A line under the cards counts them, "1–8 of 8 backgrounds", the same line the
+Sounds page has. Tyler asked for it on 7 Oct 2026 ("the theme page is missing
+this"). It is the shared `CatalogPager` (`catalog-pager.tsx`): eight cards a
+page, and Prev, page numbers and Next appear beside the count once there is a
+second page.
+
 ## How it works
 
 - **The choice is a module store** (`src/lib/pomodoro/background-store.ts`),

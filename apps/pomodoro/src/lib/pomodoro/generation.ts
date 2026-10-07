@@ -35,7 +35,7 @@ export const GENERATION_COPY: Record<
   background: {
     title: "Generate your own",
     description:
-      "Describe a scene and AI will make an animated background for you.",
+      "Describe a scene and I'll make an animated background for you. It sits behind every screen.",
     placeholder: "A cozy cabin desk at dawn, snow falling outside the window…",
     suggestions: [
       "Tokyo street in the rain at night",
@@ -47,7 +47,7 @@ export const GENERATION_COPY: Record<
   soundscape: {
     title: "Generate your own",
     description:
-      "Describe a soundscape and AI will mix an ambient loop for you.",
+      "Describe a soundscape and I'll mix an ambient loop for you. It plays and pauses with the timer like the rest.",
     placeholder: "Distant thunder with a crackling fire and soft wind…",
     suggestions: [
       "Rain on a tent in the mountains",
@@ -62,5 +62,6 @@ export const GENERATION_COPY: Record<
 export function describeCreditsLeft(left: number, limit: number) {
   if (limit === 0) return "AI generation is a Pro perk."
   if (left <= 0) return `None left this month. You get ${limit} on the first.`
-  return `${left} of ${limit} left this month.`
+  // A counter in the card's corner, not a sentence, so no full stop.
+  return `${left} of ${limit} left this month`
 }

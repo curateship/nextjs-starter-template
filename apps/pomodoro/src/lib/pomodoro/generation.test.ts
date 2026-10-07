@@ -8,8 +8,8 @@ import {
 
 describe("describeCreditsLeft", () => {
   it("counts what is left", () => {
-    expect(describeCreditsLeft(3, 5)).toBe("3 of 5 left this month.")
-    expect(describeCreditsLeft(1, 20)).toBe("1 of 20 left this month.")
+    expect(describeCreditsLeft(3, 5)).toBe("3 of 5 left this month")
+    expect(describeCreditsLeft(1, 20)).toBe("1 of 20 left this month")
   })
 
   it("says when the month is spent, and when the next lot arrives", () => {

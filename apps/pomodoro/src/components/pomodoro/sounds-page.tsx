@@ -1,5 +1,10 @@
 import * as React from "react"
-import { CheckIcon, LockIcon, PauseIcon, PlayIcon } from "lucide-react"
+import {
+  CheckIcon,
+  LockIcon,
+  PauseIcon,
+  PlayIcon,
+} from "lucide-react"
 
 import { Card, CardContent } from "@/components/ui/card"
 import {
@@ -15,10 +20,15 @@ import { useSoundPlayer } from "@/lib/pomodoro/use-sound-player"
 import { MediaUploadsSection } from "@/components/pomodoro/media-uploads-section"
 import { MediaGeneratorSection } from "@/components/pomodoro/media-generator-section"
 import { contentColumn } from "@/lib/pomodoro/content-column"
+import { CatalogPager } from "@/components/pomodoro/catalog-pager"
+import { useCatalogPage } from "@/lib/pomodoro/use-catalog-page"
 
 /**
- * The sounds page: the eight curated loops as cards. Four are free, four
- * are Pro; a locked card says why instead of going dead.
+ * The sounds page, drawn to Tyler's design of 7 Oct 2026 ("revamp the sound
+ * page"): a large title, the loops as cards of four across with a wide
+ * waveform picture, a count line with a pager, then a "Your own" card and a
+ * "Generate your own" card. Four loops are free and four are Pro; a locked
+ * card says why instead of going dead.
  *
  * Picking a card chooses that loop and saves the choice. It does not start
  * it: the sound begins when the timer starts, or when you press play, on
@@ -40,12 +50,14 @@ export function SoundsPage() {
     []
   )
 
+  const { page, pages, first, shown, setPage } = useCatalogPage(curatedSounds)
+
   return (
     <>
       <div className={`${contentColumn} flex flex-col gap-6 py-8`}>
-        <header>
-          <h2 className="text-2xl font-bold tracking-tight">Sounds</h2>
-          <p className="text-sm text-muted-foreground">
+        <header className="flex flex-col gap-2">
+          <h2 className="text-4xl font-bold tracking-tight">Sounds</h2>
+          <p className="max-w-xl text-base text-foreground/75">
             A loop for the background. Pick one here; it starts when the
             timer does, or when you press play.
           </p>
@@ -55,8 +67,8 @@ export function SoundsPage() {
             {state.notice}
           </p>
         ) : null}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {curatedSounds.map((sound) => {
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          {shown.map((sound) => {
             const reference = { type: "curated", key: sound.key } as const
             const selected = sameSoundReference(state.selected, reference)
             const playing = selected && state.status === "playing"
@@ -65,7 +77,7 @@ export function SoundsPage() {
               <Card
                 key={sound.key}
                 className={cn(
-                  "overflow-hidden p-0",
+                  "overflow-hidden rounded-[18px] p-0",
                   selected && "ring-2 ring-[var(--p-accent)]"
                 )}
               >
@@ -87,7 +99,9 @@ export function SoundsPage() {
                     else player.selectSound(reference, sound.label)
                   }}
                 >
-                  <span className="relative block aspect-square">
+                  {/* The square waveform picture, cropped to a wide frame
+                      so the bars fill it top to bottom. */}
+                  <span className="relative block aspect-[8/5]">
                     <img
                       src={`/sounds/sounds-${sound.key}.png`}
                       alt=""
@@ -97,39 +111,42 @@ export function SoundsPage() {
                       )}
                     />
                     <span className="absolute inset-0 grid place-items-center">
-                      {locked ? (
-                        <LockIcon
-                          className="size-6 text-white drop-shadow"
-                          aria-hidden="true"
-                        />
-                      ) : playing ? (
-                        <PauseIcon
-                          className="size-6 text-white drop-shadow"
-                          aria-hidden="true"
-                        />
-                      ) : selected ? (
-                        <PlayIcon
-                          className="size-6 text-white drop-shadow"
-                          aria-hidden="true"
-                        />
-                      ) : (
-                        <CheckIcon
-                          className="size-6 text-white opacity-0 drop-shadow transition-opacity group-hover:opacity-100"
-                          aria-hidden="true"
-                        />
-                      )}
+                      <span
+                        className={cn(
+                          "grid size-11 place-items-center rounded-full bg-black/45 text-white backdrop-blur-sm",
+                          // Unchosen cards show the tick only on hover or
+                          // keyboard focus, since clicking one chooses it.
+                          !locked &&
+                            !selected &&
+                            "opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+                        )}
+                      >
+                        {locked ? (
+                          <LockIcon className="size-4" aria-hidden="true" />
+                        ) : playing ? (
+                          <PauseIcon className="size-5" aria-hidden="true" />
+                        ) : selected ? (
+                          <PlayIcon className="size-5" aria-hidden="true" />
+                        ) : (
+                          <CheckIcon className="size-5" aria-hidden="true" />
+                        )}
+                      </span>
                     </span>
                   </span>
-                  <CardContent className="flex flex-col gap-0.5 p-3">
-                    <strong className="text-sm">{sound.label}</strong>
-                    <small className="text-xs text-muted-foreground">
+                  <CardContent className="flex flex-col gap-1 px-[18px] py-4">
+                    <span className="flex items-center justify-between gap-2">
+                      <strong className="truncate text-base font-semibold">
+                        {sound.label}
+                      </strong>
+                      {sound.locked ? (
+                        <small className="shrink-0 font-mono text-[11px] uppercase tracking-[0.2em] text-[var(--p-accent-2)]">
+                          Pro
+                        </small>
+                      ) : null}
+                    </span>
+                    <small className="truncate text-sm text-muted-foreground">
                       {sound.hint}
                     </small>
-                    {sound.locked ? (
-                      <small className="font-mono text-[10px] uppercase tracking-widest text-[var(--p-accent-2)]">
-                        Pro
-                      </small>
-                    ) : null}
                   </CardContent>
                 </button>
               </Card>
@@ -146,11 +163,22 @@ export function SoundsPage() {
           })}
         </div>
 
+        <CatalogPager
+          noun="sound"
+          total={curatedSounds.length}
+          first={first}
+          shownCount={shown.length}
+          page={page}
+          pages={pages}
+          onPage={setPage}
+        />
+
         <MediaUploadsSection
           reloadToken={reloadToken}
           purpose="sound"
           title="Your own"
-          description="A loop of your own. It plays and pauses with the timer like the rest."
+          uploadLabel="Upload a loop"
+          description="It plays and pauses with the timer like the rest."
           isSelected={(upload) =>
             sameSoundReference(state.selected, {
               type: "media",

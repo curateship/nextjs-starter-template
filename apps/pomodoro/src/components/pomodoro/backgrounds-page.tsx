@@ -18,6 +18,8 @@ import { useBackgroundSelection } from "@/lib/pomodoro/background-store"
 import { MediaUploadsSection } from "@/components/pomodoro/media-uploads-section"
 import { MediaGeneratorSection } from "@/components/pomodoro/media-generator-section"
 import { contentColumn } from "@/lib/pomodoro/content-column"
+import { CatalogPager } from "@/components/pomodoro/catalog-pager"
+import { useCatalogPage } from "@/lib/pomodoro/use-catalog-page"
 
 const descriptorLabels = {
   video: "Video",
@@ -34,6 +36,8 @@ export function BackgroundsPage() {
   const { background, canUsePremiumMedia, chooseBackground } =
     useBackgroundSelection()
   const { signedIn, openPlans } = useOpenPlans()
+  const { page, pages, first, shown, setPage } =
+    useCatalogPage(curatedBackgrounds)
   // An AI background arrives as an ordinary upload, so finishing one means the
   // grid above has a new card and has to read its list again.
   const [reloadToken, setReloadToken] = React.useState(0)
@@ -54,7 +58,7 @@ export function BackgroundsPage() {
           </p>
         </header>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {curatedBackgrounds.map((scene) => {
+          {shown.map((scene) => {
             const reference = { type: "scene", key: scene.key } as const
             const selected = sameBackgroundReference(background, reference)
             const locked = scene.locked && !canUsePremiumMedia
@@ -129,11 +133,22 @@ export function BackgroundsPage() {
           })}
         </div>
 
+        <CatalogPager
+          noun="background"
+          total={curatedBackgrounds.length}
+          first={first}
+          shownCount={shown.length}
+          page={page}
+          pages={pages}
+          onPage={setPage}
+        />
+
         <MediaUploadsSection
           reloadToken={reloadToken}
           purpose="background"
           title="Your own"
-          description="A picture or a clip of your own, behind everything."
+          uploadLabel="Upload a background"
+          description="It sits behind every screen."
           isSelected={(upload) =>
             sameBackgroundReference(background, {
               type: "media",

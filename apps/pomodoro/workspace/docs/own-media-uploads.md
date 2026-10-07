@@ -1,8 +1,23 @@
 # Your own backgrounds and sounds
 
 A Pro member uploads their own picture, clip or sound loop, and it appears in
-the picker beside the eight that ship with the app. Free accounts see the strip
-with the button locked and a line saying why.
+the picker beside the eight that ship with the app.
+
+## The "Your own" card
+
+On both `/sounds` and `/backgrounds` the uploads sit in one card, drawn to
+Tyler's Sounds design of 7 Oct 2026: a "YOUR OWN" heading with the space used
+beside it ("4.3 MB of 2.0 GB"), a dashed box that says "Upload a loop" (or
+"Upload a background") over the file limits, and the uploads in a grid under
+it once there are any.
+
+- **Click the box or drop a file on it.** Both go through the same checks. The
+  box lights orange while a file is dragged over it.
+- **A box that cannot take a file says why inside it**, with the way forward
+  beside the reason: Sign in for a guest, See the plans for a free account,
+  and a line about deleting something when the storage is full. It shows a
+  padlock instead of the upload arrow, and a spinner while the page is still
+  asking.
 
 ## What is allowed
 
@@ -42,9 +57,9 @@ A request that never says how big it is is refused before a byte is read. That
 is how a chunked upload arrives, and its size cannot be checked until the whole
 body is already in memory, which is the hole it would otherwise open.
 
-## The upload button counts up
+## The upload counts up
 
-While a file goes up, the button reads "Uploading… 40%", and once every byte is
+While a file goes up, the box reads "Uploading… 40%", and once every byte is
 out it reads "Checking the file…" while the server sniffs and stores it. A 100
 MB clip on slow wifi used to show a spinner for minutes, with no way to tell
 slow from stuck.
@@ -83,9 +98,9 @@ goes back in the queue twice; after that the card says so in words instead of
 spinning forever. A server with no FFmpeg says "Sound and video cannot be
 prepared yet."
 
-## The strip waits before it lets you press anything
+## The box waits before it lets you press anything
 
-The upload button starts shut on every visit and opens only once the server has
+The upload box starts shut on every visit and opens only once the server has
 said whether this account may upload. Every screen in the product hydrates in
 the browser — guests have no server session, so no page under `_pomodoro` has a
 route loader — and for a signed-in member this strip therefore asks for its
@@ -95,7 +110,7 @@ list, the Pro answer and the space used in one request when the page opens.
 signed in (`useProductAuth`), so the strip reads that instead of asking the
 server, which would answer 401 and put a red "Please sign in again." on a page
 that was working perfectly well. A guest gets a settled, quiet answer: the
-button is shut and the line under it says to sign in on a Pro plan.
+box is shut and says to sign in on a Pro plan.
 
 Treating "not known yet" as allowed was a bug: on a free account you could open
 the file picker by clicking quickly, and the upload was then refused by the

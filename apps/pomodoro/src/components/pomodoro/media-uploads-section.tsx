@@ -14,11 +14,6 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { PRO_PERKS } from "@/lib/pomodoro/pro"
 import { useProductAuth } from "@/lib/pomodoro/auth-state"
@@ -39,13 +34,17 @@ import {
   type UploadProgress,
 } from "@/lib/api/pomodoro/media-uploads"
 import { SignInButton } from "@/components/pomodoro/sign-in-button"
+import { useOpenPlans } from "@/lib/pomodoro/use-open-plans"
 
 /**
- * A member's own backgrounds or sound loops, under the curated ones.
+ * A member's own backgrounds or sound loops, under the curated ones: one card
+ * with a "YOUR OWN" heading and the space used, a dashed box to click or drop
+ * a file on, and the uploads under it. Drawn to Tyler's Sounds design of
+ * 7 Oct 2026, and the Theme page shares it.
  *
- * The same strip serves both pickers: what changes is which file types the
- * button offers and what a finished upload does when it is picked. A free
- * account still sees the strip, locked, because a perk nobody can see is a perk
+ * The same card serves both pickers: what changes is which file types the
+ * box takes and what a finished upload does when it is picked. A free
+ * account still sees the card, locked, because a perk nobody can see is a perk
  * nobody upgrades for.
  */
 
@@ -55,6 +54,7 @@ const PROCESSING_POLL_MS = 4000
 export function MediaUploadsSection({
   purpose,
   title,
+  uploadLabel,
   description,
   reloadToken = 0,
   isSelected,
@@ -63,6 +63,9 @@ export function MediaUploadsSection({
 }: {
   purpose: PomodoroUploadPurpose
   title: string
+  /** The words in the drop box: "Upload a loop". */
+  uploadLabel: string
+  /** Said after the file limits inside the drop box. */
   description: string
   /**
    * Bump this to make the strip read its list again. The generator below uses
@@ -151,35 +154,37 @@ export function MediaUploadsSection({
   const locked = !library || !library.canUploadMedia
   const full = library !== null && library.usedBytes >= library.limitBytes
 
+  const headingId = `your-own-${purpose}`
+
   return (
-    <section className="flex flex-col gap-3">
-      <header className="flex flex-wrap items-end justify-between gap-2">
-        <div>
-          <h3 className="text-lg font-semibold tracking-tight">{title}</h3>
-          <p className="text-sm text-muted-foreground">{description}</p>
-        </div>
-        <UploadButton
-          accept={UPLOAD_ACCEPT[purpose]}
-          progress={progress}
-          known={known}
-          signedIn={signedIn}
-          locked={locked}
-          full={full}
-          inputRef={fileInput}
-          onFile={(file) => void send(file)}
-        />
+    <section
+      aria-labelledby={headingId}
+      className="flex flex-col gap-4 rounded-[24px] border bg-[var(--p-surface)] p-6"
+    >
+      <header className="flex flex-wrap items-center justify-between gap-2">
+        <h3 id={headingId} className={eyebrowClass}>
+          {title}
+        </h3>
+        {library ? (
+          <span className="font-mono text-xs text-muted-foreground">
+            {formatBytes(library.usedBytes)} of{" "}
+            {formatBytes(library.limitBytes)}
+          </span>
+        ) : null}
       </header>
 
-      <p className="text-xs text-muted-foreground">
-        {UPLOAD_HINT[purpose]}
-        {library ? (
-          <>
-            {" "}
-            {formatBytes(library.usedBytes)} of{" "}
-            {formatBytes(library.limitBytes)} used.
-          </>
-        ) : null}
-      </p>
+      <UploadDropzone
+        accept={UPLOAD_ACCEPT[purpose]}
+        label={uploadLabel}
+        hint={`${UPLOAD_HINT[purpose]} ${description}`}
+        progress={progress}
+        known={known}
+        signedIn={signedIn}
+        locked={locked}
+        full={full}
+        inputRef={fileInput}
+        onFile={(file) => void send(file)}
+      />
 
       {error ? (
         <p role="alert" className="text-sm text-destructive">
@@ -187,31 +192,20 @@ export function MediaUploadsSection({
         </p>
       ) : null}
 
-      {known && (library?.uploads.length ?? 0) === 0 ? (
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="text-sm text-muted-foreground">
-            {!signedIn
-              ? "Sign in on a Pro plan to put your own here."
-              : locked
-                ? PRO_PERKS.uploadMedia.lockedReason
-                : "Nothing of your own yet."}
-          </p>
-          {!signedIn ? <SignInButton /> : null}
+      {(library?.uploads.length ?? 0) > 0 ? (
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          {(library?.uploads ?? []).map((upload) => (
+            <UploadCard
+              key={upload.mediaId}
+              upload={upload}
+              selected={isSelected(upload)}
+              onPick={() => onPick(upload)}
+              onDelete={() => setPendingDelete(upload)}
+              thumbnail={renderThumbnail(upload)}
+            />
+          ))}
         </div>
       ) : null}
-
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {(library?.uploads ?? []).map((upload) => (
-          <UploadCard
-            key={upload.mediaId}
-            upload={upload}
-            selected={isSelected(upload)}
-            onPick={() => onPick(upload)}
-            onDelete={() => setPendingDelete(upload)}
-            thumbnail={renderThumbnail(upload)}
-          />
-        ))}
-      </div>
 
       <ConfirmDialog
         open={Boolean(pendingDelete)}
@@ -245,14 +239,21 @@ export function MediaUploadsSection({
   )
 }
 
+/** The small spaced capitals that name the card, as on the timer's cards. */
+const eyebrowClass =
+  "font-mono text-[11px] uppercase tracking-[0.2em] text-foreground/75"
+
 /**
- * The one control that starts an upload.
+ * The dashed box that starts an upload: click it or drop a file on it.
  *
- * Never a dead button: a free account and a full account each say why through
- * the shell's tooltip pattern rather than going grey with no explanation.
+ * Never a dead box: a guest, a free account and a full account each see why
+ * inside it, with the way forward beside the reason, instead of a grey area
+ * with nothing to say.
  */
-function UploadButton({
+function UploadDropzone({
   accept,
+  label,
+  hint,
   progress,
   known,
   signedIn,
@@ -262,6 +263,8 @@ function UploadButton({
   onFile,
 }: {
   accept: string
+  label: string
+  hint: string
   progress: UploadProgress | null
   /** The answer is settled — either the server replied, or nobody is signed in. */
   known: boolean
@@ -271,10 +274,12 @@ function UploadButton({
   inputRef: React.RefObject<HTMLInputElement | null>
   onFile: (file: File) => void
 }) {
+  const { openPlans } = useOpenPlans()
+  const [dragging, setDragging] = React.useState(false)
   const busy = progress !== null
-  const disabled = busy || locked || full
-  // No tooltip until the answer is in. A paying member hovering during that
-  // moment must not be told uploading is a perk they do not have.
+  const open = known && !locked && !full && !busy
+  // Nothing is said until the answer is in. A paying member must not be told,
+  // even for a moment, that uploading is a perk they do not have.
   const reason = !known
     ? null
     : !signedIn
@@ -285,59 +290,92 @@ function UploadButton({
           ? "Your storage is full. Delete something you no longer use first."
           : null
 
-  const button = (
-    <Button
-      type="button"
-      variant="outline"
-      disabled={disabled}
-      onClick={() => inputRef.current?.click()}
-    >
-      {busy ? (
-        <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
-      ) : known && locked ? (
-        // Only once the answer is in: a padlock flashed at a paying member
-        // while the page was still asking is a small lie.
-        <LockIcon className="size-4" aria-hidden="true" />
-      ) : (
-        <UploadIcon className="size-4" aria-hidden="true" />
-      )}
-      {progress === null
-        ? "Upload your own"
-        : progress.phase === "checking"
-          ? "Checking the file…"
-          : `Uploading… ${progress.percent}%`}
-    </Button>
+  const frame =
+    "flex min-h-40 w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed px-6 py-8 text-center"
+
+  const input = (
+    <input
+      ref={inputRef}
+      type="file"
+      accept={accept}
+      className="sr-only"
+      tabIndex={-1}
+      aria-hidden="true"
+      onChange={(event) => {
+        const file = event.target.files?.[0]
+        // Cleared straight away, so picking the same file twice in a row
+        // still fires a change event and still uploads.
+        event.target.value = ""
+        if (file) onFile(file)
+      }}
+    />
   )
 
+  if (!open) {
+    return (
+      <div className={frame}>
+        {input}
+        <span className="sr-only" aria-live="polite">
+          {spokenProgress(progress)}
+        </span>
+        <span className="grid size-11 place-items-center rounded-full bg-muted text-muted-foreground">
+          {busy || !known ? (
+            <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
+          ) : (
+            <LockIcon className="size-4" aria-hidden="true" />
+          )}
+        </span>
+        <strong className="text-[15px] font-semibold">
+          {progress === null
+            ? label
+            : progress.phase === "checking"
+              ? "Checking the file…"
+              : `Uploading… ${progress.percent}%`}
+        </strong>
+        {reason ? (
+          <p className="max-w-md text-sm text-muted-foreground">{reason}</p>
+        ) : null}
+        {reason && !signedIn ? (
+          <SignInButton />
+        ) : reason && locked ? (
+          <Button type="button" variant="outline" onClick={openPlans}>
+            See the plans
+          </Button>
+        ) : null}
+      </div>
+    )
+  }
+
   return (
-    <div className="flex items-center gap-2">
-      <input
-        ref={inputRef}
-        type="file"
-        accept={accept}
-        className="sr-only"
-        onChange={(event) => {
-          const file = event.target.files?.[0]
-          // Cleared straight away, so picking the same file twice in a row
-          // still fires a change event and still uploads.
-          event.target.value = ""
+    <>
+      {input}
+      <button
+        type="button"
+        className={cn(
+          frame,
+          "transition-colors hover:bg-[rgba(var(--p-fg-rgb),0.03)] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
+          dragging && "border-primary bg-primary/8"
+        )}
+        onClick={() => inputRef.current?.click()}
+        onDragOver={(event) => {
+          event.preventDefault()
+          setDragging(true)
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(event) => {
+          event.preventDefault()
+          setDragging(false)
+          const file = event.dataTransfer.files?.[0]
           if (file) onFile(file)
         }}
-      />
-      <span className="sr-only" aria-live="polite">
-        {spokenProgress(progress)}
-      </span>
-      {reason ? (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span>{button}</span>
-          </TooltipTrigger>
-          <TooltipContent>{reason}</TooltipContent>
-        </Tooltip>
-      ) : (
-        button
-      )}
-    </div>
+      >
+        <span className="grid size-11 place-items-center rounded-full bg-muted">
+          <UploadIcon className="size-4" aria-hidden="true" />
+        </span>
+        <strong className="text-[15px] font-semibold">{label}</strong>
+        <span className="max-w-md text-sm text-muted-foreground">{hint}</span>
+      </button>
+    </>
   )
 }
 

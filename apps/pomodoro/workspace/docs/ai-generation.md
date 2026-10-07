@@ -6,9 +6,14 @@ backgrounds and twenty soundscapes a month.
 
 ## What a member sees
 
-"Generate your own" sits under the uploads on `/backgrounds` and `/sounds`: a
-prompt box, three suggestions to click, this month's counter, and a list of what
-has been asked for and how it went. A finished one is an ordinary upload, so it
+"Generate your own" is one card under the uploads on `/backgrounds` and
+`/sounds`, drawn to Tyler's Sounds design of 7 Oct 2026. Its heading reads
+"GENERATE YOUR OWN" with an orange "PRO", and this month's counter sits beside
+it ("20 of 20 left this month"). Under it come the sentence saying what it
+does, the three suggestions as pills, and a list of what has been asked for
+and how it went. The prompt box runs along the card's foot under a full-width
+divider, with no frame of its own, and the orange Generate button at its
+right end. Clicking a suggestion fills the box and puts the cursor in it. A finished one is an ordinary upload, so it
 appears in the grid above and the list just says "In the grid above".
 
 Nothing is pressable until the server has answered, and a shut control always

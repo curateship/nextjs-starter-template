@@ -4,6 +4,29 @@ Eight ambient loops on `/sounds` — Lofi beats, Rain, Café ambience and Brown
 noise free; Forest birds, Ocean waves, Fireplace and Soft piano for Pro —
 with the player itself in the header, where it survives page changes.
 
+## The page
+
+Tyler sent a design on 7 Oct 2026 with "revamp the sound page", and
+`sounds-page.tsx` is drawn to it.
+
+- **A large title** and one line on what the page is for.
+- **The loops are cards, four across** (two on a phone). Each shows its
+  waveform picture cropped to a wide frame, then the name with an orange PRO
+  on the same line for a Pro loop, and the hint under it.
+- **A round dark button sits over the middle of the picture.** It shows play
+  or pause on the chosen card, a padlock on a locked one, and a tick on the
+  others only while the mouse is over the card or it has keyboard focus. The
+  chosen card has an orange outline.
+- **A count line sits under the cards**, "1–8 of 8 sounds", with Prev, page
+  numbers and Next beside it. The design showed 20 sounds over three pages;
+  there are 8, so the pager stays hidden until there is a second page. The
+  line and the pager are `CatalogPager` in `catalog-pager.tsx`, paged by
+  `use-catalog-page.ts`, and the Theme page uses both.
+- **"Your own" and "Generate your own" are cards below.** See
+  [Your own backgrounds and sounds](own-media-uploads.md) and
+  [AI backgrounds and soundscapes](ai-generation.md). The Theme page shares
+  both.
+
 ## Picking one never starts it
 
 Tyler's rule, 27 September 2026: "when I select a theme, it shouldnt play
