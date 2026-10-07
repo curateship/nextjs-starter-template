@@ -91,7 +91,7 @@ export async function processNextMediaUpload() {
  */
 function describeFailure(error: unknown) {
   if (error instanceof FfmpegMissingError) {
-    return "This server cannot prepare sound or video yet. Tell an operator."
+    return "Sound and video cannot be prepared yet."
   }
   if (error instanceof Error && error.message.includes("could not be read")) {
     return "The stored file could not be read back. Please upload it again."

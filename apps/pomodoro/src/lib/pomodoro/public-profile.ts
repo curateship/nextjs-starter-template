@@ -206,7 +206,7 @@ export type PublicProfileView = {
     days: { localDate: string; focusSeconds: number }[]
   } | null
   projects: { name: string; focusSeconds: number }[] | null
-  focusingNow: { mode: "focus" | "short" | "long"; minutesLeft: number } | null
+  focusingNow: { mode: "focus" | "short" | "long"; endsAt: string } | null
   room: { slug: string; name: string; phase: string } | null
   /** Years with a recap page, newest first. Empty when the figures are off. */
   recapYears: number[]

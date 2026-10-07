@@ -22,7 +22,6 @@ import { FOLLOWING_EMPTY_MESSAGE } from "@/lib/pomodoro/following"
 import { useProductAuth } from "@/lib/pomodoro/auth-state"
 import { formatFocusDuration } from "@/lib/pomodoro/focus-history"
 import {
-  DEFAULT_LEADERBOARD_WINDOW,
   LEADERBOARD_WINDOWS,
   LEADERBOARD_WINDOW_LABELS,
   LEADERBOARD_WINDOW_NOTES,
@@ -31,6 +30,8 @@ import {
 import { browserTimezone } from "@/lib/pomodoro/timer"
 import { usePomodoro } from "@/lib/pomodoro/use-pomodoro"
 import { dismissErrorToast } from "@/lib/toast/error-toast"
+import { TextLink } from "@/components/pomodoro/text-link"
+import { plural } from "@/lib/format/plural"
 
 type Leaderboard = Awaited<ReturnType<typeof loadLeaderboard>>
 type Productivity = Awaited<ReturnType<typeof loadProductivity>>
@@ -47,7 +48,20 @@ const chartConfig = {
  * ranking and every group board with it, because two windows on one screen is
  * two questions to answer before a figure means anything.
  */
-export function LeaderboardPage() {
+/** Everybody who opted in, or just the people you follow. */
+export type LeaderboardScope = "global" | "following"
+
+export function LeaderboardPage({
+  scope,
+  boardWindow,
+  onScopeChange,
+  onWindowChange,
+}: {
+  scope: LeaderboardScope
+  boardWindow: LeaderboardWindow
+  onScopeChange: (scope: LeaderboardScope) => void
+  onWindowChange: (window: LeaderboardWindow) => void
+}) {
   const { authenticated, known } = useProductAuth()
   const pomodoro = usePomodoro()
   const [board, setBoard] = React.useState<Leaderboard | null>(null)
@@ -55,13 +69,9 @@ export function LeaderboardPage() {
   const [error, setError] = React.useState("")
   // Bumped by Try again, which runs the same load once more.
   const [attempt, setAttempt] = React.useState(0)
-  // Which board is shown: everybody who opted in, or just the people you
-  // follow. It is the same ranking query with a filter, so the two can never
-  // disagree about a figure.
-  const [scope, setScope] = React.useState<"global" | "following">("global")
-  const [boardWindow, setBoardWindow] = React.useState<LeaderboardWindow>(
-    DEFAULT_LEADERBOARD_WINDOW
-  )
+  // `scope` is which board is shown: everybody who opted in, or just the
+  // people you follow. It is the same ranking query with a filter, so the two
+  // can never disagree about a figure. Both choices live in the address.
 
   React.useEffect(() => {
     if (!known || !authenticated) return
@@ -109,9 +119,9 @@ export function LeaderboardPage() {
           [
             "Focus today",
             formatFocusDuration(todayRow?.focusSeconds ?? 0),
-            `${todayRow?.focusSessions ?? 0} sessions`,
+            `${todayRow?.focusSessions ?? 0} ${plural(todayRow?.focusSessions ?? 0, "session")}`,
           ],
-          ["This week", formatFocusDuration(focusSeconds), `${weekSessions} sessions`],
+          ["This week", formatFocusDuration(focusSeconds), `${weekSessions} ${plural(weekSessions, "session")}`],
           [
             "Current streak",
             `${stats.summary.currentStreak} ${stats.summary.currentStreak === 1 ? "day" : "days"}`,
@@ -126,8 +136,8 @@ export function LeaderboardPage() {
           `${pomodoro.todayFocusSessions} ${pomodoro.todayFocusSessions === 1 ? "session" : "sessions"}`,
           `${pomodoro.todayFocusSessions} of ${pomodoro.dailyGoalSessions} goal`,
         ],
-        ["This week", "Not synced", "Sign in for history"],
-        ["Current streak", "Not synced", "Sign in for history"],
+        ["This week", "Not kept", "Sign in to keep your history"],
+        ["Current streak", "Not kept", "Sign in to keep your history"],
         [
           "Tasks done",
           String(pomodoro.tasks.filter((task) => task.completed).length),
@@ -217,7 +227,7 @@ export function LeaderboardPage() {
           <Tabs
             value={scope}
             onValueChange={(value) =>
-              setScope(value as "global" | "following")
+              onScopeChange(value as LeaderboardScope)
             }
           >
             <TabsList aria-label="Who is on the board">
@@ -228,7 +238,7 @@ export function LeaderboardPage() {
           <Tabs
             value={boardWindow}
             onValueChange={(value) =>
-              setBoardWindow(value as LeaderboardWindow)
+              onWindowChange(value as LeaderboardWindow)
             }
           >
             <TabsList aria-label="Leaderboard window">
@@ -252,11 +262,34 @@ export function LeaderboardPage() {
           </span>
         </CardHeader>
         <CardContent className="flex flex-col gap-2">
+          {/* Missing yourself on a ranking reads as a bug, and the switch is
+              off by default, so most new members would. Only on the global
+              board: the Following board is the people you follow, never you.
+              An empty board already explains the switch, so this stays off
+              there rather than saying it twice. */}
+          {authenticated &&
+          scope === "global" &&
+          board?.youAreHidden &&
+          board.leaders.length > 0 ? (
+            <p className="rounded-lg bg-muted/60 px-3 py-2 text-sm text-muted-foreground">
+              {board.youAreHidden === "switched-off"
+                ? "You are not on this board. Switch it on in "
+                : "You are not on this board yet. Pick a display name in "}
+              <TextLink to="/settings" search={{ tab: "profile" }}>
+                Settings
+              </TextLink>{" "}
+              to take your place.
+            </p>
+          ) : null}
           {!authenticated ? (
             <div className="flex flex-col items-start gap-2 py-2">
               <p className="text-sm text-muted-foreground">
-                Sign in and opt in from Settings to see the ranking and take
-                your place on it. Only chosen display names ever show.
+                Sign in and opt in from{" "}
+                <TextLink to="/settings" search={{ tab: "profile" }}>
+                  Settings
+                </TextLink>{" "}
+                to see the ranking and take your place on it. Only chosen
+                display names ever show.
               </p>
               <Button asChild size="sm">
                 <Link to="/login">Sign in</Link>
@@ -273,9 +306,18 @@ export function LeaderboardPage() {
             />
           ) : board && board.leaders.length === 0 ? (
             <p className="py-2 text-sm text-muted-foreground">
-              {scope === "following"
-                ? FOLLOWING_EMPTY_MESSAGE
-                : `Nobody has opted in yet. Turn on "Show me on the leaderboard" in Settings and pick a display name to be first.`}
+              {scope === "following" ? (
+                FOLLOWING_EMPTY_MESSAGE
+              ) : (
+                <>
+                  Nobody has opted in yet. Turn on &quot;Show me on the
+                  leaderboard&quot; in{" "}
+                  <TextLink to="/settings" search={{ tab: "profile" }}>
+                    Settings
+                  </TextLink>{" "}
+                  and pick a display name to be first.
+                </>
+              )}
             </p>
           ) : (
             <LeaderboardRows leaders={board?.leaders ?? []} />

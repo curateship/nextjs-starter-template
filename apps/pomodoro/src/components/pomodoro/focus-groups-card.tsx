@@ -54,6 +54,7 @@ import {
 import { browserTimezone } from "@/lib/pomodoro/timer"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+import { TextLink } from "@/components/pomodoro/text-link"
 
 type Group = Awaited<ReturnType<typeof loadMyGroups>>[number]
 type Board = Awaited<ReturnType<typeof loadFocusGroupBoard>>
@@ -251,7 +252,11 @@ export function FocusGroupsCard({
             ) : shown.result.leaders.length === 0 ? (
               <p className="py-2 text-sm text-muted-foreground">
                 Nobody in this group has picked a public display name yet. Choose
-                one in Settings to appear here.
+                one in{" "}
+                <TextLink to="/settings" search={{ tab: "profile" }}>
+                  Settings
+                </TextLink>{" "}
+                to appear here.
               </p>
             ) : (
               <div className="flex flex-col gap-2">

@@ -1,6 +1,12 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
-import { FlagIcon, MoreVerticalIcon, SmilePlusIcon, Trash2Icon } from "lucide-react"
+import {
+  ArrowDownIcon,
+  FlagIcon,
+  MoreVerticalIcon,
+  SmilePlusIcon,
+  Trash2Icon,
+} from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -24,6 +30,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
+import { usePrefersReducedMotion } from "@/lib/pomodoro/use-reduced-motion"
 import {
   formatClockIn,
   formatLongDay,
@@ -56,6 +63,9 @@ type RoomMessage = RoomSnapshotClient["messages"][number]
  */
 const MEMBER_LIST_HEIGHT = "max-h-[13rem] md:max-h-[22rem]"
 const CHAT_HEIGHT = "max-h-[clamp(140px,calc(100dvh-34rem),32rem)]"
+
+/** Within this many pixels of the bottom counts as reading the newest line. */
+const NEAR_BOTTOM_PX = 48
 
 /**
  * The room's chat and the host's moderation, ported from the old app: the
@@ -182,22 +192,70 @@ export function RoomChatPanel({
   } | null>(null)
   const listRef = React.useRef<HTMLDivElement>(null)
   const lastMessageId = messages.at(-1)?.id
+  const reducedMotion = usePrefersReducedMotion()
+  // Whether the reader was at the newest line before the latest message
+  // arrived. Kept up to date by scrolling, so it is read before the new line
+  // made the list taller.
+  const atBottom = React.useRef(true)
+  // Set by sending, so your own message always comes into view.
+  const followNext = React.useRef(false)
+  const [newBelow, setNewBelow] = React.useState(false)
 
-  // Follow the conversation down as it grows, the way the old app did. Only
+  const viewport = React.useCallback(
+    () =>
+      listRef.current?.closest<HTMLElement>(
+        "[data-radix-scroll-area-viewport]"
+      ) ?? null,
+    []
+  )
+
+  const scrollToBottom = React.useCallback(
+    (smooth: boolean) => {
+      const box = viewport()
+      if (!box) return
+      box.scrollTo({
+        top: box.scrollHeight,
+        behavior: smooth && !reducedMotion ? "smooth" : "auto",
+      })
+      atBottom.current = true
+      setNewBelow(false)
+    },
+    [reducedMotion, viewport]
+  )
+
+  React.useEffect(() => {
+    const box = viewport()
+    if (!box) return
+    const onScroll = () => {
+      atBottom.current =
+        box.scrollHeight - box.scrollTop - box.clientHeight <= NEAR_BOTTOM_PX
+      if (atBottom.current) setNewBelow(false)
+    }
+    box.addEventListener("scroll", onScroll, { passive: true })
+    return () => box.removeEventListener("scroll", onScroll)
+  }, [viewport])
+
+  // Follow the conversation down as it grows, but only for a reader who was
+  // already at the bottom. Somebody who scrolled up to reread a line stays
+  // there and gets a "New messages" button instead of being pulled away. Only
   // the chat's own scroller moves: scrollIntoView would drag the whole page
   // down with it every time a message arrived.
   React.useEffect(() => {
-    const viewport = listRef.current?.closest<HTMLElement>(
-      "[data-radix-scroll-area-viewport]"
-    )
-    if (viewport) viewport.scrollTop = viewport.scrollHeight
-  }, [lastMessageId])
+    if (!lastMessageId) return
+    if (atBottom.current || followNext.current) {
+      followNext.current = false
+      scrollToBottom(false)
+    } else {
+      setNewBelow(true)
+    }
+  }, [lastMessageId, scrollToBottom])
 
   const send = async () => {
     const body = draft.trim()
     if (!body) return
     setDraft("")
     setSending(true)
+    followNext.current = true
     try {
       await sendRoomMessage(slug, body)
     } catch (cause) {
@@ -208,6 +266,7 @@ export function RoomChatPanel({
           : "The message could not be sent."
       )
       setDraft(body)
+      followNext.current = false
     } finally {
       setSending(false)
     }
@@ -218,135 +277,149 @@ export function RoomChatPanel({
       className="flex min-w-0 flex-col overflow-hidden rounded-xl border"
       aria-label="Room chat"
     >
-      <ScrollArea className={cn("flex-1", CHAT_HEIGHT)}>
-        <div ref={listRef} className="flex flex-col gap-3 p-4">
-          {messages.map((entry, index) => {
-            // A line with the day above the first message and wherever the
-            // day changes, so a room that runs past midnight says which day
-            // each time belongs to without stamping the date on every line.
-            const day = localDateIn(timezone, entry.createdAt)
-            const dayChanged =
-              index === 0 ||
-              localDateIn(timezone, messages[index - 1].createdAt) !== day
-            return (
-              <React.Fragment key={entry.id}>
-                {dayChanged ? <DayDivider localDate={day} /> : null}
-                {entry.deleted ? (
-                  <p className="text-xs italic text-muted-foreground">
-                    Message removed by the host
-                  </p>
-                ) : (
-                  <div className="group/message flex gap-2">
-                    <InitialsAvatar name={entry.authorName} className="size-7" />
-                    <div className="flex min-w-0 flex-col gap-1">
-                      <p className="flex items-baseline gap-2 text-[11px] text-muted-foreground">
-                        {/* A name links to its profile only when that profile
-                            actually reads; otherwise it stays plain text. */}
-                        {entry.handle ? (
-                          <Link
-                            to="/u/$handle"
-                            params={{ handle: entry.handle }}
-                            className="font-semibold text-foreground underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                          >
-                            {entry.authorName}
-                          </Link>
-                        ) : (
-                          <span className="font-semibold text-foreground">
-                            {entry.authorName}
-                          </span>
-                        )}
-                        <time dateTime={new Date(entry.createdAt).toISOString()}>
-                          {formatClockIn(timezone, entry.createdAt)}
-                        </time>
-                      </p>
-                      <span className="text-sm break-words">{entry.body}</span>
-                      {entry.reactions.length ? (
-                        <div className="flex flex-wrap gap-1 pt-0.5">
-                          {entry.reactions.map((reaction) => (
-                            <button
-                              key={reaction.emoji}
-                              type="button"
-                              aria-pressed={reaction.mine}
-                              aria-label={`${roomReactionLabel(reaction.emoji)}, ${reaction.count} ${reaction.count === 1 ? "reaction" : "reactions"}${reaction.mine ? ", including you. Press to remove your reaction" : ". Press to react"}`}
-                              disabled={reactionPending.has(
-                                `${entry.id}:${reaction.emoji}`
-                              )}
-                              onClick={() =>
-                                onToggleReaction(entry.id, reaction.emoji)
-                              }
-                              className={cn(
-                                "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-muted-foreground disabled:opacity-50",
-                                reaction.mine &&
-                                  "border-primary/45 bg-primary/10 text-[var(--p-accent-2)]"
-                              )}
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        <ScrollArea className={cn("flex-1", CHAT_HEIGHT)}>
+          <div ref={listRef} className="flex flex-col gap-3 p-4">
+            {messages.map((entry, index) => {
+              // A line with the day above the first message and wherever the
+              // day changes, so a room that runs past midnight says which day
+              // each time belongs to without stamping the date on every line.
+              const day = localDateIn(timezone, entry.createdAt)
+              const dayChanged =
+                index === 0 ||
+                localDateIn(timezone, messages[index - 1].createdAt) !== day
+              return (
+                <React.Fragment key={entry.id}>
+                  {dayChanged ? <DayDivider localDate={day} /> : null}
+                  {entry.deleted ? (
+                    <p className="text-xs italic text-muted-foreground">
+                      Message removed by the host
+                    </p>
+                  ) : (
+                    <div className="group/message flex gap-2">
+                      <InitialsAvatar name={entry.authorName} className="size-7" />
+                      <div className="flex min-w-0 flex-col gap-1">
+                        <p className="flex items-baseline gap-2 text-[11px] text-muted-foreground">
+                          {/* A name links to its profile only when that profile
+                              actually reads; otherwise it stays plain text. */}
+                          {entry.handle ? (
+                            <Link
+                              to="/u/$handle"
+                              params={{ handle: entry.handle }}
+                              className="font-semibold text-foreground underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                             >
-                              <span aria-hidden="true" className="text-[13px]">
-                                {reaction.emoji}
-                              </span>
-                              <b className="font-mono text-[11px] tabular-nums">
-                                {reaction.count}
-                              </b>
-                            </button>
-                          ))}
-                        </div>
-                      ) : null}
-                    </div>
-                    {/* The actions appear on hover, and stay put on a touch
-                        screen, which has no hover to reveal them with. */}
-                    <span className="ml-auto flex shrink-0 gap-0.5 opacity-0 focus-within:opacity-100 group-hover/message:opacity-100 has-[[data-state=open]]:opacity-100 max-md:opacity-100">
-                      <ReactionPicker
-                        messageId={entry.id}
-                        activeEmojis={
-                          new Set(
-                            entry.reactions
-                              .filter((reaction) => reaction.mine)
-                              .map((reaction) => reaction.emoji)
-                          )
-                        }
-                        reactionPending={reactionPending}
-                        disabled={busy}
-                        onToggle={(emoji) => onToggleReaction(entry.id, emoji)}
-                      />
-                      {!entry.mine ? (
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          disabled={busy}
-                          aria-label={`Report message from ${entry.authorName}`}
-                          onClick={() =>
-                            setReporting({
-                              id: entry.id,
-                              authorName: entry.authorName,
-                            })
+                              {entry.authorName}
+                            </Link>
+                          ) : (
+                            <span className="font-semibold text-foreground">
+                              {entry.authorName}
+                            </span>
+                          )}
+                          <time dateTime={new Date(entry.createdAt).toISOString()}>
+                            {formatClockIn(timezone, entry.createdAt)}
+                          </time>
+                        </p>
+                        <span className="text-sm break-words">{entry.body}</span>
+                        {entry.reactions.length ? (
+                          <div className="flex flex-wrap gap-1 pt-0.5">
+                            {entry.reactions.map((reaction) => (
+                              <button
+                                key={reaction.emoji}
+                                type="button"
+                                aria-pressed={reaction.mine}
+                                aria-label={`${roomReactionLabel(reaction.emoji)}, ${reaction.count} ${reaction.count === 1 ? "reaction" : "reactions"}${reaction.mine ? ", including you. Press to remove your reaction" : ". Press to react"}`}
+                                disabled={reactionPending.has(
+                                  `${entry.id}:${reaction.emoji}`
+                                )}
+                                onClick={() =>
+                                  onToggleReaction(entry.id, reaction.emoji)
+                                }
+                                className={cn(
+                                  "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-muted-foreground disabled:opacity-50",
+                                  reaction.mine &&
+                                    "border-primary/45 bg-primary/10 text-[var(--p-accent-2)]"
+                                )}
+                              >
+                                <span aria-hidden="true" className="text-[13px]">
+                                  {reaction.emoji}
+                                </span>
+                                <b className="font-mono text-[11px] tabular-nums">
+                                  {reaction.count}
+                                </b>
+                              </button>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                      {/* The actions appear on hover, and stay put on a touch
+                          screen, which has no hover to reveal them with. */}
+                      <span className="ml-auto flex shrink-0 gap-0.5 opacity-0 focus-within:opacity-100 group-hover/message:opacity-100 has-[[data-state=open]]:opacity-100 max-md:opacity-100">
+                        <ReactionPicker
+                          messageId={entry.id}
+                          activeEmojis={
+                            new Set(
+                              entry.reactions
+                                .filter((reaction) => reaction.mine)
+                                .map((reaction) => reaction.emoji)
+                            )
                           }
-                        >
-                          <FlagIcon aria-hidden="true" />
-                        </Button>
-                      ) : null}
-                      {isHost ? (
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
+                          reactionPending={reactionPending}
                           disabled={busy}
-                          aria-label={`Delete message from ${entry.authorName}`}
-                          onClick={() => onDeleteMessage(entry)}
-                        >
-                          <Trash2Icon aria-hidden="true" />
-                        </Button>
-                      ) : null}
-                    </span>
-                  </div>
-                )}
-              </React.Fragment>
-            )
-          })}
-          {!messages.length ? (
-            <p className="text-xs text-muted-foreground">
-              Say hi — messages appear for everyone in the room.
-            </p>
-          ) : null}
-        </div>
-      </ScrollArea>
+                          onToggle={(emoji) => onToggleReaction(entry.id, emoji)}
+                        />
+                        {!entry.mine ? (
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            disabled={busy}
+                            aria-label={`Report message from ${entry.authorName}`}
+                            onClick={() =>
+                              setReporting({
+                                id: entry.id,
+                                authorName: entry.authorName,
+                              })
+                            }
+                          >
+                            <FlagIcon aria-hidden="true" />
+                          </Button>
+                        ) : null}
+                        {isHost ? (
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            disabled={busy}
+                            aria-label={`Delete message from ${entry.authorName}`}
+                            onClick={() => onDeleteMessage(entry)}
+                          >
+                            <Trash2Icon aria-hidden="true" />
+                          </Button>
+                        ) : null}
+                      </span>
+                    </div>
+                  )}
+                </React.Fragment>
+              )
+            })}
+            {!messages.length ? (
+              <p className="text-xs text-muted-foreground">
+                Say hi — messages appear for everyone in the room.
+              </p>
+            ) : null}
+          </div>
+        </ScrollArea>
+        {newBelow ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-background shadow-sm"
+            onClick={() => scrollToBottom(true)}
+          >
+            <ArrowDownIcon aria-hidden="true" />
+            New messages
+          </Button>
+        ) : null}
+      </div>
       <form
         className="flex items-center gap-2 border-t p-2"
         onSubmit={(event) => {

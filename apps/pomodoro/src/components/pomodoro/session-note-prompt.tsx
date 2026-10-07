@@ -52,8 +52,12 @@ function SessionNoteField({
   const dirty = trimmed !== saved
 
   return (
+    // The box inside is borderless, so the ring goes on this rounded frame
+    // while the box has focus. Same colour and width as `focusRing` in
+    // `src/lib/layout/focus-ring.ts`, which every other field draws. Only the
+    // text box lights it: the Save button inside draws its own.
     <form
-      className="flex min-h-9 w-full max-w-[min(520px,calc(100vw-36px))] flex-wrap items-center gap-2.5 rounded-[14px] border bg-[rgba(var(--p-canvas-rgb),0.75)] py-2 pl-3.5 pr-2.5"
+      className="flex min-h-9 w-full max-w-[min(520px,calc(100vw-36px))] flex-wrap items-center gap-2.5 rounded-[14px] border bg-[rgba(var(--p-canvas-rgb),0.75)] py-2 pl-3.5 pr-2.5 has-[input:focus-visible]:border-ring has-[input:focus-visible]:ring-3 has-[input:focus-visible]:ring-ring/50"
       onSubmit={(event) => {
         event.preventDefault()
         if (busy) return

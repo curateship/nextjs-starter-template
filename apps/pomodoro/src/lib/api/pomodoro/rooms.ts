@@ -240,7 +240,7 @@ const repeatRoomFn = createServerFn({ method: "POST" })
     const problem = roomRepeatProblem(settings.weekdays, settings.startMinute, invites)
     if (problem) throw new Error(`SCHEDULE_REJECTED: ${roomRepeatProblemMessage(problem)}`)
     if (!validTimezone(settings.timezone)) {
-      throw new Error("SCHEDULE_REJECTED: This device's timezone is not one the server knows. Set a timezone in Settings and try again.")
+      throw new Error("SCHEDULE_REJECTED: This device's timezone is not one we recognise. Set a timezone in Settings and try again.")
     }
 
     try {

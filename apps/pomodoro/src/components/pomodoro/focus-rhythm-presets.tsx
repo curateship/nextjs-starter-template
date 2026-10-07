@@ -126,7 +126,7 @@ export function FocusRhythmPresets({
     clearMessages()
     if (!authenticated) {
       const applied = onApplyLocally(preset)
-      if (applied) toast.success(`${preset.name} applied and saved locally.`)
+      if (applied) toast.success(`${preset.name} applied and saved in this browser.`)
       else
         showErrorToast(
           "Presets can't change a running timer — pause or finish it first."
@@ -184,7 +184,7 @@ export function FocusRhythmPresets({
         { id: crypto.randomUUID(), name, ...current },
       ])
       setNewName("")
-      toast.success(`${name} saved locally.`)
+      toast.success(`${name} saved in this browser.`)
       return
     }
     setBusy("create")
@@ -214,7 +214,7 @@ export function FocusRhythmPresets({
         presets.map((row) => (row.id === presetId ? { ...row, ...values } : row))
       )
       setEditingId(null)
-      toast.success(`${values.name} updated locally.`)
+      toast.success(`${values.name} updated in this browser.`)
       return
     }
     setBusy(`save:${presetId}`)

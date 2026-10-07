@@ -54,7 +54,13 @@ session awards anyway. So both paths catch and carry on.
 ## The toast
 
 Earning one badge shows a toast naming it. Earning several at once shows one
-line instead: "6 achievements earned. See History."
+line instead: "6 achievements earned."
+
+**Every badge toast has a See it button.** Off History it opens History; on
+History it scrolls to the Achievements card instead of loading the page again,
+and it closes the toast either way. It is a real button, so Tab reaches it. The
+toast used to say "See History." with nothing to press
+(`src/lib/pomodoro/achievement-toast.tsx`).
 
 Several at once is not the normal case. It happens to an imported account, or
 when a new badge ships and the account already passed its rule. Six toasts

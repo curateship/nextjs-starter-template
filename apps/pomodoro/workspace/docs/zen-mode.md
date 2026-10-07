@@ -17,6 +17,13 @@ Three things leave it, and all three do the same work:
 - The browser dropping fullscreen by itself, through F11 or its own exit
   button.
 
+Opening it puts the keyboard focus on the ring, which is the start and pause
+control, so Space or Enter starts and pauses straight away. It used to land on
+the leave button, where Space would have left zen mode instead. The line at the
+bottom says "Click the ring or press Space to start · Esc to leave". Space
+works the same when the focus is not on the ring, by the rules in
+[The timer](timer.md).
+
 Leaving puts the keyboard focus back on the button that opened it.
 
 ## What is on the screen

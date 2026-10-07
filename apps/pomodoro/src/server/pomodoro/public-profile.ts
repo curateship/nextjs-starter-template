@@ -375,10 +375,10 @@ async function readFocusingNow(userId: string, now: Date) {
   if (!row?.targetEndsAt) return null
   return {
     mode: row.mode as "focus" | "short" | "long",
-    minutesLeft: Math.max(
-      1,
-      Math.ceil((row.targetEndsAt.getTime() - now.getTime()) / 60_000)
-    ),
+    // The end itself rather than the minutes left. The page is held for 30
+    // seconds, so a count taken when it was assembled is already stale for
+    // the next visitor; the end time is true whenever it is read.
+    endsAt: row.targetEndsAt.toISOString(),
   }
 }
 

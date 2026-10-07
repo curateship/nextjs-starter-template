@@ -55,6 +55,7 @@ import {
 import { browserTimezone, type TimerMode } from "@/lib/pomodoro/timer"
 import { usePomodoro } from "@/lib/pomodoro/use-pomodoro"
 import { useSoundPlayer } from "@/lib/pomodoro/use-sound-player"
+import { TextLink } from "@/components/pomodoro/text-link"
 
 const modeLabels: Array<[TimerMode, string]> = [
   ["focus", "Focus"],
@@ -501,8 +502,15 @@ function LeaderboardQuickControl() {
           </p>
         ) : top.length === 0 ? (
           <p className="text-[11.5px] leading-relaxed text-muted-foreground">
-            Nobody has opted in yet. Turn the leaderboard on in Settings and
-            pick a display name to be first.
+            Nobody has opted in yet. Turn the leaderboard on in{" "}
+            <TextLink
+              to="/settings"
+              search={{ tab: "profile" }}
+              onClick={() => setOpen(false)}
+            >
+              Settings
+            </TextLink>{" "}
+            and pick a display name to be first.
           </p>
         ) : (
           top.map((leader, index) => (

@@ -7,6 +7,7 @@ import { InitialsAvatar } from "@/components/pomodoro/initials-avatar"
 import { loadFocusedWith } from "@/lib/api/pomodoro/leaderboard"
 import { formatFocusDuration } from "@/lib/pomodoro/focus-history"
 import { dismissErrorToast } from "@/lib/toast/error-toast"
+import { TextLink } from "@/components/pomodoro/text-link"
 
 type FocusedWith = Awaited<ReturnType<typeof loadFocusedWith>>
 
@@ -60,8 +61,11 @@ export function FocusedWithCard() {
           <LoadingRow label="Loading the people you focus with…" />
         ) : !result.optedIn ? (
           <p className="py-2 text-sm text-muted-foreground">
-            Turn on &quot;Show me on the leaderboard&quot; in Settings and pick
-            a display name to see who you share rooms with. Only people who did
+            Turn on &quot;Show me on the leaderboard&quot; in{" "}
+            <TextLink to="/settings" search={{ tab: "profile" }}>
+              Settings
+            </TextLink>{" "}
+            and pick a display name to see who you share rooms with. Only people who did
             the same are named, and they see you the same way.
           </p>
         ) : result.people.length === 0 ? (

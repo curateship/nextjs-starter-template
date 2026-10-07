@@ -48,7 +48,7 @@ export function ZenMode({
   const [pointerAwake, setPointerAwake] = React.useState(true)
   const [chromeFocused, setChromeFocused] = React.useState(false)
   const overlay = React.useRef<HTMLDivElement>(null)
-  const leaveButton = React.useRef<HTMLButtonElement>(null)
+  const ringButton = React.useRef<HTMLButtonElement>(null)
   // Held in a ref so the leave path can tell our own exitFullscreen apart
   // from the browser's Escape, which fires the same fullscreenchange event.
   const leaving = React.useRef(false)
@@ -106,7 +106,10 @@ export function ZenMode({
       node.inert = true
       inerted.push(node)
     }
-    leaveButton.current?.focus()
+    // The ring, not the leave button: the ring is the start and pause
+    // control, so Space and Enter do what people expect the moment zen mode
+    // opens. Escape still leaves from anywhere.
+    ringButton.current?.focus()
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -219,6 +222,7 @@ export function ZenMode({
               its own. The hint below names it; the accessible label is here
               because the digits alone do not say what pressing does. */}
           <button
+            ref={ringButton}
             className="absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
             onClick={pomodoro.toggleTimer}
             onFocus={() => setChromeFocused(true)}
@@ -262,7 +266,6 @@ export function ZenMode({
         style={{ opacity: chromeShown ? 1 : 0 }}
       >
         <button
-          ref={leaveButton}
           className="flex h-11 items-center gap-2.5 rounded-full border bg-[rgba(var(--p-canvas-rgb),0.75)] px-5 text-[13.5px] font-semibold text-muted-foreground hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
           onClick={leave}
           onFocus={() => setChromeFocused(true)}
@@ -277,8 +280,8 @@ export function ZenMode({
         className="absolute inset-x-0 bottom-8 text-center font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground transition-opacity duration-500 motion-reduce:transition-none"
         style={{ opacity: chromeShown ? 1 : 0 }}
       >
-        Click the ring to {pomodoro.timer.running ? "pause" : "start"} · Esc to
-        leave
+        Click the ring or press Space to{" "}
+        {pomodoro.timer.running ? "pause" : "start"} · Esc to leave
       </p>
     </div>,
     document.body

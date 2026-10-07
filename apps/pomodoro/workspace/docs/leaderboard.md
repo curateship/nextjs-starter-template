@@ -40,6 +40,15 @@ ranking.
   it only asks for it when the popover is opened. The sidebar still has a
   Leaderboard link, so nothing lost a way in.
 
+## The choices are in the address
+
+Everyone or Following, and This week, This month or All time, live in the page
+address: `/leaderboard?show=following&window=month`. A reload or Back keeps
+them, and a link can open one view. Everyone and This week are the plain
+`/leaderboard`, and anything unknown falls back to them
+(`src/routes/_pomodoro/leaderboard.tsx`). Clicking a tab replaces the address
+rather than adding to it, so Back leaves the page.
+
 ## Your own row
 
 Your row has the accent tint and a small "You" beside your name, on the
@@ -47,6 +56,24 @@ global board, the Following board and every group board, because they share
 `leaderboard-rows.tsx`. The tint alone said nothing to a screen reader or with
 the colour ignored. The header's leaderboard popover adds "· you" after your
 name for the same reason.
+
+## When you are not on it
+
+A signed-in member missing from the global board sees one line above the
+ranking that says why, with Settings as a link to the Profile tab:
+
+- **The switch is off:** "You are not on this board. Switch it on in Settings
+  to take your place." The switch is off by default, so this is most new
+  members.
+- **The switch is on but there is no display name:** "You are not on this
+  board yet. Pick a display name in Settings to take your place."
+
+The answer rides on the board's own load (`youAreHidden` in
+`src/lib/api/pomodoro/leaderboard.ts`), from the profile row that load already
+reads, so it costs no extra request. It is the same two conditions the ranking
+query lists people by. The line stays off on the Following board, which is the
+people you follow and never you, and on an empty board, whose own message
+already explains the switch. Somebody on the board sees nothing.
 
 ## When the board fails to load
 

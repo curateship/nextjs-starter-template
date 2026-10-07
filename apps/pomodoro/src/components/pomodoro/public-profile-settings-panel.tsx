@@ -56,6 +56,7 @@ import {
 import { PROFILE_HIDDEN_NOTICE } from "@/lib/pomodoro/profile-reports"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
+import { TextLink } from "@/components/pomodoro/text-link"
 
 /**
  * The "Your public page" card, the Public page tab on Settings.
@@ -401,9 +402,15 @@ export default function PublicProfileSettingsPanel() {
                   className="size-12 text-base"
                 />
                 <p className="text-sm text-muted-foreground">
+                  {/* The photo card moved to the Profile tab, so "the card
+                      above" became a link to it. */}
+                  {avatarUrl ? "Change it" : "Add one"} on the{" "}
+                  <TextLink to="/settings" search={{ tab: "profile" }}>
+                    Profile tab
+                  </TextLink>
                   {avatarUrl
-                    ? "Change it on the Your profile card above."
-                    : "Add one on the Your profile card above, or leave it and your initials are drawn."}
+                    ? "."
+                    : ", or leave it and your initials are drawn."}
                 </p>
               </div>
             </section>
@@ -416,7 +423,7 @@ export default function PublicProfileSettingsPanel() {
             />
 
             <section className="grid grid-cols-1 gap-3">
-              <FieldLabel hint="Each one is off until you switch it on, and the server reads a section only when its switch is on.">
+              <FieldLabel hint="Each one is off until you switch it on. Nobody sees a section until you do.">
                 What your page shows
               </FieldLabel>
               {PROFILE_SECTIONS.map((section) => (
@@ -660,7 +667,9 @@ function BannerField({
           </div>
         ) : (
           <p className="text-xs text-muted-foreground">
-            Pictures you upload on the Backgrounds page can be used here too.
+            Pictures you upload on the{" "}
+            <TextLink to="/backgrounds">Backgrounds page</TextLink> can be used
+            here too.
           </p>
         )
       ) : (

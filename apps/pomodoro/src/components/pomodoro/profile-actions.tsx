@@ -1,6 +1,6 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
-import { FlagIcon, ShieldOffIcon } from "lucide-react"
+import { FlagIcon, Loader2Icon, ShieldOffIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -38,6 +38,7 @@ import {
 } from "@/lib/pomodoro/profile-reports"
 import { useProductAuth } from "@/lib/pomodoro/auth-state"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import { TextLink } from "@/components/pomodoro/text-link"
 
 /**
  * The row of actions on somebody else's profile: Follow, a cheer, Report and
@@ -89,10 +90,15 @@ export function ProfileActions({
   const toggleFollow = async () => {
     setBusy(true)
     try {
-      const next = following
+      const wasFollowing = following
+      const next = wasFollowing
         ? await unfollowProfile(handle)
         : await followProfile(handle)
       setFollowing(next.following)
+      // One press undoes a follow, so the toast is the confirmation that it
+      // was meant.
+      if (wasFollowing && !next.following)
+        toast.success(`You unfollowed ${name}.`)
     } catch (cause) {
       showErrorToast(followErrorMessage(cause))
     } finally {
@@ -116,13 +122,39 @@ export function ProfileActions({
     <div className="flex flex-wrap items-center gap-2">
       {authenticated ? (
         <>
-          <Button
-            variant={following ? "outline" : "default"}
-            disabled={busy || !known}
-            onClick={() => void toggleFollow()}
-          >
-            {following ? "Following" : "Follow"}
-          </Button>
+          {/* Three states. Until the answer is in, a neutral one: the button
+              used to say Follow for a moment to people who already followed,
+              which invites the wrong press. Following turns into Unfollow on
+              hover and keyboard focus, because that is what pressing it does. */}
+          {following === null ? (
+            <Button variant="outline" disabled aria-label={`Checking whether you follow ${name}`}>
+              <Loader2Icon className="animate-spin" aria-hidden="true" />
+              Checking…
+            </Button>
+          ) : following ? (
+            <Button
+              variant="outline"
+              className="min-w-24"
+              disabled={busy || !known}
+              onClick={() => void toggleFollow()}
+              aria-label={`Unfollow ${name}`}
+            >
+              <span className="group-hover/button:hidden group-focus-visible/button:hidden">
+                Following
+              </span>
+              <span className="hidden group-hover/button:inline group-focus-visible/button:inline">
+                Unfollow
+              </span>
+            </Button>
+          ) : (
+            <Button
+              disabled={busy || !known}
+              onClick={() => void toggleFollow()}
+              aria-label={`Follow ${name}`}
+            >
+              Follow
+            </Button>
+          )}
           {/* Cheers are only for people you follow, so the picker appears
               with the follow rather than beside it. */}
           {following ? (
@@ -238,8 +270,8 @@ function ReportDialog({
             </Select>
           </div>
           <p className="text-sm text-muted-foreground">
-            An operator reads every report. You do not need an account to send
-            one.
+            Someone on our team reads every report. You do not need an account
+            to send one.
           </p>
         </DialogBody>
         <DialogFooter>
@@ -295,7 +327,11 @@ function BlockDialog({
             You will not see each other anywhere in the app: not on any board,
             not in a room, and neither of you can open the other&rsquo;s page.
             Any follow between you is removed. They are told nothing. You can
-            undo this in Settings.
+            undo this in{" "}
+            <TextLink to="/settings" search={{ tab: "privacy" }}>
+              Settings
+            </TextLink>
+            .
           </p>
         </DialogBody>
         <DialogFooter>

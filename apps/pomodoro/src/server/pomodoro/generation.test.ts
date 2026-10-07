@@ -189,7 +189,7 @@ describe("when a generation fails", () => {
   it("says why, in the member's words, on the row itself", async () => {
     const job = await queueOne()
     const claimed = await claimNextGeneration()
-    await failGeneration(claimed!, "The provider took too long. Try again.", {
+    await failGeneration(claimed!, "That took too long. Try again.", {
       retry: false,
     })
 
@@ -198,7 +198,7 @@ describe("when a generation fails", () => {
       .from(pomodoroGenerations)
       .where(eq(pomodoroGenerations.id, job.id))
     expect(row.status).toBe("failed")
-    expect(row.failureReason).toBe("The provider took too long. Try again.")
+    expect(row.failureReason).toBe("That took too long. Try again.")
   })
 })
 

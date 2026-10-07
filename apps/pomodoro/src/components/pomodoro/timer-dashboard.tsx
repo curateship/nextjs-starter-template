@@ -17,6 +17,7 @@ import {
 } from "@/components/pomodoro/today-task-list"
 import { ZenMode } from "@/components/pomodoro/zen-mode"
 import { Button } from "@/components/ui/button"
+import { DisabledReason } from "@/components/ui/disabled-reason"
 import { InlineError } from "@/components/ui/inline-error"
 import { Label } from "@/components/ui/label"
 import {
@@ -38,10 +39,14 @@ import {
   type TimerMode,
 } from "@/lib/pomodoro/timer"
 import {
+  DAILY_GOAL_LIMIT_REASON,
   DAILY_GOAL_MAX,
   DAILY_GOAL_MIN,
   usePomodoro,
 } from "@/lib/pomodoro/use-pomodoro"
+import { useSpaceToggle } from "@/lib/pomodoro/use-space-toggle"
+import { TextLink } from "@/components/pomodoro/text-link"
+import { plural } from "@/lib/format/plural"
 
 const circumference = 2 * Math.PI * 132
 
@@ -113,31 +118,44 @@ function DailyGoalEditor({
         <strong className="text-sm font-semibold">Daily session goal</strong>
         <div className="flex items-center gap-2.5">
           <span className="mr-auto text-sm text-muted-foreground">Sessions</span>
-          <Button
-            variant="outline"
-            size="icon-sm"
+          {/* At either end the button says why it stopped, rather than
+              looking broken. */}
+          <DisabledReason
+            reason={DAILY_GOAL_LIMIT_REASON}
             disabled={goal <= DAILY_GOAL_MIN}
-            onClick={() => onChange(goal - 1)}
-            aria-label="One session fewer"
           >
-            <MinusIcon aria-hidden="true" />
-          </Button>
+            <Button
+              variant="outline"
+              size="icon-sm"
+              disabled={goal <= DAILY_GOAL_MIN}
+              onClick={() => onChange(goal - 1)}
+              aria-label="One session fewer"
+            >
+              <MinusIcon aria-hidden="true" />
+            </Button>
+          </DisabledReason>
           <b className="w-8 text-center font-mono text-[13px] font-normal tabular-nums">
             {goal}
           </b>
-          <Button
-            variant="outline"
-            size="icon-sm"
+          <DisabledReason
+            reason={DAILY_GOAL_LIMIT_REASON}
             disabled={goal >= DAILY_GOAL_MAX}
-            onClick={() => onChange(goal + 1)}
-            aria-label="One session more"
           >
-            <PlusIcon aria-hidden="true" />
-          </Button>
+            <Button
+              variant="outline"
+              size="icon-sm"
+              disabled={goal >= DAILY_GOAL_MAX}
+              onClick={() => onChange(goal + 1)}
+              aria-label="One session more"
+            >
+              <PlusIcon aria-hidden="true" />
+            </Button>
+          </DisabledReason>
         </div>
         <p className="text-[11.5px] leading-relaxed text-muted-foreground">
-          What the bar above is measured against. Settings &rsaquo; Timer has
-          the same number.
+          What the bar above is measured against.{" "}
+          <TextLink to="/settings">Settings &rsaquo; Timer</TextLink> has the
+          same number.
         </p>
       </PopoverContent>
     </Popover>
@@ -171,6 +189,9 @@ export function TimerDashboard() {
   const goalReached =
     pomodoro.todayFocusSessions >= pomodoro.dailyGoalSessions
   const completedTasks = pomodoro.tasks.filter((task) => task.completed).length
+  // The same toggle the break's play button and the Start pill call, here and
+  // in zen mode alike, which is why it lives above the early return.
+  useSpaceToggle(pomodoro.toggleTimer)
 
   if (zen) return <ZenMode pomodoro={pomodoro} onLeave={leaveZen} />
 
@@ -292,6 +313,11 @@ export function TimerDashboard() {
           </div>
         </div>
 
+        {/* Only where there is a keyboard to press it on. */}
+        <span className="hidden font-mono text-xs text-muted-foreground pointer-fine:inline">
+          Space to {pomodoro.timer.running ? "pause" : "start"}
+        </span>
+
         <ModeTabs mode={pomodoro.timer.mode} onSelect={requestMode} />
 
         <SessionNotePrompt pomodoro={pomodoro} />
@@ -308,12 +334,12 @@ export function TimerDashboard() {
               label="Today's daily goal"
               value={pomodoro.todayFocusSessions}
               max={pomodoro.dailyGoalSessions}
-              valueText={`${pomodoro.todayFocusSessions} of ${pomodoro.dailyGoalSessions} sessions`}
+              valueText={`${pomodoro.todayFocusSessions} of ${pomodoro.dailyGoalSessions} ${plural(pomodoro.dailyGoalSessions, "session")}`}
               className="h-2 w-[120px]"
             />
             <span className="font-mono text-xs text-muted-foreground">
               {pomodoro.todayFocusSessions} of {pomodoro.dailyGoalSessions}{" "}
-              sessions completed today{goalReached ? " · Goal reached" : ""}
+              {plural(pomodoro.dailyGoalSessions, "session")} completed today{goalReached ? " · Goal reached" : ""}
             </span>
             <DailyGoalEditor
               goal={pomodoro.dailyGoalSessions}

@@ -50,6 +50,14 @@ const loadLeaderboardFn = createServerFn({ method: "GET" })
       start,
       today,
       following: data.following,
+      // Why you are missing from the global board, if you are: the switch is
+      // off, or it is on with no display name to show. The same two
+      // conditions the ranking query lists people by.
+      youAreHidden: !profile.leaderboardOptIn
+        ? ("switched-off" as const)
+        : profile.publicDisplayName === null
+          ? ("no-name" as const)
+          : null,
       leaders: await readLeaderboardRows({
         start,
         viewerUserId: context.user.id,

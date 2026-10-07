@@ -23,6 +23,18 @@ A Follow button on a profile, and a Following tab on the leaderboard.
 - **A profile that is not switched on cannot be followed**, because there
   would be nothing to see.
 
+**The button says what pressing it does** (`profile-actions.tsx`):
+
+- **While it is still asking** whether you follow, it shows a grey
+  "Checking…" with a spinner and cannot be pressed. It used to show an orange
+  Follow for a moment to people who already followed, which invites the wrong
+  press.
+- **Not following:** Follow. A screen reader hears "Follow Sam".
+- **Following:** the button reads Following, and turns into Unfollow on hover
+  and on keyboard focus. A screen reader hears "Unfollow Sam".
+- **Unfollowing is still one press**, and a toast confirms it: "You unfollowed
+  Sam."
+
 "No such profile" and "you may not follow this one" give the same sentence on
 purpose. A different message for each would be a way to find out you had been
 blocked.
@@ -146,3 +158,12 @@ they sit together.
   Settings card drops the held pages, so a listing switched on appears on the
   next load.
 - `/users` is its own address and does not redirect to `/users?page=0`.
+- **Previous stops on the first page and Next on the last.** At either end the
+  button is a real disabled button, so a press does nothing and Tab skips it.
+  They used to be links drawn grey, and a link cannot be switched off, so Next
+  on the last page still opened an empty one (`PagerButton` in
+  `users-page.tsx`).
+- **A page past the end says so.** `/users?page=999` says "There is nothing on
+  page 201. The list has 3 pages." with Back to page 1. The address is capped
+  at page 200 before it reaches the server. It used to say "Nobody is listed
+  yet", which was untrue with people on page 1.

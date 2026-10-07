@@ -56,6 +56,7 @@ import "@/components/pomodoro/fonts"
 // Puts the chosen dark shade (Settings → Appearance) on <html>, where
 // theme.css reads it next to the .dark class.
 import "@/lib/pomodoro/dark-shade"
+import { useAppliedDark } from "@/lib/pomodoro/use-applied-dark"
 
 /**
  * The product's own shell, matched to the old app's geometry side by side:
@@ -140,8 +141,10 @@ const KNOB_TRAVEL = 24
  * all: the styles below are the resting state either way.
  */
 function ThemeTogglePill() {
-  const { theme, setTheme } = useTheme()
-  const dark = theme !== "light"
+  const { setTheme } = useTheme()
+  // What is on screen, not what is stored: "system" on a light-mode computer
+  // is light, and the switch used to show the moon for it.
+  const dark = useAppliedDark()
   const knob = React.useRef<HTMLSpanElement>(null)
   const wasDark = React.useRef(dark)
 

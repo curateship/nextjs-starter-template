@@ -3,7 +3,8 @@
 The Timer tab of the product's Settings page (`/settings`, card
 `src/components/pomodoro/timer-settings-panel.tsx`) holds the old app's
 "Focus rhythm" card: the three durations (1-90 minutes each), the daily goal
-(1-20), how many focuses come before the long break (2-8), auto-start, and the
+(1-20, and its help says so, from the same limits the dashboard's + and − stop
+at), how many focuses come before the long break (2-8), auto-start, and the
 rhythm presets. The long-break number has its own doc,
 [Sessions before the long break](sessions-before-long-break.md).
 

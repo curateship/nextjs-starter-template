@@ -86,17 +86,17 @@ function describeFailure(error: unknown): { retry: boolean; reason: string } {
   if (error instanceof ProviderKeyMissingError) {
     return {
       retry: false,
-      reason: "AI generation is not set up on this server yet.",
+      reason: "AI generation is not switched on yet.",
     }
   }
   if (error instanceof FfmpegMissingError) {
     return {
       retry: false,
-      reason: "This server cannot prepare sound or video yet.",
+      reason: "Sound and video cannot be prepared yet.",
     }
   }
   if (error instanceof Error && error.message === "PROVIDER_TIMEOUT") {
-    return { retry: true, reason: "The provider took too long. Try again." }
+    return { retry: true, reason: "That took too long. Try again." }
   }
   return {
     retry: true,

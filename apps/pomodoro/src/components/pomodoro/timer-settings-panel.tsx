@@ -27,6 +27,9 @@ import {
 } from "@/lib/pomodoro/timer-presets"
 import {
   applyDurations,
+  DAILY_GOAL_LIMIT_REASON,
+  DAILY_GOAL_MAX,
+  DAILY_GOAL_MIN,
   reloadPomodoroData,
   usePomodoro,
 } from "@/lib/pomodoro/use-pomodoro"
@@ -113,7 +116,7 @@ export default function TimerSettingsPanel() {
         dailyGoalSessions: dailyGoal,
         sessionsBeforeLongBreak: cycle,
       })
-      if (applied) toast.success("Focus rhythm saved locally.")
+      if (applied) toast.success("Saved in this browser.")
       else showErrorToast("Reset or finish the timer first.")
       return
     }
@@ -223,10 +226,10 @@ export default function TimerSettingsPanel() {
               <NumberField
                 id="timer-goal"
                 label="Daily session goal"
-                hint="Only completed focus sessions count toward your daily goal and streak."
+                hint={`Only completed focus sessions count toward your daily goal and streak. ${DAILY_GOAL_LIMIT_REASON}`}
                 value={dailyGoal}
-                min={1}
-                max={20}
+                min={DAILY_GOAL_MIN}
+                max={DAILY_GOAL_MAX}
                 onChange={setDailyGoal}
                 inputClassName="sm:max-w-40"
               />

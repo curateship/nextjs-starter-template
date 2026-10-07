@@ -39,7 +39,7 @@ export const getGenerationErrorMessage = createErrorMessage(
     GENERATION_LIMIT_REACHED:
       "You have used this month's AI generations. You get a fresh batch on the first.",
     PROVIDER_NOT_CONFIGURED:
-      "AI generation is not set up on this server yet. An operator needs to add the provider key under Settings → AI.",
+      "AI generation is not switched on yet.",
     STORAGE_QUOTA_EXCEEDED:
       "Your storage is full, and a generated file needs somewhere to go. Delete something you no longer use and try again.",
     RATE_LIMITED:

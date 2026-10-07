@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router"
 import { InitialsAvatar } from "@/components/pomodoro/initials-avatar"
 import { cn } from "@/lib/utils"
 import { formatFocusDuration } from "@/lib/pomodoro/focus-history"
+import { plural } from "@/lib/format/plural"
 
 /** One ranked account, as a board hands it over. Never a user id. */
 export type BoardLeader = {
@@ -72,7 +73,7 @@ export function LeaderboardRows({ leaders }: { leaders: readonly BoardLeader[] }
           <span className="ml-auto shrink-0 font-mono text-xs">
             {formatFocusDuration(leader.focusSeconds)}{" "}
             <small className="text-muted-foreground">
-              {leader.focusSessions} sessions
+              {leader.focusSessions} {plural(leader.focusSessions, "session")}
             </small>
           </span>
         </article>

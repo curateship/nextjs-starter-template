@@ -80,8 +80,8 @@ While that runs the card says "Getting it ready…" and cannot be picked, becaus
 the file behind it is still the raw original. The page asks again every four
 seconds, and only while something is actually waiting. A re-encode that fails
 goes back in the queue twice; after that the card says so in words instead of
-spinning forever. A server with no FFmpeg says "This server cannot prepare sound
-or video yet. Tell an operator."
+spinning forever. A server with no FFmpeg says "Sound and video cannot be
+prepared yet."
 
 ## The strip waits before it lets you press anything
 

@@ -59,10 +59,10 @@ export function profileReportReasonLabel(id: string) {
 export const PROFILE_REPORTS_PER_HOUR = 6
 
 export const PROFILE_REPORT_THANKS =
-  "Thanks. An operator will look at this profile."
+  "Thanks. Someone on our team will look at this profile."
 export const PROFILE_REPORT_RATE_LIMITED =
   "That is a lot of reports from one place. Try again in an hour."
 
 /** What the owner of a hidden profile is told, on their own Settings card. */
 export const PROFILE_HIDDEN_NOTICE =
-  "An operator has hidden your public page after a report, so its address now answers as though it were switched off. Your focus record is untouched. Reply to a support email if you think this is wrong."
+  "Our team has hidden your public page after a report, so its address now shows nothing, as if it were switched off. Your focus record is untouched. Reply to a support email if you think this is wrong."

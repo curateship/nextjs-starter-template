@@ -10,6 +10,18 @@ CSV export. The per-project card is described in [Projects](projects.md), the
 badges panel in [Achievements](achievements.md), and the sessions table's Note
 column in [Session notes](session-notes.md).
 
+## The range is in the address
+
+The chosen range lives in the page address, `/history?range=12m`, so a reload
+or Back keeps it and a link can open a particular range. 7 days is the plain
+`/history`, and anything else in the address falls back to it
+(`validateSearch` in `src/routes/_pomodoro/history.tsx`). Picking a range
+replaces the address rather than adding to it, so Back leaves History instead
+of stepping through every range you clicked. A long range on a free account
+shows the same locked card whether it was clicked or typed into the address.
+It used to be held only on the page, so opening something and pressing Back
+put you on 7 days again.
+
 ## Your week
 
 The card at the top of the page. It shows this week's focus time, how that
@@ -93,6 +105,27 @@ Endpoints: `src/lib/api/pomodoro/history.ts`, all three guarded (the report,
 the CSV export and the week review). Screen:
 `src/components/pomodoro/history-page.tsx`, with hidden data tables behind
 the visual heatmap and chart for screen readers.
+
+## The calendar heatmap
+
+The same grid draws here and on a public profile (`focus-heatmap.tsx`), so both
+behave the same:
+
+- **It opens on the newest weeks.** The grid scrolls sideways inside its card,
+  and it starts at the right-hand end with today in view. At 390px wide it used
+  to open on last year, with today off the right edge.
+- **Every square tells you its day.** Pointing at one, tapping it, or reaching
+  it with the arrow keys shows "Tue, Oct 6, 2026 · 1h 20m · 3 sessions"
+  in the shared tooltip, and the square gets an outline. A tap anywhere else
+  puts it away. The day used to live only in a mouse-hover title, which a phone
+  never shows.
+- **One tooltip, one tab stop.** The grid is a single stop for Tab. Up and down
+  move a day, left and right move a week, and Home and End jump to the first
+  and last day. A tooltip and a tab stop for each of 365 squares could not open
+  on a tap and would bury the keyboard.
+- **A screen reader hears a summary**, such as "Focus by day from ... to ...:
+  41h over 120 days", and then each day as the arrows move. History also keeps
+  its hidden table of every day.
 
 ## The bars in Top tasks and By project
 

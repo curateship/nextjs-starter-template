@@ -59,6 +59,7 @@ import { useProductAuth } from "@/lib/pomodoro/auth-state"
 import { targetProgressLabel } from "@/lib/pomodoro/project-targets"
 import { browserTimezone } from "@/lib/pomodoro/timer"
 import { dismissErrorToast } from "@/lib/toast/error-toast"
+import { TextLink } from "@/components/pomodoro/text-link"
 
 type FocusHistoryResult = Awaited<ReturnType<typeof loadFocusHistory>>
 type ReportDay = FocusHistoryResult["days"][number]
@@ -615,7 +616,9 @@ function TopProjectsCard({
           </ul>
         ) : (
           <p className="text-sm text-muted-foreground">
-            Put a task in a project on the Tasks page and its hours land here.
+            Put a task in a project on the{" "}
+            <TextLink to="/tasks">Tasks page</TextLink> and its hours land
+            here.
           </p>
         )}
       </CardContent>
@@ -801,9 +804,15 @@ function SessionsCard({
 }
 
 /** The report page over 7 days, 30 days, 12 months or this year. */
-export function HistoryPage() {
+export function HistoryPage({
+  range,
+  onRangeChange,
+}: {
+  /** From the address, so a reload or Back keeps it. */
+  range: ReportRange
+  onRangeChange: (range: ReportRange) => void
+}) {
   const { authenticated } = useProductAuth()
-  const [range, setRange] = React.useState<ReportRange>("7d")
   const [page, setPage] = React.useState(0)
   const [tagId, setTagId] = React.useState<string | null>(null)
   const [report, setReport] = React.useState<FocusHistoryResult | null>(null)
@@ -846,7 +855,7 @@ export function HistoryPage() {
 
   const changeRange = (next: ReportRange) => {
     if (next === range) return
-    setRange(next)
+    onRangeChange(next)
     setPage(0)
     setNotice("")
   }
@@ -906,9 +915,8 @@ export function HistoryPage() {
           <CardContent className="flex flex-col items-start gap-3 py-8">
             <h3 className="text-lg font-bold">Sign in to see your history</h3>
             <p className="text-sm text-muted-foreground">
-              Focus history is built from sessions synced to your account, so
-              there is nothing to show for guests. Your reports are private —
-              only you can see them.
+              Sign in and every focus is kept for you, which is what this page
+              is built from. Your reports are private. Only you can see them.
             </p>
             <div className="flex gap-2">
               <Button asChild>

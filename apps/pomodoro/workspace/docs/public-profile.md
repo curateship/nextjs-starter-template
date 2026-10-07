@@ -193,6 +193,17 @@ knowing that an avatar URL contains it.
 not run out. A focus left open overnight has its end time in the past, so it
 reads as not focusing rather than claiming a fourteen-hour session.
 
+**The line counts down while the page is open.** The page carries the
+session's end time, not a number of minutes, and the browser counts the
+minutes left against it, re-reading its own clock every five seconds. When the
+time runs out the line goes, and it never shows a negative number. It used to
+print the minutes from the load and stay there, so twenty minutes later it
+still said 12. The end time rather than the minutes because the page is held
+for 30 seconds: a count taken when the copy was made is already out of date for
+the next visitor, and the end time is not. The line is drawn only in the
+browser, since the minutes depend on the reader's clock (`FocusingNowCard` in
+`public-profile-page.tsx`).
+
 ## An unlisted room is not listed
 
 The room section reads the room's own `visibility` and honours it. Unlisted

@@ -102,7 +102,7 @@ function repeatChoiceOf(weekdays: number | null): RepeatChoice {
 }
 
 const GUEST_REPEAT_REASON =
-  "Repeating a task needs an account, because the copy is made on the server each morning."
+  "Repeating a task needs an account, because the task is added for you each morning."
 const GUEST_PROJECT_REASON =
   "Projects need an account, because they are saved with your focus history."
 const GUEST_TAG_REASON =

@@ -46,6 +46,16 @@ top of `room-chat.tsx`.
 - **Both boxes are `ScrollArea`**, never a native `overflow-auto`, so the
   scrollbar is the app's thin one.
 
+## The chat stays where you are reading
+
+New messages pull the chat down only for somebody already at the newest line,
+within 48px of the bottom. Scroll up to reread something, and new messages land
+below without moving you. A "New messages" button appears over the bottom of
+the chat instead, and pressing it scrolls down and goes away. Scrolling back to
+the bottom yourself hides it too. Your own message always comes into view when
+you send it. Only the chat's own box scrolls, never the page. The chat used to
+jump to the bottom on every message wherever you were (`room-chat.tsx`).
+
 ## Reactions
 
 - **Five emoji, fixed**: 👍 💪 🔥 ❤️ 😄, from

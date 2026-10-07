@@ -1,9 +1,11 @@
+import type * as React from "react"
 import { Link } from "@tanstack/react-router"
 
 import { ProfilePhoto } from "@/components/pomodoro/profile-photo"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import type { readUsersPage } from "@/lib/api/pomodoro/public-profile"
+import { TextLink } from "@/components/pomodoro/text-link"
 
 type UsersResult = Awaited<ReturnType<typeof readUsersPage>>
 
@@ -37,12 +39,31 @@ export function UsersPage({
         </p>
       </header>
 
-      {!result.rows.length ? (
+      {!result.rows.length && result.total > 0 ? (
+        // A page number past the end, usually typed or from an old link.
+        <Card>
+          <CardContent className="flex flex-col items-start gap-3 py-6">
+            <p className="text-sm text-muted-foreground">
+              There is nothing on page {page + 1}. The list has {pages}{" "}
+              {pages === 1 ? "page" : "pages"}.
+            </p>
+            <Button asChild variant="outline" size="sm">
+              <Link to="/users" search={{}}>
+                Back to page 1
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      ) : !result.rows.length ? (
         <Card>
           <CardContent className="py-6">
             <p className="text-sm text-muted-foreground">
               Nobody is listed yet. Switch on &ldquo;List me on /users&rdquo;
-              in Settings to be the first.
+              in{" "}
+              <TextLink to="/settings" search={{ tab: "public" }}>
+                Settings
+              </TextLink>{" "}
+              to be the first.
             </p>
           </CardContent>
         </Card>
@@ -93,31 +114,48 @@ export function UsersPage({
         </div>
       )}
 
-      {pages > 1 ? (
-        <nav className="flex items-center justify-between gap-2">
-          <Button asChild variant="outline" size="sm" disabled={page <= 0}>
-            <Link
-              to="/users"
-              search={page - 1 > 0 ? { page: page - 1 } : {}}
-            >
-              Previous
-            </Link>
-          </Button>
+      {pages > 1 && result.rows.length ? (
+        <nav
+          aria-label="Pages of people"
+          className="flex items-center justify-between gap-2"
+        >
+          <PagerButton to={page <= 0 ? null : page - 1}>Previous</PagerButton>
           <span className="text-xs text-muted-foreground">
             Page {page + 1} of {pages}
           </span>
-          <Button
-            asChild
-            variant="outline"
-            size="sm"
-            disabled={page + 1 >= pages}
-          >
-            <Link to="/users" search={{ page: page + 1 }}>
-              Next
-            </Link>
-          </Button>
+          <PagerButton to={page + 1 >= pages ? null : page + 1}>
+            Next
+          </PagerButton>
         </nav>
       ) : null}
     </div>
+  )
+}
+
+/**
+ * Previous or Next. At the end it is a real disabled button, not a link with
+ * `disabled` on it: a link has no disabled state, so the grey one used to
+ * still go to an empty page.
+ */
+function PagerButton({
+  to,
+  children,
+}: {
+  /** The page to go to, or null at the end. */
+  to: number | null
+  children: React.ReactNode
+}) {
+  if (to === null)
+    return (
+      <Button variant="outline" size="sm" disabled>
+        {children}
+      </Button>
+    )
+  return (
+    <Button asChild variant="outline" size="sm">
+      <Link to="/users" search={to > 0 ? { page: to } : {}}>
+        {children}
+      </Link>
+    </Button>
   )
 }

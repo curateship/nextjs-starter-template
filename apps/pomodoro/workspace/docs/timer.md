@@ -27,6 +27,22 @@ because zen mode covers the window and must not be scrolled.
 
 ## Using it by keyboard
 
+**Space starts and pauses the timer**, on the dashboard and in zen mode. It
+calls the same `toggleTimer` the Start pill calls, so on a break it pauses and
+resumes the break, like the break's own play button. A line under the ring
+says "Space to start" or "Space to pause", and only on a screen with a mouse or
+trackpad (`pointer-fine`), since a phone has no Space bar to press.
+
+Space leaves the timer alone whenever something else wants the key
+(`src/lib/pomodoro/use-space-toggle.ts`):
+
+- **Typing.** In a box, a text area, a select or anything editable, Space types
+  a space. A task called "Write the intro" never touches the timer.
+- **A focused button, link, switch or tab.** That control presses itself on
+  Space, and the timer does not press as well.
+- **An open dialog or popover**, such as the "Discard this focus?" question.
+- **Held down or with Ctrl, Cmd or Alt.** Only a single plain press counts.
+
 Every stop on this screen shows where it is. The dashboard's buttons are the
 shared `Button`, so they draw the one focus ring the rest of the app draws
 (`src/lib/layout/focus-ring.ts`); before this they were bare `<button>`
@@ -65,6 +81,10 @@ out on three screens and three copies of one sentence drift apart.
   nothing tying it to the rows it was about. The paragraph is gone. What is
   left in its place is "Current values are custom", which is a fact about the
   numbers rather than a reason a control is off.
+- **The daily goal's + and − at the end of the range** say "The goal can be
+  between 1 and 20 sessions." on hover and on keyboard focus. The numbers come
+  from `DAILY_GOAL_MIN` and `DAILY_GOAL_MAX`, so the sentence cannot drift from
+  the limits. The buttons used to stop at 1 and 20 without a word.
 - **The session note's Save is never off for want of a change.** Pressing it
   with nothing typed says "Saved" instead of doing nothing, because "nothing
   has changed" is not worth greying a button out for.

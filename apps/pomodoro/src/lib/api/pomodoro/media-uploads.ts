@@ -49,7 +49,7 @@ export const getPomodoroUploadErrorMessage = createErrorMessage(
     UPLOAD_NOT_FOUND: "That upload is no longer there.",
     UPLOAD_NOT_READY: "That upload is still being prepared.",
     STORAGE_NOT_CONFIGURED:
-      "File storage is not set up yet, so uploads cannot be saved. Tell an operator.",
+      "Uploads are not switched on yet, so this file cannot be saved.",
     RATE_LIMITED:
       "That is a lot of uploads at once. Please wait a few minutes and try again.",
   },

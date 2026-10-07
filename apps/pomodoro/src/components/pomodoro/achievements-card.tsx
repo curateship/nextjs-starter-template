@@ -15,6 +15,7 @@ import {
 import { browserTimezone } from "@/lib/pomodoro/timer"
 import { dismissErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
+import { BADGES_CARD_ID } from "@/lib/pomodoro/achievement-toast"
 
 /**
  * The badges panel, above the focus report on /history.
@@ -66,7 +67,8 @@ export function AchievementsCard() {
   const earnedCount = state?.earned.size ?? 0
 
   return (
-    <Card>
+    // The badge toast's See it scrolls here.
+    <Card id={BADGES_CARD_ID} className="scroll-mt-20">
       <CardHeader className="flex-row items-baseline justify-between">
         <CardTitle>Achievements</CardTitle>
         {state ? (

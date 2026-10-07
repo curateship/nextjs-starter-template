@@ -1,8 +1,7 @@
 import * as React from "react"
-import { toast } from "sonner"
 
 import { showErrorToast } from "@/lib/toast/error-toast"
-import { findAchievement } from "@/lib/pomodoro/achievements"
+import { announceAchievements } from "@/lib/pomodoro/achievement-toast"
 import {
   abandonTask,
   cancelFocusSession,
@@ -64,6 +63,7 @@ import {
   type PomodoroTimer,
   type TimerMode,
 } from "@/lib/pomodoro/timer"
+import { dailyGoalLimitReason } from "@/lib/pomodoro/disabled-reasons"
 
 /**
  * The timer as a module-level engine, with `usePomodoro` as React's view of
@@ -302,7 +302,7 @@ function beginServerSession(
       clearSyncError()
       if (session) setState({ serverSessionId: session.id })
     })
-    .catch(() => setSyncError("Your focus session could not be synced."))
+    .catch(() => setSyncError("Your focus session could not be saved to your account."))
 }
 
 function isAuthed() {
@@ -553,30 +553,6 @@ export function reloadPomodoroData({
     })
 }
 
-/**
- * A toast for the badges the finished focus just earned. The server answers
- * with the badges it actually recorded, never with the ones already on the
- * account, so a hundredth session that is reported twice congratulates you
- * once.
- *
- * Earning one at a time is the normal case and gets its own toast. Several at
- * once is not: it happens when an account has been imported, or when a new
- * badge ships and an account already passed its rule. A stack of six toasts
- * would bury the screen, so more than two become one line that sends you to
- * the panel.
- */
-function announceAchievements(badgeIds: readonly string[]) {
-  const badges = badgeIds
-    .map(findAchievement)
-    .filter((badge): badge is NonNullable<typeof badge> => badge !== null)
-  if (!badges.length) return
-  if (badges.length > 2) {
-    toast.success(`${badges.length} achievements earned. See History.`)
-    return
-  }
-  for (const badge of badges)
-    toast.success(`Achievement earned: ${badge.name}`)
-}
 
 function handleCompletion() {
   if (completing) return
@@ -639,7 +615,7 @@ function handleCompletion() {
         })
       })
       .catch(() =>
-        setSyncError("Your completed focus session could not be synced.")
+        setSyncError("Your completed focus session could not be saved to your account.")
       )
 
   const { nextMode, completedFocusSessions } = advanceCycle(
@@ -707,7 +683,7 @@ export function toggleTimer() {
     void resumeFocusSession({
       sessionId: current.serverSessionId,
       remainingSeconds: current.timer.remainingSeconds,
-    }).catch(() => setSyncError("Your focus session could not be synced."))
+    }).catch(() => setSyncError("Your focus session could not be saved to your account."))
   } else {
     beginServerSession(
       current.timer.mode,
@@ -790,6 +766,11 @@ export function setAutoStart(autoStart: boolean) {
 
 export const DAILY_GOAL_MIN = 1
 export const DAILY_GOAL_MAX = 20
+/** Why the goal's + or − stops, read from the two limits above. */
+export const DAILY_GOAL_LIMIT_REASON = dailyGoalLimitReason(
+  DAILY_GOAL_MIN,
+  DAILY_GOAL_MAX
+)
 
 /**
  * The daily session goal, from the small edit button on the goal bar or

@@ -1,3 +1,4 @@
+import * as React from "react"
 import { Link } from "@tanstack/react-router"
 
 import {
@@ -54,25 +55,10 @@ export function PublicProfilePage({ profile }: { profile: PublicProfileView }) {
       <ProfileHeader profile={profile} />
 
       {profile.focusingNow ? (
-        <Card>
-          <CardContent className="flex items-center gap-3 py-3">
-            <span
-              aria-hidden="true"
-              className="size-2 shrink-0 rounded-full bg-[var(--p-accent)]"
-            />
-            <p className="text-sm">
-              <strong className="font-semibold">Focusing now</strong>
-              {" · "}
-              {profile.focusingNow.mode === "focus"
-                ? "In a focus session"
-                : "On a break"}
-              {", "}
-              {profile.focusingNow.minutesLeft}{" "}
-              {profile.focusingNow.minutesLeft === 1 ? "minute" : "minutes"}{" "}
-              left
-            </p>
-          </CardContent>
-        </Card>
+        <FocusingNowCard
+          mode={profile.focusingNow.mode}
+          endsAt={profile.focusingNow.endsAt}
+        />
       ) : null}
 
       {profile.room ? (
@@ -395,5 +381,55 @@ export function YearInReviewPage({ review }: { review: YearInReviewView }) {
         </Card>
       ) : null}
     </div>
+  )
+}
+
+/** How often the line re-reads the clock. Minutes are all it shows. */
+const FOCUSING_NOW_TICK_MS = 5000
+
+/**
+ * "Focusing now · In a focus session, 12 minutes left", counting down while
+ * the page is open and gone once the time is up. It counts against the end
+ * time the page loaded with and never asks the server again. It used to print
+ * the minutes from the load and then never move.
+ *
+ * Drawn only in the browser: the minutes depend on the reader's clock, and a
+ * server-drawn number would disagree with the browser's on hydration.
+ */
+function FocusingNowCard({
+  mode,
+  endsAt,
+}: {
+  mode: "focus" | "short" | "long"
+  endsAt: string
+}) {
+  const [left, setLeft] = React.useState<number | null>(null)
+  React.useEffect(() => {
+    const end = new Date(endsAt).getTime()
+    const tick = () =>
+      setLeft(Math.max(0, Math.ceil((end - Date.now()) / 1000)))
+    tick()
+    const timer = setInterval(tick, FOCUSING_NOW_TICK_MS)
+    return () => clearInterval(timer)
+  }, [endsAt])
+
+  if (left === null || left <= 0) return null
+  const minutes = Math.ceil(left / 60)
+  return (
+    <Card>
+      <CardContent className="flex items-center gap-3 py-3">
+        <span
+          aria-hidden="true"
+          className="size-2 shrink-0 rounded-full bg-[var(--p-accent)]"
+        />
+        <p className="text-sm">
+          <strong className="font-semibold">Focusing now</strong>
+          {" · "}
+          {mode === "focus" ? "In a focus session" : "On a break"}
+          {", "}
+          {minutes} {minutes === 1 ? "minute" : "minutes"} left
+        </p>
+      </CardContent>
+    </Card>
   )
 }

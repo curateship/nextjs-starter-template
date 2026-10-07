@@ -883,7 +883,7 @@ function HostRoomDialog({
               <div className="grid gap-2">
                 <FieldLabel
                   htmlFor="room-starts-at"
-                  hint="That is your own clock, not the server's. Invitations say the time in your timezone."
+                  hint="Use your own clock. Invitations show each guest the time in their own timezone."
                 >
                   Date and time
                 </FieldLabel>
