@@ -518,6 +518,13 @@ export const pomodoroProfiles = pgTable(
      */
     cheersEnabled: boolean("cheers_enabled").notNull().default(true),
     /**
+     * Whether the people in a room with this person see the title of the
+     * task their running focus counts towards. Off by default, because a
+     * task title can name a client or a problem. Read only by the room
+     * snapshot, and only for people in that room.
+     */
+    shareTaskInRooms: boolean("share_task_in_rooms").notNull().default(false),
+    /**
      * Set when an operator hides a reported profile. The public read tests
      * it, so a hidden profile answers 404 exactly as a switched-off one does,
      * and the owner is told on their own Settings card rather than left
@@ -685,6 +692,12 @@ export const rooms = pgTable(
      * says what time it was booked for.
      */
     startsAt: timestamp("starts_at", { withTimezone: true }),
+    /** The weekly rule that made this room, when one did. */
+    repeatId: uuid("repeat_id").references(() => pomodoroRoomRepeats.id, {
+      onDelete: "set null",
+    }),
+    /** Which of the rule's days this room is, on the host's calendar. */
+    occurrenceDate: date("occurrence_date", { mode: "string" }),
     phaseStartedAt: timestamp("phase_started_at", { withTimezone: true }),
     phaseEndsAt: timestamp("phase_ends_at", { withTimezone: true }),
     focusMinutes: integer("focus_minutes").notNull().default(25),
@@ -725,6 +738,76 @@ export const rooms = pgTable(
       table.createdAt
     ),
     index("rooms_scheduled_idx").on(table.phase, table.startsAt),
+    // One room per rule per day. The worker inserts on conflict do nothing,
+    // so two passes racing for the same Tuesday make one room between them.
+    uniqueIndex("rooms_repeat_occurrence_unique")
+      .on(table.repeatId, table.occurrenceDate)
+      .where(sql`${table.repeatId} is not null`),
+  ]
+)
+
+/**
+ * A room that repeats every week: the settings, the days, the time and the
+ * invite list. Nothing here is a room. The scheduled-rooms worker turns each
+ * occurrence into an ordinary booked room a day before it starts, with its
+ * own invitations, so everything a one-off booking does a weekly one does too.
+ *
+ * `weekdays` is the same seven-bit set as `pomodoroTaskRepeats`. The time is
+ * minutes after midnight in `timezone`, the host's own when the rule was made,
+ * so a 9am room stays 9am for the host through a clock change.
+ */
+export const pomodoroRoomRepeats = pgTable(
+  "pomodoro_room_repeats",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    hostUserId: varchar("host_user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 80 }).notNull(),
+    visibility: varchar("visibility", { length: 20 })
+      .notNull()
+      .default("public"),
+    weekdays: integer("weekdays").notNull(),
+    startMinute: integer("start_minute").notNull(),
+    timezone: varchar("timezone", { length: 80 }).notNull(),
+    focusMinutes: integer("focus_minutes").notNull().default(25),
+    shortBreakMinutes: integer("short_break_minutes").notNull().default(5),
+    longBreakMinutes: integer("long_break_minutes").notNull().default(15),
+    autoStart: boolean("auto_start").notNull().default(false),
+    /** Lowercased addresses. Copied onto each room's own invites when it is made. */
+    invites: jsonb("invites").$type<string[]>().notNull().default([]),
+    /**
+     * When the next day still to be booked starts. The worker moves it on
+     * each time it books a day, and Cancel this week moves it on without
+     * booking, so a pass reads only the rules due within a day.
+     */
+    nextStartsAt: timestamp("next_starts_at", { withTimezone: true }),
+    /** Set by Cancel the series. Rooms already made keep their own state. */
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      "pomodoro_room_repeats_visibility_check",
+      sql`${table.visibility} in ('public', 'unlisted')`
+    ),
+    check(
+      "pomodoro_room_repeats_weekdays_check",
+      sql`${table.weekdays} between 1 and 127`
+    ),
+    check(
+      "pomodoro_room_repeats_start_minute_check",
+      sql`${table.startMinute} between 0 and 1439`
+    ),
+    index("pomodoro_room_repeats_host_idx").on(table.hostUserId),
+    index("pomodoro_room_repeats_next_idx")
+      .on(table.nextStartsAt)
+      .where(sql`${table.cancelledAt} is null`),
   ]
 )
 
@@ -754,6 +837,13 @@ export const roomMemberships = pgTable(
      * already see. Null, or in the past, means away.
      */
     watchingUntil: timestamp("watching_until", { withTimezone: true }),
+    /**
+     * Whether this membership keeps the room on the person's My rooms list
+     * after they leave. Every join and every hosted room sets it; Leave for
+     * good clears it on every membership that person had in the room. It is
+     * not joining, so the one-active-room index below ignores it.
+     */
+    saved: boolean("saved").notNull().default(false),
   },
   (table) => [
     check(
@@ -764,6 +854,12 @@ export const roomMemberships = pgTable(
       .on(table.userId)
       .where(sql`${table.leftAt} is null`),
     index("room_memberships_room_active_idx").on(table.roomId, table.leftAt),
+    index("room_memberships_user_saved_idx")
+      .on(table.userId, table.roomId)
+      .where(sql`${table.saved}`),
+    // Where the "focused with" list starts: one person's memberships from a
+    // date onwards.
+    index("room_memberships_user_joined_idx").on(table.userId, table.joinedAt),
   ]
 )
 
@@ -1197,6 +1293,7 @@ export const pomodoroGenerations = pgTable(
 )
 
 export type Room = typeof rooms.$inferSelect
+export type PomodoroRoomRepeat = typeof pomodoroRoomRepeats.$inferSelect
 export type RoomInvite = typeof roomInvites.$inferSelect
 export type PomodoroMediaUpload = typeof pomodoroMediaUploads.$inferSelect
 export type PomodoroGeneration = typeof pomodoroGenerations.$inferSelect

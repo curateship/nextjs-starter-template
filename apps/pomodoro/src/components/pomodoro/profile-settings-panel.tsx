@@ -71,8 +71,8 @@ function AccountPhotoField() {
 
 /**
  * The Profile tab on Settings: the account photo, the public display name,
- * the timezone that anchors the day boundary for goals and streaks, and the
- * leaderboard opt-in, then the public page and the streak badge in their own
+ * the timezone that anchors the day boundary for goals and streaks, the
+ * leaderboard opt-in and the room task switch, then the public page and the streak badge in their own
  * cards below. Account name, email, password and deletion stay with the
  * shell's account dialog.
  */
@@ -80,6 +80,7 @@ export default function ProfileSettingsPanel() {
   const [displayName, setDisplayName] = React.useState("")
   const [timezone, setTimezone] = React.useState("")
   const [leaderboard, setLeaderboard] = React.useState(false)
+  const [shareTask, setShareTask] = React.useState(false)
   const [loaded, setLoaded] = React.useState(false)
   // Only the load failure is held, because it decides whether the fields are
   // drawn. Saves report themselves through the toasts.
@@ -96,6 +97,7 @@ export default function ProfileSettingsPanel() {
         setDisplayName(profile.publicDisplayName ?? "")
         setTimezone(profile.timezone)
         setLeaderboard(profile.leaderboardOptIn)
+        setShareTask(profile.shareTaskInRooms)
         setLoaded(true)
       })
       .catch(() => {
@@ -119,6 +121,7 @@ export default function ProfileSettingsPanel() {
         publicDisplayName: displayName.trim() || null,
         timezone: timezone.trim(),
         leaderboardOptIn: leaderboard,
+        shareTaskInRooms: shareTask,
       })
       toast.success("Profile saved.")
     } catch (cause) {
@@ -201,6 +204,19 @@ export default function ProfileSettingsPanel() {
                 <Label htmlFor="profile-leaderboard">
                   Show me on the leaderboard
                 </Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="profile-share-task"
+                  checked={shareTask}
+                  onCheckedChange={setShareTask}
+                />
+                <FieldLabel
+                  htmlFor="profile-share-task"
+                  hint="While you are in a focus room and your own timer is counting down a focus with a task picked, that task's title shows beside your name. Everyone in that room sees it, and nobody outside it. Pausing hides it, and turning this off takes it away as soon as you save."
+                >
+                  Show my task to people in my room
+                </FieldLabel>
               </div>
             </>
           ) : null}

@@ -41,15 +41,21 @@ import {
   applyRoomAction,
   banMember,
   cancelBookedRoom,
+  cancelRepeat,
   createRoom,
   deleteMessage,
   getCurrentRoom,
   joinRoom,
   leaveActiveRoom,
+  leaveRoomPermanently,
+  listMyRepeats,
   listRooms,
+  listSavedRooms,
   listUpcoming,
   removeMember,
+  repeatRoom,
   scheduleRoom,
+  skipNextRepeat,
   toggleReaction,
 } from "@/lib/api/pomodoro/rooms"
 import {
@@ -58,8 +64,11 @@ import {
 } from "@/components/pomodoro/room-chat"
 import {
   UpcomingRooms,
+  type MyRepeatRow,
+  type SeriesTarget,
   type UpcomingRoomRow,
 } from "@/components/pomodoro/upcoming-rooms"
+import { MyRooms, type MyRoomRow } from "@/components/pomodoro/my-rooms"
 import {
   RoomCard,
   RoomCardAction,
@@ -70,11 +79,26 @@ import {
 } from "@/components/pomodoro/room-card"
 import { RhythmMinutesFields } from "@/components/pomodoro/rhythm-minutes-fields"
 import {
+  formatRoomStart,
   MAX_ROOM_INVITES,
   parseInviteEmails,
   scheduleProblem,
   scheduleProblemMessage,
 } from "@/lib/pomodoro/scheduled-rooms"
+import {
+  describeRoomRepeat,
+  parseClockTime,
+  ROOM_REPEAT_LEAD_HOURS,
+  roomRepeatProblem,
+  roomRepeatProblemMessage,
+} from "@/lib/pomodoro/room-repeats"
+import {
+  toggleWeekdayInSet,
+  weekdayInitials,
+  weekdayNames,
+  weekdaySetHas,
+} from "@/lib/pomodoro/task-repeats"
+import { browserTimezone } from "@/lib/pomodoro/timer"
 import { useProductAuth } from "@/lib/pomodoro/auth-state"
 import { usePageVisible } from "@/lib/pomodoro/use-page-visible"
 import { PRO_PERKS } from "@/lib/pomodoro/pro"
@@ -148,7 +172,11 @@ export function RoomsPage() {
   const [reconnecting, setReconnecting] = React.useState(false)
   const [confirm, setConfirm] = React.useState<ConfirmRequest | null>(null)
   const [upcoming, setUpcoming] = React.useState<UpcomingRoomRow[]>([])
-  const [cancellingSlug, setCancellingSlug] = React.useState("")
+  const [series, setSeries] = React.useState<MyRepeatRow[]>([])
+  const [savedRooms, setSavedRooms] = React.useState<MyRoomRow[]>([])
+  // The slug or weekly rule a cancel is running for.
+  const [cancellingKey, setCancellingKey] = React.useState("")
+  const [leavingSlug, setLeavingSlug] = React.useState("")
   const activeRoomSlug = activeRoom?.room.slug
 
   const refreshRooms = React.useCallback(() => {
@@ -159,6 +187,12 @@ export function RoomsPage() {
     void listUpcoming()
       .then(setUpcoming)
       .catch(() => showErrorToast("Upcoming rooms could not be loaded."))
+    void listMyRepeats()
+      .then(setSeries)
+      .catch(() => showErrorToast("Your weekly rooms could not be loaded."))
+    void listSavedRooms()
+      .then(setSavedRooms)
+      .catch(() => showErrorToast("My rooms could not be loaded."))
   }, [authenticated])
   React.useEffect(refreshRooms, [refreshRooms])
 
@@ -252,6 +286,8 @@ export function RoomsPage() {
       const snapshot = await joinRoom(slug)
       endExplainedRef.current = ""
       applySnapshot(snapshot)
+      // A join puts the room on My rooms, and marks it as the one you are in.
+      refreshRooms()
     } catch (cause) {
       const text = cause instanceof Error ? cause.message : ""
       const message = text.includes("ROOM_LOCKED")
@@ -290,7 +326,7 @@ export function RoomsPage() {
 
   const cancelBooking = async (room: UpcomingRoomRow) => {
     dismissErrorToast()
-    setCancellingSlug(room.slug)
+    setCancellingKey(room.slug)
     try {
       const { cancelledInvites } = await cancelBookedRoom(room.slug)
       toast.success(
@@ -308,9 +344,118 @@ export function RoomsPage() {
             : "The booking could not be cancelled."
       )
     } finally {
-      setCancellingSlug("")
+      setCancellingKey("")
       refreshRooms()
     }
+  }
+
+  const readerTimezone = browserTimezone()
+  const seriesRefusal = (cause: unknown, fallback: string) => {
+    const text = cause instanceof Error ? cause.message : ""
+    return text.includes("ROOM_REPEAT_CANCELLED")
+      ? "That series was already cancelled."
+      : text.includes("ROOM_REPEAT_NOT_FOUND")
+        ? "That weekly room no longer exists."
+        : fallback
+  }
+
+  const skipWeek = async (target: SeriesTarget) => {
+    dismissErrorToast()
+    setCancellingKey(target.repeatId)
+    try {
+      const { skippedStartsAt, cancelledInvites } = await skipNextRepeat(
+        target.repeatId
+      )
+      const when = formatRoomStart(new Date(skippedStartsAt), readerTimezone)
+      toast.success(
+        cancelledInvites
+          ? `${target.name} on ${when} is cancelled, and ${cancelledInvites} ${cancelledInvites === 1 ? "invitation that had not gone out was" : "invitations that had not gone out were"} stopped. The series carries on.`
+          : `${target.name} on ${when} is cancelled. The series carries on.`
+      )
+    } catch (cause) {
+      showErrorToast(seriesRefusal(cause, "That week could not be cancelled."))
+    } finally {
+      setCancellingKey("")
+      refreshRooms()
+    }
+  }
+
+  const cancelSeries = async (target: SeriesTarget) => {
+    dismissErrorToast()
+    setCancellingKey(target.repeatId)
+    try {
+      const { cancelledRooms } = await cancelRepeat(target.repeatId)
+      toast.success(
+        cancelledRooms
+          ? `The ${target.name} series is cancelled, along with the room already booked for it.`
+          : `The ${target.name} series is cancelled. No more rooms will be booked.`
+      )
+    } catch (cause) {
+      showErrorToast(seriesRefusal(cause, "The series could not be cancelled."))
+    } finally {
+      setCancellingKey("")
+      refreshRooms()
+    }
+  }
+
+  const confirmSkipWeek = (target: SeriesTarget) =>
+    setConfirm({
+      title: target.startsAt
+        ? `Cancel ${target.name} on ${formatRoomStart(target.startsAt, readerTimezone)}?`
+        : `Cancel the next ${target.name}?`,
+      description: target.invited
+        ? "Only this one is called off and the series books the next one as usual. Invitations that have not gone out are stopped, but anyone already emailed will not be told."
+        : "Only this one is called off. The series books the next one as usual.",
+      confirmLabel: "Cancel this week",
+      onConfirm: () => void skipWeek(target),
+    })
+
+  const confirmCancelSeries = (target: SeriesTarget) =>
+    setConfirm({
+      title: `Cancel the ${target.name} series?`,
+      description:
+        "No more weekly rooms are booked. A room already booked and not yet open is cancelled too, and anyone already emailed about it will not be told. Rooms that already ran are kept.",
+      confirmLabel: "Cancel the series",
+      onConfirm: () => void cancelSeries(target),
+    })
+
+  const leaveForGood = async (room: MyRoomRow) => {
+    dismissErrorToast()
+    setLeavingSlug(room.slug)
+    try {
+      const { closed } = await leaveRoomPermanently(room.slug)
+      if (room.current) {
+        announceRoomEnd(
+          room.slug,
+          closed ? "You closed the room." : "You left the room.",
+          true
+        )
+        setActiveRoom(null)
+      }
+      toast.success(`${room.name} is off your list. Joining it again puts it back.`)
+    } catch {
+      showErrorToast("That room could not be taken off your list. Try again.")
+    } finally {
+      setLeavingSlug("")
+      refreshRooms()
+    }
+  }
+
+  // Leaving for good from inside a room is a real Leave, so it asks the same
+  // question Leave & close does when it would end the room for others.
+  const confirmLeaveForGood = (room: MyRoomRow) => {
+    if (!room.current) {
+      void leaveForGood(room)
+      return
+    }
+    setConfirm({
+      title: `Leave ${room.name} for good?`,
+      description: room.hosting
+        ? "You are hosting it, so leaving ends the room for everyone in it. It also comes off your list."
+        : "You leave the room now, and it comes off your list.",
+      confirmLabel: "Leave for good",
+      onConfirm: () => void leaveForGood(room),
+    })
   }
 
   const confirmCancelBooking = (room: UpcomingRoomRow) =>
@@ -405,10 +550,20 @@ export function RoomsPage() {
         </Card>
       ) : (
         <>
+          <MyRooms
+            rooms={savedRooms}
+            joiningSlug={joiningSlug}
+            busySlug={leavingSlug}
+            onJoin={(slug) => void joinBySlug(slug)}
+            onLeaveForGood={confirmLeaveForGood}
+          />
           <UpcomingRooms
             rooms={upcoming}
-            busySlug={cancellingSlug}
+            series={series}
+            busyKey={cancellingKey}
             onCancel={confirmCancelBooking}
+            onSkipWeek={confirmSkipWeek}
+            onCancelSeries={confirmCancelSeries}
             onReachedStart={refreshRooms}
           />
           <RoomGroup
@@ -470,8 +625,16 @@ function HostRoomDialog({
   const [shortBreakMinutes, setShortBreakMinutes] = React.useState(5)
   const [longBreakMinutes, setLongBreakMinutes] = React.useState(15)
   const [autoStart, setAutoStart] = React.useState(false)
-  const [startMode, setStartMode] = React.useState<"now" | "later">("now")
+  const [startMode, setStartMode] = React.useState<"now" | "later" | "weekly">(
+    "now"
+  )
   const [startValue, setStartValue] = React.useState(defaultStartValue)
+  // A weekly room starts on today's weekday at nine, which is the commonest
+  // shape and is one press away from any other.
+  const [repeatDays, setRepeatDays] = React.useState(
+    () => 1 << new Date().getDay()
+  )
+  const [repeatTime, setRepeatTime] = React.useState("09:00")
   const [invitesTyped, setInvitesTyped] = React.useState("")
   const [creating, setCreating] = React.useState(false)
   const [error, setError] = React.useState("")
@@ -483,11 +646,19 @@ function HostRoomDialog({
     startMode === "later"
       ? scheduleProblem(startValueAsDate(startValue), invites, new Date())
       : null
+  const repeatProblem =
+    startMode === "weekly"
+      ? roomRepeatProblem(repeatDays, parseClockTime(repeatTime), invites)
+      : null
 
   const submit = async () => {
     setError("")
     if (startMode === "later" && booking) {
       setError(scheduleProblemMessage(booking))
+      return
+    }
+    if (startMode === "weekly" && repeatProblem) {
+      setError(roomRepeatProblemMessage(repeatProblem))
       return
     }
     setCreating(true)
@@ -500,6 +671,21 @@ function HostRoomDialog({
       autoStart,
     }
     try {
+      if (startMode === "weekly") {
+        const repeating = await repeatRoom({
+          ...settings,
+          weekdays: repeatDays,
+          startMinute: parseClockTime(repeatTime)!,
+          timezone: browserTimezone(),
+          invitesTyped,
+        })
+        setRoomName("")
+        setInvitesTyped("")
+        onBooked(
+          `${repeating.name} repeats ${describeRoomRepeat(repeatDays, parseClockTime(repeatTime)!)}. The first one is ${formatRoomStart(new Date(repeating.nextStartsAt), browserTimezone())}.`
+        )
+        return
+      }
       if (startMode === "later") {
         const startsAt = startValueAsDate(startValue)
         const booked = await scheduleRoom({
@@ -528,9 +714,9 @@ function HostRoomDialog({
             ? message.split("SCHEDULE_REJECTED: ")[1]
             : message.includes("RATE_LIMITED")
               ? "That is a lot of bookings in one hour. Wait a while and try again."
-              : startMode === "later"
-                ? "The room could not be booked."
-                : "The room could not be created."
+              : startMode === "now"
+                ? "The room could not be created."
+                : "The room could not be booked."
       )
     } finally {
       setCreating(false)
@@ -551,8 +737,8 @@ function HostRoomDialog({
         <DialogHeader>
           <DialogTitle>Host a room</DialogTitle>
           <DialogDescription>
-            Pick the timers, then start it now or book a time. You control the
-            session once people join.
+            Pick the timers, then start it now, book a time, or book the same
+            time every week. You control the session once people join.
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
@@ -625,7 +811,7 @@ function HostRoomDialog({
               <Select
                 value={startMode}
                 onValueChange={(value) =>
-                  setStartMode(value as "now" | "later")
+                  setStartMode(value as "now" | "later" | "weekly")
                 }
               >
                 <SelectTrigger id="room-start-mode" aria-label="Starts at">
@@ -636,60 +822,122 @@ function HostRoomDialog({
                   <SelectItem value="later">
                     A set time — the room opens itself
                   </SelectItem>
+                  <SelectItem value="weekly">
+                    Every week — the same days and time
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            {startMode === "later" ? (
+            {startMode === "weekly" ? (
               <>
                 <div className="grid gap-2">
-                  <FieldLabel
-                    htmlFor="room-starts-at"
-                    hint="That is your own clock, not the server's. Invitations say the time in your timezone."
+                  <Label id="room-repeat-days-label">Days</Label>
+                  <div
+                    role="group"
+                    aria-labelledby="room-repeat-days-label"
+                    aria-invalid={repeatProblem === "no_days"}
+                    className="flex gap-1"
                   >
-                    Date and time
-                  </FieldLabel>
-                  <Input
-                    id="room-starts-at"
-                    type="datetime-local"
-                    required
-                    value={startValue}
-                    aria-invalid={
-                      booking === "not_a_time" ||
-                      booking === "too_soon" ||
-                      booking === "too_far"
-                    }
-                    onChange={(event) => setStartValue(event.target.value)}
-                  />
+                    {weekdayInitials.map((initial, weekday) => {
+                      const picked = weekdaySetHas(repeatDays, weekday)
+                      return (
+                        <Button
+                          key={weekdayNames[weekday]}
+                          type="button"
+                          size="icon-sm"
+                          variant={picked ? "default" : "outline"}
+                          aria-pressed={picked}
+                          aria-label={weekdayNames[weekday]}
+                          onClick={() =>
+                            setRepeatDays(toggleWeekdayInSet(repeatDays, weekday))
+                          }
+                        >
+                          <span aria-hidden="true" className="text-[10px]">
+                            {initial}
+                          </span>
+                        </Button>
+                      )
+                    })}
+                  </div>
                 </div>
                 <div className="grid gap-2">
                   <FieldLabel
-                    htmlFor="room-invites"
-                    hint={`Up to ${MAX_ROOM_INVITES} addresses, separated by commas, spaces or new lines. Each one gets the link and the time.`}
+                    htmlFor="room-repeat-time"
+                    hint={`On this device's clock, ${browserTimezone()}. Each week's room is booked ${ROOM_REPEAT_LEAD_HOURS} hours before it starts, and that is when its invitations go out.`}
                   >
-                    Invite by email
+                    Time
                   </FieldLabel>
-                  <Textarea
-                    id="room-invites"
-                    rows={2}
-                    placeholder="sam@example.com, alex@example.com"
-                    value={invitesTyped}
-                    aria-invalid={
-                      booking === "bad_email" || booking === "too_many_invites"
-                    }
-                    onChange={(event) => setInvitesTyped(event.target.value)}
+                  <Input
+                    id="room-repeat-time"
+                    type="time"
+                    required
+                    className="w-auto"
+                    value={repeatTime}
+                    aria-invalid={repeatProblem === "not_a_time"}
+                    onChange={(event) => setRepeatTime(event.target.value)}
                   />
-                  <p className="text-xs text-muted-foreground">
-                    {invites.length
-                      ? `${invites.length} ${invites.length === 1 ? "person" : "people"} will be emailed when you book this room.`
-                      : "Nobody is emailed unless you add an address. Anyone can still be sent the link by hand."}
-                  </p>
                 </div>
-                {booking ? (
-                  <p role="alert" className="text-sm text-destructive">
-                    {scheduleProblemMessage(booking)}
-                  </p>
-                ) : null}
               </>
+            ) : null}
+            {startMode === "later" ? (
+              <div className="grid gap-2">
+                <FieldLabel
+                  htmlFor="room-starts-at"
+                  hint="That is your own clock, not the server's. Invitations say the time in your timezone."
+                >
+                  Date and time
+                </FieldLabel>
+                <Input
+                  id="room-starts-at"
+                  type="datetime-local"
+                  required
+                  value={startValue}
+                  aria-invalid={
+                    booking === "not_a_time" ||
+                    booking === "too_soon" ||
+                    booking === "too_far"
+                  }
+                  onChange={(event) => setStartValue(event.target.value)}
+                />
+              </div>
+            ) : null}
+            {startMode !== "now" ? (
+              <div className="grid gap-2">
+                <FieldLabel
+                  htmlFor="room-invites"
+                  hint={`Up to ${MAX_ROOM_INVITES} addresses, separated by commas, spaces or new lines. Each one gets the link and the time${startMode === "weekly" ? ", once for every week's room" : ""}.`}
+                >
+                  Invite by email
+                </FieldLabel>
+                <Textarea
+                  id="room-invites"
+                  rows={2}
+                  placeholder="sam@example.com, alex@example.com"
+                  value={invitesTyped}
+                  aria-invalid={
+                    booking === "bad_email" ||
+                    booking === "too_many_invites" ||
+                    repeatProblem === "bad_email" ||
+                    repeatProblem === "too_many_invites"
+                  }
+                  onChange={(event) => setInvitesTyped(event.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {invites.length
+                    ? `${invites.length} ${invites.length === 1 ? "person" : "people"} will be emailed ${startMode === "weekly" ? "a day before each week's room" : "when you book this room"}.`
+                    : "Nobody is emailed unless you add an address. Anyone can still be sent the link by hand."}
+                </p>
+              </div>
+            ) : null}
+            {booking ? (
+              <p role="alert" className="text-sm text-destructive">
+                {scheduleProblemMessage(booking)}
+              </p>
+            ) : null}
+            {repeatProblem ? (
+              <p role="alert" className="text-sm text-destructive">
+                {roomRepeatProblemMessage(repeatProblem)}
+              </p>
             ) : null}
             {error ? (
               <p role="alert" className="text-sm text-destructive">
@@ -708,12 +956,14 @@ function HostRoomDialog({
           </Button>
           <Button type="submit" form="host-room-form" disabled={creating}>
             {creating
-              ? startMode === "later"
-                ? "Booking…"
-                : "Creating…"
-              : startMode === "later"
-                ? "Book room"
-                : "Create room"}
+              ? startMode === "now"
+                ? "Creating…"
+                : "Booking…"
+              : startMode === "now"
+                ? "Create room"
+                : startMode === "weekly"
+                  ? "Book every week"
+                  : "Book room"}
           </Button>
         </DialogFooter>
       </DialogContent>

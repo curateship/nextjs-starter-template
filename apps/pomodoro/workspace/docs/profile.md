@@ -1,9 +1,9 @@
 # Profile
 
 The product's Settings page (`/settings`, card
-`src/components/pomodoro/profile-settings-panel.tsx`) holds the three
+`src/components/pomodoro/profile-settings-panel.tsx`) holds the four
 app-level facts about a person, in `pomodoro_profiles` (migration
-`0085_pomodoro_profiles.sql`):
+`0085_pomodoro_profiles.sql`, the task switch in `0116_pomodoro_rooms_that_stick.sql`):
 
 - **Public display name** (up to 50 characters, may be empty) — the name
   other people see on the leaderboard, in rooms and on
@@ -26,9 +26,15 @@ app-level facts about a person, in `pomodoro_profiles` (migration
   and quietly recorded, so travelling never silently moves the day
   boundary.
 - **Leaderboard opt-in** — off by default; opting out hides the account
-  from the leaderboard immediately (the leaderboard query filters on it).
+  from the leaderboard immediately (the leaderboard query filters on it). It
+  also decides whether you appear in, and can see, the "Who you focus with"
+  card. See [Focus rooms](rooms.md).
+- **Show my task to people in my room** — off by default. On, the people in a
+  room with you see the task your own running focus counts towards. Saving
+  sends the room a fresh snapshot, so switching it off takes the line away
+  straight after the save. See [Focus rooms](rooms.md).
 
-The three fields appear once the saved profile arrives; until then the card
+The four fields appear once the saved profile arrives; until then the card
 shows "Loading your profile…". They are not offered sooner because the load
 fills them in, and a name typed into an empty box would be overwritten the
 moment it landed.

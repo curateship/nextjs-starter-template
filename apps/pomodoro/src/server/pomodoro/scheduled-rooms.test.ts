@@ -258,7 +258,7 @@ describe("cancelling", () => {
     expect(after.closedAt).not.toBeNull()
 
     const result = await openDueRooms(db, new Date(Date.now() + 3 * 60_000))
-    expect(result).toEqual({ opened: 0, emailed: 0 })
+    expect(result).toEqual({ booked: 0, opened: 0, emailed: 0 })
     expect(sent).toEqual([])
   })
 

@@ -6,11 +6,11 @@ import { pomodoroProfiles } from "@/server/pomodoro/schema"
 import { localDateFor } from "@/server/pomodoro/productivity"
 
 /**
- * The app's own per-person profile: public display name, timezone and the
- * leaderboard opt-in. The timezone is what anchors "today" for goals and
- * streaks — a saved one wins, and until one is saved the browser's own is
- * used and quietly recorded, so the day boundary never silently changes
- * when someone travels.
+ * The app's own per-person profile: public display name, timezone, the
+ * leaderboard opt-in and whether rooms see the task you are focusing on.
+ * The timezone is what anchors "today" for goals and streaks — a saved one
+ * wins, and until one is saved the browser's own is used and quietly
+ * recorded, so the day boundary never silently changes when someone travels.
  */
 
 export function validTimezone(value: string) {
@@ -56,6 +56,7 @@ export async function updateProfile(
     publicDisplayName: string | null
     timezone: string
     leaderboardOptIn: boolean
+    shareTaskInRooms: boolean
   }
 ) {
   if (!validTimezone(changes.timezone)) throw new Error("INVALID_TIMEZONE")

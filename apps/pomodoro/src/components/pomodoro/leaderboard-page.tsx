@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/chart"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { FocusGroupsCard } from "@/components/pomodoro/focus-groups-card"
+import { FocusedWithCard } from "@/components/pomodoro/focused-with-card"
 import { LeaderboardRows } from "@/components/pomodoro/leaderboard-rows"
 import { loadProductivity } from "@/lib/api/pomodoro/productivity"
 import { loadLeaderboard } from "@/lib/api/pomodoro/leaderboard"
@@ -282,6 +283,7 @@ export function LeaderboardPage() {
         </CardContent>
       </Card>
 
+      {authenticated ? <FocusedWithCard /> : null}
       <FollowingFeedCard />
       {authenticated ? <FocusGroupsCard boardWindow={boardWindow} /> : null}
     </div>

@@ -75,9 +75,10 @@ cover this one.
   and open-rooms rows a visitor sees, and the floor that hides one on a quiet
   week.
 - [Focus rooms](rooms.md) — shared timers with a host, the fifteen-second
-  server clock, SSE snapshots and invite links.
-- [Scheduled rooms](scheduled-rooms.md) — booking a room for later, the
-  invitation emails, and the worker that opens the room on time.
+  server clock, SSE snapshots, invite links, the task beside a member's name,
+  My rooms, and who you focus with.
+- [Scheduled rooms](scheduled-rooms.md) — booking a room for later or every
+  week, the invitation emails, and the worker that opens the room on time.
 - [Room chat and moderation](room-chat-and-moderation.md) — talking in a
   room, the five reactions, reporting a message, and the host's delete,
   remove and ban.

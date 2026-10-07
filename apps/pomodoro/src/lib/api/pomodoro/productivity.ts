@@ -16,6 +16,7 @@ import {
   saveSessionNote,
   startProductivitySession,
 } from "@/server/pomodoro/productivity"
+import { refreshMyRoom } from "@/server/pomodoro/rooms"
 import { tellFollowersOfStreak } from "@/server/pomodoro/following"
 import { loadOrCreateProfile, userToday } from "@/server/pomodoro/profile"
 import { listProjects } from "@/server/pomodoro/projects"
@@ -299,11 +300,13 @@ const startSessionFn = createServerFn({ method: "POST" })
   .inputValidator(startSessionSchema)
   .handler(async ({ data, context }) => {
     const { timezone, ...input } = data
-    return startProductivitySession(
+    const session = await startProductivitySession(
       context.user.id,
       await userToday(context.user.id, timezone),
       input
     )
+    if (session.mode === "focus") await refreshSharedTask(context.user.id)
+    return session
   })
 
 const pauseSessionFn = createServerFn({ method: "POST" })
@@ -327,6 +330,7 @@ const pauseSessionFn = createServerFn({ method: "POST" })
       )
       .returning()
     if (!updated) throw new Error("SESSION_NOT_FOUND")
+    if (updated.mode === "focus") await refreshSharedTask(context.user.id)
     return updated
   })
 
@@ -350,6 +354,7 @@ const resumeSessionFn = createServerFn({ method: "POST" })
       )
       .returning()
     if (!updated) throw new Error("SESSION_NOT_FOUND")
+    if (updated.mode === "focus") await refreshSharedTask(context.user.id)
     return updated
   })
 
@@ -374,6 +379,7 @@ const cancelSessionFn = createServerFn({ method: "POST" })
           sql`${focusSessions.status} in ('running', 'paused')`
         )
       )
+    await refreshSharedTask(context.user.id)
     return { ok: true }
   })
 
@@ -389,6 +395,8 @@ const completeSessionFn = createServerFn({ method: "POST" })
       today
     )
     if (!completion) return null
+    if (completion.session.mode === "focus")
+      await refreshSharedTask(context.user.id)
     const preferences = await loadOrCreatePreferences(context.user.id)
     const summary = await loadFocusSummary(
       context.user.id,
@@ -410,6 +418,20 @@ const completeSessionFn = createServerFn({ method: "POST" })
       ),
     }
   })
+
+/**
+ * A focus starting or ending changes the task a room shows beside your name,
+ * when you share it. Swallowed for the same reason as the badges: the
+ * session is already saved, and a stale line in a room is not worth failing
+ * it. See "What everyone is working on" in workspace/docs/rooms.md.
+ */
+async function refreshSharedTask(userId: string) {
+  try {
+    await refreshMyRoom(userId, { onlyWhenSharing: true })
+  } catch (error) {
+    console.error("the room could not be told about a focus", error)
+  }
+}
 
 /**
  * Tells the people who follow you when this focus took your streak to 7, 30,

@@ -97,7 +97,20 @@ export function RoomMemberList({
           {members.map((member) => (
             <li key={member.id} className="flex items-center gap-2 text-sm">
               <InitialsAvatar name={member.name} className="size-7" />
-              <span className="truncate">{member.name}</span>
+              {/* The task is there only for somebody who chose to share it,
+                  and only while their own focus is running. */}
+              <span className="flex min-w-0 flex-col">
+                <span className="truncate">{member.name}</span>
+                {member.task ? (
+                  <span
+                    className="truncate text-xs text-muted-foreground"
+                    title={member.task}
+                  >
+                    <span className="sr-only">Working on </span>
+                    {member.task}
+                  </span>
+                ) : null}
+              </span>
               {member.role === "host" ? (
                 <b className="rounded-full border border-primary/60 px-2 py-px font-mono text-[9px] font-bold text-[var(--p-accent-2)]">
                   HOST
