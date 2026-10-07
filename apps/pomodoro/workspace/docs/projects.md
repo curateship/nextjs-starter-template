@@ -16,8 +16,11 @@ person owns.
 
 - **Create** with the "Add a project, press Enter…" field. A name is up to 60
   characters.
-- **Rename** with the settings button on a row, which turns the row into a
-  field. Every task already in the project follows the new name.
+- **Edit** with the settings button on a row. It opens a small window under
+  the button with the Name and the Target hours, then Cancel and "Save
+  changes". The row stays as it is. Tyler asked for the window on 7 Oct 2026,
+  the same one a task's settings button opens (`settings-window.tsx`). Every
+  task already in the project follows a new name.
 - **Archive** with the archive button. Archived projects move to an Archived
   group at the bottom of the card, each with one button to bring it back.
 - **Two live projects may not share a name**, ignoring case, and the attempt
@@ -29,9 +32,43 @@ person owns.
   clear the box at once and put the reason at the very top of the Tasks page.
   Any other failure raises the error toast and still keeps the text. Typing
   again clears the reason.
+- **Saving an edit waits for the server.** The window stays open with its
+  spinner until the name and target have landed. A refusal, such as a name
+  already taken, raises the error toast and leaves the window open with what
+  you typed. Cancel, Escape or a click outside close it without saving.
 - **Guests have no projects.** The card is not drawn and the picker in the
   task row is shut with the reason, because a project is saved with the focus
   history and a guest has none on the server.
+
+## A target in hours
+
+A project may aim at a number of hours each week or each month. The settings
+window has a Target hours box under the name: type 10, pick "a week", save. A bar then
+sits under the project's row reading "4h of 10h this week". Leave the box
+blank and the project has no target, and looks exactly as it did before
+targets existed.
+
+- **The week is Monday to Sunday and the month is the calendar month**, in
+  your profile's timezone, the same week History uses.
+- **Only finished focus counts**, reached through the task's project, the
+  same rule as History's project split. Breaks and cancelled timers never do.
+- **Unused hours do not carry over.** Each week or month starts from zero.
+- **Past the target the bar stays full** and the words carry the rest, so
+  12h of 10h reads as 12h.
+- **Whole hours from 1 to 744** (the hours in a 31-day month). The period
+  is greyed out until there are hours to go with it.
+- **The database refuses half a target.** `target_hours` and `target_period`
+  are both null or both set, enforced by a check constraint
+  (`pomodoro_projects_target_check`, migration
+  `0117_pomodoro_tasks_and_planning.sql`), not only by the form.
+- **An archived project's target is not shown**, because it is not on the
+  card's live list.
+- **Money, rates and invoices are not part of it.**
+
+The sum is `loadProjectTargetProgress` in `src/server/pomodoro/projects.ts`:
+one read covering both the week and the month, split with a SQL filter. The
+bar is `TargetBar` in `src/components/pomodoro/projects-card.tsx`. History
+shows the same figure under the project's row; see [Focus history](history.md).
 
 ## What archiving does and does not do
 

@@ -8,6 +8,7 @@ import {
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   timestamp,
   unique,
   uniqueIndex,
@@ -105,6 +106,15 @@ export const pomodoroProjects = pgTable(
      * safety of it. No migration ever turns one on.
      */
     isPublic: boolean("is_public").notNull().default(false),
+    /**
+     * An optional number of hours to aim at each week or each month. Both
+     * are null, or both are set: a target with no period means nothing, and
+     * the check below refuses one without the other.
+     */
+    targetHours: integer("target_hours"),
+    targetPeriod: varchar("target_period", { length: 10 }).$type<
+      "week" | "month"
+    >(),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -113,7 +123,13 @@ export const pomodoroProjects = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (table) => [index("pomodoro_projects_user_idx").on(table.userId)]
+  (table) => [
+    index("pomodoro_projects_user_idx").on(table.userId),
+    check(
+      "pomodoro_projects_target_check",
+      sql`(${table.targetHours} is null and ${table.targetPeriod} is null) or (${table.targetHours} is not null and ${table.targetPeriod} is not null and ${table.targetHours} between 1 and 744 and ${table.targetPeriod} in ('week', 'month'))`
+    ),
+  ]
 )
 
 /**
@@ -212,6 +228,83 @@ export const tasks = pgTable(
     uniqueIndex("tasks_repeat_day_unique")
       .on(table.repeatId, table.plannedDate)
       .where(sql`${table.repeatId} is not null`),
+  ]
+)
+
+/**
+ * A short checklist under one task, ticked off as you go. It is not a second
+ * task system: a step has no estimate, no date and no focus count, and ticking
+ * the last one does not complete the task. The ten-step cap is the server's,
+ * checked under a lock on the task row.
+ */
+export const pomodoroTaskSteps = pgTable(
+  "pomodoro_task_steps",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    taskId: uuid("task_id")
+      .notNull()
+      .references(() => tasks.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    title: varchar("title", { length: 120 }).notNull(),
+    done: boolean("done").notNull().default(false),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check("pomodoro_task_steps_sort_order_check", sql`${table.sortOrder} >= 0`),
+    index("pomodoro_task_steps_task_idx").on(table.taskId, table.sortOrder),
+  ]
+)
+
+/**
+ * A short label that cuts across projects, such as "admin" or "email". One
+ * account's tags are its own, unique by name ignoring case. A tag is never
+ * deleted for falling out of use; it only leaves the picker.
+ */
+export const pomodoroTags = pgTable(
+  "pomodoro_tags",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 24 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("pomodoro_tags_user_name_unique").on(
+      table.userId,
+      sql`lower(${table.name})`
+    ),
+  ]
+)
+
+/** Which tags a task carries, at most three, checked when the set is written. */
+export const pomodoroTaskTags = pgTable(
+  "pomodoro_task_tags",
+  {
+    taskId: uuid("task_id")
+      .notNull()
+      .references(() => tasks.id, { onDelete: "cascade" }),
+    tagId: uuid("tag_id")
+      .notNull()
+      .references(() => pomodoroTags.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.taskId, table.tagId] }),
+    index("pomodoro_task_tags_tag_idx").on(table.tagId),
   ]
 )
 

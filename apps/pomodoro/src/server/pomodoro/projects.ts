@@ -1,7 +1,21 @@
-import { and, eq, sql } from "drizzle-orm"
+import { and, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm"
 
+import {
+  targetPeriodEnd,
+  targetPeriodStart,
+  type ProjectTarget,
+  type TargetPeriod,
+} from "@/lib/pomodoro/project-targets"
 import { db } from "@/server/db"
-import { pomodoroProjects } from "@/server/pomodoro/schema"
+import {
+  completedFocusWithin,
+  localDateStartInstant,
+} from "@/server/pomodoro/focus-report"
+import {
+  focusSessions,
+  pomodoroProjects,
+  tasks,
+} from "@/server/pomodoro/schema"
 
 /**
  * Projects group tasks at the level people bill and think at. A person owns
@@ -55,15 +69,31 @@ export async function createProject(userId: string, name: string) {
   }
 }
 
+/**
+ * Renames a project and, when `target` is passed, sets or clears its hours
+ * target. Null clears it; leaving it out leaves it alone. The two target
+ * columns are always written together, and the database refuses one without
+ * the other.
+ */
 export async function renameProject(
   userId: string,
   projectId: string,
-  name: string
+  name: string,
+  target?: ProjectTarget | null
 ) {
   try {
     const [updated] = await db
       .update(pomodoroProjects)
-      .set({ name, updatedAt: new Date() })
+      .set({
+        name,
+        ...(target === undefined
+          ? {}
+          : {
+              targetHours: target?.hours ?? null,
+              targetPeriod: target?.period ?? null,
+            }),
+        updatedAt: new Date(),
+      })
       .where(
         and(
           eq(pomodoroProjects.id, projectId),
@@ -130,4 +160,77 @@ export async function setProjectArchived(
     if (isDuplicateName(error)) throw new Error("PROJECT_NAME_TAKEN")
     throw error
   }
+}
+
+/**
+ * Each live project with a target, and the finished focus it has had in its
+ * current period: this week (Monday to Sunday) or this calendar month, in the
+ * profile's timezone. A session reaches a project through its task, the same
+ * way History's project split reaches one.
+ *
+ * One read covers both kinds of period. It spans from the earlier of the two
+ * starts to the later of the two ends, and splits the sum with a filter.
+ */
+export async function loadProjectTargetProgress(
+  userId: string,
+  today: string,
+  timezone: string
+) {
+  const targeted = await db
+    .select({
+      projectId: pomodoroProjects.id,
+      targetHours: pomodoroProjects.targetHours,
+      targetPeriod: pomodoroProjects.targetPeriod,
+    })
+    .from(pomodoroProjects)
+    .where(
+      and(
+        eq(pomodoroProjects.userId, userId),
+        isNull(pomodoroProjects.archivedAt),
+        isNotNull(pomodoroProjects.targetHours)
+      )
+    )
+  if (!targeted.length) return []
+
+  const bounds = (period: TargetPeriod) => ({
+    startsAt: localDateStartInstant(timezone, targetPeriodStart(period, today)),
+    endsBefore: localDateStartInstant(timezone, targetPeriodEnd(period, today)),
+  })
+  const week = bounds("week")
+  const month = bounds("month")
+  const startsAt = week.startsAt < month.startsAt ? week.startsAt : month.startsAt
+  const endsBefore =
+    week.endsBefore > month.endsBefore ? week.endsBefore : month.endsBefore
+
+  const sums = await db
+    .select({
+      projectId: tasks.projectId,
+      weekSeconds: sql<number>`coalesce(sum(${focusSessions.accumulatedSeconds}) filter (where ${focusSessions.completedAt} >= ${week.startsAt.toISOString()} and ${focusSessions.completedAt} < ${week.endsBefore.toISOString()}), 0)::int`,
+      monthSeconds: sql<number>`coalesce(sum(${focusSessions.accumulatedSeconds}) filter (where ${focusSessions.completedAt} >= ${month.startsAt.toISOString()} and ${focusSessions.completedAt} < ${month.endsBefore.toISOString()}), 0)::int`,
+    })
+    .from(focusSessions)
+    .innerJoin(tasks, eq(tasks.id, focusSessions.taskId))
+    .where(
+      and(
+        completedFocusWithin(userId, startsAt, endsBefore),
+        inArray(
+          tasks.projectId,
+          targeted.map((project) => project.projectId)
+        )
+      )
+    )
+    .groupBy(tasks.projectId)
+  const byProject = new Map(sums.map((row) => [row.projectId, row]))
+
+  return targeted.map((project) => {
+    const period = project.targetPeriod as TargetPeriod
+    const sum = byProject.get(project.projectId)
+    return {
+      projectId: project.projectId,
+      targetHours: project.targetHours as number,
+      targetPeriod: period,
+      focusSeconds:
+        (period === "week" ? sum?.weekSeconds : sum?.monthSeconds) ?? 0,
+    }
+  })
 }

@@ -1,29 +1,39 @@
 # Tasks
 
-Today's plan, at `/tasks` and in the Tasks card on `/timer`. A task has a
-title, a Low/Normal/High priority, an optional estimate of 1 to 20 sessions,
-a done count shown as `done/estimate pomos`, an optional repeat rule, and an
-optional project ([Projects](projects.md)).
+Today's plan and the six days after it, at `/tasks`, and today's plan in the
+Tasks card on `/timer`. A task has a title, a Low/Normal/High priority, an
+optional estimate of 1 to 20 sessions, a done count shown as
+`done/estimate pomos`, an optional repeat rule, an optional project
+([Projects](projects.md)), up to ten steps and up to three tags.
 
 ## How it behaves
 
-- **Create** with the "Add a task, press Enter…" field. **Edit inline** with
-  the settings button on a row: title, priority (shadcn Select) and estimate.
+- **Create** with the "Add a task, press Enter…" field.
+- **Edit from the settings button** on a row. It opens a small window under
+  the button, and the list stays where it is. The window holds labelled
+  fields for title, priority, estimate, repeat, project and tags, and ends
+  in Cancel and "Save changes". Tyler asked for this on 7 Oct 2026 in place
+  of the row turning into fields (`TaskSettingsWindow` in
+  `today-task-list.tsx`). The window keeps 16px from the edge of the screen
+  on a phone.
+- **Closing the window drops what was typed.** Cancel, Escape or a click
+  outside close it without saving, and the keyboard lands back on the
+  settings button. Picking from a dropdown inside it does not close it.
 - **What you typed is never thrown away.** Enter on an empty or all-spaces
   box sends nothing, keeps whatever was in the box, marks it with
   `aria-invalid` and raises the error toast saying a task needs words. The box
   clears only when a task was actually added. The same holds in the timer's
   task list and on the Tasks page (`addTask` returns false for a blank title).
-- **An edit row stays open until its save has landed.** Save turns into a
+- **The window stays open until its save has landed.** Save shows a
   spinner while the request is out, and a second press does nothing. On
-  success the row closes. On a failure the row stays open with your edits
+  success the window closes. On a failure it stays open with your edits
   still in it, the error toast says what failed, and Save can be pressed
   again. A blank title is refused before anything is sent, the same way.
 - **The repeat is checked too.** It is saved after the task, and if the repeat
   is refused the toast says "The task was saved, but its repeat could not be",
-  and the row stays open so it can be picked again.
-- **Reorder by drag** — mouse, touch or keyboard — with dnd-kit, announced to
-  screen readers (`src/components/pomodoro/today-task-list.tsx`). The server
+  and the window stays open so it can be picked again.
+- **Reorder by drag** on the Tasks page and on the timer — mouse, touch or
+  keyboard — with dnd-kit, announced to screen readers (`src/components/pomodoro/today-task-list.tsx`). The server
   only accepts an order that names today's full active list exactly once
   (`TASK_ORDER_MISMATCH` in `src/server/pomodoro/tasks.ts`); a refused order
   rolls back on screen and reloads the list.
@@ -36,16 +46,23 @@ optional project ([Projects](projects.md)).
 - **The timer and the Tasks page draw the same list.** Both use
   `TodayTaskList` and its one `TaskRow` in `today-task-list.tsx`, built from
   the shared Checkbox, Button and Input, and the same `NewTaskForm` add box.
-  The timer passes `reorderable={false}`, so its rows have no drag handle;
-  that is the only difference. The timer used to keep its own copy with a
-  tick drawn in CSS, bare buttons and a native input, and the two had drifted
-  apart. A fix to one list is now a fix to both.
+  The two are the same down to the drag handle: Tyler asked for dragging on
+  the timer page too on 7 Oct 2026, and before that the timer's rows had
+  none. The timer used to keep its own copy with a tick drawn in CSS, bare
+  buttons and a native input, and the two had drifted apart. A fix to one
+  list is now a fix to both.
 - **Remove** marks the row `abandoned`; it keeps its finished sessions.
-- **A tick and a removal land on the press, not on the answer.** The row moves
-  straight away and the request goes afterwards, so three tasks ticked in a row
-  keep up with how fast you press. A guest always worked this way; an account
-  used to wait for the round trip, which made signing in feel slower than not
-  bothering.
+- **The X asks before it removes.** A window titled "Remove this task?" says
+  the task comes off the list and its finished focus stays in History, and
+  for a repeating task that it still comes back on its next repeat day.
+  Cancel, Escape or the window's own X keep the task. Tyler asked for this
+  on 7 Oct 2026 (`RemoveTaskButton` in `today-task-list.tsx`, used on today's
+  list, the timer card and days planned ahead).
+- **A tick, and a removal once confirmed, land on the press, not on the
+  answer.** The row moves straight away and the request goes afterwards, so
+  three tasks ticked in a row keep up with how fast you press. A guest always
+  worked this way; an account used to wait for the round trip, which made
+  signing in feel slower than not bothering.
 - **The server's answer is still the truth.** `togglePersistentTask` answers
   with the row's status and its done count, and both are written on top when
   they arrive, so a tick the server disagrees with is corrected rather than
@@ -89,6 +106,98 @@ optional project ([Projects](projects.md)).
   HTML either. A screen reader now reads "Chapter three. Repeats Monday to
   Friday" as one name, and the small repeat icon stays as the visual cue.
 
+## Planning the week ahead
+
+A strip of seven day buttons sits above the list on `/tasks`: Today, then the
+next six days by name ("Thu", "Fri" and so on). Pick Thursday and the card
+shows Thursday's list, with its own "Add a task, press Enter…" box. A day
+holding tasks shows how many on its button. Tyler picked seven days on
+7 Oct 2026.
+
+- **A task planned for Thursday is on Thursday and nowhere else.** It is not
+  on today's list, the timer cannot pick it, and it cannot be ticked. On
+  Thursday morning it is simply part of Thursday's list.
+- **A day ahead can be edited, given steps and tags, and cleared.** The
+  editor there has no repeat picker, because a repeat is made by the
+  morning's rollover from the day's own copy. Drag-to-reorder is today's
+  only.
+- **The window is enforced by the server.** A tick on a task planned for a
+  later day is refused, so it can never add to today's completed count. A
+  create or an edit for a date in the past or more than six days ahead is
+  refused
+  (`PLANNED_DATE_OUT_OF_RANGE`, `isPlannableFutureDay` in
+  `src/lib/pomodoro/plan-ahead.ts`), worked out against the account's own
+  today, not the browser's.
+- **Nothing planned ahead means nothing changes.** Today's screen, the timer
+  and the rollover behave exactly as before.
+- **The timer is today only.** Its focus-task picker reads today's list and
+  the server refuses a focus on any other day's task.
+- **Guests do not get the strip.** A guest's tasks live in the browser and
+  there is no server today to plan from.
+
+The future day is loaded on its own by `loadPlannedDay` and kept out of the
+timer's store (`src/lib/pomodoro/use-planned-day.ts`); the counts on the strip
+come with the day's load (`countPlannedDays` in
+`src/server/pomodoro/tasks.ts`). The list is
+`src/components/pomodoro/planned-day-list.tsx`.
+
+## Steps inside a task
+
+A task can carry a short checklist of up to ten steps, each a line of words
+and a tick. The list button on a row opens them; once a task has steps the
+button reads "3 of 5". It is a checklist, not a second task system: a step
+has no estimate, date or focus count.
+
+- **An X beside the "Add a step" box folds the steps away**, the same as
+  pressing the row's steps button again. It lines up under the row's own X.
+  Tyler asked for it on 7 Oct 2026.
+- **Ticking the last step does not complete the task.** The task's own tick
+  stays separate and manual.
+- **An eleventh step is refused** by the server under a lock on the task row,
+  so two quick presses cannot both get in (`TOO_MANY_STEPS`).
+- **A finished task's steps are frozen.** They show as they were left, with
+  nothing to press, and the server refuses changes to them.
+- **On a phone the first step starts from the settings window.** The row
+  has no room for an empty steps button, so until a task has a step the
+  window shows an "Add steps" button that closes it and opens the steps.
+- **Deleting a task deletes its steps**, through `on delete cascade`.
+  Removing a task (the X) keeps both, as it always kept the row.
+- **Guests have no steps.** They need a table on the server.
+
+The steps table is `pomodoro_task_steps` (migration
+`0117_pomodoro_tasks_and_planning.sql`), the server logic is
+`src/server/pomodoro/task-steps.ts`, and the list is
+`src/components/pomodoro/task-steps.tsx`.
+
+## Tags
+
+A task can carry up to three short labels, such as "admin", "email" or
+"reading", that cut across projects. They are added in the task's editor:
+type one and press Enter, or press one of the tags you used lately, which
+appear as buttons while you type. Tyler set the cap at three on 7 Oct 2026.
+
+- **Tags read as quiet labels**, small and grey after the title ("#admin"),
+  and are left off the row on a phone, so they never compete with the title.
+  A screen reader hears them as part of the row's name.
+- **One spelling per tag.** Names are trimmed, spaces squeezed and lower
+  cased (`normalizeTagName`), so "Admin " and "admin" are one tag, unique per
+  account by a database index.
+- **The picker offers the tags used in the last 30 days.** A tag nobody used
+  for 30 days leaves the picker but is never deleted, so History can still
+  filter by it, and typing it again brings it back.
+- **The Tasks screen has a tag filter** beside the day strip. Picking
+  "admin" shows only the tasks tagged admin on the day you are looking at.
+  Dragging is off while a filter is on, because a drag must name every task.
+- **History's sessions table filters by tag too**; see
+  [Focus history](history.md).
+- **The whole set is saved in one request**, after the task's own save, so a
+  row never holds half an edit. If only the tags fail, the toast says "The
+  task was saved, but its tags could not be" and the window stays open.
+- **Guests have no tags.** The box in the editor is shut with the reason.
+
+The tables are `pomodoro_tags` and the join `pomodoro_task_tags`; the logic is
+`src/server/pomodoro/task-tags.ts`.
+
 ## Where things live
 
 Rows live in the `tasks` table (`src/server/pomodoro/schema.ts`, migration
@@ -100,10 +209,19 @@ one calendar day (`planned_date`).
 ## Rollover and archive
 
 Opening the app copies every still-active task from an earlier day onto
-today's list — priority, estimate, project, repeat rule, done count and order
-intact — and marks each original as `carried`, linked to its copy
-(`rollOverTasks` in `src/server/pomodoro/tasks.ts`, run by the load itself;
-there is no scheduled job). The archive section under Today groups past days
+today's list — priority, estimate, project, repeat rule, done count, steps,
+tags and order intact — and marks each original as `carried`, linked to its
+copy (`rollOverTasks` in `src/server/pomodoro/tasks.ts`, run by the load
+itself; there is no scheduled job).
+
+- **Steps come with their ticks.** A carried task is the same unfinished
+  job, so 3 of 5 yesterday is 3 of 5 today. Tyler's call on 7 Oct 2026.
+- **Tasks planned for today stay on top.** Only earlier days are read, so a
+  task planned ahead for today is never copied twice. Yesterday's leftovers
+  land under it. Tyler's call on 7 Oct 2026: carry the leftovers, below the
+  plan, rather than skip them.
+- **A repeat rule's copy starts with no steps** and wears the tags of the
+  rule's last copy. The archive section under Today groups past days
 newest first, up to 50 rows, with a badge per row: Completed (green), Carried
 over (orange) or Abandoned (grey).
 

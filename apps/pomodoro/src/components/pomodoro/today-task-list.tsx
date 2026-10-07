@@ -18,19 +18,25 @@ import {
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import {
-  CheckIcon,
   GripVerticalIcon,
+  ListChecksIcon,
   Loader2Icon,
   PlusIcon,
   RepeatIcon,
-  SettingsIcon,
   XIcon,
 } from "lucide-react"
 
+import { SettingsWindow } from "@/components/pomodoro/settings-window"
+import {
+  TaskStepList,
+  TaskStepsToggle,
+} from "@/components/pomodoro/task-steps"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { LoadingRow } from "@/components/ui/loading-row"
 import {
   Select,
@@ -52,6 +58,12 @@ import {
   type TaskItem,
   type TaskPriority,
 } from "@/lib/pomodoro/tasks"
+import {
+  MAX_TASK_TAGS,
+  normalizeTagName,
+  sameTags,
+  TAG_NAME_MAX_LENGTH,
+} from "@/lib/pomodoro/task-tags"
 import {
   describeWeekdaySet,
   EVERY_DAY,
@@ -93,29 +105,36 @@ const GUEST_REPEAT_REASON =
   "Repeating a task needs an account, because the copy is made on the server each morning."
 const GUEST_PROJECT_REASON =
   "Projects need an account, because they are saved with your focus history."
+const GUEST_TAG_REASON =
+  "Tags need an account, because History filters your saved sessions by them."
 
 /**
  * Today's tasks, ported from the old app's task-plan-list, and the one list
  * both the timer and the Tasks page draw: drag to reorder by mouse, touch or
- * keyboard with dnd-kit (announced to screen readers), inline edit with
- * priority and a 1-20 estimate, complete/reopen, remove, and picking the focus
- * task while the timer is idle. Completed tasks sit in their own group under a
- * "Done today" heading.
+ * keyboard with dnd-kit (announced to screen readers), editing in the
+ * settings window, complete/reopen, remove, and picking the focus task while
+ * the timer is idle. Completed tasks sit in their own group under a "Done
+ * today" heading.
  *
- * `reorderable` is the one thing the timer turns off: its card has no room for
- * a drag handle, and the Tasks page is where the day is planned. Everything
- * else, down to the row, is shared, so a fix to one list is a fix to both.
+ * The two lists are the same down to the row, drag handle included, so a fix
+ * to one list is a fix to both. Tyler asked for dragging on the timer too on
+ * 7 Oct 2026. Only a tag filter turns it off.
  */
 export function TodayTaskList({
   pomodoro,
-  reorderable = true,
+  tagFilter = null,
 }: {
   pomodoro: PomodoroApi
-  reorderable?: boolean
+  /** Shows only the tasks carrying this tag. Dragging is off while it is set. */
+  tagFilter?: string | null
 }) {
   const [editingId, setEditingId] = React.useState<string | null>(null)
   const activeTasks = pomodoro.tasks.filter((task) => !task.completed)
-  const completedTasks = pomodoro.tasks.filter((task) => task.completed)
+  const matches = (task: TaskItem) => !tagFilter || task.tags.includes(tagFilter)
+  const shownActive = activeTasks.filter(matches)
+  const completedTasks = pomodoro.tasks.filter(
+    (task) => task.completed && matches(task)
+  )
   const titleOf = (id: unknown) =>
     pomodoro.tasks.find((task) => task.id === id)?.title ?? "task"
   const positionOf = (id: unknown) =>
@@ -153,12 +172,16 @@ export function TodayTaskList({
       {pomodoro.loading && !pomodoro.tasks.length ? (
         <LoadingRow label="Loading your tasks…" className="py-4" />
       ) : null}
-      {!pomodoro.loading && !pomodoro.loadFailed && !activeTasks.length ? (
+      {!pomodoro.loading && !pomodoro.loadFailed && !shownActive.length ? (
         <p className="py-2 text-sm text-muted-foreground">
-          No active tasks. Add one below to choose your next focus.
+          {tagFilter
+            ? `No active tasks tagged ${tagFilter}.`
+            : "No active tasks. Add one below to choose your next focus."}
         </p>
       ) : null}
-      {reorderable ? (
+      {/* A drag has to name every active task, so a filtered list, which
+          shows only some of them, is never draggable. */}
+      {!tagFilter ? (
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
@@ -199,7 +222,7 @@ export function TodayTaskList({
           </SortableContext>
         </DndContext>
       ) : (
-        activeTasks.map((task) => (
+        shownActive.map((task) => (
           <TaskRow
             key={task.id}
             task={task}
@@ -239,7 +262,14 @@ export function TodayTaskList({
  * Tasks page refuse a blank title the same way: nothing is sent, the text
  * stays, the box is marked and the toast says why.
  */
-export function NewTaskForm({ pomodoro }: { pomodoro: PomodoroApi }) {
+export function NewTaskForm({
+  onAdd,
+  label = "New task",
+}: {
+  /** False when the title was blank and nothing was sent. */
+  onAdd: (title: string) => boolean
+  label?: string
+}) {
   const [title, setTitle] = React.useState("")
   // Set by a blank submit and cleared by the next keystroke. The box keeps
   // whatever was in it either way.
@@ -250,7 +280,7 @@ export function NewTaskForm({ pomodoro }: { pomodoro: PomodoroApi }) {
       className="relative"
       onSubmit={(event) => {
         event.preventDefault()
-        if (!pomodoro.addTask(title)) {
+        if (!onAdd(title)) {
           setInvalid(true)
           showErrorToast(BLANK_TASK_TITLE)
           return
@@ -271,7 +301,7 @@ export function NewTaskForm({ pomodoro }: { pomodoro: PomodoroApi }) {
         aria-invalid={invalid || undefined}
         maxLength={160}
         placeholder="Add a task, press Enter…"
-        aria-label="New task"
+        aria-label={label}
         className="pl-9"
       />
     </form>
@@ -347,108 +377,218 @@ function TaskRow({
 }) {
   const selected = pomodoro.selectedTaskId === task.id
   const busy = pomodoro.taskBusy(task.id)
+  const { authenticated } = useProductAuth()
+  const [stepsOpen, setStepsOpen] = React.useState(false)
+  // A guest has no steps to keep, and a finished task with none has nothing
+  // to open.
+  const showSteps = authenticated && (!task.completed || task.steps.length > 0)
 
   return (
-    <div
-      ref={rowRef}
+    <TaskRowFrame
+      rowRef={rowRef}
       style={style}
       className={cn(
-        "flex min-h-9 items-center gap-2 rounded-lg border px-2",
         task.completed ? "bg-card/50" : "bg-card",
         selected && "border-l-2 border-l-primary",
         className
       )}
-    >
-      {editing ? (
-        <TaskEditForm
-          task={task}
-          projects={pomodoro.liveProjects}
-          onCancel={() => onEditingChange(false)}
-          onSave={async ({ repeatWeekdays, ...changes }) => {
-            // The repeat is its own rule row, so it is its own request, and it
-            // runs after the task update because the rule copies its title,
-            // priority, estimate and project from the task row. A save that
-            // failed writes no rule, or the rule would hold a title the task
-            // never got.
-            //
-            // The row closes only once both have landed. Either failure has
-            // already raised the error toast, and the row stays open with the
-            // typed changes still in it, so Save can simply be pressed again.
-            const saved = await pomodoro.updateTaskDetails(task.id, changes)
-            if (!saved) return
-            if (
-              repeatWeekdays !== task.repeatWeekdays &&
-              !(await pomodoro.setTaskRepeat(task.id, repeatWeekdays))
-            )
-              return
-            onEditingChange(false)
-          }}
-        />
-      ) : (
-        <>
-          {dragHandle}
-          <Checkbox
-            checked={task.completed}
-            disabled={busy}
-            onCheckedChange={() => pomodoro.toggleTask(task.id)}
-            aria-label={`${task.completed ? "Reopen" : "Complete"} ${task.title}`}
+      steps={
+        stepsOpen && showSteps ? (
+          <TaskStepList
+            taskId={task.id}
+            taskTitle={task.title}
+            steps={task.steps}
+            readOnly={task.completed}
+            onStepsChange={(update) => pomodoro.setTaskSteps(task.id, update)}
+            onClose={() => setStepsOpen(false)}
           />
-          {task.completed ? (
-            <span className="flex min-w-0 flex-1 items-center gap-2 py-2">
-              <span className="truncate text-sm text-muted-foreground line-through">
-                {task.title}
-              </span>
-              <TaskMarks task={task} />
-            </span>
-          ) : (
-            <DisabledReason
-              className="min-w-0 flex-1"
-              disabled={!pomodoro.canSelectTask}
-              reason={PAUSE_TO_CHOOSE_REASON}
-            >
-              <button
-                className={cn(
-                  "flex min-w-0 flex-1 items-center gap-2 rounded-lg py-2 text-left",
-                  focusRing
-                )}
-                disabled={!pomodoro.canSelectTask}
-                aria-pressed={selected}
-                // Tapping the chosen task again clears it, which is the only
-                // way to focus on nothing.
-                onClick={() => pomodoro.selectTask(selected ? null : task.id)}
-              >
-                <span className="truncate text-sm">{task.title}</span>
-                <TaskMarks task={task} />
-              </button>
-            </DisabledReason>
-          )}
-          {task.completed ? null : (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => onEditingChange(true)}
-              aria-label={`Edit ${task.title}`}
-            >
-              <SettingsIcon aria-hidden="true" />
-            </Button>
-          )}
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            disabled={busy}
-            onClick={() => pomodoro.removeTask(task.id)}
-            aria-label={`Remove ${task.title}`}
+        ) : null
+      }
+    >
+      {dragHandle}
+      <Checkbox
+        checked={task.completed}
+        disabled={busy}
+        onCheckedChange={() => pomodoro.toggleTask(task.id)}
+        aria-label={`${task.completed ? "Reopen" : "Complete"} ${task.title}`}
+      />
+      {task.completed ? (
+        <span className="flex min-w-0 flex-1 items-center gap-2 py-2">
+          <span className="truncate text-sm text-muted-foreground line-through">
+            {task.title}
+          </span>
+          <TaskMarks task={task} />
+        </span>
+      ) : (
+        <DisabledReason
+          className="min-w-0 flex-1"
+          disabled={!pomodoro.canSelectTask}
+          reason={PAUSE_TO_CHOOSE_REASON}
+        >
+          <button
+            className={cn(
+              "flex min-w-0 flex-1 items-center gap-2 rounded-lg py-2 text-left",
+              focusRing
+            )}
+            disabled={!pomodoro.canSelectTask}
+            aria-pressed={selected}
+            // Tapping the chosen task again clears it, which is the only
+            // way to focus on nothing.
+            onClick={() => pomodoro.selectTask(selected ? null : task.id)}
           >
-            <XIcon aria-hidden="true" />
-          </Button>
-        </>
+            <span className="truncate text-sm">{task.title}</span>
+            <TaskMarks task={task} />
+          </button>
+        </DisabledReason>
       )}
+      {showSteps ? (
+        <TaskStepsToggle
+          taskTitle={task.title}
+          steps={task.steps}
+          expanded={stepsOpen}
+          onToggle={() => setStepsOpen((open) => !open)}
+        />
+      ) : null}
+      {task.completed ? null : (
+        <SettingsWindow
+          label={`Edit ${task.title}`}
+          open={editing}
+          onOpenChange={onEditingChange}
+        >
+          <TaskEditForm
+            task={task}
+            projects={pomodoro.liveProjects}
+            tagNames={pomodoro.tagNames}
+            onAddSteps={
+              showSteps && !task.steps.length
+                ? () => {
+                    onEditingChange(false)
+                    setStepsOpen(true)
+                  }
+                : undefined
+            }
+            onCancel={() => onEditingChange(false)}
+            onSave={async ({ repeatWeekdays, tags, ...changes }) => {
+              // The repeat is its own rule row, so it is its own request, and it
+              // runs after the task update because the rule copies its title,
+              // priority, estimate and project from the task row. A save that
+              // failed writes no rule, or the rule would hold a title the task
+              // never got.
+              //
+              // The window closes only once all three have landed. Any failure
+              // has already raised the error toast, and the window stays open
+              // with the typed changes in it, so Save can be pressed again.
+              const saved = await pomodoro.updateTaskDetails(task.id, changes)
+              if (!saved) return
+              if (
+                repeatWeekdays !== task.repeatWeekdays &&
+                !(await pomodoro.setTaskRepeat(task.id, repeatWeekdays))
+              )
+                return
+              if (
+                !sameTags(tags, task.tags) &&
+                !(await pomodoro.setTaskTags(task.id, tags))
+              )
+                return
+              onEditingChange(false)
+            }}
+          />
+        </SettingsWindow>
+      )}
+      <RemoveTaskButton
+        task={task}
+        disabled={busy}
+        onRemove={() => pomodoro.removeTask(task.id)}
+      />
+    </TaskRowFrame>
+  )
+}
+
+/**
+ * The bordered box every task row sits in: the row's own line, and under it
+ * the steps when they are open. Shared by today's list and a day planned
+ * ahead, so the two rows are the same shape.
+ */
+export function TaskRowFrame({
+  rowRef,
+  style,
+  className,
+  steps,
+  children,
+}: {
+  rowRef?: (node: HTMLElement | null) => void
+  style?: React.CSSProperties
+  className?: string
+  steps?: React.ReactNode
+  children: React.ReactNode
+}) {
+  return (
+    <div
+      ref={rowRef}
+      style={style}
+      className={cn("flex flex-col rounded-lg border", className)}
+    >
+      <div className="flex min-h-9 items-center gap-2 px-2">{children}</div>
+      {steps}
     </div>
   )
 }
 
-/** The repeat, project and priority marks and the done count, after a title. */
-function TaskMarks({ task }: { task: TaskItem }) {
+
+/**
+ * The X on a task row, which asks before it removes. Tyler asked for the
+ * question on 7 Oct 2026: one stray tap used to take a task off the list with
+ * no way back. The answer says what is kept, so the question is not scarier
+ * than the action.
+ */
+export function RemoveTaskButton({
+  task,
+  disabled = false,
+  onRemove,
+}: {
+  task: TaskItem
+  disabled?: boolean
+  onRemove: () => void
+}) {
+  const [asking, setAsking] = React.useState(false)
+  return (
+    <>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        disabled={disabled}
+        onClick={() => setAsking(true)}
+        aria-label={`Remove ${task.title}`}
+      >
+        <XIcon aria-hidden="true" />
+      </Button>
+      <ConfirmDialog
+        open={asking}
+        onOpenChange={setAsking}
+        title="Remove this task?"
+        description={
+          <>
+            {`"${task.title}" comes off your list. Any focus you finished on it stays in History.`}
+            {task.repeatWeekdays !== null
+              ? " It still comes back on its next repeat day."
+              : ""}
+          </>
+        }
+        confirmLabel="Remove task"
+        onConfirm={() => {
+          setAsking(false)
+          onRemove()
+        }}
+      />
+    </>
+  )
+}
+
+/**
+ * The repeat, tag, project and priority marks and the done count, after a
+ * title. Tags are the quietest of them, so they never compete with the title.
+ */
+export function TaskMarks({ task }: { task: TaskItem }) {
   return (
     <>
       {/* The repeat rule is in the row's own words rather than a tooltip on
@@ -464,6 +604,14 @@ function TaskMarks({ task }: { task: TaskItem }) {
           </span>
         </>
       ) : null}
+      {task.tags.map((tag) => (
+        <span
+          key={tag}
+          className="hidden max-w-20 truncate text-[10px] text-muted-foreground sm:inline"
+        >
+          <span className="sr-only">. Tagged </span>#{tag}
+        </span>
+      ))}
       {task.projectName ? (
         <b className="max-w-28 truncate text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
           {task.projectName}
@@ -488,24 +636,44 @@ function TaskMarks({ task }: { task: TaskItem }) {
   )
 }
 
-function TaskEditForm({
+/**
+ * A task's editor, inside the window its settings button opens. A day
+ * planned ahead passes
+ * `allowRepeat={false}`: a repeat is made by the morning's rollover from
+ * today's copy, so it is set on the day itself.
+ */
+export function TaskEditForm({
   task,
   projects,
+  tagNames,
+  allowRepeat = true,
+  onAddSteps,
   onSave,
   onCancel,
 }: {
   task: TaskItem
   projects: PomodoroApi["liveProjects"]
+  /** The tags the picker offers. */
+  tagNames: readonly string[]
+  allowRepeat?: boolean
+  /**
+   * Shown as "Add steps" while the task has none. On a phone the row hides
+   * its empty steps button, so this is where the first step starts.
+   */
+  onAddSteps?: () => void
   onSave: (changes: {
     title: string
     priority: TaskPriority
     estimatedPomodoros: number | null
     projectId: string | null
     repeatWeekdays: number | null
+    tags: string[]
   }) => Promise<void>
   onCancel: () => void
 }) {
   const { authenticated } = useProductAuth()
+  const id = React.useId()
+  const [tags, setTags] = React.useState(task.tags)
   const [saving, setSaving] = React.useState(false)
   // Shown only once a save has been tried, so a field being emptied on the
   // way to new words is not marked as a mistake mid-edit.
@@ -546,7 +714,7 @@ function TaskEditForm({
 
   return (
     <form
-      className="flex flex-1 flex-col gap-2 py-1.5"
+      className="flex flex-col gap-4"
       onSubmit={async (event) => {
         event.preventDefault()
         setAttempted(true)
@@ -563,106 +731,127 @@ function TaskEditForm({
           estimatedPomodoros: parsedEstimate,
           projectId,
           repeatWeekdays,
+          tags,
         })
-        // A successful save unmounts this form; on a failure it is still
-        // here and goes back to waiting for another press.
+        // A successful save closes the window and unmounts this form; on a
+        // failure it is still here and goes back to waiting for another press.
         setSaving(false)
       }}
-      onKeyDown={(event) => {
-        if (event.key === "Escape") onCancel()
-      }}
     >
-      <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-2">
+        <Label htmlFor={`${id}-title`}>Title</Label>
         <Input
+          id={`${id}-title`}
           required
           maxLength={160}
           value={title}
           onChange={(event) => setTitle(event.target.value)}
-          aria-label={`Title for ${task.title}`}
           aria-invalid={attempted && !titleValid ? true : undefined}
           autoFocus
-          className="flex-1"
         />
-        <Select
-          value={priority}
-          onValueChange={(value) => setPriority(value as TaskPriority)}
-        >
-          <SelectTrigger className="text-xs" aria-label={`Priority for ${task.title}`}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {taskPriorities.map((value) => (
-              <SelectItem key={value} value={value}>
-                {priorityLabels[value]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Input
-          type="number"
-          min={1}
-          max={20}
-          step={1}
-          value={estimate}
-          placeholder="Est."
-          onChange={(event) => setEstimate(event.target.value)}
-          aria-label={`Estimated pomodoros for ${task.title}`}
-          aria-invalid={!estimateValid}
-          className="w-16"
-        />
-        <Button
-          type="submit"
-          variant="ghost"
-          size="icon-sm"
-          disabled={saving || !estimateValid || !daysValid}
-          aria-label={
-            saving
-              ? `Saving changes to ${task.title}`
-              : `Save changes to ${task.title}`
-          }
-        >
-          {saving ? (
-            <Loader2Icon className="animate-spin" aria-hidden="true" />
-          ) : (
-            <CheckIcon aria-hidden="true" />
-          )}
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          onClick={onCancel}
-          aria-label={`Cancel editing ${task.title}`}
-        >
-          <XIcon aria-hidden="true" />
-        </Button>
       </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <DisabledReason reason={GUEST_REPEAT_REASON} disabled={!authenticated}>
+      <div className="flex gap-4">
+        <div className="flex flex-col gap-2">
+          <Label htmlFor={`${id}-priority`}>Priority</Label>
           <Select
-            value={repeatChoice}
-            disabled={!authenticated}
-            onValueChange={(value) => setRepeatChoice(value as RepeatChoice)}
+            value={priority}
+            onValueChange={(value) => setPriority(value as TaskPriority)}
           >
-            <SelectTrigger
-              className="text-xs"
-              aria-label={`Repeat for ${task.title}`}
-            >
+            <SelectTrigger id={`${id}-priority`} className="text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {repeatChoices.map((value) => (
+              {taskPriorities.map((value) => (
                 <SelectItem key={value} value={value}>
-                  {repeatChoiceLabels[value]}
+                  {priorityLabels[value]}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-        </DisabledReason>
+        </div>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor={`${id}-estimate`}>Estimate</Label>
+          <Input
+            id={`${id}-estimate`}
+            type="number"
+            min={1}
+            max={20}
+            step={1}
+            value={estimate}
+            placeholder="Pomos"
+            onChange={(event) => setEstimate(event.target.value)}
+            aria-invalid={!estimateValid || undefined}
+            className="w-20"
+          />
+        </div>
+      </div>
+      {allowRepeat ? (
+        <div className="flex flex-col gap-2">
+          <Label htmlFor={`${id}-repeat`}>Repeat</Label>
+          <DisabledReason
+            className="w-fit"
+            reason={GUEST_REPEAT_REASON}
+            disabled={!authenticated}
+          >
+            <Select
+              value={repeatChoice}
+              disabled={!authenticated}
+              onValueChange={(value) => setRepeatChoice(value as RepeatChoice)}
+            >
+              <SelectTrigger id={`${id}-repeat`} className="text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {repeatChoices.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {repeatChoiceLabels[value]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </DisabledReason>
+          {repeatChoice === "custom" ? (
+            <div
+              role="group"
+              aria-label={`Days ${task.title} repeats on`}
+              className="flex items-center gap-1"
+            >
+              {weekdayInitials.map((initial, weekday) => {
+                const picked = weekdaySetHas(pickedDays, weekday)
+                return (
+                  <Button
+                    key={weekdayNames[weekday]}
+                    type="button"
+                    size="icon-sm"
+                    variant={picked ? "default" : "outline"}
+                    aria-pressed={picked}
+                    aria-label={weekdayNames[weekday]}
+                    onClick={() =>
+                      setPickedDays(toggleWeekdayInSet(pickedDays, weekday))
+                    }
+                  >
+                    <span aria-hidden="true" className="text-[10px]">
+                      {initial}
+                    </span>
+                  </Button>
+                )
+              })}
+            </div>
+          ) : null}
+          {!daysValid ? (
+            <small role="alert" className="text-xs text-destructive">
+              Pick at least one day.
+            </small>
+          ) : null}
+        </div>
+      ) : null}
+      <div className="flex flex-col gap-2">
+        <Label htmlFor={`${id}-project`}>Project</Label>
         <DisabledReason
+          className="w-fit"
           reason={
             authenticated
-              ? "Add a project below before a task can go in one."
+              ? "Add a project on the Tasks page before a task can go in one."
               : GUEST_PROJECT_REASON
           }
           disabled={!projectsAvailable}
@@ -674,10 +863,7 @@ function TaskEditForm({
               setProjectId(value === NO_PROJECT ? null : value)
             }
           >
-            <SelectTrigger
-              className="text-xs"
-              aria-label={`Project for ${task.title}`}
-            >
+            <SelectTrigger id={`${id}-project`} className="text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -690,40 +876,147 @@ function TaskEditForm({
             </SelectContent>
           </Select>
         </DisabledReason>
-        {repeatChoice === "custom" ? (
-          <div
-            role="group"
-            aria-label={`Days ${task.title} repeats on`}
-            className="flex items-center gap-1"
+      </div>
+      <div className="flex flex-col gap-2">
+        <Label htmlFor={`${id}-tag`}>Tags</Label>
+        <TagEditor
+          inputId={`${id}-tag`}
+          taskTitle={task.title}
+          tags={tags}
+          tagNames={tagNames}
+          disabled={!authenticated}
+          onChange={setTags}
+        />
+      </div>
+      <div className="flex items-center gap-2">
+        {onAddSteps ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="mr-auto"
+            onClick={onAddSteps}
           >
-            {weekdayInitials.map((initial, weekday) => {
-              const picked = weekdaySetHas(pickedDays, weekday)
-              return (
-                <Button
-                  key={weekdayNames[weekday]}
-                  type="button"
-                  size="icon-sm"
-                  variant={picked ? "default" : "outline"}
-                  aria-pressed={picked}
-                  aria-label={weekdayNames[weekday]}
-                  onClick={() =>
-                    setPickedDays(toggleWeekdayInSet(pickedDays, weekday))
-                  }
-                >
-                  <span aria-hidden="true" className="text-[10px]">
-                    {initial}
-                  </span>
-                </Button>
-              )
-            })}
-          </div>
+            <ListChecksIcon aria-hidden="true" />
+            Add steps
+          </Button>
         ) : null}
-        {!daysValid ? (
-          <small role="alert" className="text-xs text-destructive">
-            Pick at least one day.
-          </small>
-        ) : null}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className={cn(!onAddSteps && "ml-auto")}
+          onClick={onCancel}
+        >
+          Cancel
+        </Button>
+        <Button
+          type="submit"
+          size="sm"
+          disabled={saving || !estimateValid || !daysValid}
+          aria-label={`Save changes to ${task.title}`}
+        >
+          {saving ? (
+            <Loader2Icon className="animate-spin" aria-hidden="true" />
+          ) : null}
+          Save changes
+        </Button>
       </div>
     </form>
+  )
+}
+
+/**
+ * A task's tags inside its editor: the ones it has, each with a remove
+ * button, and a box that adds one. Enter adds what was typed; the tags the
+ * account used lately are offered as buttons under the box while typing.
+ * Nothing is saved until the editor's own Save.
+ */
+function TagEditor({
+  inputId,
+  taskTitle,
+  tags,
+  tagNames,
+  disabled,
+  onChange,
+}: {
+  inputId: string
+  taskTitle: string
+  tags: string[]
+  tagNames: readonly string[]
+  disabled: boolean
+  onChange: (tags: string[]) => void
+}) {
+  const [draft, setDraft] = React.useState("")
+  const full = tags.length >= MAX_TASK_TAGS
+  const needle = normalizeTagName(draft)
+  const suggestions = tagNames
+    .filter((name) => !tags.includes(name) && (!needle || name.startsWith(needle)))
+    .slice(0, 5)
+  const add = (name: string) => {
+    const clean = normalizeTagName(name)
+    if (!clean || full) return
+    if (!tags.includes(clean)) onChange([...tags, clean])
+    setDraft("")
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {tags.map((tag) => (
+        <span
+          key={tag}
+          className="inline-flex h-7 items-center gap-0.5 rounded-md border pl-2 text-xs text-muted-foreground"
+        >
+          #{tag}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            onClick={() => onChange(tags.filter((one) => one !== tag))}
+            aria-label={`Remove the tag ${tag} from ${taskTitle}`}
+          >
+            <XIcon aria-hidden="true" />
+          </Button>
+        </span>
+      ))}
+      {full ? (
+        <small className="text-xs text-muted-foreground">
+          {MAX_TASK_TAGS} tags is the most a task holds.
+        </small>
+      ) : (
+        <DisabledReason reason={GUEST_TAG_REASON} disabled={disabled}>
+          <Input
+            id={inputId}
+            value={draft}
+            disabled={disabled}
+            maxLength={TAG_NAME_MAX_LENGTH}
+            placeholder="Add a tag…"
+            aria-label={`Add a tag to ${taskTitle}`}
+            onChange={(event) => setDraft(event.target.value)}
+            // Enter here adds the tag rather than saving the whole task.
+            onKeyDown={(event) => {
+              if (event.key !== "Enter") return
+              event.preventDefault()
+              add(draft)
+            }}
+            className="h-7 w-32 text-xs"
+          />
+        </DisabledReason>
+      )}
+      {!full && !disabled
+        ? suggestions.map((name) => (
+            <Button
+              key={name}
+              type="button"
+              variant="outline"
+              size="xs"
+              onClick={() => add(name)}
+              aria-label={`Tag ${taskTitle} ${name}`}
+            >
+              #{name}
+            </Button>
+          ))
+        : null}
+    </div>
   )
 }

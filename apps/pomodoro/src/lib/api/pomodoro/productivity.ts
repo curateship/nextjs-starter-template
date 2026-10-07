@@ -19,17 +19,31 @@ import {
 import { refreshMyRoom } from "@/server/pomodoro/rooms"
 import { tellFollowersOfStreak } from "@/server/pomodoro/following"
 import { loadOrCreateProfile, userToday } from "@/server/pomodoro/profile"
-import { listProjects } from "@/server/pomodoro/projects"
+import {
+  listProjects,
+  loadProjectTargetProgress,
+} from "@/server/pomodoro/projects"
 import { pomodoroProfiles } from "@/server/pomodoro/schema"
 import {
+  addTaskStep,
+  deleteTaskStep,
+  updateTaskStep,
+} from "@/server/pomodoro/task-steps"
+import { listPickableTags, setTaskTags } from "@/server/pomodoro/task-tags"
+import {
+  countPlannedDays,
   listTasksForDay,
   reorderTodayTasks,
   rollOverTasks,
   setTaskRepeat,
   toggleTaskStatus,
   updateTaskPlan,
+  withTaskDetails,
 } from "@/server/pomodoro/tasks"
 import { STREAK_MILESTONES } from "@/lib/pomodoro/notices"
+import { isPlannableFutureDay } from "@/lib/pomodoro/plan-ahead"
+import { MAX_TASK_TAGS, TAG_NAME_MAX_LENGTH } from "@/lib/pomodoro/task-tags"
+import { STEP_TITLE_MAX_LENGTH } from "@/lib/pomodoro/task-steps"
 import { SESSION_NOTE_MAX_LENGTH } from "@/lib/pomodoro/session-notes"
 import { EVERY_DAY } from "@/lib/pomodoro/task-repeats"
 import {
@@ -72,9 +86,38 @@ const startSessionSchema = z.object({
   timezone: timezoneSchema,
 })
 const taskIdSchema = z.object({ taskId: z.string().uuid() })
+const localDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
+// No date means today. A date is one of the next six days, checked against
+// the account's own today on the server, so a browser cannot plan into the
+// past or past the window.
 const createTaskSchema = z.object({
   title: z.string().trim().min(1).max(160),
   timezone: timezoneSchema,
+  plannedDate: localDateSchema.optional(),
+})
+const plannedDaySchema = z.object({
+  plannedDate: localDateSchema,
+  timezone: timezoneSchema,
+})
+const stepTitleSchema = z.string().trim().min(1).max(STEP_TITLE_MAX_LENGTH)
+const addStepSchema = z.object({
+  taskId: z.string().uuid(),
+  title: stepTitleSchema,
+})
+const updateStepSchema = z
+  .object({
+    stepId: z.string().uuid(),
+    title: stepTitleSchema.optional(),
+    done: z.boolean().optional(),
+  })
+  .refine((data) => data.title !== undefined || data.done !== undefined, {
+    message: "EMPTY_UPDATE",
+  })
+const taskTagsSchema = z.object({
+  taskId: z.string().uuid(),
+  tags: z
+    .array(z.string().trim().min(1).max(TAG_NAME_MAX_LENGTH))
+    .max(MAX_TASK_TAGS),
 })
 const updateTaskSchema = z
   .object({
@@ -148,11 +191,20 @@ const loadProductivityFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .inputValidator(z.object({ timezone: timezoneSchema }))
   .handler(async ({ data, context }) => {
-    const today = await userToday(context.user.id, data.timezone)
+    const profile = await loadOrCreateProfile(context.user.id, data.timezone)
+    const today = localDateFor(profile.timezone)
     await rollOverTasks(context.user.id, today)
     const preferences = await loadOrCreatePreferences(context.user.id)
-    const [summary, todayTasks, archivedTasks, recentStats, projects] =
-      await Promise.all([
+    const [
+      summary,
+      todayTasks,
+      archivedTasks,
+      recentStats,
+      projects,
+      plannedDays,
+      tagNames,
+      projectTargets,
+    ] = await Promise.all([
         loadFocusSummary(context.user.id, today, preferences.dailyGoalSessions),
         listTasksForDay(context.user.id, today),
         db
@@ -178,22 +230,36 @@ const loadProductivityFn = createServerFn({ method: "GET" })
           .orderBy(desc(dailyFocusStats.localDate))
           .limit(14),
         listProjects(context.user.id),
+        countPlannedDays(context.user.id, today),
+        listPickableTags(context.user.id, today),
+        loadProjectTargetProgress(context.user.id, today, profile.timezone),
       ])
     return {
       preferences,
       today,
       summary,
-      // The joined rows are flattened here so the screen keeps reading a task
-      // as one object, with the rule's days and the project's name on it.
-      tasks: todayTasks.map((row) => ({
-        ...row.task,
-        repeatWeekdays: row.repeatWeekdays,
-        projectName: row.projectName,
-      })),
+      tasks: await withTaskDetails(todayTasks),
       archivedTasks,
       recentStats,
       projects,
+      plannedDays,
+      tagNames: tagNames.map((tag) => tag.name),
+      projectTargets,
     }
+  })
+
+/** One of the next six days, for the Tasks screen's day strip. */
+const loadPlannedDayFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .inputValidator(plannedDaySchema)
+  .handler(async ({ data, context }) => {
+    const today = await userToday(context.user.id, data.timezone)
+    if (!isPlannableFutureDay(today, data.plannedDate))
+      throw new Error("PLANNED_DATE_OUT_OF_RANGE")
+    const rows = await listTasksForDay(context.user.id, data.plannedDate)
+    return withTaskDetails(
+      rows.filter((row) => row.task.status === "active")
+    )
   })
 
 const createTaskFn = createServerFn({ method: "POST" })
@@ -201,17 +267,49 @@ const createTaskFn = createServerFn({ method: "POST" })
   .inputValidator(createTaskSchema)
   .handler(async ({ data, context }) => {
     const today = await userToday(context.user.id, data.timezone)
+    const plannedDate = data.plannedDate ?? today
+    if (plannedDate !== today && !isPlannableFutureDay(today, plannedDate))
+      throw new Error("PLANNED_DATE_OUT_OF_RANGE")
     const [task] = await db
       .insert(tasks)
       .values({
         userId: context.user.id,
         title: data.title,
-        plannedDate: today,
-        sortOrder: sql`(select coalesce(max(${tasks.sortOrder}), 0) + 1 from ${tasks} where ${tasks.userId} = ${context.user.id} and ${tasks.plannedDate} = ${today})`,
+        plannedDate,
+        sortOrder: sql`(select coalesce(max(${tasks.sortOrder}), 0) + 1 from ${tasks} where ${tasks.userId} = ${context.user.id} and ${tasks.plannedDate} = ${plannedDate})`,
       })
       .returning()
     return task
   })
+
+const addStepFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(addStepSchema)
+  .handler(async ({ data, context }) =>
+    addTaskStep(context.user.id, data.taskId, data.title)
+  )
+
+const updateStepFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(updateStepSchema)
+  .handler(async ({ data, context }) => {
+    const { stepId, ...changes } = data
+    return updateTaskStep(context.user.id, stepId, changes)
+  })
+
+const deleteStepFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({ stepId: z.string().uuid() }))
+  .handler(async ({ data, context }) =>
+    deleteTaskStep(context.user.id, data.stepId)
+  )
+
+const setTaskTagsFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(taskTagsSchema)
+  .handler(async ({ data, context }) =>
+    setTaskTags(context.user.id, data.taskId, data.tags)
+  )
 
 const updateTaskFn = createServerFn({ method: "POST" })
   .middleware([userPost])
@@ -540,8 +638,21 @@ const importGuestStateFn = createServerFn({ method: "POST" })
 
 export const loadProductivity = (timezone: string) =>
   loadProductivityFn({ data: { timezone } })
-export const createTask = (title: string, timezone: string) =>
-  createTaskFn({ data: { title, timezone } })
+export const createTask = (
+  title: string,
+  timezone: string,
+  plannedDate?: string
+) => createTaskFn({ data: { title, timezone, plannedDate } })
+export const loadPlannedDay = (plannedDate: string, timezone: string) =>
+  loadPlannedDayFn({ data: { plannedDate, timezone } })
+export const addStep = (taskId: string, title: string) =>
+  addStepFn({ data: { taskId, title } })
+export const updateStep = (data: z.infer<typeof updateStepSchema>) =>
+  updateStepFn({ data })
+export const deleteStep = (stepId: string) =>
+  deleteStepFn({ data: { stepId } })
+export const saveTaskTags = (taskId: string, tags: string[]) =>
+  setTaskTagsFn({ data: { taskId, tags } })
 export const updateTask = (data: z.infer<typeof updateTaskSchema>) =>
   updateTaskFn({ data })
 export const setTaskRepeatRule = (

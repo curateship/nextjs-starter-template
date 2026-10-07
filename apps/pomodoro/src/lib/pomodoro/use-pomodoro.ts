@@ -13,6 +13,7 @@ import {
   reorderTasks,
   resumeFocusSession,
   saveFocusSessionNote,
+  saveTaskTags as saveTaskTagsRequest,
   setTaskRepeatRule,
   startFocusSession,
   togglePersistentTask,
@@ -26,6 +27,8 @@ import {
   setProjectPublic as setProjectPublicRequest,
 } from "@/lib/api/pomodoro/projects"
 import { productAuth, subscribeProductAuth } from "@/lib/pomodoro/auth-state"
+import type { ProjectTarget } from "@/lib/pomodoro/project-targets"
+import type { TaskStepItem } from "@/lib/pomodoro/task-steps"
 import { normalizeSessionNote } from "@/lib/pomodoro/session-notes"
 import {
   completionAlertMessage,
@@ -42,6 +45,7 @@ import {
   normalizeTaskPriority,
   orderTasksForDisplay,
   resolveSelectedTaskId,
+  taskItemFromServer,
   type TaskItem,
   type TaskPriority,
 } from "@/lib/pomodoro/tasks"
@@ -89,12 +93,24 @@ export type ProjectRow = Awaited<
   ReturnType<typeof loadProductivity>
 >["projects"][number]
 
+export type ProjectTargetProgress = Awaited<
+  ReturnType<typeof loadProductivity>
+>["projectTargets"][number]
+
 type PomodoroState = {
   timer: PomodoroTimer
   remainingSeconds: number
   tasks: TaskItem[]
   archive: ArchivedTask[]
   projects: ProjectRow[]
+  /** Each live project with a target, and its focus so far this period. */
+  projectTargets: ProjectTargetProgress[]
+  /** How many active tasks each of the next six days holds. */
+  plannedDays: { plannedDate: string; count: number }[]
+  /** The tags the picker offers: the ones used in the last 30 days. */
+  tagNames: string[]
+  /** The account's today, as the server worked it out. */
+  today: string | null
   selectedTaskId: string | null
   autoStart: boolean
   cycleFocusSessions: number
@@ -142,6 +158,10 @@ const initialState: PomodoroState = {
   tasks: [],
   archive: [],
   projects: [],
+  projectTargets: [],
+  plannedDays: [],
+  tagNames: [],
+  today: null,
   selectedTaskId: null,
   autoStart: false,
   cycleFocusSessions: 0,
@@ -366,6 +386,8 @@ function hydrateGuest() {
             repeatWeekdays: null,
             projectId: null,
             projectName: null,
+            steps: [],
+            tags: [],
           }))
       : []
   )
@@ -478,19 +500,7 @@ export function reloadPomodoroData({
       const tasks = orderTasksForDisplay(
         data.tasks
           .filter((task) => ["active", "completed"].includes(task.status))
-          .map((task) => ({
-            id: task.id,
-            title: task.title,
-            completed: task.status === "completed",
-            pomodoros: task.pomodoroCount,
-            priority: normalizeTaskPriority(task.priority),
-            estimatedPomodoros: normalizeEstimatedPomodoros(
-              task.estimatedPomodoros
-            ),
-            repeatWeekdays: task.repeatWeekdays,
-            projectId: task.projectId,
-            projectName: task.projectName,
-          }))
+          .map(taskItemFromServer)
       )
       const idle = timerIsIdle()
       const timer = idle
@@ -506,6 +516,10 @@ export function reloadPomodoroData({
         tasks,
         archive: data.archivedTasks,
         projects: data.projects,
+        projectTargets: data.projectTargets,
+        plannedDays: data.plannedDays,
+        tagNames: data.tagNames,
+        today: data.today,
         selectedTaskId: resolveSelectedTaskId(tasks, state.selectedTaskId),
         sessionsBeforeLongBreak,
         // Where today's finished focuses leave the cycle. Read against the
@@ -894,6 +908,8 @@ export function addTask(title: string) {
         repeatWeekdays: null,
         projectId: null,
         projectName: null,
+        steps: [],
+        tags: [],
       },
     ]),
   })
@@ -1162,11 +1178,21 @@ export function createProject(name: string): Promise<CreateProjectResult> {
   )
 }
 
-export function renameProject(projectId: string, name: string) {
+/**
+ * Renames a project and sets or clears its hours target. Resolves true once
+ * both have landed, so the edit row can stay open with the typed values when
+ * they did not. A changed target reloads the day's figures, because the bar
+ * reads a sum the server works out.
+ */
+export function renameProject(
+  projectId: string,
+  name: string,
+  target?: ProjectTarget | null
+) {
   const cleanName = name.trim().slice(0, 60)
-  if (!cleanName || !isAuthed()) return Promise.resolve()
-  return renameProjectRequest(projectId, cleanName)
-    .then((updated) =>
+  if (!cleanName || !isAuthed()) return Promise.resolve(false)
+  return renameProjectRequest(projectId, cleanName, target).then(
+    (updated) => {
       setState({
         projects: orderProjects(
           state.projects.map((project) =>
@@ -1180,14 +1206,82 @@ export function renameProject(projectId: string, name: string) {
         ),
         syncError: "",
       })
-    )
-    .catch((error: unknown) =>
-      setSyncError(
+      if (target !== undefined) void reloadPomodoroData()
+      return true
+    },
+    (error: unknown) => {
+      showErrorToast(
         String(error).includes("PROJECT_NAME_TAKEN")
           ? `You already have a project called "${cleanName}".`
-          : "The project could not be renamed."
+          : "The project could not be saved."
       )
-    )
+      return false
+    }
+  )
+}
+
+/**
+ * Writes a task's steps after a step changed. The step list sends its own
+ * requests and hands the store the new list, so the row's count stays right.
+ */
+export function setTaskSteps(
+  taskId: string,
+  update: (steps: TaskStepItem[]) => TaskStepItem[]
+) {
+  setState({
+    tasks: state.tasks.map((task) =>
+      task.id === taskId ? { ...task, steps: update(task.steps) } : task
+    ),
+  })
+}
+
+/**
+ * Replaces a task's tags. Shown at once and put back if the server refuses,
+ * with the toast saying so. A new name joins the picker straight away.
+ */
+export function setTaskTags(taskId: string, tags: string[]) {
+  const target = state.tasks.find((task) => task.id === taskId)
+  if (!target || !isAuthed()) return Promise.resolve(false)
+  const previousTags = target.tags
+  applyTaskChange(taskId, { tags })
+  return saveTaskTagsRequest(taskId, tags).then(
+    (saved) => {
+      applyTaskChange(taskId, { tags: saved })
+      setState({ tagNames: mergeTagNames(state.tagNames, saved) })
+      return true
+    },
+    () => {
+      applyTaskChange(taskId, { tags: previousTags })
+      showErrorToast("The task was saved, but its tags could not be.")
+      return false
+    }
+  )
+}
+
+/** The picker's list with any new names added, kept in name order. */
+function mergeTagNames(names: readonly string[], added: readonly string[]) {
+  return [...new Set([...names, ...added])].sort()
+}
+
+/**
+ * Moves a future day's count when a task is added to it or taken off it, so
+ * the day strip agrees with the list without a reload.
+ */
+export function adjustPlannedDayCount(plannedDate: string, change: number) {
+  const known = state.plannedDays.some((day) => day.plannedDate === plannedDate)
+  const plannedDays = known
+    ? state.plannedDays.map((day) =>
+        day.plannedDate === plannedDate
+          ? { ...day, count: Math.max(0, day.count + change) }
+          : day
+      )
+    : [...state.plannedDays, { plannedDate, count: Math.max(0, change) }]
+  setState({ plannedDays })
+}
+
+/** Adds names to the picker, after a planned-ahead task saved its tags. */
+export function addTagNames(added: readonly string[]) {
+  setState({ tagNames: mergeTagNames(state.tagNames, added) })
 }
 
 /**
@@ -1363,6 +1457,8 @@ export function usePomodoro() {
     saveSessionNote,
     dismissSessionNote,
     setTaskRepeat,
+    setTaskSteps,
+    setTaskTags,
     createProject,
     renameProject,
     setProjectArchived,

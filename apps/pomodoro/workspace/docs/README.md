@@ -21,11 +21,12 @@ cover this one.
   background tab, and how both go back on stop.
 - [Zen mode](zen-mode.md) — the fullscreen timer: the ring, the phase and
   the task name, how you get in and out, and why the countdown never notices.
-- [Tasks](tasks.md) — today's plan: create, inline edit, drag to reorder,
-  complete and abandon, the focus task the timer counts on, and the repeat
-  rule that brings a task back each morning.
-- [Projects](projects.md) — grouping tasks at the level people bill at, what
-  archiving does, and the per-project split in History.
+- [Tasks](tasks.md) — today's plan and the six days after it: create,
+  inline edit, drag to reorder, complete and abandon, the focus task the
+  timer counts on, the repeat rule, steps inside a task, and tags.
+- [Projects](projects.md) — grouping tasks at the level people bill at, an
+  hours target per week or month, what archiving does, and the per-project
+  split in History.
 - [Session notes](session-notes.md) — the one line you jot after a focus
   finishes, why it never interrupts the break, and where it shows up.
 - [Sessions before the long break](sessions-before-long-break.md) — how many
@@ -58,8 +59,8 @@ cover this one.
 - [Backgrounds](backgrounds.md) — the eight scenes and the backdrop every
   member screen draws behind its content.
 - [Focus history](history.md) — the four-range report: the week review,
-  stats, heatmap, the hour-of-day chart, trend, top tasks, sessions table and
-  CSV export.
+  stats, heatmap, the hour-of-day chart, trend, top tasks, project targets,
+  the sessions table with its tag filter, and CSV export.
 - [Achievements](achievements.md) — the ten badges, the panel above the
   focus report with each locked badge's progress, and why a badge can only
   ever be awarded once.

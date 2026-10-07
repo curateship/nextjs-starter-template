@@ -9,6 +9,8 @@ import {
   loadWeekReview,
 } from "@/server/pomodoro/focus-report"
 import { loadOrCreateProfile } from "@/server/pomodoro/profile"
+import { loadProjectTargetProgress } from "@/server/pomodoro/projects"
+import { listAllTags } from "@/server/pomodoro/task-tags"
 import { localDateFor } from "@/server/pomodoro/productivity"
 import { isLongRangeReport, reportRanges } from "@/lib/pomodoro/focus-history"
 import {
@@ -29,6 +31,8 @@ const historySchema = z.object({
   range: z.enum(reportRanges),
   page: z.number().int().min(0).max(1_000).default(0),
   timezone: z.string().min(1).max(60),
+  // Narrows the sessions table to sessions whose task carried this tag.
+  tagId: z.string().uuid().nullable().default(null),
 })
 
 async function reportContext(userId: string, browserTimezone: string) {
@@ -53,14 +57,19 @@ const loadFocusHistoryFn = createServerFn({ method: "GET" })
     )
     if (isLongRangeReport(data.range) && !longRangeUnlocked)
       throw new Error("PRO_REQUIRED")
-    const report = await loadFocusReport(
-      context.user.id,
-      data.range,
-      today,
-      timezone,
-      data.page
-    )
-    return { ...report, longRangeUnlocked }
+    const [report, tags, projectTargets] = await Promise.all([
+      loadFocusReport(
+        context.user.id,
+        data.range,
+        today,
+        timezone,
+        data.page,
+        data.tagId
+      ),
+      listAllTags(context.user.id),
+      loadProjectTargetProgress(context.user.id, today, timezone),
+    ])
+    return { ...report, tags, projectTargets, longRangeUnlocked }
   })
 
 const exportFocusHistoryFn = createServerFn({ method: "GET" })
@@ -77,7 +86,8 @@ const exportFocusHistoryFn = createServerFn({ method: "GET" })
       context.user.id,
       data.range,
       today,
-      timezone
+      timezone,
+      data.tagId
     )
     return {
       fileName: focusHistoryFileName(data.range, report.startDate, report.endDate),
@@ -101,11 +111,12 @@ const loadWeekReviewFn = createServerFn({ method: "GET" })
     )
   })
 
-export const loadFocusHistory = (data: z.infer<typeof historySchema>) =>
+export const loadFocusHistory = (data: z.input<typeof historySchema>) =>
   loadFocusHistoryFn({ data })
 export const exportFocusHistory = (data: {
   range: z.infer<typeof historySchema>["range"]
   timezone: string
+  tagId: string | null
 }) => exportFocusHistoryFn({ data })
 export const loadFocusWeekReview = (timezone: string) =>
   loadWeekReviewFn({ data: { timezone } })

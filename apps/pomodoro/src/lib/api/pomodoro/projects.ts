@@ -9,6 +9,10 @@ import {
   setProjectArchived as setProjectArchivedRow,
   setProjectPublic as setProjectPublicRow,
 } from "@/server/pomodoro/projects"
+import {
+  TARGET_HOURS_MAX,
+  targetPeriods,
+} from "@/lib/pomodoro/project-targets"
 
 /**
  * The project endpoints. Every one is guarded — reads with `userGet`, changes
@@ -19,6 +23,14 @@ import {
 
 const projectNameSchema = z.string().trim().min(1).max(60)
 const projectIdSchema = z.object({ projectId: z.string().uuid() })
+// Hours and period travel together, so the server never sees one without the
+// other. Null clears the target.
+const projectTargetSchema = z
+  .object({
+    hours: z.number().int().min(1).max(TARGET_HOURS_MAX),
+    period: z.enum(targetPeriods),
+  })
+  .nullable()
 
 const listProjectsFn = createServerFn({ method: "GET" })
   .middleware([userGet])
@@ -33,9 +45,14 @@ const createProjectFn = createServerFn({ method: "POST" })
 
 const renameProjectFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .inputValidator(projectIdSchema.extend({ name: projectNameSchema }))
+  .inputValidator(
+    projectIdSchema.extend({
+      name: projectNameSchema,
+      target: projectTargetSchema.optional(),
+    })
+  )
   .handler(async ({ data, context }) =>
-    renameProjectRow(context.user.id, data.projectId, data.name)
+    renameProjectRow(context.user.id, data.projectId, data.name, data.target)
   )
 
 const archiveProjectFn = createServerFn({ method: "POST" })
@@ -54,8 +71,11 @@ const projectPublicFn = createServerFn({ method: "POST" })
 
 export const listProjects = () => listProjectsFn()
 export const createProject = (name: string) => createProjectFn({ data: { name } })
-export const renameProject = (projectId: string, name: string) =>
-  renameProjectFn({ data: { projectId, name } })
+export const renameProject = (
+  projectId: string,
+  name: string,
+  target?: z.infer<typeof projectTargetSchema>
+) => renameProjectFn({ data: { projectId, name, target } })
 export const setProjectArchived = (projectId: string, archived: boolean) =>
   archiveProjectFn({ data: { projectId, archived } })
 export const setProjectPublic = (projectId: string, isPublic: boolean) =>

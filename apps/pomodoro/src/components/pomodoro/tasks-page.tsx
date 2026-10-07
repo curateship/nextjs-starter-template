@@ -1,3 +1,6 @@
+import * as React from "react"
+
+import { PlannedDayList } from "@/components/pomodoro/planned-day-list"
 import { ProjectsCard } from "@/components/pomodoro/projects-card"
 import {
   NewTaskForm,
@@ -6,7 +9,25 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { InlineError } from "@/components/ui/inline-error"
 import { LoadingRow } from "@/components/ui/loading-row"
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Tabs, TabsCount, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useProductAuth } from "@/lib/pomodoro/auth-state"
+import { planningDays } from "@/lib/pomodoro/plan-ahead"
 import { usePomodoro } from "@/lib/pomodoro/use-pomodoro"
+
+const ALL_TAGS = "all"
+
+/** A local date at noon, so no timezone can move it onto the day before. */
+function noonOf(date: string) {
+  return new Date(`${date}T12:00:00`)
+}
 
 const archiveStatusLabels: Record<string, string> = {
   completed: "Completed",
@@ -22,7 +43,34 @@ const archiveStatusLabels: Record<string, string> = {
  */
 export function TasksPage() {
   const pomodoro = usePomodoro()
+  const { authenticated } = useProductAuth()
+  const [chosenDay, setChosenDay] = React.useState<string | null>(null)
+  const [chosenTag, setChosenTag] = React.useState(ALL_TAGS)
   const completed = pomodoro.tasks.filter((task) => task.completed).length
+
+  // Planning ahead needs the server's today, so a guest, who has none, sees
+  // today's list only. A day chosen before midnight that has since become
+  // today or the past falls back to today on its own.
+  const days =
+    authenticated && pomodoro.today ? planningDays(pomodoro.today) : []
+  const today = days[0] ?? null
+  const day = chosenDay && days.includes(chosenDay) ? chosenDay : today
+  const viewingToday = !day || day === today
+  const dayName = day
+    ? noonOf(day).toLocaleDateString(undefined, { weekday: "long" })
+    : ""
+  const plannedCount = (date: string) =>
+    pomodoro.plannedDays.find((entry) => entry.plannedDate === date)?.count ?? 0
+
+  // The tags worth filtering by: the picker's, plus any on today's tasks.
+  const tagOptions = [
+    ...new Set([
+      ...pomodoro.tagNames,
+      ...pomodoro.tasks.flatMap((task) => task.tags),
+    ]),
+  ].sort()
+  const tagFilter =
+    chosenTag !== ALL_TAGS && tagOptions.includes(chosenTag) ? chosenTag : null
   const archiveItems = pomodoro.archive.map((task) => ({
     ...task,
     dateLabel: new Date(`${task.plannedDate}T12:00:00`).toLocaleDateString(
@@ -43,22 +91,103 @@ export function TasksPage() {
         <header>
           <h2 className="text-2xl font-bold tracking-tight">Tasks</h2>
           <p className="text-sm text-muted-foreground">
-            What you’re focusing on today.
+            {days.length
+              ? "What you’re focusing on today, and the six days after it."
+              : "What you’re focusing on today."}
           </p>
         </header>
         {pomodoro.syncError ? (
           <InlineError>{pomodoro.syncError}</InlineError>
         ) : null}
+        {days.length || tagOptions.length ? (
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            {days.length ? (
+              <ScrollArea className="max-w-full">
+                <Tabs value={day ?? undefined} onValueChange={setChosenDay}>
+                  <TabsList aria-label="Day to plan">
+                    {days.map((date, index) => {
+                      const count = index ? plannedCount(date) : 0
+                      const longName = noonOf(date).toLocaleDateString(
+                        undefined,
+                        { weekday: "long", month: "long", day: "numeric" }
+                      )
+                      return (
+                        <TabsTrigger
+                          key={date}
+                          value={date}
+                          className="px-2.5"
+                          aria-label={
+                            index
+                              ? `${longName}, ${count} ${count === 1 ? "task" : "tasks"} planned`
+                              : `Today, ${longName}`
+                          }
+                        >
+                          {index
+                            ? noonOf(date).toLocaleDateString(undefined, {
+                                weekday: "short",
+                              })
+                            : "Today"}
+                          {count ? <TabsCount>{count}</TabsCount> : null}
+                        </TabsTrigger>
+                      )
+                    })}
+                  </TabsList>
+                </Tabs>
+                <ScrollBar orientation="horizontal" />
+              </ScrollArea>
+            ) : null}
+            {tagOptions.length ? (
+              <Select
+                value={tagFilter ?? ALL_TAGS}
+                onValueChange={setChosenTag}
+              >
+                <SelectTrigger
+                  size="default"
+                  className="text-xs"
+                  aria-label="Show tasks with this tag"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_TAGS}>All tags</SelectItem>
+                  {tagOptions.map((tag) => (
+                    <SelectItem key={tag} value={tag}>
+                      #{tag}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : null}
+          </div>
+        ) : null}
         <Card>
           <CardHeader className="flex-row items-center justify-between">
-            <CardTitle>Today</CardTitle>
-            <span className="text-xs text-muted-foreground">
-              {completed} / {pomodoro.tasks.length} done
-            </span>
+            <CardTitle>{viewingToday ? "Today" : dayName}</CardTitle>
+            {viewingToday ? (
+              <span className="text-xs text-muted-foreground">
+                {completed} / {pomodoro.tasks.length} done
+              </span>
+            ) : (
+              <span className="text-xs text-muted-foreground">
+                {day ? plannedCount(day) : 0} planned
+              </span>
+            )}
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
-            <TodayTaskList pomodoro={pomodoro} />
-            <NewTaskForm pomodoro={pomodoro} />
+            {viewingToday || !day ? (
+              <>
+                <TodayTaskList pomodoro={pomodoro} tagFilter={tagFilter} />
+                <NewTaskForm onAdd={pomodoro.addTask} />
+              </>
+            ) : (
+              <PlannedDayList
+                key={day}
+                plannedDate={day}
+                dayName={dayName}
+                pomodoro={pomodoro}
+                tagFilter={tagFilter}
+              />
+            )}
           </CardContent>
         </Card>
 

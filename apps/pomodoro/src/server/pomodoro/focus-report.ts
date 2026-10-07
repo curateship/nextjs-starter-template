@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, lt, lte, sql } from "drizzle-orm"
+import { and, desc, eq, exists, gte, lt, lte, sql } from "drizzle-orm"
 
 import { db } from "@/server/db"
 import {
@@ -12,6 +12,8 @@ import {
   dailyFocusStats,
   focusSessions,
   pomodoroProjects,
+  pomodoroTags,
+  pomodoroTaskTags,
   tasks,
 } from "@/server/pomodoro/schema"
 
@@ -57,6 +59,27 @@ export function completedFocusWithin(userId: string, startsAt: Date, endsBefore:
   )
 }
 
+/**
+ * Only the sessions whose task carries this tag. The tag has to be the same
+ * person's, so a tag id from another account matches nothing rather than
+ * leaking whether it exists.
+ */
+function taggedWith(userId: string, tagId: string) {
+  return exists(
+    db
+      .select({ taskId: pomodoroTaskTags.taskId })
+      .from(pomodoroTaskTags)
+      .innerJoin(pomodoroTags, eq(pomodoroTags.id, pomodoroTaskTags.tagId))
+      .where(
+        and(
+          eq(pomodoroTaskTags.taskId, focusSessions.taskId),
+          eq(pomodoroTaskTags.tagId, tagId),
+          eq(pomodoroTags.userId, userId)
+        )
+      )
+  )
+}
+
 function reportWindow(range: ReportRange, todayLocalDate: string, timezone: string) {
   const { startDate, endDate } = resolveReportRange(range, todayLocalDate)
   return {
@@ -79,9 +102,16 @@ function fillHours(rows: readonly { hour: number; sessions: number; focusSeconds
   return Array.from({ length: HOURS_IN_DAY }, (_, hour) => byHour.get(hour) ?? { hour, sessions: 0, focusSeconds: 0 })
 }
 
-export async function loadFocusReport(userId: string, range: ReportRange, todayLocalDate: string, timezone: string, page = 0) {
+/**
+ * The report for one range. `tagId` narrows the sessions table, its count and
+ * the tagged total to sessions whose task carries that tag. The stats, chart
+ * and splits above it stay whole, because they are read from the per-day
+ * totals, which know nothing of tags.
+ */
+export async function loadFocusReport(userId: string, range: ReportRange, todayLocalDate: string, timezone: string, page = 0, tagId: string | null = null) {
   const { startDate, endDate, startsAt, endsBefore } = reportWindow(range, todayLocalDate, timezone)
   const filter = completedFocusWithin(userId, startsAt, endsBefore)
+  const sessionFilter = tagId ? and(filter, taggedWith(userId, tagId)) : filter
   const offset = Math.max(0, page) * REPORT_SESSION_PAGE_SIZE
 
   const [days, topTasks, topProjects, hourRows, sessionRows, [sessionCount]] = await Promise.all([
@@ -128,11 +158,11 @@ export async function loadFocusReport(userId: string, range: ReportRange, todayL
       .select({ id: focusSessions.id, completedAt: focusSessions.completedAt, plannedSeconds: focusSessions.plannedSeconds, accumulatedSeconds: focusSessions.accumulatedSeconds, taskTitle: tasks.title, note: focusSessions.note })
       .from(focusSessions)
       .leftJoin(tasks, eq(tasks.id, focusSessions.taskId))
-      .where(filter)
+      .where(sessionFilter)
       .orderBy(desc(focusSessions.completedAt), desc(focusSessions.id))
       .limit(REPORT_SESSION_PAGE_SIZE)
       .offset(offset),
-    db.select({ value: sql<number>`count(*)::int` }).from(focusSessions).where(filter),
+    db.select({ value: sql<number>`count(*)::int`, focusSeconds: sql<number>`coalesce(sum(${focusSessions.accumulatedSeconds}), 0)::int` }).from(focusSessions).where(sessionFilter),
   ])
 
   const totals = { focusSeconds: 0, focusSessions: 0, tasksCompleted: 0, activeDays: 0 }
@@ -160,19 +190,21 @@ export async function loadFocusReport(userId: string, range: ReportRange, todayL
       page,
       pageSize: REPORT_SESSION_PAGE_SIZE,
       totalRows: sessionCount.value,
+      totalSeconds: sessionCount.focusSeconds,
+      tagId,
     },
   }
 }
 
 // The full (still range-bounded) session list backing CSV export, oldest
 // first so the spreadsheet reads chronologically.
-export async function loadFocusReportSessions(userId: string, range: ReportRange, todayLocalDate: string, timezone: string) {
+export async function loadFocusReportSessions(userId: string, range: ReportRange, todayLocalDate: string, timezone: string, tagId: string | null = null) {
   const { startDate, endDate, startsAt, endsBefore } = reportWindow(range, todayLocalDate, timezone)
   const rows = await db
     .select({ completedAt: focusSessions.completedAt, plannedSeconds: focusSessions.plannedSeconds, accumulatedSeconds: focusSessions.accumulatedSeconds, taskTitle: tasks.title, note: focusSessions.note })
     .from(focusSessions)
     .leftJoin(tasks, eq(tasks.id, focusSessions.taskId))
-    .where(completedFocusWithin(userId, startsAt, endsBefore))
+    .where(tagId ? and(completedFocusWithin(userId, startsAt, endsBefore), taggedWith(userId, tagId)) : completedFocusWithin(userId, startsAt, endsBefore))
     .orderBy(focusSessions.completedAt, focusSessions.id)
     .limit(REPORT_EXPORT_ROW_LIMIT)
   return {

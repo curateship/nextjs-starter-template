@@ -1,7 +1,18 @@
-import { and, eq, isNull, lt, sql } from "drizzle-orm"
+import { and, between, eq, gt, isNull, lt, lte, sql } from "drizzle-orm"
 
+import { shiftLocalDate } from "@/lib/pomodoro/focus-history"
+import { PLAN_AHEAD_DAYS } from "@/lib/pomodoro/plan-ahead"
 import { repeatsOnLocalDate } from "@/lib/pomodoro/task-repeats"
 import { db } from "@/server/db"
+import {
+  copyTaskSteps,
+  listStepsForTasks,
+} from "@/server/pomodoro/task-steps"
+import {
+  copyTaskTags,
+  listTagsForTasks,
+  previousRepeatCopy,
+} from "@/server/pomodoro/task-tags"
 import {
   dailyFocusStats,
   pomodoroProjects,
@@ -31,6 +42,12 @@ import {
  * (repeat_id, planned_date), so two tabs loading the day at the same moment
  * still end up with one copy.
  *
+ * A day can already hold tasks planned for it ahead of time. Those are never
+ * copied or touched, because only earlier days are read. The carried tasks
+ * land under them, so the plan made on purpose stays at the top. A carried
+ * copy brings its steps, ticks included, and its tags. A repeat rule's copy
+ * starts with no steps and wears the tags of the rule's last copy.
+ *
  * No scheduled job: this runs whenever the app loads the day's data, exactly
  * like the old app.
  */
@@ -46,6 +63,16 @@ export async function rollOverTasks(userId: string, today: string) {
           lt(tasks.plannedDate, today)
         )
       )
+    // Zero when nothing was planned ahead for today, which leaves every
+    // carried task's order exactly as it was.
+    const [{ plannedOrder }] = previous.length
+      ? await tx
+          .select({
+            plannedOrder: sql<number>`coalesce(max(${tasks.sortOrder}), 0)::int`,
+          })
+          .from(tasks)
+          .where(and(eq(tasks.userId, userId), eq(tasks.plannedDate, today)))
+      : [{ plannedOrder: 0 }]
     for (const task of previous) {
       const [carried] = await tx
         .insert(tasks)
@@ -58,13 +85,17 @@ export async function rollOverTasks(userId: string, today: string) {
           estimatedPomodoros: task.estimatedPomodoros,
           projectId: task.projectId,
           repeatId: task.repeatId,
-          sortOrder: task.sortOrder,
+          sortOrder: plannedOrder + task.sortOrder,
         })
         // Today may already hold this rule's copy, made by a tab that loaded
         // the day a moment earlier. The old task still becomes carried; it
         // just points at the copy that is already there.
         .onConflictDoNothing()
         .returning({ id: tasks.id })
+      if (carried) {
+        await copyTaskSteps(tx, task.id, carried.id)
+        await copyTaskTags(tx, task.id, carried.id)
+      }
       const carriedToTaskId = carried?.id ?? (await existingRepeatCopy(tx, task.repeatId, today))
       await tx
         .update(tasks)
@@ -97,7 +128,10 @@ export async function rollOverTasks(userId: string, today: string) {
         })
         .onConflictDoNothing()
         .returning({ id: tasks.id })
-      if (made) created += 1
+      if (!made) continue
+      created += 1
+      const lastCopy = await previousRepeatCopy(tx, rule.id, today)
+      if (lastCopy) await copyTaskTags(tx, lastCopy, made.id)
     }
     return { carried: previous.length, created }
   })
@@ -127,9 +161,9 @@ export type TaskPlanChanges = {
 }
 
 /**
- * Edits today's copy of a task. When the task repeats, the same edit is
- * written to its rule, so tomorrow's copy is the task you just changed rather
- * than the one you typed weeks ago.
+ * Edits an active task on today or a day planned ahead. When the task
+ * repeats, the same edit is written to its rule, so tomorrow's copy is the
+ * task you just changed rather than the one you typed weeks ago.
  */
 export async function updateTaskPlan(
   userId: string,
@@ -153,7 +187,11 @@ export async function updateTaskPlan(
           eq(tasks.id, taskId),
           eq(tasks.userId, userId),
           eq(tasks.status, "active"),
-          eq(tasks.plannedDate, today)
+          between(
+            tasks.plannedDate,
+            today,
+            shiftLocalDate(today, PLAN_AHEAD_DAYS)
+          )
         )
       )
       .returning()
@@ -266,7 +304,29 @@ export async function setTaskRepeat(
   })
 }
 
-/** Today's tasks with the weekday set of the rule behind each, when there is one. */
+/**
+ * How many active tasks each of the next six days holds, for the count on the
+ * day strip. Days with nothing planned are left out.
+ */
+export function countPlannedDays(userId: string, today: string) {
+  return db
+    .select({
+      plannedDate: tasks.plannedDate,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(tasks)
+    .where(
+      and(
+        eq(tasks.userId, userId),
+        eq(tasks.status, "active"),
+        gt(tasks.plannedDate, today),
+        lte(tasks.plannedDate, shiftLocalDate(today, PLAN_AHEAD_DAYS))
+      )
+    )
+    .groupBy(tasks.plannedDate)
+}
+
+/** One day's tasks with the weekday set of the rule behind each, when there is one. */
 export function listTasksForDay(userId: string, localDate: string) {
   return db
     .select({
@@ -324,7 +384,11 @@ export async function reorderTodayTasks(
   })
 }
 
-/** Complete or reopen, keeping the day's tasks-completed count in step. */
+/**
+ * Complete or reopen, keeping the day's tasks-completed count in step. A task
+ * planned for a later day is refused: it has not happened yet, and ticking it
+ * would add to today's count.
+ */
 export async function toggleTaskStatus(
   userId: string,
   taskId: string,
@@ -334,7 +398,13 @@ export async function toggleTaskStatus(
     const [task] = await tx
       .select()
       .from(tasks)
-      .where(and(eq(tasks.id, taskId), eq(tasks.userId, userId)))
+      .where(
+        and(
+          eq(tasks.id, taskId),
+          eq(tasks.userId, userId),
+          lte(tasks.plannedDate, today)
+        )
+      )
       .limit(1)
     if (!task || !["active", "completed"].includes(task.status))
       throw new Error("TASK_NOT_FOUND")
@@ -375,4 +445,28 @@ export async function toggleTaskStatus(
     }
     return updated
   })
+}
+
+type DayRow = Awaited<ReturnType<typeof listTasksForDay>>[number]
+
+/**
+ * A day's rows as the screen reads them: one object per task, with the rule's
+ * days, the project's name, its steps and its tags on it. Steps and tags are
+ * two reads for the whole day, never one per task.
+ */
+export async function withTaskDetails(rows: DayRow[]) {
+  const ids = rows.map((row) => row.task.id)
+  const [steps, tags] = await Promise.all([
+    listStepsForTasks(ids),
+    listTagsForTasks(ids),
+  ])
+  return rows.map((row) => ({
+    ...row.task,
+    repeatWeekdays: row.repeatWeekdays,
+    projectName: row.projectName,
+    steps: steps
+      .filter((step) => step.taskId === row.task.id)
+      .map(({ id, title, done }) => ({ id, title, done })),
+    tags: tags.filter((tag) => tag.taskId === row.task.id).map((tag) => tag.name),
+  }))
 }
