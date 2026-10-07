@@ -276,6 +276,25 @@ export function RoomsPage() {
     }
   }, [activeRoomSlug, announceRoomEnd, applySnapshot, pageVisible, refreshRooms])
 
+  // The open and booked lists are of live things, so they are read again
+  // every minute while this tab is on screen, and once on coming back to it.
+  // These reads are quiet: a failure keeps the rows already showing instead
+  // of putting up a toast every minute.
+  const refreshListsQuietly = React.useCallback(() => {
+    if (!authenticated) return
+    void listRooms().then(setRoomRows, () => {})
+    void listUpcoming().then(setUpcoming, () => {})
+  }, [authenticated])
+  const wasVisibleRef = React.useRef(pageVisible)
+  React.useEffect(() => {
+    const cameBack = pageVisible && !wasVisibleRef.current
+    wasVisibleRef.current = pageVisible
+    if (!pageVisible) return
+    if (cameBack) refreshListsQuietly()
+    const interval = window.setInterval(refreshListsQuietly, 60_000)
+    return () => window.clearInterval(interval)
+  }, [pageVisible, refreshListsQuietly])
+
   const performJoin = async (slug: string) => {
     if (joiningRef.current) return
     joiningRef.current = slug

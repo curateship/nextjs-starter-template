@@ -34,7 +34,7 @@ type SortColumn = FocusSortColumn
 // operator lists put it.
 const COLUMNS: TableHeaderColumn<SortColumn>[] = [
   { key: "name", label: "Member", column: "main" },
-  { key: "sessions", label: "Focus runs", column: "meta" },
+  { key: "sessions", label: "Sessions", column: "meta" },
   { key: "focus", label: "Focus time", column: "meta" },
   { key: "tasks", label: "Tasks done", column: "meta" },
   {

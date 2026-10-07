@@ -3,7 +3,7 @@
 Today's plan and the six days after it, at `/tasks`, and today's plan in the
 Tasks card on `/timer`. A task has a title, a Low/Normal/High priority, an
 optional estimate of 1 to 20 sessions, a done count shown as
-`done/estimate pomos`, an optional repeat rule, an optional project
+`done/estimate sessions` ("2/4 sessions"), an optional repeat rule, an optional project
 ([Projects](projects.md)), up to ten steps and up to three tags.
 
 ## How it behaves
@@ -224,7 +224,16 @@ itself; there is no scheduled job).
   rule's last copy.
 
 The archive section under Today groups past days newest first, with a badge per
-row: Completed (green), Carried over (orange) or Abandoned (grey).
+row: Completed (green) or Abandoned (grey).
+
+- **A carried task is listed once.** Its copy is in Today, or further up the
+  archive if it moved again, so the carried original is not drawn at all, and
+  the archive's count leaves it out. The focus it earned before it moved still
+  counts in History, which adds up sessions rather than this list. A run of
+  days that only held unfinished tasks says "Nothing was finished or abandoned
+  on these days. Unfinished tasks moved on to Today." Until 7 Oct 2026 these
+  rows showed as an orange "Carried over", so the same task sat in Today and
+  in the archive.
 
 - **It loads whole days, about 50 tasks at a time.** The page runs on to the end
   of the day the 50th task falls on, so a day is never cut in half

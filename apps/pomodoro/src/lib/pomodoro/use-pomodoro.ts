@@ -2,6 +2,7 @@ import * as React from "react"
 
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { announceAchievements } from "@/lib/pomodoro/achievement-toast"
+import { announceGoalReached } from "@/lib/pomodoro/goal-toast"
 import {
   abandonTask,
   cancelFocusSession,
@@ -571,6 +572,11 @@ function handleCompletion() {
     // A guest's finished focus counts locally: today's total and the
     // picked task's own count.
     const selected = resolveSelectedTaskId(current.tasks, current.selectedTaskId)
+    announceGoalReached(
+      current.todayFocusSessions,
+      current.todayFocusSessions + 1,
+      current.dailyGoalSessions
+    )
     setState({
       todayFocusSessions: current.todayFocusSessions + 1,
       tasks: selected
@@ -591,6 +597,12 @@ function handleCompletion() {
       .then((result) => {
         if (!result) return
         announceAchievements(result.newAchievements)
+        if (result.session.mode === "focus")
+          announceGoalReached(
+            current.todayFocusSessions,
+            result.summary.todayCompletedSessions,
+            result.summary.dailyGoalSessions
+          )
         const updatedTask = result.task
         setState({
           // Offered only once the server has agreed the session is complete,

@@ -88,6 +88,18 @@ export function UpcomingRooms({
     return () => window.clearTimeout(timer)
   }, [soonest, onReachedStart])
 
+  // "in 20 minutes" is worked out at draw time, so the group draws itself
+  // again every minute or the wording would stop where the page opened.
+  const [, setMinuteTick] = React.useState(0)
+  React.useEffect(() => {
+    if (!rooms.length && !unbooked.length) return
+    const interval = window.setInterval(
+      () => setMinuteTick((tick) => tick + 1),
+      60_000
+    )
+    return () => window.clearInterval(interval)
+  }, [rooms.length, unbooked.length])
+
   if (!rooms.length && !unbooked.length) return null
 
   return (

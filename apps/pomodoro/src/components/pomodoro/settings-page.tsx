@@ -17,6 +17,7 @@ import {
   SETTINGS_TABS,
   type SettingsTab,
 } from "@/lib/pomodoro/settings-tabs"
+import { SignInButton } from "@/components/pomodoro/sign-in-button"
 
 /**
  * The product's Settings page, like the old app's, in five tabs: the focus
@@ -121,9 +122,12 @@ function SyncCard() {
           Everything here saves in this browser. Sign in to keep your focus
           history, join rooms and appear on the leaderboard.
         </p>
-        <Button asChild>
-          <Link to="/register">Create free account</Link>
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild>
+            <Link to="/register">Create free account</Link>
+          </Button>
+          <SignInButton size="default" />
+        </div>
       </CardContent>
     </Card>
   )

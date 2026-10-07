@@ -160,6 +160,16 @@ used to do. Zen mode still shows the name.
   the user's own timezone (`calculateFocusStreaks`, unit-tested in
   `src/server/pomodoro/productivity.test.ts`); yesterday's streak stays
   current until today ends without a focus.
+- **Reaching the goal is noticeable.** Once today's count meets the goal the
+  bar's fill turns to the success colour (`--p-success`) and "Goal reached"
+  turns from grey to bold, and a screen reader hears ", goal reached". The
+  words stay the text colour rather than green, because the light theme's
+  green is under 4.5:1 on white at that size. The focus that crosses the line
+  also puts up one toast, "Daily goal reached: 8 sessions today."
+  (`src/lib/pomodoro/goal-toast.ts`). Only a finished focus can raise it, so
+  a reload, another visit that day, or lowering the goal under today's count
+  stays quiet. No confetti and no extra sound, and the toast does not slide
+  for anyone who asked their system for less movement.
 - **When a focus finishes, a one-line note field appears** under the mode
   tabs, for what that session was for. It never takes keyboard focus and
   never touches the countdown, so a running break keeps running while it is on

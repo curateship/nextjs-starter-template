@@ -20,8 +20,9 @@ import { BADGES_CARD_ID } from "@/lib/pomodoro/achievement-toast"
 /**
  * The badges panel, above the focus report on /history.
  *
- * Earned badges carry the day they were earned; locked ones say what they
- * still take, which is the whole point of showing them. A locked badge is
+ * Every badge says what it is for. Earned ones add the day they were earned;
+ * locked ones show how far along they are, which is the whole point of
+ * showing them. A locked badge is
  * never hidden, so the next one is always visible and the ladder reads as a
  * ladder.
  *
@@ -120,12 +121,17 @@ export function AchievementsCard() {
                     >
                       {badge.name}
                     </span>
+                    {/* What it took stays once it is yours: it is the part
+                        people forget, and the date alone did not say it. */}
                     <small className="text-xs text-muted-foreground">
-                      {earnedAt
-                        ? `Earned ${formatLongDay(localDateIn(state.timezone, earnedAt))}`
-                        : badge.description}
+                      {badge.description}
                     </small>
-                    {earnedAt ? null : (
+                    {earnedAt ? (
+                      <small className="text-xs text-muted-foreground">
+                        Earned{" "}
+                        {formatLongDay(localDateIn(state.timezone, earnedAt))}
+                      </small>
+                    ) : (
                       <BadgeProgress badge={badge} counters={state.counters} />
                     )}
                   </div>

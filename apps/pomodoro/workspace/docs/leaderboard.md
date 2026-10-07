@@ -20,7 +20,8 @@ ranking.
   calendar month, All time is everything since 1 January 2025 (a floor, so the
   query is one indexed date rather than every row there has ever been). Each
   account's days are its own calendar days, anchored on the viewer's timezone.
-  Top 100 by focus time in every window.
+  Top 100 by focus time in every window. Equal times are ordered by account,
+  so the order does not shuffle between reloads.
 - **The browser sends a word, never a date.** One of `week`, `month` or `all`,
   and the server works the start date out (`leaderboardStartDate` in
   `src/lib/pomodoro/leaderboard-windows.ts`), so no caller can ask for a wider
@@ -56,6 +57,15 @@ global board, the Following board and every group board, because they share
 `leaderboard-rows.tsx`. The tint alone said nothing to a screen reader or with
 the colour ignored. The header's leaderboard popover adds "· you" after your
 name for the same reason.
+
+**Below the first hundred, your row still shows.** It sits under the list,
+past a divider, with your real place, so 150th reads "150", your name and your
+time. The place counts the listed people above you by the board's own order,
+leaving out anyone blocked either way, since the list leaves them out too.
+Only the global board does this: a group holds 50 at most, and the Following
+board never has you on it. The server sends the row as `you` beside
+`leaders`, from `readYourPlace` in `src/server/pomodoro/leaderboard.ts`, and
+sends nothing when you are in the hundred or not listed at all.
 
 ## When you are not on it
 

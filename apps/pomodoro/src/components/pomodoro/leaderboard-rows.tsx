@@ -36,7 +36,14 @@ function leaderName(leader: BoardLeader) {
  * the accent tint and says "You" after the name, so it can be found with the
  * colour ignored, and a screen reader hears it.
  */
-export function LeaderboardRows({ leaders }: { leaders: readonly BoardLeader[] }) {
+export function LeaderboardRows({
+  leaders,
+  firstPlace = 1,
+}: {
+  leaders: readonly BoardLeader[]
+  /** The place of the first row. Your own row below the list starts at yours. */
+  firstPlace?: number
+}) {
   return (
     <>
       {leaders.map((leader, index) => (
@@ -48,8 +55,8 @@ export function LeaderboardRows({ leaders }: { leaders: readonly BoardLeader[] }
               "border-primary/40 bg-primary/8"
           )}
         >
-          <strong className="w-5 text-center font-mono text-xs text-muted-foreground">
-            {index + 1}
+          <strong className="min-w-5 shrink-0 text-center font-mono text-xs text-muted-foreground">
+            {firstPlace + index}
           </strong>
           <InitialsAvatar name={leader.name ?? "?"} />
           {/* Initials stay on the boards; a photo belongs to the profile

@@ -8,6 +8,11 @@ the phases, and the server is the only clock.
 - **Browse** shows "Open to join" (waiting or on break) and "In session"
   (joins locked until the break). Public cards show member counts, never
   names — the old privacy rule after a real leak.
+- **The lists stay current on their own.** While the Rooms tab is on screen,
+  the open rooms and the booked ones are read again every minute, and once
+  more the moment you come back to the tab, so a room that has closed leaves
+  the page within a minute. These reads are quiet: one that fails keeps the
+  cards already showing and puts up no toast. A hidden tab reads nothing.
 - **A room card is the old app's card**, rebuilt from its values rather than
   its classes: a 108px gradient banner with a LIVE VIBE pill, a status dot
   and a monospace clock beside the name, the member count, and a row ending

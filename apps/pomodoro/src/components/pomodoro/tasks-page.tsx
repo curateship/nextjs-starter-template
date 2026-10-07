@@ -26,6 +26,7 @@ import { describeArchiveCount } from "@/lib/pomodoro/task-archive"
 import { usePomodoro, type ArchivedTask } from "@/lib/pomodoro/use-pomodoro"
 import { loadArchivePage } from "@/lib/api/pomodoro/productivity"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import { plural } from "@/lib/format/plural"
 
 const ALL_TAGS = "all"
 
@@ -36,7 +37,6 @@ function noonOf(date: string) {
 
 const archiveStatusLabels: Record<string, string> = {
   completed: "Completed",
-  carried: "Carried over",
   abandoned: "Abandoned",
 }
 
@@ -125,13 +125,18 @@ export function TasksPage() {
   const tagFilter =
     chosenTag !== ALL_TAGS && tagOptions.includes(chosenTag) ? chosenTag : null
   const archive = useOlderArchive(pomodoro.archive, pomodoro.archiveHasOlder)
-  const archiveItems = archive.tasks.map((task) => ({
-    ...task,
-    dateLabel: new Date(`${task.plannedDate}T12:00:00`).toLocaleDateString(
-      undefined,
-      { weekday: "short", month: "short", day: "numeric" }
-    ),
-  }))
+  // A carried row's copy is already in Today, or further on in the archive,
+  // so listing it as well showed one task twice. Its focus still counts in
+  // History, which reads the sessions, not this list.
+  const archiveItems = archive.tasks
+    .filter((task) => task.status !== "carried")
+    .map((task) => ({
+      ...task,
+      dateLabel: new Date(`${task.plannedDate}T12:00:00`).toLocaleDateString(
+        undefined,
+        { weekday: "short", month: "short", day: "numeric" }
+      ),
+    }))
   const archiveGroups = [
     ...archiveItems.reduce((groups, task) => {
       groups.set(task.plannedDate, [
@@ -220,10 +225,14 @@ export function TasksPage() {
         <Card>
           <CardHeader className="flex-row items-center justify-between">
             <CardTitle>{viewingToday ? "Today" : dayName}</CardTitle>
+            {/* "0 / 0 done" over an empty list counts nothing, so the count
+                waits for the first task. */}
             {viewingToday ? (
-              <span className="text-xs text-muted-foreground">
-                {completed} / {pomodoro.tasks.length} done
-              </span>
+              pomodoro.tasks.length ? (
+                <span className="text-xs text-muted-foreground">
+                  {completed} / {pomodoro.tasks.length} done
+                </span>
+              ) : null
             ) : (
               <span className="text-xs text-muted-foreground">
                 {day ? plannedCount(day) : 0} planned
@@ -253,16 +262,22 @@ export function TasksPage() {
         <section className="flex flex-col gap-3">
           <header className="flex items-baseline justify-between">
             <h2 className="text-lg font-bold tracking-tight">Archive</h2>
-            <span className="text-xs text-muted-foreground">
-              {describeArchiveCount(archiveItems.length, archive.hasOlder)}
-            </span>
+            {archiveItems.length ? (
+              <span className="text-xs text-muted-foreground">
+                {describeArchiveCount(archiveItems.length, archive.hasOlder)}
+              </span>
+            ) : null}
           </header>
           {pomodoro.loading && !archiveItems.length ? (
             <LoadingRow label="Loading past days…" className="py-4" />
           ) : null}
           {!pomodoro.loading && !pomodoro.loadFailed && !archiveItems.length ? (
             <p className="text-sm text-muted-foreground">
-              Past days will show up here once a task list rolls over.
+              {/* Past days that only held unfinished tasks: those moved on,
+                  so there is nothing of theirs left to list. */}
+              {archive.tasks.length
+                ? "Nothing was finished or abandoned on these days. Unfinished tasks moved on to Today."
+                : "Past days will show up here once a task list rolls over."}
             </p>
           ) : null}
           {archiveGroups.map(([date, tasks]) => (
@@ -277,16 +292,13 @@ export function TasksPage() {
                 >
                   <span className="flex-1 truncate text-sm">{task.title}</span>
                   <small className="font-mono text-[10px] text-muted-foreground">
-                    {task.pomodoroCount}{" "}
-                    {task.pomodoroCount === 1 ? "pomo" : "pomos"}
+                    {task.pomodoroCount} {plural(task.pomodoroCount, "session")}
                   </small>
                   <b
                     className={
                       task.status === "completed"
                         ? "text-xs font-semibold text-[var(--p-success)]"
-                        : task.status === "carried"
-                          ? "text-xs font-semibold text-[var(--p-accent-2)]"
-                          : "text-xs font-semibold text-muted-foreground"
+                        : "text-xs font-semibold text-muted-foreground"
                     }
                   >
                     {archiveStatusLabels[task.status] ?? task.status}

@@ -47,6 +47,7 @@ import {
 import { useSpaceToggle } from "@/lib/pomodoro/use-space-toggle"
 import { TextLink } from "@/components/pomodoro/text-link"
 import { plural } from "@/lib/format/plural"
+import { cn } from "@/lib/utils"
 
 const circumference = 2 * Math.PI * 132
 
@@ -334,12 +335,26 @@ export function TimerDashboard() {
               label="Today's daily goal"
               value={pomodoro.todayFocusSessions}
               max={pomodoro.dailyGoalSessions}
-              valueText={`${pomodoro.todayFocusSessions} of ${pomodoro.dailyGoalSessions} ${plural(pomodoro.dailyGoalSessions, "session")}`}
-              className="h-2 w-[120px]"
+              valueText={`${pomodoro.todayFocusSessions} of ${pomodoro.dailyGoalSessions} ${plural(pomodoro.dailyGoalSessions, "session")}${goalReached ? ", goal reached" : ""}`}
+              // The bar turns to the success colour once the goal is met, so
+              // the line under it is not the only sign. The colour is set on
+              // the fill, which the shared Meter draws as its one child.
+              className={cn(
+                "h-2 w-[120px]",
+                goalReached && "[&>div]:bg-[var(--p-success)]"
+              )}
             />
             <span className="font-mono text-xs text-muted-foreground">
               {pomodoro.todayFocusSessions} of {pomodoro.dailyGoalSessions}{" "}
-              {plural(pomodoro.dailyGoalSessions, "session")} completed today{goalReached ? " · Goal reached" : ""}
+              {plural(pomodoro.dailyGoalSessions, "session")} completed today
+              {goalReached ? (
+                // Darker than the grey line, not green: the light theme's
+                // green is under 4.5:1 on white at this size.
+                <span className="font-semibold text-foreground">
+                  {" "}
+                  · Goal reached
+                </span>
+              ) : null}
             </span>
             <DailyGoalEditor
               goal={pomodoro.dailyGoalSessions}
@@ -372,9 +387,12 @@ export function TimerDashboard() {
       <section className="mx-auto w-full max-w-[860px] overflow-hidden rounded-3xl border bg-[var(--p-surface)]">
         <header className="flex items-center gap-3 border-b px-6 py-[18px]">
           <strong className="text-base tracking-tight">Tasks</strong>
-          <span className="ml-auto font-mono text-xs text-muted-foreground">
-            {completedTasks} / {pomodoro.tasks.length} done
-          </span>
+          {/* Waits for the first task, the same as the Tasks page. */}
+          {pomodoro.tasks.length ? (
+            <span className="ml-auto font-mono text-xs text-muted-foreground">
+              {completedTasks} / {pomodoro.tasks.length} done
+            </span>
+          ) : null}
         </header>
         {/* The same list and the same add box as the Tasks page, without
             the drag handles: the day is planned there, and focused on here. */}

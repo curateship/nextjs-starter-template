@@ -4,6 +4,7 @@
  * active or completed, with its finished-focus count and optional estimate.
  */
 
+import { plural } from "@/lib/format/plural"
 import type { TaskStepItem } from "@/lib/pomodoro/task-steps"
 
 export type TaskPriority = "low" | "normal" | "high"
@@ -117,8 +118,8 @@ export function taskProgressLabel(
   task: Pick<TaskItem, "pomodoros" | "estimatedPomodoros">
 ) {
   if (task.estimatedPomodoros !== null)
-    return `${task.pomodoros}/${task.estimatedPomodoros} pomos`
-  return `${task.pomodoros} ${task.pomodoros === 1 ? "pomo" : "pomos"}`
+    return `${task.pomodoros}/${task.estimatedPomodoros} ${plural(task.estimatedPomodoros, "session")}`
+  return `${task.pomodoros} ${plural(task.pomodoros, "session")}`
 }
 
 export function toggleTask(tasks: TaskItem[], taskId: string) {

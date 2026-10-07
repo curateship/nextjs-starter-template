@@ -24,7 +24,9 @@ the link and the time, and the room opens itself with nobody's browser open.
   the same room card as the other two groups. Everyone sees the public
   bookings; a host also sees their own unlisted ones, with the invite tally,
   a copy-link button and a "Cancel booking" button. Times there are drawn on
-  the reader's own clock.
+  the reader's own clock. The "in 20 minutes" beside the name counts down,
+  redrawn every minute, and the list itself is read again every minute while
+  the tab is on screen (see [Focus rooms](rooms.md)).
 - **Cancel booking is drawn as destructive**, because it removes the
   booking, and reads "Cancelling…" with a spinner while it runs. Both buttons
   are the shared `Button`. The result is a toast that clears itself, still

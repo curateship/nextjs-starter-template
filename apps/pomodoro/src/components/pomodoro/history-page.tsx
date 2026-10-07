@@ -60,6 +60,7 @@ import { targetProgressLabel } from "@/lib/pomodoro/project-targets"
 import { browserTimezone } from "@/lib/pomodoro/timer"
 import { dismissErrorToast } from "@/lib/toast/error-toast"
 import { TextLink } from "@/components/pomodoro/text-link"
+import { SignInButton } from "@/components/pomodoro/sign-in-button"
 
 type FocusHistoryResult = Awaited<ReturnType<typeof loadFocusHistory>>
 type ReportDay = FocusHistoryResult["days"][number]
@@ -919,9 +920,7 @@ export function HistoryPage({
               is built from. Your reports are private. Only you can see them.
             </p>
             <div className="flex gap-2">
-              <Button asChild>
-                <Link to="/login">Sign in</Link>
-              </Button>
+              <SignInButton size="default" variant="default" />
               <Button asChild variant="outline">
                 <Link to="/register">Create free account</Link>
               </Button>

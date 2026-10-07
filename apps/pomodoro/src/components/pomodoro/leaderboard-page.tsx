@@ -1,8 +1,6 @@
 import * as React from "react"
-import { Link } from "@tanstack/react-router"
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
 
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ErrorRow } from "@/components/ui/error-row"
 import {
@@ -32,6 +30,7 @@ import { usePomodoro } from "@/lib/pomodoro/use-pomodoro"
 import { dismissErrorToast } from "@/lib/toast/error-toast"
 import { TextLink } from "@/components/pomodoro/text-link"
 import { plural } from "@/lib/format/plural"
+import { SignInButton } from "@/components/pomodoro/sign-in-button"
 
 type Leaderboard = Awaited<ReturnType<typeof loadLeaderboard>>
 type Productivity = Awaited<ReturnType<typeof loadProductivity>>
@@ -291,9 +290,7 @@ export function LeaderboardPage({
                 to see the ranking and take your place on it. Only chosen
                 display names ever show.
               </p>
-              <Button asChild size="sm">
-                <Link to="/login">Sign in</Link>
-              </Button>
+              <SignInButton variant="default" />
             </div>
           ) : error ? (
             <ErrorRow
@@ -320,7 +317,19 @@ export function LeaderboardPage({
               )}
             </p>
           ) : (
-            <LeaderboardRows leaders={board?.leaders ?? []} />
+            <>
+              <LeaderboardRows leaders={board?.leaders ?? []} />
+              {/* Below the first hundred, your own row still shows, apart
+                  from the list so the gap in places reads as a gap. */}
+              {board?.you ? (
+                <div className="mt-1 flex flex-col gap-2 border-t pt-3">
+                  <LeaderboardRows
+                    leaders={[board.you]}
+                    firstPlace={board.you.place}
+                  />
+                </div>
+              ) : null}
+            </>
           )}
         </CardContent>
       </Card>

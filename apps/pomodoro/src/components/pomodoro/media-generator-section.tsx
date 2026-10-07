@@ -29,6 +29,7 @@ import {
   requestGeneration,
   type GenerationPanel,
 } from "@/lib/api/pomodoro/generation"
+import { SignInButton } from "@/components/pomodoro/sign-in-button"
 
 /**
  * "Generate your own" — the prompt box, the suggestions and this month's
@@ -242,7 +243,10 @@ export function MediaGeneratorSection({
       ) : null}
 
       {blockedReason && !error ? (
-        <p className="text-sm text-muted-foreground">{blockedReason}</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-sm text-muted-foreground">{blockedReason}</p>
+          {known && !signedIn ? <SignInButton /> : null}
+        </div>
       ) : null}
       {notice ? (
         <p role="status" className="text-sm text-muted-foreground">

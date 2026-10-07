@@ -778,7 +778,7 @@ export function TaskEditForm({
             max={20}
             step={1}
             value={estimate}
-            placeholder="Pomos"
+            placeholder="Sessions"
             onChange={(event) => setEstimate(event.target.value)}
             aria-invalid={!estimateValid || undefined}
             className="w-20"

@@ -38,6 +38,7 @@ import {
   type UploadLibrary,
   type UploadProgress,
 } from "@/lib/api/pomodoro/media-uploads"
+import { SignInButton } from "@/components/pomodoro/sign-in-button"
 
 /**
  * A member's own backgrounds or sound loops, under the curated ones.
@@ -187,13 +188,16 @@ export function MediaUploadsSection({
       ) : null}
 
       {known && (library?.uploads.length ?? 0) === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          {!signedIn
-            ? "Sign in on a Pro plan to put your own here."
-            : locked
-              ? PRO_PERKS.uploadMedia.lockedReason
-              : "Nothing of your own yet."}
-        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-sm text-muted-foreground">
+            {!signedIn
+              ? "Sign in on a Pro plan to put your own here."
+              : locked
+                ? PRO_PERKS.uploadMedia.lockedReason
+                : "Nothing of your own yet."}
+          </p>
+          {!signedIn ? <SignInButton /> : null}
+        </div>
       ) : null}
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">

@@ -65,6 +65,7 @@ export function ProfileActions({
   const { known, authenticated } = useProductAuth()
   const [following, setFollowing] = React.useState<boolean | null>(null)
   const [busy, setBusy] = React.useState(false)
+  const [cheering, setCheering] = React.useState(false)
   const [reportOpen, setReportOpen] = React.useState(false)
   const [blockOpen, setBlockOpen] = React.useState(false)
 
@@ -107,14 +108,15 @@ export function ProfileActions({
   }
 
   const cheer = async (cheerId: string) => {
-    setBusy(true)
+    if (cheering) return
+    setCheering(true)
     try {
       await sendCheer(handle, cheerId)
       toast.success(`Sent to ${name}.`)
     } catch (cause) {
       showErrorToast(cheerErrorMessage(cause))
     } finally {
-      setBusy(false)
+      setCheering(false)
     }
   }
 
@@ -156,11 +158,23 @@ export function ProfileActions({
             </Button>
           )}
           {/* Cheers are only for people you follow, so the picker appears
-              with the follow rather than beside it. */}
+              with the follow rather than beside it. It is an action, not a
+              setting: the value is held empty, so it always shows its
+              placeholder and the same cheer can be picked twice in a row. */}
           {following ? (
-            <Select onValueChange={(value) => void cheer(value)}>
-              <SelectTrigger className="w-44" aria-label={`Cheer ${name} on`}>
-                <SelectValue placeholder="Send a cheer" />
+            <Select
+              value=""
+              disabled={cheering}
+              onValueChange={(value) => void cheer(value)}
+            >
+              <SelectTrigger
+                className="w-44"
+                aria-label={`Cheer ${name} on`}
+                aria-busy={cheering}
+              >
+                <SelectValue
+                  placeholder={cheering ? "Sending…" : "Send a cheer"}
+                />
               </SelectTrigger>
               <SelectContent>
                 {CHEERS.map((option) => (

@@ -76,11 +76,13 @@ the badge, so a badge recorded once is announced once. See
 
 ## The panel
 
-Earned badges carry the day they were earned and a filled orange disc. The
+Every badge shows the rule in plain words under its name, earned or not,
+because what it took is the part people forget. Earned badges add the day they
+were earned on a line of its own and a filled orange disc. The
 day is written "Earned Tue, Oct 6, 2026", the long form History uses, and it
 is the day in the account's timezone: the endpoint returns that timezone
 beside the badges so a browser elsewhere cannot shift it. Locked
-ones stay on screen with an empty ring, the rule in plain words, and how far
+ones stay on screen with an empty ring, the rule, and how far
 they have got: "62 of 100 sessions", "best so far: 4 of 7 days", "6h 20m of
 10h", with a small bar showing the same thing. The bar is the shared `Meter`
 and is read aloud as "Progress towards Ten sessions, 7 of 10 sessions"; the

@@ -24,7 +24,7 @@ pages work from a typed address before anyone does.
 ## Finding one member's focus data
 
 Focus data is the page an operator starts on. Each row is one account, with how
-many focus runs it has finished, how long that adds up to, how many tasks it
+many focus sessions it has finished, how long that adds up to, how many tasks it
 completed and the last day it focused. The timer button at the end of a row
 opens Focus sessions already filtered to that person, and the toolbar then says
 "Only <their name>" with a way to clear it.

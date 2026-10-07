@@ -89,6 +89,15 @@ function SessionNoteField({
           setNote(event.target.value)
           setConfirmed(false)
         }}
+        // Escape skips the note, the same as the X. Only from inside the box,
+        // and the key stops here, so it does not also leave Zen mode or close
+        // anything else that listens for it.
+        onKeyDown={(event) => {
+          if (event.key !== "Escape" || event.nativeEvent.isComposing) return
+          event.preventDefault()
+          event.stopPropagation()
+          onDismiss()
+        }}
         maxLength={SESSION_NOTE_MAX_LENGTH}
         placeholder="What did you do?"
         className="min-w-0 flex-1 border-0 bg-transparent py-1 text-[13.5px] text-foreground outline-none placeholder:text-muted-foreground"

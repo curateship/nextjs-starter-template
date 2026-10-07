@@ -40,7 +40,7 @@ const COLUMNS: TableHeaderColumn<SortColumn>[] = [
   { key: "person", label: "Member", column: "meta" },
   { key: "date", label: "Planned for", column: "meta" },
   { key: "status", label: "Status", column: "meta" },
-  { key: "pomodoros", label: "Runs", column: "meta" },
+  { key: "pomodoros", label: "Sessions", column: "meta" },
   {
     key: "created",
     label: "Added",

@@ -2,7 +2,10 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import { userGet } from "@/server/guards"
-import { readLeaderboardRows } from "@/server/pomodoro/leaderboard"
+import {
+  readLeaderboardRows,
+  readYourPlace,
+} from "@/server/pomodoro/leaderboard"
 import { readFocusedWith } from "@/server/pomodoro/rooms"
 import { loadOrCreateProfile } from "@/server/pomodoro/profile"
 import { localDateFor } from "@/server/pomodoro/productivity"
@@ -45,6 +48,18 @@ const loadLeaderboardFn = createServerFn({ method: "GET" })
     const profile = await loadOrCreateProfile(context.user.id, data.timezone)
     const today = localDateFor(profile.timezone)
     const start = leaderboardStartDate(data.window, today)
+    const leaders = await readLeaderboardRows({
+      start,
+      viewerUserId: context.user.id,
+      followedBy: data.following ? context.user.id : undefined,
+    })
+    // Most people are below the first hundred. When you are one of them, your
+    // own row comes back on its own with your real place, drawn under the
+    // list. Only the global board can leave you out this way.
+    const you =
+      !data.following && !leaders.some((leader) => leader.isYou)
+        ? await readYourPlace({ start, viewerUserId: context.user.id })
+        : null
     return {
       window: data.window,
       start,
@@ -58,11 +73,8 @@ const loadLeaderboardFn = createServerFn({ method: "GET" })
         : profile.publicDisplayName === null
           ? ("no-name" as const)
           : null,
-      leaders: await readLeaderboardRows({
-        start,
-        viewerUserId: context.user.id,
-        followedBy: data.following ? context.user.id : undefined,
-      }),
+      leaders,
+      you,
     }
   })
 

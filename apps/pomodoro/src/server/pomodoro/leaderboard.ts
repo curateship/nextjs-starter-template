@@ -1,4 +1,14 @@
-import { and, desc, eq, gte, inArray, isNotNull, sql } from "drizzle-orm"
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+  notInArray,
+  sql,
+} from "drizzle-orm"
 
 import { db } from "@/server/db"
 import { blockedUserIdsFor } from "@/server/pomodoro/blocks"
@@ -94,15 +104,43 @@ export async function readLeaderboardRows({
               .where(eq(pomodoroFollows.followerUserId, followedBy))
           )
         )
-      : and(
-          eq(pomodoroProfiles.leaderboardOptIn, true),
-          isNotNull(pomodoroProfiles.publicDisplayName)
-        )
+      : globalBoardRule()
 
   // One extra query for the whole board, not one per row.
   const blockedPromise = blockedUserIdsFor(viewerUserId)
 
-  const rows = await db
+  // Equal totals are ordered by account, so the order is the same on every
+  // read and `readYourPlace` numbers rows in exactly this order.
+  const rows = await boardTotals(start, whoIsListed)
+    .orderBy(
+      desc(sql`coalesce(sum(${dailyFocusStats.focusSeconds}), 0)`),
+      asc(pomodoroProfiles.userId)
+    )
+    .limit(BOARD_LIMIT)
+
+  // A blocked account appears on no board either of you reads. Filtered here
+  // rather than in SQL because the set is already in hand and the board is a
+  // hundred rows at most.
+  const blocked = await blockedPromise
+  return rows
+    .filter((row) => !blocked.has(row.userId))
+    .map(({ userId, ...leader }) => ({
+      ...leader,
+      isYou: userId === viewerUserId,
+    }))
+}
+
+/** Who the global board lists: opted in, with a display name to show. */
+function globalBoardRule() {
+  return and(
+    eq(pomodoroProfiles.leaderboardOptIn, true),
+    isNotNull(pomodoroProfiles.publicDisplayName)
+  )
+}
+
+/** Each listed account's totals from `start`, before ordering or a limit. */
+function boardTotals(start: string, whoIsListed: ReturnType<typeof and>) {
+  return db
     .select({
       userId: pomodoroProfiles.userId,
       name: pomodoroProfiles.publicDisplayName,
@@ -110,9 +148,15 @@ export async function readLeaderboardRows({
       // 404. A switched-off or hidden profile sends null and draws as text.
       handle: sql<string | null>`case
         when ${pomodoroProfiles.profilePublic} and ${pomodoroProfiles.hiddenAt} is null
-        then ${pomodoroProfiles.handle} end`,
-      focusSessions: sql<number>`coalesce(sum(${dailyFocusStats.focusSessions}), 0)::int`,
-      focusSeconds: sql<number>`coalesce(sum(${dailyFocusStats.focusSeconds}), 0)::int`,
+        then ${pomodoroProfiles.handle} end`.as("handle"),
+      focusSessions:
+        sql<number>`coalesce(sum(${dailyFocusStats.focusSessions}), 0)::int`.as(
+          "focus_sessions"
+        ),
+      focusSeconds:
+        sql<number>`coalesce(sum(${dailyFocusStats.focusSeconds}), 0)::int`.as(
+          "focus_seconds"
+        ),
     })
     .from(pomodoroProfiles)
     .leftJoin(
@@ -130,17 +174,56 @@ export async function readLeaderboardRows({
       pomodoroProfiles.profilePublic,
       pomodoroProfiles.hiddenAt
     )
-    .orderBy(desc(sql`coalesce(sum(${dailyFocusStats.focusSeconds}), 0)`))
-    .limit(BOARD_LIMIT)
+    .$dynamic()
+}
 
-  // A blocked account appears on no board either of you reads. Filtered here
-  // rather than in SQL because the set is already in hand and the board is a
-  // hundred rows at most.
-  const blocked = await blockedPromise
-  return rows
-    .filter((row) => !blocked.has(row.userId))
-    .map(({ userId, ...leader }) => ({
-      ...leader,
-      isYou: userId === viewerUserId,
-    }))
+/**
+ * Your own row on the global board when you are listed but below the first
+ * hundred, with your real place. Null when you are not listed at all, which
+ * the page explains separately.
+ *
+ * The place is your row's number in the board's own order, with anyone
+ * blocked either way left out, because the board you read leaves them out
+ * too. Only the global board needs this: a group holds 50 at most,
+ * and the Following board never has you on it.
+ */
+export async function readYourPlace({
+  start,
+  viewerUserId,
+}: {
+  start: string
+  viewerUserId: string
+}): Promise<(LeaderboardRow & { place: number }) | null> {
+  const blocked = [...(await blockedUserIdsFor(viewerUserId))]
+  const totals = boardTotals(
+    start,
+    and(
+      globalBoardRule(),
+      blocked.length
+        ? notInArray(pomodoroProfiles.userId, blocked)
+        : undefined
+    )
+  ).as("totals")
+  // Numbered by the board's own order, so the place matches the list's.
+  const numbered = db
+    .select({
+      userId: totals.userId,
+      name: totals.name,
+      handle: totals.handle,
+      focusSessions: totals.focusSessions,
+      focusSeconds: totals.focusSeconds,
+      place: sql<number>`row_number() over (
+        order by ${totals.focusSeconds} desc, ${totals.userId} asc)::int`.as(
+        "place"
+      ),
+    })
+    .from(totals)
+    .as("numbered")
+  const [you] = await db
+    .select()
+    .from(numbered)
+    .where(eq(numbered.userId, viewerUserId))
+  if (!you) return null
+  const { userId: _userId, ...row } = you
+  return { ...row, isYou: true }
 }

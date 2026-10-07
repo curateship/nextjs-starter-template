@@ -19,7 +19,10 @@ started and a prompt that interrupts a break is worse than no prompt:
   a running break running. With auto-start on, the break ticks down the whole
   time the field is on screen.
 - **Skipping is a button, not a decision.** The cross puts the prompt away and
-  writes nothing.
+  writes nothing. Escape does the same while you are typing in the box, as it
+  closes things everywhere else in the app. It only counts from inside the
+  box, and it stops there, so Escape anywhere else on the page does what it
+  always did.
 - **Ignoring it entirely works too.** The prompt clears itself when the next
   focus starts, which is the moment the last one stops being the thing you are
   writing about. It deliberately does not clear when the break starts, because

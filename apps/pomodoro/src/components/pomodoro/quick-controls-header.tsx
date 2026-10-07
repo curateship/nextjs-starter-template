@@ -56,6 +56,8 @@ import { browserTimezone, type TimerMode } from "@/lib/pomodoro/timer"
 import { usePomodoro } from "@/lib/pomodoro/use-pomodoro"
 import { useSoundPlayer } from "@/lib/pomodoro/use-sound-player"
 import { TextLink } from "@/components/pomodoro/text-link"
+import { SignInButton } from "@/components/pomodoro/sign-in-button"
+import { plural } from "@/lib/format/plural"
 
 const modeLabels: Array<[TimerMode, string]> = [
   ["focus", "Focus"],
@@ -489,9 +491,12 @@ function LeaderboardQuickControl() {
           </span>
         </div>
         {!authenticated ? (
-          <p className="text-[11.5px] leading-relaxed text-muted-foreground">
-            Sign in to see this week's ranking.
-          </p>
+          <div className="flex flex-col items-start gap-2">
+            <p className="text-[11.5px] leading-relaxed text-muted-foreground">
+              Sign in to see this week's ranking.
+            </p>
+            <SignInButton />
+          </div>
         ) : failed ? (
           <p className="text-[11.5px] leading-relaxed text-muted-foreground">
             The leaderboard could not be loaded. Open it again to retry.
@@ -541,7 +546,7 @@ function LeaderboardQuickControl() {
                 ) : null}
               </strong>
               <b className="shrink-0 font-mono text-xs font-normal text-[var(--p-accent-2)]">
-                {leader.focusSessions} 🍅
+                {leader.focusSessions} {plural(leader.focusSessions, "session")}
               </b>
             </div>
           ))

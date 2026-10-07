@@ -80,6 +80,11 @@ room. See [Notifications](notifications.md).
 
 A short line sent to somebody you follow, chosen from five.
 
+- **The picker is a button, not a setting.** It always reads "Send a cheer",
+  so the same line can be sent twice in a row. While one is on its way it
+  reads "Sending…" and cannot be opened, so a fast second pick never sends
+  twice.
+
 - **Nothing is typed.** That is the design, not a limitation: a canned line
   has nothing to moderate, cannot carry a link or an insult, and is the reason
   this needs no report queue of its own.
