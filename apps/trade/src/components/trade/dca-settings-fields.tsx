@@ -170,6 +170,18 @@ export function DcaSettingsFields({
               </Button>
             </div>
           ))}
+          {plannedRungs.length > 0 ? (
+            // Lined up under the rung dollars: every rung buying spends this.
+            <div data-dca-ladder-total className="flex items-center gap-2">
+              <span className="w-4" />
+              <span className="w-24 text-xs font-medium">Total</span>
+              <span className="min-w-0 flex-1 truncate text-xs font-medium tabular-nums">
+                {formatUsd(
+                  plannedRungs.reduce((sum, rung) => sum + rung.dollars, 0)
+                )}
+              </span>
+            </div>
+          ) : null}
           <Button
             type="button"
             variant="outline"

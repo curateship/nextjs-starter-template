@@ -323,6 +323,77 @@ describe("DCA chart ladders", () => {
     expect(line.querySelector("span")!.title).toContain("+$25.00")
   })
 
+  it("draws the average exit where it lands if every rung buys", async () => {
+    await act(async () =>
+      root.render(
+        <SmartLadderLayer
+          surface={surface}
+          colors={colors}
+          marketKey="market"
+          ladders={[]}
+          preview={{
+            anchorPx: 110,
+            rungs: [
+              { px: 100, dollars: 250 },
+              { px: 50, dollars: 250 },
+            ],
+            averageExitPct: 10,
+            onMove: vi.fn(),
+            onResize: vi.fn(),
+          }}
+          tool={null}
+          walletName={() => "Wallet"}
+        />
+      )
+    )
+    const line = host.querySelector<HTMLElement>("[data-dca-average-exit]")!
+    // 2.5 + 5 = 7.5 coins for $500 is a $66.67 average; 10% above is $73.33.
+    expect(parseFloat(line.style.top)).toBeCloseTo(200 - 220 / 3, 2)
+    expect(line.textContent).toBe("Sell at average +10%")
+    expect(line.querySelector("span")!.title).toContain("+$50.00")
+  })
+
+  it("leaves a skipped rung out of a placed ladder's average exit", async () => {
+    const ladder = {
+      id: "ladder",
+      walletId: "wallet",
+      marketKey: "market",
+      kind: "dca",
+      status: "active",
+      flowRunId: null,
+      plan: {
+        anchorPx: 110,
+        steppedDown: 0,
+        reclaim: null,
+        rungs: [
+          { px: 100, sz: 2.5, status: "waiting" },
+          { px: 50, sz: 5, status: "waiting" },
+          { px: 25, sz: 10, status: "skipped" },
+        ].map((rung) => ({ ...rung, orderId: null, sellOrderId: null })),
+        exitRungs: [],
+        takeProfit: { mode: "average", pct: 10 },
+        stopLoss: null,
+      },
+    } as unknown as SmartLadder
+    await act(async () =>
+      root.render(
+        <SmartLadderLayer
+          surface={surface}
+          colors={colors}
+          marketKey="market"
+          ladders={[ladder]}
+          preview={null}
+          tool={null}
+          walletName={() => "Wallet"}
+        />
+      )
+    )
+    const line = host.querySelector<HTMLElement>("[data-dca-average-exit]")!
+    // The $25 rung is skipped, so the average stays $66.67 and the sell $73.33.
+    expect(parseFloat(line.style.top)).toBeCloseTo(200 - 220 / 3, 2)
+    expect(line.querySelector("span")!.title).toContain("+$50.00")
+  })
+
   it("shows order dollars instead of coin prices", async () => {
     await act(async () => {
       root.render(

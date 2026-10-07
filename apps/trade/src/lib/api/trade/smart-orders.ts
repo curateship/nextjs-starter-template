@@ -835,6 +835,8 @@ const reshapeGridSchema = z.object({
     .min(MIN_GRID_LEVELS)
     .max(MAX_GRID_LEVELS)
     .optional(),
+  /** A new gap between rungs, in percent. Rung 1 keeps its price. */
+  rungGapPct: z.number().positive().max(100).optional(),
 })
 
 const reshapeGridFn = createServerFn({ method: "POST" })

@@ -768,6 +768,71 @@ export function gridRangeFromClick(input: {
   return range
 }
 
+type GridRangeShape = Pick<
+  GridPlan,
+  "topPx" | "bottomPx" | "spacing" | "direction" | "levels"
+>
+
+/**
+ * Rung 1, the rung nearest the market, and the gap below or above it, in the
+ * percent the placement window types. Dollar spacing: one step as a share of
+ * rung 1. Percent spacing: the ratio between neighbours, read down from rung 1
+ * on a buying grid and up on a selling one.
+ */
+function gridRungOne(
+  plan: GridRangeShape
+): { rungPx: number; gapPct: number } | null {
+  const count = plan.levels.length
+  if (count < 1 || !(plan.topPx > plan.bottomPx) || !(plan.bottomPx > 0)) {
+    return null
+  }
+  const long = plan.direction === "long"
+  if (plan.spacing === "compounding") {
+    const ratio = (plan.topPx / plan.bottomPx) ** (1 / count)
+    return {
+      rungPx: long ? plan.topPx / ratio : plan.bottomPx * ratio,
+      gapPct: long ? (1 - 1 / ratio) * 100 : (ratio - 1) * 100,
+    }
+  }
+  const step = (plan.topPx - plan.bottomPx) / count
+  const rungPx = long ? plan.topPx - step : plan.bottomPx + step
+  return rungPx > 0 ? { rungPx, gapPct: (step / rungPx) * 100 } : null
+}
+
+/** A placed grid's gap between rungs, as the placement window types it. */
+export function gridRungGapPct(plan: GridRangeShape): number | null {
+  return gridRungOne(plan)?.gapPct ?? null
+}
+
+/**
+ * The same grid redrawn with a new gap between rungs, and `count` levels when
+ * the same save changes how many. Rung 1 stays at its price and the rest hang
+ * off it one gap apart, the same way the placement window hangs a grid off a
+ * click. Null when the gap cannot describe a grid.
+ */
+export function gridRangeForGap(
+  plan: GridRangeShape,
+  gapPct: number,
+  count = plan.levels.length
+): { topPx: number; bottomPx: number } | null {
+  const one = gridRungOne(plan)
+  if (one === null || count < 2) return null
+  const depth = gridDepthFromGap({
+    gapPct,
+    steps: count - 1,
+    spacing: plan.spacing,
+    direction: plan.direction,
+  })
+  if (depth === null || !(depth > 0)) return null
+  return gridRangeFromClick({
+    clickPx: one.rungPx,
+    rangePct: depth,
+    levels: count,
+    spacing: plan.spacing,
+    direction: plan.direction,
+  })
+}
+
 /**
  * The range whose rung nearest the market sits at `rungPx`, with the far edge
  * held at `farPx`.

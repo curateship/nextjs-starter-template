@@ -14,6 +14,7 @@ import {
   gridOrderPlan,
   gridRangeAfterMove,
   gridRangeEndMovable,
+  gridRangeForGap,
   gridRangeFromClick,
   gridRangeFromNearRung,
   gridDepthFromGap,
@@ -24,6 +25,7 @@ import {
   gridRowRungNumber,
   gridRungNumber,
   gridRungRowsWithLargestFurthest,
+  gridRungGapPct,
   gridRungPctsSum,
   gridShares,
   gridShiftAway,
@@ -1907,5 +1909,51 @@ describe("the count of levels carried out", () => {
       "Rung 1 - level 5",
     ])
     expect(plan.carriedSoFar).toBe(5)
+  })
+})
+
+describe("changing a placed grid's gap between rungs", () => {
+  const shape = (
+    direction: "long" | "short",
+    spacing: "even" | "compounding",
+    bottomPx: number,
+    topPx: number
+  ) => ({
+    direction,
+    spacing,
+    bottomPx,
+    topPx,
+    levels: Array.from({ length: 4 }, () => ({})) as never,
+  })
+
+  it("keeps a buying grid's rung 1 and hangs the rest one new gap apart", () => {
+    // $70 to $110 in 4 levels buys at $70, $80, $90 and $100: a 10% gap off $100.
+    const plan = shape("long", "even", 70, 110)
+    expect(gridRungGapPct(plan)).toBeCloseTo(10)
+    // At 5% the buys are $100, $95, $90 and $85, so the range is $85 to $105.
+    const range = gridRangeForGap(plan, 5)!
+    expect(range.bottomPx).toBeCloseTo(85)
+    expect(range.topPx).toBeCloseTo(105)
+  })
+
+  it("keeps a selling grid's rung 1 and spreads the rest above it", () => {
+    // $90 to $130 in 4 levels sells at $100, $110, $120 and $130.
+    const plan = shape("short", "even", 90, 130)
+    expect(gridRungGapPct(plan)).toBeCloseTo(10)
+    const range = gridRangeForGap(plan, 5)!
+    expect(range.bottomPx).toBeCloseTo(95)
+    expect(range.topPx).toBeCloseTo(115)
+  })
+
+  it("reads back the gap it was given on percent spacing", () => {
+    for (const direction of ["long", "short"] as const) {
+      const plan = shape(direction, "compounding", 70, 110)
+      const range = gridRangeForGap(plan, 3)!
+      expect(gridRungGapPct({ ...plan, ...range })).toBeCloseTo(3)
+    }
+  })
+
+  it("refuses a buying gap too wide to stay above zero", () => {
+    expect(gridRangeForGap(shape("long", "even", 70, 110), 40)).toBeNull()
   })
 })

@@ -61,7 +61,10 @@ sells. Waiting exits retain their faded dashed appearance. Buy rungs and the
 ladder summary keep the buy color.
 
 The Ladder card shows the dollars each rung will order. It leaves out the coin
-price because the preview line already marks that price on the chart. A buy
+price because the preview line already marks that price on the chart. A
+**Total** row under the last rung adds them up, in the same column: it is what
+the ladder spends if every rung buys (Tyler, 6 Oct 2026). It totals the exact
+amounts, so it can differ by a cent from adding the rounded rows by hand. A buy
 rung's chart tag also shows its order dollars. An exit tag instead says **Exit
 rung 3 for profit at +$…**, using that rung's buy price, coin size and exit
 price to show the projected gross profit. The Position card puts Max position,

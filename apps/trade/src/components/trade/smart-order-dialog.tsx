@@ -72,6 +72,11 @@ export type DcaPreview = {
    * because then the sell waits on that buy's own price.
    */
   firstRungExit?: boolean
+  /**
+   * "At the average price" is the exit: its percent above the average buy.
+   * The line is drawn where the sell lands if every rung buys.
+   */
+  averageExitPct?: number | null
   /** Move the complete shape without changing the gaps between its rungs. */
   onMove: (anchorPx: number) => void | Promise<boolean>
   /** Move the deepest rung and spread every gap by the same proportion. */
@@ -319,6 +324,10 @@ export function SmartOrderDialog({
             firstRungExit:
               params?.takeProfit?.mode === "firstRung" &&
               !params.marketBuyFirst,
+            averageExitPct:
+              params?.takeProfit?.mode === "average"
+                ? params.takeProfit.pct
+                : null,
             onMove: movePreview,
             onResize: resizePreview,
             onMoveExit: moveExitPreview,

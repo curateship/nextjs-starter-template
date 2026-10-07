@@ -250,6 +250,7 @@ it("keeps money and level edits locked while one grid entry is open", async () =
   })
 
   expect(control("grid-edit-levels").disabled).toBe(true)
+  expect(control("grid-edit-gap").disabled).toBe(true)
   expect(control("grid-edit-pot").disabled).toBe(true)
   expect(locked("grid-edit-leverage")).toBe(true)
 })
@@ -354,6 +355,59 @@ it("saves running-grid rung weights with any positive total", async () => {
   expect(reshape).toHaveBeenCalledWith(
     grid,
     expect.objectContaining({ manualRungPcts: [40, 50] })
+  )
+})
+
+it("sends a new gap between rungs and shows the step it makes", async () => {
+  // $70 to $110 in 4 levels buys at $70, $80, $90 and $100: 10% apart off $100.
+  const spaced = {
+    ...grid,
+    plan: {
+      ...grid.plan,
+      direction: "long",
+      spacing: "even",
+      bottomPx: 70,
+      topPx: 110,
+      levels: [70, 80, 90, 100].map((buyPx) => ({
+        status: "waiting",
+        heldSz: 0,
+        buyPx,
+        budget: 25,
+      })),
+    },
+  } as unknown as SmartGrid
+  const reshape = vi.fn(async () => true)
+  await act(async () => {
+    root.render(
+      <TooltipProvider>
+        <GridSettingsWindow
+          grid={spaced}
+          wallet="Test wallet"
+          mark={120}
+          busy={false}
+          onSave={async () => true}
+          onReshape={reshape}
+          onSetEnd={async () => true}
+          onSetFollow={async () => true}
+          onClose={() => undefined}
+        />
+      </TooltipProvider>
+    )
+  })
+  expect((control("grid-edit-gap") as HTMLInputElement).value).toBe("10")
+  expect(host.textContent).toContain("$10 between slices")
+
+  // At 5% the buys are $100, $95, $90 and $85, so each step is $5.
+  await type("grid-edit-gap", "5")
+  expect(host.textContent).toContain("$5 between slices")
+
+  const save = [...document.querySelectorAll<HTMLButtonElement>("button")].find(
+    (button) => button.textContent?.includes("Save changes")
+  )
+  await act(async () => save?.click())
+  expect(reshape).toHaveBeenCalledWith(
+    spaced,
+    expect.objectContaining({ rungGapPct: 5 })
   )
 })
 

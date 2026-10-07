@@ -17,6 +17,7 @@ import {
   gridLiquidationPx,
   gridOrderPlan,
   gridRangeAfterMove,
+  gridRangeForGap,
   gridRangeEndMovable,
   gridRangeReshapable,
   gridRowPctsFromLevels,
@@ -830,6 +831,11 @@ export type ReshapeGridShape = {
   leverage?: number
   manualSizing?: boolean
   manualRungPcts?: number[]
+  /**
+   * A new gap between rungs, in the placement window's percent. Rung 1 keeps
+   * its price and the range is redrawn from it (`gridRangeForGap`).
+   */
+  rungGapPct?: number
 }
 
 export type MoveGridRangeInput = GridRangeMove & {
@@ -1045,7 +1051,8 @@ export async function reshapeGrid(
     input.potPct !== undefined ||
     input.leverage !== undefined ||
     input.manualSizing !== undefined ||
-    input.manualRungPcts !== undefined
+    input.manualRungPcts !== undefined ||
+    input.rungGapPct !== undefined
   if (!canReshape && (!input.rangeMove || changesSlices)) {
     throw new Error("SMART_GRID_STARTED")
   }
@@ -1079,11 +1086,16 @@ export async function reshapeGrid(
       takerFeeRate: book.costs.takerFeeRate,
     })
   } else {
+    const split = reshapedGridSplit(plan, input)
+    // A dragged edge, or a new gap hung off rung 1 across the new level count.
     const movedRange = input.rangeMove
       ? gridRangeAfterMove(plan, input.rangeMove)
-      : null
-    if (input.rangeMove && !movedRange) throw new Error("SMART_GRID_RANGE")
-    const split = reshapedGridSplit(plan, input)
+      : input.rungGapPct !== undefined
+        ? gridRangeForGap(plan, input.rungGapPct, split.levels)
+        : null
+    if ((input.rangeMove || input.rungGapPct !== undefined) && !movedRange) {
+      throw new Error("SMART_GRID_RANGE")
+    }
     const draft = draftGridOrder({
       marketKey: grid.marketKey,
       params: {

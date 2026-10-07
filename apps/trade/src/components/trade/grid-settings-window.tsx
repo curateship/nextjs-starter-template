@@ -44,9 +44,11 @@ import {
   gridEvenRungPcts,
   gridLevelPctsFromRows,
   gridRowPctsFromLevels,
+  gridRangeForGap,
   gridRangeReshapable,
   gridRowRungNumber,
   gridRungRowsWithLargestFurthest,
+  gridRungGapPct,
   gridRungPctsSum,
   gridStopBeyond,
   lossEdge,
@@ -150,6 +152,7 @@ export function GridSettingsWindow({
       leverage?: number
       manualSizing?: boolean
       manualRungPcts?: number[]
+      rungGapPct?: number
     }
   ) => Promise<boolean>
   onSetEnd: (grid: SmartGrid, abovePct: number | null) => Promise<boolean>
@@ -229,6 +232,7 @@ function StopForm({
       leverage?: number
       manualSizing?: boolean
       manualRungPcts?: number[]
+      rungGapPct?: number
     }
   ) => Promise<boolean>
   onSetEnd: (grid: SmartGrid, abovePct: number | null) => Promise<boolean>
@@ -243,6 +247,10 @@ function StopForm({
   const lineChanged = JSON.stringify(lineChoice.enabled ? lineChoice.stop : null) !== JSON.stringify(plan.lineStop ?? null)
   const [levels, setLevels] = React.useState(String(plan.levels.length))
   const [potPct, setPotPct] = React.useState(String(plan.potPct))
+  // The gap as the placement window types it, rounded the way it is shown.
+  const planGap = gridRungGapPct(plan)
+  const shownGap = planGap === null ? "" : String(Number(planGap.toFixed(2)))
+  const [gapPct, setGapPct] = React.useState(shownGap)
   const [manualOn, setManualOn] = React.useState(plan.manualSizing)
   const [rungs, setRungs] = React.useState<Rung[]>(() =>
     // The plan speaks in level order; the card's rows run top of the range
@@ -345,7 +353,16 @@ function StopForm({
           (pct, index) =>
             !Number.isFinite(pct) || Math.abs(pct - wasLevelPcts[index]) > 0.005
         )))
+  // A new gap redraws the range off rung 1, across whatever level count this
+  // same save leaves the grid with.
+  const gapChanged = gapPct.trim() !== shownGap
+  const parsedGap = Number(gapPct)
+  const gapRange = gapChanged
+    ? gridRangeForGap(plan, parsedGap, manualOn ? rungs.length : parsedLevels)
+    : null
+  const badGap = gapChanged && gapRange === null
   const sliceSettingsChanged =
+    gapChanged ||
     splitChanged ||
     (!manualOn && parsedLevels !== plan.levels.length) ||
     parsedPot !== plan.potPct ||
@@ -355,15 +372,21 @@ function StopForm({
     sliceSettingsChanged &&
     (badRung !== -1 || badRungCount)
   const resliced =
-    !badLevels && !badPot && !badLeverage && !badRungs && sliceSettingsChanged
+    !badLevels &&
+    !badGap &&
+    !badPot &&
+    !badLeverage &&
+    !badRungs &&
+    sliceSettingsChanged
 
   // What one round trip would be worth after re-slicing, which is the number
   // that decides whether more levels is a good idea or a slower way to pay
   // fees. A range cut finer earns less each time round.
   const sliceCount = manualOn ? rungs.length : parsedLevels
+  const shownRange = gapRange ?? plan
   const step =
     !badLevels && sliceCount > 0
-      ? (plan.topPx - plan.bottomPx) / sliceCount
+      ? (shownRange.topPx - shownRange.bottomPx) / sliceCount
       : null
   // What Pair Out would have to work with right now: every buy the grid still
   // holds that is under water at today's price, carried ones included. The
@@ -440,6 +463,10 @@ function StopForm({
   // presses Save to find out. Same order as the cards on screen.
   const refusal = badLevels
     ? `Levels has to be a whole number between ${MIN_GRID_LEVELS} and ${MAX_GRID_LEVELS}.`
+    : badGap
+      ? plan.direction === "long"
+        ? "Gap between rungs % has to be above zero, and small enough that the lowest rung stays above zero."
+        : "Gap between rungs % has to be a number above zero."
     : badPot
       ? "Share of account % has to be a number above zero and no more than 100."
       : badLeverage
@@ -465,6 +492,7 @@ function StopForm({
       badUnder ||
       badBase ||
       badLevels ||
+      badGap ||
       badPot ||
       badLeverage ||
       badRungs ||
@@ -485,6 +513,7 @@ function StopForm({
         leverage: parsedLeverage,
         manualSizing: manualOn,
         manualRungPcts: manualOn ? rungPcts : undefined,
+        rungGapPct: gapChanged ? parsedGap : undefined,
       })
       if (!shaped) return
     }
@@ -599,6 +628,37 @@ function StopForm({
                   </DisabledReason>
                 </>
               )}
+              <FieldLabel
+                htmlFor="grid-edit-gap"
+                hint={`How far apart the rungs sit, as a percent. Rung 1 stays where it is and the rest move ${
+                  plan.direction === "long" ? "down" : "up"
+                } to the new gap.`}
+              >
+                Gap between rungs %
+              </FieldLabel>
+              <DisabledReason
+                disabled={busy || !canReshape}
+                reason={
+                  busy
+                    ? "Trade is saving another change."
+                    : "The gap can change only while the grid holds no coin. With one open entry, the range lines can still compress or expand around it."
+                }
+                className="w-full"
+              >
+                <Input
+                  id="grid-edit-gap"
+                  inputMode="decimal"
+                  value={gapPct}
+                  aria-invalid={showValidation && badGap}
+                  disabled={busy || !canReshape}
+                  onChange={(event) => {
+                    setShowValidation(false)
+                    setGapPct(event.target.value)
+                  }}
+                  onBlur={() => setShowValidation(true)}
+                  className="bg-background"
+                />
+              </DisabledReason>
               {step !== null ? (
                 <p className="text-xs text-muted-foreground">
                   {formatPrice(step)} between slices, which is what one round

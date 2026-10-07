@@ -1678,6 +1678,23 @@ describe("re-slicing a running grid", () => {
     ])
   })
 
+  it("redraws the range off rung 1 at a new gap between rungs", async () => {
+    await place()
+    const id = (await onlyGrid()).id
+
+    // Buys at $80, $90, $100 and $110. At 5% off $110 each step is $5.50, so
+    // the buys become $93.50, $99, $104.50 and $110.
+    await reshapeGrid(userId, wallet, { gridId: id, rungGapPct: 5 })
+
+    const grid = await onlyGrid()
+    expect(grid.plan.levels).toHaveLength(4)
+    expect(grid.plan.levels.map((one) => one.buyPx)).toEqual([
+      93.5, 99, 104.5, 110,
+    ])
+    expect(grid.plan.bottomPx).toBeCloseTo(93.5, 9)
+    expect(grid.plan.topPx).toBeCloseTo(115.5, 9)
+  })
+
   it("changes how many levels the range has", async () => {
     await place()
     const id = (await onlyGrid()).id

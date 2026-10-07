@@ -124,6 +124,46 @@ describe("the DCA ladder window", () => {
     })
   })
 
+  it("totals the rung dollars under the ladder", async () => {
+    await act(async () =>
+      root.render(
+        <TooltipProvider>
+          <SmartOrderDialog
+            state={{ px: 100, x: 20, y: 20 }}
+            market={market}
+            equity={10000}
+            free={10000}
+            interval="15m"
+            busy={false}
+            onPreview={() => undefined}
+            onPlace={vi.fn(async () => false)}
+            onClose={() => undefined}
+          />
+        </TooltipProvider>
+      )
+    )
+    const rungDollars = Array.from(
+      host.querySelectorAll<HTMLInputElement>('input[aria-label^="Rung "]')
+    ).map((input) =>
+      Number(
+        input.parentElement!.nextElementSibling!.textContent!.replace(
+          /[$,]/g,
+          ""
+        )
+      )
+    )
+    expect(rungDollars.length).toBeGreaterThan(1)
+    const total = host.querySelector("[data-dca-ladder-total]")!
+    expect(total.textContent).toContain("Total")
+    const shown = Number(
+      total.lastElementChild!.textContent!.replace(/[$,]/g, "")
+    )
+    expect(shown).toBeCloseTo(
+      rungDollars.reduce((sum, dollars) => sum + dollars, 0),
+      1
+    )
+  })
+
   it("places the last-rung percentage changed by the chart", async () => {
     rememberDcaPrefs({
       ...defaultDcaParams(),
