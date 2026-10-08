@@ -1,0 +1,24 @@
+{
+  "pomodoro": {
+    "server": "us",
+    "project": "Pomoder",
+    "healthUrl": "https://pomoder.com/api/health",
+    "resources": [
+      {
+        "role": "web",
+        "uuid": "w21w5iit9f1kgxxak2et2hmg"
+      },
+      {
+        "role": "worker",
+        "uuid": "cxjb1e2704wr4ewqztrdnsm7"
+      }
+    ],
+    "database": {
+      "uuid": "lemznkk0o4h0wqcq295kozv7"
+    }
+  },
+  "trade": {
+    "server": "de",
+    "ownScript": "cd apps/trade && npm run deploy (engine, then worker, then web)"
+  }
+}

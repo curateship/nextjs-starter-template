@@ -40,8 +40,9 @@ An app's own docs live in that app's `workspace/docs/`, and its tasks in
 ## The skills
 
 `.agents/skills/` holds them. `unslop` is always on. Reach for `check-yourself`
-the moment Tyler says an answer is wrong or asks whether you are sure, and
-`validate-app` before calling any browser-facing work done.
+the moment Tyler says an answer is wrong or asks whether you are sure,
+`validate-app` before calling any browser-facing work done, and `deploy-app`
+when Tyler asks to deploy or launch an app.
 
 ## Four rules that never wait for a file to be opened
 

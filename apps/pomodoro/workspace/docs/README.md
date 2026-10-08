@@ -110,3 +110,6 @@ cover this one.
 - [Pomodoro and Custom Shell](shell-integration.md) — what the shell gives
   this app, the three things `src/app/` claims, and what the 27 Sep 2026 merge
   brought.
+- [Launching Pomodoro](launch.md) — the two Coolify resources, every value and
+  who supplies it, the HTTPS requirement, making the first admin, the live
+  walk-through, and what the 8 Oct 2026 laptop dry run proved.

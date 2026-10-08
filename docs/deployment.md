@@ -104,7 +104,10 @@ worse, so what goes wrong is written next to each.
   every link it emails — verify your email, reset your password, return from
   checkout — points at `localhost` on the recipient's own machine.
 - `CUSTOM_SHELL_SECRET_ENCRYPTION_KEY` — encrypts the keys held in the
-  database. Without it they are not encrypted. Changing it later makes every
+  database. Without it, no key can be saved at all: `encryptSecret` in
+  `src/server/auth/encryption.ts` refuses with `ENCRYPTION_NOT_CONFIGURED`
+  rather than store one as plain text. The worker needs the same value as the
+  website whenever its jobs read a saved key. Changing it later makes every
   stored key unreadable, and the recovery is pasting each one in again — there
   is no decrypting them.
 
@@ -121,6 +124,14 @@ As the app uses them:
   addresses this app answers on, for apps serving more than one site.
 
 ## Releasing, in order
+
+For an app already live, `npm run deploy` in the app's folder does all of this
+in one command. It pushes the branch to `develop`, then builds the website and
+the worker together when no new migration ships, or the website first when one
+does. It ends with the live health check. The script and its rules are the
+`deploy-app` skill in `.agents/skills/deploy-app/`. Trade keeps its own
+`deploy` script, which runs engine, then worker, then web. The steps below are
+what it automates, and what to do by hand.
 
 1. **Back up the database first.** A migration is applied once and recorded;
    there is no undo built into it. This is the only rollback there is.

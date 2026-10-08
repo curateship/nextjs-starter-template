@@ -67,6 +67,7 @@
   "scripts": {
     "build": "vite build",
     "build:worker": "node scripts/build-worker.mjs",
+    "deploy": "node ../../.agents/skills/deploy-app/scripts/deploy.mjs --push",
     "db:migrate": "node scripts/migrate-database.mjs",
     "db:setup": "node scripts/setup-database.mjs",
     "db:up": "docker compose up -d postgres",
