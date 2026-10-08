@@ -8,7 +8,7 @@ everything in the first card, and the app wrote everything in the second.
 
 - The admin's own rows first, with no heading, because the card's own title
   already names them: General settings, Navigation, Widgets, Styling, Email,
-  Payments.
+  Payments, AI. AI holds the AI provider keys card, one key per provider.
 - **Members**: Navigation, the member sidebar and member top right menu.
 - **Public**: Navigation for the signed-out header layout and links, Styling for
   the site's colours and frame, SEO for site-wide search defaults, and Social
@@ -28,9 +28,10 @@ The card is called **App settings** in every app rather than after the app. The
 app's name is an editable field, so the card would rename itself the moment
 somebody changed it, and an admin already knows which app they are in.
 
-Three things moved to get here. On 25 Sep 2026, Security, Notifications, Storage
+Four things moved to get here. On 25 Sep 2026, Security, Notifications, Storage
 and AI stopped being rows and became cards on General settings; each was a single
-card already. On the same day the Members and Public rows moved into the app's
+card already. On 8 Oct 2026 Tyler asked for AI to have its own row again, so the
+AI provider keys card left General settings for the AI row. On the same day the Members and Public rows moved into the app's
 card, on the reasoning that the shell can scaffold a public site and cannot be
 right about one for every app. **Tyler's call on 5 Oct 2026 moved them back.**
 Every one of those screens is the shell's own, writing the shell's `ShellConfig`,
@@ -48,7 +49,7 @@ reset button also sits inside its card, beneath the menu items.
 
 ## What is on General settings
 
-Seven cards, in this order. Each collapses on its own and remembers the choice
+Six cards, in this order. Each collapses on its own and remembers the choice
 per browser.
 
 1. **General settings** — app name, site name, the two home routes, rows per
@@ -60,11 +61,10 @@ per browser.
    because it signs people out.
 4. **Old data** — what the app deletes for itself once a day.
 5. **Cloudflare R2** — where uploaded files are kept.
-6. **AI provider keys** — one key per provider.
-7. **Maintenance mode** — last, because it is the one that shuts the app.
+6. **Maintenance mode** — last, because it is the one that shuts the app.
 
-Cloudflare R2 and AI provider keys each load from the server when the screen
-opens, which General settings did not do before. Both report their own
+Cloudflare R2 on General settings and AI provider keys on the AI row each load
+from the server when their screen opens. Both report their own
 Saving…/Saved state to the sticky header, and both report nothing while idle so
 the page's own save still shows. `use-reported-save-status.ts` holds that rule.
 

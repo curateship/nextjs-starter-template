@@ -1,6 +1,7 @@
 import * as React from "react"
 import type { ComponentType } from "react"
 import { Link } from "@tanstack/react-router"
+import { AiSettings } from "@/components/settings/ai-settings"
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { EmailSettings } from "@/components/settings/email-settings"
 import { GeneralSettings } from "@/components/settings/general-settings"
@@ -36,7 +37,8 @@ import {
  * The admin's own rows, and the first block of the Platform card.
  *
  * Security, Notifications, Storage and AI were rows here until 25 Sep 2026;
- * each was one card, so each is now a card on General settings instead.
+ * each was one card, so each became a card on General settings instead. AI got
+ * its own row back on 8 Oct 2026 at Tyler's request.
  */
 const settingsTabs = [
   { id: "general", label: "General settings" },
@@ -45,6 +47,7 @@ const settingsTabs = [
   { id: "styling", label: "Styling" },
   { id: "email", label: "Email" },
   { id: "payments", label: "Payments" },
+  { id: "ai", label: "AI" },
 ] as const
 
 /**
@@ -448,6 +451,11 @@ export function SettingsPage({
         ) : null}
         {activeTab === "email" ? <EmailSettings /> : null}
         {activeTab === "payments" ? <StripeSettings /> : null}
+        {activeTab === "ai" ? (
+          <CardGroup>
+            <AiSettings />
+          </CardGroup>
+        ) : null}
         <AppSettingsPanel activeTab={activeTab} />
       </div>
     </div>

@@ -1,6 +1,5 @@
 import * as React from "react"
 import { ImageUpload } from "@/components/shared/image-upload"
-import { AiSettings } from "@/components/settings/ai-settings"
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { NotificationSettings } from "@/components/settings/notification-settings"
 import { SettingsSwitchRow } from "@/components/settings/settings-switch-row"
@@ -284,8 +283,6 @@ export function GeneralSettings({
       />
 
       <StorageSettings />
-
-      <AiSettings />
 
       <MaintenanceSettingsCard
         config={config}

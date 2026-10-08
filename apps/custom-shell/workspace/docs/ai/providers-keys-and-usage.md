@@ -6,7 +6,7 @@ The AI settings support four providers:
 - ElevenLabs provides models priced by a unit such as a character rather than
   an input and output token pair.
 
-An admin may save a provider key in Settings or let the server use its matching
+An admin may save a provider key in Settings → AI or let the server use its matching
 environment variable. Saved keys take priority and the server encrypts them at
 rest. If a saved key cannot be decrypted, the settings page reports the problem
 instead of silently switching to the environment key.
