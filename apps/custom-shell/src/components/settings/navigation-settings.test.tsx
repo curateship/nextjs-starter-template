@@ -10,9 +10,9 @@ vi.mock("@tanstack/react-router", () => ({
   Link: ({ children }: { children: React.ReactNode }) => <a>{children}</a>,
   useRouterState: () => "/admin/settings/navigation",
 }))
-// General settings now holds the Storage bucket and AI provider keys cards,
-// and both put their Saving…/Saved state in the sticky header through the
-// shell runtime. There is no ShellLayout above the page in a test.
+// General settings holds the Storage bucket card, and the AI row holds the AI
+// provider keys card. Both put their Saving…/Saved state in the sticky header
+// through the shell runtime. There is no ShellLayout above the page in a test.
 vi.mock("@/components/shell/shell-layout", () => ({
   useShellRuntime: () => ({ reportSaveStatus: vi.fn() }),
 }))
@@ -39,7 +39,9 @@ const props = {
   sessionPolicyBusy: false,
 }
 
-function markup(activeTab: "navigation" | "member-navigation" | "general") {
+function markup(
+  activeTab: "navigation" | "member-navigation" | "general" | "ai"
+) {
   return renderToStaticMarkup(
     <TooltipProvider>
       <SettingsPage {...props} activeTab={activeTab} />
@@ -85,8 +87,11 @@ describe("Navigation settings", () => {
       expect(html).not.toContain("This app has no settings of its own.")
       for (const tab of ownRows) expect(html).toContain(`>${tab.label}<`)
     }
-    // The four that became cards on General settings are no longer rows.
-    expect(html).toContain("AI provider keys")
+    // Three of the four that became cards on General settings are still
+    // there. AI provider keys has its own AI row since 8 Oct 2026.
+    expect(html).toContain(">AI<")
+    expect(html).not.toContain("AI provider keys")
+    expect(markup("ai")).toContain("AI provider keys")
     expect(html).toContain("Cloudflare R2")
     expect(html).toContain("Sessions")
     expect(html).toContain("Notifications")
