@@ -104,11 +104,14 @@ export function PricingPage({
 
   return (
     <div className={`${contentColumn} flex flex-col gap-10 py-8`}>
-      <header className="flex flex-col items-center gap-3 text-center">
-        <h2 className="text-4xl font-bold tracking-tight sm:text-5xl">
+      {/* Left-aligned and the same size as every other page's title. Tyler,
+          8 Oct 2026: "align the header and subheader left", then "the
+          header font is a bit bigger than the other pages header. match it". */}
+      <header className="flex flex-col items-start gap-2">
+        <h2 className="text-4xl font-bold tracking-tight">
           Focus longer, together.
         </h2>
-        <p className="max-w-xl text-lg text-muted-foreground">
+        <p className="max-w-xl text-muted-foreground">
           The timer, tasks and rooms are free. Pro unlocks every sound and
           scene, AI mixes, hosting and your full history.
         </p>
@@ -120,7 +123,7 @@ export function PricingPage({
           onClose={() => setPreview(null)}
         />
       ) : !freePlan && !proPlan ? (
-        <p className="text-center text-sm text-muted-foreground">
+        <p className="text-sm text-muted-foreground">
           No plans are on sale yet.
         </p>
       ) : (
@@ -131,7 +134,7 @@ export function PricingPage({
           {!billingEnabled ? (
             <p
               role="status"
-              className="text-center text-sm text-muted-foreground"
+              className="text-sm text-muted-foreground"
             >
               Paid plans can&rsquo;t be bought just yet. Everything on the free
               plan works today.

@@ -14,7 +14,12 @@ Drawn to Tyler's design of 7 Oct 2026
 
 - **A headline over the hero:** "Focus longer, together." and "The timer,
   tasks and rooms are free. Pro unlocks every sound and scene, AI mixes,
-  hosting and your full history."
+  hosting and your full history." Both lines sit on the left edge, in line
+  with the cards, at the same size as every other page's title (36px, with
+  the line under it at the body size). The "Paid plans can't be bought just
+  yet" notice sits on the left too. Tyler, 8 Oct 2026: "for the pricing page,
+  align the header and subheader left", then "the header font is a bit bigger
+  than the other pages header. match it".
 - **Three cards, side by side on a wide screen and stacked on a phone:** Free,
   Pro monthly and Pro yearly. Each has a small capitals label, a large price,
   a line under it, a full-width button, then the plan's feature list under

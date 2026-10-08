@@ -563,17 +563,21 @@ export function PomodoroShell({
         </header>
 
         <main className="relative">
-          {/* The hero: the chosen scene, 720px tall, pulled up under the
+          {/* The hero: the chosen scene, 860px tall, pulled up under the
               transparent header and fading into the canvas on every edge.
-              Pages overlap its lower half with the negative margin below. */}
-          <div className="relative -mt-[86px] h-[720px] overflow-hidden">
+              Pages overlap its lower part with the negative margin below,
+              which is 140px more than the 720px hero had, so the page starts
+              where it did and the scene fades out further down behind it.
+              Tyler, 8 Oct 2026: "Let the gradient flow lower", then "a bit
+              higher". */}
+          <div className="relative -mt-[86px] h-[860px] overflow-hidden">
             <SceneBackdrop
               background={background}
               onMediaError={fallBackToDefault}
               shading="hero"
             />
           </div>
-          <div className={cn("relative z-[4] -mt-40 pb-20", pageGutterClass)}>
+          <div className={cn("relative z-[4] -mt-[300px] pb-20", pageGutterClass)}>
             {children}
           </div>
         </main>

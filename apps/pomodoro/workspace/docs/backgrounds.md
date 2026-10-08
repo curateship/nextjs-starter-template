@@ -29,6 +29,14 @@ second page.
   frontend page and no shell file changes. The lofi scene is the one real
   video (`public/backgrounds/uploads-265816_small.mp4`, autoplay muted
   loop); the other scenes render their stills.
+- **The scene fades out low.** It is an 860px band at the top of every page,
+  and the page's content starts 560px down as before, so the picture runs on
+  behind the title and fades into the page colour behind the first row of
+  cards. Tyler, 8 Oct 2026: "Let the gradient flow lower", then "a bit
+  higher". It used to be 720px tall and reached the page colour there, so the
+  picture was gone by the title. The heights are in `pomodoro-shell.tsx`; the
+  fade's stops are the `hero` shading in `scene-backdrop.tsx`. Zen mode keeps
+  its own even wash.
 - **Failures fall back:** a scene or upload whose file errors falls back to
   the default (Lofi girl) and saves that, so a deleted upload cannot leave
   a black screen. Lofi girl is the default, so it cannot fall back to itself:

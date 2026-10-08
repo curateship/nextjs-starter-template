@@ -12,7 +12,7 @@ const MEDIA_CLASS = "absolute inset-0 size-full object-cover"
 /**
  * The chosen scene, drawn behind whatever sits on top of it.
  *
- * Two screens draw it. The product shell draws it as a 720px hero at the top
+ * Two screens draw it. The product shell draws it as an 860px hero at the top
  * of every member page, shaded the way the old app shaded it. Zen mode draws
  * the same scene across the whole viewport, and needs a heavier, even wash
  * instead, because there the ring sits over the middle of the picture rather
@@ -102,7 +102,10 @@ export function SceneBackdrop({
             className="absolute inset-0"
             style={{
               background:
-                "linear-gradient(180deg, rgba(var(--p-canvas-rgb),.75) 0%, rgba(var(--p-canvas-rgb),.08) 22%, rgba(var(--p-canvas-rgb),0) 55%, rgba(var(--p-canvas-rgb),.55) 88%, var(--p-canvas) 100%)",
+                // The top stops sit at the same pixels as on the old 720px
+                // hero (158px and 396px); the fade to the canvas then runs
+                // down to 860px, where it used to end at 720px.
+                "linear-gradient(180deg, rgba(var(--p-canvas-rgb),.75) 0%, rgba(var(--p-canvas-rgb),.08) 18.4%, rgba(var(--p-canvas-rgb),0) 46%, rgba(var(--p-canvas-rgb),.45) 70%, rgba(var(--p-canvas-rgb),.8) 87%, var(--p-canvas) 100%)",
             }}
           />
           <div
