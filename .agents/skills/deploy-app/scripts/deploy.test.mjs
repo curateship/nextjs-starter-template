@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 import { fileURLToPath } from "node:url"
 
-import { buildLogTail, deployPlan, deploymentOver, migrationsBetween, parseEnvText, readFlags, resourcesToDeploy } from "./deploy.mjs"
+import { buildLogTail, copiesMenu, deployPlan, deploymentOver, migrationsBetween, parseEnvText, readFlags, resourcesToDeploy } from "./deploy.mjs"
 
 const pomodoro = {
   resources: [
@@ -12,7 +12,7 @@ const pomodoro = {
 }
 
 test("reads the app and the options", () => {
-  assert.deepEqual(readFlags(["pomodoro"]), { app: "pomodoro", only: null, force: false, dryRun: false, push: false, inOrder: false })
+  assert.deepEqual(readFlags(["pomodoro"]), { app: "pomodoro", only: null, force: false, dryRun: false, push: false, inOrder: false, skipMenu: false })
   assert.deepEqual(readFlags(["pomodoro", "--only", "web", "--force", "--push"]), {
     app: "pomodoro",
     only: "web",
@@ -20,8 +20,10 @@ test("reads the app and the options", () => {
     dryRun: false,
     push: true,
     inOrder: false,
+    skipMenu: false,
   })
   assert.equal(readFlags(["pomodoro", "--in-order"]).inOrder, true)
+  assert.equal(readFlags(["pomodoro", "--skip-menu"]).skipMenu, true)
   assert.equal(readFlags(["pomodoro", "--only=worker", "--dry-run"]).dryRun, true)
 })
 
@@ -33,6 +35,14 @@ test("refuses a missing app, a second app, an unknown option and an empty --only
   assert.throws(() => readFlags(["pomodoro", "trade"]), /One app at a time/)
   assert.throws(() => readFlags(["pomodoro", "--fast"]), /Unknown option/)
   assert.throws(() => readFlags(["pomodoro", "--only"]), /--only needs a list/)
+})
+
+test("copies the menu only after a website deploy, into an app with a database, unless skipped", () => {
+  const withDatabase = { ...pomodoro, database: { uuid: "db" } }
+  assert.equal(copiesMenu(withDatabase, resourcesToDeploy(withDatabase, null), false), true)
+  assert.equal(copiesMenu(withDatabase, resourcesToDeploy(withDatabase, "worker"), false), false)
+  assert.equal(copiesMenu(withDatabase, resourcesToDeploy(withDatabase, null), true), false)
+  assert.equal(copiesMenu({ ...pomodoro, database: undefined }, resourcesToDeploy(pomodoro, null), false), false)
 })
 
 test("keeps the app's own order whatever order --only names them in", () => {

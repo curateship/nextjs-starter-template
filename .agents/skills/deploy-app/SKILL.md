@@ -119,11 +119,14 @@ It does the whole deploy in one go:
    migration on its way in, and the worker follows once it is healthy. The
    plan line says which, and why.
 4. Checks the live health address and prints the answer.
+5. Copies the local left menu to live, so the live site's menu matches the
+   one on this Mac. See "The left menu" below.
 
 Useful extras, each after `npm run deploy --`: `--dry-run` shows the plan and
-deploys nothing, `--only worker` deploys one resource, `--in-order` never builds both at once, and `--force`
-rebuilds without Docker's cache. Uncommitted changes never ship, and the
-script says so when there are some.
+deploys nothing, `--only worker` deploys one resource, `--in-order` never
+builds both at once, `--force` rebuilds without Docker's cache, and
+`--skip-menu` leaves the live menu as it is. Uncommitted changes never ship,
+and the script says so when there are some.
 
 ### When I deploy
 
@@ -134,15 +137,51 @@ script says so when there are some.
 3. **Commit only if Tyler asked.** Uncommitted files never ship.
 4. **Run Tyler's command.** Never force a push. If the push is refused, stop
    and ask.
-5. **Check it in a real browser** with the `validate-app` skill, on the live
-   domain.
-6. **Record it** in the app's `launch.md` → Release record: the commit, the
+5. **Check the menu copied.** The script prints "Copied to live" or "already
+   the same". A "no page on develop yet" warning names a menu link that opens
+   "not found" on live. Say so in the report.
+6. **Check it in a real browser** with the `validate-app` skill, on the live
+   domain. Sign in as Tyler and compare the left menu with the local one.
+7. **Record it** in the app's `launch.md` → Release record: the commit, the
    date, the deployment ids, and anything owed.
 
 Trade has its own script: `cd apps/trade && npm run deploy` (engine, then
 worker, then web). Pomodoro's first builds took about 9 minutes for the
 website and 8 for the worker, including the image's 300-second health-check
 start period.
+
+## The left menu
+
+Tyler, 8 Oct 2026: the deployed app's left menu must match the local one. The
+menu is saved in the database, not in the code, so a deploy alone never
+changes it. `scripts/copy-menu.mjs` copies it, and `deploy.mjs` runs it after
+every deploy that includes the website.
+
+- **What it copies:** the admin menu (the `sections`, `topRightNavigation` and
+  name of the workspace Tyler's account points at) and the members' menu
+  (`memberSections` and `memberTopRightNavigation` in the `settings` row).
+  Every other saved setting on live stays as it is.
+- **Which way:** local wins. A menu edit made on the live site through
+  Settings is overwritten by the next deploy, so make menu changes locally.
+- **Whose menu:** the account named `FIRST_ADMIN_EMAIL` in `secrets.env`, on
+  both sides. On live that account needs one sign-in first, which gives it a
+  workspace.
+- **How it reaches live:** through `scripts/live-db.mjs`, which opens a
+  public port on the live database for about a minute and closes it again.
+  `create-admin.mjs` uses the same helper.
+- **By hand:** `node .agents/skills/deploy-app/scripts/copy-menu.mjs <app>`
+  after a menu change with no deploy. Add `--dry-run` to compare the two
+  menus without writing.
+- **Links with no page:** it lists any menu link whose page is not in the
+  commit `develop` holds. It still copies, because Tyler asked for an exact
+  match, so deploy the page or remove the link.
+- **If the copy fails:** the deploy has already finished and stays live. The
+  script prints the command to run by hand.
+- **Trade** deploys with its own script, so its menu is not copied.
+- **Local never uses the live database.** Tyler, 8 Oct 2026: keep them
+  separate, and match the menu by copying it. `npm run dev` runs
+  `setup-database.mjs`, which writes the dev password over his account and
+  applies unshipped migrations to whatever database it is pointed at.
 
 ## The first launch of a new app
 
@@ -264,6 +303,9 @@ add the AI provider keys in Settings → AI if the app uses them.
       `/admin/users`.
     - **Never** run `scripts/setup-database.mjs` against a live database.
 15. **Send Tyler the after-launch note:** sign in, and add the AI keys.
+    Once he has signed in, run `copy-menu.mjs <app>` so the live menu
+    matches the local one. The first deploy cannot copy it, because his
+    account has no workspace on live until that first sign-in.
 16. **Walk through and record.** Use `validate-app` on the live domain, then
     fill in the Release record in `launch.md`.
 
