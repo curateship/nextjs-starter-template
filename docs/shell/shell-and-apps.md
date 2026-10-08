@@ -339,6 +339,24 @@ Pulling shell updates into an app is a fixed checklist, and it is an AI job:
   to reach the database.
 - **`src/app/options.ts` never imports `src/app/server-options.ts`.** That is
   the back door that would drag the database into the browser bundle.
+- **A dynamic `import()` in a plain function the browser build can reach goes
+  inside `createServerOnlyFn`.** "Never seen by the browser" above holds only
+  after the build has thrown unused code away. Browser-side files such as
+  `src/lib/api/auth/auth.ts` import `@/server/*`, and through
+  `src/server/app-options.ts` that includes the app's own
+  `src/app/server-options.ts` and every worker it lists. The build drops the
+  unused functions, but a dynamic import inside one still became its own
+  browser file that nothing loads, holding the database and the session cookie
+  code. TanStack's check then fails the build at `src/server/auth/security.ts`.
+  Wrapping the function in `createServerOnlyFn` makes the browser build drop
+  the body and the import together. Outside the TanStack build, in the worker
+  and in tests, the wrapper returns the function unchanged.
+  `startWorkspaceFor` in `src/lib/api/auth/auth.ts` and
+  `processPendingEmailRetries` in `src/server/email/retry.ts` are wrapped for
+  this reason. Before the wrap, Pomodoro's website build failed on both on
+  7 Oct 2026, while Custom Shell's passed, because its `server-options.ts` is
+  empty. A dynamic import inside a `createServerFn` handler needs nothing,
+  because the handler is already dropped from the browser build.
 
 `src/lib/app-options.test.ts` and `src/server/app-options.test.ts` cover the
 defaults and the last two rules. The first three are conventions no test can

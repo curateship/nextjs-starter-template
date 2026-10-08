@@ -100,7 +100,10 @@ the file behind it is still the raw original. The page asks again every four
 seconds, and only while something is actually waiting. A re-encode that fails
 goes back in the queue twice; after that the card says so in words instead of
 spinning forever. A server with no FFmpeg says "Sound and video cannot be
-prepared yet."
+prepared yet." The production worker image has FFmpeg only when it is built
+with `WORKER_PACKAGES=ffmpeg`, which Pomodoro's Coolify worker resource must
+set (the repo's `docs/deployment.md` explains the argument). The website image
+never has it, because the website never re-encodes anything.
 
 ## The button waits before it lets you press anything
 

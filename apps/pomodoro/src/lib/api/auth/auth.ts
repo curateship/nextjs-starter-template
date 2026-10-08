@@ -1,4 +1,4 @@
-import { createServerFn } from "@tanstack/react-start"
+import { createServerFn, createServerOnlyFn } from "@tanstack/react-start"
 import { eq, sql } from "drizzle-orm"
 import { z } from "zod"
 
@@ -1241,8 +1241,14 @@ export function serializeUser(user: {
  *
  * The import stays dynamic: workspaces.ts is a thousand lines of navigation
  * defaults that only the sign-in handlers ever need.
+ *
+ * Server-only, so the browser build drops the body and that dynamic import with
+ * it. Left as a plain function, the bundler still made a browser file for
+ * workspaces.ts that nothing loads, carrying the database and the session
+ * cookie code, and in an app whose `src/app/server-options.ts` lists workers
+ * that file failed the build's server-import check.
  */
-export async function startWorkspaceFor(
+export const startWorkspaceFor = createServerOnlyFn(async function startWorkspaceFor(
   user: Pick<CustomShellUser, "id" | "role">
 ) {
   // Whoever this app says may have one. Every sign-in used to make one for
@@ -1273,7 +1279,7 @@ export async function startWorkspaceFor(
   // them pick it again from the switcher is a needless step. On the
   // deployment's own address nothing moves, so an admin's last choice survives.
   await pointAtWorkspaceForHost(user.id)
-}
+})
 
 function sendVerificationEmail(
   email: string,

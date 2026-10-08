@@ -40,6 +40,27 @@ docker build --target worker --build-arg APP=custom-shell -t custom-shell-worker
 `package.json`. For a new app copied from Custom Shell, that one word is the
 only thing that changes.
 
+### Extra programs in the worker
+
+The worker image has Node and nothing else, unless the app asks. An app whose
+worker shells out to another program lists it in `WORKER_PACKAGES`, by its
+Alpine package name, space-separated:
+
+```sh
+docker build --target worker --build-arg APP=pomodoro \
+  --build-arg WORKER_PACKAGES=ffmpeg -t pomodoro-worker .
+```
+
+Empty is the default, and an empty one installs nothing, so an app that does
+not set it gets the same image it always did. Only the worker takes it, because
+no website calls these programs.
+
+| App | `WORKER_PACKAGES` | Why |
+| --- | --- | --- |
+| Pomodoro | `ffmpeg` | Uploaded sounds and clips, and every AI background and soundscape, are re-encoded by the `pomodoro-media-uploads` and `pomodoro-generations` workers. Without it each card says "Sound and video cannot be prepared yet." |
+| Video | not set yet | Its workers call `ffmpeg`, `ffprobe` and `yt-dlp` (`apps/video/src/server/video/media-workers.ts`, `viral/download.ts`), so its production worker cannot prepare media until this is set. Video's own task, not checked here. |
+| Custom Shell, Trade, CMS | not set | Nothing in their workers calls an outside program. |
+
 **No secret is ever a build argument.** Build arguments are recorded in the
 image's history and can be read by anyone who can pull the image. Everything an
 app needs is supplied at run time.
