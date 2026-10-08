@@ -20,6 +20,11 @@ import {
   readYearInReview as readYearInReviewRow,
   saveMyPublicProfile as saveMyPublicProfileRow,
 } from "@/server/pomodoro/public-profile"
+import {
+  USER_SEARCH_MAX_LENGTH,
+  USER_SORTS,
+  type UserSort,
+} from "@/lib/pomodoro/user-directory"
 
 /**
  * The public profile's endpoints.
@@ -95,12 +100,21 @@ const readYearInReviewFn = createServerFn({ method: "GET" })
 // Signed-out on purpose: /users is a public directory of the members who
 // asked to be in one. Listed in appOpenEndpoints for the guard test.
 const readUsersFn = createServerFn({ method: "GET" })
-  .inputValidator(z.object({ page: z.number().int().min(0).max(200) }))
+  .inputValidator(
+    z.object({
+      page: z.number().int().min(0).max(200),
+      sort: z.enum(USER_SORTS),
+      search: z.string().max(USER_SEARCH_MAX_LENGTH),
+    })
+  )
   .handler(async ({ data }) => {
     // A signed-in reader's blocks apply to the directory too; a signed-out
     // one has blocked nobody and costs nothing.
     const viewer = await findCurrentUser()
-    return readUsersPageRow(data.page, viewer?.id ?? null)
+    return readUsersPageRow(data.page, viewer?.id ?? null, {
+      sort: data.sort,
+      search: data.search,
+    })
   })
 
 const loadMyPublicProfileFn = createServerFn({ method: "GET" })
@@ -121,7 +135,15 @@ export const readPublicProfile = (handle: string) =>
   readPublicProfileFn({ data: { handle } })
 export const readYearInReview = (handle: string, year: number) =>
   readYearInReviewFn({ data: { handle, year } })
-export const readUsersPage = (page = 0) => readUsersFn({ data: { page } })
+export const readUsersPage = ({
+  page = 0,
+  sort = "focused",
+  search = "",
+}: {
+  page?: number
+  sort?: UserSort
+  search?: string
+} = {}) => readUsersFn({ data: { page, sort, search } })
 export const loadMyPublicProfile = (timezone: string) =>
   loadMyPublicProfileFn({ data: { timezone } })
 export const saveMyPublicProfile = (data: PublicProfileForm) =>

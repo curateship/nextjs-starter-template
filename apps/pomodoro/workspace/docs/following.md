@@ -152,9 +152,37 @@ they sit together.
 - **A second switch**, separate from having a profile at all. Having a page
   and being in a directory other people browse are different wishes, which is
   the same reasoning that keeps a group board and the global board apart.
-- **Newest first, never by activity.** Tyler's call, 2 Oct 2026: ranking it
-  would make a second leaderboard, and the people with least to show would
-  never appear.
+- **Drawn to Tyler's design of 8 Oct 2026** ("redesign the users listing
+  page"). A search box and the tabs (Most focused, Newest, Online now) sit
+  on the title's right.
+  Each person is a card in a grid of three: photo, name, handle and Follow
+  along the top, the bio, then a line and the hours focused beside View
+  profile. Your own card says YOU and has no Follow.
+- **Most focused is the default order; Newest is the other.** This replaces
+  the 2 Oct rule of newest only ("ranking it would make a second
+  leaderboard"), because the 8 Oct design puts Most focused first and
+  selected. Somebody who keeps their figures private counts as nought, so
+  they sort to the end rather than disappearing, and their card shows no
+  hours. Equal hours fall back to newest first.
+- **Online now is a third tab.** Tyler, 8 Oct 2026: "Add another filter for
+  'Online now'". It is Most focused narrowed to the people in the middle of a
+  focus who switched on "Focusing right now" on their profile, the same test
+  the profile's Focusing now line uses: a running session whose own clock has
+  not run out. The app keeps no other record of who is online, and showing
+  presence without that switch would publish it for people who never chose
+  to. Held for 30 seconds rather than five minutes, because it changes by the
+  minute. Nobody focusing says so, and says which switch puts you there.
+- **The search looks at names and handles**, as a plain piece of text: a typed
+  `%` or `_` is that character, not a wildcard. It writes itself into the
+  address (`/users?q=jon`) a moment after the last key, so a search is a
+  link, and it always starts again on page one. Nothing found says "Nobody
+  listed matches …".
+- **Follow on a card is the profile's Follow**: Follow, then Following, which
+  reads Unfollow under the pointer or keyboard focus, with the same toast on
+  unfollowing. The server says on each card whether you already follow that
+  person, so the button starts in the right state with no read per card. A
+  signed-out visitor's Follow opens the login page and comes back to
+  `/users`.
 - **Only listed profiles reach the sitemap.** A profile switched on but not
   listed is reachable by its address and absent from both `/users` and
   `/sitemap.xml`. Somebody who wanted a page to point at from their own bio
@@ -163,6 +191,13 @@ they sit together.
   Settings card drops the held pages, so a listing switched on appears on the
   next load.
 - `/users` is its own address and does not redirect to `/users?page=0`.
+  Most focused and an empty search are left off the address too;
+  `?sort=newest`, `?sort=online` and `?q=` are there only when chosen.
+  Previous and Next keep them.
+- Held per order, search and page. The order, the search limit (40
+  characters) and the labels are in `src/lib/pomodoro/user-directory.ts`;
+  the query is `readUsersPage` in `src/server/pomodoro/public-profile.ts`,
+  tested in `users-directory.test.ts`.
 - **Previous stops on the first page and Next on the last.** At either end the
   button is a real disabled button, so a press does nothing and Tab skips it.
   They used to be links drawn grey, and a link cannot be switched off, so Next

@@ -6,6 +6,10 @@ import {
   serializeBackgroundReference,
 } from "@/lib/pomodoro/background-catalog"
 import { findAchievement } from "@/lib/pomodoro/achievements"
+import {
+  USER_SEARCH_MAX_LENGTH,
+  type UserSort,
+} from "@/lib/pomodoro/user-directory"
 import { shiftLocalDate } from "@/lib/pomodoro/focus-history"
 import {
   isHandleAvailableShape,
@@ -906,21 +910,28 @@ export async function saveMyPublicProfile(
  * wishes, the same reasoning that keeps a group board and the global board
  * apart, and a public list of members is a scrapable list of members.
  *
- * Newest profile first. Tyler's call, 2 Oct 2026: ranking by activity would
- * make this a second leaderboard, and the people with least to show would
- * never appear.
+ * Two orders, from Tyler's design of 8 Oct 2026: Most focused (the default)
+ * and Newest. Somebody who keeps their figures private counts as nought for
+ * Most focused, so they sort to the end rather than being left out. A third
+ * tab, Online now, is Most focused narrowed to the people focusing this
+ * minute who chose to show it ("Focusing right now" on their profile);
+ * nobody's presence is shown without that switch. A search matches the
+ * display name or the handle.
  *
- * Held for five minutes and paged, so no visitor causes a per-row read.
+ * Held per order, search and page, five minutes (30 seconds for Online now),
+ * so no visitor causes a per-row read.
  */
 const USERS_PAGE_SIZE = 24
 const USERS_CACHE_MS = 5 * 60_000
+const ONLINE_CACHE_MS = 30_000
 
 export type UserDirectoryRow = {
   handle: string
   name: string
   avatarUrl: string | null
   bio: string | null
-  focusHours: number
+  /** Null when that person keeps their figures private. */
+  focusHours: number | null
 }
 
 /**
@@ -933,22 +944,41 @@ export type UserDirectoryRow = {
 type HeldUserRow = UserDirectoryRow & { userId: string }
 
 type HeldUsers = { rows: HeldUserRow[]; total: number; expiresAt: number }
-const usersCache = new Map<number, HeldUsers>()
+const usersCache = new Map<string, HeldUsers>()
 
 export async function readUsersPage(
   page = 0,
   viewerUserId: string | null = null,
+  { sort = "focused", search = "" }: { sort?: UserSort; search?: string } = {},
   now = Date.now()
 ) {
   const safePage = Math.max(0, Math.min(page, 200))
-  const held = usersCache.get(safePage)
-  if (held && held.expiresAt > now) return shapeUsers(held, safePage, viewerUserId)
+  const term = search.trim().toLowerCase().slice(0, USER_SEARCH_MAX_LENGTH)
+  const cacheKey = `${sort}|${term}|${safePage}`
+  const held = usersCache.get(cacheKey)
+  if (held && held.expiresAt > now)
+    return shapeUsers(held, safePage, viewerUserId)
 
+  // The search is a plain substring of the name or handle. `%` and `_` are
+  // escaped so a typed one is a character, not a wildcard.
+  const pattern = `%${term.replace(/[\\%_]/g, (char) => `\\${char}`)}%`
   const listed = and(
     eq(pomodoroProfiles.profilePublic, true),
     eq(pomodoroProfiles.listed, true),
-    isNull(pomodoroProfiles.hiddenAt)
+    isNull(pomodoroProfiles.hiddenAt),
+    // The same test as the profile's "Focusing now": a running session whose
+    // own clock has not run out, so a focus left open overnight is not online.
+    sort === "online"
+      ? and(
+          eq(pomodoroProfiles.showFocusingNow, true),
+          sql`exists (select 1 from ${focusSessions} where ${focusSessions.userId} = ${pomodoroProfiles.userId} and ${focusSessions.status} = 'running' and ${focusSessions.targetEndsAt} > ${new Date(now).toISOString()}::timestamptz)`
+        )
+      : undefined,
+    term
+      ? sql`(lower(coalesce(${pomodoroProfiles.publicDisplayName}, '')) like ${pattern} or lower(coalesce(${pomodoroProfiles.handle}, '')) like ${pattern})`
+      : undefined
   )
+  const shownFocus = sql`case when ${pomodoroProfiles.showFigures} then coalesce(sum(${dailyFocusStats.focusSeconds}), 0) else 0 end`
 
   const [rows, [totalRow]] = await Promise.all([
     db
@@ -982,7 +1012,11 @@ export async function readUsersPage(
         pomodoroProfiles.showFigures,
         customShellUsers.avatarUrl
       )
-      .orderBy(desc(sql`min(${customShellUsers.createdAt})`))
+      .orderBy(
+        ...(sort !== "newest"
+          ? [desc(shownFocus), desc(sql`min(${customShellUsers.createdAt})`)]
+          : [desc(sql`min(${customShellUsers.createdAt})`)])
+      )
       .limit(USERS_PAGE_SIZE)
       .offset(safePage * USERS_PAGE_SIZE),
     db
@@ -1001,7 +1035,7 @@ export async function readUsersPage(
       bio: row.bio?.trim() || null,
       focusHours: row.showFigures
         ? Math.floor(Number(row.focusSeconds ?? 0) / 3_600)
-        : 0,
+        : null,
     }))
 
   const total = totalRow?.value ?? 0
@@ -1009,8 +1043,14 @@ export async function readUsersPage(
     const oldest = usersCache.keys().next()
     if (!oldest.done) usersCache.delete(oldest.value)
   }
-  const entry = { rows: listedUsers, total, expiresAt: now + USERS_CACHE_MS }
-  usersCache.set(safePage, entry)
+  // Online now changes by the minute, so it is held for 30 seconds, the same
+  // as a profile's "Focusing now".
+  const entry = {
+    rows: listedUsers,
+    total,
+    expiresAt: now + (sort === "online" ? ONLINE_CACHE_MS : USERS_CACHE_MS),
+  }
+  usersCache.set(cacheKey, entry)
   return shapeUsers(entry, safePage, viewerUserId)
 }
 
@@ -1028,11 +1068,34 @@ async function shapeUsers(
   page: number,
   viewerUserId: string | null
 ) {
-  const blocked = await blockedUserIdsFor(viewerUserId)
+  const visibleIds = entry.rows.map((row) => row.userId)
+  const [blocked, followed] = await Promise.all([
+    blockedUserIdsFor(viewerUserId),
+    // Whom the reader follows among this page, one query, so each card's
+    // Follow button starts in the right state. Nothing for a signed-out one.
+    viewerUserId && visibleIds.length
+      ? db
+          .select({ id: pomodoroFollows.followedUserId })
+          .from(pomodoroFollows)
+          .where(
+            and(
+              eq(pomodoroFollows.followerUserId, viewerUserId),
+              inArray(pomodoroFollows.followedUserId, visibleIds)
+            )
+          )
+          .then((rows) => new Set(rows.map((row) => row.id)))
+      : Promise.resolve(new Set<string>()),
+  ])
   return {
     rows: entry.rows
       .filter((row) => !blocked.has(row.userId))
-      .map(({ userId: _userId, ...row }) => row),
+      .map(({ userId, ...row }) => ({
+        ...row,
+        /** The reader's own card, which says YOU and has no Follow. */
+        mine: userId === viewerUserId,
+        /** Null for a signed-out reader, who follows nobody. */
+        following: viewerUserId ? followed.has(userId) : null,
+      })),
     total: entry.total,
     page,
     pageSize: USERS_PAGE_SIZE,
