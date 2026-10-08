@@ -11,6 +11,13 @@ environment variable. Saved keys take priority and the server encrypts them at
 rest. If a saved key cannot be decrypted, the settings page reports the problem
 instead of silently switching to the environment key.
 
+On a live app deployed with the `deploy-app` skill, the deploy writes Tyler's
+keys into the same saved rows, encrypted with that app's own key, so live
+Settings → AI shows them as set without anyone pasting them. The keys come from
+the private keys file on Tyler's Mac, and that file wins: a different key
+pasted on live is replaced by the next deploy. The skill's "The AI keys"
+section has the details.
+
 ## Model and key checks
 
 The model catalog is defined in one place with provider ids and prices. The key

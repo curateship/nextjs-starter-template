@@ -1,7 +1,8 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { databaseLogin, UPSERT_ADMIN_SQL } from "./create-admin.mjs"
+import { UPSERT_ADMIN_SQL } from "./create-admin.mjs"
+import { databaseLogin } from "./live-db.mjs"
 
 test("reads the login out of a database address, decoding escaped characters", () => {
   assert.deepEqual(databaseLogin("postgres://pomodoro:p%40ss%2Fw@db.example:5432/pomodoro"), {
