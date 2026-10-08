@@ -160,12 +160,14 @@ function ensureFader() {
   applyMotion()
   media.addEventListener("change", applyMotion)
 
-  // The timer's start fades the sound in and its pause/stop fades it out.
+  // A focus starting fades the sound in; a pause, a stop or a break starting
+  // fades it out. Tyler, 8 Oct 2026: "Change it so that break turns the sound
+  // off."
   window.addEventListener("pomodoro:timer-running", ((event: Event) => {
-    runningEdge(
-      "timer",
-      (event as CustomEvent<{ running: boolean }>).detail.running
-    )
+    const { running, mode } = (
+      event as CustomEvent<{ running: boolean; mode: string }>
+    ).detail
+    runningEdge("timer", running && mode === "focus")
   }) as EventListener)
   return fader
 }
@@ -193,8 +195,9 @@ function runningEdge(clock: "timer" | "room", running: boolean) {
 }
 
 /**
- * The hosted room's clock counts as the timer: its focus or break starting
- * starts the room's sound, and the room going back to waiting fades it out.
+ * The hosted room's clock counts as the timer: its focus starting starts the
+ * room's sound, and a break or the room going back to waiting fades it out.
+ * The caller passes whether the room is in a focus.
  *
  * `initial` is the first snapshot a page sees. It only records where the
  * room's clock is, because a reload never autoplays: a room found mid-focus

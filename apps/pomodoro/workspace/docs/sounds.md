@@ -75,9 +75,14 @@ the timer all talk to the same module. React reads it through
   throttled background tab — that is what lets the sleep timer silence a
   hidden tab.
 - **The timer drives it:** the hook announces running edges as
-  `pomodoro:timer-running` window events. Start fades the selected loop in,
-  pause or stop fades it out; only genuine edges count, so navigating (which
-  remounts the timer hook) never fights a manual pause.
+  `pomodoro:timer-running` window events, with the mode. A focus starting
+  fades the selected loop in; a pause, a stop or a break starting fades it
+  out. Only genuine edges count, so navigating (which remounts the timer
+  hook) never fights a manual pause.
+- **A break is quiet.** Tyler, 8 Oct 2026: "Change it so that break turns the
+  sound off." The sound fades out when a break starts, on your own timer and
+  in a room, and fades back in when the next focus starts. Play in the
+  header still plays it during a break for anyone who wants it.
 - **It follows the room you are in:** the room media store calls
   `followSound` whenever the room's sound changes, and the engine holds that
   loop. Adding a sound dispatches `choose`, which leaves the status paused.

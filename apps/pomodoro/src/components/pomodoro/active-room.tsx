@@ -2,16 +2,15 @@ import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import {
   CheckIcon,
+  ChevronDownIcon,
   CopyIcon,
-  ImageIcon,
-  MusicIcon,
-  UsersIcon,
+  MaximizeIcon,
   WifiOffIcon,
 } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card } from "@/components/ui/card"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
@@ -28,7 +27,11 @@ import {
   RoomChatPanel,
   RoomMemberList,
 } from "@/components/pomodoro/room-chat"
+import { BreakCard } from "@/components/pomodoro/break-card"
+import { TasksSection } from "@/components/pomodoro/today-task-list"
 import { useProductAuth } from "@/lib/pomodoro/auth-state"
+import { usePomodoro } from "@/lib/pomodoro/use-pomodoro"
+import { cn } from "@/lib/utils"
 import { contentColumn } from "@/lib/pomodoro/content-column"
 import { sceneFor, soundLabelFor } from "@/lib/pomodoro/media-pair"
 import {
@@ -64,7 +67,11 @@ export type ConfirmRequest = {
   onConfirm: () => void
 }
 
-export function useRoomCountdown(phaseEndsAt: Date | string | null) {
+/**
+ * Seconds left in the room's phase, counted from the server's end time, or
+ * null for a phase with no clock (waiting).
+ */
+export function useRoomSecondsLeft(phaseEndsAt: Date | string | null) {
   const endsAtTime = phaseEndsAt ? new Date(phaseEndsAt).getTime() : null
   const [now, setNow] = React.useState(() => Date.now())
   React.useEffect(() => {
@@ -74,9 +81,24 @@ export function useRoomCountdown(phaseEndsAt: Date | string | null) {
     return () => clearInterval(interval)
   }, [endsAtTime])
   if (!endsAtTime) return null
-  const totalSeconds = Math.max(0, Math.ceil((endsAtTime - now) / 1000))
-  return `${Math.floor(totalSeconds / 60)}:${String(totalSeconds % 60).padStart(2, "0")}`
+  return Math.max(0, Math.ceil((endsAtTime - now) / 1000))
 }
+
+/** "25:00", the way the ring writes a number of seconds. */
+function clockText(totalSeconds: number) {
+  return `${String(Math.floor(totalSeconds / 60)).padStart(2, "0")}:${String(totalSeconds % 60).padStart(2, "0")}`
+}
+
+/** The same ring as the timer: 300 units across, an 8-unit stroke. */
+const ringRadius = 144
+const circumference = 2 * Math.PI * ringRadius
+
+const eyebrowClass =
+  "font-mono text-[11px] uppercase tracking-[0.2em] text-foreground/75"
+
+/** The round outline buttons inside the ring, matching the timer's. */
+const ringIconButtonClass =
+  "bg-transparent text-muted-foreground hover:bg-transparent hover:text-foreground dark:border-border dark:bg-transparent dark:hover:bg-transparent"
 
 const phaseLabels: Record<string, string> = {
   waiting: "Waiting to start",
@@ -187,7 +209,8 @@ export function useActiveRoom({ onEnded }: { onEnded?: () => void } = {}) {
       }
       endExplainedRef.current = ""
       enterRoomFromSnapshot(snapshot)
-      followRoomRunning(snapshot.room.phase !== "waiting", !clockSeenRef.current)
+      // The sound plays only while the room is in a focus; a break is quiet.
+      followRoomRunning(snapshot.room.phase === "focus", !clockSeenRef.current)
       clockSeenRef.current = true
       setActiveRoom(snapshot)
     },
@@ -265,7 +288,6 @@ export function ActiveRoomPanel({
 }) {
   const { room, you, members, messages } = snapshot
   const isHost = you.role === "host"
-  const countdown = useRoomCountdown(room.phaseEndsAt)
   const [pending, setPending] = React.useState("")
   const [copied, setCopied] = React.useState(false)
   const [copyFailed, setCopyFailed] = React.useState(false)
@@ -419,181 +441,401 @@ export function ActiveRoomPanel({
         ),
     })
 
-  // The one card outlined in the accent on purpose: it is the room you are in.
-  return (
-    <Card className="border-primary/35">
-      <CardContent className="flex flex-col gap-4 py-5">
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="size-2 rounded-full bg-[var(--p-success)]" aria-hidden="true" />
-          <strong className="text-lg">{room.name}</strong>
-          <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-            {phaseLabels[room.phase] ?? room.phase} · {sessionLabel}
-          </span>
-          <span className="flex items-center gap-1 text-xs text-muted-foreground">
-            <UsersIcon className="size-3.5" aria-hidden="true" />
-            {members.length} {members.length === 1 ? "person" : "people"}
-          </span>
-          {reconnecting ? (
-            <span
-              role="status"
-              className="flex items-center gap-1 text-xs text-muted-foreground"
-            >
-              <WifiOffIcon className="size-3" aria-hidden="true" />
-              Reconnecting…
-            </span>
-          ) : null}
-          <span className="ml-auto font-mono text-3xl tabular-nums">
-            {countdown ?? "—:—"}
-          </span>
-        </div>
-        <RoomPairLine
-          sound={room.sound}
-          background={room.background}
-          isHost={isHost}
-        />
+  const hostName =
+    members.find((member) => member.role === "host")?.name.split(/\s+/)[0] ??
+    "the host"
+  const pillButton = "rounded-full"
+  // The chat folds away by itself the moment a focus starts, so the room is
+  // quiet while people work, and opens again only when somebody opens it.
+  // Tyler, 8 Oct 2026. A page opened mid-focus starts folded too.
+  const [chatOpen, setChatOpen] = React.useState(room.phase !== "focus")
+  const lastPhase = React.useRef(room.phase)
+  React.useEffect(() => {
+    if (room.phase === "focus" && lastPhase.current !== "focus")
+      setChatOpen(false)
+    lastPhase.current = room.phase
+  }, [room.phase])
+  const chatId = React.useId()
 
-        <div className="flex flex-wrap items-center gap-2">
-          {isHost ? (
-            <>
-              {["waiting", "short", "long"].includes(room.phase) ? (
-                <Button
-                  size="sm"
-                  disabled={pending !== ""}
-                  onClick={() => void runAction("start_focus")}
-                >
-                  Start focus
-                </Button>
+  return (
+    <div className="flex flex-col gap-7">
+      <RoomRing
+        snapshot={snapshot}
+        hostName={hostName}
+        pending={pending}
+        onAction={(action) => void runAction(action)}
+      />
+
+      {/* The same break card as the timer, while the room is on a break. */}
+      {room.phase === "short" || room.phase === "long" ? (
+        <BreakCard
+          key={`${room.phase}-${String(room.phaseStartedAt)}`}
+          kind={room.phase}
+          minutes={
+            room.phase === "short" ? room.shortBreakMinutes : room.longBreakMinutes
+          }
+          sessions={4}
+        />
+      ) : null}
+
+      {/* One card: the room's name and buttons, then the chat beside the
+          people in the room, then the message box. Tyler's design of
+          8 Oct 2026. */}
+      <section
+        aria-label={room.name}
+        className="overflow-hidden rounded-[24px] border bg-[var(--p-surface)]"
+      >
+        <header
+          className={cn(
+            "flex flex-wrap items-center gap-x-6 gap-y-4 px-6 py-5",
+            chatOpen && "border-b"
+          )}
+        >
+          {/* The whole width on a phone, so the buttons wrap under it
+              instead of squeezing the name. */}
+          <div className="flex min-w-0 basis-full flex-col gap-1.5 md:basis-0 md:flex-1">
+            <h2 className="flex items-center gap-3 text-2xl font-bold tracking-tight">
+              <span
+                className="size-2.5 shrink-0 rounded-full bg-[var(--p-success)]"
+                aria-hidden="true"
+              />
+              <span className="truncate">{room.name}</span>
+            </h2>
+            <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+              <span className="text-[var(--p-success)]">
+                {phaseLabels[room.phase] ?? room.phase}
+              </span>
+              <span aria-hidden="true">·</span>
+              <span>{sessionLabel}</span>
+              <span aria-hidden="true">·</span>
+              <RoomPairText
+                sound={room.sound}
+                background={room.background}
+                isHost={isHost}
+              />
+              {reconnecting ? (
+                <span role="status" className="flex items-center gap-1">
+                  <WifiOffIcon className="size-3" aria-hidden="true" />
+                  Reconnecting…
+                </span>
               ) : null}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="lg"
+              className={pillButton}
+              onClick={() => void copyInvite()}
+            >
+              {copied ? (
+                <CheckIcon aria-hidden="true" />
+              ) : (
+                <CopyIcon aria-hidden="true" />
+              )}
+              {copied ? "Copied" : "Copy invite link"}
+            </Button>
+            {isHost ? (
+              <>
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className={pillButton}
+                  disabled={pending !== ""}
+                  onClick={() =>
+                    setConfirm({
+                      title: "Close this room?",
+                      description:
+                        "This ends the session for everyone in the room and cannot be undone.",
+                      confirmLabel: "Close room",
+                      onConfirm: () => void runAction("close"),
+                    })
+                  }
+                >
+                  Close room
+                </Button>
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className={pillButton}
+                  disabled={pending !== ""}
+                  onClick={() =>
+                    setConfirm({
+                      title: "Leave and close this room?",
+                      description: leaveAndCloseConsequence(members.length - 1),
+                      confirmLabel: "Leave & close",
+                      onConfirm: () => void leave(),
+                    })
+                  }
+                >
+                  Leave &amp; close
+                </Button>
+              </>
+            ) : (
+              <Button
+                variant="outline"
+                size="lg"
+                className={pillButton}
+                disabled={pending !== ""}
+                onClick={() => void leave()}
+              >
+                Leave room
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              size="icon-lg"
+              className={pillButton}
+              aria-expanded={chatOpen}
+              aria-controls={chatId}
+              aria-label={chatOpen ? "Collapse the chat" : "Open the chat"}
+              onClick={() => setChatOpen((open) => !open)}
+            >
+              <ChevronDownIcon
+                className={cn(
+                  "transition-transform motion-reduce:transition-none",
+                  chatOpen && "rotate-180"
+                )}
+                aria-hidden="true"
+              />
+            </Button>
+          </div>
+          {copyFailed ? (
+            <p className="basis-full text-xs text-muted-foreground">
+              Copying failed — the link is {inviteUrl}
+            </p>
+          ) : null}
+          {panelNotice ? (
+            <p role="status" className="basis-full text-xs text-muted-foreground">
+              {panelNotice}
+            </p>
+          ) : null}
+        </header>
+
+        {/* Folded, the chat stays mounted so a half-typed message and the
+            scroll position survive; it is only hidden. */}
+        <div id={chatId} hidden={!chatOpen}>
+        <RoomChatPanel
+          slug={room.slug}
+          messages={messages}
+          timezone={you.timezone}
+          isHost={isHost}
+          busy={pending !== ""}
+          reactionPending={reactionPending}
+          onToggleReaction={(messageId, emoji) =>
+            void toggleMessageReaction(messageId, emoji)
+          }
+          onDeleteMessage={confirmDeleteMessage}
+          onError={showErrorToast}
+          onNotice={setPanelNotice}
+          aside={
+            <RoomMemberList
+              members={members}
+              isHost={isHost}
+              busy={pending !== ""}
+              onRemove={confirmRemoveMember}
+              onBan={confirmBanMember}
+            />
+          }
+        />
+        </div>
+      </section>
+      {confirm ? (
+        <ConfirmDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setConfirm(null)
+          }}
+          title={confirm.title}
+          description={confirm.description}
+          confirmLabel={confirm.confirmLabel}
+          onConfirm={() => {
+            confirm.onConfirm()
+            setConfirm(null)
+          }}
+        />
+      ) : null}
+    </div>
+  )
+}
+
+/**
+ * The room's clock, drawn as the timer's ring: the phase in small capitals,
+ * the time left, and under it what happens next. A member waiting is told
+ * who starts the room; the host gets the buttons that move it on. Under the
+ * ring, one short bar per session of the four.
+ */
+function RoomRing({
+  snapshot,
+  hostName,
+  pending,
+  onAction,
+}: {
+  snapshot: RoomSnapshotClient
+  hostName: string
+  pending: string
+  onAction: (action: RoomHostActionClient) => void
+}) {
+  const { room, you } = snapshot
+  const isHost = you.role === "host"
+  const ringRef = React.useRef<HTMLDivElement>(null)
+  const secondsLeft = useRoomSecondsLeft(room.phaseEndsAt)
+  const waiting = secondsLeft === null
+  const phaseSeconds =
+    room.phaseStartedAt && room.phaseEndsAt
+      ? (new Date(room.phaseEndsAt).getTime() -
+          new Date(room.phaseStartedAt).getTime()) /
+        1000
+      : 0
+  // A room with no clock running shows a whole ring and the focus length.
+  const fraction =
+    waiting || phaseSeconds <= 0 ? 1 : Math.min(1, secondsLeft / phaseSeconds)
+  const shownSeconds = secondsLeft ?? room.focusMinutes * 60
+  const sessionIndex = Math.min(room.cycleFocusCount, 3)
+
+  return (
+    <section
+      aria-label="Room timer"
+      className="flex flex-col items-center gap-6"
+    >
+      <div
+        ref={ringRef}
+        // Full screen paints the page's own background behind the ring.
+        className="relative grid aspect-square w-[min(300px,100%)] place-items-center [&:fullscreen]:w-full [&:fullscreen]:bg-background"
+      >
+        <svg
+          className="absolute inset-0 m-auto size-full max-h-[min(300px,100%)] max-w-[min(300px,100%)]"
+          viewBox="0 0 300 300"
+          aria-hidden="true"
+        >
+          <circle
+            cx="150"
+            cy="150"
+            r={ringRadius}
+            fill="none"
+            stroke="rgba(var(--p-fg-rgb), 0.07)"
+            strokeWidth="8"
+          />
+          <circle
+            cx="150"
+            cy="150"
+            r={ringRadius}
+            fill="none"
+            stroke={
+              room.phase === "focus" ? "var(--p-success)" : "var(--p-accent)"
+            }
+            strokeWidth="8"
+            strokeLinecap="round"
+            strokeDasharray={circumference}
+            strokeDashoffset={circumference * (1 - fraction)}
+            transform="rotate(-90 150 150)"
+            style={{ transition: "stroke-dashoffset .9s linear, stroke .2s ease" }}
+          />
+        </svg>
+        <div className="relative flex flex-col items-center">
+          <span
+            className={cn(
+              eyebrowClass,
+              room.phase === "waiting" && "text-[var(--p-success)]"
+            )}
+          >
+            {phaseLabels[room.phase] ?? room.phase}
+          </span>
+          <time className="mt-3 font-mono text-[64px] font-semibold leading-none tracking-tight tabular-nums">
+            {clockText(shownSeconds)}
+          </time>
+          {isHost ? (
+            <div className="mt-5 flex items-center gap-2">
               {room.phase === "focus" ? (
                 <Button
-                  size="sm"
+                  size="lg"
+                  className="rounded-full px-5"
                   disabled={pending !== ""}
-                  onClick={() => void runAction("start_break")}
+                  onClick={() => onAction("start_break")}
                 >
                   Start break
                 </Button>
+              ) : (
+                <Button
+                  size="lg"
+                  className="rounded-full px-5"
+                  disabled={pending !== ""}
+                  onClick={() => onAction("start_focus")}
+                >
+                  Start focus
+                </Button>
+              )}
+              {room.phase !== "waiting" ? (
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className={cn("rounded-full", ringIconButtonClass)}
+                  disabled={pending !== ""}
+                  onClick={() => onAction("next_phase")}
+                >
+                  Next phase
+                </Button>
               ) : null}
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={pending !== "" || room.phase === "waiting"}
-                onClick={() => void runAction("next_phase")}
-              >
-                Next phase
-              </Button>
-              <Button
-                size="sm"
-                variant="destructive"
-                disabled={pending !== ""}
-                onClick={() =>
-                  setConfirm({
-                    title: "Close this room?",
-                    description:
-                      "This ends the session for everyone in the room and cannot be undone.",
-                    confirmLabel: "Close room",
-                    onConfirm: () => void runAction("close"),
-                  })
-                }
-              >
-                Close room
-              </Button>
-            </>
-          ) : (
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={pending !== ""}
-              onClick={() => void leave()}
-            >
-              Leave room
-            </Button>
-          )}
-          {isHost ? (
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled={pending !== ""}
-              onClick={() =>
-                setConfirm({
-                  title: "Leave and close this room?",
-                  description: leaveAndCloseConsequence(members.length - 1),
-                  confirmLabel: "Leave & close",
-                  onConfirm: () => void leave(),
-                })
-              }
-            >
-              Leave &amp; close
-            </Button>
+            </div>
+          ) : room.phase === "waiting" ? (
+            <span className="mt-5 text-sm text-muted-foreground">
+              Waiting for {hostName} to start
+            </span>
           ) : null}
           <Button
-            size="sm"
             variant="outline"
-            className="ml-auto"
-            onClick={() => void copyInvite()}
+            size="icon-lg"
+            className={cn("mt-4 rounded-full", ringIconButtonClass)}
+            aria-label="Full screen"
+            onClick={() => {
+              if (document.fullscreenElement) void document.exitFullscreen()
+              else void ringRef.current?.requestFullscreen?.()
+            }}
           >
-            {copied ? (
-              <CheckIcon aria-hidden="true" />
-            ) : (
-              <CopyIcon aria-hidden="true" />
-            )}
-            {copied ? "Copied" : "Copy invite link"}
+            <MaximizeIcon className="size-[17px]" aria-hidden="true" />
           </Button>
         </div>
-        {copyFailed ? (
-          <p className="text-xs text-muted-foreground">
-            Copying failed — the link is {inviteUrl}
-          </p>
-        ) : null}
-
-        {panelNotice ? (
-          <p role="status" className="text-xs text-muted-foreground">
-            {panelNotice}
-          </p>
-        ) : null}
-
-        <div className="grid gap-4 md:grid-cols-[240px_minmax(0,1fr)]">
-          {/* The chat is written first so a phone reads it first. The member
-              list takes the left column back on desktop with `md:order-first`,
-              so the two-column layout is unchanged. */}
-          <RoomChatPanel
-            slug={room.slug}
-            messages={messages}
-            timezone={you.timezone}
-            isHost={isHost}
-            busy={pending !== ""}
-            reactionPending={reactionPending}
-            onToggleReaction={(messageId, emoji) =>
-              void toggleMessageReaction(messageId, emoji)
-            }
-            onDeleteMessage={confirmDeleteMessage}
-            onError={showErrorToast}
-            onNotice={setPanelNotice}
-          />
-          <RoomMemberList
-            members={members}
-            isHost={isHost}
-            busy={pending !== ""}
-            onRemove={confirmRemoveMember}
-            onBan={confirmBanMember}
-          />
+      </div>
+      {/* The room's rhythm as the host set it: how many of the four
+          focuses are done, a chip per focus with its length (done orange,
+          the next one outlined, the rest grey), and the breaks. Tyler's
+          design of 8 Oct 2026. */}
+      <div className="flex w-full max-w-[480px] flex-col gap-3">
+        <p className="text-2xl font-semibold tracking-tight">
+          {room.cycleFocusCount}
+          <span className="font-normal text-muted-foreground">
+            {" "}
+            / 4 sessions
+          </span>
+        </p>
+        <div
+          role="img"
+          aria-label={`${room.cycleFocusCount} of 4 sessions done, ${room.focusMinutes} minutes each`}
+          className="grid grid-cols-4 gap-2"
+        >
+          {[0, 1, 2, 3].map((index) => (
+            <span
+              key={index}
+              aria-hidden="true"
+              className={cn(
+                "grid h-[30px] place-items-center rounded-[8px] border font-mono text-sm",
+                index < room.cycleFocusCount
+                  ? "border-transparent bg-primary text-primary-foreground"
+                  : index === sessionIndex
+                    ? "border-primary/80 bg-primary/15 text-primary"
+                    : "bg-foreground/5 text-muted-foreground"
+              )}
+            >
+              {room.focusMinutes}m
+            </span>
+          ))}
         </div>
-        {confirm ? (
-          <ConfirmDialog
-            open
-            onOpenChange={(open) => {
-              if (!open) setConfirm(null)
-            }}
-            title={confirm.title}
-            description={confirm.description}
-            confirmLabel={confirm.confirmLabel}
-            onConfirm={() => {
-              confirm.onConfirm()
-              setConfirm(null)
-            }}
-          />
-        ) : null}
-      </CardContent>
-    </Card>
+        <p className="text-sm text-muted-foreground">
+          {room.shortBreakMinutes}m breaks · {room.longBreakMinutes}m long
+          break after session 4 · set by {isHost ? "you" : "the host"}
+        </p>
+      </div>
+    </section>
   )
 }
 
@@ -609,11 +851,11 @@ function leaveAndCloseConsequence(others: number) {
 }
 
 /**
- * The room's sound and theme, under its name. The host is pointed at the two
- * pages where the pair is changed for everybody; a member is only told what
- * the host picked.
+ * The room's sound and theme, in the line under its name. A member is told
+ * the host picked them; the host is pointed at the two pages where the pair
+ * is changed for everybody.
  */
-function RoomPairLine({
+function RoomPairText({
   sound,
   background,
   isHost,
@@ -624,32 +866,24 @@ function RoomPairLine({
 }) {
   const soundName = soundLabelFor(sound) ?? "No sound"
   const sceneName = sceneFor(background)?.label ?? "Lofi girl"
+  if (!isHost)
+    return (
+      <span>
+        {soundName}, {sceneName}, picked by the host
+      </span>
+    )
   return (
-    <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-      <span className="flex items-center gap-1">
-        <MusicIcon className="size-3.5" aria-hidden="true" />
-        {soundName}
-      </span>
-      <span className="flex items-center gap-1">
-        <ImageIcon className="size-3.5" aria-hidden="true" />
-        {sceneName}
-      </span>
-      {isHost ? (
-        <span>
-          Change them on{" "}
-          <Link to="/sounds" className="underline underline-offset-2">
-            Sounds
-          </Link>{" "}
-          and{" "}
-          <Link to="/backgrounds" className="underline underline-offset-2">
-            Backgrounds
-          </Link>
-          .
-        </span>
-      ) : (
-        <span>Picked by the host.</span>
-      )}
-    </p>
+    <span>
+      {soundName}, {sceneName}. Change them on{" "}
+      <Link to="/sounds" className="underline underline-offset-2">
+        Sounds
+      </Link>{" "}
+      and{" "}
+      <Link to="/backgrounds" className="underline underline-offset-2">
+        Backgrounds
+      </Link>
+      .
+    </span>
   )
 }
 
@@ -661,9 +895,10 @@ function RoomPairLine({
  */
 export function JoinedRoom() {
   const live = useActiveRoom()
+  const pomodoro = usePomodoro()
   const snapshot = live.activeRoom
   return (
-    <div className={`${contentColumn} flex flex-col gap-6 py-8`}>
+    <div className={`${contentColumn} flex flex-col gap-7 py-8`}>
       {snapshot ? (
         <ActiveRoomPanel
           snapshot={snapshot}
@@ -686,8 +921,20 @@ export function JoinedRoom() {
           <LoadingRow label="Opening your room…" />
         </Card>
       )}
-      <p className="text-sm text-muted-foreground">
-        Looking for another room? <Link to="/rooms" className="underline underline-offset-2">Browse rooms</Link>.
+      {/* Your own tasks, the same list as the timer's, in a card of their own
+          under the room. */}
+      <div className="overflow-hidden rounded-[24px] border bg-[var(--p-surface)]">
+        <TasksSection pomodoro={pomodoro} />
+      </div>
+      <p className="text-center text-sm text-muted-foreground">
+        Looking for another room?{" "}
+        <Link
+          to="/rooms"
+          className="text-[var(--p-accent)] underline underline-offset-2"
+        >
+          Browse rooms
+        </Link>
+        .
       </p>
     </div>
   )

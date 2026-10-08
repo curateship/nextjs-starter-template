@@ -31,11 +31,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 import { usePrefersReducedMotion } from "@/lib/pomodoro/use-reduced-motion"
-import {
-  formatClockIn,
-  formatLongDay,
-  localDateIn,
-} from "@/lib/format/calendar-day"
+import { formatClockIn } from "@/lib/format/calendar-day"
 import { InitialsAvatar } from "@/components/pomodoro/initials-avatar"
 import { reportMessage, sendRoomMessage } from "@/lib/api/pomodoro/rooms"
 import {
@@ -54,15 +50,16 @@ type RoomMessage = RoomSnapshotClient["messages"][number]
  * desktop cap is ten. Everybody after that is one flick away, which is the
  * point: the list of names is not what you joined the room for.
  *
- * The chat takes what the window has left instead of a fixed 260px. `34rem` is
- * everything above it on a phone — the page header, the room's own heading, the
- * host's buttons and the capped member list — so the box is never taller than
- * the room it has to fit in. It stops shrinking at 140px, about two messages,
- * and stops growing at 32rem, past which a chat column reads as a page of its
- * own. `dvh` rather than `vh` because a phone's address bar slides away.
+ * The chat holds about five messages, a one-line message being 62px with its
+ * 16px gap, and the rest scroll inside it. Tyler, 8 Oct 2026: "Cap the chatbox
+ * at a certain height (about 5 messages)".
  */
 const MEMBER_LIST_HEIGHT = "max-h-[13rem] md:max-h-[22rem]"
-const CHAT_HEIGHT = "max-h-[clamp(140px,calc(100dvh-34rem),32rem)]"
+
+/** The small spaced capitals over Chat and In the room. */
+const EYEBROW =
+  "font-mono text-[11px] uppercase tracking-[0.2em] text-foreground/75"
+const CHAT_HEIGHT = "max-h-[19rem]"
 
 /** Within this many pixels of the bottom counts as reading the newest line. */
 const NEAR_BOTTOM_PX = 48
@@ -92,24 +89,26 @@ export function RoomMemberList({
   onBan: (member: RoomMember) => void
 }) {
   return (
-    // Second on a phone and first on desktop. Stacked, the conversation is
-    // what the room is for, so the names go under it rather than in front of
-    // it; side by side, the names are the left column they always were.
-    <section
-      className="flex flex-col gap-3 md:order-first"
-      aria-label="People in the room"
-    >
-      <h3 className="font-mono text-[10px] font-semibold uppercase tracking-[0.13em] text-muted-foreground">
-        In the room
-      </h3>
+    // The right-hand column beside the chat, and under it on a phone, where
+    // the conversation is what the room is for.
+    <section className="flex min-w-0 flex-col gap-3" aria-label="People in the room">
+      <h3 className={EYEBROW}>In the room · {members.length}</h3>
       <ScrollArea className={MEMBER_LIST_HEIGHT}>
-        <ul className="flex flex-col gap-2">
+        <ul className="flex flex-col gap-3">
           {members.map((member) => (
-            <li key={member.id} className="flex items-center gap-2 text-sm">
-              <InitialsAvatar name={member.name} className="size-7" />
+            <li key={member.id} className="flex items-center gap-3 text-[15px]">
+              {/* The green dot says the person is in the room now: a member
+                  who leaves drops off the list. */}
+              <span className="relative shrink-0">
+                <InitialsAvatar name={member.name} className="size-9" />
+                <span
+                  aria-hidden="true"
+                  className="absolute -bottom-0.5 -right-0.5 size-3 rounded-full border-2 border-[var(--p-surface)] bg-[var(--p-success)]"
+                />
+              </span>
               {/* The task is there only for somebody who chose to share it,
                   and only while their own focus is running. */}
-              <span className="flex min-w-0 flex-col">
+              <span className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate">{member.name}</span>
                 {member.task ? (
                   <span
@@ -122,9 +121,13 @@ export function RoomMemberList({
                 ) : null}
               </span>
               {member.role === "host" ? (
-                <b className="rounded-full border border-primary/60 px-2 py-px font-mono text-[9px] font-bold text-[var(--p-accent-2)]">
+                <b className="shrink-0 font-mono text-[11px] font-semibold tracking-[0.1em] text-[var(--p-accent)]">
                   HOST
                 </b>
+              ) : member.mine ? (
+                <span className="shrink-0 font-mono text-[11px] tracking-[0.1em] text-muted-foreground">
+                  YOU
+                </span>
               ) : null}
               {isHost && member.role !== "host" ? (
                 <DropdownMenu>
@@ -132,7 +135,6 @@ export function RoomMemberList({
                     <Button
                       variant="ghost"
                       size="icon-sm"
-                      className="ml-auto"
                       disabled={busy}
                       aria-label={`Moderate ${member.name}`}
                     >
@@ -171,10 +173,13 @@ export function RoomChatPanel({
   reactionPending,
   onError,
   onNotice,
+  aside,
 }: {
+  /** The column beside the chat: the people in the room. */
+  aside?: React.ReactNode
   slug: string
   messages: RoomMessage[]
-  /** The viewer's account timezone, where the chat's day lines fall. */
+  /** The viewer's account timezone, which the message times are in. */
   timezone: string
   isHost: boolean
   busy: boolean
@@ -252,7 +257,11 @@ export function RoomChatPanel({
 
   const send = async () => {
     const body = draft.trim()
-    if (!body) return
+    // Send is never greyed out, so an empty press says why nothing went.
+    if (!body) {
+      onError("Type a message first.")
+      return
+    }
     setDraft("")
     setSending(true)
     followNext.current = true
@@ -273,45 +282,42 @@ export function RoomChatPanel({
   }
 
   return (
-    <section
-      className="flex min-w-0 flex-col overflow-hidden rounded-xl border"
-      aria-label="Room chat"
-    >
+    // The chat on the left and the people on the right, with the message box
+    // under both across the card's full width, as Tyler's design of
+    // 8 Oct 2026 draws it.
+    <div className="flex flex-col">
+    <div className="grid gap-6 px-6 py-5 md:grid-cols-[minmax(0,1fr)_260px] md:gap-10">
+    <section className="flex min-w-0 flex-col gap-3" aria-label="Room chat">
+      <h3 className={EYEBROW}>Chat</h3>
       <div className="relative flex min-h-0 flex-1 flex-col">
         <ScrollArea className={cn("flex-1", CHAT_HEIGHT)}>
-          <div ref={listRef} className="flex flex-col gap-3 p-4">
-            {messages.map((entry, index) => {
-              // A line with the day above the first message and wherever the
-              // day changes, so a room that runs past midnight says which day
-              // each time belongs to without stamping the date on every line.
-              const day = localDateIn(timezone, entry.createdAt)
-              const dayChanged =
-                index === 0 ||
-                localDateIn(timezone, messages[index - 1].createdAt) !== day
+          <div ref={listRef} className="flex flex-col gap-4 py-1">
+            {/* No day lines between messages: Tyler, 8 Oct 2026, "remove
+                the date". Each message keeps its time. */}
+            {messages.map((entry) => {
               return (
                 <React.Fragment key={entry.id}>
-                  {dayChanged ? <DayDivider localDate={day} /> : null}
                   {entry.deleted ? (
-                    <p className="text-xs italic text-muted-foreground">
+                    <p className="pl-12 text-sm italic text-muted-foreground">
                       Message removed by the host
                     </p>
                   ) : (
-                    <div className="group/message flex gap-2">
-                      <InitialsAvatar name={entry.authorName} className="size-7" />
+                    <div className="group/message flex gap-3">
+                      <InitialsAvatar name={entry.authorName} className="size-9" />
                       <div className="flex min-w-0 flex-col gap-1">
-                        <p className="flex items-baseline gap-2 text-[11px] text-muted-foreground">
+                        <p className="flex items-baseline gap-2 font-mono text-xs text-muted-foreground">
                           {/* A name links to its profile only when that profile
                               actually reads; otherwise it stays plain text. */}
                           {entry.handle ? (
                             <Link
                               to="/u/$handle"
                               params={{ handle: entry.handle }}
-                              className="font-semibold text-foreground underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              className="font-sans text-sm font-semibold text-foreground underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                             >
                               {entry.authorName}
                             </Link>
                           ) : (
-                            <span className="font-semibold text-foreground">
+                            <span className="font-sans text-sm font-semibold text-foreground">
                               {entry.authorName}
                             </span>
                           )}
@@ -319,7 +325,7 @@ export function RoomChatPanel({
                             {formatClockIn(timezone, entry.createdAt)}
                           </time>
                         </p>
-                        <span className="text-sm break-words">{entry.body}</span>
+                        <span className="text-[15px] break-words">{entry.body}</span>
                         {entry.reactions.length ? (
                           <div className="flex flex-wrap gap-1 pt-0.5">
                             {entry.reactions.map((reaction) => (
@@ -335,7 +341,7 @@ export function RoomChatPanel({
                                   onToggleReaction(entry.id, reaction.emoji)
                                 }
                                 className={cn(
-                                  "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-muted-foreground disabled:opacity-50",
+                                  "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-muted-foreground disabled:opacity-50",
                                   reaction.mine &&
                                     "border-primary/45 bg-primary/10 text-[var(--p-accent-2)]"
                                 )}
@@ -401,7 +407,7 @@ export function RoomChatPanel({
               )
             })}
             {!messages.length ? (
-              <p className="text-xs text-muted-foreground">
+              <p className="text-sm text-muted-foreground">
                 Say hi — messages appear for everyone in the room.
               </p>
             ) : null}
@@ -420,8 +426,11 @@ export function RoomChatPanel({
           </Button>
         ) : null}
       </div>
+    </section>
+    {aside}
+    </div>
       <form
-        className="flex items-center gap-2 border-t p-2"
+        className="flex items-center gap-2 border-t py-3 pl-3 pr-3"
         onSubmit={(event) => {
           event.preventDefault()
           void send()
@@ -437,8 +446,9 @@ export function RoomChatPanel({
           autoComplete="off"
           placeholder="Send encouragement…"
           onChange={(event) => setDraft(event.target.value)}
+          className="border-transparent bg-transparent shadow-none dark:bg-transparent"
         />
-        <Button type="submit" disabled={sending || !draft.trim()}>
+        <Button type="submit" className="rounded-full px-5" disabled={sending}>
           Send
         </Button>
       </form>
@@ -452,7 +462,7 @@ export function RoomChatPanel({
           onNotice(notice)
         }}
       />
-    </section>
+    </div>
   )
 }
 
@@ -615,24 +625,5 @@ function ReportMessageDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
-}
-
-/**
- * The line across the chat where one day ends and the next begins. A
- * separator to a screen reader, with the day as its name.
- */
-function DayDivider({ localDate }: { localDate: string }) {
-  const label = formatLongDay(localDate)
-  return (
-    <div
-      role="separator"
-      aria-label={label}
-      className="flex items-center gap-2 text-[11px] text-muted-foreground"
-    >
-      <span aria-hidden="true" className="flex-1 border-t" />
-      <span aria-hidden="true">{label}</span>
-      <span aria-hidden="true" className="flex-1 border-t" />
-    </div>
   )
 }

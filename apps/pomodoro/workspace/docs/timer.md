@@ -30,7 +30,12 @@ bottom:
 - **The three boxes along the top:** Today holds the goal count and one
   chip per session, each reading the focus length ("25m"). A finished focus
   fills orange, the next one has an orange outline, and the rest are grey.
-  Every finished chip turns green once the goal is met. Streak holds the current and best run of days.
+  Every finished chip turns green once the goal is met.
+- **A goal of more than six sessions** has no room for "25m" on each chip, so
+  the chips are blank 24px squares, and a line under the count gives the
+  minutes instead: "50m of 4h 10m" for 2 of 10 sessions of 25 minutes. Tyler
+  sent the design on 8 Oct 2026 with "if there are more than 6 sessions, it
+  should look like this". Streak holds the current and best run of days.
   Auto-start holds the switch, labelled "Next timer". On a phone the three
   stack.
 - **A task row on the front page** is a grip, a 20px round tick, the title in 15px,

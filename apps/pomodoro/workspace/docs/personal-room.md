@@ -50,9 +50,10 @@ Then it is the pair the host picked, until you leave.
 - **A host's change reaches everyone at once.** "Add to this room" on Sounds
   or Backgrounds saves the room's pair and sends a fresh snapshot, so every
   member's screen and sound change within a second.
-- **The room's clock drives its sound.** The room's focus or break starting
-  plays the room's sound, the way your own timer's Start does, and the room
-  going back to waiting fades it out. A sound that was playing when the host
+- **The room's clock drives its sound.** The room's focus starting plays the
+  room's sound, the way your own timer's Start does, and a break or the room
+  going back to waiting fades it out. A break is quiet; see
+  [Sounds](sounds.md). A sound that was playing when the host
   changes it crossfades into the new one.
 - **A member can't change the room's pair.** Pause, volume and mute still
   work. The power button is hidden in a hosted room, because taking the sound

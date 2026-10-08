@@ -372,10 +372,17 @@ function setState(next: Partial<PomodoroState>) {
   emit()
 }
 
+/**
+ * Tells the rest of the page the timer started or stopped. Every caller runs
+ * after `setState`, so the mode read here is the one that is now running,
+ * which the sound needs: it plays only during a focus.
+ */
 function announceRunning(running: boolean) {
   if (typeof window === "undefined") return
   window.dispatchEvent(
-    new CustomEvent("pomodoro:timer-running", { detail: { running } })
+    new CustomEvent("pomodoro:timer-running", {
+      detail: { running, mode: state.timer.mode },
+    })
   )
 }
 

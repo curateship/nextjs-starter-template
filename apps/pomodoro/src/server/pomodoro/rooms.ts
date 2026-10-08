@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, inArray, lte, sql } from "drizzle-orm"
+import { and, desc, eq, gt, inArray, lte, ne, sql } from "drizzle-orm"
 
 import { db, type CustomShellDb } from "@/server/db"
 import { enforceRateLimit } from "@/server/auth/rate-limit"
@@ -319,7 +319,13 @@ const readableHandle = sql<string | null>`case
   when ${pomodoroProfiles.profilePublic} and ${pomodoroProfiles.hiddenAt} is null
   then ${pomodoroProfiles.handle} end`
 
-export async function listPublicRooms(database: PomoderDb = db) {
+/**
+ * The public rooms someone can join. The rooms that viewer hosts or is
+ * already sitting in are left out: they have their own column on Rooms, and
+ * a Join on your own room has nothing to do. Tyler, 8 Oct 2026: "The open to
+ * join shouildnt show the room I hosted".
+ */
+export async function listPublicRooms(viewerId: string, database: PomoderDb = db) {
   return database
     .select({
       room: { id: rooms.id, slug: rooms.slug, name: rooms.name, phase: rooms.phase, phaseEndsAt: rooms.phaseEndsAt, focusMinutes: rooms.focusMinutes, cycleFocusCount: rooms.cycleFocusCount, sound: rooms.sound, background: rooms.background },
@@ -332,7 +338,13 @@ export async function listPublicRooms(database: PomoderDb = db) {
     .leftJoin(roomMemberships, and(eq(roomMemberships.roomId, rooms.id), sql`${roomMemberships.leftAt} is null`))
     // A booked room is not open, so it stays out of both browse groups and
     // appears under Upcoming instead — see listUpcomingRooms.
-    .where(and(eq(rooms.visibility, "public"), sql`${rooms.closedAt} is null`, sql`${rooms.phase} <> 'scheduled'`))
+    .where(and(
+      eq(rooms.visibility, "public"),
+      sql`${rooms.closedAt} is null`,
+      sql`${rooms.phase} <> 'scheduled'`,
+      ne(rooms.hostUserId, viewerId),
+      sql`not exists (select 1 from ${roomMemberships} mine where mine.room_id = ${rooms.id} and mine.user_id = ${viewerId} and mine.left_at is null)`,
+    ))
     .groupBy(rooms.id, users.id, pomodoroProfiles.publicDisplayName)
     .orderBy(desc(rooms.createdAt))
     .limit(50)
@@ -364,7 +376,8 @@ export type RoomSnapshot = {
   // `task` is the title of the focus this member is running right now, and
   // only for a member who switched on "Show my task to people in my room".
   // Null otherwise.
-  members: { id: string; name: string; handle: string | null; role: string; avatarIndex: number; joinedAt: Date; task: string | null }[]
+  // `mine` marks the viewer's own row, which the room labels YOU.
+  members: { id: string; name: string; handle: string | null; role: string; avatarIndex: number; joinedAt: Date; task: string | null; mine: boolean }[]
   messages: { id: string; body: string; authorName: string; handle: string | null; mine: boolean; deleted: boolean; createdAt: Date; reactions: RoomReactionSummary[] }[]
 }
 
@@ -442,6 +455,7 @@ export async function roomSnapshot(roomId: string, userId: string, database: Pom
       avatarIndex: avatarIndexFor(memberUserId),
       handle: member.handle,
       task: sharesTask ? tasksByUser.get(memberUserId) ?? null : null,
+      mine: memberUserId === userId,
     })),
     // Soft-deleted messages stay in the timeline as empty tombstones so
     // members see that moderation happened without ever receiving the body.

@@ -65,6 +65,8 @@ cover this one.
   one, a guest's random pair, and previewing before adding.
 - [Sounds](sounds.md) — the eight ambient loops, the header player that
   survives navigation, the sleep timer and the completion chime.
+- [The break card](break-card.md) — the short and long break checklists under
+  the timer and in a room.
 - [The dark mode shade](dark-mode-shade.md) — the four steps from near black
   to soft grey in Settings → Appearance, which greys move and which stay.
 - [Backgrounds](backgrounds.md) — the eight scenes and the backdrop every

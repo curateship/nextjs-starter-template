@@ -149,7 +149,7 @@ async function assertRoomPair(
 
 const listRoomsFn = createServerFn({ method: "GET" })
   .middleware([userGet])
-  .handler(async () => listPublicRooms())
+  .handler(async ({ context }) => listPublicRooms(context.user.id))
 
 /**
  * Marks a room's bell notices read, and never stands between somebody and the

@@ -10,10 +10,10 @@ import {
 } from "lucide-react"
 
 import { useDiscardFocusConfirm } from "@/components/pomodoro/discard-focus-confirm"
+import { BreakCard } from "@/components/pomodoro/break-card"
 import { SessionNotePrompt } from "@/components/pomodoro/session-note-prompt"
 import {
-  NewTaskForm,
-  TodayTaskList,
+  TasksSection,
 } from "@/components/pomodoro/today-task-list"
 import { ZenMode } from "@/components/pomodoro/zen-mode"
 import { Button } from "@/components/ui/button"
@@ -46,6 +46,7 @@ import {
 import { useSpaceToggle } from "@/lib/pomodoro/use-space-toggle"
 import { TextLink } from "@/components/pomodoro/text-link"
 import { plural } from "@/lib/format/plural"
+import { formatDuration } from "@/lib/format/format-time"
 import { cn } from "@/lib/utils"
 import { contentColumn } from "@/lib/pomodoro/content-column"
 import { HomeOpenRooms } from "@/components/pomodoro/open-rooms"
@@ -61,11 +62,15 @@ const statCellClass = "flex min-w-0 flex-col gap-2 px-5 py-4"
 
 const statValueClass = "text-lg font-semibold leading-6 tracking-tight"
 
+/** Above this many sessions, Today's chips drop their "25m" labels. */
+const MAX_LABELLED_SESSIONS = 6
+
 /**
  * Today's goal as one chip per session, each labelled with the focus length
  * ("25m"). A finished focus fills orange, the next one has an orange outline,
  * the rest are grey, and every finished chip turns green once the goal is
- * met. It reads out like the shared
+ * met. A goal of more than six has no room for the labels, so its chips are
+ * blank squares, from Tyler's design of 8 Oct 2026. It reads out like the shared
  * `Meter` does ("Today's daily goal, 3 of 4 sessions"); the shared one draws a
  * single fill, which cannot show the sessions apart.
  */
@@ -81,6 +86,7 @@ function GoalSegments({
   focusMinutes: number
 }) {
   const filled = Math.min(Math.max(done, 0), goal)
+  const many = goal > MAX_LABELLED_SESSIONS
   return (
     <div
       role="meter"
@@ -96,7 +102,8 @@ function GoalSegments({
           key={index}
           aria-hidden="true"
           className={cn(
-            "grid h-[22px] min-w-0 flex-1 place-items-center rounded-[6px] border font-mono text-[11px] transition-colors motion-reduce:transition-none",
+            "grid min-w-0 flex-1 place-items-center rounded-[6px] border font-mono text-[11px] transition-colors motion-reduce:transition-none",
+            many ? "h-6" : "h-[22px]",
             index < filled
               ? reached
                 ? "border-transparent bg-[var(--p-success)] text-white"
@@ -106,7 +113,7 @@ function GoalSegments({
                 : "bg-foreground/5 text-muted-foreground"
           )}
         >
-          {focusMinutes}m
+          {many ? null : `${focusMinutes}m`}
         </span>
       ))}
     </div>
@@ -268,7 +275,6 @@ export function TimerDashboard() {
     circumference * (1 - pomodoro.remainingSeconds / totalSeconds)
   const goalReached =
     pomodoro.todayFocusSessions >= pomodoro.dailyGoalSessions
-  const completedTasks = pomodoro.tasks.filter((task) => task.completed).length
   // The same toggle the break's play button and the Start pill call, here and
   // in zen mode alike, which is why it lives above the early return.
   useSpaceToggle(pomodoro.toggleTimer)
@@ -413,6 +419,17 @@ export function TimerDashboard() {
 
         <ModeTabs mode={pomodoro.timer.mode} onSelect={requestMode} />
 
+        {/* What to do away from the screen, for as long as the timer is on a
+            break. Keyed by the break, so the ticks start empty each time. */}
+        {pomodoro.timer.mode !== "focus" ? (
+          <BreakCard
+            key={`${pomodoro.timer.mode}-${pomodoro.todayFocusSessions}`}
+            kind={pomodoro.timer.mode}
+            minutes={pomodoro.timer.durationMinutes}
+            sessions={pomodoro.sessionsBeforeLongBreak}
+          />
+        ) : null}
+
         <SessionNotePrompt pomodoro={pomodoro} />
 
         {pomodoro.syncError ? (
@@ -455,6 +472,20 @@ export function TimerDashboard() {
                 {plural(pomodoro.dailyGoalSessions, "session")}
               </span>
             </p>
+            {/* The minutes behind the count, for a goal too long for the
+                chips to carry their own "25m". */}
+            {pomodoro.dailyGoalSessions > MAX_LABELLED_SESSIONS ? (
+              <p className="font-mono text-xs text-muted-foreground">
+                {formatDuration(
+                  pomodoro.todayFocusSessions * pomodoro.durations.focus * 60_000,
+                  { zero: "0m" }
+                )}{" "}
+                of{" "}
+                {formatDuration(
+                  pomodoro.dailyGoalSessions * pomodoro.durations.focus * 60_000
+                )}
+              </p>
+            ) : null}
             <GoalSegments
               done={pomodoro.todayFocusSessions}
               goal={pomodoro.dailyGoalSessions}
@@ -495,27 +526,7 @@ export function TimerDashboard() {
           </div>
         </section>
 
-        <section aria-labelledby="dashboard-tasks-heading">
-          <header className="flex items-center gap-3 px-6 pb-2 pt-5">
-            <h2 id="dashboard-tasks-heading" className={eyebrowClass}>
-              Tasks
-            </h2>
-            {/* Waits for the first task, the same as the Tasks page. */}
-            {pomodoro.tasks.length ? (
-              <span className="ml-auto font-mono text-xs text-muted-foreground">
-                {completedTasks} / {pomodoro.tasks.length} done
-              </span>
-            ) : null}
-          </header>
-          {/* The same list and the same add box as the Tasks page. The add box
-              sits under its own full-width divider with no frame of its own. */}
-          <div className="px-3 pb-2">
-            <TodayTaskList pomodoro={pomodoro} flat />
-          </div>
-          <div className="border-t px-3 py-3">
-            <NewTaskForm onAdd={pomodoro.addTask} bare />
-          </div>
-        </section>
+        <TasksSection pomodoro={pomodoro} />
       </div>
       {/* Its own block under Tasks, with more room above it than the cards
           above share, so it reads as the next thing rather than part of Tasks. */}

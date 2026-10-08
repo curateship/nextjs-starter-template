@@ -44,6 +44,11 @@ is not logged in, that should link to the login page."
   a host with no public display name is listed by their account name.
 - **It only shows on the timer.** While you are in a room the front page is
   that room, so there is nothing to join from there.
+- **Your own rooms are never in it**, on `/` or on `/rooms`. Tyler, 8 Oct
+  2026: "The open to join shouildnt show the room I hosted". The server leaves
+  out the room you host and the room you are sitting in (`listPublicRooms` in
+  `src/server/pomodoro/rooms.ts` takes the viewer). Both already have their
+  own column on `/rooms`. Leave a room and it comes back to your list.
 
 ## How it behaves
 
@@ -131,6 +136,40 @@ is not logged in, that should link to the login page."
   lights that room's column, with Open room. Leaving puts the timer
   and your own pair back on `/`. The panel names the room's sound and theme;
   the host is pointed at Sounds and Backgrounds to change them.
+- **How the joined room is drawn**, from Tyler's design of 8 Oct 2026 ("revamp
+  the room a user joined ui to look like this"), top to bottom:
+  - **The room's clock as the timer's ring.** The phase in small capitals (green
+    while waiting), the time left (the focus length while waiting), then
+    "Waiting for Theo to start" for a member, or the host's Start focus /
+    Start break and Next phase. A full-screen button sits under them.
+  - **The host's rhythm under the ring**, from Tyler's design of 8 Oct 2026
+    ("revise the room option set by host"): "1 / 4 sessions", then one chip
+    per focus with its length ("25m"; done ones orange, the next one
+    outlined, the rest grey), then "5m breaks · 15m long break after session
+    4 · set by the host". The host reads "set by you".
+  - **One card for the room.** The name with a green dot, and under it the
+    phase, "Session 2 of 4" and the sound and theme ("No sound, Lofi girl,
+    picked by the host"; the host gets the links to Sounds and Backgrounds
+    instead). Copy invite link and Leave room sit on the right as round
+    outline buttons; the host has Close room and Leave & close there.
+  - **Chat on the left, In the room on the right**, under a line across the
+    card. In the room carries the head count, a green dot on each picture, HOST
+    in orange and YOU in grey. The snapshot marks your own row (`mine` on each
+    member). On a phone the people go under the chat.
+  - **A round arrow button after Leave room folds the chat away**, people
+    and message box included, and opens it again. Tyler, 8 Oct 2026: "when a
+    session start, the chat box automatically collapsed." So the chat folds
+    by itself whenever the room enters a focus, and a page opened mid-focus
+    starts folded. It only opens again when someone presses the arrow. Folded,
+    the chat is hidden, not removed, so a half-typed message survives.
+  - **The chat has no day lines.** Tyler, 8 Oct 2026: "remove the date".
+    Each message keeps only its time.
+  - **The message box runs the card's full width** under another line, with no
+    frame of its own. Send is never greyed out; pressed with nothing typed it
+    says "Type a message first."
+  - **Your Tasks** in a card of their own, the same list and add box as the
+    timer (`TasksSection` in `today-task-list.tsx`).
+  - **"Looking for another room? Browse rooms."** centred under everything.
 - **Host actions**: start focus, start break, next phase, close (with
   confirmation). Hosts move through the canonical sequence only; the 4th
   focus earns the long break; a break returns to focus (auto-start) or to

@@ -275,6 +275,41 @@ export function TodayTaskList({
 }
 
 /**
+ * The front page's Tasks: the eyebrow and the done count, the flat list, and
+ * the add box under a full-width divider with no frame of its own. No card of
+ * its own either, so the timer can put it under its three boxes and a room
+ * can put it in a card of its own.
+ */
+export function TasksSection({ pomodoro }: { pomodoro: PomodoroApi }) {
+  const headingId = React.useId()
+  const completed = pomodoro.tasks.filter((task) => task.completed).length
+  return (
+    <section aria-labelledby={headingId}>
+      <header className="flex items-center gap-3 px-6 pb-2 pt-5">
+        <h2
+          id={headingId}
+          className="font-mono text-[11px] uppercase tracking-[0.2em] text-foreground/75"
+        >
+          Tasks
+        </h2>
+        {/* Waits for the first task, the same as the Tasks page. */}
+        {pomodoro.tasks.length ? (
+          <span className="ml-auto font-mono text-xs text-muted-foreground">
+            {completed} / {pomodoro.tasks.length} done
+          </span>
+        ) : null}
+      </header>
+      <div className="px-3 pb-2">
+        <TodayTaskList pomodoro={pomodoro} flat />
+      </div>
+      <div className="border-t px-3 py-3">
+        <NewTaskForm onAdd={pomodoro.addTask} bare />
+      </div>
+    </section>
+  )
+}
+
+/**
  * The box under either list that adds a task. Shared, so the timer and the
  * Tasks page refuse a blank title the same way: nothing is sent, the text
  * stays, the box is marked and the toast says why.

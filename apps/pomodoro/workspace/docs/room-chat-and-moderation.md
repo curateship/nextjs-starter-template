@@ -18,13 +18,12 @@ delete a message, remove a person or ban them.
 - **Nothing is drawn from a guess.** The server saves the message, notifies
   the room's channel, and the SSE snapshot redraws the list for everyone at
   once. The last hundred messages are what a snapshot carries.
-- **A line with the day sits above the first message and wherever the day
-  changes**, such as "Tue, Oct 6, 2026". Each message keeps just its time, so
-  a room that runs past midnight says which day each time belongs to without
-  the date on every line.
-- **Times and day lines are in your account's timezone**, the one on your
+- **No day lines.** The chat used to draw a line with the day ("Tue, Oct 6,
+  2026") wherever the day changed. Tyler removed it on 8 Oct 2026: "remove
+  the date". Each message keeps just its time.
+- **Times are in your account's timezone**, the one on your
   profile, not the browser's. The snapshot carries it as `you.timezone`, so
-  midnight in the chat is the same midnight as in History and your streaks.
+  a time in the chat matches History and your streaks.
 
 ## How the panel shares the height
 
@@ -34,15 +33,13 @@ top of `room-chat.tsx`.
 - **The list of names scrolls inside itself**: six people on a phone, ten on a
   desktop, the rest one flick away. It used to have no cap at all, so a room of
   thirty ran to 1108px and pushed the conversation off the bottom of the screen.
-- **The chat takes what the window has left** rather than a fixed 260px. It
-  stops shrinking at 140px, about two messages, and stops growing at 512px. On
-  a 1440x900 screen it is 327px, where it used to be 260px.
+- **The chat holds about five messages** (304px) and the rest scroll inside
+  it. Tyler, 8 Oct 2026: "Cap the chatbox at a certain height (about 5
+  messages)". It used to grow with the window, up to 512px.
 - **The message box and Send are outside the scrolling box**, so they are always
   on screen inside the panel. They are the reason the panel is there.
 - **On a phone the chat comes first and the names second.** Side by side on a
-  desktop, the names are the 240px left column they always were. The chat is
-  written first in the page and the list of names takes its column back with
-  `md:order-first`.
+  desktop, the names are the 260px right-hand column.
 - **Both boxes are `ScrollArea`**, never a native `overflow-auto`, so the
   scrollbar is the app's thin one.
 
