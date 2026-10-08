@@ -12,9 +12,17 @@ import {
   useAdminList,
 } from "@/components/pomodoro/admin-list"
 import {
+  AdminBulkDeleteButton,
+  AdminDeleteConfirm,
+  AdminRowDeleteButton,
+  useAdminDelete,
+} from "@/components/pomodoro/admin-delete"
+import {
+  clearPomodoroFocusData,
   listPomodoroFocusUsers,
   type AdminFocusRow,
 } from "@/lib/api/pomodoro/admin"
+import { plural } from "@/lib/format/plural"
 import { formatDuration, formatUtcDate } from "@/lib/format/format-time"
 import { useSelection } from "@/lib/hooks/use-selection"
 import {
@@ -102,78 +110,123 @@ export function AdminFocusDashboard({
     () => list.rows.map((row) => row.userId),
     [list.rows]
   )
+  const selectedIds = rowIds.filter((id) => selection.selected.has(id))
+  // Delete here means the account's focus history, never the account: the
+  // row is a person, and the person stays.
+  const del = useAdminDelete({
+    one: "member's focus data",
+    many: "members' focus data",
+    run: clearPomodoroFocusData,
+    keptReason: "already empty",
+    selection,
+    onDone: list.refresh,
+  })
+  const asked = list.rows.filter((row) => del.ids.includes(row.userId))
 
   return (
-    <AdminListTable
-      title="Focus data"
-      icon={<TrendingUpIcon />}
-      noun="members"
-      columns={COLUMNS}
-      sort={sort}
-      direction={direction}
-      onSort={toggleSort}
-      trailing={<TableHead column="meta">Actions</TableHead>}
-      selection={{ noun: "members", rowIds, state: selection }}
-      list={list}
-      page={page}
-      onPageChange={setPage}
-      controls={
-        <DashboardToolbarSearch
-          name="focus-search"
-          aria-label="Search members"
-          placeholder="Search name or email…"
-          value={searchText}
-          onChange={(event) => setSearchText(event.target.value)}
-        />
-      }
-    >
-      {list.rows.map((row) => (
-        <TableRow key={row.userId}>
-          <AdminSelectCell
-            selection={selection}
-            id={row.userId}
-            label={`Select ${row.name}`}
-          />
-          <TableCell column="main">
-            <div className="min-w-0">
-              <span className="block max-w-96 truncate" title={row.name}>
-                {row.name}
-              </span>
-              <span
-                className="block max-w-96 truncate text-xs text-muted-foreground"
-                title={row.email}
-              >
-                {row.email}
-              </span>
-            </div>
-          </TableCell>
-          <TableCell column="meta">
-            {row.focusSessions.toLocaleString()}
-          </TableCell>
-          <TableCell column="meta">
-            {formatDuration(row.focusSeconds * 1000, { zero: "—" })}
-          </TableCell>
-          <TableCell column="meta">
-            {row.tasksCompleted.toLocaleString()}
-          </TableCell>
-          <TableCell column="mutedMeta" className="hidden lg:table-cell">
-            {row.lastActiveDate ? formatUtcDate(row.lastActiveDate) : "—"}
-          </TableCell>
-          <TableCell column="actions">
-            {/* The way from a person to their sessions, which is the question
-                this page is usually opened to answer. */}
-            <Button type="button" variant="ghost" size="icon" asChild>
-              <Link
-                to="/admin/pomodoro-sessions"
-                search={{ user: row.userId }}
-                aria-label={`Focus sessions for ${row.name}`}
-              >
-                <TimerIcon className="size-4" />
-              </Link>
-            </Button>
-          </TableCell>
-        </TableRow>
-      ))}
-    </AdminListTable>
+    <>
+      <AdminListTable
+        title="Focus data"
+        icon={<TrendingUpIcon />}
+        noun="members"
+        columns={COLUMNS}
+        sort={sort}
+        direction={direction}
+        onSort={toggleSort}
+        trailing={<TableHead column="meta">Actions</TableHead>}
+        selection={{ noun: "members", rowIds, state: selection }}
+        list={list}
+        page={page}
+        onPageChange={setPage}
+        controls={
+          <>
+            <AdminBulkDeleteButton del={del} ids={selectedIds} />
+            <DashboardToolbarSearch
+              name="focus-search"
+              aria-label="Search members"
+              placeholder="Search name or email…"
+              value={searchText}
+              onChange={(event) => setSearchText(event.target.value)}
+            />
+          </>
+        }
+      >
+        {list.rows.map((row) => (
+          <TableRow key={row.userId}>
+            <AdminSelectCell
+              selection={selection}
+              id={row.userId}
+              label={`Select ${row.name}`}
+            />
+            <TableCell column="main">
+              <div className="min-w-0">
+                <span className="block max-w-96 truncate" title={row.name}>
+                  {row.name}
+                </span>
+                <span
+                  className="block max-w-96 truncate text-xs text-muted-foreground"
+                  title={row.email}
+                >
+                  {row.email}
+                </span>
+              </div>
+            </TableCell>
+            <TableCell column="meta">
+              {row.focusSessions.toLocaleString()}
+            </TableCell>
+            <TableCell column="meta">
+              {formatDuration(row.focusSeconds * 1000, { zero: "—" })}
+            </TableCell>
+            <TableCell column="meta">
+              {row.tasksCompleted.toLocaleString()}
+            </TableCell>
+            <TableCell column="mutedMeta" className="hidden lg:table-cell">
+              {row.lastActiveDate ? formatUtcDate(row.lastActiveDate) : "—"}
+            </TableCell>
+            <TableCell column="actions">
+              {/* The way from a person to their sessions, which is the question
+                  this page is usually opened to answer. */}
+              <Button type="button" variant="ghost" size="icon" asChild>
+                <Link
+                  to="/admin/pomodoro-sessions"
+                  search={{ user: row.userId }}
+                  aria-label={`Focus sessions for ${row.name}`}
+                >
+                  <TimerIcon className="size-4" />
+                </Link>
+              </Button>
+              <AdminRowDeleteButton
+                del={del}
+                id={row.userId}
+                label={`Delete ${row.name}'s focus data`}
+              />
+            </TableCell>
+          </TableRow>
+        ))}
+      </AdminListTable>
+      <AdminDeleteConfirm
+        del={del}
+        title={
+          asked.length === 1
+            ? `Delete ${asked[0].name}'s focus data?`
+            : `Delete focus data for ${del.ids.length} members?`
+        }
+        description={describeFocusDataDeletion(asked)}
+        confirmLabel="Delete focus data"
+        typed
+      />
+    </>
   )
+}
+
+function describeFocusDataDeletion(rows: AdminFocusRow[]) {
+  const sessions = rows.reduce((sum, row) => sum + row.focusSessions, 0)
+  const seconds = rows.reduce((sum, row) => sum + row.focusSeconds, 0)
+  const whose = rows.length === 1 ? "Their" : "Each person's"
+  return [
+    `${sessions.toLocaleString()} ${plural(sessions, "session", "sessions")} and ${formatDuration(seconds * 1000, { zero: "0m" })} of focus will be wiped.`,
+    `${whose} History, streak, leaderboard place, profile figures and share card all go back to zero.`,
+    `${rows.length === 1 ? "The account and its" : "The accounts and their"} tasks, projects, rooms and earned badges stay. A timer still running is left alone.`,
+    "This cannot be undone.",
+  ].join(" ")
 }

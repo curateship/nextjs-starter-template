@@ -84,6 +84,19 @@ export const REPORT_SORT_COLUMNS = [
 ] as const
 export type ReportSortColumn = (typeof REPORT_SORT_COLUMNS)[number]
 
+/** Weekly rooms: still booking, or stopped by the host's Cancel the series. */
+export const ROOM_REPEAT_STATUS_FILTERS = ["all", "active", "cancelled"] as const
+export const ROOM_REPEAT_SORT_COLUMNS = [
+  "name",
+  "host",
+  "next",
+  "created",
+] as const
+export type RoomRepeatSortColumn = (typeof ROOM_REPEAT_SORT_COLUMNS)[number]
+
+export const TASK_REPEAT_SORT_COLUMNS = ["title", "person", "created"] as const
+export type TaskRepeatSortColumn = (typeof TASK_REPEAT_SORT_COLUMNS)[number]
+
 /**
  * `?user=<account id>` is how the Focus data page hands a person to the Tasks
  * and Sessions pages. Only the shape is checked here; whether that account

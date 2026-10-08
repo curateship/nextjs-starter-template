@@ -29,6 +29,9 @@ import {
   roomMemberships,
   roomMessages,
   pomodoroProfiles,
+  pomodoroProjects,
+  pomodoroRoomRepeats,
+  pomodoroTaskRepeats,
   roomReports,
   rooms,
   tasks,
@@ -39,12 +42,15 @@ import type {
   FocusSortColumn,
   ReportSortColumn,
   ReportStatus,
+  RoomRepeatSortColumn,
   RoomSortColumn,
   SessionSortColumn,
+  TaskRepeatSortColumn,
   TaskSortColumn,
 } from "@/lib/pomodoro/admin-lists"
 import type {
   REPORT_STATUS_FILTERS,
+  ROOM_REPEAT_STATUS_FILTERS,
   ROOM_PHASE_FILTERS,
   ROOM_VISIBILITY_FILTERS,
   SESSION_MODE_FILTERS,
@@ -55,10 +61,9 @@ import type {
 /**
  * What the operator pages under /admin read.
  *
- * Every list here is read-only except `reviewRoomReports`, which is the one
- * thing an operator changes: a report's standing. The pages browse the app's
- * own rows — focus totals, tasks, sessions, rooms, media choices — so nothing
- * in this file writes to a member's data.
+ * Every list here is read-only except `reviewRoomReports`, which moves a
+ * report's standing. The deletes live in `admin-deletes.ts`, apart from the
+ * reads, because each one also puts right what the deleted rows fed into.
  *
  * Paging is always server-side with a hard page-size ceiling, so a hand-edited
  * address cannot ask for every row in the database at once.
@@ -602,6 +607,140 @@ export async function reviewRoomReports({
   })
 }
 
+// ---------------------------------------------------------------------------
+// The rules that keep making rooms and tasks
+// ---------------------------------------------------------------------------
+
+/**
+ * Every weekly room rule. Deleting a room a rule booked does not stop next
+ * week's, so the rule itself has to be reachable.
+ */
+export async function listAdminRoomRepeats(
+  query: ListPage & {
+    search: string
+    status: (typeof ROOM_REPEAT_STATUS_FILTERS)[number]
+    sort: RoomRepeatSortColumn
+  }
+) {
+  const filters: SQL[] = []
+  const search = query.search.trim()
+  if (search) {
+    const pattern = `%${search}%`
+    const match = or(
+      ilike(pomodoroRoomRepeats.name, pattern),
+      ilike(users.name, pattern),
+      ilike(users.email, pattern)
+    )
+    if (match) filters.push(match)
+  }
+  if (query.status === "active")
+    filters.push(isNull(pomodoroRoomRepeats.cancelledAt))
+  if (query.status === "cancelled")
+    filters.push(isNotNull(pomodoroRoomRepeats.cancelledAt))
+  const where = filters.length ? and(...filters) : undefined
+
+  const { limit, offset } = pageSlice(query)
+  const direction = ordered(query.direction)
+  const sortColumn = {
+    name: pomodoroRoomRepeats.name,
+    host: users.name,
+    next: pomodoroRoomRepeats.nextStartsAt,
+    created: pomodoroRoomRepeats.createdAt,
+  }[query.sort]
+
+  const [rows, [totalRow]] = await Promise.all([
+    db
+      .select({
+        id: pomodoroRoomRepeats.id,
+        name: pomodoroRoomRepeats.name,
+        visibility: pomodoroRoomRepeats.visibility,
+        weekdays: pomodoroRoomRepeats.weekdays,
+        startMinute: pomodoroRoomRepeats.startMinute,
+        timezone: pomodoroRoomRepeats.timezone,
+        nextStartsAt: pomodoroRoomRepeats.nextStartsAt,
+        cancelledAt: pomodoroRoomRepeats.cancelledAt,
+        createdAt: pomodoroRoomRepeats.createdAt,
+        hostName: users.name,
+        hostEmail: users.email,
+      })
+      .from(pomodoroRoomRepeats)
+      .innerJoin(users, eq(users.id, pomodoroRoomRepeats.hostUserId))
+      .where(where)
+      .orderBy(direction(sortColumn), asc(pomodoroRoomRepeats.id))
+      .limit(limit)
+      .offset(offset),
+    db
+      .select({ total: count() })
+      .from(pomodoroRoomRepeats)
+      .innerJoin(users, eq(users.id, pomodoroRoomRepeats.hostUserId))
+      .where(where),
+  ])
+
+  return { rows, total: totalRow?.total ?? 0 }
+}
+
+/** Every repeating task rule, with its project's name when it has one. */
+export async function listAdminTaskRepeats(
+  query: ListPage & {
+    search: string
+    userId: string | null
+    sort: TaskRepeatSortColumn
+  }
+) {
+  const filters: SQL[] = []
+  const search = query.search.trim()
+  if (search) {
+    const pattern = `%${search}%`
+    const match = or(
+      ilike(pomodoroTaskRepeats.title, pattern),
+      ilike(users.name, pattern),
+      ilike(users.email, pattern)
+    )
+    if (match) filters.push(match)
+  }
+  if (query.userId) filters.push(eq(pomodoroTaskRepeats.userId, query.userId))
+  const where = filters.length ? and(...filters) : undefined
+
+  const { limit, offset } = pageSlice(query)
+  const direction = ordered(query.direction)
+  const sortColumn = {
+    title: pomodoroTaskRepeats.title,
+    person: users.name,
+    created: pomodoroTaskRepeats.createdAt,
+  }[query.sort]
+
+  const [rows, [totalRow]] = await Promise.all([
+    db
+      .select({
+        id: pomodoroTaskRepeats.id,
+        title: pomodoroTaskRepeats.title,
+        weekdays: pomodoroTaskRepeats.weekdays,
+        createdAt: pomodoroTaskRepeats.createdAt,
+        projectName: pomodoroProjects.name,
+        userId: users.id,
+        userName: users.name,
+        userEmail: users.email,
+      })
+      .from(pomodoroTaskRepeats)
+      .innerJoin(users, eq(users.id, pomodoroTaskRepeats.userId))
+      .leftJoin(
+        pomodoroProjects,
+        eq(pomodoroProjects.id, pomodoroTaskRepeats.projectId)
+      )
+      .where(where)
+      .orderBy(direction(sortColumn), asc(pomodoroTaskRepeats.id))
+      .limit(limit)
+      .offset(offset),
+    db
+      .select({ total: count() })
+      .from(pomodoroTaskRepeats)
+      .innerJoin(users, eq(users.id, pomodoroTaskRepeats.userId))
+      .where(where),
+  ])
+
+  return { rows, total: totalRow?.total ?? 0 }
+}
+
 /**
  * One row of each list, taken from the query rather than written out again.
  * Spelled by hand these drifted the moment a column changed, and the screen
@@ -615,3 +754,5 @@ export type AdminTaskRow = RowsOf<typeof listAdminTasks>
 export type AdminSessionRow = RowsOf<typeof listAdminSessions>
 export type AdminRoomRow = RowsOf<typeof listAdminRooms>
 export type AdminReportRow = RowsOf<typeof listAdminReports>
+export type AdminRoomRepeatRow = RowsOf<typeof listAdminRoomRepeats>
+export type AdminTaskRepeatRow = RowsOf<typeof listAdminTaskRepeats>

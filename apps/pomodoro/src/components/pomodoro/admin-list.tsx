@@ -84,16 +84,21 @@ export function useAdminList<Row>({
     }
   }, [load, pageSize])
 
-  // The loader already fetched what is on screen, so the first render must not
-  // fetch it again. Every change after that waits out the same quarter second
-  // the shell's tables wait, so holding a key down is one request, not twelve.
-  const isFirstRender = React.useRef(true)
+  // The loader already fetched what is on screen, so opening the list must not
+  // fetch it again. The rows are remembered against the request that produced
+  // them, rather than skipping only the first run: React runs this effect a
+  // second time straight after mounting with nothing changed, and a first-run
+  // flag let that second run refetch, which on an empty list dropped the
+  // "No … match" line for a moment and made the footer jump. Every real change
+  // after that waits out the same quarter second the shell's tables wait, so
+  // holding a key down is one request, not twelve.
+  const shownFor = React.useRef(refresh)
   React.useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false
-      return
-    }
-    const timer = setTimeout(refresh, REFETCH_DELAY_MS)
+    if (shownFor.current === refresh) return
+    const timer = setTimeout(() => {
+      shownFor.current = refresh
+      void refresh()
+    }, REFETCH_DELAY_MS)
     return () => clearTimeout(timer)
   }, [refresh])
 
@@ -200,7 +205,9 @@ export function AdminListTable<Row, Sort extends string>({
           trailing={trailing}
         />
       }
-      isEmpty={!list.loading && list.rows.length === 0}
+      // The empty line stays while a reload is out, dimmed like rows would be.
+      // Hiding it emptied the table body, and the footer jumped up under it.
+      isEmpty={list.rows.length === 0}
       emptyText={`No ${noun} match those filters.`}
       emptyColSpan={columns.length + (trailing ? 1 : 0) + (selection ? 1 : 0)}
       footer={{

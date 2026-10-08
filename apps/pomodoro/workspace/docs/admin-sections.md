@@ -1,8 +1,8 @@
 # Admin sections
 
-Six operator pages inside the shell's `/admin`. Five of them let an operator
-look at what members are doing. The sixth, Room reports, is the only one with
-buttons that change anything.
+Eight operator pages inside the shell's `/admin`. They let an operator see
+what members are doing, decide reports, and delete what should not be there.
+Every delete and every report decision is written to `pomodoro_audit_logs`.
 
 ## The pages
 
@@ -14,12 +14,19 @@ buttons that change anything.
 | `/admin/pomodoro-rooms` | Every focus room, open and closed |
 | `/admin/pomodoro-media` | The scenes and loops, and who picked each one |
 | `/admin/pomodoro-reports` | The moderation queue |
+| `/admin/pomodoro-room-repeats` | Every weekly room rule |
+| `/admin/pomodoro-task-repeats` | Every repeating task rule |
 
 Each page is its own route file under
 `src/routes/_authenticated/admin/pomodoro-*.tsx`, the way trade and video add
 their admin pages. Nothing registers them in a menu: the admin sidebar is a
 saved setting, so an operator adds the links they want in Settings, and the
 pages work from a typed address before anyone does.
+
+On the local Pomodoro workspace the menu holds them like this. Weekly rooms
+sits under Rooms, beside Sessions and Reports, and Repeating tasks sits under
+Tasks. The live site's menu is its own saved setting and has to be given the
+same two links after a deploy.
 
 ## Finding one member's focus data
 
@@ -98,33 +105,115 @@ a profile tells its owner. The full rules are under Notices in
 
 ## The shape of every table
 
-All five list pages have the shape every other admin table in the monorepo has:
-a selection checkbox first, sortable data columns, and an actions column last.
+Every list page has the shape every other admin table in the monorepo has: a
+selection checkbox first, sortable data columns, and an actions column last.
 
 - **The header checkbox** ticks every row on the page and shows the half-ticked
   state when only some are ticked. It is dead on an empty table, because there
   is nothing to tick.
-- **Only Room reports does anything with a selection.** The other four are
-  read-only, so there is no bulk action to offer. They keep the checkbox because
-  one shape for every table in the monorepo is worth more than four screens each
-  deciding for themselves, and because the count beside the heading is a useful
-  way to keep a place in a long list.
-- **The actions column is the last column on all five.** On Room reports it is
-  the three decision buttons. On the read-only four it is a way to the list that
-  answers the next question, which is the only row action a read-only page can
-  honestly have:
+- **Ticked rows grow a "Delete (N)" button** at the front of the toolbar, on
+  every list that can delete. Room reports also has Resolve, Dismiss and Reopen
+  there.
+- **The actions column ends with the bin.** Before it sits the way to the list
+  that answers the next question:
 
   - Focus data and Tasks lead to that member's focus sessions.
   - Focus sessions leads to that member's tasks.
   - Focus rooms leads to the report queue searched on that room's name.
+  - Room reports has its three decision buttons.
 
-Media is the exception on both counts: it has no selection column and no actions
-column. Its rows are the fixed catalogue in code, not database records, so there
-is nothing to tick and nothing to do to one.
+The date column on Tasks, Focus rooms and Room reports shows only on a screen
+1536px wide or more. With the bin added, the row actions ran past the right-hand
+edge of a 1280px screen by 47px, 50px and 216px, measured. With the dates
+hidden, every list fits at 1280. Below that the table scrolls sideways inside
+its box, as it did before.
 
-One file owns all of it. `admin-list.tsx` draws the selection column, the header
+Media is the exception: no selection column and no actions column. Its rows
+are the fixed catalogue in code, not database records, so there is nothing to
+tick and nothing to do to one.
+
+One file owns the table. `admin-list.tsx` draws the selection column, the header
 checkbox, the empty row's width and the toolbar's "Clear N selected" chip, so a
-sixth page would get the lot by passing one `selection` prop.
+new page gets the lot by passing one `selection` prop. `admin-delete.tsx` owns
+the bin, the toolbar button and the confirm window, so all seven lists that
+delete ask and answer the same way.
+
+## Deleting
+
+Tyler, 8 Oct 2026: the admin can delete rooms, sessions, reports, focus data and
+tasks, one at a time or many at once. Before that, every page except Room
+reports was read-only on purpose. That rule is gone.
+
+### How a delete works
+
+- **A row's bin and the toolbar make the same one request**, with one id or
+  every ticked id on the page. A tick on another page is never touched, the
+  same rule the report buttons follow.
+- **A confirm window says what goes with the rows and what stays**, then
+  "Delete room" or "Delete rooms". It ends "This cannot be undone." because
+  nothing here can be.
+- **A lost answer still rereads the list.** If the server's reply never
+  arrives, the error toast shows and the list is read again, so it never keeps
+  showing rows that may already be gone.
+- **The line afterwards counts what went**: "3 rooms deleted." or
+  "1 session deleted. 1 was still running, or already gone." A press that
+  removed nothing is shown as a failure, with the same words.
+- **Only the deleted rows lose their tick.** Deleting one row on its own leaves
+  the rest of a selection ticked.
+- **One transaction per press**, with one `pomodoro_audit_logs` row naming every
+  id that actually went. A press that removed nothing writes no log row.
+
+### What each delete takes with it
+
+| Page | What goes | What stays | What is put right |
+| --- | --- | --- | --- |
+| Focus rooms | The room, its chat, reactions, members, bans, invites and message reports | Focus sessions run in it, without the room's name | Unread "it's open" and invite notices, and every mention or reaction notice about its messages, are removed. The admins' "new reports" notices turn read if the queue is now empty. People still inside see "You are no longer in this room." If that nudge fails, the delete still counts as done and is logged on the server, and their screen catches up when it reconnects. |
+| Focus sessions | The runs | A run still going is skipped | A finished focus comes back off that day's total and its task's count |
+| Tasks | The tasks, their steps and tags | Focus time spent on them, without the task's name | A ticked task comes off "tasks done" for its day. A carried task pointing at a deleted copy has the pointer cleared |
+| Room reports | The reports | The message or profile they were about | The admins' "new reports" notices turn read if the queue is now empty. Nobody is told, unlike Resolve and Dismiss |
+| Focus data | The account's finished and cancelled runs, every daily total, every task's session count | The account, its tasks, projects, rooms, profile and earned badges, and a run still going | Nothing else to put right: every figure the member shows off reads zero |
+| Weekly rooms | The rule | Rooms it already booked, which still open | |
+| Repeating tasks | The rule | Tasks it already made | |
+
+### Taking a session back off the totals
+
+A finished focus added one session and its seconds to that day's
+`daily_focus_stats` row, and one to its task's count. Deleting it takes both
+back off, so History, the streak, the leaderboard, the badge counters, the
+public profile and the share card all drop to match.
+
+- **The day is worked out, not stored.** A session row does not say which day
+  it counted towards. The timer added it under "today" in the profile's
+  timezone at the moment it finished, so the delete runs the same sum on the
+  stored finish time. A member who has since changed timezone can have a
+  session sitting on the next or previous day, which the delete then misses.
+- **Subtract, never recount.** A day imported from guest mode has totals with
+  no session rows under it, and a recount from the rows would wipe it.
+- **Never below zero.** A day that somehow holds less than the session took off
+  reads zero.
+- **Breaks and cancelled runs change nothing**, because they never counted.
+- **Badges already earned stay.** Taking them back is a separate power.
+
+### Running timers are left alone
+
+Deleting a run that is still going, or clearing the focus data of somebody
+mid-session, would pull the timer out from under their open tab. Those runs are
+skipped, and the line says so. When the run finishes it counts as normal,
+starting a fresh daily total if the old ones were cleared.
+
+### Clearing focus data asks for a word
+
+Focus data is the one delete that wipes everything a member shows off, so the
+window has a box: type DELETE, then press Delete focus data. Pressing it with
+the box wrong keeps the window open, marks the box and says "Type DELETE to
+confirm." The button is never greyed out while the box is empty.
+
+## The record of every delete
+
+Every delete writes one row to `pomodoro_audit_logs`, in the same table and the
+same way report decisions and a host's moderation already do. There is no page
+that lists it. Tyler had the Action log page built on 8 Oct 2026 and took it
+out the same day, so the record is read from the database when it is needed.
 
 ## Media
 
@@ -139,11 +228,8 @@ again.
 
 ## What these pages will not do
 
-Every page except Room reports is read-only, and that is deliberate. A member's
-plan for their day, their timer history and their rooms are theirs; an operator
-is here to see them, not to rewrite them. There is no create, no edit and no
-delete on any of them. The old app let an operator do all three in every
-section, and none of that came across.
+An operator can delete a member's rooms, tasks and timer history but never edit
+them. A task's wording and a room's settings stay the member's own.
 
 Users, plans, billing and AI usage are not here either. The shell already owns
 those screens at `/admin/users`, `/admin/plans` and `/admin/ai`, and a second
@@ -157,14 +243,19 @@ copy would give an operator two places to look.
   them, and the table draws its headings from them. The lists sit here rather
   than beside the queries so a route can import one without dragging the
   database driver into the browser bundle.
-- `src/server/pomodoro/admin.ts` — the queries and `reviewRoomReports`, which
-  takes one id or many so a row button and the toolbar cannot drift apart. A report
+- `src/server/pomodoro/admin.ts`: the queries and `reviewRoomReports`, which
+  takes one id or many so a row button and the toolbar cannot drift apart.
+- `src/server/pomodoro/admin-deletes.ts`: every delete, each taking one id or
+  many, with what it puts right and its log row. Tested against a real
+  database in `admin-deletes.test.ts`. A report
   can name three different people, so the accounts table is joined three times
   under three names: `report_reporter`, `report_message_author` and
   `report_reviewer`.
 - `src/lib/api/pomodoro/admin.ts` — the server functions, every one behind
   `adminGet` or `adminPost`, so a member calling them by hand is refused
   whatever the sidebar shows them.
+- `src/components/pomodoro/admin-delete.tsx`: the bin, "Delete (N)" and the
+  confirm window, shared by the seven lists that delete.
 - `src/components/pomodoro/admin-list.tsx` — the shared list plumbing: hold the
   rows the loader fetched, refetch a quarter of a second after the address
   changes, and draw the shell's dashboard table.
@@ -175,6 +266,14 @@ the exact list you left and a link can be handed to somebody else. Every value
 is checked against a fixed list or a range before use, so a hand-edited address
 can only ever fall back to the default. Paging is done by the server with a
 ceiling of 100 rows a page.
+
+Opening a list never asks the server twice. The page arrives with its rows,
+and the list only fetches again when the address changes. Until 8 Oct 2026 it
+fetched a second time a quarter of a second after opening, because React runs
+the fetch check twice on mount and only the first run was skipped. On an empty
+list that took the "No … match" line away for a moment, and the footer jumped
+up and back. The empty line now also stays, dimmed, while a search or a delete
+reloads the list.
 
 A page past the end puts itself right. Resolving the last report on page 2 of a
 filtered list, or another operator removing rows, used to leave the table saying

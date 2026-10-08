@@ -63,8 +63,10 @@ import { Route as AuthenticatedAdminPlansRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAdminPomodoroFocusRouteImport } from './routes/_authenticated/admin/pomodoro-focus'
 import { Route as AuthenticatedAdminPomodoroMediaRouteImport } from './routes/_authenticated/admin/pomodoro-media'
 import { Route as AuthenticatedAdminPomodoroReportsRouteImport } from './routes/_authenticated/admin/pomodoro-reports'
+import { Route as AuthenticatedAdminPomodoroRoomRepeatsRouteImport } from './routes/_authenticated/admin/pomodoro-room-repeats'
 import { Route as AuthenticatedAdminPomodoroRoomsRouteImport } from './routes/_authenticated/admin/pomodoro-rooms'
 import { Route as AuthenticatedAdminPomodoroSessionsRouteImport } from './routes/_authenticated/admin/pomodoro-sessions'
+import { Route as AuthenticatedAdminPomodoroTaskRepeatsRouteImport } from './routes/_authenticated/admin/pomodoro-task-repeats'
 import { Route as AuthenticatedAdminPomodoroTasksRouteImport } from './routes/_authenticated/admin/pomodoro-tasks'
 import { Route as AuthenticatedAdminReferralsRouteImport } from './routes/_authenticated/admin/referrals'
 import { Route as AuthenticatedAdminSegmentsRouteImport } from './routes/_authenticated/admin/segments'
@@ -379,6 +381,12 @@ const AuthenticatedAdminPomodoroReportsRoute =
     path: '/pomodoro-reports',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminPomodoroRoomRepeatsRoute =
+  AuthenticatedAdminPomodoroRoomRepeatsRouteImport.update({
+    id: '/pomodoro-room-repeats',
+    path: '/pomodoro-room-repeats',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminPomodoroRoomsRoute =
   AuthenticatedAdminPomodoroRoomsRouteImport.update({
     id: '/pomodoro-rooms',
@@ -389,6 +397,12 @@ const AuthenticatedAdminPomodoroSessionsRoute =
   AuthenticatedAdminPomodoroSessionsRouteImport.update({
     id: '/pomodoro-sessions',
     path: '/pomodoro-sessions',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminPomodoroTaskRepeatsRoute =
+  AuthenticatedAdminPomodoroTaskRepeatsRouteImport.update({
+    id: '/pomodoro-task-repeats',
+    path: '/pomodoro-task-repeats',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminPomodoroTasksRoute =
@@ -622,8 +636,10 @@ export interface FileRoutesByFullPath {
   '/admin/pomodoro-focus': typeof AuthenticatedAdminPomodoroFocusRoute
   '/admin/pomodoro-media': typeof AuthenticatedAdminPomodoroMediaRoute
   '/admin/pomodoro-reports': typeof AuthenticatedAdminPomodoroReportsRoute
+  '/admin/pomodoro-room-repeats': typeof AuthenticatedAdminPomodoroRoomRepeatsRoute
   '/admin/pomodoro-rooms': typeof AuthenticatedAdminPomodoroRoomsRoute
   '/admin/pomodoro-sessions': typeof AuthenticatedAdminPomodoroSessionsRoute
+  '/admin/pomodoro-task-repeats': typeof AuthenticatedAdminPomodoroTaskRepeatsRoute
   '/admin/pomodoro-tasks': typeof AuthenticatedAdminPomodoroTasksRoute
   '/admin/referrals': typeof AuthenticatedAdminReferralsRoute
   '/admin/segments': typeof AuthenticatedAdminSegmentsRoute
@@ -708,8 +724,10 @@ export interface FileRoutesByTo {
   '/admin/pomodoro-focus': typeof AuthenticatedAdminPomodoroFocusRoute
   '/admin/pomodoro-media': typeof AuthenticatedAdminPomodoroMediaRoute
   '/admin/pomodoro-reports': typeof AuthenticatedAdminPomodoroReportsRoute
+  '/admin/pomodoro-room-repeats': typeof AuthenticatedAdminPomodoroRoomRepeatsRoute
   '/admin/pomodoro-rooms': typeof AuthenticatedAdminPomodoroRoomsRoute
   '/admin/pomodoro-sessions': typeof AuthenticatedAdminPomodoroSessionsRoute
+  '/admin/pomodoro-task-repeats': typeof AuthenticatedAdminPomodoroTaskRepeatsRoute
   '/admin/pomodoro-tasks': typeof AuthenticatedAdminPomodoroTasksRoute
   '/admin/referrals': typeof AuthenticatedAdminReferralsRoute
   '/admin/segments': typeof AuthenticatedAdminSegmentsRoute
@@ -799,8 +817,10 @@ export interface FileRoutesById {
   '/_authenticated/admin/pomodoro-focus': typeof AuthenticatedAdminPomodoroFocusRoute
   '/_authenticated/admin/pomodoro-media': typeof AuthenticatedAdminPomodoroMediaRoute
   '/_authenticated/admin/pomodoro-reports': typeof AuthenticatedAdminPomodoroReportsRoute
+  '/_authenticated/admin/pomodoro-room-repeats': typeof AuthenticatedAdminPomodoroRoomRepeatsRoute
   '/_authenticated/admin/pomodoro-rooms': typeof AuthenticatedAdminPomodoroRoomsRoute
   '/_authenticated/admin/pomodoro-sessions': typeof AuthenticatedAdminPomodoroSessionsRoute
+  '/_authenticated/admin/pomodoro-task-repeats': typeof AuthenticatedAdminPomodoroTaskRepeatsRoute
   '/_authenticated/admin/pomodoro-tasks': typeof AuthenticatedAdminPomodoroTasksRoute
   '/_authenticated/admin/referrals': typeof AuthenticatedAdminReferralsRoute
   '/_authenticated/admin/segments': typeof AuthenticatedAdminSegmentsRoute
@@ -889,8 +909,10 @@ export interface FileRouteTypes {
     | '/admin/pomodoro-focus'
     | '/admin/pomodoro-media'
     | '/admin/pomodoro-reports'
+    | '/admin/pomodoro-room-repeats'
     | '/admin/pomodoro-rooms'
     | '/admin/pomodoro-sessions'
+    | '/admin/pomodoro-task-repeats'
     | '/admin/pomodoro-tasks'
     | '/admin/referrals'
     | '/admin/segments'
@@ -975,8 +997,10 @@ export interface FileRouteTypes {
     | '/admin/pomodoro-focus'
     | '/admin/pomodoro-media'
     | '/admin/pomodoro-reports'
+    | '/admin/pomodoro-room-repeats'
     | '/admin/pomodoro-rooms'
     | '/admin/pomodoro-sessions'
+    | '/admin/pomodoro-task-repeats'
     | '/admin/pomodoro-tasks'
     | '/admin/referrals'
     | '/admin/segments'
@@ -1065,8 +1089,10 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/pomodoro-focus'
     | '/_authenticated/admin/pomodoro-media'
     | '/_authenticated/admin/pomodoro-reports'
+    | '/_authenticated/admin/pomodoro-room-repeats'
     | '/_authenticated/admin/pomodoro-rooms'
     | '/_authenticated/admin/pomodoro-sessions'
+    | '/_authenticated/admin/pomodoro-task-repeats'
     | '/_authenticated/admin/pomodoro-tasks'
     | '/_authenticated/admin/referrals'
     | '/_authenticated/admin/segments'
@@ -1516,6 +1542,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminPomodoroReportsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/pomodoro-room-repeats': {
+      id: '/_authenticated/admin/pomodoro-room-repeats'
+      path: '/pomodoro-room-repeats'
+      fullPath: '/admin/pomodoro-room-repeats'
+      preLoaderRoute: typeof AuthenticatedAdminPomodoroRoomRepeatsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/pomodoro-rooms': {
       id: '/_authenticated/admin/pomodoro-rooms'
       path: '/pomodoro-rooms'
@@ -1528,6 +1561,13 @@ declare module '@tanstack/react-router' {
       path: '/pomodoro-sessions'
       fullPath: '/admin/pomodoro-sessions'
       preLoaderRoute: typeof AuthenticatedAdminPomodoroSessionsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/pomodoro-task-repeats': {
+      id: '/_authenticated/admin/pomodoro-task-repeats'
+      path: '/pomodoro-task-repeats'
+      fullPath: '/admin/pomodoro-task-repeats'
+      preLoaderRoute: typeof AuthenticatedAdminPomodoroTaskRepeatsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/pomodoro-tasks': {
@@ -1802,8 +1842,10 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminPomodoroFocusRoute: typeof AuthenticatedAdminPomodoroFocusRoute
   AuthenticatedAdminPomodoroMediaRoute: typeof AuthenticatedAdminPomodoroMediaRoute
   AuthenticatedAdminPomodoroReportsRoute: typeof AuthenticatedAdminPomodoroReportsRoute
+  AuthenticatedAdminPomodoroRoomRepeatsRoute: typeof AuthenticatedAdminPomodoroRoomRepeatsRoute
   AuthenticatedAdminPomodoroRoomsRoute: typeof AuthenticatedAdminPomodoroRoomsRoute
   AuthenticatedAdminPomodoroSessionsRoute: typeof AuthenticatedAdminPomodoroSessionsRoute
+  AuthenticatedAdminPomodoroTaskRepeatsRoute: typeof AuthenticatedAdminPomodoroTaskRepeatsRoute
   AuthenticatedAdminPomodoroTasksRoute: typeof AuthenticatedAdminPomodoroTasksRoute
   AuthenticatedAdminReferralsRoute: typeof AuthenticatedAdminReferralsRoute
   AuthenticatedAdminSegmentsRoute: typeof AuthenticatedAdminSegmentsRoute
@@ -1840,9 +1882,13 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminPomodoroMediaRoute: AuthenticatedAdminPomodoroMediaRoute,
   AuthenticatedAdminPomodoroReportsRoute:
     AuthenticatedAdminPomodoroReportsRoute,
+  AuthenticatedAdminPomodoroRoomRepeatsRoute:
+    AuthenticatedAdminPomodoroRoomRepeatsRoute,
   AuthenticatedAdminPomodoroRoomsRoute: AuthenticatedAdminPomodoroRoomsRoute,
   AuthenticatedAdminPomodoroSessionsRoute:
     AuthenticatedAdminPomodoroSessionsRoute,
+  AuthenticatedAdminPomodoroTaskRepeatsRoute:
+    AuthenticatedAdminPomodoroTaskRepeatsRoute,
   AuthenticatedAdminPomodoroTasksRoute: AuthenticatedAdminPomodoroTasksRoute,
   AuthenticatedAdminReferralsRoute: AuthenticatedAdminReferralsRoute,
   AuthenticatedAdminSegmentsRoute: AuthenticatedAdminSegmentsRoute,
