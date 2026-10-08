@@ -10,11 +10,14 @@ import {
   REPORT_STATUS_FILTERS,
   REPORT_STATUSES,
   ROOM_PHASE_FILTERS,
+  ROOM_REPEAT_SORT_COLUMNS,
+  ROOM_REPEAT_STATUS_FILTERS,
   ROOM_SORT_COLUMNS,
   ROOM_VISIBILITY_FILTERS,
   SESSION_MODE_FILTERS,
   SESSION_SORT_COLUMNS,
   SESSION_STATUS_FILTERS,
+  TASK_REPEAT_SORT_COLUMNS,
   TASK_SORT_COLUMNS,
   TASK_STATUS_FILTERS,
   type ReportStatus,
@@ -22,18 +25,34 @@ import {
 import {
   listAdminFocusUsers,
   listAdminReports,
+  listAdminRoomRepeats,
   listAdminRooms,
   listAdminSessions,
+  listAdminTaskRepeats,
   listAdminTasks,
   loadAdminMediaUsage,
   reviewRoomReports,
   type AdminFocusRow,
   type AdminMediaUsage,
   type AdminReportRow,
+  type AdminRoomRepeatRow,
   type AdminRoomRow,
   type AdminSessionRow,
+  type AdminTaskRepeatRow,
   type AdminTaskRow,
 } from "@/server/pomodoro/admin"
+import {
+  clearAdminFocusData,
+  deleteAdminReports,
+  deleteAdminRoomRepeats,
+  deleteAdminRooms,
+  deleteAdminSessions,
+  deleteAdminTaskRepeats,
+  deleteAdminTasks,
+  previewRoomDeletion,
+  type AdminDeleteResult,
+} from "@/server/pomodoro/admin-deletes"
+import { notifyRoom } from "@/server/pomodoro/rooms"
 import {
   forgetHiddenProfiles,
   setProfilesHidden,
@@ -48,11 +67,14 @@ import { readDashboardRowsPerPage } from "@/server/shell-settings"
  * the database driver into the browser bundle.
  */
 export type {
+  AdminDeleteResult,
   AdminFocusRow,
   AdminMediaUsage,
   AdminReportRow,
+  AdminRoomRepeatRow,
   AdminRoomRow,
   AdminSessionRow,
+  AdminTaskRepeatRow,
   AdminTaskRow,
 }
 
@@ -108,11 +130,25 @@ const reportQuerySchema = z.object({
   sort: z.enum(REPORT_SORT_COLUMNS).default("created"),
 })
 
+const roomRepeatQuerySchema = z.object({
+  ...pageSchema,
+  status: z.enum(ROOM_REPEAT_STATUS_FILTERS).default("all"),
+  sort: z.enum(ROOM_REPEAT_SORT_COLUMNS).default("created"),
+})
+
+const taskRepeatQuerySchema = z.object({
+  ...pageSchema,
+  userId: userIdSchema,
+  sort: z.enum(TASK_REPEAT_SORT_COLUMNS).default("created"),
+})
+
 export type PomodoroFocusQuery = z.input<typeof focusQuerySchema>
 export type PomodoroTaskQuery = z.input<typeof taskQuerySchema>
 export type PomodoroSessionQuery = z.input<typeof sessionQuerySchema>
 export type PomodoroRoomQuery = z.input<typeof roomQuerySchema>
 export type PomodoroReportQuery = z.input<typeof reportQuerySchema>
+export type PomodoroRoomRepeatQuery = z.input<typeof roomRepeatQuerySchema>
+export type PomodoroTaskRepeatQuery = z.input<typeof taskRepeatQuerySchema>
 
 const listFocusUsersFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
@@ -138,6 +174,16 @@ const listReportsFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .inputValidator(reportQuerySchema)
   .handler(({ data }) => listAdminReports(data))
+
+const listRoomRepeatsFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .inputValidator(roomRepeatQuerySchema)
+  .handler(({ data }) => listAdminRoomRepeats(data))
+
+const listTaskRepeatsFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .inputValidator(taskRepeatQuerySchema)
+  .handler(({ data }) => listAdminTaskRepeats(data))
 
 /**
  * The first page of each list, for the route loader.
@@ -187,6 +233,22 @@ const loadReportsPageFn = createServerFn({ method: "GET" })
     return { list: await listAdminReports({ ...data, pageSize }), pageSize }
   })
 
+const loadRoomRepeatsPageFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .inputValidator(roomRepeatQuerySchema.omit({ pageSize: true }))
+  .handler(async ({ data }) => {
+    const pageSize = await readDashboardRowsPerPage()
+    return { list: await listAdminRoomRepeats({ ...data, pageSize }), pageSize }
+  })
+
+const loadTaskRepeatsPageFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .inputValidator(taskRepeatQuerySchema.omit({ pageSize: true }))
+  .handler(async ({ data }) => {
+    const pageSize = await readDashboardRowsPerPage()
+    return { list: await listAdminTaskRepeats({ ...data, pageSize }), pageSize }
+  })
+
 const loadMediaUsageFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .handler(() => loadAdminMediaUsage())
@@ -234,6 +296,87 @@ const hideProfilesFn = createServerFn({ method: "POST" })
     return { changed: result.changed, skipped: result.skipped }
   })
 
+/**
+ * The ids one delete press covers: the rows ticked on the page on screen, so
+ * never more than the largest page. Rooms, sessions, tasks, reports and rules
+ * are uuids; Focus data is keyed by account id, which is not.
+ */
+const deleteIdsSchema = z.array(z.string().uuid()).min(1).max(ADMIN_PAGE_SIZE_MAX)
+const accountIdsSchema = z
+  .array(z.string().trim().min(1).max(36))
+  .min(1)
+  .max(ADMIN_PAGE_SIZE_MAX)
+
+const previewRoomDeletionFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ ids: deleteIdsSchema }))
+  .handler(({ data }) => previewRoomDeletion(data.ids))
+
+const deleteRoomsFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ ids: deleteIdsSchema }))
+  .handler(async ({ data, context }) => {
+    const result = await deleteAdminRooms({
+      roomIds: data.ids,
+      actorUserId: context.user.id,
+    })
+    // After the commit, so an open room's stream reads the room as gone and
+    // tells the people in it, rather than reading it a moment too early. The
+    // rooms are already gone by now, so a nudge that fails is logged rather
+    // than reported as a failed delete: those screens find out on their next
+    // reconnect instead.
+    const nudges = await Promise.allSettled(
+      result.deleted.map((id) => notifyRoom(id, "phase"))
+    )
+    for (const nudge of nudges) {
+      if (nudge.status === "rejected")
+        console.error("deleted room could not tell its open screens", nudge.reason)
+    }
+    return result
+  })
+
+const deleteSessionsFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ ids: deleteIdsSchema }))
+  .handler(({ data, context }) =>
+    deleteAdminSessions({ sessionIds: data.ids, actorUserId: context.user.id })
+  )
+
+const deleteTasksFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ ids: deleteIdsSchema }))
+  .handler(({ data, context }) =>
+    deleteAdminTasks({ taskIds: data.ids, actorUserId: context.user.id })
+  )
+
+const deleteReportsFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ ids: deleteIdsSchema }))
+  .handler(({ data, context }) =>
+    deleteAdminReports({ reportIds: data.ids, actorUserId: context.user.id })
+  )
+
+const clearFocusDataFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ ids: accountIdsSchema }))
+  .handler(({ data, context }) =>
+    clearAdminFocusData({ userIds: data.ids, actorUserId: context.user.id })
+  )
+
+const deleteRoomRepeatsFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ ids: deleteIdsSchema }))
+  .handler(({ data, context }) =>
+    deleteAdminRoomRepeats({ repeatIds: data.ids, actorUserId: context.user.id })
+  )
+
+const deleteTaskRepeatsFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ ids: deleteIdsSchema }))
+  .handler(({ data, context }) =>
+    deleteAdminTaskRepeats({ repeatIds: data.ids, actorUserId: context.user.id })
+  )
+
 export const listPomodoroFocusUsers = (data: PomodoroFocusQuery) =>
   listFocusUsersFn({ data })
 export const loadPomodoroFocusPage = (
@@ -273,3 +416,33 @@ export const reviewPomodoroReports = (
 
 export const hidePomodoroProfiles = (reportIds: string[], hidden: boolean) =>
   hideProfilesFn({ data: { reportIds, hidden } })
+
+export const listPomodoroRoomRepeats = (data: PomodoroRoomRepeatQuery) =>
+  listRoomRepeatsFn({ data })
+export const loadPomodoroRoomRepeatsPage = (
+  data: Omit<PomodoroRoomRepeatQuery, "pageSize">
+) => loadRoomRepeatsPageFn({ data })
+
+export const listPomodoroTaskRepeats = (data: PomodoroTaskRepeatQuery) =>
+  listTaskRepeatsFn({ data })
+export const loadPomodoroTaskRepeatsPage = (
+  data: Omit<PomodoroTaskRepeatQuery, "pageSize">
+) => loadTaskRepeatsPageFn({ data })
+
+
+export const previewPomodoroRoomDeletion = (ids: string[]) =>
+  previewRoomDeletionFn({ data: { ids } })
+export const deletePomodoroRooms = (ids: string[]) =>
+  deleteRoomsFn({ data: { ids } })
+export const deletePomodoroSessions = (ids: string[]) =>
+  deleteSessionsFn({ data: { ids } })
+export const deletePomodoroTasks = (ids: string[]) =>
+  deleteTasksFn({ data: { ids } })
+export const deletePomodoroReports = (ids: string[]) =>
+  deleteReportsFn({ data: { ids } })
+export const clearPomodoroFocusData = (ids: string[]) =>
+  clearFocusDataFn({ data: { ids } })
+export const deletePomodoroRoomRepeats = (ids: string[]) =>
+  deleteRoomRepeatsFn({ data: { ids } })
+export const deletePomodoroTaskRepeats = (ids: string[]) =>
+  deleteTaskRepeatsFn({ data: { ids } })

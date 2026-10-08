@@ -99,9 +99,9 @@ cover this one.
 - [Room chat and moderation](room-chat-and-moderation.md) — talking in a
   room, the five reactions, reporting a message, and the host's delete,
   remove and ban.
-- [Admin sections](admin-sections.md) — the six operator pages under
-  `/admin`: focus data, tasks, sessions, rooms, media, and the report queue
-  with its resolve, dismiss and reopen.
+- [Admin sections](admin-sections.md) — the eight operator pages under
+  `/admin`: focus data, tasks, sessions, rooms, media, the report queue,
+  weekly rooms and repeating tasks, and what each delete takes with it.
 - [Your own backgrounds and sounds](own-media-uploads.md) — what a Pro member
   may upload, the FFmpeg re-encode, and where the files live.
 - [AI backgrounds and soundscapes](ai-generation.md) — the prompt box, the

@@ -32,6 +32,13 @@ import {
   useAdminList,
 } from "@/components/pomodoro/admin-list"
 import {
+  AdminBulkDeleteButton,
+  AdminDeleteConfirm,
+  AdminRowDeleteButton,
+  useAdminDelete,
+} from "@/components/pomodoro/admin-delete"
+import {
+  deletePomodoroReports,
   getPomodoroAdminErrorMessage,
   listPomodoroReports,
   hidePomodoroProfiles,
@@ -40,6 +47,7 @@ import {
 } from "@/lib/api/pomodoro/admin"
 import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatDateTime } from "@/lib/format/format-time"
+import { plural } from "@/lib/format/plural"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import {
@@ -60,8 +68,9 @@ type PendingDecision = { rowId: string | null; decision: Decision } | null
 /** Where a press came from. A toolbar press is a bulk one even over one row. */
 type PressFrom = "row" | "toolbar"
 
-// "Reported" hides below xl and the room is capped: with both at full width
-// the row actions were pushed off the right-hand edge of a 1280px screen.
+// "Reported" hides below 2xl, the room is capped and the reviewer line is
+// short. With the bin added on 8 Oct 2026 the row actions ran 216px past the
+// right-hand edge of a 1280px screen, measured.
 const COLUMNS: TableHeaderColumn<SortColumn>[] = [
   { key: "room", label: "Room", column: "meta", className: "max-w-44" },
   {
@@ -76,7 +85,7 @@ const COLUMNS: TableHeaderColumn<SortColumn>[] = [
     key: "created",
     label: "Reported",
     column: "meta",
-    className: "hidden xl:table-cell",
+    className: "hidden 2xl:table-cell",
   },
 ]
 
@@ -272,197 +281,220 @@ export function AdminReportsDashboard({
     [clearSelection, refresh]
   )
 
+  const del = useAdminDelete({
+    one: "report",
+    many: "reports",
+    run: deletePomodoroReports,
+    keptReason: "already gone",
+    selection,
+    onDone: refresh,
+  })
+
   return (
-    <AdminListTable
-      title="Room reports"
-      icon={<FlagIcon />}
-      noun="reports"
-      columns={COLUMNS}
-      sort={sort}
-      direction={direction}
-      onSort={toggleSort}
-      trailing={<TableHead column="meta">Actions</TableHead>}
-      selection={{ noun: "reports", rowIds, state: selection }}
-      list={list}
-      page={page}
-      onPageChange={setPage}
-      controls={
-        <>
-          {/* Multi-row actions come before the search box, the order every
-              dashboard toolbar uses. They appear only with rows ticked, so the
-              toolbar is never a line of dead buttons. */}
-          {selectedIds.length ? (
-            <>
-              <BulkDecisionButton
-                decision="resolved"
-                icon={<CheckIcon className="size-4" />}
-                label="Resolve"
-                count={selectedIds.length}
-                pending={pending}
-                onClick={() => void decide(selectedIds, "resolved", "toolbar")}
-              />
-              <BulkDecisionButton
-                decision="dismissed"
-                icon={<XIcon className="size-4" />}
-                label="Dismiss"
-                count={selectedIds.length}
-                pending={pending}
-                onClick={() => void decide(selectedIds, "dismissed", "toolbar")}
-              />
-              <BulkDecisionButton
-                decision="pending"
-                icon={<RotateCcwIcon className="size-4" />}
-                label="Reopen"
-                count={selectedIds.length}
-                pending={pending}
-                onClick={() => void decide(selectedIds, "pending", "toolbar")}
-              />
-              {/* Hiding is the one power an operator has over a profile, and
-                  it means nothing for a message report. */}
-              {selectedProfileIds.length ? (
-                <>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={Boolean(pending)}
-                    onClick={() => void hide(selectedProfileIds, true)}
-                  >
-                    <EyeOffIcon className="size-4" aria-hidden="true" />
-                    Hide {selectedProfileIds.length}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={Boolean(pending)}
-                    onClick={() => void hide(selectedProfileIds, false)}
-                  >
-                    <EyeIcon className="size-4" aria-hidden="true" />
-                    Unhide
-                  </Button>
-                </>
-              ) : null}
-            </>
-          ) : null}
-          <DashboardToolbarSearch
-            name="report-search"
-            aria-label="Search reports"
-            placeholder="Search reason, room or reporter…"
-            value={searchText}
-            onChange={(event) => setSearchText(event.target.value)}
-          />
-          <Select
-            value={status}
-            onValueChange={(value) =>
-              setListSearch({
-                status: value === "all" ? undefined : value,
-                page: undefined,
-              })
-            }
-          >
-            <DashboardToolbarSelectTrigger aria-label="Filter by status">
-              <SelectValue placeholder="Status" />
-            </DashboardToolbarSelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All statuses</SelectItem>
-              <SelectItem value="pending">Waiting</SelectItem>
-              <SelectItem value="resolved">Resolved</SelectItem>
-              <SelectItem value="dismissed">Dismissed</SelectItem>
-            </SelectContent>
-          </Select>
-        </>
-      }
-    >
-      {list.rows.map((row) => (
-        <TableRow key={row.id}>
-          <AdminSelectCell
-            selection={selection}
-            id={row.id}
-            label={`Select the report about ${reportSubject(row)}`}
-          />
-          <TableCell column="meta" className="max-w-44">
-            {/* A message report names its room; a profile report names the
-                address an operator would open. */}
-            <span className="block truncate" title={reportSubject(row)}>
-              {reportSubject(row)}
-            </span>
-            {row.kind === "profile" && row.reportedHiddenAt ? (
-              <span className="block text-xs text-muted-foreground">
-                hidden
-              </span>
-            ) : null}
-          </TableCell>
-          <TableCell column="main">
-            <div className="min-w-0">
-              <span className="block max-w-80 truncate" title={row.reason}>
-                {row.reason}
-              </span>
-              <ReportedMessage row={row} />
-            </div>
-          </TableCell>
-          <TableCell column="meta" className="max-w-56">
-            {/* A profile report can come from a reader with no account at
-                all, which is the point of it being open. */}
-            <span
-              className="block truncate"
-              title={row.reporterEmail ?? "No account"}
-            >
-              {row.reporterName ?? "Signed-out reader"}
-            </span>
-          </TableCell>
-          <TableCell column="meta">
-            <div className="min-w-0">
-              <Badge variant={STATUS_LOOK[row.status]?.variant ?? "outline"}>
-                {STATUS_LOOK[row.status]?.label ?? row.status}
-              </Badge>
-              {/* Who signed it off. A reopened report has no reviewer, which
-                    is the point: the last decision no longer stands. */}
-              {row.reviewerName && row.reviewedAt ? (
-                <span
-                  className="mt-1 block max-w-40 truncate text-xs text-muted-foreground"
-                  title={`${row.reviewerName} on ${formatDateTime(row.reviewedAt)}`}
-                >
-                  {row.reviewerName} · {formatDateTime(row.reviewedAt)}
-                </span>
-              ) : null}
-            </div>
-          </TableCell>
-          <TableCell column="mutedMeta" className="hidden xl:table-cell">
-            {formatDateTime(row.createdAt)}
-          </TableCell>
-          <TableCell column="actions">
-            {row.status === "pending" ? (
+    <>
+      <AdminListTable
+        title="Room reports"
+        icon={<FlagIcon />}
+        noun="reports"
+        columns={COLUMNS}
+        sort={sort}
+        direction={direction}
+        onSort={toggleSort}
+        trailing={<TableHead column="meta">Actions</TableHead>}
+        selection={{ noun: "reports", rowIds, state: selection }}
+        list={list}
+        page={page}
+        onPageChange={setPage}
+        controls={
+          <>
+            {/* Multi-row actions come before the search box, the order every
+                dashboard toolbar uses. They appear only with rows ticked, so the
+                toolbar is never a line of dead buttons. */}
+            {selectedIds.length ? (
               <>
-                <RowDecisionButton
+                <BulkDecisionButton
                   decision="resolved"
                   icon={<CheckIcon className="size-4" />}
-                  label={`Resolve the report about ${reportSubject(row)}`}
-                  rowId={row.id}
+                  label="Resolve"
+                  count={selectedIds.length}
                   pending={pending}
-                  onClick={() => void decide([row.id], "resolved", "row")}
+                  onClick={() => void decide(selectedIds, "resolved", "toolbar")}
                 />
-                <RowDecisionButton
+                <BulkDecisionButton
                   decision="dismissed"
                   icon={<XIcon className="size-4" />}
-                  label={`Dismiss the report about ${reportSubject(row)}`}
+                  label="Dismiss"
+                  count={selectedIds.length}
+                  pending={pending}
+                  onClick={() => void decide(selectedIds, "dismissed", "toolbar")}
+                />
+                <BulkDecisionButton
+                  decision="pending"
+                  icon={<RotateCcwIcon className="size-4" />}
+                  label="Reopen"
+                  count={selectedIds.length}
+                  pending={pending}
+                  onClick={() => void decide(selectedIds, "pending", "toolbar")}
+                />
+                {/* Hiding is the one power an operator has over a profile, and
+                    it means nothing for a message report. */}
+                {selectedProfileIds.length ? (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={Boolean(pending)}
+                      onClick={() => void hide(selectedProfileIds, true)}
+                    >
+                      <EyeOffIcon className="size-4" aria-hidden="true" />
+                      Hide {selectedProfileIds.length}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={Boolean(pending)}
+                      onClick={() => void hide(selectedProfileIds, false)}
+                    >
+                      <EyeIcon className="size-4" aria-hidden="true" />
+                      Unhide
+                    </Button>
+                  </>
+                ) : null}
+              </>
+            ) : null}
+            <AdminBulkDeleteButton del={del} ids={selectedIds} />
+            <DashboardToolbarSearch
+              name="report-search"
+              aria-label="Search reports"
+              placeholder="Search reason, room or reporter…"
+              value={searchText}
+              onChange={(event) => setSearchText(event.target.value)}
+            />
+            <Select
+              value={status}
+              onValueChange={(value) =>
+                setListSearch({
+                  status: value === "all" ? undefined : value,
+                  page: undefined,
+                })
+              }
+            >
+              <DashboardToolbarSelectTrigger aria-label="Filter by status">
+                <SelectValue placeholder="Status" />
+              </DashboardToolbarSelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All statuses</SelectItem>
+                <SelectItem value="pending">Waiting</SelectItem>
+                <SelectItem value="resolved">Resolved</SelectItem>
+                <SelectItem value="dismissed">Dismissed</SelectItem>
+              </SelectContent>
+            </Select>
+          </>
+        }
+      >
+        {list.rows.map((row) => (
+          <TableRow key={row.id}>
+            <AdminSelectCell
+              selection={selection}
+              id={row.id}
+              label={`Select the report about ${reportSubject(row)}`}
+            />
+            <TableCell column="meta" className="max-w-44">
+              {/* A message report names its room; a profile report names the
+                  address an operator would open. */}
+              <span className="block truncate" title={reportSubject(row)}>
+                {reportSubject(row)}
+              </span>
+              {row.kind === "profile" && row.reportedHiddenAt ? (
+                <span className="block text-xs text-muted-foreground">
+                  hidden
+                </span>
+              ) : null}
+            </TableCell>
+            <TableCell column="main">
+              <div className="min-w-0">
+                <span className="block max-w-80 truncate" title={row.reason}>
+                  {row.reason}
+                </span>
+                <ReportedMessage row={row} />
+              </div>
+            </TableCell>
+            <TableCell column="meta" className="max-w-56">
+              {/* A profile report can come from a reader with no account at
+                  all, which is the point of it being open. */}
+              <span
+                className="block truncate"
+                title={row.reporterEmail ?? "No account"}
+              >
+                {row.reporterName ?? "Signed-out reader"}
+              </span>
+            </TableCell>
+            <TableCell column="meta">
+              <div className="min-w-0">
+                <Badge variant={STATUS_LOOK[row.status]?.variant ?? "outline"}>
+                  {STATUS_LOOK[row.status]?.label ?? row.status}
+                </Badge>
+                {/* Who signed it off. A reopened report has no reviewer, which
+                      is the point: the last decision no longer stands. */}
+                {row.reviewerName && row.reviewedAt ? (
+                  <span
+                    className="mt-1 block max-w-32 truncate text-xs text-muted-foreground"
+                    title={`${row.reviewerName} on ${formatDateTime(row.reviewedAt)}`}
+                  >
+                    {row.reviewerName} · {formatDateTime(row.reviewedAt)}
+                  </span>
+                ) : null}
+              </div>
+            </TableCell>
+            <TableCell column="mutedMeta" className="hidden 2xl:table-cell">
+              {formatDateTime(row.createdAt)}
+            </TableCell>
+            <TableCell column="actions">
+              {row.status === "pending" ? (
+                <>
+                  <RowDecisionButton
+                    decision="resolved"
+                    icon={<CheckIcon className="size-4" />}
+                    label={`Resolve the report about ${reportSubject(row)}`}
+                    rowId={row.id}
+                    pending={pending}
+                    onClick={() => void decide([row.id], "resolved", "row")}
+                  />
+                  <RowDecisionButton
+                    decision="dismissed"
+                    icon={<XIcon className="size-4" />}
+                    label={`Dismiss the report about ${reportSubject(row)}`}
+                    rowId={row.id}
+                    pending={pending}
+                    onClick={() => void decide([row.id], "dismissed", "row")}
+                  />
+                </>
+              ) : (
+                <RowDecisionButton
+                  decision="pending"
+                  icon={<RotateCcwIcon className="size-4" />}
+                  label={`Reopen the report about ${reportSubject(row)}`}
                   rowId={row.id}
                   pending={pending}
-                  onClick={() => void decide([row.id], "dismissed", "row")}
+                  onClick={() => void decide([row.id], "pending", "row")}
                 />
-              </>
-            ) : (
-              <RowDecisionButton
-                decision="pending"
-                icon={<RotateCcwIcon className="size-4" />}
-                label={`Reopen the report about ${reportSubject(row)}`}
-                rowId={row.id}
-                pending={pending}
-                onClick={() => void decide([row.id], "pending", "row")}
+              )}
+              <AdminRowDeleteButton
+                del={del}
+                id={row.id}
+                label={`Delete the report about ${reportSubject(row)}`}
               />
-            )}
-          </TableCell>
-        </TableRow>
-      ))}
-    </AdminListTable>
+            </TableCell>
+          </TableRow>
+        ))}
+      </AdminListTable>
+      <AdminDeleteConfirm
+        del={del}
+        title={`Delete ${del.ids.length} ${plural(del.ids.length, "report", "reports")}?`}
+        description="The reports are removed from the queue for good. Nobody is told, unlike Resolve and Dismiss, which thank the person who reported. The message or profile they were about is not touched. This cannot be undone."
+        confirmLabel={plural(del.ids.length, "Delete report", "Delete reports")}
+      />
+    </>
   )
 }
 
