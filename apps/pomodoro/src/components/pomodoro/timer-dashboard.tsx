@@ -62,8 +62,10 @@ const statCellClass = "flex min-w-0 flex-col gap-2 px-5 py-4"
 const statValueClass = "text-lg font-semibold leading-6 tracking-tight"
 
 /**
- * Today's goal as one short bar per session, filled orange as each focus
- * finishes and green once the goal is met. It reads out like the shared
+ * Today's goal as one chip per session, each labelled with the focus length
+ * ("25m"). A finished focus fills orange, the next one has an orange outline,
+ * the rest are grey, and every finished chip turns green once the goal is
+ * met. It reads out like the shared
  * `Meter` does ("Today's daily goal, 3 of 4 sessions"); the shared one draws a
  * single fill, which cannot show the sessions apart.
  */
@@ -71,10 +73,12 @@ function GoalSegments({
   done,
   goal,
   reached,
+  focusMinutes,
 }: {
   done: number
   goal: number
   reached: boolean
+  focusMinutes: number
 }) {
   const filled = Math.min(Math.max(done, 0), goal)
   return (
@@ -85,17 +89,25 @@ function GoalSegments({
       aria-valuemin={0}
       aria-valuemax={goal}
       aria-valuetext={`${done} of ${goal} ${plural(goal, "session")}${reached ? ", goal reached" : ""}`}
-      className="mt-1 flex gap-1"
+      className="mt-1 flex gap-1.5"
     >
       {Array.from({ length: goal }, (_, index) => (
         <span
           key={index}
+          aria-hidden="true"
           className={cn(
-            "h-[3px] flex-1 rounded-full bg-foreground/15 transition-colors motion-reduce:transition-none",
-            index < filled &&
-              (reached ? "bg-[var(--p-success)]" : "bg-primary")
+            "grid h-[22px] min-w-0 flex-1 place-items-center rounded-[6px] border font-mono text-[11px] transition-colors motion-reduce:transition-none",
+            index < filled
+              ? reached
+                ? "border-transparent bg-[var(--p-success)] text-white"
+                : "border-transparent bg-primary text-primary-foreground"
+              : index === filled
+                ? "border-primary/70 bg-primary/15 text-primary"
+                : "bg-foreground/5 text-muted-foreground"
           )}
-        />
+        >
+          {focusMinutes}m
+        </span>
       ))}
     </div>
   )
@@ -410,98 +422,101 @@ export function TimerDashboard() {
         ) : null}
       </section>
 
-      {/* Today, the streak and auto-start side by side, one row of three on
-          a wide screen and stacked on a phone. */}
-      <section
-        aria-label="Today"
-        className={`${contentColumn} grid divide-y overflow-hidden rounded-[24px] border bg-[var(--p-surface)] sm:grid-cols-3 sm:divide-x sm:divide-y-0`}
-      >
-        <div className={statCellClass}>
-          <div className="flex items-center justify-between gap-2">
-            <span className={eyebrowClass}>
-              Today
-              {/* Darker than the grey line, not green: the light theme's
-                  green is under 4.5:1 on white at this size. */}
-              {goalReached ? (
-                <span className="text-foreground"> · Goal reached</span>
-              ) : null}
-            </span>
-            <DailyGoalEditor
-              goal={pomodoro.dailyGoalSessions}
-              onChange={pomodoro.setDailyGoal}
-            />
-          </div>
-          <p className={statValueClass}>
-            {pomodoro.todayFocusSessions}
-            <span className="font-normal text-muted-foreground">
-              {" "}
-              / {pomodoro.dailyGoalSessions}{" "}
-              {plural(pomodoro.dailyGoalSessions, "session")}
-            </span>
-          </p>
-          <GoalSegments
-            done={pomodoro.todayFocusSessions}
-            goal={pomodoro.dailyGoalSessions}
-            reached={goalReached}
-          />
-        </div>
-        <div className={statCellClass}>
-          <span className={eyebrowClass}>Streak</span>
-          <p className={statValueClass}>
-            {pomodoro.currentStreak}{" "}
-            {plural(pomodoro.currentStreak, "day")}
-            <span className="font-normal text-muted-foreground">
-              {" "}
-              · best {pomodoro.bestStreak}
-            </span>
-          </p>
-        </div>
-        <div className={statCellClass}>
-          <span id="auto-start-heading" className={eyebrowClass}>
-            Auto-start
-          </span>
-          <div className="flex items-center gap-2.5">
-            <Switch
-              id="auto-start"
-              checked={pomodoro.autoStart}
-              onCheckedChange={pomodoro.setAutoStart}
-              aria-labelledby="auto-start-heading auto-start-label"
-            />
-            <Label
-              id="auto-start-label"
-              htmlFor="auto-start"
-              className="text-[15px] font-normal"
-            >
-              Next timer
-            </Label>
-          </div>
-        </div>
-      </section>
-
-      <section
-        aria-labelledby="dashboard-tasks-heading"
+      {/* One card: today, the streak and auto-start along the top (one row
+          of three on a wide screen, stacked on a phone), then the tasks
+          under a full-width divider, then the add box under another. */}
+      <div
         className={`${contentColumn} overflow-hidden rounded-[24px] border bg-[var(--p-surface)]`}
       >
-        <header className="flex items-center gap-3 px-6 pb-2 pt-5">
-          <h2 id="dashboard-tasks-heading" className={eyebrowClass}>
-            Tasks
-          </h2>
-          {/* Waits for the first task, the same as the Tasks page. */}
-          {pomodoro.tasks.length ? (
-            <span className="ml-auto font-mono text-xs text-muted-foreground">
-              {completedTasks} / {pomodoro.tasks.length} done
+        <section
+          aria-label="Today"
+          className="grid divide-y border-b sm:grid-cols-3 sm:divide-x sm:divide-y-0"
+        >
+          <div className={statCellClass}>
+            <div className="flex items-center justify-between gap-2">
+              <span className={eyebrowClass}>
+                Today
+                {/* Darker than the grey line, not green: the light theme's
+                    green is under 4.5:1 on white at this size. */}
+                {goalReached ? (
+                  <span className="text-foreground"> · Goal reached</span>
+                ) : null}
+              </span>
+              <DailyGoalEditor
+                goal={pomodoro.dailyGoalSessions}
+                onChange={pomodoro.setDailyGoal}
+              />
+            </div>
+            <p className={statValueClass}>
+              {pomodoro.todayFocusSessions}
+              <span className="font-normal text-muted-foreground">
+                {" "}
+                / {pomodoro.dailyGoalSessions}{" "}
+                {plural(pomodoro.dailyGoalSessions, "session")}
+              </span>
+            </p>
+            <GoalSegments
+              done={pomodoro.todayFocusSessions}
+              goal={pomodoro.dailyGoalSessions}
+              reached={goalReached}
+              focusMinutes={pomodoro.durations.focus}
+            />
+          </div>
+          <div className={statCellClass}>
+            <span className={eyebrowClass}>Streak</span>
+            <p className={statValueClass}>
+              {pomodoro.currentStreak}{" "}
+              {plural(pomodoro.currentStreak, "day")}
+              <span className="font-normal text-muted-foreground">
+                {" "}
+                · best {pomodoro.bestStreak}
+              </span>
+            </p>
+          </div>
+          <div className={statCellClass}>
+            <span id="auto-start-heading" className={eyebrowClass}>
+              Auto-start
             </span>
-          ) : null}
-        </header>
-        {/* The same list and the same add box as the Tasks page. The add box
-            sits under its own full-width divider with no frame of its own. */}
-        <div className="px-3 pb-2">
-          <TodayTaskList pomodoro={pomodoro} flat />
-        </div>
-        <div className="border-t px-3 py-3">
-          <NewTaskForm onAdd={pomodoro.addTask} bare />
-        </div>
-      </section>
+            <div className="flex items-center gap-2.5">
+              <Switch
+                id="auto-start"
+                checked={pomodoro.autoStart}
+                onCheckedChange={pomodoro.setAutoStart}
+                aria-labelledby="auto-start-heading auto-start-label"
+              />
+              <Label
+                id="auto-start-label"
+                htmlFor="auto-start"
+                className="text-[15px] font-normal"
+              >
+                Next timer
+              </Label>
+            </div>
+          </div>
+        </section>
+
+        <section aria-labelledby="dashboard-tasks-heading">
+          <header className="flex items-center gap-3 px-6 pb-2 pt-5">
+            <h2 id="dashboard-tasks-heading" className={eyebrowClass}>
+              Tasks
+            </h2>
+            {/* Waits for the first task, the same as the Tasks page. */}
+            {pomodoro.tasks.length ? (
+              <span className="ml-auto font-mono text-xs text-muted-foreground">
+                {completedTasks} / {pomodoro.tasks.length} done
+              </span>
+            ) : null}
+          </header>
+          {/* The same list and the same add box as the Tasks page. The add box
+              sits under its own full-width divider with no frame of its own. */}
+          <div className="px-3 pb-2">
+            <TodayTaskList pomodoro={pomodoro} flat />
+          </div>
+          <div className="border-t px-3 py-3">
+            <NewTaskForm onAdd={pomodoro.addTask} bare />
+          </div>
+        </section>
+      </div>
       {/* Its own block under Tasks, with more room above it than the cards
           above share, so it reads as the next thing rather than part of Tasks. */}
       <HomeOpenRooms className={`${contentColumn} mt-10`} />

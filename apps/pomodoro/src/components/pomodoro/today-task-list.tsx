@@ -46,6 +46,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
+import { plural } from "@/lib/format/plural"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { useProductAuth } from "@/lib/pomodoro/auth-state"
@@ -173,7 +174,9 @@ export function TodayTaskList({
   })
 
   return (
-    <div className="flex flex-col gap-2">
+    // No space between front-page rows and a 34px row, so they sit 34px
+    // apart. Tyler asked for them closer than the design's 44px.
+    <div className={cn("flex flex-col", flat ? "gap-0" : "gap-2")}>
       {/* A loading list and an empty list mean opposite things, so the card
           never claims you have nothing while it is still fetching. */}
       {pomodoro.loading && !pomodoro.tasks.length ? (
@@ -225,6 +228,7 @@ export function TodayTaskList({
                 task={task}
                 pomodoro={pomodoro}
                 className={rowClass}
+                flat={flat}
                 {...editingProps(task)}
               />
             ))}
@@ -237,6 +241,7 @@ export function TodayTaskList({
             task={task}
             pomodoro={pomodoro}
             className={rowClass}
+            flat={flat}
             {...editingProps(task)}
           />
         ))
@@ -258,6 +263,7 @@ export function TodayTaskList({
               task={task}
               pomodoro={pomodoro}
               className={rowClass}
+              flat={flat}
               editing={false}
               onEditingChange={() => undefined}
             />
@@ -340,6 +346,7 @@ function SortableTaskRow(props: {
   editing: boolean
   onEditingChange: (editing: boolean) => void
   className?: string
+  flat?: boolean
 }) {
   const {
     attributes,
@@ -397,6 +404,7 @@ function TaskRow({
   rowRef,
   style,
   className,
+  flat = false,
 }: {
   task: TaskItem
   pomodoro: PomodoroApi
@@ -406,6 +414,8 @@ function TaskRow({
   rowRef?: (node: HTMLElement | null) => void
   style?: React.CSSProperties
   className?: string
+  /** The front page's drawing: a round tick, a larger title, the project as a pill. */
+  flat?: boolean
 }) {
   const selected = pomodoro.selectedTaskId === task.id
   const busy = pomodoro.taskBusy(task.id)
@@ -419,6 +429,7 @@ function TaskRow({
     <TaskRowFrame
       rowRef={rowRef}
       style={style}
+      compact={flat}
       className={cn(
         task.completed ? "bg-card/50" : "bg-card",
         className,
@@ -444,18 +455,34 @@ function TaskRow({
         disabled={busy}
         onCheckedChange={() => pomodoro.toggleTask(task.id)}
         aria-label={`${task.completed ? "Reopen" : "Complete"} ${task.title}`}
+        className={cn(
+          flat &&
+            "mx-1 size-5 rounded-full border-[1.5px] border-muted-foreground/60 dark:bg-transparent"
+        )}
       />
       {task.completed ? (
-        <span className="flex min-w-0 flex-1 items-center gap-2 py-2">
-          <span className="truncate text-sm text-muted-foreground line-through">
+        <span
+          className={cn(
+            "flex min-w-0 flex-1 items-center gap-2",
+            flat ? "py-0.5" : "py-2"
+          )}
+        >
+          <span
+            className={cn(
+              "truncate text-muted-foreground line-through",
+              flat ? "text-[15px]" : "text-sm"
+            )}
+          >
             {task.title}
           </span>
-          <TaskMarks task={task} />
+          <TaskMarks task={task} flat={flat} />
         </span>
       ) : (
         <button
           className={cn(
-            "flex min-w-0 flex-1 items-center gap-2 rounded-lg py-2 text-left",
+            "flex min-w-0 flex-1 items-center gap-2 rounded-lg text-left",
+            // Less padding on the front page, so the rows sit closer.
+            flat ? "py-0.5" : "py-2",
             focusRing
           )}
           disabled={!pomodoro.canSelectTask}
@@ -464,8 +491,10 @@ function TaskRow({
           // way to focus on nothing.
           onClick={() => pomodoro.selectTask(selected ? null : task.id)}
         >
-          <span className="truncate text-sm">{task.title}</span>
-          <TaskMarks task={task} />
+          <span className={cn("truncate", flat ? "text-[15px]" : "text-sm")}>
+            {task.title}
+          </span>
+          <TaskMarks task={task} flat={flat} />
         </button>
       )}
       {showSteps ? (
@@ -541,11 +570,14 @@ export function TaskRowFrame({
   style,
   className,
   steps,
+  compact = false,
   children,
 }: {
   rowRef?: (node: HTMLElement | null) => void
   style?: React.CSSProperties
   className?: string
+  /** The front page's shorter row. */
+  compact?: boolean
   steps?: React.ReactNode
   children: React.ReactNode
 }) {
@@ -561,7 +593,14 @@ export function TaskRowFrame({
         "hover:bg-foreground/5"
       )}
     >
-      <div className="flex min-h-9 items-center gap-2 px-2">{children}</div>
+      <div
+        className={cn(
+          "flex items-center gap-2 px-2",
+          compact ? "min-h-8" : "min-h-9"
+        )}
+      >
+        {children}
+      </div>
       {steps}
     </div>
   )
@@ -621,7 +660,14 @@ export function RemoveTaskButton({
  * The repeat, tag, project and priority marks and the done count, after a
  * title. Tags are the quietest of them, so they never compete with the title.
  */
-export function TaskMarks({ task }: { task: TaskItem }) {
+export function TaskMarks({
+  task,
+  flat = false,
+}: {
+  task: TaskItem
+  /** The front page's drawing: "in" and the project as a tinted pill, the count in pomos. */
+  flat?: boolean
+}) {
   return (
     <>
       {/* The repeat rule is in the row's own words rather than a tooltip on
@@ -645,7 +691,9 @@ export function TaskMarks({ task }: { task: TaskItem }) {
           <span className="sr-only">. Tagged </span>#{tag}
         </span>
       ))}
-      {task.projectName ? (
+      {task.projectName && flat ? (
+        <ProjectPill name={task.projectName} />
+      ) : task.projectName ? (
         <b className="max-w-28 truncate text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
           {task.projectName}
         </b>
@@ -663,8 +711,54 @@ export function TaskMarks({ task }: { task: TaskItem }) {
         </b>
       ) : null}
       <small className="ml-auto shrink-0 font-mono text-[10px] text-muted-foreground">
-        {taskProgressLabel(task)}
+        {flat ? pomoLabel(task) : taskProgressLabel(task)}
       </small>
+    </>
+  )
+}
+
+/** "1 pomo", "0 pomos", "1/3 pomos": the front page's count. */
+function pomoLabel(task: TaskItem) {
+  if (task.estimatedPomodoros !== null)
+    return `${task.pomodoros}/${task.estimatedPomodoros} ${plural(task.estimatedPomodoros, "pomo")}`
+  return `${task.pomodoros} ${plural(task.pomodoros, "pomo")}`
+}
+
+/**
+ * Five tints, picked from the project's name so one project keeps its colour
+ * on every row and every visit. The same five as the Projects cards.
+ */
+const PROJECT_TONES = [
+  "bg-sky-400/15 text-sky-700 dark:text-sky-300",
+  "bg-amber-400/15 text-amber-700 dark:text-amber-300",
+  "bg-emerald-400/15 text-emerald-700 dark:text-emerald-300",
+  "bg-violet-400/15 text-violet-700 dark:text-violet-300",
+  "bg-[color:var(--p-accent)]/15 text-[var(--p-accent)]",
+]
+
+function ProjectPill({ name }: { name: string }) {
+  let hash = 0
+  for (const char of name) hash = (hash * 31 + char.charCodeAt(0)) % 997
+  return (
+    // Hidden on a phone, the same as tags, so the title keeps the room.
+    <>
+      <span className="hidden shrink-0 text-sm text-muted-foreground sm:inline">
+        in
+      </span>
+      <span
+        className={cn(
+          "hidden min-w-0 sm:inline-flex max-w-40 shrink items-center gap-1.5 rounded-full px-2.5 py-0.5 text-sm",
+          PROJECT_TONES[hash % PROJECT_TONES.length]
+        )}
+      >
+        <span
+          aria-hidden="true"
+          className="size-1.5 shrink-0 rounded-full bg-current"
+        />
+        <span className="truncate">{name}</span>
+      </span>
+      {/* A phone still names the project to a screen reader. */}
+      <span className="sr-only sm:hidden">. In {name}</span>
     </>
   )
 }

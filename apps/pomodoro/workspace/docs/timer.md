@@ -22,14 +22,27 @@ bottom:
   like the screenshot." They are the screen's main switch, so they are the one
   tab row past 32px. A phone gets tighter padding and 15px words, so the strip
   is 288px wide on a 375px screen.
-- **The cards have 24px corners**, which Tyler set the same day. The theme's
-  `rounded-3xl` works out to 28px here, so the two cards write 24px outright.
-- **One card of three boxes comes next.** Today holds the goal count and one
-  short bar per session. Streak holds the current and best run of days.
+- **The card has 24px corners**, which Tyler set the same day. The theme's
+  `rounded-3xl` works out to 28px here, so the card writes 24px outright.
+- **Today, Streak, Auto-start and Tasks are one card**, from the design Tyler
+  sent on 8 Oct 2026 with "redesign the task section to look like this". The
+  three boxes run along the top and Tasks sits under a full-width line.
+- **The three boxes along the top:** Today holds the goal count and one
+  chip per session, each reading the focus length ("25m"). A finished focus
+  fills orange, the next one has an orange outline, and the rest are grey.
+  Every finished chip turns green once the goal is met. Streak holds the current and best run of days.
   Auto-start holds the switch, labelled "Next timer". On a phone the three
   stack.
-- **The Tasks card is last.** Its rows have no box of their own, unlike the
-  Tasks page, because the design draws them flat. The add box sits under a
+- **A task row on the front page** is a grip, a 20px round tick, the title in 15px,
+  then "in" and the project as a pill with a dot, and on the right the count
+  in pomos ("1 pomo", "0 pomos", "1/3 pomos"), the steps button, the settings cog and the X.
+  The pill takes one of five tints picked from the project's name, the same
+  five as the Projects cards, so a project keeps its colour. Rows sit 34px
+  apart with no space between them, closer than the design's 44px, which Tyler asked for on 8 Oct 2026. A phone hides the pill, the same as tags, so the title keeps the room.
+- **The settings cog always shows**, between the steps button and the X.
+  Tyler did not want it hidden until hover.
+- **The rows have no box of their own**, unlike the Tasks page, because the
+  design draws them flat. The add box sits under a
   divider that runs the card's full width, with no frame of its own, and an
   orange Add task button at its right end, which Tyler asked for because a box
   with no frame does not look like it takes a click. The button is never greyed

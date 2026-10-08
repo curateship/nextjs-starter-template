@@ -22,7 +22,9 @@ Drawn to Tyler's design of 7 Oct 2026
   on the right (or "2 planned" for a later day). Its rows have no frame of
   their own, and the add box sits under a full-width line with an Add task
   button. Today and the days ahead are drawn the same way, and so is the
-  Tasks card on `/timer`, because they share the rows and the add box.
+  Tasks list on the front page, because they share the rows and the add box.
+  The front page draws the rows larger, with a round tick and the project as
+  a pill; see [Timer](timer.md).
 - **A row lightens under the pointer**, on every one of those lists, because
   the wash sits on the shared row frame (`TaskRowFrame` in
   `today-task-list.tsx`). It shows mid-focus too, while the task cannot be
