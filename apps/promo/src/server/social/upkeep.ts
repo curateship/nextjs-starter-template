@@ -1,4 +1,6 @@
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
+
+import { queueDueHealthChecks } from "./health"
 import {
   markDeadSessions,
   reapIdleSessions,
@@ -32,4 +34,14 @@ export async function reapBrowsers(db: CustomShellDb = defaultDb): Promise<void>
 
   const orphans = await removeOrphanContainers(db)
   if (orphans) console.log(`Removed ${orphans} leftover browser container(s)`)
+}
+
+/**
+ * Asks for a fresh karma, age and stranger's-eye reading of each signed-in
+ * Reddit account once a day. Only writes jobs: the browser program takes the
+ * reading, in a tab of its own, so a page a person is using never moves.
+ */
+export async function queueAccountHealth(db: CustomShellDb = defaultDb): Promise<void> {
+  const queued = await queueDueHealthChecks(db)
+  if (queued) console.log(`Asked for ${queued} Reddit account health reading(s)`)
 }

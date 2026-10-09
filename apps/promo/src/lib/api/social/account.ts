@@ -11,11 +11,16 @@ import {
   type AccountView,
   type BrowserStatus,
 } from "@/server/social/accounts"
+import {
+  queueHealthCheck,
+  readAccountHealth,
+  type AccountHealth,
+} from "@/server/social/health"
 import { listVoices } from "@/server/social/voices"
 
 import { createErrorMessage } from "../error-message"
 
-export type { AccountView, BrowserStatus }
+export type { AccountHealth, AccountView, BrowserStatus }
 
 /**
  * The Reddit account settings tab: which browser profile the account signs in
@@ -30,6 +35,7 @@ export const getAccountErrorMessage = createErrorMessage(
     "already has a Reddit account": "That profile already has a Reddit account in it. Pick another, or make a new profile.",
     "browser profile does not exist": "That browser profile is not there any more. Pick another.",
     "voice does not exist": "That voice is not there any more. Pick another.",
+    "Set up a Reddit account first": "Save the account with a browser profile first, then check it.",
   },
   "That did not work. Please try again."
 )
@@ -98,4 +104,35 @@ const browserStatusFn = createServerFn({ method: "GET" })
 
 export function loadBrowserStatus() {
   return browserStatusFn()
+}
+
+/**
+ * The account's karma, age and how its profile looks to a stranger, as last
+ * read, and whether a check is under way. Null when no account is set up.
+ */
+const healthFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .handler(async ({ context }): Promise<AccountHealth | null> => {
+    const account = await readAccount(context.user.id)
+    return account ? readAccountHealth(context.user.id, account.id) : null
+  })
+
+export function loadAccountHealth() {
+  return healthFn()
+}
+
+/**
+ * Asks the browser program for a fresh reading. Returns once the job is
+ * written; the settings tab asks again until it has finished.
+ */
+const checkHealthFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .handler(async ({ context }): Promise<void> => {
+    const account = await readAccount(context.user.id)
+    if (!account) throw new Error("Set up a Reddit account first.")
+    await queueHealthCheck(context.user.id, account.id)
+  })
+
+export function checkAccountHealthNow() {
+  return checkHealthFn()
 }

@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  accountAgeText,
   keywordScopeText,
+  profileCheckWords,
   postedDateText,
   postingBlockedReason,
   splitIntoBlocks,
@@ -204,5 +206,66 @@ describe("who uses a voice", () => {
     expect(voiceDeleteWords([{ platform: "reddit", handle: "a_persona" }])).toBe(
       "Reddit u/a_persona loses it, and will draft plainly, never mentioning what you make, until given another voice in Settings."
     )
+  })
+})
+
+describe("how old the account is", () => {
+  it("counts days, then months, then years", () => {
+    expect(accountAgeText(daysAgo(1), NOW)).toBe("1 day old")
+    expect(accountAgeText(daysAgo(12), NOW)).toBe("12 days old")
+    expect(accountAgeText(daysAgo(150), NOW)).toBe("4 months old")
+    expect(accountAgeText(daysAgo(3 * 365 + 10), NOW)).toBe("3 years old")
+  })
+})
+
+describe("what a stranger sees of the profile", () => {
+  const check = {
+    handle: "a_persona",
+    signedInStatus: 200,
+    signedInFound: true,
+    signedOutStatus: 200,
+    signedOutFound: true,
+    suspended: false,
+    readAt: NOW.toISOString(),
+  }
+
+  it("says plainly when a stranger can see it", () => {
+    expect(profileCheckWords(check)).toEqual({
+      text: "A signed-out visitor can see u/a_persona.",
+      concern: false,
+    })
+  })
+
+  it("describes the shadowban pattern without calling it one for certain", () => {
+    const words = profileCheckWords({ ...check, signedOutStatus: 404, signedOutFound: false })
+    expect(words.concern).toBe(true)
+    expect(words.text).toContain("loads for you, but Reddit told a signed-out visitor it does not exist")
+    expect(words.text).toContain("Reddit never confirms one")
+    expect(words.text).not.toMatch(/\bis shadowbanned\b/)
+  })
+
+  it("says a refusal tells nothing either way", () => {
+    expect(
+      profileCheckWords({ ...check, signedOutStatus: 403, signedOutFound: false }).text
+    ).toBe("Reddit refused the signed-out request (status 403), so this reading says nothing either way.")
+    expect(profileCheckWords({ ...check, signedOutStatus: 0, signedOutFound: false })).toEqual({
+      text: "The signed-out request got no answer, so this reading says nothing either way.",
+      concern: false,
+    })
+  })
+
+  it("names a suspension and a profile missing both ways", () => {
+    expect(profileCheckWords({ ...check, suspended: true }).text).toBe(
+      "Reddit marks u/a_persona as suspended."
+    )
+    expect(
+      profileCheckWords({
+        ...check,
+        signedInStatus: 404,
+        signedInFound: false,
+        signedOutStatus: 404,
+        signedOutFound: false,
+      }).text
+    ).toBe('Reddit answered "not found" for u/a_persona both signed in and signed out.')
   })
 })

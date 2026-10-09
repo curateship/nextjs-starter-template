@@ -156,9 +156,21 @@ const threadShape = z.object({
   replies: z.array(replyShape),
 })
 
+/**
+ * The account's karma and when it was made, read from the same "who am I"
+ * answer as the handle. Null when signed out, and from an image built before
+ * these were read, so an old browser answers rather than failing the shape.
+ */
+const accountFigures = {
+  karma: z.number().nullable().default(null),
+  /** Seconds since 1970, as Reddit gives it. */
+  createdSeconds: z.number().nullable().default(null),
+}
+
 const stateShape = z.object({
   /** Null means signed out. */
   handle: z.string().nullable(),
+  ...accountFigures,
   /** True when a challenge or captcha needs a person. */
   blocked: z.boolean(),
   reason: z.string().default(""),
@@ -175,9 +187,30 @@ const quickStateShape = z.object({
    */
   checked: z.boolean(),
   handle: z.string().nullable(),
+  ...accountFigures,
   blocked: z.boolean(),
   reason: z.string().default(""),
 })
+
+/** One read of a profile's own data. Status 0 means the request never got an answer. */
+const profileReadShape = z.object({
+  status: z.number(),
+  found: z.boolean(),
+  suspended: z.boolean(),
+})
+
+const accountHealthShape = z.object({
+  handle: z.string().nullable(),
+  ...accountFigures,
+  blocked: z.boolean(),
+  reason: z.string().default(""),
+  /** Null when signed out, since there is no profile to ask about. */
+  profile: z
+    .object({ signedIn: profileReadShape, signedOut: profileReadShape })
+    .nullable(),
+})
+
+export type AccountHealthReading = z.infer<typeof accountHealthShape>
 
 const commentShape = z.object({ commentUrl: z.string() })
 
@@ -264,6 +297,15 @@ export function redditState(target: CommandTarget) {
  */
 export function redditQuickState(target: CommandTarget) {
   return call(target, "reddit/quick_state", {}, quickStateShape)
+}
+
+/**
+ * Karma, account age, and the profile read signed in and signed out, all in a
+ * tab of its own so the page a person may be using never moves. A read, so
+ * the ticker may ask for it on a schedule.
+ */
+export function redditHealth(target: CommandTarget) {
+  return call(target, "reddit/health", {}, accountHealthShape)
 }
 
 export function redditSearch(

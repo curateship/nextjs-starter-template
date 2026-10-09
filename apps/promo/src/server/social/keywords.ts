@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray } from "drizzle-orm"
+import { and, desc, eq, inArray, notExists, or, sql } from "drizzle-orm"
 
 import { uuid } from "@/server/auth/security"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
@@ -15,6 +15,7 @@ import {
 } from "@/lib/social/reddit/options"
 
 import {
+  promoBlockedSubreddits,
   promoDrafts,
   promoFinds,
   promoKeywords,
@@ -28,6 +29,22 @@ import {
  * browser work is not here: it goes on the queue in `jobs.ts`.
  */
 
+/**
+ * The rule a stored post must pass to be listed: not from a subreddit on the
+ * blocked list (`reddit/blocked.ts`), or already commented on, which is a
+ * record of something that happened and is never hidden. Every read of the
+ * list and of its counts uses it, so the posts and the numbers beside them
+ * always agree.
+ */
+export function shownFind(userId: string) {
+  return or(
+    eq(promoFinds.status, "commented"),
+    notExists(
+      sql`(SELECT 1 FROM ${promoBlockedSubreddits} WHERE ${promoBlockedSubreddits.userId} = ${userId} AND lower(${promoBlockedSubreddits.subreddit}) = lower(${promoFinds.subreddit}))`
+    )
+  )
+}
+
 /** A keyword can name this many subreddits before the list is unmanageable. */
 const MAX_SUBREDDITS = 10
 
@@ -39,7 +56,10 @@ export type KeywordRow = {
   timeWindow: RedditWindow
   enabled: boolean
   lastRunAt: Date | null
-  /** Every post this keyword has found, however it has been dealt with. */
+  /**
+   * Every post this keyword lists, however it has been dealt with. Posts from a
+   * blocked subreddit are not counted, because they are not listed.
+   */
   postCount: number
   /** How many posts are waiting to be looked at. */
   newCount: number
@@ -98,7 +118,9 @@ export async function listKeywords(
   const waiting = await db
     .select({ keywordId: promoFinds.keywordId, status: promoFinds.status })
     .from(promoFinds)
-    .where(and(eq(promoFinds.userId, userId), inArray(promoFinds.keywordId, ids)))
+    .where(
+      and(eq(promoFinds.userId, userId), inArray(promoFinds.keywordId, ids), shownFind(userId))
+    )
 
   const newCounts = new Map<string, number>()
   const totals = new Map<string, number>()
@@ -230,7 +252,7 @@ export async function listFinds(
   db: CustomShellDb = defaultDb,
   now: Date = new Date()
 ): Promise<FindRow[]> {
-  const filters = [eq(promoFinds.userId, userId)]
+  const filters = [eq(promoFinds.userId, userId), shownFind(userId)]
   if (query.keywordId) filters.push(eq(promoFinds.keywordId, query.keywordId))
   if (query.status && query.status !== "all") {
     filters.push(eq(promoFinds.status, query.status))

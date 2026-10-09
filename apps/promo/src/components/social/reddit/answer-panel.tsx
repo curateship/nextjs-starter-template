@@ -7,7 +7,7 @@ import {
   SparklesIcon,
 } from "lucide-react"
 
-import { CardTop } from "@/components/shared/feed-card"
+import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -64,6 +64,7 @@ export function AnswerPanel({
   onDraft,
   onPost,
   onSkip,
+  onBack,
 }: {
   /** Null when no post is selected. */
   find: FindDetail | null
@@ -85,6 +86,13 @@ export function AnswerPanel({
     draftId: string | null
   }) => Promise<void>
   onSkip: (findId: string) => Promise<void>
+  /**
+   * Closes the post and goes back to the list, leaving the keyword and the
+   * tab where they were. Passed only by the narrow layout, where the post
+   * covers the list. On the wide one the list is beside it and there is
+   * nowhere to go back to.
+   */
+  onBack?: () => void
 }) {
   const [text, setText] = React.useState("")
   const [fromDraft, setFromDraft] = React.useState<string | null>(null)
@@ -115,10 +123,15 @@ export function AnswerPanel({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <CardTop
-        icon={MessageSquareIcon}
+      {/* The shell's title header rather than `CardTop`, which draws the
+          same row but has no way to turn its icon into a back arrow. */}
+      <DashboardCardTitleHeader
+        icon={<MessageSquareIcon className="size-4" />}
+        back={onBack ? { label: "Back to the list", onClick: onBack } : undefined}
         title="The post and your comment"
-        meta={find ? `r/${find.subreddit}` : undefined}
+        meta={
+          find ? <span className="shrink-0 font-normal">r/{find.subreddit}</span> : null
+        }
         action={
           find ? (
             <div className="flex items-center gap-2">

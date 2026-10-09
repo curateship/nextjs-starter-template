@@ -1,9 +1,9 @@
 import * as React from "react"
 import { Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
+import { useReportedSaveStatus } from "@/components/settings/use-reported-save-status"
+import { CardGroup } from "@/components/ui/card"
 import { NumberField } from "@/components/ui/number-field"
 import { IDLE_MINUTES_RANGE, MAX_OPEN_RANGE } from "@/lib/browser/limits"
 import {
@@ -12,7 +12,13 @@ import {
   saveBrowserSettingsFn,
   type BrowserSettings,
 } from "@/lib/api/browser/settings"
-import { showErrorToast } from "@/lib/toast/error-toast"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+
+/**
+ * A changed number saves itself this long after the last keystroke, the same
+ * wait as the shell's AI keys, and Enter saves straight away.
+ */
+const SAVE_DELAY_MS = 1200
 
 /**
  * The Browsers tab in Settings: how many browsers this machine may have open
@@ -20,12 +26,18 @@ import { showErrorToast } from "@/lib/toast/error-toast"
  *
  * Both are the machine's, not a profile's, because the memory they protect is
  * the machine's. Each browser holds about 1.5GB at most.
+ *
+ * Built from the shell's own settings cards in a `CardGroup`, so the cards and
+ * the gap between them follow Settings → Styling like every other settings
+ * screen, and it saves itself with the outcome in the sticky header. There is
+ * no Save button.
  */
 function BrowserSettingsPanel() {
   const [maxOpen, setMaxOpen] = React.useState(3)
   const [idleMinutes, setIdleMinutes] = React.useState(60)
   const [loading, setLoading] = React.useState(true)
-  const [saving, setSaving] = React.useState(false)
+  const setSaveStatus = useReportedSaveStatus()
+  const timer = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   const fill = React.useCallback((next: BrowserSettings) => {
     setMaxOpen(next.maxOpen)
@@ -45,16 +57,33 @@ function BrowserSettingsPanel() {
     )
   }, [fill])
 
-  async function save() {
-    setSaving(true)
+  // A save still waiting when the tab closes is dropped with it.
+  React.useEffect(() => () => clearTimeout(timer.current), [])
+
+  // The values ride in as arguments, so the timer saves exactly what was
+  // typed when it was set, not whatever the state holds by then.
+  async function save(next: { maxOpen: number; idleMinutes: number }) {
+    clearTimeout(timer.current)
+    setSaveStatus("saving")
+    dismissErrorToast()
     try {
-      fill(await saveBrowserSettingsFn({ maxOpen, idleMinutes }))
-      toast.success("Browser settings saved.")
+      const saved = await saveBrowserSettingsFn(next)
+      // A newer edit made while this one was on its way keeps its numbers and
+      // saves itself in turn.
+      setMaxOpen((current) => (current === next.maxOpen ? saved.maxOpen : current))
+      setIdleMinutes((current) => (current === next.idleMinutes ? saved.idleMinutes : current))
+      setSaveStatus("saved")
     } catch (error) {
+      setSaveStatus("idle")
       showErrorToast(getBrowserSettingsErrorMessage(error))
-    } finally {
-      setSaving(false)
     }
+  }
+
+  function change(next: { maxOpen: number; idleMinutes: number }) {
+    setMaxOpen(next.maxOpen)
+    setIdleMinutes(next.idleMinutes)
+    clearTimeout(timer.current)
+    timer.current = setTimeout(() => void save(next), SAVE_DELAY_MS)
   }
 
   if (loading) {
@@ -67,58 +96,53 @@ function BrowserSettingsPanel() {
   }
 
   return (
-    <div className="grid gap-6">
-      <Card size="sm">
-        <CardHeader>
-          <CardTitle>How many browsers run at once</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4">
-          <NumberField
-            id="promo-max-open"
-            label="Browsers open at once"
-            value={maxOpen}
-            min={MAX_OPEN_RANGE.min}
-            max={MAX_OPEN_RANGE.max}
-            inputClassName="w-full sm:w-32"
-            onChange={setMaxOpen}
-          />
-          <p className="text-sm text-muted-foreground">
-            Each browser takes up to 1.5GB of memory and one processor, so {maxOpen}{" "}
-            {maxOpen === 1 ? "browser takes" : "browsers take"} up to {formatGigabytes(maxOpen * 1.5)}.
-            Opening one more is refused and says why. Profiles also work side by side up to
-            this many, so a comment on one profile does not hold up a search on another.
-          </p>
-        </CardContent>
-      </Card>
+    <CardGroup>
+      <CollapsibleSettingsCard
+        storageId="promo-browsers-open"
+        title="How many browsers run at once"
+        description="Each browser takes up to 1.5GB of memory and one processor."
+        contentClassName="grid gap-4"
+      >
+        <NumberField
+          id="promo-max-open"
+          label="Browsers open at once"
+          value={maxOpen}
+          min={MAX_OPEN_RANGE.min}
+          max={MAX_OPEN_RANGE.max}
+          inputClassName="w-full sm:w-32"
+          onChange={(value) => change({ maxOpen: value, idleMinutes })}
+          onCommit={() => void save({ maxOpen, idleMinutes })}
+        />
+        <p className="text-sm text-muted-foreground">
+          {maxOpen} {maxOpen === 1 ? "browser takes" : "browsers take"} up to{" "}
+          {formatGigabytes(maxOpen * 1.5)}. Opening one more is refused and says why. Profiles
+          also work side by side up to this many, so a comment on one profile does not hold up
+          a search on another.
+        </p>
+      </CollapsibleSettingsCard>
 
-      <Card size="sm">
-        <CardHeader>
-          <CardTitle>When an unused browser closes</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4">
-          <NumberField
-            id="promo-idle-minutes"
-            label="Minutes unused before it closes"
-            value={idleMinutes}
-            min={IDLE_MINUTES_RANGE.min}
-            max={IDLE_MINUTES_RANGE.max}
-            inputClassName="w-full sm:w-32"
-            onChange={setIdleMinutes}
-          />
-          <p className="text-sm text-muted-foreground">
-            A browser nobody has searched, posted or watched in this long is closed to give its
-            memory back. Its sign-ins stay, and it opens again when it is next needed.
-          </p>
-        </CardContent>
-      </Card>
-
-      <div className="flex justify-end">
-        <Button type="button" onClick={save} disabled={saving}>
-          {saving ? <Loader2Icon className="animate-spin" /> : null}
-          Save changes
-        </Button>
-      </div>
-    </div>
+      <CollapsibleSettingsCard
+        storageId="promo-browsers-idle"
+        title="When an unused browser closes"
+        description="A closed browser gives its memory back and keeps its sign-ins."
+        contentClassName="grid gap-4"
+      >
+        <NumberField
+          id="promo-idle-minutes"
+          label="Minutes unused before it closes"
+          value={idleMinutes}
+          min={IDLE_MINUTES_RANGE.min}
+          max={IDLE_MINUTES_RANGE.max}
+          inputClassName="w-full sm:w-32"
+          onChange={(value) => change({ maxOpen, idleMinutes: value })}
+          onCommit={() => void save({ maxOpen, idleMinutes })}
+        />
+        <p className="text-sm text-muted-foreground">
+          A browser nobody has searched, posted or watched in this long is closed. It opens again
+          when it is next needed.
+        </p>
+      </CollapsibleSettingsCard>
+    </CardGroup>
   )
 }
 

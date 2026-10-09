@@ -42,6 +42,18 @@ export const appServerOptions: AppServerOptions = {
         },
       },
       {
+        name: "promo-account-health",
+        /**
+         * Once a day per signed-in Reddit account, asks for its karma, its
+         * age and whether its profile loads for a stranger. Only writes a
+         * job; the browser program does the reading.
+         */
+        tick: async () => {
+          const { queueAccountHealth } = await import("@/server/social/upkeep")
+          await queueAccountHealth()
+        },
+      },
+      {
         name: "promo-browser-reaper",
         /**
          * Shuts down a browser nobody has used for an hour, marks one whose

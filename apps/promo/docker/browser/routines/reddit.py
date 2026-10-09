@@ -307,7 +307,8 @@ def reddit_thread(page, args):
 def reddit_state(page, args=None):
     """Who the browser is signed in as, and whether something is in the way.
 
-    A handle of None means signed out. `blocked` means Reddit is showing a
+    Also the account's karma and age, read from the same answer. A handle of
+    None means signed out. `blocked` means Reddit is showing a
     challenge or a captcha that only a person can clear, and the app shows the
     stream link rather than retrying.
     """
@@ -316,20 +317,103 @@ def reddit_state(page, args=None):
     except Exception as error:  # noqa: BLE001 - reported, never swallowed
         return {"handle": None, "blocked": True, "reason": str(error)}
 
-    me = _fetch_json(page, "https://www.reddit.com/api/me.json")
-    handle = None
-    if isinstance(me, dict):
-        data = me.get("data") or {}
-        handle = data.get("name") or None
-
+    me = _me(page)
     signs = _page_signs(page)
 
     return {
-        "handle": handle,
+        **me,
         "blocked": signs["blocked"],
         "reason": signs["reason"],
         "url": signs["url"],
     }
+
+
+def _me(page):
+    """Who the page's cookies are signed in as, with the account's karma and age.
+
+    One read of Reddit's own "who am I", which already carries all three, so
+    the karma and the age cost nothing beyond the handle. Every figure is None
+    when signed out or unreadable, never 0: no karma and unknown karma are
+    different answers.
+    """
+    me = _fetch_json(page, "https://www.reddit.com/api/me.json")
+    data = (me.get("data") or {}) if isinstance(me, dict) else {}
+    handle = data.get("name") or None
+    karma = data.get("total_karma")
+    if not isinstance(karma, (int, float)):
+        parts = [data.get("link_karma"), data.get("comment_karma")]
+        karma = sum(parts) if all(isinstance(part, (int, float)) for part in parts) else None
+    created = data.get("created_utc")
+    return {
+        "handle": handle,
+        "karma": int(karma) if handle and karma is not None else None,
+        "createdSeconds": float(created) if handle and isinstance(created, (int, float)) else None,
+    }
+
+
+def _profile_reads(page, handle):
+    """Reddit's own data about a profile, asked for once signed in and once not.
+
+    The signed-out read leaves the cookies off the request, which is the only
+    way to be a stranger inside this browser. Its cookies live in one saved
+    session that a second, empty one cannot be opened beside, and loading the
+    profile page signed out in a tab would write a signed-out visitor's cookies
+    over the signed-in ones. A request with its cookies left off sends none and
+    keeps none. It still comes from this browser and this proxy, so a refusal
+    is Reddit refusing the browser, not proof about the profile.
+    """
+    script = """
+    async (handle) => {
+      const target = `https://www.reddit.com/user/${encodeURIComponent(handle)}/about.json`
+      const read = async (credentials) => {
+        try {
+          const response = await fetch(target, {
+            headers: { accept: "application/json" },
+            credentials,
+            cache: "no-store",
+          })
+          let data = null
+          try { data = ((await response.json()) || {}).data || null } catch (error) { data = null }
+          return {
+            status: response.status,
+            found: Boolean(response.ok && data && data.name),
+            suspended: Boolean(data && data.is_suspended),
+          }
+        } catch (error) {
+          return { status: 0, found: false, suspended: false }
+        }
+      }
+      return { signedIn: await read("include"), signedOut: await read("omit") }
+    }
+    """
+    return page.evaluate(script, handle)
+
+
+def reddit_health(page, args=None):
+    """Karma, account age, and whether a stranger can see the profile.
+
+    Run in a tab of its own, so the page a person may be using is never moved:
+    the tab goes to Reddit's front page to read who is signed in, then asks for
+    the profile both ways, then closes. Says what loaded and what did not. It
+    never decides what that means; the app words it, carefully.
+    """
+    tab = page.context.new_page()
+    try:
+        _goto(tab, "https://www.reddit.com/")
+        me = _me(tab)
+        signs = _page_signs(tab)
+        profile = _profile_reads(tab, me["handle"]) if me["handle"] else None
+        return {
+            **me,
+            "blocked": signs["blocked"],
+            "reason": signs["reason"],
+            "profile": profile,
+        }
+    finally:
+        try:
+            tab.close()
+        except Exception:  # noqa: BLE001 - the reading is what matters
+            pass
 
 
 def _page_signs(page):
@@ -495,13 +579,9 @@ def reddit_state_quick(page, args=None):
     if host != "reddit.com" and not host.endswith(".reddit.com"):
         return {"checked": False, "handle": None, "blocked": False, "reason": ""}
 
-    me = _fetch_json(page, "https://www.reddit.com/api/me.json")
-    handle = None
-    if isinstance(me, dict):
-        handle = (me.get("data") or {}).get("name") or None
     return {
         "checked": True,
-        "handle": handle,
+        **_me(page),
         "blocked": signs["blocked"],
         "reason": signs["reason"],
     }
@@ -533,4 +613,5 @@ ROUTINES = {
     "search": reddit_search,
     "thread": reddit_thread,
     "comment": reddit_comment,
+    "health": reddit_health,
 }

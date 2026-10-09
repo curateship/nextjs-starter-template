@@ -1,6 +1,7 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
 import type { PanelImperativeHandle } from "react-resizable-panels"
+import { toast } from "sonner"
 
 import {
   PanelReopenTab,
@@ -10,6 +11,11 @@ import {
   WorkspacePanel,
 } from "@/components/ui/resizable"
 import { loadBrowserStatus, type BrowserStatus } from "@/lib/api/social/account"
+import {
+  blockRedditSubreddit,
+  getBlockedErrorMessage,
+  unblockRedditSubreddit,
+} from "@/lib/api/social/reddit/blocked"
 import {
   getDraftErrorMessage,
   sendComment,
@@ -35,7 +41,7 @@ import { useWideScreen } from "@/lib/layout/wide-screen"
 import {
   REDDIT_PANEL_LAYOUT_KEY,
 } from "@/lib/social/reddit/options"
-import { postingBlockedReason } from "@/lib/social/wording"
+import { postingBlockedReason, postsWord } from "@/lib/social/wording"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import type { FindRow, KeywordRow } from "@/server/social/keywords"
 
@@ -317,6 +323,50 @@ export function RedditWorkspace({
 
   const chosenKeyword = keywords.find((row) => row.id === selectedKeyword)
 
+  /** Re-reads the list and the keyword counts after a block or an unblock. */
+  async function afterBlockChange() {
+    if (selectedKeyword) await refreshFinds(selectedKeyword)
+    await refreshKeywords()
+  }
+
+  async function blockSubreddit(subreddit: string) {
+    try {
+      const answer = await blockRedditSubreddit(subreddit)
+      // The open post is leaving the list with the rest of its subreddit,
+      // unless it has been replied to, which is never hidden.
+      const open = finds.find((row) => row.id === selectedFind)
+      if (
+        open &&
+        open.subreddit.toLowerCase() === answer.subreddit.toLowerCase() &&
+        open.status !== "commented"
+      ) {
+        setSelectedFind(null)
+      }
+      await afterBlockChange()
+      toast.success(
+        `r/${answer.subreddit} blocked. ${postsWord(answer.hidden)} hidden.`,
+        {
+          action: {
+            label: "Undo",
+            onClick: () => void unblockSubreddit(answer.subreddit),
+          },
+        }
+      )
+    } catch (error) {
+      showErrorToast(getBlockedErrorMessage(error))
+    }
+  }
+
+  async function unblockSubreddit(subreddit: string) {
+    try {
+      const answer = await unblockRedditSubreddit(subreddit)
+      await afterBlockChange()
+      toast.success(`r/${answer.subreddit} unblocked. ${postsWord(answer.restored)} back.`)
+    } catch (error) {
+      showErrorToast(getBlockedErrorMessage(error))
+    }
+  }
+
   const findsPanel = (
     <FindsPanel
       keywordTerm={chosenKeyword?.term ?? null}
@@ -336,6 +386,7 @@ export function RedditWorkspace({
       onRetry={() => {
         if (selectedKeyword) void refreshFinds(selectedKeyword)
       }}
+      onBlock={blockSubreddit}
       onSkip={async (findIds) => {
         try {
           if (findIds.includes(selectedFind ?? "")) setSelectedFind(null)
@@ -363,6 +414,9 @@ export function RedditWorkspace({
       working={working}
       disabledReason={postingBlockedReason(status, detail)}
       voiceName={status.voice?.name ?? null}
+      // Only the narrow layout, where the post covers the list. Clears the
+      // chosen post and nothing else, so the keyword and the tab stay put.
+      onBack={desktop ? undefined : () => setSelectedFind(null)}
       onRead={async (findId: string) => {
         try {
           await readThread(findId)
@@ -415,6 +469,7 @@ export function RedditWorkspace({
     // Under 1280px the panels are dropped, exactly as the editors do it. The
     // post takes the screen once one is picked, and the list is what shows
     // until then. Keywords stay above the list, where they are the way in.
+    // The arrow on the post's header is the way back to the list.
     return (
       <div className="flex min-h-0 flex-1 flex-col">
         <WorkspacePanel className="flex min-w-0 flex-1 flex-col">

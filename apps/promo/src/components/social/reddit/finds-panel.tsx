@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Loader2Icon } from "lucide-react"
+import { BanIcon, Loader2Icon } from "lucide-react"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import { Button } from "@/components/ui/button"
@@ -48,6 +48,7 @@ export function FindsPanel({
   onTabChange,
   onSelect,
   onSkip,
+  onBlock,
   onRetry,
 }: {
   /** The keyword these posts came from, or null when none is chosen. */
@@ -61,10 +62,18 @@ export function FindsPanel({
   onTabChange: (tab: FindsTab) => void
   onSelect: (findId: string) => void
   onSkip: (findIds: string[]) => Promise<void>
+  /**
+   * Blocks the subreddit a row came from, across every keyword. Its stored
+   * posts leave the list in the same request, apart from any already
+   * commented on.
+   */
+  onBlock: (subreddit: string) => Promise<void>
   onRetry: () => void
 }) {
   const [rawTicked, setTicked] = React.useState<Set<string>>(new Set())
   const [skipping, setSkipping] = React.useState(false)
+  /** The subreddit whose block is on its way, so its rows' buttons wait. */
+  const [blocking, setBlocking] = React.useState<string | null>(null)
 
   // Shortlisted posts still need looking at, so they sit under the first tab
   // rather than disappearing into a fourth nobody asked for.
@@ -163,7 +172,7 @@ export function FindsPanel({
       footer={{ type: "summary", count: shown.length, label: "posts" }}
       isEmpty={!shown.length}
       emptyText={emptyFindsWords(loading, Boolean(keywordTerm), tab)}
-      emptyColSpan={5}
+      emptyColSpan={7}
       header={
         <TableHeader>
           <TableRow>
@@ -194,6 +203,7 @@ export function FindsPanel({
             <TableHead column="meta" className="text-right">
               Replies
             </TableHead>
+            <TableHead column="meta">Actions</TableHead>
           </TableRow>
         </TableHeader>
       }
@@ -203,7 +213,7 @@ export function FindsPanel({
           <React.Fragment key={band}>
             <TableRow className="hover:bg-muted/50">
               <TableCell
-                colSpan={6}
+                colSpan={7}
                 className="bg-muted/50 py-1.5 text-xs font-medium"
               >
                 {FIT_BAND_LABELS[band]}
@@ -270,6 +280,34 @@ export function FindsPanel({
                 </TableCell>
                 <TableCell column="meta" className="text-right tabular-nums">
                   {find.commentCount}
+                </TableCell>
+                <TableCell column="actions">
+                  {/* A post already replied to is never hidden, so blocking
+                      from its row would do nothing to it. Not offered. */}
+                  {find.status === "commented" ? null : (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      disabled={blocking !== null}
+                      title={`Block r/${find.subreddit}`}
+                      aria-label={`Block r/${find.subreddit}`}
+                      onClick={async () => {
+                        setBlocking(find.subreddit)
+                        try {
+                          await onBlock(find.subreddit)
+                        } finally {
+                          setBlocking(null)
+                        }
+                      }}
+                    >
+                      {blocking === find.subreddit ? (
+                        <Loader2Icon className="size-4 animate-spin" />
+                      ) : (
+                        <BanIcon className="size-4" />
+                      )}
+                    </Button>
+                  )}
                 </TableCell>
               </TableRow>
             ))}

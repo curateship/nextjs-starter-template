@@ -32,14 +32,15 @@ promo created, which has no shell version and so can never conflict.
 
 `src/app/server-options.ts`, which the browser never sees:
 
-- **`background.workers`** — two quick jobs on the shell's ticker: re-testing the
-  three proxies that have waited longest, and looking after the browsers (closing an idle one,
-  marking a dead one, removing a container nothing claims). Both only ask
-  Docker or a proxy. The slow browser work is deliberately not here; see below.
+- **`background.workers`** — three quick jobs on the shell's ticker: re-testing the
+  three proxies that have waited longest, looking after the browsers (closing an idle one,
+  marking a dead one, removing a container nothing claims), and asking once a
+  day for each Reddit account's [health reading](reddit/account-health.md).
+  The first two only ask Docker or a proxy, and the third only writes a job. The slow browser work is deliberately not here; see below.
 
 ## The tables it owns
 
-Seventeen, all named `promo_*`, in two files of promo's own. The shell's tables
+Eighteen, all named `promo_*`, in two files of promo's own. The shell's tables
 stay in `src/server/schema.ts`, which promo never opens.
 
 - `src/server/browser/schema.ts`: `promo_proxies`, `promo_proxy_addresses`,
@@ -47,16 +48,19 @@ stay in `src/server/schema.ts`, which promo never opens.
   `promo_profile_events`, `promo_browser_sessions`, `promo_browser_settings`,
   `promo_profile_backups`. These belong to no network.
 - `src/server/social/schema.ts`: `promo_voices`, `promo_accounts`, `promo_keywords`,
-  `promo_searches`, `promo_finds`, `promo_drafts`, `promo_comments`,
-  `promo_jobs`.
+  `promo_blocked_subreddits`, `promo_searches`, `promo_finds`, `promo_drafts`,
+  `promo_comments`, `promo_jobs`.
 
 The SQL is hand-written in `drizzle/0091_promo_reddit.sql`,
 `drizzle/0092_promo_reddit_relevance.sql`,
 `drizzle/0094_promo_browser_profiles.sql`,
 `drizzle/0095_promo_proxy_and_profile_dashboards.sql`,
 `drizzle/0096_promo_voices.sql`,
-`drizzle/0097_promo_identity_and_site_check.sql` and
-`drizzle/0098_promo_limits_lanes_backups.sql`. The runner records each file by its
+`drizzle/0097_promo_identity_and_site_check.sql`,
+`drizzle/0098_promo_limits_lanes_backups.sql`,
+`drizzle/0099_promo_account_health.sql`,
+`drizzle/0100_promo_blocked_subreddits.sql` and
+`drizzle/0101_promo_comment_examples.sql`. The runner records each file by its
 whole name, so a shell file that happens to share a number does not collide
 with a promo one.
 

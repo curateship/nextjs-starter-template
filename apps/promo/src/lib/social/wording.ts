@@ -1,6 +1,6 @@
 import { daysBetween } from "@/lib/format/format-time"
 import type { BrowserStatus } from "@/lib/api/social/account"
-import { NO_PROFILE_MESSAGE, type FindThread } from "@/lib/social/options"
+import { NO_PROFILE_MESSAGE, type FindThread, type ProfileCheck } from "@/lib/social/options"
 
 /**
  * The sentences the Reddit screens put in front of a person.
@@ -199,4 +199,58 @@ export function voiceDeleteWords(usedBy: ReadonlyArray<{ platform: string; handl
   if (!usedBy.length) return "No account uses it, so nothing else changes."
   const list = voiceUsersList(usedBy)
   return `${list.charAt(0).toUpperCase()}${list.slice(1)} ${usedBy.length === 1 ? "loses it" : "lose it"}, and will draft plainly, never mentioning what you make, until given another voice in Settings.`
+}
+
+/** "1 post", "4 posts": the count a block or an unblock reports. */
+export function postsWord(count: number): string {
+  return `${count} ${count === 1 ? "post" : "posts"}`
+}
+
+/**
+ * How old a Reddit account is, in the unit a person would use: "12 days
+ * old", "5 months old", "3 years old".
+ */
+export function accountAgeText(createdAt: Date, now: Date = new Date()): string {
+  const days = Math.max(0, daysBetween(createdAt, now))
+  if (days < 60) return `${days} ${days === 1 ? "day" : "days"} old`
+  const months = Math.floor(days / 30.44)
+  if (months < 24) return `${months} months old`
+  return `${Math.floor(days / 365.25)} years old`
+}
+
+/**
+ * What the profile check saw, in words, and whether it is worth a second look.
+ *
+ * Says what loaded and what did not. A shadowban is never stated as a fact:
+ * Reddit sends no notice of one, so the closest anyone outside Reddit gets is
+ * a profile that loads for its owner and not for a stranger. When Reddit
+ * would not answer the signed-out request at all, the reading says nothing
+ * either way, and the words say exactly that.
+ */
+export function profileCheckWords(check: ProfileCheck): { text: string; concern: boolean } {
+  const name = `u/${check.handle}`
+  if (check.suspended) {
+    return { text: `Reddit marks ${name} as suspended.`, concern: true }
+  }
+  if (check.signedOutFound) {
+    return { text: `A signed-out visitor can see ${name}.`, concern: false }
+  }
+  if (check.signedOutStatus === 404 && check.signedInFound) {
+    return {
+      text: `${name} loads for you, but Reddit told a signed-out visitor it does not exist. That is what a shadowbanned account looks like from outside. Reddit never confirms one, so open reddit.com/user/${check.handle} in a private window to see it for yourself.`,
+      concern: true,
+    }
+  }
+  if (check.signedOutStatus === 404) {
+    return {
+      text: `Reddit answered "not found" for ${name} both signed in and signed out.`,
+      concern: true,
+    }
+  }
+  return {
+    text: check.signedOutStatus
+      ? `Reddit refused the signed-out request (status ${check.signedOutStatus}), so this reading says nothing either way.`
+      : "The signed-out request got no answer, so this reading says nothing either way.",
+    concern: false,
+  }
 }
