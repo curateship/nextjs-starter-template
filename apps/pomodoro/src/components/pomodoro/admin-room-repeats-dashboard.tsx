@@ -28,6 +28,7 @@ import {
   AdminListTable,
   useAdminList,
 } from "@/components/pomodoro/admin-list"
+import { MemberName } from "@/components/pomodoro/admin-member-name"
 import {
   AdminBulkDeleteButton,
   AdminDeleteConfirm,
@@ -250,9 +251,7 @@ export function AdminRoomRepeatsDashboard({
               </div>
             </TableCell>
             <TableCell column="meta" className="max-w-56">
-              <span className="block truncate" title={row.hostEmail}>
-                {row.hostName}
-              </span>
+              <MemberName id={row.hostUserId} name={row.hostName} title={row.hostEmail} className="max-w-full font-normal" />
             </TableCell>
             <TableCell column="meta">
               {row.cancelledAt ? (

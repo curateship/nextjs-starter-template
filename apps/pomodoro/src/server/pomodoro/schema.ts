@@ -467,6 +467,13 @@ export const pomodoroAchievements = pgTable(
     earnedAt: timestamp("earned_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    /**
+     * Set when an admin takes the badge away (admin task 06). The row stays,
+     * so the unique index below keeps refusing the award and the next
+     * finished focus cannot hand it straight back. Every reader skips it.
+     */
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    revokedByUserId: varchar("revoked_by_user_id", { length: 36 }),
   },
   (table) => [
     uniqueIndex("pomodoro_achievements_user_badge_unique").on(
@@ -679,6 +686,18 @@ export const pomodoroProfiles = pgTable(
      * thinking the app broke.
      */
     hiddenAt: timestamp("hidden_at", { withTimezone: true }),
+    /**
+     * Set when an admin takes this person off the global board and the group
+     * boards (admin task 06). `leaderboardOptIn` is left as they chose it, so
+     * putting them back restores exactly what they had. Their profile is not
+     * hidden by this.
+     */
+    leaderboardHiddenAt: timestamp("leaderboard_hidden_at", {
+      withTimezone: true,
+    }),
+    leaderboardHiddenByUserId: varchar("leaderboard_hidden_by_user_id", {
+      length: 36,
+    }),
     guestImportedAt: timestamp("guest_imported_at", { withTimezone: true }),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
@@ -1674,6 +1693,60 @@ export const pomodoroSuspensions = pgTable(
     index("pomodoro_suspensions_user_idx")
       .on(table.userId)
       .where(sql`${table.liftedAt} is null`),
+  ]
+)
+
+/**
+ * A streak day an admin put back (admin task 06), for a member whose streak
+ * broke through no fault of theirs. Kept apart from `daily_focus_stats` on
+ * purpose: the streak count reads this table and nothing else does, so a fixed
+ * day can never feed the leaderboard, a badge or History's hours. See
+ * `workspace/docs/admin-members.md`.
+ */
+export const pomodoroStreakFixes = pgTable(
+  "pomodoro_streak_fixes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    localDate: date("local_date", { mode: "string" }).notNull(),
+    reason: varchar("reason", { length: 200 }).notNull(),
+    /** No foreign key: deleting an admin must not delete what they fixed. */
+    createdByUserId: varchar("created_by_user_id", { length: 36 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("pomodoro_streak_fixes_user_date_unique").on(
+      table.userId,
+      table.localDate
+    ),
+  ]
+)
+
+/**
+ * A private note admins keep about a member (admin task 06). Only admins read
+ * it; nothing the member can reach selects from this table.
+ */
+export const pomodoroAdminNotes = pgTable(
+  "pomodoro_admin_notes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    body: varchar("body", { length: 2000 }).notNull(),
+    createdByUserId: varchar("created_by_user_id", { length: 36 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedByUserId: varchar("updated_by_user_id", { length: 36 }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("pomodoro_admin_notes_user_idx").on(table.userId, table.createdAt),
   ]
 )
 

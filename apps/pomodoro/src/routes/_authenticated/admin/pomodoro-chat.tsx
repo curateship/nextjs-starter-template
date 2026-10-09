@@ -17,9 +17,12 @@ import {
   CHAT_ROOM_SORT_COLUMNS,
   CHAT_STATUS_FILTERS,
   CHAT_TABS,
+  readMemberSearch,
 } from "@/lib/pomodoro/admin-lists"
 
 type ChatSearch = {
+  /** The member window open over the list (admin task 06). */
+  member?: string
   tab?: (typeof CHAT_TABS)[number]
   q?: string
   status?: (typeof CHAT_STATUS_FILTERS)[number]
@@ -34,6 +37,7 @@ type ChatSearch = {
 
 function readChatSearch(search: Record<string, unknown>): ChatSearch {
   return {
+    ...readMemberSearch(search),
     tab: readOneOf(search.tab, CHAT_TABS),
     q: readSearchText(search.q),
     status: readOneOf(search.status, CHAT_STATUS_FILTERS),
@@ -48,7 +52,7 @@ function readChatSearch(search: Record<string, unknown>): ChatSearch {
 export const Route = createFileRoute("/_authenticated/admin/pomodoro-chat")({
   validateSearch: readChatSearch,
   // Opening a room's window is not a new list.
-  loaderDeps: ({ search: { open: _open, message: _message, ...list } }) => list,
+  loaderDeps: ({ search: { open: _open, message: _message, member: _member, ...list } }) => list,
   loader: ({ deps }) =>
     loadPomodoroChatPage({
       tab: deps.tab ?? "rooms",

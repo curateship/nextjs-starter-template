@@ -31,6 +31,7 @@ import {
   AdminListTable,
   useAdminList,
 } from "@/components/pomodoro/admin-list"
+import { MemberName } from "@/components/pomodoro/admin-member-name"
 import {
   AdminBulkDeleteButton,
   AdminDeleteConfirm,
@@ -454,12 +455,12 @@ export function AdminReportsDashboard({
             <TableCell column="meta" className="max-w-56">
               {/* A profile report can come from a reader with no account at
                   all, which is the point of it being open. */}
-              <span
-                className="block truncate"
+              <MemberName
+                id={row.reporterUserId}
+                name={row.reporterName ?? "Signed-out reader"}
                 title={row.reporterEmail ?? "No account"}
-              >
-                {row.reporterName ?? "Signed-out reader"}
-              </span>
+                className="max-w-full font-normal"
+              />
               {row.reporterUserId && row.reporterPastReports ? (
                 <button
                   type="button"
@@ -578,7 +579,11 @@ function ReportedMessage({ row }: { row: AdminReportRow }) {
       title={row.messageBody}
     >
       &quot;{row.messageBody}&quot; from{" "}
-      {row.messageAuthorName ?? "an account that is gone"}
+      <MemberName
+        id={row.subjectUserId}
+        name={row.messageAuthorName ?? "an account that is gone"}
+        className="inline font-normal"
+      />
       {row.messageDeletedAt
         ? row.messageRemovedBy === "admin"
           ? ", removed by an admin"

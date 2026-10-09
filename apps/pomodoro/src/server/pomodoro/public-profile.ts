@@ -234,6 +234,18 @@ async function resolveBannerUrl(userId: string, bannerRef: string | null) {
   return getPublicMediaUrl(row.storagePath)
 }
 
+/**
+ * The badges an account still holds: every earned row except the ones an
+ * admin took away (admin task 06), which stay on record so they are never
+ * awarded again.
+ */
+function badgesKeptBy(userId: string) {
+  return and(
+    eq(pomodoroAchievements.userId, userId),
+    isNull(pomodoroAchievements.revokedAt)
+  )
+}
+
 /** Every badge the account has on record, named from the code list. */
 async function readBadges(userId: string): Promise<PublicProfileBadge[]> {
   const rows = await db
@@ -242,7 +254,7 @@ async function readBadges(userId: string): Promise<PublicProfileBadge[]> {
       earnedAt: pomodoroAchievements.earnedAt,
     })
     .from(pomodoroAchievements)
-    .where(eq(pomodoroAchievements.userId, userId))
+    .where(badgesKeptBy(userId))
     .orderBy(pomodoroAchievements.earnedAt)
 
   const badges: PublicProfileBadge[] = []
@@ -636,7 +648,7 @@ async function buildYearInReview(
         earnedAt: pomodoroAchievements.earnedAt,
       })
       .from(pomodoroAchievements)
-      .where(eq(pomodoroAchievements.userId, userId))
+      .where(badgesKeptBy(userId))
       .orderBy(pomodoroAchievements.earnedAt),
   ])
 
@@ -766,7 +778,7 @@ async function readMyPublicProfile(userId: string) {
     db
       .select({ badgeId: pomodoroAchievements.badgeId })
       .from(pomodoroAchievements)
-      .where(eq(pomodoroAchievements.userId, userId)),
+      .where(badgesKeptBy(userId)),
   ])
 
   return {
@@ -817,7 +829,7 @@ const HANDLE_UNIQUE_CODE = "23505"
  * this app runs on nest it differently, so the chain is walked. Same shape as
  * `isDuplicateName` in `projects.ts`.
  */
-function isDuplicateHandle(error: unknown) {
+export function isDuplicateHandle(error: unknown) {
   for (let step: unknown = error, depth = 0; step && depth < 5; depth += 1) {
     if (typeof step !== "object") return false
     if ((step as { code?: string }).code === HANDLE_UNIQUE_CODE) return true

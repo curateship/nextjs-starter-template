@@ -12,9 +12,11 @@ import {
   readPage,
   readSearchText,
 } from "@/lib/nav/list-search"
-import { FOCUS_SORT_COLUMNS } from "@/lib/pomodoro/admin-lists"
+import { FOCUS_SORT_COLUMNS, readMemberSearch } from "@/lib/pomodoro/admin-lists"
 
 type FocusSearch = {
+  /** The member window open over the list (admin task 06). */
+  member?: string
   q?: string
   sort?: (typeof FOCUS_SORT_COLUMNS)[number]
   direction?: "asc" | "desc"
@@ -24,6 +26,7 @@ type FocusSearch = {
 /** The list's own state, so Back returns the exact list you left. */
 function readFocusSearch(search: Record<string, unknown>): FocusSearch {
   return {
+    ...readMemberSearch(search),
     q: readSearchText(search.q),
     sort: readOneOf(search.sort, FOCUS_SORT_COLUMNS),
     direction: readDirection(search.direction),

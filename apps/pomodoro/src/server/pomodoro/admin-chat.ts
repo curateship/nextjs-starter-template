@@ -94,6 +94,7 @@ export async function listChatRooms(query: {
         id: rooms.id,
         name: rooms.name,
         slug: rooms.slug,
+        hostUserId: rooms.hostUserId,
         hostName: users.name,
         messages: stats.messages,
         held: stats.held,

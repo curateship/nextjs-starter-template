@@ -108,6 +108,37 @@ query lists people by. The line stays off on the Following board, which is the
 people you follow and never you, and on an empty board, whose own message
 already explains the switch. Somebody on the board sees nothing.
 
+## When an admin takes you off
+
+An admin can take somebody off the board from `/admin/pomodoro-leaderboard`,
+for a leader whose hours look made up. Tyler's case: someone showing 23 hours
+a day. Taken off means:
+
+- **Gone from the global board and every focus group's board**, from the next
+  read. Their place under the list goes too.
+- **Still on the Following board** of anyone who follows them, because that
+  board is people you chose to see.
+- **Their profile is untouched.** Their page, figures and badges stay as they
+  were.
+- **Their own switch is kept.** "Show me on the leaderboard" stays as they set
+  it, so putting them back restores exactly what they chose.
+- **They are told where they look.** Settings → Profile says "You're not shown
+  on the leaderboard." under the switch, and the leaderboard page says the
+  same line in place of the "switch it on" one. Nothing goes to the bell, and
+  neither line names the admin.
+- **It lasts until an admin puts them back.** There is no end date.
+
+The admin page's Board tab is the global board as members see it, a hundred
+people at most, with one more column: the hours a day on the days they
+focused. A week with one 23-hour day reads 23.0h, not 3.3h, so the pattern
+stands out. The admin's week starts on the UTC calendar day, so it can be a
+day either side of what a member in another timezone sees. The Taken off tab
+lists everyone off the board, with who did it and when. Both moves are one
+request over one row or every ticked row, logged in `pomodoro_audit_logs` as
+`leaderboard_hide` and `leaderboard_show`. The code is
+`src/server/pomodoro/admin-leaderboard.ts`; the rule that keeps them off is
+`globalBoardRule` and the group branch in `leaderboard.ts`.
+
 ## When the board fails to load
 
 The ranking card says "The leaderboard could not be loaded" inside the card,

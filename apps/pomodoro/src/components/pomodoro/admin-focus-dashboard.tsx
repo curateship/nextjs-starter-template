@@ -11,6 +11,7 @@ import {
   AdminListTable,
   useAdminList,
 } from "@/components/pomodoro/admin-list"
+import { MemberName } from "@/components/pomodoro/admin-member-name"
 import {
   AdminBulkDeleteButton,
   AdminDeleteConfirm,
@@ -160,9 +161,7 @@ export function AdminFocusDashboard({
             />
             <TableCell column="main">
               <div className="min-w-0">
-                <span className="block max-w-96 truncate" title={row.name}>
-                  {row.name}
-                </span>
+                <MemberName id={row.userId} name={row.name} />
                 <span
                   className="block max-w-96 truncate text-xs text-muted-foreground"
                   title={row.email}

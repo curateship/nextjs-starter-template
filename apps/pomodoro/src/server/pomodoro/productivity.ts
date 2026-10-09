@@ -5,6 +5,7 @@ import { db } from "@/server/db"
 import {
   dailyFocusStats,
   focusSessions,
+  pomodoroStreakFixes,
   tasks,
   userPreferences,
 } from "@/server/pomodoro/schema"
@@ -293,18 +294,25 @@ export function calculateFocusStreaks(
 export function buildFocusSummary(
   dailyStats: readonly { localDate: string; focusSessions: number }[],
   todayLocalDate: string,
-  dailyGoalSessions: number
+  dailyGoalSessions: number,
+  fixedDays: readonly string[] = []
 ) {
   const todayCompletedSessions =
     dailyStats.find((day) => day.localDate === todayLocalDate)?.focusSessions ??
     0
+  const focusedDays = dailyStats
+    .filter((day) => day.focusSessions > 0)
+    .map((day) => day.localDate)
   return {
-    ...calculateFocusStreaks(
-      dailyStats
-        .filter((day) => day.focusSessions > 0)
-        .map((day) => day.localDate),
-      todayLocalDate
-    ),
+    ...calculateFocusStreaks([...focusedDays, ...fixedDays], todayLocalDate),
+    /**
+     * The best streak from days with a real finished focus, leaving out the
+     * days an admin put back. The badges are checked against this one, so a
+     * fixed day can never earn a streak badge (admin task 06).
+     */
+    earnedBestStreak: fixedDays.length
+      ? calculateFocusStreaks(focusedDays, todayLocalDate).bestStreak
+      : undefined,
     todayCompletedSessions,
     dailyGoalSessions,
     goalProgress: Math.min(1, todayCompletedSessions / dailyGoalSessions),
@@ -330,17 +338,36 @@ async function loadActiveDays(userId: string) {
 }
 
 /**
+ * The days an admin put back into this person's streak (admin task 06).
+ * Read by the streak count and by nothing that adds up hours or sessions.
+ */
+async function loadFixedDays(userId: string) {
+  const rows = await db
+    .select({ localDate: pomodoroStreakFixes.localDate })
+    .from(pomodoroStreakFixes)
+    .where(eq(pomodoroStreakFixes.userId, userId))
+  return rows.map((row) => row.localDate)
+}
+
+/**
  * Current and best streak on their own, for the callers that want the streak
  * without a goal to measure it against: the badges panel and the public
  * streak badge.
+ *
+ * Days an admin put back count, unless `countFixes` is false. The badge check
+ * passes false, so a fixed day never earns a streak badge.
  */
 export async function loadFocusStreaks(
   userId: string,
-  todayLocalDate: string
+  todayLocalDate: string,
+  { countFixes = true }: { countFixes?: boolean } = {}
 ) {
-  const days = await loadActiveDays(userId)
+  const [days, fixedDays] = await Promise.all([
+    loadActiveDays(userId),
+    countFixes ? loadFixedDays(userId) : [],
+  ])
   return calculateFocusStreaks(
-    days.map((day) => day.localDate),
+    [...days.map((day) => day.localDate), ...fixedDays],
     todayLocalDate
   )
 }
@@ -350,9 +377,9 @@ export async function loadFocusSummary(
   todayLocalDate: string,
   dailyGoalSessions: number
 ) {
-  return buildFocusSummary(
-    await loadActiveDays(userId),
-    todayLocalDate,
-    dailyGoalSessions
-  )
+  const [days, fixedDays] = await Promise.all([
+    loadActiveDays(userId),
+    loadFixedDays(userId),
+  ])
+  return buildFocusSummary(days, todayLocalDate, dailyGoalSessions, fixedDays)
 }

@@ -338,6 +338,7 @@ export async function listAdminRooms(
         createdAt: rooms.createdAt,
         closedAt: rooms.closedAt,
         featuredAt: rooms.featuredAt,
+        hostUserId: rooms.hostUserId,
         hostName: users.name,
         hostEmail: users.email,
         memberCount,
@@ -644,6 +645,7 @@ export async function listAdminRoomRepeats(
         cancelledAt: pomodoroRoomRepeats.cancelledAt,
         featured: pomodoroRoomRepeats.featured,
         createdAt: pomodoroRoomRepeats.createdAt,
+        hostUserId: pomodoroRoomRepeats.hostUserId,
         hostName: users.name,
         hostEmail: users.email,
       })

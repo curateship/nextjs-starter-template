@@ -14,6 +14,7 @@ import {
   SafetyPauseLine,
   useSafetyPauses,
 } from "@/components/pomodoro/admin-safety-banner"
+import { AdminMemberWindow } from "@/components/pomodoro/admin-member-window"
 import type { useSelection } from "@/lib/hooks/use-selection"
 
 /**
@@ -185,69 +186,74 @@ export function AdminListTable<Row, Sort extends string>({
   const paused = anyPaused(pauses)
 
   return (
-    <DashboardTable
-      title={title}
-      icon={icon}
-      tabs={tabs}
-      filters={
-        filters || paused ? (
-          <div className="flex w-full flex-col gap-2">
-            {pauses && paused ? <SafetyPauseLine pauses={pauses} /> : null}
-            {filters}
-          </div>
-        ) : undefined
-      }
-      count={list.total}
-      busy={list.loading}
-      error={
-        list.error
-          ? { message: list.error, onRetry: () => void list.refresh() }
-          : null
-      }
-      controls={controls}
-      selectedCount={selectedOnPage.length}
-      onClearSelection={selection ? selection.state.clear : undefined}
-      header={
-        <SortableTableHeader
-          columns={columns}
-          sort={sort}
-          direction={direction}
-          onSort={onSort}
-          leading={
-            selection ? (
-              <SelectAllTableHead
-                noun={selection.noun}
-                checked={selection.state.selectAllState(selection.rowIds)}
-                disabled={selection.rowIds.length === 0}
-                onCheckedChange={() =>
-                  selection.state.toggleVisible(selection.rowIds)
-                }
-              />
-            ) : undefined
-          }
-          trailing={trailing}
-        />
-      }
-      // The empty line stays while a reload is out, dimmed like rows would be.
-      // Hiding it emptied the table body, and the footer jumped up under it.
-      isEmpty={list.rows.length === 0}
-      emptyText={`No ${noun} match those filters.`}
-      emptyColSpan={columns.length + (trailing ? 1 : 0) + (selection ? 1 : 0)}
-      footer={{
-        type: "pagination",
-        page,
-        pageSize: list.pageSize,
-        total: list.total,
-        totalPages: list.totalPages,
-        onPageChange,
-        onPageSizeChange: (nextSize) => {
-          onPageChange(1)
-          list.setPageSize(nextSize)
-        },
-      }}
-    >
-      {children}
-    </DashboardTable>
+    <>
+      <DashboardTable
+        title={title}
+        icon={icon}
+        tabs={tabs}
+        filters={
+          filters || paused ? (
+            <div className="flex w-full flex-col gap-2">
+              {pauses && paused ? <SafetyPauseLine pauses={pauses} /> : null}
+              {filters}
+            </div>
+          ) : undefined
+        }
+        count={list.total}
+        busy={list.loading}
+        error={
+          list.error
+            ? { message: list.error, onRetry: () => void list.refresh() }
+            : null
+        }
+        controls={controls}
+        selectedCount={selectedOnPage.length}
+        onClearSelection={selection ? selection.state.clear : undefined}
+        header={
+          <SortableTableHeader
+            columns={columns}
+            sort={sort}
+            direction={direction}
+            onSort={onSort}
+            leading={
+              selection ? (
+                <SelectAllTableHead
+                  noun={selection.noun}
+                  checked={selection.state.selectAllState(selection.rowIds)}
+                  disabled={selection.rowIds.length === 0}
+                  onCheckedChange={() =>
+                    selection.state.toggleVisible(selection.rowIds)
+                  }
+                />
+              ) : undefined
+            }
+            trailing={trailing}
+          />
+        }
+        // The empty line stays while a reload is out, dimmed like rows would be.
+        // Hiding it emptied the table body, and the footer jumped up under it.
+        isEmpty={list.rows.length === 0}
+        emptyText={`No ${noun} match those filters.`}
+        emptyColSpan={columns.length + (trailing ? 1 : 0) + (selection ? 1 : 0)}
+        footer={{
+          type: "pagination",
+          page,
+          pageSize: list.pageSize,
+          total: list.total,
+          totalPages: list.totalPages,
+          onPageChange,
+          onPageSizeChange: (nextSize) => {
+            onPageChange(1)
+            list.setPageSize(nextSize)
+          },
+        }}
+      >
+        {children}
+      </DashboardTable>
+      {/* A member's name on any of these lists opens their window over it
+          (admin task 06), so every list carries it rather than each page. */}
+      <AdminMemberWindow />
+    </>
   )
 }
 

@@ -1,4 +1,4 @@
-import { count, eq, sql } from "drizzle-orm"
+import { and, count, eq, isNull, sql } from "drizzle-orm"
 
 import {
   earnedAchievementIds,
@@ -58,7 +58,9 @@ export async function loadLifetimeTotals(userId: string) {
  * asking again; the panel has no summary, so it asks here.
  */
 export async function loadBestStreak(userId: string, todayLocalDate: string) {
-  return (await loadFocusStreaks(userId, todayLocalDate)).bestStreak
+  // Real focus days only: a day an admin put back never earns a badge.
+  return (await loadFocusStreaks(userId, todayLocalDate, { countFixes: false }))
+    .bestStreak
 }
 
 export async function loadAchievementCounters(
@@ -126,7 +128,13 @@ export async function loadAchievementState(
         earnedAt: pomodoroAchievements.earnedAt,
       })
       .from(pomodoroAchievements)
-      .where(eq(pomodoroAchievements.userId, userId)),
+      // A badge an admin took away stays on record but is not shown.
+      .where(
+        and(
+          eq(pomodoroAchievements.userId, userId),
+          isNull(pomodoroAchievements.revokedAt)
+        )
+      ),
     loadAchievementCounters(userId, todayLocalDate),
   ])
   return { earned, counters }

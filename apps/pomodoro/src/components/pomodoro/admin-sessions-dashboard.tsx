@@ -21,6 +21,7 @@ import {
   AdminListTable,
   useAdminList,
 } from "@/components/pomodoro/admin-list"
+import { MemberName } from "@/components/pomodoro/admin-member-name"
 import {
   AdminBulkDeleteButton,
   AdminDeleteConfirm,
@@ -244,9 +245,7 @@ export function AdminSessionsDashboard({
             />
             <TableCell column="main">
               <div className="min-w-0">
-                <span className="block max-w-96 truncate" title={row.userEmail}>
-                  {row.userName}
-                </span>
+                <MemberName id={row.userId} name={row.userName} title={row.userEmail} />
                 {/* What the run was for, when there was something. A member can
                     focus with no task chosen, and a room run names the room. */}
                 {row.taskTitle || row.roomName ? (

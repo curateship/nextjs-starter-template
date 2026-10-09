@@ -124,6 +124,28 @@ The recording is `src/server/pomodoro/generation-spend.ts`, called from the
 worker, and the models and lengths both requests and the meter read are
 `GENERATION_MODELS` in `src/lib/pomodoro/generation.ts`.
 
+## Every request, for an admin
+
+`/admin/pomodoro-generations` lists every background and soundscape a member
+asked for (admin task 06, 8 Oct 2026): a preview once the file exists, who
+asked, the prompt, the provider and model, whether it worked (with the reason
+it failed), and when.
+
+- **The provider is the kind's, not the row's.** The table does not store
+  which provider made a file. Every background is Google's Veo and every
+  soundscape is ElevenLabs, from `GENERATION_MODELS`, so the page names the
+  kind's current one. If a model ever changes, older rows will show the new
+  name. The AI usage page has the model each attempt was billed for.
+- **Delete removes the file and keeps the request.** The file goes through the
+  shell's `deleteMediaAsAdmin`, and anything using it falls back the way a
+  member's own delete does (see [Your own backgrounds and sounds](own-media-uploads.md)).
+  The request stays on the page with its prompt and result, marked "File
+  deleted", because the schema sets `media_id` to empty when the file goes.
+- **A request with no file has nothing to delete.** Its row has no bin, and a
+  ticked one is counted as kept.
+- **The credit is not given back** and the member is not told.
+- **One log row per press**, resource `generation_files`, naming the files.
+
 ## The bell
 
 A finished background or soundscape says so in the bell, with the prompt

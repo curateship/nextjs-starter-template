@@ -503,10 +503,11 @@ const completeSessionFn = createServerFn({ method: "POST" })
       // A finished focus is the moment the session, hours and streak counters
       // move, so the badges are checked here rather than by a job that scans
       // accounts. The streak comes from the summary above instead of being
-      // counted a second time.
+      // counted a second time. A day an admin put back is left out, so it
+      // can never earn a streak badge.
       newAchievements: await awardForCompletedSession(
         context.user.id,
-        summary.bestStreak
+        summary.earnedBestStreak ?? summary.bestStreak
       ),
     }
   })

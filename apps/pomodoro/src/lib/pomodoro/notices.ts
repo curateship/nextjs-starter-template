@@ -35,6 +35,9 @@ export const POMODORO_NOTICE_KINDS = [
   "admin_warning",
   "rooms_suspended",
   "profile_restored",
+  "profile_edited",
+  "streak_restored",
+  "group_deleted",
 ] as const
 
 export type PomodoroNoticeKind = (typeof POMODORO_NOTICE_KINDS)[number]
@@ -84,6 +87,9 @@ export const NOTICE_KIND_CATEGORY: Record<
   admin_warning: "account",
   rooms_suspended: "account",
   profile_restored: "account",
+  profile_edited: "account",
+  streak_restored: "account",
+  group_deleted: "social",
 }
 
 /**
@@ -333,6 +339,24 @@ export function roomsSuspendedMessage(until: string | null) {
   return until ? `${SUSPENDED_PREFIX}until ${until}.` : `${SUSPENDED_PREFIX}for now.`
 }
 
+/**
+ * Admin task 06. An admin changed your public profile's handle, name or bio,
+ * put back a streak day, or deleted a group you were in. None says which admin.
+ */
+const PROFILE_EDITED_PREFIX = "The Pomoder team changed your public profile"
+export function profileEditedMessage(fields: readonly string[]) {
+  return `${PROFILE_EDITED_PREFIX}: ${fields.join(", ")}.`
+}
+const STREAK_RESTORED_PREFIX = "We restored "
+const STREAK_RESTORED_SUFFIX = " to your streak."
+export function streakRestoredMessage(day: string) {
+  return `${STREAK_RESTORED_PREFIX}${day}${STREAK_RESTORED_SUFFIX}`
+}
+const GROUP_DELETED_PREFIX = "The Pomoder team deleted the group "
+export function groupDeletedMessage(groupName: string) {
+  return `${GROUP_DELETED_PREFIX}${groupName}.`
+}
+
 /** An operator hid your public profile. Never says who, or who reported it. */
 export const PROFILE_HIDDEN_MESSAGE =
   "Your public profile has been hidden. See Settings for what to do."
@@ -378,6 +402,13 @@ export function noticeKindFromWords(notice: {
   if (message === ADMIN_WARNING_MESSAGE) return "admin_warning"
   if (message === PROFILE_RESTORED_MESSAGE) return "profile_restored"
   if (message.startsWith(SUSPENDED_PREFIX)) return "rooms_suspended"
+  if (message.startsWith(PROFILE_EDITED_PREFIX)) return "profile_edited"
+  if (
+    message.startsWith(STREAK_RESTORED_PREFIX) &&
+    message.endsWith(STREAK_RESTORED_SUFFIX)
+  )
+    return "streak_restored"
+  if (message.startsWith(GROUP_DELETED_PREFIX)) return "group_deleted"
   if (message.startsWith(ROOM_CHANGED_PREFIX) && message.includes(" your room "))
     return "room_changed"
   if (message === PROFILE_HIDDEN_MESSAGE) return "profile_hidden"

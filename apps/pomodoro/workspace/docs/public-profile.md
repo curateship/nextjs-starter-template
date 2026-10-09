@@ -300,6 +300,32 @@ card differs from what is saved, the card says "Save to publish your page."
 instead. The link used to follow the unsaved switch, so it opened a page that
 was not live yet (`public-profile-settings-panel.tsx`, `PageAddress`).
 
+## What an admin can change
+
+An admin fixes a profile from `/admin/pomodoro-profiles` (admin task 06). The
+list shows every profile with a handle: the name, the address, whether the
+page is public, switched off or hidden, whether they are on the leaderboard,
+and how many people follow them. The cog opens a window with three fields and
+one switch.
+
+- **The handle, the display name and the bio** can be corrected. The handle
+  goes through the same checks as the owner's own save: its shape, the
+  reserved list, and "Somebody already has that handle."
+- **A new handle breaks old links.** The window says so as soon as the handle
+  differs: the old `/u/<handle>` stops answering the moment it is saved,
+  including any link the owner already shared.
+- **The owner is told in the bell**, naming what changed: "The Pomoder team
+  changed your public profile: address, bio." It never says which admin.
+  A save that changes nothing writes nothing and tells nobody.
+- **Hide profile** hides the page at once, the same hide a report leads to,
+  and tells the owner the same way. Show profile, in the same place, or Lift
+  under Bans, brings it back and tells them too. Hide also works over ticked
+  rows on the list.
+
+Each save writes one `pomodoro_audit_logs` row (`edit`, resource
+`pomodoro_profile`) and drops the held copies of the old and new address and
+the `/users` directory. The code is `src/server/pomodoro/admin-profiles.ts`.
+
 ## It draws in the app's own layout, not the shell's
 
 The profile is a screen of this app, so it lives under `_pomodoro` and draws

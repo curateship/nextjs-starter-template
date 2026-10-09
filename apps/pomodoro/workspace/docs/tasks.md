@@ -221,8 +221,16 @@ appear as buttons while you type. Tyler set the cap at three on 7 Oct 2026.
   task was saved, but its tags could not be" and the window stays open.
 - **Guests have no tags.** The box in the editor is shut with the reason.
 
+- **An admin can delete a member's tag** on `/admin/pomodoro-tags` (admin
+  task 06, 8 Oct 2026), which lists every tag with its owner and how many
+  tasks carry it. Deleting it takes the label off those tasks and leaves the
+  tasks alone, and History stops offering it as a filter. The member is not
+  told. One `pomodoro_audit_logs` row per press, resource `task_tags`. These
+  are task tags, not the theme and sound tags on the Themes and Sounds pages.
+
 The tables are `pomodoro_tags` and the join `pomodoro_task_tags`; the logic is
-`src/server/pomodoro/task-tags.ts`.
+`src/server/pomodoro/task-tags.ts`, and the admin list is
+`src/server/pomodoro/admin-tags.ts`.
 
 ## Where things live
 
