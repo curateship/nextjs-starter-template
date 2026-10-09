@@ -49,6 +49,7 @@ import {
   type CatalogKind,
 } from "@/lib/pomodoro/admin-catalog"
 import { normalizeTag } from "@/lib/pomodoro/media-pool"
+import { waitsForPixabayFile } from "@/lib/pomodoro/pixabay-links"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { useHeldWhileClosing } from "@/lib/pomodoro/use-held-while-closing"
 
@@ -439,7 +440,7 @@ export function AdminCatalogDialog({
                         hint={
                           kind === "theme"
                             ? "Shown on the card, and behind the page whenever the film cannot play. Leave it empty with a film and the film's first frame is used."
-                            : undefined
+                            : "Optional. Leave it empty and one of the built-in sound graphics is picked when you save."
                         }
                       />
                       <div className="grid gap-2">
@@ -452,6 +453,22 @@ export function AdminCatalogDialog({
                           hasFile={hasFile}
                           uploading={uploading}
                         />
+                        {kind === "theme" && hasFile && item?.fileUrl ? (
+                          // The film members see, playable here before it goes
+                          // Live. The browser's own player, as the media
+                          // library uses; the film has no sound.
+                          <video
+                            src={item.fileUrl}
+                            poster={item.pictureUrl ?? undefined}
+                            aria-label={`Preview of ${item.label}`}
+                            controls
+                            muted
+                            loop
+                            playsInline
+                            preload="metadata"
+                            className="aspect-video w-full rounded-lg bg-muted object-cover sm:max-w-xs"
+                          />
+                        ) : null}
                         <div className="flex flex-wrap gap-2">
                           <input
                             ref={fileInputRef}
@@ -682,20 +699,27 @@ function FileStatusLine({
   hasFile: boolean
   uploading: boolean
 }) {
-  let text: string
+  let text: string | null
   if (uploading) text = "Sending the file…"
   else if (draft.source)
     text = `${draft.source.name} is uploaded. It is prepared after you save, and replaces the current file once it is ready.`
   else if (draft.clearFile) text = "No film. The still is drawn on its own."
   else if (item?.fileStatus === "queued" || item?.fileStatus === "processing")
-    text = "A new file is being prepared. The current one stays until it is ready."
+    text = item.importUrl
+      ? "Fetching from Pixabay. The picture, artist and tags arrive within a minute or two."
+      : "A new file is being prepared. The current one stays until it is ready."
   else if (item?.fileStatus === "failed")
     text = `The last upload was refused: ${item.fileError ?? "it could not be prepared."}`
+  // A file in place needs no word of its own: a theme shows its player, and
+  // a sound says only how long it runs.
   else if (hasFile)
-    text = item?.durationSeconds
-      ? `Ready, ${formatClock(item.durationSeconds)} long.`
-      : "Ready."
+    text = item?.durationSeconds ? `${formatClock(item.durationSeconds)} long.` : null
+  else if (item && waitsForPixabayFile(item))
+    text = "Needs the file from Pixabay. Download the MP3 from its page and choose it here."
   else text = "No file yet."
+  const pixabayPage =
+    item?.sourceUrl && !draft.source && waitsForPixabayFile(item) ? item.sourceUrl : null
+  if (!text) return null
   return (
     <p
       className={
@@ -705,6 +729,19 @@ function FileStatusLine({
       }
     >
       {text}
+      {pixabayPage ? (
+        <>
+          {" "}
+          <a
+            href={pixabayPage}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-foreground underline underline-offset-2"
+          >
+            Open on Pixabay
+          </a>
+        </>
+      ) : null}
     </p>
   )
 }

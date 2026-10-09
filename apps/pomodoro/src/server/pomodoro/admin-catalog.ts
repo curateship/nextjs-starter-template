@@ -30,6 +30,8 @@ import { MAX_ITEM_TAGS, normalizeTag } from "@/lib/pomodoro/media-pool"
 import {
   CATALOG_DESCRIPTORS,
   CATALOG_SOURCE_PATTERN,
+  labelFromFilename,
+  randomSoundGraphic,
   type CatalogKind,
   type CatalogSortColumn,
   type CatalogStatusFilter,
@@ -49,11 +51,11 @@ import { uploadLimitBytes } from "@/lib/pomodoro/media-limits"
  * the item's file (`catalog-worker.ts`).
  */
 
-type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0]
+export type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
 type ListPage = { page: number; pageSize: number; direction: "asc" | "desc" }
 
-async function logCatalogAct(
+export async function logCatalogAct(
   tx: Transaction,
   actorUserId: string,
   action: string,
@@ -149,6 +151,8 @@ export async function listAdminCatalog(
         fileError: pomodoroCatalogItems.fileError,
         durationSeconds: pomodoroCatalogItems.durationSeconds,
         licence: pomodoroCatalogItems.licence,
+        sourceUrl: pomodoroCatalogItems.sourceUrl,
+        importUrl: pomodoroCatalogItems.importUrl,
         tags: pomodoroCatalogItems.tags,
         createdAt: pomodoroCatalogItems.createdAt,
         personalCount,
@@ -194,6 +198,7 @@ function toEditable(row: PomodoroCatalogItem) {
     pictureUrl: row.pictureUrl,
     fileStatus: row.fileStatus,
     fileError: row.fileError,
+    importUrl: row.importUrl,
     durationSeconds: row.durationSeconds,
     volume: row.volume,
     artist: row.artist,
@@ -211,7 +216,7 @@ export type AdminCatalogItem = ReturnType<typeof toEditable>
 // ---------------------------------------------------------------------------
 
 /** Lower case, no repeats, at most eight, the way members' chips show them. */
-function cleanTags(tags: string[]) {
+export function cleanTags(tags: string[]) {
   const clean = tags
     .map((tag) => normalizeTag(tag))
     .filter((tag): tag is string => tag !== null)
@@ -251,7 +256,7 @@ export type CatalogItemInput = {
  * becomes `rain-on-a-tin-roof`, then `-2`, `-3` if that is taken. A key is
  * never changed once made, because every saved choice points at it.
  */
-async function freshKey(tx: Transaction, kind: CatalogKind, label: string) {
+export async function freshKey(tx: Transaction, kind: CatalogKind, label: string) {
   const base = keyFromLabel(label)
   const taken = new Set(
     (
@@ -345,16 +350,15 @@ export async function saveAdminCatalogItem({
     if (id && !existing) throw new Error("CATALOG_ITEM_NOT_FOUND")
 
     const fileUrl = input.clearFile ? null : (existing?.fileUrl ?? null)
+    // A sound left without a picture gets one of the built-in graphics.
+    const pictureUrl =
+      input.pictureUrl ?? (kind === "sound" ? randomSoundGraphic() : null)
     if (input.status === "live")
-      assertPublishable(
-        kind,
-        { pictureUrl: input.pictureUrl, fileUrl },
-        input.source
-      )
+      assertPublishable(kind, { pictureUrl, fileUrl }, input.source)
 
     // A picture this app stored is dropped when the admin picks another one.
     const pictureChanged =
-      existing?.picturePath && existing.pictureUrl !== input.pictureUrl
+      existing?.picturePath && existing.pictureUrl !== pictureUrl
     const values = {
       ...(pictureChanged ? { picturePath: null } : {}),
       label: input.label,
@@ -363,7 +367,7 @@ export async function saveAdminCatalogItem({
       descriptor: input.descriptor,
       locked: input.locked,
       status: input.status,
-      pictureUrl: input.pictureUrl,
+      pictureUrl,
       volume: kind === "sound" ? input.volume : 100,
       artist: input.artist,
       sourceUrl: input.sourceUrl,
@@ -375,13 +379,15 @@ export async function saveAdminCatalogItem({
         input.status === "live" ? (existing?.publishedAt ?? now) : null,
       updatedAt: now,
       // Removing the file also stops one still waiting for the worker, which
-      // would otherwise put a file back when it finished.
+      // would otherwise put a file back when it finished. The same goes for a
+      // file still being fetched from Pixabay: the admin's choice wins.
       ...(input.clearFile
         ? {
             fileUrl: null,
             filePath: null,
             sourcePath: null,
             sourceKind: null,
+            importUrl: null,
             fileStatus: "ready" as const,
             fileError: null,
             claimedAt: null,
@@ -391,6 +397,7 @@ export async function saveAdminCatalogItem({
         ? {
             sourcePath: input.source.path,
             sourceKind: input.source.kind,
+            importUrl: null,
             fileStatus: "queued" as const,
             fileError: null,
             attempts: 0,
@@ -615,7 +622,7 @@ export async function deleteAdminCatalogItems({
 }
 
 /** A file left behind in the bucket costs pennies; a failed delete is logged, never thrown. */
-async function removeFiles(paths: string[]) {
+export async function removeFiles(paths: string[]) {
   for (const path of paths) {
     try {
       await deleteFromR2(path)
@@ -644,6 +651,17 @@ export async function storeCatalogSource({
   const detected = detectUploadType(bytes.subarray(0, 16))
   if (!detected || detected.mimeType !== mimeType)
     throw new Error("INVALID_FILE_CONTENT")
+  return storeCatalogBytes(bytes)
+}
+
+/**
+ * Stores a file that came from somewhere with no type to claim, such as
+ * Pixabay's file server, which answers every file as `binary/octet-stream`.
+ * The bytes alone decide what it is.
+ */
+export async function storeCatalogBytes(bytes: Uint8Array) {
+  const detected = detectUploadType(bytes.subarray(0, 16))
+  if (!detected) throw new Error("INVALID_FILE_CONTENT")
   if (bytes.byteLength > uploadLimitBytes(detected.kind))
     throw new Error("FILE_TOO_LARGE")
   const path = `pomodoro-catalog/sources/${randomUUID()}.${detected.extension}`
@@ -687,7 +705,7 @@ export async function createCatalogDrafts({
           status: "draft",
           position: position++,
           // A still needs no work; it is the picture already.
-          pictureUrl: still ? file.url : null,
+          pictureUrl: still ? file.url : kind === "sound" ? randomSoundGraphic() : null,
           picturePath: still ? file.path : null,
           fileStatus: still ? "ready" : "queued",
           sourcePath: still ? null : file.path,
@@ -701,13 +719,6 @@ export async function createCatalogDrafts({
   })
   forgetMediaCatalog()
   return created
-}
-
-/** "rain_on-tin roof (final).mp3" → "Rain on tin roof (final)". */
-export function labelFromFilename(name: string) {
-  const bare = name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim()
-  const label = bare.slice(0, 60) || "Untitled"
-  return label.charAt(0).toUpperCase() + label.slice(1)
 }
 
 // ---------------------------------------------------------------------------

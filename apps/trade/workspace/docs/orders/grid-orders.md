@@ -1196,13 +1196,22 @@ is not drawn. The grid was the one that showed both, so a grey pill carrying
 the same price sat right behind the red one and read as some second thing at
 that level.
 
-The SL label, the stop, states what the grid's currently held levels would make or
-lose if they all closed at that price after their opening fees. Carried levels
-count too. The future closing fee stays out because the venue does not state it
-until the order fills. The figure follows the line while it is dragged, and
-reads $0.00 while the grid is between positions. Money and fees already banked
-by completed rounds stay out because the stop cannot lose them. The label shows
-a dash when the fills on hand do not add up to what the grid says it holds.
+The SL label, the stop, states what the grid would make or lose if price walked
+down to the stop and it fired. Price cannot get there without passing the
+waiting rungs between today's price and the stop, and each of those buys on
+the way, so the label counts the coins held now plus one buy of every such
+rung at its own price (Tyler, 9 Oct 2026: "the stop loss amount has to go past
+those rungs"). Take a grid holding 2 coins bought at $100 with price at $100,
+one rung waiting at $90 to buy 1 coin, and the stop at $80. The label reads
+2 × -$20 plus 1 × -$10, which is -$50 before fees. Before that date it read
+-$40 and left the $90 rung out. A rung price has already moved past, or one at
+or past the stop, never buys on that walk and stays out. Carried levels count
+too. The opening fees already paid come off the figure. The future closing fee
+stays out because the venue does not state it until the order fills, and so do
+the opening fees of rungs that have not bought yet. The figure follows the line
+while it is dragged. Money and fees already banked by completed rounds stay
+out because the stop cannot lose them. The label shows a dash when the fills
+on hand do not add up to what the grid says it holds.
 
 ## No line on the chart carries its own price
 

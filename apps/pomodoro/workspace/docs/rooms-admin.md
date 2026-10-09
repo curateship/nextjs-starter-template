@@ -65,7 +65,7 @@ room.
 
 ## Room limits
 
-On the Pomoder settings page (see [Admin settings](admin-settings.md)):
+On Settings → Rooms (see [Admin settings](admin-settings.md)):
 
 - **People in one room**, off by default, which is no limit as before. With a
   limit, the next person is refused with "This room is full." Lowering it never

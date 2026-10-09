@@ -15,7 +15,7 @@ import {
 import type { MediaCatalog } from "@/lib/pomodoro/catalog"
 
 /**
- * The Pomoder settings page's doors, behind `adminGet` and `adminPost`. See
+ * The doors of Pomoder's Settings tabs, behind `adminGet` and `adminPost`. See
  * `workspace/docs/admin-settings.md`.
  */
 

@@ -7,8 +7,8 @@ delete a message, remove a person or ban them.
 ## Chat
 
 - **A message is 500 characters at most**, and one person may send twenty a
-  minute in a room until an admin changes the number on the Pomoder settings
-  page. Both limits are the server's; the box also stops at 500 so nobody
+  minute in a room until an admin changes the number on Settings → Room
+  chat. Both limits are the server's; the box also stops at 500 so nobody
   types past the edge.
 - **An admin's blocked words** either hold a message for review, where only
   its writer sees it, marked "Only you can see this until it is checked", or

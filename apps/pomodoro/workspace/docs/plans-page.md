@@ -85,6 +85,17 @@ The yearly card's figures are worked out from the real prices:
   period actually being paid: a monthly subscriber's yearly card is still
   buyable, and says "Switch to yearly".
 - **A card whose period has no Stripe price** says "Not on sale yet".
+- **Stripe always sends people back here.** After paying, the member lands
+  on `/plans?welcome=pro` with the session id, the page asks Stripe about
+  that session before it draws (the shell's `confirmCheckoutSession`), and a
+  line under the headline says "You're on Pro" with what just unlocked while
+  the Pro card reads "Current plan". If the ask fails the line says Stripe is
+  confirming and the page refreshes a few times until the webhook lands.
+  Backing out of Stripe's page, and the "return" link in the Stripe billing
+  portal, both land on `/plans`. The three addresses are the app's
+  `billing.returnPaths` in `src/app/server-options.ts`, a shell option added
+  on 9 Oct 2026; until then they were the shell's success page, its
+  `/pricing` and the account dialog.
 - **Payments switched off keeps the plans on show.** Tyler, 7 Oct 2026: "the
   pricing ui should be visible even if payment is turned off". A line over the
   grid says "Paid plans can't be bought just yet. Everything on the free plan

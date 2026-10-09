@@ -82,7 +82,7 @@ member reads.
 
 ## Blocked words, chat speed and the emergency switches
 
-On the Pomoder settings page (see [Admin settings](admin-settings.md)).
+On Settings → Emergency switches and Settings → Room chat (see [Admin settings](admin-settings.md)).
 
 - **Blocked words**: one per line, whole words only and ignoring case, so
   "class" is never caught by "ass". The list starts empty. The admin picks what
