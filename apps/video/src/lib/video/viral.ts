@@ -4,6 +4,8 @@
  * filter choices without pulling in the database.
  */
 
+import type { ViralScore } from "./viral-score"
+
 /** The time windows the page offers, in days. */
 export const VIRAL_DAY_CHOICES = [7, 30, 90] as const
 export type ViralDays = (typeof VIRAL_DAY_CHOICES)[number]
@@ -38,6 +40,12 @@ export type ViralShort = {
   comments: number | null
   subscribers: number | null
 }
+
+/**
+ * A result as the page shows it: YouTube's numbers plus the viral score,
+ * worked out when the results are read and never stored.
+ */
+export type ScoredViralShort = ViralShort & { score: ViralScore }
 
 /** One saved search, as the past-keywords panel lists it. */
 export type ViralSearchSummary = {

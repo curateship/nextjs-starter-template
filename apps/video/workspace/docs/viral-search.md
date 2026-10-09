@@ -34,7 +34,8 @@ the page says "Today's 100 free YouTube searches are used up. They reset at
 midnight Pacific time." Any other YouTube refusal is shown as YouTube's own
 sentence, never raw JSON. Because a search costs money's worth of quota,
 typing never searches — only pressing Search or Enter does, and sorting the
-results is done in the browser on what already came back.
+results is done in the browser on what already came back. The table sorts by
+viral score until you pick another column.
 
 ## Why Shorts means 3 minutes or less
 
@@ -76,5 +77,5 @@ looking at a past keyword costs nothing.
 
 ## What is not here yet
 
-Saving searches is task 02, the score is task 03, and TikTok and Instagram
-are task 09, all in `workspace/tasks/viral/`.
+The viral score on each result is in `viral-score.md`. TikTok and Instagram
+are task 09, in `workspace/tasks/viral/`.

@@ -27,9 +27,11 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { TableCell, TableRow } from "@/components/ui/table"
+import { ViralScoreCell } from "@/components/video-viral/viral-score-cell"
 import {
   deleteViralSearches,
   getViralErrorMessage,
+  type ScoredViralShort,
   type ViralPageData,
 } from "@/lib/api/video/viral"
 import { describeBulkResult } from "@/lib/format/bulk-result"
@@ -42,16 +44,13 @@ import { useListSearchNavigate, useListSort } from "@/lib/nav/list-search"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 import { formatClock } from "@/lib/video/timeline-utils"
-import {
-  VIRAL_DAY_CHOICES,
-  type ViralSearchSummary,
-  type ViralShort,
-} from "@/lib/video/viral"
+import { VIRAL_DAY_CHOICES, type ViralSearchSummary } from "@/lib/video/viral"
 
 const viralRoute = getRouteApi("/_authenticated/admin/video-viral")
 
 type ViralSortColumn =
   | "title"
+  | "score"
   | "channel"
   | "views"
   | "likes"
@@ -61,6 +60,7 @@ type ViralSortColumn =
 
 const VIRAL_COLUMNS: SortableColumn<ViralSortColumn>[] = [
   { key: "title", label: "Short", column: "main" },
+  { key: "score", label: "Score", column: "meta" },
   { key: "channel", label: "Channel", column: "meta" },
   { key: "views", label: "Views", column: "meta" },
   { key: "likes", label: "Likes", column: "meta" },
@@ -79,8 +79,14 @@ function naturalDirection(column: ViralSortColumn): "asc" | "desc" {
   return column === "title" || column === "channel" ? "asc" : "desc"
 }
 
-function compareShorts(a: ViralShort, b: ViralShort, column: ViralSortColumn) {
+function compareShorts(
+  a: ScoredViralShort,
+  b: ScoredViralShort,
+  column: ViralSortColumn
+) {
   switch (column) {
+    case "score":
+      return a.score.score - b.score.score || a.views - b.views
     case "title":
       return a.title.localeCompare(b.title)
     case "channel":
@@ -117,7 +123,9 @@ export function ViralPage({ data }: { data: ViralPageData }) {
 
   const keyword = listSearch.q ?? ""
   const openSearch = data.open
-  const sort: ViralSortColumn = listSearch.sort ?? "views"
+  // Sorted by score unless somebody picks another column: the top rows are
+  // the ones worth studying.
+  const sort: ViralSortColumn = listSearch.sort ?? "score"
   const direction = listSearch.direction ?? "desc"
   const toggleSort = useListSort<ViralSortColumn>(
     { sort, direction },
@@ -394,7 +402,7 @@ export function ViralPage({ data }: { data: ViralPageData }) {
           }
           isEmpty={sortedItems.length === 0}
           emptyText={emptyText}
-          emptyColSpan={7}
+          emptyColSpan={8}
           footer={{
             type: "summary",
             count: sortedItems.length,
@@ -438,6 +446,9 @@ export function ViralPage({ data }: { data: ViralPageData }) {
                     </span>
                   </div>
                 </div>
+              </TableCell>
+              <TableCell column="meta">
+                <ViralScoreCell score={item.score} />
               </TableCell>
               <TableCell column="meta">
                 <span
