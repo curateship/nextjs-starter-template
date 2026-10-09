@@ -71,6 +71,34 @@ export function formatClock(seconds: number) {
   return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`
 }
 
+/**
+ * The card pictures the eight built-in sounds ship with, under `public/`.
+ * A sound saved with no picture of its own gets one of these at random
+ * (Tyler, 9 Oct 2026: "It shouldnt need to upload an image when i add a
+ * sound"), so a picture is never what stops a sound going Live.
+ */
+export const SOUND_GRAPHICS = [
+  "/sounds/sounds-lofi.png",
+  "/sounds/sounds-rain.png",
+  "/sounds/sounds-cafe.png",
+  "/sounds/sounds-brown.png",
+  "/sounds/sounds-forest.png",
+  "/sounds/sounds-ocean.png",
+  "/sounds/sounds-fire.png",
+  "/sounds/sounds-piano.png",
+] as const
+
+export function randomSoundGraphic() {
+  return SOUND_GRAPHICS[Math.floor(Math.random() * SOUND_GRAPHICS.length)]
+}
+
+/** "rain_on-tin roof (final).mp3" → "Rain on tin roof (final)". */
+export function labelFromFilename(name: string) {
+  const bare = name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim()
+  const label = bare.slice(0, 60) || "Untitled"
+  return label.charAt(0).toUpperCase() + label.slice(1)
+}
+
 /** The most files one "Upload several" press sends. */
 export const CATALOG_BULK_MAX = 25
 

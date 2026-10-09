@@ -108,7 +108,7 @@ cover this one.
   warnings, suspensions, blocked words, the pause switches and STAFF.
 - [Rooms in the admin](rooms-admin.md) — closing, editing and featuring
   rooms, invitations, house presets and room limits.
-- [Admin settings](admin-settings.md) — the Pomoder settings page: shuffle for
+- [Admin settings](admin-settings.md) — Pomoder's tabs under Settings → App settings, saving by themselves: shuffle for
   guests, the default theme and sound, seasons and the new-account timer.
 - [Themes and sounds in the admin](catalog-admin.md) — the catalogue in the
   database, the Themes and Sounds dashboards, the window, the 2-to-5-minute

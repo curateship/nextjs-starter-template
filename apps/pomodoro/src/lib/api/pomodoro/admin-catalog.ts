@@ -22,6 +22,10 @@ import {
   type CatalogBulkResult,
 } from "@/server/pomodoro/admin-catalog"
 import { validateUploadContentLength } from "@/server/pomodoro/media-uploads"
+import {
+  importFromPixabay,
+  type PixabayImportResult,
+} from "@/server/pomodoro/pixabay-import"
 import { readDashboardRowsPerPage } from "@/server/shell-settings"
 import {
   CATALOG_ACCESS_FILTERS,
@@ -40,7 +44,12 @@ import { MAX_ITEM_TAGS, TAG_PATTERN } from "@/lib/pomodoro/media-pool"
  * `adminPost`. See `workspace/docs/catalog-admin.md`. Types only are
  * re-exported, so nothing from `@/server/*` reaches the browser bundle.
  */
-export type { AdminCatalogItem, AdminCatalogRow, CatalogBulkResult }
+export type {
+  AdminCatalogItem,
+  AdminCatalogRow,
+  CatalogBulkResult,
+  PixabayImportResult,
+}
 
 export const getCatalogAdminErrorMessage = createErrorMessage(
   {
@@ -59,6 +68,12 @@ export const getCatalogAdminErrorMessage = createErrorMessage(
     CONTENT_LENGTH_REQUIRED: "That upload could not be read. Try again.",
     STORAGE_NOT_CONFIGURED:
       "File storage is not set up yet. Add the Cloudflare R2 details in Settings first.",
+    PIXABAY_KEY_MISSING: "Add the Pixabay API key in Settings → Pixabay first.",
+    RATE_LIMITED: "That is a lot of imports in a short time. Wait a few minutes and try again.",
+    SECRET_UNREADABLE:
+      "The saved Pixabay key can no longer be read. Paste it again in Settings → Pixabay.",
+    ENCRYPTION_NOT_CONFIGURED:
+      "Secret storage is not set up, so the Pixabay key cannot be read.",
   },
   "That did not work. Please try again."
 )
@@ -219,6 +234,36 @@ const createDraftsFn = createServerFn({ method: "POST" })
     createCatalogDrafts({ ...data, actorUserId: context.user.id })
   )
 
+/**
+ * "Import from Pixabay": the lines the window found good, each with the line
+ * number the admin sees, so a refusal names the right line.
+ */
+const importPixabayFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(
+    z.object({
+      kind: kindSchema,
+      links: z
+        .array(
+          z.object({
+            line: z.number().int().min(1).max(1000),
+            url: z.string().trim().min(1).max(500),
+          })
+        )
+        .min(1)
+        .max(CATALOG_BULK_MAX),
+    })
+  )
+  .handler(async ({ data, context }): Promise<PixabayImportResult> => {
+    // Pixabay asks for no mass downloading; 20 lists of 25 in ten minutes is
+    // far past an evening's browsing.
+    await enforceRateLimit(`pomodoro-pixabay-import:${context.user.id}`, {
+      maxAttempts: 20,
+      windowSeconds: 10 * 60,
+    })
+    return importFromPixabay({ ...data, actorUserId: context.user.id })
+  })
+
 const setStatusFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(z.object({ ids: idsSchema, status: z.enum(["draft", "live"]) }))
@@ -265,6 +310,10 @@ export const createCatalogDraftsFromFiles = (
   kind: CatalogKind,
   files: { name: string; path: string; kind: "audio" | "video" | "image"; url: string | null }[]
 ) => createDraftsFn({ data: { kind, files } })
+export const importCatalogFromPixabay = (
+  kind: CatalogKind,
+  links: { line: number; url: string }[]
+) => importPixabayFn({ data: { kind, links } })
 export const setCatalogStatus = (ids: string[], status: "draft" | "live") =>
   setStatusFn({ data: { ids, status } })
 export const setCatalogLocked = (ids: string[], locked: boolean) =>

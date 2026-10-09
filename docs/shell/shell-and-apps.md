@@ -291,6 +291,28 @@ catalogue offers that default explicitly. The public theme does this: the app's
 choice sits under saved site values, while omitted app fields keep the shell's
 built-in look.
 
+### Where an app's own Settings screen goes
+
+Tyler, 9 Oct 2026: "This settings page should be here and it has to be auto
+save." Pomoder had built its admin settings as a page of its own,
+`/admin/pomodoro-settings`, with a Save button on every card, while the rail on
+`/admin/settings` said "This app has no settings of its own."
+
+- **Settings an admin changes while the app runs go in the Settings screen**,
+  as tabs listed in `settings.tabs` in the app's `src/app/options.ts`. They show
+  under App settings in the rail. The shell already offers this, so no shell
+  edit is needed, and no app builds a separate settings page.
+- **They auto-save like every other Settings tab**: no Save button, the header
+  reports the save. `docs/shell/settings-saving.md` holds the timing, and the
+  UI standard's Settings section holds the screen rules.
+- **Clicking between the tabs shows no loading row**, the same as the shell's
+  own tabs: the app reads its settings once per page and holds them, the way
+  the shell layout holds its own record. The UI standard's Settings section
+  says how.
+- **A task or plan that adds a setting names the tab it goes on.** A task that
+  says "a card on `/admin/<app>-settings`" or "a Save button" is wrong before
+  any code is written.
+
 ### When an app needs an option that does not exist
 
 Steps 1 and 2 settle most of these without touching the shell at all.

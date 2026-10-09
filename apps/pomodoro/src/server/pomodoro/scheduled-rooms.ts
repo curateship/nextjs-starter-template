@@ -583,7 +583,7 @@ async function deliverInvite(database: CustomShellDb, invite: InviteEmail) {
 /**
  * How many one-off rooms this person already has booked and not yet
  * cancelled. A weekly rule's booked day is not counted: weekly rooms have
- * their own limit, "Weekly rooms per host" on the Pomoder settings page.
+ * their own limit, "Weekly rooms per host" on Settings → Rooms.
  */
 export async function countScheduledRoomsHostedBy(
   userId: string,

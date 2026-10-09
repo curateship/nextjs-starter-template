@@ -35,6 +35,7 @@ import {
   pomodoroPersonalRooms,
 } from "@/server/pomodoro/schema"
 import { createTestDatabase, insertUser } from "@/server/test-support"
+import { SOUND_GRAPHICS } from "@/lib/pomodoro/admin-catalog"
 
 /**
  * The catalogue against a real database: the sixteen built-in items the
@@ -134,13 +135,25 @@ describe("saving an item", () => {
     expect([first.key, second.key]).toEqual(["rain-on-a-tin-roof", "rain-on-a-tin-roof-2"])
   })
 
-  it("refuses to make a sound Live with no picture", async () => {
+  it("makes a sound Live with no picture of its own, using a built-in graphic", async () => {
+    const admin = (await insertUser(db, { role: "admin" })).id
+    const saved = await saveAdminCatalogItem({
+      id: null,
+      kind: "sound",
+      input: soundInput({ status: "live", pictureUrl: null }),
+      actorUserId: admin,
+    })
+    expect(saved.status).toBe("live")
+    expect(SOUND_GRAPHICS).toContain(saved.pictureUrl)
+  })
+
+  it("still refuses to make a theme Live with no picture", async () => {
     const admin = (await insertUser(db, { role: "admin" })).id
     await expect(
       saveAdminCatalogItem({
         id: null,
-        kind: "sound",
-        input: soundInput({ status: "live", pictureUrl: null }),
+        kind: "theme",
+        input: soundInput({ status: "live", pictureUrl: null, descriptor: "static", source: null }),
         actorUserId: admin,
       })
     ).rejects.toThrow("CATALOG_NEEDS_PICTURE")
@@ -230,6 +243,24 @@ describe("changes over ticked rows", () => {
     expect(priced.changed).toEqual([lofi!.id])
     forgetMediaCatalog()
     expect((await loadMediaCatalog(db)).sounds.find((sound) => sound.key === "lofi")?.locked).toBe(true)
+  })
+
+  it("gives a sound saved with no picture one of the built-in graphics", async () => {
+    const admin = (await insertUser(db, { role: "admin" })).id
+    const saved = await saveAdminCatalogItem({
+      id: null,
+      kind: "sound",
+      input: soundInput({ pictureUrl: null, label: "No picture" }),
+      actorUserId: admin,
+    })
+    expect(SOUND_GRAPHICS).toContain(saved.pictureUrl)
+    const [id] = await createCatalogDrafts({
+      kind: "sound",
+      files: [{ name: "dropped.mp3", path: SOURCE, kind: "audio", url: null }],
+      actorUserId: admin,
+    })
+    const [dropped] = await db.select().from(pomodoroCatalogItems).where(eq(pomodoroCatalogItems.id, id))
+    expect(SOUND_GRAPHICS).toContain(dropped.pictureUrl)
   })
 
   it("names a dropped file after itself and makes it a Draft", async () => {

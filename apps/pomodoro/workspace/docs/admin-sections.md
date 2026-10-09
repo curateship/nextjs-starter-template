@@ -1,6 +1,6 @@
 # Admin sections
 
-Twenty-four operator pages inside the shell's `/admin`. They let an operator see
+Twenty-three operator pages inside the shell's `/admin`. They let an operator see
 what members are doing, decide reports, and delete what should not be there.
 Every delete and every report decision is written to `pomodoro_audit_logs`.
 
@@ -21,7 +21,6 @@ Every delete and every report decision is written to `pomodoro_audit_logs`.
 | `/admin/pomodoro-room-presets` | The house presets hosts pick from |
 | `/admin/pomodoro-chat` | Every room's chat, a search across it, held lines |
 | `/admin/pomodoro-bans` | Room bans, hidden profiles and suspensions, with Lift |
-| `/admin/pomodoro-settings` | The Pomoder settings page |
 | `/admin/pomodoro-profiles` | Every public profile with a handle, and a window to fix the handle, name or bio, or hide it |
 | `/admin/pomodoro-uploads` | Every background and sound a member uploaded or had AI make, with Delete |
 | `/admin/pomodoro-tags` | Every member task tag and how many tasks carry it, with Delete |

@@ -4,6 +4,7 @@ import { advanceDueRooms } from "@/server/pomodoro/rooms"
 import { openDueRooms } from "@/server/pomodoro/scheduled-rooms"
 import { processNextMediaUpload } from "@/server/pomodoro/media-worker"
 import { processNextCatalogFile } from "@/server/pomodoro/catalog-worker"
+import { processPixabayImports } from "@/server/pomodoro/pixabay-worker"
 import { processNextGeneration } from "@/server/pomodoro/generation-worker"
 import {
   readFocusHoursRow,
@@ -114,6 +115,13 @@ export const appServerOptions: AppServerOptions = {
         // never holds a member's upload behind it, one file per pass.
         name: "pomodoro-catalog-files",
         tick: processNextCatalogFile,
+      },
+      {
+        // Pictures and films an admin imported from Pixabay links: up to five
+        // pictures or one film per pass, copied into the bucket. A film then
+        // goes to pomodoro-catalog-files to be shrunk like an upload.
+        name: "pomodoro-pixabay-imports",
+        tick: processPixabayImports,
       },
       {
         // AI backgrounds and soundscapes. One per pass, and its own worker

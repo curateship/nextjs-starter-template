@@ -165,3 +165,18 @@ export function checkBlockedWords(body: string, words: string[]) {
   })
   return { matched, starred }
 }
+
+/**
+ * Pomoder's tabs under Settings → App settings, each at
+ * `/admin/settings/<id>`. Listed in `src/app/options.ts`; links to a tab use
+ * these ids so an address never drifts from the tab it points at.
+ */
+export const POMODORO_SETTINGS_TABS = {
+  safety: "pomodoro-safety",
+  media: "pomodoro-media",
+  seasons: "pomodoro-seasons",
+  newAccounts: "pomodoro-new-accounts",
+  rooms: "pomodoro-rooms",
+  chat: "pomodoro-chat",
+  pixabay: "pomodoro-pixabay",
+} as const

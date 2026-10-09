@@ -22,6 +22,7 @@ import {
   EyeOffIcon,
   GripVerticalIcon,
   ImageIcon,
+  ImportIcon,
   Loader2Icon,
   LockIcon,
   LockOpenIcon,
@@ -61,6 +62,7 @@ import {
   useAdminDelete,
 } from "@/components/pomodoro/admin-delete"
 import { AdminCatalogDialog } from "@/components/pomodoro/admin-catalog-dialog"
+import { AdminCatalogImportDialog } from "@/components/pomodoro/admin-catalog-import-dialog"
 import {
   createCatalogDraftsFromFiles,
   deleteCatalogItems,
@@ -96,6 +98,7 @@ import {
 } from "@/lib/pomodoro/admin-catalog"
 import type { SoundReference } from "@/lib/pomodoro/sound-catalog"
 import { usePreviewAudio } from "@/lib/pomodoro/use-preview-audio"
+import { waitsForPixabayFile } from "@/lib/pomodoro/pixabay-links"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
@@ -273,6 +276,7 @@ export function AdminCatalogDashboard({
     }
   }
 
+  const [importing, setImporting] = React.useState(false)
   const bulkInputRef = React.useRef<HTMLInputElement>(null)
   const uploadSeveral = async (files: File[]) => {
     if (files.length > CATALOG_BULK_MAX) {
@@ -494,6 +498,17 @@ export function AdminCatalogDashboard({
               )}
               Upload several
             </DashboardToolbarButton>
+            {/* "Pixabay" on its face so the toolbar fits on one line at 1440px;
+                its name for a screen reader says what it does. */}
+            <DashboardToolbarButton
+              type="button"
+              variant="outline"
+              aria-label="Import from Pixabay"
+              onClick={() => setImporting(true)}
+            >
+              <ImportIcon className="size-4" />
+              Pixabay
+            </DashboardToolbarButton>
             <DashboardToolbarButton type="button" onClick={() => setOpen("new")}>
               <PlusIcon className="size-4" />
               {words.create}
@@ -545,6 +560,12 @@ export function AdminCatalogDashboard({
         }}
         knownTags={tags}
         onDelete={(id) => del.ask([id])}
+      />
+      <AdminCatalogImportDialog
+        kind={kind}
+        open={importing}
+        onClose={() => setImporting(false)}
+        onImported={list.refresh}
       />
       <AdminDeleteConfirm
         del={del}
@@ -656,6 +677,16 @@ function CatalogRow({
                 .filter(Boolean)
                 .join(" · ")}
             </span>
+            {waitsForPixabayFile(row) && row.sourceUrl ? (
+              <a
+                href={row.sourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs font-medium underline underline-offset-2"
+              >
+                Open on Pixabay
+              </a>
+            ) : null}
           </div>
         </div>
       </TableCell>
@@ -706,8 +737,10 @@ function CatalogRow({
 /** What the worker is doing with a new file, when it is doing anything. */
 function fileLine(row: AdminCatalogRow) {
   if (row.fileStatus === "queued" || row.fileStatus === "processing")
-    return "Preparing the file"
-  if (row.fileStatus === "failed") return "File refused"
+    return row.importUrl ? "Fetching from Pixabay" : "Preparing the file"
+  if (row.fileStatus === "failed")
+    return row.fileError ? `File refused: ${row.fileError}` : "File refused"
+  if (waitsForPixabayFile(row)) return "Needs the file from Pixabay"
   return null
 }
 
