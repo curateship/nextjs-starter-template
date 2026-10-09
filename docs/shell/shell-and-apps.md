@@ -113,6 +113,12 @@ the guess that one might:
   and anything omitted keeps the shell's built-in look. The settings record
   keeps only differences from the app default, so an unrelated save does not
   freeze inherited values.
+- `billing.returnPaths` (server) — the three places Stripe hands people back
+  to: after paying, after backing out of checkout, and from the billing
+  portal. Unset means the shell's own success page, `/pricing` and the
+  account dialog's Billing tab. The shell adds the checkout session id to the
+  success path, so the app's page there can confirm the purchase through
+  `confirmCheckoutSession`. Pomodoro points all three at `/plans`.
 - `landing.page` — replace `/` outright: loader, `<head>` and component together
 - `signIn.frame` — the frame drawn around the shell's ten signed-out pages
   (sign in, register, forgot and reset password, verify email, the sign-in

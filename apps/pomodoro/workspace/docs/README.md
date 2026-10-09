@@ -43,6 +43,8 @@ cover this one.
   plus custom rhythms.
 - [Pro perks](pro-perks.md) — what a paid plan unlocks and the one module
   that answers every can-do question.
+- [Switching payments on](switching-payments-on.md) — the order to set Stripe
+  up in, what each money path does, and how to prove it.
 - [The plans page](plans-page.md) — `/plans`, the product's own pricing
   screen: where the figures come from, what each button does, and why the
   shell's `/pricing` is a different page.

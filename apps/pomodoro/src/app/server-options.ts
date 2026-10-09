@@ -33,6 +33,19 @@ import { runStreakReminderPass } from "@/server/pomodoro/streak-reminder"
  * door nobody is told about.
  */
 export const appServerOptions: AppServerOptions = {
+  billing: {
+    /**
+     * Stripe hands everyone back to the product's own plans page, never to
+     * the shell's `/pricing` or its success page, which the product does not
+     * link to. The paid return carries `welcome=pro`, and the plans page
+     * confirms the session itself so Pro is on before the page draws.
+     */
+    returnPaths: {
+      checkoutSuccess: "/plans?welcome=pro",
+      checkoutCancel: "/plans",
+      portalReturn: "/plans",
+    },
+  },
   pages: {
     /**
      * What fills the two public front page rows. Both answer `null` on a week

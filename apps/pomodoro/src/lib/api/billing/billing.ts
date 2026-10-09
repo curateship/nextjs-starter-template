@@ -11,6 +11,7 @@ import {
 import {
   billingEnabled,
   cancelSubscriptionByMember,
+  confirmCheckout,
   createCheckoutSession,
   createPortalSession,
   findExpiringCard,
@@ -223,6 +224,17 @@ const openPlanChangeFn = createServerFn({ method: "POST" })
     return createCheckoutSession(context.user, plan, data.interval)
   })
 
+const confirmCheckoutFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({ sessionId: z.string().trim().min(1).max(255) }))
+  .handler(async ({ data, context }) => {
+    await enforceRateLimit(`checkout-confirm:${context.user.id}`, {
+      maxAttempts: 20,
+      windowSeconds: 15 * 60,
+    })
+    return confirmCheckout(context.user, data.sessionId)
+  })
+
 const changePlanFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(z.object({ token: z.string().min(1).max(4096) }))
@@ -349,6 +361,14 @@ export function cancelOwnSubscription(
   feedback: string | null
 ) {
   return cancelOwnSubscriptionFn({ data: { reason, feedback } })
+}
+
+/**
+ * Asks Stripe about the checkout the person just came back from and writes the
+ * result, so the return page does not have to wait for the webhook.
+ */
+export function confirmCheckoutSession(sessionId: string) {
+  return confirmCheckoutFn({ data: { sessionId } })
 }
 
 /** The server decides between a new checkout and an existing plan's preview. */
