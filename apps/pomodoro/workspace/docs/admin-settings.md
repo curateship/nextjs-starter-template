@@ -1,8 +1,8 @@
 # Admin settings
 
-Pomoder's own admin settings are eight tabs under Settings → App settings, in
+Pomoder's own admin settings are nine tabs under Settings → App settings, in
 the rail on `/admin/settings`: Emergency switches, Themes and sounds, Seasons,
-Breaks, New accounts, Rooms, Room chat and Pixabay. Each lives at
+Breaks, New accounts, Rooms, Room chat, Pixabay and Made-up members. Each lives at
 `/admin/settings/pomodoro-<name>` (the ids are `POMODORO_SETTINGS_TABS` in
 `src/lib/pomodoro/app-settings.ts`), is listed in `settings.tabs` in
 `src/app/options.ts`, and is drawn by `admin-settings-tabs.tsx`. Every save
@@ -120,3 +120,11 @@ because nothing is fetched for a sound.
   `CUSTOM_SHELL_SECRET_ENCRYPTION_KEY` changed, shows a line saying to paste it
   again. With that setting missing, Save says "Secret storage is not set up"
   and stores nothing.
+
+## Made-up members
+
+How many made-up members there should be, the most hours any of them focuses
+in a day, and a switch that pauses them, plus the Make them now and Remove all
+buttons. Flipping the pause writes a `simulated_pause` audit row with the
+resource `simulated` instead of a `settings` one. Everything else about them
+is in [Made-up members](made-up-members.md).

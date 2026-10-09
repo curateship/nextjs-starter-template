@@ -18,6 +18,7 @@ import {
 
 import type { PublicSocialLink } from "@/lib/pages/public-social"
 import type { PomodoroNoticeKind } from "@/lib/pomodoro/notices"
+import type { SimulatedHabits } from "@/lib/pomodoro/simulated-days"
 import {
   customShellMedia,
   customShellNotifications,
@@ -1753,6 +1754,35 @@ export const pomodoroAdminNotes = pgTable(
   },
   (table) => [
     index("pomodoro_admin_notes_user_idx").on(table.userId, table.createdAt),
+  ]
+)
+
+/**
+ * A made-up member (live activity task 01). The row is the only mark: `users`
+ * is a shell table, so the flag lives here and Remove all deletes exactly the
+ * accounts named in this table. See `workspace/docs/made-up-members.md`.
+ */
+export const pomodoroSimulatedAccounts = pgTable(
+  "pomodoro_simulated_accounts",
+  {
+    userId: varchar("user_id", { length: 36 })
+      .primaryKey()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    /** The working day and the task titles, read by `planSimulatedDay`. */
+    habits: jsonb("habits").$type<SimulatedHabits>().notNull(),
+    /** A line about how this person comes across, for the chat in task 03. */
+    personality: varchar("personality", { length: 200 }).notNull(),
+    pausedAt: timestamp("paused_at", { withTimezone: true }),
+    /** Set while a worker pass is looking after this account. */
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
+    /** No foreign key: deleting an admin must not delete what they made. */
+    createdByUserId: varchar("created_by_user_id", { length: 36 }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("pomodoro_simulated_accounts_created_idx").on(table.createdAt),
   ]
 )
 

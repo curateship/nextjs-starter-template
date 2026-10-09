@@ -1,6 +1,8 @@
 import * as React from "react"
 import { useNavigate } from "@tanstack/react-router"
 
+import { Badge } from "@/components/ui/badge"
+import { loadSimulatedMemberIds } from "@/lib/api/pomodoro/admin-simulated"
 import { cn } from "@/lib/utils"
 
 /**
@@ -32,6 +34,68 @@ export function useMemberWindowLink() {
   )
 }
 
+/**
+ * Which accounts are made up (live activity task 01), read once for every
+ * name on the page and again after a minute, so Tyler can tell them apart on
+ * every admin list. Only admin pages draw this; no member ever sees it. See
+ * `workspace/docs/made-up-members.md`.
+ */
+const MADE_UP_FRESH_MS = 60_000
+let madeUpIds: ReadonlySet<string> | null = null
+let madeUpReadAt = 0
+let madeUpReading = false
+const madeUpListeners = new Set<() => void>()
+
+function readMadeUpIds() {
+  if (madeUpReading || Date.now() - madeUpReadAt < MADE_UP_FRESH_MS) return
+  madeUpReading = true
+  loadSimulatedMemberIds().then(
+    (ids) => {
+      madeUpIds = new Set(ids)
+      madeUpReadAt = Date.now()
+      madeUpReading = false
+      for (const listener of madeUpListeners) listener()
+    },
+    () => {
+      // No mark is the safe failure: the list still works without it.
+      madeUpReading = false
+    }
+  )
+}
+
+/** Reads the made-up accounts again, after Make them now or Remove all. */
+export function forgetMadeUpIds() {
+  madeUpReadAt = 0
+  readMadeUpIds()
+}
+
+function subscribeMadeUp(listener: () => void) {
+  madeUpListeners.add(listener)
+  return () => madeUpListeners.delete(listener)
+}
+
+/** Whether this account is one of the made-up members. */
+export function useIsMadeUp(id: string | null | undefined) {
+  const ids = React.useSyncExternalStore(
+    subscribeMadeUp,
+    () => madeUpIds,
+    () => null
+  )
+  React.useEffect(() => {
+    readMadeUpIds()
+  }, [])
+  return Boolean(id && ids?.has(id))
+}
+
+/** The mark itself, beside a made-up account's name. */
+export function MadeUpMark() {
+  return (
+    <Badge variant="outline" title="A made-up member. Real members never see this mark.">
+      Made up
+    </Badge>
+  )
+}
+
 /** The name, drawn as the button that opens their window. */
 export function MemberName({
   id,
@@ -46,6 +110,7 @@ export function MemberName({
   className?: string
 }) {
   const openMember = useMemberWindowLink()
+  const madeUp = useIsMadeUp(id)
   // An account deleted since leaves nobody to open; the name stays as text.
   if (!id)
     return (
@@ -53,10 +118,14 @@ export function MemberName({
         {name}
       </span>
     )
-  return (
+  const button = (
     <button
       type="button"
-      className={cn("block max-w-96 truncate text-left font-medium hover:underline", className)}
+      className={cn(
+        "block max-w-96 truncate text-left font-medium hover:underline",
+        madeUp && "min-w-0",
+        className
+      )}
       title={title}
       onClick={(event) => {
         // A name inside a clickable row opens the person, not the row.
@@ -66,5 +135,12 @@ export function MemberName({
     >
       {name}
     </button>
+  )
+  if (!madeUp) return button
+  return (
+    <span className="flex max-w-96 min-w-0 items-center gap-1.5">
+      {button}
+      <MadeUpMark />
+    </span>
   )
 }

@@ -53,16 +53,22 @@ export async function loadAppSettings(
 
 /**
  * Saves one setting after checking its shape, and writes the audit row in the
- * same transaction. Returns what is now stored.
+ * same transaction. Returns what is now stored. `action` and `resource` name
+ * the audit row when a save means more than "a setting changed", such as
+ * pausing the made-up members (`simulated_pause` on `simulated`).
  */
 export async function saveAppSetting<K extends AppSettingKey>({
   key,
   value,
   actorUserId,
+  action = `setting_${key}`,
+  resource = "settings",
 }: {
   key: K
   value: unknown
   actorUserId: string
+  action?: string
+  resource?: string
 }): Promise<AppSettingValue<K>> {
   const parsed = appSettingSchemas[key].parse(value) as AppSettingValue<K>
   await db.transaction(async (tx) => {
@@ -75,8 +81,8 @@ export async function saveAppSetting<K extends AppSettingKey>({
       })
     await tx.insert(pomodoroAuditLogs).values({
       actorUserId,
-      action: `setting_${key}`.slice(0, 40),
-      resource: "settings",
+      action: action.slice(0, 40),
+      resource,
       recordIds: [key],
     })
   })

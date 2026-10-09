@@ -17,6 +17,10 @@ const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
 /** The longest break message an admin may write. */
 export const BREAK_MESSAGE_MAX = 600
 
+/** The most made-up members the card allows, and the highest hours-a-day cap. */
+export const SIMULATED_TARGET_MAX = 200
+export const SIMULATED_HOURS_MAX = 6
+
 export const appSettingSchemas = {
   /**
    * Tyler, 8 Oct 2026: "Add in app settings to checkbox shuffling sounds and
@@ -86,6 +90,17 @@ export const appSettingSchemas = {
     newRooms: z.boolean(),
     chat: z.boolean(),
   }),
+  /**
+   * The made-up members (live activity task 01). Tyler, 9 Oct 2026: "We just
+   * need real accounts that mimic live activities." `target` is how many there
+   * should be, `hoursCap` the most any of them focuses in a day, and `paused`
+   * stops the worker starting anything new.
+   */
+  "simulated.accounts": z.object({
+    target: z.number().int().min(0).max(SIMULATED_TARGET_MAX),
+    hoursCap: z.number().int().min(1).max(SIMULATED_HOURS_MAX),
+    paused: z.boolean(),
+  }),
 } as const
 
 export type AppSettingKey = keyof typeof appSettingSchemas
@@ -108,6 +123,10 @@ export const APP_SETTING_DEFAULTS: {
   // Today's CHAT_LIMIT in rooms.ts, so nothing changes until an admin says so.
   "chat.speed": { messagesPerMinute: 20 },
   "safety.pause": { newRooms: false, chat: false },
+  // Tyler, 9 Oct 2026: forty to start, the busiest never over three hours a
+  // day so a real member can reach the top. Nothing is made until an admin
+  // presses Make them now.
+  "simulated.accounts": { target: 40, hoursCap: 3, paused: false },
   "timer.newAccount": {
     focusMinutes: 25,
     shortBreakMinutes: 5,
@@ -194,4 +213,5 @@ export const POMODORO_SETTINGS_TABS = {
   chat: "pomodoro-chat",
   breaks: "pomodoro-breaks",
   pixabay: "pomodoro-pixabay",
+  madeUpMembers: "pomodoro-made-up-members",
 } as const

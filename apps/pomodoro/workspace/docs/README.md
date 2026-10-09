@@ -119,6 +119,9 @@ cover this one.
 - [Members in the admin](admin-members.md) — the window a member's name opens
   on any admin list, fixing a broken streak day without touching hours or the
   leaderboard, and the private admin notes.
+- [Made-up members](made-up-members.md) — the accounts that focus every day
+  so the site never looks empty: the Settings tab, their working day, the
+  worker, their history, and the mark only the admin sees.
 - [Your own backgrounds and sounds](own-media-uploads.md) — what a Pro member
   may upload, the FFmpeg re-encode, and where the files live.
 - [AI backgrounds and soundscapes](ai-generation.md) — the prompt box, the

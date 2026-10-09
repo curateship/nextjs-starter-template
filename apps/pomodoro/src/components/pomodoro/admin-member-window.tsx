@@ -41,7 +41,7 @@ import { FormDialog } from "@/components/ui/form-dialog"
 import { Input } from "@/components/ui/input"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { Textarea } from "@/components/ui/textarea"
-import { useMemberWindowLink } from "@/components/pomodoro/admin-member-name"
+import { MadeUpMark, useIsMadeUp, useMemberWindowLink } from "@/components/pomodoro/admin-member-name"
 import { useSafetyActions } from "@/components/pomodoro/admin-safety-dialogs"
 import {
   addPomodoroMemberNote,
@@ -84,6 +84,7 @@ function MemberDialog({ userId, onClose }: { userId: string | null; onClose: () 
   const [editing, setEditing] = React.useState<{ id: string; body: string } | null>(null)
   const editingNote = editing ? data?.notes.find((note) => note.id === editing.id) : null
   const noteDirty = draft.trim() !== "" || (editing !== null && editing.body !== editingNote?.body)
+  const madeUp = useIsMadeUp(userId)
 
   const reload = React.useCallback(async () => {
     if (!userId) return
@@ -153,7 +154,10 @@ function MemberDialog({ userId, onClose }: { userId: string | null; onClose: () 
                   </AvatarFallback>
                 </Avatar>
                 <div className="grid min-w-0 gap-1">
-                  <DialogTitle className="truncate">{person?.name ?? "Member"}</DialogTitle>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <DialogTitle className="truncate">{person?.name ?? "Member"}</DialogTitle>
+                    {madeUp ? <MadeUpMark /> : null}
+                  </div>
                   <DialogDescription className="truncate">
                     {person
                       ? [person.handle ? `@${person.handle}` : null, person.email].filter(Boolean).join(" · ")

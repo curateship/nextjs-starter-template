@@ -12,6 +12,7 @@ import {
 } from "@/server/pomodoro/front-page-rows"
 import { listedProfilePaths } from "@/server/pomodoro/public-profile"
 import { runStreakReminderPass } from "@/server/pomodoro/streak-reminder"
+import { runSimulatedPass } from "@/server/pomodoro/simulated-accounts"
 
 /**
  * What this app changes about the shell, on the server side.
@@ -88,6 +89,17 @@ export const appServerOptions: AppServerOptions = {
         name: "pomodoro-room-clock",
         tick: async () => {
           await advanceDueRooms()
+        },
+      },
+      {
+        // The made-up members' working day (live activity task 01). Once a
+        // minute it finishes their sessions that are up and starts the ones
+        // their day says are due; while Make them now is going it makes up to
+        // ten accounts every tick. Accounts are claimed with SKIP LOCKED, so
+        // two copies never start two sessions for one account.
+        name: "pomodoro-simulated-days",
+        tick: async () => {
+          await runSimulatedPass()
         },
       },
       {

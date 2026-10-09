@@ -1,5 +1,5 @@
 import * as React from "react"
-import { PlusIcon, Trash2Icon } from "lucide-react"
+import { Loader2Icon, PlusIcon, Trash2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -22,6 +22,7 @@ import { CollapsibleSettingsCard } from "@/components/settings/collapsible-setti
 import { SettingsSwitchRow } from "@/components/settings/settings-switch-row"
 import { useReportedSaveStatus } from "@/components/settings/use-reported-save-status"
 import { SafetyPauseLine } from "@/components/pomodoro/admin-safety-banner"
+import { forgetMadeUpIds } from "@/components/pomodoro/admin-member-name"
 import {
   getAppSettingsErrorMessage,
   loadPomodoroSettings,
@@ -34,7 +35,16 @@ import {
   type PixabayKeyStatus,
 } from "@/lib/api/pomodoro/admin-pixabay"
 import {
+  getSimulatedErrorMessage,
+  loadSimulatedMembers,
+  makeSimulatedMembersNow,
+  removeAllSimulatedMembers,
+  type SimulatedStatus,
+} from "@/lib/api/pomodoro/admin-simulated"
+import {
   BREAK_MESSAGE_MAX,
+  SIMULATED_HOURS_MAX,
+  SIMULATED_TARGET_MAX,
   seasonsProblem,
   type AppSettingKey,
   type AppSettingValue,
@@ -74,6 +84,7 @@ const SAVE_DELAY_MS = 700
  */
 let held: Loaded | null = null
 let heldPixabay: PixabayKeyStatus | null = null
+let heldMadeUp: SimulatedStatus | null = null
 
 const inBrowser = () => typeof window !== "undefined"
 
@@ -162,6 +173,14 @@ export function PixabaySettingsTab() {
     <CardGroup>
       <PixabayCard />
     </CardGroup>
+  )
+}
+
+export function MadeUpMembersSettingsTab() {
+  return (
+    <SettingsTab>
+      {({ settings }) => <MadeUpMembersCard initial={settings["simulated.accounts"]} />}
+    </SettingsTab>
   )
 }
 
@@ -1146,6 +1165,186 @@ function PixabayCard() {
         confirmLabel="Remove key"
         loading={removeBusy}
         onConfirm={() => void remove()}
+      />
+    </CollapsibleSettingsCard>
+  )
+}
+
+/** How often the card reads the count again while Make them now is going. */
+const MAKING_POLL_MS = 3_000
+
+/**
+ * The made-up members (live activity task 01). Tyler, 9 Oct 2026: "We just
+ * need real accounts that mimic live activities." How many, Hours a day and
+ * Pause everything save themselves like every setting; Make them now and
+ * Remove all are actions, and only Remove all asks first. See
+ * `workspace/docs/made-up-members.md`.
+ */
+function MadeUpMembersCard({ initial }: { initial: AppSettingValue<"simulated.accounts"> }) {
+  const [dial, setDial] = React.useState(initial)
+  const [status, setShownStatus] = React.useState<SimulatedStatus | null>(() =>
+    inBrowser() ? heldMadeUp : null
+  )
+  const setStatus = (next: SimulatedStatus) => {
+    heldMadeUp = next
+    setShownStatus(next)
+  }
+  const [loadError, setLoadError] = React.useState<string | null>(null)
+  const [reloads, setReloads] = React.useState(0)
+  const [makeBusy, setMakeBusy] = React.useState(false)
+  const [removing, setRemoving] = React.useState(false)
+  const [removeBusy, setRemoveBusy] = React.useState(false)
+  const save = useSettingSave()
+  const pauseId = React.useId()
+  const making = status?.making ?? false
+
+  // Read on open, and every few seconds while a batch is being made so the
+  // count climbs on screen.
+  React.useEffect(() => {
+    let live = true
+    const read = () =>
+      loadSimulatedMembers().then(
+        (next) => {
+          heldMadeUp = next
+          if (!live) return
+          setShownStatus(next)
+          setLoadError(null)
+        },
+        (error) => {
+          if (live && !heldMadeUp) setLoadError(getSimulatedErrorMessage(error))
+        }
+      )
+    void read()
+    const timer = making ? setInterval(read, MAKING_POLL_MS) : null
+    return () => {
+      live = false
+      if (timer) clearInterval(timer)
+    }
+  }, [reloads, making])
+
+  // Whether a typed number may not be stored yet when Make them now is pressed.
+  const typed = React.useRef(false)
+  const change = (patch: Partial<typeof dial>, typing: boolean) => {
+    const next = { ...dial, ...patch }
+    setDial(next)
+    typed.current ||= typing
+    if (typing) save.soon("simulated.accounts", next)
+    else void save.now("simulated.accounts", next)
+  }
+
+  const makeNow = async () => {
+    setMakeBusy(true)
+    try {
+      // A number just typed is stored first, so the batch aims at it.
+      if (typed.current) {
+        typed.current = false
+        if (!(await save.now("simulated.accounts", dial))) return
+      }
+      const result = await makeSimulatedMembersNow()
+      setStatus(result)
+      if (result.queued)
+        toast.success(`Making ${result.target - result.made} made-up members. It takes about a minute.`)
+      else toast.success(`All ${result.target} are made already. Raise How many to make more.`)
+    } catch (error) {
+      showErrorToast(getSimulatedErrorMessage(error))
+    } finally {
+      setMakeBusy(false)
+    }
+  }
+
+  const removeAll = async () => {
+    setRemoveBusy(true)
+    try {
+      const { removed } = await removeAllSimulatedMembers()
+      forgetMadeUpIds()
+      setRemoving(false)
+      toast.success(`Removed ${removed} made-up member${removed === 1 ? "" : "s"}.`)
+      setReloads((count) => count + 1)
+    } catch (error) {
+      showErrorToast(getSimulatedErrorMessage(error))
+    } finally {
+      setRemoveBusy(false)
+    }
+  }
+
+  return (
+    <CollapsibleSettingsCard
+      storageId="pomodoro-made-up-members"
+      title="Made-up members"
+      description="Ordinary-looking accounts that focus every day on a habit of their own, so the site never looks empty. Nobody can sign in as one and none is ever emailed. Admin lists mark them Made up; members never see the mark."
+      contentClassName="grid gap-4"
+    >
+      {loadError ? (
+        <ErrorRow message={loadError} onRetry={() => setReloads((count) => count + 1)} />
+      ) : !status ? (
+        <LoadingRow label="Counting made-up members…" />
+      ) : (
+        <p className="flex items-center gap-2 text-sm" role="status">
+          {making ? <Loader2Icon className="size-4 animate-spin" aria-hidden /> : null}
+          {making
+            ? `${status.made} of ${status.target} made`
+            : `${status.made} made${status.focusingNow ? `, ${status.focusingNow} focusing now` : ""}`}
+        </p>
+      )}
+      <div className="flex flex-wrap gap-4">
+        <NumberField
+          id="made-up-target"
+          label="How many"
+          hint="Below this, a new one arrives every three to five days. Lowering it never removes anybody."
+          value={dial.target}
+          min={0}
+          max={SIMULATED_TARGET_MAX}
+          onChange={(target) => change({ target }, true)}
+          onCommit={() => save.flush("simulated.accounts")}
+        />
+        <NumberField
+          id="made-up-hours"
+          label="Hours a day"
+          hint="The most any of them focuses in one day. At three, a real member who works hard can still reach the top."
+          value={dial.hoursCap}
+          min={1}
+          max={SIMULATED_HOURS_MAX}
+          onChange={(hoursCap) => change({ hoursCap }, true)}
+          onCommit={() => save.flush("simulated.accounts")}
+        />
+      </div>
+      <SettingsSwitchRow
+        id={pauseId}
+        checked={dial.paused}
+        onCheckedChange={(paused) => change({ paused }, false)}
+        label="Pause everything: no new sessions start and no new faces arrive"
+        hint="Sessions already running finish. Make them now still works."
+      />
+      <div className="flex flex-wrap items-center gap-2">
+        <Button type="button" disabled={makeBusy} onClick={() => void makeNow()}>
+          {makeBusy ? <Loader2Icon className="size-4 animate-spin" aria-hidden /> : null}
+          Make them now
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={removeBusy}
+          onClick={() => {
+            if (status && status.made === 0) toast.success("There are no made-up members to remove.")
+            else setRemoving(true)
+          }}
+        >
+          Remove all
+        </Button>
+      </div>
+      <p className="text-sm text-muted-foreground">
+        A new account can take up to five minutes to show on /users.
+      </p>
+      <ConfirmDialog
+        open={removing}
+        onOpenChange={(open) => {
+          if (!open) setRemoving(false)
+        }}
+        title="Remove all made-up members?"
+        description={`Removes ${status?.made ?? "the"} made-up accounts and everything they did. Real members are untouched.`}
+        confirmLabel="Remove all"
+        loading={removeBusy}
+        onConfirm={() => void removeAll()}
       />
     </CollapsibleSettingsCard>
   )

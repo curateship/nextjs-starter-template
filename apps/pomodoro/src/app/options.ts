@@ -248,6 +248,11 @@ export const appOptions: AppOptions = {
         label: "Pixabay",
         panel: () => settingsTab("PixabaySettingsTab"),
       },
+      {
+        id: POMODORO_SETTINGS_TABS.madeUpMembers,
+        label: "Made-up members",
+        panel: () => settingsTab("MadeUpMembersSettingsTab"),
+      },
     ],
   },
   notifications: {

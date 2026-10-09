@@ -81,7 +81,17 @@ const saveFn = createServerFn({ method: "POST" })
       const look = value as z.infer<(typeof appSettingSchemas)["break.look"]>
       assertFreePair(await loadMediaCatalog(), { sound: null, background: look.background })
     }
-    const saved = await saveAppSetting({ key: data.key, value, actorUserId: context.user.id })
+    // Flipping the made-up members' pause is its own line in the audit log.
+    const pauseFlipped =
+      data.key === "simulated.accounts" &&
+      (value as { paused: boolean }).paused !==
+        (await loadAppSettings())["simulated.accounts"].paused
+    const saved = await saveAppSetting({
+      key: data.key,
+      value,
+      actorUserId: context.user.id,
+      ...(pauseFlipped ? { action: "simulated_pause", resource: "simulated" } : {}),
+    })
     // Every open room reads itself again, so its message box says chat is
     // paused, or opens again, without anybody reloading.
     if (data.key === "safety.pause") await nudgeRooms(await liveRoomIds(), "message")
