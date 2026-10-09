@@ -1,11 +1,10 @@
 import * as React from "react"
 
-import type { BackgroundReference } from "@/lib/pomodoro/background-catalog"
+import {
+  DEFAULT_SCENE_FILES,
+  type BackgroundReference,
+} from "@/lib/pomodoro/background-catalog"
 import { usePrefersReducedMotion } from "@/lib/pomodoro/use-reduced-motion"
-
-/** The lofi scene is the only built-in one that is a film rather than a photo. */
-const LOFI_VIDEO = "/backgrounds/uploads-265816_small.mp4"
-const LOFI_STILL = "/backgrounds/thumbs-lofi_girl.png"
 
 const MEDIA_CLASS = "absolute inset-0 size-full object-cover"
 
@@ -45,35 +44,20 @@ export function SceneBackdrop({
   return (
     <>
       {background.type === "scene" ? (
-        background.key === "lofi" ? (
-          // The lofi film's own first frame ships as a file, so falling back to
-          // it is the scene held still rather than a black rectangle. Asking
-          // the background store for the default would do nothing at all here:
-          // lofi *is* the default, and the store ignores a fallback to the
-          // scene already showing.
-          stillOnly || brokenVideo === LOFI_VIDEO ? (
-            <img
-              className={MEDIA_CLASS}
-              src={LOFI_STILL}
-              alt=""
-              onError={onMediaError}
-            />
-          ) : (
-            <SceneVideo
-              src={LOFI_VIDEO}
-              poster={LOFI_STILL}
-              still={false}
-              onFailed={() => setBrokenVideo(LOFI_VIDEO)}
-            />
-          )
-        ) : (
-          <img
-            className={MEDIA_CLASS}
-            src={`/backgrounds/thumbs-${background.key}.png`}
-            alt=""
-            onError={onMediaError}
-          />
-        )
+        <CatalogScene
+          // A scene read before its files were filled in can only be the
+          // default, which always has its own.
+          stillUrl={background.stillUrl ?? DEFAULT_SCENE_FILES.stillUrl}
+          videoUrl={
+            background.stillUrl
+              ? (background.videoUrl ?? null)
+              : DEFAULT_SCENE_FILES.videoUrl
+          }
+          stillOnly={stillOnly}
+          brokenVideo={brokenVideo}
+          onVideoFailed={setBrokenVideo}
+          onMediaError={onMediaError}
+        />
       ) : background.mediaKind === "video" ? (
         // An upload has no separate still to show, so the film itself is held
         // on its first frame: loaded far enough to paint, never started. The
@@ -167,6 +151,49 @@ function SceneVideo({
       ref={(element) => {
         if (element?.error) onFailed()
       }}
+    />
+  )
+}
+
+/**
+ * A catalogue scene: its film looping behind the page, or its still. A film
+ * that will not play, or anybody who asked for less movement, gets the still,
+ * which every theme has, so the hero is a picture rather than a black
+ * rectangle. Only a still that will not load asks the store to fall back.
+ */
+function CatalogScene({
+  stillUrl,
+  videoUrl,
+  stillOnly,
+  brokenVideo,
+  onVideoFailed,
+  onMediaError,
+}: {
+  stillUrl: string
+  videoUrl: string | null
+  stillOnly: boolean
+  brokenVideo: string | null
+  onVideoFailed: (src: string) => void
+  onMediaError: () => void
+}) {
+  if (!videoUrl || stillOnly || brokenVideo === videoUrl) {
+    return (
+      <img
+        key={stillUrl}
+        className={MEDIA_CLASS}
+        src={stillUrl}
+        alt=""
+        onError={onMediaError}
+      />
+    )
+  }
+  return (
+    <SceneVideo
+      key={videoUrl}
+      src={videoUrl}
+      poster={stillUrl}
+      still={false}
+      onFailed={() => onVideoFailed(videoUrl)}
     />
   )
 }

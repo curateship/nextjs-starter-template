@@ -67,6 +67,71 @@ export async function transcodeUpload(
   }
 }
 
+/**
+ * How long a sound or film runs, in seconds, read by FFprobe, which ships in
+ * the same package as FFmpeg. Used to hold catalogue sounds to 2 to 5 minutes.
+ */
+export async function probeDurationSeconds(input: Uint8Array) {
+  const folder = await mkdtemp(path.join(tmpdir(), "pomodoro-probe-"))
+  const inputPath = path.join(folder, "in.media")
+  try {
+    await writeFile(inputPath, input)
+    const { stdout } = await run(
+      "ffprobe",
+      [
+        "-v",
+        "error",
+        "-show_entries",
+        "format=duration",
+        "-of",
+        "default=noprint_wrappers=1:nokey=1",
+        inputPath,
+      ],
+      { timeout: FFMPEG_TIMEOUT_MS, maxBuffer: 1024 * 1024 }
+    )
+    const seconds = Number.parseFloat(String(stdout).trim())
+    if (!Number.isFinite(seconds) || seconds <= 0)
+      throw new Error("The file's length could not be read.")
+    return seconds
+  } catch (error) {
+    if (isMissingBinary(error)) {
+      throw new FfmpegMissingError(
+        "FFprobe is not installed on this machine, so sounds cannot be measured."
+      )
+    }
+    throw error
+  } finally {
+    await rm(folder, { recursive: true, force: true })
+  }
+}
+
+/** A film's first frame as a JPEG, for a theme that was given no still. */
+export async function extractFirstFrame(input: Uint8Array) {
+  const folder = await mkdtemp(path.join(tmpdir(), "pomodoro-frame-"))
+  const inputPath = path.join(folder, "in.mp4")
+  const outputPath = path.join(folder, "frame.jpg")
+  try {
+    await writeFile(inputPath, input)
+    await run(
+      "ffmpeg",
+      ["-y", "-i", inputPath, "-frames:v", "1", "-q:v", "3", outputPath],
+      { timeout: FFMPEG_TIMEOUT_MS, maxBuffer: 1024 * 1024 }
+    )
+    const bytes = new Uint8Array(await readFile(outputPath))
+    if (!bytes.byteLength) throw new Error("FFmpeg produced an empty frame.")
+    return bytes
+  } catch (error) {
+    if (isMissingBinary(error)) {
+      throw new FfmpegMissingError(
+        "FFmpeg is not installed on this machine, so uploads cannot be re-encoded."
+      )
+    }
+    throw error
+  } finally {
+    await rm(folder, { recursive: true, force: true })
+  }
+}
+
 function ffmpegArgs(
   kind: "audio" | "video",
   inputPath: string,

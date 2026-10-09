@@ -37,6 +37,8 @@ export const appOpenEndpoints: Record<string, string> = {
     "The /users directory is a public page listing the members who switched on a second opt-in asking to be listed. It answers a page of chosen names, pictures and one headline figure, carries no user id and no email, and a profile that is switched on but not listed never appears in it.",
   "pomodoro/profile-reports.ts:reportFn":
     "A public profile is read by strangers with no account, so the Report button beside it has to work without one. It writes a reason from a fixed list into the operator queue, answers the same way whatever happens, and is limited by address rather than by account.",
+  "pomodoro/personal-room.ts:loadGuestMediaFn":
+    "A guest's page draws a theme and lists the sounds before anybody signs in, so it needs the Live themes and sounds. It answers only what every member can already see on the Theme and Sounds pages, and a random free pair, with no account and nothing personal in it.",
   "pomodoro/public-profile.ts:readYearInReviewFn":
     "The year recap at /u/<handle>/<year> is the same public page one year at a time, and it is read by strangers following a shared link. It sums figures its owner already published by switching the figures on, names nobody else and carries no user id.",
 }

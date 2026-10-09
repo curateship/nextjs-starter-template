@@ -16,6 +16,7 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 import { contentColumn } from "@/lib/pomodoro/content-column"
 import { planCardFeatures } from "@/lib/pomodoro/plan-card-features"
+import { useMediaCatalog } from "@/lib/pomodoro/room-media-store"
 
 /**
  * The plans screen, inside the product shell, drawn to Tyler's design of
@@ -234,7 +235,8 @@ function PriceCard({
     !free &&
     billingEnabled &&
     (interval === "yearly" ? plan.canCheckoutYearly : plan.canCheckoutMonthly)
-  const features = planCardFeatures(plan.features, free)
+  const catalog = useMediaCatalog()
+  const features = planCardFeatures(catalog, plan.features, free)
 
   const yearlyCents = plan.priceYearlyCents
   const monthlyCents = plan.priceMonthlyCents

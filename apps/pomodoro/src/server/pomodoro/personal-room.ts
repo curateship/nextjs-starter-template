@@ -7,13 +7,35 @@ import {
   resolveUploadUrl,
 } from "@/server/pomodoro/media-uploads"
 import { findActiveRoomMedia } from "@/server/pomodoro/rooms"
+import { loadAppSettings } from "@/server/pomodoro/app-settings"
+import { loadMediaCatalog } from "@/server/pomodoro/catalog"
 import { pomodoroPersonalRooms } from "@/server/pomodoro/schema"
-import {
-  curatedBackgrounds,
-  parseBackgroundReference,
-} from "@/lib/pomodoro/background-catalog"
-import { curatedSounds, parseSoundReference } from "@/lib/pomodoro/sound-catalog"
-import type { MediaBootstrap } from "@/lib/pomodoro/media-pair"
+import { parseBackgroundReference } from "@/lib/pomodoro/background-catalog"
+import { findSound, findTheme } from "@/lib/pomodoro/catalog"
+import { parseSoundReference } from "@/lib/pomodoro/sound-catalog"
+import { defaultPairOn } from "@/lib/pomodoro/app-settings"
+import { firstPicks, type MediaBootstrap } from "@/lib/pomodoro/media-pair"
+import { MAX_CHOICE_LENGTH, parseMediaPool, serializeMediaPool } from "@/lib/pomodoro/media-pool"
+
+/**
+ * The admin's pair for somebody who has not picked: shuffle when the switch is
+ * on, otherwise today's default sound and theme (a season's when one covers
+ * today). Today is the server's UTC day, which is near enough for a season
+ * measured in weeks.
+ */
+export async function loadUnsetPair(now = new Date()) {
+  const settings = await loadAppSettings()
+  const defaults = defaultPairOn(
+    settings["media.defaults"],
+    settings["media.seasons"],
+    now.toISOString().slice(0, 10)
+  )
+  return {
+    shuffle: settings["media.shuffleUnset"],
+    defaults,
+    timer: settings["timer.newAccount"],
+  }
+}
 
 /**
  * The personal room: one per account, holding its sound and theme. See
@@ -54,11 +76,27 @@ export async function loadOrCreatePersonalRoom(
  * the hosted room this account is in, if any.
  */
 export async function loadMediaBootstrap(userId: string): Promise<MediaBootstrap> {
-  const [personal, room, entitlements] = await Promise.all([
+  const [personal, room, entitlements, catalog, unset] = await Promise.all([
     loadOrCreatePersonalRoom(userId),
     findActiveRoomMedia(userId),
     loadPomodoroEntitlements(userId),
+    loadMediaCatalog(),
+    loadUnsetPair(),
   ])
+  // Somebody who never picked gets the admin's pair. A member who chose
+  // silence saved `none`, which is not "never picked". A default an admin
+  // has since made Pro or Draft is left out for anybody who cannot play it.
+  const allowed = (stored: string | null, list: { key: string; locked: boolean }[], prefix: string) =>
+    stored &&
+    list.some((item) => `${prefix}${item.key}` === stored && (entitlements.canUsePremiumMedia || !item.locked))
+      ? stored
+      : null
+  const sound =
+    personal.sound ?? (unset.shuffle ? "shuffle" : allowed(unset.defaults.sound, catalog.sounds, "curated:"))
+  const background =
+    personal.background ??
+    (unset.shuffle ? "shuffle" : allowed(unset.defaults.background, catalog.themes, "scene:"))
+  const shown = room ?? { sound, background }
   // An upload is served from the bucket, so its address is resolved here. One
   // that is gone, not finished or not theirs comes back with no address, and
   // the page falls back to the default scene or to silence.
@@ -69,10 +107,19 @@ export async function loadMediaBootstrap(userId: string): Promise<MediaBootstrap
     sceneRef?.type === "media" ? resolveUploadUrl(userId, sceneRef.mediaId) : null,
   ])
   return {
+    catalog,
+    fallbackBackground: unset.defaults.background,
+    picks: firstPicks(
+      catalog,
+      shown.sound,
+      shown.background,
+      entitlements.canUsePremiumMedia
+    ),
+    guestTimer: null,
     personal: {
-      sound: personal.sound,
+      sound,
       soundUrl: soundUpload?.url ?? null,
-      background: personal.background,
+      background,
       backgroundUrl: sceneUpload?.url ?? null,
       backgroundKind: sceneUpload
         ? sceneUpload.kind === "video"
@@ -91,11 +138,21 @@ export async function loadMediaBootstrap(userId: string): Promise<MediaBootstrap
  * to be this person's own and finished.
  */
 export async function savePersonalSound(userId: string, sound: string | null) {
-  const reference = sound === null ? null : parseSoundReference(sound)
-  if (sound !== null && !reference) throw new Error("UNKNOWN_SOUND")
+  // Silence is saved as `none`, so it is told apart from never having picked.
+  if (sound === null || sound === "none")
+    return writePersonalRoom(userId, { sound: "none" })
+  const soundPool = parseMediaPool(sound)
+  if (soundPool) {
+    if (sound.length > MAX_CHOICE_LENGTH) throw new Error("UNKNOWN_SOUND")
+    return writePersonalRoom(userId, { sound: serializeMediaPool(soundPool) })
+  }
+  const reference = parseSoundReference(sound)
+  if (!reference) throw new Error("UNKNOWN_SOUND")
   if (reference?.type === "curated") {
-    const entry = curatedSounds.find((candidate) => candidate.key === reference.key)
-    if (entry?.locked) await assertPremiumMedia(userId)
+    // A Draft or deleted sound is not in the catalogue, so it cannot be picked.
+    const entry = findSound(await loadMediaCatalog(), reference.key)
+    if (!entry) throw new Error("UNKNOWN_SOUND")
+    if (entry.locked) await assertPremiumMedia(userId)
   }
   if (reference?.type === "media")
     await assertUploadUsable(userId, reference.mediaId, "sound")
@@ -110,13 +167,17 @@ export async function savePersonalBackground(
   userId: string,
   background: string | null
 ) {
+  const backgroundPool = background === null ? null : parseMediaPool(background)
+  if (backgroundPool) {
+    if (background!.length > MAX_CHOICE_LENGTH) throw new Error("UNKNOWN_BACKGROUND")
+    return writePersonalRoom(userId, { background: serializeMediaPool(backgroundPool) })
+  }
   const reference = background === null ? null : parseBackgroundReference(background)
   if (background !== null && !reference) throw new Error("UNKNOWN_BACKGROUND")
   if (reference?.type === "scene") {
-    const entry = curatedBackgrounds.find(
-      (candidate) => candidate.key === reference.key
-    )
-    if (entry?.locked) await assertPremiumMedia(userId)
+    const entry = findTheme(await loadMediaCatalog(), reference.key)
+    if (!entry) throw new Error("UNKNOWN_BACKGROUND")
+    if (entry.locked) await assertPremiumMedia(userId)
   }
   if (reference?.type === "media")
     await assertUploadUsable(userId, reference.mediaId, "background")

@@ -23,6 +23,8 @@ type ReportsSearch = {
   sort?: (typeof REPORT_SORT_COLUMNS)[number]
   direction?: "asc" | "desc"
   page?: number
+  /** Reports by or about one person, from a count on a report row. */
+  person?: string
 }
 
 /** The list's own state, so Back returns the exact list you left. */
@@ -33,6 +35,7 @@ function readReportsSearch(search: Record<string, unknown>): ReportsSearch {
     sort: readOneOf(search.sort, REPORT_SORT_COLUMNS),
     direction: readDirection(search.direction),
     page: readPage(search.page),
+    person: readSearchText(search.person),
   }
 }
 
@@ -46,6 +49,7 @@ export const Route = createFileRoute("/_authenticated/admin/pomodoro-reports")({
       sort: search.sort ?? "created",
       direction: search.direction ?? "desc",
       page: search.page ?? 1,
+      person: search.person,
     })
   },
   component: AdminPomodoroReportsRoute,

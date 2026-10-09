@@ -1,8 +1,18 @@
 # Sounds
 
-Eight ambient loops on `/sounds` — Lofi beats, Rain, Café ambience and Brown
-noise free; Forest birds, Ocean waves, Fireplace and Soft piano for Pro —
-with the player itself in the header, where it survives page changes.
+The Live sounds from the catalogue on `/sounds`, free and Pro, in the order an
+admin set, with the player itself in the header, where it survives page
+changes. An admin adds and edits them on the Sounds admin page; see
+[Themes and sounds in the admin](catalog-admin.md). Eight shipped with the app:
+Lofi beats, Rain, Café ambience and Brown noise free; Forest birds, Ocean
+waves, Fireplace and Soft piano for Pro.
+
+- **Two tabs, By tag first and Pick one second**, and a Shuffle switch beside
+  them. See [Shuffle and tags](shuffle-and-tags.md).
+- **A sound added in the last 14 days shows NEW** beside its name, in the
+  same orange capitals as PRO. The days count from when it first went Live.
+- **A sound plays at its starting volume** times the member's own, so a loud
+  track an admin turned down starts quieter.
 
 ## The page
 

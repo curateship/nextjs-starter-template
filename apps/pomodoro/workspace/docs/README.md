@@ -63,13 +63,13 @@ cover this one.
 - [The personal room](personal-room.md) — every account's own room holding
   its sound and theme, a hosted room's pair replacing it while you are in
   one, a guest's random pair, and previewing before adding.
-- [Sounds](sounds.md) — the eight ambient loops, the header player that
+- [Sounds](sounds.md) — the Live catalogue sounds, the header player that
   survives navigation, the sleep timer and the completion chime.
 - [The break card](break-card.md) — the short and long break checklists under
   the timer and in a room.
 - [The dark mode shade](dark-mode-shade.md) — the four steps from near black
   to soft grey in Settings → Appearance, which greys move and which stay.
-- [Backgrounds](backgrounds.md) — the eight scenes and the backdrop every
+- [Backgrounds](backgrounds.md) — the Live catalogue scenes and the backdrop every
   member screen draws behind its content.
 - [Focus history](history.md) — the four-range report as Tyler drew it: the
   strip, By day, This week, the hour-of-day chart, top tasks and projects,
@@ -99,8 +99,20 @@ cover this one.
 - [Room chat and moderation](room-chat-and-moderation.md) — talking in a
   room, the five reactions, reporting a message, and the host's delete,
   remove and ban.
-- [Admin sections](admin-sections.md) — the eight operator pages under
-  `/admin`: focus data, tasks, sessions, rooms, media, the report queue,
+- [Shuffle and tags](shuffle-and-tags.md) — the By tag tab, the Shuffle
+  switch, how the next sound and theme are picked when a sound ends, and a host
+  shuffling a room.
+- [Admin safety tools](admin-safety-tools.md) — the Chat and Bans pages,
+  warnings, suspensions, blocked words, the pause switches and STAFF.
+- [Rooms in the admin](rooms-admin.md) — closing, editing and featuring
+  rooms, invitations, house presets and room limits.
+- [Admin settings](admin-settings.md) — the Pomoder settings page: shuffle for
+  guests, the default theme and sound, seasons and the new-account timer.
+- [Themes and sounds in the admin](catalog-admin.md) — the catalogue in the
+  database, the Themes and Sounds dashboards, the window, the 2-to-5-minute
+  rule, uploads and the worker, and what members fall back to.
+- [Admin sections](admin-sections.md) — the nine operator pages under
+  `/admin`: focus data, tasks, sessions, rooms, themes, sounds, the report queue,
   weekly rooms and repeating tasks, and what each delete takes with it.
 - [Your own backgrounds and sounds](own-media-uploads.md) — what a Pro member
   may upload, the FFmpeg re-encode, and where the files live.

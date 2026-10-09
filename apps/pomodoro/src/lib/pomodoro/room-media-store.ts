@@ -9,51 +9,88 @@ import { productAuth, subscribeProductAuth } from "@/lib/pomodoro/auth-state"
 import {
   DEFAULT_BACKGROUND,
   parseBackgroundReference,
+  resolveBackgroundReference,
   sameBackgroundReference,
   serializeBackgroundReference,
   type BackgroundReference,
 } from "@/lib/pomodoro/background-catalog"
+import { EMPTY_CATALOG, type MediaCatalog } from "@/lib/pomodoro/catalog"
 import {
   guestMediaBootstrap,
   type MediaBootstrap,
   type RoomMedia,
 } from "@/lib/pomodoro/media-pair"
 import {
+  parseMediaPool,
+  pickFromPool,
+  poolSounds,
+  poolThemes,
+  serializeMediaPool,
+  type MediaPool,
+} from "@/lib/pomodoro/media-pool"
+import {
   parseSoundReference,
+  resolveSoundReference,
   sameSoundReference,
   serializeSoundReference,
   type SoundReference,
 } from "@/lib/pomodoro/sound-catalog"
-import { followSound } from "@/lib/pomodoro/sound-engine"
+import { followSound, onSoundCycleEnding } from "@/lib/pomodoro/sound-engine"
 
 /**
  * Which sound and theme are on screen, as a module-level store. See
- * `workspace/docs/personal-room.md`.
+ * `workspace/docs/personal-room.md` and `workspace/docs/shuffle-and-tags.md`.
  *
  * Every page draws the pair of the room you are in. That is your personal
  * room, unless you are in somebody's hosted room, and then it is the pair the
  * host picked, for as long as you stay. A room never writes over your
  * personal pair, so leaving puts yours straight back.
  *
- * A guest has no personal room. The page's loader picks a random free pair on
- * every visit, and anything a guest picks lasts until the next one.
+ * Either half of a pair can be a group instead of one item: shuffle, or some
+ * tags. The store then holds what is playing now as well as the group, and
+ * picks the next one from the group when the sound is about to end (Tyler,
+ * 8 Oct 2026). Each device picks for itself.
+ *
+ * A guest has no personal room. The page's loader picks a pair on every visit,
+ * and anything a guest picks lasts until the next one.
  */
 
-type HostedRoom = Omit<RoomMedia, "sound" | "background"> & {
+type Side = {
+  /** The item playing or drawn now. */
   sound: SoundReference | null
   background: BackgroundReference
+  /** The group it was picked from, when the choice is a group. */
+  soundPool: MediaPool | null
+  backgroundPool: MediaPool | null
 }
 
+type HostedRoom = Omit<RoomMedia, "sound" | "background"> &
+  Side & {
+    /** The room's stored pair, to tell a real change from a re-read. */
+    stored: { sound: string | null; background: string | null }
+  }
+
 type Snapshot = {
-  personalBackground: BackgroundReference
-  personalSound: SoundReference | null
+  /** The Live themes and sounds, as the loader read them. */
+  catalog: MediaCatalog
+  /** What a gone pick falls back to: the admin's default theme, or Lofi girl. */
+  fallbackBackground: BackgroundReference
+  personal: Side
   room: HostedRoom | null
   canUsePremiumMedia: boolean
 }
 
+const EMPTY_SIDE: Side = {
+  sound: null,
+  background: DEFAULT_BACKGROUND,
+  soundPool: null,
+  backgroundPool: null,
+}
+
 let state: Snapshot = {
-  personalBackground: DEFAULT_BACKGROUND,
-  personalSound: null,
+  catalog: EMPTY_CATALOG,
+  fallbackBackground: DEFAULT_BACKGROUND,
+  personal: EMPTY_SIDE,
   room: null,
   canUsePremiumMedia: false,
 }
@@ -65,37 +102,119 @@ function emit() {
   for (const listener of listeners) listener()
 }
 
-/** The sound the player should hold: the hosted room's, or your own. */
-function effectiveSound(current: Snapshot) {
-  return current.room ? current.room.sound : current.personalSound
+/** The side whose pair is on screen: the hosted room's, or yours. */
+function shownSide(current: Snapshot): Side {
+  return current.room ?? current.personal
 }
 
 function setState(next: Partial<Snapshot>, soundChange: "pick" | "room" = "pick") {
-  const before = effectiveSound(state)
+  const before = shownSide(state).sound
   state = { ...state, ...next }
   emit()
-  const after = effectiveSound(state)
+  const after = shownSide(state).sound
   if (!sameSoundReference(before, after)) followSound(after, soundChange)
 }
 
-function hostedRoomFrom(room: RoomMedia): HostedRoom {
+type Pick = { catalog: MediaCatalog; canUsePremium: boolean; fallback: BackgroundReference }
+
+/** One sound from a stored choice: the item, or one from its group. */
+function soundFrom(
+  stored: string | null,
+  pick: string | null,
+  context: Pick,
+  avoidKey: string | null = null
+): { sound: SoundReference | null; soundPool: MediaPool | null } {
+  const pool = parseMediaPool(stored)
+  if (!pool)
+    return {
+      sound: resolveSoundReference(context.catalog, parseSoundReference(stored)),
+      soundPool: null,
+    }
+  const fromServer = resolveSoundReference(context.catalog, parseSoundReference(pick))
+  const item = fromServer
+    ? null
+    : pickFromPool(poolSounds(context.catalog, pool, context.canUsePremium), Math.random, avoidKey)
+  return {
+    sound:
+      fromServer ??
+      (item ? resolveSoundReference(context.catalog, { type: "curated", key: item.key }) : null),
+    soundPool: pool,
+  }
+}
+
+/** One theme from a stored choice: the item, one from its group, or the fallback. */
+function backgroundFrom(
+  stored: string | null,
+  pick: string | null,
+  context: Pick,
+  avoidKey: string | null = null
+): { background: BackgroundReference; backgroundPool: MediaPool | null } {
+  const pool = parseMediaPool(stored)
+  if (!pool)
+    return {
+      background:
+        resolveBackgroundReference(context.catalog, parseBackgroundReference(stored)) ??
+        context.fallback,
+      backgroundPool: null,
+    }
+  const fromServer = resolveBackgroundReference(
+    context.catalog,
+    parseBackgroundReference(pick)
+  )
+  const item = fromServer
+    ? null
+    : pickFromPool(poolThemes(context.catalog, pool, context.canUsePremium), Math.random, avoidKey)
+  return {
+    background:
+      fromServer ??
+      (item
+        ? resolveBackgroundReference(context.catalog, { type: "scene", key: item.key })
+        : null) ??
+      context.fallback,
+    backgroundPool: pool,
+  }
+}
+
+/**
+ * A hosted room's pair, with files from the catalogue. A room made before
+ * rooms had a pair, or one whose scene has since gone Draft or been deleted,
+ * draws the fallback scene; a sound that went the same way is silence.
+ */
+function hostedRoomFrom(
+  room: RoomMedia,
+  context: Pick,
+  picks: { sound: string | null; background: string | null } = { sound: null, background: null }
+): HostedRoom {
   return {
     ...room,
-    sound: parseSoundReference(room.sound),
-    // A room made before rooms had a pair draws the default scene.
-    background: parseBackgroundReference(room.background) ?? DEFAULT_BACKGROUND,
+    stored: { sound: room.sound, background: room.background },
+    ...soundFrom(room.sound, picks.sound, context),
+    ...backgroundFrom(room.background, picks.background, context),
   }
 }
 
 /** The store's value for what a loader read. */
 function snapshotFrom(bootstrap: MediaBootstrap): Snapshot {
-  const { personal } = bootstrap
-  const scene = parseBackgroundReference(personal.background)
-  const sound = parseSoundReference(personal.sound)
+  const { personal, catalog } = bootstrap
+  const fallback =
+    resolveBackgroundReference(
+      catalog,
+      parseBackgroundReference(bootstrap.fallbackBackground)
+    ) ?? DEFAULT_BACKGROUND
+  const context: Pick = {
+    catalog,
+    canUsePremium: bootstrap.canUsePremiumMedia === true,
+    fallback,
+  }
+  // The server's first pick belongs to whichever pair is on screen.
+  const personalPicks = bootstrap.room ? { sound: null, background: null } : bootstrap.picks
+  const soundSide = soundFrom(personal.sound, personalPicks.sound, context)
+  const sceneSide = backgroundFrom(personal.background, personalPicks.background, context)
   // An upload the server would not resolve — deleted, still being prepared,
   // or not theirs — falls back to the default scene or to silence rather than
   // leaving a blank screen or a player with nothing to play.
-  const background: BackgroundReference | null =
+  const scene = parseBackgroundReference(personal.background)
+  const background: BackgroundReference =
     scene?.type === "media"
       ? personal.backgroundUrl
         ? {
@@ -103,19 +222,34 @@ function snapshotFrom(bootstrap: MediaBootstrap): Snapshot {
             mediaUrl: personal.backgroundUrl,
             mediaKind: personal.backgroundKind === "video" ? "video" : "image",
           }
-        : null
-      : scene
+        : fallback
+      : sceneSide.background
+  const sound = parseSoundReference(personal.sound)
   const personalSound: SoundReference | null =
     sound?.type === "media"
       ? personal.soundUrl
         ? { ...sound, mediaUrl: personal.soundUrl }
         : null
-      : sound
+      : soundSide.sound
   return {
-    personalBackground: background ?? DEFAULT_BACKGROUND,
-    personalSound,
-    room: bootstrap.room ? hostedRoomFrom(bootstrap.room) : null,
-    canUsePremiumMedia: bootstrap.canUsePremiumMedia === true,
+    catalog,
+    fallbackBackground: fallback,
+    personal: {
+      sound: personalSound,
+      soundPool: soundSide.soundPool,
+      background,
+      backgroundPool: sceneSide.backgroundPool,
+    },
+    room: bootstrap.room ? hostedRoomFrom(bootstrap.room, context, bootstrap.picks) : null,
+    canUsePremiumMedia: context.canUsePremium,
+  }
+}
+
+function contextNow(): Pick {
+  return {
+    catalog: state.catalog,
+    canUsePremium: state.canUsePremiumMedia,
+    fallback: state.fallbackBackground,
   }
 }
 
@@ -128,7 +262,7 @@ function primeRoomMedia(bootstrap: MediaBootstrap) {
   if (typeof window === "undefined" || primed || loading) return
   state = snapshotFrom(bootstrap)
   primed = true
-  followSound(effectiveSound(state), "prime")
+  followSound(shownSide(state).sound, "prime")
 }
 
 /**
@@ -146,7 +280,7 @@ function ensureRoomMedia() {
   if (typeof window === "undefined" || primed || loading) return
   if (!productAuth().known) return
   if (!productAuth().authenticated) {
-    setState({ ...snapshotFrom(guestMediaBootstrap()) }, "room")
+    setState({ ...snapshotFrom(guestMediaBootstrap(state.catalog)) }, "room")
     primed = true
     return
   }
@@ -183,18 +317,19 @@ export function enterHostedRoom(room: {
   sound: string | null
   background: string | null
 }) {
-  const next = hostedRoomFrom(room)
   const current = state.room
+  // The same room re-read keeps what it is playing, group or not, so a room
+  // snapshot every few seconds never reshuffles the pair.
   if (
     current &&
-    current.slug === next.slug &&
-    current.role === next.role &&
-    current.name === next.name &&
-    sameSoundReference(current.sound, next.sound) &&
-    sameBackgroundReference(current.background, next.background)
+    current.slug === room.slug &&
+    current.role === room.role &&
+    current.name === room.name &&
+    current.stored.sound === room.sound &&
+    current.stored.background === room.background
   )
     return
-  setState({ room: next }, "room")
+  setState({ room: hostedRoomFrom(room, contextNow()) }, "room")
 }
 
 /** Back to your personal room: you left, the room closed, or you were removed. */
@@ -203,50 +338,123 @@ export function leaveHostedRoom() {
   setState({ room: null }, "room")
 }
 
+function setPersonal(next: Partial<Side>) {
+  setState({ personal: { ...state.personal, ...next } })
+}
+
 /**
  * Puts a theme in your personal room. Saved for a member; for a guest it
  * lasts until the next visit. Resolves once the save has landed, so the
  * page can say so, and throws the server's refusal otherwise.
  */
 export async function addBackgroundToPersonalRoom(reference: BackgroundReference) {
-  const previous = state.personalBackground
-  setState({ personalBackground: reference })
+  const previous = state.personal
+  setPersonal({ background: reference, backgroundPool: null })
   if (!productAuth().authenticated) return
   try {
     await savePersonalRoomBackground(serializeBackgroundReference(reference))
   } catch (error) {
-    setState({ personalBackground: previous })
-    throw error
-  }
-}
-
-/** Puts a sound in your personal room, or silence for null. The same rules. */
-export async function addSoundToPersonalRoom(reference: SoundReference | null) {
-  const previous = state.personalSound
-  setState({ personalSound: reference })
-  if (!productAuth().authenticated) return
-  try {
-    await savePersonalRoomSound(serializeSoundReference(reference))
-  } catch (error) {
-    setState({ personalSound: previous })
+    setState({ personal: previous })
     throw error
   }
 }
 
 /**
- * A theme whose file failed to load. A hosted room's
- * scene is a catalogue picture, so its failure only draws the default here.
- * Your own room's theme falls back to the default and saves that, so a
- * deleted upload cannot leave a black screen on every visit.
+ * Puts a sound in your personal room, or silence for null. The same rules.
+ * Silence is saved as `none`, so an admin's default for people who never
+ * picked does not replace it.
+ */
+export async function addSoundToPersonalRoom(reference: SoundReference | null) {
+  const previous = state.personal
+  setPersonal({ sound: reference, soundPool: null })
+  if (!productAuth().authenticated) return
+  try {
+    await savePersonalRoomSound(serializeSoundReference(reference) ?? "none")
+  } catch (error) {
+    setState({ personal: previous })
+    throw error
+  }
+}
+
+/**
+ * Puts a group in your personal room: shuffle, or some tags. Something from
+ * it starts at once, and the next one comes when the sound ends.
+ */
+export async function addSoundPoolToPersonalRoom(pool: MediaPool) {
+  const previous = state.personal
+  setPersonal(soundFrom(serializeMediaPool(pool), null, contextNow()))
+  if (!productAuth().authenticated) return
+  try {
+    await savePersonalRoomSound(serializeMediaPool(pool))
+  } catch (error) {
+    setState({ personal: previous })
+    throw error
+  }
+}
+
+export async function addBackgroundPoolToPersonalRoom(pool: MediaPool) {
+  const previous = state.personal
+  setPersonal(backgroundFrom(serializeMediaPool(pool), null, contextNow()))
+  if (!productAuth().authenticated) return
+  try {
+    await savePersonalRoomBackground(serializeMediaPool(pool))
+  } catch (error) {
+    setState({ personal: previous })
+    throw error
+  }
+}
+
+/**
+ * The next item of every group on screen: a new sound when the sound is a
+ * group, a new theme when the theme is, at the same moment. Called when the
+ * playing sound is about to end, and by the header's next button.
+ */
+export function playNextFromPools() {
+  const side = shownSide(state)
+  if (!side.soundPool && !side.backgroundPool) return
+  const context = contextNow()
+  const next: Partial<Side> = {}
+  if (side.soundPool) {
+    const currentKey = side.sound?.type === "curated" ? side.sound.key : null
+    Object.assign(
+      next,
+      soundFrom(serializeMediaPool(side.soundPool), null, context, currentKey)
+    )
+  }
+  if (side.backgroundPool) {
+    const currentKey = side.background.type === "scene" ? side.background.key : null
+    Object.assign(
+      next,
+      backgroundFrom(serializeMediaPool(side.backgroundPool), null, context, currentKey)
+    )
+  }
+  if (state.room) setState({ room: { ...state.room, ...next } }, "room")
+  else setState({ personal: { ...state.personal, ...next } }, "room")
+}
+
+/**
+ * A theme whose file failed to load. A hosted room's scene only draws the
+ * fallback here. Your own room's theme falls back to the admin's default (or
+ * Lofi girl) and saves that, so a deleted upload cannot leave a black screen
+ * on every visit. A group keeps its group and just draws the fallback.
  */
 export function fallBackToDefaultBackground() {
+  // The admin's default itself would not load: Lofi girl, which ships with the
+  // app, is the last word.
+  const fallback = sameBackgroundReference(shownSide(state).background, state.fallbackBackground)
+    ? DEFAULT_BACKGROUND
+    : state.fallbackBackground
   if (state.room) {
-    if (!sameBackgroundReference(state.room.background, DEFAULT_BACKGROUND))
-      setState({ room: { ...state.room, background: DEFAULT_BACKGROUND } }, "room")
+    if (!sameBackgroundReference(state.room.background, fallback))
+      setState({ room: { ...state.room, background: fallback } }, "room")
     return
   }
-  if (sameBackgroundReference(state.personalBackground, DEFAULT_BACKGROUND)) return
-  void addBackgroundToPersonalRoom(DEFAULT_BACKGROUND).catch(() => undefined)
+  if (sameBackgroundReference(state.personal.background, fallback)) return
+  if (state.personal.backgroundPool) {
+    setPersonal({ background: fallback })
+    return
+  }
+  void addBackgroundToPersonalRoom(fallback).catch(() => undefined)
 }
 
 /**
@@ -280,24 +488,47 @@ export function useRoomMedia(seed?: MediaBootstrap | null) {
   React.useEffect(() => {
     ensureRoomMedia()
   }, [])
+  const shown = shownSide(snapshot)
   return {
-    ...snapshot,
+    catalog: snapshot.catalog,
+    canUsePremiumMedia: snapshot.canUsePremiumMedia,
+    room: snapshot.room,
+    personalSound: snapshot.personal.sound,
+    personalBackground: snapshot.personal.background,
+    personalSoundPool: snapshot.personal.soundPool,
+    personalBackgroundPool: snapshot.personal.backgroundPool,
     /** What is drawn behind the page: the hosted room's theme, or yours. */
-    background: snapshot.room?.background ?? snapshot.personalBackground,
+    background: shown.background,
     /** The sound the player holds: the hosted room's, or yours. */
-    sound: effectiveSound(snapshot),
+    sound: shown.sound,
+    /** The groups on screen, when the pair is shuffle or tags. */
+    soundPool: shown.soundPool,
+    backgroundPool: shown.backgroundPool,
     fallBackToDefault: fallBackToDefaultBackground,
   }
 }
+
+/**
+ * The Live themes and sounds, for a page that lists them or names one. It is
+ * the list the page's own loader read, so the server and the browser draw the
+ * same cards.
+ */
+export function useMediaCatalog() {
+  return useRoomMedia().catalog
+}
+
 
 // Signing in, out, or as somebody else swaps whose pair this is. The first
 // time the layout says who is here is not a swap: the loader's answer was
 // already for that person, and a guest's random pair must not be re-rolled.
 let authKnown = false
-if (typeof window !== "undefined")
+if (typeof window !== "undefined") {
   subscribeProductAuth(() => {
     const firstAnswer = !authKnown
     authKnown = true
     if (!(firstAnswer && primed)) primed = false
     ensureRoomMedia()
   })
+  // The sound is about to end: the next of each group on screen.
+  onSoundCycleEnding(playNextFromPools)
+}

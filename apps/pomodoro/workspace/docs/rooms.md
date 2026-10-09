@@ -89,8 +89,11 @@ is not logged in, that should link to the login page."
 - **A room has its own sound and theme, and both are required.** Tyler, 7 Oct
   2026: "User must select sound and theme." Nothing is picked to start with,
   and Create room stays pressable: pressing it with a pick missing names the
-  missing one and marks its field. The picks are the eight loops and the
-  eight scenes, never an upload. Everyone in the room gets the pair; see
+  missing one and marks its field. The picks are the Live sounds and scenes
+  in the catalogue, shuffle, or one tag, never an upload. House presets an
+  admin keeps come first in the Rhythm picker, and a featured room sits first
+  on Browse rooms; see [Rooms in the admin](rooms-admin.md). A host may shuffle
+  the room (Tyler, 8 Oct 2026); each device then picks for itself. Everyone in the room gets the pair; see
   [The personal room](personal-room.md).
 - **A Rhythm picker fills the timers in one pick.** It lists the three
   built-in presets and your own, from the same list as Settings → Timer, and

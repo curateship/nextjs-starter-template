@@ -6,6 +6,7 @@ import {
   PauseIcon,
   PlayIcon,
   PowerIcon,
+  SkipForwardIcon,
   Volume2Icon,
   VolumeXIcon,
 } from "lucide-react"
@@ -31,6 +32,7 @@ import {
 import { useSoundPlayer } from "@/lib/pomodoro/use-sound-player"
 import {
   addSoundToPersonalRoom,
+  playNextFromPools,
   useRoomMedia,
 } from "@/lib/pomodoro/room-media-store"
 import { showErrorToast } from "@/lib/toast/error-toast"
@@ -74,6 +76,7 @@ export default function SoundPlayerHeader() {
         <>
           <PlayPauseButton player={player} />
           <SoundName player={player} />
+          <NextButton />
           <MuteButton player={player} />
           <VolumeSlider player={player} className="w-20" />
           <SleepTimerControl player={player} />
@@ -110,6 +113,7 @@ function CollapsedPlayer({ player }: { player: Player }) {
         <div className="flex items-center gap-1.5">
           <PlayPauseButton player={player} />
           <SoundName player={player} />
+          <NextButton />
           <StopButton />
         </div>
         <div className="flex items-center gap-1.5">
@@ -162,6 +166,25 @@ function PlayPauseButton({ player }: { player: Player }) {
       }
     >
       <PlayerStatusIcon player={player} />
+    </Button>
+  )
+}
+
+/**
+ * The next sound from a shuffle or tags choice, and the next theme with it
+ * when the theme is a group too. Only drawn while the sound is a group.
+ */
+function NextButton() {
+  const { soundPool } = useRoomMedia()
+  if (!soundPool) return null
+  return (
+    <Button
+      variant="ghost"
+      size="icon-sm"
+      onClick={playNextFromPools}
+      aria-label="Next sound"
+    >
+      <SkipForwardIcon aria-hidden="true" />
     </Button>
   )
 }

@@ -33,10 +33,11 @@ import { useProductAuth } from "@/lib/pomodoro/auth-state"
 import { usePomodoro } from "@/lib/pomodoro/use-pomodoro"
 import { cn } from "@/lib/utils"
 import { contentColumn } from "@/lib/pomodoro/content-column"
-import { sceneFor, soundLabelFor } from "@/lib/pomodoro/media-pair"
+import { soundLabelFor, themeLabelFor } from "@/lib/pomodoro/media-pair"
 import {
   enterHostedRoom,
   leaveHostedRoom,
+  useMediaCatalog,
 } from "@/lib/pomodoro/room-media-store"
 import { followRoomRunning } from "@/lib/pomodoro/sound-engine"
 import { usePageVisible } from "@/lib/pomodoro/use-page-visible"
@@ -618,6 +619,8 @@ export function ActiveRoomPanel({
         <RoomChatPanel
           slug={room.slug}
           messages={messages}
+          pinned={snapshot.pinned ?? []}
+          chatPaused={snapshot.chatPaused ?? false}
           timezone={you.timezone}
           isHost={isHost}
           busy={pending !== ""}
@@ -864,8 +867,9 @@ function RoomPairText({
   background: string | null
   isHost: boolean
 }) {
-  const soundName = soundLabelFor(sound) ?? "No sound"
-  const sceneName = sceneFor(background)?.label ?? "Lofi girl"
+  const catalog = useMediaCatalog()
+  const soundName = soundLabelFor(catalog, sound) ?? "No sound"
+  const sceneName = themeLabelFor(catalog, background) ?? "Lofi girl"
   if (!isHost)
     return (
       <span>

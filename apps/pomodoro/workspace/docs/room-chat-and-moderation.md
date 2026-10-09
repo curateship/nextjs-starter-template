@@ -7,8 +7,16 @@ delete a message, remove a person or ban them.
 ## Chat
 
 - **A message is 500 characters at most**, and one person may send twenty a
-  minute in a room. Both limits are the server's; the box also stops at 500
-  so nobody types past the edge.
+  minute in a room until an admin changes the number on the Pomoder settings
+  page. Both limits are the server's; the box also stops at 500 so nobody
+  types past the edge.
+- **An admin's blocked words** either hold a message for review, where only
+  its writer sees it, marked "Only you can see this until it is checked", or
+  turn the word into stars. **"Pause all chat"** stops every room's chat. See
+  [Admin safety tools](admin-safety-tools.md).
+- **STAFF** marks an active admin beside their name, in the people list and
+  on their messages, worked out from their role on every read. A line the
+  team sends to every live room is pinned above the chat, signed Pomoder.
 - **Only people in the room can chat.** Membership is checked before the rate
   limit, so somebody who holds the room's link but never joined cannot spend
   a member's twenty. Closing a room ends every membership, so a closed room
@@ -17,7 +25,9 @@ delete a message, remove a person or ban them.
   the error toast, so nothing typed is lost.
 - **Nothing is drawn from a guess.** The server saves the message, notifies
   the room's channel, and the SSE snapshot redraws the list for everyone at
-  once. The last hundred messages are what a snapshot carries.
+  once. The newest hundred messages are what a snapshot carries. Until
+  8 Oct 2026 it carried the first hundred, so a long room stopped showing
+  new lines.
 - **No day lines.** The chat used to draw a line with the day ("Tue, Oct 6,
   2026") wherever the day changed. Tyler removed it on 8 Oct 2026: "remove
   the date". Each message keeps just its time.
@@ -82,10 +92,12 @@ jump to the bottom on every message wherever you were (`room-chat.tsx`).
 
 - **Delete a message.** The body stays in the row for authorized review, and
   everyone in the room sees "Message removed by the host" in its place. The
-  deleted body never reaches another member's browser.
+  deleted body never reaches another member's browser. A message an admin
+  removes shows "Message removed".
 - **Remove a person.** They leave at once and can join again later.
 - **Ban a person.** They leave at once and cannot rejoin. **A ban dies with
-  the room**, so there is no unban tool: close the room and the ban is gone.
+  the room**, so the host has no unban tool: close the room and the ban is
+  gone. An admin can lift one from the Bans page.
 - Every one of these asks for confirmation first, and the host cannot
   moderate themselves.
 - **Removal and bans name a membership, never a user.** Snapshots carry

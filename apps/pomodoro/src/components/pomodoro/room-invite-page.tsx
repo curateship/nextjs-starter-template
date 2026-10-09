@@ -6,6 +6,7 @@ import {
   MusicIcon,
   UsersIcon,
 } from "lucide-react"
+import { roomRefusalSentence } from "@/lib/pomodoro/room-join"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -13,6 +14,7 @@ import { lookupRoom, joinRoom } from "@/lib/api/pomodoro/rooms"
 import { enterRoomFromSnapshot } from "@/components/pomodoro/active-room"
 import { useProductAuth } from "@/lib/pomodoro/auth-state"
 import { sceneFor, soundLabelFor } from "@/lib/pomodoro/media-pair"
+import { useMediaCatalog } from "@/lib/pomodoro/room-media-store"
 import {
   describeWaitUntil,
   formatRoomStart,
@@ -59,13 +61,16 @@ export function RoomInvitePage() {
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : ""
       setError(
-        message.includes("ROOM_LOCKED")
+        roomRefusalSentence(cause) ??
+        (message.includes("ROOM_LOCKED")
           ? "The room just started a focus session. Try again during the break."
           : message.includes("ROOM_CLOSED")
             ? "This room has ended."
             : message.includes("ROOM_BANNED")
               ? "You can't join this room."
-              : "Joining failed. Try again."
+              : message.includes("ROOM_FULL")
+                ? "This room is full."
+                : "Joining failed. Try again.")
       )
       refresh()
       setJoining(false)
@@ -256,14 +261,15 @@ function InvitePair({
   sound: string | null
   background: string | null
 }) {
-  const scene = sceneFor(background)
-  const soundName = soundLabelFor(sound)
+  const catalog = useMediaCatalog()
+  const scene = sceneFor(catalog, background)
+  const soundName = soundLabelFor(catalog, sound)
   if (!scene && !soundName) return null
   return (
     <div className="flex items-center gap-3">
       {scene ? (
         <img
-          src={`/backgrounds/thumbs-${scene.thumb}.png`}
+          src={scene.stillUrl}
           alt=""
           className="h-10 w-16 rounded-md object-cover"
         />

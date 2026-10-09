@@ -9,6 +9,11 @@ import {
   type TableHeaderColumn,
 } from "@/components/shared/sortable-table-header"
 import { getPomodoroAdminErrorMessage } from "@/lib/api/pomodoro/admin"
+import {
+  anyPaused,
+  SafetyPauseLine,
+  useSafetyPauses,
+} from "@/components/pomodoro/admin-safety-banner"
 import type { useSelection } from "@/lib/hooks/use-selection"
 
 /**
@@ -143,9 +148,15 @@ export function AdminListTable<Row, Sort extends string>({
   page,
   onPageChange,
   children,
+  tabs,
+  filters,
 }: {
   title: string
   icon: React.ReactNode
+  /** Named groups in place of the title, as the shell's table draws them. */
+  tabs?: React.ReactNode
+  /** A strip under the toolbar for the filter on, such as one person. */
+  filters?: React.ReactNode
   /** Plural, lower case: "tasks". Used in the empty line. */
   noun: string
   columns: TableHeaderColumn<Sort>[]
@@ -169,11 +180,23 @@ export function AdminListTable<Row, Sort extends string>({
   const selectedOnPage = selection
     ? selection.rowIds.filter((id) => selection.state.selected.has(id))
     : []
+  // A pause switch left on shows in every Pomoder table (admin task 05).
+  const pauses = useSafetyPauses()
+  const paused = anyPaused(pauses)
 
   return (
     <DashboardTable
       title={title}
       icon={icon}
+      tabs={tabs}
+      filters={
+        filters || paused ? (
+          <div className="flex w-full flex-col gap-2">
+            {pauses && paused ? <SafetyPauseLine pauses={pauses} /> : null}
+            {filters}
+          </div>
+        ) : undefined
+      }
       count={list.total}
       busy={list.loading}
       error={

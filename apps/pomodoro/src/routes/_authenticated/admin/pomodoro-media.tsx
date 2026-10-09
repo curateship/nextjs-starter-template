@@ -1,18 +1,11 @@
-import { createFileRoute } from "@tanstack/react-router"
+import { createFileRoute, redirect } from "@tanstack/react-router"
 
-import { AdminMediaDashboard } from "@/components/pomodoro/admin-media-dashboard"
-import { routeErrorComponent } from "@/components/shell/route-error"
-import {
-  getPomodoroAdminErrorMessage,
-  loadPomodoroMediaUsage,
-} from "@/lib/api/pomodoro/admin"
-
+/**
+ * Media became two pages on 8 Oct 2026, Themes and Sounds (admin task 02).
+ * An old link or a saved menu entry still lands somewhere useful.
+ */
 export const Route = createFileRoute("/_authenticated/admin/pomodoro-media")({
-  loader: () => loadPomodoroMediaUsage(),
-  component: AdminPomodoroMediaRoute,
-  errorComponent: routeErrorComponent(getPomodoroAdminErrorMessage),
+  beforeLoad: () => {
+    throw redirect({ to: "/admin/pomodoro-themes", replace: true })
+  },
 })
-
-function AdminPomodoroMediaRoute() {
-  return <AdminMediaDashboard usage={Route.useLoaderData()} />
-}

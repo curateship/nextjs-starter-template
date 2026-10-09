@@ -3,6 +3,7 @@ import type { AppServerOptions } from "@/server/app-options"
 import { advanceDueRooms } from "@/server/pomodoro/rooms"
 import { openDueRooms } from "@/server/pomodoro/scheduled-rooms"
 import { processNextMediaUpload } from "@/server/pomodoro/media-worker"
+import { processNextCatalogFile } from "@/server/pomodoro/catalog-worker"
 import { processNextGeneration } from "@/server/pomodoro/generation-worker"
 import {
   readFocusHoursRow,
@@ -93,6 +94,13 @@ export const appServerOptions: AppServerOptions = {
         // Overlapping passes are harmless: the claim is the update itself.
         name: "pomodoro-media-uploads",
         tick: processNextMediaUpload,
+      },
+      {
+        // An admin's catalogue sounds and theme films: measured, re-encoded
+        // and only then made the item's file. Its own worker so a long film
+        // never holds a member's upload behind it, one file per pass.
+        name: "pomodoro-catalog-files",
+        tick: processNextCatalogFile,
       },
       {
         // AI backgrounds and soundscapes. One per pass, and its own worker

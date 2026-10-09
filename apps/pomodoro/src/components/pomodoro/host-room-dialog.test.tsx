@@ -8,7 +8,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 const api = vi.hoisted(() => ({ createRoom: vi.fn(), listTimerPresets: vi.fn() }))
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn() } }))
-vi.mock("@/lib/api/pomodoro/rooms", () => ({ createRoom: api.createRoom }))
+vi.mock("@/lib/api/pomodoro/rooms", () => ({
+  createRoom: api.createRoom,
+  loadHostingOptions: async () => ({ presets: [], maxInvitesPerRoom: 20 }),
+}))
 vi.mock("@/lib/api/pomodoro/timer-presets", () => ({
   listTimerPresets: api.listTimerPresets,
 }))
@@ -45,6 +48,9 @@ vi.mock("@/components/ui/select", () => ({
 
 import { HostRoomDialog } from "@/components/pomodoro/rooms-page"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { seededCatalog } from "@/lib/pomodoro/catalog-fixture"
+import { guestMediaBootstrap } from "@/lib/pomodoro/media-pair"
+import { MediaBootstrapContext } from "@/lib/pomodoro/room-media-store"
 
 const rhythmPicker = () => {
   const select = [...document.querySelectorAll("select")].find((element) =>
@@ -109,9 +115,12 @@ describe("Host a room's Rhythm picker", () => {
     document.body.appendChild(host)
     await act(async () => {
       createRoot(host).render(
-        <TooltipProvider>
-          <HostRoomDialog open onOpenChange={vi.fn()} onCreated={vi.fn()} onBooked={vi.fn()} />
-        </TooltipProvider>
+        // The pickers list the catalogue the page's loader read.
+        <MediaBootstrapContext.Provider value={guestMediaBootstrap(seededCatalog, () => 0)}>
+          <TooltipProvider>
+            <HostRoomDialog open onOpenChange={vi.fn()} onCreated={vi.fn()} onBooked={vi.fn()} />
+          </TooltipProvider>
+        </MediaBootstrapContext.Provider>
       )
     })
   }

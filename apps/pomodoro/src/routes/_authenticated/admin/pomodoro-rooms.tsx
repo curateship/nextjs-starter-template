@@ -12,6 +12,7 @@ import {
   readPage,
   readSearchText,
 } from "@/lib/nav/list-search"
+import { readOpenSearch } from "@/lib/hooks/use-open-from-link"
 import {
   ROOM_PHASE_FILTERS,
   ROOM_SORT_COLUMNS,
@@ -19,6 +20,7 @@ import {
 } from "@/lib/pomodoro/admin-lists"
 
 type RoomsSearch = {
+  open?: string
   q?: string
   phase?: (typeof ROOM_PHASE_FILTERS)[number]
   visibility?: (typeof ROOM_VISIBILITY_FILTERS)[number]
@@ -30,6 +32,7 @@ type RoomsSearch = {
 /** The list's own state, so Back returns the exact list you left. */
 function readRoomsSearch(search: Record<string, unknown>): RoomsSearch {
   return {
+    ...readOpenSearch(search),
     q: readSearchText(search.q),
     phase: readOneOf(search.phase, ROOM_PHASE_FILTERS),
     visibility: readOneOf(search.visibility, ROOM_VISIBILITY_FILTERS),
@@ -41,8 +44,9 @@ function readRoomsSearch(search: Record<string, unknown>): RoomsSearch {
 
 export const Route = createFileRoute("/_authenticated/admin/pomodoro-rooms")({
   validateSearch: readRoomsSearch,
-  loader: ({ location }) => {
-    const search = readRoomsSearch(location.search as Record<string, unknown>)
+  // Opening the window is not a new list.
+  loaderDeps: ({ search }) => ({ ...search, open: undefined }),
+  loader: ({ deps: search }) => {
     return loadPomodoroRoomsPage({
       search: search.q ?? "",
       phase: search.phase ?? "all",

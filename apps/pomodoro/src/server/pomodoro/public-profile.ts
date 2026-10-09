@@ -1,10 +1,10 @@
 import { and, count, desc, eq, gt, gte, inArray, isNull, lte, sql } from "drizzle-orm"
 
 import {
-  curatedBackgrounds,
   parseBackgroundReference,
   serializeBackgroundReference,
 } from "@/lib/pomodoro/background-catalog"
+import { findTheme } from "@/lib/pomodoro/catalog"
 import { findAchievement } from "@/lib/pomodoro/achievements"
 import {
   USER_SEARCH_MAX_LENGTH,
@@ -27,6 +27,7 @@ import {
 import { db } from "@/server/db"
 import { loadOrCreateProfile } from "@/server/pomodoro/profile"
 import { getPublicMediaUrl } from "@/server/media/storage"
+import { loadMediaCatalog } from "@/server/pomodoro/catalog"
 import { requirePomodoroPerk } from "@/server/pomodoro/entitlements"
 import { completedFocusWithin, localDateStartInstant } from "@/server/pomodoro/focus-report"
 import {
@@ -196,7 +197,7 @@ async function readProfileRow(handle: string) {
 /**
  * The banner's address, or null.
  *
- * A scene resolves to its own picture in `public/backgrounds`. An upload
+ * A scene resolves to its still from the catalogue. An upload
  * resolves only when it belongs to this account and has finished processing,
  * so a banner pointing at a deleted upload falls back to no banner rather
  * than a broken picture.
@@ -205,8 +206,9 @@ async function resolveBannerUrl(userId: string, bannerRef: string | null) {
   const reference = parseBackgroundReference(bannerRef)
   if (!reference) return null
   if (reference.type === "scene") {
-    const scene = curatedBackgrounds.find((item) => item.key === reference.key)
-    return scene ? `/backgrounds/thumbs-${scene.thumb}.png` : null
+    // A scene that went Draft or was deleted leaves no banner rather than a
+    // broken picture, the same as a deleted upload.
+    return findTheme(await loadMediaCatalog(), reference.key)?.stillUrl ?? null
   }
 
   const [row] = await db
@@ -849,6 +851,8 @@ export async function saveMyPublicProfile(
   // works. `requirePomodoroPerk` throws UPGRADE_REQUIRED:uploadMedia.
   if (banner?.type === "media")
     await requirePomodoroPerk(userId, "uploadMedia")
+  if (banner?.type === "scene" && !findTheme(await loadMediaCatalog(), banner.key))
+    throw new Error("UNKNOWN_BACKGROUND")
 
   const [previous] = await db
     .select({ handle: pomodoroProfiles.handle })

@@ -35,7 +35,6 @@ import {
   roomReports,
   rooms,
   tasks,
-  pomodoroPersonalRooms,
 } from "@/server/pomodoro/schema"
 import { customShellUsers as users } from "@/server/schema"
 import type {
@@ -62,7 +61,8 @@ import type {
  * What the operator pages under /admin read.
  *
  * Every list here is read-only except `reviewRoomReports`, which moves a
- * report's standing. The deletes live in `admin-deletes.ts`, apart from the
+ * report's standing. Themes and sounds have their own file,
+ * `admin-catalog.ts`. The deletes live in `admin-deletes.ts`, apart from the
  * reads, because each one also puts right what the deleted rows fed into.
  *
  * Paging is always server-side with a hard page-size ceiling, so a hand-edited
@@ -337,6 +337,7 @@ export async function listAdminRooms(
         phase: rooms.phase,
         createdAt: rooms.createdAt,
         closedAt: rooms.closedAt,
+        featuredAt: rooms.featuredAt,
         hostName: users.name,
         hostEmail: users.email,
         memberCount,
@@ -358,59 +359,6 @@ export async function listAdminRooms(
 }
 
 // ---------------------------------------------------------------------------
-// Media: which scenes and loops people are actually using
-// ---------------------------------------------------------------------------
-
-export type AdminMediaUsage = {
-  backgrounds: Record<string, number>
-  sounds: Record<string, number>
-}
-
-/**
- * How many personal rooms have each scene and each loop right now.
- *
- * The catalogue itself is eight scenes and eight loops fixed in code
- * (`src/lib/pomodoro/background-catalog.ts` and `sound-catalog.ts`), so there
- * is nothing in a table to list. What the database does know is who picked
- * what, which is the part an operator cannot work out from the code.
- *
- * Stored values are `scene:<key>` and `curated:<key>`; an upload is
- * `media:<uuid>` and is counted under the key `media`.
- */
-export async function loadAdminMediaUsage(): Promise<AdminMediaUsage> {
-  const [backgroundRows, soundRows] = await Promise.all([
-    db
-      .select({
-        value: pomodoroPersonalRooms.background,
-        total: count(),
-      })
-      .from(pomodoroPersonalRooms)
-      .groupBy(pomodoroPersonalRooms.background),
-    db
-      .select({ value: pomodoroPersonalRooms.sound, total: count() })
-      .from(pomodoroPersonalRooms)
-      .groupBy(pomodoroPersonalRooms.sound),
-  ])
-
-  return {
-    backgrounds: tallyByKey(backgroundRows),
-    sounds: tallyByKey(soundRows),
-  }
-}
-
-function tallyByKey(rows: { value: string | null; total: number }[]) {
-  const tally: Record<string, number> = {}
-  for (const row of rows) {
-    if (!row.value) continue
-    const [type, key] = row.value.split(":")
-    const bucket = type === "media" ? "media" : (key ?? "")
-    if (!bucket) continue
-    tally[bucket] = (tally[bucket] ?? 0) + row.total
-  }
-  return tally
-}
-
-// ---------------------------------------------------------------------------
 // Room reports: the one section with actions
 // ---------------------------------------------------------------------------
 
@@ -419,6 +367,8 @@ export async function listAdminReports(
     search: string
     status: (typeof REPORT_STATUS_FILTERS)[number]
     sort: ReportSortColumn
+    /** Only reports by or about this person (admin task 05). */
+    person?: string
   }
 ) {
   // Three different people can appear on one report — whoever reported it,
@@ -447,7 +397,31 @@ export async function listAdminReports(
     if (match) filters.push(match)
   }
   if (query.status !== "all") filters.push(eq(roomReports.status, query.status))
+  if (query.person) {
+    const match = or(
+      eq(roomReports.reporterUserId, query.person),
+      eq(roomReports.profileUserId, query.person),
+      eq(author.id, query.person)
+    )
+    if (match) filters.push(match)
+  }
   const where = filters.length ? and(...filters) : undefined
+
+  // Who the report is about: the message's writer, or the profile's owner.
+  const subjectId = sql<string | null>`coalesce(${author.id}, ${roomReports.profileUserId})`
+  // Admin task 05: how often that person was reported before this report,
+  // and how this reporter's earlier reports went. Earlier only, so the
+  // counts on an old report read as they would have on the day.
+  const subjectPriorReports = sql<number>`(
+    select count(*)::int from room_reports prior
+    left join room_messages prior_message on prior_message.id = prior.message_id
+    where coalesce(prior_message.user_id, prior.profile_user_id) = ${subjectId}
+      and prior.created_at < ${roomReports.createdAt})`
+  const reporterPast = (onlyDismissed: boolean) => sql<number>`(
+    select count(*)::int from room_reports prior
+    where prior.reporter_user_id = ${roomReports.reporterUserId}
+      and prior.created_at < ${roomReports.createdAt}
+      ${onlyDismissed ? sql`and prior.status = 'dismissed'` : sql``})`
 
   const { limit, offset } = pageSlice(query)
   const direction = ordered(query.direction)
@@ -481,6 +455,13 @@ export async function listAdminReports(
         reportedName: reported.name,
         reportedHandle: pomodoroProfiles.handle,
         reportedHiddenAt: pomodoroProfiles.hiddenAt,
+        messageRemovedBy: roomMessages.removedBy,
+        reporterUserId: roomReports.reporterUserId,
+        subjectUserId: subjectId,
+        subjectName: sql<string | null>`coalesce(${author.name}, ${reported.name})`,
+        subjectPriorReports,
+        reporterPastReports: reporterPast(false),
+        reporterPastDismissed: reporterPast(true),
       })
       .from(roomReports)
       // Left joins throughout: a profile report has no room, and a report
@@ -510,6 +491,8 @@ export async function listAdminReports(
         pomodoroProfiles,
         eq(pomodoroProfiles.userId, roomReports.profileUserId)
       )
+      .leftJoin(roomMessages, eq(roomMessages.id, roomReports.messageId))
+      .leftJoin(author, eq(author.id, roomMessages.userId))
       .where(where),
   ])
 
@@ -659,6 +642,7 @@ export async function listAdminRoomRepeats(
         timezone: pomodoroRoomRepeats.timezone,
         nextStartsAt: pomodoroRoomRepeats.nextStartsAt,
         cancelledAt: pomodoroRoomRepeats.cancelledAt,
+        featured: pomodoroRoomRepeats.featured,
         createdAt: pomodoroRoomRepeats.createdAt,
         hostName: users.name,
         hostEmail: users.email,

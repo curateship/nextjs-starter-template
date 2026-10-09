@@ -33,8 +33,14 @@ Then it is the pair the host picked, until you leave.
   never appears on the Rooms page.
 - **It is what `/` and `/timer` show** when you are in no hosted room: the
   timer (`HomeRoom` in `src/components/pomodoro/home-room.tsx`).
-- **A null sound is silence, and a null theme is the default scene**, Lofi
-  girl. "Turn sound off" in the header's player saves silence.
+- **Silence is saved as `none`.** "Turn sound off" in the header's player
+  saves it. An empty sound or theme means the member never picked, and gets the
+  admin's pair: shuffle when that switch is on, otherwise the default sound and
+  theme, otherwise silence and Lofi girl. See [Admin settings](admin-settings.md).
+  Silence was saved as empty before 8 Oct 2026, so those rows now count as never
+  picked.
+- **A sound or theme can be a group**, shuffle or some tags; see
+  [Shuffle and tags](shuffle-and-tags.md).
 - **The old columns stay.** `user_preferences.selected_sound` and
   `selected_background` are no longer written. They are kept because stored
   fields are never renamed or removed.
@@ -100,7 +106,7 @@ Then it is the pair the host picked, until you leave.
 ## A hosted room takes catalogue items only
 
 Host a room asks for a sound and a theme, and both are required. They come
-from the eight loops and the eight scenes. A host's own uploads are left out,
+from the Live sounds and scenes in the catalogue. A host's own uploads are left out,
 because an upload is served from a public address and anyone who joins would
 see or hear it (`roomPairProblem` in `src/lib/pomodoro/media-pair.ts`). Whether
 an unlisted room may use one is still Tyler's to decide.

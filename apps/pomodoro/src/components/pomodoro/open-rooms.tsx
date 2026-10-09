@@ -51,7 +51,7 @@ export function OpenRoomsSection({
         Open to join
       </h3>
       <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        {rooms.map(({ room, hostName, memberCount }) => (
+        {rooms.map(({ room, hostName, memberCount, featured }) => (
           <OpenRoomCard
             key={room.id}
             roomId={room.id}
@@ -63,6 +63,7 @@ export function OpenRoomsSection({
             phaseEndsAt={room.phaseEndsAt}
             memberCount={memberCount}
             nextFocusMinutes={room.focusMinutes}
+            featured={featured}
             joinButton={
               <Button
                 className="h-11 rounded-full bg-black px-6 text-base text-white hover:bg-black/80 dark:hover:bg-black/80"

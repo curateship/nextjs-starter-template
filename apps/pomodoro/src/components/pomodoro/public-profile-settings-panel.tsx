@@ -28,7 +28,7 @@ import {
 } from "@/lib/api/pomodoro/public-profile"
 import { ACHIEVEMENTS, findAchievement } from "@/lib/pomodoro/achievements"
 import { browserTimezone } from "@/lib/pomodoro/timer"
-import { curatedBackgrounds } from "@/lib/pomodoro/background-catalog"
+import { useMediaCatalog } from "@/lib/pomodoro/room-media-store"
 import {
   BANNER_UPLOAD_LOCKED_REASON,
   BIO_MAX_LENGTH,
@@ -659,6 +659,7 @@ function BannerField({
   canUpload: boolean
   onChange: (value: string | null) => void
 }) {
+  const catalog = useMediaCatalog()
   return (
     <section className="grid grid-cols-1 gap-2">
       <FieldLabel hint="A strip behind your name. Your page looks finished without one, so None is the default.">
@@ -670,12 +671,12 @@ function BannerField({
           label="None"
           onSelect={() => onChange(null)}
         />
-        {curatedBackgrounds.map((scene) => (
+        {catalog.themes.map((scene) => (
           <BannerChoice
             key={scene.key}
             selected={value === `scene:${scene.key}`}
             label={scene.label}
-            thumbUrl={`/backgrounds/thumbs-${scene.thumb}.png`}
+            thumbUrl={scene.stillUrl}
             onSelect={() => onChange(`scene:${scene.key}`)}
           />
         ))}

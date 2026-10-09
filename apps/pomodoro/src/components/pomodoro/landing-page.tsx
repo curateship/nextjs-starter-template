@@ -16,10 +16,7 @@ import type { AccountMenuUser } from "@/components/pomodoro/account-menu"
 import type { HeaderBell } from "@/components/pomodoro/pomodoro-shell"
 import { definePublicPage } from "@/lib/app-options"
 import type { AccountMenuFacts } from "@/lib/api/pomodoro/profile"
-import {
-  guestMediaBootstrap,
-  type MediaBootstrap,
-} from "@/lib/pomodoro/media-pair"
+import type { MediaBootstrap } from "@/lib/pomodoro/media-pair"
 
 /**
  * The front page is the timer itself, exactly like the old app: a visitor
@@ -55,10 +52,15 @@ export const pomodoroLandingPage = definePublicPage<LandingData>({
       live: settings?.liveNotifications ?? true,
     }
     // Tyler, 7 Oct 2026: a guest's front page gets a random sound and theme.
-    // Picked here, in the loader, so the server draws the same pair the
-    // browser then holds, and nothing swaps on the first frame.
-    if (!user)
-      return { user: null, accountMenu: null, media: guestMediaBootstrap(), bell }
+    // Picked by the server, in the loader, so the server draws the same pair
+    // the browser then holds, and nothing swaps on the first frame.
+    if (!user) {
+      const { loadGuestMediaBootstrap } = await import(
+        "@/lib/api/pomodoro/personal-room"
+      )
+      const media = await loadGuestMediaBootstrap().catch(() => null)
+      return { user: null, accountMenu: null, media, bell }
+    }
     // The same facts, and the same rule on failure, as the `_pomodoro` layout.
     const [{ loadAccountMenu }, { loadRoomMediaBootstrap }] = await Promise.all([
       import("@/lib/api/pomodoro/profile"),

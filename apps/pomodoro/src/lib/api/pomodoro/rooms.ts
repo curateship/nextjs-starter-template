@@ -13,6 +13,9 @@ import {
   loadPomodoroEntitlements,
   requirePomodoroPerk,
 } from "@/server/pomodoro/entitlements"
+import { loadAppSettings } from "@/server/pomodoro/app-settings"
+import { listRoomPresets } from "@/server/pomodoro/admin-rooms"
+import { loadMediaCatalog } from "@/server/pomodoro/catalog"
 import { markRoomNoticesRead } from "@/server/pomodoro/notices"
 import {
   applyHostRoomAction,
@@ -56,7 +59,6 @@ import {
   scheduleProblemMessage,
 } from "@/lib/pomodoro/scheduled-rooms"
 import {
-  MAX_ROOM_REPEATS_PER_HOST,
   roomRepeatProblem,
   roomRepeatProblemMessage,
 } from "@/lib/pomodoro/room-repeats"
@@ -77,6 +79,8 @@ import {
  * holding a slug cannot spend a member's budget.
  */
 
+const INVITES_TYPED_MAX = 200 * 80
+
 const createRoomSchema = z.object({
   name: z.string().trim().min(2).max(80),
   visibility: z.enum(["public", "unlisted"]),
@@ -85,18 +89,18 @@ const createRoomSchema = z.object({
   longBreakMinutes: z.number().int().min(1).max(90).default(15),
   autoStart: z.boolean().default(false),
   // The pair everyone in the room gets. Required; checked by assertRoomPair.
-  sound: z.string().max(60),
-  background: z.string().max(60),
+  sound: z.string().max(200),
+  background: z.string().max(200),
 })
 // A booking is the same room settings plus when it opens and who to tell.
 // The time arrives as an ISO instant, so the host's clock and the server's
 // never have to agree about what "7pm" means.
 const scheduleRoomSchema = createRoomSchema.extend({
   startsAt: z.string().datetime({ offset: true }),
-  // Twenty addresses at the column's full 254 characters, plus separators.
-  // The friendlier "that is too many people" answer comes from
-  // scheduleProblem; this only stops a caller posting a novel.
-  invitesTyped: z.string().max(6_000).default(""),
+  // The most invitations the room limits allow (200) at a long address each,
+  // plus separators. The friendlier "that is too many people" answer comes
+  // from scheduleProblem; this only stops a caller posting a novel.
+  invitesTyped: z.string().max(INVITES_TYPED_MAX).default(""),
 })
 // A weekly room: the same settings, the days as the task repeats' seven-bit
 // set, and the time as minutes after midnight on the clock of the device it
@@ -105,7 +109,7 @@ const repeatRoomSchema = createRoomSchema.extend({
   weekdays: z.number().int().min(1).max(127),
   startMinute: z.number().int().min(0).max(1439),
   timezone: z.string().min(1).max(80),
-  invitesTyped: z.string().max(6_000).default(""),
+  invitesTyped: z.string().max(INVITES_TYPED_MAX).default(""),
 })
 const repeatIdSchema = z.object({ repeatId: z.string().uuid() })
 const slugSchema = z.object({ slug: z.string().min(12).max(80) })
@@ -124,8 +128,8 @@ const reportSchema = messageIdSchema.extend({
 })
 const memberSchema = slugSchema.extend({ membershipId: z.string().uuid() })
 const roomMediaSchema = slugSchema.extend({
-  sound: z.string().max(60),
-  background: z.string().max(60),
+  sound: z.string().max(200),
+  background: z.string().max(200),
 })
 
 /**
@@ -138,14 +142,27 @@ async function assertRoomPair(
   userId: string,
   pair: { sound: string; background: string }
 ) {
-  const problem = roomPairProblem(pair.sound, pair.background)
+  const catalog = await loadMediaCatalog()
+  const problem = roomPairProblem(catalog, pair.sound, pair.background)
   if (problem) throw new Error(`ROOM_PAIR_REJECTED: ${roomPairProblemMessage(problem)}`)
-  if (pairUsesPro(pair.sound, pair.background)) {
+  if (pairUsesPro(catalog, pair.sound, pair.background)) {
     const entitlements = await loadPomodoroEntitlements(userId)
     if (!entitlements.canUsePremiumMedia)
       throw new Error("UPGRADE_REQUIRED:premiumMedia")
   }
 }
+
+/**
+ * What the host window needs before a room is made: the house presets an
+ * admin keeps (admin task 04) and the invite limit, so the window checks the
+ * same number the server will.
+ */
+const hostingOptionsFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .handler(async () => {
+    const [presets, settings] = await Promise.all([listRoomPresets(), loadAppSettings()])
+    return { presets, maxInvitesPerRoom: settings["rooms.limits"].maxInvitesPerRoom }
+  })
 
 const listRoomsFn = createServerFn({ method: "GET" })
   .middleware([userGet])
@@ -234,8 +251,10 @@ const scheduleRoomFn = createServerFn({ method: "POST" })
     const { startsAt: startsAtText, invitesTyped, ...settings } = data
     const startsAt = new Date(startsAtText)
     const invites = parseInviteEmails(invitesTyped)
-    const problem = scheduleProblem(startsAt, invites, new Date())
-    if (problem) throw new Error(`SCHEDULE_REJECTED: ${scheduleProblemMessage(problem)}`)
+    const { maxInvitesPerRoom } = (await loadAppSettings())["rooms.limits"]
+    const problem = scheduleProblem(startsAt, invites, new Date(), maxInvitesPerRoom)
+    if (problem)
+      throw new Error(`SCHEDULE_REJECTED: ${scheduleProblemMessage(problem, maxInvitesPerRoom)}`)
 
     if ((await countScheduledRoomsHostedBy(context.user.id)) >= MAX_SCHEDULED_ROOMS_PER_HOST) {
       throw new Error(
@@ -273,8 +292,17 @@ const repeatRoomFn = createServerFn({ method: "POST" })
     })
     const { invitesTyped, ...settings } = data
     const invites = parseInviteEmails(invitesTyped)
-    const problem = roomRepeatProblem(settings.weekdays, settings.startMinute, invites)
-    if (problem) throw new Error(`SCHEDULE_REJECTED: ${roomRepeatProblemMessage(problem)}`)
+    const { maxInvitesPerRoom } = (await loadAppSettings())["rooms.limits"]
+    const problem = roomRepeatProblem(
+      settings.weekdays,
+      settings.startMinute,
+      invites,
+      maxInvitesPerRoom
+    )
+    if (problem)
+      throw new Error(
+        `SCHEDULE_REJECTED: ${roomRepeatProblemMessage(problem, maxInvitesPerRoom)}`
+      )
     if (!validTimezone(settings.timezone)) {
       throw new Error("SCHEDULE_REJECTED: This device's timezone is not one we recognise. Set a timezone in Settings and try again.")
     }
@@ -287,8 +315,9 @@ const repeatRoomFn = createServerFn({ method: "POST" })
       return { name: rule.name, timezone: rule.timezone, nextStartsAt: next.startsAt }
     } catch (cause) {
       if (cause instanceof Error && cause.message === "ROOM_REPEAT_LIMIT") {
+        const { maxRepeatsPerHost } = (await loadAppSettings())["rooms.limits"]
         throw new Error(
-          `SCHEDULE_REJECTED: You already have ${MAX_ROOM_REPEATS_PER_HOST} weekly rooms. Cancel a series to start another.`
+          `SCHEDULE_REJECTED: You already have ${maxRepeatsPerHost} weekly rooms. Cancel a series to start another.`
         )
       }
       throw cause
@@ -404,13 +433,14 @@ const sendMessageFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(messageSchema)
   .handler(async ({ data, context }) => {
-    const { roomId } = await postRoomMessage(
+    const { roomId, held } = await postRoomMessage(
       data.slug,
       context.user.id,
       data.body
     )
+    // A held line reaches only its writer, whose own snapshot shows it.
     await notifyRoom(roomId, "message")
-    return { sent: true }
+    return { sent: true, held }
   })
 
 // Toggling a reaction flips one row; the refreshed counts reach everyone
@@ -531,3 +561,4 @@ export const removeMember = (slug: string, membershipId: string) =>
   removeMemberFn({ data: { slug, membershipId } })
 export const banMember = (slug: string, membershipId: string) =>
   banMemberFn({ data: { slug, membershipId } })
+export const loadHostingOptions = () => hostingOptionsFn()
