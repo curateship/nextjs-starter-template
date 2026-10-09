@@ -27,7 +27,14 @@ const loadProfileFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .inputValidator(z.object({ timezone: z.string().min(1).max(60) }))
   .handler(async ({ data, context }) => {
-    return loadOrCreateProfile(context.user.id, data.timezone)
+    const {
+      leaderboardHiddenAt,
+      leaderboardHiddenByUserId: _hiddenBy,
+      ...profile
+    } = await loadOrCreateProfile(context.user.id, data.timezone)
+    // An admin took them off the boards (admin task 06). They are told that
+    // it happened, never which admin did it.
+    return { ...profile, leaderboardHidden: leaderboardHiddenAt !== null }
   })
 
 const updateProfileFn = createServerFn({ method: "POST" })

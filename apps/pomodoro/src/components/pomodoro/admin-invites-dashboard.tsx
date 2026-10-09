@@ -20,6 +20,7 @@ import {
   AdminSelectCell,
   useAdminList,
 } from "@/components/pomodoro/admin-list"
+import { MemberName } from "@/components/pomodoro/admin-member-name"
 import {
   AdminBulkDeleteButton,
   AdminDeleteConfirm,
@@ -177,7 +178,7 @@ export function AdminInvitesDashboard({
                 {row.roomName}
               </span>
               <span className="block truncate text-xs text-muted-foreground">
-                {row.hostName}
+                <MemberName id={row.hostUserId} name={row.hostName} className="inline font-normal" />
                 {row.roomStartsAt ? ` · ${formatDateTime(row.roomStartsAt)}` : ""}
               </span>
             </TableCell>

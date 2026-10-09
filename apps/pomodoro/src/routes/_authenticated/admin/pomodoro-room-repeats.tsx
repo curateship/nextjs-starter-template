@@ -15,9 +15,12 @@ import {
 import {
   ROOM_REPEAT_SORT_COLUMNS,
   ROOM_REPEAT_STATUS_FILTERS,
+  readMemberSearch,
 } from "@/lib/pomodoro/admin-lists"
 
 type RoomRepeatsSearch = {
+  /** The member window open over the list (admin task 06). */
+  member?: string
   q?: string
   status?: (typeof ROOM_REPEAT_STATUS_FILTERS)[number]
   sort?: (typeof ROOM_REPEAT_SORT_COLUMNS)[number]
@@ -30,6 +33,7 @@ function readRoomRepeatsSearch(
   search: Record<string, unknown>
 ): RoomRepeatsSearch {
   return {
+    ...readMemberSearch(search),
     q: readSearchText(search.q),
     status: readOneOf(search.status, ROOM_REPEAT_STATUS_FILTERS),
     sort: readOneOf(search.sort, ROOM_REPEAT_SORT_COLUMNS),

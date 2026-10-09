@@ -77,6 +77,7 @@ export default function ProfileSettingsPanel() {
   const [displayName, setDisplayName] = React.useState("")
   const [timezone, setTimezone] = React.useState("")
   const [leaderboard, setLeaderboard] = React.useState(false)
+  const [leaderboardHidden, setLeaderboardHidden] = React.useState(false)
   const [shareTask, setShareTask] = React.useState(false)
   const [loaded, setLoaded] = React.useState(false)
   // Only the load failure is held, because it decides whether the fields are
@@ -94,6 +95,7 @@ export default function ProfileSettingsPanel() {
         setDisplayName(profile.publicDisplayName ?? "")
         setTimezone(profile.timezone)
         setLeaderboard(profile.leaderboardOptIn)
+        setLeaderboardHidden(profile.leaderboardHidden)
         setShareTask(profile.shareTaskInRooms)
         setLoaded(true)
       })
@@ -201,6 +203,14 @@ export default function ProfileSettingsPanel() {
                 Show me on the leaderboard
               </Label>
             </div>
+            {/* An admin took them off every board but Following (admin task
+                06). Their switch is kept as they set it, so it reads right
+                again the moment they are put back. */}
+            {leaderboardHidden ? (
+              <p className="text-sm text-muted-foreground">
+                You're not shown on the leaderboard.
+              </p>
+            ) : null}
             <div className="flex items-center gap-2">
               <Switch
                 id="profile-share-task"

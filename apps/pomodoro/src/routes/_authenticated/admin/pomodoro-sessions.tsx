@@ -17,9 +17,12 @@ import {
   SESSION_SORT_COLUMNS,
   SESSION_STATUS_FILTERS,
   readUserFilter,
+  readMemberSearch,
 } from "@/lib/pomodoro/admin-lists"
 
 type SessionsSearch = {
+  /** The member window open over the list (admin task 06). */
+  member?: string
   q?: string
   mode?: (typeof SESSION_MODE_FILTERS)[number]
   status?: (typeof SESSION_STATUS_FILTERS)[number]
@@ -35,6 +38,7 @@ type SessionsSearch = {
  */
 function readSessionsSearch(search: Record<string, unknown>): SessionsSearch {
   return {
+    ...readMemberSearch(search),
     q: readSearchText(search.q),
     mode: readOneOf(search.mode, SESSION_MODE_FILTERS),
     status: readOneOf(search.status, SESSION_STATUS_FILTERS),

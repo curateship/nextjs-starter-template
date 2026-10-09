@@ -12,6 +12,7 @@ import {
   AdminSelectCell,
   useAdminList,
 } from "@/components/pomodoro/admin-list"
+import { MemberName } from "@/components/pomodoro/admin-member-name"
 import {
   AdminBulkDeleteButton,
   AdminDeleteConfirm,
@@ -186,9 +187,7 @@ function SafetyTable({
           <TableRow key={row.id}>
             <AdminSelectCell selection={selection} id={row.id} label={`Select ${row.name}`} />
             <TableCell column="main">
-              <span className="block max-w-[36rem] truncate" title={row.email}>
-                {row.name}
-              </span>
+              <MemberName id={"userId" in row ? row.userId : row.id} name={row.name} title={row.email} className="max-w-[36rem]" />
               <span className="block max-w-[36rem] truncate text-xs text-muted-foreground">
                 <RowDetail row={row} />
               </span>

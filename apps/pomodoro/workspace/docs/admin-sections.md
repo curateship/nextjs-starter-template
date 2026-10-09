@@ -1,6 +1,6 @@
 # Admin sections
 
-Fourteen operator pages inside the shell's `/admin`. They let an operator see
+Twenty-three operator pages inside the shell's `/admin`. They let an operator see
 what members are doing, decide reports, and delete what should not be there.
 Every delete and every report decision is written to `pomodoro_audit_logs`.
 
@@ -22,6 +22,20 @@ Every delete and every report decision is written to `pomodoro_audit_logs`.
 | `/admin/pomodoro-chat` | Every room's chat, a search across it, held lines |
 | `/admin/pomodoro-bans` | Room bans, hidden profiles and suspensions, with Lift |
 | `/admin/pomodoro-settings` | The Pomoder settings page |
+| `/admin/pomodoro-profiles` | Every public profile with a handle, and a window to fix the handle, name or bio, or hide it |
+| `/admin/pomodoro-uploads` | Every background and sound a member uploaded or had AI make, with Delete |
+| `/admin/pomodoro-tags` | Every member task tag and how many tasks carry it, with Delete |
+| `/admin/pomodoro-leaderboard` | The global board as members see it with hours a focus day, and Take off the board |
+| `/admin/pomodoro-follows` | Follows and cheers, two tabs, with Delete |
+| `/admin/pomodoro-blocks` | Who blocked whom, and the most blocked accounts. Read-only |
+| `/admin/pomodoro-achievements` | Who earned which badge, with Revoke |
+| `/admin/pomodoro-groups` | Every private focus group, its members, and Delete |
+| `/admin/pomodoro-generations` | Every AI background and soundscape request, with Delete for the file |
+
+A member's name on any of these lists opens the member window over the page,
+with `?member=<userId>` in the address. What it shows and the two repair tools
+in it, fixing a streak day and the private notes, are in
+[Members in the admin](admin-members.md).
 
 Each page is its own route file under
 `src/routes/_authenticated/admin/pomodoro-*.tsx`, the way trade and video add
@@ -31,7 +45,8 @@ pages work from a typed address before anyone does.
 
 On the local Pomodoro workspace the menu holds them like this. Weekly rooms
 sits under Rooms, beside Sessions and Reports, and Repeating tasks sits under
-Tasks. The live site's menu is its own saved setting and has to be given the
+Tasks. Profiles, between Focus and Pages, opens Public profiles and has
+Leaderboard and Achievements under it, as Tyler asked on 8 Oct 2026. The live site's menu is its own saved setting and has to be given the
 same two links after a deploy.
 
 ## Finding one member's focus data
@@ -233,7 +248,9 @@ worker are in [Themes and sounds in the admin](catalog-admin.md).
 ## What these pages will not do
 
 An operator can delete a member's rooms, tasks and timer history but never edit
-them. A task's wording and a room's settings stay the member's own.
+them. A task's wording and a room's settings stay the member's own. The one
+exception is a public profile's handle, display name and bio, which an admin
+can fix from Public profiles, and the owner is told what changed.
 
 Users, plans, billing and AI usage are not here either. The shell already owns
 those screens at `/admin/users`, `/admin/plans` and `/admin/ai`, and a second

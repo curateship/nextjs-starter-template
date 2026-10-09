@@ -16,9 +16,12 @@ import {
   TASK_SORT_COLUMNS,
   TASK_STATUS_FILTERS,
   readUserFilter,
+  readMemberSearch,
 } from "@/lib/pomodoro/admin-lists"
 
 type TasksSearch = {
+  /** The member window open over the list (admin task 06). */
+  member?: string
   q?: string
   status?: (typeof TASK_STATUS_FILTERS)[number]
   user?: string
@@ -30,6 +33,7 @@ type TasksSearch = {
 /** The list's own state, so Back returns the exact list you left. */
 function readTasksSearch(search: Record<string, unknown>): TasksSearch {
   return {
+    ...readMemberSearch(search),
     q: readSearchText(search.q),
     status: readOneOf(search.status, TASK_STATUS_FILTERS),
     user: readUserFilter(search.user),

@@ -111,9 +111,12 @@ cover this one.
 - [Themes and sounds in the admin](catalog-admin.md) — the catalogue in the
   database, the Themes and Sounds dashboards, the window, the 2-to-5-minute
   rule, uploads and the worker, and what members fall back to.
-- [Admin sections](admin-sections.md) — the nine operator pages under
-  `/admin`: focus data, tasks, sessions, rooms, themes, sounds, the report queue,
-  weekly rooms and repeating tasks, and what each delete takes with it.
+- [Admin sections](admin-sections.md) — every Pomoder operator page under
+  `/admin`, from focus data and the report queue to member profiles, uploads,
+  badges and groups, and what each delete takes with it.
+- [Members in the admin](admin-members.md) — the window a member's name opens
+  on any admin list, fixing a broken streak day without touching hours or the
+  leaderboard, and the private admin notes.
 - [Your own backgrounds and sounds](own-media-uploads.md) — what a Pro member
   may upload, the FFmpeg re-encode, and where the files live.
 - [AI backgrounds and soundscapes](ai-generation.md) — the prompt box, the

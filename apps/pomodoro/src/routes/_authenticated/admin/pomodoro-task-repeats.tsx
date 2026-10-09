@@ -15,9 +15,12 @@ import {
 import {
   TASK_REPEAT_SORT_COLUMNS,
   readUserFilter,
+  readMemberSearch,
 } from "@/lib/pomodoro/admin-lists"
 
 type TaskRepeatsSearch = {
+  /** The member window open over the list (admin task 06). */
+  member?: string
   q?: string
   user?: string
   sort?: (typeof TASK_REPEAT_SORT_COLUMNS)[number]
@@ -30,6 +33,7 @@ function readTaskRepeatsSearch(
   search: Record<string, unknown>
 ): TaskRepeatsSearch {
   return {
+    ...readMemberSearch(search),
     q: readSearchText(search.q),
     user: readUserFilter(search.user),
     sort: readOneOf(search.sort, TASK_REPEAT_SORT_COLUMNS),

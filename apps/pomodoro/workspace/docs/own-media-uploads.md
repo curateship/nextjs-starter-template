@@ -172,8 +172,34 @@ The bucket object is deleted after the rows, not before, so a bucket that
 refuses leaves a file with no row — which the storage page's orphan sweep picks
 up — rather than a row pointing at a file that is gone.
 
+## Admins can delete a member's file
+
+`/admin/pomodoro-uploads` lists every background and sound members uploaded
+or had made by AI (admin task 06, 8 Oct 2026). Each row shows a small preview,
+the owner, whether it is a background or a sound, the size, and whether it is
+in use. Sounds play from the row's play button.
+
+- **"In use" names where.** A file can be the owner's room background, their
+  room sound or their profile banner. Those are the only places a member's own
+  file can be chosen.
+- **Delete works on one row or on every ticked row**, in one request. The
+  admin delete puts the owner back exactly where their own delete would: a
+  room background goes back to Lofi girl, a room sound to silence, a profile
+  banner to none.
+- **The shell's admin delete removes the file.** That is `deleteMediaAsAdmin`,
+  the same one the shell's Media page uses. It refuses a file that was used
+  as a logo in a sent email, and the line afterwards counts that file as kept.
+- **The member is not told.** The file simply leaves their picker.
+- **One log row per press** in `pomodoro_audit_logs`, resource
+  `member_uploads`, naming every file that went.
+- **Clicking the owner's name** opens their member window, and `?user=<id>`
+  shows one member's files.
+
 ## Where the code lives
 
+- `src/server/pomodoro/admin-uploads.ts` — the admin list and delete, behind
+  `src/lib/api/pomodoro/admin-uploads-tags.ts`; the page is
+  `src/components/pomodoro/admin-uploads-dashboard.tsx`.
 - `src/lib/pomodoro/media-limits.ts` — the sizes, types and wording, in one
   browser-safe file, so the size a member is told about is the size the server
   enforces.

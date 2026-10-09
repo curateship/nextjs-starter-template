@@ -15,9 +15,12 @@ import {
 import {
   INVITE_SORT_COLUMNS,
   INVITE_STATUS_FILTERS,
+  readMemberSearch,
 } from "@/lib/pomodoro/admin-lists"
 
 type InvitesSearch = {
+  /** The member window open over the list (admin task 06). */
+  member?: string
   q?: string
   status?: (typeof INVITE_STATUS_FILTERS)[number]
   sort?: (typeof INVITE_SORT_COLUMNS)[number]
@@ -27,6 +30,7 @@ type InvitesSearch = {
 
 function readInvitesSearch(search: Record<string, unknown>): InvitesSearch {
   return {
+    ...readMemberSearch(search),
     q: readSearchText(search.q),
     status: readOneOf(search.status, INVITE_STATUS_FILTERS),
     sort: readOneOf(search.sort, INVITE_SORT_COLUMNS),
@@ -37,7 +41,8 @@ function readInvitesSearch(search: Record<string, unknown>): InvitesSearch {
 
 export const Route = createFileRoute("/_authenticated/admin/pomodoro-invites")({
   validateSearch: readInvitesSearch,
-  loaderDeps: ({ search }) => search,
+  // The member window is not the list, so opening it never reloads the page.
+  loaderDeps: ({ search: { member: _member, ...list } }) => list,
   loader: ({ deps }) =>
     loadPomodoroInvitesPage({
       search: deps.q ?? "",

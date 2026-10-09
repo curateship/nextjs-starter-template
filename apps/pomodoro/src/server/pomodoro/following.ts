@@ -200,6 +200,8 @@ export async function readFollowingFeed(
     .where(
       and(
         inArray(pomodoroAchievements.userId, followed),
+        // A badge an admin took away is not news (admin task 06).
+        isNull(pomodoroAchievements.revokedAt),
         // Their own switches decide, not the fact that you follow them.
         eq(pomodoroProfiles.profilePublic, true),
         eq(pomodoroProfiles.showBadges, true),

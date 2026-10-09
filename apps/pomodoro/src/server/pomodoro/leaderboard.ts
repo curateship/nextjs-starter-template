@@ -6,6 +6,7 @@ import {
   gte,
   inArray,
   isNotNull,
+  isNull,
   notInArray,
   sql,
 } from "drizzle-orm"
@@ -85,6 +86,9 @@ export async function readLeaderboardRows({
   const whoIsListed = groupId
     ? and(
         isNotNull(pomodoroProfiles.publicDisplayName),
+        // Taken off by an admin (admin task 06) means every board but the
+        // Following one, groups included.
+        isNull(pomodoroProfiles.leaderboardHiddenAt),
         inArray(
           pomodoroProfiles.userId,
           db
@@ -130,11 +134,16 @@ export async function readLeaderboardRows({
     }))
 }
 
-/** Who the global board lists: opted in, with a display name to show. */
-function globalBoardRule() {
+/**
+ * Who the global board lists: opted in, with a display name to show, and not
+ * taken off by an admin (admin task 06). Their opt-in is left as they set it,
+ * so putting them back restores exactly what they chose.
+ */
+export function globalBoardRule() {
   return and(
     eq(pomodoroProfiles.leaderboardOptIn, true),
-    isNotNull(pomodoroProfiles.publicDisplayName)
+    isNotNull(pomodoroProfiles.publicDisplayName),
+    isNull(pomodoroProfiles.leaderboardHiddenAt)
   )
 }
 

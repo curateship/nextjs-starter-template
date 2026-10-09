@@ -45,6 +45,25 @@ Checked on 25 Sep 2026: an account seeded to 99 sessions finished one more,
 the badge row appeared once, the next finished session added nothing, and the
 panel read "Earned Sep 25, 2026".
 
+## An admin can take a badge away
+
+`/admin/pomodoro-achievements` lists who earned which badge and when, filtered
+by badge or by one member. Revoke, on a row or over ticked rows, takes the
+badge away (admin task 06):
+
+- **The row stays, marked revoked.** The unique index above then keeps
+  refusing it, so the next finished focus cannot hand the badge straight back
+  even though the counters still qualify. Every reader of the table (the
+  panel, the public page, the year in review, the Following feed) skips a
+  revoked row.
+- **It comes off their pinned badges** in the same transaction.
+- **The member is not told**, and gets no "you earned" notice later either.
+- **Their panel shows it locked with a full bar.** The panel draws progress
+  from the counters, which still qualify, so a revoked badge reads like
+  "1 of 1 sessions" with nothing earned. It stays that way for good.
+- **It cannot be undone** from the admin. One `pomodoro_audit_logs` row with
+  the action `revoke` names every badge that went.
+
 ## A failed award never fails the thing that earned it
 
 By the time the check runs, the session or the room is already committed. If

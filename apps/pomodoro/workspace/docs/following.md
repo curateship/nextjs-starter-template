@@ -103,6 +103,17 @@ and the recipient having cheers switched off both report success and deliver
 nothing: a sender who could tell those apart would have a way to detect a
 block.
 
+## When an admin removes a follow or a cheer
+
+An admin can delete follows and cheers from `/admin/pomodoro-follows`, one at a
+time or over ticked rows (admin task 06, 8 Oct 2026). A deleted follow works
+like an unfollow: nobody is told, the person drops off the follower's Following
+tab and feed on their next load, and they can follow again. A deleted cheer
+comes off the record, which also frees one of that pair's three cheers for the last 24 hours, because the cap counts the rows. The
+bell notice it already sent stays. Blocks are on `/admin/pomodoro-blocks` to
+read only, because a block is a private choice an admin never undoes. See
+[Members in the admin](admin-members.md).
+
 ## Finding a profile
 
 Four ways, and the cheapest one first.

@@ -15,9 +15,12 @@ import {
 import {
   REPORT_SORT_COLUMNS,
   REPORT_STATUS_FILTERS,
+  readMemberSearch,
 } from "@/lib/pomodoro/admin-lists"
 
 type ReportsSearch = {
+  /** The member window open over the list (admin task 06). */
+  member?: string
   q?: string
   status?: (typeof REPORT_STATUS_FILTERS)[number]
   sort?: (typeof REPORT_SORT_COLUMNS)[number]
@@ -30,6 +33,7 @@ type ReportsSearch = {
 /** The list's own state, so Back returns the exact list you left. */
 function readReportsSearch(search: Record<string, unknown>): ReportsSearch {
   return {
+    ...readMemberSearch(search),
     q: readSearchText(search.q),
     status: readOneOf(search.status, REPORT_STATUS_FILTERS),
     sort: readOneOf(search.sort, REPORT_SORT_COLUMNS),

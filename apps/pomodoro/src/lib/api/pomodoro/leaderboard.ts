@@ -65,14 +65,17 @@ const loadLeaderboardFn = createServerFn({ method: "GET" })
       start,
       today,
       following: data.following,
-      // Why you are missing from the global board, if you are: the switch is
-      // off, or it is on with no display name to show. The same two
-      // conditions the ranking query lists people by.
-      youAreHidden: !profile.leaderboardOptIn
-        ? ("switched-off" as const)
-        : profile.publicDisplayName === null
-          ? ("no-name" as const)
-          : null,
+      // Why you are missing from the global board, if you are: an admin took
+      // you off (admin task 06), the switch is off, or it is on with no
+      // display name to show. The same conditions the ranking query lists
+      // people by.
+      youAreHidden: profile.leaderboardHiddenAt
+        ? ("taken-off" as const)
+        : !profile.leaderboardOptIn
+          ? ("switched-off" as const)
+          : profile.publicDisplayName === null
+            ? ("no-name" as const)
+            : null,
       leaders,
       you,
     }

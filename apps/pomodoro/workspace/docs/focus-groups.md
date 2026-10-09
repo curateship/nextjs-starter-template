@@ -81,6 +81,16 @@ your group Study Buddies." A member the owner removes is told they were removed
 from the group, and never by whom. Leaving on your own, and the owner joining
 their own group, tell nobody. See [Notifications](notifications.md).
 
+## When an admin deletes a group
+
+An admin can delete any group from `/admin/pomodoro-groups` (admin task 06,
+8 Oct 2026). Everybody who was in it, the owner included, gets "The Pomoder
+team deleted the group Study Buddies." in the bell, and the notice leads to the
+leaderboard. It never names the admin. The group, its members and its invite
+link go at once, so the old link stops working. Nobody's focus time or place on
+the global board changes, because a group board is only a filter over the same
+figures. The admin side is in [Members in the admin](admin-members.md).
+
 ## What never leaves the server
 
 - **No user ids, on any board.** Your own row is marked on the server and the id

@@ -139,13 +139,20 @@ export function LeaderboardPage({
         board?.youAreHidden &&
         board.leaders.length > 0 ? (
           <p className="rounded-lg bg-muted/60 px-3 py-2 text-sm text-muted-foreground">
-            {board.youAreHidden === "switched-off"
+            {board.youAreHidden === "taken-off" ? (
+              // An admin took them off; no setting of theirs brings it back.
+              "You're not shown on the leaderboard."
+            ) : (
+              <>
+                {board.youAreHidden === "switched-off"
               ? "You are not on this board. Switch it on in "
-              : "You are not on this board yet. Pick a display name in "}
-            <TextLink to="/settings" search={{ tab: "profile" }}>
-              Settings
-            </TextLink>{" "}
-            to take your place.
+                  : "You are not on this board yet. Pick a display name in "}
+                <TextLink to="/settings" search={{ tab: "profile" }}>
+                  Settings
+                </TextLink>{" "}
+                to take your place.
+              </>
+            )}
           </p>
         ) : null}
         {!authenticated ? (
@@ -173,6 +180,10 @@ export function LeaderboardPage({
           <p className="py-2 text-sm text-muted-foreground">
             {scope === "following" ? (
               FOLLOWING_EMPTY_MESSAGE
+            ) : authenticated && board.youAreHidden === "taken-off" ? (
+              // Telling them to switch on a setting that is already on would
+              // send them looking for a fault in Settings.
+              "You're not shown on the leaderboard."
             ) : (
               <>
                 Nobody has opted in yet. Turn on &quot;Show me on the

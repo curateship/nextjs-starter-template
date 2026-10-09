@@ -31,6 +31,7 @@ import {
   AdminSelectCell,
   useAdminList,
 } from "@/components/pomodoro/admin-list"
+import { MemberName } from "@/components/pomodoro/admin-member-name"
 import {
   AdminBulkDeleteButton,
   AdminDeleteConfirm,
@@ -281,7 +282,7 @@ function ChatRoomsTable({
               {row.name}
             </button>
             <span className="block max-w-96 truncate text-xs text-muted-foreground">
-              Hosted by {row.hostName}
+              Hosted by <MemberName id={row.hostUserId} name={row.hostName} className="inline font-normal" />
               {row.held ? ` · ${row.held} held` : ""}
             </span>
           </TableCell>
@@ -436,7 +437,7 @@ function ChatMessagesTable({
                 {row.body}
               </button>
               <span className="block max-w-[36rem] truncate text-xs text-muted-foreground">
-                {row.authorName} in {row.roomName} · {formatDateTime(row.createdAt)}
+                <MemberName id={row.userId} name={row.authorName} className="inline font-normal" /> in {row.roomName} · {formatDateTime(row.createdAt)}
                 {row.deletedAt
                   ? row.removedBy === "admin"
                     ? " · removed by an admin"

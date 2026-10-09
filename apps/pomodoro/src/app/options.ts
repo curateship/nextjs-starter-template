@@ -88,6 +88,9 @@ const NOTICE_LOOK: Record<PomodoroNoticeKind, AppNoticeDetail> = {
   admin_warning: { icon: TriangleAlertIcon, toneClassName: BAD },
   rooms_suspended: { icon: DoorClosedIcon, toneClassName: BAD },
   profile_restored: { icon: EyeIcon, toneClassName: GOOD },
+  profile_edited: { icon: SettingsIcon, toneClassName: PLAIN },
+  streak_restored: { icon: FlameIcon, toneClassName: GOOD },
+  group_deleted: { icon: UserMinusIcon, toneClassName: PLAIN },
 }
 
 /** A kind's whole look: its tile and the tab it is filed under. */

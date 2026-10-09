@@ -11,6 +11,7 @@ import {
   AdminListTable,
   useAdminList,
 } from "@/components/pomodoro/admin-list"
+import { MemberName } from "@/components/pomodoro/admin-member-name"
 import {
   AdminBulkDeleteButton,
   AdminDeleteConfirm,
@@ -179,9 +180,7 @@ export function AdminTaskRepeatsDashboard({
               </div>
             </TableCell>
             <TableCell column="meta" className="max-w-56">
-              <span className="block truncate" title={row.userEmail}>
-                {row.userName}
-              </span>
+              <MemberName id={row.userId} name={row.userName} title={row.userEmail} className="max-w-full font-normal" />
             </TableCell>
             <TableCell column="mutedMeta" className="hidden lg:table-cell">
               {formatDate(row.createdAt)}

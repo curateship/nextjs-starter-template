@@ -322,6 +322,7 @@ export async function listAdminInvites(query: {
         createdAt: roomInvites.createdAt,
         roomName: rooms.name,
         roomStartsAt: rooms.startsAt,
+        hostUserId: rooms.hostUserId,
         hostName: users.name,
       })
       .from(roomInvites)

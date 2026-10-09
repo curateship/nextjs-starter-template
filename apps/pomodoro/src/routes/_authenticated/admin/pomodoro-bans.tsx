@@ -7,9 +7,11 @@ import {
   loadPomodoroSafetyPage,
 } from "@/lib/api/pomodoro/admin-safety"
 import { readOneOf, readPage, readSearchText } from "@/lib/nav/list-search"
-import { SAFETY_TABS } from "@/lib/pomodoro/admin-lists"
+import { SAFETY_TABS, readMemberSearch } from "@/lib/pomodoro/admin-lists"
 
 type SafetySearch = {
+  /** The member window open over the list (admin task 06). */
+  member?: string
   tab?: (typeof SAFETY_TABS)[number]
   q?: string
   page?: number
@@ -17,6 +19,7 @@ type SafetySearch = {
 
 function readSafetySearch(search: Record<string, unknown>): SafetySearch {
   return {
+    ...readMemberSearch(search),
     tab: readOneOf(search.tab, SAFETY_TABS),
     q: readSearchText(search.q),
     page: readPage(search.page),
@@ -25,7 +28,8 @@ function readSafetySearch(search: Record<string, unknown>): SafetySearch {
 
 export const Route = createFileRoute("/_authenticated/admin/pomodoro-bans")({
   validateSearch: readSafetySearch,
-  loaderDeps: ({ search }) => search,
+  // The member window is not the list, so opening it never reloads the page.
+  loaderDeps: ({ search: { member: _member, ...list } }) => list,
   loader: ({ deps }) =>
     loadPomodoroSafetyPage({
       tab: deps.tab ?? "bans",
