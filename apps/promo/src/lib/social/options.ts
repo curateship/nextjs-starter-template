@@ -35,6 +35,8 @@ export type FindStatus = (typeof FIND_STATUSES)[number]
  * thing that ever starts, stops or drives a browser. A dashboard that wants a
  * browser open writes an `open` job and reads the session row, rather than
  * starting one itself and leaving the browser program without the key to it.
+ * `health` reads an account's karma, age and how its profile looks to a
+ * stranger, from the Check now button or the ticker once a day.
  */
 export type JobKind =
   | "search"
@@ -46,6 +48,26 @@ export type JobKind =
   | "site_check"
   | "backup"
   | "restore"
+  | "health"
+
+/**
+ * The account's profile, asked for once signed in and once signed out, as it
+ * is stored. Only what was seen: each answer's status, whether it carried a
+ * profile, and whether Reddit marked it suspended. The words are worked out
+ * when it is shown (`profileCheckWords`), never stored.
+ */
+export type ProfileCheck = {
+  /** The handle that was asked about, which may not be the one signed in now. */
+  handle: string
+  /** Status 0 means the request got no answer at all. */
+  signedInStatus: number
+  signedInFound: boolean
+  signedOutStatus: number
+  signedOutFound: boolean
+  suspended: boolean
+  /** When it was read, as an ISO date, since this is stored as JSON. */
+  readAt: string
+}
 
 /**
  * What every Reddit job and the settings tab say when the account's browser

@@ -96,6 +96,35 @@ Upvotes measure how big and busy a subreddit is far more than how relevant a
 post is to you. With them gone, the same keyword put five on-topic posts in the
 top five, with 2, 6, 1, 5 and 7 replies.
 
+## Subreddits you never see
+
+Taking upvotes out fixed most of that, but Reddit still matches words in
+subreddits you will never comment in, and one of them turns up under every
+keyword on every run. So there is a blocked list.
+
+- **One list for every keyword.** The same off-topic subreddit turns up under
+  all of them, so blocking it once is the point. It belongs to the person, the
+  same way the posts do.
+- **One press on a row.** The block button at the end of a post's row blocks
+  that row's subreddit and hides every stored post from it in the same request.
+  A message says how many went, with an Undo beside it.
+- **Hidden, never deleted.** The posts stay in `promo_finds` and the list leaves
+  them out, along with the counts beside each keyword. Unblocking brings them
+  back as they were, skipped ones still skipped.
+- **A post already commented on is never hidden**, whatever its subreddit. That
+  comment happened, and the Replied tab is the record of it. Its row has no
+  block button for the same reason.
+- **The next search stores none of it.** The search drops a blocked
+  subreddit's posts before anything is written. A keyword that names a blocked
+  subreddit no longer searches it, and one whose every named subreddit is
+  blocked searches nothing rather than falling back to all of Reddit.
+- **Names are compared without case**, as Reddit compares them, so r/NoSleep
+  and r/nosleep are one entry.
+
+The list is on Settings → Reddit account, under "Subreddits you never see",
+where a subreddit can be typed in before it has turned up, and where each one
+says how many posts it is hiding and comes back off with Unblock.
+
 ## The screen
 
 Three panels in a row, built from the same parts as the Automation Canvas and
@@ -119,11 +148,15 @@ across or by double-clicking their blank space, and a slim tab appears on the
 middle panel's edge where each one went. Where the dividers are left is
 remembered in this browser. Below 1280px the panels are dropped entirely and the
 list takes the screen, because three columns on a phone is three unreadable
-columns.
+columns. Picking a post then gives it the whole screen, and the arrow at the
+left of its header goes back to the list with the same keyword and the same tab
+chosen. The arrow is only there in that narrow layout; with three panels the
+list is already beside the post.
 
 ## What a row says
 
-Title, subreddit, when it went up, upvotes and replies. The line under each
+Title, subreddit, when it went up, upvotes and replies, and at the end the
+button that blocks the row's subreddit. The line under each
 title says why it is where it is in plain words: "Reddit's best match, posted in
 the last few hours, no replies yet". The chosen row carries a line down its left
 edge rather than a filled background, so it reads as chosen without fighting the

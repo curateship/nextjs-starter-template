@@ -17,6 +17,7 @@ import {
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { NO_PROFILE_MESSAGE } from "@/lib/social/options"
 
+import { accountFigures, recordAccountHealth } from "./health"
 import { postComment } from "./reddit/post-comment"
 import { JOB_MAX_ATTEMPTS, claimNextJob, failJob, finishJob, jobAccount, type QueuedJob } from "./jobs"
 import { loadFindThread, runKeywordSearch } from "./reddit/search"
@@ -148,6 +149,8 @@ async function runJob(job: QueuedJob, db: CustomShellDb): Promise<void> {
         session.target,
         db
       )
+    } else if (job.kind === "health") {
+      await recordAccountHealth(job.userId, account.id, session.target, db)
     } else {
       throw new Error(`There is no job kind called "${job.kind}".`)
     }
@@ -206,19 +209,32 @@ async function readSignIns(
   }
 }
 
+/**
+ * Writes who is signed in, and the karma and age that came in the same
+ * answer. Signed out, the last karma reading is kept with its own date.
+ */
 async function saveSignIn(
   accountId: string,
-  state: { checked: boolean; handle: string | null; blocked: boolean; reason: string },
+  state: {
+    checked: boolean
+    handle: string | null
+    karma: number | null
+    createdSeconds: number | null
+    blocked: boolean
+    reason: string
+  },
   db: CustomShellDb
 ): Promise<void> {
   if (!state.checked) return
+  const now = new Date()
   await db
     .update(promoAccounts)
     .set({
       handle: state.handle ?? "",
       blocked: state.blocked,
       blockedReason: state.blocked ? state.reason : "",
-      stateReadAt: new Date(),
+      stateReadAt: now,
+      ...accountFigures(state, now),
     })
     .where(eq(promoAccounts.id, accountId))
 }

@@ -81,7 +81,8 @@ renamed or dropped.
 
 ## What the account keeps
 
-The voice, the product and the rules the AI writes with, the karma, and what the
+The voice, the product and the rules the AI writes with, the karma and the
+account's age (see [How Reddit sees the account](../reddit/account-health.md)), and what the
 browser program last saw on that network: the signed-in name (`handle`),
 whether the site is asking the browser something (`blocked`), what it asked
 (`blocked_reason`), and when that was read (`state_read_at`). The browser

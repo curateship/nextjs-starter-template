@@ -77,6 +77,44 @@ describe("the words handed to the model", () => {
   })
 })
 
+describe("the comments really posted, as examples of the voice", () => {
+  const base = {
+    subreddit: "productivity",
+    title: "What do you use to keep track of client work?",
+    body: "I have six clients and a spreadsheet that is falling apart.",
+    replies: [],
+    voice: "Plain and helpful.",
+    product: "",
+    commentRules: "",
+    count: 2,
+  }
+
+  it("carries every example, labelled as voice and not as content", () => {
+    const prompt = buildDraftPrompt({
+      ...base,
+      examples: [
+        "honestly I just use a notebook and it works fine",
+        "we tried three tools and went back to email, not even joking",
+        "depends how many clients. under five a spreadsheet is fine",
+      ],
+    })
+
+    expect(prompt).toContain("COMMENTS I HAVE REALLY POSTED")
+    expect(prompt).toContain("Example 1:\nhonestly I just use a notebook and it works fine")
+    expect(prompt).toContain("Example 2:\nwe tried three tools and went back to email, not even joking")
+    expect(prompt).toContain("Example 3:\ndepends how many clients. under five a spreadsheet is fine")
+    expect(prompt).toContain("Do not repeat their substance.")
+    // Beside the voice description, which still stands.
+    expect(prompt.indexOf("HOW I SOUND")).toBeLessThan(prompt.indexOf("COMMENTS I HAVE REALLY POSTED"))
+  })
+
+  it("leaves the prompt exactly as it was when nothing has been sent", () => {
+    const withNone = buildDraftPrompt({ ...base, examples: [] })
+    expect(withNone).toBe(buildDraftPrompt(base))
+    expect(withNone).not.toContain("COMMENTS I HAVE REALLY POSTED")
+  })
+})
+
 describe("splitting the answer into comments", () => {
   it("splits on the separator it asked for", () => {
     const drafts = splitDrafts(

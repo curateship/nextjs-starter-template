@@ -52,8 +52,35 @@ network routines, so the next network types the same way.
   what was asked. Leave that box empty and no draft will ever mention a product.
 - **Your rules**, the lines it must not cross, from the same voice.
 
-An account with no voice is told none of the three, and the Reddit dashboard
-says "No voice picked, so drafts are plain" beside Write with AI.
+- **Comments you really posted**, up to three, as examples of how you write.
+
+An account with no voice is told none of the first three, and the Reddit
+dashboard says "No voice picked, so drafts are plain" beside Write with AI.
+
+### Your sent comments as examples
+
+Describing your own writing is hard, and three real comments teach a model more
+about voice than a paragraph about tone. Every comment the app has sent is
+already stored, so the newest three are shown to the model under "Comments I
+have really posted", labelled as voice and not as content. It is told to copy
+how they sound, their length and tone and how they open, and not to repeat
+their substance, because they answered other posts.
+
+- **Only comments that landed.** A failed attempt never reached anybody.
+- **Your own words first.** A comment sent with no draft behind it was typed or
+  edited by you, since the answer panel stops claiming a draft the moment its
+  words change. Those come before ones the AI wrote and you sent as they were,
+  then the newest.
+- **A weak one can be left out.** Settings → Reddit account lists the last ten
+  sent comments under "Comments the AI copies your voice from", each with a
+  tick. Untick one and the next draft stops using it. The comment itself is
+  kept. Each says whether it is in the next draft.
+- **The voice still counts.** Before anything has been sent there are no
+  examples, and the prompt is exactly what it was without them. After that the
+  examples sit beside the voice's words rather than replacing them.
+
+The list lives on the settings tab because there is no screen of sent comments
+yet. When one is built, the tick belongs there.
 
 It is also told, every time, that a comment reading as an advert gets the
 account banned, which is worse than a comment nobody clicks.

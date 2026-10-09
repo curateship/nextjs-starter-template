@@ -228,7 +228,9 @@ mark are ever touched.
 ## How many run at once
 
 **A limit, for the whole machine.** The Browsers tab of Settings says how many
-browsers may be open at once: 3 by default, from 1 to 20. It counts every
+browsers may be open at once: 3 by default, from 1 to 20. The tab saves itself
+1.2 seconds after the last keystroke, or at once on Enter, and says "Saved" in
+the top bar; there is no Save button. It counts every
 person's, because the memory is the machine's. Opening one more is refused at
 once, in words, never queued: "2 browsers are open, which is the limit. Stop
 one on the Browser profiles dashboard, or raise the limit in Settings." Before

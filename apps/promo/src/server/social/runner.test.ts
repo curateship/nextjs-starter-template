@@ -29,6 +29,7 @@ vi.mock("@/server/browser/command", async (importOriginal) => {
     ...actual,
     redditQuickState: vi.fn(),
     redditState: vi.fn(),
+    redditHealth: vi.fn(),
   }
 })
 
@@ -45,11 +46,13 @@ const search = await import("./reddit/search")
 const { runOneJob } = await import("./runner")
 const { queueJob } = await import("./jobs")
 const { readBrowserStatus } = await import("./accounts")
+const { queueDueHealthChecks, queueHealthCheck, readAccountHealth } = await import("./health")
 
 const ensureSession = vi.mocked(session.ensureSession)
 const stopSession = vi.mocked(session.stopSession)
 const quickState = vi.mocked(command.redditQuickState)
 const fullState = vi.mocked(command.redditState)
+const healthRead = vi.mocked(command.redditHealth)
 const runKeywordSearch = vi.mocked(search.runKeywordSearch)
 
 const target = { port: 7900, token: "key" }
@@ -80,6 +83,8 @@ describe("running a browser job", () => {
     quickState.mockResolvedValue({
       checked: true,
       handle: "a_persona",
+      karma: 120,
+      createdSeconds: 1_600_000_000,
       blocked: false,
       reason: "",
     })
@@ -128,6 +133,8 @@ describe("running a browser job", () => {
     quickState.mockResolvedValue({
       checked: true,
       handle: "a_persona",
+      karma: null,
+      createdSeconds: null,
       blocked: true,
       reason: "a challenge or captcha is on screen",
     })
@@ -143,7 +150,14 @@ describe("running a browser job", () => {
 
   it("keeps the last answer when the page was not on Reddit", async () => {
     await db.update(promoAccounts).set({ handle: "a_persona" })
-    quickState.mockResolvedValue({ checked: false, handle: null, blocked: false, reason: "" })
+    quickState.mockResolvedValue({
+      checked: false,
+      handle: null,
+      karma: null,
+      createdSeconds: null,
+      blocked: false,
+      reason: "",
+    })
     await queueJob(userId, "search", { keywordId: "k1" }, db)
 
     await runOneJob("worker", db)
@@ -194,6 +208,8 @@ describe("running a browser job", () => {
   it("runs the navigating check only for a check job", async () => {
     fullState.mockResolvedValue({
       handle: "someone_else",
+      karma: null,
+      createdSeconds: null,
       blocked: false,
       reason: "",
       url: "https://www.reddit.com/",
@@ -287,5 +303,169 @@ describe("reading the browser's status", () => {
     })
     expect(quickState).not.toHaveBeenCalled()
     expect(fullState).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * Karma, age and how the profile looks to a stranger. The browser is faked;
+ * what matters is what is stored, and that "never read" never becomes a zero.
+ */
+describe("reading the account's health", () => {
+  let client: PGlite
+  let db: TestDatabase
+  let userId: string
+  let profileId: string
+  let accountId: string
+
+  const seen = { status: 200, found: true, suspended: false }
+
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    const made = await createTestDatabase()
+    client = made.client
+    db = made.db
+    userId = (await insertUser(db, { role: "admin" })).id
+    profileId = await createProfile(userId, { name: "Main" }, db)
+    accountId = uuid()
+    await db.insert(promoAccounts).values({ id: accountId, userId, profileId, handle: "a_persona" })
+    ensureSession.mockResolvedValue({ id: "session-1", profileId, target })
+    quickState.mockResolvedValue({
+      checked: true,
+      handle: "a_persona",
+      karma: 120,
+      createdSeconds: 1_600_000_000,
+      blocked: false,
+      reason: "",
+    })
+  })
+
+  afterEach(async () => {
+    await client.close()
+  })
+
+  async function account() {
+    const [row] = await db.select().from(promoAccounts).where(eq(promoAccounts.id, accountId))
+    return row
+  }
+
+  it("leaves karma and age unread, not zero, before any reading", async () => {
+    const health = await readAccountHealth(userId, accountId, db)
+    expect(health).toMatchObject({ karma: null, redditCreatedAt: null, karmaReadAt: null, profileCheck: null })
+  })
+
+  it("stores karma and age from the sign-in read every job already takes", async () => {
+    await queueJob(userId, "search", { keywordId: "k1" }, db)
+    await runOneJob("worker", db)
+
+    const saved = await account()
+    expect(saved.karma).toBe(120)
+    expect(saved.redditCreatedAt?.toISOString()).toBe("2020-09-13T12:26:40.000Z")
+    expect(saved.karmaReadAt).toBeInstanceOf(Date)
+  })
+
+  it("keeps the last karma reading when the browser is signed out", async () => {
+    await db.update(promoAccounts).set({ karma: 55 })
+    quickState.mockResolvedValue({
+      checked: true,
+      handle: null,
+      karma: null,
+      createdSeconds: null,
+      blocked: false,
+      reason: "",
+    })
+    await queueJob(userId, "search", { keywordId: "k1" }, db)
+    await runOneJob("worker", db)
+
+    expect((await account()).karma).toBe(55)
+  })
+
+  it("stores what the profile answered signed in and signed out", async () => {
+    healthRead.mockResolvedValue({
+      handle: "a_persona",
+      karma: 0,
+      createdSeconds: 1_600_000_000,
+      blocked: false,
+      reason: "",
+      profile: { signedIn: seen, signedOut: { status: 404, found: false, suspended: false } },
+    })
+    // The sign-in read after every job reads the same answer.
+    quickState.mockResolvedValue({
+      checked: true,
+      handle: "a_persona",
+      karma: 0,
+      createdSeconds: 1_600_000_000,
+      blocked: false,
+      reason: "",
+    })
+    await queueHealthCheck(userId, accountId, db)
+
+    const result = await runOneJob("worker", db)
+
+    expect(result).toMatchObject({ kind: "health", ok: true })
+    const saved = await account()
+    // A real reading of zero is stored as zero, which is not the same as null.
+    expect(saved.karma).toBe(0)
+    expect(saved.profileCheck).toMatchObject({
+      handle: "a_persona",
+      signedInStatus: 200,
+      signedInFound: true,
+      signedOutStatus: 404,
+      signedOutFound: false,
+      suspended: false,
+    })
+    expect((await readAccountHealth(userId, accountId, db))?.checking).toBe(false)
+  })
+
+  it("refuses a health check while signed out and keeps the last reading", async () => {
+    await db.update(promoAccounts).set({ karma: 9 })
+    healthRead.mockResolvedValue({
+      handle: null,
+      karma: null,
+      createdSeconds: null,
+      blocked: false,
+      reason: "",
+      profile: null,
+    })
+    quickState.mockResolvedValue({
+      checked: true,
+      handle: null,
+      karma: null,
+      createdSeconds: null,
+      blocked: false,
+      reason: "",
+    })
+    await queueHealthCheck(userId, accountId, db)
+
+    await runOneJob("worker", db)
+
+    const health = await readAccountHealth(userId, accountId, db)
+    expect(health?.lastError).toContain("not signed in to Reddit")
+    expect(health?.karma).toBe(9)
+    expect(health?.profileCheck).toBeNull()
+  })
+
+  it("queues one check at a time from the button", async () => {
+    await queueHealthCheck(userId, accountId, db)
+    await queueHealthCheck(userId, accountId, db)
+
+    const jobs = await db.select().from(promoJobs).where(eq(promoJobs.kind, "health"))
+    expect(jobs).toHaveLength(1)
+    expect((await readAccountHealth(userId, accountId, db))?.checking).toBe(true)
+  })
+
+  it("asks once a day for a signed-in account with a profile, and never for the rest", async () => {
+    const signedOut = uuid()
+    const otherProfile = await createProfile(userId, { name: "Second" }, db)
+    await db
+      .insert(promoAccounts)
+      .values({ id: signedOut, userId, profileId: otherProfile, handle: "", platform: "reddit" })
+
+    const now = new Date(Date.UTC(2099, 0, 2))
+    expect(await queueDueHealthChecks(db, now)).toBe(1)
+    // A failed or finished one an hour ago still counts as asked today.
+    await db.update(promoJobs).set({ status: "failed", createdAt: new Date(now.getTime() - 3_600_000) })
+    expect(await queueDueHealthChecks(db, now)).toBe(0)
+    // A day later it is asked again.
+    expect(await queueDueHealthChecks(db, new Date(now.getTime() + 25 * 3_600_000))).toBe(1)
   })
 })

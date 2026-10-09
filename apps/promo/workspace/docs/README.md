@@ -11,9 +11,13 @@ the repo's `docs/`, and is never copied here.
 ## Reddit
 
 - [Finding posts worth answering](reddit/finding-posts.md) — what a keyword is,
-  why there is no Reddit API, and how the order is worked out.
-- [Writing the comment](reddit/writing-comments.md) — what the AI is told, what
-  comes back, and why Post is sometimes off.
+  why there is no Reddit API, how the order is worked out, and the subreddits
+  you never see.
+- [Writing the comment](reddit/writing-comments.md) — what the AI is told, the
+  sent comments it copies the voice of, what comes back, and why Post is
+  sometimes off.
+- [How Reddit sees the account](reddit/account-health.md) — karma, account age,
+  and whether a stranger can see the profile, read once a day and on request.
 
 ## The browser
 

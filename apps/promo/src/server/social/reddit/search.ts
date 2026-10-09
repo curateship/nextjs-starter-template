@@ -9,6 +9,7 @@ import {
   type CommandTarget,
 } from "@/server/browser/command"
 
+import { blockedNames } from "./blocked"
 import { rankFind } from "./rank"
 import type { FindThread } from "@/lib/social/options"
 
@@ -29,7 +30,7 @@ const THREAD_FRESH_MINUTES = 30
 
 export type SearchOutcome = {
   searchId: string
-  /** How many posts Reddit returned. */
+  /** How many posts Reddit returned, less any from a blocked subreddit. */
   seen: number
   /** How many of those had not been seen before. */
   new: number
@@ -69,9 +70,19 @@ export async function runKeywordSearch(
   })
 
   try {
+    // A blocked subreddit is dropped here, before anything is written, so it
+    // never makes a post to hide. The list is read per run, so a block made
+    // while a keyword waited in the queue still counts.
+    const blocked = await blockedNames(keyword.userId, db)
+
     // No subreddits means all of Reddit, in one request. A list means one
-    // request each, because Reddit has no "search these three" address.
-    const targets = keyword.subreddits.length ? keyword.subreddits : [""]
+    // request each, because Reddit has no "search these three" address. A
+    // listed subreddit that is now blocked is not searched at all, and a list
+    // that is all blocked searches nothing rather than falling back to all of
+    // Reddit.
+    const targets = keyword.subreddits.length
+      ? keyword.subreddits.filter((name) => !blocked.has(name.toLowerCase()))
+      : [""]
     const posts: BrowserPost[] = []
     let source: "json" | "page" = "json"
 
@@ -85,7 +96,9 @@ export async function runKeywordSearch(
       // One scraped answer in the batch makes the whole run scraped, because
       // that is the weaker evidence and the run should say so.
       if (answer.source === "page") source = "page"
-      posts.push(...answer.posts)
+      posts.push(
+        ...answer.posts.filter((post) => !blocked.has(post.subreddit.toLowerCase()))
+      )
     }
 
     const stored = await storeFinds(keyword, searchId, posts, db, now)

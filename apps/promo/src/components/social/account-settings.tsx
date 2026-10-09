@@ -1,10 +1,10 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import { Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { useReportedSaveStatus } from "@/components/settings/use-reported-save-status"
+import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
+import { CardGroup } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -13,7 +13,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { showErrorToast } from "@/lib/toast/error-toast"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+
+import { AccountHealthCard } from "./account-health-card"
+import { BlockedSubredditsCard } from "./blocked-subreddits-card"
+import { CommentExamplesCard } from "./comment-examples-card"
 import {
   getAccountErrorMessage,
   loadRedditAccount,
@@ -23,7 +27,9 @@ import {
 
 /**
  * Settings for the one Reddit account: which browser profile it signs in
- * inside, and which voice it drafts with.
+ * inside, and which voice it drafts with. Below those, how Reddit sees the
+ * account, the sent comments drafts copy the voice of, and the subreddits
+ * never shown.
  *
  * Neither lives here. The browser belongs to the profile, on the Browser
  * profiles dashboard, and the words belong to the voice, on the Voices
@@ -38,7 +44,10 @@ const NONE = "none"
 function RedditAccountSettings() {
   const [data, setData] = React.useState<AccountSettings | null>(null)
   const [loading, setLoading] = React.useState(true)
-  const [saving, setSaving] = React.useState(false)
+  // Each pick saves the moment it is made, and the outcome shows in the
+  // shared sticky header like every other settings save. There is no Save
+  // button.
+  const setSaveStatus = useReportedSaveStatus()
 
   const [profileId, setProfileId] = React.useState(NONE)
   const [voiceId, setVoiceId] = React.useState(NONE)
@@ -64,19 +73,34 @@ function RedditAccountSettings() {
     )
   }, [fill])
 
-  async function save() {
-    setSaving(true)
+  // Both values ride in as arguments rather than being read from state, so a
+  // save sends exactly the pick that started it. A refused pick goes back to
+  // what is saved, so the picker never shows something that is not.
+  //
+  // Two picks in quick succession are two saves in flight, and they can
+  // answer in either order. Only the newest one's answer is put on screen, so
+  // an older answer arriving last never undoes the newer pick.
+  const latestSave = React.useRef(0)
+  async function save(next: { profileId: string; voiceId: string }) {
+    const turn = ++latestSave.current
+    setProfileId(next.profileId)
+    setVoiceId(next.voiceId)
+    setSaveStatus("saving")
+    dismissErrorToast()
     try {
       await saveRedditAccount({
-        profileId: profileId === NONE ? null : profileId,
-        voiceId: voiceId === NONE ? null : voiceId,
+        profileId: next.profileId === NONE ? null : next.profileId,
+        voiceId: next.voiceId === NONE ? null : next.voiceId,
       })
-      fill(await loadRedditAccount())
-      toast.success("Reddit account saved.")
+      const saved = await loadRedditAccount()
+      if (turn !== latestSave.current) return
+      fill(saved)
+      setSaveStatus("saved")
     } catch (error) {
+      if (turn !== latestSave.current) return
+      setSaveStatus("idle")
+      if (data) fill(data)
       showErrorToast(getAccountErrorMessage(error))
-    } finally {
-      setSaving(false)
     }
   }
 
@@ -95,15 +119,22 @@ function RedditAccountSettings() {
   const chosenVoice = voices.find((voice) => voice.id === voiceId) ?? null
 
   return (
-    <div className="grid gap-6">
-      <Card size="sm">
-        <CardHeader>
-          <CardTitle>The browser it signs in inside</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4">
+    // The shell's own settings cards in a `CardGroup`, so the cards and the
+    // gap between them follow Settings → Styling like every other settings
+    // screen.
+    <CardGroup>
+      <CollapsibleSettingsCard
+        storageId="promo-reddit-profile"
+        title="The browser it signs in inside"
+        description="Searches and comments run in this profile's browser, through its proxy."
+        contentClassName="grid gap-4"
+      >
           <div className="grid gap-2">
             <Label htmlFor="promo-profile">Browser profile</Label>
-            <Select value={profileId} onValueChange={setProfileId}>
+            <Select
+              value={profileId}
+              onValueChange={(value) => void save({ profileId: value, voiceId })}
+            >
               <SelectTrigger id="promo-profile" className="w-full sm:w-fit sm:min-w-64">
                 <SelectValue />
               </SelectTrigger>
@@ -120,8 +151,6 @@ function RedditAccountSettings() {
           <p className="text-sm text-muted-foreground">
             {chosen ? (
               <>
-                Searches and comments run in this profile&apos;s browser, through
-                its proxy.{" "}
                 <Link
                   to="/admin/profiles"
                   search={{ open: chosen.id }}
@@ -147,17 +176,20 @@ function RedditAccountSettings() {
               </>
             )}
           </p>
-        </CardContent>
-      </Card>
+      </CollapsibleSettingsCard>
 
-      <Card size="sm">
-        <CardHeader>
-          <CardTitle>How the AI should sound</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4">
+      <CollapsibleSettingsCard
+        storageId="promo-reddit-voice"
+        title="How the AI should sound"
+        description="The voice drafts are written in."
+        contentClassName="grid gap-4"
+      >
           <div className="grid gap-2">
             <Label htmlFor="promo-voice">Voice</Label>
-            <Select value={voiceId} onValueChange={setVoiceId}>
+            <Select
+              value={voiceId}
+              onValueChange={(value) => void save({ profileId, voiceId: value })}
+            >
               <SelectTrigger id="promo-voice" className="w-full sm:w-fit sm:min-w-64">
                 <SelectValue />
               </SelectTrigger>
@@ -200,16 +232,13 @@ function RedditAccountSettings() {
               </>
             )}
           </p>
-        </CardContent>
-      </Card>
+      </CollapsibleSettingsCard>
 
-      <div className="flex justify-end">
-        <Button type="button" onClick={save} disabled={saving}>
-          {saving ? <Loader2Icon className="animate-spin" /> : null}
-          Save changes
-        </Button>
-      </div>
-    </div>
+      {/* Each of these reads and writes on its own. */}
+      <AccountHealthCard />
+      <CommentExamplesCard />
+      <BlockedSubredditsCard />
+    </CardGroup>
   )
 }
 

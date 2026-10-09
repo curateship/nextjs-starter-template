@@ -15,6 +15,7 @@ import { sql } from "drizzle-orm"
 import {
   type DraftStatus,
   type FindStatus,
+  type ProfileCheck,
   type FindThread,
   type JobKind,
   type JobStatus,
@@ -120,6 +121,15 @@ export const promoAccounts = pgTable(
      * stand-in: no karma and unknown karma are different answers.
      */
     karma: integer("karma"),
+    /**
+     * When Reddit says the account was made, and when that and the karma were
+     * last read. Both null until a reading. Added by
+     * `drizzle/0099_promo_account_health.sql`.
+     */
+    redditCreatedAt: timestamp("reddit_created_at", { withTimezone: true }),
+    karmaReadAt: timestamp("karma_read_at", { withTimezone: true }),
+    /** The profile read signed in and signed out. Null until one is taken. */
+    profileCheck: jsonb("profile_check").$type<ProfileCheck | null>(),
     lastPostedAt: timestamp("last_posted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -184,6 +194,33 @@ export const promoKeywords = pgTable(
     uniqueIndex("ux_promo_keywords_user_term").on(
       table.userId,
       sql`lower(${table.term})`
+    ),
+  ]
+)
+
+/**
+ * Subreddits never shown again, across every keyword. A blocked subreddit's
+ * stored posts stay in `promo_finds` and are left out when the list is read,
+ * so unblocking brings them back. The SQL is
+ * `drizzle/0100_promo_blocked_subreddits.sql`.
+ */
+export const promoBlockedSubreddits = pgTable(
+  "promo_blocked_subreddits",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    /** Without the r/ prefix. Compared without case, as Reddit does. */
+    subreddit: varchar("subreddit", { length: 120 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("ux_promo_blocked_subreddits_user_name").on(
+      table.userId,
+      sql`lower(${table.subreddit})`
     ),
   ]
 )
@@ -355,6 +392,12 @@ export const promoComments = pgTable(
     /** Where it landed on Reddit. Empty on a failure. */
     commentUrl: varchar("comment_url", { length: 600 }).notNull().default(""),
     lastError: text("last_error").notNull().default(""),
+    /**
+     * True when a person marked it as not a good example of how they write,
+     * so drafts stop copying its voice. The record itself stays. Added by
+     * `drizzle/0101_promo_comment_examples.sql`.
+     */
+    notExample: boolean("not_example").notNull().default(false),
     postedAt: timestamp("posted_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

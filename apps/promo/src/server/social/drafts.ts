@@ -17,6 +17,7 @@ import {
   type FindThread,
 } from "@/lib/social/options"
 
+import { exampleComments } from "./examples"
 import { promoAccounts, promoDrafts, promoFinds } from "./schema"
 import { wordsForAccount } from "./voices"
 
@@ -47,6 +48,9 @@ const TIMEOUT_MS = 90_000
 
 /** How many existing replies to show the model. */
 const REPLY_CONTEXT = 5
+
+/** A sent comment is shown whole up to this, which every Reddit comment the app sends is. */
+const EXAMPLE_CHARS = MAX_COMMENT_CHARS
 
 type ProviderRequest = {
   url: (model: string) => string
@@ -194,6 +198,11 @@ export function buildDraftPrompt(input: {
   voice: string
   product: string
   commentRules: string
+  /**
+   * Comments really posted from this account, best example first. Empty
+   * leaves the prompt exactly as it was before examples existed.
+   */
+  examples?: string[]
   count: number
 }): string {
   const replies = input.replies.slice(0, REPLY_CONTEXT)
@@ -216,6 +225,7 @@ export function buildDraftPrompt(input: {
     repliesBlock,
     "",
     input.voice ? `HOW I SOUND:\n${input.voice}` : "",
+    examplesBlock(input.examples ?? []),
     input.product ? `WHAT I MAKE, if it is genuinely relevant:\n${input.product}` : "",
     input.commentRules ? `MY RULES:\n${input.commentRules}` : "",
     "",
@@ -233,6 +243,22 @@ export function buildDraftPrompt(input: {
   ]
     .filter((line) => line !== "")
     .join("\n")
+}
+
+/**
+ * Real comments, labelled so the model copies how they sound and not what
+ * they say. They answered other posts, so their points would be wrong here,
+ * and a product mention copied across is the advert the rules forbid.
+ */
+function examplesBlock(examples: string[]): string {
+  if (!examples.length) return ""
+  return [
+    "COMMENTS I HAVE REALLY POSTED, to show how I write:",
+    ...examples.map(
+      (text, index) => `Example ${index + 1}:\n${text.slice(0, EXAMPLE_CHARS)}`
+    ),
+    "Copy how these sound: their length, their tone, how they open and how they talk. Do not repeat their substance. They answered other posts, so do not reuse their points, examples, facts or any mention of what I make.",
+  ].join("\n")
 }
 
 /**
@@ -294,12 +320,16 @@ export async function draftComments(
   // The account's voice, shared with any other account pointed at it. An
   // account with none drafts plainly.
   const words = await wordsForAccount(request.userId, account.id, db)
+  // The comments this account really sent, as examples of its voice. None
+  // before the first one goes out, and the voice box carries it alone.
+  const examples = await exampleComments(request.userId, account.id, db)
   const prompt = buildDraftPrompt({
     subreddit: find.subreddit,
     title: find.title,
     body: find.thread?.body || find.body,
     replies: find.thread?.replies ?? [],
     ...words,
+    examples,
     count: DRAFT_COUNT,
   })
 
