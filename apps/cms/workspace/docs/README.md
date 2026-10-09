@@ -72,7 +72,9 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   of day a deal runs and how "On now" is worked out, the rules Tyler set, how
   the site's time zone decides when a deal is over, the deal marker and
   "Deals only" on the directory's map, claiming a deal and using the code at
-  the counter, and the one filter every public read goes through.
+  the counter, the Show code button and the views and taps the owner and
+  admin see, following a listing for an email about its new deals, and the
+  one filter every public read goes through.
 
 ## Adding a doc
 

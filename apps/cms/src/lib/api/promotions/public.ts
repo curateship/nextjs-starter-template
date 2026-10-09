@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start"
+import { getRequestHeader } from "@tanstack/react-start/server"
 import { z } from "zod"
 
 import type { DirectoryFilterGroup } from "@/lib/directory/filter-groups"
@@ -15,12 +16,22 @@ import {
   type DealOnFilter,
   type DealsPageSearch,
 } from "@/lib/promotions/deals-page"
-import { findCurrentUser } from "@/server/auth/security"
+import { requireAppOrigin } from "@/server/auth/origin"
+import { enforceRateLimit } from "@/server/auth/rate-limit"
+import {
+  describeRequestOrigin,
+  findCurrentUser,
+  findSessionContext,
+  isAdmin,
+  now as currentTime,
+} from "@/server/auth/security"
 import { visitorSite, type PublicSite, type VisitorSite } from "@/server/directory/public"
 import { siteTimeZone } from "@/server/directory/settings"
 import { claimBoxFor, type ClaimBox } from "@/server/promotions/claims"
+import { countDealVisit, type DealCountKind } from "@/server/promotions/counts"
 import {
   dealViewAt,
+  shownCodeAt,
   listedDealsAt,
   type DealView,
   type ListedDeal,
@@ -33,6 +44,13 @@ import {
   readPublicDeal,
   type DealWhenCounts,
 } from "@/server/promotions/public"
+import {
+  getDaySalt,
+  hashVisitor,
+  isBotUserAgent,
+  isPrefetchPurpose,
+  trafficDay,
+} from "@/server/traffic"
 
 /**
  * The Deals page's two doors. Neither carries a guard, because a public page
@@ -164,6 +182,93 @@ const readDealFn = createServerFn({ method: "GET" })
 /** One published deal by its address, or null if there is not one. */
 export function loadDeal(slug: string) {
   return readDealFn({ data: { slug } })
+}
+
+// Roughly a count every 2.5 seconds all window long, the traffic counter's
+// own limit: more than any person taps, less than a hammering script.
+const COUNT_RATE_LIMIT = { maxAttempts: 240, windowSeconds: 600 }
+
+/**
+ * Counts this view or this Show code tap the way the site's traffic counter
+ * counts a page view: never a bot, a prefetch or an admin, and the person is
+ * the counter's own daily hash. `countDealVisit` keeps it to once per person
+ * per deal per day. Never throws: a count that could not be written must not
+ * stop the page or the code.
+ */
+async function countVisit(promotionId: string, kind: DealCountKind) {
+  try {
+    const origin = describeRequestOrigin()
+    if (isBotUserAgent(origin.userAgent)) return
+    if (
+      isPrefetchPurpose(getRequestHeader("sec-purpose")) ||
+      isPrefetchPurpose(getRequestHeader("purpose"))
+    ) {
+      return
+    }
+    const at = currentTime()
+    const salt = await getDaySalt(trafficDay(at))
+    const visitorHash = hashVisitor(
+      salt,
+      origin.ipAddress ?? "",
+      origin.userAgent ?? ""
+    )
+    await enforceRateLimit(`deal-count:${visitorHash}`, COUNT_RATE_LIMIT)
+    // Admins never count, neither as themselves nor while viewing as a member.
+    const session = await findSessionContext()
+    if (session && (session.viewedBy || isAdmin(session.user))) return
+    await countDealVisit({ promotionId, kind, visitorHash }, undefined, at)
+  } catch {
+    // A count never surfaces errors, the same as the traffic beacon.
+  }
+}
+
+const countDealViewFn = createServerFn({ method: "POST" })
+  .inputValidator(z.object({ slug: z.string().min(1).max(160) }))
+  .handler(async ({ data }): Promise<void> => {
+    requireAppOrigin()
+    const site = await siteWithOpenDeals()
+    if (!site) return
+    const page = await readPublicDeal(site, data.slug)
+    if (!page) return
+    await countVisit(page.deal.id, "view")
+  })
+
+/** Counts one view of a deal's page. Sent once by the page after it opens. */
+export function countDealView(slug: string) {
+  return countDealViewFn({ data: { slug } })
+}
+
+export type ShownCode =
+  | { code: string }
+  | { code: null; problem: string }
+
+const showDealCodeFn = createServerFn({ method: "POST" })
+  .inputValidator(z.object({ slug: z.string().min(1).max(160) }))
+  .handler(async ({ data }): Promise<ShownCode> => {
+    requireAppOrigin()
+    const site = await siteWithOpenDeals()
+    const page = site ? await readPublicDeal(site, data.slug) : null
+    if (!page) {
+      return { code: null, problem: "This deal is no longer on this site." }
+    }
+    // Asked again here, after the cache, rather than trusting the button: the
+    // deal may have ended, or switched to claims, since the page opened.
+    const code = shownCodeAt(page, new Date())
+    if (!code) {
+      return {
+        code: null,
+        problem: page.deal.takesClaims
+          ? "This deal gives everyone their own code. Claim it below."
+          : "This deal has ended, so its code is gone.",
+      }
+    }
+    await countVisit(page.deal.id, "code")
+    return { code }
+  })
+
+/** The deal's code, for the Show code button, and one tap counted. */
+export function showDealCode(slug: string) {
+  return showDealCodeFn({ data: { slug } })
 }
 
 export type { ListedDeal } from "@/server/promotions/deal-view"

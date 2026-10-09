@@ -4,6 +4,7 @@ import {
   desc,
   eq,
   exists,
+  gt,
   gte,
   ilike,
   inArray,
@@ -822,4 +823,69 @@ export async function findReportableDeal(
     .where(and(listedDealsOnSite(siteId), eq(sitePromotions.id, id)))
     .limit(1)
   return row ?? null
+}
+
+/** A newly published deal, for the email to its listing's followers. */
+export type DealForFollowers = DealDays & {
+  id: string
+  listingId: string
+  title: string
+  headline: string
+  slug: string
+  times: DealTimes
+  endedAt: Date | null
+  publishedAt: Date
+}
+
+/** The most deals one read returns, so a flood waits its turn. */
+const DEALS_FOR_FOLLOWERS = 200
+
+/**
+ * The deals first published after each listing's own moment, oldest first,
+ * for the email to the listings' followers. Each listing has its own moment
+ * so a quiet listing's old one never pulls in other listings' old deals.
+ * Only deals a visitor could read. Whether each has ended is the caller's to
+ * work out, by the site's clock. Not cached: the background pass asks, never
+ * a visitor.
+ */
+export async function dealsPublishedSince(
+  siteId: string,
+  listings: { listingId: string; after: Date }[],
+  database: CustomShellDb = db
+): Promise<DealForFollowers[]> {
+  if (listings.length === 0) return []
+  const rows = await database
+    .select({
+      id: sitePromotions.id,
+      listingId: sitePromotions.listingId,
+      title: sitePromotions.title,
+      headline: sitePromotions.headline,
+      slug: sitePromotions.slug,
+      startDate: sitePromotions.startDate,
+      endDate: sitePromotions.endDate,
+      times: sitePromotions.times,
+      endedAt: sitePromotions.endedAt,
+      publishedAt: sitePromotions.publishedAt,
+    })
+    .from(sitePromotions)
+    .innerJoin(directoryListings, listingOfPromotion)
+    .where(
+      and(
+        listedDealsOnSite(siteId),
+        or(
+          ...listings.map(({ listingId, after }) =>
+            and(
+              eq(sitePromotions.listingId, listingId),
+              gt(sitePromotions.publishedAt, after)
+            )
+          )
+        )
+      )
+    )
+    .orderBy(asc(sitePromotions.publishedAt), asc(sitePromotions.id))
+    .limit(DEALS_FOR_FOLLOWERS)
+  return rows.flatMap((row) =>
+    // Every published deal has the date; the database holds that rule.
+    row.publishedAt ? [{ ...withTimes(row), publishedAt: row.publishedAt }] : []
+  )
 }

@@ -1,3 +1,4 @@
+import * as React from "react"
 import { createFileRoute, Link, notFound } from "@tanstack/react-router"
 import { CalendarIcon, ClockIcon, MapPinIcon } from "lucide-react"
 
@@ -5,10 +6,11 @@ import { DirectoryBreadcrumbs } from "@/components/directory/public/directory-br
 import { DirectoryRouteError } from "@/components/directory/public/directory-error"
 import { DirectoryFrame } from "@/components/directory/public/directory-frame"
 import { ClaimBox } from "@/components/promotions/public/claim-box"
+import { ShowCode } from "@/components/promotions/public/show-code"
 import { ReportProblemButton } from "@/components/directory/public/report-problem-button"
 import { Card, CardContent } from "@/components/ui/card"
 import { requirePageVisible } from "@/lib/api/content/pages"
-import { loadDeal } from "@/lib/api/promotions/public"
+import { countDealView, loadDeal } from "@/lib/api/promotions/public"
 import {
   directoryDescription,
   directoryHead,
@@ -19,7 +21,8 @@ import { shownHeadline } from "@/lib/promotions/deal-headline"
 
 /**
  * One deal's page at /deals/<address>. It follows the Deals page's on/off
- * switch. An ended deal's page still opens, says so, and has no code.
+ * switch. An ended deal's page still opens, says so, and has no code. A live
+ * deal's code waits behind Show code, and the page counts one view.
  *
  * No such address, a draft, a deal at a draft listing and another site's deal
  * all answer the same not-found page, so none can be told apart from a deal
@@ -52,9 +55,24 @@ export const Route = createFileRoute("/deals_/$slug")({
 })
 
 function DealRoute() {
-  const { site, deal, ended, upcoming, days, times, nowText, claimBox } =
-    Route.useLoaderData()
+  const {
+    site,
+    deal,
+    hasCode,
+    ended,
+    upcoming,
+    days,
+    times,
+    nowText,
+    claimBox,
+  } = Route.useLoaderData()
   const photo = deal.coverImage || deal.listingImage
+
+  // One view a page opened. The server keeps it to one per person per day, so
+  // a reload or a second render does not add another.
+  React.useEffect(() => {
+    void countDealView(deal.slug).catch(() => {})
+  }, [deal.slug])
 
   return (
     <DirectoryFrame>
@@ -155,16 +173,9 @@ function DealRoute() {
             <p className="text-sm whitespace-pre-line">{deal.description}</p>
           ) : null}
 
-          {/* The server sends no shared code once the deal has ended, or while
-              each visitor claims their own. */}
-          {deal.code ? (
-            <div className="grid w-fit max-w-full gap-1 rounded-md border px-4 py-3">
-              <span className="text-xs text-muted-foreground">Code</span>
-              <span className="font-mono text-lg font-semibold break-all select-all">
-                {deal.code}
-              </span>
-            </div>
-          ) : null}
+          {/* The page never carries the code. No button once the deal has
+              ended, or while each visitor claims their own. */}
+          {hasCode ? <ShowCode slug={deal.slug} /> : null}
 
           {claimBox ? <ClaimBox promotionId={deal.id} box={claimBox} /> : null}
 

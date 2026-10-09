@@ -20,7 +20,7 @@ import {
   readCodeAtCounter,
   removeClaim,
 } from "@/server/promotions/claims"
-import { dealViewAt } from "@/server/promotions/deal-view"
+import { dealViewAt, shownCodeAt } from "@/server/promotions/deal-view"
 import {
   ownerDealClaims,
   ownersDealSite,
@@ -194,11 +194,13 @@ describe("the page", () => {
   it("never shows the shared code while claims are on", async () => {
     const deal = await createPromotion(site.id, userId, input(), database)
     const page = await readPublicDeal(site, deal.slug, database)
-    expect(dealViewAt(page!, at).deal.code).toBe("")
+    expect(dealViewAt(page!, at).hasCode).toBe(false)
+    expect(shownCodeAt(page!, at)).toBe("")
     await updatePromotion(site.id, deal.id, { ...input({ takesClaims: false }), slug: deal.slug }, database)
     resetPublicDirectoryCacheForTests()
     const plain = await readPublicDeal(site, deal.slug, database)
-    expect(dealViewAt(plain!, at).deal.code).toBe("SHARED")
+    expect(dealViewAt(plain!, at).hasCode).toBe(true)
+    expect(shownCodeAt(plain!, at)).toBe("SHARED")
   })
 
   it("refuses a limit that isn't a whole number from 1 up", async () => {

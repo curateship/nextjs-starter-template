@@ -13,6 +13,7 @@ import { sendDirectoryEmail } from "@/server/directory/mail"
 import { siteTimeZone } from "@/server/directory/settings"
 import { isOwnedImageUrl } from "@/server/media/library"
 import { listClaims, type DealClaim } from "@/server/promotions/claims"
+import { dealCountsFor, shownCodeTaps } from "@/server/promotions/counts"
 import {
   cleanDealContent,
   createPromotion,
@@ -367,6 +368,13 @@ export type OwnerDeal = {
     changeWaiting: boolean
     /** The admin's note on the latest change, when it was not approved. */
     changeRefused: string | null
+    /** People who opened its page, one a day each, over all time. */
+    views: number
+    /**
+     * People who tapped Show code, one a day each. Null for a deal with no
+     * Show code button and no taps from before.
+     */
+    codeTaps: number | null
     content: OwnerDealContent
   } | null
 }
@@ -457,6 +465,11 @@ export async function ownerDealsFor(
       ])
     : [[], []]
   const dealById = new Map(deals.map((deal) => [deal.id, deal]))
+  // Only the deals this account owns, so the numbers are only ever theirs.
+  const counts = await dealCountsFor(
+    deals.map((deal) => deal.id),
+    database
+  )
   // The newest change per deal decides what its row says.
   const latestChange = new Map<string, (typeof changes)[number]>()
   for (const change of changes) {
@@ -494,6 +507,8 @@ export async function ownerDealsFor(
               changeWaiting: change?.status === "pending",
               changeRefused:
                 change?.status === "rejected" ? change.reviewNote || "" : null,
+              views: counts.get(deal.id)?.views ?? 0,
+              codeTaps: shownCodeTaps(deal, counts.get(deal.id)?.codeTaps ?? 0),
               content: {
                 title: deal.title,
                 description: deal.description,

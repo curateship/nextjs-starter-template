@@ -156,6 +156,17 @@ const everyPublicRead: Record<
     }
     return found
   },
+  dealsPublishedSince: async () =>
+    (
+      await publicReads.dealsPublishedSince(
+        site.id,
+        listingIds.map((listingId) => ({
+          listingId,
+          after: new Date("2000-01-01T00:00:00Z"),
+        })),
+        database
+      )
+    ).map((deal) => deal.slug),
   dealsAccessFor: { notADealRead: "Reads the Deals page's switch." },
   listingHasDealOn: {
     notADealRead:

@@ -56,7 +56,11 @@ export const appOpenEndpoints: Record<string, string> = {
   "promotions/public.ts:readDealsPageFn":
     "The Deals page is a public page, so its list of published deals has to be readable without an account. It answers for the visited site only, leaves out drafts and deals at draft listings, and returns nothing while the site has the Deals page switched off or kept for members and the reader is signed out.",
   "promotions/public.ts:readDealFn":
-    "A deal's own page is public. It answers with a published deal at a published listing on the visited site only, so a draft is missing rather than hidden, follows the Deals page's on/off switch before reading anything, and leaves the code out once the deal has ended.",
+    "A deal's own page is public. It answers with a published deal at a published listing on the visited site only, so a draft is missing rather than hidden, follows the Deals page's on/off switch before reading anything, and never carries the deal's code, which only Show code hands over.",
+  "promotions/public.ts:countDealViewFn":
+    "Counts one view of a deal's page, which is opened by visitors with no account. It answers nothing, checks the request came from this app's own pages and that the Deals page is open to them, finds the deal the same way its page does, and counts the way the traffic beacon does: never a bot, a prefetch or an admin, at most 240 counts in ten minutes from one person, and once per person per deal per day.",
+  "promotions/public.ts:showDealCodeFn":
+    "Show code is the deal page's button, tapped by visitors with no account. It checks the request came from this app's own pages and that the Deals page is open to them, hands over the code only for a published deal at a published listing on the visited site that has not ended and does not give each visitor their own code, and counts the tap once per person per deal per day the way the traffic beacon counts.",
   "directory/public-profile.ts:readPublicSavedProfileFn":
     "A person can share the saved lists they explicitly made public, and this returns only those lists and published listings on the visited site.",
   "directory/submissions.ts:readSubmissionFormFn":

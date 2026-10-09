@@ -38,6 +38,8 @@ export type DirectoryEmail = {
   action?: { label: string; url: string }
   /** A signed opt-out link for outreach mail. Adds the standard email headers too. */
   unsubscribeUrl?: string
+  /** The words on that link. Claim invitations are the first mail that had one. */
+  unsubscribeLabel?: string
 }
 
 /**
@@ -61,7 +63,7 @@ function renderEmail(email: DirectoryEmail): string {
     : ""
 
   const unsubscribe = email.unsubscribeUrl
-    ? `<p style="margin:28px 0 0;padding-top:16px;border-top:1px solid #e5e7eb;font-size:12px;color:#666"><a href="${escapeHtml(email.unsubscribeUrl)}" style="color:#666">Stop claim invitations</a></p>`
+    ? `<p style="margin:28px 0 0;padding-top:16px;border-top:1px solid #e5e7eb;font-size:12px;color:#666"><a href="${escapeHtml(email.unsubscribeUrl)}" style="color:#666">${escapeHtml(email.unsubscribeLabel ?? "Stop claim invitations")}</a></p>`
     : ""
 
   return `<div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:520px">${body}${action}${unsubscribe}</div>`

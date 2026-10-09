@@ -55,6 +55,7 @@ import {
   type DealContentFields,
 } from "@/lib/promotions/deal-content"
 import { codesUsedText } from "@/lib/promotions/claim-fields"
+import { dealCountsText } from "@/lib/promotions/deal-counts"
 import { dealAdminDaysText } from "@/lib/promotions/deal-days"
 import { shownHeadline } from "@/lib/promotions/deal-headline"
 import { hasDealTimes } from "@/lib/promotions/deal-times"
@@ -237,6 +238,11 @@ function OwnerDealRow({
       <p className="text-xs text-muted-foreground">
         {dealAdminDaysText(deal)}
       </p>
+      {live ? (
+        <p className="text-xs text-muted-foreground">
+          {dealCountsText(live)}
+        </p>
+      ) : null}
       {deal.status === "rejected" && deal.reviewNote ? (
         <p className="text-xs whitespace-pre-wrap text-muted-foreground">
           The admin said: {deal.reviewNote}

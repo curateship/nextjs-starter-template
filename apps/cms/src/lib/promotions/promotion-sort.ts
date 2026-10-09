@@ -10,6 +10,8 @@ export const PROMOTION_SORT_COLUMNS = [
   "status",
   "start",
   "updated",
+  "views",
+  "codeTaps",
 ] as const
 
 export type PromotionSortColumn = (typeof PROMOTION_SORT_COLUMNS)[number]
@@ -17,9 +19,11 @@ export type PromotionSortColumn = (typeof PROMOTION_SORT_COLUMNS)[number]
 /** The list opens on the latest start day first. */
 export const DEFAULT_PROMOTION_SORT: PromotionSortColumn = "start"
 
-/** Words read A to Z; days start newest first. */
+/** Words read A to Z; days start newest first; counts start biggest first. */
 export function promotionSortDirection(
   column: PromotionSortColumn
 ): "asc" | "desc" {
-  return column === "start" || column === "updated" ? "desc" : "asc"
+  return column === "title" || column === "listing" || column === "status"
+    ? "asc"
+    : "desc"
 }
