@@ -38,6 +38,8 @@ export const POMODORO_NOTICE_KINDS = [
   "profile_edited",
   "streak_restored",
   "group_deleted",
+  "project_changed",
+  "project_deleted",
 ] as const
 
 export type PomodoroNoticeKind = (typeof POMODORO_NOTICE_KINDS)[number]
@@ -90,6 +92,8 @@ export const NOTICE_KIND_CATEGORY: Record<
   profile_edited: "account",
   streak_restored: "account",
   group_deleted: "social",
+  project_changed: "account",
+  project_deleted: "account",
 }
 
 /**
@@ -357,6 +361,31 @@ export function groupDeletedMessage(groupName: string) {
   return `${GROUP_DELETED_PREFIX}${groupName}.`
 }
 
+/**
+ * Admin task 07. An admin renamed, retargeted, archived, brought back or
+ * deleted one of your projects. Each names the project as you last knew it
+ * and none says which admin.
+ */
+const PROJECT_CHANGED_PATTERN =
+  /^The Pomoder team (renamed|changed|changed the target on|archived|brought back) your project /
+const PROJECT_DELETED_PREFIX = "The Pomoder team deleted your project "
+export function projectChangedMessage(
+  projectName: string,
+  change: { name?: string; target?: boolean; archived?: boolean }
+) {
+  const { name, target } = change
+  if (change.archived !== undefined)
+    return `The Pomoder team ${change.archived ? "archived" : "brought back"} your project ${projectName}.`
+  if (name !== undefined && !target)
+    return `The Pomoder team renamed your project ${projectName} to ${name}.`
+  if (name === undefined)
+    return `The Pomoder team changed the target on your project ${projectName}.`
+  return `The Pomoder team changed your project ${projectName}: it is now ${name}, with a new target.`
+}
+export function projectDeletedMessage(projectName: string) {
+  return `${PROJECT_DELETED_PREFIX}${projectName}. Its tasks are kept.`
+}
+
 /** An operator hid your public profile. Never says who, or who reported it. */
 export const PROFILE_HIDDEN_MESSAGE =
   "Your public profile has been hidden. See Settings for what to do."
@@ -409,6 +438,8 @@ export function noticeKindFromWords(notice: {
   )
     return "streak_restored"
   if (message.startsWith(GROUP_DELETED_PREFIX)) return "group_deleted"
+  if (message.startsWith(PROJECT_DELETED_PREFIX)) return "project_deleted"
+  if (PROJECT_CHANGED_PATTERN.test(message)) return "project_changed"
   if (message.startsWith(ROOM_CHANGED_PREFIX) && message.includes(" your room "))
     return "room_changed"
   if (message === PROFILE_HIDDEN_MESSAGE) return "profile_hidden"

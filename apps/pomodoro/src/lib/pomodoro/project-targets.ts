@@ -15,6 +15,9 @@ export type ProjectTarget = { hours: number; period: TargetPeriod }
 
 export const TARGET_HOURS_MAX = 744
 
+/** The longest project name, the width of `pomodoro_projects.name`. */
+export const PROJECT_NAME_MAX_LENGTH = 60
+
 export const targetPeriodLabels: Record<TargetPeriod, string> = {
   week: "a week",
   month: "a month",

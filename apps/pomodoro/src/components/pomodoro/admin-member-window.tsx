@@ -515,7 +515,7 @@ function countLine(count: number, one: string, many: string) {
   return `${count.toLocaleString()} ${plural(count, one, many)}`
 }
 
-function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
+export function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-4">
       <span className="text-sm text-muted-foreground">{label}</span>
@@ -525,7 +525,7 @@ function DetailRow({ label, value }: { label: string; value: React.ReactNode }) 
 }
 
 /** A section's short list: one line each, newest first. */
-function ShortList({ rows, empty }: { rows: { id: string; main: string; meta: string }[]; empty: string }) {
+export function ShortList({ rows, empty }: { rows: { id: string; main: string; meta: string }[]; empty: string }) {
   if (!rows.length) return empty ? <p className="text-sm text-muted-foreground">{empty}</p> : null
   return (
     <ul className="grid gap-2">
@@ -542,7 +542,7 @@ function ShortList({ rows, empty }: { rows: { id: string; main: string; meta: st
 }
 
 /** The way from a section to its full list, filtered to this person. */
-function SeeAll({
+export function SeeAll({
   to,
   search,
   label = "See all",

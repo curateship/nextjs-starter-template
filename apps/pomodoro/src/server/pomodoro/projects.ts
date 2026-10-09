@@ -2,9 +2,9 @@ import {
   and,
   eq,
   getTableColumns,
-  inArray,
   isNotNull,
   isNull,
+  or,
   sql,
 } from "drizzle-orm"
 
@@ -43,7 +43,7 @@ const DUPLICATE_NAME_CODE = "23505"
  * walked instead of reading one fixed depth, because the two drivers this app
  * runs on — node-postgres live, pglite in tests — nest it differently.
  */
-function isDuplicateName(error: unknown) {
+export function isDuplicateName(error: unknown) {
   for (let step: unknown = error, depth = 0; step && depth < 5; depth += 1) {
     if (typeof step !== "object") return false
     if ((step as { code?: string }).code === DUPLICATE_NAME_CODE) return true
@@ -52,22 +52,27 @@ function isDuplicateName(error: unknown) {
   return false
 }
 
-/** Every project the person owns, live ones first, each group by name. */
 /**
- * Every project, with what its card on the Tasks page shows: how many tasks it
- * holds and how much finished focus it has earned, all time. A task carried
- * onto a new day leaves a "carried" copy behind, so those are not counted
- * twice. Both figures are one correlated count per project, read through the
- * task's project index.
+ * What a project's card on the Tasks page shows: how many tasks it holds and
+ * how much finished focus it has earned, all time. A task carried onto a new
+ * day leaves a "carried" copy behind, so those are not counted twice. Both
+ * are one correlated count per project, read through the task's project
+ * index, and both are shared with the admin's Projects page so the two can
+ * never disagree.
+ *
+ * Written out in full: inside a raw subquery Drizzle prints bare column
+ * names, and "id" is then ambiguous between the two tables.
  */
+export const projectTaskCount = sql<number>`(select count(*) from tasks t where t.project_id = "pomodoro_projects"."id" and t.status <> 'carried')::int`
+export const projectFocusSeconds = sql<number>`(select coalesce(sum(f.accumulated_seconds), 0) from focus_sessions f join tasks t on t.id = f.task_id where t.project_id = "pomodoro_projects"."id" and f.mode = 'focus' and f.status = 'completed')::int`
+
+/** Every project the person owns, live ones first, each group by name. */
 export function listProjects(userId: string) {
   return db
     .select({
       ...getTableColumns(pomodoroProjects),
-      // Written out in full: inside a raw subquery Drizzle prints bare
-      // column names, and "id" is then ambiguous between the two tables.
-      taskCount: sql<number>`(select count(*) from tasks t where t.project_id = "pomodoro_projects"."id" and t.status <> 'carried')::int`,
-      focusSeconds: sql<number>`(select coalesce(sum(f.accumulated_seconds), 0) from focus_sessions f join tasks t on t.id = f.task_id where t.project_id = "pomodoro_projects"."id" and f.mode = 'focus' and f.status = 'completed')::int`,
+      taskCount: projectTaskCount,
+      focusSeconds: projectFocusSeconds,
     })
     .from(pomodoroProjects)
     .where(eq(pomodoroProjects.userId, userId))
@@ -185,13 +190,67 @@ export async function setProjectArchived(
 }
 
 /**
+ * The current week (Monday to Sunday) or calendar month, in the owner's
+ * timezone, as the two instants it runs between.
+ */
+export function targetPeriodBounds(
+  period: TargetPeriod,
+  today: string,
+  timezone: string
+) {
+  return {
+    startsAt: localDateStartInstant(timezone, targetPeriodStart(period, today)),
+    endsBefore: localDateStartInstant(timezone, targetPeriodEnd(period, today)),
+  }
+}
+
+/**
+ * The finished focus each project earned between two instants, in one read
+ * however many projects are asked about. A session reaches a project through
+ * its task, the same way History's project split reaches one, and only the
+ * project's owner's sessions count. Projects with nothing come back as 0.
+ */
+export async function sumProjectFocus(
+  windows: {
+    projectId: string
+    userId: string
+    startsAt: Date
+    endsBefore: Date
+  }[]
+) {
+  const seconds = new Map(windows.map((window) => [window.projectId, 0]))
+  if (!windows.length) return seconds
+  const sums = await db
+    .select({
+      projectId: tasks.projectId,
+      focusSeconds: sql<number>`coalesce(sum(${focusSessions.accumulatedSeconds}), 0)::int`,
+    })
+    .from(focusSessions)
+    .innerJoin(tasks, eq(tasks.id, focusSessions.taskId))
+    .where(
+      or(
+        ...windows.map((window) =>
+          and(
+            eq(tasks.projectId, window.projectId),
+            completedFocusWithin(
+              window.userId,
+              window.startsAt,
+              window.endsBefore
+            )
+          )
+        )
+      )
+    )
+    .groupBy(tasks.projectId)
+  for (const row of sums)
+    if (row.projectId) seconds.set(row.projectId, row.focusSeconds)
+  return seconds
+}
+
+/**
  * Each live project with a target, and the finished focus it has had in its
- * current period: this week (Monday to Sunday) or this calendar month, in the
- * profile's timezone. A session reaches a project through its task, the same
- * way History's project split reaches one.
- *
- * One read covers both kinds of period. It spans from the earlier of the two
- * starts to the later of the two ends, and splits the sum with a filter.
+ * current period: this week or this calendar month, in the profile's
+ * timezone.
  */
 export async function loadProjectTargetProgress(
   userId: string,
@@ -214,45 +273,21 @@ export async function loadProjectTargetProgress(
     )
   if (!targeted.length) return []
 
-  const bounds = (period: TargetPeriod) => ({
-    startsAt: localDateStartInstant(timezone, targetPeriodStart(period, today)),
-    endsBefore: localDateStartInstant(timezone, targetPeriodEnd(period, today)),
-  })
-  const week = bounds("week")
-  const month = bounds("month")
-  const startsAt = week.startsAt < month.startsAt ? week.startsAt : month.startsAt
-  const endsBefore =
-    week.endsBefore > month.endsBefore ? week.endsBefore : month.endsBefore
-
-  const sums = await db
-    .select({
-      projectId: tasks.projectId,
-      weekSeconds: sql<number>`coalesce(sum(${focusSessions.accumulatedSeconds}) filter (where ${focusSessions.completedAt} >= ${week.startsAt.toISOString()} and ${focusSessions.completedAt} < ${week.endsBefore.toISOString()}), 0)::int`,
-      monthSeconds: sql<number>`coalesce(sum(${focusSessions.accumulatedSeconds}) filter (where ${focusSessions.completedAt} >= ${month.startsAt.toISOString()} and ${focusSessions.completedAt} < ${month.endsBefore.toISOString()}), 0)::int`,
-    })
-    .from(focusSessions)
-    .innerJoin(tasks, eq(tasks.id, focusSessions.taskId))
-    .where(
-      and(
-        completedFocusWithin(userId, startsAt, endsBefore),
-        inArray(
-          tasks.projectId,
-          targeted.map((project) => project.projectId)
-        )
-      )
-    )
-    .groupBy(tasks.projectId)
-  const byProject = new Map(sums.map((row) => [row.projectId, row]))
-
-  return targeted.map((project) => {
-    const period = project.targetPeriod as TargetPeriod
-    const sum = byProject.get(project.projectId)
-    return {
+  const seconds = await sumProjectFocus(
+    targeted.map((project) => ({
       projectId: project.projectId,
-      targetHours: project.targetHours as number,
-      targetPeriod: period,
-      focusSeconds:
-        (period === "week" ? sum?.weekSeconds : sum?.monthSeconds) ?? 0,
-    }
-  })
+      userId,
+      ...targetPeriodBounds(
+        project.targetPeriod as TargetPeriod,
+        today,
+        timezone
+      ),
+    }))
+  )
+  return targeted.map((project) => ({
+    projectId: project.projectId,
+    targetHours: project.targetHours as number,
+    targetPeriod: project.targetPeriod as TargetPeriod,
+    focusSeconds: seconds.get(project.projectId) ?? 0,
+  }))
 }

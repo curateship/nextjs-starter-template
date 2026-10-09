@@ -113,7 +113,7 @@ cover this one.
   rule, uploads and the worker, and what members fall back to.
 - [Admin sections](admin-sections.md) — every Pomoder operator page under
   `/admin`, from focus data and the report queue to member profiles, uploads,
-  badges and groups, and what each delete takes with it.
+  badges, groups and projects, and what each delete takes with it.
 - [Members in the admin](admin-members.md) — the window a member's name opens
   on any admin list, fixing a broken streak day without touching hours or the
   leaderboard, and the private admin notes.

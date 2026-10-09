@@ -38,6 +38,14 @@ export const TASK_SORT_COLUMNS = [
 ] as const
 export type TaskSortColumn = (typeof TASK_SORT_COLUMNS)[number]
 
+/** A task's standing, and how strongly to draw it, on Tasks and in the project window. */
+export const TASK_STATUS_LOOK: Record<string, { label: string; variant: "default" | "secondary" | "outline" }> = {
+  active: { label: "Active", variant: "default" },
+  completed: { label: "Done", variant: "secondary" },
+  carried: { label: "Carried over", variant: "outline" },
+  abandoned: { label: "Abandoned", variant: "outline" },
+}
+
 export const SESSION_MODE_FILTERS = ["all", "focus", "short", "long"] as const
 export const SESSION_STATUS_FILTERS = [
   "all",
@@ -187,3 +195,13 @@ export const GENERATION_KIND_FILTERS = ["all", "background", "soundscape"] as co
 export const GENERATION_STATUS_FILTERS = ["all", "queued", "running", "ready", "failed"] as const
 export const GENERATION_SORT_COLUMNS = ["person", "status", "created"] as const
 export type GenerationSortColumn = (typeof GENERATION_SORT_COLUMNS)[number]
+
+// ---------------------------------------------------------------------------
+// Projects (admin task 07)
+// ---------------------------------------------------------------------------
+
+export const PROJECT_STATE_FILTERS = ["all", "live", "archived"] as const
+export const PROJECT_VISIBILITY_FILTERS = ["all", "public", "private"] as const
+export const PROJECT_TARGET_FILTERS = ["all", "target", "none"] as const
+export const PROJECT_SORT_COLUMNS = ["name", "owner", "tasks", "hours", "created"] as const
+export type ProjectSortColumn = (typeof PROJECT_SORT_COLUMNS)[number]

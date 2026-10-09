@@ -79,6 +79,11 @@ shows the same figure under the project's row; see [Focus history](history.md).
 
 ## What archiving does and does not do
 
+Members archive and never delete. An admin can delete a project from
+`/admin/pomodoro-projects`, and can rename it, change its target, archive it
+or bring it back, and the owner is told each time in the bell. See the Projects
+section of [Admin sections](admin-sections.md).
+
 Archiving takes a project out of the task row's picker. It changes no task: a
 task already in that project keeps it, and every hour the project earned stays
 in History. That is the whole point of archiving rather than deleting — a

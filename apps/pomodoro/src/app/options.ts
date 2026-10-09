@@ -10,6 +10,8 @@ import {
   EyeOffIcon,
   FlagIcon,
   FlameIcon,
+  FolderIcon,
+  FolderXIcon,
   GaugeIcon,
   MessageSquareIcon,
   PartyPopperIcon,
@@ -91,6 +93,8 @@ const NOTICE_LOOK: Record<PomodoroNoticeKind, AppNoticeDetail> = {
   profile_edited: { icon: SettingsIcon, toneClassName: PLAIN },
   streak_restored: { icon: FlameIcon, toneClassName: GOOD },
   group_deleted: { icon: UserMinusIcon, toneClassName: PLAIN },
+  project_changed: { icon: FolderIcon, toneClassName: PLAIN },
+  project_deleted: { icon: FolderXIcon, toneClassName: PLAIN },
 }
 
 /** A kind's whole look: its tile and the tab it is filed under. */
