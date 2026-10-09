@@ -26,6 +26,29 @@ is `workspace/tasks/payments/01-switch-payments-on.md`.
   ids in one save, not before. Only one plan may hold the badge, so Free's
   "Most Popular" has to be cleared first.
 
+## The live account
+
+Pomoder sells through its own Stripe account, "Pomoder"
+(`acct_1UOfj1DzUd79dTwj`), separate from System Everything's, so the buyer
+sees Pomoder on the card statement and the checkout page. Tyler made it on
+9 Oct 2026. Its live Pro product is `prod_VPUuOZJp0YvxEu` with prices
+`price_1UOfuWDzUd79dTwjn6pqvXQB` ($9 a month) and
+`price_1UOfuWDzUd79dTwjw32Yisnb` ($78 a year), made with the Stripe CLI
+(`stripe … --project-name pomoder --live`). Its webhook endpoint
+`we_1UOfw6DzUd79dTwjbSRKYwkn` sends every event to
+`https://pomoder.com/api/webhooks/stripe`, and its signing secret sits under
+Live credentials in Settings → Payments on pomoder.com. The test run above
+used the System Everything sandbox, whose ids only exist there.
+
+The Pomoder account runs on Stripe's Managed Payments ("Let us handle it":
+Stripe is the seller of record, pays the sales tax and VAT, and takes the
+disputes, for 3.5 cents on the dollar). That needs a tax code on every
+product, or Checkout refuses with "the product tax code is missing" and the
+plans page shows the generic "could not complete" message. The live Pro
+product carries `txcd_10103001`, software as a service for personal use, set
+on 9 Oct 2026 after exactly that error. The sandbox does not use Managed
+Payments, which is why the test run never hit it.
+
 ## The order to do it in
 
 1. Run `stripe login` once (the Stripe CLI was installed on 9 Oct 2026), then
