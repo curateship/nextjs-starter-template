@@ -41,7 +41,13 @@ the old app's Pro).
 
 ## Prices
 
-Not set. The old app charged free / $9 a month / $78 a year ("Save 28%"),
-kept here for reference; live prices wait for Tyler and are entered in the
-shell's Plans screen, not in code. What a member sees is
-[the plans page](plans-page.md) at `/plans`, which reads those rows.
+Free, $9 a month, or $78 a year, which the yearly card draws as $6.50 a month
+and "save 28%". Tyler chose them on 9 Oct 2026, the same as the old app, with
+no free trial. They are entered in the shell's Plans screen, not in code, and
+so far only on the ws-18 row against Stripe's test mode (product
+`prod_VPT9NSUmbDznwr` in the "System Everything" sandbox). Pro is not on sale
+until the live step in [Switching payments on](switching-payments-on.md) is
+done; the date goes here when it is. What a member sees is
+[the plans page](plans-page.md) at `/plans`, which reads those rows. The
+order to switch payments on, and why the Pro row's feature keys wait for its
+Stripe price ids, is in [Switching payments on](switching-payments-on.md).

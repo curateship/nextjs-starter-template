@@ -1543,6 +1543,12 @@ export const pomodoroCatalogItems = pgTable(
     >(),
     attempts: integer("attempts").notNull().default(0),
     claimedAt: timestamp("claimed_at", { withTimezone: true }),
+    /**
+     * The Pixabay page a picture or film is still being fetched from, by the
+     * `pomodoro-pixabay-imports` worker. Emptied once the file is in the
+     * bucket or refused.
+     */
+    importUrl: varchar("import_url", { length: 500 }),
     durationSeconds: integer("duration_seconds"),
     /** Out of 100, multiplied into the member's own volume. */
     volume: integer("volume").notNull().default(100),

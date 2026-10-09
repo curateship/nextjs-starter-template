@@ -41,7 +41,7 @@ import {
   useListSort,
   useSearchBoxText,
 } from "@/lib/nav/list-search"
-import type { TaskSortColumn } from "@/lib/pomodoro/admin-lists"
+import { TASK_STATUS_LOOK, type TaskSortColumn } from "@/lib/pomodoro/admin-lists"
 
 const route = getRouteApi("/_authenticated/admin/pomodoro-tasks")
 
@@ -60,17 +60,6 @@ const COLUMNS: TableHeaderColumn<SortColumn>[] = [
     className: "hidden 2xl:table-cell",
   },
 ]
-
-/** A task's standing, and how strongly to draw it. */
-const STATUS_LOOK: Record<
-  string,
-  { label: string; variant: "default" | "secondary" | "outline" }
-> = {
-  active: { label: "Active", variant: "default" },
-  completed: { label: "Done", variant: "secondary" },
-  carried: { label: "Carried over", variant: "outline" },
-  abandoned: { label: "Abandoned", variant: "outline" },
-}
 
 /**
  * Everybody's tasks, newest first. An operator can delete them, never edit
@@ -208,8 +197,8 @@ export function AdminTasksDashboard({
             </TableCell>
             <TableCell column="meta">{formatUtcDate(row.plannedDate)}</TableCell>
             <TableCell column="meta">
-              <Badge variant={STATUS_LOOK[row.status]?.variant ?? "outline"}>
-                {STATUS_LOOK[row.status]?.label ?? row.status}
+              <Badge variant={TASK_STATUS_LOOK[row.status]?.variant ?? "outline"}>
+                {TASK_STATUS_LOOK[row.status]?.label ?? row.status}
               </Badge>
             </TableCell>
             <TableCell column="meta">{row.pomodoroCount}</TableCell>

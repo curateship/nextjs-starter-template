@@ -21,6 +21,14 @@ and one for sounds. Add ability to add sound and theme in admin dashboard
   girl) or silence on their next load. Their saved choice is left as it was,
   so it comes back if the item is made Live again.
 
+- **A sound never needs a picture uploaded.** Tyler, 9 Oct 2026: "It
+  shouldnt need to upload an image when i add a sound. It should add one of
+  the random graphic we currantly have." A sound saved with no picture, from
+  New sound, Upload several or a Pixabay music link, gets one of the eight
+  built-in sound graphics (`SOUND_GRAPHICS` in
+  `src/lib/pomodoro/admin-catalog.ts`, files under `public/sounds/`) at
+  random. The admin can still choose a picture of their own in the window.
+
 ## Where the list lives
 
 - **`pomodoro_catalog_items`**, migration `0123_pomodoro_catalog_items.sql`.
@@ -61,9 +69,9 @@ and one for sounds. Add ability to add sound and theme in admin dashboard
 (`admin-catalog-dashboard.tsx`). `/admin/pomodoro-media` forwards to Themes.
 
 - **A row** shows the picture, the name, its kind, a sound's length, Free or
-  Pro, a note while a new file is being prepared or was refused, "No licence
-  set" on a Live item with none, Draft or Live, and how many personal rooms and
-  open rooms have it.
+  Pro, a note while a new file is being prepared, or "File refused:" with the
+  reason, "No licence set" on a Live item with none, Draft or Live, and how
+  many personal rooms and open rooms have it.
 - **The name or the cog opens the window**, with `?open=<id>` in the address,
   so Back closes it. New theme or New sound opens it with `?open=new`.
 - **A sound row has a play button** that plays in the page only and stops when
@@ -81,6 +89,100 @@ and one for sounds. Add ability to add sound and theme in admin dashboard
   On Themes, a picture becomes a still at once and a film is prepared by the
   worker.
 
+## Import from Pixabay
+
+"Import from Pixabay" sits beside Upload several on both pages. The button reads
+"Pixabay" so the toolbar stays on one line at 1440px; a screen reader hears
+"Import from Pixabay". The admin
+pastes up to 25 pixabay.com page links, one per line, and each good link
+becomes a Draft with its name, source link and the licence "Free to use"
+(note "Pixabay Content Licence") already filled in. Tyler asked for this on
+9 Oct 2026: "Need a feature to place a list of url to scrape theme and sound
+from pixabay."
+
+- **Tyler's rule, 9 Oct 2026: a music link makes a half-way Draft.** Pixabay
+  has no music API, its pages answer a server with a 403 and a Cloudflare
+  check, and its terms (section 8) forbid scraping and getting round its
+  blocks. So a music or sound-effect link makes a Draft with the name, source
+  link and licence, and nothing is ever fetched from pixabay.com for a sound.
+  The admin downloads the MP3 from Pixabay and drops it in the sound's window.
+- **Which links each page takes.** Themes takes `/photos/` and
+  `/illustrations/` (a still) and `/videos/` (a film). Sounds takes `/music/`
+  (music) and `/sound-effects/` (ambient, because the rain and fire loops live
+  there). `/vectors/` is refused on both. A language in front
+  (`/de/photos/…`), `www.` and a query string are ignored.
+- **Each line's problem shows under the box as it is typed**: "Line 4 is not a
+  pixabay.com link.", "Line 2 is a photo, paste it on Themes.", "Line 3 is a
+  number, not the page link.", "Line 5 is a search, not one item.", "Line 6
+  repeats line 1." Import sends only the good lines, and the server reads them
+  again (`src/lib/pomodoro/pixabay-links.ts`, one reader for both).
+- **The name** is the link's slug with the id taken off and a word repeated
+  back to back said once, so `lofi-lofi-chill-vlog-beats-573883` reads "Lofi
+  chill vlog beats".
+- **The same item is never imported twice.** The server compares the id
+  against every Pixabay source link in the catalogue, Draft or Live, of either
+  kind, and refuses a repeat with "is already in the catalogue as Forest fog".
+  Photos, films and sounds each count their own ids, so photo 28470 and film
+  28470 are different items.
+- **The result line** copies Upload several: "18 themes added as drafts. 2
+  were refused: line 4 is not a pixabay.com link; line 9 is already in the
+  catalogue as Forest fog." Sounds add "Each needs its file from Pixabay." With
+  more than three refusals, or none added, the window stays open holding only
+  the refused lines, each reason under the box, and the toast gives counts.
+- **Themes need the Pixabay API key**, saved on Settings → Pixabay (see
+  [Admin settings](admin-settings.md)). With none, the window opens and says
+  "Add the Pixabay API key in Settings → Pixabay first." with a button there.
+  Sounds never call Pixabay, so they need no key.
+- **Every import is one request** (`importFromPixabay` in
+  `pixabay-import.ts`), one transaction, and one `catalog_import` audit row
+  listing the new items. At most 20 imports per admin in ten minutes, because
+  Pixabay asks for no mass downloading.
+
+### Fetching a picture or film
+
+The `pomodoro-pixabay-imports` worker (`pixabay-worker.ts`) takes rows that
+still have `import_url` set, up to five pictures or one film per pass of the
+fifteen-second loop, so 25 photos take about a minute. The row says "Fetching
+from Pixabay" meanwhile.
+
+- **A picture** is looked up by id on Pixabay's API (`pixabay.ts`), its
+  `largeImageURL` is copied into the bucket, and it becomes the still. A
+  default key gives pictures 1280 pixels wide.
+- **A film** takes Pixabay's large version when it is under 100 MB, else the
+  medium one, is copied into the bucket and handed to the catalogue worker
+  with its tries counted from nothing. That worker shrinks it to 720p and takes
+  its first frame as the still, the same as an upload. Pixabay's own thumbnail
+  is not used, so the still matches the film.
+- **Both fill in the credits** from Pixabay's answer: the artist (the Pixabay
+  user), the source link, the licence, and the tags from Pixabay's tag list,
+  cut to the usual eight. A field the admin filled in while the file was on its
+  way is kept, and so is a picture they chose.
+- **Only Pixabay's file servers are fetched from.** The file address must be
+  https on a host ending in pixabay.com, one redirect is followed at most, to a
+  host that passes the same check, and a file past its size limit is refused
+  while it arrives.
+- **When Pixabay says no.** An unknown id fails the row with "Pixabay has no
+  item 195893", and a refused key with "The Pixabay API key was refused. Check
+  it in Settings → Pixabay.", neither tried again. Too many requests puts the
+  row back without using one of its three tries and ends the pass. A failed
+  download is tried three times, once a pass, then "Pixabay's file could not
+  be fetched".
+  The row shows "File refused:" with the reason, and the admin can upload a
+  file of their own in its window.
+- **The admin's own file wins.** Uploading a file, or "Use the still only", in
+  the window while a fetch is waiting stops the fetch.
+
+### A sound waiting for its file
+
+- **The row** says "Needs the file from Pixabay" with an "Open on Pixabay"
+  link that opens in a new tab. The window's Files card says the same, with
+  the link, in place of "No file yet."
+- **Choose file in the window** is where the MP3 goes. Save queues it through
+  the usual 2-to-5-minute check and the worker. There is no upload button on
+  the row; the cog is one click away.
+- **Live is refused until the file is ready**, by the check every sound
+  already has.
+
 ## The window
 
 `admin-catalog-dialog.tsx`, three cards:
@@ -94,6 +196,10 @@ and one for sounds. Add ability to add sound and theme in admin dashboard
   sound file or the theme's film, uploaded the moment it is chosen and prepared
   after Save. A sound has a starting volume from 10 to 100, multiplied into
   each member's own volume. A theme can drop its film and be a still again.
+  A theme with a film shows a player under "Film" (the browser's own, as the
+  media library uses), the same size as the still, so the admin can watch the
+  film members get before making it Live. While a new film is being prepared
+  the player still plays the current one.
 - **Credits.** Artist, source link, licence and a note. Only admins see them.
 
 Delete sits hard left in the footer. It closes the window and asks in the
@@ -102,6 +208,8 @@ what they get instead. The item's uploaded files are removed from the bucket;
 the built-in files under `public/` never are.
 
 Going Live needs a picture, and for a sound a file (or one on its way). A
+sound always has a picture, because one of the built-in graphics is picked
+when none is given. A
 theme's film whose still was left empty gets its first frame as the still.
 
 ## The worker

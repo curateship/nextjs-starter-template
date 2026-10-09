@@ -43,6 +43,8 @@ cover this one.
   plus custom rhythms.
 - [Pro perks](pro-perks.md) — what a paid plan unlocks and the one module
   that answers every can-do question.
+- [Switching payments on](switching-payments-on.md) — the order to set Stripe
+  up in, what each money path does, and how to prove it.
 - [The plans page](plans-page.md) — `/plans`, the product's own pricing
   screen: where the figures come from, what each button does, and why the
   shell's `/pricing` is a different page.
@@ -106,14 +108,14 @@ cover this one.
   warnings, suspensions, blocked words, the pause switches and STAFF.
 - [Rooms in the admin](rooms-admin.md) — closing, editing and featuring
   rooms, invitations, house presets and room limits.
-- [Admin settings](admin-settings.md) — the Pomoder settings page: shuffle for
+- [Admin settings](admin-settings.md) — Pomoder's tabs under Settings → App settings, saving by themselves: shuffle for
   guests, the default theme and sound, seasons and the new-account timer.
 - [Themes and sounds in the admin](catalog-admin.md) — the catalogue in the
   database, the Themes and Sounds dashboards, the window, the 2-to-5-minute
   rule, uploads and the worker, and what members fall back to.
 - [Admin sections](admin-sections.md) — every Pomoder operator page under
   `/admin`, from focus data and the report queue to member profiles, uploads,
-  badges and groups, and what each delete takes with it.
+  badges, groups and projects, and what each delete takes with it.
 - [Members in the admin](admin-members.md) — the window a member's name opens
   on any admin list, fixing a broken streak day without touching hours or the
   leaderboard, and the private admin notes.

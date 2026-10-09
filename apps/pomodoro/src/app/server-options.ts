@@ -4,6 +4,7 @@ import { advanceDueRooms } from "@/server/pomodoro/rooms"
 import { openDueRooms } from "@/server/pomodoro/scheduled-rooms"
 import { processNextMediaUpload } from "@/server/pomodoro/media-worker"
 import { processNextCatalogFile } from "@/server/pomodoro/catalog-worker"
+import { processPixabayImports } from "@/server/pomodoro/pixabay-worker"
 import { processNextGeneration } from "@/server/pomodoro/generation-worker"
 import {
   readFocusHoursRow,
@@ -33,6 +34,19 @@ import { runStreakReminderPass } from "@/server/pomodoro/streak-reminder"
  * door nobody is told about.
  */
 export const appServerOptions: AppServerOptions = {
+  billing: {
+    /**
+     * Stripe hands everyone back to the product's own plans page, never to
+     * the shell's `/pricing` or its success page, which the product does not
+     * link to. The paid return carries `welcome=pro`, and the plans page
+     * confirms the session itself so Pro is on before the page draws.
+     */
+    returnPaths: {
+      checkoutSuccess: "/plans?welcome=pro",
+      checkoutCancel: "/plans",
+      portalReturn: "/plans",
+    },
+  },
   pages: {
     /**
      * What fills the two public front page rows. Both answer `null` on a week
@@ -101,6 +115,13 @@ export const appServerOptions: AppServerOptions = {
         // never holds a member's upload behind it, one file per pass.
         name: "pomodoro-catalog-files",
         tick: processNextCatalogFile,
+      },
+      {
+        // Pictures and films an admin imported from Pixabay links: up to five
+        // pictures or one film per pass, copied into the bucket. A film then
+        // goes to pomodoro-catalog-files to be shrunk like an upload.
+        name: "pomodoro-pixabay-imports",
+        tick: processPixabayImports,
       },
       {
         // AI backgrounds and soundscapes. One per pass, and its own worker

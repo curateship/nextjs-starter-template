@@ -10,6 +10,7 @@ import {
   setProjectPublic as setProjectPublicRow,
 } from "@/server/pomodoro/projects"
 import {
+  PROJECT_NAME_MAX_LENGTH,
   TARGET_HOURS_MAX,
   targetPeriods,
 } from "@/lib/pomodoro/project-targets"
@@ -21,7 +22,7 @@ import {
  * browser can only ever reach that person's own rows.
  */
 
-const projectNameSchema = z.string().trim().min(1).max(60)
+const projectNameSchema = z.string().trim().min(1).max(PROJECT_NAME_MAX_LENGTH)
 const projectIdSchema = z.object({ projectId: z.string().uuid() })
 // Hours and period travel together, so the server never sees one without the
 // other. Null clears the target.

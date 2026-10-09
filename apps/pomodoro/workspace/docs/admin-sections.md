@@ -21,7 +21,6 @@ Every delete and every report decision is written to `pomodoro_audit_logs`.
 | `/admin/pomodoro-room-presets` | The house presets hosts pick from |
 | `/admin/pomodoro-chat` | Every room's chat, a search across it, held lines |
 | `/admin/pomodoro-bans` | Room bans, hidden profiles and suspensions, with Lift |
-| `/admin/pomodoro-settings` | The Pomoder settings page |
 | `/admin/pomodoro-profiles` | Every public profile with a handle, and a window to fix the handle, name or bio, or hide it |
 | `/admin/pomodoro-uploads` | Every background and sound a member uploaded or had AI make, with Delete |
 | `/admin/pomodoro-tags` | Every member task tag and how many tasks carry it, with Delete |
@@ -31,6 +30,7 @@ Every delete and every report decision is written to `pomodoro_audit_logs`.
 | `/admin/pomodoro-achievements` | Who earned which badge, with Revoke |
 | `/admin/pomodoro-groups` | Every private focus group, its members, and Delete |
 | `/admin/pomodoro-generations` | Every AI background and soundscape request, with Delete for the file |
+| `/admin/pomodoro-projects` | Every member's projects with their tasks, hours and target, a window to rename, retarget or archive one, and Delete |
 
 A member's name on any of these lists opens the member window over the page,
 with `?member=<userId>` in the address. What it shows and the two repair tools
@@ -47,7 +47,8 @@ On the local Pomodoro workspace the menu holds them like this. Weekly rooms
 sits under Rooms, beside Sessions and Reports, and Repeating tasks sits under
 Tasks. Profiles, between Focus and Pages, opens Public profiles and has
 Leaderboard and Achievements under it, as Tyler asked on 8 Oct 2026. The live site's menu is its own saved setting and has to be given the
-same two links after a deploy.
+same two links after a deploy. Projects sits under Tasks, beside Repeating
+tasks, since 8 Oct 2026, and the live menu needs that link too.
 
 ## Finding one member's focus data
 
@@ -157,7 +158,7 @@ add Free, Pro, Draft and Live to the ticked-row buttons.
 One file owns the table. `admin-list.tsx` draws the selection column, the header
 checkbox, the empty row's width and the toolbar's "Clear N selected" chip, so a
 new page gets the lot by passing one `selection` prop. `admin-delete.tsx` owns
-the bin, the toolbar button and the confirm window, so all seven lists that
+the bin, the toolbar button and the confirm window, so every list that
 delete ask and answer the same way.
 
 ## Deleting
@@ -196,6 +197,7 @@ reports was read-only on purpose. That rule is gone.
 | Focus data | The account's finished and cancelled runs, every daily total, every task's session count | The account, its tasks, projects, rooms, profile and earned badges, and a run still going | Nothing else to put right: every figure the member shows off reads zero |
 | Weekly rooms | The rule | Rooms it already booked, which still open | |
 | Repeating tasks | The rule | Tasks it already made | |
+| Projects | The project | Its tasks and repeating-task rules, with no project, and every hour in History under "No project" | The owner is told "The Pomoder team deleted your project Thesis. Its tasks are kept." A public project's held profile page is dropped so it stops showing at once |
 
 ### Taking a session back off the totals
 
@@ -229,6 +231,82 @@ Focus data is the one delete that wipes everything a member shows off, so the
 window has a box: type DELETE, then press Delete focus data. Pressing it with
 the box wrong keeps the window open, marks the box and says "Type DELETE to
 confirm." The button is never greyed out while the box is empty.
+
+## Projects
+
+`/admin/pomodoro-projects` lists every member's projects. Before 8 Oct 2026
+projects were the only member records with no admin page. Tyler asked for it
+that day: "there is no admin projects dashboard".
+
+### The list
+
+- **The columns** are the project's name with its coloured square, the owner,
+  tasks, hours focused all time, the target, and the date it was made (on a
+  screen 1536px wide or more, beside Profile, which says whether it shows on
+  the owner's public page). An archived project says Archived beside its name
+  instead of in a column of its own, so the list fits a 1280px screen.
+- **The target cell has two lines**: "10h a week", and under it the words
+  under the owner's own bar, "4h of 10h this week". The week and month are the
+  owner's, in the owner's timezone. A project with no target leaves it blank.
+- **The tasks and hours are the owner's own figures.** Both are the same SQL
+  the Projects card on `/tasks` reads (`projectTaskCount` and
+  `projectFocusSeconds` in `src/server/pomodoro/projects.ts`), so a row and the
+  card can never disagree. A carried task is counted once.
+- **Search** finds a project name, an owner's name or an owner's email. The
+  filters are live or archived, on the public profile or private, and has a
+  target or not. Every sort column but Tasks and Focused works out the hours
+  for the page on screen only. Sorting by Tasks or Focused has to count every
+  project the filters let through.
+- **The owner's name opens the member window.** `?user=<id>` narrows the list
+  to one member, with "One member's projects" in the toolbar to clear it.
+
+### The project window
+
+The name, the row or the cog opens it, with `?open=<id>` in the address, so Back
+closes it.
+
+- **Figures**: owner, tasks, hours all time, target, this period so far, public
+  or not, live or archived, and when it was made.
+- **Settings**: the Name and Target hours fields of the owner's own settings
+  window, with the same rules. A name is up to 60 characters and unique among
+  the owner's live projects, ignoring case. The database's own index refuses a
+  clash, and the window says "The owner already has a live project with that
+  name." Hours are whole numbers from 1 to 744, or blank for no target.
+- **Newest tasks**: the last 10, carried copies left out, with a link to the
+  owner's tasks on the Tasks page.
+- **The footer**: Delete hard left, then Archive or Bring back, then Cancel and
+  Save changes. Archive and Bring back act at once and keep anything typed.
+  Bringing a project back is refused when the owner has since made a live
+  project with the same name, the same as for the owner.
+
+### What the owner is told
+
+Every change is one transaction with one `pomodoro_audit_logs` row (resource
+`projects`, action `edit`, `archive`, `unarchive` or `delete`) and one notice
+to the owner. None names the admin. An admin changing their own project is not
+told, because nobody is notified about their own action, and the window, the
+toasts and the delete window then leave out "is told in the bell".
+
+- A rename: "The Pomoder team renamed your project Thesis to PhD."
+- A new target: "The Pomoder team changed the target on your project Thesis."
+- Both in one save: "The Pomoder team changed your project Thesis: it is now
+  PhD, with a new target."
+- "The Pomoder team archived your project Thesis." and "… brought back your
+  project Thesis."
+- "The Pomoder team deleted your project Thesis. Its tasks are kept."
+
+A save that changes nothing writes nothing and tells nobody. A change to a
+public project drops the owner's held public page, so the new name shows at
+once.
+
+### Deleting
+
+On a row, over ticked rows, and in the window. The confirm window says "2
+projects will be deleted. Their 14 tasks are kept with no project, and the
+focus time stays in each person's History." A single project names itself
+and its owner. The tasks and repeating-task rules stay, with an empty project,
+through the `on delete set null` both columns already had. The owner's
+Projects card loses the project and their tasks show with no project name.
 
 ## The record of every delete
 
@@ -276,10 +354,13 @@ copy would give an operator two places to look.
   `adminGet` or `adminPost`, so a member calling them by hand is refused
   whatever the sidebar shows them.
 - `src/components/pomodoro/admin-delete.tsx`: the bin, "Delete (N)" and the
-  confirm window, shared by the seven lists that delete.
+  confirm window, shared by every list that deletes.
 - `src/components/pomodoro/admin-list.tsx` — the shared list plumbing: hold the
   rows the loader fetched, refetch a quarter of a second after the address
   changes, and draw the shell's dashboard table.
+- `src/server/pomodoro/admin-projects.ts`: the Projects list, window, save,
+  archive and delete. Tested against a real database in
+  `admin-projects.test.ts`.
 - `src/components/pomodoro/admin-*-dashboard.tsx` — one file per page.
 
 Search, filters, sort and page all live in the address, so pressing Back returns

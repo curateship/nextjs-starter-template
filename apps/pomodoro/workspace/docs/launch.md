@@ -200,6 +200,22 @@ What the laptop could not prove:
 
 ## Release record
 
+### Payments on, 9 Oct 2026
+
+- **Commit:** `fecc266a0`, 18 commits since the first deploy, five migrations
+  (0123 to 0127), so the website went first and the worker followed.
+- **Deployments:** web `j2wnpbhv9f8smdv7wkb92tas` (web: finished after 540s), worker `dmqa9zjmed2csgq2unq5k1ps` (476s). Health 200.
+- **New on the server:** `CUSTOM_SHELL_BILLING_ENABLED=true` on both
+  resources, runtime only. The Stripe keys live in Settings → Payments, not in
+  the environment.
+- **What it switched on:** Pro at $9 a month and $78 a year through the
+  "Pomoder" Stripe account. The live plans page reads "Get Pro". See
+  [Switching payments on](switching-payments-on.md).
+- **Also carried:** the admin tasks 02 to 07 and the personal room from
+  earlier in the week, and the left menu now shows Profiles and Themes.
+- **Owed:** Tyler's real purchase and refund, the last step of the payments
+  task.
+
 ### First deploy, 8 Oct 2026
 
 - **Commit:** `ff4e8e09d`, pushed to `develop`, which is the branch both

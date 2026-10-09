@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select"
 import { useProductAuth } from "@/lib/pomodoro/auth-state"
 import { formatFocusDuration } from "@/lib/pomodoro/focus-history"
+import { projectInitial, projectToneIndex } from "@/lib/pomodoro/project-initial"
 import { cn } from "@/lib/utils"
 import {
   TARGET_HOURS_MAX,
@@ -189,10 +190,7 @@ export function ProjectsCard({ pomodoro }: { pomodoro: PomodoroApi }) {
   )
 }
 
-/**
- * The coloured square on a project card: its first letter, in one of five
- * tints picked from the name, so a card keeps its colour across visits.
- */
+/** The coloured square on a project card, in the Pomoder palette. */
 const INITIAL_TONES = [
   "bg-sky-400/15 text-sky-300",
   "bg-amber-400/15 text-amber-300",
@@ -202,17 +200,15 @@ const INITIAL_TONES = [
 ]
 
 function ProjectInitial({ name, muted }: { name: string; muted?: boolean }) {
-  let hash = 0
-  for (const char of name) hash = (hash * 31 + char.charCodeAt(0)) % 997
   return (
     <span
       aria-hidden="true"
       className={cn(
         "grid size-10 shrink-0 place-items-center rounded-xl text-lg font-bold",
-        muted ? "bg-muted text-muted-foreground" : INITIAL_TONES[hash % INITIAL_TONES.length]
+        muted ? "bg-muted text-muted-foreground" : INITIAL_TONES[projectToneIndex(name)]
       )}
     >
-      {name.trim().charAt(0).toUpperCase() || "?"}
+      {projectInitial(name)}
     </span>
   )
 }

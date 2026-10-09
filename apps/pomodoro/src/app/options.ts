@@ -10,6 +10,8 @@ import {
   EyeOffIcon,
   FlagIcon,
   FlameIcon,
+  FolderIcon,
+  FolderXIcon,
   GaugeIcon,
   MessageSquareIcon,
   PartyPopperIcon,
@@ -23,6 +25,7 @@ import {
 } from "lucide-react"
 
 import type { AppNoticeDetail, AppOptions } from "@/lib/app-options"
+import { POMODORO_SETTINGS_TABS } from "@/lib/pomodoro/app-settings"
 import { pomodoroLandingPage } from "@/components/pomodoro/landing-page"
 import {
   POMODORO_ROW_HINTS,
@@ -91,6 +94,8 @@ const NOTICE_LOOK: Record<PomodoroNoticeKind, AppNoticeDetail> = {
   profile_edited: { icon: SettingsIcon, toneClassName: PLAIN },
   streak_restored: { icon: FlameIcon, toneClassName: GOOD },
   group_deleted: { icon: UserMinusIcon, toneClassName: PLAIN },
+  project_changed: { icon: FolderIcon, toneClassName: PLAIN },
+  project_deleted: { icon: FolderXIcon, toneClassName: PLAIN },
 }
 
 /** A kind's whole look: its tile and the tab it is filed under. */
@@ -196,6 +201,50 @@ export const appOptions: AppOptions = {
         })),
     })),
   },
+  settings: {
+    /**
+     * Pomoder's own settings, under App settings in the Settings rail. Tyler,
+     * 9 Oct 2026: "This settings page should be here and it has to be auto
+     * save." Each tab loads its own settings and saves every change by itself.
+     */
+    tabs: [
+      {
+        id: POMODORO_SETTINGS_TABS.safety,
+        label: "Emergency switches",
+        panel: () => settingsTab("SafetySettingsTab"),
+      },
+      {
+        id: POMODORO_SETTINGS_TABS.media,
+        label: "Themes and sounds",
+        panel: () => settingsTab("MediaSettingsTab"),
+      },
+      {
+        id: POMODORO_SETTINGS_TABS.seasons,
+        label: "Seasons",
+        panel: () => settingsTab("SeasonsSettingsTab"),
+      },
+      {
+        id: POMODORO_SETTINGS_TABS.newAccounts,
+        label: "New accounts",
+        panel: () => settingsTab("NewAccountsSettingsTab"),
+      },
+      {
+        id: POMODORO_SETTINGS_TABS.rooms,
+        label: "Rooms",
+        panel: () => settingsTab("RoomsSettingsTab"),
+      },
+      {
+        id: POMODORO_SETTINGS_TABS.chat,
+        label: "Room chat",
+        panel: () => settingsTab("ChatSettingsTab"),
+      },
+      {
+        id: POMODORO_SETTINGS_TABS.pixabay,
+        label: "Pixabay",
+        panel: () => settingsTab("PixabaySettingsTab"),
+      },
+    ],
+  },
   notifications: {
     categories: POMODORO_NOTICE_CATEGORIES,
     /**
@@ -233,4 +282,17 @@ export const appOptions: AppOptions = {
       )
     },
   },
+}
+
+/**
+ * A pointer to one of Pomoder's Settings tabs, never the component: this file
+ * is read on the server, and the tab's module builds server functions as it
+ * loads. See `AppSettingsTab` in `src/lib/settings-tab.ts`.
+ */
+function settingsTab(
+  name: keyof typeof import("@/components/pomodoro/admin-settings-tabs")
+) {
+  return import("@/components/pomodoro/admin-settings-tabs").then((module) => ({
+    default: module[name],
+  }))
 }

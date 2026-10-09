@@ -4,6 +4,7 @@ import { PricingPage } from "@/components/pomodoro/pricing-page"
 import { visitorRouteErrorComponent } from "@/components/shell/route-error"
 import { loadCurrentUser } from "@/lib/api/auth/auth"
 import {
+  confirmCheckoutSession,
   getBillingErrorMessage,
   loadBillingOverview,
   loadPublicPricing,
@@ -18,10 +19,30 @@ import {
  * product. See `workspace/docs/plans-page.md`.
  */
 export const Route = createFileRoute("/_pomodoro/plans")({
-  loader: async () => {
+  // Stripe sends a payer back here with `welcome=pro` and the session id
+  // (`billing.returnPaths` in `src/app/server-options.ts`).
+  validateSearch: (
+    search: Record<string, unknown>
+  ): { welcome?: "pro"; session_id?: string } => ({
+    ...(search.welcome === "pro" ? { welcome: "pro" as const } : {}),
+    ...(typeof search.session_id === "string"
+      ? { session_id: search.session_id }
+      : {}),
+  }),
+  loaderDeps: ({ search }) => ({
+    welcome: search.welcome,
+    sessionId: search.session_id,
+  }),
+  loader: async ({ deps }) => {
     // Plans are public; the overview needs the session, so only ask for it
     // when signed in, and run both together rather than one after the other.
     const user = await loadCurrentUser()
+    // Ask Stripe about the purchase before reading the plan, so Pro is on by
+    // the time the cards draw even when the webhook is a beat behind. A
+    // failed ask is not an error page: the page refreshes briefly instead.
+    if (user && deps.sessionId) {
+      await confirmCheckoutSession(deps.sessionId).catch(() => null)
+    }
     const [pricing, overview] = await Promise.all([
       loadPublicPricing(),
       user ? loadBillingOverview() : null,
@@ -40,6 +61,10 @@ export const Route = createFileRoute("/_pomodoro/plans")({
       changingPlan: overview?.source === "stripe" && overview.hasStripeCustomer,
       // Somebody we do not know yet is never told they have spent a trial.
       trialUsed: Boolean(overview?.trialUsed),
+      // Just back from paying. The line under the headline says so, and the
+      // page refreshes briefly if the plan has not caught up yet.
+      welcome: deps.welcome === "pro" && Boolean(user),
+      isPaid: Boolean(overview?.isPaid),
     }
   },
   head: () => ({

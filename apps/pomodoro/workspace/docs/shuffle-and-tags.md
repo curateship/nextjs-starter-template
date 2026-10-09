@@ -8,7 +8,7 @@ sound ends. The idea is Tyler's own, from 8 Oct 2026.
 
 - **"Add in app settings to checkbox shuffling sounds and themes for anon users
   and users that have not set their own custom themes and sounds."** The switch
-  is on the Pomoder settings page; see [Admin settings](admin-settings.md).
+  is on Settings → Themes and sounds; see [Admin settings](admin-settings.md).
 - **"Add tag ability to sounds and themes and let user select tags as default
   first tab with another tab to select individual sound and theme. User can also
   select shuffle for both."**

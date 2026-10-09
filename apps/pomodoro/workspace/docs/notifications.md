@@ -80,6 +80,8 @@ saved with it.
 | report_reviewed | whoever filed the report | Account | nothing |
 | profile_hidden | the owner of the hidden profile | Account | Settings → Public page |
 | streak_reminder | a member who switched it on, streak alive and today empty | Account | `/timer` |
+| project_changed | a project's owner, when an admin who is not the owner renames it, changes its target, archives it or brings it back | Account | `/tasks`, where the Projects panel is |
+| project_deleted | a project's owner, when an admin who is not the owner deletes it | Account | `/tasks` |
 
 Rooms is what happens in and around focus rooms. Social is other people outside
 a room. Account is your own badges, files and credits, and moderation: the

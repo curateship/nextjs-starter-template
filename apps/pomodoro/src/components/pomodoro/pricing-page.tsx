@@ -1,5 +1,5 @@
 import * as React from "react"
-import { useNavigate } from "@tanstack/react-router"
+import { useNavigate, useRouter } from "@tanstack/react-router"
 import { CheckIcon, Loader2Icon } from "lucide-react"
 
 import { PlanChangeConfirmation } from "@/components/shared/plan-change-confirmation"
@@ -33,6 +33,9 @@ import { useMediaCatalog } from "@/lib/pomodoro/room-media-store"
  * Settings → Plans, their Stripe prices and the same checkout call the shell's
  * `/pricing` page makes. No price is written here.
  */
+const WELCOME_REFRESH_MS = 1_500
+const WELCOME_REFRESH_ATTEMPTS = 8
+
 export function PricingPage({
   plans,
   signedIn,
@@ -41,6 +44,8 @@ export function PricingPage({
   billingEnabled,
   trialUsed,
   changingPlan,
+  welcome,
+  isPaid,
 }: {
   plans: PlanOption[]
   signedIn: boolean
@@ -49,8 +54,31 @@ export function PricingPage({
   billingEnabled: boolean
   trialUsed: boolean
   changingPlan: boolean
+  /** Just back from a paid checkout. */
+  welcome: boolean
+  isPaid: boolean
 }) {
   const navigate = useNavigate()
+  const router = useRouter()
+
+  // Back from paying but the plan has not caught up: the loader's ask of
+  // Stripe failed, so the webhook is what will land it. Refresh a few times
+  // rather than leave "Get Pro" on screen for somebody who just paid.
+  const waiting = welcome && !isPaid
+  React.useEffect(() => {
+    if (!waiting) return
+    let attempts = 0
+    let timer: ReturnType<typeof setTimeout>
+    const refresh = () => {
+      attempts += 1
+      void router.invalidate()
+      if (attempts < WELCOME_REFRESH_ATTEMPTS) {
+        timer = setTimeout(refresh, WELCOME_REFRESH_MS)
+      }
+    }
+    timer = setTimeout(refresh, WELCOME_REFRESH_MS)
+    return () => clearTimeout(timer)
+  }, [router, waiting])
   const [busyKey, setBusyKey] = React.useState<string | null>(null)
   const [preview, setPreview] = React.useState<PlanChangePreview | null>(null)
   // A second click while the first checkout is opening would start two of them.
@@ -116,6 +144,13 @@ export function PricingPage({
           The timer, tasks and rooms are free. Pro unlocks every sound and
           scene, AI mixes, hosting and your full history.
         </p>
+        {welcome ? (
+          <p role="status" className="max-w-xl text-sm">
+            {isPaid
+              ? "You're on Pro. Every sound and scene, AI mixes, hosting and your full history are unlocked, and your receipt is in your inbox."
+              : "Stripe is confirming your payment. This usually takes a few seconds."}
+          </p>
+        ) : null}
       </header>
 
       {preview ? (
