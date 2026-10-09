@@ -78,7 +78,7 @@ screen: anything not written there has not been agreed yet.
   engine errors, and the health notices it raises.
 - `market-list.md` — per-protocol market memory, remembered picker filters, the market list, compact three-column pinned picker,
   checkbox filters, labelled search input, narrow-screen Testnet warning and the Manual orders panel.
-- `panels-and-loading.md` — shared Reading labels and spinners; content-based order-panel sizing where the spare column height goes to the longer of Smart orders and Manual orders, how panels behave, narrow screens, stand-in
+- `panels-and-loading.md` — shared Reading labels and spinners; content-based order-panel sizing where the spare column height goes to the longer of Smart orders and Manual orders, the View options "Hide on empty" switch that takes an empty Grid, DCA or Manual orders panel out of the column, the trade-count row with Value and PnL sums under each of those three tables, how panels behave, narrow screens, stand-in
   figures, empty states, loading, and live prices.
 - `rules-everywhere.md` — the interaction rules that hold on every screen.
   The Testnet warning remains in the market header.

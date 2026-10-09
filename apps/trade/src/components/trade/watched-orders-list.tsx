@@ -1,6 +1,7 @@
 import * as React from "react"
 
 import { MarketIcon } from "@/components/trade/market-icon"
+import { OrderPanelTotals } from "@/components/trade/order-panel-totals"
 import { PnlAmount } from "@/components/trade/pnl-amount"
 import { TradeBadge } from "@/components/trade/trade-badge"
 import {
@@ -29,6 +30,7 @@ import {
 } from "@/lib/trade/format"
 import { refusalForWatchedOrder, type LiveRefusal } from "@/lib/trade/live"
 import { useLiveMarks } from "@/lib/trade/live-market"
+import { sumProfits, sumValues } from "@/lib/trade/order-panel-sums"
 import { moneyTone } from "@/lib/trade/money-tone"
 import {
   positionProfit,
@@ -92,6 +94,7 @@ export function WatchedOrdersList({
   onRetry,
   onSelectMarket,
   selectedKey,
+  onEmptyChange,
 }: {
   /** Watched prices wearing an order's clothes, from the trading hook. */
   orders: readonly TradeOrder[]
@@ -124,6 +127,15 @@ export function WatchedOrdersList({
   settled: boolean
   /** The first read failed and there is nothing to fall back on. */
   failed: boolean
+  /**
+   * Told whenever the list has no row to show, or has one again, so the
+   * dashboard can leave the Manual orders panel out when Hide on empty is on.
+   * A coin held by hand is a row, so a panel listing one is not empty. A
+   * failed read with nothing listed is never "empty": its Retry button has to
+   * stay reachable. Reported before paint, so the panel is never drawn for a
+   * frame and then taken away.
+   */
+  onEmptyChange?: (empty: boolean) => void
   onRetry: () => void
   onSelectMarket: (marketKey: string) => void
   /** The market on the chart, so its rows read as the one already open. */
@@ -330,6 +342,11 @@ export function WatchedOrdersList({
     walletName,
   ])
 
+  const empty = tableRows.length === 0 && !failed
+  useEffectBeforePaint(() => {
+    onEmptyChange?.(empty)
+  }, [empty, onEmptyChange])
+
   const heading = (column: ManualOrderColumn, label: string) => (
     <TableSortButton
       active={sort === column}
@@ -472,6 +489,11 @@ export function WatchedOrdersList({
                   </TableRow>
                 ))}
               </TableBody>
+              <OrderPanelTotals
+                count={tableRows.length}
+                value={sumValues(tableRows.map((row) => row.money))}
+                pnl={sumProfits(tableRows.map((row) => row.profit))}
+              />
             </Table>
           )}
         </div>

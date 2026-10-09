@@ -8,6 +8,7 @@ import {
 } from "lucide-react"
 
 import { MarketIcon } from "@/components/trade/market-icon"
+import { OrderPanelTotals } from "@/components/trade/order-panel-totals"
 import { TradeBadge } from "@/components/trade/trade-badge"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
@@ -43,6 +44,7 @@ import {
 } from "@/lib/trade/format"
 import { keyExpiryNotice } from "@/lib/trade/live"
 import { useLiveMarks } from "@/lib/trade/live-market"
+import { sumProfits, sumValues } from "@/lib/trade/order-panel-sums"
 import {
   gridRoundTrips,
   type LiveFill,
@@ -135,6 +137,14 @@ type SmartOrdersViewProps = {
   onRetry: () => void
   onResumeSmartOrder: (order: SmartOrder) => Promise<boolean>
   onSelectMarket: (marketKey: string) => void
+  /**
+   * Told whenever the panel has no row to show, or has one again, so the
+   * dashboard can leave an empty panel out when Hide on empty is on. A failed
+   * read with nothing listed is never "empty": its Retry button has to stay
+   * reachable. Reported before paint, so a panel is never drawn for a frame
+   * and then taken away.
+   */
+  onEmptyChange?: (empty: boolean) => void
 }
 
 /** The two panels, one per kind of smart order placed by hand. */
@@ -195,6 +205,7 @@ function SmartOrdersView({
   onRetry,
   onResumeSmartOrder,
   onSelectMarket,
+  onEmptyChange,
   kind,
 }: SmartOrdersViewProps & { kind: SmartOrdersPanelKind }) {
   const [cached, setCached] = React.useState<ReturnType<
@@ -347,6 +358,11 @@ function SmartOrdersView({
       {label}
     </TableSortButton>
   )
+
+  const empty = rows.length === 0 && !failed
+  useEffectBeforePaint(() => {
+    onEmptyChange?.(empty)
+  }, [empty, onEmptyChange])
 
   return (
     <>
@@ -507,6 +523,11 @@ function SmartOrdersView({
                 }
               )}
             </TableBody>
+            <OrderPanelTotals
+              count={rows.length}
+              value={sumValues(rows.map((row) => row.held))}
+              pnl={sumProfits(rows.map((row) => row.openProfit))}
+            />
           </Table>
           <ScrollBar orientation="horizontal" />
         </ScrollArea>

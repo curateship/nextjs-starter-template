@@ -1261,7 +1261,11 @@ being set up, the preview also prints each rung's number between the money and
 the bar, 1 nearest the market; a placed grid does not. The money column is one
 width for the whole grid, as wide as its widest chip, so every amount stacks in
 one straight column and every bar starts on the same x. The gear, the reverse arrows, the × and the count,
-"2/3", are not on any rung's line of their own: they sit on the grip's row,
+"2/3", are not on any rung's line of their own. The count is the levels still
+waiting over the levels still part of the grid: a level called off with its ×
+keeps its seat in the list, so the range keeps its shape, but it is neither
+drawn nor counted, so one × on an eight-level grid with six waiting reads 6/7,
+never 6/8 (Tyler, 8 Oct 2026). They sit on the grip's row, they sit on the grip's row,
 midway between the UPPER PRICE and LOWER PRICE bars, flush right, with the grip
 in front of them (Tyler, 3 Sep 2026). On a grid with an odd number of rungs
 that middle IS a rung's line, and the grip and badge then join that rung's

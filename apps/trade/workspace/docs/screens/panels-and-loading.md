@@ -9,8 +9,20 @@ fixed in one is fixed in both.
   size to their contents and fill the right column between them.
   The old 60/40 split is no longer saved or read.
 - **Each order panel starts at the height its own rows need.** When the
-  column has height to spare, Manual orders takes it, so no card ends in empty
-  space above a panel that scrolls.
+  column has height to spare, the lowest panel on screen takes it, so no card
+  ends in empty space above a panel that scrolls. That is Manual orders unless
+  Hide on empty has taken it away, then DCA, then Grid: a Grid panel on its
+  own fills the whole column (Tyler, 8 Oct 2026).
+- **Every order panel adds its rows up in a row pinned to its bottom**
+  (Tyler, 8 Oct 2026). The first cell counts the trades, "3 trades", in place
+  of the word Total; then their Value added together and their PnL added
+  together, each under its own column, the same footer for Grid, DCA and
+  Manual orders. It stays on screen while the rows scroll and is not drawn
+  while there is nothing to add up. PnL adds only the rows
+  that have one, because a waiting grid, ladder or level has made and lost
+  nothing yet; with none it shows a dash. Value shows a dash the moment one
+  row has no value yet, since a total missing a row would be wrong rather
+  than incomplete. The code is `order-panel-totals.tsx`.
 - **A short column takes height from all three in proportion to what they
   hold** (Tyler, 6 Oct 2026). An empty Manual orders shrinks to its heading and
   its one message, and hands the rest to Grid and DCA. Before this, Grid and
@@ -18,6 +30,30 @@ fixed in one is fixed in both.
   while Grid scrolled.
 - **Each panel has a floor.** Grid and DCA keep 8rem, enough for the heading
   and a row. Manual orders keeps 11rem, enough for its empty message.
+- **Hide on empty takes an empty panel out of the column** (Tyler, 8 Oct
+  2026). The switch is in the chart's View options, under the heading "Grid,
+  DCA and Manual orders", off until it is turned on, and it follows the
+  account like the rest of that menu. With it on, a panel with no row to show
+  is not drawn, and the panels that do have rows take its height. The panel
+  comes back the moment it has a row: a grid or ladder placed, a price
+  watched, or a coin bought by hand, which Manual orders lists as a row.
+- **"Empty" means nothing to show, never "could not read".** A panel whose
+  read failed stays on screen with its message and Retry button, because a
+  hidden Retry button cannot be pressed. A panel still reading, with nothing
+  remembered from last time, counts as empty and appears when its rows land.
+- **With all three empty, the column says so** in one line, "Nothing is
+  working or waiting", rather than standing as a blank strip that looks like
+  a page that broke. The same rule holds inside the collapsed column's menu
+  and in the narrow-screen side sheet, which draw the same three panels.
+- **The code.** Each panel reports whether it is empty through
+  `onEmptyChange` (`smart-orders-panel.tsx` and `watched-orders-list.tsx`),
+  because only the panel knows what it is listing: the smart-order panels read
+  a cache before the server answers, and Manual orders counts held coins.
+  `trade-workspace.tsx` keeps the three answers and sets the `hidden`
+  attribute on the wrapper of each empty one. A hidden panel stays mounted so
+  it can say when it has a row again. The choice is `hideEmptyOrderPanels` in
+  the saved chart options (`src/lib/trade/chart-options.ts`), so a row saved
+  before the switch existed reads as off.
 - **Worked example, a 859px column:** 13 grids want 567px, 6 ladders 315px and
   an empty Manual orders 176px, which is 1,058px against 847px of room. Grid
   gets 431px and shows 10 of its 13 rows, DCA gets 240px and shows 5 of its

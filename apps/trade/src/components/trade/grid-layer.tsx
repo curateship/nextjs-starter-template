@@ -840,6 +840,14 @@ function GridLines({
   const holding =
     plan.levels.filter((level) => level.status === "holding").length +
     plan.carriedLevels.length
+  // The pill's second number: how many levels are still part of the grid. A
+  // level called off by hand stays in the list, keeping its seat so the range
+  // geometry holds, but it is not drawn and it is not counted here. Before
+  // this, cancelling one of eight levels left the pill on 6/8 (Tyler, 8 Oct
+  // 2026).
+  const inPlay = plan.levels.filter(
+    (level) => level.status !== "cancelled"
+  ).length
   // While a paint tool is held, these controls must not steal its presses.
   const controls = tool ? "none" : "auto"
 
@@ -1375,7 +1383,7 @@ function GridLines({
         }
       />
       <span>
-        {waiting}/{plan.levels.length}
+        {waiting}/{inPlay}
       </span>
       {(() => {
         const why = reverseDisabledReason(grid)

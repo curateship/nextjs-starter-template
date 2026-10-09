@@ -51,6 +51,15 @@ export const chartOptionsSchema = z.object({
   /** The buffer a newly switched-on line starts with. Null means none. */
   lineAlertBuffer: z.number().positive().max(MAX_DRAWING_BUFFER_PCT).nullable(),
   /**
+   * "Hide on empty" in View options (Tyler, 8 Oct 2026): the Grid, DCA and
+   * Manual orders panels beside the chart leave the column while they have
+   * no row to show, so a long list is not squeezed by two empty cards. A
+   * panel whose read failed stays, because its Retry button is in it. Kept
+   * with the chart's view options because it is about what the dashboard
+   * shows, and it follows the account the same way.
+   */
+  hideEmptyOrderPanels: z.boolean().default(false),
+  /**
    * The one timezone — the axis, the crosshair and every session boundary read
    * it. See `chart-timezone.ts`; a name this build no longer offers falls back
    * to UTC rather than throwing.
@@ -83,6 +92,7 @@ export const DEFAULT_CHART_OPTIONS: ChartOptions = {
   extendTrendlines: true,
   lineAlertsOn: true,
   lineAlertBuffer: DEFAULT_DRAWING_BUFFER_PCT,
+  hideEmptyOrderPanels: false,
   zone: DEFAULT_TRADING_ZONE,
 }
 
