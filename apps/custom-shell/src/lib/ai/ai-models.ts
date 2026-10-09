@@ -48,8 +48,8 @@ export const AI_MODEL_OPTIONS: Record<AiProvider, readonly AiModelOption[]> = {
     { id: "gpt-5-mini", label: "GPT-5 mini" },
   ],
   gemini: [
-    { id: "gemini-2.5-pro", label: "Gemini 2.5 Pro" },
-    { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
+    { id: "gemini-3.1-pro-preview", label: "Gemini 3.1 Pro" },
+    { id: "gemini-3.8-flash", label: "Gemini 3.8 Flash" },
   ],
   // Voices, not writers: these turn words into speech, and are charged by the
   // character rather than by the token — see `AI_UNIT_PRICES` below.
@@ -63,7 +63,9 @@ export const AI_MODEL_OPTIONS: Record<AiProvider, readonly AiModelOption[]> = {
 export const DEFAULT_AI_MODEL: Record<AiProvider, string> = {
   anthropic: "claude-opus-5",
   openai: "gpt-5.1",
-  gemini: "gemini-2.5-flash",
+  // Google stopped offering 2.5 Flash and 2.5 Pro to new accounts; a key made
+  // after that got a 404 from both on 8 Oct 2026.
+  gemini: "gemini-3.8-flash",
   elevenlabs: "eleven_multilingual_v2",
 }
 
@@ -103,8 +105,15 @@ export const AI_MODEL_PRICES: Record<
   // GPT Image 2 image-token rates. Text-only prompt input is cheaper, so the
   // shared meter deliberately uses the higher image-input rate as a safe cap.
   "gpt-image-2": { inputPerMillion: 8, outputPerMillion: 30 },
+  // The two 2.5 rows are kept so older usage rows still price; neither model is
+  // offered any more.
   "gemini-2.5-pro": { inputPerMillion: 1.25, outputPerMillion: 10 },
   "gemini-2.5-flash": { inputPerMillion: 0.3, outputPerMillion: 2.5 },
+  // Google's price page on 2026-10-08, for prompts up to 200k tokens.
+  "gemini-3.1-pro-preview": { inputPerMillion: 2, outputPerMillion: 12 },
+  // Google's price page on 2026-10-08: this rate holds through 31 Dec 2026,
+  // then $1.50 in and $7.50 out.
+  "gemini-3.8-flash": { inputPerMillion: 0.75, outputPerMillion: 3.75 },
 }
 
 /**
@@ -176,7 +185,7 @@ export function aiUnitCostCents(model: string, units: number): number {
 export const AI_KEY_TEST_MODEL: Record<AiProvider, string> = {
   anthropic: "claude-haiku-4-5",
   openai: "gpt-5-mini",
-  gemini: "gemini-2.5-flash",
+  gemini: "gemini-3.8-flash",
   // Nothing is generated to test an ElevenLabs key — the test only asks who
   // the key belongs to, which costs nothing. The model is named so the row on
   // the meter still says what was being checked.

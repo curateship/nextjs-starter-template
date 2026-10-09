@@ -79,8 +79,19 @@ async function waitForPort(host, port, wanted, seconds) {
   return false
 }
 
-/** Runs `work(client)` against the app's live database, port open only meanwhile. */
+/** Connections already open, so a job run inside another job reuses its port. */
+const openClients = new Map()
+
+/**
+ * Runs `work(client)` against the app's live database, port open only
+ * meanwhile. Called inside another `withLiveDatabase` for the same app, it
+ * reuses that connection, so `deploy.mjs` opens the port once for the menu
+ * and the AI keys.
+ */
 export async function withLiveDatabase(appName, work) {
+  const open = openClients.get(appName)
+  if (open) return work(open)
+
   const apps = JSON.parse(await readFile(path.join(here, "..", "apps.json"), "utf8"))
   const app = apps[appName]
   if (!app?.database?.uuid) throw new Error(`apps.json has no database uuid for "${appName}".`)
@@ -102,9 +113,11 @@ export async function withLiveDatabase(appName, work) {
     if (!(await waitForPort(host, TEMPORARY_PORT, true, 90))) throw new Error("The port never opened.")
     const client = new Client({ host, port: TEMPORARY_PORT, ...login, ssl: false, connectionTimeoutMillis: 10_000 })
     await client.connect()
+    openClients.set(appName, client)
     try {
       return await work(client)
     } finally {
+      openClients.delete(appName)
       await client.end()
     }
   } finally {

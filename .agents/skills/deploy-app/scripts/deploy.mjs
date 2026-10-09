@@ -8,6 +8,7 @@
  *   node .agents/skills/deploy-app/scripts/deploy.mjs pomodoro --in-order
  *   node .agents/skills/deploy-app/scripts/deploy.mjs pomodoro --force
  *   node .agents/skills/deploy-app/scripts/deploy.mjs pomodoro --skip-menu
+ *   node .agents/skills/deploy-app/scripts/deploy.mjs pomodoro --skip-ai-keys
  *
  * `--push` first pushes this branch to `develop` (fast-forward only), because
  * every resource builds whatever `develop` is when its button is pressed.
@@ -24,6 +25,11 @@
  * `copy-menu.mjs`, because the menu is saved in the database and a deploy
  * alone never changes it. `--skip-menu` leaves the live menu as it is. A
  * failed copy is reported but does not undo the deploy.
+ *
+ * After any deploy it also writes Tyler's AI provider keys from `secrets.env`
+ * into the live database with `copy-ai-keys.mjs`, so Settings → AI on live
+ * has them. `--skip-ai-keys` leaves the live keys as they are. Both copies
+ * share one opening of the database port.
  *
  * Each app's resources, order, Coolify server and health address are in
  * `apps.json` beside this folder. The Coolify address and token come from
@@ -54,7 +60,7 @@ const HEALTH_GAP_MS = 10_000
  * `npm_package_name` (the app's folder name, see the root Dockerfile) fills it.
  */
 export function readFlags(argv, packageName = null) {
-  const flags = { app: null, only: null, force: false, dryRun: false, push: false, inOrder: false, skipMenu: false }
+  const flags = { app: null, only: null, force: false, dryRun: false, push: false, inOrder: false, skipMenu: false, skipAiKeys: false }
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]
     if (arg === "--force") flags.force = true
@@ -62,6 +68,7 @@ export function readFlags(argv, packageName = null) {
     else if (arg === "--push") flags.push = true
     else if (arg === "--in-order") flags.inOrder = true
     else if (arg === "--skip-menu") flags.skipMenu = true
+    else if (arg === "--skip-ai-keys") flags.skipAiKeys = true
     else if (arg === "--only") flags.only = argv[++i] ?? ""
     else if (arg.startsWith("--only=")) flags.only = arg.slice(7)
     else if (arg.startsWith("--")) throw new Error(`Unknown option ${arg}`)
@@ -103,6 +110,11 @@ export function deployPlan({ count, inOrder, liveCommit, migrations }) {
 /** The menu copy runs when the website was deployed and the app has a database to copy into. */
 export function copiesMenu(app, resources, skipMenu) {
   return !skipMenu && Boolean(app.database?.uuid) && resources.some((one) => one.role === "web")
+}
+
+/** The AI keys copy after any deploy of an app with a database to copy into. */
+export function copiesAiKeys(app, skipAiKeys) {
+  return !skipAiKeys && Boolean(app.database?.uuid)
 }
 
 /** Finished, failed or cancelled means Coolify has stopped working on it. */
@@ -312,6 +324,8 @@ async function main() {
   console.log(`Plan: ${resources.length > 1 ? (plan.together ? "both at the same time" : "one after another") : resources[0].role} (${plan.why}).`)
   const menu = copiesMenu(app, resources, flags.skipMenu)
   console.log(`Left menu: ${menu ? "copied from local to live after the deploy" : "left as it is on live"}.`)
+  const aiKeys = copiesAiKeys(app, flags.skipAiKeys)
+  console.log(`AI keys: ${aiKeys ? "copied from secrets.env to live after the deploy" : "left as they are on live"}.`)
 
   if (flags.dryRun) {
     console.log("\nDry run: nothing deployed.")
@@ -334,15 +348,32 @@ async function main() {
   }
 
   if (app.healthUrl) console.log(`\nHealth ${app.healthUrl}: ${await checkHealth(app.healthUrl)}`)
-  if (menu) {
-    console.log("\nCopying the local left menu to live...")
-    try {
-      const { copyMenu } = await import("./copy-menu.mjs")
-      await copyMenu(flags.app)
-    } catch (error) {
+  const copies = [
+    menu && { what: "the local left menu", script: "copy-menu.mjs", run: async () => (await import("./copy-menu.mjs")).copyMenu(flags.app) },
+    aiKeys && { what: "the AI keys", script: "copy-ai-keys.mjs", run: async () => (await import("./copy-ai-keys.mjs")).copyAiKeys(flags.app) },
+  ].filter(Boolean)
+  if (copies.length) {
+    // One failed copy never stops the other, and neither undoes the deploy.
+    const notCopied = (copy, error) => {
       process.exitCode = 1
-      console.error(`The menu was not copied: ${error instanceof Error ? error.message : error}`)
-      console.error(`The deploy itself finished. Copy it by hand: node .agents/skills/deploy-app/scripts/copy-menu.mjs ${flags.app}`)
+      console.error(`Could not copy ${copy.what}: ${error instanceof Error ? error.message : error}`)
+      console.error(`The deploy itself finished. Copy it by hand: node .agents/skills/deploy-app/scripts/${copy.script} ${flags.app}`)
+    }
+    const { withLiveDatabase } = await import("./live-db.mjs")
+    const tried = new Set()
+    try {
+      await withLiveDatabase(flags.app, async () => {
+        for (const copy of copies) {
+          tried.add(copy)
+          console.log(`\nCopying ${copy.what} to live...`)
+          await copy.run().catch((error) => notCopied(copy, error))
+        }
+      })
+    } catch (error) {
+      // Opening or closing the port failed. Copies that already ran said how they went.
+      process.exitCode = 1
+      console.error(`The live database port: ${error instanceof Error ? error.message : error}. Check in Coolify that it is closed.`)
+      for (const copy of copies) if (!tried.has(copy)) notCopied(copy, error)
     }
   }
   console.log(`\nDone: ${resources.map((one) => one.role).join(", ")} deployed.`)
