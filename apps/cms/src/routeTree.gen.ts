@@ -46,6 +46,7 @@ import { Route as ApiDirectoryOutreachUnsubscribeRouteImport } from './routes/ap
 import { Route as ApiDirectoryVerifyRouteImport } from './routes/api/directory-verify'
 import { Route as ApiEventSeatRouteImport } from './routes/api/event-seat'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
+import { Route as ApiListingUnfollowRouteImport } from './routes/api/listing-unfollow'
 import { Route as DealsSlugRouteImport } from './routes/deals_.$slug'
 import { Route as DirectorySitemapsChunkRouteImport } from './routes/directory-sitemaps.$chunk'
 import { Route as DirectorySlugRouteImport } from './routes/directory_.$slug'
@@ -297,6 +298,11 @@ const ApiEventSeatRoute = ApiEventSeatRouteImport.update({
 const ApiHealthRoute = ApiHealthRouteImport.update({
   id: '/api/health',
   path: '/api/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiListingUnfollowRoute = ApiListingUnfollowRouteImport.update({
+  id: '/api/listing-unfollow',
+  path: '/api/listing-unfollow',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DealsSlugRoute = DealsSlugRouteImport.update({
@@ -707,6 +713,7 @@ export interface FileRoutesByFullPath {
   '/api/directory-verify': typeof ApiDirectoryVerifyRoute
   '/api/event-seat': typeof ApiEventSeatRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/listing-unfollow': typeof ApiListingUnfollowRoute
   '/deals/$slug': typeof DealsSlugRoute
   '/directory-sitemaps/$chunk': typeof DirectorySitemapsChunkRoute
   '/directory/$slug': typeof DirectorySlugRoute
@@ -809,6 +816,7 @@ export interface FileRoutesByTo {
   '/api/directory-verify': typeof ApiDirectoryVerifyRoute
   '/api/event-seat': typeof ApiEventSeatRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/listing-unfollow': typeof ApiListingUnfollowRoute
   '/deals/$slug': typeof DealsSlugRoute
   '/directory-sitemaps/$chunk': typeof DirectorySitemapsChunkRoute
   '/directory/$slug': typeof DirectorySlugRoute
@@ -915,6 +923,7 @@ export interface FileRoutesById {
   '/api/directory-verify': typeof ApiDirectoryVerifyRoute
   '/api/event-seat': typeof ApiEventSeatRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/listing-unfollow': typeof ApiListingUnfollowRoute
   '/deals_/$slug': typeof DealsSlugRoute
   '/directory-sitemaps/$chunk': typeof DirectorySitemapsChunkRoute
   '/directory_/$slug': typeof DirectorySlugRoute
@@ -1021,6 +1030,7 @@ export interface FileRouteTypes {
     | '/api/directory-verify'
     | '/api/event-seat'
     | '/api/health'
+    | '/api/listing-unfollow'
     | '/deals/$slug'
     | '/directory-sitemaps/$chunk'
     | '/directory/$slug'
@@ -1123,6 +1133,7 @@ export interface FileRouteTypes {
     | '/api/directory-verify'
     | '/api/event-seat'
     | '/api/health'
+    | '/api/listing-unfollow'
     | '/deals/$slug'
     | '/directory-sitemaps/$chunk'
     | '/directory/$slug'
@@ -1228,6 +1239,7 @@ export interface FileRouteTypes {
     | '/api/directory-verify'
     | '/api/event-seat'
     | '/api/health'
+    | '/api/listing-unfollow'
     | '/deals_/$slug'
     | '/directory-sitemaps/$chunk'
     | '/directory_/$slug'
@@ -1327,6 +1339,7 @@ export interface RootRouteChildren {
   ApiDirectoryVerifyRoute: typeof ApiDirectoryVerifyRoute
   ApiEventSeatRoute: typeof ApiEventSeatRoute
   ApiHealthRoute: typeof ApiHealthRoute
+  ApiListingUnfollowRoute: typeof ApiListingUnfollowRoute
   DealsSlugRoute: typeof DealsSlugRoute
   DirectorySitemapsChunkRoute: typeof DirectorySitemapsChunkRoute
   DirectorySlugRoute: typeof DirectorySlugRoute
@@ -1607,6 +1620,13 @@ declare module '@tanstack/react-router' {
       path: '/api/health'
       fullPath: '/api/health'
       preLoaderRoute: typeof ApiHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/listing-unfollow': {
+      id: '/api/listing-unfollow'
+      path: '/api/listing-unfollow'
+      fullPath: '/api/listing-unfollow'
+      preLoaderRoute: typeof ApiListingUnfollowRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/deals_/$slug': {
@@ -2286,6 +2306,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiDirectoryVerifyRoute: ApiDirectoryVerifyRoute,
   ApiEventSeatRoute: ApiEventSeatRoute,
   ApiHealthRoute: ApiHealthRoute,
+  ApiListingUnfollowRoute: ApiListingUnfollowRoute,
   DealsSlugRoute: DealsSlugRoute,
   DirectorySitemapsChunkRoute: DirectorySitemapsChunkRoute,
   DirectorySlugRoute: DirectorySlugRoute,

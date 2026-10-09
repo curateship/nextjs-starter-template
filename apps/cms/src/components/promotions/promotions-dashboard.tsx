@@ -74,6 +74,18 @@ const COLUMNS: SortableColumn<PromotionSortColumn>[] = [
   { key: "status", label: "Status", column: "meta" },
   { key: "start", label: "Days", column: "meta" },
   {
+    key: "views",
+    label: "Views",
+    column: "meta",
+    className: "hidden sm:table-cell",
+  },
+  {
+    key: "codeTaps",
+    label: "Show code",
+    column: "meta",
+    className: "hidden sm:table-cell",
+  },
+  {
     key: "updated",
     label: "Updated",
     column: "meta",
@@ -292,7 +304,7 @@ export function PromotionsDashboard({
             ? "No deal matches that search."
             : "No deals yet. Add the first one."
         }
-        emptyColSpan={7}
+        emptyColSpan={9}
         footer={{
           type: "pagination",
           page: data.page,
@@ -343,6 +355,17 @@ export function PromotionsDashboard({
               <StatusBadges promotion={promotion} now={data.now} />
             </TableCell>
             <TableCell column="meta">{dealAdminDaysText(promotion)}</TableCell>
+            <TableCell column="meta" className="hidden sm:table-cell">
+              {promotion.views.toLocaleString()}
+            </TableCell>
+            <TableCell column="meta" className="hidden sm:table-cell">
+              {/* No code, or a code per visitor, has no button to tap. */}
+              {promotion.codeTaps === null ? (
+                <span className="text-muted-foreground">No code</span>
+              ) : (
+                promotion.codeTaps.toLocaleString()
+              )}
+            </TableCell>
             <TableCell column="meta" className="hidden lg:table-cell">
               {formatDate(promotion.updatedAt)}
             </TableCell>

@@ -8,6 +8,7 @@ import {
   jsonb,
   numeric,
   pgTable,
+  primaryKey,
   timestamp,
   uniqueIndex,
   varchar,
@@ -300,6 +301,103 @@ export const promotionClaims = pgTable(
     check(
       "promotion_claims_used_not_cancelled_check",
       sql`NOT (${table.status} = 'cancelled' AND ${table.usedAt} IS NOT NULL)`
+    ),
+  ]
+)
+
+/**
+ * Each deal's two numbers for one day, from
+ * `drizzle/0123_cms_promotion_counts.sql`: how many people opened its page and
+ * how many tapped Show code. A person counts once per deal per day for each.
+ * `server/promotions/counts.ts` writes and reads it.
+ */
+export const promotionDailyCounts = pgTable(
+  "promotion_daily_counts",
+  {
+    promotionId: varchar("promotion_id", { length: 36 })
+      .notNull()
+      .references(() => sitePromotions.id, { onDelete: "cascade" }),
+    /** The UTC day, the same days the site's traffic counter keeps. */
+    day: date("day", { mode: "string" }).notNull(),
+    views: integer("views").notNull().default(0),
+    codeTaps: integer("code_taps").notNull().default(0),
+  },
+  (table) => [
+    primaryKey({
+      name: "promotion_daily_counts_pk",
+      columns: [table.promotionId, table.day],
+    }),
+  ]
+)
+
+/**
+ * Who has already been counted today, as the traffic counter's daily hash and
+ * never anything that names a person. Rows from a day that is over are
+ * deleted, so a hash never outlives the salt it was made with.
+ */
+export const promotionCountVisitors = pgTable(
+  "promotion_count_visitors",
+  {
+    promotionId: varchar("promotion_id", { length: 36 })
+      .notNull()
+      .references(() => sitePromotions.id, { onDelete: "cascade" }),
+    day: date("day", { mode: "string" }).notNull(),
+    /** 'view' or 'code'. */
+    kind: varchar("kind", { length: 10 }).notNull(),
+    visitorHash: varchar("visitor_hash", { length: 64 }).notNull(),
+  },
+  (table) => [
+    primaryKey({
+      name: "promotion_count_visitors_pk",
+      columns: [table.promotionId, table.day, table.kind, table.visitorHash],
+    }),
+    index("ix_promotion_count_visitors_day").on(table.day),
+    check(
+      "promotion_count_visitors_kind_check",
+      sql`${table.kind} IN ('view', 'code')`
+    ),
+  ]
+)
+
+/**
+ * Who follows a listing for its deals, from
+ * `drizzle/0124_cms_listing_follows.sql`. One row per signed-in person per
+ * listing. `server/promotions/follows.ts` holds the rules and
+ * `server/promotions/follow-mail.ts` sends the emails.
+ */
+export const listingFollows = pgTable(
+  "listing_follows",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    listingId: varchar("listing_id", { length: 36 })
+      .notNull()
+      .references(() => directoryListings.id, { onDelete: "cascade" }),
+    /** The follower. Their email is read from the account when one goes. */
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    /**
+     * Deals first published up to here have been emailed, or came before the
+     * follow. Starts at `createdAt`.
+     */
+    toldThrough: timestamp("told_through", { withTimezone: true }).notNull(),
+    /** The site's calendar day of the last email, or null before the first. */
+    lastMailedDay: date("last_mailed_day", { mode: "string" }),
+    /** Held while an email is going out; older than ten minutes means retry. */
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("ux_listing_follows_listing_user").on(
+      table.listingId,
+      table.userId
+    ),
+    index("ix_listing_follows_workspace_listing").on(
+      table.workspaceId,
+      table.listingId
     ),
   ]
 )

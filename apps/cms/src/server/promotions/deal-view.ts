@@ -45,10 +45,12 @@ export type ListedDeal = PublicDealCard & {
 export type DealView = {
   site: PublicSite
   /**
-   * The code is empty once the deal has ended, or while it takes claims, so it
-   * never reaches the page.
+   * The deal without its code. The code never reaches the page: Show code asks
+   * for it, through `shownCodeAt`.
    */
-  deal: PublicDeal
+  deal: Omit<PublicDeal, "code">
+  /** The page draws a Show code button. */
+  hasCode: boolean
   ended: boolean
   /** Not started yet by the site's calendar. */
   upcoming: boolean
@@ -108,16 +110,26 @@ function dealBadgeAt(
   return nowText?.startsWith("On now") ? { tone: "now", text: "On now" } : null
 }
 
+/**
+ * The code Show code may hand over at `at`, or empty: none once the deal is
+ * over, and none while each visitor claims their own.
+ */
+export function shownCodeAt(page: PublicDealPage, at: Date): string {
+  const ended =
+    dealStage(page.deal, wallClockAt(page.timeZone, at)) === "ended"
+  return ended || page.deal.takesClaims ? "" : page.deal.code
+}
+
 /** A cached deal page as a visitor sees it at `at`. */
 export function dealViewAt(page: PublicDealPage, at: Date): DealView {
   const now = wallClockAt(page.timeZone, at)
   const stage = dealStage(page.deal, now)
   const ended = stage === "ended"
+  const { code: _code, ...deal } = page.deal
   return {
     site: page.site,
-    // No shared code once it is over, or while each visitor claims their own.
-    deal:
-      ended || page.deal.takesClaims ? { ...page.deal, code: "" } : page.deal,
+    deal,
+    hasCode: shownCodeAt(page, at) !== "",
     ended,
     upcoming: stage === "soon",
     days: dealDaysText(page.deal),

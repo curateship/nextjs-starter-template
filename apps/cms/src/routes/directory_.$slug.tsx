@@ -12,6 +12,7 @@ import { JsonLd } from "@/components/directory/public/json-ld"
 import { pageGutter } from "@/lib/layout/shell-gutter"
 import { ListingCustomSections } from "@/components/directory/public/listing-custom-sections"
 import { ListingEventsBox } from "@/components/directory/public/listing-events"
+import { FollowButton } from "@/components/promotions/public/follow-button"
 import { ListingDealsBox } from "@/components/promotions/public/listing-deals"
 import { ListingSidebar } from "@/components/directory/public/listing-sidebar"
 import { NearbyListings } from "@/components/directory/public/nearby-listings"
@@ -98,6 +99,7 @@ function ListingRoute() {
     claim,
     whatsOn,
     dealsHere,
+    follow,
   } = Route.useLoaderData()
   const search = Route.useSearch()
 
@@ -196,7 +198,22 @@ function ListingRoute() {
           // the chip over the listing's photo, where the directory's own cards
           // print it. A listing with no photo has nowhere to hang that chip, so
           // its card keeps the stars.
-          intro={listing.featured ? <FeaturedBadge /> : undefined}
+          intro={
+            listing.featured || follow ? (
+              <div className="flex flex-wrap items-center gap-2">
+                {listing.featured ? <FeaturedBadge /> : null}
+                {/* Only while this visitor may see deals at all. */}
+                {follow ? (
+                  <FollowButton
+                    key={listing.id}
+                    listingId={listing.id}
+                    listingTitle={listing.title}
+                    start={follow}
+                  />
+                ) : null}
+              </div>
+            ) : undefined
+          }
         />
       }
     >

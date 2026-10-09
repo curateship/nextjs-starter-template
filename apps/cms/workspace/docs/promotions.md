@@ -42,6 +42,11 @@ admin writes them in Admin → Promotions. Visitors see them on the Deals page a
   Chosen on 25 Sep 2026.
 - **No automatic sidebar link**, the same rule as Posts and Events. Add
   Promotions to the sidebar in Settings the way the Events link was added.
+- **Following a listing needs a signed-in account**, so the email address is
+  one the account already confirmed. Chosen on 9 Oct 2026.
+- **A follower gets at most one email per listing per day, naming every new
+  deal.** Chosen on 9 Oct 2026, so an owner posting ten deals at once sends one
+  email, and the email may arrive up to an hour after publishing.
 
 ## What a deal holds
 
@@ -212,11 +217,17 @@ refused.
 
 - The headline in big type at the top, then the title, the listing with a
   link to its page, the days, the times in words with "On now" or when it's
-  next on, the description, the code and the small print.
-- **An ended deal's page still opens.** It says "This deal has ended", and the
-  server leaves the code out of the page entirely, so it can't be found in the
-  page source either. `dealViewAt` in `src/server/promotions/deal-view.ts` does
-  this after the cache.
+  next on, the description, the Show code button and the small print.
+- **The code is never in the page.** A deal with a code shows a Show code
+  button, and tapping it asks the server for the code, which then appears
+  with a Copy button beside it. The code can't be found in the page source
+  before the tap. "Views and Show code taps" below says what the tap counts.
+- **An ended deal's page still opens.** It says "This deal has ended" and has
+  no Show code button, and the server refuses the code if somebody asks for it
+  anyway. `shownCodeAt` in `src/server/promotions/deal-view.ts` is that one
+  rule, read after the cache.
+- **A deal that gives each visitor their own code** has no Show code button
+  either, because its shared code is never shown.
 - **A deal that hasn't started** says "Not on yet" under its days.
 - **The listing is a link only while the Directory page is open to everyone.**
   Otherwise its name is plain text, the same rule as an event's place.
@@ -438,6 +449,95 @@ owner points a phone camera at the QR, which opens that same page with a
   `src/lib/api/promotions/claims.ts`, with the public one listed in
   `open-endpoints.ts`.
 
+## Views and Show code taps
+
+Each deal has two numbers: how many people opened its page, and how many of
+them tapped Show code. The owner sees both under each of their deals on My
+listings, as "300 views · 45 tapped Show code". Admin → Promotions has a Views
+column and a Show code column, and both sort the whole list biggest first.
+
+- **One person counts once per deal per day, for each number.** Reloading the
+  page all afternoon is one view, and tapping Show code five times is one tap.
+  The next day the same person counts again.
+- **A person is the traffic counter's own daily fingerprint**: a hash of that
+  day's secret salt, the internet address and the browser. It is the same rule
+  the Traffic screen uses for unique visitors, so nothing new identifies
+  anybody. The fingerprints are deleted once their day is over; only the day's
+  two numbers stay.
+- **Left out the same way the Traffic screen leaves them out**: bots by their
+  browser name, pages a browser loads ahead of time without being asked, and
+  admins, including an admin viewing the site as a member. One person can be
+  counted at most 240 times in ten minutes across every deal, so a script
+  cannot run the numbers up.
+- **Not the Traffic screen's figure.** Listing and event views on their screens
+  add one for every page load. These count people once a day, so a deal's 300
+  views and its page's figure on the Traffic screen can differ. That is on
+  purpose: the task asked for one count per person per day.
+- **Days are UTC days**, the traffic counter's own, because the salt changes at
+  UTC midnight. Toronto's evening falls on the next UTC day.
+- **Over all time.** The numbers are every day added up, ended deals included,
+  so an owner can see how a past deal did before running it again.
+- **No code, no tap number.** A deal with no code, or one that gives each
+  visitor their own, has no Show code button. My listings shows its views
+  alone, and the admin column says "No code". A deal that had a code and taps
+  before the code was removed keeps showing those taps.
+- **The owner sees only their own deals' numbers**, because the numbers come
+  with the owner's own deals and no others (`ownerDealsFor`).
+- **Not proof anybody used the deal.** Tapping Show code means somebody looked
+  at the code. "Using a code at the counter" above is the proof of use.
+- Stored in `promotion_daily_counts` and `promotion_count_visitors`
+  (`drizzle/0123_cms_promotion_counts.sql`); the rules are
+  `src/server/promotions/counts.ts`, and the two doors are `countDealViewFn`
+  and `showDealCodeFn` in `src/lib/api/promotions/public.ts`, listed in
+  `open-endpoints.ts`. Deleting a deal deletes its numbers.
+
+## Following a listing for its deals
+
+A listing's page has a "Follow for deals" button under its name. A follower
+gets an email when that listing publishes a new deal.
+
+- **It needs an account.** Signed out, the button takes the visitor to sign in
+  and back. The email goes to the account's own address, read when the email
+  is sent, so a changed address is used straight away.
+- **The button is right after a reload.** Whether this person follows is read
+  with the listing's page, after the page's cache. It says "Following" once on,
+  and tapping it again unfollows.
+- **Only while the Deals page is open to this visitor.** No deals, no button.
+  A draft listing can't be followed.
+- **One email per listing per day, naming every new deal.** The email waits
+  until the listing's newest unsent deal is an hour old, so deals posted in
+  one sitting land in one email. Once a follower has had an email about a
+  listing today, by the site's own calendar, anything published later waits for
+  the next day's email. Deals posted less than an hour apart are one email; a
+  deal posted at 9 AM and another at 5 PM are two emails on two days.
+- **Only deals published after the follow.** Deals already up when somebody
+  follows are never sent.
+- **A deal that is gone before its email** (ended, unpublished, deleted, or at
+  a listing taken back to draft) is left out. If none are left, nothing is
+  sent and the day is not used up.
+- **Nothing while the Deals page is switched off.** The deals wait, and go once
+  it is back on if they are still running.
+- **What the email says.** "2 new deals at Ramen Ya" or "New deal at Ramen Ya:
+  20% off", then one line per deal with its headline, title, days and address,
+  and a button to the deal, or to the listing's page when there are several.
+  When the directory is closed to visitors the button goes to the Deals page.
+- **One-tap unfollow, no sign-in.** Every email ends with "Stop following Ramen
+  Ya" and carries the headers that make an inbox's own Unsubscribe button work.
+  The link is signed with the site's secret, so it can only ever end the one
+  follow it was made for. Following again makes a new follow, and an old
+  email's link does not end it.
+- **A failed send is tried again** after ten minutes, and is never sent twice:
+  each follow is claimed before its email goes.
+- **Sent by the background loop**, which asks at most once a minute. Locally
+  that is the dev server's own loop; deployed it is the worker.
+- Stored in `listing_follows` (`drizzle/0124_cms_listing_follows.sql`). The
+  rules are `src/server/promotions/follows.ts`, the email is
+  `src/server/promotions/follow-mail.ts`, the door is
+  `src/lib/api/promotions/follows.ts`, the unfollow link is
+  `src/routes/api/listing-unfollow.ts`, and the button is
+  `src/components/promotions/public/follow-button.tsx`. Deleting the listing or
+  the account deletes the follow.
+
 ## Owners post, change and end deals
 
 A listing's owner has a "Deals at <listing>" card on My listings, under their
@@ -509,6 +609,9 @@ listing, the address part and the status.
   reader** (`categoryForCards` in `src/server/directory/public.ts`), so a deal
   card and a listing card can never file the same place under two different
   categories.
+- **The email to followers reads deals through the one filter too**:
+  `dealsPublishedSince` in `public.ts`, so a draft or a deal at a draft listing
+  is never sent.
 - `src/routes/deals.tsx`, `src/routes/deals_.$slug.tsx` and
   `src/routes/deals_.code.$code.tsx` are the public pages;
   `src/routes/_authenticated/admin/promotions.tsx` is the admin screen.

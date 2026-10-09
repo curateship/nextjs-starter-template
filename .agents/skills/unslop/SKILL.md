@@ -137,6 +137,14 @@ over coffee.
   follow-up to find out where things stand.
 - **Explain a finished fix without being asked.** What caused the problem, what
   changed, what he should see now, and anything still left to do or set up.
+- **End finished browser-facing work with links to check it.** One full
+  clickable address per screen the change touched, on the app's local port from
+  `local-apps.json` and the real site's host (for example
+  `http://eat-drink-toronto.localhost:3015/deals/two-for-one-pasta-tuesdays`),
+  each with a few words saying what to look at there. Use real records that
+  exist in the local data, never a placeholder like `<slug>`. Say when
+  something about him changes what he will see, such as an admin's own visits
+  not being counted. Tyler asked for this on 9 Oct 2026.
 
 ### The shape of every answer
 

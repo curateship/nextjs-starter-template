@@ -36,6 +36,7 @@ import { enforceRateLimit } from "@/server/auth/rate-limit"
 import { timeZoneLabel, wallClockAt } from "@/lib/events/event-time"
 import { siteTimeZone } from "@/server/directory/settings"
 import { listedDealsAt, type ListedDeal } from "@/server/promotions/deal-view"
+import { isFollowing } from "@/server/promotions/follows"
 import {
   dealHeadlinesFor,
   dealsAccessFor,
@@ -322,6 +323,12 @@ async function withDealTags<Card extends PublicListingCard>(
   })
 }
 
+/** Where the Follow button on a listing's page starts. */
+export type ListingFollowState = {
+  signedIn: boolean
+  following: boolean
+}
+
 /** Whether anybody is signed in on this request, for the deals switch. */
 const someoneIsSignedIn = async () =>
   Boolean(await findCurrentUser().catch(() => null))
@@ -351,6 +358,8 @@ const readDirectoryListingFn = createServerFn({ method: "GET" })
           whatsOn: ListingEvents | null
           /** "Deals here": its live deals, or null while Deals is closed to this visitor. */
           dealsHere: ListedDeal[] | null
+          /** The Follow button, or null while Deals is closed to this visitor. */
+          follow: ListingFollowState | null
         })
       | null
     > => {
@@ -377,10 +386,20 @@ const readDirectoryListingFn = createServerFn({ method: "GET" })
             dealsNow
           )
         : null
+      // Whether this person follows the listing, read here rather than cached
+      // with the page, so the button is right after a reload.
+      const follow: ListingFollowState | null = dealsNow
+        ? {
+            signedIn: Boolean(viewer),
+            following: viewer
+              ? await isFollowing(site.id, viewer.id, page.listing.id)
+              : false,
+          }
+        : null
 
       // The same for events, with the Events page's own switch.
       const access = await eventsAccessFor(site.id, async () => Boolean(viewer))
-      if (!access) return { ...page, whatsOn: null, dealsHere }
+      if (!access) return { ...page, whatsOn: null, dealsHere, follow }
       const timeZone = await siteTimeZone(site.id)
       const upcoming = await readUpcomingEvents(
         site,
@@ -392,6 +411,7 @@ const readDirectoryListingFn = createServerFn({ method: "GET" })
       return {
         ...page,
         dealsHere,
+        follow,
         whatsOn: {
           events: upcoming.events.slice(0, EVENTS_ON_A_LISTING),
           total: upcoming.total,

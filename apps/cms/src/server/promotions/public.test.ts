@@ -6,7 +6,11 @@ import { createListing, updateListing } from "@/server/directory/listings"
 import type { VisitorSite } from "@/server/directory/public"
 import { resetPublicDirectoryCacheForTests } from "@/server/directory/public-cache"
 import { blankListingHours } from "@/lib/directory/listing-details"
-import { dealViewAt, listedDealsAt } from "@/server/promotions/deal-view"
+import {
+  dealViewAt,
+  listedDealsAt,
+  shownCodeAt,
+} from "@/server/promotions/deal-view"
 import {
   createPromotion,
   type PromotionInput,
@@ -203,14 +207,22 @@ describe("a deal's page", () => {
     expect(page).not.toBeNull()
 
     // 11pm on its last day in Toronto: still on, code shown.
-    const lastEvening = dealViewAt(page!, new Date("2026-10-06T03:00:00Z"))
-    expect(lastEvening.ended).toBe(false)
-    expect(lastEvening.deal.code).toBe("PASTA2")
+    const lastEvening = new Date("2026-10-06T03:00:00Z")
+    expect(dealViewAt(page!, lastEvening)).toMatchObject({
+      ended: false,
+      hasCode: true,
+    })
+    expect(shownCodeAt(page!, lastEvening)).toBe("PASTA2")
+    // The page itself never carries the code, only Show code does.
+    expect(dealViewAt(page!, lastEvening).deal).not.toHaveProperty("code")
 
     // 1am the next day in Toronto: over, and the code is gone.
-    const nextMorning = dealViewAt(page!, new Date("2026-10-06T05:00:00Z"))
-    expect(nextMorning.ended).toBe(true)
-    expect(nextMorning.deal.code).toBe("")
+    const nextMorning = new Date("2026-10-06T05:00:00Z")
+    expect(dealViewAt(page!, nextMorning)).toMatchObject({
+      ended: true,
+      hasCode: false,
+    })
+    expect(shownCodeAt(page!, nextMorning)).toBe("")
   })
 
   it("lists the times in words and says when it is next on", async () => {

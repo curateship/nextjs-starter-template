@@ -12,6 +12,7 @@ import {
   readPostsRow,
 } from "@/server/directory/front-page-row-readers"
 import { runFeaturedRenewalReminders } from "@/server/directory/featured"
+import { followMailTick } from "@/server/promotions/follow-mail"
 import { copyDirectoryWorkspace } from "@/server/directory/workspace-copy"
 import { executeDraftEventsStep } from "@/server/events/ai-drafts"
 import { eventSearchResults, eventSitemapEntries } from "@/server/events/public"
@@ -93,6 +94,12 @@ export const appServerOptions: AppServerOptions = {
         // reach the next person in seconds rather than minutes.
         name: "event waiting list",
         tick: runWaitingListPass,
+      },
+      {
+        // Asks at most once a minute: an email waits for an hour of quiet
+        // anyway, so a minute late is nothing.
+        name: "deal emails to listing followers",
+        tick: followMailTick,
       },
     ],
   },

@@ -17,6 +17,7 @@ import { createListing, updateListing } from "@/server/directory/listings"
 import { resetPublicDirectoryCacheForTests } from "@/server/directory/public-cache"
 import { directoryClaims } from "@/server/directory/schema"
 import type { VisitorSite } from "@/server/directory/public"
+import { countDealVisit } from "@/server/promotions/counts"
 import { dealViewAt } from "@/server/promotions/deal-view"
 import {
   decidePromotionRequest,
@@ -312,6 +313,22 @@ describe("who sees what", () => {
     await claim(otherOwnerId, listingId)
     expect((await ownerDealsFor(otherOwnerId, database, at)).deals).toEqual({})
   })
+
+  it("shows the owner their own deal's views and Show code taps", async () => {
+    const withCode = await sendAndApprove({ code: "COOKIE" })
+    const withoutCode = await sendAndApprove({ title: "Happy hour" })
+    for (const person of ["anna", "ben"]) {
+      await countDealVisit({ promotionId: withCode, kind: "view", visitorHash: person }, database, at)
+    }
+    await countDealVisit({ promotionId: withCode, kind: "code", visitorHash: "anna" }, database, at)
+    await countDealVisit({ promotionId: withoutCode, kind: "view", visitorHash: "anna" }, database, at)
+
+    const rows = (await ownerDealsFor(ownerId, database, at)).deals[listingId]!
+    const byId = new Map(rows.map((row) => [row.live?.id, row.live]))
+    expect(byId.get(withCode)).toMatchObject({ views: 2, codeTaps: 1 })
+    // No code means no Show code button, so no tap number either.
+    expect(byId.get(withoutCode)).toMatchObject({ views: 1, codeTaps: null })
+  })
 })
 
 describe("changing a live deal", () => {
@@ -363,7 +380,7 @@ describe("End now", () => {
     expect((await readDeals(site, 1, now, database)).total).toBe(0)
     const slug = (await findPromotion(site.id, id, database))!.promotion.slug
     const page = await readPublicDeal(site, slug, database)
-    expect(dealViewAt(page!, at)).toMatchObject({ ended: true, deal: { code: "" } })
+    expect(dealViewAt(page!, at)).toMatchObject({ ended: true, hasCode: false })
 
     // The waiting change is closed, never approvable later.
     const [change] = await database

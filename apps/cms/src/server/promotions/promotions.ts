@@ -46,8 +46,10 @@ import {
   requireFreeSlug as requireFreeSlugRule,
 } from "@/server/directory/slug-rules"
 import { listingChoice, type ListingChoice } from "@/server/posts/posts"
+import { shownCodeTaps } from "@/server/promotions/counts"
 import {
   listingOfPromotion,
+  promotionDailyCounts,
   sitePromotions,
   type PromotionRow,
 } from "@/server/promotions/schema"
@@ -105,6 +107,22 @@ export type PromotionSummary = Omit<
 > & {
   listingTitle: string
   listingStatus: "draft" | "published"
+  /** People who opened its page, one a day each, over all time. */
+  views: number
+  /**
+   * People who tapped Show code, one a day each, over all time. Null for a
+   * deal with no Show code button and no taps from before.
+   */
+  codeTaps: number | null
+}
+
+/** A deal's all-time total of one of its daily counts, for the list to sort on. */
+function dealCountTotal(
+  column: typeof promotionDailyCounts.views | typeof promotionDailyCounts.codeTaps
+) {
+  return sql<number>`(select coalesce(sum(${column}), 0)::int from ${promotionDailyCounts} where ${promotionDailyCounts.promotionId} = ${sitePromotions.id})`.mapWith(
+    Number
+  )
 }
 
 /** Everything the window saves. The whole deal goes every time. */
@@ -368,12 +386,16 @@ export async function listPromotions(
   // With no direction given, each column runs the way the screen's arrow says.
   const order =
     (options.direction ?? promotionSortDirection(sort)) === "asc" ? asc : desc
+  const views = dealCountTotal(promotionDailyCounts.views)
+  const codeTaps = dealCountTotal(promotionDailyCounts.codeTaps)
   const column = {
     title: sitePromotions.title,
     listing: directoryListings.title,
     status: sitePromotions.status,
     start: sitePromotions.startDate,
     updated: sitePromotions.updatedAt,
+    views,
+    codeTaps,
   }[sort]
 
   const [rows, [countRow], timeZone] = await Promise.all([
@@ -382,6 +404,8 @@ export async function listPromotions(
         row: sitePromotions,
         listingTitle: directoryListings.title,
         listingStatus: directoryListings.status,
+        views,
+        codeTaps,
       })
       .from(sitePromotions)
       .innerJoin(directoryListings, listingOfPromotion)
@@ -399,18 +423,22 @@ export async function listPromotions(
   ])
 
   return {
-    promotions: rows.map(({ row, listingTitle, listingStatus }) => {
-      const {
-        description: _description,
-        smallPrint: _smallPrint,
-        ...rest
-      } = toPromotion(row)
-      return {
-        ...rest,
-        listingTitle,
-        listingStatus: listingStatus === "published" ? "published" : "draft",
+    promotions: rows.map(
+      ({ row, listingTitle, listingStatus, views, codeTaps }) => {
+        const {
+          description: _description,
+          smallPrint: _smallPrint,
+          ...rest
+        } = toPromotion(row)
+        return {
+          ...rest,
+          listingTitle,
+          listingStatus: listingStatus === "published" ? "published" : "draft",
+          views,
+          codeTaps: shownCodeTaps(row, codeTaps),
+        }
       }
-    }),
+    ),
     total: countRow?.total ?? 0,
     now: wallClockAt(timeZone, new Date()),
   }
