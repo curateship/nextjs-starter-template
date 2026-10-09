@@ -9,6 +9,7 @@ import {
   ilike,
   inArray,
   ne,
+  notInArray,
   or,
   sql,
   type SQL,
@@ -247,8 +248,6 @@ export type CatalogItemInput = {
   licenceNote: string | null
   /** A new file waiting in the bucket, from `storeCatalogSource`. */
   source: { path: string; kind: "audio" | "video" | "image" } | null
-  /** A theme switched from a film to a still drops its film. */
-  clearFile: boolean
 }
 
 /**
@@ -300,7 +299,7 @@ function assertPublishable(
 ) {
   const willHaveFile = Boolean(item.fileUrl) || source?.kind === "audio"
   if (kind === "sound" && !willHaveFile) throw new Error("CATALOG_NEEDS_FILE")
-  // A theme film's first frame becomes its still when none was given.
+  // A theme film's middle frame becomes its still once it is prepared.
   const willHavePicture =
     Boolean(item.pictureUrl) || (kind === "theme" && source?.kind === "video")
   if (!willHavePicture) throw new Error("CATALOG_NEEDS_PICTURE")
@@ -349,10 +348,15 @@ export async function saveAdminCatalogItem({
       : null
     if (id && !existing) throw new Error("CATALOG_ITEM_NOT_FOUND")
 
-    const fileUrl = input.clearFile ? null : (existing?.fileUrl ?? null)
-    // A sound left without a picture gets one of the built-in graphics.
+    const fileUrl = existing?.fileUrl ?? null
+    // A sound left without a picture gets one of the built-in graphics. A
+    // theme's still is never chosen here: the worker takes it from the middle
+    // of the film (Tyler, 9 Oct 2026), so a save keeps whatever it has, and a
+    // window left open while the worker swapped it cannot put the old one back.
     const pictureUrl =
-      input.pictureUrl ?? (kind === "sound" ? randomSoundGraphic() : null)
+      kind === "theme"
+        ? (existing?.pictureUrl ?? null)
+        : (input.pictureUrl ?? randomSoundGraphic())
     if (input.status === "live")
       assertPublishable(kind, { pictureUrl, fileUrl }, input.source)
 
@@ -378,21 +382,6 @@ export async function saveAdminCatalogItem({
       publishedAt:
         input.status === "live" ? (existing?.publishedAt ?? now) : null,
       updatedAt: now,
-      // Removing the file also stops one still waiting for the worker, which
-      // would otherwise put a file back when it finished. The same goes for a
-      // file still being fetched from Pixabay: the admin's choice wins.
-      ...(input.clearFile
-        ? {
-            fileUrl: null,
-            filePath: null,
-            sourcePath: null,
-            sourceKind: null,
-            importUrl: null,
-            fileStatus: "ready" as const,
-            fileError: null,
-            claimedAt: null,
-          }
-        : {}),
       ...(input.source
         ? {
             sourcePath: input.source.path,
@@ -437,10 +426,9 @@ export async function saveAdminCatalogItem({
       existing ? "catalog_update" : "catalog_create",
       [row.id]
     )
-    // An upload still waiting goes too when it is removed or replaced.
-    const sourceGone = (input.clearFile || input.source) && existing?.sourcePath !== row.sourcePath
+    // An upload still waiting goes too when it is replaced.
+    const sourceGone = input.source && existing?.sourcePath !== row.sourcePath
     const dropped = [
-      input.clearFile ? existing?.filePath : null,
       pictureChanged ? existing?.picturePath : null,
       sourceGone ? existing?.sourcePath : null,
     ].filter((path): path is string => !!path)
@@ -794,20 +782,21 @@ export async function finishCatalogFile({
   sourcePath: string
   fileUrl: string
   filePath: string
-  /** A film's first frame, already in the bucket. */
+  /** The frame halfway through a film, already in the bucket. */
   poster: { url: string; path: string } | null
   durationSeconds: number | null
 }) {
   const [before] = await db
     .select({
       filePath: pomodoroCatalogItems.filePath,
-      pictureUrl: pomodoroCatalogItems.pictureUrl,
+      picturePath: pomodoroCatalogItems.picturePath,
     })
     .from(pomodoroCatalogItems)
     .where(eq(pomodoroCatalogItems.id, id))
     .limit(1)
-  // A film's first frame is its still only when the admin gave none.
-  const usePoster = Boolean(poster && !before?.pictureUrl)
+  // A film's middle frame is always its still, so the still matches the film
+  // it stands in for. Tyler, 9 Oct 2026.
+  const usePoster = Boolean(poster)
   const [updated] = await db
     .update(pomodoroCatalogItems)
     .set({
@@ -839,11 +828,87 @@ export async function finishCatalogFile({
     await removeFiles([filePath, unusedPoster].filter((path): path is string => !!path))
     return
   }
+  // The old still goes once the new one has replaced it, if this app stored
+  // it. A built-in still under `public/` has no path and is never removed.
+  const oldPicture = usePoster ? before?.picturePath : null
   await removeFiles(
-    [sourcePath, before?.filePath, unusedPoster].filter(
+    [sourcePath, before?.filePath, unusedPoster, oldPicture].filter(
       (path): path is string => !!path
     )
   )
+}
+
+/**
+ * Where a still taken from the middle of a film is stored. The name tells it
+ * apart from a still made before 9 Oct 2026, which was the film's first frame,
+ * so the worker can catch those up (`findThemeNeedingMiddleStill`).
+ */
+export const MIDDLE_STILL_PREFIX = "pomodoro-catalog/themes/middle-"
+
+/**
+ * A theme whose film is in the bucket but whose still was not taken from the
+ * middle of it: a first frame from before 9 Oct 2026, or a still that was
+ * chosen by hand. `skip` holds the ones that already failed this run, so one
+ * bad film is not tried on every pass. A built-in film under `public/` has no
+ * bucket path and is never picked; its still ships with the app.
+ */
+export async function findThemeNeedingMiddleStill(skip: string[]) {
+  const [row] = await db
+    .select({
+      id: pomodoroCatalogItems.id,
+      filePath: pomodoroCatalogItems.filePath,
+      picturePath: pomodoroCatalogItems.picturePath,
+    })
+    .from(pomodoroCatalogItems)
+    .where(
+      and(
+        eq(pomodoroCatalogItems.kind, "theme"),
+        eq(pomodoroCatalogItems.fileStatus, "ready"),
+        sql`${pomodoroCatalogItems.filePath} is not null`,
+        sql`${pomodoroCatalogItems.sourcePath} is null`,
+        sql`(${pomodoroCatalogItems.picturePath} is null or ${pomodoroCatalogItems.picturePath} not like ${`${MIDDLE_STILL_PREFIX}%`})`,
+        skip.length ? notInArray(pomodoroCatalogItems.id, skip) : undefined
+      )
+    )
+    .orderBy(asc(pomodoroCatalogItems.createdAt))
+    .limit(1)
+  return row?.filePath ? { ...row, filePath: row.filePath } : null
+}
+
+/**
+ * Puts a caught-up middle still on a theme, as long as nothing changed under
+ * it meanwhile: the same film and the same old still. The old still leaves
+ * the bucket; a new one that lost the race is removed instead.
+ */
+export async function setThemeMiddleStill({
+  id,
+  filePath,
+  picturePath,
+  still,
+}: {
+  id: string
+  filePath: string
+  picturePath: string | null
+  still: { url: string; path: string }
+}) {
+  const [updated] = await db
+    .update(pomodoroCatalogItems)
+    .set({ pictureUrl: still.url, picturePath: still.path, updatedAt: new Date() })
+    .where(
+      and(
+        eq(pomodoroCatalogItems.id, id),
+        eq(pomodoroCatalogItems.filePath, filePath),
+        picturePath === null
+          ? sql`${pomodoroCatalogItems.picturePath} is null`
+          : eq(pomodoroCatalogItems.picturePath, picturePath)
+      )
+    )
+    .returning({ id: pomodoroCatalogItems.id })
+  forgetMediaCatalog()
+  await removeFiles(
+    [updated ? picturePath : still.path].filter((path): path is string => !!path)
+  )
+  return Boolean(updated)
 }
 
 /**

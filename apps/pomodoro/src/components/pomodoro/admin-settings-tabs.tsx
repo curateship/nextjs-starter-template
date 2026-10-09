@@ -34,6 +34,7 @@ import {
   type PixabayKeyStatus,
 } from "@/lib/api/pomodoro/admin-pixabay"
 import {
+  BREAK_MESSAGE_MAX,
   seasonsProblem,
   type AppSettingKey,
   type AppSettingValue,
@@ -41,6 +42,7 @@ import {
 } from "@/lib/pomodoro/app-settings"
 import type { MediaCatalog } from "@/lib/pomodoro/catalog"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import { cn } from "@/lib/utils"
 
 /**
  * Pomoder's own tabs under Settings → App settings, one per group. See
@@ -108,6 +110,19 @@ export function SeasonsSettingsTab() {
     <SettingsTab>
       {({ settings, catalog }) => (
         <SeasonsCard initial={settings["media.seasons"]} {...freeOptions(catalog)} />
+      )}
+    </SettingsTab>
+  )
+}
+
+export function BreaksSettingsTab() {
+  return (
+    <SettingsTab>
+      {({ settings, catalog }) => (
+        <BreakLookCard
+          initial={settings["break.look"]}
+          freeThemes={freeOptions(catalog).freeThemes}
+        />
       )}
     </SettingsTab>
   )
@@ -444,6 +459,82 @@ function MediaDefaultsCard({
           emptyLabel="None: a random one for guests, Lofi girl for members"
           onChange={(background) => pick({ ...defaults, background })}
         />
+      </div>
+    </CollapsibleSettingsCard>
+  )
+}
+
+/**
+ * The break theme and message. Tyler, 9 Oct 2026: "Add a feature for admin to
+ * choose a theme that changes to it for break timer and an area for text so I
+ * can put some encourgement text or tips."
+ */
+function BreakLookCard({
+  initial,
+  freeThemes,
+}: {
+  initial: AppSettingValue<"break.look">
+  freeThemes: Option[]
+}) {
+  const [look, setLook] = React.useState(initial)
+  const save = useSettingSave()
+  const themeId = React.useId()
+  const messageId = React.useId()
+  const tooLong = look.message.length > BREAK_MESSAGE_MAX
+  const tooLongReason = `The message can be at most ${BREAK_MESSAGE_MAX} characters.`
+
+  return (
+    <CollapsibleSettingsCard
+      storageId="pomodoro-break-look"
+      title="Breaks"
+      description="What everybody sees while a short or long break is on, on the timer and in rooms."
+      contentClassName="grid gap-4"
+    >
+      <PairSelect
+        id={themeId}
+        label="Break theme"
+        hint="Replaces everybody's own theme until the break ends. Only free, Live themes, because guests take breaks too."
+        value={look.background}
+        options={freeThemes}
+        prefix="scene:"
+        emptyLabel="None: everybody keeps their own theme"
+        onChange={(background) => {
+          const next = { ...look, background }
+          setLook(next)
+          if (tooLong) save.refuse("break.look", tooLongReason)
+          else void save.now("break.look", next)
+        }}
+      />
+      <div className="grid gap-2">
+        <FieldLabel
+          htmlFor={messageId}
+          hint="Encouragement or a tip, shown on the break card under the heading. Line breaks are kept. Empty shows nothing."
+        >
+          Break message
+        </FieldLabel>
+        <Textarea
+          id={messageId}
+          rows={4}
+          className="sm:max-w-xl"
+          value={look.message}
+          aria-invalid={tooLong ? true : undefined}
+          placeholder="You're doing great. Drink some water before the next round."
+          onChange={(event) => {
+            const next = { ...look, message: event.target.value }
+            setLook(next)
+            if (next.message.length > BREAK_MESSAGE_MAX)
+              save.refuse("break.look", tooLongReason)
+            else save.soon("break.look", next)
+          }}
+          onBlur={() => save.flush("break.look")}
+        />
+        <p
+          role={tooLong ? "alert" : undefined}
+          className={cn("text-sm text-muted-foreground", tooLong && "text-destructive")}
+        >
+          {tooLong ? "Not saved. " : null}
+          {look.message.length} of {BREAK_MESSAGE_MAX} characters
+        </p>
       </div>
     </CollapsibleSettingsCard>
   )

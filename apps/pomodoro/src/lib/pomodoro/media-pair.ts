@@ -14,6 +14,9 @@ import {
 import { parseSoundReference } from "@/lib/pomodoro/sound-catalog"
 
 export type TimerDefaults = AppSettingValue<"timer.newAccount">
+export type BreakLook = AppSettingValue<"break.look">
+
+const NO_BREAK_LOOK: BreakLook = { background: null, message: "" }
 
 /**
  * A room's sound and theme, as the server hands them to a page. See
@@ -40,6 +43,11 @@ export type MediaBootstrap = {
   picks: { sound: string | null; background: string | null }
   /** For a guest: the timer an admin set new accounts to start with. */
   guestTimer: TimerDefaults | null
+  /**
+   * The admin's break theme and message (`break.look`). The theme is drawn
+   * while the break card is on screen; null keeps everybody's own.
+   */
+  breakLook: BreakLook
   /** The personal room's pair. Uploads come with the address the server resolved. */
   personal: {
     sound: string | null
@@ -92,6 +100,7 @@ export type GuestMediaSettings = {
   /** Today's default pair, a season's when one covers today. */
   defaults: { sound: string | null; background: string | null }
   timer: TimerDefaults | null
+  breakLook?: BreakLook
 }
 
 const NO_GUEST_SETTINGS: GuestMediaSettings = {
@@ -136,6 +145,7 @@ export function guestMediaBootstrap(
     fallbackBackground: usable(settings.defaults.background, scenes, "scene:"),
     picks: firstPicks(catalog, sound, background, false, random),
     guestTimer: settings.timer,
+    breakLook: freeBreakLook(catalog, settings.breakLook ?? NO_BREAK_LOOK, false),
     personal: {
       sound,
       soundUrl: null,
@@ -146,6 +156,21 @@ export function guestMediaBootstrap(
     room: null,
     canUsePremiumMedia: false,
   }
+}
+
+/**
+ * The break look as a page may draw it: a theme that has since gone Draft or
+ * been deleted is dropped, and so is one made Pro for somebody without Pro.
+ */
+export function freeBreakLook(
+  catalog: MediaCatalog,
+  look: BreakLook,
+  canUsePremium: boolean
+): BreakLook {
+  const reference = parseBackgroundReference(look.background)
+  const scene = reference?.type === "scene" ? findTheme(catalog, reference.key) : null
+  const usable = scene && (canUsePremium || !scene.locked)
+  return { background: usable ? look.background : null, message: look.message }
 }
 
 /**

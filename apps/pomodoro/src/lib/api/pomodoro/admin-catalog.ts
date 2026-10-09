@@ -125,7 +125,6 @@ const itemSchema = z.object({
       kind: z.enum(["audio", "video", "image"]),
     })
     .nullable(),
-  clearFile: z.boolean().default(false),
 })
 export type CatalogItemPayload = z.input<typeof itemSchema>
 

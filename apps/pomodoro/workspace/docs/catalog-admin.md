@@ -21,6 +21,25 @@ and one for sounds. Add ability to add sound and theme in admin dashboard
   girl) or silence on their next load. Their saved choice is left as it was,
   so it comes back if the item is made Live again.
 
+- **A theme's still is never uploaded; it comes from the middle of its
+  film.** Tyler, 9 Oct 2026: "remove the ability to add a still image and just
+  let the app capture an image in the middle of the clip". The theme window
+  has no Still field. It shows the still the worker took, or "Taken from the
+  middle of the film once it is prepared." Every new film brings a new still,
+  and the old one leaves the bucket. The server ignores a still sent with a
+  theme save, so nothing but the worker sets it.
+- **Themes made before that rule caught up on their own.** Tyler, the same
+  day: "lofi girl still shows old image". When the worker has no new file
+  waiting, it takes one theme whose film is in the bucket but whose still was
+  not taken from the middle of it, and replaces the still with the film's
+  middle frame. Nothing is re-encoded. A middle still is stored as
+  `pomodoro-catalog/themes/middle-<id>.jpg`, which is how the worker tells it
+  from an older first frame (`findThemeNeedingMiddleStill` in
+  `admin-catalog.ts`). A film that fails is skipped until the worker restarts.
+- **Lofi girl's still ships with the app.** Its film lives under `public/`,
+  where the worker cannot reach it, so `public/backgrounds/thumbs-lofi_girl.png`
+  was replaced by hand with the frame at 30 seconds of its 60-second film. It
+  used to be a 120 by 72 drawing.
 - **A sound never needs a picture uploaded.** Tyler, 9 Oct 2026: "It
   shouldnt need to upload an image when i add a sound. It should add one of
   the random graphic we currantly have." A sound saved with no picture, from
@@ -151,12 +170,12 @@ from Pixabay" meanwhile.
 - **A film** takes Pixabay's large version when it is under 100 MB, else the
   medium one, is copied into the bucket and handed to the catalogue worker
   with its tries counted from nothing. That worker shrinks it to 720p and takes
-  its first frame as the still, the same as an upload. Pixabay's own thumbnail
+  the frame halfway through it as the still, the same as an upload. Pixabay's own thumbnail
   is not used, so the still matches the film.
 - **Both fill in the credits** from Pixabay's answer: the artist (the Pixabay
   user), the source link, the licence, and the tags from Pixabay's tag list,
   cut to the usual eight. A field the admin filled in while the file was on its
-  way is kept, and so is a picture they chose.
+  way is kept.
 - **Only Pixabay's file servers are fetched from.** The file address must be
   https on a host ending in pixabay.com, one redirect is followed at most, to a
   host that passes the same check, and a file past its size limit is refused
@@ -169,8 +188,8 @@ from Pixabay" meanwhile.
   be fetched".
   The row shows "File refused:" with the reason, and the admin can upload a
   file of their own in its window.
-- **The admin's own file wins.** Uploading a file, or "Use the still only", in
-  the window while a fetch is waiting stops the fetch.
+- **The admin's own file wins.** Uploading a file in the window while a fetch
+  is waiting stops the fetch.
 
 ### A sound waiting for its file
 
@@ -192,10 +211,12 @@ from Pixabay" meanwhile.
   [Shuffle and tags](shuffle-and-tags.md).
   Making something Pro does not take it from a free member who already has it;
   it is checked the next time they pick.
-- **Files.** The picture (the shared image field and media library), then the
-  sound file or the theme's film, uploaded the moment it is chosen and prepared
-  after Save. A sound has a starting volume from 10 to 100, multiplied into
-  each member's own volume. A theme can drop its film and be a still again.
+- **Files.** For a sound, the card picture (the shared image field and media
+  library), then the sound file. For a theme, its still, shown and never
+  chosen, then its film. A file is uploaded the moment it is chosen and
+  prepared after Save. A sound has a starting volume from 10 to 100,
+  multiplied into each member's own volume. A theme's film can be replaced but
+  not dropped, because the still comes from it.
   A theme with a film shows a player under "Film" (the browser's own, as the
   media library uses), the same size as the still, so the admin can watch the
   film members get before making it Live. While a new film is being prepared
@@ -210,7 +231,8 @@ the built-in files under `public/` never are.
 Going Live needs a picture, and for a sound a file (or one on its way). A
 sound always has a picture, because one of the built-in graphics is picked
 when none is given. A
-theme's film whose still was left empty gets its first frame as the still.
+theme gets its still from the middle of its film once the worker has prepared
+it, so a new theme can be saved Live while its film is on the way.
 
 ## The worker
 
@@ -220,8 +242,10 @@ holds theirs back.
 
 - **A sound** is measured, refused outside 2 to 5 minutes, then evened out for
   loudness (`loudnorm`) into an MP3.
-- **A film** is shrunk to 720p with no sound, and its first frame is taken for
-  a still when there is none.
+- **A film** is shrunk to 720p with no sound, and the frame halfway through it
+  becomes the still, replacing the old one (`extractMiddleFrame` in
+  `media-transcode.ts`). A film whose length FFprobe cannot read gives its
+  first frame instead.
 - **The item keeps its old file until the new one is ready.** A Live sound
   being replaced keeps playing; a refused replacement leaves the old one in
   place and says why in the window.

@@ -19,8 +19,11 @@ import {
   createCatalogDrafts,
   deleteAdminCatalogItems,
   failCatalogFile,
+  findThemeNeedingMiddleStill,
   finishCatalogFile,
   listAdminCatalog,
+  MIDDLE_STILL_PREFIX,
+  setThemeMiddleStill,
   reorderAdminCatalog,
   saveAdminCatalogItem,
   setAdminCatalogLocked,
@@ -71,7 +74,6 @@ function soundInput(overrides: Partial<CatalogItemInput> = {}): CatalogItemInput
     licence: "bought",
     licenceNote: null,
     source: { path: SOURCE, kind: "audio" },
-    clearFile: false,
     ...overrides,
   }
 }
@@ -157,6 +159,110 @@ describe("saving an item", () => {
         actorUserId: admin,
       })
     ).rejects.toThrow("CATALOG_NEEDS_PICTURE")
+  })
+
+  it("takes a theme's still from its film, never from the window", async () => {
+    const admin = (await insertUser(db, { role: "admin" })).id
+    const film = "pomodoro-catalog/sources/1c7d4e2f-9b5e-4d66-8f1f-3a7b2c8d0e21.mp4"
+    const saved = await saveAdminCatalogItem({
+      id: null,
+      kind: "theme",
+      input: soundInput({
+        label: "Snowy cafe",
+        descriptor: "video",
+        volume: 100,
+        pictureUrl: "https://files.test/sent-from-the-window.png",
+        source: { path: film, kind: "video" },
+      }),
+      actorUserId: admin,
+    })
+    // A still sent with the save is ignored; the film brings its own.
+    expect(saved.pictureUrl).toBeNull()
+
+    const firstStill = { url: "https://files.test/middle-1.jpg", path: "pomodoro-catalog/themes/middle-1.jpg" }
+    await finishCatalogFile({
+      id: saved.id,
+      sourcePath: film,
+      fileUrl: "https://files.test/film-1.mp4",
+      filePath: "pomodoro-catalog/themes/film-1.mp4",
+      poster: firstStill,
+      durationSeconds: null,
+    })
+    expect(await itemByKey("theme", saved.key)).toMatchObject({
+      pictureUrl: firstStill.url,
+      picturePath: firstStill.path,
+    })
+
+    // A second film replaces the still too, and the first still leaves the bucket.
+    const secondFilm = "pomodoro-catalog/sources/2d8e5f3a-0c6f-4e77-9a2a-4b8c3d9e1f32.mp4"
+    await saveAdminCatalogItem({
+      id: saved.id,
+      kind: "theme",
+      input: soundInput({
+        label: "Snowy cafe",
+        descriptor: "video",
+        volume: 100,
+        pictureUrl: null,
+        source: { path: secondFilm, kind: "video" },
+      }),
+      actorUserId: admin,
+    })
+    // Saving with the window's empty picture field kept the still.
+    expect((await itemByKey("theme", saved.key))?.pictureUrl).toBe(firstStill.url)
+    vi.mocked(deleteFromR2).mockClear()
+    await finishCatalogFile({
+      id: saved.id,
+      sourcePath: secondFilm,
+      fileUrl: "https://files.test/film-2.mp4",
+      filePath: "pomodoro-catalog/themes/film-2.mp4",
+      poster: { url: "https://files.test/middle-2.jpg", path: "pomodoro-catalog/themes/middle-2.jpg" },
+      durationSeconds: null,
+    })
+    expect((await itemByKey("theme", saved.key))?.pictureUrl).toBe("https://files.test/middle-2.jpg")
+    const removed = vi.mocked(deleteFromR2).mock.calls.map(([path]) => path)
+    expect(removed).toContain(firstStill.path)
+    expect(removed).not.toContain("pomodoro-catalog/themes/middle-2.jpg")
+  })
+
+  it("catches up a theme whose still is an old first frame, and only that one", async () => {
+    const admin = (await insertUser(db, { role: "admin" })).id
+    // Built-in themes keep their files under public/, so none needs catching up.
+    expect(await findThemeNeedingMiddleStill([])).toBeNull()
+
+    const film = "pomodoro-catalog/sources/3e9f6a4b-1d7a-4f88-8b3b-5c9d4e0f2a43.mp4"
+    const saved = await saveAdminCatalogItem({
+      id: null,
+      kind: "theme",
+      input: soundInput({ label: "Old film", descriptor: "video", volume: 100, source: { path: film, kind: "video" } }),
+      actorUserId: admin,
+    })
+    // Finished the way it was before 9 Oct 2026, with a first-frame still.
+    const oldStill = "pomodoro-catalog/themes/first-frame.jpg"
+    await finishCatalogFile({
+      id: saved.id,
+      sourcePath: film,
+      fileUrl: "https://files.test/old.mp4",
+      filePath: "pomodoro-catalog/themes/old.mp4",
+      poster: { url: `https://files.test/${oldStill}`, path: oldStill },
+      durationSeconds: null,
+    })
+    const waiting = await findThemeNeedingMiddleStill([])
+    expect(waiting).toEqual({ id: saved.id, filePath: "pomodoro-catalog/themes/old.mp4", picturePath: oldStill })
+    expect(await findThemeNeedingMiddleStill([saved.id])).toBeNull()
+
+    vi.mocked(deleteFromR2).mockClear()
+    const middle = { url: "https://files.test/middle.jpg", path: `${MIDDLE_STILL_PREFIX}a.jpg` }
+    expect(await setThemeMiddleStill({ ...waiting!, still: middle })).toBe(true)
+    expect((await itemByKey("theme", saved.key))?.pictureUrl).toBe(middle.url)
+    expect(vi.mocked(deleteFromR2).mock.calls.map(([path]) => path)).toEqual([oldStill])
+    expect(await findThemeNeedingMiddleStill([])).toBeNull()
+
+    // A second worker that read the same old still loses quietly and tidies up.
+    vi.mocked(deleteFromR2).mockClear()
+    const late = { url: "https://files.test/late.jpg", path: `${MIDDLE_STILL_PREFIX}b.jpg` }
+    expect(await setThemeMiddleStill({ ...waiting!, still: late })).toBe(false)
+    expect((await itemByKey("theme", saved.key))?.pictureUrl).toBe(middle.url)
+    expect(vi.mocked(deleteFromR2).mock.calls.map(([path]) => path)).toEqual([late.path])
   })
 
   it("shows a Live sound to members once its file is finished, with the NEW date set", async () => {

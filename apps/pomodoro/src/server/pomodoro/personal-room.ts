@@ -14,7 +14,11 @@ import { parseBackgroundReference } from "@/lib/pomodoro/background-catalog"
 import { findSound, findTheme } from "@/lib/pomodoro/catalog"
 import { parseSoundReference } from "@/lib/pomodoro/sound-catalog"
 import { defaultPairOn } from "@/lib/pomodoro/app-settings"
-import { firstPicks, type MediaBootstrap } from "@/lib/pomodoro/media-pair"
+import {
+  firstPicks,
+  freeBreakLook,
+  type MediaBootstrap,
+} from "@/lib/pomodoro/media-pair"
 import { MAX_CHOICE_LENGTH, parseMediaPool, serializeMediaPool } from "@/lib/pomodoro/media-pool"
 
 /**
@@ -34,6 +38,7 @@ export async function loadUnsetPair(now = new Date()) {
     shuffle: settings["media.shuffleUnset"],
     defaults,
     timer: settings["timer.newAccount"],
+    breakLook: settings["break.look"],
   }
 }
 
@@ -116,6 +121,7 @@ export async function loadMediaBootstrap(userId: string): Promise<MediaBootstrap
       entitlements.canUsePremiumMedia
     ),
     guestTimer: null,
+    breakLook: freeBreakLook(catalog, unset.breakLook, entitlements.canUsePremiumMedia),
     personal: {
       sound,
       soundUrl: soundUpload?.url ?? null,

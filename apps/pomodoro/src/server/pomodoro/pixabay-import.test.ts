@@ -347,7 +347,6 @@ describe("the worker", () => {
         licence: "free",
         licenceNote: null,
         source: { path: source, kind: "video" },
-        clearFile: false,
       },
       actorUserId: admin,
     })

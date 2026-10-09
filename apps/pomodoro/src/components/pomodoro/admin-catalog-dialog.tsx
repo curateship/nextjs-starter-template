@@ -80,7 +80,6 @@ type Draft = {
   licence: string
   licenceNote: string
   source: { path: string; kind: "audio" | "video" | "image"; name: string } | null
-  clearFile: boolean
 }
 
 const NOUN: Record<CatalogKind, string> = { theme: "theme", sound: "sound" }
@@ -100,7 +99,6 @@ function emptyDraft(kind: CatalogKind): Draft {
     licence: "",
     licenceNote: "",
     source: null,
-    clearFile: false,
   }
 }
 
@@ -119,7 +117,6 @@ function draftFrom(item: AdminCatalogItem): Draft {
     licence: item.licence ?? "",
     licenceNote: item.licenceNote ?? "",
     source: null,
-    clearFile: false,
   }
 }
 
@@ -226,7 +223,6 @@ export function AdminCatalogDialog({
     try {
       const stored = await uploadCatalogSource(file)
       update("source", { path: stored.path, kind: stored.kind, name: file.name })
-      update("clearFile", false)
     } catch (error) {
       setFileInvalid(true)
       showErrorToast(getCatalogAdminErrorMessage(error))
@@ -261,7 +257,6 @@ export function AdminCatalogDialog({
         source: draft.source
           ? { path: draft.source.path, kind: draft.source.kind }
           : null,
-        clearFile: draft.clearFile,
       })
       toast.success(
         creating
@@ -284,7 +279,7 @@ export function AdminCatalogDialog({
     : item
       ? item.label
       : `Edit ${NOUN[kind]}`
-  const hasFile = !draft.clearFile && Boolean(item?.fileUrl)
+  const hasFile = Boolean(item?.fileUrl)
 
   return (
     <FormDialog open={open} dirty={dirty} busy={saving || uploading} onClose={onClose}>
@@ -427,22 +422,22 @@ export function AdminCatalogDialog({
                       <CardDescription>
                         {kind === "sound"
                           ? "An MP3, WAV or OGG of 2 to 5 minutes. It is evened out for loudness before members hear it."
-                          : "A still is required. A film is optional, plays behind the page, and is shrunk to 720p first."}
+                          : "An MP4 or WebM film. It plays behind the page, is shrunk to 720p, and the frame halfway through it becomes the still."}
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="grid gap-4">
-                      <ImageUpload
-                        label={kind === "sound" ? "Card picture" : "Still"}
-                        value={draft.pictureUrl}
-                        onChange={(value) => update("pictureUrl", value)}
-                        aspect="video"
-                        className="sm:max-w-xs"
-                        hint={
-                          kind === "theme"
-                            ? "Shown on the card, and behind the page whenever the film cannot play. Leave it empty with a film and the film's first frame is used."
-                            : "Optional. Leave it empty and one of the built-in sound graphics is picked when you save."
-                        }
-                      />
+                      {kind === "sound" ? (
+                        <ImageUpload
+                          label="Card picture"
+                          value={draft.pictureUrl}
+                          onChange={(value) => update("pictureUrl", value)}
+                          aspect="video"
+                          className="sm:max-w-xs"
+                          hint="Optional. Leave it empty and one of the built-in sound graphics is picked when you save."
+                        />
+                      ) : (
+                        <ThemeStill pictureUrl={item?.pictureUrl ?? null} />
+                      )}
                       <div className="grid gap-2">
                         <FieldLabel htmlFor={fileId}>
                           {kind === "sound" ? "Sound file" : "Film"}
@@ -496,18 +491,6 @@ export function AdminCatalogDialog({
                             )}
                             {hasFile || draft.source ? "Replace file" : "Choose file"}
                           </Button>
-                          {kind === "theme" && (hasFile || draft.source) ? (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              onClick={() => {
-                                update("source", null)
-                                update("clearFile", true)
-                              }}
-                            >
-                              Use the still only
-                            </Button>
-                          ) : null}
                         </div>
                       </div>
                       {kind === "sound" ? (
@@ -687,6 +670,32 @@ function TagsField({
   )
 }
 
+/**
+ * A theme's still, shown and never chosen. Tyler, 9 Oct 2026: "remove the
+ * ability to add a still image and just let the app capture an image in the
+ * middle of the clip". The worker takes it once the film is prepared.
+ */
+function ThemeStill({ pictureUrl }: { pictureUrl: string | null }) {
+  return (
+    <div className="grid gap-2">
+      <FieldLabel hint="Shown on the card, and behind the page whenever the film cannot play. A new film brings a new still.">
+        Still
+      </FieldLabel>
+      {pictureUrl ? (
+        <img
+          src={pictureUrl}
+          alt=""
+          className="aspect-video w-full rounded-lg bg-muted object-cover sm:max-w-xs"
+        />
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          Taken from the middle of the film once it is prepared.
+        </p>
+      )}
+    </div>
+  )
+}
+
 /** Where the item's file has got to, in one line under the field's label. */
 function FileStatusLine({
   item,
@@ -703,7 +712,6 @@ function FileStatusLine({
   if (uploading) text = "Sending the file…"
   else if (draft.source)
     text = `${draft.source.name} is uploaded. It is prepared after you save, and replaces the current file once it is ready.`
-  else if (draft.clearFile) text = "No film. The still is drawn on its own."
   else if (item?.fileStatus === "queued" || item?.fileStatus === "processing")
     text = item.importUrl
       ? "Fetching from Pixabay. The picture, artist and tags arrive within a minute or two."

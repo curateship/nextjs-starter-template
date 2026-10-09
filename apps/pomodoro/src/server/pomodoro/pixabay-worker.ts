@@ -32,7 +32,7 @@ import { readPixabayAddress } from "@/lib/pomodoro/pixabay-links"
  *
  * A picture becomes the theme's still at once. A film is copied into the
  * bucket and handed to the catalogue worker, which shrinks it to 720p and
- * takes its first frame as the still, the same as an upload. Up to five
+ * takes the frame halfway through it as the still, the same as an upload. Up to five
  * pictures or one film per pass of the shell's fifteen-second loop, so 25
  * photos take about a minute.
  *

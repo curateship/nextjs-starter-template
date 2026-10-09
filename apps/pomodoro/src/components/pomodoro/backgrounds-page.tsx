@@ -1,5 +1,5 @@
 import * as React from "react"
-import { EyeIcon, LockIcon } from "lucide-react"
+import { LockIcon } from "lucide-react"
 
 import { Card, CardContent } from "@/components/ui/card"
 import {
@@ -18,15 +18,10 @@ import { isNewItem } from "@/lib/pomodoro/catalog"
 import { useRoomMedia } from "@/lib/pomodoro/room-media-store"
 import {
   CurrentlySelectedLabel,
-  MediaAddActions,
+  MediaAddMenu,
   MediaRoomNote,
 } from "@/components/pomodoro/media-add-actions"
 import { SceneBackdrop } from "@/components/pomodoro/scene-backdrop"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
 import { MediaUploadsSection } from "@/components/pomodoro/media-uploads-section"
 import { MediaGeneratorSection } from "@/components/pomodoro/media-generator-section"
 import { useGeneratorJump } from "@/lib/pomodoro/use-generator-jump"
@@ -49,12 +44,13 @@ const descriptorLabels: Record<string, string> = {
  * The backgrounds page: the Live scenes from the catalogue, free and Pro, in
  * the order an admin set. A locked card says why instead of going dead.
  *
- * Clicking a scene opens a popover with the scene playing in it and the Add
- * buttons under it. Nothing behind the page changes, and nothing is saved
- * until "Add to my personal room", or "Add to this room" for a host. Tyler,
- * 7 Oct 2026: "Clicking on the theme should open up a popover to preview the
- * theme (not open it in the background like we do now)." The theme of the
- * room you are in is outlined in orange and labelled "Currently selected".
+ * Hovering over a scene plays it inside its card (`ThemeCard`), and the "+"
+ * in the card's corner holds the Add choices. Nothing behind the page
+ * changes, and nothing is saved until "Add to my personal room", or "Add to
+ * this room" for a host. Tyler, 7 Oct 2026, asked for a preview that does not
+ * swap the page's own theme; on 9 Oct the popover that did it gave way to
+ * playing on hover. The theme of the room you are in is outlined in orange
+ * and labelled "Currently selected".
  */
 export function BackgroundsPage() {
   const media = useRoomMedia()
@@ -100,81 +96,34 @@ export function BackgroundsPage() {
           <TabsContent value="one" className="flex flex-col gap-6">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {shown.map((scene) => {
-                const reference: BackgroundReference = {
-                  type: "scene",
+                const reference = {
+                  type: "scene" as const,
                   key: scene.key,
                   stillUrl: scene.stillUrl,
                   videoUrl: scene.videoUrl,
                 }
-                const selected = sameBackgroundReference(inUse, reference)
                 const locked = scene.locked && !media.canUsePremiumMedia
                 const card = (
-                  <Card
+                  <ThemeCard
                     key={scene.key}
-                    className={cn(
-                      "gap-0 overflow-hidden p-0",
-                      selected && "ring-2 ring-[var(--p-accent)]"
-                    )}
-                  >
-                    <ThemePreview
-                      reference={reference}
-                      label={scene.label}
-                      detail={descriptorLabels[scene.descriptor] ?? ""}
-                      disabled={locked}
-                    >
-                    <button
-                      className="group w-full text-left outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid"
-                      aria-label={
-                        locked
-                          ? `${scene.label}, a Pro scene. ${signedIn ? "See the plans" : "Sign in to see the plans"}`
-                          : `Preview the ${scene.label} background`
-                      }
-                      // A locked card is never dead: it leads to the plans page.
-                      onClick={() => {
-                        if (locked) openPlans()
-                      }}
-                    >
-                      <span className="relative block aspect-video">
-                        <img
-                          src={scene.stillUrl}
-                          alt=""
-                          className={cn(
-                            "size-full object-cover",
-                            locked && "opacity-40 grayscale"
-                          )}
-                        />
-                        {selected ? <CurrentlySelectedLabel /> : null}
-                        <span className="absolute inset-0 grid place-items-center">
-                          {locked ? (
-                            <LockIcon
-                              className="size-6 text-white drop-shadow"
-                              aria-hidden="true"
-                            />
-                          ) : (
-                            <EyeIcon
-                              className="size-6 text-white opacity-0 drop-shadow transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
-                              aria-hidden="true"
-                            />
-                          )}
+                    reference={reference}
+                    label={scene.label}
+                    detail={descriptorLabels[scene.descriptor] ?? ""}
+                    selected={sameBackgroundReference(inUse, reference)}
+                    locked={locked}
+                    lockedLabel={`${scene.label}, a Pro scene. ${signedIn ? "See the plans" : "Sign in to see the plans"}`}
+                    onLockedClick={openPlans}
+                    badges={
+                      scene.locked || isNewItem(scene.publishedAt, now) ? (
+                        <span className="flex gap-2 font-mono text-[10px] uppercase tracking-widest text-[var(--p-accent-2)]">
+                          {scene.locked ? <small>Pro</small> : null}
+                          {isNewItem(scene.publishedAt, now) ? (
+                            <small>New</small>
+                          ) : null}
                         </span>
-                      </span>
-                      <CardContent className="flex flex-col gap-0.5 p-3">
-                        <strong className="text-sm">{scene.label}</strong>
-                        <small className="text-xs text-muted-foreground">
-                          {descriptorLabels[scene.descriptor] ?? ""}
-                        </small>
-                        {scene.locked || isNewItem(scene.publishedAt, now) ? (
-                          <span className="flex gap-2 font-mono text-[10px] uppercase tracking-widest text-[var(--p-accent-2)]">
-                            {scene.locked ? <small>Pro</small> : null}
-                            {isNewItem(scene.publishedAt, now) ? (
-                              <small>New</small>
-                            ) : null}
-                          </span>
-                        ) : null}
-                      </CardContent>
-                    </button>
-                    </ThemePreview>
-                  </Card>
+                      ) : null
+                    }
+                  />
                 )
                 if (!locked) return card
                 return (
@@ -206,31 +155,36 @@ export function BackgroundsPage() {
           title="Your own"
           uploadLabel="Upload clip"
           onGenerate={goToGenerator}
-          description="Click one to preview it, then add it to your personal room."
+          description="Hover over one to see it play, then press + to add it to your personal room."
           isSelected={(upload) =>
             sameBackgroundReference(inUse, {
               type: "media",
               mediaId: upload.mediaId,
             })
           }
-          renderPreview={(upload, card) => (
-            <ThemePreview
-              reference={uploadReference(upload)}
-              label={upload.name}
-              detail={upload.kind === "video" ? "Your video" : "Your picture"}
-            >
-              {card}
-            </ThemePreview>
+          renderAddMenu={(upload) => (
+            <MediaAddMenu
+              item={{
+                kind: "background",
+                reference: uploadReference(upload),
+                label: upload.name,
+              }}
+            />
           )}
-          renderThumbnail={(upload) =>
+          renderThumbnail={(upload, playing) =>
             upload.kind === "video" ? (
               <video
+                // Rebuilt when it starts or stops, because a playing video
+                // does not stop just because `autoPlay` turned false.
+                key={playing ? "playing" : "still"}
                 // `#t=0.1` asks the browser for a tenth of a second in, which
                 // is what makes it paint a real frame. Without it the card is
                 // a grey box until somebody presses play.
-                src={`${upload.url}#t=0.1`}
+                src={playing ? upload.url : `${upload.url}#t=0.1`}
                 className="size-full object-cover"
                 muted
+                loop
+                autoPlay={playing}
                 playsInline
                 preload="metadata"
               />
@@ -249,42 +203,110 @@ export function BackgroundsPage() {
 }
 
 /**
- * The preview popover a theme card opens: the scene itself, playing if it is
- * a film, then its name and the Add buttons. The page behind stays as it is.
- * A locked card opens the plans page instead, so it never opens this.
+ * One theme card. Tyler, 9 Oct 2026: the preview popover went, and instead
+ * "the video will play when hover over", with a "+" in the card's bottom-right
+ * corner that opens the Add choices (`MediaAddMenu`). The scene plays over its
+ * still only while the pointer is on the card, so a page of cards loads no
+ * films until one is hovered. A tap plays or stops it, for a phone. A locked
+ * card leads to the plans page instead and has no "+".
  */
-function ThemePreview({
+function ThemeCard({
   reference,
   label,
   detail,
-  disabled = false,
-  children,
+  selected,
+  locked,
+  lockedLabel,
+  onLockedClick,
+  badges,
+  ...rest
 }: {
-  reference: BackgroundReference
+  reference: Extract<BackgroundReference, { type: "scene" }>
   label: string
   detail: string
-  disabled?: boolean
-  children: React.ReactElement
-}) {
-  if (disabled) return children
+  selected: boolean
+  locked: boolean
+  lockedLabel: string
+  onLockedClick: () => void
+  badges: React.ReactNode
+} & Omit<React.ComponentProps<typeof Card>, "children">) {
+  const [hovered, setHovered] = React.useState(false)
+  const [tapped, setTapped] = React.useState(false)
+  const playing = !locked && (hovered || tapped)
+
   return (
-    <Popover>
-      <PopoverTrigger asChild>{children}</PopoverTrigger>
-      <PopoverContent className="w-80 gap-3 p-3">
-        <div className="relative aspect-video overflow-hidden rounded-lg bg-muted">
-          <SceneBackdrop
-            background={reference}
-            onMediaError={() => undefined}
-            shading="none"
+    // `rest` carries the Pro tooltip's trigger props on a locked card.
+    <Card
+      {...rest}
+      className={cn(
+        "relative gap-0 overflow-hidden p-0",
+        selected && "ring-2 ring-[var(--p-accent)]"
+      )}
+      // On the whole card, so moving onto the "+" keeps it playing. Only a
+      // mouse hovers; a finger's tap is the button's click.
+      onPointerEnter={(event) => {
+        rest.onPointerEnter?.(event)
+        if (event.pointerType === "mouse") setHovered(true)
+      }}
+      onPointerLeave={(event) => {
+        rest.onPointerLeave?.(event)
+        if (event.pointerType !== "mouse") return
+        setHovered(false)
+        setTapped(false)
+      }}
+    >
+      <button
+        type="button"
+        className="group w-full text-left outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid"
+        aria-label={locked ? lockedLabel : `Play the ${label} background`}
+        aria-pressed={locked ? undefined : playing}
+        // A locked card is never dead: it leads to the plans page.
+        onClick={() => {
+          if (locked) onLockedClick()
+          else setTapped((current) => !current)
+        }}
+      >
+        <span className="relative block aspect-video">
+          <img
+            src={reference.stillUrl}
+            alt=""
+            className={cn(
+              "size-full object-cover",
+              locked && "opacity-40 grayscale"
+            )}
           />
-        </div>
-        <span className="flex flex-col gap-0.5">
+          {playing ? (
+            <SceneBackdrop
+              background={reference}
+              onMediaError={() => undefined}
+              shading="none"
+            />
+          ) : null}
+          {selected ? <CurrentlySelectedLabel /> : null}
+          {locked ? (
+            <span className="absolute inset-0 grid place-items-center">
+              <LockIcon
+                className="size-6 text-white drop-shadow"
+                aria-hidden="true"
+              />
+            </span>
+          ) : null}
+        </span>
+        <CardContent className="flex flex-col gap-0.5 py-3 pr-14 pl-3">
           <strong className="text-sm">{label}</strong>
           <small className="text-xs text-muted-foreground">{detail}</small>
-        </span>
-        <MediaAddActions item={{ kind: "background", reference, label }} />
-      </PopoverContent>
-    </Popover>
+          {badges}
+        </CardContent>
+      </button>
+      {/* Beside the card's button, because a button cannot sit inside
+          another one. */}
+      {locked ? null : (
+        <MediaAddMenu
+          item={{ kind: "background", reference, label }}
+          className="absolute right-3 bottom-3"
+        />
+      )}
+    </Card>
   )
 }
 

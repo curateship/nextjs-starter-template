@@ -60,10 +60,9 @@ export function MediaUploadsSection({
   onGenerate,
   reloadToken = 0,
   isSelected,
-  isPreviewed,
   onPick,
-  renderActions,
-  renderPreview,
+  onHoverChange,
+  renderAddMenu,
   renderThumbnail,
 }: {
   purpose: PomodoroUploadPurpose
@@ -83,21 +82,16 @@ export function MediaUploadsSection({
   /** Whether this upload is the one in use in the room you are in. */
   isSelected: (upload: StoredUpload) => boolean
   /**
-   * Sounds previews on the page: `onPick` plays the upload, and the Add
-   * buttons from `renderActions` are drawn under the one `isPreviewed` names.
+   * A finished card plays while the pointer is over it (`onHoverChange`), and
+   * a click or tap calls `onPick`, for a phone. Sounds plays the file through
+   * its preview player; Backgrounds plays the film inside the thumbnail.
    */
-  isPreviewed?: (upload: StoredUpload) => boolean
   onPick?: (upload: StoredUpload) => void
-  renderActions?: (upload: StoredUpload) => React.ReactNode
-  /**
-   * Backgrounds previews in a popover instead: it wraps the card's button in
-   * one, and the popover holds the preview and the Add buttons.
-   */
-  renderPreview?: (
-    upload: StoredUpload,
-    card: React.ReactElement
-  ) => React.ReactNode
-  renderThumbnail: (upload: StoredUpload) => React.ReactNode
+  onHoverChange?: (upload: StoredUpload, hovering: boolean) => void
+  /** The "+" beside the delete button that opens the Add choices. */
+  renderAddMenu?: (upload: StoredUpload) => React.ReactNode
+  /** `playing` is true while the card is hovered or was tapped to play. */
+  renderThumbnail: (upload: StoredUpload, playing: boolean) => React.ReactNode
 }) {
   const [library, setLibrary] = React.useState<UploadLibrary | null>(null)
   const [error, setError] = React.useState<string | null>(null)
@@ -222,17 +216,11 @@ export function MediaUploadsSection({
               key={upload.mediaId}
               upload={upload}
               selected={isSelected(upload)}
-              actions={
-                isPreviewed?.(upload) ? (renderActions?.(upload) ?? null) : null
-              }
+              addMenu={renderAddMenu?.(upload) ?? null}
               onPick={() => onPick?.(upload)}
-              wrapPick={
-                renderPreview
-                  ? (card) => renderPreview(upload, card)
-                  : undefined
-              }
+              onHoverChange={(hovering) => onHoverChange?.(upload, hovering)}
               onDelete={() => setPendingDelete(upload)}
-              thumbnail={renderThumbnail(upload)}
+              renderThumbnail={(playing) => renderThumbnail(upload, playing)}
             />
           ))}
         </div>
@@ -415,26 +403,27 @@ const KIND_ICONS = {
 function UploadCard({
   upload,
   selected,
-  actions,
+  addMenu,
   onPick,
-  wrapPick,
+  onHoverChange,
   onDelete,
-  thumbnail,
+  renderThumbnail,
 }: {
   upload: StoredUpload
   /** In use in the room you are in. */
   selected: boolean
-  /** The Add buttons, while this upload is being previewed. */
-  actions: React.ReactNode
+  /** The "+" that opens the Add choices. */
+  addMenu: React.ReactNode
   onPick: () => void
-  /** Wraps a finished card's button, for a page that previews in a popover. */
-  wrapPick?: (card: React.ReactElement) => React.ReactNode
+  onHoverChange: (hovering: boolean) => void
   onDelete: () => void
-  thumbnail: React.ReactNode
+  renderThumbnail: (playing: boolean) => React.ReactNode
 }) {
   const ready = upload.status === "ready"
   const failed = upload.status === "failed"
   const KindIcon = KIND_ICONS[upload.kind]
+  const [hovered, setHovered] = React.useState(false)
+  const [tapped, setTapped] = React.useState(false)
 
   const pickButton = (
     <button
@@ -449,7 +438,9 @@ function UploadCard({
       }
       disabled={!ready}
       onClick={() => {
-        if (ready) onPick()
+        if (!ready) return
+        setTapped((current) => !current)
+        onPick()
       }}
     >
       <span
@@ -458,7 +449,7 @@ function UploadCard({
           upload.kind === "audio" ? "aspect-square" : "aspect-video"
         )}
       >
-        {ready ? thumbnail : null}
+        {ready ? renderThumbnail(hovered || tapped) : null}
         {selected ? <CurrentlySelectedLabel /> : null}
         <span className="absolute inset-0 grid place-items-center">
           {failed ? (
@@ -500,10 +491,23 @@ function UploadCard({
         "overflow-hidden p-0",
         selected && "ring-2 ring-[var(--p-accent)]"
       )}
+      // On the whole card, so moving onto the "+" keeps playing. Only a mouse
+      // hovers; a finger's tap is the button's click.
+      onPointerEnter={(event) => {
+        if (!ready || event.pointerType !== "mouse") return
+        setHovered(true)
+        onHoverChange(true)
+      }}
+      onPointerLeave={(event) => {
+        if (!ready || event.pointerType !== "mouse") return
+        setHovered(false)
+        setTapped(false)
+        onHoverChange(false)
+      }}
     >
-      {ready && wrapPick ? wrapPick(pickButton) : pickButton}
+      {pickButton}
       <div className="flex items-center justify-end gap-2 border-t px-2 py-1">
-        {actions ? <div className="mr-auto">{actions}</div> : null}
+        {ready ? addMenu : null}
         <Button
           type="button"
           variant="ghost"

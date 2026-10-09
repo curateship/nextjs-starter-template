@@ -76,6 +76,11 @@ const saveFn = createServerFn({ method: "POST" })
         if (problem) throw new Error("SETTING_SEASONS")
       }
     }
+    // Guests take a break too, so the break theme is a free Live one as well.
+    if (data.key === "break.look") {
+      const look = value as z.infer<(typeof appSettingSchemas)["break.look"]>
+      assertFreePair(await loadMediaCatalog(), { sound: null, background: look.background })
+    }
     const saved = await saveAppSetting({ key: data.key, value, actorUserId: context.user.id })
     // Every open room reads itself again, so its message box says chat is
     // paused, or opens again, without anybody reloading.

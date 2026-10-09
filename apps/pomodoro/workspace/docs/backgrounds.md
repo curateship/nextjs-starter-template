@@ -33,9 +33,17 @@ second page.
   (`src/lib/pomodoro/room-media-store.ts`), serialized as `scene:<key>`, or
   `media:<uuid>` for one of your own uploads (see
   [Your own backgrounds and sounds](own-media-uploads.md)).
-- **Clicking a scene opens a preview popover** with the scene in it. The page
-  behind stays as it is. "Add to my personal room" in the popover saves it,
-  and the theme in use is labelled "Currently selected".
+- **Hovering over a scene plays it inside its card.** Tyler, 9 Oct 2026:
+  "Remove this dropdown and instead make it so that the video will play when
+  hover over". The film loads only while the pointer is on the card, so a page
+  of cards loads no films until one is hovered. A tap plays or stops it on a
+  phone. The page behind stays as it is. Your own uploaded films play on hover
+  the same way.
+- **The "+" in the card's bottom-right corner opens the Add choices.** Tyler,
+  the same day: "add a "+" icon here to open a dropdown to add to room". "Add
+  to my personal room" saves it, "Add to this room" is there for a host, and
+  the theme in use is labelled "Currently selected". The card is `ThemeCard`
+  in `backgrounds-page.tsx`; the menu is `MediaAddMenu`.
 - **The product shell renders the backdrop** under its content column
   (`SceneBackdrop` in `pomodoro-shell.tsx`), so it appears behind every
   frontend page and no shell file changes. The lofi scene is the one real

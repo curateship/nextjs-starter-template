@@ -224,6 +224,11 @@ export const appOptions: AppOptions = {
         panel: () => settingsTab("SeasonsSettingsTab"),
       },
       {
+        id: POMODORO_SETTINGS_TABS.breaks,
+        label: "Breaks",
+        panel: () => settingsTab("BreaksSettingsTab"),
+      },
+      {
         id: POMODORO_SETTINGS_TABS.newAccounts,
         label: "New accounts",
         panel: () => settingsTab("NewAccountsSettingsTab"),

@@ -39,22 +39,27 @@ Tyler sent a design on 7 Oct 2026 with "revamp the sound page", and
   [AI backgrounds and soundscapes](ai-generation.md). The Theme page shares
   both.
 
-## Clicking a card previews it
+## Hovering over a card plays it
 
-Tyler, 7 Oct 2026: "Right now clicking on sound plays it in the navigation and
-it interfere with the start timer on the index page. Make it preview the sound
-on the sound page only and add a button to be able to add it to your personal
-room."
+Tyler, 7 Oct 2026: "Make it preview the sound on the sound page only and add a
+button to be able to add it to your personal room." On 9 Oct he asked for the
+sound to play on hover, "same for sound" as the themes, with a "+" to add it.
 
-- **A click plays the loop on this page only**, through its own player
-  (`use-preview-audio.ts`). The header's player, the timer and what is saved
-  are never touched. Clicking again pauses it, and leaving the page stops it.
-- **The previewed card shows "Add to my personal room"** over the bottom-left
-  corner of its picture, and "Add to this room" beside it for the host of the
-  room you are in. Tyler moved it there from under the name on 7 Oct 2026.
-  Once added, the same corner reads "In your personal room" on a dark pill.
-  Your own uploads keep the button in the row under their card. The rules are
-  in [The personal room](personal-room.md).
+- **Hovering over a card plays the loop on this page only**, through its own
+  player (`use-preview-audio.ts`). Moving off the card stops it. The header's
+  player, the timer and what is saved are never touched.
+- **A click or tap plays or pauses it too**, because a phone has no hover.
+- **The browser stays quiet until the page has been clicked once.** Chrome
+  and Safari refuse to start sound from a hover alone on a page nobody has
+  clicked or tapped yet. Coming to Sounds from the left menu is a click, so it
+  normally plays straight away. A refused hover shows no error.
+- **The "+" in the card's bottom-right corner opens the Add choices**
+  (`MediaAddMenu` in `media-add-actions.tsx`): "Add to my personal room", and
+  "Add to this room" for the host of the room you are in. A choice already
+  made reads "In your personal room" with a tick. A locked card has no "+",
+  and nor does anybody in somebody else's room. Your own uploads have the "+"
+  beside the delete button. The rules are in
+  [The personal room](personal-room.md).
 
 ## Adding one never starts it
 

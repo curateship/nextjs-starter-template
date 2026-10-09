@@ -14,6 +14,9 @@ const soundKeySchema = z.string().regex(/^curated:[a-z0-9][a-z0-9-]{0,39}$/)
 const sceneKeySchema = z.string().regex(/^scene:[a-z0-9][a-z0-9-]{0,39}$/)
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
 
+/** The longest break message an admin may write. */
+export const BREAK_MESSAGE_MAX = 600
+
 export const appSettingSchemas = {
   /**
    * Tyler, 8 Oct 2026: "Add in app settings to checkbox shuffling sounds and
@@ -39,6 +42,16 @@ export const appSettingSchemas = {
       })
     )
     .max(24),
+  /**
+   * Tyler, 9 Oct 2026: "Add a feature for admin to choose a theme that changes
+   * to it for break timer and an area for text so I can put some encourgement
+   * text or tips." The theme replaces everybody's own while a break is on;
+   * null leaves each person's theme alone. The message shows on the break card.
+   */
+  "break.look": z.object({
+    background: sceneKeySchema.nullable(),
+    message: z.string().max(BREAK_MESSAGE_MAX),
+  }),
   /** The timer a new account and a guest start with. */
   "timer.newAccount": z.object({
     focusMinutes: z.number().int().min(1).max(90),
@@ -87,6 +100,7 @@ export const APP_SETTING_DEFAULTS: {
   "media.shuffleUnset": false,
   "media.defaults": { sound: null, background: null },
   "media.seasons": [],
+  "break.look": { background: null, message: "" },
   // The schema's own defaults on user_preferences, so nothing changes until
   // an admin says so.
   "rooms.limits": { maxPeople: null, maxRepeatsPerHost: 5, maxInvitesPerRoom: 20 },
@@ -178,5 +192,6 @@ export const POMODORO_SETTINGS_TABS = {
   newAccounts: "pomodoro-new-accounts",
   rooms: "pomodoro-rooms",
   chat: "pomodoro-chat",
+  breaks: "pomodoro-breaks",
   pixabay: "pomodoro-pixabay",
 } as const

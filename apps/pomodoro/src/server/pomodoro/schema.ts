@@ -1527,7 +1527,7 @@ export const pomodoroCatalogItems = pgTable(
     pictureUrl: varchar("picture_url", { length: 500 }),
     /**
      * Where the picture sits in the bucket when this app put it there (a
-     * still dropped on "Upload several", or a film's first frame), so it can
+     * still dropped on "Upload several", or a film's middle frame), so it can
      * be removed with the item. Null for a picture from the media library.
      */
     picturePath: varchar("picture_path", { length: 300 }),

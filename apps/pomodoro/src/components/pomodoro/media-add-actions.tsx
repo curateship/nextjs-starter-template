@@ -1,8 +1,14 @@
 import * as React from "react"
-import { CheckIcon, Loader2Icon } from "lucide-react"
+import { CheckIcon, Loader2Icon, PlusIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
 import { saveHostedRoomMedia } from "@/lib/api/pomodoro/rooms"
 import { useProductAuth } from "@/lib/pomodoro/auth-state"
@@ -39,34 +45,16 @@ type Item =
   | { kind: "sound" | "background"; pool: MediaPool; label: string }
 
 /**
- * The buttons under a previewed sound or theme. See
- * `workspace/docs/personal-room.md`.
- *
- * - "Add to my personal room" saves it to your own room.
- * - "Add to this room" is for the host of the room you are in, and changes it
- *   for everybody in it. A hosted room takes catalogue items only, so an
- *   upload never offers it.
- * - A guest has no room of their own, so the one button keeps it for this
- *   visit.
- * - A member of somebody else's room gets nothing here: the host picked the
- *   room's pair, and the page says so at the top (`MediaRoomNote`).
+ * Everything both shapes of the Add controls need: whether the item is
+ * already in each room, and the two saves. `hidden` is true for a member of
+ * somebody else's room, who gets no Add controls at all.
  */
-export function MediaAddActions({
-  item,
-  onPicture = false,
-}: {
-  item: Item
-  /**
-   * Drawn over a card's picture (Sounds): the "in your room" labels get a
-   * dark glass pill, so they read on a bright picture as well as a dark one.
-   */
-  onPicture?: boolean
-}) {
+function useMediaAdd(item: Item) {
   const { authenticated } = useProductAuth()
   const media = useRoomMedia()
   const [busy, setBusy] = React.useState<"" | "personal" | "room">("")
   const room = media.room
-  if (room && room.role !== "host") return null
+  const hidden = Boolean(room && room.role !== "host")
 
   // A group is in a room when the room's choice is that group. One item is
   // in a room only when the room chose that item, never when a shuffle happens
@@ -165,6 +153,57 @@ export function MediaAddActions({
     }
   }
 
+  return {
+    hidden,
+    authenticated,
+    room,
+    busy,
+    inPersonal,
+    inRoom,
+    catalogue,
+    addToPersonal,
+    addToRoom,
+  }
+}
+
+/**
+ * The Add buttons, for a group of sounds or themes (the tags panel). One
+ * catalogue card or upload uses `MediaAddMenu` instead. See
+ * `workspace/docs/personal-room.md`.
+ *
+ * - "Add to my personal room" saves it to your own room.
+ * - "Add to this room" is for the host of the room you are in, and changes it
+ *   for everybody in it. A hosted room takes catalogue items only, so an
+ *   upload never offers it.
+ * - A guest has no room of their own, so the one button keeps it for this
+ *   visit.
+ * - A member of somebody else's room gets nothing here: the host picked the
+ *   room's pair, and the page says so at the top (`MediaRoomNote`).
+ */
+export function MediaAddActions({
+  item,
+  onPicture = false,
+}: {
+  item: Item
+  /**
+   * Drawn over a card's picture (Sounds): the "in your room" labels get a
+   * dark glass pill, so they read on a bright picture as well as a dark one.
+   */
+  onPicture?: boolean
+}) {
+  const {
+    hidden,
+    authenticated,
+    room,
+    busy,
+    inPersonal,
+    inRoom,
+    catalogue,
+    addToPersonal,
+    addToRoom,
+  } = useMediaAdd(item)
+  if (hidden) return null
+
   return (
     <div className="flex flex-wrap items-center gap-2">
       {inPersonal ? (
@@ -201,6 +240,76 @@ export function MediaAddActions({
         )
       ) : null}
     </div>
+  )
+}
+
+/**
+ * The "+" in the corner of a sound or theme card, which opens a short menu of
+ * the same Add choices as `MediaAddActions`. Tyler, 9 Oct 2026, pointing at
+ * the bottom-right of a theme card: "add a "+" icon here to open a dropdown to
+ * add to room", in place of the preview popover. A member of somebody else's
+ * room gets no "+", the same as no buttons.
+ */
+export function MediaAddMenu({
+  item,
+  className,
+}: {
+  item: Exclude<Item, { pool: MediaPool }>
+  className?: string
+}) {
+  const {
+    hidden,
+    authenticated,
+    room,
+    busy,
+    inPersonal,
+    inRoom,
+    catalogue,
+    addToPersonal,
+    addToRoom,
+  } = useMediaAdd(item)
+  if (hidden) return null
+
+  return (
+    <DropdownMenu modal={false}>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          size="icon"
+          variant="outline"
+          className={cn("rounded-full", className)}
+          disabled={busy !== ""}
+          aria-label={`Add ${item.label} to a room`}
+        >
+          {busy ? (
+            <Loader2Icon className="animate-spin" aria-hidden="true" />
+          ) : (
+            <PlusIcon aria-hidden="true" />
+          )}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-auto min-w-56">
+        <DropdownMenuItem
+          disabled={inPersonal}
+          onSelect={() => void addToPersonal()}
+        >
+          {inPersonal ? <CheckIcon aria-hidden="true" /> : <PlusIcon aria-hidden="true" />}
+          {inPersonal
+            ? authenticated
+              ? "In your personal room"
+              : "On for this visit"
+            : authenticated
+              ? "Add to my personal room"
+              : "Use for this visit"}
+        </DropdownMenuItem>
+        {room && catalogue ? (
+          <DropdownMenuItem disabled={inRoom} onSelect={() => void addToRoom()}>
+            {inRoom ? <CheckIcon aria-hidden="true" /> : <PlusIcon aria-hidden="true" />}
+            {inRoom ? `In ${room.name}` : "Add to this room"}
+          </DropdownMenuItem>
+        ) : null}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
@@ -247,12 +356,13 @@ function InUse({
 export function MediaRoomNote({ thing }: { thing: "sound" | "theme" }) {
   const { room } = useRoomMedia()
   const { authenticated } = useProductAuth()
+  const verb = thing === "sound" ? "hear it" : "see it play"
   const text = room
     ? room.role === "host"
-      ? `You are hosting ${room.name}. Click a ${thing} to hear it first. "Add to this room" changes it for everyone in the room.`
-      : `The host picked this room's sound and theme. You can still preview here, and your own room comes back when you leave ${room.name}.`
+      ? `You are hosting ${room.name}. Hover over a ${thing} to ${verb}, then press + to add it. "Add to this room" changes it for everyone in the room.`
+      : `The host picked this room's sound and theme. You can still hover over one to ${verb}, and your own room comes back when you leave ${room.name}.`
     : authenticated
-      ? `Click a ${thing} to try it. Nothing changes until you add it to your personal room.`
-      : `Click a ${thing} to try it. Sign in to keep one in a personal room of your own.`
+      ? `Hover over a ${thing} to ${verb}. Nothing changes until you press + and add it to your personal room.`
+      : `Hover over a ${thing} to ${verb}, then press + to use it for this visit. Sign in to keep one in a personal room of your own.`
   return <p className="max-w-xl text-muted-foreground">{text}</p>
 }

@@ -1,8 +1,8 @@
 # Admin settings
 
-Pomoder's own admin settings are seven tabs under Settings → App settings, in
+Pomoder's own admin settings are eight tabs under Settings → App settings, in
 the rail on `/admin/settings`: Emergency switches, Themes and sounds, Seasons,
-New accounts, Rooms, Room chat and Pixabay. Each lives at
+Breaks, New accounts, Rooms, Room chat and Pixabay. Each lives at
 `/admin/settings/pomodoro-<name>` (the ids are `POMODORO_SETTINGS_TABS` in
 `src/lib/pomodoro/app-settings.ts`), is listed in `settings.tabs` in
 `src/app/options.ts`, and is drawn by `admin-settings-tabs.tsx`. Every save
@@ -65,6 +65,17 @@ A sound and theme that replace the defaults between two dates, such as a snow
 scene through December. Two seasons may not share a day, and the page says which
 two clash. Members who picked their own are not touched. Today is the server's
 UTC day, near enough for a season measured in weeks.
+
+## Breaks
+
+A break theme and a break message, shown to everybody while a short or long
+break is on. Both start empty, which changes nothing. See
+[The break card](break-card.md) for what people see.
+
+- **The break theme** is a free, Live theme, because guests take breaks too.
+  "None" leaves everybody's own theme alone.
+- **The break message** is up to 600 characters. Typing saves the same way as
+  every other box. Over 600 reads "Not saved." under the box and is not sent.
 
 ## Rooms
 
