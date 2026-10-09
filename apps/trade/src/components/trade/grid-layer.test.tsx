@@ -303,6 +303,33 @@ describe("the grid stop-loss line", () => {
     }
   )
 
+  it.each(["long", "short"] as const)(
+    "counts the %s grid's waiting rungs passed on the way to the stop",
+    (direction) => {
+      const sign = direction === "long" ? 1 : -1
+      const one = grid(direction)
+      // Rung 1 holds 2 coins at $100, today's price. Rung 2 waits $10 nearer
+      // the stop with 1 coin to buy; another waits past today's price, and a
+      // third waits past the stop. Only rung 2 joins the walk to the stop.
+      const waiting = (buyPx: number, sz: number) => ({
+        ...one.plan.levels[1],
+        buyPx,
+        sz,
+        heldSz: 0,
+        status: "waiting" as const,
+      })
+      one.plan.levels = [
+        { ...one.plan.levels[0], buyPx: 100, sz: 2, heldSz: 2 },
+        waiting(100 - 10 * sign, 1),
+        waiting(100 + 5 * sign, 4),
+        waiting(100 - 25 * sign, 8),
+      ]
+      one.plan.carriedLevels = []
+      // 2 × -$20 + 1 × -$10, then the $5 of opening fees.
+      expect(render(one)).toContain("SL -$55.00")
+    }
+  )
+
   it("shows that a flat grid has no money at risk yet", () => {
     expect(render(grid("long", false))).toContain("SL $0.00")
   })
