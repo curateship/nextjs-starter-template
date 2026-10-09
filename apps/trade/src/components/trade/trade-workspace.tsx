@@ -151,6 +151,13 @@ import { cn } from "@/lib/utils"
  * last, so it beats the shell's own class without editing a shell file.
  */
 const NO_RING = "focus-visible:ring-0"
+/**
+ * The Grid and DCA panels inside the collapsed-column menu: as tall as their
+ * own rows, capped at half the menu less Manual orders' 9rem, with a line
+ * above each one that has a panel on screen above it.
+ */
+const POPOVER_SMART_PANEL_CLASS =
+  "flex max-h-[calc((min(44rem,var(--radix-popover-content-available-height))-9rem)/2)] min-h-0 flex-none flex-col [:not([hidden])~&]:border-t"
 
 /** Who is signed in, read the way the shell's own pages read it. */
 const authenticatedRoute = getRouteApi("/_authenticated")
@@ -515,6 +522,48 @@ export function TradeWorkspace({
   // the zoom — an indicator is how you read a chart, not a fact about a coin.
   const indicators = useChartIndicators(initialIndicators)
   const chartOptions = useChartOptions(initialChartOptions)
+  // Hide on empty, from View options (Tyler, 8 Oct 2026): an order panel with
+  // no row to show leaves the column, so a long Grid list is not squeezed by
+  // two empty cards. Each panel says whether it is empty, because only the
+  // panel knows what it is listing: the smart-order panels read a cache before
+  // the server answers, and Manual orders counts a coin held by hand as a row.
+  // A hidden panel stays mounted, only unseen, so it can say when it has a row
+  // again.
+  const hideEmptyOrderPanels = chartOptions.options.hideEmptyOrderPanels
+  const [emptyPanels, setEmptyPanels] = React.useState({
+    grid: false,
+    dca: false,
+    manual: false,
+  })
+  const reportEmpty = React.useMemo(() => {
+    const report =
+      (panel: keyof typeof emptyPanels) => (empty: boolean) =>
+        setEmptyPanels((current) =>
+          current[panel] === empty ? current : { ...current, [panel]: empty }
+        )
+    return { grid: report("grid"), dca: report("dca"), manual: report("manual") }
+  }, [])
+  const panelHidden = (panel: keyof typeof emptyPanels) =>
+    hideEmptyOrderPanels && emptyPanels[panel]
+  const allOrderPanelsHidden =
+    panelHidden("grid") && panelHidden("dca") && panelHidden("manual")
+  // The column's spare height goes to the lowest panel still on screen.
+  // Manual orders took it before Hide on empty existed; with Manual orders
+  // hidden, a Grid panel on its own stopped at its rows and left the rest of
+  // the column blank (Tyler, 8 Oct 2026).
+  const lowestOrderPanel = !panelHidden("manual")
+    ? "manual"
+    : !panelHidden("dca")
+      ? "dca"
+      : "grid"
+  const orderPanelGrowth = (panel: keyof typeof emptyPanels) =>
+    lowestOrderPanel === panel ? "flex-[1_1_auto]" : "flex-[0_1_auto]"
+  const noOrderPanelsNote = (
+    <p className="flex flex-1 items-center justify-center p-6 text-center text-sm text-muted-foreground">
+      Nothing is working or waiting. Grid, DCA and Manual orders come back
+      when an order is placed.
+    </p>
+  )
   const priceAlerts = usePriceAlerts(initialPriceAlerts)
   const lineAlerts = useLineAlerts()
   // The line a panel row asked for, until the chart has picked it out.
@@ -1005,6 +1054,7 @@ export function TradeWorkspace({
       onRetry={trading.retry}
       onResumeSmartOrder={trading.resumeSmartOrder}
       onSelectMarket={onSelectMarket}
+      onEmptyChange={reportEmpty[kind]}
     />
   )
   const gridPanel = smartOrderPanel("grid")
@@ -1024,6 +1074,7 @@ export function TradeWorkspace({
       onRetry={trading.retry}
       onSelectMarket={onSelectMarket}
       selectedKey={selectedKey}
+      onEmptyChange={reportEmpty.manual}
     />
   )
 
@@ -1038,15 +1089,37 @@ export function TradeWorkspace({
       data-order-panels
       className="flex h-full min-h-0 flex-col gap-(--shell-gutter)"
     >
-      <WorkspacePanel className="flex h-auto min-h-32 flex-[0_1_auto] flex-col">
+      <WorkspacePanel
+        hidden={panelHidden("grid")}
+        className={cn(
+          "flex h-auto min-h-32 flex-col",
+          orderPanelGrowth("grid")
+        )}
+      >
         {gridPanel}
       </WorkspacePanel>
-      <WorkspacePanel className="flex h-auto min-h-32 flex-[0_1_auto] flex-col">
+      <WorkspacePanel
+        hidden={panelHidden("dca")}
+        className={cn("flex h-auto min-h-32 flex-col", orderPanelGrowth("dca"))}
+      >
         {dcaPanel}
       </WorkspacePanel>
-      <WorkspacePanel className="flex h-auto min-h-44 flex-[1_1_auto] flex-col">
+      <WorkspacePanel
+        hidden={panelHidden("manual")}
+        className={cn(
+          "flex h-auto min-h-44 flex-col",
+          orderPanelGrowth("manual")
+        )}
+      >
         {manualOrdersPanel}
       </WorkspacePanel>
+      {/* With every panel hidden the column would be a blank strip, which
+          reads as a page that broke rather than a choice that worked. */}
+      {allOrderPanelsHidden ? (
+        <WorkspacePanel className="flex flex-1 flex-col">
+          {noOrderPanelsNote}
+        </WorkspacePanel>
+      ) : null}
     </div>
   )
 
@@ -1241,15 +1314,34 @@ export function TradeWorkspace({
                       Grid and DCA split all but 9rem between them, so long
                       lists cannot squeeze Manual orders down to its heading.
                       Unlike the docked column, an empty Manual orders does
-                      not hand its share to Grid here. */}
-                  <div className="grid max-h-[min(44rem,var(--radix-popover-content-available-height))] grid-rows-[minmax(0,auto)_minmax(0,auto)_minmax(0,1fr)] overflow-hidden">
-                    <div className="flex max-h-[calc((min(44rem,var(--radix-popover-content-available-height))-9rem)/2)] min-h-0 flex-col">
+                      not hand its share to Grid here. A flex column rather
+                      than a three-row grid, so a panel hidden by Hide on
+                      empty leaves no row behind it. */}
+                  <div className="flex max-h-[min(44rem,var(--radix-popover-content-available-height))] flex-col overflow-hidden">
+                    {/* The `hidden` attribute rather than the class: the
+                        reset gives the attribute display none with priority,
+                        so it beats each wrapper's own flex. The line above a
+                        panel is drawn only when a panel is on screen above
+                        it, so a hidden one leaves no stray line behind. */}
+                    <div
+                      hidden={panelHidden("grid")}
+                      className={POPOVER_SMART_PANEL_CLASS}
+                    >
                       {gridPanel}
                     </div>
-                    <div className="flex max-h-[calc((min(44rem,var(--radix-popover-content-available-height))-9rem)/2)] min-h-0 flex-col border-t">
+                    <div
+                      hidden={panelHidden("dca")}
+                      className={POPOVER_SMART_PANEL_CLASS}
+                    >
                       {dcaPanel}
                     </div>
-                    <div className="min-h-0 border-t">{manualOrdersPanel}</div>
+                    <div
+                      hidden={panelHidden("manual")}
+                      className="flex min-h-0 flex-1 flex-col [:not([hidden])~&]:border-t"
+                    >
+                      {manualOrdersPanel}
+                    </div>
+                    {allOrderPanelsHidden ? noOrderPanelsNote : null}
                   </div>
                 </SmartOrdersMenu>
               ) : null}

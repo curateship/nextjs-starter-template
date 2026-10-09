@@ -794,6 +794,28 @@ describe("the names on a placed grid's range", () => {
     expect(shortHtml).not.toContain("theme-primary")
   })
 
+  it("leaves a cancelled level out of the pill's count", () => {
+    // Tyler, 8 Oct 2026: × on one of eight levels still read 6/8. The level
+    // keeps its seat in the list but is no longer part of the grid.
+    const one = grid("long", false)
+    const cancelled: SmartGrid = {
+      ...one,
+      plan: {
+        ...one.plan,
+        levels: [
+          { ...one.plan.levels[0], status: "cancelled" as const },
+          one.plan.levels[1],
+        ],
+      },
+    }
+    const box = document.createElement("div")
+    box.innerHTML = render(cancelled)
+    const bar = box.querySelector('button[aria-label="Move the whole grid"]')
+      ?.parentElement as HTMLElement
+    expect(bar.textContent).toContain("1/1")
+    expect(bar.textContent).not.toContain("1/2")
+  })
+
   it("puts the grip inside the options bar, midway between the two names, off the rungs", () => {
     // Tyler, 3 Sep 2026: the options bar sits in the middle, flush right,
     // the same width as the name bars, with the whole-grid grip inside it.

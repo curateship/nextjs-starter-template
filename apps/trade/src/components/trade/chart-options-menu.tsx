@@ -40,6 +40,14 @@ const ACTIVITY_OPTIONS: { key: ChartOptionToggle; label: string }[] = [
   { key: "orderArrows", label: "Order arrows" },
   { key: "drawings", label: "Your drawings" },
 ]
+/**
+ * The Grid, DCA and Manual orders panels beside the chart. "Hide on empty" is
+ * Tyler's wording (8 Oct 2026): a panel with nothing to list leaves the
+ * column, and comes back the moment it has a row.
+ */
+const ORDER_PANEL_OPTIONS: { key: ChartOptionToggle; label: string }[] = [
+  { key: "hideEmptyOrderPanels", label: "Hide on empty" },
+]
 
 function ToggleRows({
   options,
@@ -204,6 +212,12 @@ export function ChartOptionsMenu({
             />
           </div>
         ) : null}
+        <SectionLabel>Grid, DCA and Manual orders</SectionLabel>
+        <ToggleRows
+          options={ORDER_PANEL_OPTIONS}
+          values={control.options}
+          onChange={setToggle}
+        />
         <SectionLabel>
           <FieldLabel
             htmlFor="chart-option-zone"

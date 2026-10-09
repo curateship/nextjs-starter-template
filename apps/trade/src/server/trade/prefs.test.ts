@@ -71,6 +71,7 @@ describe("the remembered chart options", () => {
       extendTrendlines: false,
       lineAlertsOn: false,
       lineAlertBuffer: 2.5,
+      hideEmptyOrderPanels: true,
       zone: "America/New_York" as const,
     }
     await saveChartOptions(id, options)
@@ -92,6 +93,7 @@ describe("the remembered chart options", () => {
       extendTrendlines: true,
       lineAlertsOn: false,
       lineAlertBuffer: null,
+      hideEmptyOrderPanels: false,
       zone: "Europe/London" as const,
     })
     expect(await loadChartOptions(mine.id)).toEqual(DEFAULT_CHART_OPTIONS)

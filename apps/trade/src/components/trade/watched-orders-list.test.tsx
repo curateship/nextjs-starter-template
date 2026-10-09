@@ -449,6 +449,96 @@ it("puts the distance in the PnL column, muted, never in the money colours", () 
   expect(rows).not.toContain("11.11% away</span></span>")
 })
 
+// The totals row (Tyler, 8 Oct 2026): how many, worth what, made what.
+it("adds the holdings and waiting levels up under the table", () => {
+  const html = draw({
+    orders: [waitingLevel],
+    positions: [heldCoin],
+    markets: [xmrMarket, solMarket],
+    settled: true,
+    failed: false,
+  })
+  const document = new DOMParser().parseFromString(html, "text/html")
+  const cells = Array.from(
+    document.querySelectorAll("[data-order-panel-totals] td")
+  ).map((cell) => cell.textContent?.trim())
+  expect(cells[0]).toBe("2 trades")
+  // 4 SOL at $100 is $400, plus a $90 buy waiting for 1 XMR.
+  expect(cells[2]).toBe("$490")
+  // Only the holding has a profit: 4 × ($100 − $90) − $1 of fees.
+  expect(cells[3]).toBe("+$39.00")
+})
+
+it("shows a dash for profit while only levels are waiting", () => {
+  const html = draw({
+    orders: [waitingLevel],
+    markets: [xmrMarket],
+    settled: true,
+    failed: false,
+  })
+  const document = new DOMParser().parseFromString(html, "text/html")
+  const cells = Array.from(
+    document.querySelectorAll("[data-order-panel-totals] td")
+  ).map((cell) => cell.textContent?.trim())
+  expect(cells[0]).toBe("1 trade")
+  expect(cells[2]).toBe("$90")
+  expect(cells[3]).toBe("—")
+})
+
+// Hide on empty (Tyler, 8 Oct 2026): the dashboard leaves out a panel that
+// says it is empty. A coin held by hand is a row, and a refused read is never
+// "empty".
+it("tells the dashboard when it has nothing to show, and when it has a row again", async () => {
+  ;(
+    globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+  ).IS_REACT_ACT_ENVIRONMENT = true
+  const host = document.createElement("div")
+  document.body.append(host)
+  const root = createRoot(host)
+  const calls: boolean[] = []
+  const render = (state: {
+    orders: readonly TradeOrder[]
+    positions?: readonly TradePosition[]
+    settled: boolean
+    failed: boolean
+  }) =>
+    act(async () => {
+      root.render(
+        <WatchedOrdersList
+          {...shared}
+          cacheScope="test:empty-report"
+          markets={[xmrMarket, solMarket]}
+          {...state}
+          onEmptyChange={(empty) => calls.push(empty)}
+        />
+      )
+    })
+
+  await render({ orders: [], settled: true, failed: false })
+  expect(calls.at(-1)).toBe(true)
+
+  await render({ orders: [waitingLevel], settled: true, failed: false })
+  expect(calls.at(-1)).toBe(false)
+
+  await render({ orders: [], settled: true, failed: false })
+  expect(calls.at(-1)).toBe(true)
+
+  // A coin you got into by hand is listed here, so the panel is not empty.
+  await render({
+    orders: [],
+    positions: [heldCoin],
+    settled: true,
+    failed: false,
+  })
+  expect(calls.at(-1)).toBe(false)
+
+  // A refused read with nothing listed keeps its Retry button on screen.
+  await render({ orders: [], settled: true, failed: true })
+  expect(calls.at(-1)).toBe(false)
+  await act(async () => root.unmount())
+  host.remove()
+})
+
 it("keeps waiting levels under the holdings whichever column is sorted", () => {
   ;(
     globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }

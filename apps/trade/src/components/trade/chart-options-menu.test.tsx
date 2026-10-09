@@ -102,3 +102,53 @@ describe("the chart type choice", () => {
     expect(type?.textContent).toContain("Line")
   })
 })
+
+describe("the order panels' Hide on empty switch", () => {
+  it("sits under its own heading, starts off and saves the flip at once", async () => {
+    const replace = vi.fn()
+
+    function Menu() {
+      const [options, setOptions] = React.useState(DEFAULT_CHART_OPTIONS)
+      const control = {
+        options,
+        replace: (next: ChartOptions) => {
+          replace(next)
+          setOptions(next)
+        },
+      } as ChartOptionsControl
+      return (
+        <TooltipProvider>
+          <ChartOptionsMenu control={control} />
+        </TooltipProvider>
+      )
+    }
+
+    await act(async () => root.render(<Menu />))
+    await act(async () => {
+      const trigger = host.querySelector<HTMLElement>(
+        'button[aria-label="View options"]'
+      )
+      trigger?.dispatchEvent(
+        new MouseEvent("pointerdown", { bubbles: true, button: 0 })
+      )
+      trigger?.dispatchEvent(new MouseEvent("click", { bubbles: true }))
+    })
+
+    expect(document.body.textContent).toContain("Grid, DCA and Manual orders")
+    const row = document.body.querySelector<HTMLElement>(
+      'label[for="chart-option-hideEmptyOrderPanels"]'
+    )
+    expect(row?.textContent).toContain("Hide on empty")
+    const toggle = document.body.querySelector<HTMLElement>(
+      "#chart-option-hideEmptyOrderPanels"
+    )
+    expect(toggle?.getAttribute("aria-checked")).toBe("false")
+
+    await act(async () => toggle?.click())
+    expect(replace).toHaveBeenLastCalledWith({
+      ...DEFAULT_CHART_OPTIONS,
+      hideEmptyOrderPanels: true,
+    })
+    expect(toggle?.getAttribute("aria-checked")).toBe("true")
+  })
+})

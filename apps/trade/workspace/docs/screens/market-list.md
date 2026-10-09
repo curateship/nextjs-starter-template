@@ -150,6 +150,8 @@ at a time on the chart, or mixed in with everything else under Open orders.
 
 When the panel also shows a hand-held position, a muted **Waiting orders**
 header separates the positions already open from prices that have not fired.
+With View options' "Hide on empty" switched on, this panel is not drawn while
+it has nothing to list; `panels-and-loading.md` holds that rule.
 
 - **One row per market.** When several orders wait on the same market, the row
   shows the order nearest today's price. The market keeps the place given to
