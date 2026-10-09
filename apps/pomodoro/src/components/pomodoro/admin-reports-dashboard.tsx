@@ -45,6 +45,7 @@ import {
   reviewPomodoroReports,
   type AdminReportRow,
 } from "@/lib/api/pomodoro/admin"
+import { useSafetyActions } from "@/components/pomodoro/admin-safety-dialogs"
 import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatDateTime } from "@/lib/format/format-time"
 import { plural } from "@/lib/format/plural"
@@ -129,6 +130,7 @@ export function AdminReportsDashboard({
   const search = route.useSearch()
   const setListSearch = useListSearchNavigate()
   const query = search.q ?? ""
+  const person = search.person
   const status = search.status ?? "all"
   const sort: SortColumn = search.sort ?? "created"
   const direction = search.direction ?? "desc"
@@ -156,8 +158,9 @@ export function AdminReportsDashboard({
         direction,
         page,
         pageSize,
+        person,
       }),
-    [direction, page, query, sort, status]
+    [direction, page, person, query, sort, status]
   )
 
   const list = useAdminList({
@@ -171,6 +174,14 @@ export function AdminReportsDashboard({
     column === "created" ? "desc" : "asc"
   )
   const { refresh } = list
+  // Warn and Suspend for the person a report is about (admin task 05).
+  const safety = useSafetyActions()
+  const showPerson = (id: string) => setListSearch({ person: id, q: undefined, page: undefined })
+  const personName = person
+    ? (list.rows.find((row) => row.subjectUserId === person)?.subjectName ??
+      list.rows.find((row) => row.reporterUserId === person)?.reporterName ??
+      "one person")
+    : null
 
   const { clear: clearSelection } = selection
 
@@ -302,6 +313,21 @@ export function AdminReportsDashboard({
         onSort={toggleSort}
         trailing={<TableHead column="meta">Actions</TableHead>}
         selection={{ noun: "reports", rowIds, state: selection }}
+        filters={
+          person ? (
+            <p className="flex items-center gap-2 text-sm">
+              Reports by or about {personName}.
+              <Button
+                type="button"
+                variant="link"
+                className="h-auto p-0"
+                onClick={() => setListSearch({ person: undefined, page: undefined })}
+              >
+                Show everyone
+              </Button>
+            </p>
+          ) : undefined
+        }
         list={list}
         page={page}
         onPageChange={setPage}
@@ -417,6 +443,12 @@ export function AdminReportsDashboard({
                   {row.reason}
                 </span>
                 <ReportedMessage row={row} />
+                <ReportPeople
+                  row={row}
+                  onShow={showPerson}
+                  onWarn={safety.warn}
+                  onSuspend={safety.suspend}
+                />
               </div>
             </TableCell>
             <TableCell column="meta" className="max-w-56">
@@ -428,6 +460,16 @@ export function AdminReportsDashboard({
               >
                 {row.reporterName ?? "Signed-out reader"}
               </span>
+              {row.reporterUserId && row.reporterPastReports ? (
+                <button
+                  type="button"
+                  className="block truncate text-left text-xs text-muted-foreground underline-offset-4 hover:underline"
+                  onClick={() => showPerson(row.reporterUserId!)}
+                >
+                  {row.reporterPastDismissed} of {row.reporterPastReports} past{" "}
+                  {plural(row.reporterPastReports, "report", "reports")} dismissed
+                </button>
+              ) : null}
             </TableCell>
             <TableCell column="meta">
               <div className="min-w-0">
@@ -494,6 +536,7 @@ export function AdminReportsDashboard({
         description="The reports are removed from the queue for good. Nobody is told, unlike Resolve and Dismiss, which thank the person who reported. The message or profile they were about is not touched. This cannot be undone."
         confirmLabel={plural(del.ids.length, "Delete report", "Delete reports")}
       />
+      {safety.dialogs}
     </>
   )
 }
@@ -536,7 +579,11 @@ function ReportedMessage({ row }: { row: AdminReportRow }) {
     >
       &quot;{row.messageBody}&quot; from{" "}
       {row.messageAuthorName ?? "an account that is gone"}
-      {row.messageDeletedAt ? ", deleted by the host" : ""}
+      {row.messageDeletedAt
+        ? row.messageRemovedBy === "admin"
+          ? ", removed by an admin"
+          : ", deleted by the host"
+        : ""}
     </span>
   )
 }
@@ -612,5 +659,42 @@ function BulkDecisionButton({
       {spinning ? <Loader2Icon className="size-4 animate-spin" /> : icon}
       {label} ({count})
     </DashboardToolbarButton>
+  )
+}
+
+/**
+ * Under a report: how often its subject was reported before, which opens the
+ * reports by or about them, and Warn and Suspend for that person (admin task
+ * 05). Text buttons, so the row's actions keep their measured width.
+ */
+function ReportPeople({
+  row,
+  onShow,
+  onWarn,
+  onSuspend,
+}: {
+  row: AdminReportRow
+  onShow: (id: string) => void
+  onWarn: (person: { id: string; name: string }) => void
+  onSuspend: (person: { id: string; name: string }) => void
+}) {
+  if (!row.subjectUserId) return null
+  const person = { id: row.subjectUserId, name: row.subjectName ?? "this person" }
+  const linkClass = "text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+  return (
+    <span className="flex flex-wrap items-center gap-x-3">
+      {row.subjectPriorReports ? (
+        <button type="button" className={linkClass} onClick={() => onShow(person.id)}>
+          {person.name} was reported {row.subjectPriorReports}{" "}
+          {plural(row.subjectPriorReports, "time", "times")} before
+        </button>
+      ) : null}
+      <button type="button" className={linkClass} onClick={() => onWarn(person)}>
+        Warn
+      </button>
+      <button type="button" className={linkClass} onClick={() => onSuspend(person)}>
+        Suspend
+      </button>
+    </span>
   )
 }

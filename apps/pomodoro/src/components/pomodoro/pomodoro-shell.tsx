@@ -34,6 +34,7 @@ import { cn } from "@/lib/utils"
 import type { AccountMenuFacts } from "@/lib/api/pomodoro/profile"
 import { usePublicNavigation } from "@/lib/branding"
 import type { MediaBootstrap } from "@/lib/pomodoro/media-pair"
+import { setGuestStartingTimer } from "@/lib/pomodoro/use-pomodoro"
 import {
   MediaBootstrapContext,
   useRoomMedia,
@@ -301,6 +302,10 @@ export function PomodoroShell({
   const [collapsed, setCollapsed] = React.useState(false)
   const pathname = useRouterState({ select: (state) => state.location.pathname })
   const { background, fallBackToDefault } = useRoomMedia(media)
+  // A guest's timer starts where an admin set new accounts to start, read
+  // before the timer store first reads a guest's saved state.
+  if (typeof window !== "undefined" && media?.guestTimer)
+    setGuestStartingTimer(media.guestTimer)
   const { setTheme } = useTheme()
   const savedMenu = usePublicNavigation()
   const savedLinks = React.useMemo(

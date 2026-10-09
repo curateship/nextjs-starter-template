@@ -31,6 +31,10 @@ export const POMODORO_NOTICE_KINDS = [
   "report_reviewed",
   "profile_hidden",
   "streak_reminder",
+  "room_changed",
+  "admin_warning",
+  "rooms_suspended",
+  "profile_restored",
 ] as const
 
 export type PomodoroNoticeKind = (typeof POMODORO_NOTICE_KINDS)[number]
@@ -76,6 +80,10 @@ export const NOTICE_KIND_CATEGORY: Record<
   report_reviewed: "account",
   profile_hidden: "account",
   streak_reminder: "account",
+  room_changed: "rooms",
+  admin_warning: "account",
+  rooms_suspended: "account",
+  profile_restored: "account",
 }
 
 /**
@@ -305,6 +313,26 @@ export function reportNewMessage(thing: ReportedThing, reports: number) {
  */
 export const REPORT_REVIEWED_MESSAGE = "Thanks, your report was reviewed."
 
+/**
+ * An admin changed or closed the host's room (admin task 04). It never says
+ * which admin.
+ */
+const ROOM_CHANGED_PREFIX = "An admin "
+export function roomChangedMessage(roomName: string, what: "changed" | "closed") {
+  return `${ROOM_CHANGED_PREFIX}${what} your room ${roomName}.`
+}
+
+/**
+ * Admin task 05. A warning's own words go in the notice's detail, under this
+ * heading. A suspension names its end, or says it lasts until lifted.
+ */
+export const ADMIN_WARNING_MESSAGE = "You have a warning from the Pomoder team."
+export const PROFILE_RESTORED_MESSAGE = "Your public profile is visible again."
+const SUSPENDED_PREFIX = "You can't use rooms "
+export function roomsSuspendedMessage(until: string | null) {
+  return until ? `${SUSPENDED_PREFIX}until ${until}.` : `${SUSPENDED_PREFIX}for now.`
+}
+
 /** An operator hid your public profile. Never says who, or who reported it. */
 export const PROFILE_HIDDEN_MESSAGE =
   "Your public profile has been hidden. See Settings for what to do."
@@ -347,6 +375,11 @@ export function noticeKindFromWords(notice: {
   if (message.startsWith(REPORT_NEW_PREFIX) || REPORTS_NEW_FOLDED.test(message))
     return "report_new"
   if (message === REPORT_REVIEWED_MESSAGE) return "report_reviewed"
+  if (message === ADMIN_WARNING_MESSAGE) return "admin_warning"
+  if (message === PROFILE_RESTORED_MESSAGE) return "profile_restored"
+  if (message.startsWith(SUSPENDED_PREFIX)) return "rooms_suspended"
+  if (message.startsWith(ROOM_CHANGED_PREFIX) && message.includes(" your room "))
+    return "room_changed"
   if (message === PROFILE_HIDDEN_MESSAGE) return "profile_hidden"
   if (STREAK_REMINDER_PATTERN.test(message)) return "streak_reminder"
   if (message.startsWith(BADGE_PREFIX)) return "badge"

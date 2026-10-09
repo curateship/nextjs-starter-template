@@ -4,6 +4,12 @@ export type SoundFaderCallbacks = {
   onWaiting: () => void
   onBlocked: () => void
   onError: () => void
+  /**
+   * The playing sound is about to come round to its start again, a little
+   * before the end so the next of a shuffle can crossfade in rather than cut
+   * in. Once per time through.
+   */
+  onCycleEnding?: () => void
 }
 
 export const DEFAULT_FADE_MS = 1400
@@ -16,12 +22,14 @@ type Deck = {
   gain: number
   target: number
   unloadAtZero: boolean
+  /** This time through has already been reported as ending. */
+  cycleReported: boolean
 }
 
 function makeDeck(el: HTMLAudioElement): Deck {
   el.loop = true
   el.preload = "none"
-  return { el, src: null, gain: 0, target: 0, unloadAtZero: false }
+  return { el, src: null, gain: 0, target: 0, unloadAtZero: false, cycleReported: false }
 }
 
 // Fades ambient audio in and out and crossfades between two <audio> decks so
@@ -57,6 +65,23 @@ export class SoundFader {
     on("pause", () => { if (isCurrent()) this.cb.onPause() })
     on("waiting", () => { if (isCurrent()) this.cb.onWaiting() })
     on("stalled", () => { if (isCurrent()) this.cb.onWaiting() })
+    on("timeupdate", () => {
+      if (!isCurrent()) return
+      const { duration, currentTime } = deck.el
+      // A file too short to crossfade, or one still loading, has no "end"
+      // worth announcing.
+      if (!Number.isFinite(duration) || duration < 10) return
+      const lead = Math.max(1.5, this.fadeMs / 1000 + 0.3)
+      const remaining = duration - currentTime
+      if (remaining > lead + 1) {
+        deck.cycleReported = false
+        return
+      }
+      if (remaining <= lead && !deck.cycleReported) {
+        deck.cycleReported = true
+        this.cb.onCycleEnding?.()
+      }
+    })
     on("error", () => {
       // A src we unloaded ourselves reports an error; ignore it, and only let
       // the active deck surface a failure to the state machine.

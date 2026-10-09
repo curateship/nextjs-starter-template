@@ -47,24 +47,28 @@ export function formatClockTime(startMinute: number) {
 export function roomRepeatProblem(
   weekdays: number,
   startMinute: number | null,
-  invites: string[]
+  invites: string[],
+  maxInvites: number = MAX_ROOM_INVITES
 ): RoomRepeatProblem | null {
   if (!isValidWeekdaySet(weekdays)) return "no_days"
   if (startMinute === null || startMinute < 0 || startMinute > 1439)
     return "not_a_time"
-  if (invites.length > MAX_ROOM_INVITES) return "too_many_invites"
+  if (invites.length > maxInvites) return "too_many_invites"
   if (invites.some((email) => !isLikelyEmail(email))) return "bad_email"
   return null
 }
 
-export function roomRepeatProblemMessage(problem: RoomRepeatProblem) {
+export function roomRepeatProblemMessage(
+  problem: RoomRepeatProblem,
+  maxInvites: number = MAX_ROOM_INVITES
+) {
   switch (problem) {
     case "no_days":
       return "Pick at least one day of the week."
     case "not_a_time":
       return "Pick the time the room should open."
     case "too_many_invites":
-      return `One room can invite ${MAX_ROOM_INVITES} people. Remove a few addresses.`
+      return `One room can invite ${maxInvites} people. Remove a few addresses.`
     case "bad_email":
       return "One of those addresses doesn't look like an email. Check it and try again."
   }

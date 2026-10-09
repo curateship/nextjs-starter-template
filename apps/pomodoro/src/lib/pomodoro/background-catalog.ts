@@ -1,32 +1,15 @@
-// Backgrounds mirror the sound catalog: a curated set of built-in scenes plus
-// the user's own uploaded/AI media. A selection serializes to `scene:<key>` or
-// `media:<uuid>` and is stored in user_preferences.selected_background, exactly
-// like selected_sound. Guests keep their choice in localStorage.
+import { CATALOG_KEY_PATTERN, findTheme, type MediaCatalog } from "@/lib/pomodoro/catalog"
 
-export type CuratedBackground = {
-  key: string
-  label: string
-  // Image name for /backgrounds/thumbs-<thumb>.png (lofi's thumb is "lofi_girl").
-  thumb: string
-  descriptor: "video" | "animated" | "static"
-  locked: boolean
-}
-
-export const curatedBackgrounds: readonly CuratedBackground[] = [
-  { key: "lofi", label: "Lofi girl", thumb: "lofi_girl", descriptor: "video", locked: false },
-  { key: "ambient", label: "Ambient glow", thumb: "ambient", descriptor: "animated", locked: false },
-  { key: "plain", label: "Plain dark", thumb: "plain", descriptor: "static", locked: false },
-  { key: "stars", label: "Starry night", thumb: "stars", descriptor: "animated", locked: false },
-  { key: "rain", label: "Rainy window", thumb: "rain", descriptor: "video", locked: true },
-  { key: "forest", label: "Night forest", thumb: "forest", descriptor: "video", locked: true },
-  { key: "ocean", label: "Ocean waves", thumb: "ocean", descriptor: "video", locked: true },
-  { key: "fireplace", label: "Fireplace", thumb: "fireplace", descriptor: "video", locked: true },
-] as const
+// A theme choice: one of the catalogue's scenes, or the member's own upload or
+// AI background. A selection serializes to `scene:<key>` or `media:<uuid>`,
+// stored on the personal room or the hosted room. The scenes themselves live in
+// the database and reach a page through the catalogue (`catalog.ts`).
 
 export type BackgroundReference =
-  | { type: "scene"; key: string }
-  // mediaKind is carried on the client so the hero knows whether to render a
-  // looping <video> or an <img>; it is not part of the serialized form.
+  // `stillUrl` and `videoUrl` are filled in from the catalogue when the stored
+  // value is read, so the backdrop draws a scene without looking anything up.
+  // Neither is part of the serialized form.
+  | { type: "scene"; key: string; stillUrl?: string; videoUrl?: string | null }
   // `mediaKind` and `mediaUrl` ride along so the backdrop knows whether to
   // draw a looping <video> or an <img>, and where the file is. Neither is part
   // of the serialized form: the preference stores `media:<uuid>` and the
@@ -38,9 +21,22 @@ export type BackgroundReference =
       mediaUrl?: string
     }
 
-// The default scene when nothing is selected, or when a selected upload is
-// missing, still processing, or deleted.
-export const DEFAULT_BACKGROUND: BackgroundReference = { type: "scene", key: "lofi" }
+/**
+ * The default scene when nothing is selected, or when a selected item is
+ * missing, a Draft, still processing, or deleted. Its files ship with the app
+ * rather than coming from the catalogue, so it can always be drawn: it is the
+ * last fallback, and a fallback that could itself be missing is not one.
+ */
+export const DEFAULT_SCENE_FILES = {
+  stillUrl: "/backgrounds/thumbs-lofi_girl.png",
+  videoUrl: "/backgrounds/uploads-265816_small.mp4",
+} as const
+
+export const DEFAULT_BACKGROUND: BackgroundReference = {
+  type: "scene",
+  key: "lofi",
+  ...DEFAULT_SCENE_FILES,
+}
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -52,13 +48,15 @@ export function serializeBackgroundReference(reference: BackgroundReference | nu
     : `media:${reference.mediaId}`
 }
 
+/**
+ * The stored value's shape only. Whether the scene still exists, and is Live,
+ * is the catalogue's answer, through `resolveBackgroundReference`.
+ */
 export function parseBackgroundReference(value: unknown): BackgroundReference | null {
   if (typeof value !== "string") return null
   if (value.startsWith("scene:")) {
     const key = value.slice("scene:".length)
-    return curatedBackgrounds.some((scene) => scene.key === key)
-      ? { type: "scene", key }
-      : null
+    return CATALOG_KEY_PATTERN.test(key) ? { type: "scene", key } : null
   }
   if (value.startsWith("media:")) {
     const mediaId = value.slice("media:".length)
@@ -67,6 +65,26 @@ export function parseBackgroundReference(value: unknown): BackgroundReference | 
       : null
   }
   return null
+}
+
+/**
+ * A scene with its files filled in from the catalogue, or null when the
+ * catalogue does not have it (deleted, a Draft, or never existed), so the
+ * caller falls back. An upload passes through as it is.
+ */
+export function resolveBackgroundReference(
+  catalog: MediaCatalog,
+  reference: BackgroundReference | null
+): BackgroundReference | null {
+  if (!reference || reference.type === "media") return reference
+  const theme = findTheme(catalog, reference.key)
+  if (!theme) return null
+  return {
+    type: "scene",
+    key: theme.key,
+    stillUrl: theme.stillUrl,
+    videoUrl: theme.videoUrl,
+  }
 }
 
 export function sameBackgroundReference(

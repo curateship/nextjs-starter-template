@@ -13,7 +13,14 @@ import {
 } from "@/lib/pomodoro/background-catalog"
 import { PRO_PERKS } from "@/lib/pomodoro/pro"
 import {
+  samePool,
+  serializeMediaPool,
+  type MediaPool,
+} from "@/lib/pomodoro/media-pool"
+import {
+  addBackgroundPoolToPersonalRoom,
   addBackgroundToPersonalRoom,
+  addSoundPoolToPersonalRoom,
   addSoundToPersonalRoom,
   enterHostedRoom,
   useRoomMedia,
@@ -28,6 +35,8 @@ import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 type Item =
   | { kind: "sound"; reference: SoundReference; label: string }
   | { kind: "background"; reference: BackgroundReference; label: string }
+  /** A group: shuffle, or some tags, for a whole room's sound or theme. */
+  | { kind: "sound" | "background"; pool: MediaPool; label: string }
 
 /**
  * The buttons under a previewed sound or theme. See
@@ -59,19 +68,32 @@ export function MediaAddActions({
   const room = media.room
   if (room && room.role !== "host") return null
 
+  // A group is in a room when the room's choice is that group. One item is
+  // in a room only when the room chose that item, never when a shuffle happens
+  // to be playing it.
+  const personalPool =
+    item.kind === "sound" ? media.personalSoundPool : media.personalBackgroundPool
+  const roomPool = room ? (item.kind === "sound" ? room.soundPool : room.backgroundPool) : null
   const inPersonal =
-    item.kind === "sound"
-      ? sameSoundReference(media.personalSound, item.reference)
-      : sameBackgroundReference(media.personalBackground, item.reference)
+    "pool" in item
+      ? samePool(personalPool, item.pool)
+      : !personalPool &&
+        (item.kind === "sound"
+          ? sameSoundReference(media.personalSound, item.reference)
+          : sameBackgroundReference(media.personalBackground, item.reference))
   const inRoom = room
-    ? item.kind === "sound"
-      ? sameSoundReference(room.sound, item.reference)
-      : sameBackgroundReference(room.background, item.reference)
+    ? "pool" in item
+      ? samePool(roomPool, item.pool)
+      : !roomPool &&
+        (item.kind === "sound"
+          ? sameSoundReference(room.sound, item.reference)
+          : sameBackgroundReference(room.background, item.reference))
     : false
   const catalogue =
-    item.kind === "sound"
+    "pool" in item ||
+    (item.kind === "sound"
       ? item.reference.type === "curated"
-      : item.reference.type === "scene"
+      : item.reference.type === "scene")
 
   const refusal = (cause: unknown) => {
     const text = cause instanceof Error ? cause.message : ""
@@ -88,7 +110,10 @@ export function MediaAddActions({
     dismissErrorToast()
     setBusy("personal")
     try {
-      if (item.kind === "sound") await addSoundToPersonalRoom(item.reference)
+      if ("pool" in item) {
+        if (item.kind === "sound") await addSoundPoolToPersonalRoom(item.pool)
+        else await addBackgroundPoolToPersonalRoom(item.pool)
+      } else if (item.kind === "sound") await addSoundToPersonalRoom(item.reference)
       else await addBackgroundToPersonalRoom(item.reference)
       toast.success(
         authenticated
@@ -109,14 +134,15 @@ export function MediaAddActions({
     dismissErrorToast()
     setBusy("room")
     try {
-      const sound =
-        item.kind === "sound"
-          ? serializeSoundReference(item.reference)
-          : serializeSoundReference(room.sound)
-      const background =
-        item.kind === "background"
-          ? serializeBackgroundReference(item.reference)
-          : serializeBackgroundReference(room.background)
+      // The other half stays exactly as the room has it, group or not.
+      const chosen =
+        "pool" in item
+          ? serializeMediaPool(item.pool)
+          : item.kind === "sound"
+            ? serializeSoundReference(item.reference)
+            : serializeBackgroundReference(item.reference)
+      const sound = item.kind === "sound" ? chosen : room.stored.sound
+      const background = item.kind === "background" ? chosen : room.stored.background
       // A room made before rooms had a pair has no sound yet; picking a
       // theme for it waits until a sound is picked too.
       if (!sound || !background) {

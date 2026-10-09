@@ -15,9 +15,9 @@ import {
 import { normalizeChime, type ChimeId } from "@/lib/pomodoro/chimes"
 import {
   clampSoundVolume,
-  curatedSounds,
   sameSoundReference,
   soundSourceUrl,
+  soundVolumeScale,
   type SoundReference,
 } from "@/lib/pomodoro/sound-catalog"
 import { DEFAULT_FADE_MS, SoundFader } from "@/lib/pomodoro/sound-fade"
@@ -127,13 +127,33 @@ function schedulePersist() {
   }, 600)
 }
 
+const cycleListeners = new Set<() => void>()
+
+/**
+ * Hears when the playing sound is about to end, which is when a shuffle or a
+ * tags choice moves on to its next sound and theme (Tyler, 8 Oct 2026). The
+ * room media store listens; the engine itself never picks.
+ */
+export function onSoundCycleEnding(listener: () => void) {
+  cycleListeners.add(listener)
+  return () => {
+    cycleListeners.delete(listener)
+  }
+}
+
 function labelForReference(reference: SoundReference | null) {
   if (!reference) return null
   if (reference.type === "media") return "Your audio"
-  return (
-    curatedSounds.find((sound) => sound.key === reference.key)?.label ??
-    reference.key
-  )
+  return reference.label ?? reference.key
+}
+
+/**
+ * The member's own volume times the sound's starting volume, which an admin
+ * sets per catalogue sound so a loud track starts quieter. The member's slider
+ * still reads what they set.
+ */
+function applyGain(reference: SoundReference | null = state.selected) {
+  fader?.setUserGain((state.volume / 100) * soundVolumeScale(reference))
 }
 
 function ensureFader() {
@@ -149,8 +169,11 @@ function ensureFader() {
     onWaiting: () => dispatch({ type: "media-waiting" }),
     onBlocked: () => dispatch({ type: "media-blocked" }),
     onError: () => dispatch({ type: "media-error" }),
+    onCycleEnding: () => {
+      for (const listener of cycleListeners) listener()
+    },
   })
-  fader.setUserGain(state.volume / 100)
+  applyGain()
   fader.setMuted(state.muted)
 
   // Fades snap instantly when the OS asks for reduced motion.
@@ -186,6 +209,7 @@ function runningEdge(clock: "timer" | "room", running: boolean) {
         reference: state.selected,
         label: state.label ?? labelForReference(state.selected) ?? "",
       })
+      applyGain()
       fader?.playSource(soundSourceUrl(state.selected))
     }
   } else if (!running && wasRunning === true) {
@@ -248,6 +272,7 @@ export function followSound(
   const playing = state.status === "playing" || state.status === "loading"
   if (reason === "room" && playing) {
     dispatch({ type: "select", reference, label: label ?? "" })
+    applyGain(reference)
     active?.playSource(soundSourceUrl(reference))
     return
   }
@@ -275,7 +300,7 @@ export function ensureSoundEngine() {
       canUsePremiumMedia: false,
     }
     lastSaved = preferenceSnapshot(state)
-    fader?.setUserGain(state.volume / 100)
+    applyGain()
     fader?.setMuted(state.muted)
     setCompletionAlertsEnabled(state.completionAlerts)
     setCompletionChimes({ focus: state.focusChime, break: state.breakChime })
@@ -298,7 +323,7 @@ export function ensureSoundEngine() {
         canUsePremiumMedia: saved.canUsePremiumMedia === true,
       }
       lastSaved = preferenceSnapshot(state)
-      fader?.setUserGain(state.volume / 100)
+      applyGain()
       fader?.setMuted(state.muted)
       setCompletionAlertsEnabled(state.completionAlerts)
       setCompletionChimes({ focus: state.focusChime, break: state.breakChime })
@@ -340,12 +365,13 @@ export function togglePlayback() {
     reference: state.selected,
     label: state.label ?? labelForReference(state.selected) ?? "",
   })
+  applyGain()
   active?.playSource(soundSourceUrl(state.selected))
 }
 
 export function setVolume(volume: number) {
   dispatch({ type: "set-volume", volume })
-  fader?.setUserGain(clampSoundVolume(volume) / 100)
+  applyGain()
 }
 
 export function toggleMuted() {

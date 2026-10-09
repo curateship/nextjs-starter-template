@@ -34,6 +34,7 @@ export function useAdminDelete({
   many,
   run,
   keptReason,
+  verb = "deleted",
   selection,
   onDone,
 }: {
@@ -44,6 +45,8 @@ export function useAdminDelete({
   run: (ids: string[]) => Promise<AdminDeleteResult>
   /** Why a row can be left behind, for the line afterwards. */
   keptReason?: string
+  /** What happened to the rows, past tense, when it is not a delete: "cancelled". */
+  verb?: string
   selection: AdminListSelection["state"]
   /** Refetches the list once the delete has landed. */
   onDone: () => Promise<void>
@@ -61,7 +64,7 @@ export function useAdminDelete({
         kept: skipped.length,
         one,
         many,
-        verb: "deleted",
+        verb,
         keptReason,
       })
       if (deleted.length) toast.success(line)
@@ -80,7 +83,7 @@ export function useAdminDelete({
     } finally {
       setDeleting(false)
     }
-  }, [ids, keptReason, many, onDone, one, run, setSelected])
+  }, [ids, keptReason, many, onDone, one, run, setSelected, verb])
 
   return {
     /** The rows the open window is about; empty while it is shut. */
@@ -98,9 +101,14 @@ export type AdminDelete = ReturnType<typeof useAdminDelete>
 export function AdminBulkDeleteButton({
   del,
   ids,
+  label = "Delete",
+  icon = <Trash2Icon className="size-4" />,
 }: {
   del: AdminDelete
   ids: string[]
+  /** For an action that is not a delete but asks the same way: "Cancel". */
+  label?: string
+  icon?: React.ReactNode
 }) {
   if (!ids.length) return null
   return (
@@ -110,8 +118,8 @@ export function AdminBulkDeleteButton({
       disabled={del.deleting}
       onClick={() => del.ask(ids)}
     >
-      <Trash2Icon className="size-4" />
-      Delete ({ids.length})
+      {icon}
+      {label} ({ids.length})
     </DashboardToolbarButton>
   )
 }
@@ -124,10 +132,12 @@ export function AdminRowDeleteButton({
   del,
   id,
   label,
+  icon = <Trash2Icon className="size-4" />,
 }: {
   del: AdminDelete
   id: string
   label: string
+  icon?: React.ReactNode
 }) {
   return (
     <Button
@@ -138,7 +148,7 @@ export function AdminRowDeleteButton({
       onClick={() => del.ask([id])}
       aria-label={label}
     >
-      <Trash2Icon className="size-4" />
+      {icon}
     </Button>
   )
 }
@@ -163,6 +173,13 @@ export function AdminDeleteConfirm({
 }) {
   const fieldId = React.useId()
   const open = del.ids.length > 0
+  // The words the window opened with, kept while it fades out, so it never
+  // reads "Delete 0 …" on its way out. Compared by the title and button,
+  // which change with the rows asked about; a description is often fresh
+  // markup on every draw and would never compare equal.
+  const [words, setWords] = React.useState({ title, description, confirmLabel })
+  if (open && (words.title !== title || words.confirmLabel !== confirmLabel))
+    setWords({ title, description, confirmLabel })
   // What was typed belongs to the rows the window is about, so opening it
   // for other rows, or again after a delete, starts with an empty box.
   const askedFor = del.ids.join(",")
@@ -175,9 +192,9 @@ export function AdminDeleteConfirm({
       onOpenChange={(next) => {
         if (!next) del.close()
       }}
-      title={title}
-      description={description}
-      confirmLabel={confirmLabel}
+      title={open ? title : words.title}
+      description={open ? description : words.description}
+      confirmLabel={open ? confirmLabel : words.confirmLabel}
       loading={del.deleting}
       onConfirm={() => {
         if (typed && current.word.trim() !== TYPED_WORD) {

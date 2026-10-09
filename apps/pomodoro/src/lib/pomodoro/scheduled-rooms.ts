@@ -47,18 +47,23 @@ export function isLikelyEmail(email: string) {
 export function scheduleProblem(
   startsAt: Date | null,
   invites: string[],
-  now: Date
+  now: Date,
+  /** The admin's room limit (admin task 04); 20 until one is saved. */
+  maxInvites: number = MAX_ROOM_INVITES
 ): ScheduleProblem | null {
   if (!startsAt || Number.isNaN(startsAt.getTime())) return "not_a_time"
   const minutesOut = (startsAt.getTime() - now.getTime()) / 60_000
   if (minutesOut < MIN_SCHEDULE_LEAD_MINUTES) return "too_soon"
   if (minutesOut > MAX_SCHEDULE_LEAD_DAYS * 24 * 60) return "too_far"
-  if (invites.length > MAX_ROOM_INVITES) return "too_many_invites"
+  if (invites.length > maxInvites) return "too_many_invites"
   if (invites.some((email) => !isLikelyEmail(email))) return "bad_email"
   return null
 }
 
-export function scheduleProblemMessage(problem: ScheduleProblem) {
+export function scheduleProblemMessage(
+  problem: ScheduleProblem,
+  maxInvites: number = MAX_ROOM_INVITES
+) {
   switch (problem) {
     case "not_a_time":
       return "Pick the date and time the room should open."
@@ -67,7 +72,7 @@ export function scheduleProblemMessage(problem: ScheduleProblem) {
     case "too_far":
       return `Pick a time within the next ${MAX_SCHEDULE_LEAD_DAYS} days.`
     case "too_many_invites":
-      return `One room can invite ${MAX_ROOM_INVITES} people. Remove a few addresses.`
+      return `One room can invite ${maxInvites} people. Remove a few addresses.`
     case "bad_email":
       return "One of those addresses doesn't look like an email. Check it and try again."
   }

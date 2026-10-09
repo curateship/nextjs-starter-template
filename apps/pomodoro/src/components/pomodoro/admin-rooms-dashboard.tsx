@@ -1,6 +1,15 @@
 import * as React from "react"
-import { getRouteApi, Link } from "@tanstack/react-router"
-import { FlagIcon, Loader2Icon, UsersRoundIcon } from "lucide-react"
+import { getRouteApi, Link, useNavigate } from "@tanstack/react-router"
+import {
+  DoorClosedIcon,
+  FlagIcon,
+  Loader2Icon,
+  SettingsIcon,
+  StarIcon,
+  StarOffIcon,
+  UsersRoundIcon,
+} from "lucide-react"
+import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -12,9 +21,18 @@ import {
 } from "@/components/ui/select"
 import { TableCell, TableHead, TableRow } from "@/components/ui/table"
 import {
+  DashboardToolbarButton,
   DashboardToolbarSearch,
   DashboardToolbarSelectTrigger,
 } from "@/components/shared/dashboard-toolbar"
+import { AdminRoomDialog } from "@/components/pomodoro/admin-room-dialogs"
+import {
+  closePomodoroRooms,
+  featurePomodoroRooms,
+  getRoomsAdminErrorMessage,
+} from "@/lib/api/pomodoro/admin-rooms"
+import { describeBulkResult } from "@/lib/format/bulk-result"
+import { showErrorToast } from "@/lib/toast/error-toast"
 import type { TableHeaderColumn } from "@/components/shared/sortable-table-header"
 import {
   AdminSelectCell,
@@ -142,6 +160,66 @@ export function AdminRoomsDashboard({
   })
   const asked = list.rows.filter((row) => del.ids.includes(row.id))
 
+  // Closing ends a room without deleting it: people are sent out and the chat,
+  // members and reports stay. It asks first, the same way a delete does.
+  const close = useAdminDelete({
+    one: "room",
+    many: "rooms",
+    run: async (ids) => {
+      const { closed, skipped } = await closePomodoroRooms(ids)
+      return { deleted: closed, skipped }
+    },
+    verb: "closed",
+    keptReason: "already closed",
+    selection,
+    onDone: list.refresh,
+  })
+  const closing = list.rows.filter((row) => close.ids.includes(row.id))
+  const openIds = selectedIds.filter(
+    (id) => !list.rows.find((row) => row.id === id)?.closedAt
+  )
+
+  const navigate = useNavigate()
+  const setOpen = React.useCallback(
+    (id: string | undefined) => {
+      // Not `replace`: Back closes the window, the way every record window does.
+      void navigate({
+        to: ".",
+        search: (previous: Record<string, unknown>) => {
+          const next = { ...previous }
+          if (id) next.open = id
+          else delete next.open
+          return next
+        },
+      })
+    },
+    [navigate]
+  )
+
+  const [featuring, setFeaturing] = React.useState(false)
+  const feature = async (featured: boolean) => {
+    setFeaturing(true)
+    try {
+      const { changed, same } = await featurePomodoroRooms(selectedIds, featured)
+      toast.success(
+        describeBulkResult({
+          done: changed.length,
+          same: same.length,
+          kept: 0,
+          one: "room",
+          many: "rooms",
+          verb: featured ? "featured" : "unfeatured",
+        })
+      )
+      selection.clear()
+      await list.refresh()
+    } catch (error) {
+      showErrorToast(getRoomsAdminErrorMessage(error))
+    } finally {
+      setFeaturing(false)
+    }
+  }
+
   return (
     <>
       <AdminListTable
@@ -160,6 +238,34 @@ export function AdminRoomsDashboard({
         controls={
           <>
             <AdminBulkDeleteButton del={del} ids={selectedIds} />
+            <AdminBulkDeleteButton
+              del={close}
+              ids={openIds}
+              label="Close"
+              icon={<DoorClosedIcon className="size-4" />}
+            />
+            {selectedIds.length ? (
+              <>
+                <DashboardToolbarButton
+                  type="button"
+                  variant="outline"
+                  disabled={featuring}
+                  onClick={() => void feature(true)}
+                >
+                  <StarIcon className="size-4" />
+                  Feature
+                </DashboardToolbarButton>
+                <DashboardToolbarButton
+                  type="button"
+                  variant="outline"
+                  disabled={featuring}
+                  onClick={() => void feature(false)}
+                >
+                  <StarOffIcon className="size-4" />
+                  Unfeature
+                </DashboardToolbarButton>
+              </>
+            ) : null}
             <DashboardToolbarSearch
               name="room-search"
               aria-label="Search rooms"
@@ -210,7 +316,12 @@ export function AdminRoomsDashboard({
         }
       >
         {list.rows.map((row) => (
-          <TableRow key={row.id}>
+          // An ended room cannot be changed, so it has no window to open.
+          <TableRow
+            key={row.id}
+            className="group"
+            rowAction={row.closedAt ? undefined : () => setOpen(row.id)}
+          >
             <AdminSelectCell
               selection={selection}
               id={row.id}
@@ -218,12 +329,24 @@ export function AdminRoomsDashboard({
             />
             <TableCell column="main">
               <div className="min-w-0">
-                <span className="block max-w-96 truncate" title={row.name}>
-                  {row.name}
-                </span>
+                {row.closedAt ? (
+                  <span className="block max-w-96 truncate font-medium" title={row.name}>
+                    {row.name}
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    className="block max-w-96 truncate text-left font-medium group-hover:underline"
+                    title={row.name}
+                    onClick={() => setOpen(row.id)}
+                  >
+                    {row.name}
+                  </button>
+                )}
                 <span className="block max-w-96 truncate text-xs text-muted-foreground">
                   /{row.slug} ·{" "}
                   {row.visibility === "public" ? "Listed" : "Link only"}
+                  {row.featuredAt ? " · Featured" : ""}
                 </span>
               </div>
             </TableCell>
@@ -254,6 +377,25 @@ export function AdminRoomsDashboard({
                   <FlagIcon className="size-4" />
                 </Link>
               </Button>
+              {row.closedAt ? null : (
+                <>
+                  <AdminRowDeleteButton
+                    del={close}
+                    id={row.id}
+                    label={`Close ${row.name}`}
+                    icon={<DoorClosedIcon className="size-4" />}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`Settings for ${row.name}`}
+                    onClick={() => setOpen(row.id)}
+                  >
+                    <SettingsIcon className="size-4" />
+                  </Button>
+                </>
+              )}
               <AdminRowDeleteButton
                 del={del}
                 id={row.id}
@@ -263,6 +405,21 @@ export function AdminRoomsDashboard({
           </TableRow>
         ))}
       </AdminListTable>
+      <AdminDeleteConfirm
+        del={close}
+        title={
+          closing.length === 1
+            ? `Close ${closing[0].name}?`
+            : `Close ${close.ids.length} rooms?`
+        }
+        description="Everybody inside is taken out and told the room has ended. The chat, the members and any reports are kept, and the host is told in the bell. A booked room that has not opened is cancelled with its unsent invitations. A closed room cannot be opened again."
+        confirmLabel={plural(close.ids.length, "Close room", "Close rooms")}
+      />
+      <AdminRoomDialog
+        openId={search.open}
+        onClose={() => setOpen(undefined)}
+        onSaved={list.refresh}
+      />
       <AdminDeleteConfirm
         del={del}
         title={

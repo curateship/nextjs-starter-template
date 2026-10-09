@@ -1,6 +1,7 @@
 import * as React from "react"
 import { getRouteApi } from "@tanstack/react-router"
-import { CalendarSyncIcon } from "lucide-react"
+import { CalendarSyncIcon, StarIcon, StarOffIcon } from "lucide-react"
+import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
 import {
@@ -11,9 +12,16 @@ import {
 } from "@/components/ui/select"
 import { TableCell, TableHead, TableRow } from "@/components/ui/table"
 import {
+  DashboardToolbarButton,
   DashboardToolbarSearch,
   DashboardToolbarSelectTrigger,
 } from "@/components/shared/dashboard-toolbar"
+import {
+  featurePomodoroRoomRepeats,
+  getRoomsAdminErrorMessage,
+} from "@/lib/api/pomodoro/admin-rooms"
+import { describeBulkResult } from "@/lib/format/bulk-result"
+import { showErrorToast } from "@/lib/toast/error-toast"
 import type { TableHeaderColumn } from "@/components/shared/sortable-table-header"
 import {
   AdminSelectCell,
@@ -126,6 +134,31 @@ export function AdminRoomRepeatsDashboard({
   })
   const asked = list.rows.filter((row) => del.ids.includes(row.id))
 
+  // A featured rule features every room it books, on Browse rooms.
+  const [featuring, setFeaturing] = React.useState(false)
+  const feature = async (featured: boolean) => {
+    setFeaturing(true)
+    try {
+      const { changed, same } = await featurePomodoroRoomRepeats(selectedIds, featured)
+      toast.success(
+        describeBulkResult({
+          done: changed.length,
+          same: same.length,
+          kept: 0,
+          one: "weekly room",
+          many: "weekly rooms",
+          verb: featured ? "featured" : "unfeatured",
+        })
+      )
+      selection.clear()
+      await list.refresh()
+    } catch (error) {
+      showErrorToast(getRoomsAdminErrorMessage(error))
+    } finally {
+      setFeaturing(false)
+    }
+  }
+
   return (
     <>
       <AdminListTable
@@ -144,6 +177,28 @@ export function AdminRoomRepeatsDashboard({
         controls={
           <>
             <AdminBulkDeleteButton del={del} ids={selectedIds} />
+            {selectedIds.length ? (
+              <>
+                <DashboardToolbarButton
+                  type="button"
+                  variant="outline"
+                  disabled={featuring}
+                  onClick={() => void feature(true)}
+                >
+                  <StarIcon className="size-4" />
+                  Feature
+                </DashboardToolbarButton>
+                <DashboardToolbarButton
+                  type="button"
+                  variant="outline"
+                  disabled={featuring}
+                  onClick={() => void feature(false)}
+                >
+                  <StarOffIcon className="size-4" />
+                  Unfeature
+                </DashboardToolbarButton>
+              </>
+            ) : null}
             <DashboardToolbarSearch
               name="room-repeat-search"
               aria-label="Search weekly rooms"
@@ -190,6 +245,7 @@ export function AdminRoomRepeatsDashboard({
                   {describeRoomRepeat(row.weekdays, row.startMinute)} (
                   {row.timezone}) ·{" "}
                   {row.visibility === "public" ? "Listed" : "Link only"}
+                  {row.featured ? " · Featured" : ""}
                 </span>
               </div>
             </TableCell>

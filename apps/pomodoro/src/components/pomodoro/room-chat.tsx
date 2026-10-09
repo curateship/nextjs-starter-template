@@ -34,6 +34,7 @@ import { usePrefersReducedMotion } from "@/lib/pomodoro/use-reduced-motion"
 import { formatClockIn } from "@/lib/format/calendar-day"
 import { InitialsAvatar } from "@/components/pomodoro/initials-avatar"
 import { reportMessage, sendRoomMessage } from "@/lib/api/pomodoro/rooms"
+import { CHAT_PAUSED, roomRefusalSentence } from "@/lib/pomodoro/room-join"
 import {
   ROOM_REACTION_EMOJIS,
   roomReactionLabel,
@@ -124,6 +125,8 @@ export function RoomMemberList({
                 <b className="shrink-0 font-mono text-[11px] font-semibold tracking-[0.1em] text-[var(--p-accent)]">
                   HOST
                 </b>
+              ) : member.staff ? (
+                <StaffLabel />
               ) : member.mine ? (
                 <span className="shrink-0 font-mono text-[11px] tracking-[0.1em] text-muted-foreground">
                   YOU
@@ -174,11 +177,17 @@ export function RoomChatPanel({
   onError,
   onNotice,
   aside,
+  pinned,
+  chatPaused,
 }: {
   /** The column beside the chat: the people in the room. */
   aside?: React.ReactNode
   slug: string
   messages: RoomMessage[]
+  /** The team's lines to every live room, pinned above the chat. */
+  pinned: RoomSnapshotClient["pinned"]
+  /** The admin's "Pause all chat" switch. */
+  chatPaused: boolean
   /** The viewer's account timezone, which the message times are in. */
   timezone: string
   isHost: boolean
@@ -262,17 +271,24 @@ export function RoomChatPanel({
       onError("Type a message first.")
       return
     }
+    if (chatPaused) {
+      onError(CHAT_PAUSED)
+      return
+    }
     setDraft("")
     setSending(true)
     followNext.current = true
     try {
-      await sendRoomMessage(slug, body)
+      const { held } = await sendRoomMessage(slug, body)
+      if (held)
+        onNotice("Your message is waiting for a check. Only you can see it until then.")
     } catch (cause) {
       const text = cause instanceof Error ? cause.message : ""
       onError(
-        text.includes("RATE_LIMITED")
+        roomRefusalSentence(cause) ??
+        (text.includes("RATE_LIMITED")
           ? "You're sending messages a little fast. Wait a moment and try again."
-          : "The message could not be sent."
+          : "The message could not be sent.")
       )
       setDraft(body)
       followNext.current = false
@@ -289,6 +305,16 @@ export function RoomChatPanel({
     <div className="grid gap-6 px-6 py-5 md:grid-cols-[minmax(0,1fr)_260px] md:gap-10">
     <section className="flex min-w-0 flex-col gap-3" aria-label="Room chat">
       <h3 className={EYEBROW}>Chat</h3>
+      {pinned.map((line) => (
+        <p
+          key={line.id}
+          className="flex flex-wrap items-baseline gap-x-2 rounded-md border px-3 py-2 text-sm"
+        >
+          <span className="font-semibold">Pomoder</span>
+          <StaffLabel />
+          <span className="basis-full break-words">{line.body}</span>
+        </p>
+      ))}
       <div className="relative flex min-h-0 flex-1 flex-col">
         <ScrollArea className={cn("flex-1", CHAT_HEIGHT)}>
           <div ref={listRef} className="flex flex-col gap-4 py-1">
@@ -299,7 +325,7 @@ export function RoomChatPanel({
                 <React.Fragment key={entry.id}>
                   {entry.deleted ? (
                     <p className="pl-12 text-sm italic text-muted-foreground">
-                      Message removed by the host
+                      {entry.removedBy === "admin" ? "Message removed" : "Message removed by the host"}
                     </p>
                   ) : (
                     <div className="group/message flex gap-3">
@@ -321,9 +347,13 @@ export function RoomChatPanel({
                               {entry.authorName}
                             </span>
                           )}
+                          {entry.staff ? <StaffLabel /> : null}
                           <time dateTime={new Date(entry.createdAt).toISOString()}>
                             {formatClockIn(timezone, entry.createdAt)}
                           </time>
+                          {entry.held ? (
+                            <span className="font-sans">Only you can see this until it is checked</span>
+                          ) : null}
                         </p>
                         <span className="text-[15px] break-words">{entry.body}</span>
                         {entry.reactions.length ? (
@@ -444,7 +474,7 @@ export function RoomChatPanel({
           value={draft}
           maxLength={500}
           autoComplete="off"
-          placeholder="Send encouragement…"
+          placeholder={chatPaused ? CHAT_PAUSED : "Send encouragement…"}
           onChange={(event) => setDraft(event.target.value)}
           className="border-transparent bg-transparent shadow-none dark:bg-transparent"
         />
@@ -625,5 +655,17 @@ function ReportMessageDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+/**
+ * An active admin, worked out by the server from the account's role on every
+ * read (admin task 05). The same look as HOST.
+ */
+function StaffLabel() {
+  return (
+    <b className="shrink-0 font-mono text-[11px] font-semibold tracking-[0.1em] text-[var(--p-accent)]">
+      STAFF
+    </b>
   )
 }

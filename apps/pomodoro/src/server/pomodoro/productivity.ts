@@ -9,6 +9,7 @@ import {
   userPreferences,
 } from "@/server/pomodoro/schema"
 import { cancelOtherLiveSessions } from "@/server/pomodoro/live-session"
+import { loadAppSettings } from "@/server/pomodoro/app-settings"
 
 /**
  * The timer's server half, ported from the old app
@@ -183,9 +184,19 @@ export async function loadOrCreatePreferences(userId: string) {
     .where(eq(userPreferences.userId, userId))
     .limit(1)
   if (existing) return existing
+  // A new account starts on the timer an admin set (admin task 03, Part 7).
+  // An account that already has a row keeps its own; nothing here rewrites it.
+  const timer = (await loadAppSettings())["timer.newAccount"]
   const [created] = await db
     .insert(userPreferences)
-    .values({ userId })
+    .values({
+      userId,
+      focusMinutes: timer.focusMinutes,
+      shortBreakMinutes: timer.shortBreakMinutes,
+      longBreakMinutes: timer.longBreakMinutes,
+      sessionsBeforeLongBreak: timer.sessionsBeforeLongBreak,
+      dailyGoalSessions: timer.dailyGoalSessions,
+    })
     .onConflictDoUpdate({
       target: userPreferences.userId,
       set: { updatedAt: new Date() },

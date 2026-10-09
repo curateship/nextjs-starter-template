@@ -11,10 +11,10 @@ import { cn } from "@/lib/utils"
 import { PRO_PERKS } from "@/lib/pomodoro/pro"
 import { useOpenPlans } from "@/lib/pomodoro/use-open-plans"
 import {
-  curatedBackgrounds,
   sameBackgroundReference,
   type BackgroundReference,
 } from "@/lib/pomodoro/background-catalog"
+import { isNewItem } from "@/lib/pomodoro/catalog"
 import { useRoomMedia } from "@/lib/pomodoro/room-media-store"
 import {
   CurrentlySelectedLabel,
@@ -32,17 +32,22 @@ import { MediaGeneratorSection } from "@/components/pomodoro/media-generator-sec
 import { useGeneratorJump } from "@/lib/pomodoro/use-generator-jump"
 import { contentColumn } from "@/lib/pomodoro/content-column"
 import { CatalogPager } from "@/components/pomodoro/catalog-pager"
+import {
+  MediaShuffleSwitch,
+  MediaTagsPanel,
+} from "@/components/pomodoro/media-pool-panel"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useCatalogPage } from "@/lib/pomodoro/use-catalog-page"
 
-const descriptorLabels = {
+const descriptorLabels: Record<string, string> = {
   video: "Video",
   animated: "Animated",
   static: "Still",
-} as const
+}
 
 /**
- * The backgrounds page: eight scenes, four free and four Pro. A locked card
- * says why instead of going dead.
+ * The backgrounds page: the Live scenes from the catalogue, free and Pro, in
+ * the order an admin set. A locked card says why instead of going dead.
  *
  * Clicking a scene opens a popover with the scene playing in it and the Add
  * buttons under it. Nothing behind the page changes, and nothing is saved
@@ -54,8 +59,11 @@ const descriptorLabels = {
 export function BackgroundsPage() {
   const media = useRoomMedia()
   const { signedIn, openPlans } = useOpenPlans()
-  const { page, pages, first, shown, setPage } =
-    useCatalogPage(curatedBackgrounds)
+  const themes = media.catalog.themes
+  const hasTags = themes.some((theme) => theme.tags.length > 0)
+  const { page, pages, first, shown, setPage } = useCatalogPage(themes)
+  // Read once per render rather than per card, so every card agrees.
+  const now = new Date()
   // An AI background arrives as an ordinary upload, so finishing one means the
   // grid above has a new card and has to read its list again.
   const [reloadToken, setReloadToken] = React.useState(0)
@@ -75,97 +83,122 @@ export function BackgroundsPage() {
           <h2 className="text-4xl font-bold tracking-tight">Backgrounds</h2>
           <MediaRoomNote thing="theme" />
         </header>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {shown.map((scene) => {
-            const reference = { type: "scene", key: scene.key } as const
-            const selected = sameBackgroundReference(inUse, reference)
-            const locked = scene.locked && !media.canUsePremiumMedia
-            const card = (
-              <Card
-                key={scene.key}
-                className={cn(
-                  "gap-0 overflow-hidden p-0",
-                  selected && "ring-2 ring-[var(--p-accent)]"
-                )}
-              >
-                <ThemePreview
-                  reference={reference}
-                  label={scene.label}
-                  detail={descriptorLabels[scene.descriptor]}
-                  disabled={locked}
-                >
-                <button
-                  className="group w-full text-left outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid"
-                  aria-label={
-                    locked
-                      ? `${scene.label}, a Pro scene. ${signedIn ? "See the plans" : "Sign in to see the plans"}`
-                      : `Preview the ${scene.label} background`
-                  }
-                  // A locked card is never dead: it leads to the plans page.
-                  onClick={() => {
-                    if (locked) openPlans()
-                  }}
-                >
-                  <span className="relative block aspect-video">
-                    <img
-                      src={`/backgrounds/thumbs-${scene.thumb}.png`}
-                      alt=""
-                      className={cn(
-                        "size-full object-cover",
-                        locked && "opacity-40 grayscale"
-                      )}
-                    />
-                    {selected ? <CurrentlySelectedLabel /> : null}
-                    <span className="absolute inset-0 grid place-items-center">
-                      {locked ? (
-                        <LockIcon
-                          className="size-6 text-white drop-shadow"
-                          aria-hidden="true"
+        {/* Tyler, 8 Oct 2026: tags are the first tab, one theme the second,
+            and Shuffle sits beside them for both. With nothing tagged yet the
+            page opens on the second, so it never opens on an empty tab. */}
+        <Tabs defaultValue={hasTags ? "tags" : "one"} className="gap-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <TabsList>
+              <TabsTrigger value="tags">By tag</TabsTrigger>
+              <TabsTrigger value="one">Pick one</TabsTrigger>
+            </TabsList>
+            <MediaShuffleSwitch kind="background" />
+          </div>
+          <TabsContent value="tags">
+            <MediaTagsPanel kind="background" />
+          </TabsContent>
+          <TabsContent value="one" className="flex flex-col gap-6">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {shown.map((scene) => {
+                const reference: BackgroundReference = {
+                  type: "scene",
+                  key: scene.key,
+                  stillUrl: scene.stillUrl,
+                  videoUrl: scene.videoUrl,
+                }
+                const selected = sameBackgroundReference(inUse, reference)
+                const locked = scene.locked && !media.canUsePremiumMedia
+                const card = (
+                  <Card
+                    key={scene.key}
+                    className={cn(
+                      "gap-0 overflow-hidden p-0",
+                      selected && "ring-2 ring-[var(--p-accent)]"
+                    )}
+                  >
+                    <ThemePreview
+                      reference={reference}
+                      label={scene.label}
+                      detail={descriptorLabels[scene.descriptor] ?? ""}
+                      disabled={locked}
+                    >
+                    <button
+                      className="group w-full text-left outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid"
+                      aria-label={
+                        locked
+                          ? `${scene.label}, a Pro scene. ${signedIn ? "See the plans" : "Sign in to see the plans"}`
+                          : `Preview the ${scene.label} background`
+                      }
+                      // A locked card is never dead: it leads to the plans page.
+                      onClick={() => {
+                        if (locked) openPlans()
+                      }}
+                    >
+                      <span className="relative block aspect-video">
+                        <img
+                          src={scene.stillUrl}
+                          alt=""
+                          className={cn(
+                            "size-full object-cover",
+                            locked && "opacity-40 grayscale"
+                          )}
                         />
-                      ) : (
-                        <EyeIcon
-                          className="size-6 text-white opacity-0 drop-shadow transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
-                          aria-hidden="true"
-                        />
-                      )}
-                    </span>
-                  </span>
-                  <CardContent className="flex flex-col gap-0.5 p-3">
-                    <strong className="text-sm">{scene.label}</strong>
-                    <small className="text-xs text-muted-foreground">
-                      {descriptorLabels[scene.descriptor]}
-                    </small>
-                    {scene.locked ? (
-                      <small className="font-mono text-[10px] uppercase tracking-widest text-[var(--p-accent-2)]">
-                        Pro
-                      </small>
-                    ) : null}
-                  </CardContent>
-                </button>
-                </ThemePreview>
-              </Card>
-            )
-            if (!locked) return card
-            return (
-              <Tooltip key={scene.key}>
-                <TooltipTrigger asChild>{card}</TooltipTrigger>
-                <TooltipContent>
-                  {PRO_PERKS.premiumMedia.lockedReason}
-                </TooltipContent>
-              </Tooltip>
-            )
-          })}
-        </div>
+                        {selected ? <CurrentlySelectedLabel /> : null}
+                        <span className="absolute inset-0 grid place-items-center">
+                          {locked ? (
+                            <LockIcon
+                              className="size-6 text-white drop-shadow"
+                              aria-hidden="true"
+                            />
+                          ) : (
+                            <EyeIcon
+                              className="size-6 text-white opacity-0 drop-shadow transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+                              aria-hidden="true"
+                            />
+                          )}
+                        </span>
+                      </span>
+                      <CardContent className="flex flex-col gap-0.5 p-3">
+                        <strong className="text-sm">{scene.label}</strong>
+                        <small className="text-xs text-muted-foreground">
+                          {descriptorLabels[scene.descriptor] ?? ""}
+                        </small>
+                        {scene.locked || isNewItem(scene.publishedAt, now) ? (
+                          <span className="flex gap-2 font-mono text-[10px] uppercase tracking-widest text-[var(--p-accent-2)]">
+                            {scene.locked ? <small>Pro</small> : null}
+                            {isNewItem(scene.publishedAt, now) ? (
+                              <small>New</small>
+                            ) : null}
+                          </span>
+                        ) : null}
+                      </CardContent>
+                    </button>
+                    </ThemePreview>
+                  </Card>
+                )
+                if (!locked) return card
+                return (
+                  <Tooltip key={scene.key}>
+                    <TooltipTrigger asChild>{card}</TooltipTrigger>
+                    <TooltipContent>
+                      {PRO_PERKS.premiumMedia.lockedReason}
+                    </TooltipContent>
+                  </Tooltip>
+                )
+              })}
+            </div>
 
-        <CatalogPager
-          noun="background"
-          total={curatedBackgrounds.length}
-          first={first}
-          shownCount={shown.length}
-          page={page}
-          pages={pages}
-          onPage={setPage}
-        />
+            <CatalogPager
+              noun="background"
+              total={themes.length}
+              first={first}
+              shownCount={shown.length}
+              page={page}
+              pages={pages}
+              onPage={setPage}
+            />
+          </TabsContent>
+        </Tabs>
 
         <MediaUploadsSection
           reloadToken={reloadToken}

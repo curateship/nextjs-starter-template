@@ -163,11 +163,11 @@ chat are unchanged.
 
 ## The banner
 
-A strip behind the name: one of the eight scenes from
+A strip behind the name: one of the Live scenes from
 [Backgrounds](backgrounds.md), or one of your own pictures. None is the
 default and the page looks finished without one.
 
-The eight scenes are free and your own picture is a Pro perk, which is how
+Every catalogue scene is free here, Pro or not, and your own picture is a Pro perk, which is how
 every other own-upload in this app already works. Tyler's call, 2 Oct 2026.
 
 What is stored is the scene's key or the upload's id, never an address

@@ -6,6 +6,7 @@ import {
   ClockIcon,
   DoorClosedIcon,
   DoorOpenIcon,
+  EyeIcon,
   EyeOffIcon,
   FlagIcon,
   FlameIcon,
@@ -18,6 +19,7 @@ import {
   UserMinusIcon,
   UserPlusIcon,
   UsersIcon,
+  SettingsIcon,
 } from "lucide-react"
 
 import type { AppNoticeDetail, AppOptions } from "@/lib/app-options"
@@ -82,6 +84,10 @@ const NOTICE_LOOK: Record<PomodoroNoticeKind, AppNoticeDetail> = {
   report_reviewed: { icon: ShieldCheckIcon, toneClassName: PLAIN },
   profile_hidden: { icon: EyeOffIcon, toneClassName: BAD },
   streak_reminder: { icon: FlameIcon, toneClassName: GOOD },
+  room_changed: { icon: SettingsIcon, toneClassName: PLAIN },
+  admin_warning: { icon: TriangleAlertIcon, toneClassName: BAD },
+  rooms_suspended: { icon: DoorClosedIcon, toneClassName: BAD },
+  profile_restored: { icon: EyeIcon, toneClassName: GOOD },
 }
 
 /** A kind's whole look: its tile and the tab it is filed under. */

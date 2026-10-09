@@ -30,10 +30,8 @@ import {
   listAdminSessions,
   listAdminTaskRepeats,
   listAdminTasks,
-  loadAdminMediaUsage,
   reviewRoomReports,
   type AdminFocusRow,
-  type AdminMediaUsage,
   type AdminReportRow,
   type AdminRoomRepeatRow,
   type AdminRoomRow,
@@ -69,7 +67,6 @@ import { readDashboardRowsPerPage } from "@/server/shell-settings"
 export type {
   AdminDeleteResult,
   AdminFocusRow,
-  AdminMediaUsage,
   AdminReportRow,
   AdminRoomRepeatRow,
   AdminRoomRow,
@@ -128,6 +125,7 @@ const reportQuerySchema = z.object({
   ...pageSchema,
   status: z.enum(REPORT_STATUS_FILTERS).default("all"),
   sort: z.enum(REPORT_SORT_COLUMNS).default("created"),
+  person: z.string().min(1).max(36).optional(),
 })
 
 const roomRepeatQuerySchema = z.object({
@@ -248,10 +246,6 @@ const loadTaskRepeatsPageFn = createServerFn({ method: "GET" })
     const pageSize = await readDashboardRowsPerPage()
     return { list: await listAdminTaskRepeats({ ...data, pageSize }), pageSize }
   })
-
-const loadMediaUsageFn = createServerFn({ method: "GET" })
-  .middleware([adminGet])
-  .handler(() => loadAdminMediaUsage())
 
 /**
  * One press, whether it came from a row's own button or from the toolbar over a
@@ -407,7 +401,6 @@ export const loadPomodoroReportsPage = (
   data: Omit<PomodoroReportQuery, "pageSize">
 ) => loadReportsPageFn({ data })
 
-export const loadPomodoroMediaUsage = () => loadMediaUsageFn()
 
 export const reviewPomodoroReports = (
   reportIds: string[],

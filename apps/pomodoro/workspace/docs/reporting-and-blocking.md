@@ -76,6 +76,14 @@ none of them names the reporter, the admin or the person reported.
 - **A hidden profile's owner hears "Your public profile has been hidden. See
   Settings for what to do."**, leading to Settings → Public page, as well as
   the line on that card. Hiding a profile already hidden says nothing again.
+- **Showing it again from the Bans page tells the owner too**: "Your public
+  profile is visible again." Reopening a report and pressing Show again from
+  Room reports still says nothing, as before.
+- **Each report row counts the past** (8 Oct 2026): how many times the person
+  it is about was reported before it, and how many of the reporter's earlier
+  reports were dismissed. Either count opens the reports by or about that
+  person. Warn and Suspend sit under the reported message. See
+  [Admin safety tools](admin-safety-tools.md).
 
 ## Blocking an account
 

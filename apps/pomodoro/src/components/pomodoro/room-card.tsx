@@ -5,6 +5,7 @@ import { MusicIcon } from "lucide-react"
 import { InitialsAvatar } from "@/components/pomodoro/initials-avatar"
 import { cn } from "@/lib/utils"
 import { sceneFor, soundLabelFor } from "@/lib/pomodoro/media-pair"
+import { useMediaCatalog } from "@/lib/pomodoro/room-media-store"
 import { vibeFor } from "@/lib/pomodoro/room-vibe"
 
 /**
@@ -37,6 +38,7 @@ export function RoomCard({
   dimmed?: boolean
   children: React.ReactNode
 }) {
+  const catalog = useMediaCatalog()
   return (
     <article
       className={cn(
@@ -46,8 +48,8 @@ export function RoomCard({
     >
       <RoomVibeBanner
         gradient={vibeFor(roomId)}
-        scene={sceneFor(background ?? null)?.thumb ?? null}
-        soundName={soundLabelFor(sound ?? null)}
+        scene={sceneFor(catalog, background ?? null)?.stillUrl ?? null}
+        soundName={soundLabelFor(catalog, sound ?? null)}
       />
       {children}
     </article>
@@ -61,7 +63,7 @@ function RoomVibeBanner({
   tall = false,
 }: {
   gradient: string
-  /** The scene's thumbnail name, when the room has a theme. */
+  /** The scene's still, when the room has a theme. */
   scene: string | null
   soundName: string | null
   /** The Open to join card: a taller picture, the sound named top right. */
@@ -86,7 +88,7 @@ function RoomVibeBanner({
     >
       {scene ? (
         <img
-          src={`/backgrounds/thumbs-${scene}.png`}
+          src={scene}
           alt=""
           className="absolute inset-0 size-full object-cover"
         />
@@ -271,6 +273,7 @@ export function OpenRoomCard({
   nextFocusMinutes,
   joinButton,
   problem,
+  featured = false,
 }: {
   roomId: string
   background: string | null
@@ -283,14 +286,17 @@ export function OpenRoomCard({
   nextFocusMinutes: number
   joinButton: React.ReactNode
   problem?: React.ReactNode
+  /** An admin featured it, so it sits first with a label (admin task 04). */
+  featured?: boolean
 }) {
   const onBreak = phase === "short" || phase === "long"
+  const catalog = useMediaCatalog()
   return (
     <article className="flex flex-col overflow-hidden rounded-[24px] border bg-[var(--p-surface)] pb-6">
       <RoomVibeBanner
         gradient={vibeFor(roomId)}
-        scene={sceneFor(background)?.thumb ?? null}
-        soundName={soundLabelFor(sound)}
+        scene={sceneFor(catalog, background)?.stillUrl ?? null}
+        soundName={soundLabelFor(catalog, sound)}
         tall
       />
       <div className="relative z-[1] -mt-7 flex items-end gap-3 px-6">
@@ -307,9 +313,14 @@ export function OpenRoomCard({
             )}
           />
         </span>
-        <h4 className="min-w-0 truncate pb-1 text-2xl font-semibold tracking-tight">
-          {name}
-        </h4>
+        <div className="min-w-0 pb-1">
+          {featured ? (
+            <span className="block font-mono text-[11px] uppercase tracking-[0.2em] text-[var(--p-accent-2)]">
+              Featured
+            </span>
+          ) : null}
+          <h4 className="truncate text-2xl font-semibold tracking-tight">{name}</h4>
+        </div>
       </div>
       <div className="mt-4 flex flex-col gap-4 px-6">
         <p

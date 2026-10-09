@@ -40,6 +40,7 @@ import {
   repeatRoom,
   scheduleRoom,
   skipNextRepeat,
+  loadHostingOptions,
 } from "@/lib/api/pomodoro/rooms"
 import {
   useActiveRoom,
@@ -57,15 +58,15 @@ import {
   OpenRoomsSection,
   type JoinProblem,
 } from "@/components/pomodoro/open-rooms"
-import { joinRefusalMessage } from "@/lib/pomodoro/room-join"
+import { joinRefusalMessage, roomRefusalSentence } from "@/lib/pomodoro/room-join"
 import { RhythmMinutesFields } from "@/components/pomodoro/rhythm-minutes-fields"
-import { curatedBackgrounds } from "@/lib/pomodoro/background-catalog"
-import { curatedSounds } from "@/lib/pomodoro/sound-catalog"
 import {
   roomPairProblem,
   roomPairProblemMessage,
   type RoomPairProblem,
 } from "@/lib/pomodoro/media-pair"
+import { useMediaCatalog } from "@/lib/pomodoro/room-media-store"
+import { catalogTags } from "@/lib/pomodoro/media-pool"
 import {
   formatRoomStart,
   MAX_ROOM_INVITES,
@@ -493,6 +494,12 @@ function defaultStartValue() {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
+/** A house preset as the Rhythm picker holds it, with the room's pair too. */
+type HousePreset = CustomTimerPreset & {
+  sound: string | null
+  background: string | null
+}
+
 export function HostRoomDialog({
   open,
   onOpenChange,
@@ -514,6 +521,7 @@ export function HostRoomDialog({
   const [autoStart, setAutoStart] = React.useState(false)
   // The pair everyone in the room gets. Nothing is picked to start with:
   // Tyler, 7 Oct 2026, "User must select sound and theme."
+  const catalog = useMediaCatalog()
   const [roomSound, setRoomSound] = React.useState("")
   const [roomBackground, setRoomBackground] = React.useState("")
   const [pairProblem, setPairProblem] = React.useState<RoomPairProblem | null>(
@@ -523,6 +531,10 @@ export function HostRoomDialog({
   // read still offers the built-ins and says the rest could not be loaded.
   const [ownPresets, setOwnPresets] = React.useState<CustomTimerPreset[]>([])
   const [presetsFailed, setPresetsFailed] = React.useState(false)
+  // The house presets an admin keeps (admin task 04), offered above the
+  // host's own, and the admin's invite limit, read with them.
+  const [housePresets, setHousePresets] = React.useState<HousePreset[]>([])
+  const [maxInvites, setMaxInvites] = React.useState(MAX_ROOM_INVITES)
   React.useEffect(() => {
     if (!open) return
     let cancelled = false
@@ -536,16 +548,32 @@ export function HostRoomDialog({
         if (!cancelled) setPresetsFailed(true)
       }
     )
+    loadHostingOptions().then(
+      (options) => {
+        if (cancelled) return
+        setHousePresets(
+          options.presets.map((preset) => ({
+            ...preset,
+            id: `house:${preset.id}`,
+            sessionsBeforeLongBreak: 4,
+          }))
+        )
+        setMaxInvites(options.maxInvitesPerRoom)
+      },
+      // Without them the window still works with the host's own presets and
+      // the usual invite limit; the server checks the real one.
+      () => undefined
+    )
     return () => {
       cancelled = true
     }
   }, [open])
   const matchedPreset = matchRoomPreset(
     { focusMinutes, shortBreakMinutes, longBreakMinutes, autoStart },
-    ownPresets
+    [...housePresets, ...ownPresets]
   )
   const pickPreset = (id: string) => {
-    const preset = [...builtinTimerPresets, ...ownPresets].find(
+    const preset = [...housePresets, ...builtinTimerPresets, ...ownPresets].find(
       (candidate) => candidate.id === id
     )
     if (!preset) return
@@ -553,6 +581,10 @@ export function HostRoomDialog({
     setShortBreakMinutes(preset.shortBreakMinutes)
     setLongBreakMinutes(preset.longBreakMinutes)
     setAutoStart(preset.autoStart)
+    // A house preset can carry the room's sound and theme too.
+    const house = housePresets.find((candidate) => candidate.id === id)
+    if (house?.sound) setRoomSound(house.sound)
+    if (house?.background) setRoomBackground(house.background)
   }
   const [startMode, setStartMode] = React.useState<"now" | "later" | "weekly">(
     "now"
@@ -573,27 +605,31 @@ export function HostRoomDialog({
   // checks them again against its own clock, which is the one that counts.
   const booking =
     startMode === "later"
-      ? scheduleProblem(startValueAsDate(startValue), invites, new Date())
+      ? scheduleProblem(startValueAsDate(startValue), invites, new Date(), maxInvites)
       : null
   const repeatProblem =
     startMode === "weekly"
-      ? roomRepeatProblem(repeatDays, parseClockTime(repeatTime), invites)
+      ? roomRepeatProblem(repeatDays, parseClockTime(repeatTime), invites, maxInvites)
       : null
 
   const submit = async () => {
     setError("")
-    const missing = roomPairProblem(roomSound || null, roomBackground || null)
+    const missing = roomPairProblem(
+      catalog,
+      roomSound || null,
+      roomBackground || null
+    )
     setPairProblem(missing)
     if (missing) {
       setError(roomPairProblemMessage(missing))
       return
     }
     if (startMode === "later" && booking) {
-      setError(scheduleProblemMessage(booking))
+      setError(scheduleProblemMessage(booking, maxInvites))
       return
     }
     if (startMode === "weekly" && repeatProblem) {
-      setError(roomRepeatProblemMessage(repeatProblem))
+      setError(roomRepeatProblemMessage(repeatProblem, maxInvites))
       return
     }
     setCreating(true)
@@ -645,7 +681,8 @@ export function HostRoomDialog({
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : ""
       setError(
-        message.includes("UPGRADE_REQUIRED")
+        roomRefusalSentence(cause) ??
+        (message.includes("UPGRADE_REQUIRED")
           ? PRO_PERKS.hostRooms.lockedReason
           : message.includes("SCHEDULE_REJECTED")
             ? message.split("SCHEDULE_REJECTED: ")[1]
@@ -655,7 +692,7 @@ export function HostRoomDialog({
               ? "That is a lot of bookings in one hour. Wait a while and try again."
               : startMode === "now"
                 ? "The room could not be created."
-                : "The room could not be booked."
+                : "The room could not be booked.")
       )
     } finally {
       setCreating(false)
@@ -739,6 +776,11 @@ export function HostRoomDialog({
                   <SelectValue placeholder="Custom" />
                 </SelectTrigger>
                 <SelectContent position="popper">
+                  {housePresets.map((preset) => (
+                    <SelectItem key={preset.id} value={preset.id}>
+                      Pomoder: {preset.name} · {roomPresetSummary(preset)}
+                    </SelectItem>
+                  ))}
                   {[...builtinTimerPresets, ...ownPresets].map((preset) => (
                     <SelectItem key={preset.id} value={preset.id}>
                       {preset.name} · {roomPresetSummary(preset)}
@@ -802,7 +844,15 @@ export function HostRoomDialog({
                   <SelectValue placeholder="Pick a sound" />
                 </SelectTrigger>
                 <SelectContent position="popper">
-                  {curatedSounds.map((sound) => (
+                  {/* Tyler, 8 Oct 2026: a host may shuffle the room, or keep
+                      it to one tag. Each device then picks for itself. */}
+                  <SelectItem value="shuffle">Shuffle every sound</SelectItem>
+                  {catalogTags(catalog.sounds).map(({ tag }) => (
+                    <SelectItem key={`tag-${tag}`} value={`tags:${tag}`}>
+                      Only {tag} sounds
+                    </SelectItem>
+                  ))}
+                  {catalog.sounds.map((sound) => (
                     <SelectItem key={sound.key} value={`curated:${sound.key}`}>
                       {sound.label}
                       {sound.locked ? " · Pro" : ""}
@@ -836,10 +886,16 @@ export function HostRoomDialog({
                   <SelectValue placeholder="Pick a theme" />
                 </SelectTrigger>
                 <SelectContent position="popper">
-                  {curatedBackgrounds.map((scene) => (
+                  <SelectItem value="shuffle">Shuffle every theme</SelectItem>
+                  {catalogTags(catalog.themes).map(({ tag }) => (
+                    <SelectItem key={`tag-${tag}`} value={`tags:${tag}`}>
+                      Only {tag} themes
+                    </SelectItem>
+                  ))}
+                  {catalog.themes.map((scene) => (
                     <SelectItem key={scene.key} value={`scene:${scene.key}`}>
                       <img
-                        src={`/backgrounds/thumbs-${scene.thumb}.png`}
+                        src={scene.stillUrl}
                         alt=""
                         className="h-4 w-7 rounded-sm object-cover"
                       />
@@ -949,7 +1005,7 @@ export function HostRoomDialog({
               <div className="grid gap-2">
                 <FieldLabel
                   htmlFor="room-invites"
-                  hint={`Up to ${MAX_ROOM_INVITES} addresses, separated by commas, spaces or new lines. Each one gets the link and the time${startMode === "weekly" ? ", once for every week's room" : ""}.`}
+                  hint={`Up to ${maxInvites} addresses, separated by commas, spaces or new lines. Each one gets the link and the time${startMode === "weekly" ? ", once for every week's room" : ""}.`}
                 >
                   Invite by email
                 </FieldLabel>
@@ -975,12 +1031,12 @@ export function HostRoomDialog({
             ) : null}
             {booking ? (
               <p role="alert" className="text-sm text-destructive">
-                {scheduleProblemMessage(booking)}
+                {scheduleProblemMessage(booking, maxInvites)}
               </p>
             ) : null}
             {repeatProblem ? (
               <p role="alert" className="text-sm text-destructive">
-                {roomRepeatProblemMessage(repeatProblem)}
+                {roomRepeatProblemMessage(repeatProblem, maxInvites)}
               </p>
             ) : null}
             {error ? (

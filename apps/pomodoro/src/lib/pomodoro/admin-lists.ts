@@ -94,6 +94,16 @@ export const ROOM_REPEAT_SORT_COLUMNS = [
 ] as const
 export type RoomRepeatSortColumn = (typeof ROOM_REPEAT_SORT_COLUMNS)[number]
 
+export const INVITE_STATUS_FILTERS = [
+  "all",
+  "queued",
+  "sent",
+  "failed",
+  "cancelled",
+] as const
+export const INVITE_SORT_COLUMNS = ["room", "email", "status", "created"] as const
+export type InviteSortColumn = (typeof INVITE_SORT_COLUMNS)[number]
+
 export const TASK_REPEAT_SORT_COLUMNS = ["title", "person", "created"] as const
 export type TaskRepeatSortColumn = (typeof TASK_REPEAT_SORT_COLUMNS)[number]
 
@@ -110,3 +120,14 @@ export function readUserFilter(value: unknown) {
     ? value
     : undefined
 }
+
+/** The Chat dashboard (admin task 05): its tabs, and the rooms tab's filters. */
+export const CHAT_TABS = ["rooms", "messages", "held"] as const
+export type ChatTab = (typeof CHAT_TABS)[number]
+export const CHAT_STATUS_FILTERS = ["all", "open", "closed"] as const
+export const CHAT_ROOM_SORT_COLUMNS = ["last", "messages", "name"] as const
+export type ChatRoomSortColumn = (typeof CHAT_ROOM_SORT_COLUMNS)[number]
+
+/** Bans and hidden profiles (admin task 05): one page, three tabs. */
+export const SAFETY_TABS = ["bans", "hidden", "suspensions"] as const
+export type SafetyTab = (typeof SAFETY_TABS)[number]

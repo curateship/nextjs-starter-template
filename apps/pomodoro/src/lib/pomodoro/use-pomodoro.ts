@@ -1,5 +1,6 @@
 import * as React from "react"
 
+import type { TimerDefaults } from "@/lib/pomodoro/media-pair"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { announceAchievements } from "@/lib/pomodoro/achievement-toast"
 import { announceGoalReached } from "@/lib/pomodoro/goal-toast"
@@ -525,6 +526,17 @@ function storedCount(value: unknown, maximum = Number.MAX_SAFE_INTEGER) {
     : 0
 }
 
+/**
+ * The timer an admin set new accounts to start with, handed over by the page
+ * that has it, before a guest's state is read. A guest who already changed
+ * their timer keeps their own.
+ */
+let guestStartingTimer: TimerDefaults | null = null
+
+export function setGuestStartingTimer(defaults: TimerDefaults | null) {
+  guestStartingTimer = defaults
+}
+
 function hydrateGuest() {
   const saved = readGuestJson<Partial<GuestSnapshot>>(GUEST_STATE_KEY)
   const today = browserLocalDate()
@@ -535,7 +547,13 @@ function hydrateGuest() {
       (value) => typeof value === "number" && value >= 1 && value <= 90
     )
       ? saved.durations
-      : DEFAULT_DURATIONS
+      : guestStartingTimer
+        ? {
+            focus: guestStartingTimer.focusMinutes,
+            short: guestStartingTimer.shortBreakMinutes,
+            long: guestStartingTimer.longBreakMinutes,
+          }
+        : DEFAULT_DURATIONS
   const tasks = orderTasksForDisplay(
     Array.isArray(saved?.tasks)
       ? saved.tasks
@@ -564,7 +582,7 @@ function hydrateGuest() {
       : []
   )
   const sessionsBeforeLongBreak = normalizeSessionsBeforeLongBreak(
-    saved?.sessionsBeforeLongBreak
+    saved?.sessionsBeforeLongBreak ?? guestStartingTimer?.sessionsBeforeLongBreak
   )
   const sameDay = saved?.dailyProgressDate === today
   const savedTimer = saved?.timer
@@ -607,7 +625,7 @@ function hydrateGuest() {
       saved.dailyGoalSessions >= 1 &&
       saved.dailyGoalSessions <= 20
         ? saved.dailyGoalSessions
-        : 4,
+        : (guestStartingTimer?.dailyGoalSessions ?? 4),
     durations,
     serverSessionId: null,
     loading: false,

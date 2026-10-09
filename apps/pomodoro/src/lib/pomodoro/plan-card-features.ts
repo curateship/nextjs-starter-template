@@ -2,7 +2,6 @@ import {
   describePlanFeatures,
   type PlanFeatures,
 } from "@/lib/billing/plan-features"
-import { curatedBackgrounds } from "@/lib/pomodoro/background-catalog"
 import { formatBytes } from "@/lib/pomodoro/media-limits"
 import {
   PAID_DEFAULTS,
@@ -10,7 +9,7 @@ import {
   planNumber,
   planPerkAllowed,
 } from "@/lib/pomodoro/pro"
-import { curatedSounds } from "@/lib/pomodoro/sound-catalog"
+import type { MediaCatalog } from "@/lib/pomodoro/catalog"
 
 /**
  * The ticked lines on the plans page's cards, written from what the app
@@ -27,18 +26,22 @@ import { curatedSounds } from "@/lib/pomodoro/sound-catalog"
  * are left out of that, so nothing is said twice.
  */
 
-const freeSounds = curatedSounds.filter((sound) => !sound.locked).length
-const freeScenes = curatedBackgrounds.filter((scene) => !scene.locked).length
-
-/** Every account, signed in or not. */
-const FREE_LINES = [
-  "Pomodoro timer with tasks, steps and projects",
-  `${freeSounds} sounds and ${freeScenes} backgrounds`,
-  "A personal room with your own sound and theme",
-  "Join any open focus room",
-  "Leaderboard, private groups and a public profile",
-  "7 and 30 days of focus history, with CSV export",
-]
+/**
+ * Every account, signed in or not. The counts come from the Live catalogue,
+ * so a sound an admin adds or prices is counted on the next page load.
+ */
+function freeLines(catalog: MediaCatalog) {
+  const freeSounds = catalog.sounds.filter((sound) => !sound.locked).length
+  const freeScenes = catalog.themes.filter((scene) => !scene.locked).length
+  return [
+    "Pomodoro timer with tasks, steps and projects",
+    `${freeSounds} sounds and ${freeScenes} backgrounds`,
+    "A personal room with your own sound and theme",
+    "Join any open focus room",
+    "Leaderboard, private groups and a public profile",
+    "7 and 30 days of focus history, with CSV export",
+  ]
+}
 
 /** The feature keys the lines below already speak for. */
 const COVERED_KEYS = new Set<string>([
@@ -47,6 +50,7 @@ const COVERED_KEYS = new Set<string>([
 ])
 
 export function planCardFeatures(
+  catalog: MediaCatalog,
   features: PlanFeatures,
   free: boolean
 ): string[] {
@@ -55,7 +59,7 @@ export function planCardFeatures(
       Object.entries(features).filter(([key]) => !COVERED_KEYS.has(key))
     )
   )
-  if (free) return [...FREE_LINES, ...extra]
+  if (free) return [...freeLines(catalog), ...extra]
 
   const isPaid = true
   const allowed = (perk: keyof typeof PRO_PERKS) =>
@@ -67,7 +71,7 @@ export function planCardFeatures(
   const lines: string[] = []
   if (allowed("premiumMedia"))
     lines.push(
-      `All ${curatedSounds.length} sounds and ${curatedBackgrounds.length} backgrounds, including the Pro ones`
+      `All ${catalog.sounds.length} sounds and ${catalog.themes.length} backgrounds, including the Pro ones`
     )
   if (allowed("aiCredits") && soundscapes > 0)
     lines.push(`AI soundscapes, ${soundscapes} a month`)

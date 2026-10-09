@@ -125,8 +125,8 @@ export const pomodoroPersonalRooms = pgTable("pomodoro_personal_rooms", {
   userId: varchar("user_id", { length: 36 })
     .primaryKey()
     .references(() => customShellUsers.id, { onDelete: "cascade" }),
-  sound: varchar("sound", { length: 60 }),
-  background: varchar("background", { length: 60 }),
+  sound: varchar("sound", { length: 200 }),
+  background: varchar("background", { length: 200 }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -858,10 +858,12 @@ export const rooms = pgTable(
      * `curated:<key>` and `scene:<key>`, catalogue only. Null on rooms made
      * before 7 Oct 2026, which draw the default scene with no sound.
      */
-    sound: varchar("sound", { length: 60 }),
-    background: varchar("background", { length: 60 }),
+    sound: varchar("sound", { length: 200 }),
+    background: varchar("background", { length: 200 }),
     cycleFocusCount: integer("cycle_focus_count").notNull().default(0),
     closedAt: timestamp("closed_at", { withTimezone: true }),
+    /** Set by an admin to put the room first on Browse rooms (admin task 04). */
+    featuredAt: timestamp("featured_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -931,8 +933,8 @@ export const pomodoroRoomRepeats = pgTable(
     longBreakMinutes: integer("long_break_minutes").notNull().default(15),
     autoStart: boolean("auto_start").notNull().default(false),
     /** Copied onto every room the rule books, the same as the timers. */
-    sound: varchar("sound", { length: 60 }),
-    background: varchar("background", { length: 60 }),
+    sound: varchar("sound", { length: 200 }),
+    background: varchar("background", { length: 200 }),
     /** Lowercased addresses. Copied onto each room's own invites when it is made. */
     invites: jsonb("invites").$type<string[]>().notNull().default([]),
     /**
@@ -943,6 +945,8 @@ export const pomodoroRoomRepeats = pgTable(
     nextStartsAt: timestamp("next_starts_at", { withTimezone: true }),
     /** Set by Cancel the series. Rooms already made keep their own state. */
     cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    /** Every room this rule books sits first on Browse rooms. */
+    featured: boolean("featured").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -1033,6 +1037,12 @@ export const roomMessages = pgTable(
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
     body: varchar("body", { length: 500 }).notNull(),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    /** Who removed it: "host" or "admin". Null on a host's removal before 8 Oct 2026. */
+    removedBy: varchar("removed_by", { length: 10 }).$type<"host" | "admin">(),
+    /** Held for an admin because it has a blocked word; only its writer sees it. */
+    heldAt: timestamp("held_at", { withTimezone: true }),
+    /** An admin's line to every live room, pinned at the top and signed Pomoder. */
+    broadcast: boolean("broadcast").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -1456,8 +1466,220 @@ export const pomodoroGenerations = pgTable(
   ]
 )
 
+/**
+ * The themes and sounds every member picks from, kept here so an admin can
+ * add, edit, order, price and hide them without a deploy (admin task 02,
+ * 8 Oct 2026). See `workspace/docs/catalog-admin.md`.
+ *
+ * `key` is what a choice stores, as `scene:<key>` or `curated:<key>`, so it
+ * never changes once an item exists: a renamed key would silently empty every
+ * room that picked it. The sixteen items that shipped in code were copied in
+ * with their old keys and their files still under `public/`.
+ *
+ * A file an admin uploads goes to the bucket and is re-encoded by the worker
+ * first: `fileStatus` is `queued` until then, `failed` with the reason when the
+ * file was refused, and `ready` once `fileUrl` is the finished file. A Draft or
+ * an item whose file is not ready is never shown to members.
+ */
+export const pomodoroCatalogItems = pgTable(
+  "pomodoro_catalog_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    kind: varchar("kind", { length: 10 }).$type<"theme" | "sound">().notNull(),
+    key: varchar("key", { length: 40 }).notNull(),
+    label: varchar("label", { length: 60 }).notNull(),
+    hint: varchar("hint", { length: 120 }).notNull().default(""),
+    /**
+     * A sound's group (music, ambient, noise) or a theme's look (video,
+     * animated, static), shown small on the card.
+     */
+    descriptor: varchar("descriptor", { length: 20 }).notNull().default(""),
+    locked: boolean("locked").notNull().default(false),
+    status: varchar("status", { length: 10 })
+      .$type<"draft" | "live">()
+      .notNull()
+      .default("draft"),
+    position: integer("position").notNull().default(0),
+    /** A sound's audio, or a theme's film. Null for a theme that is a still. */
+    fileUrl: varchar("file_url", { length: 500 }),
+    /** Where an uploaded file sits in the bucket, so a delete can remove it. */
+    filePath: varchar("file_path", { length: 300 }),
+    /** A theme's still, or a sound's card picture. */
+    pictureUrl: varchar("picture_url", { length: 500 }),
+    /**
+     * Where the picture sits in the bucket when this app put it there (a
+     * still dropped on "Upload several", or a film's first frame), so it can
+     * be removed with the item. Null for a picture from the media library.
+     */
+    picturePath: varchar("picture_path", { length: 300 }),
+    fileStatus: varchar("file_status", { length: 12 })
+      .$type<"ready" | "queued" | "processing" | "failed">()
+      .notNull()
+      .default("ready"),
+    fileError: varchar("file_error", { length: 300 }),
+    /** The upload as it arrived, waiting for the worker. */
+    sourcePath: varchar("source_path", { length: 300 }),
+    sourceKind: varchar("source_kind", { length: 10 }).$type<
+      "audio" | "video" | "image"
+    >(),
+    attempts: integer("attempts").notNull().default(0),
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
+    durationSeconds: integer("duration_seconds"),
+    /** Out of 100, multiplied into the member's own volume. */
+    volume: integer("volume").notNull().default(100),
+    /** Short lower-case words members pick by, such as "rain" or "piano". */
+    tags: jsonb("tags").$type<string[]>().notNull().default([]),
+    artist: varchar("artist", { length: 120 }),
+    sourceUrl: varchar("source_url", { length: 500 }),
+    licence: varchar("licence", { length: 20 }),
+    licenceNote: varchar("licence_note", { length: 300 }),
+    /** When it first went Live, for the NEW label. Null for a Draft. */
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      "pomodoro_catalog_items_kind_check",
+      sql`${table.kind} in ('theme', 'sound')`
+    ),
+    check(
+      "pomodoro_catalog_items_status_check",
+      sql`${table.status} in ('draft', 'live')`
+    ),
+    check(
+      "pomodoro_catalog_items_file_status_check",
+      sql`${table.fileStatus} in ('ready', 'queued', 'processing', 'failed')`
+    ),
+    check(
+      "pomodoro_catalog_items_volume_check",
+      sql`${table.volume} between 10 and 100`
+    ),
+    check(
+      "pomodoro_catalog_items_licence_check",
+      sql`${table.licence} is null or ${table.licence} in ('bought', 'free', 'ai', 'own', 'other')`
+    ),
+    unique("pomodoro_catalog_items_kind_key_unique").on(table.kind, table.key),
+    index("pomodoro_catalog_items_kind_position_idx").on(
+      table.kind,
+      table.position
+    ),
+    index("pomodoro_catalog_items_file_queue_idx")
+      .on(table.createdAt)
+      .where(sql`${table.fileStatus} in ('queued', 'processing')`),
+  ]
+)
+
+/**
+ * The app's own admin settings: shuffle for guests, the default theme and
+ * sound, the seasonal defaults and the timer a new account starts with (admin
+ * task 03), and the settings later admin tasks add. One row per setting, each
+ * checked against its shape in `@/lib/pomodoro/app-settings` on every read and
+ * write; a missing or broken row means the code's default.
+ */
+export const pomodoroSettings = pgTable("pomodoro_settings", {
+  key: varchar("key", { length: 60 }).primaryKey(),
+  value: jsonb("value").notNull(),
+  /** No foreign key: deleting an account must not delete a setting. */
+  updatedByUserId: varchar("updated_by_user_id", { length: 36 }),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+})
+
+/**
+ * House room setups an admin makes, which hosts pick from above their own
+ * presets when they open a room (admin task 04). A room made from one copies
+ * it; changing the preset later does not change that room.
+ */
+export const pomodoroRoomPresets = pgTable(
+  "pomodoro_room_presets",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: varchar("name", { length: 60 }).notNull(),
+    focusMinutes: integer("focus_minutes").notNull(),
+    shortBreakMinutes: integer("short_break_minutes").notNull(),
+    longBreakMinutes: integer("long_break_minutes").notNull(),
+    autoStart: boolean("auto_start").notNull().default(false),
+    sound: varchar("sound", { length: 200 }),
+    background: varchar("background", { length: 200 }),
+    position: integer("position").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      "pomodoro_room_presets_focus_check",
+      sql`${table.focusMinutes} between 1 and 90`
+    ),
+    check(
+      "pomodoro_room_presets_short_check",
+      sql`${table.shortBreakMinutes} between 1 and 90`
+    ),
+    check(
+      "pomodoro_room_presets_long_check",
+      sql`${table.longBreakMinutes} between 1 and 90`
+    ),
+  ]
+)
+
+/** A warning an admin sent a member (admin task 05), kept for the next admin. */
+export const pomodoroWarnings = pgTable(
+  "pomodoro_warnings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    message: varchar("message", { length: 500 }).notNull(),
+    /** No foreign key: deleting an admin must not delete what they sent. */
+    createdByUserId: varchar("created_by_user_id", { length: 36 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [index("pomodoro_warnings_user_idx").on(table.userId, table.createdAt)]
+)
+
+/**
+ * A member barred from joining, hosting and chatting in every room (admin task
+ * 05), until `endsAt`, or until lifted when that is null. It ends by itself
+ * on its date; nothing has to run.
+ */
+export const pomodoroSuspensions = pgTable(
+  "pomodoro_suspensions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    reason: varchar("reason", { length: 300 }).notNull(),
+    endsAt: timestamp("ends_at", { withTimezone: true }),
+    createdByUserId: varchar("created_by_user_id", { length: 36 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    liftedAt: timestamp("lifted_at", { withTimezone: true }),
+    liftedByUserId: varchar("lifted_by_user_id", { length: 36 }),
+  },
+  (table) => [
+    index("pomodoro_suspensions_user_idx")
+      .on(table.userId)
+      .where(sql`${table.liftedAt} is null`),
+  ]
+)
+
 export type Room = typeof rooms.$inferSelect
 export type PomodoroRoomRepeat = typeof pomodoroRoomRepeats.$inferSelect
 export type RoomInvite = typeof roomInvites.$inferSelect
 export type PomodoroMediaUpload = typeof pomodoroMediaUploads.$inferSelect
 export type PomodoroGeneration = typeof pomodoroGenerations.$inferSelect
+export type PomodoroCatalogItem = typeof pomodoroCatalogItems.$inferSelect

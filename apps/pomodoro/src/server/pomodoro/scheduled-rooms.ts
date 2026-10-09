@@ -2,6 +2,8 @@ import { randomBytes } from "node:crypto"
 import { and, asc, eq, inArray, isNull, lte, or, sql } from "drizzle-orm"
 
 import { db, type CustomShellDb } from "@/server/db"
+import { loadAppSettings } from "@/server/pomodoro/app-settings"
+import { assertMayUseRooms, assertNewRoomsOpen, findSuspension } from "@/server/pomodoro/room-access"
 import { appUrlFor } from "@/server/app-url"
 import { escapeHtml } from "@/lib/email/escape-html"
 import { createBroadcastBlock } from "@/lib/broadcasts/blocks"
@@ -33,7 +35,6 @@ import { roomInviteMessage, roomOpenMessage } from "@/lib/pomodoro/notices"
 import { formatRoomStart } from "@/lib/pomodoro/scheduled-rooms"
 import {
   describeRoomRepeat,
-  MAX_ROOM_REPEATS_PER_HOST,
   nextRoomOccurrence,
   ROOM_REPEAT_LEAD_HOURS,
 } from "@/lib/pomodoro/room-repeats"
@@ -76,6 +77,9 @@ export async function scheduleRoomWithInvites(
   input: ScheduleRoomInput,
   database: CustomShellDb = db
 ) {
+  // Booking is opening a room later, so it is refused the same way.
+  await assertMayUseRooms(userId, database)
+  await assertNewRoomsOpen()
   const recipients = await bookingRecipients(userId, input.invites, database)
   const room = await database.transaction((tx) => writeBooking(tx, userId, slug, input, recipients))
   if (!room) throw new Error("ROOM_NOT_CREATED")
@@ -207,7 +211,7 @@ export async function cancelScheduledRoom(
  * Closes a locked, still-booked room and stops its unsent invitations.
  * Answers how many invitations were stopped.
  */
-async function closeBookedRoom(tx: PomoderTransaction, room: Room, timestamp: Date) {
+export async function closeBookedRoom(tx: PomoderTransaction, room: Room, timestamp: Date) {
   const { set } = phaseUpdate(room, "closed", timestamp)
   await tx.update(rooms).set(set).where(eq(rooms.id, room.id))
   // An unread invitation to a room that will not happen goes with it.
@@ -579,7 +583,7 @@ async function deliverInvite(database: CustomShellDb, invite: InviteEmail) {
 /**
  * How many one-off rooms this person already has booked and not yet
  * cancelled. A weekly rule's booked day is not counted: weekly rooms have
- * their own limit, MAX_ROOM_REPEATS_PER_HOST.
+ * their own limit, "Weekly rooms per host" on the Pomoder settings page.
  */
 export async function countScheduledRoomsHostedBy(
   userId: string,
@@ -617,11 +621,14 @@ export async function createRoomRepeat(
   database: CustomShellDb = db,
   timestamp = new Date()
 ) {
+  await assertMayUseRooms(userId, database, timestamp)
+  await assertNewRoomsOpen()
   const [{ live }] = await database
     .select({ live: sql<number>`count(*)::int` })
     .from(pomodoroRoomRepeats)
     .where(and(eq(pomodoroRoomRepeats.hostUserId, userId), isNull(pomodoroRoomRepeats.cancelledAt)))
-  if (live >= MAX_ROOM_REPEATS_PER_HOST) throw new Error("ROOM_REPEAT_LIMIT")
+  const { maxRepeatsPerHost } = (await loadAppSettings())["rooms.limits"]
+  if (live >= maxRepeatsPerHost) throw new Error("ROOM_REPEAT_LIMIT")
   const next = nextRoomOccurrence(input, timestamp)
   if (!next) throw new Error("ROOM_REPEAT_NO_OCCURRENCE")
   const [rule] = await database
@@ -642,7 +649,8 @@ export async function createRoomRepeat(
  * day stops two passes booking the same day.
  *
  * A host who is no longer allowed to host is skipped, not cancelled: the rule
- * moves on without booking, and books again if the plan comes back. A day
+ * moves on without booking, and books again if the plan comes back. A
+ * suspended host's days are skipped the same way until the suspension ends. A day
  * whose start has already passed, because the worker was down, is skipped the
  * same way rather than opened late.
  */
@@ -681,7 +689,9 @@ async function bookRepeatDay(
   const bookable = Boolean(day && day.startsAt > timestamp)
   // Read before the transaction, like every other read on the shared handle.
   const [allowed, recipients] = await Promise.all([
-    bookable ? mayHost(seen.hostUserId, database) : false,
+    bookable
+      ? mayHost(seen.hostUserId, database).then(async (may) => may && !(await findSuspension(seen.hostUserId, database, timestamp)))
+      : false,
     bookable ? bookingRecipients(seen.hostUserId, seen.invites, database) : null,
   ])
   return database.transaction(async (tx) => {
@@ -778,7 +788,8 @@ export async function listMyRoomRepeats(
     .from(pomodoroRoomRepeats)
     .where(and(eq(pomodoroRoomRepeats.hostUserId, userId), isNull(pomodoroRoomRepeats.cancelledAt)))
     .orderBy(asc(pomodoroRoomRepeats.nextStartsAt))
-    .limit(MAX_ROOM_REPEATS_PER_HOST * 2)
+    // The room limits allow at most 50 weekly rooms per host.
+    .limit(100)
   const ids = rules.map((rule) => rule.id)
   const bookedRows = ids.length
     ? await database

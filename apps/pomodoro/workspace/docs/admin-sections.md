@@ -1,6 +1,6 @@
 # Admin sections
 
-Eight operator pages inside the shell's `/admin`. They let an operator see
+Fourteen operator pages inside the shell's `/admin`. They let an operator see
 what members are doing, decide reports, and delete what should not be there.
 Every delete and every report decision is written to `pomodoro_audit_logs`.
 
@@ -12,10 +12,16 @@ Every delete and every report decision is written to `pomodoro_audit_logs`.
 | `/admin/pomodoro-tasks` | Everybody's tasks |
 | `/admin/pomodoro-sessions` | Every timer run |
 | `/admin/pomodoro-rooms` | Every focus room, open and closed |
-| `/admin/pomodoro-media` | The scenes and loops, and who picked each one |
+| `/admin/pomodoro-themes` | Every theme, Draft or Live, and who has it |
+| `/admin/pomodoro-sounds` | Every sound, Draft or Live, and who has it |
 | `/admin/pomodoro-reports` | The moderation queue |
 | `/admin/pomodoro-room-repeats` | Every weekly room rule |
 | `/admin/pomodoro-task-repeats` | Every repeating task rule |
+| `/admin/pomodoro-invites` | Every room invitation, and cancelling unsent ones |
+| `/admin/pomodoro-room-presets` | The house presets hosts pick from |
+| `/admin/pomodoro-chat` | Every room's chat, a search across it, held lines |
+| `/admin/pomodoro-bans` | Room bans, hidden profiles and suspensions, with Lift |
+| `/admin/pomodoro-settings` | The Pomoder settings page |
 
 Each page is its own route file under
 `src/routes/_authenticated/admin/pomodoro-*.tsx`, the way trade and video add
@@ -119,7 +125,9 @@ selection checkbox first, sortable data columns, and an actions column last.
 
   - Focus data and Tasks lead to that member's focus sessions.
   - Focus sessions leads to that member's tasks.
-  - Focus rooms leads to the report queue searched on that room's name.
+  - Focus rooms leads to the report queue searched on that room's name, then
+    Close, the cog for the room window, and the bin. See
+    [Rooms in the admin](rooms-admin.md).
   - Room reports has its three decision buttons.
 
 The date column on Tasks, Focus rooms and Room reports shows only on a screen
@@ -128,9 +136,8 @@ edge of a 1280px screen by 47px, 50px and 216px, measured. With the dates
 hidden, every list fits at 1280. Below that the table scrolls sideways inside
 its box, as it did before.
 
-Media is the exception: no selection column and no actions column. Its rows
-are the fixed catalogue in code, not database records, so there is nothing to
-tick and nothing to do to one.
+Every list has a selection column and an actions column. Themes and Sounds
+add Free, Pro, Draft and Live to the ticked-row buttons.
 
 One file owns the table. `admin-list.tsx` draws the selection column, the header
 checkbox, the empty row's width and the toolbar's "Clear N selected" chip, so a
@@ -215,16 +222,13 @@ same way report decisions and a host's moderation already do. There is no page
 that lists it. Tyler had the Action log page built on 8 Oct 2026 and took it
 out the same day, so the record is read from the database when it is needed.
 
-## Media
+## Themes and Sounds
 
-There is no media table to manage. The catalogue is eight background scenes and
-eight sound loops fixed in code
-(`src/lib/pomodoro/background-catalog.ts` and `sound-catalog.ts`), and the files
-ship with the app. What the database knows, and this page shows, is how many
-accounts have each one selected right now, plus whether it needs Pro. Files a
-member uploaded belong to the shell's own media library at `/admin/media`; they
-are counted here as one "Their own upload" row per kind rather than listed
-again.
+Two pages, one for each kind, replaced the single read-only Media table on
+8 Oct 2026. An admin adds, edits, orders, prices, hides and deletes every
+theme and sound there, and members see the change on their next page load.
+`/admin/pomodoro-media` now forwards to Themes. The rules, the window and the
+worker are in [Themes and sounds in the admin](catalog-admin.md).
 
 ## What these pages will not do
 

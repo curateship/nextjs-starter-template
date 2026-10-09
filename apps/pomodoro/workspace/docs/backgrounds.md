@@ -1,9 +1,21 @@
 # Backgrounds
 
-Eight scenes on `/backgrounds` — Lofi girl (an mp4 video), Ambient glow,
-Plain dark and Starry night free; Rainy window, Night forest, Ocean waves
-and Fireplace for Pro — and the chosen one draws behind every member
-screen's content with a canvas-tinted shade so text stays readable.
+The Live scenes from the catalogue on `/backgrounds`, free and Pro, in the
+order an admin set, and the chosen one draws behind every member screen's
+content with a canvas-tinted shade so text stays readable. An admin adds and
+edits them on the Themes admin page; see
+[Themes and sounds in the admin](catalog-admin.md). Eight shipped with the
+app: Lofi girl (an mp4 video), Ambient glow, Plain dark and Starry night free;
+Rainy window, Night forest, Ocean waves and Fireplace for Pro.
+
+- **Two tabs, By tag first and Pick one second**, and a Shuffle switch beside
+  them. See [Shuffle and tags](shuffle-and-tags.md).
+- **Any theme can be a film**, with its still as the poster and the fallback.
+  A film that will not play, or anybody who asked for less movement, gets
+  the still. Before 8 Oct 2026 only Lofi girl had a film.
+- **A scene added in the last 14 days shows NEW**, beside PRO.
+- **Lofi girl's own files ship with the app** and stay the last fallback,
+  whatever happens to its catalogue row, so the default can always be drawn.
 
 ## Under the scenes
 

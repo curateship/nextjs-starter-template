@@ -1,24 +1,14 @@
-export type CuratedSound = {
-  key: string
-  label: string
-  description: string
-  hint: string
-  locked: boolean
-}
+import { CATALOG_KEY_PATTERN, findSound, type MediaCatalog } from "@/lib/pomodoro/catalog"
 
-export const curatedSounds: readonly CuratedSound[] = [
-  { key: "lofi", label: "Lofi beats", description: "music", hint: "Mellow hip-hop loops", locked: false },
-  { key: "rain", label: "Rain", description: "ambient", hint: "Steady rain on a window", locked: false },
-  { key: "cafe", label: "Café ambience", description: "ambient", hint: "Low chatter and cups", locked: false },
-  { key: "brown", label: "Brown noise", description: "noise", hint: "Deep steady noise", locked: false },
-  { key: "forest", label: "Forest birds", description: "ambient", hint: "Birdsong and soft wind", locked: true },
-  { key: "ocean", label: "Ocean waves", description: "ambient", hint: "Slow rolling waves", locked: true },
-  { key: "fire", label: "Fireplace", description: "ambient", hint: "Crackling logs", locked: true },
-  { key: "piano", label: "Soft piano", description: "music", hint: "Gentle keys and air", locked: true },
-] as const
+// A sound choice: one of the catalogue's sounds, or the member's own upload or
+// AI soundscape, serialized as `curated:<key>` or `media:<uuid>`. The sounds
+// themselves live in the database and reach a page through the catalogue
+// (`catalog.ts`).
 
 export type SoundReference =
-  | { type: "curated"; key: string }
+  // `url`, `label` and `volume` are filled in from the catalogue when the
+  // stored value is read; none of them is part of the serialized form.
+  | { type: "curated"; key: string; url?: string; label?: string; volume?: number }
   // `mediaUrl` is the address the server resolved, carried alongside rather
   // than built here; it is not part of the serialized form.
   | { type: "media"; mediaId: string; mediaUrl?: string }
@@ -30,11 +20,15 @@ export function serializeSoundReference(reference: SoundReference | null) {
   return reference.type === "curated" ? `curated:${reference.key}` : `media:${reference.mediaId}`
 }
 
+/**
+ * The stored value's shape only. Whether the sound still exists, and is Live,
+ * is the catalogue's answer, through `resolveSoundReference`.
+ */
 export function parseSoundReference(value: unknown): SoundReference | null {
   if (typeof value !== "string") return null
   if (value.startsWith("curated:")) {
     const key = value.slice("curated:".length)
-    return curatedSounds.some((sound) => sound.key === key) ? { type: "curated", key } : null
+    return CATALOG_KEY_PATTERN.test(key) ? { type: "curated", key } : null
   }
   if (value.startsWith("media:")) {
     const mediaId = value.slice("media:".length)
@@ -43,23 +37,43 @@ export function parseSoundReference(value: unknown): SoundReference | null {
   return null
 }
 
+/**
+ * A catalogue sound with its file, name and volume filled in, or null when the
+ * catalogue does not have it, which the caller plays as silence. An upload
+ * passes through as it is.
+ */
+export function resolveSoundReference(
+  catalog: MediaCatalog,
+  reference: SoundReference | null
+): SoundReference | null {
+  if (!reference || reference.type === "media") return reference
+  const sound = findSound(catalog, reference.key)
+  if (!sound) return null
+  return {
+    type: "curated",
+    key: sound.key,
+    url: sound.fileUrl,
+    label: sound.label,
+    volume: sound.volume,
+  }
+}
+
 export function sameSoundReference(a: SoundReference | null, b: SoundReference | null) {
   return serializeSoundReference(a) === serializeSoundReference(b)
 }
 
 /**
- * Where the browser fetches this loop from.
- *
- * A curated loop ships with the app. An upload is served straight from the
- * bucket at the address the server resolved, which is how the shell serves
- * every other file it stores — an owner-checked route would be a second way of
- * doing the same thing, and Vite's dev server refuses to forward one to an
- * `<img>` anyway. An upload with no address yet has none to give.
+ * Where the browser fetches this sound from: the catalogue's file, or an
+ * upload's address the server resolved. A reference with no address yet has
+ * none to give.
  */
 export function soundSourceUrl(reference: SoundReference) {
-  return reference.type === "curated"
-    ? `/sounds/audio-${reference.key}.mp3`
-    : (reference.mediaUrl ?? "")
+  return reference.type === "curated" ? (reference.url ?? "") : (reference.mediaUrl ?? "")
+}
+
+/** The catalogue's volume for this sound, out of 100. An upload plays at full. */
+export function soundVolumeScale(reference: SoundReference | null) {
+  return reference?.type === "curated" ? (reference.volume ?? 100) / 100 : 1
 }
 
 export const DEFAULT_SOUND_VOLUME = 70
