@@ -19,7 +19,7 @@ import { useRoomMedia } from "@/lib/pomodoro/room-media-store"
 import { usePreviewAudio } from "@/lib/pomodoro/use-preview-audio"
 import {
   CurrentlySelectedLabel,
-  MediaAddActions,
+  MediaAddMenu,
   MediaRoomNote,
 } from "@/components/pomodoro/media-add-actions"
 import { MediaUploadsSection } from "@/components/pomodoro/media-uploads-section"
@@ -42,11 +42,12 @@ import { useCatalogPage } from "@/lib/pomodoro/use-catalog-page"
  * free and Pro, in the order an admin set; a locked card says why instead of
  * going dead.
  *
- * Clicking a card previews it on this page only, through `usePreviewAudio`,
+ * Hovering over a card plays it on this page only, through `usePreviewAudio`,
  * never through the header's player, so it cannot fight the timer's Start.
- * Tyler, 7 Oct 2026: "Make it preview the sound on the sound page only and
- * add a button to be able to add it to your personal room." The previewed
- * card then shows the Add buttons. The card outlined in orange is the sound
+ * Moving off the card stops it, and a click or tap plays or stops it too, for
+ * a phone. Tyler, 7 Oct 2026: "Make it preview the sound on the sound page
+ * only", then 9 Oct: play on hover, and a "+" in the card's corner that opens
+ * the Add choices (`MediaAddMenu`). The card outlined in orange is the sound
  * of the room you are in.
  */
 export function SoundsPage() {
@@ -117,6 +118,15 @@ export function SoundsPage() {
                       "relative gap-0 overflow-hidden rounded-[18px] p-0",
                       inUse && "ring-2 ring-[var(--p-accent)]"
                     )}
+                    // On the whole card, so moving onto the "+" keeps playing.
+                    // Only a mouse hovers; a finger's tap is the click below.
+                    onPointerEnter={(event) => {
+                      if (!locked && event.pointerType === "mouse")
+                        preview.start(reference)
+                    }}
+                    onPointerLeave={(event) => {
+                      if (previewed && event.pointerType === "mouse") preview.stop()
+                    }}
                   >
                     <button
                       className="group w-full text-left outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid"
@@ -171,7 +181,7 @@ export function SoundsPage() {
                           </span>
                         </span>
                       </span>
-                      <CardContent className="flex flex-col gap-1 px-[18px] py-4">
+                      <CardContent className="flex flex-col gap-1 py-4 pr-14 pl-[18px]">
                         <span className="flex items-center justify-between gap-2">
                           <strong className="truncate text-base font-semibold">
                             {sound.label}
@@ -190,20 +200,14 @@ export function SoundsPage() {
                         </small>
                       </CardContent>
                     </button>
-                    {/* Over the picture's bottom-left corner, while the card is
-                        previewed. A layer of its own the same size as the
-                        picture, because a button cannot sit inside the card's
-                        preview button; only the add buttons take clicks. */}
-                    {previewed ? (
-                      <div className="pointer-events-none absolute inset-x-0 top-0 aspect-[8/5]">
-                        <div className="pointer-events-auto absolute bottom-3 left-3">
-                          <MediaAddActions
-                            item={{ kind: "sound", reference, label: sound.label }}
-                            onPicture
-                          />
-                        </div>
-                      </div>
-                    ) : null}
+                    {/* Beside the card's button, because a button cannot sit
+                        inside another one. */}
+                    {locked ? null : (
+                      <MediaAddMenu
+                        item={{ kind: "sound", reference, label: sound.label }}
+                        className="absolute right-3 bottom-4"
+                      />
+                    )}
                   </Card>
                 )
                 if (!locked) return card
@@ -236,19 +240,18 @@ export function SoundsPage() {
           title="Your own"
           uploadLabel="Upload sound"
           onGenerate={goToGenerator}
-          description="Click one to hear it, then add it to your personal room."
+          description="Hover over one to hear it, then press + to add it to your personal room."
           isSelected={(upload) =>
             sameSoundReference(media.sound, {
               type: "media",
               mediaId: upload.mediaId,
             })
           }
-          isPreviewed={(upload) =>
-            sameSoundReference(preview.previewing, {
-              type: "media",
-              mediaId: upload.mediaId,
-            })
-          }
+          onHoverChange={(upload, hovering) => {
+            if (hovering)
+              preview.start({ type: "media", mediaId: upload.mediaId, mediaUrl: upload.url })
+            else preview.stop()
+          }}
           onPick={(upload) =>
             preview.toggle({
               type: "media",
@@ -256,8 +259,8 @@ export function SoundsPage() {
               mediaUrl: upload.url,
             })
           }
-          renderActions={(upload) => (
-            <MediaAddActions
+          renderAddMenu={(upload) => (
+            <MediaAddMenu
               item={{
                 kind: "sound",
                 reference: {

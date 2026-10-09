@@ -114,6 +114,9 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   where the API key goes, what one search costs out of the free 10,000 daily
   units, why Shorts means 3 minutes or less, and how every search is kept so
   reopening it is free.
+- [viral-score.md](viral-score.md) — the 0 to 100 viral score on every Viral
+  page result: its five parts and their weights, one worked example, what
+  "sure: medium" means, and why the score is worked out on every read.
 - [creator-research.md](creator-research.md) — the research dashboard: creators
   in folders, the feed of everything they post, the six-hourly watch timer and
   what it costs, and what Save & break down downloads, spends and writes down.

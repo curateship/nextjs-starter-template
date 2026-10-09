@@ -668,13 +668,32 @@ function pricesOf(plan: SmartGrid["plan"]): AtPrice[] {
   return [...at.values()].sort((a, b) => a.px - b.px)
 }
 
-/** What the grid's open levels would make or lose if they all closed here. */
-function gridResultAt(plan: SmartGrid["plan"], exitPx: number): number {
+/**
+ * What the grid would make or lose if price walked to `exitPx` and closed it.
+ *
+ * Price cannot reach the stop without passing the waiting rungs that sit
+ * between today's price and the stop, and each of them buys on the way. So
+ * the figure counts the coins held now plus one arm of every such rung, bought
+ * at its own price (Tyler, 9 Oct 2026). A rung price has already moved past,
+ * or one at or past the stop, never buys on that walk and stays out. With no
+ * price to hand every waiting rung short of the stop counts, the worst case.
+ */
+function gridResultAt(
+  plan: SmartGrid["plan"],
+  exitPx: number,
+  currentPx: number | null
+): number {
   const sign = plan.direction === "long" ? 1 : -1
   let result = 0
   for (const level of [...plan.levels, ...plan.carriedLevels]) {
-    if (level.status !== "holding") continue
-    result += (exitPx - level.buyPx) * level.heldSz * sign
+    if (level.status === "holding") {
+      result += (exitPx - level.buyPx) * level.heldSz * sign
+      continue
+    }
+    if (level.status !== "waiting") continue
+    const shortOfStop = (level.buyPx - exitPx) * sign > 0
+    const ahead = currentPx === null || (currentPx - level.buyPx) * sign >= 0
+    if (shortOfStop && ahead) result += (exitPx - level.buyPx) * level.sz * sign
   }
   return result
 }
@@ -684,10 +703,12 @@ function gridResultAt(plan: SmartGrid["plan"], exitPx: number): number {
 function gridStopName(
   plan: SmartGrid["plan"],
   stopPx: number,
+  currentPx: number | null,
   feesPaid: number | null
 ): string {
   if (feesPaid === null) return "SL —"
-  return `SL ${formatSignedUsd(gridResultAt(plan, stopPx) - feesPaid)}`
+  const result = gridResultAt(plan, stopPx, currentPx) - feesPaid
+  return `SL ${formatSignedUsd(result)}`
 }
 
 /** Which grid control a drag is moving. */
@@ -1095,7 +1116,9 @@ function GridLines({
   const stopY =
     shownStop !== null ? yFor(shownStop) : stop === null ? null : yFor(stop)
   const stopName =
-    shownStop === null ? null : gridStopName(plan, shownStop, feesPaid)
+    shownStop === null
+      ? null
+      : gridStopName(plan, shownStop, currentPx, feesPaid)
   const prices = pricesOf(plan)
   /**
    * The two rungs that carry the range's names.

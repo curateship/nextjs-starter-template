@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router"
 import { TriangleAlertIcon } from "lucide-react"
 
 import { loadSafetyPauses } from "@/lib/api/pomodoro/app-settings"
+import { POMODORO_SETTINGS_TABS } from "@/lib/pomodoro/app-settings"
 
 type Pauses = { newRooms: boolean; chat: boolean }
 
@@ -48,8 +49,9 @@ export function SafetyPauseLine({ pauses }: { pauses: Pauses }) {
       <TriangleAlertIcon className="size-4 shrink-0" />
       <span>
         {what} for every member.{" "}
-        <Link to="/admin/pomodoro-settings" className="underline underline-offset-4">
-          Switch it off in Pomoder settings
+        <Link to="/admin/settings/$tab"
+                          params={{ tab: POMODORO_SETTINGS_TABS.safety }} className="underline underline-offset-4">
+          Switch it off in Settings
         </Link>
       </span>
     </p>

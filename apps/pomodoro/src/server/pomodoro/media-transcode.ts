@@ -105,8 +105,17 @@ export async function probeDurationSeconds(input: Uint8Array) {
   }
 }
 
-/** A film's first frame as a JPEG, for a theme that was given no still. */
-export async function extractFirstFrame(input: Uint8Array) {
+/**
+ * The frame halfway through a film, as a JPEG: a theme's still. Tyler, 9 Oct
+ * 2026: "remove the ability to add a still image and just let the app capture
+ * an image in the middle of the clip". A film whose length cannot be read
+ * gives its first frame instead.
+ */
+export async function extractMiddleFrame(input: Uint8Array) {
+  const seconds = await probeDurationSeconds(input).catch((error: unknown) => {
+    if (error instanceof FfmpegMissingError) throw error
+    return 0
+  })
   const folder = await mkdtemp(path.join(tmpdir(), "pomodoro-frame-"))
   const inputPath = path.join(folder, "in.mp4")
   const outputPath = path.join(folder, "frame.jpg")
@@ -114,7 +123,20 @@ export async function extractFirstFrame(input: Uint8Array) {
     await writeFile(inputPath, input)
     await run(
       "ffmpeg",
-      ["-y", "-i", inputPath, "-frames:v", "1", "-q:v", "3", outputPath],
+      [
+        "-y",
+        // Before the input, so FFmpeg jumps there instead of decoding the
+        // first half of the film to reach it.
+        "-ss",
+        (seconds / 2).toFixed(3),
+        "-i",
+        inputPath,
+        "-frames:v",
+        "1",
+        "-q:v",
+        "3",
+        outputPath,
+      ],
       { timeout: FFMPEG_TIMEOUT_MS, maxBuffer: 1024 * 1024 }
     )
     const bytes = new Uint8Array(await readFile(outputPath))

@@ -196,6 +196,43 @@ in `src/lib/custom-shell.tsx` and are applied by
   the action enabled, mark the field with `aria-invalid`, preserve the entered
   value, and report the problem through `src/lib/toast/error-toast.ts`.
 
+## Settings
+
+Tyler, 9 Oct 2026, about Pomoder's own admin settings page: "This settings
+page should be here and it has to be auto save." "Here" is the App settings
+card in the rail on `/admin/settings`.
+
+- **An app's own settings live in Settings → App settings.** Each group is a
+  tab the app lists in `settings.tabs` in its `src/app/options.ts`
+  (`defineSettingsTab` from `src/lib/settings-tab.ts`), so it shows in the rail
+  under App settings at `/admin/settings/<id>`. Never a page of its own such as
+  `/admin/<app>-settings`, and never a card stacked on a page somewhere else.
+  The rail saying "This app has no settings of its own." while the app has
+  settings is this rule broken.
+- **Settings save themselves. There is no Save button.** A change saves 700ms
+  after the last edit, at once when a field is left or Enter is pressed, and a
+  switch or a pick saves the moment it changes. The page header says
+  Saving…, Saved or Not saved, through `useReportedSaveStatus` from
+  `src/components/settings/use-reported-save-status.ts`, the way
+  `src/components/settings/ai-settings.tsx` does for a pasted key.
+  `docs/shell/settings-saving.md` is the shell's side of the same rule.
+- **A refused save keeps what was typed** and says why in the error toast. A
+  value that fails its check is marked `aria-invalid` and not sent.
+- **Moving between Settings tabs never shows a load.** Tyler, 9 Oct 2026:
+  "why is there a load when i click through the tabs? make sure you follow
+  shell patterns". The shell's own tabs draw from the settings record the
+  shell layout already holds, and write each edit into it before the save goes
+  out (`src/components/shell/shell-layout.tsx`). An app's tab does the same:
+  read its settings from the server once per page, hold them in memory, put
+  every edit into the held copy as it is made (and take it back out if the
+  save is refused), and draw from it on every later open. The first open of
+  the first tab may show one loading row, because the shell gives an app's tab
+  no loader. `src/components/pomodoro/admin-settings-tabs.tsx` in Pomoder is
+  the reference.
+- **Only a destructive step asks first.** Removing a saved key or deleting a
+  record goes through the shared confirm dialog. Nothing else on a Settings tab
+  waits for a button.
+
 ## Tabs
 
 - Use the shared segmented `Tabs` style: a muted container with a raised active

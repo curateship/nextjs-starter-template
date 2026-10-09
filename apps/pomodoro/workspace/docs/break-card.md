@@ -25,6 +25,23 @@ minute long break".
 - **The ticks are yours and last one break.** Each step is a round tick that
   strikes the line through. Nothing is saved; the next break starts with
   every step unticked.
+- **An admin can add a message and a theme for every break.** Tyler, 9 Oct
+  2026: "Add a feature for admin to choose a theme that changes to it for
+  break timer and an area for text so I can put some encourgement text or
+  tips." Both are set on the Breaks tab under Settings → App settings (see
+  [Admin settings](admin-settings.md)) and stored as `break.look`.
+  - The message sits in its own box under the card's line, with the admin's
+    line breaks kept. An empty message shows nothing.
+  - The break theme replaces the page's backdrop for as long as a break card
+    is on screen, on the timer or in a room. It goes back to the person's own
+    theme when the break ends. On another page during a break, such as Tasks,
+    the backdrop stays the person's own, because no break card is showing
+    there. Zen mode follows the timer and shows it for the whole break.
+  - The theme reaches the page with the rest of the room's media
+    (`breakLook` in `MediaBootstrap`). A theme an admin later makes a Draft
+    or deletes is dropped, and so is one made Pro for somebody without Pro.
+    A break theme that will not load falls back to the person's own theme for
+    the rest of the visit. The switching is `src/lib/pomodoro/break-look.ts`.
 - **Where it lives:** `BreakCard` in `src/components/pomodoro/break-card.tsx`,
   drawn by `timer-dashboard.tsx` under the mode tabs and by `active-room.tsx`
   under the room's ring. The steps are the two lists at the top of that file.

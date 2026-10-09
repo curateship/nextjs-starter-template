@@ -15,6 +15,11 @@ import { soundEngineState } from "@/lib/pomodoro/sound-engine"
  * fought. A preview plays on its own `<audio>` element, made when the page
  * opens and stopped when it closes. It never touches the header's player, the
  * timer, or what is saved. One preview plays at a time.
+ *
+ * Tyler, 9 Oct 2026: a card plays while the pointer is over it (`start` and
+ * `stop`). A browser refuses sound until the page has been clicked or tapped
+ * once, so a hover before that stays quiet without saying it failed; a click
+ * on the card (`toggle`) always plays.
  */
 export function usePreviewAudio() {
   const audio = React.useRef<HTMLAudioElement | null>(null)
@@ -62,5 +67,30 @@ export function usePreviewAudio() {
     [previewing]
   )
 
-  return { previewing, playing, failed, toggle }
+  /** Plays this sound from hovering. A refusal stays quiet: see above. */
+  const start = React.useCallback((reference: SoundReference) => {
+    const element = audio.current
+    if (!element) return
+    setFailed(false)
+    const engine = soundEngineState()
+    element.volume = engine.muted ? 0 : engine.volume / 100
+    element.src = soundSourceUrl(reference)
+    setPreviewing(reference)
+    void element.play().catch((cause: unknown) => {
+      // NotAllowedError is the browser waiting for a first click; AbortError
+      // is the pointer leaving before the sound started. Neither is a fault.
+      const quiet =
+        cause instanceof DOMException &&
+        (cause.name === "NotAllowedError" || cause.name === "AbortError")
+      if (!quiet) setFailed(true)
+    })
+  }, [])
+
+  /** Stops whatever is playing, when the pointer leaves its card. */
+  const stop = React.useCallback(() => {
+    audio.current?.pause()
+    setPreviewing(null)
+  }, [])
+
+  return { previewing, playing, failed, toggle, start, stop }
 }

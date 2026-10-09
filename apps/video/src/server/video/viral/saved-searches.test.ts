@@ -1,10 +1,11 @@
 import { PGlite } from "@electric-sql/pglite"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
+import { now, uuid } from "@/server/auth/security"
 import { type CustomShellDb } from "@/server/db"
 import { type CustomShellUser } from "@/server/schema"
 import { createTestDatabase, insertUser } from "@/server/test-support"
-import { videoViralResults } from "@/server/video/schema"
+import { videoViralResults, videoViralVideos } from "@/server/video/schema"
 import {
   deleteOwnedViralSearches,
   getOwnedViralSearch,
@@ -90,6 +91,58 @@ describe("keeping every search", () => {
     expect(opened?.results.map((one) => one.id)).toEqual(["b", "a"])
     expect(opened?.results[0].url).toBe("https://www.youtube.com/shorts/b")
     expect(opened?.results[0].subscribers).toBe(5000)
+  })
+
+  it("scores every result on read, counting a breakdown only once it is ready and theirs", async () => {
+    const stranger = await insertUser(database)
+    const breakdown = {
+      transcript: [{ startMs: 0, endMs: 1000, text: "Watch this" }],
+      segments: [{ role: "hook", startMs: 0, endMs: 1000, summary: "Opens" }],
+      scenes: [{ startMs: 0, endMs: 1000 }],
+    }
+    const at = now()
+    const saved = (ownerId: string, videoId: string, status: string) => ({
+      id: uuid(),
+      ownerId,
+      platform: "youtube",
+      platformVideoId: videoId,
+      sourceUrl: `https://www.youtube.com/shorts/${videoId}`,
+      status,
+      breakdown,
+      createdAt: at,
+      updatedAt: at,
+    })
+    await database
+      .insert(videoViralVideos)
+      .values([
+        saved(user.id, "a", "ready"),
+        saved(user.id, "b", "analysing"),
+        saved(stranger.id, "c", "ready"),
+      ])
+
+    const fresh = await runAndSaveViralSearch(
+      user.id,
+      INPUT,
+      "key",
+      fakeYoutube([
+        { id: "a", views: 100 },
+        { id: "b", views: 900 },
+        { id: "c", views: 500 },
+      ]),
+      database
+    )
+    const opened = await getOwnedViralSearch(user.id, fresh.search.id, database)
+
+    for (const results of [fresh.results, opened?.results ?? []]) {
+      const byId = new Map(results.map((one) => [one.id, one.score]))
+      // Transcript, parts, scenes and a hook: 80 of the breakdown's 100.
+      expect(byId.get("a")?.parts.structure).toBe(80)
+      expect(byId.get("a")?.missing).not.toContain("Missing breakdown")
+      // Still being broken down, and somebody else's: both count as missing.
+      expect(byId.get("b")?.missing).toContain("Missing breakdown")
+      expect(byId.get("c")?.parts.structure).toBe(0)
+      expect(byId.get("c")?.missing).toContain("Missing breakdown")
+    }
   })
 
   it("updates the old row when the same keyword runs again, even in another case", async () => {

@@ -279,8 +279,27 @@ Code: `src/server/billing.ts`, `src/lib/api/billing.ts`, webhook at
 
 **Buying.** `/pricing` or `/account/billing` → `startCheckout(slug, interval)` →
 a Stripe Checkout session carrying `metadata.userId`. Stripe returns the person
-to `/account/billing/success`, which polls briefly because the webhook can land
-a beat later, then refreshes the shell so the plan badge updates.
+to `/account/billing/success?session_id=…`, or to the page the app names in
+`billing.returnPaths` (`src/app/server-options.ts`), which gets the same
+session id. That page's loader first asks Stripe
+about the session (`confirmCheckout` in `src/server/billing/stripe.ts`) and
+writes the subscription row through the same code the webhook uses, so the
+purchase shows even when the webhook is late, pointed at the wrong address, or
+cannot reach a laptop. The session has to belong to the signed-in person, or it
+is treated as not found. The page then polls briefly for anything the ask could
+not settle, and refreshes the shell so the plan badge updates. Whichever of the
+ask and the webhook lands second finds the row already saying what it came to
+say and writes no second history line.
+
+**Changing plans.** The pricing page and the billing dialog switch plans in
+the app (`src/server/billing/plan-change.ts`): a signed preview of Stripe's
+invoice first, then the change on confirm, and only the webhook changes
+access. A switch between periods, or off a free price, starts a new paid
+period today: Stripe resets the renewal date and invoices the new price less
+the unused time at once, so the card's "Estimated payment today" is what the
+card is charged. A switch that keeps the period keeps the renewal date and
+folds the difference into the next bill. The history records a switch of
+period on the same plan as "Switched from Pro monthly to Pro yearly."
 
 **Managing.** "Manage in Stripe" opens the Stripe billing portal for card
 changes, plan switches and cancellation. This app never handles card details.

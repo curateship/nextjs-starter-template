@@ -25,6 +25,7 @@ import {
 } from "@/components/pomodoro/account-menu"
 import QuickControlsHeader from "@/components/pomodoro/quick-controls-header"
 import { SceneBackdrop } from "@/components/pomodoro/scene-backdrop"
+import { useShownBackground } from "@/lib/pomodoro/break-look"
 import SoundPlayerHeader from "@/components/pomodoro/sound-player-header"
 import { SavedLink } from "@/components/shell/public-navigation"
 import { NotificationCenter } from "@/components/shell/sticky-header/notification-center"
@@ -35,10 +36,7 @@ import type { AccountMenuFacts } from "@/lib/api/pomodoro/profile"
 import { usePublicNavigation } from "@/lib/branding"
 import type { MediaBootstrap } from "@/lib/pomodoro/media-pair"
 import { setGuestStartingTimer } from "@/lib/pomodoro/use-pomodoro"
-import {
-  MediaBootstrapContext,
-  useRoomMedia,
-} from "@/lib/pomodoro/room-media-store"
+import { MediaBootstrapContext } from "@/lib/pomodoro/room-media-store"
 import {
   publicDeviceSidebarClassName,
   savedMenuLinks,
@@ -301,7 +299,7 @@ export function PomodoroShell({
   const [menuOpen, setMenuOpen] = React.useState(false)
   const [collapsed, setCollapsed] = React.useState(false)
   const pathname = useRouterState({ select: (state) => state.location.pathname })
-  const { background, fallBackToDefault } = useRoomMedia(media)
+  const { background, fallBackToDefault } = useShownBackground({ seed: media })
   // A guest's timer starts where an admin set new accounts to start, read
   // before the timer store first reads a guest's saved state.
   if (typeof window !== "undefined" && media?.guestTimer)

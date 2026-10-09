@@ -3,8 +3,8 @@ import { createPortal } from "react-dom"
 import { MinimizeIcon } from "lucide-react"
 
 import { SceneBackdrop } from "@/components/pomodoro/scene-backdrop"
+import { useShownBackground } from "@/lib/pomodoro/break-look"
 import { cn } from "@/lib/utils"
-import { useRoomMedia } from "@/lib/pomodoro/room-media-store"
 import { MODE_LABELS } from "@/lib/pomodoro/timer"
 import type { usePomodoro } from "@/lib/pomodoro/use-pomodoro"
 
@@ -44,7 +44,9 @@ export function ZenMode({
   pomodoro: PomodoroApi
   onLeave: () => void
 }) {
-  const { background, fallBackToDefault } = useRoomMedia()
+  const { background, fallBackToDefault } = useShownBackground({
+    onBreak: pomodoro.timer.mode !== "focus",
+  })
   const [pointerAwake, setPointerAwake] = React.useState(true)
   const [chromeFocused, setChromeFocused] = React.useState(false)
   const overlay = React.useRef<HTMLDivElement>(null)

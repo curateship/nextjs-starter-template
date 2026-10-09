@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import { seededCatalog as catalog } from "@/lib/pomodoro/catalog-fixture"
 import {
+  freeBreakLook,
   guestMediaBootstrap,
   pairUsesPro,
   roomPairProblem,
@@ -111,5 +112,37 @@ describe("a hosted room that shuffles", () => {
     expect(roomPairProblem(catalog, "curated:rain", "tags:night")).toBeNull()
     expect(roomPairProblem(catalog, "shuffle", "scene:nope")).toBe("bad_background")
     expect(soundLabelFor(catalog, "shuffle")).toBe("Shuffled sounds")
+  })
+})
+
+describe("the admin's break look", () => {
+  const message = "Drink some water."
+
+  it("keeps a Live theme and the message", () => {
+    expect(freeBreakLook(catalog, { background: "scene:stars", message }, false)).toEqual({
+      background: "scene:stars",
+      message,
+    })
+  })
+
+  it("drops a theme that is gone, or Pro for somebody without Pro, and keeps the message", () => {
+    expect(freeBreakLook(catalog, { background: "scene:nope", message }, true).background).toBeNull()
+    // Fireplace is Pro.
+    expect(freeBreakLook(catalog, { background: "scene:fireplace", message }, false).background).toBeNull()
+    expect(freeBreakLook(catalog, { background: "scene:fireplace", message }, true).background).toBe(
+      "scene:fireplace"
+    )
+    expect(freeBreakLook(catalog, { background: "scene:nope", message }, false).message).toBe(message)
+  })
+
+  it("reaches a guest's page", () => {
+    const boot = guestMediaBootstrap(catalog, () => 0, {
+      shuffle: false,
+      defaults: { sound: null, background: null },
+      timer: null,
+      breakLook: { background: "scene:plain", message },
+    })
+    expect(boot.breakLook).toEqual({ background: "scene:plain", message })
+    expect(guestMediaBootstrap(catalog, () => 0).breakLook).toEqual({ background: null, message: "" })
   })
 })

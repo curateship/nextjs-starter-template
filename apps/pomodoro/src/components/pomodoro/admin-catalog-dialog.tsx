@@ -49,6 +49,7 @@ import {
   type CatalogKind,
 } from "@/lib/pomodoro/admin-catalog"
 import { normalizeTag } from "@/lib/pomodoro/media-pool"
+import { waitsForPixabayFile } from "@/lib/pomodoro/pixabay-links"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { useHeldWhileClosing } from "@/lib/pomodoro/use-held-while-closing"
 
@@ -79,7 +80,6 @@ type Draft = {
   licence: string
   licenceNote: string
   source: { path: string; kind: "audio" | "video" | "image"; name: string } | null
-  clearFile: boolean
 }
 
 const NOUN: Record<CatalogKind, string> = { theme: "theme", sound: "sound" }
@@ -99,7 +99,6 @@ function emptyDraft(kind: CatalogKind): Draft {
     licence: "",
     licenceNote: "",
     source: null,
-    clearFile: false,
   }
 }
 
@@ -118,7 +117,6 @@ function draftFrom(item: AdminCatalogItem): Draft {
     licence: item.licence ?? "",
     licenceNote: item.licenceNote ?? "",
     source: null,
-    clearFile: false,
   }
 }
 
@@ -225,7 +223,6 @@ export function AdminCatalogDialog({
     try {
       const stored = await uploadCatalogSource(file)
       update("source", { path: stored.path, kind: stored.kind, name: file.name })
-      update("clearFile", false)
     } catch (error) {
       setFileInvalid(true)
       showErrorToast(getCatalogAdminErrorMessage(error))
@@ -260,7 +257,6 @@ export function AdminCatalogDialog({
         source: draft.source
           ? { path: draft.source.path, kind: draft.source.kind }
           : null,
-        clearFile: draft.clearFile,
       })
       toast.success(
         creating
@@ -283,7 +279,7 @@ export function AdminCatalogDialog({
     : item
       ? item.label
       : `Edit ${NOUN[kind]}`
-  const hasFile = !draft.clearFile && Boolean(item?.fileUrl)
+  const hasFile = Boolean(item?.fileUrl)
 
   return (
     <FormDialog open={open} dirty={dirty} busy={saving || uploading} onClose={onClose}>
@@ -426,22 +422,22 @@ export function AdminCatalogDialog({
                       <CardDescription>
                         {kind === "sound"
                           ? "An MP3, WAV or OGG of 2 to 5 minutes. It is evened out for loudness before members hear it."
-                          : "A still is required. A film is optional, plays behind the page, and is shrunk to 720p first."}
+                          : "An MP4 or WebM film. It plays behind the page, is shrunk to 720p, and the frame halfway through it becomes the still."}
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="grid gap-4">
-                      <ImageUpload
-                        label={kind === "sound" ? "Card picture" : "Still"}
-                        value={draft.pictureUrl}
-                        onChange={(value) => update("pictureUrl", value)}
-                        aspect="video"
-                        className="sm:max-w-xs"
-                        hint={
-                          kind === "theme"
-                            ? "Shown on the card, and behind the page whenever the film cannot play. Leave it empty with a film and the film's first frame is used."
-                            : undefined
-                        }
-                      />
+                      {kind === "sound" ? (
+                        <ImageUpload
+                          label="Card picture"
+                          value={draft.pictureUrl}
+                          onChange={(value) => update("pictureUrl", value)}
+                          aspect="video"
+                          className="sm:max-w-xs"
+                          hint="Optional. Leave it empty and one of the built-in sound graphics is picked when you save."
+                        />
+                      ) : (
+                        <ThemeStill pictureUrl={item?.pictureUrl ?? null} />
+                      )}
                       <div className="grid gap-2">
                         <FieldLabel htmlFor={fileId}>
                           {kind === "sound" ? "Sound file" : "Film"}
@@ -452,6 +448,22 @@ export function AdminCatalogDialog({
                           hasFile={hasFile}
                           uploading={uploading}
                         />
+                        {kind === "theme" && hasFile && item?.fileUrl ? (
+                          // The film members see, playable here before it goes
+                          // Live. The browser's own player, as the media
+                          // library uses; the film has no sound.
+                          <video
+                            src={item.fileUrl}
+                            poster={item.pictureUrl ?? undefined}
+                            aria-label={`Preview of ${item.label}`}
+                            controls
+                            muted
+                            loop
+                            playsInline
+                            preload="metadata"
+                            className="aspect-video w-full rounded-lg bg-muted object-cover sm:max-w-xs"
+                          />
+                        ) : null}
                         <div className="flex flex-wrap gap-2">
                           <input
                             ref={fileInputRef}
@@ -479,18 +491,6 @@ export function AdminCatalogDialog({
                             )}
                             {hasFile || draft.source ? "Replace file" : "Choose file"}
                           </Button>
-                          {kind === "theme" && (hasFile || draft.source) ? (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              onClick={() => {
-                                update("source", null)
-                                update("clearFile", true)
-                              }}
-                            >
-                              Use the still only
-                            </Button>
-                          ) : null}
                         </div>
                       </div>
                       {kind === "sound" ? (
@@ -670,6 +670,32 @@ function TagsField({
   )
 }
 
+/**
+ * A theme's still, shown and never chosen. Tyler, 9 Oct 2026: "remove the
+ * ability to add a still image and just let the app capture an image in the
+ * middle of the clip". The worker takes it once the film is prepared.
+ */
+function ThemeStill({ pictureUrl }: { pictureUrl: string | null }) {
+  return (
+    <div className="grid gap-2">
+      <FieldLabel hint="Shown on the card, and behind the page whenever the film cannot play. A new film brings a new still.">
+        Still
+      </FieldLabel>
+      {pictureUrl ? (
+        <img
+          src={pictureUrl}
+          alt=""
+          className="aspect-video w-full rounded-lg bg-muted object-cover sm:max-w-xs"
+        />
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          Taken from the middle of the film once it is prepared.
+        </p>
+      )}
+    </div>
+  )
+}
+
 /** Where the item's file has got to, in one line under the field's label. */
 function FileStatusLine({
   item,
@@ -682,20 +708,26 @@ function FileStatusLine({
   hasFile: boolean
   uploading: boolean
 }) {
-  let text: string
+  let text: string | null
   if (uploading) text = "Sending the file…"
   else if (draft.source)
     text = `${draft.source.name} is uploaded. It is prepared after you save, and replaces the current file once it is ready.`
-  else if (draft.clearFile) text = "No film. The still is drawn on its own."
   else if (item?.fileStatus === "queued" || item?.fileStatus === "processing")
-    text = "A new file is being prepared. The current one stays until it is ready."
+    text = item.importUrl
+      ? "Fetching from Pixabay. The picture, artist and tags arrive within a minute or two."
+      : "A new file is being prepared. The current one stays until it is ready."
   else if (item?.fileStatus === "failed")
     text = `The last upload was refused: ${item.fileError ?? "it could not be prepared."}`
+  // A file in place needs no word of its own: a theme shows its player, and
+  // a sound says only how long it runs.
   else if (hasFile)
-    text = item?.durationSeconds
-      ? `Ready, ${formatClock(item.durationSeconds)} long.`
-      : "Ready."
+    text = item?.durationSeconds ? `${formatClock(item.durationSeconds)} long.` : null
+  else if (item && waitsForPixabayFile(item))
+    text = "Needs the file from Pixabay. Download the MP3 from its page and choose it here."
   else text = "No file yet."
+  const pixabayPage =
+    item?.sourceUrl && !draft.source && waitsForPixabayFile(item) ? item.sourceUrl : null
+  if (!text) return null
   return (
     <p
       className={
@@ -705,6 +737,19 @@ function FileStatusLine({
       }
     >
       {text}
+      {pixabayPage ? (
+        <>
+          {" "}
+          <a
+            href={pixabayPage}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-foreground underline underline-offset-2"
+          >
+            Open on Pixabay
+          </a>
+        </>
+      ) : null}
     </p>
   )
 }

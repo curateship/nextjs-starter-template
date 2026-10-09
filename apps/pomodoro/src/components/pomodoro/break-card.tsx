@@ -4,6 +4,7 @@ import { PersonStandingIcon } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { plural } from "@/lib/format/plural"
 import { cn } from "@/lib/utils"
+import { useBreakMessage, useMarkBreakShown } from "@/lib/pomodoro/break-look"
 
 /**
  * The card that shows while a break is on: a line that says what the break
@@ -14,6 +15,9 @@ import { cn } from "@/lib/utils"
  * The ticks are only for the person ticking them. They are kept for this
  * break and start empty on the next one, which is why the caller keys the
  * card by the break it belongs to.
+ *
+ * While the card is on screen the page draws the admin's break theme, if one
+ * is set, and the admin's message sits under the line (`break.look`).
  */
 
 const SHORT_BREAK_STEPS = [
@@ -44,6 +48,8 @@ export function BreakCard({
 }) {
   const steps = kind === "short" ? SHORT_BREAK_STEPS : LONG_BREAK_STEPS
   const [done, setDone] = React.useState<ReadonlySet<number>>(() => new Set())
+  const message = useBreakMessage().trim()
+  useMarkBreakShown()
   const headingId = React.useId()
   const title =
     kind === "short"
@@ -76,6 +82,11 @@ export function BreakCard({
           <p className="text-[15px] text-muted-foreground">{line}</p>
         </div>
       </header>
+      {message ? (
+        <p className="whitespace-pre-line rounded-xl border border-sky-400/20 bg-sky-400/[0.06] px-4 py-3 text-[15px]">
+          {message}
+        </p>
+      ) : null}
       <ul className="flex flex-col gap-2">
         {steps.map((step, index) => {
           const id = `${headingId}-step-${index}`

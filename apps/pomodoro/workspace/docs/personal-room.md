@@ -79,18 +79,18 @@ Then it is the pair the host picked, until you leave.
 
 ## Previewing and adding
 
-- **Clicking a sound on Sounds plays a preview on that page only.** It plays
-  through its own player (`usePreviewAudio` in
+- **Hovering over a sound on Sounds plays a preview on that page only.** It
+  plays through its own player (`usePreviewAudio` in
   `src/lib/pomodoro/use-preview-audio.ts`), never through the header's player,
   so it can't fight the timer's Start. One preview plays at a time, and
-  leaving the page stops it.
-- **Clicking a theme on Backgrounds opens a popover** with the scene playing in
-  it and the Add buttons under it. Tyler, 7 Oct 2026: "Clicking on the theme
-  should open up a popover to preview the theme (not open it in the background
-  like we do now)." The page behind never changes until a theme is added.
-- **The Add buttons sit with the preview**, over the picture of the previewed
-  sound card or under the scene in the theme's popover (`MediaAddActions` in
-  `src/components/pomodoro/media-add-actions.tsx`):
+  moving off the card or leaving the page stops it. See [Sounds](sounds.md).
+- **Hovering over a theme on Backgrounds plays it inside its card.** The page
+  behind never changes until a theme is added. Tyler swapped the preview
+  popover for this on 9 Oct 2026. See [Backgrounds](backgrounds.md).
+- **The Add choices sit behind the "+" in each card's bottom-right corner**
+  (`MediaAddMenu` in `src/components/pomodoro/media-add-actions.tsx`). The tags
+  panel's groups keep them as buttons (`MediaAddActions`, same file). Both
+  follow the same rules:
   - "Add to my personal room" saves it to your own room.
   - "Add to this room" is shown only to the host of the room you are in, and
     changes it for everyone in it.
