@@ -18,9 +18,9 @@ import {
 } from "@/server/video/viral/saved-searches"
 import {
   VIRAL_KEYWORD_MAX,
+  type ScoredViralShort,
   type ViralDays,
   type ViralSearchSummary,
-  type ViralShort,
 } from "@/lib/video/viral"
 
 /**
@@ -29,7 +29,12 @@ import {
  * is not a door to leave open to every member.
  */
 
-export type { ViralDays, ViralSearchSummary, ViralShort, YoutubeKeyStatus }
+export type {
+  ScoredViralShort,
+  ViralDays,
+  ViralSearchSummary,
+  YoutubeKeyStatus,
+}
 
 export const QUOTA_MESSAGE =
   "Today's 100 free YouTube searches are used up. They reset at midnight Pacific time."
@@ -81,7 +86,8 @@ export type ViralPageData = {
   keyUnreadable: boolean
   /** Every saved search, the one that ran last first. */
   searches: ViralSearchSummary[]
-  results: ViralShort[]
+  /** Each with its viral score, worked out on this read. */
+  results: ScoredViralShort[]
   /** The saved search the results belong to — fresh or reopened. */
   open: ViralSearchSummary | null
   /**

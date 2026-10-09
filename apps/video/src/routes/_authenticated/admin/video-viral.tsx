@@ -8,6 +8,7 @@ import { VIRAL_DAY_CHOICES, type ViralDays } from "@/lib/video/viral"
 
 export const VIRAL_SORT_COLUMNS = [
   "title",
+  "score",
   "channel",
   "views",
   "likes",

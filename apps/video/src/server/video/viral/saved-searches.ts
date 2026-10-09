@@ -1,18 +1,22 @@
 import { and, count, desc, eq, inArray, sql } from "drizzle-orm"
 
 import {
+  type ScoredViralShort,
   type ViralPlatform,
   type ViralSearchSummary,
   type ViralShort,
 } from "@/lib/video/viral"
+import { scoreViralVideo } from "@/lib/video/viral-score"
 import { now, uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
 import {
   videoViralResults,
   videoViralSearches,
+  videoViralVideos,
   type VideoViralResultRow,
   type VideoViralSearchRow,
 } from "@/server/video/schema"
+import { readStoredBreakdown } from "@/server/video/viral/analysis"
 import {
   searchYoutubeShorts,
   type ViralSearchInput,
@@ -38,7 +42,7 @@ export async function runAndSaveViralSearch(
   apiKey: string,
   fetchFn: typeof fetch = fetch,
   database: CustomShellDb = db
-): Promise<{ search: ViralSearchSummary; results: ViralShort[] }> {
+): Promise<{ search: ViralSearchSummary; results: ScoredViralShort[] }> {
   const results = await searchYoutubeShorts(input, apiKey, fetchFn)
   // The search itself is 100 units; finding anything adds the two batch
   // calls for video numbers and channel counts, 1 unit each.
@@ -127,7 +131,7 @@ export async function runAndSaveViralSearch(
     },
     results.length
   )
-  return { search, results }
+  return { search, results: await scoreShorts(ownerId, results, database) }
 }
 
 /** The person's saved searches, the one that ran last first. */
@@ -159,7 +163,7 @@ export async function getOwnedViralSearch(
   ownerId: string,
   searchId: string,
   database: CustomShellDb = db
-): Promise<{ search: ViralSearchSummary; results: ViralShort[] } | null> {
+): Promise<{ search: ViralSearchSummary; results: ScoredViralShort[] } | null> {
   const [row] = await database
     .select()
     .from(videoViralSearches)
@@ -179,8 +183,58 @@ export async function getOwnedViralSearch(
     .orderBy(desc(videoViralResults.views))
   return {
     search: summarize(row, resultRows.length),
-    results: resultRows.map(asShort),
+    results: await scoreShorts(ownerId, resultRows.map(asShort), database),
   }
+}
+
+/**
+ * Adds the viral score to each result. Worked out here, on every read, and
+ * never stored, so a video's score moves as it ages. A video this person has
+ * already saved and had broken down scores its breakdown part; every other
+ * result scores 0 for it and says the breakdown is missing.
+ */
+async function scoreShorts(
+  ownerId: string,
+  shorts: ViralShort[],
+  database: CustomShellDb,
+  at: Date = new Date()
+): Promise<ScoredViralShort[]> {
+  const ids = shorts.map((short) => short.id)
+  const brokenDown = ids.length
+    ? await database
+        .select({
+          platformVideoId: videoViralVideos.platformVideoId,
+          breakdown: videoViralVideos.breakdown,
+        })
+        .from(videoViralVideos)
+        .where(
+          and(
+            eq(videoViralVideos.ownerId, ownerId),
+            eq(videoViralVideos.platform, "youtube"),
+            eq(videoViralVideos.status, "ready"),
+            inArray(videoViralVideos.platformVideoId, ids)
+          )
+        )
+    : []
+  const breakdowns = new Map(
+    brokenDown.map((row) => [
+      row.platformVideoId,
+      readStoredBreakdown(row.breakdown),
+    ])
+  )
+
+  return shorts.map((short) => ({
+    ...short,
+    score: scoreViralVideo({
+      views: short.views,
+      likes: short.likes,
+      comments: short.comments,
+      postedAt: short.publishedAt || null,
+      followers: short.subscribers,
+      breakdown: breakdowns.get(short.id) ?? null,
+      now: at,
+    }),
+  }))
 }
 
 /**
