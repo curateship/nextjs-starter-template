@@ -160,20 +160,10 @@ What moved, and what it was:
 - **The header's glassy quick pills** were 42px, then 32px, and are 36px
   since Tyler asked for them 10% larger on 7 Oct 2026
   (`quick-controls-header.tsx`, `quickPillClass`; see
-  [the product shell](product-shell.md)). The colour-mode toggle, the
-  account photo and Register are still 32px.
+  [the product shell](product-shell.md)). The account photo and Register
+  are still 32px.
 - **Register** was 41px, built from `px-[22px] py-[11px]`, and is the shared
   `Button` at its 32px default with only the orange on top.
-- **The colour-mode toggle keeps its own moon-and-sun pill** and was not
-  moved onto a shared control. It is already 32px (`h-8 w-14`), so it was
-  never the reason the row stepped, and Tyler asked on 30 Sep 2026 for its
-  styling to be put back after a swap to `ui/theme-switcher.tsx`. It is the
-  one deliberate rebuilt control on these screens: the sliding knob runs
-  through `element.animate()` rather than a CSS transition, because the
-  shell's theme provider drops `*{transition:none!important}` over the page
-  for two frames while it flips the class and a CSS transition never plays
-  through that. `ThemeTogglePill` in `pomodoro-shell.tsx` holds the reasoning
-  in full.
 - **Start** is the shared `Button` at 36px, where the hand-written pill
   already sat. **Reset** and **Zen mode** were 44px circles and are 36px,
   the largest allowed height, because a 32px control looks lost inside the

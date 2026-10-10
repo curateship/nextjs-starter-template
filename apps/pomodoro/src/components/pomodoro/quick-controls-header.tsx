@@ -13,7 +13,9 @@ import {
   PlusIcon,
   RotateCcwIcon,
   SkipForwardIcon,
+  VolumeXIcon,
 } from "lucide-react"
+import { Popover as PopoverPrimitive } from "radix-ui"
 
 import { Button } from "@/components/ui/button"
 import { DisabledReason } from "@/components/ui/disabled-reason"
@@ -47,9 +49,13 @@ import {
 } from "@/lib/pomodoro/timer-presets"
 import { browserTimezone, type TimerMode } from "@/lib/pomodoro/timer"
 import { usePomodoro } from "@/lib/pomodoro/use-pomodoro"
+import { useSoundPlayer } from "@/lib/pomodoro/use-sound-player"
+import { VolumeSlider } from "@/components/pomodoro/sound-player-row"
 import { TextLink } from "@/components/pomodoro/text-link"
 import { SignInButton } from "@/components/pomodoro/sign-in-button"
 import { plural } from "@/lib/format/plural"
+
+type SoundPlayer = ReturnType<typeof useSoundPlayer>
 
 const modeLabels: Array<[TimerMode, string]> = [
   ["focus", "Focus"],
@@ -66,14 +72,27 @@ const modeLabels: Array<[TimerMode, string]> = [
  */
 /**
  * The glassy round surface every header control is drawn on: the quick pills,
- * the sound player and the notification bell. One string, so the three cannot
- * drift into three shades of glass.
+ * the menu button and the notification bell. One string, so they cannot
+ * drift into different shades of glass.
  */
 export const quickPillSurfaceClass =
   "rounded-full border bg-[rgba(var(--p-fg-rgb),0.07)] backdrop-blur-[12px]"
 
 /** The surface's hover, for the parts of it that are buttons. */
-const quickPillHoverClass = "hover:bg-[rgba(var(--p-fg-rgb),0.16)]"
+export const quickPillHoverClass = "hover:bg-[rgba(var(--p-fg-rgb),0.16)]"
+
+/**
+ * The header's dropdowns as frosted glass, so the scene shows through them
+ * blurred. Tyler, 10 Oct 2026: "Add the currant background scene under the
+ * dropdown here". The surface keeps most of its colour, because the words
+ * have to stay readable over the brightest scene. Put on this app's popovers
+ * rather than in the shared `PopoverContent`, which is a shell file.
+ */
+const quickPopoverGlassClass =
+  "bg-[rgba(var(--p-popover-rgb),0.72)] backdrop-blur-[20px] backdrop-saturate-150"
+
+/** A button inside the timer pill, which holds the timer and the music bars. */
+const timerPillPartClass = `flex h-full items-center gap-2 ${quickPillHoverClass} focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none`
 
 /**
  * The old app's glassy header pill, 36px tall with 15px words and an 18px
@@ -97,6 +116,13 @@ export const quickPillClass = `flex h-9 items-center gap-2 whitespace-nowrap ${q
 function QuickPillLabel({ children }: { children: React.ReactNode }) {
   return <span className="max-md:hidden">{children}</span>
 }
+
+/**
+ * Leaderboard and Theme are gone below 768px, leaving the timer pill alone in
+ * the middle. Tyler, 10 Oct 2026: "remove the leaderboard and theme button in
+ * mobile". Both stay one tap away in the left menu.
+ */
+const phoneHiddenClass = "max-md:hidden"
 
 /**
  * A heading inside a quick popover: small mono capitals over a full-width
@@ -139,6 +165,11 @@ function TimerQuickControl() {
   // Bumped by Try again, which runs the same load once more.
   const [presetAttempt, setPresetAttempt] = React.useState(0)
   const [open, setOpen] = React.useState(false)
+  const player = useSoundPlayer()
+  // Muting keeps the sound "playing", only silent, so the bars stay to unmute.
+  const soundOn =
+    player.state.selected !== null &&
+    (player.state.status === "playing" || player.state.status === "loading")
 
   React.useEffect(() => {
     if (!open) return
@@ -192,17 +223,42 @@ function TimerQuickControl() {
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button className={quickPillClass} aria-label="Timer quick controls">
-          <Clock3Icon className="size-[18px]" aria-hidden="true" />
-          {pomodoro.timer.running || !pomodoro.timerIdle ? (
-            <span className="font-mono text-xs tabular-nums">{countdown}</span>
-          ) : (
-            <QuickPillLabel>Timer</QuickPillLabel>
+      {/* Tyler, 10 Oct 2026: "The timer and music bar is one button". One
+          pill with two presses in it: the timer opens its settings, and the
+          music bars at its right end mute the sound. The settings hang from
+          the whole pill, not from the timer half. */}
+      <PopoverPrimitive.Anchor asChild>
+        <div
+          className={cn(
+            "flex h-9 items-center whitespace-nowrap text-[15px] font-semibold text-foreground",
+            quickPillSurfaceClass
           )}
-        </button>
-      </PopoverTrigger>
-      <PopoverContent className="w-[300px] gap-3.5 p-4">
+        >
+          <PopoverTrigger asChild>
+            <button
+              className={cn(
+                timerPillPartClass,
+                "pl-3.5 max-md:pl-2",
+                soundOn
+                  ? "rounded-l-full pr-2 max-md:pr-1"
+                  : "rounded-full pr-4 max-md:pr-2"
+              )}
+              aria-label="Timer quick controls"
+            >
+              <Clock3Icon className="size-[18px]" aria-hidden="true" />
+              {pomodoro.timer.running || !pomodoro.timerIdle ? (
+                <span className="font-mono text-xs tabular-nums">
+                  {countdown}
+                </span>
+              ) : (
+                <QuickPillLabel>Timer</QuickPillLabel>
+              )}
+            </button>
+          </PopoverTrigger>
+          {soundOn ? <SoundBarsButton player={player} /> : null}
+        </div>
+      </PopoverPrimitive.Anchor>
+      <PopoverContent className={cn("w-[300px] gap-3.5 p-4", quickPopoverGlassClass)}>
         <div className="flex items-center justify-between">
           <strong className="text-sm font-semibold">Timer settings</strong>
           <span className="font-mono text-sm tabular-nums text-muted-foreground">
@@ -388,6 +444,159 @@ function TimerQuickControl() {
   )
 }
 
+/** How long a finger rests on the bars before the volume opens instead of muting. */
+const HOLD_FOR_VOLUME_MS = 450
+
+/** How long the volume stays open after the mouse leaves, so it can cross the gap. */
+const VOLUME_CLOSE_DELAY_MS = 200
+
+/**
+ * The music bars at the right end of the timer pill, drawn while a sound
+ * plays. Tyler, 10 Oct 2026: "Add an animated music icon playing here when a
+ * sound is playing so user can mute the sound." The sound player itself sits
+ * under the clock, so on every other page this is the only sign a sound is
+ * on and the only way to silence it.
+ *
+ * A press mutes or unmutes, the same mute the player under the clock has.
+ * The volume opens on its own: on hover with a mouse, after holding a finger
+ * on the bars, or with the arrow keys, which also step it by five.
+ */
+function SoundBarsButton({ player }: { player: SoundPlayer }) {
+  const { state } = player
+  const [volumeOpen, setVolumeOpen] = React.useState(false)
+  const closeTimer = React.useRef<number | undefined>(undefined)
+  const holdTimer = React.useRef<number | undefined>(undefined)
+  // A hold that opened the volume is not also a press that mutes.
+  const held = React.useRef(false)
+
+  React.useEffect(
+    () => () => {
+      window.clearTimeout(closeTimer.current)
+      window.clearTimeout(holdTimer.current)
+    },
+    []
+  )
+
+  const openVolume = () => {
+    window.clearTimeout(closeTimer.current)
+    setVolumeOpen(true)
+  }
+  const closeVolumeSoon = () => {
+    window.clearTimeout(closeTimer.current)
+    closeTimer.current = window.setTimeout(
+      () => setVolumeOpen(false),
+      VOLUME_CLOSE_DELAY_MS
+    )
+  }
+  const stopHold = () => window.clearTimeout(holdTimer.current)
+
+  return (
+    <Popover open={volumeOpen} onOpenChange={setVolumeOpen}>
+      <PopoverPrimitive.Anchor asChild>
+        <button
+          type="button"
+          className={cn(
+            timerPillPartClass,
+            // A held finger must not select text or open the phone's own menu.
+            "rounded-r-full pr-3.5 pl-2 select-none [-webkit-touch-callout:none] max-md:pr-2.5 max-md:pl-1.5"
+          )}
+          aria-label={state.muted ? "Unmute sound" : "Mute sound"}
+          aria-pressed={state.muted}
+          aria-keyshortcuts="ArrowUp ArrowDown"
+          onClick={() => {
+            if (held.current) {
+              held.current = false
+              return
+            }
+            player.toggleMuted()
+          }}
+          onPointerEnter={(event) => {
+            if (event.pointerType === "mouse") openVolume()
+          }}
+          onPointerLeave={(event) => {
+            stopHold()
+            if (event.pointerType === "mouse") closeVolumeSoon()
+          }}
+          onPointerDown={(event) => {
+            if (event.pointerType === "mouse") return
+            held.current = false
+            stopHold()
+            holdTimer.current = window.setTimeout(() => {
+              held.current = true
+              openVolume()
+            }, HOLD_FOR_VOLUME_MS)
+          }}
+          onPointerUp={stopHold}
+          onPointerCancel={stopHold}
+          onContextMenu={(event) => event.preventDefault()}
+          onKeyDown={(event) => {
+            const step =
+              event.key === "ArrowUp" || event.key === "ArrowRight"
+                ? 5
+                : event.key === "ArrowDown" || event.key === "ArrowLeft"
+                  ? -5
+                  : 0
+            if (step === 0) return
+            event.preventDefault()
+            player.setVolume(Math.min(100, Math.max(0, state.volume + step)))
+            openVolume()
+          }}
+        >
+          {state.muted ? (
+            <VolumeXIcon className="size-4" aria-hidden="true" />
+          ) : (
+            <MusicBars />
+          )}
+        </button>
+      </PopoverPrimitive.Anchor>
+      <PopoverContent
+        className={cn("w-48 gap-2 p-3", quickPopoverGlassClass)}
+        // Opened by a hover, so it must not take the keyboard away.
+        onOpenAutoFocus={(event) => event.preventDefault()}
+        onPointerEnter={(event) => {
+          if (event.pointerType === "mouse") openVolume()
+        }}
+        onPointerLeave={(event) => {
+          if (event.pointerType === "mouse") closeVolumeSoon()
+        }}
+      >
+        <span className="flex items-baseline justify-between gap-2">
+          <strong className="text-sm font-semibold">Volume</strong>
+          <span className="font-mono text-xs tabular-nums text-muted-foreground">
+            {state.muted ? "Muted" : `${state.volume}%`}
+          </span>
+        </span>
+        <VolumeSlider player={player} className="w-full" />
+        <p className="text-[11.5px] leading-relaxed text-muted-foreground">
+          Press the bars to {state.muted ? "unmute" : "mute"}.
+        </p>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+/**
+ * Three bars rising and falling, the room cards' "live vibe" mark. With less
+ * movement asked for they stand still at three heights.
+ */
+function MusicBars() {
+  return (
+    <span aria-hidden="true" className="flex h-3.5 items-end gap-[2px]">
+      {[
+        { height: "100%", delay: "0s" },
+        { height: "55%", delay: "-0.4s" },
+        { height: "80%", delay: "-0.2s" },
+      ].map((bar) => (
+        <b
+          key={bar.delay}
+          className="w-[3px] origin-bottom animate-[pomodoro-equaliser_0.8s_ease-in-out_infinite] rounded-sm bg-current motion-reduce:animate-none"
+          style={{ height: bar.height, animationDelay: bar.delay }}
+        />
+      ))}
+    </span>
+  )
+}
+
 type Leaderboard = Awaited<ReturnType<typeof loadLeaderboard>>
 
 /**
@@ -427,12 +636,15 @@ function LeaderboardQuickControl() {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button className={quickPillClass} aria-label="Leaderboard">
+        <button
+          className={cn(quickPillClass, phoneHiddenClass)}
+          aria-label="Leaderboard"
+        >
           <BarChart3Icon className="size-[18px]" aria-hidden="true" />
           <QuickPillLabel>Leaderboard</QuickPillLabel>
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-[290px] gap-3 p-4">
+      <PopoverContent className={cn("w-[290px] gap-3 p-4", quickPopoverGlassClass)}>
         <div className="flex items-baseline gap-2">
           <strong className="text-sm font-semibold">Leaderboard</strong>
           <span className="font-mono text-[11px] text-muted-foreground">
@@ -532,12 +744,15 @@ function ThemeQuickControl() {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <button className={quickPillClass} aria-label="Theme quick controls">
+        <button
+          className={cn(quickPillClass, phoneHiddenClass)}
+          aria-label="Theme quick controls"
+        >
           <PaletteIcon className="size-[18px]" aria-hidden="true" />
           <QuickPillLabel>Theme</QuickPillLabel>
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-72 gap-3.5 p-4">
+      <PopoverContent className={cn("w-72 gap-3.5 p-4", quickPopoverGlassClass)}>
         <span className="flex flex-col gap-0.5">
           <strong className="text-sm font-semibold">Theme</strong>
           <small className="text-xs text-muted-foreground">{owner}</small>

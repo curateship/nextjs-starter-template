@@ -6,8 +6,8 @@ import * as React from "react"
  *
  * The stored theme can be "system", and "not light" is not the same as dark:
  * on a light-mode computer "system" draws light. Reading the class is reading
- * the answer the provider already worked out, so the header switch and
- * Settings → Appearance cannot disagree with what is on screen.
+ * the answer the provider already worked out, so the photo menu's Dark mode
+ * row and Settings → Appearance cannot disagree with what is on screen.
  */
 function subscribe(onChange: () => void) {
   const observer = new MutationObserver(onChange)

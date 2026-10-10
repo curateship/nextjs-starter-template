@@ -6,38 +6,47 @@ every product page in `src/components/pomodoro/pomodoro-shell.tsx` — the
 translucent blurred sidebar of pill links (Dashboard, Rooms, Pricing,
 Theme, Sounds, Leaderboard, History, Tasks; Settings at the foot), the
 transparent sticky header (brand; the glassy Timer / Leaderboard / Theme
-pills in the middle; then on the right the moon-knob colour toggle, and Log in + orange Register or [the bell](notifications.md) and
-[the account menu](account-menu.md)),
+pills in the middle; then on the right Log in + orange Register or
+[the bell](notifications.md) and [the account menu](account-menu.md)),
 and the chosen scene as a 720px hero
 that fades into the canvas on every edge. Pages overlap the hero's lower
 half (the shell's -mt-40), which is what makes the timer ring float on
 the image exactly like the old dashboard. **The product is dark by
-default**: a first visit with no saved colour choice starts dark, and the
-toggle still offers light. How dark the dark is belongs to Settings →
+default**: a guest is always dark, and a member with no saved choice starts
+dark and can switch to light. How dark the dark is belongs to Settings →
 Appearance; see [The dark mode shade](dark-mode-shade.md).
 
-## The colour toggle's knob
+## Light and dark
 
-**It only shows while visitors may choose.** Settings → Public → Styling →
-Colour mode set to "Always light" or "Always dark" fixes the page, and the
-switch goes, as the setting's own hint says. Tyler found it pressing and doing
-nothing on 9 Oct 2026, because the local site was set to "Always dark"; it is
-"Follow device" again, and Pomoder still starts a first visit dark on its own
-(the `setTheme("dark")` in `pomodoro-shell.tsx`).
+Tyler, 10 Oct 2026: "Move the theme switcher into the user dropdown. Hide it
+on anon users." Then: "The light and dark goes into user dropdown and guess
+always get dark mode."
 
-The moon-knob slides the 24px between its two ends over 300ms while the
-moon and the sun turn past each other. Both icons are always on the page,
-because a swap on arrival would have nothing to fade from.
-
-The movement runs through `element.animate()`, not a CSS transition. The
-shell's theme provider
-(`src/components/shell/sticky-header/light-dark-switcher.tsx`) drops
-`*{transition:none!important}` over the whole page for two frames while it
-flips the class, so that nothing on the page cross-fades its colours, and
-any CSS transition on the knob is caught by that rule and never plays. The
-rule says nothing about animations, so a keyframe animation still runs.
-That file belongs to the shell and is never edited from here, which is why
-the knob works around it rather than turning the rule off.
+- **There is no light/dark switch in the header.** A signed-in member flips
+  it with the Dark mode row in [the account menu](account-menu.md), or on
+  Settings → Appearance. The moon-knob pill that used to sit left of the bell
+  is gone.
+- **A guest is always dark**, whatever their computer is set to and whatever
+  this browser stored before (`useGuestsStayDark` in
+  `src/lib/pomodoro/guest-theme.ts`). The shell's "d" key does not turn a
+  guest light either: any change away from dark while signed out is put
+  straight back.
+- **A member's own choice survives signing out.** Signing out sets it aside
+  under `pomoder-signed-in-theme` before the page goes dark, and signing in
+  gives it back. A member with no choice yet starts dark.
+- **Nothing changes until the page knows who is signed in.** The sign-in pages
+  and the pages an admin wrote ask from the browser (`useSignedInUser`), and
+  the rule waits for that answer, so a member is never drawn as a guest for a
+  moment.
+- **An admin's fixed colour mode still wins.** Settings → Public → Styling →
+  Colour mode set to "Always light" or "Always dark" fixes every page,
+  guests included, and the account menu's Dark mode row goes, as the
+  setting's own hint says ("A fixed mode hides their switch"). The fixed mode
+  is applied by the shell's root (`forcedTheme` in `src/routes/__root.tsx`),
+  which this app never edits.
+- **A guest who chose light before 10 Oct sees light for a moment** on their
+  first visit after this change, until the page starts in the browser. The
+  stored word is dark from then on.
 
 ## The header's controls
 
@@ -56,6 +65,19 @@ transparent".
 - **The sound player is not in the header any more.** Tyler moved it under
   the clock on 9 Oct 2026; see "The player sits under the clock" in
   [Sounds](sounds.md).
+- **The timer pill carries music bars while a sound plays.** Tyler, 10 Oct
+  2026: "Add an animated music icon playing here when a sound is playing so
+  user can mute the sound", and "The timer and music bar is one button". The
+  pill is one glass shape holding two buttons: the timer half opens Timer
+  settings, and the bars at its right end mute and unmute. The details are in
+  "The music bars in the header" in [Sounds](sounds.md).
+- **The three dropdowns are frosted glass.** Tyler, 10 Oct 2026: "Add the
+  currant background scene under the dropdown here". Timer settings,
+  Leaderboard and Theme draw their surface at 72% of the popover colour with
+  a 20px blur, so the scene shows through blurred and the words stay
+  readable over a bright one (`quickPopoverGlassClass` in
+  `quick-controls-header.tsx`). The class is put on this app's three
+  `PopoverContent` calls, never in the shell's popover file.
 - **The bell is a 36px glass circle.** The button is the shell's
   `NotificationCenter`, which this app never edits, so the classes reach it
   from a wrapper in `pomodoro-shell.tsx` (`bellPillClass`, written out in full
@@ -67,7 +89,7 @@ transparent".
   wrap, so the pills sit in the middle of the space between the brand and the
   right-hand group instead.
 - **Nothing in the right-hand group shrinks.** Squeezed, "Log in" broke over
-  two lines and the colour switch lost its width.
+  two lines.
 
 ## Collapsing the sidebar
 
@@ -93,17 +115,34 @@ than the content's 48px, because the row of controls fits a 1024px window with
 40px of edge and needs a second line with 48px.
 
 **The header row is allowed a second line.** It holds the menu button, the
-brand, three pills, the colour toggle and either the account photo or Log in
-plus Register, and how much room that needs depends on what is in it: Log in
+brand, three pills and either the bell and the account photo or Log in plus
+Register, and how much room that needs depends on what is in it: Log in
 plus Register is wider than the photo. So no single breakpoint covers every
 case, and the row wraps instead. A window wide enough for one line is unchanged, and the header's resting
 height is still 86px.
 
-**Below 768px a second line is not enough either**, so the three glassy pills
-drop their words and become their icons in a circle. The Timer pill keeps its
-countdown, because that is the reason to look at it. Every pill already carries
-its own `aria-label`, so hiding the words costs no name and the popovers are
-unchanged.
+**Below 768px a second line is not enough either**, so the header keeps only
+the Timer pill in the middle, without its word. It keeps its countdown and its
+music bars, because those are the reasons to look at it. Leaderboard and Theme
+are not drawn at all. Tyler, 10 Oct 2026: "remove the leaderboard and theme
+button in mobile". Both pages stay one tap away in the left menu
+(`phoneHiddenClass` in `quick-controls-header.tsx`).
+
+**The menu button is the header's glass circle**, 36px, with the same border,
+fill, blur and hover as the bell and the pills. Tyler, 10 Oct 2026: "add a
+background to the hamburger icon so that it matches with the other buttons on
+the menu". It shows below 1024px, where the left menu becomes a drawer.
+
+**A guest on a phone sees one orange Log in, and no Register.** Tyler,
+10 Oct 2026: "in mobile. dont show login and register. just show only login
+in primary button". From 768px up it is the plain Log in link and the orange
+Register, as before. Both Log in versions carry the page you were on, and the
+sign-in page links to registering ("Create an account").
+
+Measured on 10 Oct 2026: below 768px the header is one 86px line at every
+width from 320px, for guests and members alike. Between 768px and 1023px the
+three pills with their words take a second line (136px). Nothing scrolls
+sideways at any width.
 
 768 and not 640 because 640 was measured: with the words back on, a 640px window
 still scrolled sideways by 61px.

@@ -1,8 +1,8 @@
 # The account menu
 
 When you are signed in, the right end of the product header is your photo.
-Clicking it opens a menu. A visitor who is not signed in still sees Log in and
-Register in that spot.
+Clicking it opens a menu. A visitor who is not signed in sees Log in and
+Register in that spot, or only an orange Log in on a phone.
 
 ## What the menu holds
 
@@ -18,7 +18,15 @@ Register in that spot.
 - **Upgrade to Pro** opens `/plans`, and only Free accounts see it.
 - **Admin** opens `/admin`, and only admins see it. The `/admin` route checks
   the role again, so hiding the row is not the only guard.
-- **Log out** signs out and lands on `/login`.
+- **Dark mode** is a row with a tick, just above Log out. Tyler, 10 Oct 2026:
+  "Move the theme switcher into the user dropdown. Hide it on anon users." It
+  switches between light and dark and leaves the menu open, so you see the
+  page change under it. The tick follows what is on screen, so "System" on a
+  dark-mode computer shows ticked. It is left off when an admin fixed the
+  site to always light or always dark. A guest has no menu and is always
+  dark; see "Light and dark" in [the product shell](product-shell.md).
+- **Log out** signs out and lands on `/login`. Your light or dark choice is
+  kept aside while you are signed out and comes back when you sign in.
 
 ## Where the plan and the profile come from
 
