@@ -22,7 +22,8 @@ import {
 import { PIXABAY_LICENCE_NOTE } from "@/server/pomodoro/pixabay-import"
 import { readPixabayKey } from "@/server/pomodoro/pixabay-key"
 import { pomodoroCatalogItems, type PomodoroCatalogItem } from "@/server/pomodoro/schema"
-import { uploadLimitBytes } from "@/lib/pomodoro/media-limits"
+import { CATALOG_FILM_LIMIT_BYTES } from "@/lib/pomodoro/admin-catalog"
+import { formatBytes, uploadLimitBytes } from "@/lib/pomodoro/media-limits"
 import { readPixabayAddress } from "@/lib/pomodoro/pixabay-links"
 
 /**
@@ -39,8 +40,11 @@ import { readPixabayAddress } from "@/lib/pomodoro/pixabay-links"
  * A music link never reaches here: nothing is fetched for a sound.
  */
 
-/** A picture takes seconds and a 100 MB film a few minutes; a live job is never stolen. */
-const CLAIM_TIMEOUT_MS = 5 * 60 * 1000
+/**
+ * Longer than the slowest film: eight minutes to fetch 300 MB, then the copy
+ * into the bucket. A picture takes seconds. A live job is never stolen.
+ */
+const CLAIM_TIMEOUT_MS = 12 * 60 * 1000
 const STILLS_PER_PASS = 5
 const GAVE_UP = "Pixabay's file could not be fetched"
 
@@ -131,13 +135,16 @@ async function processPixabayImport(job: Job): Promise<"done" | "again"> {
   try {
     if (job.sourceKind === "video") {
       const video = await fetchPixabayVideo(key, id)
-      const rendition = pickPixabayRendition(video, uploadLimitBytes("video"))
+      const rendition = pickPixabayRendition(video, CATALOG_FILM_LIMIT_BYTES)
       if (!rendition) {
-        await failImport(job, "Pixabay's film is over 100 MB in every size it offers.")
+        await failImport(
+          job,
+          `Pixabay's film is over ${formatBytes(CATALOG_FILM_LIMIT_BYTES)} in every size it offers.`
+        )
         return "done"
       }
       const file = await storeCatalogBytes(
-        await downloadPixabayFile(rendition.url, uploadLimitBytes("video"))
+        await downloadPixabayFile(rendition.url, CATALOG_FILM_LIMIT_BYTES)
       )
       stored = file.path
       if (file.kind !== "video") throw new Error("INVALID_FILE_CONTENT")

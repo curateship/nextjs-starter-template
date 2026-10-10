@@ -33,6 +33,21 @@ need an account, like History's data), and the product header shows Log in
   and nothing about them is kept in the browser. See
   [The personal room](personal-room.md).
 
+## A reload never draws the signed-out page first
+
+Tyler, 9 Oct 2026: "whenever I reload the page. I get this login screen
+briefly before everything loads. We need to remove that". Pages ask
+`useProductAuth()` whether you are signed in. The answer used to come only
+from an effect in the `_pomodoro` layout, which runs in the browser after the
+first frame, so the server drew every page as a guest (Rooms showed "Sign in
+to browse the open rooms") and the browser swapped it a moment later.
+
+The layout now also hands its loader's answer down through
+`ProductAuthContext` (`src/lib/pomodoro/auth-state.ts`). The server and the
+browser's first frame read that, and once the effect has run the live answer
+takes over, so logging out without a reload still shows. A guest still gets
+the guest page from the first frame.
+
 ## The import
 
 The first signed-in visit after working as a guest copies the guest's

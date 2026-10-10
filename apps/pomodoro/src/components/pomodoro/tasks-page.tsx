@@ -160,7 +160,7 @@ export function TasksPage() {
     <>
       <div className={`${contentColumn} flex flex-col gap-6 py-8`}>
         <header className="flex flex-wrap items-end justify-between gap-4">
-          <div className="flex flex-col gap-2">
+          <div className="title-halo flex flex-col gap-2">
             <h2 className="text-4xl font-bold tracking-tight">Tasks</h2>
             <p className="text-muted-foreground">
               {days.length

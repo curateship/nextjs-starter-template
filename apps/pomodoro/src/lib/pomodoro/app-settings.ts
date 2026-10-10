@@ -129,7 +129,9 @@ export type MediaSeason = AppSettingValue<"media.seasons">[number]
 export const APP_SETTING_DEFAULTS: {
   [K in AppSettingKey]: AppSettingValue<K>
 } = {
-  "media.shuffleUnset": false,
+  // Tyler, 9 Oct 2026: "shuffle is on automatically for all users until they
+  // choose a song or theme." An admin can still switch it off.
+  "media.shuffleUnset": true,
   "media.defaults": { sound: null, background: null },
   "media.seasons": [],
   "break.look": { background: null, message: "" },

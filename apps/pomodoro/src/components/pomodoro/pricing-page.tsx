@@ -137,10 +137,10 @@ export function PricingPage({
           8 Oct 2026: "align the header and subheader left", then "the
           header font is a bit bigger than the other pages header. match it". */}
       <header className="flex flex-col items-start gap-2">
-        <h2 className="text-4xl font-bold tracking-tight">
+        <h2 className="title-halo text-4xl font-bold tracking-tight">
           Focus longer, together.
         </h2>
-        <p className="max-w-xl text-muted-foreground">
+        <p className="title-halo max-w-xl text-muted-foreground">
           The timer, tasks and rooms are free. Pro unlocks every sound and
           scene, AI mixes, hosting and your full history.
         </p>

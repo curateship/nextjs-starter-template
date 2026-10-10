@@ -25,6 +25,7 @@ import {
 } from "@/components/pomodoro/account-menu"
 import QuickControlsHeader from "@/components/pomodoro/quick-controls-header"
 import { SceneBackdrop } from "@/components/pomodoro/scene-backdrop"
+import { ThemeArrows } from "@/components/pomodoro/theme-arrows"
 import { useShownBackground } from "@/lib/pomodoro/break-look"
 import SoundPlayerHeader from "@/components/pomodoro/sound-player-header"
 import { SavedLink } from "@/components/shell/public-navigation"
@@ -573,12 +574,16 @@ export function PomodoroShell({
               where it did and the scene fades out further down behind it.
               Tyler, 8 Oct 2026: "Let the gradient flow lower", then "a bit
               higher". */}
-          <div className="relative -mt-[86px] h-[860px] overflow-hidden">
+          <div className="group/hero relative -mt-[86px] h-[860px] overflow-hidden">
             <SceneBackdrop
               background={background}
               onMediaError={fallBackToDefault}
               shading="hero"
             />
+            {/* The dashboard only: arrows that step the theme. */}
+            {pathname === "/timer" || pathname === "/" ? (
+              <ThemeArrows shown={background} />
+            ) : null}
           </div>
           <div className={cn("relative z-[4] -mt-[300px] pb-20", pageGutterClass)}>
             {children}

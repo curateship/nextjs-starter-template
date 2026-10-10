@@ -50,7 +50,9 @@ nothing changes until an admin saves. The server holds them for five seconds.
 
 - **Shuffle for guests and for members who haven't picked their own.** Tyler,
   8 Oct 2026. On, they get shuffle for both, from free items for a guest. Off,
-  they get the defaults below. "Haven't picked" means the personal room's sound
+  they get the defaults below. It starts on: Tyler, 9 Oct 2026, "shuffle is on
+  automatically for all users until they choose a song or theme." A site where
+  an admin already saved it off keeps it off. "Haven't picked" means the personal room's sound
   or theme is still empty; a member who chose silence saved `none` and keeps it.
 - **Default sound and default theme**, from free Live items only, because guests
   get them too. With none set, a guest gets a random free pair as before, and a

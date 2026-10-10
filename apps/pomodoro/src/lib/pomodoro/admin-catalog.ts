@@ -99,6 +99,15 @@ export function labelFromFilename(name: string) {
   return label.charAt(0).toUpperCase() + label.slice(1)
 }
 
+/**
+ * The biggest theme film the server copies in from Pixabay. Tyler, 9 Oct 2026:
+ * "we need to increase file limit for themes", after Pixabay's 1440p snow film
+ * (226 MB) and its 1080p version (158 MB) were both refused at 100 MB. A film
+ * the admin uploads from the browser stays at the members' 100 MB, because
+ * Cloudflare turns away any upload past that before it reaches pomoder.com.
+ */
+export const CATALOG_FILM_LIMIT_BYTES = 300 * 1024 * 1024
+
 /** The most files one "Upload several" press sends. */
 export const CATALOG_BULK_MAX = 25
 

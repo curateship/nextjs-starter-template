@@ -48,6 +48,8 @@ html:root:has([data-pomodoro-screen]) {
   --p-text-faint: #8c8177;
   --p-fg-rgb: 47, 38, 28;
   --p-shadow-rgb: 60, 45, 30;
+  /* The glow behind a page title over the scene: the page's own paper. */
+  --p-halo-rgb: 255, 253, 249;
   --p-accent: #f2502d;
   --p-accent-2: #cc4225;
   --p-on-accent: #ffffff;
@@ -140,6 +142,19 @@ html:root:has([data-pomodoro-screen]) [data-slot="button"] {
   font-weight: 700;
 }
 
+/*
+ * A soft glow the colour of the page behind a page's title and the line under
+ * it, so they stay readable over a bright scene. Tyler, 9 Oct 2026: "sometimes
+ * the background makes the text hard to read ... can you add a darker blur
+ * behind the text?" Dark in dark mode, pale in light mode.
+ */
+html:root:has([data-pomodoro-screen]) .title-halo {
+  text-shadow:
+    0 1px 2px rgba(var(--p-halo-rgb), 0.6),
+    0 0 14px rgba(var(--p-halo-rgb), 0.7),
+    0 0 36px rgba(var(--p-halo-rgb), 0.55);
+}
+
 @keyframes pomodoro-vibe {
   0% { background-position: 0 50%; }
   50% { background-position: 100% 50%; }
@@ -166,6 +181,7 @@ html:root.dark:has([data-pomodoro-screen]) {
   --p-text-faint: #67656c;
   --p-fg-rgb: 255, 255, 255;
   --p-shadow-rgb: 0, 0, 0;
+  --p-halo-rgb: 0, 0, 0;
   --p-accent: #ff5a3c;
   --p-accent-2: #ff7a5c;
   --p-on-accent: #ffffff;

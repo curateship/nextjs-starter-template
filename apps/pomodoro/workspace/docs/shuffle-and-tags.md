@@ -11,12 +11,19 @@ sound ends. The idea is Tyler's own, from 8 Oct 2026.
   is on Settings → Themes and sounds; see [Admin settings](admin-settings.md).
 - **"Add tag ability to sounds and themes and let user select tags as default
   first tab with another tab to select individual sound and theme. User can also
-  select shuffle for both."**
+  select shuffle for both."** The tabs part was replaced on 9 Oct 2026 by the
+  filter below; the tags and shuffle stay.
 - **The next one comes when the sound ends.** Tyler: "It should change when the
   sound ends and because of that, we have to make each sound 2-5 mins each." The
   theme changes at the same moment as the sound.
-- **Shuffle draws from everything**, not from the member's tags. Picking tags is
-  a separate choice, and draws only from those tags.
+- **"Shuffle is on automatically for all users until they choose a song or
+  theme."** Tyler, 9 Oct 2026. The admin switch above now starts on, so a guest
+  and a member who has never picked hear shuffle from their first visit.
+- **"Remove tag tab and just list by grid and add a filter dropdown to filter
+  the tags and a checkbox beside each tag filter to add to shuffle."** Tyler,
+  9 Oct 2026. This replaced the By tag and Pick one tabs of 8 Oct.
+- **Shuffle draws from everything** while every tag is ticked, and only from the
+  ticked tags otherwise.
 - **Each device picks for itself.** A phone and a laptop on the same shuffle can
   play different tracks.
 - **A host can shuffle a room, or keep it to a tag.** Everybody in the room
@@ -24,28 +31,42 @@ sound ends. The idea is Tyler's own, from 8 Oct 2026.
 
 ## The pages
 
-The Sounds and Theme pages each have two tabs, **By tag** first and **Pick one**
-second, which is the page as it was. With nothing tagged at all, the page opens on
-Pick one rather than on an empty tab.
+The Sounds and Theme pages show one grid of cards. Beside the title sit two
+round pills, the tag filter and Shuffle (`media-pool-panel.tsx`), drawn with the
+Leaderboard's pill classes (`src/lib/pomodoro/pill-tabs.ts`). Tyler, 9 Oct
+2026: "should match the button like the leaderboard". With nothing tagged, the
+filter is not drawn and only Shuffle shows.
 
-- **By tag** shows every tag on Live items as a chip, with how many items carry
-  it. Ticking chips says what will play ("Plays a random nature sound: 3 sounds
-  to pick from."), and the usual buttons put it in your personal room, or in the
-  room you host.
+- **The filter** reads "All tags", one tag's name, or "5 tags". It opens a
+  list headed "Show & shuffle" with an orange box and a count for every tag.
+- **Every box starts ticked**, which is "All tags": every card shows, tagged
+  or not, and shuffle plays everything. When the member's shuffle is already
+  kept to some tags, the page opens with those ticked.
+- **A ticked tag is shown, and shuffled.** Unticking a tag hides cards that
+  carry only unticked tags, and goes back to page 1. While Shuffle is on, each
+  box saves at once and shuffle plays only the ticked tags ("Shuffle plays only
+  rain or nature sounds."). While Shuffle is off, the boxes only filter the
+  grid.
+- **The last ticked box cannot be unticked**, so the grid is never empty. It
+  says "Keep at least one tag ticked."
+- **As many tags as fit the stored choice**, which is 200 characters, about
+  twenty tags of ordinary length. Past that, shuffle says "That is too many
+  tags to shuffle. Untick a few more." and the grid still filters.
 - **A free account counts only the free items**, and a tag with only Pro items
-  says Pro and cannot be ticked.
-- **Shuffle every sound** (or theme) is a switch beside the tabs, for your own
-  room. On, a random item from everything your plan allows. Off, the one playing
-  now stays as your pick.
+  says Pro and its box cannot be ticked.
+- **Shuffle** is the switch, for your own room. Switching it on shuffles the
+  ticked tags, or everything with every tag ticked. Off, the one playing now
+  stays as your pick.
 - **The header player shows a Next button** while the sound is a group. It moves
   the sound on, and the theme too when the theme is a group.
 - **Hosting a room** offers "Shuffle every sound" and "Only <tag> sounds" above
-  the single sounds, and the same for themes.
+  the single sounds, and the same for themes. The pages no longer put a group of
+  tags in a hosted room; the room's own picker does.
 
 ## How it is stored
 
 In the same columns a single choice is, so nothing that held `curated:<key>`
-changed: `shuffle`, or `tags:nature,rain` (sorted, at most six tags). Migration
+changed: `shuffle`, or `tags:nature,rain` (sorted, as many tags as fit the 200 characters; it was six until 9 Oct 2026). Migration
 `0124_pomodoro_shuffle_tags_settings.sql` widened the three columns to 200
 characters. A choice of silence is now saved as `none`, so it is told apart from
 never having picked, which is what the admin's defaults fill in.

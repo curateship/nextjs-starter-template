@@ -641,7 +641,7 @@ function TagsField({
     <div className="grid gap-2">
       <FieldLabel
         htmlFor={id}
-        hint="Members pick sounds and themes by these words on the By tag tab. Separate them with commas, up to eight."
+        hint="Members filter sounds and themes by these words, and tick them to shuffle. Separate them with commas, up to eight."
       >
         Tags
       </FieldLabel>

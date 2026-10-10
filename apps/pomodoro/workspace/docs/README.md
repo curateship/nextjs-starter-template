@@ -101,9 +101,10 @@ cover this one.
 - [Room chat and moderation](room-chat-and-moderation.md) — talking in a
   room, the five reactions, reporting a message, and the host's delete,
   remove and ban.
-- [Shuffle and tags](shuffle-and-tags.md) — the By tag tab, the Shuffle
-  switch, how the next sound and theme are picked when a sound ends, and a host
-  shuffling a room.
+- [Shuffle and tags](shuffle-and-tags.md) — the "Show & shuffle" tag filter
+  and the Shuffle switch beside each page's title, shuffle on by default, how
+  the next sound and theme are picked when a sound ends, and a host shuffling
+  a room.
 - [Admin safety tools](admin-safety-tools.md) — the Chat and Bans pages,
   warnings, suspensions, blocked words, the pause switches and STAFF.
 - [Rooms in the admin](rooms-admin.md) — closing, editing and featuring

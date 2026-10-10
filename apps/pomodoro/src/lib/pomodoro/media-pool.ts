@@ -21,9 +21,8 @@ export type MediaPool = { mode: "shuffle" } | { mode: "tags"; tags: string[] }
 
 /** Lower case, digits, spaces and dashes, short enough to be a chip. */
 export const TAG_PATTERN = /^[a-z0-9][a-z0-9 -]{0,23}$/
-/** The most tags one item carries, and the most one choice ticks. */
+/** The most tags one item carries. */
 export const MAX_ITEM_TAGS = 8
-export const MAX_POOL_TAGS = 6
 /** The longest stored choice, matching the 200-character columns. */
 export const MAX_CHOICE_LENGTH = 200
 
@@ -41,8 +40,21 @@ export function parseMediaPool(value: unknown): MediaPool | null {
     .split(",")
     .map((tag) => normalizeTag(tag))
     .filter((tag): tag is string => tag !== null)
-  const unique = [...new Set(tags)].slice(0, MAX_POOL_TAGS)
-  return unique.length ? { mode: "tags", tags: unique } : null
+  // As many tags as fit the column, which is about twenty of ordinary length.
+  const kept: string[] = []
+  for (const tag of new Set(tags)) {
+    if (!tagsFit([...kept, tag])) break
+    kept.push(tag)
+  }
+  return kept.length ? { mode: "tags", tags: kept } : null
+}
+
+/**
+ * Whether these tags fit one stored choice. Tyler's 9 Oct design starts with
+ * every tag ticked, so the limit is the 200-character column, not a count.
+ */
+export function tagsFit(tags: string[]) {
+  return serializeMediaPool({ mode: "tags", tags }).length <= MAX_CHOICE_LENGTH
 }
 
 export function serializeMediaPool(pool: MediaPool) {
@@ -120,4 +132,17 @@ export function catalogTags(items: { tags: string[]; locked: boolean }[]) {
 export function describeTags(tags: string[]) {
   if (tags.length <= 1) return tags[0] ?? ""
   return `${tags.slice(0, -1).join(", ")} or ${tags.at(-1)}`
+}
+
+/** The cards with any ticked tag, or every card when every tag is ticked (null). */
+export function filterByTags<T extends { tags: string[] }>(
+  items: T[],
+  ticked: string[] | null
+) {
+  return ticked ? items.filter((item) => item.tags.some((tag) => ticked.includes(tag))) : items
+}
+
+/** The tags a page opens with ticked: the shuffle's own, else every tag (null). */
+export function tickedFromPool(pool: MediaPool | null) {
+  return pool?.mode === "tags" ? pool.tags : null
 }

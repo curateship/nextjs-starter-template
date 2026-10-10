@@ -8,8 +8,11 @@ edits them on the Themes admin page; see
 app: Lofi girl (an mp4 video), Ambient glow, Plain dark and Starry night free;
 Rainy window, Night forest, Ocean waves and Fireplace for Pro.
 
-- **Two tabs, By tag first and Pick one second**, and a Shuffle switch beside
-  them. See [Shuffle and tags](shuffle-and-tags.md).
+- **One grid of cards**, with the tag filter and Shuffle pills beside the
+  title. See [Shuffle and tags](shuffle-and-tags.md). Cards sit 24px apart on a
+  wide screen and 16px on a phone, the same on Sounds and Theme (Tyler, 9 Oct
+  2026: "add a bigger gap between the theme cards, match that same gap with
+  sound cards too").
 - **Any theme can be a film**, with its still as the poster and the fallback.
   A film that will not play, or anybody who asked for less movement, gets
   the still. Before 8 Oct 2026 only Lofi girl had a film.
@@ -24,6 +27,24 @@ Sounds page has. Tyler asked for it on 7 Oct 2026 ("the theme page is missing
 this"). It is the shared `CatalogPager` (`catalog-pager.tsx`): eight cards a
 page, and Prev, page numbers and Next appear beside the count once there is a
 second page.
+
+## Changing the theme from the dashboard
+
+Tyler, 9 Oct 2026: "can you add a hover over back and forth arrow here to
+change themes". Round arrows sit at the left and right edges of the
+dashboard's scene (`theme-arrows.tsx`), shown while the pointer is over the
+scene. A screen with no pointer, such as a phone, shows them all the time.
+
+- **With one theme picked**, an arrow steps to the theme before or after it,
+  in the order the Theme page shows, skipping Pro themes on a free account,
+  and saves it as your theme. The last one wraps round to the first.
+- **On shuffle or ticked tags**, an arrow steps through that group and the
+  group stays, the same as the header's Next button. The next shuffle still
+  comes when the sound ends.
+- **They hide** in a hosted room, whose theme is the room's, while a break
+  theme is showing, and when there is only one theme to step to.
+- **Only on the dashboard** (`/timer`). Other pages share the scene but not
+  the arrows.
 
 ## How it works
 

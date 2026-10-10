@@ -356,7 +356,9 @@ export function soundEngineState(): Snapshot {
 export function togglePlayback() {
   const active = ensureFader()
   if (!state.selected) return
-  if (state.status === "playing") {
+  // Loading counts as playing: the button already says Pause then.
+  if (state.status === "playing" || state.status === "loading") {
+    dispatch({ type: "pause" })
     active?.fadeOutPause()
     return
   }

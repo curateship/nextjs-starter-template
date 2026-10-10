@@ -62,6 +62,7 @@ describe("somebody who never picked", () => {
     const fresh = (await insertUser(db)).id
     const quiet = (await insertUser(db)).id
     await savePersonalSound(quiet, null)
+    await saveAppSetting({ key: "media.shuffleUnset", value: false, actorUserId: admin })
     await saveAppSetting({
       key: "media.defaults",
       value: { sound: "curated:rain", background: "scene:stars" },
@@ -75,14 +76,13 @@ describe("somebody who never picked", () => {
     })
     expect(forFresh.fallbackBackground).toBe("scene:stars")
     expect((await loadMediaBootstrap(quiet)).personal.sound).toBe("none")
-    const [log] = await db.select().from(pomodoroAuditLogs)
-    expect(log).toMatchObject({ resource: "settings", recordIds: ["media.defaults"] })
+    const logs = await db.select().from(pomodoroAuditLogs)
+    expect(logs.map((log) => log.recordIds)).toContainEqual(["media.defaults"])
   })
 
-  it("shuffles with the switch on, and the server picks the first sound and theme", async () => {
-    const admin = (await insertUser(db, { role: "admin" })).id
+  it("shuffles by default, and the server picks the first sound and theme", async () => {
+    // Nothing saved: the switch starts on (Tyler, 9 Oct 2026).
     const fresh = (await insertUser(db)).id
-    await saveAppSetting({ key: "media.shuffleUnset", value: true, actorUserId: admin })
 
     const boot = await loadMediaBootstrap(fresh)
     expect(boot.personal).toMatchObject({ sound: "shuffle", background: "shuffle" })

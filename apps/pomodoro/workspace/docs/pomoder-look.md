@@ -75,6 +75,15 @@ drawings rather than dividing lines:
 - **A locked badge's empty ring and a colour swatch's outline** draw a state
   and a sample, not a line between two things.
 
+## Page titles glow over the scene
+
+Tyler, 9 Oct 2026: "sometimes the background makes the text hard to read ...
+can you add a darker blur behind the text?" Every page's title and the line
+under it carry `title-halo` (`theme.css`): a soft text shadow in
+`--p-halo-rgb`, black in dark mode and the page's paper colour in light mode.
+It is on Plans, Leaderboard, Rooms, Sounds, Theme, Tasks, History and Users.
+A new page with a title over the scene adds the class to its title block.
+
 ## Where the look lives
 
 - `src/components/pomodoro/theme.css` holds the `--p-*` design tokens, copied

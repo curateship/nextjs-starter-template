@@ -9,7 +9,7 @@ import {
 } from "@/lib/api/pomodoro/personal-room"
 import { loadAccountMenu } from "@/lib/api/pomodoro/profile"
 import { loadShellBootstrap } from "@/lib/api/shell"
-import { setProductAccount } from "@/lib/pomodoro/auth-state"
+import { ProductAuthContext, setProductAccount } from "@/lib/pomodoro/auth-state"
 import { maybeImportGuestState } from "@/lib/pomodoro/guest-import"
 import { reloadPomodoroData } from "@/lib/pomodoro/use-pomodoro"
 
@@ -74,14 +74,23 @@ function PomodoroLayout() {
       })
   }, [accountEmail])
 
+  // The same answer for the server's render and the browser's first one, so
+  // a signed-in page never draws signed out first.
+  const auth = React.useMemo(
+    () => ({ known: true, authenticated: accountEmail !== null }),
+    [accountEmail]
+  )
+
   return (
-    <PomodoroShell
-      user={user}
-      accountMenu={accountMenu}
-      media={media}
-      bell={bell}
-    >
-      <Outlet />
-    </PomodoroShell>
+    <ProductAuthContext.Provider value={auth}>
+      <PomodoroShell
+        user={user}
+        accountMenu={accountMenu}
+        media={media}
+        bell={bell}
+      >
+        <Outlet />
+      </PomodoroShell>
+    </ProductAuthContext.Provider>
   )
 }

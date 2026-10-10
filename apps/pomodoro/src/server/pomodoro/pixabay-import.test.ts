@@ -102,7 +102,7 @@ const VIDEO_HIT = {
       pageURL: FILM,
       tags: "rain",
       videos: {
-        large: { url: "https://cdn.pixabay.com/video/large.mp4", size: 200 * 1024 * 1024 },
+        large: { url: "https://cdn.pixabay.com/video/large.mp4", size: 400 * 1024 * 1024 },
         medium: { url: "https://cdn.pixabay.com/video/medium.mp4", size: 9_000_000 },
       },
     },
@@ -276,6 +276,30 @@ describe("the worker", () => {
     })
     expect(handed.sourcePath).toMatch(/\.mp4$/)
     expect((await claimNextCatalogFile())?.id).toBe(id)
+  })
+
+  it("takes a 1440p film past the members' 100 MB, and names the cap when every size is over it", async () => {
+    // Pixabay's snow film 310985, 9 Oct 2026: 226 MB large, 158 MB medium.
+    const snow = { ...VIDEO_HIT.hits[0], videos: {
+      large: { url: "https://cdn.pixabay.com/video/large.mp4", size: 226 * 1024 * 1024 },
+      medium: { url: "https://cdn.pixabay.com/video/medium.mp4", size: 158 * 1024 * 1024 },
+    } }
+    const taken = await importOne(FILM)
+    const fetchSpy = stubPixabay({ "/api/videos/": { json: { hits: [snow] } }, "large.mp4": { bytes: MP4 } })
+    await processPixabayImports()
+    expect(String(fetchSpy.mock.calls[1][0])).toContain("large.mp4")
+    expect(await row(taken)).toMatchObject({ fileStatus: "queued", importUrl: null })
+
+    await db.delete(pomodoroCatalogItems).where(eq(pomodoroCatalogItems.id, taken))
+    vi.restoreAllMocks()
+    const refused = await importOne(FILM)
+    const huge = { ...snow, videos: { large: { url: snow.videos.large.url, size: 400 * 1024 * 1024 } } }
+    stubPixabay({ "/api/videos/": { json: { hits: [huge] } } })
+    await processPixabayImports()
+    expect(await row(refused)).toMatchObject({
+      fileStatus: "failed",
+      fileError: "Pixabay's film is over 300 MB in every size it offers.",
+    })
   })
 
   it("refuses an item Pixabay does not have, without trying again", async () => {

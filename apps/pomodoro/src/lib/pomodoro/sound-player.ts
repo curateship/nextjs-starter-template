@@ -20,6 +20,7 @@ export type SoundPlayerEvent =
   | { type: "choose"; reference: SoundReference; label: string }
   | { type: "select"; reference: SoundReference; label: string }
   | { type: "clear" }
+  | { type: "pause" }
   | { type: "media-playing" }
   | { type: "media-paused" }
   | { type: "media-waiting" }
@@ -72,6 +73,11 @@ export function soundPlayerReducer(state: SoundPlayerState, event: SoundPlayerEv
       return { ...state, selected: event.reference, label: event.label, status: "loading", notice: null }
     case "clear":
       return { ...state, ...cleared, notice: null }
+    // Pause shows at once while the sound fades out behind it. Tyler, 9 Oct
+    // 2026: "just remove the delay but keep the fade". The button used to
+    // wait for the 1.4s fade to end before saying Play.
+    case "pause":
+      return state.selected && ["playing", "loading"].includes(state.status) ? { ...state, status: "paused" } : state
     case "media-playing":
       return state.selected ? { ...state, status: "playing", notice: null } : state
     case "media-paused":

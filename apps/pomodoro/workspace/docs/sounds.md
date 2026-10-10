@@ -7,8 +7,11 @@ changes. An admin adds and edits them on the Sounds admin page; see
 Lofi beats, Rain, Café ambience and Brown noise free; Forest birds, Ocean
 waves, Fireplace and Soft piano for Pro.
 
-- **Two tabs, By tag first and Pick one second**, and a Shuffle switch beside
-  them. See [Shuffle and tags](shuffle-and-tags.md).
+- **One grid of cards**, with the tag filter and Shuffle pills beside the
+  title. See [Shuffle and tags](shuffle-and-tags.md). Cards sit 24px apart on a
+  wide screen and 16px on a phone, the same on Sounds and Theme (Tyler, 9 Oct
+  2026: "add a bigger gap between the theme cards, match that same gap with
+  sound cards too").
 - **A sound added in the last 14 days shows NEW** beside its name, in the
   same orange capitals as PRO. The days count from when it first went Live.
 - **A sound plays at its starting volume** times the member's own, so a loud
@@ -89,6 +92,15 @@ the timer all talk to the same module. React reads it through
   reduced-motion, and a wall-clock backstop finishes every fade even in a
   throttled background tab — that is what lets the sleep timer silence a
   hidden tab.
+- **The play button answers at once; the sound fades.** Tyler, 9 Oct 2026:
+  "there is a slight delay when clicking start and stop the player", then
+  "just remove the delay but keep the fade". Pause turns the button to Play
+  the moment it is pressed (a `pause` event in `sound-player.ts`) while the
+  sound fades out over the usual 1.4 seconds; it used to wait for the fade to
+  end. Play turns it to Pause at once while the file arrives and fades in; the
+  spinner shows only if the file takes over a second. Pressing Play during a
+  fade-out brings the same sound back up (`playSource` says "playing" itself,
+  because the audio never stopped).
 - **The timer drives it:** the hook announces running edges as
   `pomodoro:timer-running` window events, with the mode. A focus starting
   fades the selected loop in; a pause, a stop or a break starting fades it
@@ -140,3 +152,15 @@ sound for everybody.
 
 The button used to be an X labelled "Stop sound". An X reads as "close this for
 now", and people pressed it expecting a pause, then found their sound gone.
+
+## Dragging near the top of the page in Arc
+
+Tyler, 9 Oct 2026, on localhost in Arc: dragging the header's volume knob
+worked "but it also drags my browser", and "its the whole navigation area".
+This is Arc's own behaviour, not Pomoder's: with its toolbar hidden, Arc lets
+you move the window by grabbing the top bar of any site, so the page reads as
+part of the window. Nothing in Pomoder marks anything as a window handle (no
+`app-region` rule anywhere in the loaded CSS). Marking the header controls
+`app-region: no-drag` was tried the same day and Arc ignored it, so it was
+taken out. No page can switch the behaviour off; it does not happen in Chrome,
+Safari or Firefox.

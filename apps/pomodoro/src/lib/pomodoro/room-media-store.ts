@@ -433,6 +433,44 @@ export function playNextFromPools() {
 }
 
 /**
+ * The themes the dashboard's arrows step through: the group's when the theme
+ * is a group, otherwise every Live theme the plan allows, in the admin's order.
+ */
+function steppableThemes(side: Side, context: Pick) {
+  return side.backgroundPool
+    ? poolThemes(context.catalog, side.backgroundPool, context.canUsePremium)
+    : context.catalog.themes.filter((theme) => context.canUsePremium || !theme.locked)
+}
+
+/**
+ * The theme before or after the one on screen, from the dashboard's arrows.
+ * Tyler, 9 Oct 2026: "add a hover over back and forth arrow here to change
+ * themes". Inside a group the arrows move through the group and the group
+ * stays, the same as the header's next button. With one theme picked, the
+ * next one is saved as the pick. Never in a hosted room, whose theme is the
+ * room's.
+ */
+export async function stepPersonalBackground(direction: 1 | -1) {
+  if (state.room) return
+  const context = contextNow()
+  const list = steppableThemes(state.personal, context)
+  if (!list.length) return
+  const current = state.personal.background
+  const at = current.type === "scene" ? list.findIndex((theme) => theme.key === current.key) : -1
+  const next =
+    at === -1
+      ? list[direction === 1 ? 0 : list.length - 1]
+      : list[(at + direction + list.length) % list.length]
+  const reference = resolveBackgroundReference(context.catalog, { type: "scene", key: next.key })
+  if (!reference) return
+  if (state.personal.backgroundPool) {
+    setPersonal({ background: reference })
+    return
+  }
+  await addBackgroundToPersonalRoom(reference)
+}
+
+/**
  * A theme whose file failed to load. A hosted room's scene only draws the
  * fallback here. Your own room's theme falls back to the admin's default (or
  * Lofi girl) and saves that, so a deleted upload cannot leave a black screen

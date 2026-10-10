@@ -16,9 +16,13 @@ export type CountdownFrame = {
   durationSeconds: number
 }
 
-/** The ring's colour per phase, matched to theme.css in dark mode. */
+/**
+ * The ring's colour per phase, the dark theme's green from theme.css. Focus
+ * was the app's orange until Tyler, 9 Oct 2026: "this should be green not
+ * red".
+ */
 export const COUNTDOWN_RING_COLORS: Record<TimerMode, string> = {
-  focus: "#ff5a3c",
+  focus: "#4ade80",
   short: "#4ade80",
   long: "#4ade80",
 }

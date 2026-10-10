@@ -20,12 +20,21 @@ The top of `/rooms` is three columns, drawn to Tyler's design of 7 Oct 2026
 - **Go back to it leaves the room you are in.** It asks first. A member is
   told they go back to their own sound and theme. A host is told leaving ends
   the room, and for how many other people.
+- **The room you are in has a Leave button beside Open room.** Tyler, 9 Oct
+  2026: "add a leave room button here". It reads Leave room on Room I joined
+  and Leave & close on My hosted room, and asks the same question Go back to
+  it does, because it does the same thing.
 - **A room you are not in is a dashed box** with the way to get one. Room I
   joined has Browse open rooms, which scrolls down to Open to join. My hosted
   room has Host a room.
-- **Hosting needs you out of a joined room first.** While you are in someone
-  else's room, the hosted box says to go back to your personal room first,
-  and the Host a room button in the page header is hidden.
+- **Host a room never disappears.** Tyler, 9 Oct 2026: "The host a room
+  button should not disapear here ... it should just tell me on a tooltip".
+  The page header and the hosted box both keep it, with a tooltip naming the
+  room hosting takes you out of: "Hosting a room makes you leave Manila
+  mornings.", or "Hosting a room moves you out of your personal room." Making
+  the room leaves the one you were in, on the server. Only a room you already
+  host stops it: the header button is then disabled and says "You already
+  host <room>. Leave & close it first."
 
 ## Open to join on the front page
 

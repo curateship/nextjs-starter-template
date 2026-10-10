@@ -30,6 +30,7 @@ import { keyFromLabel } from "@/lib/pomodoro/catalog"
 import { MAX_ITEM_TAGS, normalizeTag } from "@/lib/pomodoro/media-pool"
 import {
   CATALOG_DESCRIPTORS,
+  CATALOG_FILM_LIMIT_BYTES,
   CATALOG_SOURCE_PATTERN,
   labelFromFilename,
   randomSoundGraphic,
@@ -646,12 +647,17 @@ export async function storeCatalogSource({
  * Stores a file that came from somewhere with no type to claim, such as
  * Pixabay's file server, which answers every file as `binary/octet-stream`.
  * The bytes alone decide what it is.
+ *
+ * A film may be up to `CATALOG_FILM_LIMIT_BYTES`, for Pixabay's. One from the
+ * browser never gets this far past 100 MB: `validateUploadContentLength`
+ * refuses it before a byte is read.
  */
 export async function storeCatalogBytes(bytes: Uint8Array) {
   const detected = detectUploadType(bytes.subarray(0, 16))
   if (!detected) throw new Error("INVALID_FILE_CONTENT")
-  if (bytes.byteLength > uploadLimitBytes(detected.kind))
-    throw new Error("FILE_TOO_LARGE")
+  const limit =
+    detected.kind === "video" ? CATALOG_FILM_LIMIT_BYTES : uploadLimitBytes(detected.kind)
+  if (bytes.byteLength > limit) throw new Error("FILE_TOO_LARGE")
   const path = `pomodoro-catalog/sources/${randomUUID()}.${detected.extension}`
   await uploadToR2(path, bytes, detected.mimeType)
   return { path, kind: detected.kind }

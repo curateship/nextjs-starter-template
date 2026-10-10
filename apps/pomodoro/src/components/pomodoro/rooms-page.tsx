@@ -4,6 +4,12 @@ import { PlusIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import { DisabledReason } from "@/components/ui/disabled-reason"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -370,13 +376,21 @@ export function RoomsPage() {
 
   const openRooms = roomRows.filter(({ room }) => room.phase !== "focus")
 
-  const hostFromHere =
-    authenticated && !activeRoom ? () => setShowHostForm(true) : undefined
+  // Tyler, 9 Oct 2026: Host a room never disappears; a tooltip says which
+  // room hosting takes you out of. Making the room leaves it on the server.
+  // Only a room you already host stops it, because you host one at a time.
+  const hostingNow = activeRoom?.you.role === "host"
+  const hostFromHere = authenticated ? () => setShowHostForm(true) : undefined
+  const hostNote = hostingNow
+    ? `You already host ${activeRoom.room.name}. Leave & close it first.`
+    : activeRoom
+      ? `Hosting a room makes you leave ${activeRoom.room.name}.`
+      : "Hosting a room moves you out of your personal room."
 
   return (
     <div className={`${contentColumn} flex flex-col gap-9 py-8`}>
       <header className="flex flex-wrap items-end justify-between gap-4">
-        <div className="flex max-w-xl flex-col gap-2">
+        <div className="title-halo flex max-w-xl flex-col gap-2">
           <h2 className="text-4xl font-bold tracking-tight">Focus rooms</h2>
           <p className="text-muted-foreground">
             Run one timer together. The host drives the phases; the server
@@ -384,13 +398,26 @@ export function RoomsPage() {
           </p>
         </div>
         {hostFromHere ? (
-          <Button size="lg" className="rounded-full" onClick={hostFromHere}>
-            <PlusIcon aria-hidden="true" /> Host a room
-          </Button>
+          hostingNow ? (
+            <DisabledReason disabled reason={hostNote}>
+              <Button size="lg" className="rounded-full" disabled>
+                <PlusIcon aria-hidden="true" /> Host a room
+              </Button>
+            </DisabledReason>
+          ) : (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button size="lg" className="rounded-full" onClick={hostFromHere}>
+                  <PlusIcon aria-hidden="true" /> Host a room
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{hostNote}</TooltipContent>
+            </Tooltip>
+          )
         ) : null}
       </header>
       <HostRoomDialog
-        open={showHostForm && !activeRoom}
+        open={showHostForm && !hostingNow}
         onOpenChange={setShowHostForm}
         onCreated={(snapshot) => {
           setShowHostForm(false)
@@ -456,6 +483,7 @@ export function RoomsPage() {
               })
             }
             onHost={hostFromHere}
+            hostNote={hostNote}
           />
           <OpenRoomsSection
             sectionRef={openRoomsRef}

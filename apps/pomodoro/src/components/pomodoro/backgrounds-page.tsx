@@ -29,10 +29,10 @@ import { contentColumn } from "@/lib/pomodoro/content-column"
 import { CatalogPager } from "@/components/pomodoro/catalog-pager"
 import {
   MediaShuffleSwitch,
-  MediaTagsPanel,
+  MediaTagFilter,
 } from "@/components/pomodoro/media-pool-panel"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useCatalogPage } from "@/lib/pomodoro/use-catalog-page"
+import { filterByTags, tickedFromPool } from "@/lib/pomodoro/media-pool"
 
 const descriptorLabels: Record<string, string> = {
   video: "Video",
@@ -56,8 +56,11 @@ export function BackgroundsPage() {
   const media = useRoomMedia()
   const { signedIn, openPlans } = useOpenPlans()
   const themes = media.catalog.themes
-  const hasTags = themes.some((theme) => theme.tags.length > 0)
-  const { page, pages, first, shown, setPage } = useCatalogPage(themes)
+  const [ticked, setTicked] = React.useState(() =>
+    tickedFromPool(media.personalBackgroundPool)
+  )
+  const filtered = filterByTags(themes, ticked)
+  const { page, pages, first, shown, setPage } = useCatalogPage(filtered)
   // Read once per render rather than per card, so every card agrees.
   const now = new Date()
   // An AI background arrives as an ordinary upload, so finishing one means the
@@ -75,79 +78,79 @@ export function BackgroundsPage() {
   return (
     <>
       <div className={`${contentColumn} flex flex-col gap-6 py-8`}>
-        <header className="flex flex-col gap-2">
-          <h2 className="text-4xl font-bold tracking-tight">Backgrounds</h2>
-          <MediaRoomNote thing="theme" />
-        </header>
-        {/* Tyler, 8 Oct 2026: tags are the first tab, one theme the second,
-            and Shuffle sits beside them for both. With nothing tagged yet the
-            page opens on the second, so it never opens on an empty tab. */}
-        <Tabs defaultValue={hasTags ? "tags" : "one"} className="gap-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <TabsList>
-              <TabsTrigger value="tags">By tag</TabsTrigger>
-              <TabsTrigger value="one">Pick one</TabsTrigger>
-            </TabsList>
-            <MediaShuffleSwitch kind="background" />
+        {/* Tyler's design, 9 Oct 2026: the tag filter and Shuffle sit beside
+            the title, and there are no tabs. */}
+        <header className="flex flex-wrap items-center justify-between gap-4">
+          <div className="title-halo flex flex-col gap-2">
+            <h2 className="text-4xl font-bold tracking-tight">Backgrounds</h2>
+            <MediaRoomNote thing="theme" />
           </div>
-          <TabsContent value="tags">
-            <MediaTagsPanel kind="background" />
-          </TabsContent>
-          <TabsContent value="one" className="flex flex-col gap-6">
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {shown.map((scene) => {
-                const reference = {
-                  type: "scene" as const,
-                  key: scene.key,
-                  stillUrl: scene.stillUrl,
-                  videoUrl: scene.videoUrl,
-                }
-                const locked = scene.locked && !media.canUsePremiumMedia
-                const card = (
-                  <ThemeCard
-                    key={scene.key}
-                    reference={reference}
-                    label={scene.label}
-                    detail={descriptorLabels[scene.descriptor] ?? ""}
-                    selected={sameBackgroundReference(inUse, reference)}
-                    locked={locked}
-                    lockedLabel={`${scene.label}, a Pro scene. ${signedIn ? "See the plans" : "Sign in to see the plans"}`}
-                    onLockedClick={openPlans}
-                    badges={
-                      scene.locked || isNewItem(scene.publishedAt, now) ? (
-                        <span className="flex gap-2 font-mono text-[10px] uppercase tracking-widest text-[var(--p-accent-2)]">
-                          {scene.locked ? <small>Pro</small> : null}
-                          {isNewItem(scene.publishedAt, now) ? (
-                            <small>New</small>
-                          ) : null}
-                        </span>
-                      ) : null
-                    }
-                  />
-                )
-                if (!locked) return card
-                return (
-                  <Tooltip key={scene.key}>
-                    <TooltipTrigger asChild>{card}</TooltipTrigger>
-                    <TooltipContent>
-                      {PRO_PERKS.premiumMedia.lockedReason}
-                    </TooltipContent>
-                  </Tooltip>
-                )
-              })}
-            </div>
-
-            <CatalogPager
-              noun="background"
-              total={themes.length}
-              first={first}
-              shownCount={shown.length}
-              page={page}
-              pages={pages}
-              onPage={setPage}
+          <div className="flex items-center gap-3">
+            <MediaTagFilter
+              kind="background"
+              ticked={ticked}
+              onChange={(next) => {
+                setTicked(next)
+                setPage(0)
+              }}
             />
-          </TabsContent>
-        </Tabs>
+            <MediaShuffleSwitch kind="background" ticked={ticked} />
+          </div>
+        </header>
+        <div className="flex flex-col gap-6">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 sm:gap-6">
+            {shown.map((scene) => {
+              const reference = {
+                type: "scene" as const,
+                key: scene.key,
+                stillUrl: scene.stillUrl,
+                videoUrl: scene.videoUrl,
+              }
+              const locked = scene.locked && !media.canUsePremiumMedia
+              const card = (
+                <ThemeCard
+                  key={scene.key}
+                  reference={reference}
+                  label={scene.label}
+                  detail={descriptorLabels[scene.descriptor] ?? ""}
+                  selected={sameBackgroundReference(inUse, reference)}
+                  locked={locked}
+                  lockedLabel={`${scene.label}, a Pro scene. ${signedIn ? "See the plans" : "Sign in to see the plans"}`}
+                  onLockedClick={openPlans}
+                  badges={
+                    scene.locked || isNewItem(scene.publishedAt, now) ? (
+                      <span className="flex gap-2 font-mono text-[10px] uppercase tracking-widest text-[var(--p-accent-2)]">
+                        {scene.locked ? <small>Pro</small> : null}
+                        {isNewItem(scene.publishedAt, now) ? (
+                          <small>New</small>
+                        ) : null}
+                      </span>
+                    ) : null
+                  }
+                />
+              )
+              if (!locked) return card
+              return (
+                <Tooltip key={scene.key}>
+                  <TooltipTrigger asChild>{card}</TooltipTrigger>
+                  <TooltipContent>
+                    {PRO_PERKS.premiumMedia.lockedReason}
+                  </TooltipContent>
+                </Tooltip>
+              )
+            })}
+          </div>
+
+          <CatalogPager
+            noun="background"
+            total={filtered.length}
+            first={first}
+            shownCount={shown.length}
+            page={page}
+            pages={pages}
+            onPage={setPage}
+          />
+        </div>
 
         <MediaUploadsSection
           reloadToken={reloadToken}

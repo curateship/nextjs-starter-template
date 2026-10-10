@@ -3,6 +3,11 @@ import { Link } from "@tanstack/react-router"
 import { Loader2Icon, PlusIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { InitialsAvatar } from "@/components/pomodoro/initials-avatar"
 import type { RoomSnapshotClient } from "@/components/pomodoro/active-room"
 import { cn } from "@/lib/utils"
@@ -24,6 +29,7 @@ export function RoomColumns({
   onBackToPersonal,
   onBrowse,
   onHost,
+  hostNote,
 }: {
   /** The hosted room you are in, as a member or its host; null is your own. */
   activeRoom: RoomSnapshotClient | null
@@ -33,8 +39,10 @@ export function RoomColumns({
   leaving: boolean
   onBackToPersonal: () => void
   onBrowse: () => void
-  /** Missing while you are in a room, since hosting needs you out of it. */
+  /** Missing for a guest, who cannot host. */
   onHost?: () => void
+  /** The tooltip on Host a room: which room hosting takes you out of. */
+  hostNote: string
 }) {
   const role = activeRoom?.you.role ?? null
   const firstName = ownerName.trim().split(/\s+/)[0] || "Your"
@@ -71,7 +79,12 @@ export function RoomColumns({
       </RoomColumn>
 
       {role === "member" && activeRoom ? (
-        <ActiveRoomColumn label="Room I joined" snapshot={activeRoom} />
+        <ActiveRoomColumn
+          label="Room I joined"
+          snapshot={activeRoom}
+          leaving={leaving}
+          onLeave={onBackToPersonal}
+        />
       ) : (
         <EmptyRoomColumn label="Room I joined">
           <p>
@@ -90,23 +103,33 @@ export function RoomColumns({
       )}
 
       {role === "host" && activeRoom ? (
-        <ActiveRoomColumn label="My hosted room" snapshot={activeRoom} />
+        <ActiveRoomColumn
+          label="My hosted room"
+          snapshot={activeRoom}
+          leaving={leaving}
+          onLeave={onBackToPersonal}
+        />
       ) : (
         <EmptyRoomColumn label="My hosted room">
           {onHost ? (
             <>
               <p>Start a room, run the timer and invite people in.</p>
-              <Button
-                variant="outline"
-                className="rounded-full"
-                onClick={onHost}
-              >
-                <PlusIcon aria-hidden="true" />
-                Host a room
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="rounded-full"
+                    onClick={onHost}
+                  >
+                    <PlusIcon aria-hidden="true" />
+                    Host a room
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{hostNote}</TooltipContent>
+              </Tooltip>
             </>
           ) : (
-            <p>Go back to your personal room first, then host your own.</p>
+            <p>Sign in to host your own room.</p>
           )}
         </EmptyRoomColumn>
       )}
@@ -114,13 +137,21 @@ export function RoomColumns({
   )
 }
 
-/** A hosted room you are in: its name, its host, and the way back into it. */
+/**
+ * A hosted room you are in: its name, its host, the way back into it, and a
+ * way out. Tyler, 9 Oct 2026: "add a leave room button here". Leaving asks
+ * first, the same as Go back to it, because a host leaving closes the room.
+ */
 function ActiveRoomColumn({
   label,
   snapshot,
+  leaving,
+  onLeave,
 }: {
   label: string
   snapshot: RoomSnapshotClient
+  leaving: boolean
+  onLeave: () => void
 }) {
   const host = snapshot.members.find((member) => member.role === "host")
   const count = snapshot.members.length
@@ -131,9 +162,22 @@ function ActiveRoomColumn({
         title={snapshot.room.name}
         line={`${count} focusing${snapshot.you.role === "host" ? " · you host" : host ? ` · hosted by ${host.name}` : ""}`}
       />
-      <Button asChild className="self-start rounded-full">
-        <Link to="/">Open room</Link>
-      </Button>
+      <div className="flex flex-wrap gap-2">
+        <Button asChild className="rounded-full">
+          <Link to="/">Open room</Link>
+        </Button>
+        <Button
+          variant="outline"
+          className="rounded-full"
+          disabled={leaving}
+          onClick={onLeave}
+        >
+          {leaving ? (
+            <Loader2Icon className="animate-spin" aria-hidden="true" />
+          ) : null}
+          {snapshot.you.role === "host" ? "Leave & close" : "Leave room"}
+        </Button>
+      </div>
     </RoomColumn>
   )
 }

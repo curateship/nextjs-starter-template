@@ -16,8 +16,8 @@ export class PixabayRateLimitedError extends Error {}
 export class PixabayKeyRefusedError extends Error {}
 
 const LOOKUP_TIMEOUT_MS = 15_000
-/** A 100 MB film on a slow line; the claim times out at five minutes. */
-const DOWNLOAD_TIMEOUT_MS = 3 * 60_000
+/** A 300 MB film on a slow line; the claim times out at twelve minutes. */
+const DOWNLOAD_TIMEOUT_MS = 8 * 60_000
 
 const hitSchema = z.object({
   user: z.string().default(""),

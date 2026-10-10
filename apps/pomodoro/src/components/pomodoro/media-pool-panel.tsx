@@ -1,17 +1,20 @@
 import * as React from "react"
+import { ChevronDownIcon, ListFilterIcon } from "lucide-react"
 import { toast } from "sonner"
 
-import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { Label } from "@/components/ui/label"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { Switch } from "@/components/ui/switch"
-import { MediaAddActions } from "@/components/pomodoro/media-add-actions"
 import { useProductAuth } from "@/lib/pomodoro/auth-state"
+import { focusRing } from "@/lib/layout/focus-ring"
+import { pillTabsList, pillTabsTrigger } from "@/lib/pomodoro/pill-tabs"
 import {
   catalogTags,
   describeTags,
-  poolSounds,
-  poolThemes,
+  tagsFit,
   type MediaPool,
 } from "@/lib/pomodoro/media-pool"
 import { PRO_PERKS } from "@/lib/pomodoro/pro"
@@ -22,17 +25,22 @@ import {
   addSoundToPersonalRoom,
   useRoomMedia,
 } from "@/lib/pomodoro/room-media-store"
-import { plural } from "@/lib/format/plural"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import { cn } from "@/lib/utils"
 
 /**
- * The By tag tab and the Shuffle switch on the Sounds and Theme pages. See
- * `workspace/docs/shuffle-and-tags.md`.
+ * The tag filter and the Shuffle switch beside the Sounds and Theme pages'
+ * title. See `workspace/docs/shuffle-and-tags.md`.
  *
- * Tyler, 8 Oct 2026: "let user select tags as default first tab with another
- * tab to select individual sound and theme. User can also select shuffle for
- * both." Ticked tags play a random item from those tags, a new one each time
- * the sound ends. Shuffle draws from everything the plan allows.
+ * Tyler, 9 Oct 2026: "remove tag tab and just list by grid and add a filter
+ * dropdown to filter the tags and a checkbox beside each tag filter to add to
+ * shuffle", then the design: one box per tag under "Show & shuffle". A ticked
+ * tag is shown in the grid, and while Shuffle is on, shuffle plays only the
+ * ticked tags. Every tag ticked is "All tags": every card, and shuffle from
+ * everything.
+ *
+ * `ticked` is null for every tag, else the tags ticked. The page holds it,
+ * because the grid and both controls read it.
  */
 
 type Kind = "sound" | "background"
@@ -42,113 +50,187 @@ const NOUN: Record<Kind, { one: string; many: string }> = {
   background: { one: "theme", many: "themes" },
 }
 
-export function MediaTagsPanel({ kind }: { kind: Kind }) {
+/**
+ * The Leaderboard's round tab row, so both controls match the pills beside
+ * that page's title (Tyler, 9 Oct 2026: "should match the button like the
+ * leaderboard"): a 48px tray with a 36px pill inside.
+ */
+const trayClass = cn(pillTabsList, "inline-flex items-center bg-muted/60")
+const innerClass = cn(pillTabsTrigger, "inline-flex items-center gap-2 font-medium")
+
+function usePersonalPool(kind: Kind) {
   const media = useRoomMedia()
+  return kind === "sound" ? media.personalSoundPool : media.personalBackgroundPool
+}
+
+function savePool(kind: Kind, pool: MediaPool) {
+  return kind === "sound"
+    ? addSoundPoolToPersonalRoom(pool)
+    : addBackgroundPoolToPersonalRoom(pool)
+}
+
+/** Shuffle over the ticked tags, or over everything when every tag is ticked. */
+function poolFor(ticked: string[] | null): MediaPool {
+  return ticked ? { mode: "tags", tags: ticked } : { mode: "shuffle" }
+}
+
+export function MediaTagFilter({
+  kind,
+  ticked,
+  onChange,
+}: {
+  kind: Kind
+  ticked: string[] | null
+  onChange: (ticked: string[] | null) => void
+}) {
+  const media = useRoomMedia()
+  const pool = usePersonalPool(kind)
+  const [busy, setBusy] = React.useState(false)
   const items = kind === "sound" ? media.catalog.sounds : media.catalog.themes
   const tags = catalogTags(items)
-  const personalPool =
-    kind === "sound" ? media.personalSoundPool : media.personalBackgroundPool
-  const [ticked, setTicked] = React.useState<string[]>(
-    personalPool?.mode === "tags" ? personalPool.tags : []
-  )
-  const pool: MediaPool | null = ticked.length ? { mode: "tags", tags: ticked } : null
-  const matching = pool
-    ? (kind === "sound"
-        ? poolSounds(media.catalog, pool, media.canUsePremiumMedia)
-        : poolThemes(media.catalog, pool, media.canUsePremiumMedia)
-      ).length
-    : 0
 
-  if (!tags.length)
-    return (
-      <p className="text-sm text-muted-foreground">
-        Nothing is tagged yet. Pick one {NOUN[kind].one} on the next tab, or
-        switch on Shuffle.
-      </p>
-    )
+  if (!tags.length) return null
+
+  const all = tags.map(({ tag }) => tag)
+  const isTicked = (tag: string) => ticked === null || ticked.includes(tag)
+
+  const toggle = async (tag: string) => {
+    const current = ticked ?? all
+    const next = current.includes(tag)
+      ? current.filter((value) => value !== tag)
+      : [...current, tag]
+    const nextTicked = all.every((value) => next.includes(value)) ? null : next
+    onChange(nextTicked)
+    // Shuffle off: the boxes only choose what the grid shows.
+    if (pool === null) return
+    if (nextTicked && !tagsFit(nextTicked)) {
+      showErrorToast("That is too many tags to shuffle. Untick a few more.")
+      return
+    }
+    setBusy(true)
+    try {
+      await savePool(kind, poolFor(nextTicked))
+      toast.success(
+        nextTicked
+          ? `Shuffle plays only ${describeTags(nextTicked)} ${NOUN[kind].many}.`
+          : `Shuffle plays every ${NOUN[kind].one}.`
+      )
+    } catch {
+      showErrorToast("That did not save. Try again.")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const label =
+    ticked === null ? "All tags" : ticked.length === 1 ? ticked[0] : `${ticked.length} tags`
 
   return (
-    <div className="flex flex-col gap-4">
-      <p className="text-sm text-muted-foreground">
-        Tick what you are in the mood for. A random {NOUN[kind].one} from those
-        plays, and a new one comes each time the sound ends.
-      </p>
-      <div className="flex flex-wrap gap-2" role="group" aria-label="Tags">
-        {tags.map(({ tag, count, free }) => {
-          const proOnly = !media.canUsePremiumMedia && free === 0
-          const on = ticked.includes(tag)
-          return (
-            <DisabledReason
-              key={tag}
-              disabled={proOnly}
-              reason={PRO_PERKS.premiumMedia.lockedReason}
-            >
-              <Button
-                type="button"
-                size="sm"
-                variant={on ? "default" : "outline"}
-                aria-pressed={on}
-                disabled={proOnly}
-                onClick={() =>
-                  setTicked((current) =>
-                    on ? current.filter((value) => value !== tag) : [...current, tag]
-                  )
-                }
-              >
-                {tag}
-                <span className="text-xs opacity-70">
-                  {proOnly ? "Pro" : media.canUsePremiumMedia ? count : free}
-                </span>
-              </Button>
-            </DisabledReason>
-          )
-        })}
+    <Popover>
+      <div className={trayClass}>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            aria-label={`Show and shuffle ${NOUN[kind].many} by tag: ${label}`}
+            className={cn(
+              innerClass,
+              "cursor-pointer text-foreground hover:bg-background/60",
+              focusRing
+            )}
+          >
+            <ListFilterIcon className="size-[18px] shrink-0" aria-hidden="true" />
+            <span className="max-w-40 truncate">{label}</span>
+            <ChevronDownIcon className="size-4 shrink-0" aria-hidden="true" />
+          </button>
+        </PopoverTrigger>
       </div>
-      {pool ? (
-        <div className="flex flex-col gap-2">
-          <p className="text-sm">
-            Plays a random {describeTags(ticked)} {NOUN[kind].one}:{" "}
-            {matching} {plural(matching, NOUN[kind].one, NOUN[kind].many)} to
-            pick from.
-          </p>
-          <MediaAddActions
-            item={{
-              kind,
-              pool,
-              // Reads as a sentence in the toast: "A random rain or nature
-              // sound is in your personal room."
-              label: `A random ${describeTags(ticked)} ${NOUN[kind].one}`,
-            }}
-          />
-        </div>
-      ) : null}
-    </div>
+      <PopoverContent align="end" sideOffset={8} className="w-60 gap-1 rounded-2xl p-3">
+        <p className="px-1.5 pt-1 pb-1.5 font-mono text-[11px] uppercase tracking-[0.2em] text-foreground/75">
+          Show &amp; shuffle
+        </p>
+        {/* The height goes on the scrolling box itself: on the outside it
+            only trims the frame and the last tags hang out of the popover. */}
+        <ScrollArea viewportClassName="max-h-72">
+          <div className="flex flex-col pr-2">
+            {tags.map(({ tag, count, free }) => {
+              const proOnly = !media.canUsePremiumMedia && free === 0
+              const on = isTicked(tag)
+              // The grid can never be emptied by a box.
+              const last = on && ticked !== null && ticked.length === 1
+              const blocked = proOnly || last
+              return (
+                <DisabledReason
+                  key={tag}
+                  disabled={blocked}
+                  reason={
+                    proOnly
+                      ? PRO_PERKS.premiumMedia.lockedReason
+                      : "Keep at least one tag ticked."
+                  }
+                >
+                  <label
+                    className={cn(
+                      "flex cursor-pointer items-center gap-3 rounded-lg px-1.5 py-2 text-[15px] hover:bg-[rgba(var(--p-fg-rgb),0.07)]",
+                      blocked && "cursor-not-allowed opacity-60"
+                    )}
+                  >
+                    <Checkbox
+                      checked={on && !proOnly}
+                      disabled={blocked || busy}
+                      onCheckedChange={() => void toggle(tag)}
+                      className="size-[18px] rounded-[5px] border-[rgba(var(--p-fg-rgb),0.3)] data-checked:border-[var(--p-accent)] data-checked:bg-[var(--p-accent)] data-checked:text-white dark:data-checked:bg-[var(--p-accent)]"
+                    />
+                    <span className="min-w-0 flex-1 truncate">{tag}</span>
+                    <span className="font-mono text-xs text-muted-foreground">
+                      {proOnly ? "Pro" : media.canUsePremiumMedia ? count : free}
+                    </span>
+                  </label>
+                </DisabledReason>
+              )
+            })}
+          </div>
+        </ScrollArea>
+      </PopoverContent>
+    </Popover>
   )
 }
 
 /**
- * Shuffle for your own room: on, a random sound (or theme) from everything
- * your plan allows, a new one when the sound ends. Off, the one playing now
- * stays as your pick.
+ * Shuffle for your own room: on, a random sound (or theme) from the ticked
+ * tags, or from everything your plan allows when every tag is ticked, a new
+ * one when the sound ends. Off, the one playing now stays as your pick. A
+ * guest, and a member who has not picked, starts with it on
+ * (`media.shuffleUnset`).
  */
-export function MediaShuffleSwitch({ kind }: { kind: Kind }) {
+export function MediaShuffleSwitch({
+  kind,
+  ticked,
+}: {
+  kind: Kind
+  ticked: string[] | null
+}) {
   const media = useRoomMedia()
   const { authenticated } = useProductAuth()
   const [busy, setBusy] = React.useState(false)
   const id = React.useId()
-  const pool = kind === "sound" ? media.personalSoundPool : media.personalBackgroundPool
-  const on = pool?.mode === "shuffle"
+  const pool = usePersonalPool(kind)
+  const on = pool !== null
 
   const change = async (next: boolean) => {
+    if (next && ticked && !tagsFit(ticked)) {
+      showErrorToast("That is too many tags to shuffle. Untick a few first.")
+      return
+    }
     setBusy(true)
     try {
       if (next) {
-        if (kind === "sound") await addSoundPoolToPersonalRoom({ mode: "shuffle" })
-        else await addBackgroundPoolToPersonalRoom({ mode: "shuffle" })
+        await savePool(kind, poolFor(ticked))
         toast.success(
-          authenticated
-            ? `Your personal room shuffles every ${NOUN[kind].one}.`
-            : `Shuffling ${NOUN[kind].many} for this visit.`
+          ticked
+            ? `Shuffle plays only ${describeTags(ticked)} ${NOUN[kind].many}.`
+            : authenticated
+              ? `Your personal room shuffles every ${NOUN[kind].one}.`
+              : `Shuffling ${NOUN[kind].many} for this visit.`
         )
       } else if (kind === "sound") {
         await addSoundToPersonalRoom(media.personalSound)
@@ -163,16 +245,17 @@ export function MediaShuffleSwitch({ kind }: { kind: Kind }) {
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className={cn(trayClass, "pr-3")}>
+      <Label htmlFor={id} className={cn(innerClass, "cursor-pointer text-foreground")}>
+        Shuffle
+      </Label>
       <Switch
         id={id}
         checked={on}
         disabled={busy}
+        aria-label={`Shuffle ${NOUN[kind].many}`}
         onCheckedChange={(next) => void change(next)}
       />
-      <Label htmlFor={id} className="font-normal">
-        Shuffle every {NOUN[kind].one}
-      </Label>
     </div>
   )
 }

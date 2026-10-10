@@ -147,11 +147,29 @@ function PlayerStatusIcon({
   className?: string
 }) {
   const { status } = player.state
-  if (status === "loading")
+  // Tyler, 9 Oct 2026: "just remove the delay but keep the fade". Play turns
+  // into Pause the moment it is pressed, while the file arrives and fades in.
+  // The spinner is only for a file that takes over a second to arrive.
+  const slow = useSlowLoading(status === "loading")
+  if (slow)
     return <Loader2Icon className={cn("animate-spin", className)} aria-hidden="true" />
-  if (status === "playing")
+  if (status === "playing" || status === "loading")
     return <PauseIcon className={className} aria-hidden="true" />
   return <PlayIcon className={className} aria-hidden="true" />
+}
+
+/** True once loading has gone on for a second. */
+function useSlowLoading(loading: boolean) {
+  const [slow, setSlow] = React.useState(false)
+  React.useEffect(() => {
+    if (!loading) return
+    const timer = window.setTimeout(() => setSlow(true), 1000)
+    return () => {
+      window.clearTimeout(timer)
+      setSlow(false)
+    }
+  }, [loading])
+  return loading && slow
 }
 
 function PlayPauseButton({ player }: { player: Player }) {
@@ -162,7 +180,9 @@ function PlayPauseButton({ player }: { player: Player }) {
       size="icon-sm"
       onClick={player.togglePlayback}
       aria-label={
-        state.status === "playing" ? `Pause ${state.label}` : `Play ${state.label}`
+        state.status === "playing" || state.status === "loading"
+          ? `Pause ${state.label}`
+          : `Play ${state.label}`
       }
     >
       <PlayerStatusIcon player={player} />

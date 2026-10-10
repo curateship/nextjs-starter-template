@@ -10,7 +10,8 @@ up like a ring. Both go back to normal the moment the timer stops.
   neighbours shows only its first few characters.
 - **The icon is a ring that fills as the phase runs out**, empty at the start
   and full at the end, with a dot in the middle so a 16px icon still reads as
-  something. Focus is the app's orange, both breaks are green.
+  something. The ring is green in every phase. Tyler, 9 Oct 2026, about the
+  focus ring: "this should be green not red". It was the app's orange before.
 - **Stopping puts both back.** Pause, Reset and picking another phase all
   count as stopping, and so does the phase running out with auto-start off.
 - **Only running counts.** A paused timer shows the page's own title again,

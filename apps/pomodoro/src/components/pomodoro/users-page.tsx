@@ -75,7 +75,7 @@ export function UsersPage({
           draws them; the sentence under the title wraps to make room, and
           the pair drops under it only when the page is too narrow. */}
       <header className="flex flex-wrap items-end gap-x-8 gap-y-4">
-        <div className="flex min-w-[18rem] flex-1 basis-0 flex-col gap-2">
+        <div className="title-halo flex min-w-[18rem] flex-1 basis-0 flex-col gap-2">
           <h1 className="text-4xl font-bold tracking-tight">Users</h1>
           <p className="text-muted-foreground">
             Members who chose to be listed. Everyone here switched this on

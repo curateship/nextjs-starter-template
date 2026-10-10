@@ -9,6 +9,7 @@ import {
   pickFromPool,
   poolSounds,
   serializeMediaPool,
+  tagsFit,
 } from "@/lib/pomodoro/media-pool"
 
 const tagged = {
@@ -28,6 +29,13 @@ describe("a group choice", () => {
       tags: ["nature", "rain"],
     })
     expect(parseMediaPool("tags:")).toBeNull()
+    // Up to the 200-character column, not a count of six.
+    const twenty = Array.from({ length: 20 }, (_, index) => `tag ${index}`)
+    expect(parseMediaPool(`tags:${twenty.join(",")}`)?.tags).toHaveLength(20)
+    const long = Array.from({ length: 12 }, (_, index) => `${"x".repeat(20)}${index}`)
+    const kept = parseMediaPool(`tags:${long.join(",")}`)
+    expect(kept && tagsFit(kept.tags)).toBe(true)
+    expect(kept?.tags.length).toBeLessThan(12)
     expect(parseMediaPool("curated:rain")).toBeNull()
     expect(serializeMediaPool({ mode: "tags", tags: ["rain", "nature"] })).toBe(
       "tags:nature,rain"

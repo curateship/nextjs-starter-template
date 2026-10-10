@@ -39,10 +39,22 @@ export function subscribeProductAuth(listener: () => void) {
 
 const serverSnapshot: ProductAuth = { known: false, authenticated: false }
 
+/**
+ * The layout loader's answer, which the server already has. Without it the
+ * server drew every page signed out, and the browser swapped to the signed-in
+ * page a moment later: Tyler, 9 Oct 2026, "whenever I reload the page. I get
+ * this login screen briefly before everything loads".
+ */
+export const ProductAuthContext = React.createContext<ProductAuth | null>(null)
+
 export function useProductAuth() {
-  return React.useSyncExternalStore(
+  const seeded = React.useContext(ProductAuthContext)
+  const live = React.useSyncExternalStore(
     subscribeProductAuth,
     productAuth,
-    () => serverSnapshot
+    () => seeded ?? serverSnapshot
   )
+  // Until the layout's effect has told the engines, the loader's answer is
+  // the truth; after that the live one is, so signing out still shows.
+  return live.known ? live : (seeded ?? live)
 }

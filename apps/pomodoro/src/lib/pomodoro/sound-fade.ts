@@ -113,8 +113,12 @@ export class SoundFader {
     if (cur.src === src) {
       cur.target = 1
       cur.unloadAtZero = false
+      // Pressed again while still fading out: the audio never stopped, so no
+      // "playing" event will come. Say so here, or the button spins for ever.
+      const stillSounding = !cur.el.paused
       this.playDeck(cur)
       this.startLoop()
+      if (stillSounding) this.cb.onPlaying()
       return
     }
     if (cur.src) {

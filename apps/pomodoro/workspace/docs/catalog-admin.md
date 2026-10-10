@@ -167,11 +167,22 @@ from Pixabay" meanwhile.
 - **A picture** is looked up by id on Pixabay's API (`pixabay.ts`), its
   `largeImageURL` is copied into the bucket, and it becomes the still. A
   default key gives pictures 1280 pixels wide.
-- **A film** takes Pixabay's large version when it is under 100 MB, else the
+- **A film** takes Pixabay's large version when it is under 300 MB, else the
   medium one, is copied into the bucket and handed to the catalogue worker
   with its tries counted from nothing. That worker shrinks it to 720p and takes
   the frame halfway through it as the still, the same as an upload. Pixabay's own thumbnail
   is not used, so the still matches the film.
+- **Tyler's rule, 9 Oct 2026: "we need to increase file limit for themes".**
+  A Pixabay film may be up to 300 MB (`CATALOG_FILM_LIMIT_BYTES` in
+  `src/lib/pomodoro/admin-catalog.ts`). It was 100 MB, which refused Pixabay's
+  60-second snow film, 226 MB at 1440p and 158 MB at 1080p. Shrinking that
+  film to 720p took 38 seconds on two cores of a Mac, well inside FFmpeg's
+  four minutes. A film past 300 MB in every size fails with "Pixabay's film is
+  over 300 MB in every size it offers."
+- **A film the admin uploads stays at 100 MB**, the same as a member's.
+  pomoder.com sits behind Cloudflare, which turns away any upload past 100 MB
+  before it reaches the server, so only the server's own fetch from Pixabay
+  can bring in more.
 - **Both fill in the credits** from Pixabay's answer: the artist (the Pixabay
   user), the source link, the licence, and the tags from Pixabay's tag list,
   cut to the usual eight. A field the admin filled in while the file was on its
@@ -207,7 +218,7 @@ from Pixabay" meanwhile.
 `admin-catalog-dialog.tsx`, three cards:
 
 - **Details.** The name, the hint, the tags, the kind, Free or Pro, and Draft
-  or Live. Tags are what members pick by on the By tag tab; see
+  or Live. Tags are what members filter the cards by, and tick to shuffle; see
   [Shuffle and tags](shuffle-and-tags.md).
   Making something Pro does not take it from a free member who already has it;
   it is checked the next time they pick.
