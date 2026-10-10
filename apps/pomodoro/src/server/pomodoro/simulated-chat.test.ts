@@ -222,10 +222,11 @@ describe("the made-up members' chat", () => {
     for (const line of said.filter((row) => row.madeUp))
       if (line.phase === "focus") expect(["mention", "focus", "greet"]).toContain(line.kind)
     // Never two made-up lines running, except the exchange's answer, a
-    // greeting, a goodbye and the line before a start.
+    // greeting, a goodbye and the host's line as it presses Start (a "focus"
+    // line, or an "open" one before a countdown of minutes).
     for (let index = 1; index < said.length; index += 1) {
-      if (said[index].madeUp && said[index - 1].madeUp)
-        expect(["exchange", "greet", "leave", "focus"]).toContain(said[index].kind)
+      if (said[index].madeUp && said[index - 1].madeUp && !said[index].triggerKey?.startsWith("start:"))
+        expect(["exchange", "greet", "leave"]).toContain(said[index].kind)
     }
 
     // Reactions land on real lines only.

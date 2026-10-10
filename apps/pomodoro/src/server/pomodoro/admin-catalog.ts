@@ -651,14 +651,17 @@ export async function storeCatalogSource({
  * A film may be up to `CATALOG_FILM_LIMIT_BYTES`, for Pixabay's. One from the
  * browser never gets this far past 100 MB: `validateUploadContentLength`
  * refuses it before a byte is read.
+ *
+ * `namePrefix` marks where a file came from, for a worker that treats it
+ * differently, such as `YOUTUBE_SOURCE_PREFIX`.
  */
-export async function storeCatalogBytes(bytes: Uint8Array) {
+export async function storeCatalogBytes(bytes: Uint8Array, namePrefix = "") {
   const detected = detectUploadType(bytes.subarray(0, 16))
   if (!detected) throw new Error("INVALID_FILE_CONTENT")
   const limit =
     detected.kind === "video" ? CATALOG_FILM_LIMIT_BYTES : uploadLimitBytes(detected.kind)
   if (bytes.byteLength > limit) throw new Error("FILE_TOO_LARGE")
-  const path = `pomodoro-catalog/sources/${randomUUID()}.${detected.extension}`
+  const path = `pomodoro-catalog/sources/${namePrefix}${randomUUID()}.${detected.extension}`
   await uploadToR2(path, bytes, detected.mimeType)
   return { path, kind: detected.kind }
 }
@@ -850,6 +853,16 @@ export async function finishCatalogFile({
  * so the worker can catch those up (`findThemeNeedingMiddleStill`).
  */
 export const MIDDLE_STILL_PREFIX = "pomodoro-catalog/themes/middle-"
+
+/**
+ * Where a YouTube clip waits for the catalogue worker. The clip is already the
+ * finished film, up to 4K (Tyler, 10 Oct 2026: "it should be capturing the 4k
+ * version"), so the worker keeps it as it is rather than shrinking it to 720p.
+ * A browser upload can never be stored under this name:
+ * `CATALOG_SOURCE_PATTERN` allows only a bare id there.
+ */
+export const YOUTUBE_SOURCE_NAME = "youtube-"
+export const YOUTUBE_SOURCE_PREFIX = `pomodoro-catalog/sources/${YOUTUBE_SOURCE_NAME}`
 
 /**
  * A theme whose film is in the bucket but whose still was not taken from the

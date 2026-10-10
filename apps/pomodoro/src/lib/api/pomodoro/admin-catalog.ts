@@ -26,6 +26,10 @@ import {
   importFromPixabay,
   type PixabayImportResult,
 } from "@/server/pomodoro/pixabay-import"
+import {
+  importThemeFromYoutube,
+  type YoutubeImportResult,
+} from "@/server/pomodoro/youtube-import"
 import { readDashboardRowsPerPage } from "@/server/shell-settings"
 import {
   CATALOG_ACCESS_FILTERS,
@@ -49,6 +53,7 @@ export type {
   AdminCatalogRow,
   CatalogBulkResult,
   PixabayImportResult,
+  YoutubeImportResult,
 }
 
 export const getCatalogAdminErrorMessage = createErrorMessage(
@@ -263,6 +268,28 @@ const importPixabayFn = createServerFn({ method: "POST" })
     return importFromPixabay({ ...data, actorUserId: context.user.id })
   })
 
+/**
+ * "Make a theme from a YouTube clip": the link and the start time as typed.
+ * The server reads both again, so the window's checks are only a courtesy.
+ */
+const importYoutubeFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(
+    z.object({
+      link: z.string().trim().min(1).max(500),
+      start: z.string().trim().max(20),
+    })
+  )
+  .handler(async ({ data, context }): Promise<YoutubeImportResult> => {
+    // The same limit as Pixabay: 20 clips in ten minutes is far past an
+    // evening's browsing, and each one is a download from YouTube.
+    await enforceRateLimit(`pomodoro-youtube-import:${context.user.id}`, {
+      maxAttempts: 20,
+      windowSeconds: 10 * 60,
+    })
+    return importThemeFromYoutube({ ...data, actorUserId: context.user.id })
+  })
+
 const setStatusFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(z.object({ ids: idsSchema, status: z.enum(["draft", "live"]) }))
@@ -313,6 +340,8 @@ export const importCatalogFromPixabay = (
   kind: CatalogKind,
   links: { line: number; url: string }[]
 ) => importPixabayFn({ data: { kind, links } })
+export const importThemeFromYoutubeClip = (link: string, start: string) =>
+  importYoutubeFn({ data: { link, start } })
 export const setCatalogStatus = (ids: string[], status: "draft" | "live") =>
   setStatusFn({ data: { ids, status } })
 export const setCatalogLocked = (ids: string[], locked: boolean) =>

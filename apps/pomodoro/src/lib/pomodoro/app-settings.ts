@@ -148,9 +148,11 @@ export const APP_SETTING_DEFAULTS: {
   // simulated day, 40 fell under ten rooms a third of the time, 80 never did
   // but now and then left a room with only its host for over ten minutes, and
   // 100 did neither. The floor is six rooms now, plus three under Starting
-  // soon (see `longCountdownFor`), and the day test still runs a hundred.
-  // Nothing is made until an admin presses Make them now.
-  "simulated.accounts": { target: 100, hoursCap: 3, paused: false },
+  // soon (see `longCountdownFor`). Tyler, 10 Oct 2026: "Add 30 more made up
+  // profiles and add more rooms so that the starting in... always have 3+
+  // rooms", so 130, which the day test runs. Nothing is made until an admin
+  // presses Make them now.
+  "simulated.accounts": { target: 130, hoursCap: 3, paused: false },
   // The task's own defaults, 9 Oct 2026, so the first Preview already sounds
   // like somebody half-distracted by their own work.
   "simulated.voice": {

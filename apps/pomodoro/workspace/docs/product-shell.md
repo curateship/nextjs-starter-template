@@ -260,17 +260,23 @@ signed-out pages in its own frame, which would mean changing
 
 ## Pages an admin added
 
-Under the product's own screens, after a thin rule, the sidebar lists the links
-an admin put in the public menu (Settings → Public → Navigation), so a page
-written in the admin is reachable from inside the product. Groups are flattened
-to their links, because a sidebar row is one address. A link marked desktop-only
-or phone-only is hidden by a class at `lg`, the width the sidebar itself swaps
-its rail for a drawer.
+**They are drawn in this frame**, the same sidebar, header and scene as every
+product screen. Tyler, 10 Oct 2026: a written page "should be wired to the
+_pomodoro layout". The shell serves written pages from its catch-all route,
+and Pomoder answers first through `pages.catchAll` in `src/app/options.ts`:
+`loadWrittenPageForPomoder` (`src/lib/pomodoro/written-page.ts`) reads the
+page with the shell's own `loadWrittenPage`, so a page switched off is still
+not-found and a members-only one still asks for sign-in, and any address
+nobody wrote answers null and gets the shell's not-found.
+`written-page-frame.tsx` draws the page's rows (the shell's `FrontPageRows`)
+inside `PomodoroShell`, and is loaded only when such a page opens. The page's
+title, robots and social tags are the ones the shell gives it; the canonical
+link is not, because an app's catch-all head carries meta tags only.
 
-They are added below the product's screens and never replace them: a member
-must not lose the timer because somebody edited a menu. The reader is
-`src/lib/pomodoro/saved-menu.ts`. Such a link still leaves the product shell
-when followed, for the reason above.
+**They are not in the left menu.** Tyler, 10 Oct 2026: "adding a page in
+public menu should not add them to the sidebar". The left menu is the
+product's own screens and Settings, nothing from Settings → Public →
+Navigation.
 
 Pages under the layout: `/timer` (the dashboard), `/tasks`, `/plans`,
 `/rooms`, `/leaderboard`, `/users`, `/sounds`, `/backgrounds`, `/history`,

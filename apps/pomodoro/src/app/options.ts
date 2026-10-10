@@ -24,7 +24,10 @@ import {
   SettingsIcon,
 } from "lucide-react"
 
-import type { AppNoticeDetail, AppOptions } from "@/lib/app-options"
+import * as React from "react"
+
+import { defineCatchAllPage, type AppNoticeDetail, type AppOptions } from "@/lib/app-options"
+import { loadWrittenPageForPomoder, type WrittenPageData } from "@/lib/pomodoro/written-page"
 import { POMODORO_SETTINGS_TABS } from "@/lib/pomodoro/app-settings"
 import { pomodoroLandingPage } from "@/components/pomodoro/landing-page"
 import {
@@ -38,6 +41,17 @@ import {
   POMODORO_NOTICE_CATEGORIES,
   type PomodoroNoticeKind,
 } from "@/lib/pomodoro/notices"
+
+/**
+ * The written page's frame, loaded when such a page is first opened. Through
+ * `import.meta.glob` for the same reason as `settingsTab` below: the
+ * background worker's build must not follow it into the product shell.
+ */
+const WrittenPage = React.lazy(() =>
+  import.meta.glob<{ default: React.ComponentType<{ data: WrittenPageData }> }>(
+    "/src/components/pomodoro/written-page-frame.tsx"
+  )["/src/components/pomodoro/written-page-frame.tsx"]()
+)
 
 /** Which panel edits each of this app's row kinds, and which component draws it. */
 const ROW_PANELS = {
@@ -169,6 +183,21 @@ export const appOptions: AppOptions = {
   },
   pages: {
     /**
+     * A page an admin wrote, drawn in Pomoder's own frame rather than the
+     * public site's. Tyler, 10 Oct 2026: "that page is still wired to the old
+     * layout (it should be wired to the _pomodoro layout". It claims only the
+     * addresses an admin actually wrote, read through the shell's own
+     * `loadWrittenPage`, so who may see a page is decided exactly as before;
+     * anything else answers null and the shell says not-found. The frame is
+     * loaded only when such a page is opened (`import.meta.glob`, as for the
+     * Settings tabs below).
+     */
+    catchAll: defineCatchAllPage<WrittenPageData>({
+      loader: ({ path }) => loadWrittenPageForPomoder(path),
+      head: ({ data }) => ({ meta: data.meta }),
+      Component: WrittenPage,
+    }),
+    /**
      * The two live figures the front page builder can place: hours focused in
      * the last seven days, and rooms open right now.
      *
@@ -294,15 +323,23 @@ export const appOptions: AppOptions = {
   },
 }
 
+type SettingsTabs = typeof import("@/components/pomodoro/admin-settings-tabs")
+
 /**
  * A pointer to one of Pomoder's Settings tabs, never the component: this file
  * is read on the server, and the tab's module builds server functions as it
  * loads. See `AppSettingsTab` in `src/lib/settings-tab.ts`.
+ *
+ * Loaded through `import.meta.glob` rather than `import()`, called only when
+ * a tab opens. Vite splits it into its own chunk the same either way, but the
+ * background worker's esbuild build follows a plain `import()` into the tabs,
+ * on through the shell's layout to the image cropper, whose stylesheet Node
+ * cannot load: the worker died on boot on 10 Oct 2026. esbuild leaves
+ * `import.meta.glob` alone, and the worker never opens a Settings tab.
  */
-function settingsTab(
-  name: keyof typeof import("@/components/pomodoro/admin-settings-tabs")
-) {
-  return import("@/components/pomodoro/admin-settings-tabs").then((module) => ({
+function settingsTab(name: keyof SettingsTabs) {
+  const tabs = import.meta.glob<SettingsTabs>("/src/components/pomodoro/admin-settings-tabs.tsx")
+  return tabs["/src/components/pomodoro/admin-settings-tabs.tsx"]().then((module) => ({
     default: module[name],
   }))
 }

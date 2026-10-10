@@ -280,7 +280,14 @@ export function TodayTaskList({
  * its own either, so the timer can put it under its three boxes and a room
  * can put it in a card of its own.
  */
-export function TasksSection({ pomodoro }: { pomodoro: PomodoroApi }) {
+export function TasksSection({
+  pomodoro,
+  onSignIn,
+}: {
+  pomodoro: PomodoroApi
+  /** Set for a logged-out visitor: the add box sends them to sign in. */
+  onSignIn?: () => void
+}) {
   const headingId = React.useId()
   const completed = pomodoro.tasks.filter((task) => task.completed).length
   return (
@@ -303,7 +310,7 @@ export function TasksSection({ pomodoro }: { pomodoro: PomodoroApi }) {
         <TodayTaskList pomodoro={pomodoro} flat />
       </div>
       <div className="border-t px-3 py-3">
-        <NewTaskForm onAdd={pomodoro.addTask} bare />
+        <NewTaskForm onAdd={pomodoro.addTask} bare onSignIn={onSignIn} />
       </div>
     </section>
   )
@@ -318,6 +325,7 @@ export function NewTaskForm({
   onAdd,
   label = "New task",
   bare = false,
+  onSignIn,
 }: {
   /** False when the title was blank and nothing was sent. */
   onAdd: (title: string) => boolean
@@ -329,6 +337,11 @@ export function NewTaskForm({
    * no other sign that it takes a click.
    */
   bare?: boolean
+  /**
+   * Set for a logged-out visitor: a click on the box or on Add task goes to
+   * sign in instead of typing. Tyler, 10 Oct 2026.
+   */
+  onSignIn?: () => void
 }) {
   const [title, setTitle] = React.useState("")
   // Set by a blank submit and cleared by the next keystroke. The box keeps
@@ -340,6 +353,10 @@ export function NewTaskForm({
       className={cn("relative", bare && "flex items-center gap-2")}
       onSubmit={(event) => {
         event.preventDefault()
+        if (onSignIn) {
+          onSignIn()
+          return
+        }
         if (!onAdd(title)) {
           setInvalid(true)
           showErrorToast(BLANK_TASK_TITLE)
@@ -359,6 +376,8 @@ export function NewTaskForm({
           setInvalid(false)
         }}
         aria-invalid={invalid || undefined}
+        readOnly={onSignIn !== undefined}
+        onClick={onSignIn}
         maxLength={160}
         placeholder="Add a task, press Enter…"
         aria-label={label}

@@ -4,7 +4,6 @@ import {
   BarChart3Icon,
   CheckSquareIcon,
   ChevronLeftIcon,
-  FileTextIcon,
   HistoryIcon,
   ImageIcon,
   LayoutDashboardIcon,
@@ -27,20 +26,15 @@ import QuickControlsHeader from "@/components/pomodoro/quick-controls-header"
 import { SceneBackdrop } from "@/components/pomodoro/scene-backdrop"
 import { ThemeArrows } from "@/components/pomodoro/theme-arrows"
 import { useShownBackground } from "@/lib/pomodoro/break-look"
-import { SavedLink } from "@/components/shell/public-navigation"
 import { NotificationCenter } from "@/components/shell/sticky-header/notification-center"
 import { useTheme } from "@/components/shell/sticky-header/light-dark-switcher"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import type { AccountMenuFacts } from "@/lib/api/pomodoro/profile"
-import { usePublicNavigation, usePublicTheme } from "@/lib/branding"
+import { usePublicTheme } from "@/lib/branding"
 import type { MediaBootstrap } from "@/lib/pomodoro/media-pair"
 import { setGuestStartingTimer } from "@/lib/pomodoro/use-pomodoro"
 import { MediaBootstrapContext } from "@/lib/pomodoro/room-media-store"
-import {
-  publicDeviceSidebarClassName,
-  savedMenuLinks,
-} from "@/lib/pomodoro/saved-menu"
 import { useTabCountdown } from "@/lib/pomodoro/use-tab-countdown"
 
 // The whole Pomoder look rides in with the product shell: the tokens
@@ -310,16 +304,6 @@ export function PomodoroShell({
   // hint says ("A fixed mode hides their switch"). Tyler, 9 Oct 2026: "the
   // theme switcher doesnt work" was this.
   const visitorChoosesMode = usePublicTheme().colorScheme === "system"
-  const savedMenu = usePublicNavigation()
-  const savedLinks = React.useMemo(
-    () =>
-      savedMenuLinks(savedMenu, [
-        ...NAV_LINKS.map((item) => item.to),
-        "/settings",
-        "/",
-      ]),
-    [savedMenu]
-  )
 
   // The tab's title and favicon count down with the timer. It lives here
   // rather than on the timer page because the countdown keeps running while
@@ -401,30 +385,9 @@ export function PomodoroShell({
           className="flex min-h-0 flex-1 flex-col gap-1.5"
         >
           {NAV_LINKS.map((item) => navLink(item.to, item.label, item.icon))}
-          {/* Pages an admin wrote and put in the public menu. Below the
-              product's own screens, never instead of them: a menu edit must
-              not be able to take the timer away from a member. */}
-          {savedLinks.length ? (
-            <div className="mt-1.5 flex flex-col gap-1.5 border-t pt-1.5">
-              {savedLinks.map((link) => (
-                <SavedLink
-                  key={link.href}
-                  href={link.href}
-                  title={link.label}
-                  onClick={() => setMenuOpen(false)}
-                  className={cn(
-                    sidebarRowClass,
-                    publicDeviceSidebarClassName(link.device)
-                  )}
-                >
-                  <FileTextIcon className="size-[19px] shrink-0" aria-hidden />
-                  <span className={cn(collapsed && "lg:hidden")}>
-                    {link.label}
-                  </span>
-                </SavedLink>
-              ))}
-            </div>
-          ) : null}
+          {/* Only the product's own screens. Pages an admin puts in the public
+              menu stay out of it. Tyler, 10 Oct 2026: "adding a page in public
+              menu should not add them to the sidebar". */}
           {navLink("/settings", "Settings", SettingsIcon, true)}
           {/* Narrows the sidebar to its icons. Desktop only: on a phone the
               sidebar is a drawer that is either open or gone, so there is

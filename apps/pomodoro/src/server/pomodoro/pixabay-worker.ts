@@ -1,4 +1,4 @@
-import { and, eq, sql } from "drizzle-orm"
+import { eq } from "drizzle-orm"
 
 import { db } from "@/server/db"
 import { getPublicMediaUrl } from "@/server/media/storage"
@@ -7,7 +7,6 @@ import {
   cleanTags,
   removeFiles,
   storeCatalogBytes,
-  type Transaction,
 } from "@/server/pomodoro/admin-catalog"
 import { forgetMediaCatalog } from "@/server/pomodoro/catalog"
 import {
@@ -19,6 +18,13 @@ import {
   PixabayNotFoundError,
   PixabayRateLimitedError,
 } from "@/server/pomodoro/pixabay"
+import {
+  claimNextLinkImport,
+  failLinkImport,
+  lockedLinkImportRow,
+  putBackLinkImport,
+  type LinkImportJob,
+} from "@/server/pomodoro/link-imports"
 import { PIXABAY_LICENCE_NOTE } from "@/server/pomodoro/pixabay-import"
 import { readPixabayKey } from "@/server/pomodoro/pixabay-key"
 import { pomodoroCatalogItems, type PomodoroCatalogItem } from "@/server/pomodoro/schema"
@@ -48,11 +54,16 @@ const CLAIM_TIMEOUT_MS = 12 * 60 * 1000
 const STILLS_PER_PASS = 5
 const GAVE_UP = "Pixabay's file could not be fetched"
 
-type Job = PomodoroCatalogItem & { importUrl: string }
+/** Every Pixabay link is stored as a pixabay.com page address. */
+const PIXABAY_PREFIX = "https://pixabay.com/"
 
 export async function processPixabayImports() {
   for (let done = 0; done < STILLS_PER_PASS; done += 1) {
-    const job = await claimNextPixabayImport()
+    const job = await claimNextLinkImport({
+      prefix: PIXABAY_PREFIX,
+      timeoutMs: CLAIM_TIMEOUT_MS,
+      gaveUp: GAVE_UP,
+    })
     if (!job) return
     const outcome = await processPixabayImport(job)
     // A throttled minute or a row put back for another try ends the pass, so
@@ -62,69 +73,19 @@ export async function processPixabayImports() {
   }
 }
 
-async function claimNextPixabayImport(): Promise<Job | null> {
-  const staleBefore = new Date(Date.now() - CLAIM_TIMEOUT_MS)
-  // A job whose worker died never reached its own failure handling.
-  const gaveUp = await db
-    .update(pomodoroCatalogItems)
-    .set({
-      fileStatus: "failed",
-      fileError: GAVE_UP,
-      importUrl: null,
-      sourceKind: null,
-      claimedAt: null,
-    })
-    .where(
-      and(
-        sql`${pomodoroCatalogItems.importUrl} is not null`,
-        eq(pomodoroCatalogItems.fileStatus, "processing"),
-        sql`${pomodoroCatalogItems.claimedAt} < ${staleBefore}`,
-        sql`${pomodoroCatalogItems.attempts} >= ${CATALOG_MAX_ATTEMPTS}`
-      )
-    )
-    .returning({ id: pomodoroCatalogItems.id })
-  if (gaveUp.length) forgetMediaCatalog()
-  const [claimed] = await db
-    .update(pomodoroCatalogItems)
-    .set({
-      fileStatus: "processing",
-      claimedAt: new Date(),
-      attempts: sql`${pomodoroCatalogItems.attempts} + 1`,
-    })
-    .where(
-      eq(
-        pomodoroCatalogItems.id,
-        sql`(
-          select ${pomodoroCatalogItems.id} from ${pomodoroCatalogItems}
-          where ${pomodoroCatalogItems.importUrl} is not null and (
-            ${pomodoroCatalogItems.fileStatus} = 'queued'
-            or (${pomodoroCatalogItems.fileStatus} = 'processing'
-              and ${pomodoroCatalogItems.claimedAt} < ${staleBefore}
-              and ${pomodoroCatalogItems.attempts} < ${CATALOG_MAX_ATTEMPTS})
-          )
-          order by ${pomodoroCatalogItems.createdAt}
-          limit 1
-          for update skip locked
-        )`
-      )
-    )
-    .returning()
-  return claimed?.importUrl ? (claimed as Job) : null
-}
-
 type Credits = { user: string; pageURL: string; tags: string }
 
-async function processPixabayImport(job: Job): Promise<"done" | "again"> {
+async function processPixabayImport(job: LinkImportJob): Promise<"done" | "again"> {
   const address = readPixabayAddress(job.importUrl)
   if (!address.ok) {
-    await failImport(job, "That Pixabay link could not be read.")
+    await failLinkImport(job, "That Pixabay link could not be read.")
     return "done"
   }
   const id = address.link.id
 
   const key = await readPixabayKey().catch(() => null)
   if (!key) {
-    await failImport(
+    await failLinkImport(
       job,
       "No readable Pixabay API key is saved. Add it in Settings → Pixabay, then import the link again."
     )
@@ -137,7 +98,7 @@ async function processPixabayImport(job: Job): Promise<"done" | "again"> {
       const video = await fetchPixabayVideo(key, id)
       const rendition = pickPixabayRendition(video, CATALOG_FILM_LIMIT_BYTES)
       if (!rendition) {
-        await failImport(
+        await failLinkImport(
           job,
           `Pixabay's film is over ${formatBytes(CATALOG_FILM_LIMIT_BYTES)} in every size it offers.`
         )
@@ -162,15 +123,15 @@ async function processPixabayImport(job: Job): Promise<"done" | "again"> {
   } catch (error) {
     if (stored) await removeFiles([stored])
     if (error instanceof PixabayRateLimitedError) {
-      await putBack(job, { refund: true })
+      await putBackLinkImport(job, { refund: true })
       return "again"
     }
     if (error instanceof PixabayNotFoundError) {
-      await failImport(job, `Pixabay has no item ${id}`)
+      await failLinkImport(job, `Pixabay has no item ${id}`)
       return "done"
     }
     if (error instanceof PixabayKeyRefusedError) {
-      await failImport(
+      await failLinkImport(
         job,
         "The Pixabay API key was refused. Check it in Settings → Pixabay."
       )
@@ -183,10 +144,10 @@ async function processPixabayImport(job: Job): Promise<"done" | "again"> {
       error instanceof Error ? error.message : "unknown error"
     )
     if (job.attempts >= CATALOG_MAX_ATTEMPTS) {
-      await failImport(job, GAVE_UP)
+      await failLinkImport(job, GAVE_UP)
       return "done"
     }
-    await putBack(job, { refund: false })
+    await putBackLinkImport(job, { refund: false })
     return "again"
   }
 }
@@ -205,27 +166,11 @@ function creditsFor(row: PomodoroCatalogItem, credits: Credits) {
   }
 }
 
-/** The row as it is now, while it still waits on this same import. */
-async function lockedJobRow(tx: Transaction, job: Job) {
-  const [row] = await tx
-    .select()
-    .from(pomodoroCatalogItems)
-    .where(
-      and(
-        eq(pomodoroCatalogItems.id, job.id),
-        eq(pomodoroCatalogItems.importUrl, job.importUrl)
-      )
-    )
-    .for("update")
-    .limit(1)
-  return row ?? null
-}
-
 /** A picture is the theme's still. One the admin picked meanwhile is kept. */
-async function finishStill(job: Job, path: string, image: Credits) {
+async function finishStill(job: LinkImportJob, path: string, image: Credits) {
   const url = await getPublicMediaUrl(path)
   const unused = await db.transaction(async (tx) => {
-    const row = await lockedJobRow(tx, job)
+    const row = await lockedLinkImportRow(tx, job)
     // Deleted, or given a file of the admin's own while this was fetching.
     if (!row) return path
     const keepPicture = Boolean(row.pictureUrl)
@@ -254,9 +199,9 @@ async function finishStill(job: Job, path: string, image: Credits) {
  * with its tries counted from nothing, so it is shrunk to 720p with its first
  * frame as the still.
  */
-async function handOverFilm(job: Job, path: string, video: Credits) {
+async function handOverFilm(job: LinkImportJob, path: string, video: Credits) {
   const handed = await db.transaction(async (tx) => {
-    const row = await lockedJobRow(tx, job)
+    const row = await lockedLinkImportRow(tx, job)
     if (!row) return false
     await tx
       .update(pomodoroCatalogItems)
@@ -275,40 +220,4 @@ async function handOverFilm(job: Job, path: string, video: Credits) {
     return true
   })
   if (!handed) await removeFiles([path])
-}
-
-/** Back in the queue. A throttled try gives its attempt back, so a busy minute burns nothing. */
-async function putBack(job: Job, { refund }: { refund: boolean }) {
-  await db
-    .update(pomodoroCatalogItems)
-    .set({
-      fileStatus: "queued",
-      claimedAt: null,
-      ...(refund ? { attempts: sql`greatest(${pomodoroCatalogItems.attempts} - 1, 0)` } : {}),
-    })
-    .where(
-      and(
-        eq(pomodoroCatalogItems.id, job.id),
-        eq(pomodoroCatalogItems.importUrl, job.importUrl)
-      )
-    )
-}
-
-/** No more tries: the row says why, and the admin can upload a file of their own. */
-async function failImport(job: Job, reason: string) {
-  await db
-    .update(pomodoroCatalogItems)
-    .set({
-      fileStatus: "failed",
-      fileError: reason.slice(0, 300),
-      importUrl: null,
-      sourceKind: null,
-      claimedAt: null,
-    })
-    .where(
-      and(
-        eq(pomodoroCatalogItems.id, job.id),
-        eq(pomodoroCatalogItems.importUrl, job.importUrl)
-      )
-    )
 }

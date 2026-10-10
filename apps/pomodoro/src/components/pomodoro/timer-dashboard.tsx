@@ -1,4 +1,6 @@
 import * as React from "react"
+import { useNavigate } from "@tanstack/react-router"
+import { toast } from "sonner"
 import {
   MaximizeIcon,
   MinusIcon,
@@ -34,9 +36,11 @@ import {
 } from "@/components/ui/tooltip"
 import {
   cycleSessionLabel,
+  elapsedSeconds,
   MODE_LABELS,
   type TimerMode,
 } from "@/lib/pomodoro/timer"
+import { useProductAuth } from "@/lib/pomodoro/auth-state"
 import {
   DAILY_GOAL_LIMIT_REASON,
   DAILY_GOAL_MAX,
@@ -261,6 +265,29 @@ export function TimerDashboard() {
   const pomodoro = usePomodoro()
   const { requestReset, requestMode, discardDialog } =
     useDiscardFocusConfirm(pomodoro)
+  const { known, authenticated } = useProductAuth()
+  const navigate = useNavigate()
+  // Tyler, 10 Oct 2026: a logged-out visitor clicking the tasks box or
+  // auto-start goes to sign in, and comes back to the timer.
+  const toSignIn = () => void navigate({ to: "/login", search: { redirect: "/" } })
+  const guest = known && !authenticated
+  // No break before the first focus of a round has started. Tyler, 10 Oct
+  // 2026: "I can click on short break and longer before a pomo timer start.
+  // I should not be able to do that." The tab stays pressable and says why,
+  // rather than greying out.
+  const pickMode = (mode: TimerMode) => {
+    const nothingStarted =
+      pomodoro.timer.mode === "focus" &&
+      !pomodoro.timer.running &&
+      elapsedSeconds(pomodoro.timer) === 0 &&
+      pomodoro.cycleFocusSessions === 0
+    if (mode !== "focus" && nothingStarted) {
+      // One message however often the tab fires (a press and its focus).
+      toast("Start a focus first. The breaks come after one.", { id: "break-before-focus" })
+      return
+    }
+    requestMode(mode)
+  }
   const [zen, setZen] = React.useState(false)
   const zenButton = React.useRef<HTMLButtonElement>(null)
   // Leaving unmounts zen mode and mounts this screen again, so the focus move
@@ -422,7 +449,7 @@ export function TimerDashboard() {
             it somewhere around the timer". */}
         <SoundPlayerRow />
 
-        <ModeTabs mode={pomodoro.timer.mode} onSelect={requestMode} />
+        <ModeTabs mode={pomodoro.timer.mode} onSelect={pickMode} />
 
         {/* What to do away from the screen, for as long as the timer is on a
             break. Keyed by the break, so the ticks start empty each time. */}
@@ -517,7 +544,7 @@ export function TimerDashboard() {
               <Switch
                 id="auto-start"
                 checked={pomodoro.autoStart}
-                onCheckedChange={pomodoro.setAutoStart}
+                onCheckedChange={guest ? toSignIn : pomodoro.setAutoStart}
                 aria-labelledby="auto-start-heading auto-start-label"
               />
               <Label
@@ -531,7 +558,7 @@ export function TimerDashboard() {
           </div>
         </section>
 
-        <TasksSection pomodoro={pomodoro} />
+        <TasksSection pomodoro={pomodoro} onSignIn={guest ? toSignIn : undefined} />
       </div>
       {/* Its own block under Tasks, with more room above it than the cards
           above share, so it reads as the next thing rather than part of Tasks. */}
