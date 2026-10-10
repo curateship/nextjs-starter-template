@@ -10,13 +10,6 @@ import {
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Card } from "@/components/ui/card"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { ErrorRow } from "@/components/ui/error-row"
@@ -28,6 +21,7 @@ import {
   getCurrentRoom,
   leaveActiveRoom,
   removeMember,
+  setRoomPeopleLimitFor,
   setRoomStartCountdown,
   toggleReaction,
 } from "@/lib/api/pomodoro/rooms"
@@ -45,13 +39,13 @@ import { contentColumn } from "@/lib/pomodoro/content-column"
 import { enterHostedRoom, leaveHostedRoom } from "@/lib/pomodoro/room-media-store"
 import { followRoomRunning } from "@/lib/pomodoro/sound-engine"
 import {
-  START_DELAYS,
   START_DELAY_LABELS,
   type StartDelay,
 } from "@/lib/pomodoro/room-countdown"
 import { usePageVisible } from "@/lib/pomodoro/use-page-visible"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { PersonAvatar } from "@/components/pomodoro/initials-avatar"
+import { RoomSettingsCog } from "@/components/pomodoro/room-settings-cog"
 
 /**
  * The room you are in: its live snapshot, the connection that keeps it
@@ -344,6 +338,18 @@ export function ActiveRoomPanel({
     }
   }
 
+  const setPeopleLimit = async (limit: number | null) => {
+    dismissErrorToast()
+    setPending("limit")
+    try {
+      onSnapshot(await setRoomPeopleLimitFor(room.slug, limit), "You closed the room.", true)
+    } catch {
+      showErrorToast("The people limit could not be changed.")
+    } finally {
+      setPending("")
+    }
+  }
+
   const leave = async () => {
     dismissErrorToast()
     setPending("leave")
@@ -476,7 +482,6 @@ export function ActiveRoomPanel({
   const [chatOpen, setChatOpen] = React.useState(true)
   const focusing = room.phase === "focus"
   const chatId = React.useId()
-  const delayId = React.useId()
 
   return (
     <div className="flex flex-col gap-7">
@@ -540,6 +545,11 @@ export function ActiveRoomPanel({
               </span>
               <span aria-hidden="true">·</span>
               <span>{sessionLabel}</span>
+              {/* The breaks, short, beside the session (Tyler, 10 Oct 2026). */}
+              <span aria-hidden="true">·</span>
+              <span>
+                {room.shortBreakMinutes}m short, {room.longBreakMinutes}m long breaks
+              </span>
               {reconnecting ? (
                 <span role="status" className="flex items-center gap-1">
                   <WifiOffIcon className="size-3" aria-hidden="true" />
@@ -552,29 +562,6 @@ export function ActiveRoomPanel({
           <div className="flex flex-wrap items-center gap-2">
             {/* The countdown before a focus starts, beside the room's other
                 buttons rather than inside the clock (Tyler, 10 Oct 2026). */}
-            {isHost && room.phase === "waiting" && !room.startingAt ? (
-              <div className="flex items-center gap-2">
-                <label htmlFor={delayId} className="text-sm text-muted-foreground">
-                  Countdown
-                </label>
-                <Select
-                  value={String(room.startDelaySeconds)}
-                  disabled={pending !== ""}
-                  onValueChange={(value) => void setDelay(Number(value) as StartDelay)}
-                >
-                  <SelectTrigger id={delayId} className="w-fit rounded-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {START_DELAYS.map((seconds) => (
-                      <SelectItem key={seconds} value={String(seconds)}>
-                        {START_DELAY_LABELS[seconds]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            ) : null}
             <Button
               variant="outline"
               size="lg"
@@ -608,6 +595,13 @@ export function ActiveRoomPanel({
                 >
                   Close room
                 </Button>
+                <RoomSettingsCog
+                  startDelaySeconds={room.startDelaySeconds}
+                  maxPeople={room.maxPeople}
+                  disabled={pending !== ""}
+                  onDelay={(seconds) => void setDelay(seconds)}
+                  onPeopleLimit={(limit) => void setPeopleLimit(limit)}
+                />
               </>
             ) : (
               <Button
@@ -907,10 +901,6 @@ function RoomRing({
             </span>
           ))}
         </div>
-        <p className="text-sm text-muted-foreground">
-          {room.shortBreakMinutes}m breaks · {room.longBreakMinutes}m long
-          break after session 4 · set by {isHost ? "you" : "the host"}
-        </p>
       </div>
     </section>
   )

@@ -205,7 +205,7 @@ is not logged in, that should link to the login page."
   - **One card for the room.** The host's picture, the name with a green
     dot, and under it the phase and "Session 2 of 4". Copy invite link and
     Leave room sit on the right as round outline buttons; the host has
-    Countdown and Close room there. See "The room card" below.
+    Close room and the Room settings cog there. See "The room card" below.
   - **Chat on the left, In the room on the right**, under a line across the
     card. In the room carries the head count, a green dot on each picture, HOST
     in orange and YOU in grey. The snapshot marks your own row (`mine` on each
@@ -350,10 +350,16 @@ Under the clock, the card for the room you are in (Tyler, 10 Oct 2026):
 - **The host's picture sits left of the room's name**: their photo while
   their public page is on, their initials otherwise, the room cards' rule.
   The room snapshot carries each member's photo by that same rule.
-- **The line under the name** says the phase and the session, and no longer
-  names the room's sound and theme or points at Sounds and Backgrounds.
-- **The host's Countdown sits with the card's buttons**, before Copy invite
-  link, while the room waits. See "Starting in" below.
+- **The line under the name** says the phase, the session and the breaks,
+  short: "Waiting to start · Session 1 of 4 · 5m short, 15m long breaks". The longer
+  "5m breaks · 15m long break after session 4 · set by you" under the session
+  chips is gone, and the line no longer names the room's sound and theme.
+- **A cog after Close room** opens Room settings, for the host only: the
+  Countdown before a focus (see "Starting in" below) and People in the room,
+  from 2 to 50 or No limit (`rooms.max_people`, migration 0151). Each saves
+  the moment it is picked. The admin's site-wide limit on Settings → App
+  settings → Rooms still applies and the lower of the two wins; the host
+  always gets back into their own room, and lowering it takes nobody out.
 
 ## Starting in
 
@@ -366,7 +372,7 @@ while they're in the room".
 - **Start begins a countdown.** In a waiting room the host's button reads
   "Start in 5 seconds". Countdown picks 5 seconds or 1, 2, 3, 4 or 5
   minutes, kept on the room (`rooms.start_delay_seconds`, migration 0132). It
-  sits in the room card beside Copy invite link, not inside the clock, and
+  sits in the room card's Room settings cog, not inside the clock, and
   the clock shows no "Waiting to start" over the time; the card's own line
   already says it (Tyler, 10 Oct 2026).
   Pressing it sets `starting_at`; the room stays waiting, so people can still

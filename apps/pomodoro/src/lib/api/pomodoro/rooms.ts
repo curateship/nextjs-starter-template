@@ -20,6 +20,7 @@ import { markRoomNoticesRead } from "@/server/pomodoro/notices"
 import {
   applyHostRoomAction,
   scheduleCountdownEnd,
+  setRoomPeopleLimit,
   setRoomStartDelay,
   banRoomMember,
   createRoomWithHost,
@@ -471,6 +472,21 @@ const setStartDelayFn = createServerFn({ method: "POST" })
     await notifyRoom(roomId, "phase")
     return roomSnapshot(roomId, context.user.id)
   })
+
+/** The host's own people limit, from the room card's cog. Null is none. */
+const setPeopleLimitFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(
+    slugSchema.extend({ maxPeople: z.number().int().min(2).max(500).nullable() })
+  )
+  .handler(async ({ data, context }) => {
+    const roomId = await setRoomPeopleLimit(data.slug, context.user.id, data.maxPeople)
+    await notifyRoom(roomId, "phase")
+    return roomSnapshot(roomId, context.user.id)
+  })
+
+export const setRoomPeopleLimitFor = (slug: string, maxPeople: number | null) =>
+  setPeopleLimitFn({ data: { slug, maxPeople } })
 
 /**
  * The host changes the room's sound and theme from Sounds or Backgrounds.

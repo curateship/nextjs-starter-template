@@ -266,9 +266,11 @@ export async function joinRoomBySlug(slug: string, userId: string, database: Pom
     const [already] = await tx.select({ id: roomMemberships.id }).from(roomMemberships).where(and(eq(roomMemberships.roomId, room.id), eq(roomMemberships.userId, userId), sql`${roomMemberships.leftAt} is null`)).limit(1)
     // A full room refuses the next person. Lowering the limit never takes
     // anybody out, and the host can always come back to their own room.
-    if (maxPeople !== null && !already && room.hostUserId !== userId) {
+    // The host's own limit and the admin's both apply; the lower wins.
+    const limit = lowerLimit(maxPeople, room.maxPeople)
+    if (limit !== null && !already && room.hostUserId !== userId) {
       const [{ inRoom }] = await tx.select({ inRoom: sql<number>`count(*)::int` }).from(roomMemberships).where(and(eq(roomMemberships.roomId, room.id), sql`${roomMemberships.leftAt} is null`))
-      if (inRoom >= maxPeople) throw new Error("ROOM_FULL")
+      if (inRoom >= limit) throw new Error("ROOM_FULL")
     }
     const closedRoomIds = await closeRoomsHostedBy(tx, userId, timestamp, room.id)
     await tx.update(roomMemberships).set({ leftAt: timestamp }).where(and(eq(roomMemberships.userId, userId), sql`${roomMemberships.leftAt} is null`))
@@ -482,6 +484,8 @@ export type RoomSnapshot = {
     closedAt: Date | null
     /** "Starting in": the host's countdown choice, and when a running one ends. */
     startDelaySeconds: number
+    /** The host's own people limit, null for none. */
+    maxPeople: number | null
     startingAt: Date | null
   }
   you: { role: "host" | "member"; timezone: string }
@@ -542,6 +546,7 @@ export async function roomSnapshot(roomId: string, userId: string, database: Pom
     cycleFocusCount: room.cycleFocusCount,
     closedAt: room.closedAt,
     startDelaySeconds: room.startDelaySeconds,
+    maxPeople: room.maxPeople,
     startingAt: room.startingAt,
   }
   const role: "host" | "member" = room.hostUserId === userId ? "host" : "member"
@@ -1196,6 +1201,28 @@ export function scheduleCountdownEnd(roomId: string, startingAt: Date) {
 }
 
 /** The host's "Starting in" choice, used by every Start from now on. */
+/** The lower of two people limits, either of which may be "no limit". */
+function lowerLimit(a: number | null, b: number | null) {
+  if (a === null) return b
+  if (b === null) return a
+  return Math.min(a, b)
+}
+
+/**
+ * The host's own people limit for their room, from the room card's cog
+ * (10 Oct 2026), or null for none. Lowering it takes nobody out.
+ */
+export async function setRoomPeopleLimit(slug: string, userId: string, maxPeople: number | null, database: PomoderDb = db) {
+  if (maxPeople !== null && (!Number.isInteger(maxPeople) || maxPeople < 2 || maxPeople > 500))
+    throw new Error("ROOM_PEOPLE_LIMIT_INVALID")
+  const [room] = await database.select({ id: rooms.id, hostUserId: rooms.hostUserId, closedAt: rooms.closedAt }).from(rooms).where(eq(rooms.slug, slug)).limit(1)
+  if (!room) throw new Error("ROOM_NOT_FOUND")
+  if (room.hostUserId !== userId) throw new Error("ROOM_HOST_REQUIRED")
+  if (room.closedAt) throw new Error("ROOM_CLOSED")
+  await database.update(rooms).set({ maxPeople, updatedAt: new Date() }).where(eq(rooms.id, room.id))
+  return room.id
+}
+
 export async function setRoomStartDelay(slug: string, userId: string, seconds: number, database: PomoderDb = db) {
   if (!isStartDelay(seconds)) throw new Error("ROOM_START_DELAY_INVALID")
   const [room] = await database.select({ id: rooms.id, hostUserId: rooms.hostUserId, closedAt: rooms.closedAt }).from(rooms).where(eq(rooms.slug, slug)).limit(1)

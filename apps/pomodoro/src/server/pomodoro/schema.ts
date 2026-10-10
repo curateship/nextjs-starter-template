@@ -909,6 +909,12 @@ export const rooms = pgTable(
      * the host picks 1 to 5 minutes. Tyler, 9 Oct 2026.
      */
     startDelaySeconds: integer("start_delay_seconds").notNull().default(5),
+    /**
+     * The host's own limit on how many people the room holds (migration
+     * 0151), null for none. The admin's site-wide limit applies on top and
+     * the lower wins.
+     */
+    maxPeople: integer("max_people"),
     /** When a countdown running from waiting ends and the focus starts. */
     startingAt: timestamp("starting_at", { withTimezone: true }),
     /** The length of that countdown, so a minute or more lists under "Starting soon". */
