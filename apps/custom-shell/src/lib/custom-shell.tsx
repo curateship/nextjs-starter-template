@@ -543,6 +543,14 @@ export type ShellConfig = {
    * environment variable so it can be switched off without a redeploy.
    */
   liveNotifications: boolean
+  /**
+   * Whether passkeys are a way in. Off, the sign-in page has no passkey button,
+   * Account → Security has no Passkeys card, and the server refuses passkey
+   * sign-ins and new passkeys. Saved passkeys are kept, so switching it back on
+   * makes them work again. App-wide, because the sign-in page is drawn before
+   * anyone has picked a site.
+   */
+  passkeySignIn: boolean
   /** Which kinds appear in members' notification lists and unread counts. */
   notificationTypes: NotificationTypeVisibility
   /** App-wide lockout: members see the maintenance page, admins keep working. */
@@ -814,6 +822,7 @@ export function createDefaultShellConfig(): ShellConfig {
     // from, and members would otherwise open the app to nothing at all.
     memberSections: createDefaultMemberSections(),
     liveNotifications: true,
+    passkeySignIn: true,
     notificationTypes: createDefaultNotificationTypeVisibility(),
     maintenance: createDefaultMaintenance(),
     automationPause: createDefaultAutomationPause(),

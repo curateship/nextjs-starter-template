@@ -278,6 +278,7 @@ export function GeneralSettings({
 
       <SecuritySettings
         config={config}
+        onConfigChange={onConfigChange}
         onSessionPolicyChange={onSessionPolicyChange}
         sessionPolicyBusy={sessionPolicyBusy}
       />

@@ -1,5 +1,6 @@
 import {
   ActivityIcon,
+  CalendarClockIcon,
   CircleAlertIcon,
   GaugeIcon,
   GitMergeIcon,
@@ -18,6 +19,7 @@ import { type NotificationItem } from "@/lib/api/notification"
 import {
   aiLimitNotificationText,
   automationApprovalNotificationText,
+  carriesItsOwnWords,
   isAiLimitNotification,
 } from "@/lib/notification-types"
 import { focusRingInset } from "@/lib/layout/focus-ring"
@@ -64,9 +66,7 @@ function isFromTheApp(item: NotificationItem) {
     item.type === "announcement" ||
     item.type === "automation_approval" ||
     item.type === "automation_failed" ||
-    item.type === "account_update" ||
-    item.type === "system_email_failed" ||
-    item.type === "app_activity" ||
+    carriesItsOwnWords(item.type) ||
     isAiLimitNotification(item.type)
   )
 }
@@ -146,6 +146,8 @@ function ShellNotificationIcon({
   if (item.type === "system_email_failed")
     return <MailWarningIcon className={className} />
   if (item.type === "app_activity") return <ActivityIcon className={className} />
+  if (item.type === "crm_follow_up")
+    return <CalendarClockIcon className={className} />
   if (isAiLimitNotification(item.type)) return <GaugeIcon className={className} />
   if (item.type === "feedback_merged")
     return <GitMergeIcon className={className} />
@@ -158,11 +160,7 @@ function ShellNotificationIcon({
 
 /** The shell's own heading for a notice, as plain text a screen reader can use. */
 function shellHeadingText(item: NotificationItem): string {
-  if (
-    item.type === "account_update" ||
-    item.type === "system_email_failed" ||
-    item.type === "app_activity"
-  ) {
+  if (carriesItsOwnWords(item.type)) {
     return item.message ?? "The app needs attention"
   }
   if (item.type === "changelog") return "New update shipped"
@@ -186,9 +184,7 @@ function notificationText(item: NotificationItem) {
   const approvalText = automationApprovalNotificationText[approvalState(item)]
   const approvalSummary = item.automation_approval_summary?.trim()
   const text =
-    item.type === "account_update" ||
-    item.type === "system_email_failed" ||
-    item.type === "app_activity"
+    carriesItsOwnWords(item.type)
       ? (item.detail ?? "")
       : item.type === "changelog"
         ? (item.changelog_title ?? "")

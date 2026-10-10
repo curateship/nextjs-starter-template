@@ -40,6 +40,32 @@ The Security tab also supports passkeys when the deployment has a valid relying
 party configuration. A passkey challenge expires and can only be used for its
 intended registration or authentication step.
 
+## Switching passkeys off
+
+Settings → General → Passkeys has one switch, "Offer Sign in with a
+passkey". It is on for every install until an admin turns it off, and it saves
+the moment it is flipped, like every other setting on that page.
+
+Switched off:
+
+- The sign-in page drops its "Sign in with a passkey" button.
+- Account → Security drops its Passkeys card, so nobody adds a passkey that
+  could not sign them in.
+- The server refuses all four passkey calls (start and finish, for signing in
+  and for adding one) with "Passkeys are switched off here". That covers a
+  sign-in page left open from before the switch was flipped.
+- Passkeys people already added stay saved. Turning the switch back on makes
+  them work again without anyone adding them a second time.
+
+Turning passkeys off asks nothing first, because nobody is locked out: the
+password form, the emailed sign-in link and Google are all untouched.
+
+The value is app-wide and lives in the shell settings row as `passkeySignIn`.
+A row saved before the switch existed has no value, and the reader treats a
+missing value as on. The sign-in page reads it through `loadSignInOptions`
+(`src/lib/api/auth/auth.ts`), and the passkey endpoints check it in
+`requirePasskeysOn` (`src/lib/api/auth/passkeys.ts`).
+
 The repo's `docs/shell/saas-foundation.md` contains the full account contract.
 `docs/shell/security.md` contains the security requirements that every app must
 keep.
