@@ -80,9 +80,10 @@ styles.
 
 "Start from" under the styles lists the member's own ready pictures, with
 "Words only" first. Picked, the picture is sent to Veo with the prompt as the
-film's first frame (`instances[].image.inlineData`, the shape Google's Veo
-page gives for Veo 3.1 Lite, checked 10 Oct 2026). It costs one background
-credit, the same $0.40.
+film's first frame (`instances[].image` with `bytesBase64Encoded` and
+`mimeType`). Veo's predictLongRunning call refuses `inlineData` ("isn't
+supported by this model"), tried against the live API on 10 Oct 2026. It
+costs one background credit, the same $0.40.
 
 - **Only the member's own picture.** The server checks it is theirs, a
   picture, finished and not in the bin when the request is accepted, and the
@@ -273,6 +274,23 @@ counted or refunded. The bell also warns once at one credit left and once at
 none left, per month and kind, and the none-left notice names the day they come
 back. See [Notifications](notifications.md).
 
+## What Veo accepts
+
+Every AI background failed until 10 Oct 2026, before Google made anything,
+because the request asked Veo to allow adults in the film. Tried against the
+live API that day:
+
+- **Words alone take `personGeneration: "allow_all"`.** "allow_adult" and
+  "dont_allow" are refused ("currently not supported").
+- **A starting picture takes `"allow_adult"`.**
+- **A refusal is written to the worker's log** with Google's own sentence
+  ("veo refused the request 429 …"), so a used-up quota or a changed rule can
+  be found. The member still reads only the plain sentence.
+- **Veo needs a Google account with billing on.** Without it Google answers
+  429, "You exceeded your current quota", for every background, and the
+  member's credit is kept for a retry. Seen on Tyler's Gemini key on 10 Oct
+  2026.
+
 ## What the provider is never allowed to do
 
 The two adapters in `generation-providers.ts` are the only code in this app that
@@ -282,8 +300,11 @@ not to be trusted.
 - **The download address must be Google's own.** Veo's reply has changed shape
   between versions, so the code walks the reply looking for a URI rather than
   reaching for a fixed path — and only accepts one on
-  `generativelanguage.googleapis.com`. The download also sets
-  `redirect: "error"`, so a reply cannot bounce the server somewhere else.
+  `generativelanguage.googleapis.com`. Google answers that address by sending
+  the download on to its own storage (its guide downloads with `curl -L`),
+  so exactly one hop is followed, only to a `googleapis.com` or
+  `googleusercontent.com` address, and without the key. Any other hop, or a
+  second one, fails the render.
 - **A provider's own error text never reaches the member.** Those name models
   and quotas, which tells a member nothing and an attacker something. Every
   failure becomes one of a handful of plain sentences.
