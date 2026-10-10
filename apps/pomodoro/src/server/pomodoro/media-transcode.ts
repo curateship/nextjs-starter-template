@@ -26,15 +26,22 @@ const FFMPEG_TIMEOUT_MS = 4 * 60 * 1000
 
 export class FfmpegMissingError extends Error {}
 
+/** A trim that starts after the file ends leaves nothing to keep. */
+export class TrimOutsideFileError extends Error {}
+
 export type TranscodeResult = {
   bytes: Uint8Array
   mimeType: string
   extension: string
 }
 
+/** Where a member asked a sound or clip to start and end, in milliseconds. */
+export type TranscodeTrim = { startMs: number; endMs: number }
+
 export async function transcodeUpload(
   input: Uint8Array,
-  kind: Exclude<PomodoroUploadKind, "image">
+  kind: Exclude<PomodoroUploadKind, "image">,
+  trim: TranscodeTrim | null = null
 ): Promise<TranscodeResult> {
   const folder = await mkdtemp(path.join(tmpdir(), "pomodoro-media-"))
   const inputPath = path.join(folder, kind === "video" ? "in.mp4" : "in.audio")
@@ -42,12 +49,24 @@ export async function transcodeUpload(
 
   try {
     await writeFile(inputPath, input)
-    await run("ffmpeg", ffmpegArgs(kind, inputPath, outputPath), {
+    await run("ffmpeg", ffmpegArgs(kind, inputPath, outputPath, trim), {
       timeout: FFMPEG_TIMEOUT_MS,
       maxBuffer: 1024 * 1024,
     })
     const bytes = new Uint8Array(await readFile(outputPath))
     if (!bytes.byteLength) throw new Error("FFmpeg produced an empty file.")
+    // FFmpeg seeking past the end still exits cleanly and writes a file with
+    // no sound or picture in it, which would otherwise be called ready. The
+    // window never asks for that; a hand-made request could.
+    if (trim) {
+      // A file too empty to have a length counts as nothing kept.
+      const kept = await probeDurationSeconds(bytes).catch((error: unknown) => {
+        if (error instanceof FfmpegMissingError) throw error
+        return 0
+      })
+      if (kept < 0.5)
+        throw new TrimOutsideFileError("The trim starts after the file ends.")
+    }
 
     return kind === "video"
       ? { bytes, mimeType: "video/mp4", extension: "mp4" }
@@ -157,13 +176,25 @@ export async function extractMiddleFrame(input: Uint8Array) {
 function ffmpegArgs(
   kind: "audio" | "video",
   inputPath: string,
-  outputPath: string
+  outputPath: string,
+  trim: TranscodeTrim | null
 ) {
+  // Before the input, so FFmpeg jumps to the start instead of decoding up to
+  // it. Re-encoding makes the cut land on the exact frame, not a keyframe.
+  const input = trim
+    ? [
+        "-ss",
+        (trim.startMs / 1000).toFixed(3),
+        "-t",
+        ((trim.endMs - trim.startMs) / 1000).toFixed(3),
+        "-i",
+        inputPath,
+      ]
+    : ["-i", inputPath]
   if (kind === "video") {
     return [
       "-y",
-      "-i",
-      inputPath,
+      ...input,
       // No sound: the background is scenery, and the sound player owns audio.
       "-an",
       "-vf",
@@ -182,8 +213,7 @@ function ffmpegArgs(
 
   return [
     "-y",
-    "-i",
-    inputPath,
+    ...input,
     "-af",
     "loudnorm",
     "-codec:a",

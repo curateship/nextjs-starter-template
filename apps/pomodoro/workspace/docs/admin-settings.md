@@ -60,6 +60,11 @@ nothing changes until an admin saves. The server holds them for five seconds.
 - **The default theme is also the fallback** for anybody whose theme was made a
   Draft or deleted. Lofi girl stays the last fallback, because its files ship
   with the app.
+- **Suggest a name and tags with AI**, on the Member uploads card. On, the
+  upload window asks Claude Haiku 4.5 for a name and two or three tags from
+  each file's name. It starts on and needs the Anthropic key in Settings → AI.
+  Off, the window keeps the file name and no tags. See [Your own backgrounds and
+  sounds](own-media-uploads.md#ai-fills-in-the-name).
 
 ## Seasons
 

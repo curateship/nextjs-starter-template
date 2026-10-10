@@ -73,9 +73,9 @@ saved with it.
 | group_removed | the person removed | Social | nothing |
 | followed_streak | people who follow the streaker | Social | the streaker's public page, while it opens |
 | badge | the person who earned it | Account | `/history`, where the badges panel is |
-| media_ready | the owner of the file | Account | `/backgrounds` or `/sounds` |
-| media_failed | the owner of the file | Account | `/backgrounds` or `/sounds` |
-| credits_low | the person running low | Account | `/backgrounds` or `/sounds` |
+| media_ready | the owner of the file | Account | My uploads, `/uploads?kind=background` or `?kind=sound` |
+| media_failed | the owner of the file | Account | My uploads, `/uploads?kind=background` or `?kind=sound` |
+| credits_low | the person running low | Account | My uploads, `/uploads?kind=background` or `?kind=sound` |
 | report_new | every active admin but the reporter | Account | `/admin/pomodoro-reports` |
 | report_reviewed | whoever filed the report | Account | nothing |
 | profile_hidden | the owner of the hidden profile | Account | Settings → Public page |

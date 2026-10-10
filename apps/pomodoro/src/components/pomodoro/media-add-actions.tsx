@@ -276,7 +276,7 @@ export function MediaAddMenu({
         <Button
           type="button"
           size="icon"
-          variant="outline"
+          variant="ghost"
           className={cn("rounded-full", className)}
           disabled={busy !== ""}
           aria-label={`Add ${item.label} to a room`}
@@ -318,9 +318,14 @@ export function MediaAddMenu({
  * "Add a label that says Currently selected." It sits over the card's picture,
  * so it reads the same on Sounds, Backgrounds and your own uploads.
  */
-export function CurrentlySelectedLabel() {
+export function CurrentlySelectedLabel({ className }: { className?: string }) {
   return (
-    <span className="absolute top-2 left-2 z-[1] flex items-center gap-1 rounded-full bg-[var(--p-accent)] px-2 py-0.5 text-[11px] font-semibold text-[var(--p-on-accent)]">
+    <span
+      className={cn(
+        "absolute top-2 left-2 z-[1] flex items-center gap-1 rounded-full bg-[var(--p-accent)] px-2 py-0.5 text-[11px] font-semibold text-[var(--p-on-accent)]",
+        className
+      )}
+    >
       <CheckIcon className="size-3" aria-hidden="true" />
       Currently selected
     </span>
@@ -356,13 +361,15 @@ function InUse({
 export function MediaRoomNote({ thing }: { thing: "sound" | "theme" }) {
   const { room } = useRoomMedia()
   const { authenticated } = useProductAuth()
-  const verb = thing === "sound" ? "hear it" : "see it play"
+  // A sound plays on a click; a theme plays while the pointer is over it.
+  const how = thing === "sound" ? "Press a sound to hear it" : "Hover over a theme to see it play"
+  const howLower = thing === "sound" ? "press one to hear it" : "hover over one to see it play"
   const text = room
     ? room.role === "host"
-      ? `You are hosting ${room.name}. Hover over a ${thing} to ${verb}, then press + to add it. "Add to this room" changes it for everyone in the room.`
-      : `The host picked this room's sound and theme. You can still hover over one to ${verb}, and your own room comes back when you leave ${room.name}.`
+      ? `You are hosting ${room.name}. ${how}, then press + to add it. "Add to this room" changes it for everyone in the room.`
+      : `The host picked this room's sound and theme. You can still ${howLower}, and your own room comes back when you leave ${room.name}.`
     : authenticated
-      ? `Hover over a ${thing} to ${verb}. Nothing changes until you press + and add it to your personal room.`
-      : `Hover over a ${thing} to ${verb}, then press + to use it for this visit. Sign in to keep one in a personal room of your own.`
+      ? `${how}. Nothing changes until you press + and add it to your personal room.`
+      : `${how}, then press + to use it for this visit. Sign in to keep one in a personal room of your own.`
   return <p className="max-w-xl text-muted-foreground">{text}</p>
 }

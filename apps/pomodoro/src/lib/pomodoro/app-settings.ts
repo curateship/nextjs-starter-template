@@ -30,6 +30,12 @@ export const appSettingSchemas = {
    * and sounds."
    */
   "media.shuffleUnset": z.boolean(),
+  /**
+   * The upload window asks AI for a name and two or three tags from the file
+   * name (uploads-and-sharing task 01, part 7). A fraction of a cent per file,
+   * booked on the AI usage page, so an admin can switch it off.
+   */
+  "uploads.aiLabels": z.boolean(),
   /** What a new account and a guest start with, when shuffle is off. */
   "media.defaults": z.object({
     sound: soundKeySchema.nullable(),
@@ -132,6 +138,7 @@ export const APP_SETTING_DEFAULTS: {
   // Tyler, 9 Oct 2026: "shuffle is on automatically for all users until they
   // choose a song or theme." An admin can still switch it off.
   "media.shuffleUnset": true,
+  "uploads.aiLabels": true,
   "media.defaults": { sound: null, background: null },
   "media.seasons": [],
   "break.look": { background: null, message: "" },

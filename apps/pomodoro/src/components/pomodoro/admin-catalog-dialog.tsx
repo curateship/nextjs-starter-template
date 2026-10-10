@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
 import { Textarea } from "@/components/ui/textarea"
-import { ImageUpload } from "@/components/shared/image-upload"
+import { TagsField } from "@/components/pomodoro/tags-field"
 import {
   getCatalogAdminErrorMessage,
   loadCatalogItem,
@@ -48,7 +48,6 @@ import {
   soundLengthProblem,
   type CatalogKind,
 } from "@/lib/pomodoro/admin-catalog"
-import { normalizeTag } from "@/lib/pomodoro/media-pool"
 import { waitsForPixabayFile } from "@/lib/pomodoro/pixabay-links"
 import { isYoutubeClipImport } from "@/lib/pomodoro/youtube-links"
 import { showErrorToast } from "@/lib/toast/error-toast"
@@ -72,7 +71,6 @@ type Draft = {
   descriptor: string
   locked: boolean
   status: "draft" | "live"
-  pictureUrl: string
   /** As typed: words separated by commas. */
   tags: string
   volume: number
@@ -92,7 +90,6 @@ function emptyDraft(kind: CatalogKind): Draft {
     descriptor: kind === "sound" ? "ambient" : "static",
     locked: false,
     status: "draft",
-    pictureUrl: "",
     tags: "",
     volume: 100,
     artist: "",
@@ -110,7 +107,6 @@ function draftFrom(item: AdminCatalogItem): Draft {
     descriptor: item.descriptor,
     locked: item.locked,
     status: item.status,
-    pictureUrl: item.pictureUrl ?? "",
     tags: item.tags.join(", "),
     volume: item.volume,
     artist: item.artist ?? "",
@@ -248,7 +244,6 @@ export function AdminCatalogDialog({
         descriptor: draft.descriptor,
         locked: draft.locked,
         status: draft.status,
-        pictureUrl: draft.pictureUrl || null,
         tags: draft.tags.split(","),
         volume: draft.volume,
         artist: draft.artist || null,
@@ -348,6 +343,7 @@ export function AdminCatalogDialog({
                       </div>
                       <TagsField
                         id={tagsId}
+                        hint="Members filter sounds and themes by these words, and tick them to shuffle. Separate them with commas, up to eight."
                         value={draft.tags}
                         onChange={(value) => update("tags", value)}
                         knownTags={knownTags}
@@ -427,18 +423,11 @@ export function AdminCatalogDialog({
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="grid gap-4">
-                      {kind === "sound" ? (
-                        <ImageUpload
-                          label="Card picture"
-                          value={draft.pictureUrl}
-                          onChange={(value) => update("pictureUrl", value)}
-                          aspect="video"
-                          className="sm:max-w-xs"
-                          hint="Optional. Leave it empty and one of the built-in sound graphics is picked when you save."
-                        />
-                      ) : (
+                      {/* A sound has no picture: its card draws a waveform
+                          from its key (Tyler, 10 Oct 2026). */}
+                      {kind === "theme" ? (
                         <ThemeStill pictureUrl={item?.pictureUrl ?? null} />
-                      )}
+                      ) : null}
                       <div className="grid gap-2">
                         <FieldLabel htmlFor={fileId}>
                           {kind === "sound" ? "Sound file" : "Film"}
@@ -615,59 +604,6 @@ export function AdminCatalogDialog({
         </DialogContent>
       )}
     </FormDialog>
-  )
-}
-
-/**
- * The tags box: words separated by commas, with the tags already in use one
- * click away so the same word is not spelled three ways.
- */
-function TagsField({
-  id,
-  value,
-  onChange,
-  knownTags,
-}: {
-  id: string
-  value: string
-  onChange: (value: string) => void
-  knownTags: string[]
-}) {
-  const typed = value
-    .split(",")
-    .map((tag) => normalizeTag(tag))
-    .filter((tag): tag is string => tag !== null)
-  const offered = knownTags.filter((tag) => !typed.includes(tag)).slice(0, 12)
-  return (
-    <div className="grid gap-2">
-      <FieldLabel
-        htmlFor={id}
-        hint="Members filter sounds and themes by these words, and tick them to shuffle. Separate them with commas, up to eight."
-      >
-        Tags
-      </FieldLabel>
-      <Input
-        id={id}
-        value={value}
-        placeholder="rain, night"
-        onChange={(event) => onChange(event.target.value)}
-      />
-      {offered.length ? (
-        <div className="flex flex-wrap gap-1">
-          {offered.map((tag) => (
-            <Button
-              key={tag}
-              type="button"
-              variant="outline"
-              size="xs"
-              onClick={() => onChange(typed.length ? `${typed.join(", ")}, ${tag}` : tag)}
-            >
-              {tag}
-            </Button>
-          ))}
-        </div>
-      ) : null}
-    </div>
   )
 }
 

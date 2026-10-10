@@ -5,7 +5,7 @@ import { freshKey, logCatalogAct } from "@/server/pomodoro/admin-catalog"
 import { forgetMediaCatalog } from "@/server/pomodoro/catalog"
 import { readPixabayKey } from "@/server/pomodoro/pixabay-key"
 import { pomodoroCatalogItems } from "@/server/pomodoro/schema"
-import { randomSoundGraphic, type CatalogKind } from "@/lib/pomodoro/admin-catalog"
+import type { CatalogKind } from "@/lib/pomodoro/admin-catalog"
 import {
   pixabayItemKey,
   readPixabayAddress,
@@ -92,8 +92,8 @@ export async function importFromPixabay({
           status: "draft",
           position: position++,
           sourceUrl: link.pageUrl,
-          // A sound's card picture: one of the built-in graphics.
-          pictureUrl: fetched ? null : randomSoundGraphic(),
+          // A sound has no picture, and a theme's arrives with its file.
+          pictureUrl: null,
           licence: "free",
           licenceNote: PIXABAY_LICENCE_NOTE,
           // A sound has nothing to fetch: it is ready, with no file, until

@@ -7,23 +7,36 @@ import { enforceRateLimit } from "@/server/auth/rate-limit"
 import { userGet, userPost } from "@/server/guards"
 import { loadAccountStorage } from "@/server/media/library"
 import { R2StorageNotConfiguredError } from "@/server/media/storage"
+import { loadAppSettings } from "@/server/pomodoro/app-settings"
 import { loadPomodoroEntitlements } from "@/server/pomodoro/entitlements"
 import {
   assertCanUpload,
+  countUploadsAhead,
   deletePomodoroUpload,
   listPomodoroUploads,
+  loadUploadTagSuggestions,
+  editPomodoroUpload as saveUploadEdit,
   storePomodoroUpload,
   validatePomodoroUpload,
   validateUploadContentLength,
+  validateUploadLabels,
   type StoredUpload,
 } from "@/server/pomodoro/media-uploads"
+import {
+  suggestUploadLabels,
+  type SuggestedLabels,
+} from "@/server/pomodoro/upload-labels"
 import {
   UPLOAD_LIMIT_BYTES,
   type PomodoroUploadPurpose,
 } from "@/lib/pomodoro/media-limits"
 import { formatBytes } from "@/lib/pomodoro/media-limits"
+import {
+  UPLOAD_LABEL_MESSAGES,
+  type UploadTrim,
+} from "@/lib/pomodoro/upload-labels"
 
-export type { StoredUpload }
+export type { StoredUpload, SuggestedLabels }
 
 /** What a member has uploaded for one picker, and how full their account is. */
 export type UploadLibrary = {
@@ -31,7 +44,14 @@ export type UploadLibrary = {
   canUploadMedia: boolean
   usedBytes: number
   limitBytes: number
+  /** The tags the upload window offers: the catalogue's, then the member's own. */
+  knownTags: string[]
+  /** Whether the window asks AI for a name and tags (Settings → App settings). */
+  suggestLabels: boolean
 }
+
+/** A finished upload, and how many sounds and clips the worker takes first. */
+export type UploadResult = StoredUpload & { ahead: number }
 
 export const getPomodoroUploadErrorMessage = createErrorMessage(
   {
@@ -52,6 +72,11 @@ export const getPomodoroUploadErrorMessage = createErrorMessage(
       "Uploads are not switched on yet, so this file cannot be saved.",
     RATE_LIMITED:
       "That is a lot of uploads at once. Please wait a few minutes and try again.",
+    ...UPLOAD_LABEL_MESSAGES,
+    UPLOAD_LABELS_MISSING:
+      "This page is out of date. Reload it and upload the file again.",
+    INVALID_TRIM:
+      "That trim cannot be used. Keep at least one second, inside the file.",
   },
   "That upload did not work. Please try again."
 )
@@ -62,18 +87,33 @@ const libraryFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .inputValidator(z.object({ purpose: purposeSchema }))
   .handler(async ({ data, context }): Promise<UploadLibrary> => {
-    const [uploads, entitlements, storage] = await Promise.all([
-      listPomodoroUploads(context.user.id, data.purpose),
-      loadPomodoroEntitlements(context.user.id),
-      loadAccountStorage(context.user.id),
-    ])
+    const [uploads, entitlements, storage, knownTags, settings] =
+      await Promise.all([
+        listPomodoroUploads(context.user.id, data.purpose),
+        loadPomodoroEntitlements(context.user.id),
+        loadAccountStorage(context.user.id),
+        loadUploadTagSuggestions(context.user.id, data.purpose),
+        loadAppSettings(),
+      ])
     return {
       uploads,
       canUploadMedia: entitlements.canUploadMedia,
       usedBytes: storage.bytes,
       limitBytes: entitlements.storageLimitBytes,
+      knownTags,
+      suggestLabels: settings["uploads.aiLabels"],
     }
   })
+
+/** The window's fields, sent as text beside the file. */
+const labelsSchema = z.object({
+  name: z.string().max(400),
+  tags: z.array(z.string().max(100)).max(50),
+  shared: z.boolean(),
+  trim: z
+    .object({ startMs: z.number().int(), endMs: z.number().int() })
+    .nullable(),
+})
 
 const uploadFn = createServerFn({ method: "POST" })
   .middleware([userPost])
@@ -82,9 +122,18 @@ const uploadFn = createServerFn({ method: "POST" })
     const file = data.get("file")
     if (!(file instanceof File)) throw new Error("INVALID_FILE_CONTENT")
     const purpose = purposeSchema.parse(data.get("purpose")?.toString())
-    return { file, purpose }
+    // A tab opened before the upload window existed sends the file alone.
+    let labels: unknown = null
+    try {
+      labels = JSON.parse(data.get("labels")?.toString() ?? "null")
+    } catch {
+      // Left null, and refused just below.
+    }
+    const parsed = labelsSchema.safeParse(labels)
+    if (!parsed.success) throw new Error("UPLOAD_LABELS_MISSING")
+    return { file, purpose, labels: parsed.data }
   })
-  .handler(async ({ data, context }): Promise<StoredUpload> => {
+  .handler(async ({ data, context }): Promise<UploadResult> => {
     // Refused before a byte is read: a request with no declared length cannot
     // have its size checked until the whole body is already in memory, which
     // is the hole an attacker would push a two-gigabyte body through.
@@ -107,15 +156,22 @@ const uploadFn = createServerFn({ method: "POST" })
       fileSize: bytes.byteLength,
       purpose: data.purpose,
     })
+    const labels = validateUploadLabels(data.labels, detected.kind)
 
     try {
-      return await storePomodoroUpload({
+      const stored = await storePomodoroUpload({
         userId: context.user.id,
         purpose: data.purpose,
         file: { name: data.file.name },
         bytes,
         detected,
+        labels,
       })
+      return {
+        ...stored,
+        ahead:
+          stored.status === "ready" ? 0 : await countUploadsAhead(stored.mediaId),
+      }
     } catch (error) {
       if (error instanceof R2StorageNotConfiguredError) {
         throw new Error("STORAGE_NOT_CONFIGURED")
@@ -132,8 +188,78 @@ const deleteFn = createServerFn({ method: "POST" })
     return { deleted: data.mediaId }
   })
 
+const editFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(
+    z.object({
+      mediaId: z.string().uuid(),
+      name: z.string().max(400),
+      tags: z.array(z.string().max(100)).max(50),
+      shared: z.boolean(),
+      // Left out keeps the trim; null keeps the whole original.
+      trim: z
+        .object({ startMs: z.number().int(), endMs: z.number().int() })
+        .nullable()
+        .optional(),
+    })
+  )
+  .handler(async ({ data, context }) => {
+    // Each new cut is a worker's FFmpeg run, the most expensive thing the
+    // app does, so they are rationed like uploads. A rename is not.
+    if (data.trim !== undefined)
+      await enforceRateLimit(`pomodoro-retrim:${context.user.id}`, {
+        maxAttempts: 10,
+        windowSeconds: 10 * 60,
+      })
+    return saveUploadEdit(context.user.id, data.mediaId, data)
+  })
+
+/** The cog's Save changes. Passing `trim` asks the worker for a new cut. */
+export const editPomodoroUpload = (data: {
+  mediaId: string
+  name: string
+  tags: string[]
+  shared: boolean
+  trim?: UploadTrim | null
+}) => editFn({ data })
+
+/**
+ * A name and tags for a file the member just picked, or null. Never an error:
+ * the window keeps the file name when nothing comes back.
+ */
+const suggestFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(
+    z.object({ fileName: z.string().min(1).max(255), purpose: purposeSchema })
+  )
+  .handler(async ({ data, context }): Promise<SuggestedLabels | null> => {
+    const [settings, entitlements] = await Promise.all([
+      loadAppSettings(),
+      loadPomodoroEntitlements(context.user.id),
+    ])
+    if (!settings["uploads.aiLabels"] || !entitlements.canUploadMedia)
+      return null
+    // Ten files at a time, so this is well above the window's own use and
+    // well below anything that would run up a bill.
+    await enforceRateLimit(`pomodoro-upload-labels:${context.user.id}`, {
+      maxAttempts: 40,
+      windowSeconds: 10 * 60,
+    })
+    return suggestUploadLabels({
+      userId: context.user.id,
+      fileName: data.fileName,
+      purpose: data.purpose,
+      knownTags: await loadUploadTagSuggestions(context.user.id, data.purpose),
+    })
+  })
+
 export const loadUploadLibrary = (purpose: PomodoroUploadPurpose) =>
   libraryFn({ data: { purpose } })
+
+export const suggestPomodoroUploadLabels = (
+  fileName: string,
+  purpose: PomodoroUploadPurpose
+) => suggestFn({ data: { fileName, purpose } }).catch(() => null)
 
 /** How far an upload has got: the bytes going out, then the server's check. */
 export type UploadProgress =
@@ -150,11 +276,21 @@ export type UploadProgress =
  * wire under it changes.
  */
 function fetchWithUploadProgress(
-  onProgress: (progress: UploadProgress) => void
+  onProgress: (progress: UploadProgress) => void,
+  signal: AbortSignal
 ): typeof fetch {
   return (input, init) =>
     new Promise<Response>((resolve, reject) => {
       const xhr = new XMLHttpRequest()
+      // Cancel: the browser drops the connection, the server never gets the
+      // whole body, and nothing is stored.
+      if (signal.aborted) {
+        reject(new DOMException("The upload was cancelled.", "AbortError"))
+        return
+      }
+      signal.addEventListener("abort", () => xhr.abort(), { once: true })
+      xhr.onabort = () =>
+        reject(new DOMException("The upload was cancelled.", "AbortError"))
       xhr.open(init?.method ?? "POST", String(input))
       xhr.responseType = "blob"
       new Headers(init?.headers).forEach((value, name) =>
@@ -189,15 +325,38 @@ function fetchWithUploadProgress(
     })
 }
 
-export const uploadPomodoroMedia = (
-  file: File,
-  purpose: PomodoroUploadPurpose,
+export const uploadPomodoroMedia = ({
+  file,
+  purpose,
+  labels,
+  onProgress,
+  signal,
+}: {
+  file: File
+  purpose: PomodoroUploadPurpose
+  labels: {
+    name: string
+    tags: string[]
+    shared: boolean
+    trim: UploadTrim | null
+  }
   onProgress: (progress: UploadProgress) => void
-) => {
+  /** Aborting it cancels the upload while the bytes are still going out. */
+  signal: AbortSignal
+}) => {
   const form = new FormData()
   form.append("file", file)
   form.append("purpose", purpose)
-  return uploadFn({ data: form, fetch: fetchWithUploadProgress(onProgress) })
+  form.append("labels", JSON.stringify(labels))
+  return uploadFn({
+    data: form,
+    fetch: fetchWithUploadProgress(onProgress, signal),
+  })
+}
+
+/** True for the error a cancelled upload rejects with. */
+export function isUploadCancelled(error: unknown) {
+  return error instanceof DOMException && error.name === "AbortError"
 }
 
 export const removePomodoroUpload = (mediaId: string) =>

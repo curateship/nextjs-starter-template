@@ -22,9 +22,8 @@ import {
   MediaAddMenu,
   MediaRoomNote,
 } from "@/components/pomodoro/media-add-actions"
-import { MediaUploadsSection } from "@/components/pomodoro/media-uploads-section"
-import { MediaGeneratorSection } from "@/components/pomodoro/media-generator-section"
-import { useGeneratorJump } from "@/lib/pomodoro/use-generator-jump"
+import { AddUploadsLink } from "@/components/pomodoro/uploads-page"
+import { SoundWave } from "@/components/pomodoro/sound-wave"
 import { contentColumn } from "@/lib/pomodoro/content-column"
 import { CatalogPager } from "@/components/pomodoro/catalog-pager"
 import {
@@ -42,29 +41,18 @@ import { filterByTags, tickedFromPool } from "@/lib/pomodoro/media-pool"
  * free and Pro, in the order an admin set; a locked card says why instead of
  * going dead.
  *
- * Hovering over a card plays it on this page only, through `usePreviewAudio`,
- * never through the header's player, so it cannot fight the timer's Start.
- * Moving off the card stops it, and a click or tap plays or stops it too, for
- * a phone. Tyler, 7 Oct 2026: "Make it preview the sound on the sound page
- * only", then 9 Oct: play on hover, and a "+" in the card's corner that opens
- * the Add choices (`MediaAddMenu`). The card outlined in orange is the sound
+ * A click or tap on a card plays it on this page only, through
+ * `usePreviewAudio`, never through the header's player, so it cannot fight the
+ * timer's Start, and a second click stops it. Tyler, 7 Oct 2026: "Make it
+ * preview the sound on the sound page only", then 9 Oct a "+" in the card's
+ * corner that opens the Add choices (`MediaAddMenu`). Playing on hover came in
+ * on 9 Oct and went on 10 Oct, because it fought the click. The card outlined in orange is the sound
  * of the room you are in.
  */
 export function SoundsPage() {
   const media = useRoomMedia()
   const preview = usePreviewAudio()
   const { signedIn, openPlans } = useOpenPlans()
-  // An AI soundscape arrives as an ordinary upload, so finishing one means the
-  // grid above has a new card and has to read its list again.
-  const [reloadToken, setReloadToken] = React.useState(0)
-  // Stable, so the generator's own fetch is not re-armed by an unrelated
-  // re-render of this page.
-  const reloadUploads = React.useCallback(
-    () => setReloadToken((token) => token + 1),
-    []
-  )
-  const { generatorRef, goToGenerator } = useGeneratorJump()
-
   const sounds = media.catalog.sounds
   const [ticked, setTicked] = React.useState(() =>
     tickedFromPool(media.personalSoundPool)
@@ -84,7 +72,7 @@ export function SoundsPage() {
             <h2 className="text-4xl font-bold tracking-tight">Sounds</h2>
             <MediaRoomNote thing="sound" />
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <MediaTagFilter
               kind="sound"
               ticked={ticked}
@@ -94,6 +82,7 @@ export function SoundsPage() {
               }}
             />
             <MediaShuffleSwitch kind="sound" ticked={ticked} />
+            <AddUploadsLink kind="sound" />
           </div>
         </header>
         <div className="flex flex-col gap-6">
@@ -122,15 +111,6 @@ export function SoundsPage() {
                     "relative gap-0 overflow-hidden rounded-[18px] p-0",
                     inUse && "ring-2 ring-[var(--p-accent)]"
                   )}
-                  // On the whole card, so moving onto the "+" keeps playing.
-                  // Only a mouse hovers; a finger's tap is the click below.
-                  onPointerEnter={(event) => {
-                    if (!locked && event.pointerType === "mouse")
-                      preview.start(reference)
-                  }}
-                  onPointerLeave={(event) => {
-                    if (previewed && event.pointerType === "mouse") preview.stop()
-                  }}
                 >
                   <button
                     className="group w-full text-left outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid"
@@ -148,21 +128,14 @@ export function SoundsPage() {
                       else preview.toggle(reference)
                     }}
                   >
-                    {/* The square waveform picture, cropped to a wide frame
-                        so the bars fill it top to bottom. */}
+                    {/* A waveform drawn from the sound's key, moving while
+                        it plays (Tyler, 10 Oct 2026). */}
                     <span className="relative block aspect-[8/5]">
-                      {sound.pictureUrl ? (
-                        <img
-                          src={sound.pictureUrl}
-                          alt=""
-                          className={cn(
-                            "size-full object-cover",
-                            locked && "opacity-40 grayscale"
-                          )}
-                        />
-                      ) : (
-                        <span className="block size-full bg-muted" />
-                      )}
+                      <SoundWave
+                        seed={sound.key}
+                        playing={playing}
+                        className={cn(locked && "opacity-40 grayscale")}
+                      />
                       {inUse ? <CurrentlySelectedLabel /> : null}
                       <span className="absolute inset-0 grid place-items-center">
                         <span
@@ -235,53 +208,6 @@ export function SoundsPage() {
             pages={pages}
             onPage={setPage}
           />
-        </div>
-
-        <MediaUploadsSection
-          reloadToken={reloadToken}
-          purpose="sound"
-          title="Your own"
-          uploadLabel="Upload sound"
-          onGenerate={goToGenerator}
-          description="Hover over one to hear it, then press + to add it to your personal room."
-          isSelected={(upload) =>
-            sameSoundReference(media.sound, {
-              type: "media",
-              mediaId: upload.mediaId,
-            })
-          }
-          onHoverChange={(upload, hovering) => {
-            if (hovering)
-              preview.start({ type: "media", mediaId: upload.mediaId, mediaUrl: upload.url })
-            else preview.stop()
-          }}
-          onPick={(upload) =>
-            preview.toggle({
-              type: "media",
-              mediaId: upload.mediaId,
-              mediaUrl: upload.url,
-            })
-          }
-          renderAddMenu={(upload) => (
-            <MediaAddMenu
-              item={{
-                kind: "sound",
-                reference: {
-                  type: "media",
-                  mediaId: upload.mediaId,
-                  mediaUrl: upload.url,
-                },
-                label: upload.name,
-              }}
-            />
-          )}
-          // A sound has no picture of its own, so the card keeps the muted
-          // square the icon sits in rather than inventing artwork.
-          renderThumbnail={() => null}
-        />
-
-        <div ref={generatorRef} className="scroll-mt-6">
-          <MediaGeneratorSection kind="soundscape" onFinished={reloadUploads} />
         </div>
       </div>
     </>

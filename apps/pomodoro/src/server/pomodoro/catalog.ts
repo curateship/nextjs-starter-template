@@ -75,7 +75,6 @@ export async function loadMediaCatalog(
         locked: row.locked,
         tags: row.tags,
         fileUrl: row.fileUrl,
-        pictureUrl: row.pictureUrl,
         volume: row.volume,
         publishedAt,
       })

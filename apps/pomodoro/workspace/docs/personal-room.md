@@ -79,11 +79,12 @@ Then it is the pair the host picked, until you leave.
 
 ## Previewing and adding
 
-- **Hovering over a sound on Sounds plays a preview on that page only.** It
+- **Clicking a sound on Sounds plays a preview on that page only.** It
   plays through its own player (`usePreviewAudio` in
   `src/lib/pomodoro/use-preview-audio.ts`), never through the player under the clock,
-  so it can't fight the timer's Start. One preview plays at a time, and
-  moving off the card or leaving the page stops it. See [Sounds](sounds.md).
+  so it can't fight the timer's Start. One preview plays at a time, and a
+  second click or leaving the page stops it. Hovering plays nothing
+  (Tyler, 10 Oct 2026). See [Sounds](sounds.md).
 - **Hovering over a theme on Backgrounds plays it inside its card.** The page
   behind never changes until a theme is added. Tyler swapped the preview
   popover for this on 9 Oct 2026. See [Backgrounds](backgrounds.md).

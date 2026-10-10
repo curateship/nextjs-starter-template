@@ -1352,6 +1352,39 @@ export const pomodoroMediaUploads = pgTable(
      */
     originalBytes: bigint("original_bytes", { mode: "number" }).notNull(),
     failureReason: varchar("failure_reason", { length: 200 }),
+    /**
+     * What the card shows, typed in the upload window (migration 0133). Null
+     * only on a row written by a server still running older code, which the
+     * list reads as the library row's file name.
+     */
+    name: varchar("name", { length: 80 }),
+    /** Short lower-case words, the same rules as the catalogue's tags. */
+    tags: jsonb("tags").$type<string[]>().notNull().default([]),
+    /** The "Share this" tick. Only stored for now; task 03 decides what it shows. */
+    shared: boolean("shared").notNull().default(false),
+    /**
+     * Where a trimmed sound or clip starts and ends. The whole file is stored
+     * and the worker cuts it while re-encoding. Both null when not trimmed.
+     */
+    trimStartMs: integer("trim_start_ms"),
+    trimEndMs: integer("trim_end_ms"),
+    /**
+     * The original a sound or clip was cut from, kept as a library file of its
+     * own so a re-trim can reach parts an earlier trim cut (migration 0134).
+     * While it is set, the upload's own library row holds a finished file.
+     */
+    sourceMediaId: varchar("source_media_id", { length: 36 }).references(
+      () => customShellMedia.id,
+      { onDelete: "set null" }
+    ),
+    /**
+     * When it last joined the worker's queue (migration 0135). The worker
+     * takes the oldest first by this, so a re-trim of an old file waits its
+     * turn behind newer uploads.
+     */
+    queuedAt: timestamp("queued_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
     attempts: integer("attempts").notNull().default(0),
     /**
      * Set while a worker pass holds the job. A pass that dies leaves this
@@ -1382,6 +1415,10 @@ export const pomodoroMediaUploads = pgTable(
       "pomodoro_media_uploads_original_bytes_check",
       sql`${table.originalBytes} > 0`
     ),
+    check(
+      "pomodoro_media_uploads_trim_check",
+      sql`(${table.trimStartMs} is null and ${table.trimEndMs} is null) or (${table.trimStartMs} >= 0 and ${table.trimEndMs} > ${table.trimStartMs})`
+    ),
     index("pomodoro_media_uploads_user_purpose_idx").on(
       table.userId,
       table.purpose,
@@ -1390,6 +1427,10 @@ export const pomodoroMediaUploads = pgTable(
     index("pomodoro_media_uploads_status_created_idx").on(
       table.status,
       table.createdAt
+    ),
+    index("pomodoro_media_uploads_status_queued_idx").on(
+      table.status,
+      table.queuedAt
     ),
   ]
 )

@@ -33,7 +33,6 @@ import {
   CATALOG_FILM_LIMIT_BYTES,
   CATALOG_SOURCE_PATTERN,
   labelFromFilename,
-  randomSoundGraphic,
   type CatalogKind,
   type CatalogSortColumn,
   type CatalogStatusFilter,
@@ -240,7 +239,6 @@ export type CatalogItemInput = {
   descriptor: string
   locked: boolean
   status: "draft" | "live"
-  pictureUrl: string | null
   tags: string[]
   volume: number
   artist: string | null
@@ -290,8 +288,9 @@ function assertSource(source: CatalogItemInput["source"], kind: CatalogKind) {
 }
 
 /**
- * What a Live item has to have before members may see it: a picture, and for a
- * sound a file, or one on its way.
+ * What a Live item has to have before members may see it: a theme its still,
+ * and a sound its file, or one on its way. A sound has no picture; its card
+ * draws a waveform (Tyler, 10 Oct 2026).
  */
 function assertPublishable(
   kind: CatalogKind,
@@ -300,9 +299,9 @@ function assertPublishable(
 ) {
   const willHaveFile = Boolean(item.fileUrl) || source?.kind === "audio"
   if (kind === "sound" && !willHaveFile) throw new Error("CATALOG_NEEDS_FILE")
+  if (kind === "sound") return
   // A theme film's middle frame becomes its still once it is prepared.
-  const willHavePicture =
-    Boolean(item.pictureUrl) || (kind === "theme" && source?.kind === "video")
+  const willHavePicture = Boolean(item.pictureUrl) || source?.kind === "video"
   if (!willHavePicture) throw new Error("CATALOG_NEEDS_PICTURE")
 }
 
@@ -350,14 +349,12 @@ export async function saveAdminCatalogItem({
     if (id && !existing) throw new Error("CATALOG_ITEM_NOT_FOUND")
 
     const fileUrl = existing?.fileUrl ?? null
-    // A sound left without a picture gets one of the built-in graphics. A
-    // theme's still is never chosen here: the worker takes it from the middle
-    // of the film (Tyler, 9 Oct 2026), so a save keeps whatever it has, and a
-    // window left open while the worker swapped it cannot put the old one back.
-    const pictureUrl =
-      kind === "theme"
-        ? (existing?.pictureUrl ?? null)
-        : (input.pictureUrl ?? randomSoundGraphic())
+    // A picture is never chosen here. A theme's still comes from the middle
+    // of its film (Tyler, 9 Oct 2026), so a save keeps whatever it has, and a
+    // window left open while the worker swapped it cannot put the old one
+    // back. A sound has no picture at all (10 Oct 2026); an older row's
+    // stored one is left as it is and never shown.
+    const pictureUrl = existing?.pictureUrl ?? null
     if (input.status === "live")
       assertPublishable(kind, { pictureUrl, fileUrl }, input.source)
 
@@ -475,8 +472,7 @@ export async function setAdminCatalogStatus({
     const ready = rows.filter((row) => {
       if (row.status === status) return false
       if (status === "draft") return true
-      const hasFile = row.kind === "theme" || Boolean(row.fileUrl)
-      return hasFile && Boolean(row.pictureUrl)
+      return row.kind === "theme" ? Boolean(row.pictureUrl) : Boolean(row.fileUrl)
     })
     const now = new Date()
     for (const row of ready) {
@@ -702,7 +698,7 @@ export async function createCatalogDrafts({
           status: "draft",
           position: position++,
           // A still needs no work; it is the picture already.
-          pictureUrl: still ? file.url : kind === "sound" ? randomSoundGraphic() : null,
+          pictureUrl: still ? file.url : null,
           picturePath: still ? file.path : null,
           fileStatus: still ? "ready" : "queued",
           sourcePath: still ? null : file.path,

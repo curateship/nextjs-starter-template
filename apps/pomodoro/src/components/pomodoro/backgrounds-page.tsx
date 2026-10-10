@@ -22,9 +22,7 @@ import {
   MediaRoomNote,
 } from "@/components/pomodoro/media-add-actions"
 import { SceneBackdrop } from "@/components/pomodoro/scene-backdrop"
-import { MediaUploadsSection } from "@/components/pomodoro/media-uploads-section"
-import { MediaGeneratorSection } from "@/components/pomodoro/media-generator-section"
-import { useGeneratorJump } from "@/lib/pomodoro/use-generator-jump"
+import { AddUploadsLink } from "@/components/pomodoro/uploads-page"
 import { contentColumn } from "@/lib/pomodoro/content-column"
 import { CatalogPager } from "@/components/pomodoro/catalog-pager"
 import {
@@ -33,12 +31,6 @@ import {
 } from "@/components/pomodoro/media-pool-panel"
 import { useCatalogPage } from "@/lib/pomodoro/use-catalog-page"
 import { filterByTags, tickedFromPool } from "@/lib/pomodoro/media-pool"
-
-const descriptorLabels: Record<string, string> = {
-  video: "Video",
-  animated: "Animated",
-  static: "Still",
-}
 
 /**
  * The backgrounds page: the Live scenes from the catalogue, free and Pro, in
@@ -63,16 +55,6 @@ export function BackgroundsPage() {
   const { page, pages, first, shown, setPage } = useCatalogPage(filtered)
   // Read once per render rather than per card, so every card agrees.
   const now = new Date()
-  // An AI background arrives as an ordinary upload, so finishing one means the
-  // grid above has a new card and has to read its list again.
-  const [reloadToken, setReloadToken] = React.useState(0)
-  // Stable, so the generator's own fetch is not re-armed by an unrelated
-  // re-render of this page.
-  const reloadUploads = React.useCallback(
-    () => setReloadToken((token) => token + 1),
-    []
-  )
-  const { generatorRef, goToGenerator } = useGeneratorJump()
   const inUse = media.room?.background ?? media.personalBackground
 
   return (
@@ -85,7 +67,7 @@ export function BackgroundsPage() {
             <h2 className="text-4xl font-bold tracking-tight">Backgrounds</h2>
             <MediaRoomNote thing="theme" />
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <MediaTagFilter
               kind="background"
               ticked={ticked}
@@ -95,6 +77,7 @@ export function BackgroundsPage() {
               }}
             />
             <MediaShuffleSwitch kind="background" ticked={ticked} />
+            <AddUploadsLink kind="background" />
           </div>
         </header>
         <div className="flex flex-col gap-6">
@@ -112,7 +95,6 @@ export function BackgroundsPage() {
                   key={scene.key}
                   reference={reference}
                   label={scene.label}
-                  detail={descriptorLabels[scene.descriptor] ?? ""}
                   selected={sameBackgroundReference(inUse, reference)}
                   locked={locked}
                   lockedLabel={`${scene.label}, a Pro scene. ${signedIn ? "See the plans" : "Sign in to see the plans"}`}
@@ -151,55 +133,6 @@ export function BackgroundsPage() {
             onPage={setPage}
           />
         </div>
-
-        <MediaUploadsSection
-          reloadToken={reloadToken}
-          purpose="background"
-          title="Your own"
-          uploadLabel="Upload clip"
-          onGenerate={goToGenerator}
-          description="Hover over one to see it play, then press + to add it to your personal room."
-          isSelected={(upload) =>
-            sameBackgroundReference(inUse, {
-              type: "media",
-              mediaId: upload.mediaId,
-            })
-          }
-          renderAddMenu={(upload) => (
-            <MediaAddMenu
-              item={{
-                kind: "background",
-                reference: uploadReference(upload),
-                label: upload.name,
-              }}
-            />
-          )}
-          renderThumbnail={(upload, playing) =>
-            upload.kind === "video" ? (
-              <video
-                // Rebuilt when it starts or stops, because a playing video
-                // does not stop just because `autoPlay` turned false.
-                key={playing ? "playing" : "still"}
-                // `#t=0.1` asks the browser for a tenth of a second in, which
-                // is what makes it paint a real frame. Without it the card is
-                // a grey box until somebody presses play.
-                src={playing ? upload.url : `${upload.url}#t=0.1`}
-                className="size-full object-cover"
-                muted
-                loop
-                autoPlay={playing}
-                playsInline
-                preload="metadata"
-              />
-            ) : (
-              <img src={upload.url} alt="" className="size-full object-cover" />
-            )
-          }
-        />
-
-        <div ref={generatorRef} className="scroll-mt-6">
-          <MediaGeneratorSection kind="background" onFinished={reloadUploads} />
-        </div>
       </div>
     </>
   )
@@ -207,8 +140,9 @@ export function BackgroundsPage() {
 
 /**
  * One theme card. Tyler, 9 Oct 2026: the preview popover went, and instead
- * "the video will play when hover over", with a "+" in the card's bottom-right
- * corner that opens the Add choices (`MediaAddMenu`). The scene plays over its
+ * "the video will play when hover over", with a "+" that opens the Add
+ * choices (`MediaAddMenu`); since 10 Oct it sits on the picture's top-right
+ * corner and shows on hover. The scene plays over its
  * still only while the pointer is on the card, so a page of cards loads no
  * films until one is hovered. A tap plays or stops it, for a phone. A locked
  * card leads to the plans page instead and has no "+".
@@ -216,7 +150,6 @@ export function BackgroundsPage() {
 function ThemeCard({
   reference,
   label,
-  detail,
   selected,
   locked,
   lockedLabel,
@@ -226,7 +159,6 @@ function ThemeCard({
 }: {
   reference: Extract<BackgroundReference, { type: "scene" }>
   label: string
-  detail: string
   selected: boolean
   locked: boolean
   lockedLabel: string
@@ -295,9 +227,8 @@ function ThemeCard({
             </span>
           ) : null}
         </span>
-        <CardContent className="flex flex-col gap-0.5 py-3 pr-14 pl-3">
+        <CardContent className="flex flex-col gap-0.5 px-3 py-3">
           <strong className="text-sm">{label}</strong>
-          <small className="text-xs text-muted-foreground">{detail}</small>
           {badges}
         </CardContent>
       </button>
@@ -306,27 +237,13 @@ function ThemeCard({
       {locked ? null : (
         <MediaAddMenu
           item={{ kind: "background", reference, label }}
-          className="absolute right-3 bottom-3"
+          // On the picture's top corner, shown while the pointer is over the
+          // card. Tyler, 10 Oct 2026, pointing at it: "move the + icon on
+          // hover here". A phone has no hover, so there it always shows, and
+          // it stays while its menu is open or it has the keyboard's focus.
+          className="absolute top-2 right-2 bg-black/45 text-white opacity-0 backdrop-blur-sm transition-opacity group-hover/card:opacity-100 hover:bg-black/60 hover:text-white focus-visible:opacity-100 data-[state=open]:opacity-100 [@media(hover:none)]:opacity-100"
         />
       )}
     </Card>
   )
-}
-
-/**
- * An upload as a theme. Both extras are carried so the backdrop can draw it
- * straight away: the kind decides between a looping <video> and an <img>,
- * and the address is the one the server resolved for this file.
- */
-function uploadReference(upload: {
-  mediaId: string
-  kind: string
-  url: string
-}): BackgroundReference {
-  return {
-    type: "media",
-    mediaId: upload.mediaId,
-    mediaKind: upload.kind === "video" ? "video" : "image",
-    mediaUrl: upload.url,
-  }
 }

@@ -37,7 +37,6 @@ export type CatalogSound = {
   locked: boolean
   tags: string[]
   fileUrl: string
-  pictureUrl: string | null
   /** Out of 100, multiplied into the member's own volume. */
   volume: number
   publishedAt: string | null

@@ -1,4 +1,5 @@
-import { and, asc, eq, lt, or, sql } from "drizzle-orm"
+import { and, asc, count, eq, inArray, isNull, lt, or, sql } from "drizzle-orm"
+import { alias } from "drizzle-orm/pg-core"
 
 import { db, type CustomShellDb } from "@/server/db"
 import { now, uuid } from "@/server/auth/security"
@@ -9,6 +10,7 @@ import {
 } from "@/server/media/library"
 import {
   deleteFromR2,
+  getFromR2,
   getPublicMediaUrl,
   uploadToR2,
 } from "@/server/media/storage"
@@ -20,6 +22,7 @@ import {
   mediaReadyMessage,
 } from "@/lib/pomodoro/notices"
 import {
+  pomodoroCatalogItems,
   pomodoroMediaUploads,
   pomodoroPersonalRooms,
   type PomodoroMediaUpload,
@@ -32,6 +35,12 @@ import {
   type PomodoroUploadKind,
   type PomodoroUploadPurpose,
 } from "@/lib/pomodoro/media-limits"
+import {
+  UPLOAD_NAME_MAX,
+  checkUploadLabels,
+  isValidTrim,
+  type UploadTrim,
+} from "@/lib/pomodoro/upload-labels"
 
 /**
  * A Pro member's own backgrounds and sound loops.
@@ -172,12 +181,71 @@ export async function assertCanUpload(userId: string, incomingBytes: number) {
   return { used: storage.bytes, limit: entitlements.storageLimitBytes }
 }
 
+/** What the member typed in the upload window, checked by the server. */
+export type UploadLabels = {
+  name: string
+  tags: string[]
+  shared: boolean
+  trim: UploadTrim | null
+}
+
+/**
+ * The window's name, tags and trim, checked again here because the browser's
+ * check is a courtesy. Throws one of the refusal codes, which
+ * `getPomodoroUploadErrorMessage` turns into the window's own sentence.
+ */
+export function validateUploadLabels(
+  input: UploadLabels,
+  kind: PomodoroUploadKind
+): UploadLabels {
+  const checked = checkUploadLabels(input)
+  if (!checked.ok) throw new Error(checked.problem)
+  // A picture has no length to cut, so a trim on one is a request the window
+  // never makes.
+  if (input.trim && (kind === "image" || !isValidTrim(input.trim))) {
+    throw new Error("INVALID_TRIM")
+  }
+  return {
+    name: checked.name,
+    tags: checked.tags,
+    shared: input.shared,
+    trim: input.trim,
+  }
+}
+
+/**
+ * Whether an upload's library row holds a finished file that can be played.
+ * A first prepare still running cannot. A re-trim still running can, because
+ * the old cut stays in place until the new one is ready, and that is the only
+ * time `sourceMediaId` is set on an unfinished row.
+ */
+export function uploadIsShowable(row: {
+  status: string
+  sourceMediaId: string | null
+}) {
+  return row.status === "ready" || row.sourceMediaId !== null
+}
+
 export type StoredUpload = {
   mediaId: string
   purpose: PomodoroUploadPurpose
   kind: PomodoroUploadKind
   status: string
+  /** What the member called it, or the file name for an older upload. */
   name: string
+  tags: string[]
+  shared: boolean
+  /**
+   * Where the kept part starts and ends in the original, for the cog's trim
+   * handles. Null when nothing was cut or the original is not kept.
+   */
+  trim: UploadTrim | null
+  /**
+   * The file the cog's trim handles cover: the kept original, or the finished
+   * file itself for an upload from before originals were kept. Empty while
+   * nothing finished exists yet.
+   */
+  sourceUrl: string
   fileSize: number
   mimeType: string
   failureReason: string | null
@@ -205,12 +273,19 @@ export async function storePomodoroUpload({
   bytes,
   detected,
   alreadyProcessed = false,
+  labels,
 }: {
   userId: string
   purpose: PomodoroUploadPurpose
   file: { name: string }
   bytes: Uint8Array
   detected: { kind: PomodoroUploadKind; mimeType: string }
+  /**
+   * What the member typed in the upload window, already checked by
+   * `validateUploadLabels`. AI generation has none, so its upload is named
+   * after the file it was given.
+   */
+  labels?: UploadLabels
   /**
    * These bytes have already been through FFmpeg, so the file is finished and
    * must not be queued for a re-encode. AI generation passes this: its worker
@@ -220,6 +295,9 @@ export async function storePomodoroUpload({
   alreadyProcessed?: boolean
 }): Promise<StoredUpload> {
   const originalName = cleanOriginalName(file.name)
+  const name = labels?.name ?? originalName.slice(0, UPLOAD_NAME_MAX)
+  const tags = labels?.tags ?? []
+  const shared = labels?.shared ?? false
   const filename = storedFilename(originalName, detected.mimeType)
   const storagePath = `${userId}/${filename}`
   const workspaceId = await workspaceIdForRequest(userId)
@@ -259,6 +337,11 @@ export async function storePomodoroUpload({
         kind: detected.kind,
         status,
         originalBytes: bytes.byteLength,
+        name,
+        tags,
+        shared,
+        trimStartMs: labels?.trim?.startMs ?? null,
+        trimEndMs: labels?.trim?.endMs ?? null,
       })
     })
   } catch (error) {
@@ -271,7 +354,11 @@ export async function storePomodoroUpload({
     purpose,
     kind: detected.kind,
     status,
-    name: originalName,
+    name,
+    tags,
+    shared,
+    trim: labels?.trim ?? null,
+    sourceUrl: "",
     fileSize: bytes.byteLength,
     mimeType: detected.mimeType,
     failureReason: null,
@@ -279,6 +366,9 @@ export async function storePomodoroUpload({
     url: status === "ready" ? await getPublicMediaUrl(storagePath) : "",
   }
 }
+
+/** The kept original's library row, joined beside the upload's own. */
+const sourceMedia = alias(customShellMedia, "source_media")
 
 /** This person's own uploads for one picker, newest first. */
 export async function listPomodoroUploads(
@@ -293,7 +383,14 @@ export async function listPomodoroUploads(
       status: pomodoroMediaUploads.status,
       failureReason: pomodoroMediaUploads.failureReason,
       createdAt: pomodoroMediaUploads.createdAt,
-      name: customShellMedia.originalName,
+      // A row written by a server still on older code has no name yet.
+      name: sql<string>`coalesce(${pomodoroMediaUploads.name}, ${customShellMedia.originalName})`,
+      tags: pomodoroMediaUploads.tags,
+      shared: pomodoroMediaUploads.shared,
+      trimStartMs: pomodoroMediaUploads.trimStartMs,
+      trimEndMs: pomodoroMediaUploads.trimEndMs,
+      sourceMediaId: pomodoroMediaUploads.sourceMediaId,
+      sourcePath: sourceMedia.storagePath,
       fileSize: customShellMedia.fileSize,
       mimeType: customShellMedia.mimeType,
       storagePath: customShellMedia.storagePath,
@@ -302,6 +399,10 @@ export async function listPomodoroUploads(
     .innerJoin(
       customShellMedia,
       eq(customShellMedia.id, pomodoroMediaUploads.mediaId)
+    )
+    .leftJoin(
+      sourceMedia,
+      eq(sourceMedia.id, pomodoroMediaUploads.sourceMediaId)
     )
     .where(
       and(
@@ -312,15 +413,266 @@ export async function listPomodoroUploads(
     .orderBy(asc(pomodoroMediaUploads.createdAt))
 
   return Promise.all(
-    rows.map(async ({ storagePath, ...row }) => ({
-      ...row,
-      purpose: row.purpose as PomodoroUploadPurpose,
-      kind: row.kind as PomodoroUploadKind,
-      // Only a finished upload gets an address: the re-encode replaces the
-      // file, so one handed out early would point at a file about to vanish.
-      url: row.status === "ready" ? await getPublicMediaUrl(storagePath) : "",
-    }))
+    rows.map(
+      async ({
+        storagePath,
+        sourcePath,
+        sourceMediaId,
+        trimStartMs,
+        trimEndMs,
+        ...row
+      }) => {
+        // Only a finished file gets an address: a first re-encode replaces
+        // the raw original, so one handed out early would point at a file
+        // about to vanish.
+        const url = uploadIsShowable({ status: row.status, sourceMediaId })
+          ? await getPublicMediaUrl(storagePath)
+          : ""
+        return {
+          ...row,
+          purpose: row.purpose as PomodoroUploadPurpose,
+          kind: row.kind as PomodoroUploadKind,
+          url,
+          sourceUrl: sourcePath ? await getPublicMediaUrl(sourcePath) : url,
+          // A trim only means something against the original it was cut from.
+          trim:
+            sourcePath && trimStartMs !== null && trimEndMs !== null
+              ? { startMs: trimStartMs, endMs: trimEndMs }
+              : null,
+        }
+      }
+    )
   )
+}
+
+/**
+ * The cog on an upload's card: a new name, tags and Share tick, and for a
+ * sound or clip a new trim. Tyler, 10 Oct 2026: "I should be able to reclip
+ * the file too".
+ *
+ * A new trim is cut from the kept original by the worker, like a first
+ * upload. The old cut stays in use until the new one is ready. An upload from
+ * before originals were kept, or one made by AI, has its finished file copied
+ * to be the original first, so it can only be cut shorter.
+ */
+export async function editPomodoroUpload(
+  userId: string,
+  mediaId: string,
+  input: {
+    name: string
+    tags: string[]
+    shared: boolean
+    /** Left out to keep the trim; null to keep the whole original. */
+    trim?: UploadTrim | null
+  }
+) {
+  const checked = checkUploadLabels(input)
+  if (!checked.ok) throw new Error(checked.problem)
+  const retrim = input.trim !== undefined
+  if (input.trim && !isValidTrim(input.trim)) throw new Error("INVALID_TRIM")
+
+  const current = await loadOwnUpload(db, userId, mediaId)
+  if (retrim) {
+    assertCanRetrim(current)
+    // A cut is a Pro thing, like the upload it comes from. An upload with no
+    // kept original is copied first, and the copy takes space.
+    await assertCanUpload(
+      userId,
+      current.sourceMediaId ? 0 : current.media.fileSize
+    )
+  }
+
+  // The copy is made before the transaction, because a bucket write cannot
+  // be rolled back. The library allows one row per bucket file, so the
+  // original has to be a file of its own.
+  let copyPath: string | null = null
+  if (retrim && !current.sourceMediaId) {
+    const object = await getFromR2(current.media.storagePath)
+    const body = object.Body
+    if (!body || typeof body.transformToByteArray !== "function")
+      throw new Error("UPLOAD_NOT_READY")
+    // Named for what it holds, the finished cut, not the file first sent.
+    const extension = current.media.storagePath.split(".").pop() ?? "bin"
+    const bare = current.media.originalName.replace(/\.[^.]+$/, "")
+    copyPath = `${userId}/${storedFilename(`${bare}.${extension}`, current.media.mimeType)}`
+    await uploadToR2(
+      copyPath,
+      await body.transformToByteArray(),
+      current.media.mimeType
+    )
+  }
+
+  try {
+    return await db.transaction(async (tx) => {
+      // Read again under a lock, so two saves at once cannot both start a cut.
+      const row = await loadOwnUpload(tx, userId, mediaId, true)
+      let sourceMediaId = row.sourceMediaId
+      if (retrim) {
+        assertCanRetrim(row)
+        if (!sourceMediaId && copyPath)
+          sourceMediaId = await keepAsSource(tx, row.media, copyPath)
+      }
+      await tx
+        .update(pomodoroMediaUploads)
+        .set({
+          name: checked.name,
+          tags: checked.tags,
+          shared: input.shared,
+          ...(retrim
+            ? {
+                trimStartMs: input.trim?.startMs ?? null,
+                trimEndMs: input.trim?.endMs ?? null,
+                sourceMediaId,
+                status: "queued",
+                queuedAt: new Date(),
+                attempts: 0,
+                failureReason: null,
+                claimedAt: null,
+              }
+            : {}),
+          updatedAt: new Date(),
+        })
+        .where(eq(pomodoroMediaUploads.mediaId, mediaId))
+      // A copy another save beat this one to is not needed.
+      if (copyPath && sourceMediaId !== null && row.sourceMediaId !== null)
+        await deleteFromR2(copyPath).catch(() => undefined)
+      return { name: checked.name, tags: checked.tags, shared: input.shared }
+    })
+  } catch (error) {
+    if (copyPath) await deleteFromR2(copyPath).catch(() => undefined)
+    throw error
+  }
+}
+
+type Db = CustomShellDb | Parameters<Parameters<typeof db.transaction>[0]>[0]
+
+/** One of this member's uploads with its library row, or UPLOAD_NOT_FOUND. */
+async function loadOwnUpload(
+  database: Db,
+  userId: string,
+  mediaId: string,
+  lock = false
+) {
+  const query = database
+    .select({
+      kind: pomodoroMediaUploads.kind,
+      status: pomodoroMediaUploads.status,
+      sourceMediaId: pomodoroMediaUploads.sourceMediaId,
+      media: customShellMedia,
+    })
+    .from(pomodoroMediaUploads)
+    .innerJoin(
+      customShellMedia,
+      eq(customShellMedia.id, pomodoroMediaUploads.mediaId)
+    )
+    .where(
+      and(
+        eq(pomodoroMediaUploads.mediaId, mediaId),
+        eq(pomodoroMediaUploads.userId, userId)
+      )
+    )
+    .limit(1)
+  const [row] = await (lock ? query.for("update", { of: pomodoroMediaUploads }) : query)
+  if (!row) throw new Error("UPLOAD_NOT_FOUND")
+  return row
+}
+
+/** A trim needs a sound or clip with a finished file and no cut under way. */
+function assertCanRetrim(row: {
+  kind: string
+  status: string
+  sourceMediaId: string | null
+}) {
+  if (row.kind === "image") throw new Error("INVALID_TRIM")
+  if (row.status === "queued" || row.status === "processing")
+    throw new Error("UPLOAD_NOT_READY")
+  // A first prepare that failed has nothing finished to cut from.
+  if (!uploadIsShowable(row)) throw new Error("UPLOAD_NOT_READY")
+}
+
+/**
+ * A library row for a kept original, beside the upload's own: its own row so
+ * it counts toward the member's space and the storage page's orphan sweep
+ * sees it. Returns the new row's id.
+ */
+async function keepAsSource(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  media: typeof customShellMedia.$inferSelect,
+  storagePath: string
+) {
+  const id = uuid()
+  const timestamp = now()
+  await tx.insert(customShellMedia).values({
+    ...media,
+    id,
+    storagePath,
+    filename: storagePath.slice(storagePath.lastIndexOf("/") + 1),
+    emailProtectedAt: null,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  })
+  return id
+}
+
+/**
+ * How many sounds and clips the worker will prepare before this one: every
+ * member's, because the worker takes them oldest first, one per pass. The
+ * window turns the number into a rough wait.
+ */
+export async function countUploadsAhead(mediaId: string) {
+  const [row] = await db
+    .select({ ahead: count() })
+    .from(pomodoroMediaUploads)
+    .where(
+      and(
+        inArray(pomodoroMediaUploads.status, ["queued", "processing"]),
+        lt(
+          pomodoroMediaUploads.queuedAt,
+          sql`(select ${pomodoroMediaUploads.queuedAt} from ${pomodoroMediaUploads} where ${pomodoroMediaUploads.mediaId} = ${mediaId})`
+        )
+      )
+    )
+  return row?.ahead ?? 0
+}
+
+/**
+ * The tags the window offers: those on Live catalogue items of the same kind,
+ * then the member's own, so the same word is not spelled three ways.
+ */
+export async function loadUploadTagSuggestions(
+  userId: string,
+  purpose: PomodoroUploadPurpose
+) {
+  const [catalog, own] = await Promise.all([
+    db
+      .select({
+        tag: sql<string>`jsonb_array_elements_text(${pomodoroCatalogItems.tags})`,
+      })
+      .from(pomodoroCatalogItems)
+      .where(
+        and(
+          eq(pomodoroCatalogItems.kind, purpose === "sound" ? "sound" : "theme"),
+          eq(pomodoroCatalogItems.status, "live")
+        )
+      ),
+    db
+      .select({
+        tag: sql<string>`jsonb_array_elements_text(${pomodoroMediaUploads.tags})`,
+      })
+      .from(pomodoroMediaUploads)
+      .where(
+        and(
+          eq(pomodoroMediaUploads.userId, userId),
+          eq(pomodoroMediaUploads.purpose, purpose)
+        )
+      ),
+  ])
+  return [
+    ...new Set([
+      ...catalog.map((row) => row.tag).sort(),
+      ...own.map((row) => row.tag).sort(),
+    ]),
+  ]
 }
 
 /**
@@ -335,6 +687,7 @@ export async function resolveUploadUrl(userId: string, mediaId: string) {
       storagePath: customShellMedia.storagePath,
       kind: pomodoroMediaUploads.kind,
       status: pomodoroMediaUploads.status,
+      sourceMediaId: pomodoroMediaUploads.sourceMediaId,
     })
     .from(pomodoroMediaUploads)
     .innerJoin(
@@ -349,7 +702,7 @@ export async function resolveUploadUrl(userId: string, mediaId: string) {
     )
     .limit(1)
 
-  if (!row || row.status !== "ready") return null
+  if (!row || !uploadIsShowable(row)) return null
   return {
     url: await getPublicMediaUrl(row.storagePath),
     kind: row.kind as PomodoroUploadKind,
@@ -373,6 +726,7 @@ export async function assertUploadUsable(
     .select({
       kind: pomodoroMediaUploads.kind,
       status: pomodoroMediaUploads.status,
+      sourceMediaId: pomodoroMediaUploads.sourceMediaId,
     })
     .from(pomodoroMediaUploads)
     .where(
@@ -385,7 +739,7 @@ export async function assertUploadUsable(
     .limit(1)
 
   if (!row) throw new Error("UPLOAD_NOT_FOUND")
-  if (row.status !== "ready") throw new Error("UPLOAD_NOT_READY")
+  if (!uploadIsShowable(row)) throw new Error("UPLOAD_NOT_READY")
   return row.kind as PomodoroUploadKind
 }
 
@@ -397,25 +751,36 @@ export async function assertUploadUsable(
  * default rather than to a blank screen waiting on a 404.
  */
 export async function deletePomodoroUpload(userId: string, mediaId: string) {
-  const [row] = await db
-    .select({ storagePath: customShellMedia.storagePath })
-    .from(pomodoroMediaUploads)
-    .innerJoin(
-      customShellMedia,
-      eq(customShellMedia.id, pomodoroMediaUploads.mediaId)
-    )
-    .where(
-      and(
-        eq(pomodoroMediaUploads.mediaId, mediaId),
-        eq(pomodoroMediaUploads.userId, userId)
-      )
-    )
-    .limit(1)
-
-  if (!row) throw new Error("UPLOAD_NOT_FOUND")
-
   const reference = `media:${mediaId}`
-  await db.transaction(async (tx) => {
+  const paths = await db.transaction(async (tx) => {
+    // Read under the upload row's lock, so a first prepare or a re-trim
+    // finishing at the same moment has either added the kept original
+    // already, and it goes too, or waits and finds the row gone.
+    const [row] = await tx
+      .select({
+        storagePath: customShellMedia.storagePath,
+        sourcePath: sourceMedia.storagePath,
+      })
+      .from(pomodoroMediaUploads)
+      .innerJoin(
+        customShellMedia,
+        eq(customShellMedia.id, pomodoroMediaUploads.mediaId)
+      )
+      .leftJoin(
+        sourceMedia,
+        eq(sourceMedia.id, pomodoroMediaUploads.sourceMediaId)
+      )
+      .where(
+        and(
+          eq(pomodoroMediaUploads.mediaId, mediaId),
+          eq(pomodoroMediaUploads.userId, userId)
+        )
+      )
+      .limit(1)
+      .for("update", { of: pomodoroMediaUploads })
+
+    if (!row) throw new Error("UPLOAD_NOT_FOUND")
+
     // A personal room holding the file goes back to the default scene or to
     // silence. A hosted room never holds an upload, so only this one row can.
     await tx
@@ -436,13 +801,17 @@ export async function deletePomodoroUpload(userId: string, mediaId: string) {
           eq(pomodoroPersonalRooms.sound, reference)
         )
       )
-    // The library row goes, and the job row follows it through the cascade.
+    // The library row goes and the job row follows it through the cascade;
+    // the kept original's row goes with the job row (migration 0135).
     await tx.delete(customShellMedia).where(eq(customShellMedia.id, mediaId))
+    return [row.storagePath, row.sourcePath]
   })
 
   // After the rows, so a bucket that refuses the delete leaves an orphan the
   // storage page can sweep rather than a row pointing at a file that is gone.
-  await deleteFromR2(row.storagePath).catch(() => undefined)
+  for (const path of paths) {
+    if (path) await deleteFromR2(path).catch(() => undefined)
+  }
 }
 
 /**
@@ -477,7 +846,7 @@ export async function claimNextUploadJob(
               lt(pomodoroMediaUploads.claimedAt, staleBefore)
             )
           )}
-          order by ${pomodoroMediaUploads.createdAt}
+          order by ${pomodoroMediaUploads.queuedAt}
           limit 1
           for update skip locked
         )`
@@ -489,20 +858,34 @@ export async function claimNextUploadJob(
 }
 
 /** The re-encode worked: point the library row at the new file. */
+/**
+ * The job is still held by the pass that claimed it. A pass that stalled past
+ * the claim timeout has had its job taken, and may since have seen it
+ * finished and re-trimmed, so "processing" alone is not enough.
+ */
+function stillClaimedBy(claimedAt: Date | null) {
+  return claimedAt
+    ? eq(pomodoroMediaUploads.claimedAt, claimedAt)
+    : isNull(pomodoroMediaUploads.claimedAt)
+}
+
 export async function finishUploadJob({
   mediaId,
+  claimedAt,
   storagePath,
   mimeType,
   fileSize,
   previousStoragePath,
 }: {
   mediaId: string
+  /** When this pass claimed the job, from the claimed row. */
+  claimedAt: Date | null
   storagePath: string
   mimeType: string
   fileSize: number
   previousStoragePath: string
 }) {
-  // Only a job still marked processing is finished. If a claim was stolen from
+  // Only a job this pass still holds is finished. If a claim was stolen from
   // a slow-but-alive pass, the loser's update matches nothing and it must not
   // go on to point the library row at its own copy or delete the winner's file.
   const closed = await db.transaction(async (tx) => {
@@ -517,25 +900,51 @@ export async function finishUploadJob({
       .where(
         and(
           eq(pomodoroMediaUploads.mediaId, mediaId),
-          eq(pomodoroMediaUploads.status, "processing")
+          eq(pomodoroMediaUploads.status, "processing"),
+          stillClaimedBy(claimedAt)
         )
       )
       .returning({
         userId: pomodoroMediaUploads.userId,
         purpose: pomodoroMediaUploads.purpose,
+        name: pomodoroMediaUploads.name,
+        sourceMediaId: pomodoroMediaUploads.sourceMediaId,
       })
 
-    if (!rows.length) return false
+    if (!rows.length) return null
 
+    const [raw] = await tx
+      .select()
+      .from(customShellMedia)
+      .where(eq(customShellMedia.id, mediaId))
     const [media] = await tx
       .update(customShellMedia)
       .set({ storagePath, mimeType, fileSize, updatedAt: now() })
       .where(eq(customShellMedia.id, mediaId))
       .returning({ originalName: customShellMedia.originalName })
+
+    let sourcePath: string | null = null
+    if (rows[0].sourceMediaId) {
+      const [source] = await tx
+        .select({ storagePath: customShellMedia.storagePath })
+        .from(customShellMedia)
+        .where(eq(customShellMedia.id, rows[0].sourceMediaId))
+      sourcePath = source?.storagePath ?? null
+    } else if (raw) {
+      // The first prepare: the raw original is kept as a library file of its
+      // own, so the cog can cut it again later. After the upload's own row
+      // has moved to the cut, because one bucket file has one library row.
+      const sourceId = await keepAsSource(tx, raw, raw.storagePath)
+      await tx
+        .update(pomodoroMediaUploads)
+        .set({ sourceMediaId: sourceId })
+        .where(eq(pomodoroMediaUploads.mediaId, mediaId))
+      sourcePath = raw.storagePath
+    }
     await writeNotices(tx, [
-      uploadNotice(rows[0], true, media?.originalName ?? null),
+      uploadNotice(rows[0], true, rows[0].name ?? media?.originalName ?? null),
     ])
-    return true
+    return { sourcePath }
   })
 
   if (!closed) {
@@ -544,7 +953,11 @@ export async function finishUploadJob({
     return { settled: false }
   }
 
-  if (previousStoragePath !== storagePath) {
+  // The cut this replaces goes, unless it is the kept original itself.
+  if (
+    previousStoragePath !== storagePath &&
+    previousStoragePath !== closed.sourcePath
+  ) {
     await deleteFromR2(previousStoragePath).catch(() => undefined)
   }
   return { settled: true }
@@ -570,7 +983,7 @@ export async function failUploadJob(
 ) {
   const giveUp = !retry || job.attempts >= MAX_ATTEMPTS
   await db.transaction(async (tx) => {
-    await tx
+    const updated = await tx
       .update(pomodoroMediaUploads)
       .set({
         status: giveUp ? "failed" : "queued",
@@ -578,10 +991,18 @@ export async function failUploadJob(
         claimedAt: null,
         updatedAt: new Date(),
       })
-      .where(eq(pomodoroMediaUploads.mediaId, job.mediaId))
+      // Only while this pass still holds it: a stalled pass must not mark a
+      // job failed that another pass finished, or that was re-trimmed since.
+      .where(
+        and(
+          eq(pomodoroMediaUploads.mediaId, job.mediaId),
+          stillClaimedBy(job.claimedAt)
+        )
+      )
+      .returning({ mediaId: pomodoroMediaUploads.mediaId })
     // A retry is not an ending, so only giving up tells the member. The
     // reason is the same sentence the picker shows, never the raw error.
-    if (giveUp && tell)
+    if (updated.length && giveUp && tell)
       await writeNotices(tx, [uploadNotice(job, false, reason)])
   })
 }
@@ -628,8 +1049,17 @@ export async function loadJobFile(mediaId: string) {
     .select({
       storagePath: customShellMedia.storagePath,
       originalName: customShellMedia.originalName,
+      sourcePath: sourceMedia.storagePath,
     })
     .from(customShellMedia)
+    .innerJoin(
+      pomodoroMediaUploads,
+      eq(pomodoroMediaUploads.mediaId, customShellMedia.id)
+    )
+    .leftJoin(
+      sourceMedia,
+      eq(sourceMedia.id, pomodoroMediaUploads.sourceMediaId)
+    )
     .where(eq(customShellMedia.id, mediaId))
     .limit(1)
   return row ?? null

@@ -8,6 +8,7 @@ import {
 } from "@/server/pomodoro/media-uploads"
 import {
   FfmpegMissingError,
+  TrimOutsideFileError,
   transcodeUpload,
 } from "@/server/pomodoro/media-transcode"
 import { storedFilename } from "@/server/media/library"
@@ -51,7 +52,8 @@ export async function processNextMediaUpload() {
       return
     }
 
-    const object = await getFromR2(file.storagePath)
+    // A re-trim cuts from the kept original, never from the last cut.
+    const object = await getFromR2(file.sourcePath ?? file.storagePath)
     const body = object.Body
     if (!body || typeof body.transformToByteArray !== "function") {
       throw new Error("The stored file could not be read back.")
@@ -62,7 +64,10 @@ export async function processNextMediaUpload() {
     // The check constraint allows only these three, and images left above.
     const output = await transcodeUpload(
       input,
-      job.kind === "video" ? "video" : "audio"
+      job.kind === "video" ? "video" : "audio",
+      job.trimStartMs !== null && job.trimEndMs !== null
+        ? { startMs: job.trimStartMs, endMs: job.trimEndMs }
+        : null
     )
     const filename = storedFilename(
       `${file.originalName.replace(/\.[^.]+$/, "")}.${output.extension}`,
@@ -73,13 +78,17 @@ export async function processNextMediaUpload() {
 
     await finishUploadJob({
       mediaId: job.mediaId,
+      claimedAt: job.claimedAt,
       storagePath,
       mimeType: output.mimeType,
       fileSize: output.bytes.byteLength,
       previousStoragePath: file.storagePath,
     })
   } catch (error) {
-    await failUploadJob(job, describeFailure(error))
+    // A trim outside the file fails the same way every time.
+    await failUploadJob(job, describeFailure(error), {
+      retry: !(error instanceof TrimOutsideFileError),
+    })
   }
 }
 
@@ -92,6 +101,9 @@ export async function processNextMediaUpload() {
 function describeFailure(error: unknown) {
   if (error instanceof FfmpegMissingError) {
     return "Sound and video cannot be prepared yet."
+  }
+  if (error instanceof TrimOutsideFileError) {
+    return "The trim starts after the end of the file. Pick a start inside it."
   }
   if (error instanceof Error && error.message.includes("could not be read")) {
     return "The stored file could not be read back. Please upload it again."

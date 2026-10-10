@@ -1,4 +1,5 @@
 import { and, count, desc, eq, inArray, isNull, or, sql } from "drizzle-orm"
+import { alias } from "drizzle-orm/pg-core"
 
 import { db } from "@/server/db"
 import { loadEntitlements } from "@/server/billing/entitlements"
@@ -28,6 +29,9 @@ import { forgetFollowedPages } from "@/server/pomodoro/admin-follows"
 import { PROFILE_HIDDEN_MESSAGE, streakRestoredMessage } from "@/lib/pomodoro/notices"
 import { formatShortDay } from "@/lib/format/calendar-day"
 
+
+/** An upload's kept original, joined to count its space. */
+const keptOriginal = alias(customShellMedia, "kept_original")
 /**
  * The member window (admin task 06): everything about one person in one read,
  * and the things an admin can do from it. Fixing a streak day, the private
@@ -286,7 +290,8 @@ async function listUploads(userId: string) {
         mediaId: pomodoroMediaUploads.mediaId,
         purpose: pomodoroMediaUploads.purpose,
         status: pomodoroMediaUploads.status,
-        name: customShellMedia.originalName,
+        // The name the member typed; an older row has only the file name.
+        name: sql<string>`coalesce(${pomodoroMediaUploads.name}, ${customShellMedia.originalName})`,
         bytes: customShellMedia.fileSize,
         createdAt: pomodoroMediaUploads.createdAt,
       })
@@ -298,10 +303,12 @@ async function listUploads(userId: string) {
     db
       .select({
         total: count(),
-        bytes: sql<number>`coalesce(sum(${customShellMedia.fileSize}), 0)::bigint`,
+        // A sound or clip's kept original takes space too.
+        bytes: sql<number>`coalesce(sum(${customShellMedia.fileSize} + coalesce(${keptOriginal.fileSize}, 0)), 0)::bigint`,
       })
       .from(pomodoroMediaUploads)
       .innerJoin(customShellMedia, eq(customShellMedia.id, pomodoroMediaUploads.mediaId))
+      .leftJoin(keptOriginal, eq(keptOriginal.id, pomodoroMediaUploads.sourceMediaId))
       .where(eq(pomodoroMediaUploads.userId, userId)),
   ])
   return { rows, total: total?.total ?? 0, bytes: Number(total?.bytes ?? 0) }

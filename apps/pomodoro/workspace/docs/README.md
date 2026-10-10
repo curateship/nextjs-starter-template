@@ -124,7 +124,8 @@ cover this one.
   so the site never looks empty: the Settings tab, their working day, the
   worker, their history, and the mark only the admin sees.
 - [Your own backgrounds and sounds](own-media-uploads.md) — what a Pro member
-  may upload, the FFmpeg re-encode, and where the files live.
+  may upload, the upload window (name, tags, Share, trim, several files), the
+  FFmpeg re-encode, and where the files live.
 - [AI backgrounds and soundscapes](ai-generation.md) — the prompt box, the
   monthly credits, the rule that a failed generation is refunded, and what
   each one costs on the admin's AI usage page.

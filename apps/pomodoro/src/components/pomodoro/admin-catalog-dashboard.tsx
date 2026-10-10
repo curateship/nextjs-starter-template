@@ -70,6 +70,7 @@ import {
   useAdminDelete,
 } from "@/components/pomodoro/admin-delete"
 import { AdminCatalogDialog } from "@/components/pomodoro/admin-catalog-dialog"
+import { SoundWave } from "@/components/pomodoro/sound-wave"
 import { AdminCatalogImportDialog } from "@/components/pomodoro/admin-catalog-import-dialog"
 import { AdminCatalogYoutubeDialog } from "@/components/pomodoro/admin-catalog-youtube-dialog"
 import {
@@ -689,7 +690,11 @@ function CatalogRow({
               <GripVerticalIcon className="size-4" />
             </button>
           ) : null}
-          {row.pictureUrl ? (
+          {row.kind === "sound" ? (
+            <span className="h-9 w-14 shrink-0 overflow-hidden rounded-md">
+              <SoundWave seed={row.key} />
+            </span>
+          ) : row.pictureUrl ? (
             <img
               src={row.pictureUrl}
               alt=""

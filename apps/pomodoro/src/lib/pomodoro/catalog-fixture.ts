@@ -25,7 +25,6 @@ const sound = (key: string, label: string, locked: boolean) => ({
   locked,
   tags: [] as string[],
   fileUrl: `/sounds/audio-${key}.mp3`,
-  pictureUrl: `/sounds/sounds-${key}.png`,
   volume: 100,
   publishedAt: "2026-01-01T00:00:00.000Z",
 })

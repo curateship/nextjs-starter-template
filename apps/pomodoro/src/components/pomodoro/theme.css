@@ -56,6 +56,11 @@ html:root:has([data-pomodoro-screen]) {
   --p-success: #12a150;
   --p-danger: #c23b32;
   --p-track: #d7cfc3;
+  /* A sound's waveform card (sound-wave.tsx): red into amber on a panel. */
+  --p-wave-from: #f23d3d;
+  --p-wave-to: #f7a531;
+  --p-wave-panel-top: #efe4ea;
+  --p-wave-panel-bottom: #f6f1ec;
 
   /* The shadcn variables the shell's components draw with, mapped onto the
      product tokens the way the old app's token block did. The on-accent text
@@ -188,6 +193,10 @@ html:root.dark:has([data-pomodoro-screen]) {
   --p-success: #4ade80;
   --p-danger: #fca5a5;
   --p-track: #303037;
+  --p-wave-from: #ff3b3b;
+  --p-wave-to: #ffb23e;
+  --p-wave-panel-top: #2c1f33;
+  --p-wave-panel-bottom: #19181e;
 
   --background: var(--p-canvas);
   --foreground: var(--p-text);

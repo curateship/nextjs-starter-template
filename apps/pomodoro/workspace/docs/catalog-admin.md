@@ -40,13 +40,14 @@ and one for sounds. Add ability to add sound and theme in admin dashboard
   where the worker cannot reach it, so `public/backgrounds/thumbs-lofi_girl.png`
   was replaced by hand with the frame at 30 seconds of its 60-second film. It
   used to be a 120 by 72 drawing.
-- **A sound never needs a picture uploaded.** Tyler, 9 Oct 2026: "It
-  shouldnt need to upload an image when i add a sound. It should add one of
-  the random graphic we currantly have." A sound saved with no picture, from
-  New sound, Upload several or a Pixabay music link, gets one of the eight
-  built-in sound graphics (`SOUND_GRAPHICS` in
-  `src/lib/pomodoro/admin-catalog.ts`, files under `public/sounds/`) at
-  random. The admin can still choose a picture of their own in the window.
+- **A sound has no picture at all.** Tyler, 10 Oct 2026: "remove all the
+  current sound images with a new animated one (but static until played)".
+  Every sound card, here and for members, draws a waveform from the sound's
+  key (`SoundWave` in `src/components/pomodoro/sound-wave.tsx`), and the
+  window has no picture field for a sound. A sound goes Live with its file
+  alone. The eight built-in graphics under `public/sounds/` were deleted.
+  Older rows still hold their `picture_url`, which nothing reads for a sound
+  any more; the column stays because a theme's still lives in it.
 
 ## Where the list lives
 

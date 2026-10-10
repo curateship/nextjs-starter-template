@@ -108,8 +108,8 @@ export const KINDS_LINKING_TO_THE_ACTOR: readonly PomodoroNoticeKind[] = [
 
 /** The page a finished file or a credit notice leads to, by what it is for. */
 export const MEDIA_PAGE = {
-  background: "/backgrounds",
-  sound: "/sounds",
+  background: "/uploads?kind=background",
+  sound: "/uploads?kind=sound",
 } as const
 
 /** The streak lengths that tell the people who follow you. */

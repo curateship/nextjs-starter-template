@@ -6,8 +6,8 @@ backgrounds and twenty soundscapes a month.
 
 ## What a member sees
 
-"Generate your own" is one card under the uploads on `/backgrounds` and
-`/sounds`, drawn to Tyler's Sounds design of 7 Oct 2026. Its heading reads
+"Generate your own" is one card under the uploads on each tab of My uploads
+(`/uploads`, moved off `/backgrounds` and `/sounds` on 10 Oct 2026), drawn to Tyler's Sounds design of 7 Oct 2026. Its heading reads
 "GENERATE YOUR OWN" with an orange "PRO", and this month's counter sits beside
 it ("20 of 20 left this month"). Under it come the sentence saying what it
 does, the three suggestions as pills, and a list of what has been asked for

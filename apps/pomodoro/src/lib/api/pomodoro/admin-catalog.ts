@@ -60,7 +60,8 @@ export const getCatalogAdminErrorMessage = createErrorMessage(
   {
     CATALOG_ITEM_NOT_FOUND:
       "That item is no longer there. The list has been refreshed.",
-    CATALOG_NEEDS_PICTURE: "Add a picture before making it Live.",
+    CATALOG_NEEDS_PICTURE:
+      "This theme has no still yet. Add its film; the still is taken from the middle.",
     CATALOG_NEEDS_FILE: "Add the sound's file before making it Live.",
     CATALOG_BAD_DESCRIPTOR: "Pick what kind it is from the list.",
     CATALOG_BAD_FILE: "That upload could not be found. Choose the file again.",
@@ -115,7 +116,6 @@ const itemSchema = z.object({
   descriptor: z.string().trim().max(20),
   locked: z.boolean(),
   status: z.enum(["draft", "live"]),
-  pictureUrl: urlSchema.nullable(),
   tags: z.array(z.string().max(40)).max(MAX_ITEM_TAGS).default([]),
   volume: z.number().int().min(10).max(100).default(100),
   artist: z.string().trim().max(120).nullable(),

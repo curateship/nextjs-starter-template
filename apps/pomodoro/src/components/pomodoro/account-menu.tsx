@@ -6,6 +6,7 @@ import {
   SettingsIcon,
   ShieldCheckIcon,
   SparklesIcon,
+  UploadIcon,
   UserIcon,
 } from "lucide-react"
 
@@ -103,6 +104,12 @@ export function AccountMenu({
           <Link to="/settings">
             <SettingsIcon />
             Settings
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link to="/uploads">
+            <UploadIcon />
+            My uploads
           </Link>
         </DropdownMenuItem>
         {facts?.profileHandle ? (

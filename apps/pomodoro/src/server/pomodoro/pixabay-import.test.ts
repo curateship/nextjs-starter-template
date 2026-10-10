@@ -218,7 +218,7 @@ describe("importing a list", () => {
       sourceUrl: MUSIC,
       licence: "free",
     })
-    expect(sound.pictureUrl).toMatch(/^\/sounds\/sounds-[a-z]+\.png$/)
+    expect(sound.pictureUrl).toBeNull()
     // Live waits for the file.
     expect(await setAdminCatalogStatus({ ids: [sound.id], status: "live", actorUserId: admin })).toMatchObject({
       skipped: [sound.id],
@@ -363,7 +363,6 @@ describe("the worker", () => {
         descriptor: "video",
         locked: false,
         status: "draft",
-        pictureUrl: null,
         tags: [],
         volume: 100,
         artist: null,

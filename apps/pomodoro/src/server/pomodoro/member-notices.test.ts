@@ -247,13 +247,13 @@ describe("AI and upload notices", () => {
       {
         message: "Your AI background is ready.",
         kind: "media_ready",
-        href: "/backgrounds",
+        href: "/uploads?kind=background",
       },
       {
         message: "Your AI background couldn't be made.",
         detail: "The credit is back.",
         kind: "media_failed",
-        href: "/backgrounds",
+        href: "/uploads?kind=background",
       },
     ])
   })
@@ -286,7 +286,7 @@ describe("AI and upload notices", () => {
       {
         message: "Your upload couldn't be prepared.",
         detail: "This file could not be prepared.",
-        href: "/sounds",
+        href: "/uploads?kind=sound",
       },
     ])
   })
@@ -307,7 +307,7 @@ describe("AI and upload notices", () => {
     await reserveGenerationCredit(userId, "soundscape", 3, month)
 
     expect(await noticesFor(userId)).toMatchObject([
-      { message: "1 AI soundscape left this month.", href: "/sounds" },
+      { message: "1 AI soundscape left this month.", href: "/uploads?kind=sound" },
       {
         message: "No AI soundscapes left this month.",
         detail: "They come back on 1 November.",

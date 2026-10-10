@@ -4,6 +4,9 @@ import {
   Loader2Icon,
   LockIcon,
   MusicIcon,
+  PauseIcon,
+  PlayIcon,
+  SettingsIcon,
   SparklesIcon,
   Trash2Icon,
   TriangleAlertIcon,
@@ -19,21 +22,19 @@ import { PRO_PERKS } from "@/lib/pomodoro/pro"
 import { useProductAuth } from "@/lib/pomodoro/auth-state"
 import {
   formatBytes,
-  UPLOAD_ACCEPT,
   UPLOAD_HINT,
-  uploadRefusal,
   type PomodoroUploadPurpose,
 } from "@/lib/pomodoro/media-limits"
 import {
   getPomodoroUploadErrorMessage,
   loadUploadLibrary,
   removePomodoroUpload,
-  uploadPomodoroMedia,
   type StoredUpload,
   type UploadLibrary,
-  type UploadProgress,
 } from "@/lib/api/pomodoro/media-uploads"
 import { SignInButton } from "@/components/pomodoro/sign-in-button"
+import { UploadWindow } from "@/components/pomodoro/upload-window"
+import { UploadEditDialog } from "@/components/pomodoro/upload-edit-dialog"
 import { CurrentlySelectedLabel } from "@/components/pomodoro/media-add-actions"
 import { useOpenPlans } from "@/lib/pomodoro/use-open-plans"
 
@@ -43,8 +44,9 @@ import { useOpenPlans } from "@/lib/pomodoro/use-open-plans"
  * or go to the AI generator below), and the uploads under it. Tyler, 7 Oct
  * 2026: "remove the upload box ... Clicking the button is enough."
  *
- * The same card serves both pickers: what changes is which file types the
- * picker takes and what a finished upload does when it is picked. A free
+ * The same card serves both kinds on My uploads: what changes is which file
+ * types the upload window takes and what a finished upload does when it is
+ * picked. A free
  * account still sees the card, locked, because a perk nobody can see is a perk
  * nobody upgrades for.
  */
@@ -61,7 +63,8 @@ export function MediaUploadsSection({
   reloadToken = 0,
   isSelected,
   onPick,
-  onHoverChange,
+  isPlaying,
+  onWindowOpen,
   renderAddMenu,
   renderThumbnail,
 }: {
@@ -82,26 +85,39 @@ export function MediaUploadsSection({
   /** Whether this upload is the one in use in the room you are in. */
   isSelected: (upload: StoredUpload) => boolean
   /**
-   * A finished card plays while the pointer is over it (`onHoverChange`), and
-   * a click or tap calls `onPick`, for a phone. Sounds plays the file through
-   * its preview player; Backgrounds plays the film inside the thumbnail.
+   * A click or tap on a finished card calls `onPick`. Sounds plays the file
+   * through its preview player, and a second click stops it; Backgrounds
+   * plays the film inside the thumbnail, on hover too. Tyler, 10 Oct 2026:
+   * a sound plays on a click only, because playing on hover fought the click.
    */
   onPick?: (upload: StoredUpload) => void
-  onHoverChange?: (upload: StoredUpload, hovering: boolean) => void
+  /** Whether this sound is the one the preview player is playing. */
+  isPlaying?: (upload: StoredUpload) => boolean
+  /**
+   * Called as the upload window or the cog's window opens, so a card's
+   * preview is not left playing under the window's own player.
+   */
+  onWindowOpen?: () => void
   /** The "+" beside the delete button that opens the Add choices. */
   renderAddMenu?: (upload: StoredUpload) => React.ReactNode
-  /** `playing` is true while the card is hovered or was tapped to play. */
+  /**
+   * `playing` is true for a picture or clip while the card is hovered or was
+   * tapped, and for a sound while the preview player is playing it.
+   */
   renderThumbnail: (upload: StoredUpload, playing: boolean) => React.ReactNode
 }) {
   const [library, setLibrary] = React.useState<UploadLibrary | null>(null)
   const [error, setError] = React.useState<string | null>(null)
-  // Non-null for the whole of an upload, so it doubles as "busy".
-  const [progress, setProgress] = React.useState<UploadProgress | null>(null)
+  const [windowOpen, setWindowOpen] = React.useState(false)
+  // Bumped on every open, so each visit to the window starts empty.
+  const [windowKey, setWindowKey] = React.useState(0)
+  const [editing, setEditing] = React.useState<StoredUpload | null>(null)
+  // Bumped on every open, so each edit starts from the saved values.
+  const [editKey, setEditKey] = React.useState(0)
   const [pendingDelete, setPendingDelete] = React.useState<StoredUpload | null>(
     null
   )
   const [deleting, setDeleting] = React.useState(false)
-  const fileInput = React.useRef<HTMLInputElement>(null)
 
   // Guests never own uploads, and asking the server anyway answers 401 — which
   // this strip then showed as a red "Please sign in again." on a page that was
@@ -138,28 +154,6 @@ export function MediaUploadsSection({
     return () => clearInterval(timer)
   }, [refresh, waiting])
 
-  async function send(file: File) {
-    // The page already knows the limits and the space left, so a file that
-    // cannot fit is turned away here instead of after the whole upload.
-    const refusal = library
-      ? uploadRefusal(file, library.limitBytes - library.usedBytes)
-      : null
-    if (refusal) {
-      setError(refusal)
-      return
-    }
-    setProgress({ phase: "sending", percent: 0 })
-    setError(null)
-    try {
-      await uploadPomodoroMedia(file, purpose, setProgress)
-      await refresh()
-    } catch (uploadError) {
-      setError(getPomodoroUploadErrorMessage(uploadError))
-    } finally {
-      setProgress(null)
-    }
-  }
-
   // Until the answer arrives the button stays shut. Treating "not known yet"
   // as allowed let a free account open the file picker by clicking quickly,
   // and the upload was then refused by the server a moment later — the right
@@ -190,18 +184,30 @@ export function MediaUploadsSection({
       </header>
 
       <UploadActions
-        accept={UPLOAD_ACCEPT[purpose]}
         label={uploadLabel}
         hint={`${UPLOAD_HINT[purpose]} ${description}`}
-        progress={progress}
         known={known}
         signedIn={signedIn}
         locked={locked}
         full={full}
-        inputRef={fileInput}
-        onFile={(file) => void send(file)}
+        onUpload={() => {
+          onWindowOpen?.()
+          setError(null)
+          setWindowKey((key) => key + 1)
+          setWindowOpen(true)
+        }}
         onGenerate={onGenerate}
       />
+      {library ? (
+        <UploadWindow
+          key={`upload-${windowKey}`}
+          open={windowOpen}
+          onClose={() => setWindowOpen(false)}
+          purpose={purpose}
+          library={library}
+          onUploaded={() => void refresh()}
+        />
+      ) : null}
 
       {error ? (
         <p role="alert" className="text-sm text-destructive">
@@ -210,7 +216,7 @@ export function MediaUploadsSection({
       ) : null}
 
       {(library?.uploads.length ?? 0) > 0 ? (
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 sm:gap-6 lg:grid-cols-4">
           {(library?.uploads ?? []).map((upload) => (
             <UploadCard
               key={upload.mediaId}
@@ -218,13 +224,33 @@ export function MediaUploadsSection({
               selected={isSelected(upload)}
               addMenu={renderAddMenu?.(upload) ?? null}
               onPick={() => onPick?.(upload)}
-              onHoverChange={(hovering) => onHoverChange?.(upload, hovering)}
+              playing={isPlaying?.(upload) ?? false}
+              onEdit={() => {
+                onWindowOpen?.()
+                setEditKey((key) => key + 1)
+                setEditing(upload)
+              }}
               onDelete={() => setPendingDelete(upload)}
               renderThumbnail={(playing) => renderThumbnail(upload, playing)}
             />
           ))}
         </div>
       ) : null}
+
+      <UploadEditDialog
+        key={`edit-${editKey}`}
+        // The list's own copy, so a cut finishing while the window is open
+        // shows there; the window's fields keep what was typed.
+        upload={
+          editing
+            ? (library?.uploads.find((one) => one.mediaId === editing.mediaId) ??
+              editing)
+            : null
+        }
+        knownTags={library?.knownTags ?? []}
+        onClose={() => setEditing(null)}
+        onSaved={refresh}
+      />
 
       <ConfirmDialog
         open={Boolean(pendingDelete)}
@@ -263,42 +289,35 @@ const eyebrowClass =
   "font-mono text-[11px] uppercase tracking-[0.2em] text-foreground/75"
 
 /**
- * The two buttons: Upload, which opens the file picker, and Generate with AI,
- * which goes to the generator further down the page.
+ * The two buttons: Upload, which opens the upload window, and Generate with
+ * AI, which goes to the generator further down the page.
  *
  * Upload is never dead. A guest is sent to sign in, a free account to the
  * plans, and a full account is told why under the buttons, each with the
  * reason beside it, rather than a grey button with nothing to say.
  */
 function UploadActions({
-  accept,
   label,
   hint,
-  progress,
   known,
   signedIn,
   locked,
   full,
-  inputRef,
-  onFile,
+  onUpload,
   onGenerate,
 }: {
-  accept: string
   label: string
   hint: string
-  progress: UploadProgress | null
   /** The answer is settled — either the server replied, or nobody is signed in. */
   known: boolean
   signedIn: boolean
   locked: boolean
   full: boolean
-  inputRef: React.RefObject<HTMLInputElement | null>
-  onFile: (file: File) => void
+  onUpload: () => void
   onGenerate: () => void
 }) {
   const { openPlans } = useOpenPlans()
   const [fullNotice, setFullNotice] = React.useState(false)
-  const busy = progress !== null
   // Nothing is said until the answer is in. A paying member must not be told,
   // even for a moment, that uploading is a perk they do not have.
   const reason = !known
@@ -313,24 +332,6 @@ function UploadActions({
 
   return (
     <div className="flex flex-col gap-3">
-      <input
-        ref={inputRef}
-        type="file"
-        accept={accept}
-        className="sr-only"
-        tabIndex={-1}
-        aria-hidden="true"
-        onChange={(event) => {
-          const file = event.target.files?.[0]
-          // Cleared straight away, so picking the same file twice in a row
-          // still fires a change event and still uploads.
-          event.target.value = ""
-          if (file) onFile(file)
-        }}
-      />
-      <span className="sr-only" aria-live="polite">
-        {spokenProgress(progress)}
-      </span>
       <div className="flex flex-wrap gap-2">
         {!known ? (
           <Button type="button" className="rounded-full" disabled>
@@ -343,25 +344,18 @@ function UploadActions({
           <Button
             type="button"
             className="rounded-full"
-            disabled={busy}
             onClick={() => {
               if (locked) openPlans()
               else if (full) setFullNotice(true)
-              else inputRef.current?.click()
+              else onUpload()
             }}
           >
-            {busy ? (
-              <Loader2Icon className="animate-spin" aria-hidden="true" />
-            ) : locked ? (
+            {locked ? (
               <LockIcon aria-hidden="true" />
             ) : (
               <UploadIcon aria-hidden="true" />
             )}
-            {progress === null
-              ? label
-              : progress.phase === "checking"
-                ? "Checking the file…"
-                : `Uploading… ${progress.percent}%`}
+            {label}
           </Button>
         )}
         <Button
@@ -379,16 +373,9 @@ function UploadActions({
   )
 }
 
-/**
- * What a screen reader hears, in quarters. The button's own figure moves every
- * percent, and reading each one out would talk over everything else.
- */
-function spokenProgress(progress: UploadProgress | null) {
-  if (progress === null) return ""
-  if (progress.phase === "checking") return "Uploaded. Checking the file."
-  const quarter = Math.floor(progress.percent / 25) * 25
-  return quarter > 0 ? `Uploading, ${quarter}%` : "Uploading"
-}
+/** The cog and the bin on a card's picture: the play button's glass circle. */
+const cornerButton =
+  "rounded-full bg-black/45 text-white backdrop-blur-sm hover:bg-black/60 hover:text-white"
 
 const KIND_ICONS = {
   image: ImageIcon,
@@ -405,7 +392,8 @@ function UploadCard({
   selected,
   addMenu,
   onPick,
-  onHoverChange,
+  playing,
+  onEdit,
   onDelete,
   renderThumbnail,
 }: {
@@ -415,20 +403,37 @@ function UploadCard({
   /** The "+" that opens the Add choices. */
   addMenu: React.ReactNode
   onPick: () => void
-  onHoverChange: (hovering: boolean) => void
+  /** A sound being previewed shows Pause. */
+  playing: boolean
+  onEdit: () => void
   onDelete: () => void
   renderThumbnail: (playing: boolean) => React.ReactNode
 }) {
-  const ready = upload.status === "ready"
+  // A finished file plays, including the old cut while a new trim is made.
+  const ready = upload.url !== ""
   const failed = upload.status === "failed"
+  const cutting = upload.status === "queued" || upload.status === "processing"
   const KindIcon = KIND_ICONS[upload.kind]
+  // Drawn like the catalogue's cards beside it: a sound like a Sounds card,
+  // a picture or clip like a Theme card. Tyler, 10 Oct 2026: "it needs to
+  // look similiar in size and structure".
+  const sound = upload.kind === "audio"
+  const status = cutting
+    ? ready
+      ? "Making the new cut…"
+      : "Getting it ready…"
+    : failed
+      ? ready
+        ? "The new cut could not be made. The old one still plays."
+        : (upload.failureReason ?? "It could not be prepared.")
+      : null
   const [hovered, setHovered] = React.useState(false)
   const [tapped, setTapped] = React.useState(false)
 
   const pickButton = (
     <button
       type="button"
-      className="group w-full text-left disabled:cursor-not-allowed"
+      className="group w-full text-left outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid disabled:cursor-not-allowed"
       aria-label={
         ready
           ? `Preview ${upload.name}`
@@ -439,20 +444,23 @@ function UploadCard({
       disabled={!ready}
       onClick={() => {
         if (!ready) return
-        setTapped((current) => !current)
+        if (!sound) setTapped((current) => !current)
         onPick()
       }}
     >
       <span
         className={cn(
           "relative block bg-muted",
-          upload.kind === "audio" ? "aspect-square" : "aspect-video"
+          // The square waveform picture, cropped wide as on Sounds.
+          sound ? "aspect-[8/5]" : "aspect-video"
         )}
       >
-        {ready ? renderThumbnail(hovered || tapped) : null}
-        {selected ? <CurrentlySelectedLabel /> : null}
+        {ready ? renderThumbnail(sound ? playing : hovered || tapped) : null}
+        {/* At the foot of the picture, because the cog and the bin hold the
+            top corner and a narrow card has no room for both. */}
+        {selected ? <CurrentlySelectedLabel className="top-auto bottom-2 whitespace-nowrap" /> : null}
         <span className="absolute inset-0 grid place-items-center">
-          {failed ? (
+          {failed && !ready ? (
             <TriangleAlertIcon
               className="size-6 text-destructive"
               aria-hidden="true"
@@ -462,6 +470,20 @@ function UploadCard({
               className="size-6 animate-spin text-muted-foreground"
               aria-hidden="true"
             />
+          ) : sound ? (
+            <span
+              className={cn(
+                "grid size-11 place-items-center rounded-full bg-black/45 text-white backdrop-blur-sm",
+                !playing &&
+                  "opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+              )}
+            >
+              {playing ? (
+                <PauseIcon className="size-5" aria-hidden="true" />
+              ) : (
+                <PlayIcon className="size-5" aria-hidden="true" />
+              )}
+            </span>
           ) : (
             <KindIcon
               className="size-6 text-white opacity-0 drop-shadow transition-opacity group-hover:opacity-100"
@@ -470,17 +492,31 @@ function UploadCard({
           )}
         </span>
       </span>
-      <CardContent className="flex flex-col gap-0.5 p-3">
-        <strong className="truncate text-sm" title={upload.name}>
+      {/* Room on the right for the "+" beside the button. */}
+      <CardContent
+        className={cn(
+          "flex flex-col pr-14",
+          sound ? "gap-1 py-4 pl-[18px]" : "gap-0.5 py-3 pl-3"
+        )}
+      >
+        <strong
+          className={cn("truncate", sound ? "text-base font-semibold" : "text-sm")}
+          title={upload.name}
+        >
           {upload.name}
         </strong>
-        <small className="truncate text-xs text-muted-foreground">
-          {failed
-            ? (upload.failureReason ?? "It could not be prepared.")
-            : ready
-              ? formatBytes(upload.fileSize)
-              : "Getting it ready…"}
-        </small>
+        {/* A finished file shows its name alone, as the catalogue's cards
+            do; a line under it only says what is still happening. */}
+        {status ? (
+          <small
+            className={cn(
+              "truncate text-muted-foreground",
+              sound ? "text-sm" : "text-xs"
+            )}
+          >
+            {status}
+          </small>
+        ) : null}
       </CardContent>
     </button>
   )
@@ -488,30 +524,66 @@ function UploadCard({
   return (
     <Card
       className={cn(
-        "overflow-hidden p-0",
+        "relative gap-0 overflow-hidden p-0",
+        sound && "rounded-[18px]",
         selected && "ring-2 ring-[var(--p-accent)]"
       )}
-      // On the whole card, so moving onto the "+" keeps playing. Only a mouse
-      // hovers; a finger's tap is the button's click.
+      // A film plays while the pointer is over the card, on the whole card
+      // so moving onto the "+" keeps it playing. Only a mouse hovers; a
+      // finger's tap is the button's click. A sound plays on a click only.
       onPointerEnter={(event) => {
-        if (!ready || event.pointerType !== "mouse") return
+        if (!ready || sound || event.pointerType !== "mouse") return
         setHovered(true)
-        onHoverChange(true)
       }}
       onPointerLeave={(event) => {
-        if (!ready || event.pointerType !== "mouse") return
+        if (!ready || sound || event.pointerType !== "mouse") return
         setHovered(false)
         setTapped(false)
-        onHoverChange(false)
       }}
     >
       {pickButton}
-      <div className="flex items-center justify-end gap-2 border-t px-2 py-1">
-        {ready ? addMenu : null}
+      {/* Beside the card's button, because a button cannot sit inside
+          another one. The "+" sits by the name as on the catalogue's cards;
+          the cog and the bin sit on the picture's corner, so the name keeps
+          the room it has there. */}
+      {ready ? (
+        <div
+          // Centred on the name's line. The text under the picture has a
+          // fixed height (padding, a name line, and a status line only while
+          // something is happening), so the distance from the card's foot to
+          // the middle of the name is known: padding, the status line and its
+          // gap if shown, half the name's line, less half the 32px button.
+          className={cn(
+            "absolute right-3",
+            sound
+              ? status
+                ? "bottom-9"
+                : "bottom-3"
+              : status
+                ? "bottom-6"
+                : "bottom-1.5"
+          )}
+        >
+          {addMenu}
+        </div>
+      ) : null}
+      <div className="absolute top-2 right-2 flex gap-1">
         <Button
           type="button"
           variant="ghost"
           size="icon"
+          className={cornerButton}
+          onClick={onEdit}
+          title={`Edit ${upload.name}`}
+          aria-label={`Edit ${upload.name}`}
+        >
+          <SettingsIcon className="size-4" />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className={cornerButton}
           onClick={onDelete}
           title={`Delete ${upload.name}`}
           aria-label={`Delete ${upload.name}`}

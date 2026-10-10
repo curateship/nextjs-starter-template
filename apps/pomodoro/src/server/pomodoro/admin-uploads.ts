@@ -3,6 +3,7 @@ import { and, asc, count, desc, eq, ilike, inArray, or, sql, type SQL } from "dr
 import { db } from "@/server/db"
 import { deleteMediaAsAdmin } from "@/server/media/library"
 import { getPublicMediaUrl } from "@/server/media/storage"
+import { uploadIsShowable } from "@/server/pomodoro/media-uploads"
 import {
   pomodoroAuditLogs,
   pomodoroGenerations,
@@ -67,7 +68,8 @@ export async function listAdminUploads(query: {
     const match = or(
       ilike(users.name, pattern),
       ilike(users.email, pattern),
-      ilike(customShellMedia.originalName, pattern)
+      ilike(customShellMedia.originalName, pattern),
+      ilike(pomodoroMediaUploads.name, pattern)
     )
     if (match) filters.push(match)
   }
@@ -86,10 +88,12 @@ export async function listAdminUploads(query: {
         userId: pomodoroMediaUploads.userId,
         ownerName: users.name,
         ownerEmail: users.email,
-        name: customShellMedia.originalName,
+        // The name the member typed; an older row has only the file name.
+        name: sql<string>`coalesce(${pomodoroMediaUploads.name}, ${customShellMedia.originalName})`,
         purpose: pomodoroMediaUploads.purpose,
         kind: pomodoroMediaUploads.kind,
         status: pomodoroMediaUploads.status,
+        sourceMediaId: pomodoroMediaUploads.sourceMediaId,
         failureReason: pomodoroMediaUploads.failureReason,
         fileSize: customShellMedia.fileSize,
         storagePath: customShellMedia.storagePath,
@@ -128,7 +132,7 @@ export async function listAdminUploads(query: {
 
   return {
     rows: await Promise.all(
-      rows.map(async ({ storagePath, roomBackground, roomSound, profileBanner, ...row }) => ({
+      rows.map(async ({ storagePath, sourceMediaId, roomBackground, roomSound, profileBanner, ...row }) => ({
         ...row,
         purpose: row.purpose as PomodoroUploadPurpose,
         kind: row.kind as PomodoroUploadKind,
@@ -137,7 +141,9 @@ export async function listAdminUploads(query: {
           roomSound ? "room sound" : null,
           profileBanner ? "profile banner" : null,
         ].filter((use): use is string => use !== null),
-        url: row.status === "ready" ? await getPublicMediaUrl(storagePath) : "",
+        url: uploadIsShowable({ status: row.status, sourceMediaId })
+          ? await getPublicMediaUrl(storagePath)
+          : "",
       }))
     ),
     total: totalRow?.total ?? 0,
@@ -190,7 +196,11 @@ export async function deleteAdminUploads({
 }) {
   return db.transaction(async (tx) => {
     const found = await tx
-      .select({ id: customShellMedia.id, emailProtectedAt: customShellMedia.emailProtectedAt })
+      .select({
+        id: customShellMedia.id,
+        emailProtectedAt: customShellMedia.emailProtectedAt,
+        sourceMediaId: pomodoroMediaUploads.sourceMediaId,
+      })
       .from(pomodoroMediaUploads)
       .innerJoin(customShellMedia, eq(customShellMedia.id, pomodoroMediaUploads.mediaId))
       .where(inArray(pomodoroMediaUploads.mediaId, mediaIds))
@@ -198,9 +208,13 @@ export async function deleteAdminUploads({
     if (!deletable.length) return { deleted: [], skipped: mediaIds }
 
     await clearUploadChoices(tx, deletable)
+    // The kept originals a re-trim cuts from go with their uploads.
+    const sources = found
+      .filter((row) => !row.emailProtectedAt && row.sourceMediaId)
+      .map((row) => row.sourceMediaId as string)
     // A transaction is a database handle too; the shell's delete nests inside
     // it, so the cleared choices and the deleted rows commit together.
-    await deleteMediaAsAdmin(deletable, tx)
+    await deleteMediaAsAdmin([...deletable, ...sources], tx)
     await tx
       .insert(pomodoroAuditLogs)
       .values({ actorUserId, action: "delete", resource, recordIds: deletable })

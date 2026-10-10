@@ -26,9 +26,23 @@ Tyler sent a design on 7 Oct 2026 with "revamp the sound page", and
 - **A large title** and one line saying whose room an Add goes to (see
   [The personal room](personal-room.md)).
 - **The loops are cards, four across** (two on a phone). Each shows its
-  waveform picture cropped to a wide frame, then the name with an orange PRO
-  on the same line for a Pro loop, and the hint under it.
-- **A round dark button sits over the middle of the picture.** It shows play
+  waveform, then the name with an orange PRO on the same line for a Pro loop,
+  and the hint under it.
+- **The waveform is drawn, not a picture.** Tyler, 10 Oct 2026: "replace it
+  with a soundwave animation when play ... static until played", then a
+  design to copy, "should be smaller". Forty-four thin rounded bars across
+  the card, red into amber (`--p-wave-from` and `--p-wave-to` in
+  `theme.css`), on a dusky purple-to-charcoal panel that turns pale in light
+  mode. The bars swell into three smooth humps of different heights, with
+  dips between them, take up under half the panel's height, and end in a
+  row of dots at each side. The humps come from the sound's key, so every
+  sound has its own shape and keeps it
+  (`SoundWave` in `src/components/pomodoro/sound-wave.tsx`). While the sound
+  plays the bars rise and fall on the header's `pomodoro-equaliser`
+  movement, each bar at its own speed; when it stops they settle back.
+  Reduced motion keeps them still. A member's own sounds on My uploads and
+  the admin's Sounds list use the same drawing.
+- **A round dark button sits over the middle of the waveform.** It shows play
   or pause for the card being previewed, a padlock on a locked one, and a
   play arrow on the others only while the mouse is over the card or it has
   keyboard focus. The sound in use in the room you are in has an orange
@@ -43,20 +57,21 @@ Tyler sent a design on 7 Oct 2026 with "revamp the sound page", and
   [AI backgrounds and soundscapes](ai-generation.md). The Theme page shares
   both.
 
-## Hovering over a card plays it
+## Clicking a card plays it
 
 Tyler, 7 Oct 2026: "Make it preview the sound on the sound page only and add a
-button to be able to add it to your personal room." On 9 Oct he asked for the
-sound to play on hover, "same for sound" as the themes, with a "+" to add it.
+button to be able to add it to your personal room." On 9 Oct a sound also
+played on hover, and on 10 Oct that went, because the hover and the click
+fought: "Just remove the hover to play and keep the click to play sound. This
+goes for the sound library as well."
 
-- **Hovering over a card plays the loop on this page only**, through its own
-  player (`use-preview-audio.ts`). Moving off the card stops it. The header's
-  player, the timer and what is saved are never touched.
-- **A click or tap plays or pauses it too**, because a phone has no hover.
-- **The browser stays quiet until the page has been clicked once.** Chrome
-  and Safari refuse to start sound from a hover alone on a page nobody has
-  clicked or tapped yet. Coming to Sounds from the left menu is a click, so it
-  normally plays straight away. A refused hover shows no error.
+- **A click or tap plays the loop on this page only**, through its own player
+  (`use-preview-audio.ts`), and a second click stops it. Moving the pointer
+  off the card does not stop it. The header's player, the timer and what is
+  saved are never touched.
+- **Hovering shows the play button and nothing more.** The same goes for a
+  member's own sounds on My uploads. Themes still play on hover, because a
+  film makes no sound.
 - **The "+" in the card's bottom-right corner opens the Add choices**
   (`MediaAddMenu` in `media-add-actions.tsx`): "Add to my personal room", and
   "Add to this room" for the host of the room you are in. A choice already

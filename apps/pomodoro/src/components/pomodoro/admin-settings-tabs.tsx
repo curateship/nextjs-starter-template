@@ -113,7 +113,12 @@ export function SafetySettingsTab() {
 export function MediaSettingsTab() {
   return (
     <SettingsTab>
-      {({ settings, catalog }) => <MediaDefaultsCard initial={settings} {...freeOptions(catalog)} />}
+      {({ settings, catalog }) => (
+        <>
+          <MediaDefaultsCard initial={settings} {...freeOptions(catalog)} />
+          <MemberUploadsCard initial={settings["uploads.aiLabels"]} />
+        </>
+      )}
     </SettingsTab>
   )
 }
@@ -486,6 +491,36 @@ function MediaDefaultsCard({
           onChange={(background) => pick({ ...defaults, background })}
         />
       </div>
+    </CollapsibleSettingsCard>
+  )
+}
+
+/**
+ * The upload window's AI name and tags (uploads-and-sharing task 01, part 7).
+ * One small call per file, booked on the AI usage page, so it can be switched
+ * off here.
+ */
+function MemberUploadsCard({ initial }: { initial: boolean }) {
+  const [on, setOn] = React.useState(initial)
+  const save = useSettingSave()
+  const switchId = React.useId()
+  return (
+    <CollapsibleSettingsCard
+      storageId="pomodoro-member-uploads"
+      title="Member uploads"
+      description="The window members use to upload their own backgrounds and sounds."
+      contentClassName="grid gap-4"
+    >
+      <SettingsSwitchRow
+        id={switchId}
+        checked={on}
+        onCheckedChange={(checked) => {
+          setOn(checked)
+          void save.now("uploads.aiLabels", checked)
+        }}
+        label="Suggest a name and tags with AI"
+        hint="One small call per file from its file name, a fraction of a cent each, shown on the AI usage page as pomodoro upload labels. Needs the Anthropic key in Settings → AI."
+      />
     </CollapsibleSettingsCard>
   )
 }

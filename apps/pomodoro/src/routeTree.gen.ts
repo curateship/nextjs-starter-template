@@ -42,6 +42,7 @@ import { Route as PomodoroSettingsRouteImport } from './routes/_pomodoro/setting
 import { Route as PomodoroSoundsRouteImport } from './routes/_pomodoro/sounds'
 import { Route as PomodoroTasksRouteImport } from './routes/_pomodoro/tasks'
 import { Route as PomodoroTimerRouteImport } from './routes/_pomodoro/timer'
+import { Route as PomodoroUploadsRouteImport } from './routes/_pomodoro/uploads'
 import { Route as PomodoroUsersRouteImport } from './routes/_pomodoro/users'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
@@ -277,6 +278,11 @@ const PomodoroTasksRoute = PomodoroTasksRouteImport.update({
 const PomodoroTimerRoute = PomodoroTimerRouteImport.update({
   id: '/timer',
   path: '/timer',
+  getParentRoute: () => PomodoroRoute,
+} as any)
+const PomodoroUploadsRoute = PomodoroUploadsRouteImport.update({
+  id: '/uploads',
+  path: '/uploads',
   getParentRoute: () => PomodoroRoute,
 } as any)
 const PomodoroUsersRoute = PomodoroUsersRouteImport.update({
@@ -728,6 +734,7 @@ export interface FileRoutesByFullPath {
   '/sounds': typeof PomodoroSoundsRoute
   '/tasks': typeof PomodoroTasksRoute
   '/timer': typeof PomodoroTimerRoute
+  '/uploads': typeof PomodoroUploadsRoute
   '/users': typeof PomodoroUsersRoute
   '/api/health': typeof ApiHealthRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
@@ -832,6 +839,7 @@ export interface FileRoutesByTo {
   '/sounds': typeof PomodoroSoundsRoute
   '/tasks': typeof PomodoroTasksRoute
   '/timer': typeof PomodoroTimerRoute
+  '/uploads': typeof PomodoroUploadsRoute
   '/users': typeof PomodoroUsersRoute
   '/api/health': typeof ApiHealthRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
@@ -941,6 +949,7 @@ export interface FileRoutesById {
   '/_pomodoro/sounds': typeof PomodoroSoundsRoute
   '/_pomodoro/tasks': typeof PomodoroTasksRoute
   '/_pomodoro/timer': typeof PomodoroTimerRoute
+  '/_pomodoro/uploads': typeof PomodoroUploadsRoute
   '/_pomodoro/users': typeof PomodoroUsersRoute
   '/api/health': typeof ApiHealthRoute
   '/_authenticated/admin/ai': typeof AuthenticatedAdminAiRoute
@@ -1049,6 +1058,7 @@ export interface FileRouteTypes {
     | '/sounds'
     | '/tasks'
     | '/timer'
+    | '/uploads'
     | '/users'
     | '/api/health'
     | '/admin/ai'
@@ -1153,6 +1163,7 @@ export interface FileRouteTypes {
     | '/sounds'
     | '/tasks'
     | '/timer'
+    | '/uploads'
     | '/users'
     | '/api/health'
     | '/admin/ai'
@@ -1261,6 +1272,7 @@ export interface FileRouteTypes {
     | '/_pomodoro/sounds'
     | '/_pomodoro/tasks'
     | '/_pomodoro/timer'
+    | '/_pomodoro/uploads'
     | '/_pomodoro/users'
     | '/api/health'
     | '/_authenticated/admin/ai'
@@ -1601,6 +1613,13 @@ declare module '@tanstack/react-router' {
       path: '/timer'
       fullPath: '/timer'
       preLoaderRoute: typeof PomodoroTimerRouteImport
+      parentRoute: typeof PomodoroRoute
+    }
+    '/_pomodoro/uploads': {
+      id: '/_pomodoro/uploads'
+      path: '/uploads'
+      fullPath: '/uploads'
+      preLoaderRoute: typeof PomodoroUploadsRouteImport
       parentRoute: typeof PomodoroRoute
     }
     '/_pomodoro/users': {
@@ -2320,6 +2339,7 @@ interface PomodoroRouteChildren {
   PomodoroSoundsRoute: typeof PomodoroSoundsRoute
   PomodoroTasksRoute: typeof PomodoroTasksRoute
   PomodoroTimerRoute: typeof PomodoroTimerRoute
+  PomodoroUploadsRoute: typeof PomodoroUploadsRoute
   PomodoroUsersRoute: typeof PomodoroUsersRoute
   PomodoroRoomsSlugRoute: typeof PomodoroRoomsSlugRoute
   PomodoroUHandleRoute: typeof PomodoroUHandleRoute
@@ -2337,6 +2357,7 @@ const PomodoroRouteChildren: PomodoroRouteChildren = {
   PomodoroSoundsRoute: PomodoroSoundsRoute,
   PomodoroTasksRoute: PomodoroTasksRoute,
   PomodoroTimerRoute: PomodoroTimerRoute,
+  PomodoroUploadsRoute: PomodoroUploadsRoute,
   PomodoroUsersRoute: PomodoroUsersRoute,
   PomodoroRoomsSlugRoute: PomodoroRoomsSlugRoute,
   PomodoroUHandleRoute: PomodoroUHandleRoute,

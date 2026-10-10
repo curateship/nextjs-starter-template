@@ -61,11 +61,19 @@ scene. A screen with no pointer, such as a phone, shows them all the time.
   of cards loads no films until one is hovered. A tap plays or stops it on a
   phone. The page behind stays as it is. Your own uploaded films play on hover
   the same way.
-- **The "+" in the card's bottom-right corner opens the Add choices.** Tyler,
-  the same day: "add a "+" icon here to open a dropdown to add to room". "Add
+- **The "+" on the picture's top-right corner opens the Add choices.** Tyler,
+  9 Oct 2026: "add a "+" icon here to open a dropdown to add to room". "Add
   to my personal room" saves it, "Add to this room" is there for a host, and
   the theme in use is labelled "Currently selected". The card is `ThemeCard`
   in `backgrounds-page.tsx`; the menu is `MediaAddMenu`.
+- **The "+" shows while the pointer is over the card.** Tyler, 10 Oct 2026,
+  pointing at the corner: "move the + icon on hover here". It is a round dark
+  glass button, the same as the cog and bin on your own uploads. It stays
+  while its menu is open or it has the keyboard's focus, and on a phone,
+  which has no hover, it always shows. The name below has the card's full
+  width.
+- **A card shows the name and NEW, and nothing else.** The line saying
+  Video, Animated or Still went the same day: "remove the "video" label".
 - **The product shell renders the backdrop** under its content column
   (`SceneBackdrop` in `pomodoro-shell.tsx`), so it appears behind every
   frontend page and no shell file changes. The lofi scene is the one real
