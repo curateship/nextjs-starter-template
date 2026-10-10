@@ -45,6 +45,29 @@ export const NOTIFICATION_TYPES = [
   "crm_follow_up",
 ] as const satisfies readonly NotificationType[]
 
+/**
+ * The notices that carry their own words in `message` and `detail`, written
+ * when the notice was sent. Every other kind borrows its words from the thing
+ * it points at: a feedback post, an update, a flow.
+ *
+ * One list, read by the bell, the Notifications table and the table's search.
+ * `crm_follow_up` was added to the types on 3 Oct 2026 but not to the three
+ * hand-written copies of this list, so every follow-up reminder fell through
+ * to the feedback wording and read "Somebody commented on your feedback".
+ */
+export const SELF_WORDED_NOTIFICATION_TYPES = [
+  "account_update",
+  "system_email_failed",
+  "app_activity",
+  "crm_follow_up",
+] as const satisfies readonly NotificationType[]
+
+export function carriesItsOwnWords(type: NotificationType) {
+  return (SELF_WORDED_NOTIFICATION_TYPES as readonly NotificationType[]).includes(
+    type
+  )
+}
+
 export type NotificationTypeVisibility = Record<NotificationType, boolean>
 
 export function createDefaultNotificationTypeVisibility(): NotificationTypeVisibility {

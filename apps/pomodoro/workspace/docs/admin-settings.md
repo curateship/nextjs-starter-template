@@ -65,6 +65,11 @@ nothing changes until an admin saves. The server holds them for five seconds.
   each file's name. It starts on and needs the Anthropic key in Settings → AI.
   Off, the window keeps the file name and no tags. See [Your own backgrounds and
   sounds](own-media-uploads.md#ai-fills-in-the-name).
+- **Pixabay links one member may import a day**, on the same card, 10 to
+  start. Members paste Pixabay picture and film links in the upload window,
+  and every import spends the site's one Pixabay key. Counted over the last
+  24 hours. See "From a Pixabay link" in [Your own backgrounds and
+  sounds](own-media-uploads.md).
 
 ## Seasons
 

@@ -1,6 +1,7 @@
 import * as React from "react"
 import { Link, useNavigate } from "@tanstack/react-router"
 import { PlusIcon } from "lucide-react"
+import { toast } from "sonner"
 
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
@@ -22,6 +23,12 @@ import { MediaUploadsSection } from "@/components/pomodoro/media-uploads-section
 import { MediaGeneratorSection } from "@/components/pomodoro/media-generator-section"
 import { UploadBinView } from "@/components/pomodoro/upload-bin-view"
 import type { UploadView } from "@/lib/api/pomodoro/media-uploads"
+import {
+  confirmPomodoroPurchase,
+  getPurchaseErrorMessage,
+} from "@/lib/api/pomodoro/purchases"
+import { purchasedMessage } from "@/lib/pomodoro/purchases"
+import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
  * My uploads: a member's own backgrounds and sounds, and the AI generator for
@@ -31,8 +38,19 @@ import type { UploadView } from "@/lib/api/pomodoro/media-uploads"
  * cards gone from those pages. `?kind=sound` opens the Sounds tab and
  * `?kind=bin` the 30-day bin (task 02). See `workspace/docs/my-uploads.md`.
  */
-export function UploadsPage({ kind }: { kind: UploadView }) {
+export function UploadsPage({
+  kind,
+  seedPrompt = "",
+  purchaseSession = "",
+}: {
+  kind: UploadView
+  /** Words for this tab's generator, from "Make a matching …" (task 06). */
+  seedPrompt?: string
+  /** Stripe's session id, on the way back from buying more (task 07). */
+  purchaseSession?: string
+}) {
   const navigate = useNavigate()
+  const refreshToken = usePurchaseReturn(kind, purchaseSession)
   return (
     <div className={`${contentColumn} flex flex-col gap-6 py-8`}>
       <header className="flex flex-wrap items-center justify-between gap-4">
@@ -69,9 +87,9 @@ export function UploadsPage({ kind }: { kind: UploadView }) {
       {kind === "bin" ? (
         <UploadBinView />
       ) : kind === "sound" ? (
-        <SoundUploads />
+        <SoundUploads key={refreshToken} seedPrompt={seedPrompt} />
       ) : (
-        <BackgroundUploads />
+        <BackgroundUploads key={refreshToken} seedPrompt={seedPrompt} />
       )}
     </div>
   )
@@ -104,6 +122,53 @@ export function AddUploadsLink({ kind }: { kind: PomodoroUploadPurpose }) {
   )
 }
 
+/**
+ * Back from Stripe after buying a pack or space (task 07): ask the server to
+ * confirm that session, say what it bought, take the session out of the
+ * address, and redraw the tab so its counts include the purchase. Returns a
+ * number that changes when the tab should redraw.
+ */
+function usePurchaseReturn(kind: UploadView, sessionId: string) {
+  const navigate = useNavigate()
+  const [token, setToken] = React.useState(0)
+  const asked = React.useRef("")
+  React.useEffect(() => {
+    if (!sessionId || asked.current === sessionId) return
+    asked.current = sessionId
+    void confirmPomodoroPurchase(sessionId)
+      .then((result) => {
+        if (result.status === "paid") toast.success(purchasedMessage(result.product))
+        else if (result.status === "pending")
+          toast("Stripe is still confirming your payment. It appears here within a minute.")
+        setToken((current) => current + 1)
+      })
+      .catch((error: unknown) => showErrorToast(getPurchaseErrorMessage(error)))
+      .finally(() => {
+        void navigate({ to: "/uploads", search: { kind }, replace: true })
+      })
+  }, [kind, navigate, sessionId])
+  return token
+}
+
+/**
+ * Arriving with words for the generator: scroll to it with the cursor in the
+ * box, then take the words out of the address, so a reload or a shared link
+ * does not fill the box again. The box keeps them; it read them when it
+ * mounted.
+ */
+function useSeededGenerator(
+  kind: PomodoroUploadPurpose,
+  seedPrompt: string,
+  goToGenerator: () => void
+) {
+  const navigate = useNavigate()
+  React.useEffect(() => {
+    if (!seedPrompt) return
+    goToGenerator()
+    void navigate({ to: "/uploads", search: { kind }, replace: true })
+  }, [goToGenerator, kind, navigate, seedPrompt])
+}
+
 /** An AI file arrives as an ordinary upload, so a finished one reloads the grid. */
 function useUploadsReload() {
   const [reloadToken, setReloadToken] = React.useState(0)
@@ -116,10 +181,11 @@ function useUploadsReload() {
   return { reloadToken, reloadUploads }
 }
 
-function BackgroundUploads() {
+function BackgroundUploads({ seedPrompt }: { seedPrompt: string }) {
   const media = useRoomMedia()
   const { reloadToken, reloadUploads } = useUploadsReload()
   const { generatorRef, goToGenerator } = useGeneratorJump()
+  useSeededGenerator("background", seedPrompt, goToGenerator)
   const inUse = media.room?.background ?? media.personalBackground
 
   return (
@@ -143,6 +209,8 @@ function BackgroundUploads() {
               kind: "background",
               reference: uploadReference(upload),
               label: upload.name,
+              // A shared file can go in a room you host (rooms task 04).
+              allowRoom: upload.shareState === "on",
             }}
           />
         )}
@@ -173,17 +241,22 @@ function BackgroundUploads() {
         }
       />
       <div ref={generatorRef} className="scroll-mt-6">
-        <MediaGeneratorSection kind="background" onFinished={reloadUploads} />
+        <MediaGeneratorSection
+          kind="background"
+          onFinished={reloadUploads}
+          seedPrompt={seedPrompt}
+        />
       </div>
     </>
   )
 }
 
-function SoundUploads() {
+function SoundUploads({ seedPrompt }: { seedPrompt: string }) {
   const media = useRoomMedia()
   const preview = usePreviewAudio()
   const { reloadToken, reloadUploads } = useUploadsReload()
   const { generatorRef, goToGenerator } = useGeneratorJump()
+  useSeededGenerator("sound", seedPrompt, goToGenerator)
 
   return (
     <>
@@ -230,6 +303,7 @@ function SoundUploads() {
                 mediaUrl: upload.url,
               },
               label: upload.name,
+              allowRoom: upload.shareState === "on",
             }}
           />
         )}
@@ -240,7 +314,11 @@ function SoundUploads() {
         )}
       />
       <div ref={generatorRef} className="scroll-mt-6">
-        <MediaGeneratorSection kind="soundscape" onFinished={reloadUploads} />
+        <MediaGeneratorSection
+          kind="soundscape"
+          onFinished={reloadUploads}
+          seedPrompt={seedPrompt}
+        />
       </div>
     </>
   )

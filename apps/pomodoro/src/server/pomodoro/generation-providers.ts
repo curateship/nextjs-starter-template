@@ -1,5 +1,5 @@
 import { getAiKey } from "@/server/ai/keys"
-import { GENERATION_MODELS } from "@/lib/pomodoro/generation"
+import { GENERATION_MODELS, generationStyle } from "@/lib/pomodoro/generation"
 
 /**
  * The two providers that make the files, ported from the old app
@@ -36,9 +36,37 @@ export async function generationKeysConfigured() {
   return { background: Boolean(gemini), soundscape: Boolean(elevenlabs) }
 }
 
+/**
+ * The member's words, behind a frame that keeps the result usable as scenery:
+ * nothing moving the camera, no text to read, nobody talking at you while you
+ * are trying to concentrate. A style pill's words sit inside the frame, after
+ * those rules, so a style adds a look and never lifts a rule (task 06, part 6).
+ */
+export function backgroundPrompt(prompt: string, style: string | null = null) {
+  const look = generationStyle(style)
+  return [
+    "Ambient focus background, locked camera, seamless visual motion, no text, no people speaking.",
+    look?.words,
+    prompt,
+  ]
+    .filter(Boolean)
+    .join(" ")
+}
+
+/** A picture to start the film from (task 06, part 3), as Veo takes it. */
+export type StartingPicture = { bytes: Uint8Array; mimeType: string }
+
 export async function generateBackgroundVideo(
   prompt: string,
-  signal?: AbortSignal
+  {
+    style = null,
+    picture = null,
+    signal,
+  }: {
+    style?: string | null
+    picture?: StartingPicture | null
+    signal?: AbortSignal
+  } = {}
 ): Promise<GeneratedFile> {
   const apiKey = await requireKey("gemini")
 
@@ -50,10 +78,19 @@ export async function generateBackgroundVideo(
       body: JSON.stringify({
         instances: [
           {
-            // The member's words, behind a frame that keeps the result usable
-            // as scenery: nothing moving the camera, no text to read, nobody
-            // talking at you while you are trying to concentrate.
-            prompt: `Ambient focus background, locked camera, seamless visual motion, no text, no people speaking. ${prompt}`,
+            prompt: backgroundPrompt(prompt, style),
+            // Veo 3.1 Lite takes a first frame to animate, the shape the
+            // Gemini API's Veo page gives (checked 10 Oct 2026).
+            ...(picture
+              ? {
+                  image: {
+                    inlineData: {
+                      mimeType: picture.mimeType,
+                      data: Buffer.from(picture.bytes).toString("base64"),
+                    },
+                  },
+                }
+              : {}),
           },
         ],
         parameters: {

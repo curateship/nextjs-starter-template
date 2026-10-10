@@ -143,7 +143,7 @@ export function onSoundCycleEnding(listener: () => void) {
 
 function labelForReference(reference: SoundReference | null) {
   if (!reference) return null
-  if (reference.type === "media") return "Your audio"
+  if (reference.type === "media") return reference.label ?? "Your audio"
   return reference.label ?? reference.key
 }
 

@@ -4,7 +4,11 @@ import { seededCatalog } from "@/lib/pomodoro/catalog-fixture"
 import {
   catalogTags,
   describeTags,
+  filterByTags,
   normalizeTag,
+  ownOnlyTags,
+  ownTagCount,
+  poolOwnFiles,
   parseMediaPool,
   pickFromPool,
   poolSounds,
@@ -70,5 +74,34 @@ describe("a group choice", () => {
       { tag: "rain", count: 1, free: 1 },
     ])
     expect(describeTags(["rain", "nature", "piano"])).toBe("rain, nature or piano")
+  })
+})
+
+describe("the member's own files", () => {
+  const own = [
+    { mediaId: "a", name: "Desk rain", tags: ["rain", "desk"], url: "/a.mp3", kind: "audio" as const },
+    { mediaId: "b", name: "Hum", tags: ["hum"], url: "/b.mp3", kind: "audio" as const },
+  ]
+
+  it("join a group through a ticked tag only, never through plain shuffle", () => {
+    expect(poolOwnFiles(own, { mode: "shuffle" })).toEqual([])
+    expect(poolOwnFiles(own, { mode: "tags", tags: ["rain"] }).map((file) => file.mediaId)).toEqual([
+      "a",
+    ])
+    expect(poolOwnFiles(own, { mode: "tags", tags: ["piano"] })).toEqual([])
+  })
+
+  it("list only the tags the catalogue does not have, since a shared tag is one tag", () => {
+    expect(ownOnlyTags(own, ["rain", "nature"])).toEqual([
+      { tag: "desk", count: 1 },
+      { tag: "hum", count: 1 },
+    ])
+    expect(ownTagCount(own, "rain")).toBe(1)
+  })
+
+  it("never empty the catalogue grid: a tag only they carry filters no card", () => {
+    const cards = [{ key: "rain", tags: ["rain"] }, { key: "plain", tags: [] }]
+    expect(filterByTags(cards, ["desk"])).toEqual(cards)
+    expect(filterByTags(cards, ["desk", "rain"]).map((card) => card.key)).toEqual(["rain"])
   })
 })

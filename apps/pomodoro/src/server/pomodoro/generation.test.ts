@@ -8,7 +8,7 @@ import {
   insertUser,
   insertWorkspace,
 } from "@/server/test-support"
-import { customShellMedia } from "@/server/schema"
+import { customShellMedia, customShellNotifications } from "@/server/schema"
 import { now, uuid } from "@/server/auth/security"
 import {
   pomodoroGenerations,
@@ -20,8 +20,9 @@ import {
   failGeneration,
   finishGeneration,
   generationMonth,
+  listGenerations,
   monthlyLimitFor,
-  queueGeneration,
+  requestGenerations,
   reserveGenerationCredit,
 } from "@/server/pomodoro/generation"
 
@@ -36,6 +37,8 @@ import {
 let client: PGlite
 let db: CustomShellDb
 let userId: string
+
+const LIMITS = { background: 20, soundscape: 20 }
 
 beforeEach(async () => {
   ;({ client, db } = await createTestDatabase())
@@ -79,8 +82,12 @@ async function insertMedia() {
 }
 
 async function queueOne(prompt = "rain on a tin roof") {
-  const { month } = await reserveGenerationCredit(userId, "soundscape", 20)
-  return queueGeneration({ userId, kind: "soundscape", prompt, month })
+  const { rows } = await requestGenerations(
+    userId,
+    [{ kind: "soundscape", prompt }],
+    LIMITS
+  )
+  return rows[0]
 }
 
 describe("monthlyLimitFor", () => {
@@ -279,5 +286,118 @@ describe("claimNextGeneration", () => {
     expect((await claimNextGeneration())?.prompt).toBe("second")
     // Both are running now, and neither is stale, so there is nothing to take.
     expect(await claimNextGeneration()).toBe(null)
+  })
+})
+
+describe("a whole look from one prompt (task 06, part 7)", () => {
+  const usageOf = async (kind: "background" | "soundscape") => {
+    const [row] = await db
+      .select()
+      .from(pomodoroGenerationUsage)
+      .where(eq(pomodoroGenerationUsage.kind, kind))
+    return row
+  }
+
+  const look = () =>
+    requestGenerations(
+      userId,
+      [
+        { kind: "soundscape", prompt: "rain on a café window" },
+        { kind: "background", prompt: "rain on a café window" },
+      ],
+      LIMITS
+    )
+
+  it("takes one credit of each kind and ties the two rows together", async () => {
+    const { rows, left } = await look()
+    expect(rows).toHaveLength(2)
+    expect(rows[0].lookId).toBeTruthy()
+    expect(rows[0].lookId).toBe(rows[1].lookId)
+    expect(left).toEqual({ background: 19, soundscape: 19 })
+  })
+
+  it("refuses both, and takes neither, when one kind is used up", async () => {
+    await expect(
+      requestGenerations(
+        userId,
+        [
+          { kind: "background", prompt: "rain" },
+          { kind: "soundscape", prompt: "rain" },
+        ],
+        { background: 20, soundscape: 0 }
+      )
+    ).rejects.toThrow("GENERATION_NOT_ALLOWED")
+    // The background's credit was taken first, and rolled back with the rest.
+    expect(await creditsLeft(userId, "background", 20)).toBe(20)
+    expect(await db.select().from(pomodoroGenerations)).toHaveLength(0)
+  })
+
+  it("refunds each half on its own", async () => {
+    await look()
+    const first = await claimNextGeneration()
+    await failGeneration(first!, "no key", { retry: false })
+    const second = await claimNextGeneration()
+    await finishGeneration(second!, await insertMedia())
+
+    const failedKind = first!.kind as "background" | "soundscape"
+    const madeKind = second!.kind as "background" | "soundscape"
+    expect((await usageOf(failedKind)).refunded).toBe(1)
+    expect((await usageOf(madeKind)).completed).toBe(1)
+    expect((await usageOf(madeKind)).refunded).toBe(0)
+  })
+
+  it("says nothing for the first half, then once that the look is ready", async () => {
+    await look()
+    const messages = async () =>
+      (
+        await db
+          .select({ message: customShellNotifications.message })
+          .from(customShellNotifications)
+          .where(eq(customShellNotifications.recipientUserId, userId))
+      ).map((row) => row.message)
+
+    const first = await claimNextGeneration()
+    await finishGeneration(first!, await insertMedia())
+    expect(await messages()).toEqual([])
+
+    const second = await claimNextGeneration()
+    await finishGeneration(second!, await insertMedia())
+    expect(await messages()).toEqual(["Your AI look is ready."])
+  })
+
+  it("announces a made half on its own when the other half gives up", async () => {
+    await look()
+    const first = await claimNextGeneration()
+    await finishGeneration(first!, await insertMedia())
+    const second = await claimNextGeneration()
+    await failGeneration(second!, "no key", { retry: false })
+
+    const rows = await db
+      .select({ message: customShellNotifications.message })
+      .from(customShellNotifications)
+    const words = rows.map((row) => row.message).sort()
+    expect(words).toHaveLength(2)
+    expect(words.some((message) => message?.endsWith("couldn't be made."))).toBe(true)
+    expect(words.some((message) => message?.endsWith(" is ready."))).toBe(true)
+  })
+})
+
+describe("listGenerations", () => {
+  it("says where a waiting request stands, and the style it asked for", async () => {
+    const other = (await insertUser(db)).id
+    // Someone else's background is ahead: 2 minutes.
+    await requestGenerations(other, [{ kind: "background", prompt: "a forest" }], LIMITS)
+    await requestGenerations(
+      userId,
+      [{ kind: "background", prompt: "a café", style: "anime" }],
+      LIMITS
+    )
+
+    const [mine] = await listGenerations(userId, "background")
+    expect(mine.queuePlace).toBe("1 ahead of you, about 2 minutes")
+    expect(mine.styleLabel).toBe("Anime")
+
+    const [theirs] = await listGenerations(other, "background")
+    expect(theirs.queuePlace).toBe("Next in line")
   })
 })

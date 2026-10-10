@@ -27,6 +27,7 @@ import {
   playNextFromPools,
   useRoomMedia,
 } from "@/lib/pomodoro/room-media-store"
+import { MediaCreditLine } from "@/components/pomodoro/media-credit-line"
 
 type Player = ReturnType<typeof useSoundPlayer>
 
@@ -95,6 +96,7 @@ export function SoundPlayerRow({ className }: { className?: string }) {
         </span>
       )}
       <PlayerNotice player={player} />
+      <MediaCreditLine />
     </div>
   )
 }

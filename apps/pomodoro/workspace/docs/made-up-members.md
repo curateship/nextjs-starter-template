@@ -450,6 +450,18 @@ days are deleted once an hour. Task 05's watch page reads this table.
 - **Names.** A host says the real person's first name ("hey sam"), as in the
   task's own example. The open question asked whether that is wanted.
 
+## Files to share
+
+"Give them files to share" on the same tab (uploads-and-sharing task 05, part
+9) takes Pixabay picture and film links, one per line, up to ten at a time.
+Each becomes an import for the made-up member holding the fewest files, runs
+through the member Pixabay importer, and is shared at once, credited to its
+Pixabay author, so "Shared by members" never looks empty. Only Pixabay links
+are taken, never a file from anywhere else, and nothing happens until an admin
+presses Give them files. These files skip the daily limit and the first-share
+check, because the admin is the one choosing them. Migration 0147 marks the
+imports.
+
 ## What the admin sees
 
 - **"Made up" beside the name** on every Pomoder admin list that shows a

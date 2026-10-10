@@ -98,6 +98,47 @@ scene. A screen with no pointer, such as a phone, shows them all the time.
   `onError` alone missed the usual case. The element remembers its own failure,
   so `SceneBackdrop` asks the element once on the way in as well.
 
+## Dimming the scene
+
+Uploads-and-sharing task 08, Part 4 (10 Oct 2026). A member's own photo is not
+picked to sit behind white text the way the catalogue's scenes are, so one
+slider darkens whatever scene is behind the timer.
+
+- **0 to 70%, in steps of 5**, on Settings → Appearance ("Dim the
+  background") and in the header's Theme dropdown, under "Choose a theme".
+  Tyler, 10 Oct 2026: "The dimming should not be in the background
+  dashboard. It should be in theme dropdown."
+- **0 is the default and draws nothing**, so nobody sees a change until they
+  move it.
+- **It is a black layer over the scene and under the shading**, so the fade
+  into the page colour at the edges is unchanged (`scene-backdrop.tsx`). It
+  covers the hero on every member page and Zen mode. The cards' hover
+  previews on this page show a scene as it is.
+- **It saves by itself.** The scene follows the slider while it moves, and the
+  value is saved when it is let go (or 700ms after the last move from the
+  keyboard). A refused save puts the last saved value back and says so.
+- **A member's is in their settings** (`backdrop_dim` on `user_preferences`,
+  migration 0150) and comes with the page's first frame, so a dimmed scene is
+  dim from the start. **A guest's stays in this browser.** It is not copied to
+  the account when a guest signs up.
+
+## A picture drifts
+
+Uploads-and-sharing task 08, Part 2 (10 Oct 2026). A still picture a member
+uploaded zooms in very slowly and back, 5% over 60 seconds each way with a
+slight pan, so it feels alive the way a film does. The keyframes are
+`pomodoro-drift` in `theme.css`.
+
+- **Only a picture the member uploaded.** Films, catalogue scenes and Lofi
+  girl's still never drift.
+- **On by default**, with a switch on Settings → Appearance ("Slow drift on
+  picture backgrounds"), saved the moment it flips (`backdrop_drift`,
+  migration 0150). A guest has no picture uploads, so the switch only matters
+  once signed in.
+- **Never for anybody who asked their computer for less movement**, whatever
+  the switch says.
+- **The hero and Zen mode clip it**, so the zoom never spills past the scene.
+
 ## The first frame is the saved background
 
 **Every page is drawn with the right theme from the very first frame.** The

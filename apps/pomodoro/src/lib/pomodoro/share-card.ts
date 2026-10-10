@@ -88,3 +88,56 @@ export function renderShareCardSvg({
   <text x="80" y="566" font-family="Helvetica, Arial, sans-serif" font-size="26" fill="rgba(255,255,255,0.45)">Pomoder</text>
 </svg>`
 }
+
+/**
+ * The picture a pasted link to a shared sound unfurls into (task 03, part
+ * 11): its name, who shared it and a waveform drawn from its id, so each
+ * sound keeps one shape. A picture or clip unfurls into its own picture
+ * instead, so this card is for sounds only.
+ */
+export function renderSoundCardSvg({
+  name,
+  handle,
+  seed,
+}: {
+  name: string
+  handle: string
+  seed: string
+}) {
+  const safeName = escapeXml(trimCardName(name))
+  const safeCredit = escapeXml(`by @${handle}`)
+  const bars = waveBars(seed, 48)
+    .map((height, index) => {
+      const x = 80 + index * 22
+      const tall = Math.round(40 + height * 200)
+      return `<rect x="${x}" y="${470 - tall / 2}" width="12" height="${tall}" rx="6" fill="#ff5a3c" opacity="${(0.55 + height * 0.45).toFixed(2)}"/>`
+    })
+    .join("")
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${SHARE_CARD_WIDTH}" height="${SHARE_CARD_HEIGHT}" viewBox="0 0 ${SHARE_CARD_WIDTH} ${SHARE_CARD_HEIGHT}" role="img" aria-label="${safeName} on Pomoder">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1b1714"/>
+      <stop offset="1" stop-color="#2f261c"/>
+    </linearGradient>
+  </defs>
+  <rect width="${SHARE_CARD_WIDTH}" height="${SHARE_CARD_HEIGHT}" fill="url(#bg)"/>
+  <rect x="0" y="0" width="${SHARE_CARD_WIDTH}" height="10" fill="#ff5a3c"/>
+  <text x="80" y="170" font-family="Helvetica, Arial, sans-serif" font-size="68" font-weight="700" fill="#ffffff">${safeName}</text>
+  <text x="80" y="226" font-family="monospace" font-size="30" fill="rgba(255,255,255,0.62)">${safeCredit}</text>
+  ${bars}
+  <text x="80" y="600" font-family="Helvetica, Arial, sans-serif" font-size="26" fill="rgba(255,255,255,0.45)">A sound on Pomoder</text>
+</svg>`
+}
+
+/** Bar heights from 0 to 1, the same for the same seed every time. */
+function waveBars(seed: string, count: number) {
+  let state = 0
+  for (const char of seed) state = (state * 31 + char.charCodeAt(0)) >>> 0
+  return Array.from({ length: count }, (_, index) => {
+    state = (state * 1_103_515_245 + 12_345) >>> 0
+    const noise = (state % 1000) / 1000
+    // A gentle swell under the noise, so it reads as sound and not static.
+    const swell = 0.5 + 0.5 * Math.sin((index / count) * Math.PI * 3)
+    return Math.min(1, 0.25 + noise * 0.45 + swell * 0.3)
+  })
+}

@@ -22,6 +22,10 @@ export const SIMULATED_TARGET_MAX = 200
 export const SIMULATED_HOURS_MAX = 6
 /** The longest style brief the voice card takes. */
 export const VOICE_BRIEF_MAX = 1000
+/** The most an admin may set a member's daily Pixabay imports to. */
+export const PIXABAY_DAILY_LIMIT_MAX = 200
+/** The most an admin may set the daily sharing limit to. */
+export const SHARE_DAILY_LIMIT_MAX = 500
 
 export const appSettingSchemas = {
   /**
@@ -36,6 +40,11 @@ export const appSettingSchemas = {
    * booked on the AI usage page, so an admin can switch it off.
    */
   "uploads.aiLabels": z.boolean(),
+  /**
+   * How many Pixabay links one member may import in 24 hours (task 06, part
+   * 8). Every member import uses the site's one Pixabay key, so a brake.
+   */
+  "uploads.pixabayDailyLimit": z.number().int().min(1).max(PIXABAY_DAILY_LIMIT_MAX),
   /** What a new account and a guest start with, when shuffle is off. */
   "media.defaults": z.object({
     sound: soundKeySchema.nullable(),
@@ -93,6 +102,16 @@ export const appSettingSchemas = {
   "chat.speed": z.object({
     messagesPerMinute: z.number().int().min(1).max(120),
   }),
+  /**
+   * Shared files (uploads-and-sharing task 05). `dailyLimit` is how many files
+   * one account may share in 24 hours; unsharing never counts. With
+   * `approveFirst` on, a member's first shared file waits for an admin, and
+   * after one approval their shares go straight out.
+   */
+  "sharing.rules": z.object({
+    dailyLimit: z.number().int().min(1).max(SHARE_DAILY_LIMIT_MAX),
+    approveFirst: z.boolean(),
+  }),
   /** For a spam wave: no new rooms, or no chat anywhere, until switched off. */
   "safety.pause": z.object({
     newRooms: z.boolean(),
@@ -139,6 +158,7 @@ export const APP_SETTING_DEFAULTS: {
   // choose a song or theme." An admin can still switch it off.
   "media.shuffleUnset": true,
   "uploads.aiLabels": true,
+  "uploads.pixabayDailyLimit": 10,
   "media.defaults": { sound: null, background: null },
   "media.seasons": [],
   "break.look": { background: null, message: "" },
@@ -149,6 +169,7 @@ export const APP_SETTING_DEFAULTS: {
   // Today's CHAT_LIMIT in rooms.ts, so nothing changes until an admin says so.
   "chat.speed": { messagesPerMinute: 20 },
   "safety.pause": { newRooms: false, chat: false },
+  "sharing.rules": { dailyLimit: 10, approveFirst: true },
   // Tyler, 9 Oct 2026: the busiest never over three hours a day so a real
   // member can reach the top. A hundred, not the forty first asked for,
   // because "at least 10 rooms open at all times" needed it: measured over a

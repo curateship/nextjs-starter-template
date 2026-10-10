@@ -41,6 +41,16 @@ export const appOpenEndpoints: Record<string, string> = {
     "A guest's page draws a theme and lists the sounds before anybody signs in, so it needs the Live themes and sounds. It answers only what every member can already see on the Theme and Sounds pages, and a random free pair, with no account and nothing personal in it.",
   "pomodoro/public-profile.ts:readYearInReviewFn":
     "The year recap at /u/<handle>/<year> is the same public page one year at a time, and it is read by strangers following a shared link. It sums figures its owner already published by switching the figures on, names nobody else and carries no user id.",
+  "pomodoro/shared-media.ts:listSharedFn":
+    "Shared sounds and backgrounds are files their owners chose to show the public, listed on public profiles and under Shared by members. It answers names, tags, file addresses and an owner handle only while that owner's page is public, never an email, and hides files across the reader's blocks. A file address sits in a folder named by an opaque account id, as every bucket file does, and since 10 Oct 2026 never carries the member's own file name.",
+  "pomodoro/shared-media.ts:reportSharedFileFn":
+    "Shared files sit on public pages read by strangers with no account, so their Report button has to work without one. It checks the origin itself, writes a reason from a fixed list into the admins' queue, answers the same way whatever happens, and is limited by address.",
+  "pomodoro/shared-media.ts:copyrightFn":
+    "The public copyright page is for rights holders with no account. It checks the origin itself, is limited to five an hour by address, and only writes the sender's claim into the admins' report queue; it reads nothing back.",
+  "pomodoro/shared-media.ts:readFeaturedFn":
+    "The featured shared file sits on the signed-out front page. It answers the one file an admin chose to show the public, with its owner's handle only while that owner's page is public, held for a minute rather than read per visit.",
+  "pomodoro/shared-media.ts:readSharedFileFn":
+    "A shared file's own page at /u/<handle>/files/<id> is read by strangers following a shared link. It answers one file its owner chose to share and their public name, and null for every kind of missing so nothing can be learned from the difference.",
 }
 
 /**

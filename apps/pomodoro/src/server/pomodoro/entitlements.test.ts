@@ -36,6 +36,7 @@ describe("pomodoro entitlements", () => {
       canUsePremiumMedia: false,
       canUploadMedia: false,
       canUseLongRangeReports: false,
+      canUseSharedMedia: true,
       storageLimitBytes: 0,
       monthlyBackgrounds: 0,
       monthlySoundscapes: 0,
@@ -53,10 +54,19 @@ describe("pomodoro entitlements", () => {
       canUsePremiumMedia: true,
       canUploadMedia: true,
       canUseLongRangeReports: true,
+      canUseSharedMedia: true,
       storageLimitBytes: 2 * 1024 * 1024 * 1024,
       monthlyBackgrounds: 5,
       monthlySoundscapes: 20,
     })
+  })
+
+  it("lets every plan play shared files unless a plan switches it off", () => {
+    expect(resolvePomodoroEntitlements(shellEntitlements()).canUseSharedMedia).toBe(true)
+    const off = resolvePomodoroEntitlements(
+      shellEntitlements({ planSlug: "pro", isPaid: true, features: { sharedMedia: false } })
+    )
+    expect(off.canUseSharedMedia).toBe(false)
   })
 
   it("lets an explicit plan value beat the paid/free default", () => {

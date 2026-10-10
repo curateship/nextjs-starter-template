@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
+  backgroundPrompt,
   generateBackgroundVideo,
   generateSoundscapeAudio,
   ProviderKeyMissingError,
@@ -131,6 +132,43 @@ describe("generateBackgroundVideo", () => {
     )
     await vi.advanceTimersByTimeAsync(20_000)
     await settled
+  })
+
+  it("sends a style inside the frame, and a starting picture as Veo takes it", async () => {
+    vi.useFakeTimers()
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(reply({ name: "operations/123" }))
+      .mockResolvedValueOnce(
+        reply({ done: true, response: { videos: [{ uri: VIDEO_URI }] } })
+      )
+      .mockResolvedValueOnce(reply(null))
+
+    const promise = generateBackgroundVideo("my desk at night", {
+      style: "anime",
+      picture: { bytes: new Uint8Array([255, 216, 255]), mimeType: "image/jpeg" },
+    })
+    await vi.advanceTimersByTimeAsync(20_000)
+    await promise
+
+    const instance = JSON.parse(
+      String((fetchMock.mock.calls[0][1] as RequestInit).body)
+    ).instances[0]
+    // The style comes after the rules it must not lift, and before the words.
+    expect(instance.prompt.indexOf("locked camera")).toBeLessThan(
+      instance.prompt.indexOf("Anime style")
+    )
+    expect(instance.prompt.endsWith("my desk at night")).toBe(true)
+    expect(instance.image.inlineData).toEqual({
+      mimeType: "image/jpeg",
+      data: "/9j/",
+    })
+  })
+
+  it("ignores a style it does not know", () => {
+    expect(backgroundPrompt("a lake", "made-up")).toBe(
+      "Ambient focus background, locked camera, seamless visual motion, no text, no people speaking. a lake"
+    )
   })
 
   it("refuses before calling anything when no key is set", async () => {

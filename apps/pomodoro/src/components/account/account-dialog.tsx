@@ -89,10 +89,13 @@ export function AccountDialog({
   onTabChange,
   onClose,
   onProfileSaved,
+  passkeys,
 }: {
   tab: AccountTab | null
   user: AuthUser
   plan: PlanSummary
+  /** Settings → General → Passkeys. Off hides the Passkeys card. */
+  passkeys: boolean
   onTabChange: (tab: AccountTab) => void
   onClose: () => void
   onProfileSaved: () => void
@@ -215,6 +218,7 @@ export function AccountDialog({
                 <AccountSecurityPage
                   user={user}
                   isPaid={plan.isPaid}
+                  passkeys={passkeys}
                   passwordDraft={passwordDraft}
                   onPasswordDraftChange={setPasswordDraft}
                   onPasswordStatusChange={setPasswordStatus}

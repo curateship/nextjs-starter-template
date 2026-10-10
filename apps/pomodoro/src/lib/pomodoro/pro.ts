@@ -76,6 +76,20 @@ export function planNumber(
   return isPaid ? PAID_DEFAULTS[key] : 0
 }
 
+/**
+ * Playing, adding and saving files other members share (uploads-and-sharing
+ * task 03, part 10). Unlike the Pro perks, a plan that says nothing has it,
+ * free plans included, so a plan can switch it off later without a code
+ * change by setting `sharedMedia: false`.
+ */
+export const SHARED_MEDIA_FEATURE = "sharedMedia"
+
+export function planAllowsSharedMedia(features: PlanFeatures) {
+  const value = features[SHARED_MEDIA_FEATURE]
+  if (value === undefined) return true
+  return value !== false && value !== null && value !== 0 && value !== ""
+}
+
 /** What the app can and cannot do for one account, resolved server-side. */
 export type PomodoroEntitlements = {
   plan: string
@@ -84,6 +98,8 @@ export type PomodoroEntitlements = {
   canUsePremiumMedia: boolean
   canUploadMedia: boolean
   canUseLongRangeReports: boolean
+  /** Play, add and save files other members share. Every plan, unless switched off. */
+  canUseSharedMedia: boolean
   storageLimitBytes: number
   monthlyBackgrounds: number
   monthlySoundscapes: number

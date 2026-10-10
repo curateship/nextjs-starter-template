@@ -41,8 +41,9 @@ cover this one.
 - [Timer settings and rhythm presets](timer-settings.md) — the five tabs on
   Settings, and the Timer tab: durations, daily goal, auto-start, and built-in
   plus custom rhythms.
-- [Pro perks](pro-perks.md) — what a paid plan unlocks and the one module
-  that answers every can-do question.
+- [Pro perks](pro-perks.md) — what a paid plan unlocks, the one module
+  that answers every can-do question, and buying AI credit packs or 10 GB
+  more space once.
 - [Switching payments on](switching-payments-on.md) — the order to set Stripe
   up in, what each money path does, and how to prove it.
 - [The plans page](plans-page.md) — `/plans`, the product's own pricing
@@ -126,12 +127,17 @@ cover this one.
 - [My uploads](my-uploads.md) — the page that manages every own file: marks,
   tick boxes, the 30-day bin, stills for clips, the space warning, Download,
   and AI files named after their prompt.
+- [Shared sounds and backgrounds](shared-media.md) — the Share tick and the
+  right-to-share tick, the one rule for who sees a file, profile cards,
+  "Shared by members", file pages, saving, the credit, rooms, the bell,
+  reports, `/copyright`, and what an admin can do.
 - [Your own backgrounds and sounds](own-media-uploads.md) — what a Pro member
   may upload, the upload window (name, tags, Share, trim, several files), the
   FFmpeg re-encode, and where the files live.
-- [AI backgrounds and soundscapes](ai-generation.md) — the prompt box, the
-  monthly credits, the rule that a failed generation is refunded, and what
-  each one costs on the admin's AI usage page.
+- [AI backgrounds and soundscapes](ai-generation.md) — the prompt box, style
+  pills, starting from your own picture, a whole look from one prompt, the
+  monthly and bought credits, the rule that a failed generation is refunded,
+  and what each one costs on the admin's AI usage page.
 - [Pomodoro and Custom Shell](shell-integration.md) — what the shell gives
   this app, the three things `src/app/` claims, and what the 27 Sep 2026 merge
   brought.

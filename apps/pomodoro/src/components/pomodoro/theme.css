@@ -169,6 +169,12 @@ html:root:has([data-pomodoro-screen]) .title-halo {
   0%, 100% { transform: scaleY(0.35); }
   50% { transform: scaleY(1); }
 }
+/* A picture background drifting very slowly: a 5% zoom with a slight pan,
+   run over 60 seconds and back again (`scene-backdrop.tsx`). */
+@keyframes pomodoro-drift {
+  from { transform: scale(1) translate(0, 0); }
+  to { transform: scale(1.05) translate(-1%, -0.6%); }
+}
 html:root.dark:has([data-pomodoro-screen]) {
   color-scheme: dark;
 

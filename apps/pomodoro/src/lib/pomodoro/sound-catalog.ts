@@ -1,4 +1,5 @@
 import { CATALOG_KEY_PATTERN, findSound, type MediaCatalog } from "@/lib/pomodoro/catalog"
+import type { MediaCredit } from "@/lib/pomodoro/shared-media"
 
 // A sound choice: one of the catalogue's sounds, or the member's own upload or
 // AI soundscape, serialized as `curated:<key>` or `media:<uuid>`. The sounds
@@ -10,8 +11,16 @@ export type SoundReference =
   // stored value is read; none of them is part of the serialized form.
   | { type: "curated"; key: string; url?: string; label?: string; volume?: number }
   // `mediaUrl` is the address the server resolved, carried alongside rather
-  // than built here; it is not part of the serialized form.
-  | { type: "media"; mediaId: string; mediaUrl?: string }
+  // than built here; it is not part of the serialized form. `label` is the
+  // file's name when it is known, as it is for a file shuffle picked.
+  // `credit` names the owner of someone else's shared file (task 03, part 4).
+  | {
+      type: "media"
+      mediaId: string
+      mediaUrl?: string
+      label?: string
+      credit?: MediaCredit | null
+    }
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 

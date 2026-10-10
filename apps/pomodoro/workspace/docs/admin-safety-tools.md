@@ -102,6 +102,20 @@ On Settings → Emergency switches and Settings → Room chat (see [Admin settin
   pages (Users, Settings) cannot show it: they belong to the shell, which has
   no place for an app's line.
 
+## Sharing
+
+The same Emergency switches tab holds a Sharing card (uploads-and-sharing task
+05). Both save by themselves.
+
+- **Check each member's first shared file**, on by default. A first share
+  waits in Member uploads under "Waiting to be shared" until an admin
+  approves it, and every admin's bell says how many wait. After one approval,
+  that member's shares go straight out.
+- **Files one account may share a day**, 10 by default. Unsharing never counts.
+
+See [Shared sounds and backgrounds](shared-media.md) for Unshare, Approve,
+Feature and Add to catalogue on Member uploads.
+
 ## STAFF
 
 An active admin shows STAFF beside their name in any room, in the people list

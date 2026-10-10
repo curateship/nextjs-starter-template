@@ -16,7 +16,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { Checkbox } from "@/components/ui/checkbox"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   Dialog,
@@ -29,8 +28,10 @@ import {
 } from "@/components/ui/dialog"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { MeterRow } from "@/components/ui/meter"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { PixabayImportPanel } from "@/components/pomodoro/pixabay-import-panel"
+import { ShareFields } from "@/components/pomodoro/share-fields"
 import { TagsField } from "@/components/pomodoro/tags-field"
 import { TrimStrip } from "@/components/pomodoro/trim-strip"
 import {
@@ -87,6 +88,8 @@ type Row = {
   tagText: string
   tagsEdited: boolean
   shared: boolean
+  /** The "I have the right to share this" tick, needed while Share is ticked. */
+  confirmRights: boolean
   /** Null for the whole file. */
   trim: UploadTrim | null
   suggesting: boolean
@@ -105,6 +108,11 @@ function kindOfFile(file: File): PomodoroUploadKind | null {
 }
 
 /** What is wrong with a row's name and tags, if anything. */
+/** Share is ticked and the right to share is not. */
+function rightsMissing(row: Row) {
+  return row.shared && !row.confirmRights
+}
+
 function labelProblem(row: Row) {
   const { tags, unusable } = parseTagText(row.tagText)
   if (unusable.length) return UPLOAD_LABEL_MESSAGES.UPLOAD_TAG_INVALID
@@ -138,6 +146,7 @@ export function UploadWindow({
   onUploaded: () => void
 }) {
   const [form, setForm] = React.useState<Form>(EMPTY_FORM)
+  const [source, setSource] = React.useState<"device" | "pixabay">("device")
   const [running, setRunning] = React.useState(false)
   const [showProblems, setShowProblems] = React.useState(false)
   const [notice, setNotice] = React.useState<string | null>(null)
@@ -226,6 +235,7 @@ export function UploadWindow({
         tagText: form.sharedTags,
         tagsEdited: false,
         shared: false,
+        confirmRights: false,
         trim: null,
         suggesting: library.suggestLabels,
         status: { step: "waiting" },
@@ -274,7 +284,9 @@ export function UploadWindow({
       fileInput.current?.click()
       return
     }
-    if (toSend.some((row) => labelProblem(row) !== null)) {
+    if (
+      toSend.some((row) => labelProblem(row) !== null || rightsMissing(row))
+    ) {
       setShowProblems(true)
       return
     }
@@ -286,6 +298,7 @@ export function UploadWindow({
         name: row.name,
         tags: parseTagText(row.tagText).tags,
         shared: row.shared,
+        confirmRights: row.shared && row.confirmRights,
         trim: row.trim,
       },
     }))
@@ -341,6 +354,24 @@ export function UploadWindow({
   }
 
   const title = purpose === "sound" ? "Upload sounds" : "Upload backgrounds"
+  // Backgrounds can also come from a Pixabay link (task 06, part 8). Sounds
+  // cannot: Pixabay does not let a server copy its music.
+  const sourceTabs =
+    purpose === "background" ? (
+      <Tabs
+        value={source}
+        onValueChange={(next) => setSource(next === "pixabay" ? "pixabay" : "device")}
+      >
+        <TabsList aria-label="Where the files come from">
+          <TabsTrigger value="device" disabled={running}>
+            From your device
+          </TabsTrigger>
+          <TabsTrigger value="pixabay" disabled={running}>
+            From a Pixabay link
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+    ) : null
   // The tags for every file only matter while two or more are still to send.
   const several =
     rows.filter((row) => row.status.step !== "done").length > 1
@@ -360,128 +391,138 @@ export function UploadWindow({
               {UPLOAD_HINT[purpose]} Up to {MAX_UPLOAD_FILES} at once.
             </DialogDescription>
           </DialogHeader>
-          <form
-            className="flex min-h-0 flex-1 flex-col"
-            onSubmit={(event) => {
-              event.preventDefault()
-              void sendAll()
-            }}
-          >
-            <input
-              ref={fileInput}
-              type="file"
-              accept={UPLOAD_ACCEPT[purpose]}
-              multiple
-              className="sr-only"
-              tabIndex={-1}
-              aria-hidden="true"
-              onChange={(event) => {
-                const files = Array.from(event.target.files ?? [])
-                // Cleared at once, so the same file can be picked again.
-                event.target.value = ""
-                if (files.length) addFiles(files)
-              }}
+          {source === "pixabay" ? (
+            <PixabayImportPanel
+              tabs={sourceTabs}
+              onClose={requestClose}
+              onImported={onUploaded}
             />
-            <span className="sr-only" aria-live="polite">
-              {spokenProgress(currentProgress)}
-            </span>
-            <DialogBody>
-              {several ? (
-                <Card size="sm">
-                  <CardHeader>
-                    <CardTitle>Every file</CardTitle>
-                  </CardHeader>
-                  <CardContent className="grid gap-4">
-                    <fieldset disabled={running} className="contents">
-                      <TagsField
-                        id={sharedTagsId}
-                        label="Tags for every file"
-                        hint="Given to every file below, unless you change a file's own tags."
-                        value={form.sharedTags}
-                        knownTags={library.knownTags}
-                        onChange={(sharedTags) =>
-                          setForm((current) => ({
-                            sharedTags,
-                            rows: current.rows.map((row) =>
-                              row.tagsEdited || row.status.step === "done"
-                                ? row
-                                : { ...row, tagText: sharedTags }
-                            ),
-                          }))
-                        }
-                      />
-                    </fieldset>
-                  </CardContent>
-                </Card>
-              ) : null}
+          ) : (
+            <form
+              className="flex min-h-0 flex-1 flex-col"
+              onSubmit={(event) => {
+                event.preventDefault()
+                void sendAll()
+              }}
+            >
+              <input
+                ref={fileInput}
+                type="file"
+                accept={UPLOAD_ACCEPT[purpose]}
+                multiple
+                className="sr-only"
+                tabIndex={-1}
+                aria-hidden="true"
+                onChange={(event) => {
+                  const files = Array.from(event.target.files ?? [])
+                  // Cleared at once, so the same file can be picked again.
+                  event.target.value = ""
+                  if (files.length) addFiles(files)
+                }}
+              />
+              <span className="sr-only" aria-live="polite">
+                {spokenProgress(currentProgress)}
+              </span>
+              <DialogBody>
+                {sourceTabs}
+                {several ? (
+                  <Card size="sm">
+                    <CardHeader>
+                      <CardTitle>Every file</CardTitle>
+                    </CardHeader>
+                    <CardContent className="grid gap-4">
+                      <fieldset disabled={running} className="contents">
+                        <TagsField
+                          id={sharedTagsId}
+                          label="Tags for every file"
+                          hint="Given to every file below, unless you change a file's own tags."
+                          value={form.sharedTags}
+                          knownTags={library.knownTags}
+                          onChange={(sharedTags) =>
+                            setForm((current) => ({
+                              sharedTags,
+                              rows: current.rows.map((row) =>
+                                row.tagsEdited || row.status.step === "done"
+                                  ? row
+                                  : { ...row, tagText: sharedTags }
+                              ),
+                            }))
+                          }
+                        />
+                      </fieldset>
+                    </CardContent>
+                  </Card>
+                ) : null}
 
-              {rows.map((row) => (
-                <FileRow
-                  key={row.id}
-                  row={row}
-                  refusal={refusals.get(row.id) ?? null}
-                  problem={showProblems ? labelProblem(row) : null}
-                  locked={running}
-                  knownTags={library.knownTags}
-                  onChange={(change) => patch(row.id, change)}
-                  onRemove={() => removeRow(row.id)}
-                />
-              ))}
+                {rows.map((row) => (
+                  <FileRow
+                    key={row.id}
+                    row={row}
+                    refusal={refusals.get(row.id) ?? null}
+                    problem={showProblems ? labelProblem(row) : null}
+                    showRightsProblem={showProblems}
+                    locked={running}
+                    knownTags={library.knownTags}
+                    onChange={(change) => patch(row.id, change)}
+                    onRemove={() => removeRow(row.id)}
+                  />
+                ))}
 
-              {rows.length < MAX_UPLOAD_FILES && !running ? (
-                <Card size="sm">
-                  <CardContent className="flex flex-wrap items-center gap-3">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => fileInput.current?.click()}
-                    >
-                      <UploadIcon aria-hidden="true" />
-                      {rows.length ? "Add more files" : "Choose files"}
+                {rows.length < MAX_UPLOAD_FILES && !running ? (
+                  <Card size="sm">
+                    <CardContent className="flex flex-wrap items-center gap-3">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => fileInput.current?.click()}
+                      >
+                        <UploadIcon aria-hidden="true" />
+                        {rows.length ? "Add more files" : "Choose files"}
+                      </Button>
+                      <span className="text-sm text-muted-foreground">
+                        {rows.length
+                          ? `${rows.length} of ${MAX_UPLOAD_FILES} chosen.`
+                          : `${formatBytes(Math.max(0, library.limitBytes - library.usedBytes))} of space left.`}
+                      </span>
+                    </CardContent>
+                  </Card>
+                ) : null}
+
+                {notice ? (
+                  <p role="alert" className="text-sm text-destructive">
+                    {notice}
+                  </p>
+                ) : null}
+              </DialogBody>
+              <DialogFooter>
+                {finished ? (
+                  <Button type="button" onClick={onClose}>
+                    Done
+                  </Button>
+                ) : running ? (
+                  <>
+                    <Button type="button" variant="outline" onClick={cancelRun}>
+                      Cancel
                     </Button>
-                    <span className="text-sm text-muted-foreground">
-                      {rows.length
-                        ? `${rows.length} of ${MAX_UPLOAD_FILES} chosen.`
-                        : `${formatBytes(Math.max(0, library.limitBytes - library.usedBytes))} of space left.`}
-                    </span>
-                  </CardContent>
-                </Card>
-              ) : null}
-
-              {notice ? (
-                <p role="alert" className="text-sm text-destructive">
-                  {notice}
-                </p>
-              ) : null}
-            </DialogBody>
-            <DialogFooter>
-              {finished ? (
-                <Button type="button" onClick={onClose}>
-                  Done
-                </Button>
-              ) : running ? (
-                <>
-                  <Button type="button" variant="outline" onClick={cancelRun}>
-                    Cancel
-                  </Button>
-                  <Button type="button" disabled>
-                    <Loader2Icon className="animate-spin" aria-hidden="true" />
-                    Uploading…
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Button type="button" variant="outline" onClick={requestClose}>
-                    Cancel
-                  </Button>
-                  <Button type="submit">
-                    <UploadIcon aria-hidden="true" />
-                    {toSend.length > 1 ? `Upload ${toSend.length} files` : "Upload"}
-                  </Button>
-                </>
-              )}
-            </DialogFooter>
-          </form>
+                    <Button type="button" disabled>
+                      <Loader2Icon className="animate-spin" aria-hidden="true" />
+                      Uploading…
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button type="button" variant="outline" onClick={requestClose}>
+                      Cancel
+                    </Button>
+                    <Button type="submit">
+                      <UploadIcon aria-hidden="true" />
+                      {toSend.length > 1 ? `Upload ${toSend.length} files` : "Upload"}
+                    </Button>
+                  </>
+                )}
+              </DialogFooter>
+            </form>
+          )}
         </DialogContent>
       </Dialog>
       <ConfirmDialog
@@ -514,6 +555,7 @@ function FileRow({
   row,
   refusal,
   problem,
+  showRightsProblem,
   locked,
   knownTags,
   onChange,
@@ -524,6 +566,8 @@ function FileRow({
   refusal: string | null
   /** What is wrong with the name or tags, once Upload was pressed. */
   problem: string | null
+  /** Upload was pressed, so a missing right-to-share tick is marked. */
+  showRightsProblem: boolean
   locked: boolean
   knownTags: string[]
   onChange: (change: Partial<Row>) => void
@@ -531,7 +575,6 @@ function FileRow({
 }) {
   const nameId = React.useId()
   const tagsId = React.useId()
-  const shareId = React.useId()
   const problemId = React.useId()
   const { status } = row
 
@@ -617,14 +660,13 @@ function FileRow({
               {problem}
             </p>
           ) : null}
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id={shareId}
-              checked={row.shared}
-              onCheckedChange={(checked) => onChange({ shared: checked === true })}
-            />
-            <Label htmlFor={shareId}>Share this</Label>
-          </div>
+          <ShareFields
+            shared={row.shared}
+            confirmRights={row.confirmRights}
+            needsRights
+            showProblem={showRightsProblem}
+            onChange={onChange}
+          />
           {trimKind && row.previewUrl ? (
             <TrimStrip
               src={row.previewUrl}

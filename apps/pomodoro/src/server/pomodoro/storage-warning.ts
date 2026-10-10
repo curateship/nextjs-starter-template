@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm"
 
+import { billingEnabled } from "@/server/billing/stripe"
 import { db } from "@/server/db"
 import { loadAccountStorage } from "@/server/media/library"
 import { loadPomodoroEntitlements } from "@/server/pomodoro/entitlements"
@@ -53,7 +54,12 @@ export async function checkStorageWarning(userId: string) {
           recipientUserId: userId,
           kind: "storage_low",
           message: STORAGE_LOW_MESSAGE,
-          detail: storageLowDetail(formatBytes(storage.bytes), formatBytes(limit)),
+          // Offers 10 GB more (task 07) only to a member who could buy it.
+          detail: storageLowDetail(
+            formatBytes(storage.bytes),
+            formatBytes(limit),
+            billingEnabled() && entitlements.canUploadMedia
+          ),
           href: MY_UPLOADS_PAGE,
         },
       ])

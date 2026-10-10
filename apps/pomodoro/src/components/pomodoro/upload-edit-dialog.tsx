@@ -3,7 +3,6 @@ import { DownloadIcon, Loader2Icon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Checkbox } from "@/components/ui/checkbox"
 import {
   DialogBody,
   DialogContent,
@@ -15,7 +14,7 @@ import {
 import { FieldLabel } from "@/components/ui/field-label"
 import { FormDialog } from "@/components/ui/form-dialog"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { ShareFields } from "@/components/pomodoro/share-fields"
 import { TagsField } from "@/components/pomodoro/tags-field"
 import { TrimStrip } from "@/components/pomodoro/trim-strip"
 import {
@@ -102,6 +101,12 @@ function EditForm({
   const [name, setName] = React.useState(upload.name)
   const [tagText, setTagText] = React.useState(upload.tags.join(", "))
   const [shared, setShared] = React.useState(upload.shared)
+  const [confirmRights, setConfirmRights] = React.useState(false)
+  const [rightsProblem, setRightsProblem] = React.useState(false)
+  // Only switching Share on asks for the confirmation; a file already shared
+  // has it on record.
+  const needsRights = !upload.shared
+  const takenDown = upload.shareState === "taken_down"
   const [trim, setTrim] = React.useState<UploadTrim | null>(upload.trim)
   const trimChanged = JSON.stringify(trim) !== JSON.stringify(upload.trim)
   const cutting = upload.status === "queued" || upload.status === "processing"
@@ -111,7 +116,6 @@ function EditForm({
   const [saving, setSaving] = React.useState(false)
   const nameId = React.useId()
   const tagsId = React.useId()
-  const shareId = React.useId()
   const problemId = React.useId()
 
   function edit() {
@@ -130,6 +134,10 @@ function EditForm({
       setProblem(UPLOAD_LABEL_MESSAGES[checked.problem])
       return
     }
+    if (shared && needsRights && !confirmRights) {
+      setRightsProblem(true)
+      return
+    }
     setSaving(true)
     setBusy(true)
     try {
@@ -138,6 +146,7 @@ function EditForm({
         name: checked.name,
         tags: checked.tags,
         shared,
+        confirmRights: shared && confirmRights,
         ...(trimChanged ? { trim } : {}),
       })
       setBusy(false)
@@ -204,17 +213,27 @@ function EditForm({
                   {problem}
                 </p>
               ) : null}
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id={shareId}
-                  checked={shared}
-                  onCheckedChange={(checked) => {
-                    edit()
-                    setShared(checked === true)
-                  }}
-                />
-                <Label htmlFor={shareId}>Share this</Label>
-              </div>
+              <ShareFields
+                shared={shared}
+                confirmRights={confirmRights}
+                needsRights={needsRights}
+                showProblem={rightsProblem}
+                disabled={takenDown}
+                disabledReason={
+                  takenDown
+                    ? `An admin took this file off sharing${upload.takenDownReason ? `: ${upload.takenDownReason}` : ""}. It cannot be shared again.`
+                    : upload.shareState === "waiting"
+                      ? "Your first shared file waits for a quick check by our team before anyone else sees it."
+                      : null
+                }
+                onChange={(change) => {
+                  edit()
+                  setRightsProblem(false)
+                  if (change.shared !== undefined) setShared(change.shared)
+                  if (change.confirmRights !== undefined)
+                    setConfirmRights(change.confirmRights)
+                }}
+              />
               {trimKind && cutting ? (
                 <p className="text-sm text-muted-foreground">
                   {upload.url
@@ -258,6 +277,10 @@ function EditForm({
                     : upload.kind === "audio"
                       ? "The prepared sound you play: a 192 kbps MP3."
                       : "The picture as you uploaded it."}
+                  {/* The credit an imported file keeps (task 06, part 8). */}
+                  {upload.sourceAuthor
+                    ? ` From Pixabay, by ${upload.sourceAuthor}.`
+                    : null}
                 </p>
                 <Button asChild variant="outline">
                   <a

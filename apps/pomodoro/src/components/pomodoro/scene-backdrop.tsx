@@ -4,9 +4,15 @@ import {
   DEFAULT_SCENE_FILES,
   type BackgroundReference,
 } from "@/lib/pomodoro/background-catalog"
+import { useBackdropLook } from "@/lib/pomodoro/backdrop-look"
 import { usePrefersReducedMotion } from "@/lib/pomodoro/use-reduced-motion"
+import { cn } from "@/lib/utils"
 
 const MEDIA_CLASS = "absolute inset-0 size-full object-cover"
+
+/** A picture's drift: 60 seconds of slow zoom one way, then back. */
+const DRIFT_CLASS =
+  "origin-center animate-[pomodoro-drift_60s_ease-in-out_infinite_alternate] motion-reduce:animate-none"
 
 /**
  * The chosen scene, drawn behind whatever sits on top of it.
@@ -23,6 +29,12 @@ const MEDIA_CLASS = "absolute inset-0 size-full object-cover"
  * Nobody who has asked their computer for less movement gets a looping film
  * here. They get the same scene held still, and if they change their mind the
  * picture starts or stops without a reload.
+ *
+ * Two of the member's own settings shape it (`backdrop-look.ts`): a picture
+ * they uploaded drifts very slowly unless they switched that off, and the dim
+ * draws a dark layer over the scene, under the shading, so the timer's white
+ * numbers stay readable over a bright photo. The dim is left off the
+ * Backgrounds page's card previews, which show a scene as it is.
  */
 export function SceneBackdrop({
   background,
@@ -35,6 +47,7 @@ export function SceneBackdrop({
   shading: "hero" | "zen" | "none"
 }) {
   const stillOnly = usePrefersReducedMotion()
+  const look = useBackdropLook()
 
   // The address of a film that would not load. Held rather than counted, so a
   // second scene chosen afterwards is tried properly instead of inheriting the
@@ -73,12 +86,21 @@ export function SceneBackdrop({
       ) : (
         <img
           key={background.mediaId}
-          className={MEDIA_CLASS}
+          // Only a picture of the member's own drifts: someone else's shared
+          // picture carries a credit and stays still, as the doc says.
+          className={cn(MEDIA_CLASS, look.drift && !stillOnly && !background.credit && DRIFT_CLASS)}
           src={background.mediaUrl}
           alt=""
           onError={onMediaError}
         />
       )}
+      {shading !== "none" && look.dim > 0 ? (
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 bg-black"
+          style={{ opacity: look.dim / 100 }}
+        />
+      ) : null}
       {shading === "none" ? null : shading === "hero" ? (
         <>
           <div

@@ -19,6 +19,13 @@ import {
 } from "@/components/pomodoro/admin-delete"
 import { MemberName } from "@/components/pomodoro/admin-member-name"
 import {
+  ShareBulkButtons,
+  ShareRowMenu,
+  UnshareDialog,
+  shareLabel,
+  useShareActions,
+} from "@/components/pomodoro/admin-share-actions"
+import {
   deletePomodoroUploads,
   listPomodoroUploads,
   type AdminUploadRow,
@@ -40,6 +47,7 @@ const COLUMNS: TableHeaderColumn<SortColumn>[] = [
   { key: "owner", label: "Owner", column: "meta" },
   { key: "size", label: "Size", column: "meta" },
   { key: "used", label: "In use", column: "meta", sortable: false },
+  { key: "sharing", label: "Sharing", column: "meta", sortable: false },
   { key: "created", label: "Uploaded", column: "meta", className: "hidden 2xl:table-cell" },
 ]
 
@@ -66,6 +74,7 @@ export function AdminUploadsDashboard({
   const query = search.q ?? ""
   const purpose = search.purpose ?? "all"
   const userId = search.user
+  const sharing = search.sharing ?? "all"
   const sort: SortColumn = search.sort ?? "created"
   const direction = search.direction ?? "desc"
   const page = search.page ?? 1
@@ -78,8 +87,8 @@ export function AdminUploadsDashboard({
   )
   const load = React.useCallback(
     (pageSize: number) =>
-      listPomodoroUploads({ search: query, purpose, user: userId, sort, direction, page, pageSize }),
-    [direction, page, purpose, query, sort, userId]
+      listPomodoroUploads({ search: query, purpose, user: userId, sharing, sort, direction, page, pageSize }),
+    [direction, page, purpose, query, sharing, sort, userId]
   )
   const list = useAdminList({ initial, initialPageSize, page, onPageChange: setPage, load })
   const toggleSort = useListSort<SortColumn>({ sort, direction }, (column) =>
@@ -97,6 +106,7 @@ export function AdminUploadsDashboard({
     onDone: list.refresh,
   })
   const asked = list.rows.filter((row) => del.ids.includes(row.mediaId))
+  const shareActions = useShareActions({ onDone: list.refresh })
   const preview = usePreviewAudio()
   // Whose files these are, off the first row: every row the filter returns is theirs.
   const filteredOwner = userId ? (list.rows[0]?.ownerName ?? null) : null
@@ -118,6 +128,7 @@ export function AdminUploadsDashboard({
         onPageChange={setPage}
         controls={
           <>
+            <ShareBulkButtons actions={shareActions} ids={selectedIds} />
             <AdminBulkDeleteButton del={del} ids={selectedIds} />
             {userId ? (
               <Button
@@ -151,6 +162,22 @@ export function AdminUploadsDashboard({
                 <SelectItem value="all">Backgrounds and sounds</SelectItem>
                 <SelectItem value="background">Backgrounds</SelectItem>
                 <SelectItem value="sound">Sounds</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select
+              value={sharing}
+              onValueChange={(value) =>
+                setListSearch({ sharing: value === "all" ? undefined : value, page: undefined })
+              }
+            >
+              <DashboardToolbarSelectTrigger aria-label="Filter by sharing">
+                <SelectValue placeholder="Sharing" />
+              </DashboardToolbarSelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Shared or not</SelectItem>
+                <SelectItem value="shared">Shared</SelectItem>
+                <SelectItem value="waiting">Waiting to be shared</SelectItem>
+                <SelectItem value="taken_down">Taken off sharing</SelectItem>
               </SelectContent>
             </Select>
           </>
@@ -194,11 +221,24 @@ export function AdminUploadsDashboard({
                 <span className="text-muted-foreground">No</span>
               )}
             </TableCell>
+            <TableCell column="meta">
+              {shareLabel(row.share, row.featured) ? (
+                <span
+                  className="block max-w-40 truncate"
+                  title={row.takenDownReason ?? undefined}
+                >
+                  {shareLabel(row.share, row.featured)}
+                </span>
+              ) : (
+                <span className="text-muted-foreground">No</span>
+              )}
+            </TableCell>
             <TableCell column="mutedMeta" className="hidden 2xl:table-cell">
               {formatDate(row.createdAt)}
             </TableCell>
             <TableCell column="actions">
               <PreviewPlayButton preview={preview} mediaId={row.mediaId} url={row.url} kind={row.kind} name={row.name} />
+              <ShareRowMenu row={row} actions={shareActions} />
               <AdminRowDeleteButton del={del} id={row.mediaId} label={`Delete ${row.name}`} />
             </TableCell>
           </TableRow>
@@ -210,6 +250,7 @@ export function AdminUploadsDashboard({
         description={describeUploadDeletion(asked)}
         confirmLabel={plural(del.ids.length, "Delete upload", "Delete uploads")}
       />
+      <UnshareDialog actions={shareActions} />
     </>
   )
 }

@@ -8,6 +8,7 @@ import {
 } from "@/components/pomodoro/focus-heatmap"
 import { ProfileActions } from "@/components/pomodoro/profile-actions"
 import { PanelCard } from "@/components/pomodoro/panel-card"
+import { ProfileSharedPanel } from "@/components/pomodoro/profile-shared-panel"
 import { ProfilePhoto } from "@/components/pomodoro/profile-photo"
 import { SocialMarkLink } from "@/components/pomodoro/social-marks"
 import { Button } from "@/components/ui/button"
@@ -117,6 +118,21 @@ export function PublicProfilePage({ profile }: { profile: PublicProfileView }) {
             ))}
           </div>
         </PanelCard>
+      ) : null}
+
+      {profile.shared ? (
+        <>
+          <ProfileSharedPanel
+            handle={profile.handle}
+            purpose="sound"
+            initial={profile.shared.sounds}
+          />
+          <ProfileSharedPanel
+            handle={profile.handle}
+            purpose="background"
+            initial={profile.shared.backgrounds}
+          />
+        </>
       ) : null}
     </div>
   )
