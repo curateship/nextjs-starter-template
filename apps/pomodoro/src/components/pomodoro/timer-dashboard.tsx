@@ -50,6 +50,7 @@ import { formatDuration } from "@/lib/format/format-time"
 import { cn } from "@/lib/utils"
 import { contentColumn } from "@/lib/pomodoro/content-column"
 import { HomeOpenRooms } from "@/components/pomodoro/open-rooms"
+import { SoundPlayerRow } from "@/components/pomodoro/sound-player-row"
 
 const ringRadius = 144
 const circumference = 2 * Math.PI * ringRadius
@@ -416,6 +417,10 @@ export function TimerDashboard() {
             </span>
           </div>
         </div>
+
+        {/* The sound, under the clock it follows. Tyler, 9 Oct 2026: "move
+            it somewhere around the timer". */}
+        <SoundPlayerRow />
 
         <ModeTabs mode={pomodoro.timer.mode} onSelect={requestMode} />
 

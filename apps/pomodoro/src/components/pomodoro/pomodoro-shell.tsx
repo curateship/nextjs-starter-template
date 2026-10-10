@@ -27,14 +27,13 @@ import QuickControlsHeader from "@/components/pomodoro/quick-controls-header"
 import { SceneBackdrop } from "@/components/pomodoro/scene-backdrop"
 import { ThemeArrows } from "@/components/pomodoro/theme-arrows"
 import { useShownBackground } from "@/lib/pomodoro/break-look"
-import SoundPlayerHeader from "@/components/pomodoro/sound-player-header"
 import { SavedLink } from "@/components/shell/public-navigation"
 import { NotificationCenter } from "@/components/shell/sticky-header/notification-center"
 import { useTheme } from "@/components/shell/sticky-header/light-dark-switcher"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import type { AccountMenuFacts } from "@/lib/api/pomodoro/profile"
-import { usePublicNavigation } from "@/lib/branding"
+import { usePublicNavigation, usePublicTheme } from "@/lib/branding"
 import type { MediaBootstrap } from "@/lib/pomodoro/media-pair"
 import { setGuestStartingTimer } from "@/lib/pomodoro/use-pomodoro"
 import { MediaBootstrapContext } from "@/lib/pomodoro/room-media-store"
@@ -306,6 +305,11 @@ export function PomodoroShell({
   if (typeof window !== "undefined" && media?.guestTimer)
     setGuestStartingTimer(media.guestTimer)
   const { setTheme } = useTheme()
+  // Settings → Public → Styling can fix the mode to always light or always
+  // dark; the switch then has nothing to do, so it goes, as the setting's own
+  // hint says ("A fixed mode hides their switch"). Tyler, 9 Oct 2026: "the
+  // theme switcher doesnt work" was this.
+  const visitorChoosesMode = usePublicTheme().colorScheme === "system"
   const savedMenu = usePublicNavigation()
   const savedLinks = React.useMemo(
     () =>
@@ -517,10 +521,7 @@ export function PomodoroShell({
           {/* Nothing in this group shrinks: squeezed, "Log in" broke over two
               lines and the colour switch lost its width. */}
           <div className="flex items-center justify-end gap-3 *:shrink-0 min-[1440px]:flex-1 min-[1440px]:basis-0">
-            {/* On the right with the other things that are about you rather
-                than about the timer. Tyler moved it here on 7 Oct 2026. */}
-            <SoundPlayerHeader />
-            <ThemeTogglePill />
+            {visitorChoosesMode ? <ThemeTogglePill /> : null}
             {user ? (
               <>
                 {/* The shell's own bell and tray, just left of the photo, where

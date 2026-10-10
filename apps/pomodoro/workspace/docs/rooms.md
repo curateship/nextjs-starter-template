@@ -191,10 +191,15 @@ is not logged in, that should link to the login page."
   - **The room's clock as the timer's ring.** The phase in small capitals (green
     while waiting), the time left (the focus length while waiting), then
     "Waiting for Theo to start" for a member, or the host's Start focus /
-    Start break and Next phase. A full-screen button sits under them.
-  - **The host's rhythm under the ring**, from Tyler's design of 8 Oct 2026
-    ("revise the room option set by host"): "1 / 4 sessions", then one chip
-    per focus with its length ("25m"; done ones orange, the next one
+    Start break and Next phase. A full-screen button sits under them, and
+    under that "1 / 4 sessions" (Tyler, 9 Oct 2026: "move the sessions text
+    here").
+  - **The sound, just under the ring** (Tyler, 9 Oct 2026: "move the sound
+    control just under the timer"), the same row as on the timer; see "The
+    player sits under the clock" in [Sounds](sounds.md).
+  - **The host's rhythm under that**, from Tyler's design of 8 Oct 2026
+    ("revise the room option set by host"): one chip per focus with its
+    length ("25m"; done ones orange, the next one
     outlined, the rest grey), then "5m breaks · 15m long break after session
     4 · set by the host". The host reads "set by you".
   - **One card for the room.** The name with a green dot, and under it the

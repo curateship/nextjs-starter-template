@@ -33,8 +33,8 @@ Then it is the pair the host picked, until you leave.
   never appears on the Rooms page.
 - **It is what `/` and `/timer` show** when you are in no hosted room: the
   timer (`HomeRoom` in `src/components/pomodoro/home-room.tsx`).
-- **Silence is saved as `none`.** "Turn sound off" in the header's player
-  saves it. An empty sound or theme means the member never picked, and gets the
+- **Silence is saved as `none`.** The player's "Turn sound off" saved it until
+  Tyler removed that button on 9 Oct 2026; rows saved that way still read it. An empty sound or theme means the member never picked, and gets the
   admin's pair: shuffle when that switch is on, otherwise the default sound and
   theme, otherwise silence and Lofi girl. See [Admin settings](admin-settings.md).
   Silence was saved as empty before 8 Oct 2026, so those rows now count as never
@@ -81,7 +81,7 @@ Then it is the pair the host picked, until you leave.
 
 - **Hovering over a sound on Sounds plays a preview on that page only.** It
   plays through its own player (`usePreviewAudio` in
-  `src/lib/pomodoro/use-preview-audio.ts`), never through the header's player,
+  `src/lib/pomodoro/use-preview-audio.ts`), never through the player under the clock,
   so it can't fight the timer's Start. One preview plays at a time, and
   moving off the card or leaving the page stops it. See [Sounds](sounds.md).
 - **Hovering over a theme on Backgrounds plays it inside its card.** The page
@@ -120,7 +120,7 @@ an unlisted room may use one is still Tyler's to decide.
 - **The browser takes that answer into one store** before its first render
   (`src/lib/pomodoro/room-media-store.ts`). Every reader works out what to draw
   from that store: the backdrop, Zen mode, the Theme pill, both pages and the
-  header's player. The sound engine follows the store through `followSound`
+  player under the clock. The sound engine follows the store through `followSound`
   and keeps only volume, mute, the alerts and the chimes of its own.
 - **A failed read draws the default scene with no sound**, and the next page
   load asks again.

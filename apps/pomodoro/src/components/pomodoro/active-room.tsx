@@ -37,6 +37,7 @@ import {
 } from "@/components/pomodoro/room-chat"
 import { BreakCard } from "@/components/pomodoro/break-card"
 import { TasksSection } from "@/components/pomodoro/today-task-list"
+import { SoundPlayerRow } from "@/components/pomodoro/sound-player-row"
 import { useProductAuth } from "@/lib/pomodoro/auth-state"
 import { usePomodoro } from "@/lib/pomodoro/use-pomodoro"
 import { cn } from "@/lib/utils"
@@ -877,20 +878,21 @@ function RoomRing({
           >
             <MaximizeIcon className="size-[17px]" aria-hidden="true" />
           </Button>
+          {/* Inside the ring, under Full screen. Tyler, 9 Oct 2026: "move the
+              sessions text here". */}
+          <p className="mt-3 font-mono text-sm text-muted-foreground">
+            <strong className="font-semibold text-foreground">{room.cycleFocusCount}</strong> / 4 sessions
+          </p>
         </div>
       </div>
-      {/* The room's rhythm as the host set it: how many of the four
-          focuses are done, a chip per focus with its length (done orange,
-          the next one outlined, the rest grey), and the breaks. Tyler's
-          design of 8 Oct 2026. */}
+      {/* The room's sound, just under the clock it follows. Tyler, 9 Oct
+          2026: "move the sound control just under the timer". */}
+      <SoundPlayerRow />
+      {/* The room's rhythm as the host set it: a chip per focus with its
+          length (done orange, the next one outlined, the rest grey), and the
+          breaks. Tyler's design of 8 Oct 2026; the count moved into the ring
+          on 9 Oct. */}
       <div className="flex w-full max-w-[480px] flex-col gap-3">
-        <p className="text-2xl font-semibold tracking-tight">
-          {room.cycleFocusCount}
-          <span className="font-normal text-muted-foreground">
-            {" "}
-            / 4 sessions
-          </span>
-        </p>
         <div
           role="img"
           aria-label={`${room.cycleFocusCount} of 4 sessions done, ${room.focusMinutes} minutes each`}

@@ -5,17 +5,11 @@ import {
   MoonIcon,
   PauseIcon,
   PlayIcon,
-  PowerIcon,
   SkipForwardIcon,
   Volume2Icon,
   VolumeXIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
-import {
-  quickPillClass,
-  quickPillSurfaceClass,
-} from "@/components/pomodoro/quick-controls-header"
 import { Button } from "@/components/ui/button"
 import {
   Popover,
@@ -24,118 +18,85 @@ import {
 } from "@/components/ui/popover"
 import { Slider } from "@/components/ui/slider"
 import { cn } from "@/lib/utils"
-import { useNarrowScreen } from "@/lib/pomodoro/narrow-screen"
 import {
   formatSleepRemaining,
   SLEEP_TIMER_PRESETS,
 } from "@/lib/pomodoro/sleep-timer"
 import { useSoundPlayer } from "@/lib/pomodoro/use-sound-player"
 import {
-  addSoundToPersonalRoom,
   playNextFromPools,
   useRoomMedia,
 } from "@/lib/pomodoro/room-media-store"
-import { showErrorToast } from "@/lib/toast/error-toast"
 
 type Player = ReturnType<typeof useSoundPlayer>
 
 /**
- * The sound player in the header, ported from the old app: play/pause the
- * ambient loop, its name, mute, a volume slider, the sleep timer, and stop.
- * The audio itself lives in the module-level engine, so it keeps playing while
- * pages change; this control draws nothing while no sound is selected.
+ * The sound player, under the clock it follows: the timer's ring on the front
+ * page and the room's ring in a room. Tyler, 9 Oct 2026: "remove this from
+ * navigation and move it somewhere around the timer". It holds play/pause,
+ * the sound's name, next, mute, volume and the sleep timer. The
+ * audio itself lives in the module-level engine, so it keeps playing while
+ * pages change. With no sound chosen it says so and links to Sounds, so it
+ * never just disappears (Tyler, 9 Oct 2026: "dont see it").
  *
- * It sits in the header's right-hand group, on the same glassy pill as the
- * quick buttons. Tyler, 7 Oct 2026: "Move the audio player to the right. Make
- * sure the audio player uses the same ui styling as the button." The pill is
- * the 36px of a quick button, holding 28px controls.
+ * The sound follows the clock (`runningEdge` in `sound-engine.ts`): a focus
+ * starting plays it, a pause or a break fades it out. Play and Pause here only
+ * turn the sound on or off for the focus that is running, and never touch the
+ * timer.
  */
-export default function SoundPlayerHeader() {
+export function SoundPlayerRow({ className }: { className?: string }) {
   const player = useSoundPlayer()
-  const narrow = useNarrowScreen()
   const { state } = player
-  if (!state.selected && !state.notice) return null
-
-  // Six controls and a name do not fit beside the quick pills on a phone, so
-  // narrow they fold behind one pill and the popover holds the same six. With
-  // no sound chosen there is only Stop and a notice, which fits at any width.
-  if (narrow && state.selected) return <CollapsedPlayer player={player} />
-
+  // "No sound" is read from the room media store, which has the loader's
+  // answer on the server and in the first frame, so somebody with a sound
+  // never sees it flash before the engine catches up.
+  const { sound, room } = useRoomMedia()
+  // In somebody else's room the host picks the sound, so there is nothing
+  // for a member to pick from here.
+  const canPick = !room || room.role === "host"
   return (
     <div
-      // The quick buttons' round pill and border, with a lighter fill and
-      // blur so more of the background shows through. Tyler, 7 Oct 2026:
-      // "make the audio player more transparent".
-      className={cn(
-        "flex h-9 items-center gap-1 px-1 text-foreground",
-        quickPillSurfaceClass,
-        "bg-[rgba(var(--p-fg-rgb),0.03)] backdrop-blur-[4px]"
-      )}
+      role="group"
+      aria-label="Sound"
+      // Wraps rather than squeezes: on a phone the volume slider and the
+      // sleep timer drop to a second line.
+      className={cn("flex flex-wrap items-center justify-center gap-x-[5px] gap-y-1.5 [&_svg:not([class*=size-])]:size-3.5", className)}
     >
+      {/* Tyler's design of 9 Oct 2026 ("redesign the sound bar"): play in a
+          round tinted button, the name, next, the speaker and a grey volume
+          slider, then the sleep timer. The hairlines between them went the
+          same day ("remove the divider").
+          Turn-off went the same day ("remove the turn sound off icon"), and
+          the whole bar shrank by a tenth ("trt 10% instead", after asking
+          for 20% smaller). */}
       {state.selected ? (
         <>
           <PlayPauseButton player={player} />
           <SoundName player={player} />
           <NextButton />
-          <MuteButton player={player} />
-          <VolumeSlider player={player} className="w-20" />
+          {/* The speaker and its slider wrap as one, never apart. */}
+          <span className="flex items-center gap-[5px]">
+            <MuteButton player={player} />
+            <VolumeSlider player={player} className="w-18" />
+          </span>
           <SleepTimerControl player={player} />
         </>
-      ) : null}
-      <StopButton />
+      ) : sound ? null : (
+        <span className="text-[13.5px] text-muted-foreground">
+          No sound
+          {canPick ? (
+            <>
+              {" · "}
+              <Link to="/sounds" className="font-semibold text-foreground underline underline-offset-2">
+                Pick one
+              </Link>
+            </>
+          ) : null}
+        </span>
+      )}
       <PlayerNotice player={player} />
     </div>
   )
-}
-
-/**
- * The whole player behind one pill, for a window too narrow to hold it.
- *
- * The pill shows whether the sound is playing, because that is the one thing
- * you look at the header to find out, and it names the sound out loud so the
- * button is not just an icon. The controls inside are the same components the
- * wide row uses, stacked rather than in a line.
- */
-function CollapsedPlayer({ player }: { player: Player }) {
-  const { state } = player
-
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <button
-          className={quickPillClass}
-          aria-label={`Sound ${statusWord(state.status)}: ${state.label}`}
-        >
-          <PlayerStatusIcon player={player} className="size-[18px]" />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-64 gap-3 p-4">
-        <div className="flex items-center gap-1.5">
-          <PlayPauseButton player={player} />
-          <SoundName player={player} />
-          <NextButton />
-          <StopButton />
-        </div>
-        <div className="flex items-center gap-1.5">
-          <MuteButton player={player} />
-          <VolumeSlider player={player} className="flex-1" />
-        </div>
-        <SleepTimerControl player={player} />
-        <PlayerNotice player={player} />
-      </PopoverContent>
-    </Popover>
-  )
-}
-
-/**
- * The three states in a word, for the pill's name. It reads the same `status`
- * the icon beside it reads, so the word and the picture cannot disagree — the
- * pill said "paused" while the loop was still loading before this.
- */
-function statusWord(status: Player["state"]["status"]) {
-  if (status === "loading") return "starting"
-  if (status === "playing") return "playing"
-  return "paused"
 }
 
 /** Playing, paused, or still loading, as one icon. */
@@ -154,8 +115,8 @@ function PlayerStatusIcon({
   if (slow)
     return <Loader2Icon className={cn("animate-spin", className)} aria-hidden="true" />
   if (status === "playing" || status === "loading")
-    return <PauseIcon className={className} aria-hidden="true" />
-  return <PlayIcon className={className} aria-hidden="true" />
+    return <PauseIcon className={cn("fill-current", className)} aria-hidden="true" />
+  return <PlayIcon className={cn("fill-current", className)} aria-hidden="true" />
 }
 
 /** True once loading has gone on for a second. */
@@ -178,6 +139,7 @@ function PlayPauseButton({ player }: { player: Player }) {
     <Button
       variant="ghost"
       size="icon-sm"
+      className="mr-1 rounded-full bg-[rgba(var(--p-fg-rgb),0.1)] hover:bg-[rgba(var(--p-fg-rgb),0.18)]"
       onClick={player.togglePlayback}
       aria-label={
         state.status === "playing" || state.status === "loading"
@@ -201,10 +163,12 @@ function NextButton() {
     <Button
       variant="ghost"
       size="icon-sm"
+      // Grey beside the white name and play, from Tyler's design.
+      className="text-[rgba(var(--p-fg-rgb),0.7)]"
       onClick={playNextFromPools}
       aria-label="Next sound"
     >
-      <SkipForwardIcon aria-hidden="true" />
+      <SkipForwardIcon className="fill-current" aria-hidden="true" />
     </Button>
   )
 }
@@ -212,9 +176,9 @@ function NextButton() {
 function SoundName({ player }: { player: Player }) {
   return (
     <span
-      // Never squeezed to nothing when the header is tight; the header wraps
-      // instead. Over 128px it ends in an ellipsis.
-      className="max-w-32 shrink-0 truncate text-[15px] font-semibold"
+      // Never squeezed to nothing; the row wraps instead. Over 160px it ends
+      // in an ellipsis.
+      className="max-w-56 shrink-0 truncate text-[13.5px] font-semibold max-sm:max-w-28"
       title={player.state.label ?? undefined}
     >
       {player.state.label}
@@ -229,6 +193,8 @@ function MuteButton({ player }: { player: Player }) {
     <Button
       variant="ghost"
       size="icon-sm"
+      // Grey beside the white name and play, from Tyler's design.
+      className="text-[rgba(var(--p-fg-rgb),0.7)]"
       onClick={player.toggleMuted}
       aria-pressed={state.muted}
       aria-label={state.muted ? "Unmute sound" : "Mute sound"}
@@ -251,7 +217,14 @@ function VolumeSlider({
 }) {
   return (
     <Slider
-      className={className}
+      // A grey track and knob rather than the shared slider's black and
+      // white, from Tyler's design.
+      className={cn(
+        "[&_[data-slot=slider-track]]:h-[7px] [&_[data-slot=slider-track]]:bg-[rgba(var(--p-fg-rgb),0.14)]",
+        "[&_[data-slot=slider-range]]:bg-[rgba(var(--p-fg-rgb),0.45)]",
+        "[&_[data-slot=slider-thumb]]:size-3.5 [&_[data-slot=slider-thumb]]:border-0 [&_[data-slot=slider-thumb]]:bg-neutral-400",
+        className
+      )}
       min={0}
       max={100}
       step={1}
@@ -259,44 +232,6 @@ function VolumeSlider({
       onValueChange={([volume]) => player.setVolume(volume)}
       aria-label="Sound volume"
     />
-  )
-}
-
-/**
- * Turns the sound off for good: the personal room goes silent and the player
- * goes.
- * It used to be an X labelled "Stop sound", which read as a pause, so the
- * toast after it says where to pick a sound again.
- */
-function StopButton() {
-  const { room } = useRoomMedia()
-  // In somebody's room the host picked the sound for everybody. Pause and
-  // mute still work; taking the sound away is the host's to do.
-  if (room) return null
-  return (
-    <Button
-      variant="ghost"
-      size="icon-sm"
-      onClick={() => {
-        addSoundToPersonalRoom(null).then(
-          () =>
-            toast.success(
-              <span>
-                Sound off. Pick one again on{" "}
-                <Link to="/sounds" className="underline underline-offset-2">
-                  Sounds
-                </Link>
-                .
-              </span>
-            ),
-          () => showErrorToast("The sound could not be turned off. Try again.")
-        )
-      }}
-      aria-label="Turn sound off"
-      title="Turn sound off"
-    >
-      <PowerIcon aria-hidden="true" />
-    </Button>
   )
 }
 
@@ -334,7 +269,7 @@ function SleepTimerControl({ player }: { player: Player }) {
           ) : null}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-56">
+      <PopoverContent align="center" className="w-56">
         <div className="flex flex-col gap-2">
           <strong className="text-sm">Sleep timer</strong>
           <p className="text-xs text-muted-foreground">

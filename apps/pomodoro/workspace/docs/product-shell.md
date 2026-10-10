@@ -6,8 +6,7 @@ every product page in `src/components/pomodoro/pomodoro-shell.tsx` — the
 translucent blurred sidebar of pill links (Dashboard, Rooms, Pricing,
 Theme, Sounds, Leaderboard, History, Tasks; Settings at the foot), the
 transparent sticky header (brand; the glassy Timer / Leaderboard / Theme
-pills in the middle; then on the right the sound player, the moon-knob colour
-toggle, and Log in + orange Register or [the bell](notifications.md) and
+pills in the middle; then on the right the moon-knob colour toggle, and Log in + orange Register or [the bell](notifications.md) and
 [the account menu](account-menu.md)),
 and the chosen scene as a 720px hero
 that fades into the canvas on every edge. Pages overlap the hero's lower
@@ -18,6 +17,13 @@ toggle still offers light. How dark the dark is belongs to Settings →
 Appearance; see [The dark mode shade](dark-mode-shade.md).
 
 ## The colour toggle's knob
+
+**It only shows while visitors may choose.** Settings → Public → Styling →
+Colour mode set to "Always light" or "Always dark" fixes the page, and the
+switch goes, as the setting's own hint says. Tyler found it pressing and doing
+nothing on 9 Oct 2026, because the local site was set to "Always dark"; it is
+"Follow device" again, and Pomoder still starts a first visit dark on its own
+(the `setTheme("dark")` in `pomodoro-shell.tsx`).
 
 The moon-knob slides the 24px between its two ends over 300ms while the
 moon and the sun turn past each other. Both icons are always on the page,
@@ -45,11 +51,11 @@ transparent".
   32px, 13.5px and 17px. 36px is the nearest of the four allowed heights to
   10% larger. `quickPillClass` in `quick-controls-header.tsx`.
 - **Every header control is drawn on one glass.** `quickPillSurfaceClass` is the
-  round shape, the border, the faint fill and the blur, shared by the pills, the
-  sound player and the bell.
-- **The sound player is one 36px pill on the right**, before the colour toggle,
-  holding its 28px controls. Its fill and blur are lighter than the pills', so
-  more of the picture shows through it.
+  round shape, the border, the faint fill and the blur, shared by the pills and
+  the bell.
+- **The sound player is not in the header any more.** Tyler moved it under
+  the clock on 9 Oct 2026; see "The player sits under the clock" in
+  [Sounds](sounds.md).
 - **The bell is a 36px glass circle.** The button is the shell's
   `NotificationCenter`, which this app never edits, so the classes reach it
   from a wrapper in `pomodoro-shell.tsx` (`bellPillClass`, written out in full
@@ -57,9 +63,7 @@ transparent".
 - **The pills sit in the middle of the header, over the ring, from 1440px
   up.** The groups either side of them grow at the same rate, so the pills are
   centred whenever the right-hand group fits in half of the room left over.
-  With a sound playing it is wider than that below about 1900px, and the pills
-  sit left of centre only as far as they must: 52px at 1600px and 132px at
-  1440px, measured as a guest with a sound playing. Below 1440px the row can
+  Below 1440px the row can
   wrap, so the pills sit in the middle of the space between the brand and the
   right-hand group instead.
 - **Nothing in the right-hand group shrinks.** Squeezed, "Log in" broke over
@@ -89,32 +93,20 @@ than the content's 48px, because the row of controls fits a 1024px window with
 40px of edge and needs a second line with 48px.
 
 **The header row is allowed a second line.** It holds the menu button, the
-brand, three pills, the whole sound player, the colour toggle and either the
-account photo or Log in plus Register, and how much room that needs depends on
-what is in it: the sound player only exists while a sound is chosen, and Log in
+brand, three pills, the colour toggle and either the account photo or Log in
+plus Register, and how much room that needs depends on what is in it: Log in
 plus Register is wider than the photo. So no single breakpoint covers every
 case, and the row wraps instead. A window wide enough for one line is unchanged, and the header's resting
 height is still 86px.
 
-**Below 768px a second line is not enough either**, so two things change:
-
-- The three glassy pills drop their words and become their icons in a circle.
-  The Timer pill keeps its countdown, because that is the reason to look at it.
-  Every pill already carries its own `aria-label`, so hiding the words costs no
-  name and the popovers are unchanged.
-- The sound player folds behind one pill of the same kind. The pill says whether
-  the sound is playing and names it, and the popover behind it holds the same
-  six controls the wide row shows: play or pause, the name, mute, the volume
-  slider, the sleep timer and stop. Nothing is removed on a phone, and from
-  768px up the player is the inline row again.
+**Below 768px a second line is not enough either**, so the three glassy pills
+drop their words and become their icons in a circle. The Timer pill keeps its
+countdown, because that is the reason to look at it. Every pill already carries
+its own `aria-label`, so hiding the words costs no name and the popovers are
+unchanged.
 
 768 and not 640 because 640 was measured: with the words back on, a 640px window
-still scrolled sideways by 61px. The one place this needs JavaScript rather than
-a media query is the sound player, where the two shapes are different markup
-rather than one styled two ways, and `useNarrowScreen`
-(`src/lib/pomodoro/narrow-screen.ts`) answers that. It starts wide so the server
-and the browser draw the same first render, then measures before the browser
-paints, so a phone never shows the wide shape in a frame anyone sees.
+still scrolled sideways by 61px.
 
 ## Where signing in lands
 

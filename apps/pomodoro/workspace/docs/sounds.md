@@ -64,6 +64,36 @@ sound to play on hover, "same for sound" as the themes, with a "+" to add it.
   beside the delete button. The rules are in
   [The personal room](personal-room.md).
 
+## The player sits under the clock
+
+Tyler, 9 Oct 2026: "We need to do something about the sound player in the
+navigation ... I think we should remove this from navigation and move it
+somewhere around the timer." So the player left the header on every page and
+is a row under the clock it follows (`SoundPlayerRow` in
+`src/components/pomodoro/sound-player-row.tsx`): under the timer's ring on the
+front page, and under the room's ring in a room.
+
+It is drawn to Tyler's design of 9 Oct 2026 ("redesign the sound bar"), then
+"remove the turn sound off icon", "remove the divider" and a tenth smaller
+than the design ("trt 10% instead"): play or pause in a 28px round tinted
+button, the sound's name in 13.5px semibold, next (for a shuffle or tags
+choice) and the speaker in grey, a 72px grey volume slider with a 14px knob,
+and the sleep timer's moon. On a phone the name is cut shorter so the bar stays
+on one line. With no sound chosen it reads "No sound · Pick one", with Pick one
+opening Sounds.
+
+One rule between the two:
+
+- **The timer leads.** Starting or resuming a focus plays the sound; pausing,
+  or a break starting, fades it out (`runningEdge` in `sound-engine.ts`).
+- **The row's play and pause only turn the sound on or off**, and never start,
+  pause or reconnect the timer. A sound paused by hand during a focus comes
+  back with the next start. Checked in a real browser on 9 Oct 2026: eleven
+  presses of the two buttons in turn, and the timer only ever moved for its own
+  button.
+- **Away from the timer**, on Sounds or Backgrounds, there is no player: the
+  sound carries on, and its controls are under the clock.
+
 ## Adding one never starts it
 
 Tyler's rule, 27 September 2026: "when I select a theme, it shouldnt play
@@ -71,7 +101,7 @@ right away. It should jsut be selected and the play happens when I press
 play on the big button."
 
 So adding a loop to your personal room only puts it there. The sound starts
-when the timer starts, or when you press play in the header's player. Adding
+when the timer starts, or when you press play in the player under the clock. Adding
 a different loop while one is playing stops the one playing, because the
 sound that is playing is always the room's sound. A host changing a hosted
 room's sound is different: a sound that was playing crossfades into the new
@@ -82,8 +112,8 @@ one, so everybody in the room keeps hearing one sound.
 The audio lives outside React, in `src/lib/pomodoro/sound-engine.ts`: two
 hidden `<audio>` decks created once per browser session and appended to
 `<body>`. The old app owned the decks in a provider wrapping its whole tree;
-this app cannot wrap the shell's tree, so the product header's control
-(`sound-player-header.tsx`), the sounds page and
+this app cannot wrap the shell's tree, so the player under the clock
+(`sound-player-row.tsx`), the sounds page and
 the timer all talk to the same module. React reads it through
 `useSoundPlayer` (`useSyncExternalStore`).
 
@@ -143,15 +173,10 @@ guest, reachable by Tab, never a dead button. Audio files are first-party, copie
 
 ## Turning the sound off
 
-The power button at the end of the header's player is "Turn sound off". It
-saves silence to your personal room, so the player leaves the header, and a
-success toast says "Sound off. Pick one again on Sounds." with Sounds as a link
-to `/sounds`. Pause is the play button beside it, and it keeps the sound. In
-somebody's hosted room the power button is hidden, because the host picked the
-sound for everybody.
-
-The button used to be an X labelled "Stop sound". An X reads as "close this for
-now", and people pressed it expecting a pause, then found their sound gone.
+There is no turn-off button. Tyler removed the player's power button on
+9 Oct 2026 ("remove the turn sound off icon"); pause and mute are the ways to
+silence it, and it only plays during a focus. A personal room saved as silence
+(`none`) before that still shows "No sound · Pick one" under the clock.
 
 ## Dragging near the top of the page in Arc
 
