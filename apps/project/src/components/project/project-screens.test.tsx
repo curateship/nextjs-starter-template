@@ -39,6 +39,7 @@ function card(overrides: Partial<TaskCard>): TaskCard {
     handedBack: null,
     steps: { done: 0, total: 0 },
     commentCount: 0,
+    pickedDays: 0,
     ...overrides,
   }
 }
@@ -88,7 +89,7 @@ describe("the list", () => {
     expect(empty).toContain("Nothing assigned to you right now.")
   })
 
-  it("names the project instead of the person on My work", () => {
+  it("names the project instead of the person on My dashboard", () => {
     const html = renderToStaticMarkup(<TaskList tasks={tasks} readOnly={false} showProject onOpenTask={() => {}} />)
     expect(html).toContain(">Project<")
     expect(html).not.toContain("Assigned to")

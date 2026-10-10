@@ -1,4 +1,4 @@
-import { and, asc, count, eq, inArray, max, type SQL } from "drizzle-orm"
+import { and, asc, count, countDistinct, eq, inArray, max, type SQL } from "drizzle-orm"
 import { alias } from "drizzle-orm/pg-core"
 
 import { PROJECT_ERRORS } from "@/lib/project/errors"
@@ -15,6 +15,13 @@ import {
 } from "@/server/project/access"
 import { writeTaskNotices, type TaskNotice } from "@/server/project/notices"
 import {
+  loadTaskHistory,
+  recordTaskEvent,
+  type TaskHistoryEntry,
+} from "@/server/project/task-history"
+import {
+  projectCheckinItems,
+  projectCheckins,
   projectProjectMembers,
   projectProjects,
   projectTaskComments,
@@ -54,6 +61,8 @@ export type TaskCard = {
   handedBack: { byName: string; reason: string } | null
   steps: { done: number; total: number }
   commentCount: number
+  /** How many days anyone picked this task on a check-in. */
+  pickedDays: number
 }
 
 const assignee = alias(customShellUsers, "assignee")
@@ -100,6 +109,7 @@ export async function listTaskCards(
         .where(inArray(projectTaskComments.taskId, ids))
         .groupBy(projectTaskComments.taskId)
     : []
+  const pickedRows = ids.length ? await pickedDaysFor(ids, database) : []
 
   return rows.map(({ task, ...row }) => {
     const steps = stepRows.filter((step) => step.taskId === task.id)
@@ -134,8 +144,19 @@ export async function listTaskCards(
         total: steps.reduce((sum, step) => sum + step.total, 0),
       },
       commentCount: commentRows.find((c) => c.taskId === task.id)?.total ?? 0,
+      pickedDays: pickedRows.find((p) => p.taskId === task.id)?.days ?? 0,
     }
   })
+}
+
+/** Distinct days each task was picked, by anyone, read from the saved check-ins. */
+function pickedDaysFor(taskIds: string[], database: ProjectDb) {
+  return database
+    .select({ taskId: projectCheckinItems.taskId, days: countDistinct(projectCheckins.day) })
+    .from(projectCheckinItems)
+    .innerJoin(projectCheckins, eq(projectCheckins.id, projectCheckinItems.checkinId))
+    .where(and(inArray(projectCheckinItems.taskId, taskIds), eq(projectCheckinItems.kind, "pick")))
+    .groupBy(projectCheckinItems.taskId)
 }
 
 function isWaiting(task: Pick<TaskRow, "assigneeUserId" | "acceptedAt">) {
@@ -158,6 +179,8 @@ export type TaskDetail = {
   assignable: Person[]
   archived: boolean
   canDelete: boolean
+  /** Every day it was picked or dropped, and every hand-over, oldest first. */
+  history: TaskHistoryEntry[]
 }
 
 export async function loadTaskDetail(
@@ -220,10 +243,11 @@ export async function loadTaskDetail(
     assignable: assignable.map((row) => ({ ...row, avatarUrl: row.avatarUrl ?? "" })),
     archived: Boolean(project.archivedAt),
     canDelete: task.createdByUserId === userId || runsTheTeam(membership.role),
+    history: await loadTaskHistory(taskId, database),
   }
 }
 
-/** My work: every task assigned to me, across every project I can see. */
+/** My tasks on My dashboard: every task assigned to me, across every project I can see. */
 export async function loadMyWork(userId: string, database = db): Promise<TaskCard[]> {
   const membership = await findMembership(userId, database)
   if (!membership) return []
@@ -330,6 +354,12 @@ export async function createTask(
       )
     }
     if (handedToSomeoneElse && input.assigneeUserId) {
+      await recordTaskEvent(tx, {
+        taskId: task.id,
+        kind: "handed_over",
+        actorUserId: actor.id,
+        targetUserId: input.assigneeUserId,
+      })
       await writeTaskNotices(tx, [
         {
           kind: "task_assigned",
@@ -417,6 +447,12 @@ export async function assignTask(
       })
       .where(eq(projectTasks.id, task.id))
     if (input.assigneeUserId && input.assigneeUserId !== actor.id) {
+      await recordTaskEvent(tx, {
+        taskId: task.id,
+        kind: "handed_over",
+        actorUserId: actor.id,
+        targetUserId: input.assigneeUserId,
+      })
       await writeTaskNotices(tx, [
         {
           kind: "task_assigned",
@@ -430,13 +466,16 @@ export async function assignTask(
 }
 
 export async function acceptTask(actor: Actor, taskId: string, database = db) {
-  const { task } = await requireTaskAccess(actor.id, taskId, database)
-  if (task.assigneeUserId !== actor.id) throw new Error(PROJECT_ERRORS.notAssignee)
-  if (task.acceptedAt) return
-  await database
-    .update(projectTasks)
-    .set({ acceptedAt: now(), updatedAt: now() })
-    .where(eq(projectTasks.id, task.id))
+  await database.transaction(async (tx) => {
+    const { task } = await requireTaskAccess(actor.id, taskId, tx)
+    if (task.assigneeUserId !== actor.id) throw new Error(PROJECT_ERRORS.notAssignee)
+    if (task.acceptedAt) return
+    await tx
+      .update(projectTasks)
+      .set({ acceptedAt: now(), updatedAt: now() })
+      .where(eq(projectTasks.id, task.id))
+    await recordTaskEvent(tx, { taskId: task.id, kind: "accepted", actorUserId: actor.id })
+  })
 }
 
 /**
@@ -467,6 +506,13 @@ export async function handBackTask(
         updatedAt: at,
       })
       .where(eq(projectTasks.id, task.id))
+    await recordTaskEvent(tx, {
+      taskId: task.id,
+      kind: "handed_back",
+      actorUserId: actor.id,
+      targetUserId: giverStillHere ? giver : null,
+      reason: input.reason,
+    })
     if (giverStillHere) {
       await writeTaskNotices(tx, [
         {

@@ -79,18 +79,20 @@ gets a task's title in their bell. The words live in
 `src/lib/project/notices.ts`, and the shell's bell reads them back to draw each
 row without asking the server. Each notice sits under a Tasks tab in the bell.
 
-## My work
+## My tasks
 
-`/my-work` lists every task assigned to me across every project I can see,
-with an Open tab and a Done tab. Tasks Waiting for my answer come first.
-Ticked rows can be marked Done together.
+Every task assigned to me, across every project I can see, is in the middle
+of [My dashboard](my-dashboard.md), with Today, Open and Done tabs. Tasks
+Waiting for my answer come first. Ticked rows can be marked Done together. A
+task picked on 3 or more check-ins and still not Done shows "Picked on 4 days"
+(see [History](history.md)).
 
 ## The left menu
 
 The shell keeps its menus in the database, and an app can't edit the shell code
 that writes them. So a background job (`src/server/project/navigation.ts`,
-listed in `src/app/server-options.ts`) adds a "Work" section with Projects, My
-work and Team to the members' menu and to each admin menu.
+listed in `src/app/server-options.ts`) adds a "Work" section with My dashboard,
+Projects and Team to the members' menu and to each admin menu.
 
 - **Each menu gets the section once.** The job writes down which menus it has
   done in `project_navigation_added`. An admin who later removes a link in
@@ -110,8 +112,17 @@ work and Team to the members' menu and to each admin menu.
 
 `node scripts/project-sample-data.mjs you@example.com` puts a sample team on the
 local database, owned by the account you name: three made-up teammates, two
-projects and twenty tasks across every status, four of them Waiting.
+projects, twenty tasks across every status (four of them Waiting), and three
+weeks of check-ins.
 
+- **The check-ins** cover the last 15 work days, with weekends as days off.
+  "Set up redirects from the old site" is picked on five days in a row and
+  ends Stuck, so it shows "Picked on 5 days". Leo is late now and then, drops
+  two tasks with reasons, and Priya missed one day. Your own last check-in
+  leaves two tasks unfinished, so your check-in window opens with them.
+- **On a work day** Maya and Leo have already checked in today (Leo late) and
+  Priya hasn't, so the Team dashboard's check-ins have all three states on it.
+- **The team uses this machine's time zone**, so "today" is your today.
 - **Local only.** It refuses any database that isn't on this machine.
 - **Your account must not be on a team yet.** It refuses otherwise and changes
   nothing.

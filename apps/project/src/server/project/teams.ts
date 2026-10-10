@@ -10,6 +10,7 @@ import {
 } from "@/lib/project/rules"
 import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
+import { requireKnownZone } from "@/server/project/checkins"
 import {
   findMembership,
   requireMembership,
@@ -32,6 +33,7 @@ export type TeamSummary = {
   checkinTime: string
   timeZone: string
   workDays: number[]
+  createdAt: string
 }
 
 export type TeamMemberRow = {
@@ -71,6 +73,7 @@ export async function createTeam(
     if (await findMembership(userId, tx)) {
       throw new Error(PROJECT_ERRORS.alreadyOnTeam)
     }
+    await requireKnownZone(input.timeZone, tx)
     const at = now()
     const team = {
       id: uuid(),
@@ -193,6 +196,7 @@ export async function updateTeam(
   database = db
 ): Promise<TeamSummary> {
   const membership = await requireTeamRunner(userId, database)
+  if (patch.timeZone) await requireKnownZone(patch.timeZone, database)
   const [team] = await database
     .update(projectTeams)
     .set({ ...patch, updatedAt: now() })
@@ -347,6 +351,7 @@ function toTeamSummary(team: typeof projectTeams.$inferSelect): TeamSummary {
     checkinTime: team.checkinTime,
     timeZone: team.timeZone,
     workDays: [...team.workDays],
+    createdAt: team.createdAt.toISOString(),
   }
 }
 

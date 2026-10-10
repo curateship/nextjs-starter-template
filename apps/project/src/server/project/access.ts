@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm"
+import { and, eq, inArray } from "drizzle-orm"
 
 import { PROJECT_ERRORS } from "@/lib/project/errors"
 import { runsTheTeam, type TeamRole } from "@/lib/project/rules"
@@ -63,6 +63,34 @@ export async function requireTeamRunner(
     throw new Error(PROJECT_ERRORS.notRunningTeam)
   }
   return membership
+}
+
+/** Owner and admins see the whole team's projects; everyone else, their own. */
+export function visibleProjectsWhere(membership: Membership) {
+  const inTeam = eq(projectProjects.teamId, membership.teamId)
+  if (runsTheTeam(membership.role)) return inTeam
+  return and(
+    inTeam,
+    inArray(
+      projectProjects.id,
+      db
+        .select({ id: projectProjectMembers.projectId })
+        .from(projectProjectMembers)
+        .where(eq(projectProjectMembers.userId, membership.userId))
+    )
+  )
+}
+
+/** The ids of every project this person can see, archived ones included. */
+export async function visibleProjectIds(
+  membership: Membership,
+  database: ProjectDb = db
+): Promise<Set<string>> {
+  const rows = await database
+    .select({ id: projectProjects.id })
+    .from(projectProjects)
+    .where(visibleProjectsWhere(membership))
+  return new Set(rows.map((row) => row.id))
 }
 
 export type ProjectRow = typeof projectProjects.$inferSelect

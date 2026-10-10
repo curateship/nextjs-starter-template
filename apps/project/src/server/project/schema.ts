@@ -11,7 +11,9 @@ import {
 } from "drizzle-orm/pg-core"
 
 import type {
+  CheckinItemKind,
   ProjectColor,
+  TaskEventKind,
   TaskStatus,
   TeamInviteRole,
   TeamRole,
@@ -53,6 +55,10 @@ export const projectTeamMembers = pgTable(
       .references(userRef, { onDelete: "cascade" }),
     role: varchar("role", { length: 16 }).$type<TeamRole>().notNull(),
     joinedAt: timestamp("joined_at", { withTimezone: true }).notNull(),
+    /** The person's own check-in time, "HH:MM". Null uses the team's. */
+    checkinTime: varchar("checkin_time", { length: 5 }),
+    /** The person's own time zone. Null uses the team's. */
+    timeZone: text("time_zone"),
   },
   (table) => [primaryKey({ columns: [table.teamId, table.userId] })]
 )
@@ -171,4 +177,79 @@ export const projectNoticeLinks = pgTable("project_notice_links", {
 export const projectNavigationAdded = pgTable("project_navigation_added", {
   scope: varchar("scope", { length: 80 }).primaryKey(),
   addedAt: timestamp("added_at", { withTimezone: true }).notNull(),
+})
+
+/**
+ * One row per person per day of their own calendar
+ * (`drizzle/0095_project_checkins.sql`). A row with no `checkedInAt` is a day
+ * the person didn't check in, written by the end-of-day job.
+ */
+export const projectCheckins = pgTable("project_checkins", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  teamId: varchar("team_id", { length: 36 })
+    .notNull()
+    .references(() => projectTeams.id, { onDelete: "cascade" }),
+  userId: varchar("user_id", { length: 36 })
+    .notNull()
+    .references(userRef, { onDelete: "cascade" }),
+  day: date("day", { mode: "string" }).notNull(),
+  timeZone: text("time_zone").notNull(),
+  workDay: boolean("work_day").notNull(),
+  dueAt: timestamp("due_at", { withTimezone: true }).notNull(),
+  checkedInAt: timestamp("checked_in_at", { withTimezone: true }),
+  closedAt: timestamp("closed_at", { withTimezone: true }),
+  createdAt: createdAt(),
+})
+
+/** Each task picked on a check-in, and each one dropped from the last one. */
+export const projectCheckinItems = pgTable("project_checkin_items", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  checkinId: varchar("checkin_id", { length: 36 })
+    .notNull()
+    .references(() => projectCheckins.id, { onDelete: "cascade" }),
+  taskId: varchar("task_id", { length: 36 }).references(() => projectTasks.id, {
+    onDelete: "set null",
+  }),
+  projectId: varchar("project_id", { length: 36 }).references(() => projectProjects.id, {
+    onDelete: "set null",
+  }),
+  taskTitle: text("task_title").notNull(),
+  kind: varchar("kind", { length: 8 }).$type<CheckinItemKind>().notNull(),
+  carriedOver: boolean("carried_over").notNull(),
+  reason: text("reason"),
+  endStatus: varchar("end_status", { length: 16 }).$type<TaskStatus>(),
+  createdAt: createdAt(),
+})
+
+/** One check-in reminder per person per day, written before the bell notice. */
+export const projectCheckinReminders = pgTable(
+  "project_checkin_reminders",
+  {
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(userRef, { onDelete: "cascade" }),
+    day: date("day", { mode: "string" }).notNull(),
+    sentAt: timestamp("sent_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.day] })]
+)
+
+/**
+ * Handing a task over, accepting it and handing it back, saved as they happen
+ * (`drizzle/0096_project_task_events.sql`) for the task's history.
+ */
+export const projectTaskEvents = pgTable("project_task_events", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  taskId: varchar("task_id", { length: 36 })
+    .notNull()
+    .references(() => projectTasks.id, { onDelete: "cascade" }),
+  kind: varchar("kind", { length: 16 }).$type<TaskEventKind>().notNull(),
+  actorUserId: varchar("actor_user_id", { length: 36 }).references(userRef, {
+    onDelete: "set null",
+  }),
+  targetUserId: varchar("target_user_id", { length: 36 }).references(userRef, {
+    onDelete: "set null",
+  }),
+  reason: text("reason"),
+  createdAt: createdAt(),
 })

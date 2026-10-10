@@ -2,7 +2,6 @@ import { and, asc, count, eq, inArray } from "drizzle-orm"
 
 import { PROJECT_ERRORS } from "@/lib/project/errors"
 import {
-  runsTheTeam,
   type ProjectColor,
   type TaskStatus,
   type TeamRole,
@@ -14,7 +13,7 @@ import {
   requireMembership,
   requireOpenProject,
   requireProjectAccess,
-  type Membership,
+  visibleProjectsWhere,
 } from "@/server/project/access"
 import { listTaskCards, type TaskCard } from "@/server/project/tasks"
 import { clearAssignee, listTeamMembers } from "@/server/project/teams"
@@ -58,7 +57,7 @@ export async function loadProjectsPage(
   const visible = await database
     .select()
     .from(projectProjects)
-    .where(visibleProjectsWhere(membership, database))
+    .where(visibleProjectsWhere(membership))
     .orderBy(asc(projectProjects.name))
   const ids = visible.map((project) => project.id)
 
@@ -98,22 +97,6 @@ export async function loadProjectsPage(
       }
     }),
   }
-}
-
-/** Owner and admins see the whole team's projects; everyone else, their own. */
-function visibleProjectsWhere(membership: Membership, database: typeof db) {
-  const inTeam = eq(projectProjects.teamId, membership.teamId)
-  if (runsTheTeam(membership.role)) return inTeam
-  return and(
-    inTeam,
-    inArray(
-      projectProjects.id,
-      database
-        .select({ id: projectProjectMembers.projectId })
-        .from(projectProjectMembers)
-        .where(eq(projectProjectMembers.userId, membership.userId))
-    )
-  )
 }
 
 export async function createProject(

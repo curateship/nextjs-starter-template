@@ -11,8 +11,6 @@ import {
   updateTaskSchema,
 } from "@/lib/project/rules"
 import { userGet, userPost } from "@/server/guards"
-import { findMembership } from "@/server/project/access"
-import { listInvitesForMe } from "@/server/project/invites"
 import { projectNoticeDetailsFor } from "@/server/project/notices"
 import { eachOf } from "@/server/project/teams"
 import {
@@ -24,7 +22,6 @@ import {
   deleteStep,
   deleteTask,
   handBackTask,
-  loadMyWork,
   loadTaskDetail,
   setTaskStatus,
   updateStep,
@@ -40,17 +37,6 @@ const loadTaskFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .inputValidator(z.object({ taskId: id }))
   .handler(async ({ data, context }) => loadTaskDetail(context.user.id, data.taskId))
-
-/** My work, plus what the page needs when there is no team yet. */
-const loadMyWorkFn = createServerFn({ method: "GET" })
-  .middleware([userGet])
-  .handler(async ({ context }) => {
-    const membership = await findMembership(context.user.id)
-    if (!membership) {
-      return { onTeam: false, tasks: [], invites: await listInvitesForMe(context.user) }
-    }
-    return { onTeam: true, tasks: await loadMyWork(context.user.id), invites: [] }
-  })
 
 const createTaskFn = createServerFn({ method: "POST" })
   .middleware([userPost])
@@ -131,9 +117,6 @@ const loadNoticeDetailsFn = createServerFn({ method: "GET" })
 
 export function loadTask(taskId: string) {
   return loadTaskFn({ data: { taskId } })
-}
-export function loadMyWorkPage() {
-  return loadMyWorkFn()
 }
 export function createProjectTask(data: z.input<typeof createTaskSchema>) {
   return createTaskFn({ data })

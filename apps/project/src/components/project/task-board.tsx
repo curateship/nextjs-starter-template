@@ -13,6 +13,7 @@ import { CircleAlertIcon, MessageSquareIcon, UndoIcon } from "lucide-react"
 import {
   DueDate,
   PersonAvatar,
+  PickedDaysBadge,
   StepsCount,
   WaitingBadge,
 } from "@/components/project/task-bits"
@@ -150,6 +151,7 @@ function BoardCard({
         ) : null}
         <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
           {task.waiting ? <WaitingBadge /> : null}
+          <PickedDaysBadge pickedDays={task.pickedDays} status={task.status} />
           <DueDate dueDate={task.dueDate} status={task.status} />
           <StepsCount steps={task.steps} />
           {task.commentCount ? (

@@ -4,9 +4,11 @@ import { Loader2Icon, PlusIcon, Trash2Icon, UndoIcon } from "lucide-react"
 
 import {
   PersonAvatar,
+  PickedDaysBadge,
   StatusBadge,
   WaitingBadge,
 } from "@/components/project/task-bits"
+import { TaskHistoryCard } from "@/components/project/task-history-card"
 import { dateFromKey, keyFromDate } from "@/lib/project/dates"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -64,9 +66,9 @@ const authenticatedRoute = getRouteApi("/_authenticated")
 const NOBODY = "nobody"
 
 /**
- * One task, opened from the board, the list, My work or a bell notice. Every
- * field saves on its own as it is changed, so the window ends with Done
- * rather than Save. Reasons for Stuck and for handing back are typed in the
+ * One task, opened from the board, the list, My dashboard, the Team dashboard
+ * or a bell notice. Every field saves on its own as it is changed, so the
+ * window ends with Done rather than Save. Reasons for Stuck and for handing back are typed in the
  * window itself, never in a second window on top of it.
  */
 export function TaskDialog({
@@ -251,6 +253,7 @@ function TaskForm({
           <span className="truncate">{task.title}</span>
           <StatusBadge status={task.status} />
           {task.waiting ? <WaitingBadge /> : null}
+          <PickedDaysBadge pickedDays={task.pickedDays} status={task.status} />
         </DialogTitle>
         <DialogDescription>
           {task.projectName}
@@ -451,6 +454,7 @@ function TaskForm({
 
         <StepsCard taskId={task.id} steps={detail.steps} readOnly={readOnly} change={change} busy={busy} />
         <CommentsCard detail={detail} readOnly={readOnly} change={change} busy={busy} />
+        <TaskHistoryCard detail={detail} />
       </DialogBody>
       <DialogFooter>
         {detail.canDelete && !readOnly ? (
