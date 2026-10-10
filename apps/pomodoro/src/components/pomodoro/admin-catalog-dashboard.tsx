@@ -18,8 +18,10 @@ import {
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import {
+  ChevronDownIcon,
   EyeIcon,
   EyeOffIcon,
+  FilmIcon,
   GripVerticalIcon,
   ImageIcon,
   ImportIcon,
@@ -37,6 +39,12 @@ import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import {
   Select,
   SelectContent,
@@ -63,6 +71,7 @@ import {
 } from "@/components/pomodoro/admin-delete"
 import { AdminCatalogDialog } from "@/components/pomodoro/admin-catalog-dialog"
 import { AdminCatalogImportDialog } from "@/components/pomodoro/admin-catalog-import-dialog"
+import { AdminCatalogYoutubeDialog } from "@/components/pomodoro/admin-catalog-youtube-dialog"
 import {
   createCatalogDraftsFromFiles,
   deleteCatalogItems,
@@ -99,6 +108,7 @@ import {
 import type { SoundReference } from "@/lib/pomodoro/sound-catalog"
 import { usePreviewAudio } from "@/lib/pomodoro/use-preview-audio"
 import { waitsForPixabayFile } from "@/lib/pomodoro/pixabay-links"
+import { isYoutubeClipImport } from "@/lib/pomodoro/youtube-links"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
@@ -277,6 +287,7 @@ export function AdminCatalogDashboard({
   }
 
   const [importing, setImporting] = React.useState(false)
+  const [clipping, setClipping] = React.useState(false)
   const bulkInputRef = React.useRef<HTMLInputElement>(null)
   const uploadSeveral = async (files: File[]) => {
     if (files.length > CATALOG_BULK_MAX) {
@@ -498,17 +509,41 @@ export function AdminCatalogDashboard({
               )}
               Upload several
             </DashboardToolbarButton>
-            {/* "Pixabay" on its face so the toolbar fits on one line at 1440px;
-                its name for a screen reader says what it does. */}
-            <DashboardToolbarButton
-              type="button"
-              variant="outline"
-              aria-label="Import from Pixabay"
-              onClick={() => setImporting(true)}
-            >
-              <ImportIcon className="size-4" />
-              Pixabay
-            </DashboardToolbarButton>
+            {kind === "theme" ? (
+              // Two ways in share one button so the toolbar still fits on one
+              // line at 1440px. A clip is a film, so Sounds has no menu.
+              <DropdownMenu modal={false}>
+                <DropdownMenuTrigger asChild>
+                  <DashboardToolbarButton type="button" variant="outline">
+                    <ImportIcon className="size-4" />
+                    Import
+                    <ChevronDownIcon className="size-4" />
+                  </DashboardToolbarButton>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onSelect={() => setImporting(true)}>
+                    <ImportIcon aria-hidden="true" />
+                    Pixabay links
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => setClipping(true)}>
+                    <FilmIcon aria-hidden="true" />
+                    YouTube clip
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              // "Pixabay" on its face so the toolbar fits on one line at
+              // 1440px; its name for a screen reader says what it does.
+              <DashboardToolbarButton
+                type="button"
+                variant="outline"
+                aria-label="Import from Pixabay"
+                onClick={() => setImporting(true)}
+              >
+                <ImportIcon className="size-4" />
+                Pixabay
+              </DashboardToolbarButton>
+            )}
             <DashboardToolbarButton type="button" onClick={() => setOpen("new")}>
               <PlusIcon className="size-4" />
               {words.create}
@@ -567,6 +602,13 @@ export function AdminCatalogDashboard({
         onClose={() => setImporting(false)}
         onImported={list.refresh}
       />
+      {kind === "theme" ? (
+        <AdminCatalogYoutubeDialog
+          open={clipping}
+          onClose={() => setClipping(false)}
+          onImported={list.refresh}
+        />
+      ) : null}
       <AdminDeleteConfirm
         del={del}
         title={
@@ -737,7 +779,11 @@ function CatalogRow({
 /** What the worker is doing with a new file, when it is doing anything. */
 function fileLine(row: AdminCatalogRow) {
   if (row.fileStatus === "queued" || row.fileStatus === "processing")
-    return row.importUrl ? "Fetching from Pixabay" : "Preparing the file"
+    return row.importUrl
+      ? isYoutubeClipImport(row.importUrl)
+        ? "Fetching from YouTube"
+        : "Fetching from Pixabay"
+      : "Preparing the file"
   if (row.fileStatus === "failed")
     return row.fileError ? `File refused: ${row.fileError}` : "File refused"
   if (waitsForPixabayFile(row)) return "Needs the file from Pixabay"

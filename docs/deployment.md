@@ -57,7 +57,7 @@ no website calls these programs.
 
 | App | `WORKER_PACKAGES` | Why |
 | --- | --- | --- |
-| Pomodoro | `ffmpeg` | Uploaded sounds and clips, and every AI background and soundscape, are re-encoded by the `pomodoro-media-uploads` and `pomodoro-generations` workers. Without it each card says "Sound and video cannot be prepared yet." |
+| Pomodoro | `ffmpeg yt-dlp` | Uploaded sounds and clips, and every AI background and soundscape, are re-encoded by the `pomodoro-media-uploads` and `pomodoro-generations` workers. Without FFmpeg each card says "Sound and video cannot be prepared yet." The `pomodoro-youtube-imports` worker calls `yt-dlp` to fetch 5 seconds of a YouTube video for a theme; without it the row says "yt-dlp is not installed on this server". Alpine 3.24's `yt-dlp` was 2026.08.19 on 10 Oct 2026 and fetched a clip inside the worker image. |
 | Video | not set yet | Its workers call `ffmpeg`, `ffprobe` and `yt-dlp` (`apps/video/src/server/video/media-workers.ts`, `viral/download.ts`), so its production worker cannot prepare media until this is set. Video's own task, not checked here. |
 | Custom Shell, Trade, CMS | not set | Nothing in their workers calls an outside program. |
 

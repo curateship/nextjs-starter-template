@@ -110,9 +110,11 @@ and one for sounds. Add ability to add sound and theme in admin dashboard
 
 ## Import from Pixabay
 
-"Import from Pixabay" sits beside Upload several on both pages. The button reads
-"Pixabay" so the toolbar stays on one line at 1440px; a screen reader hears
-"Import from Pixabay". The admin
+"Import from Pixabay" sits beside Upload several on both pages. On Sounds the
+button reads "Pixabay"; a screen reader hears "Import from Pixabay". On Themes
+it is "Pixabay links" in the Import menu, which also holds "YouTube clip" (see
+[Make a theme from a YouTube clip](#make-a-theme-from-a-youtube-clip)). One
+button holding both keeps the toolbar on one line at 1440px. The admin
 pastes up to 25 pixabay.com page links, one per line, and each good link
 becomes a Draft with its name, source link and the licence "Free to use"
 (note "Pixabay Content Licence") already filled in. Tyler asked for this on
@@ -213,6 +215,96 @@ from Pixabay" meanwhile.
 - **Live is refused until the file is ready**, by the check every sound
   already has.
 
+## Make a theme from a YouTube clip
+
+"YouTube clip" in the Import menu on Themes opens a window with a YouTube link
+and a "Start at" time. Create theme makes a Draft holding the 5 seconds from
+that start, with no sound. Tyler asked on 10 Oct 2026: "Is it possible to add a
+theme by enter in a youtube url and the app capture 5 seconds of that video and
+add it?"
+
+- **Tyler's rule, 10 Oct 2026: "it should be capturing the 4k version".** A
+  clip keeps the video's own size, up to 4K (3840 by 2160), and its own frame
+  rate. It is the one film in the catalogue that is not shrunk to 720p:
+  uploads and Pixabay films still are. Blender's Big Buck Bunny from 3:00 came
+  out 3840 by 2160 at 60 frames a second and 5.4 MB, and a rainy lo-fi scene
+  3840 by 2160 at 30 and 7.8 MB.
+
+- **Tyler's rule, 10 Oct 2026: admins only.** Members have no way to make a
+  clip. Sounds has no menu either, because a clip is a film.
+- **Only the admin's own videos, or ones marked Creative Commons.** A YouTube
+  video belongs to whoever posted it, and YouTube's terms forbid downloading,
+  so the window says so above the fields. A clip is made with the licence
+  "Other, see the note" and the note "From YouTube", never "Free to use", so
+  the admin sets the licence on purpose before making it Live.
+- **Which links work.** `youtube.com/watch?v=`, `youtu.be/`, `/shorts/`,
+  `/embed/` and `/live/`, with or without `www.` or `m.`. A playlist, a
+  channel, a search or another site is refused under the field: "That is a
+  playlist. Paste one video's link." One reader serves the window and the
+  server (`src/lib/pomodoro/youtube-links.ts`).
+- **The start.** Typed as `95`, `1:35` or `1:02:05`. Left empty, the link's
+  own time is used (`t=95`, `t=1m35s`), and with neither the clip starts at
+  0:00. `1:75` is refused rather than read as 2:15.
+- **The same stretch is never made twice.** The clip is stored as
+  `https://www.youtube.com/watch?v=<id>&t=<seconds>`, in both the source link
+  and `import_url`. The same address again is refused under the link: "That
+  stretch is already in the catalogue as Big Buck Bunny." Another start of the
+  same video is a different scene and is let through.
+- **One request, one Draft** (`importThemeFromYoutube` in
+  `youtube-import.ts`), with one `catalog_import` audit row. At most 20 clips
+  per admin in ten minutes, the same as Pixabay.
+- **The row** says "Fetching from YouTube" until the clip arrives, then
+  "Preparing the file" while the catalogue worker takes its still. The page
+  does not refresh by itself, the same as a Pixabay import.
+
+### Fetching the clip
+
+The `pomodoro-youtube-imports` worker (`youtube-worker.ts`) takes one row per
+pass whose `import_url` is a YouTube address. The Pixabay worker takes only
+pixabay.com addresses, so neither ever claims the other's row. Both share one
+queue (`link-imports.ts`).
+
+- **Two programs, one job each** (`youtube-clip.ts`). yt-dlp, a free program
+  that reads YouTube, says what the video is and where its picture-only
+  stream lives, choosing the largest up to 4K, and downloads nothing. FFmpeg
+  then reads just those 5 seconds from the stream and writes them once, as
+  H.264 in an MP4 with no sound, which every browser plays.
+- **Why yt-dlp does not cut the clip itself.** It re-encodes into the
+  stream's own format, and YouTube's 4K is often VP9 in WebM. For 5 seconds
+  of Big Buck Bunny that took 166 seconds of processor time, against 34 this
+  way. Inside the worker's own Alpine image the cut took 46 seconds.
+- **FFmpeg is only ever pointed at an https stream**, may open nothing but
+  secure web connections while reading it (`-protocol_whitelist`), and gets
+  only the headers yt-dlp names that hold no line break. A failed cut is logged by
+  FFmpeg's last line only, never the signed stream address.
+- **yt-dlp uses the worker's own Node** to answer YouTube's checks
+  (`--js-runtimes node:<path>`), so nothing else is installed for it.
+- **The clip is stored under its own name**, `pomodoro-catalog/sources/youtube-<id>.mp4`
+  (`YOUTUBE_SOURCE_PREFIX` in `admin-catalog.ts`). The catalogue worker keeps
+  a file with that name as it is, at full size, and only takes the frame
+  halfway through as the still. A browser upload can never be stored under
+  that name. The video's title becomes the name, cut to 60 characters, and its
+  channel the artist. A name or artist the admin typed meanwhile is kept.
+- **When YouTube says no.** These fail the row at once, with the reason after
+  "File refused:":
+  - a start too late: "The video is only 3:20 long, so the clip must start by
+    3:15."
+  - a live stream: "That video has no fixed length, such as a live stream."
+  - a private, removed or age-locked video: yt-dlp's own words, such as
+    "Private video. Sign in if you've been granted access".
+  - YouTube's bot check: "YouTube refused the server. Tyler has to decide how
+    to get round it."
+  - no yt-dlp or no FFmpeg: "yt-dlp is not installed on this server", or the
+    same for FFmpeg.
+- **Anything else is tried again**, once a pass, three times, then "The YouTube
+  clip could not be fetched". That covers a timeout, YouTube's "Too Many
+  Requests", and a stream it refused after naming the video (a 403).
+- **An old yt-dlp is refused by YouTube.** On 10 Oct 2026 version 2026.06.09
+  got "HTTP Error 403: Forbidden" on every video, and 2026.08.19 worked. The
+  worker installs it from Alpine's packages when its image is built (see the
+  repo's `docs/deployment.md`), so a rebuild picks up a newer one. A Mac
+  running the dev server needs `brew upgrade yt-dlp` now and then.
+
 ## The window
 
 `admin-catalog-dialog.tsx`, three cards:
@@ -253,8 +345,9 @@ holds theirs back.
 
 - **A sound** is measured, refused outside 2 to 5 minutes, then evened out for
   loudness (`loudnorm`) into an MP3.
-- **A film** is shrunk to 720p with no sound, and the frame halfway through it
-  becomes the still, replacing the old one (`extractMiddleFrame` in
+- **A film** is shrunk to 720p with no sound, apart from a YouTube clip, which
+  arrives finished at up to 4K and is kept as it is. The frame halfway through
+  it becomes the still, replacing the old one (`extractMiddleFrame` in
   `media-transcode.ts`). A film whose length FFprobe cannot read gives its
   first frame instead.
 - **The item keeps its old file until the new one is ready.** A Live sound

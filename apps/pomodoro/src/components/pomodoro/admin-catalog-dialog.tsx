@@ -50,6 +50,7 @@ import {
 } from "@/lib/pomodoro/admin-catalog"
 import { normalizeTag } from "@/lib/pomodoro/media-pool"
 import { waitsForPixabayFile } from "@/lib/pomodoro/pixabay-links"
+import { isYoutubeClipImport } from "@/lib/pomodoro/youtube-links"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { useHeldWhileClosing } from "@/lib/pomodoro/use-held-while-closing"
 
@@ -713,9 +714,11 @@ function FileStatusLine({
   else if (draft.source)
     text = `${draft.source.name} is uploaded. It is prepared after you save, and replaces the current file once it is ready.`
   else if (item?.fileStatus === "queued" || item?.fileStatus === "processing")
-    text = item.importUrl
-      ? "Fetching from Pixabay. The picture, artist and tags arrive within a minute or two."
-      : "A new file is being prepared. The current one stays until it is ready."
+    text = !item.importUrl
+      ? "A new file is being prepared. The current one stays until it is ready."
+      : isYoutubeClipImport(item.importUrl)
+        ? "Fetching the clip from YouTube. The film, name and channel arrive within a minute or two."
+        : "Fetching from Pixabay. The picture, artist and tags arrive within a minute or two."
   else if (item?.fileStatus === "failed")
     text = `The last upload was refused: ${item.fileError ?? "it could not be prepared."}`
   // A file in place needs no word of its own: a theme shows its player, and

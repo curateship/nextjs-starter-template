@@ -9,6 +9,7 @@ import {
   findThemeNeedingMiddleStill,
   finishCatalogFile,
   setThemeMiddleStill,
+  YOUTUBE_SOURCE_PREFIX,
 } from "@/server/pomodoro/admin-catalog"
 import {
   FfmpegMissingError,
@@ -24,7 +25,8 @@ import { soundLengthProblem } from "@/lib/pomodoro/admin-catalog"
  *
  * A sound is measured first and refused outside 2 to 5 minutes (Tyler, 8 Oct
  * 2026), then loudness-evened like a member's upload. A film is shrunk to 720p
- * with no sound, and the frame halfway through it becomes the theme's still,
+ * with no sound, apart from a YouTube clip, which arrives finished at up to 4K
+ * (`YOUTUBE_SOURCE_PREFIX`). The frame halfway through it becomes the theme's still,
  * replacing the old one: an admin never uploads a still for a film (Tyler,
  * 9 Oct 2026). The item keeps whatever file it had until the new one is ready.
  *
@@ -68,7 +70,10 @@ export async function processNextCatalogFile() {
     }
 
     if (job.sourceKind === "video") {
-      const output = await transcodeUpload(input, "video")
+      // A YouTube clip arrives finished, up to 4K, so it is kept as it is.
+      const output = sourcePath.startsWith(YOUTUBE_SOURCE_PREFIX)
+        ? { bytes: input, mimeType: "video/mp4", extension: "mp4" }
+        : await transcodeUpload(input, "video")
       const filePath = `pomodoro-catalog/themes/${randomUUID()}.${output.extension}`
       await uploadToR2(filePath, output.bytes, output.mimeType)
       const frame = await extractMiddleFrame(output.bytes)

@@ -5,6 +5,7 @@ import { openDueRooms } from "@/server/pomodoro/scheduled-rooms"
 import { processNextMediaUpload } from "@/server/pomodoro/media-worker"
 import { processNextCatalogFile } from "@/server/pomodoro/catalog-worker"
 import { processPixabayImports } from "@/server/pomodoro/pixabay-worker"
+import { processYoutubeImports } from "@/server/pomodoro/youtube-worker"
 import { processNextGeneration } from "@/server/pomodoro/generation-worker"
 import {
   readFocusHoursRow,
@@ -159,6 +160,13 @@ export const appServerOptions: AppServerOptions = {
         // goes to pomodoro-catalog-files to be shrunk like an upload.
         name: "pomodoro-pixabay-imports",
         tick: processPixabayImports,
+      },
+      {
+        // Themes an admin made from 5 seconds of a YouTube video, one clip per
+        // pass, cut at up to 4K. The clip then goes to pomodoro-catalog-files,
+        // which keeps it at that size and takes its still.
+        name: "pomodoro-youtube-imports",
+        tick: processYoutubeImports,
       },
       {
         // AI backgrounds and soundscapes. One per pass, and its own worker
