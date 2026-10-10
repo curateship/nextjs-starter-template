@@ -75,11 +75,15 @@ import {
 } from "@/lib/api/trade/candles"
 import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
 import { useWideScreen } from "@/lib/layout/wide-screen"
-import { intervalMs, stitchCandles } from "@/lib/trade/chart-history"
+import {
+  groupCandles,
+  groupLiveBar,
+  intervalMs,
+  stitchCandles,
+} from "@/lib/trade/chart-history"
 import { saveQuickOrderPrefs } from "@/lib/api/trade/quick-order"
 import { protocolDescription } from "@/lib/api/trade/protocols"
 import {
-  CANDLE_INTERVALS,
   parseMarketKey,
   type CandleBar,
   type CandleInterval,
@@ -116,7 +120,13 @@ import {
   type RemovableTradeHistory,
 } from "@/lib/trade/live-trades"
 import { positionFees } from "@/lib/trade/position-fees"
-import { CHART_INTERVAL_FAVORITES_STORAGE_KEY } from "@/lib/trade/chart-interval"
+import {
+  CHART_INTERVAL_FAVORITES_STORAGE_KEY,
+  CHART_INTERVALS,
+  chartSourceInterval,
+  isGroupedChartInterval,
+  type ChartInterval,
+} from "@/lib/trade/chart-interval"
 import { TAKER_FEE_RATE } from "@/lib/trade/paper"
 import type {
   StopMerge,
@@ -208,7 +218,7 @@ function rememberDrawnChart(key: string, candles: CandleBar[]) {
   }
 }
 
-function readFavoriteIntervals(): CandleInterval[] {
+function readFavoriteIntervals(): ChartInterval[] {
   try {
     const stored = window.localStorage.getItem(
       CHART_INTERVAL_FAVORITES_STORAGE_KEY
@@ -217,7 +227,7 @@ function readFavoriteIntervals(): CandleInterval[] {
     const parsed: unknown = JSON.parse(stored)
     if (!Array.isArray(parsed)) return []
     const saved = new Set(parsed)
-    return CANDLE_INTERVALS.filter((option) => saved.has(option))
+    return CHART_INTERVALS.filter((option) => saved.has(option))
   } catch {
     return []
   }
@@ -233,8 +243,8 @@ export function IntervalPicker({
   onChange,
   phone = false,
 }: {
-  value: CandleInterval
-  onChange: (next: CandleInterval) => void
+  value: ChartInterval
+  onChange: (next: ChartInterval) => void
   /**
    * The phone header's one timeframe button. The favourites and the arrow both
    * go: pressing the timeframe itself opens the full list, which is what the
@@ -243,21 +253,21 @@ export function IntervalPicker({
   phone?: boolean
 }) {
   const [favoriteIntervals, setFavoriteIntervals] = React.useState<
-    CandleInterval[]
+    ChartInterval[]
   >([])
 
   useEffectBeforePaint(() => {
     setFavoriteIntervals(readFavoriteIntervals())
   }, [])
 
-  const headerIntervals = CANDLE_INTERVALS.filter(
+  const headerIntervals = CHART_INTERVALS.filter(
     (option) => option === value || favoriteIntervals.includes(option)
   )
 
-  function toggleFavorite(option: CandleInterval) {
+  function toggleFavorite(option: ChartInterval) {
     const next = favoriteIntervals.includes(option)
       ? favoriteIntervals.filter((favorite) => favorite !== option)
-      : CANDLE_INTERVALS.filter(
+      : CHART_INTERVALS.filter(
           (candidate) =>
             candidate === option || favoriteIntervals.includes(candidate)
         )
@@ -276,7 +286,7 @@ export function IntervalPicker({
 
   const menu = (
     <DropdownMenuContent align="end">
-      {CANDLE_INTERVALS.map((option) => {
+      {CHART_INTERVALS.map((option) => {
         const favorite = favoriteIntervals.includes(option)
         return (
           <div key={option} className="flex items-center gap-0.5">
@@ -339,7 +349,7 @@ export function IntervalPicker({
   return (
     <Tabs
       value={value}
-      onValueChange={(next) => onChange(next as CandleInterval)}
+      onValueChange={(next) => onChange(next as ChartInterval)}
       className="gap-0"
     >
       <div className="inline-flex h-8 w-fit items-center rounded-lg bg-muted/60 p-0.5 text-muted-foreground">
@@ -485,7 +495,12 @@ export function ChartPanel({
   cornerControl,
 }: {
   selectedKey: string | null
-  interval: CandleInterval
+  /**
+   * What the chart shows. A week or a month is fetched and streamed as day
+   * bars and grouped here, so everything that fetches, refreshes or places
+   * orders reads `barInterval` below instead.
+   */
+  interval: ChartInterval
   /**
    * The zoom and scroll this account left the chart at, from the route's
    * loader — so the first chart drawn is already at it.
@@ -586,6 +601,8 @@ export function ChartPanel({
   cornerControl?: React.ReactNode
 }) {
   const wide = useWideScreen()
+  const barInterval = chartSourceInterval(interval)
+  const groupedAs = isGroupedChartInterval(interval) ? interval : null
   // Only ever written from the fetch's callbacks. "Loading" is not stored:
   // an answer whose key does not match what is wanted right now IS the
   // loading state, so it cannot drift out of step with reality.
@@ -595,7 +612,7 @@ export function ChartPanel({
     candles: CandleBar[]
     error: string | null
   } | null>(() => {
-    const wanted = selectedKey ? `${selectedKey}@${interval}` : null
+    const wanted = selectedKey ? `${selectedKey}@${barInterval}` : null
     // A pending marker carries no bars yet; null here is the loading state
     // the panel shows until the streamed slice lands.
     return wanted && initialChart?.key === wanted && !initialChart.pending
@@ -622,11 +639,16 @@ export function ChartPanel({
   // the fetch effect then draws it, which the initialiser can never redo.
   const adoptedAtMount = React.useRef(
     selectedKey !== null &&
-      initialChart?.key === `${selectedKey}@${interval}` &&
+      initialChart?.key === `${selectedKey}@${barInterval}` &&
       initialChart?.pending === false
   )
 
-  const wanted = selectedKey ? `${selectedKey}@${interval}` : null
+  // The bars fetched, under the timeframe they were fetched in. A week chart
+  // and a day chart of one market share these, so moving between them asks
+  // for nothing. `shownKey` is what is drawn, which tells the price chart a
+  // week chart is a new chart and not more of the day one.
+  const wanted = selectedKey ? `${selectedKey}@${barInterval}` : null
+  const shownKey = selectedKey ? `${selectedKey}@${interval}` : null
   const needsOrbSource =
     indicators.orb?.on === true &&
     intervalMs(interval) > intervalMs(ORB_SOURCE_INTERVAL)
@@ -639,10 +661,21 @@ export function ChartPanel({
   // subscribes with this and applies each tick to its last candle itself.
   // Holding the bar in state here re-rendered this whole panel, and every
   // layer drawn over the chart, on every tick of the price.
+  //
+  // On a week or month chart the stream is today's day bar, folded into the
+  // forming week or month with the days before it that are already loaded.
+  const fetchedBars = React.useRef<CandleBar[]>([])
   const liveBars = React.useCallback(
     (onBar: (bar: CandleBar) => void) =>
-      watchLiveCandle(selectedKey, interval, onBar),
-    [selectedKey, interval]
+      watchLiveCandle(
+        selectedKey,
+        barInterval,
+        groupedAs
+          ? (today) =>
+              onBar(groupLiveBar(fetchedBars.current, today, groupedAs))
+          : onBar
+      ),
+    [selectedKey, barInterval, groupedAs]
   )
 
   // The feed came back after a gap: the working bar alone cannot patch a
@@ -1584,13 +1617,29 @@ export function ChartPanel({
   // lands — same render as the click, no shimmer, no settle wait. The live
   // feed keeps the forming bar moving either way, so the hand-off from
   // remembered bars to fresh ones is invisible.
-  const current = React.useMemo(() => {
+  const fetched = React.useMemo(() => {
     if (answer && answer.key === wanted) return answer
     const remembered = wanted ? drawnCharts.get(wanted) : undefined
     return remembered
       ? { key: wanted as string, candles: remembered, error: null }
       : null
   }, [answer, wanted])
+  useEffectBeforePaint(() => {
+    fetchedBars.current = fetched?.candles ?? []
+  }, [fetched])
+  const current = React.useMemo(
+    () =>
+      fetched && shownKey
+        ? {
+            key: shownKey,
+            candles: groupedAs
+              ? groupCandles(fetched.candles, groupedAs)
+              : fetched.candles,
+            error: fetched.error,
+          }
+        : null,
+    [fetched, shownKey, groupedAs]
+  )
 
   const orbCurrent = React.useMemo(() => {
     if (!orbWanted) return null
@@ -1789,7 +1838,7 @@ export function ChartPanel({
      * could not be loaded instead, with Try again.
      */
     const fillBehind = (venue: CandleBar[]) => {
-      loadOlderCandlesFor(selectedKey, interval)
+      loadOlderCandlesFor(selectedKey, barInterval)
         .then(({ candles: older, source, partial }) => {
           if (stale) return
           // Remembered only once rows really came back, and only when the
@@ -1854,7 +1903,7 @@ export function ChartPanel({
         // A refresh keeps what is already behind the venue's slice. Drawing
         // the slice alone would throw the older rows away for a bar.
         const previous = drawnCharts.get(wanted) ?? []
-        loadCandles(selectedKey, interval)
+        loadCandles(selectedKey, barInterval)
           .then(({ candles }) => {
             draw(
               previous.length > 0 ? stitchCandles(previous, candles) : candles
@@ -1887,7 +1936,7 @@ export function ChartPanel({
       stale = true
       clearTimeout(timeout)
     }
-  }, [selectedKey, interval, wanted, attempt, initialChart, onOlderBars])
+  }, [selectedKey, barInterval, wanted, attempt, initialChart, onOlderBars])
 
   // Refresh when a bar of this timeframe closes, so the chart appends it by
   // itself instead of waiting for a click. On the 1m chart that is the
@@ -1900,7 +1949,7 @@ export function ChartPanel({
     if (!wanted) return
     let timer = 0
     const arm = () => {
-      const barMs = intervalMs(interval)
+      const barMs = intervalMs(barInterval)
       const untilClose = barMs - (Date.now() % barMs) + 2_000
       timer = window.setTimeout(() => {
         // A hidden tab skips the refresh but MUST re-arm itself: bumping
@@ -1913,7 +1962,7 @@ export function ChartPanel({
     }
     arm()
     return () => window.clearTimeout(timer)
-  }, [wanted, interval, attempt])
+  }, [wanted, barInterval, attempt])
 
   /**
    * What is drawn over the candles, pinned with `useCallback` so the chart is
@@ -2242,7 +2291,7 @@ export function ChartPanel({
     current !== null &&
     !current.error &&
     current.candles.length === 0 &&
-    olderBars?.key !== current.key
+    olderBars?.key !== wanted
 
   useErrorToast(
     selectedKey && current && !waitingForBorrowedBars ? current.error : null,
@@ -2310,7 +2359,7 @@ export function ChartPanel({
               market's. Said on the pane that draws it, for the bars it
               covers, rather than left for somebody to assume. */}
           {options.volume &&
-          olderBars?.key === current.key &&
+          olderBars?.key === wanted &&
           olderBars.volumeNote ? (
             <span className="pointer-events-none absolute bottom-1 left-1 z-10 text-[10px] text-muted-foreground">
               {olderBars.volumeNote}
@@ -2504,7 +2553,7 @@ export function ChartPanel({
             market={market}
             equity={equity}
             free={free}
-            interval={interval}
+            interval={barInterval}
             busy={trading.busy}
             pairedWithGrid={trading.smartOrders.some(
               (one) =>
@@ -2832,7 +2881,7 @@ export function ChartPanel({
                 : equity
             }
             market={market}
-            interval={interval}
+            interval={barInterval}
             position={
               trading.positions.find(
                 (one) =>

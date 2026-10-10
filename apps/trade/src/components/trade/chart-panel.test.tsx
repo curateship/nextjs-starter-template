@@ -14,7 +14,7 @@ import type { ChartSurface } from "@/components/trade/price-chart"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { loadCandles, loadOlderCandlesFor } from "@/lib/api/trade/candles"
 import { bracketsWithStopAt } from "@/lib/trade/bracket-shortcuts"
-import type { CandleInterval } from "@/lib/protocols/contracts"
+import type { ChartInterval } from "@/lib/trade/chart-interval"
 import { DEFAULT_CHART_OPTIONS } from "@/lib/trade/chart-options"
 import { DEFAULT_TRADING_RULES } from "@/lib/trade/trading-rules"
 import { CHART_INTERVAL_FAVORITES_STORAGE_KEY } from "@/lib/trade/chart-interval"
@@ -178,7 +178,7 @@ afterEach(async () => {
 })
 
 function Picker() {
-  const [interval, setInterval] = React.useState<CandleInterval>("4h")
+  const [interval, setInterval] = React.useState<ChartInterval>("4h")
   return (
     <TooltipProvider>
       <IntervalPicker value={interval} onChange={setInterval} />
@@ -214,12 +214,14 @@ describe("the chart interval picker", () => {
       "1h",
       "4h",
       "1d",
+      "1w",
+      "1M",
     ])
 
     await act(async () => options.at(-1)?.click())
     expect(
       host.querySelector('[role="tab"][aria-selected="true"]')?.textContent
-    ).toContain("1d")
+    ).toContain("1M")
     expect(trigger).toBe(trigger?.parentElement?.lastElementChild)
   })
 

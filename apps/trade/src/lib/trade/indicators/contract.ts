@@ -1,4 +1,5 @@
-import type { CandleBar, CandleInterval } from "@/lib/protocols/contracts"
+import type { CandleBar } from "@/lib/protocols/contracts"
+import type { ChartInterval } from "@/lib/trade/chart-interval"
 import {
   clockTimeOfMinutes,
   minutesOfClockTime,
@@ -176,7 +177,7 @@ export type IndicatorContext = {
   /** The chart's one timezone. See `chart-timezone.ts`. */
   zone: TradingZoneId
   /** How long one candle lasts, so a setting in minutes can be checked. */
-  interval: CandleInterval
+  interval: ChartInterval
 }
 
 /** One indicator. The registry holds these; nothing else builds one. */
