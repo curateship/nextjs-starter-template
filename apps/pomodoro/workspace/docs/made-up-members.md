@@ -40,9 +40,9 @@ saves itself with no Save button ([Admin settings](admin-settings.md)).
 
 - **The count line** says "6 made, 2 focusing now". While a batch is being
   made it says "32 of 40 made" and reads the count again every 3 seconds.
-- **How many** (0 to 200, 100 to start) is how many there should be.
-  Lowering it never removes anybody; it only stops new ones. Ten rooms at all
-  times needs a hundred (see "Rooms").
+- **How many** (0 to 200, 130 to start) is how many there should be.
+  Lowering it never removes anybody; it only stops new ones. It was 100 until
+  Tyler's "Add 30 more made up profiles" on 10 Oct 2026 (see "Rooms").
 - **Hours a day** (1 to 6, 3 to start) is the most any of them focuses in one
   day. No account ever plans more, and the worker shortens or skips a session
   that would take today past it, even on a day the number was lowered half way
@@ -207,11 +207,14 @@ soon, then six to join.
 
 - **Made-up rooms wait between rounds.** They are opened with auto-start off,
   so every break ends in "waiting to start", which is listed.
-- **A host with nobody real in its room presses Start only while six other
-  rooms stay listed**, counting none that are already counting down.
-- **While fewer than three rooms count down, a waiting host presses Start at
-  once** with a countdown of 8 to 15 minutes, and the room shows under
-  Starting soon until it ends.
+- **While fewer than three rooms count down, a waiting host with company
+  presses Start at once** with a countdown of 8 to 15 minutes, and the room
+  shows under Starting soon until it ends. It needs no six others for that,
+  because a room counting down stays listed. Tyler, 10 Oct 2026: "the
+  starting in... always have 3+ rooms"; asking for six others had left
+  Starting soon short a tenth of the day.
+- **Any other Start, by a host with nobody real in its room, waits for six
+  other rooms to stay listed**, counting none that are already counting down.
 - **Why 8 to 15 minutes and not the 1 to 5 Tyler first said.** Three rooms
   counting down 3 minutes each need a new start every minute, and each start
   takes a room off the list for half an hour or more of focus. A hundred
@@ -253,13 +256,15 @@ soon, then six to join.
   nobody awake is free, somebody from a room with two or more made-up members
   to spare, nobody real in it and not mid-focus says goodbye there and moves
   over (`moveSomebodyIn`).
-- **Tested**: a hundred accounts in their own cities over a whole simulated
-  day, checked every two minutes, kept six or more rooms on Open to join at
-  every check, Starting soon full (three) more than 80 checks in 100 and
-  empty under 1 in 100, and no listed room with only its host for more than
-  ten minutes (`simulated-rooms.test.ts`). Measured over eight such days:
-  Starting soon empty at none to four checks of 690, which is when the list
-  is down to six and no room may start without taking it under.
+- **Tested**: 130 accounts in their own cities over a whole simulated day,
+  checked every two minutes, keep six or more rooms on Open to join at every
+  check, Starting soon at three or more in over 95 checks in 100, and no
+  listed room with only its host for more than ten minutes
+  (`simulated-rooms.test.ts`). Measured on 10 Oct 2026: 100 accounts with
+  the old rule, three or more 88 checks in 100; 130 accounts, 90; 130 with
+  the new rule, 99 (680 of 690). Keeping a fourth spare, starting the next
+  countdown two minutes early and keeping twenty rooms open each changed
+  nothing.
 
 ### When somebody real joins
 

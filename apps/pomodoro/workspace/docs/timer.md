@@ -152,6 +152,16 @@ used to do. Zen mode still shows the name.
 
 - **Three modes** — Focus, Short break and Long break — as segmented tabs.
   Lengths come from the saved preferences (defaults 25/5/15 minutes).
+- **No break before the first focus of a round.** Tyler, 10 Oct 2026: "I can
+  click on short break and longer before a pomo timer start. I should not be
+  able to do that." While the timer sits on a focus nobody has started and no
+  focus of the round is done, pressing a break tab keeps Focus selected and
+  says "Start a focus first. The breaks come after one." The tabs stay
+  pressable rather than greyed out. Once a focus has run, or one is done, the
+  breaks are there as before.
+- **A logged-out visitor is sent to sign in** by a click on the Tasks box, its
+  Add task button or the Auto-start switch, and comes back to the timer.
+  Tyler, 10 Oct 2026.
 - **The orange chip slides** from one tab to the next over 300ms instead of
   blinking out and in. The chip is one layer behind the labels, and its
   position and width are measured from the live buttons

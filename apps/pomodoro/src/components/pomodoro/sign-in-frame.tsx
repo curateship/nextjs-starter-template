@@ -1,8 +1,7 @@
 import * as React from "react"
 
-import type { AccountMenuUser } from "@/components/pomodoro/account-menu"
 import { PomodoroShell } from "@/components/pomodoro/pomodoro-shell"
-import { loadCurrentUser } from "@/lib/api/auth/auth"
+import { useSignedInUser } from "@/lib/pomodoro/use-signed-in-user"
 
 /**
  * The product shell around the shell's signed-out pages: sign in, register,
@@ -46,22 +45,4 @@ export default function SignInFrame({
       <div className="-mt-[440px] flex justify-center pb-10">{children}</div>
     </PomodoroShell>
   )
-}
-
-function useSignedInUser() {
-  const [user, setUser] = React.useState<AccountMenuUser | null>(null)
-  React.useEffect(() => {
-    let cancelled = false
-    void loadCurrentUser()
-      .then((found) => {
-        if (!cancelled) setUser(found)
-      })
-      // Signed out is the answer most of these pages expect, and a failed
-      // look-up draws exactly that: Log in and Register.
-      .catch(() => undefined)
-    return () => {
-      cancelled = true
-    }
-  }, [])
-  return user
 }

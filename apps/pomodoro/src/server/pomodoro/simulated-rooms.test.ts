@@ -173,11 +173,11 @@ async function listedForReal() {
   return (await listPublicRooms(realId)).filter((row) => row.room.phase !== "focus")
 }
 
-describe("a hundred accounts over a day", () => {
+describe("130 accounts over a day", () => {
   it("keep six rooms on Open to join and three under Starting soon all day, none alone for long, in varied rhythms and scenes", async () => {
-    // Their own cities this time, spread round the world: a hundred, the
-    // default, which the rooms at all times with company in them need.
-    for (let index = 0; index < 100; index += 1)
+    // Their own cities this time, spread round the world: 130, the default
+    // since Tyler's "Add 30 more made up profiles" on 10 Oct 2026.
+    for (let index = 0; index < 130; index += 1)
       await db.transaction((tx) => makeSimulatedAccount(tx, { historyDays: 0, hoursCap: 3, themes: [], now: NOON }))
     const start = new Date("2099-03-04T00:00:00Z")
     const thin: string[] = []
@@ -210,14 +210,19 @@ describe("a hundred accounts over a day", () => {
     // the list is down to six and no room may start: measured at none to four
     // checks of 690 in a day, so at most one in a hundred here.
     expect(soonCounts.filter((count) => count === 0).length / soonCounts.length).toBeLessThan(0.01)
-    expect(soonCounts.filter((count) => count >= STARTING_SOON_WANTED).length / soonCounts.length).toBeGreaterThan(0.8)
+    expect(soonCounts.filter((count) => count >= STARTING_SOON_WANTED).length / soonCounts.length).toBeGreaterThan(0.95)
 
     const hosts = (await db.select().from(pomodoroSimulatedAccounts)).flatMap((row) => row.habits.host ?? [])
-    expect(hosts).toHaveLength(50)
+    const [{ themes, sounds }] = await db.execute<{ themes: number; sounds: number }>(
+      sql`select
+        (select count(*)::int from pomodoro_catalog_items where kind = 'theme' and status = 'live' and picture_url is not null) as themes,
+        (select count(*)::int from pomodoro_catalog_items where kind = 'sound' and status = 'live') as sounds`
+    ).then((result) => (Array.isArray(result) ? result : (result as { rows: { themes: number; sounds: number }[] }).rows))
+    // Half host, as far as the catalogue's scene and sound pairs go: every
+    // host has a pair of its own, and the test catalogue has fewer pairs than
+    // 65 hosts would need.
+    expect(hosts).toHaveLength(Math.min(65, themes * sounds))
     expect(new Set(hosts.map((host) => `${host.focusMinutes}/${host.shortBreakMinutes}/${host.longBreakMinutes}`)).size).toBeGreaterThanOrEqual(4)
-    const [{ themes }] = await db.execute<{ themes: number }>(
-      sql`select count(*)::int as themes from pomodoro_catalog_items where kind = 'theme' and status = 'live' and picture_url is not null`
-    ).then((result) => (Array.isArray(result) ? result : (result as { rows: { themes: number }[] }).rows))
     expect(new Set(hosts.map((host) => host.background)).size).toBe(Math.min(40, themes))
 
     // People arrive minutes apart, and some leave before their room closes.

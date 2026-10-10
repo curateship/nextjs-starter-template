@@ -672,16 +672,18 @@ async function tendWaiting(room: Room, tended: TendedRoom, now: Date) {
     if (enoughOthers || deepNight) await closeRoom(room, now)
     return false
   }
-  // Every start leaves six other rooms on the list, so the three counting
-  // down come on top of the six.
-  if (!enoughOthers) return false
   // "At least 3 starting in...": while fewer than three rooms count down a
   // minute or more, this one starts an 8-to-15-minute countdown now
-  // (`longCountdownFor` says why so long). It stays listed until it ends.
-  // Only once somebody besides the host is in: a card under Starting soon
-  // with one face on it looks dead.
+  // (`longCountdownFor` says why so long). It stays listed while it counts,
+  // so it needs no six others to start: asking for them left Starting soon
+  // short a tenth of the day. Tyler, 10 Oct 2026: "the starting in... always
+  // have 3+ rooms"; measured over a simulated day at 130 members, three or
+  // more went from 90 checks in 100 to 99. Only once somebody besides the
+  // host is in: a card under Starting soon with one face on it looks dead.
   if (members.length >= 2 && (await startingSoonCount(now)) < STARTING_SOON_WANTED)
     return hostStarts(room, tended, now, "long")
+  // Any other start leaves six other rooms on the list.
+  if (!enoughOthers) return false
   // An ordinary start keeps three more listed than that, spare for the next
   // countdowns, so rooms do not all slip into focus where nobody sees them.
   if (others < MIN_OPEN_ROOMS + STARTING_SOON_WANTED) return false

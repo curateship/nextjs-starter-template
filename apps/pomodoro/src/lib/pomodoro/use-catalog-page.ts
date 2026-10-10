@@ -1,7 +1,8 @@
 import * as React from "react"
 
 /** How many cards one page of a picker shows: two rows of four. */
-const CATALOG_PER_PAGE = 8
+// Tyler, 10 Oct 2026: "the background and sound page should list 16 items".
+const CATALOG_PER_PAGE = 16
 
 /**
  * One page of a picker's cards, and where that page is. The Sounds and Theme
