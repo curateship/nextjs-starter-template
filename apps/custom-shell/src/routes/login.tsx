@@ -60,7 +60,7 @@ export const Route = createFileRoute("/login")({
 function LoginRoute() {
   const navigate = useNavigate()
   const appName = useAppName()
-  const { google } = Route.useLoaderData()
+  const { google, passkeys } = Route.useLoaderData()
   const { redirect: redirectTo, error: signInFailure } = Route.useSearch()
   const [email, setEmail] = React.useState("")
   const [password, setPassword] = React.useState("")
@@ -250,12 +250,14 @@ function LoginRoute() {
           redirectTo={safeRedirectPath(redirectTo)}
         />
       ) : null}
-      <PasskeySignIn
-        redirectTo={safeRedirectPath(redirectTo)}
-        // Google's block already draws the divider that separates the other
-        // ways in from the password form; only draw one when it is absent.
-        withDivider={!google}
-      />
+      {passkeys ? (
+        <PasskeySignIn
+          redirectTo={safeRedirectPath(redirectTo)}
+          // Google's block already draws the divider that separates the other
+          // ways in from the password form; only draw one when it is absent.
+          withDivider={!google}
+        />
+      ) : null}
     </AuthShell>
   )
 }

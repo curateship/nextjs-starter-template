@@ -38,6 +38,7 @@ import { isOwnedImageUrl } from "@/server/media/library"
 import { clearRateLimit, enforceRateLimit } from "@/server/auth/rate-limit"
 import { enforceLoginRateLimit } from "@/server/auth/login-lockout"
 import { googleSignInEnabled } from "@/server/auth/google"
+import { readShellGlobals } from "@/server/shell-settings"
 import {
   customShellSessions,
   customShellUsers,
@@ -247,6 +248,8 @@ const authErrorMessages: Record<string, string> = {
   PASSKEY_FAILED: "That passkey could not be checked. Please try again.",
   PASSKEY_EXISTS: "That passkey is already saved to an account.",
   PASSKEY_NOT_FOUND: "That passkey is already removed.",
+  PASSKEYS_OFF:
+    "Passkeys are switched off here. Sign in with your password or an emailed link instead.",
   SUBSCRIPTION_CANCEL_FAILED:
     "We could not cancel your paid plan, so your account was not deleted. Please try again in a moment.",
   REFERRAL_NOT_FOUND:
@@ -297,15 +300,17 @@ const loadCurrentUserFn = createServerFn({ method: "GET" }).handler(
 /**
  * What the signed-out pages need to know before they draw themselves: the
  * Turnstile site key for the forms that carry the widget (null when the check
- * is switched off), and whether to offer "Continue with Google".
+ * is switched off), whether to offer "Continue with Google", and whether an
+ * admin has left "Sign in with a passkey" switched on in Settings.
  *
- * Both are public values that ship inside the page, and both are decided by the
+ * All are public values that ship inside the page, and all are decided by the
  * server so a button is never shown that this server cannot finish.
  */
 const loadSignInOptionsFn = createServerFn({ method: "GET" }).handler(
   async () => ({
     siteKey: getHumanCheckSiteKey(),
     google: googleSignInEnabled(),
+    passkeys: (await readShellGlobals()).passkeySignIn,
     linkExpiry: await getAuthLinkExpiry(await visitorWorkspaceId()),
   })
 )
