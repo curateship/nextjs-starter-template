@@ -12,7 +12,6 @@ import { loadPomodoroEntitlements } from "@/server/pomodoro/entitlements"
 import {
   assertCanUpload,
   countUploadsAhead,
-  deletePomodoroUpload,
   listPomodoroUploads,
   loadUploadTagSuggestions,
   editPomodoroUpload as saveUploadEdit,
@@ -21,7 +20,15 @@ import {
   validateUploadContentLength,
   validateUploadLabels,
   type StoredUpload,
+  type UploadView,
 } from "@/server/pomodoro/media-uploads"
+import {
+  emptyBin,
+  moveUploadsToBin,
+  restoreUploads,
+  type BinResult,
+} from "@/server/pomodoro/upload-bin"
+import { checkStorageWarning } from "@/server/pomodoro/storage-warning"
 import {
   suggestUploadLabels,
   type SuggestedLabels,
@@ -36,7 +43,7 @@ import {
   type UploadTrim,
 } from "@/lib/pomodoro/upload-labels"
 
-export type { StoredUpload, SuggestedLabels }
+export type { BinResult, StoredUpload, SuggestedLabels, UploadView }
 
 /** What a member has uploaded for one picker, and how full their account is. */
 export type UploadLibrary = {
@@ -85,14 +92,19 @@ const purposeSchema = z.enum(["background", "sound"])
 
 const libraryFn = createServerFn({ method: "GET" })
   .middleware([userGet])
-  .inputValidator(z.object({ purpose: purposeSchema }))
+  .inputValidator(
+    z.object({ view: z.enum(["background", "sound", "bin"]) })
+  )
   .handler(async ({ data, context }): Promise<UploadLibrary> => {
     const [uploads, entitlements, storage, knownTags, settings] =
       await Promise.all([
-        listPomodoroUploads(context.user.id, data.purpose),
+        listPomodoroUploads(context.user.id, data.view),
         loadPomodoroEntitlements(context.user.id),
         loadAccountStorage(context.user.id),
-        loadUploadTagSuggestions(context.user.id, data.purpose),
+        // The bin offers nothing to tag.
+        data.view === "bin"
+          ? Promise.resolve([])
+          : loadUploadTagSuggestions(context.user.id, data.view),
         loadAppSettings(),
       ])
     return {
@@ -167,6 +179,7 @@ const uploadFn = createServerFn({ method: "POST" })
         detected,
         labels,
       })
+      await checkStorageWarning(context.user.id)
       return {
         ...stored,
         ahead:
@@ -180,13 +193,28 @@ const uploadFn = createServerFn({ method: "POST" })
     }
   })
 
-const deleteFn = createServerFn({ method: "POST" })
+/** One file or several, in one request, as the card's bin and the selection bar send them. */
+const idsSchema = z.object({
+  mediaIds: z.array(z.string().uuid()).min(1).max(200),
+})
+
+const binFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .inputValidator(z.object({ mediaId: z.string().uuid() }))
-  .handler(async ({ data, context }) => {
-    await deletePomodoroUpload(context.user.id, data.mediaId)
-    return { deleted: data.mediaId }
-  })
+  .inputValidator(idsSchema)
+  .handler(async ({ data, context }) =>
+    moveUploadsToBin(context.user.id, data.mediaIds)
+  )
+
+const restoreFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(idsSchema)
+  .handler(async ({ data, context }) =>
+    restoreUploads(context.user.id, data.mediaIds)
+  )
+
+const emptyBinFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .handler(async ({ context }) => emptyBin(context.user.id))
 
 const editFn = createServerFn({ method: "POST" })
   .middleware([userPost])
@@ -253,8 +281,8 @@ const suggestFn = createServerFn({ method: "POST" })
     })
   })
 
-export const loadUploadLibrary = (purpose: PomodoroUploadPurpose) =>
-  libraryFn({ data: { purpose } })
+export const loadUploadLibrary = (view: UploadView) =>
+  libraryFn({ data: { view } })
 
 export const suggestPomodoroUploadLabels = (
   fileName: string,
@@ -359,5 +387,13 @@ export function isUploadCancelled(error: unknown) {
   return error instanceof DOMException && error.name === "AbortError"
 }
 
-export const removePomodoroUpload = (mediaId: string) =>
-  deleteFn({ data: { mediaId } })
+/** Moves files to the 30-day bin. */
+export const binPomodoroUploads = (mediaIds: string[]) =>
+  binFn({ data: { mediaIds } })
+
+/** Brings files back from the bin. */
+export const restorePomodoroUploads = (mediaIds: string[]) =>
+  restoreFn({ data: { mediaIds } })
+
+/** Removes every file in the bin for good. */
+export const emptyPomodoroBin = () => emptyBinFn()

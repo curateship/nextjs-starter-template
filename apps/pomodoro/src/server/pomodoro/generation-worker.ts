@@ -14,6 +14,8 @@ import {
   transcodeUpload,
 } from "@/server/pomodoro/media-transcode"
 import { storePomodoroUpload } from "@/server/pomodoro/media-uploads"
+import { checkStorageWarning } from "@/server/pomodoro/storage-warning"
+import { nameFromPrompt } from "@/lib/pomodoro/upload-labels"
 import {
   recordGenerationFailure,
   recordGenerationSpend,
@@ -87,9 +89,18 @@ export async function processNextGeneration() {
       },
       // Already re-encoded here, so it must not be queued for it again.
       alreadyProcessed: true,
+      // Named after the prompt, cut at a word break, and taggable and
+      // shareable like any upload (task 02, part 2).
+      labels: {
+        name: nameFromPrompt(job.prompt),
+        tags: [],
+        shared: false,
+        trim: null,
+      },
     })
 
     await finishGeneration(job, stored.mediaId)
+    await checkStorageWarning(job.userId)
   } catch (error) {
     const { retry, reason } = describeFailure(error)
     await failGeneration(job, reason, { retry })

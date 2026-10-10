@@ -20,16 +20,18 @@ import { MediaAddMenu } from "@/components/pomodoro/media-add-actions"
 import { SoundWave } from "@/components/pomodoro/sound-wave"
 import { MediaUploadsSection } from "@/components/pomodoro/media-uploads-section"
 import { MediaGeneratorSection } from "@/components/pomodoro/media-generator-section"
+import { UploadBinView } from "@/components/pomodoro/upload-bin-view"
+import type { UploadView } from "@/lib/api/pomodoro/media-uploads"
 
 /**
  * My uploads: a member's own backgrounds and sounds, and the AI generator for
  * each, on one page with a tab per kind. Tyler, 10 Oct 2026: "The upload your
  * own and ai generated needs its own page. Link to it from the avatar
  * dropdown", with a "+ Add" beside Shuffle on Backgrounds and Sounds, and both
- * cards gone from those pages. `?kind=sound` opens the Sounds tab. See
- * `workspace/docs/own-media-uploads.md`.
+ * cards gone from those pages. `?kind=sound` opens the Sounds tab and
+ * `?kind=bin` the 30-day bin (task 02). See `workspace/docs/my-uploads.md`.
  */
-export function UploadsPage({ kind }: { kind: PomodoroUploadPurpose }) {
+export function UploadsPage({ kind }: { kind: UploadView }) {
   const navigate = useNavigate()
   return (
     <div className={`${contentColumn} flex flex-col gap-6 py-8`}>
@@ -46,7 +48,7 @@ export function UploadsPage({ kind }: { kind: PomodoroUploadPurpose }) {
           onValueChange={(value) =>
             void navigate({
               to: "/uploads",
-              search: { kind: value as PomodoroUploadPurpose },
+              search: { kind: value as UploadView },
               replace: true,
             })
           }
@@ -58,10 +60,19 @@ export function UploadsPage({ kind }: { kind: PomodoroUploadPurpose }) {
             <TabsTrigger value="sound" className={pillTabsTrigger}>
               Sounds
             </TabsTrigger>
+            <TabsTrigger value="bin" className={pillTabsTrigger}>
+              Bin
+            </TabsTrigger>
           </TabsList>
         </Tabs>
       </header>
-      {kind === "sound" ? <SoundUploads /> : <BackgroundUploads />}
+      {kind === "bin" ? (
+        <UploadBinView />
+      ) : kind === "sound" ? (
+        <SoundUploads />
+      ) : (
+        <BackgroundUploads />
+      )}
     </div>
   )
 }
@@ -136,7 +147,11 @@ function BackgroundUploads() {
           />
         )}
         renderThumbnail={(upload, playing) =>
-          upload.kind === "video" ? (
+          // A clip shows its middle frame and loads the film only while it
+          // plays, so a grid of clips loads pictures (task 02, part 4).
+          upload.kind === "video" && !playing && upload.stillUrl ? (
+            <img src={upload.stillUrl} alt="" className="size-full object-cover" />
+          ) : upload.kind === "video" ? (
             <video
               // Rebuilt when it starts or stops, because a playing video
               // does not stop just because `autoPlay` turned false.

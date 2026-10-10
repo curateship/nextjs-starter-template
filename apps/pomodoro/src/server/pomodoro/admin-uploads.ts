@@ -2,8 +2,11 @@ import { and, asc, count, desc, eq, ilike, inArray, or, sql, type SQL } from "dr
 
 import { db } from "@/server/db"
 import { deleteMediaAsAdmin } from "@/server/media/library"
-import { getPublicMediaUrl } from "@/server/media/storage"
-import { uploadIsShowable } from "@/server/pomodoro/media-uploads"
+import { deleteFromR2, getPublicMediaUrl } from "@/server/media/storage"
+import {
+  clearUploadChoices,
+  uploadIsShowable,
+} from "@/server/pomodoro/media-uploads"
 import {
   pomodoroAuditLogs,
   pomodoroGenerations,
@@ -25,7 +28,6 @@ import type { PomodoroUploadKind, PomodoroUploadPurpose } from "@/lib/pomodoro/m
  * member's own file can be chosen; a hosted room never holds one.
  */
 
-type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
 export type AdminUploadRow = {
   mediaId: string
@@ -151,30 +153,6 @@ export async function listAdminUploads(query: {
 }
 
 /**
- * Takes the choices pointing at these files back to the defaults: the
- * personal room's background to the default scene, its sound to silence, the
- * profile banner to none. The same fallback a member's own delete gives, so
- * nobody comes back to a picture or a sound that 404s.
- */
-export async function clearUploadChoices(tx: Transaction, mediaIds: string[]) {
-  if (!mediaIds.length) return
-  const references = mediaIds.map((id) => `media:${id}`)
-  const changedAt = new Date()
-  await tx
-    .update(pomodoroPersonalRooms)
-    .set({ background: null, updatedAt: changedAt })
-    .where(inArray(pomodoroPersonalRooms.background, references))
-  await tx
-    .update(pomodoroPersonalRooms)
-    .set({ sound: null, updatedAt: changedAt })
-    .where(inArray(pomodoroPersonalRooms.sound, references))
-  await tx
-    .update(pomodoroProfiles)
-    .set({ bannerRef: null, updatedAt: changedAt })
-    .where(inArray(pomodoroProfiles.bannerRef, references))
-}
-
-/**
  * Deletes member uploads, one id or many, through the shell's
  * `deleteMediaAsAdmin`. The upload row goes with the library row by the
  * cascade, and a generation that made the file keeps its record with no file.
@@ -194,18 +172,20 @@ export async function deleteAdminUploads({
   /** What the log row calls them; the AI generations page passes its own. */
   resource?: string
 }) {
-  return db.transaction(async (tx) => {
+  const { stills, ...result } = await db.transaction(async (tx) => {
     const found = await tx
       .select({
         id: customShellMedia.id,
         emailProtectedAt: customShellMedia.emailProtectedAt,
         sourceMediaId: pomodoroMediaUploads.sourceMediaId,
+        stillPath: pomodoroMediaUploads.stillPath,
       })
       .from(pomodoroMediaUploads)
       .innerJoin(customShellMedia, eq(customShellMedia.id, pomodoroMediaUploads.mediaId))
       .where(inArray(pomodoroMediaUploads.mediaId, mediaIds))
     const deletable = found.filter((row) => !row.emailProtectedAt).map((row) => row.id)
-    if (!deletable.length) return { deleted: [], skipped: mediaIds }
+    if (!deletable.length)
+      return { deleted: [] as string[], skipped: mediaIds, stills: [] as string[] }
 
     await clearUploadChoices(tx, deletable)
     // The kept originals a re-trim cuts from go with their uploads.
@@ -219,6 +199,16 @@ export async function deleteAdminUploads({
       .insert(pomodoroAuditLogs)
       .values({ actorUserId, action: "delete", resource, recordIds: deletable })
     const gone = new Set(deletable)
-    return { deleted: deletable, skipped: mediaIds.filter((id) => !gone.has(id)) }
+    return {
+      deleted: deletable,
+      skipped: mediaIds.filter((id) => !gone.has(id)),
+      // A clip's still has no library row, so the shell's delete does not
+      // know of it; it goes once the rows have.
+      stills: found
+        .filter((row) => !row.emailProtectedAt && row.stillPath)
+        .map((row) => row.stillPath as string),
+    }
   })
+  for (const still of stills) await deleteFromR2(still).catch(() => undefined)
+  return result
 }

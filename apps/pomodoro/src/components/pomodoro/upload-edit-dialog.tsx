@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Loader2Icon } from "lucide-react"
+import { DownloadIcon, Loader2Icon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -244,6 +244,33 @@ function EditForm({
               </fieldset>
             </CardContent>
           </Card>
+          {upload.url ? (
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>File</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm text-muted-foreground">
+                  {/* What the download is, so a 720p silent film is no
+                      surprise to somebody who sent a 4K clip with sound. */}
+                  {upload.kind === "video"
+                    ? "The prepared clip you play: 720p, no sound."
+                    : upload.kind === "audio"
+                      ? "The prepared sound you play: a 192 kbps MP3."
+                      : "The picture as you uploaded it."}
+                </p>
+                <Button asChild variant="outline">
+                  <a
+                    href={`/api/pomodoro/uploads/${upload.mediaId}/download`}
+                    download
+                  >
+                    <DownloadIcon aria-hidden="true" />
+                    Download
+                  </a>
+                </Button>
+              </CardContent>
+            </Card>
+          ) : null}
         </DialogBody>
         <DialogFooter>
           <Button

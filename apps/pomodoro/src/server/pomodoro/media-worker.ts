@@ -1,16 +1,22 @@
-import { getFromR2, uploadToR2 } from "@/server/media/storage"
+import { deleteFromR2, getFromR2, uploadToR2 } from "@/server/media/storage"
 import {
   claimNextUploadJob,
   failUploadJob,
+  findVideoWithoutStill,
   finishUploadJob,
   loadJobFile,
   markUploadReady,
+  saveUploadStill,
+  stillStoragePath,
 } from "@/server/pomodoro/media-uploads"
 import {
   FfmpegMissingError,
   TrimOutsideFileError,
+  extractMiddleFrame,
   transcodeUpload,
 } from "@/server/pomodoro/media-transcode"
+import { purgeExpiredBin } from "@/server/pomodoro/upload-bin"
+import { checkStorageWarning } from "@/server/pomodoro/storage-warning"
 import { storedFilename } from "@/server/media/library"
 
 /**
@@ -24,10 +30,19 @@ import { storedFilename } from "@/server/media/library"
  * Every failure is caught. A thrown tick is logged by the shell and never stops
  * the loop, but a job left in `processing` would sit there until its claim went
  * stale, so the job is put right here instead.
+ *
+ * Each pass also removes files that have sat in the bin for 30 days, and a
+ * pass with no job takes the still of one older video that has none (task 02).
  */
 export async function processNextMediaUpload() {
+  await purgeExpiredBin().catch((error: unknown) =>
+    console.error("the bin could not be cleared", error)
+  )
   const job = await claimNextUploadJob()
-  if (!job) return
+  if (!job) {
+    await takeMissingStill()
+    return
+  }
 
   if (job.kind === "image") {
     // Images are stored ready and never queued. One here means a row was made
@@ -75,20 +90,81 @@ export async function processNextMediaUpload() {
     )
     const storagePath = `${job.userId}/${filename}`
     await uploadToR2(storagePath, output.bytes, output.mimeType)
+    // A clip's card shows its middle frame and plays the film only on hover.
+    // A frame that cannot be taken costs the card its picture, not the job.
+    const stillPath =
+      job.kind === "video"
+        ? await storeStill(job.userId, job.mediaId, output.bytes)
+        : null
 
-    await finishUploadJob({
+    const finished = await finishUploadJob({
       mediaId: job.mediaId,
       claimedAt: job.claimedAt,
       storagePath,
       mimeType: output.mimeType,
       fileSize: output.bytes.byteLength,
       previousStoragePath: file.storagePath,
+      stillPath,
     })
+    if (finished.settled) await checkStorageWarning(job.userId)
   } catch (error) {
     // A trim outside the file fails the same way every time.
     await failUploadJob(job, describeFailure(error), {
       retry: !(error instanceof TrimOutsideFileError),
     })
+  }
+}
+
+/** The middle frame into the bucket, or null when it could not be taken. */
+async function storeStill(userId: string, mediaId: string, film: Uint8Array) {
+  try {
+    const frame = await extractMiddleFrame(film)
+    const path = stillStoragePath(userId, mediaId)
+    await uploadToR2(path, frame, "image/jpeg")
+    return path
+  } catch (error) {
+    console.error("a clip's still could not be taken", error)
+    return null
+  }
+}
+
+/**
+ * One older video that has no still yet gets one, on a pass with nothing
+ * else to do. A film whose frame cannot be taken is marked with an empty
+ * path, so the worker does not try the same broken film on every quiet pass.
+ * A machine with no FFmpeg, or a bucket that did not answer, marks nothing:
+ * those pass, and the clip is tried again later.
+ */
+async function takeMissingStill() {
+  const video = await findVideoWithoutStill().catch(() => null)
+  if (!video) return
+  let film: Uint8Array
+  try {
+    const object = await getFromR2(video.storagePath)
+    const body = object.Body
+    if (!body || typeof body.transformToByteArray !== "function") return
+    film = await body.transformToByteArray()
+  } catch (error) {
+    console.error("an older clip could not be read for its still", error)
+    return
+  }
+  let frame: Uint8Array
+  try {
+    frame = await extractMiddleFrame(film)
+  } catch (error) {
+    if (error instanceof FfmpegMissingError) return
+    console.error("an older clip's still could not be taken", error)
+    await saveUploadStill(video.mediaId, "").catch(() => undefined)
+    return
+  }
+  try {
+    const path = stillStoragePath(video.userId, video.mediaId)
+    await uploadToR2(path, frame, "image/jpeg")
+    if (!(await saveUploadStill(video.mediaId, path))) {
+      await deleteFromR2(path).catch(() => undefined)
+    }
+  } catch (error) {
+    console.error("an older clip's still could not be stored", error)
   }
 }
 

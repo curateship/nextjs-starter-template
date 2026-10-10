@@ -80,6 +80,12 @@ bucket, and a `pomodoro_media_uploads` row. From the picker's point of view
 there is no difference between something a member made and something they
 uploaded, so picking it, playing it and deleting it are all one code path.
 
+A finished file is named after its prompt, cut to 80 characters at a word
+break (`nameFromPrompt` in `src/lib/pomodoro/upload-labels.ts`), and can be
+renamed, tagged and shared from its cog like any upload. Its card on My uploads
+carries an AI mark. It used to be named after its stored file, with ".mp3" on
+the end. See [My uploads](my-uploads.md).
+
 Provider keys come from the shell's AI settings (Settings → AI), not from this
 app's own environment, so an operator fills them in once and every AI feature
 can see them.

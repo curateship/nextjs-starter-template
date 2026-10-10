@@ -115,6 +115,7 @@ import { Route as ApiV1NotificationsStreamRouteImport } from './routes/api/v1/no
 import { Route as ApiV1TrafficViewRouteImport } from './routes/api/v1/traffic/view'
 import { Route as AuthenticatedAdminAutomationsTemplatesTemplateKeyRouteImport } from './routes/_authenticated/admin/automations_.templates_.$templateKey'
 import { Route as ApiPomodoroRoomsSlugEventsRouteImport } from './routes/api/pomodoro/rooms.$slug.events'
+import { Route as ApiPomodoroUploadsMediaIdDownloadRouteImport } from './routes/api/pomodoro/uploads.$mediaId.download'
 import { Route as ApiV1MediaMediaIdFileRouteImport } from './routes/api/v1/media/$mediaId/file'
 
 const IndexRoute = IndexRouteImport.update({
@@ -696,6 +697,12 @@ const ApiPomodoroRoomsSlugEventsRoute =
     path: '/api/pomodoro/rooms/$slug/events',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPomodoroUploadsMediaIdDownloadRoute =
+  ApiPomodoroUploadsMediaIdDownloadRouteImport.update({
+    id: '/api/pomodoro/uploads/$mediaId/download',
+    path: '/api/pomodoro/uploads/$mediaId/download',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiV1MediaMediaIdFileRoute = ApiV1MediaMediaIdFileRouteImport.update({
   id: '/api/v1/media/$mediaId/file',
   path: '/api/v1/media/$mediaId/file',
@@ -807,6 +814,7 @@ export interface FileRoutesByFullPath {
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
   '/admin/automations/templates/$templateKey': typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
   '/api/pomodoro/rooms/$slug/events': typeof ApiPomodoroRoomsSlugEventsRoute
+  '/api/pomodoro/uploads/$mediaId/download': typeof ApiPomodoroUploadsMediaIdDownloadRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
 }
 export interface FileRoutesByTo {
@@ -912,6 +920,7 @@ export interface FileRoutesByTo {
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
   '/admin/automations/templates/$templateKey': typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
   '/api/pomodoro/rooms/$slug/events': typeof ApiPomodoroRoomsSlugEventsRoute
+  '/api/pomodoro/uploads/$mediaId/download': typeof ApiPomodoroUploadsMediaIdDownloadRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
 }
 export interface FileRoutesById {
@@ -1022,6 +1031,7 @@ export interface FileRoutesById {
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
   '/_authenticated/admin/automations_/templates_/$templateKey': typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
   '/api/pomodoro/rooms/$slug/events': typeof ApiPomodoroRoomsSlugEventsRoute
+  '/api/pomodoro/uploads/$mediaId/download': typeof ApiPomodoroUploadsMediaIdDownloadRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
 }
 export interface FileRouteTypes {
@@ -1131,6 +1141,7 @@ export interface FileRouteTypes {
     | '/api/v1/traffic/view'
     | '/admin/automations/templates/$templateKey'
     | '/api/pomodoro/rooms/$slug/events'
+    | '/api/pomodoro/uploads/$mediaId/download'
     | '/api/v1/media/$mediaId/file'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -1236,6 +1247,7 @@ export interface FileRouteTypes {
     | '/api/v1/traffic/view'
     | '/admin/automations/templates/$templateKey'
     | '/api/pomodoro/rooms/$slug/events'
+    | '/api/pomodoro/uploads/$mediaId/download'
     | '/api/v1/media/$mediaId/file'
   id:
     | '__root__'
@@ -1345,6 +1357,7 @@ export interface FileRouteTypes {
     | '/api/v1/traffic/view'
     | '/_authenticated/admin/automations_/templates_/$templateKey'
     | '/api/pomodoro/rooms/$slug/events'
+    | '/api/pomodoro/uploads/$mediaId/download'
     | '/api/v1/media/$mediaId/file'
   fileRoutesById: FileRoutesById
 }
@@ -1379,6 +1392,7 @@ export interface RootRouteChildren {
   ApiV1NotificationsStreamRoute: typeof ApiV1NotificationsStreamRoute
   ApiV1TrafficViewRoute: typeof ApiV1TrafficViewRoute
   ApiPomodoroRoomsSlugEventsRoute: typeof ApiPomodoroRoomsSlugEventsRoute
+  ApiPomodoroUploadsMediaIdDownloadRoute: typeof ApiPomodoroUploadsMediaIdDownloadRoute
   ApiV1MediaMediaIdFileRoute: typeof ApiV1MediaMediaIdFileRoute
 }
 
@@ -2126,6 +2140,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPomodoroRoomsSlugEventsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/pomodoro/uploads/$mediaId/download': {
+      id: '/api/pomodoro/uploads/$mediaId/download'
+      path: '/api/pomodoro/uploads/$mediaId/download'
+      fullPath: '/api/pomodoro/uploads/$mediaId/download'
+      preLoaderRoute: typeof ApiPomodoroUploadsMediaIdDownloadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/v1/media/$mediaId/file': {
       id: '/api/v1/media/$mediaId/file'
       path: '/api/v1/media/$mediaId/file'
@@ -2400,6 +2421,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiV1NotificationsStreamRoute: ApiV1NotificationsStreamRoute,
   ApiV1TrafficViewRoute: ApiV1TrafficViewRoute,
   ApiPomodoroRoomsSlugEventsRoute: ApiPomodoroRoomsSlugEventsRoute,
+  ApiPomodoroUploadsMediaIdDownloadRoute:
+    ApiPomodoroUploadsMediaIdDownloadRoute,
   ApiV1MediaMediaIdFileRoute: ApiV1MediaMediaIdFileRoute,
 }
 export const routeTree = rootRouteImport

@@ -1385,6 +1385,18 @@ export const pomodoroMediaUploads = pgTable(
     queuedAt: timestamp("queued_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    /**
+     * In the 30-day bin since then (migration 0136). Hidden everywhere a
+     * member picks or plays a file, still counted toward their space, and
+     * removed for good by a worker pass after 30 days.
+     */
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    /**
+     * A video's middle frame, under `pomodoro-stills/` in the bucket, so a
+     * grid of clips loads pictures rather than films. Null for a sound, a
+     * picture, or a video the worker has not reached yet.
+     */
+    stillPath: varchar("still_path", { length: 300 }),
     attempts: integer("attempts").notNull().default(0),
     /**
      * Set while a worker pass holds the job. A pass that dies leaves this
@@ -1443,6 +1455,20 @@ export const pomodoroMediaUploads = pgTable(
  * credit is taken when the request is accepted rather than when the file
  * arrives, so nobody can queue twenty videos while the first is still running.
  */
+/**
+ * A member the bell has told their space is nearly full (90% of the plan's
+ * limit). The row goes when they drop back under, so the next climb warns
+ * again (migration 0136).
+ */
+export const pomodoroStorageWarnings = pgTable("pomodoro_storage_warnings", {
+  userId: varchar("user_id", { length: 36 })
+    .primaryKey()
+    .references(() => customShellUsers.id, { onDelete: "cascade" }),
+  warnedAt: timestamp("warned_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+})
+
 export const pomodoroGenerationUsage = pgTable(
   "pomodoro_generation_usage",
   {

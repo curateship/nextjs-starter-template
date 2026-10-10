@@ -89,3 +89,16 @@ describe("uploadedMessage", () => {
     expect(uploadedMessage("video", 9)).toContain("in about 3 minutes")
   })
 })
+
+describe("nameFromPrompt", () => {
+  it("keeps a short prompt and cuts a long one at a word break", async () => {
+    const { nameFromPrompt } = await import("@/lib/pomodoro/upload-labels")
+    expect(nameFromPrompt("  Rain on a tin roof   at night ")).toBe("Rain on a tin roof at night")
+    const long = "Soft rain on a cabin roof while a fire crackles and an old radio hums somewhere far away"
+    const name = nameFromPrompt(long)
+    expect(name.length).toBeLessThanOrEqual(80)
+    expect(long.startsWith(name)).toBe(true)
+    expect(long[name.length]).toBe(" ")
+    expect(nameFromPrompt("x".repeat(100))).toHaveLength(80)
+  })
+})

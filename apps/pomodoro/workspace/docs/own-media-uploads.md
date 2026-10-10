@@ -10,9 +10,9 @@ page of their own at `/uploads`. Tyler, 10 Oct 2026: "The upload your own and
 ai generated needs its own page. Link to it from the avatar dropdown", and
 "Remove the upload your own and ai generated card from themes and sounds".
 
-- **Two tabs, Backgrounds and Sounds**, in the round pill style beside the
-  title. `?kind=sound` opens the Sounds tab, and switching tabs rewrites the
-  address.
+- **Three tabs, Backgrounds, Sounds and Bin**, in the round pill style
+  beside the title. `?kind=sound` opens the Sounds tab and `?kind=bin` the
+  bin, and switching tabs rewrites the address.
 - **Three ways in.** "My uploads" in the photo menu, between Settings and
   Your profile. A "+ Add" in the same round tray as Shuffle, beside it on
   `/backgrounds` and `/sounds`, opening the matching tab; on a phone it wraps
@@ -20,7 +20,8 @@ ai generated needs its own page. Link to it from the avatar dropdown", and
   notices, which now link to the matching tab.
 - **Backgrounds and Sounds list only the catalogue** now, with no upload or
   generator card under the grid.
-- The full table to rename, retag and restore files is task 02, still to come.
+- **Managing the files** (marks, tick boxes, the bin, stills for clips, the
+  space warning, Download) is in [My uploads](my-uploads.md).
 
 ## The "Your own" card
 
@@ -369,14 +370,20 @@ Picking an upload saves `media:<uuid>` the same way picking a scene saves
 before saving it; without that check the address bar could put somebody else's media id
 in the row.
 
-Deleting removes the bucket object, both rows, the kept original and any
-preference pointing at it, in one go. An admin's delete takes the original too.
+A member's delete moves the file to the 30-day bin (see
+[My uploads](my-uploads.md)): it is hidden everywhere and anything using it
+falls back at once. Emptying the bin, or 30 days passing, is the final delete
+below.
+
+The final delete removes the bucket object, both rows, the kept original, a
+clip's still and any preference pointing at it, in one go. An admin's delete takes the original too.
 So does the shell's own Media page, which knows nothing about originals: a
 database trigger removes an upload's kept original whenever the upload's row
 goes (migration 0135), and the bucket file left behind is what the storage
 page's orphan sweep removes. The member's delete reads the upload under a lock,
-so a cut finishing at the same moment cannot leave an original behind. The confirmation says so. If it was the background you were using,
-you go back to Lofi girl rather than to a blank screen.
+so a cut finishing at the same moment cannot leave an original behind. If it
+was the background you were using, you go back to Lofi girl rather than to a
+blank screen.
 
 The bucket object is deleted after the rows, not before, so a bucket that
 refuses leaves a file with no row — which the storage page's orphan sweep picks

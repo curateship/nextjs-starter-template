@@ -225,7 +225,9 @@ async function resolveBannerUrl(userId: string, bannerRef: string | null) {
     .where(
       and(
         eq(pomodoroMediaUploads.mediaId, reference.mediaId),
-        eq(pomodoroMediaUploads.userId, userId)
+        eq(pomodoroMediaUploads.userId, userId),
+        // A picture in the bin is never shown, here or anywhere.
+        isNull(pomodoroMediaUploads.deletedAt)
       )
     )
     .limit(1)

@@ -31,6 +31,32 @@ export function nameFromFileName(fileName: string) {
   return (bare || fileName.trim()).slice(0, UPLOAD_NAME_MAX)
 }
 
+/**
+ * An AI file's name: its prompt, cut to 80 characters at a word break, the
+ * same rule migration 0136 used on the ones made before. A prompt with no
+ * break in the first 80 characters is cut at 80.
+ */
+export function nameFromPrompt(prompt: string) {
+  const clean = prompt.trim().replace(/\s+/g, " ")
+  if (clean.length <= UPLOAD_NAME_MAX) return clean
+  const head = clean.slice(0, UPLOAD_NAME_MAX + 1)
+  const cut = head.replace(/\s+\S*$/, "")
+  // No break to cut at, or nothing before the first one: a plain cut.
+  return cut === head || !cut ? clean.slice(0, UPLOAD_NAME_MAX) : cut
+}
+
+/** How long a deleted file waits in the bin before it goes for good. */
+export const BIN_DAYS = 30
+
+/** The day a file in the bin goes for good, said the way a person says it. */
+export function binEndsOn(deletedAt: Date) {
+  const ends = new Date(deletedAt.getTime() + BIN_DAYS * 24 * 60 * 60 * 1000)
+  return ends.toLocaleDateString("en-GB", { day: "numeric", month: "short" })
+}
+
+/** The share of the plan's space that makes the bell warn. */
+export const STORAGE_WARNING_SHARE = 0.9
+
 /** "Rain, Night ,rain" → ["rain", "night"]. Words that cannot be a tag are kept aside. */
 export function parseTagText(text: string) {
   const words = text

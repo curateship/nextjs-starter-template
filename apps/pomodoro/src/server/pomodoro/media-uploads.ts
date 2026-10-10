@@ -1,4 +1,16 @@
-import { and, asc, count, eq, inArray, isNull, lt, or, sql } from "drizzle-orm"
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  or,
+  sql,
+} from "drizzle-orm"
 import { alias } from "drizzle-orm/pg-core"
 
 import { db, type CustomShellDb } from "@/server/db"
@@ -23,8 +35,10 @@ import {
 } from "@/lib/pomodoro/notices"
 import {
   pomodoroCatalogItems,
+  pomodoroGenerations,
   pomodoroMediaUploads,
   pomodoroPersonalRooms,
+  pomodoroProfiles,
   type PomodoroMediaUpload,
 } from "@/server/pomodoro/schema"
 import { customShellMedia } from "@/server/schema"
@@ -256,7 +270,18 @@ export type StoredUpload = {
    * still running, because the address changes when the file is replaced.
    */
   url: string
+  /** Made by AI rather than uploaded. */
+  generated: boolean
+  /** In the owner's personal room, or their profile banner. */
+  inUse: boolean
+  /** A video's middle frame, or empty until the worker has taken it. */
+  stillUrl: string
+  /** In the bin since then; null for a file in use. */
+  deletedAt: Date | null
 }
+
+/** What My uploads lists: one kind's files, or the bin with both kinds. */
+export type UploadView = PomodoroUploadPurpose | "bin"
 
 /**
  * Put the file in the bucket, then write both rows.
@@ -359,6 +384,10 @@ export async function storePomodoroUpload({
     shared,
     trim: labels?.trim ?? null,
     sourceUrl: "",
+    generated: false,
+    inUse: false,
+    stillUrl: "",
+    deletedAt: null,
     fileSize: bytes.byteLength,
     mimeType: detected.mimeType,
     failureReason: null,
@@ -370,10 +399,22 @@ export async function storePomodoroUpload({
 /** The kept original's library row, joined beside the upload's own. */
 const sourceMedia = alias(customShellMedia, "source_media")
 
-/** This person's own uploads for one picker, newest first. */
+/**
+ * Not in the bin: every place a member picks, plays, edits or is offered a
+ * file. Only the bin's own list and the final delete see the others.
+ */
+const notInBin = isNull(pomodoroMediaUploads.deletedAt)
+
+/** The `media:<id>` a choice stores, compared in SQL against this row's file. */
+const mediaReference = sql<string>`'media:' || ${pomodoroMediaUploads.mediaId}`
+
+/**
+ * This person's own files for one tab of My uploads: one kind's, oldest
+ * first, or the bin's of both kinds, most recently deleted first.
+ */
 export async function listPomodoroUploads(
   userId: string,
-  purpose: PomodoroUploadPurpose
+  view: UploadView
 ): Promise<StoredUpload[]> {
   const rows = await db
     .select({
@@ -394,6 +435,19 @@ export async function listPomodoroUploads(
       fileSize: customShellMedia.fileSize,
       mimeType: customShellMedia.mimeType,
       storagePath: customShellMedia.storagePath,
+      stillPath: pomodoroMediaUploads.stillPath,
+      deletedAt: pomodoroMediaUploads.deletedAt,
+      generated: sql<boolean>`exists (
+        select 1 from ${pomodoroGenerations}
+        where ${pomodoroGenerations.mediaId} = ${pomodoroMediaUploads.mediaId})`,
+      inUse: sql<boolean>`exists (
+        select 1 from ${pomodoroPersonalRooms}
+        where ${pomodoroPersonalRooms.userId} = ${pomodoroMediaUploads.userId}
+          and ${mediaReference} in (${pomodoroPersonalRooms.background}, ${pomodoroPersonalRooms.sound})
+      ) or exists (
+        select 1 from ${pomodoroProfiles}
+        where ${pomodoroProfiles.userId} = ${pomodoroMediaUploads.userId}
+          and ${pomodoroProfiles.bannerRef} = ${mediaReference})`,
     })
     .from(pomodoroMediaUploads)
     .innerJoin(
@@ -405,12 +459,22 @@ export async function listPomodoroUploads(
       eq(sourceMedia.id, pomodoroMediaUploads.sourceMediaId)
     )
     .where(
-      and(
-        eq(pomodoroMediaUploads.userId, userId),
-        eq(pomodoroMediaUploads.purpose, purpose)
-      )
+      view === "bin"
+        ? and(
+            eq(pomodoroMediaUploads.userId, userId),
+            isNotNull(pomodoroMediaUploads.deletedAt)
+          )
+        : and(
+            eq(pomodoroMediaUploads.userId, userId),
+            eq(pomodoroMediaUploads.purpose, view),
+            notInBin
+          )
     )
-    .orderBy(asc(pomodoroMediaUploads.createdAt))
+    .orderBy(
+      view === "bin"
+        ? desc(pomodoroMediaUploads.deletedAt)
+        : asc(pomodoroMediaUploads.createdAt)
+    )
 
   return Promise.all(
     rows.map(
@@ -418,6 +482,7 @@ export async function listPomodoroUploads(
         storagePath,
         sourcePath,
         sourceMediaId,
+        stillPath,
         trimStartMs,
         trimEndMs,
         ...row
@@ -434,6 +499,7 @@ export async function listPomodoroUploads(
           kind: row.kind as PomodoroUploadKind,
           url,
           sourceUrl: sourcePath ? await getPublicMediaUrl(sourcePath) : url,
+          stillUrl: stillPath ? await getPublicMediaUrl(stillPath) : "",
           // A trim only means something against the original it was cut from.
           trim:
             sourcePath && trimStartMs !== null && trimEndMs !== null
@@ -568,7 +634,8 @@ async function loadOwnUpload(
     .where(
       and(
         eq(pomodoroMediaUploads.mediaId, mediaId),
-        eq(pomodoroMediaUploads.userId, userId)
+        eq(pomodoroMediaUploads.userId, userId),
+        notInBin
       )
     )
     .limit(1)
@@ -626,6 +693,7 @@ export async function countUploadsAhead(mediaId: string) {
     .where(
       and(
         inArray(pomodoroMediaUploads.status, ["queued", "processing"]),
+        notInBin,
         lt(
           pomodoroMediaUploads.queuedAt,
           sql`(select ${pomodoroMediaUploads.queuedAt} from ${pomodoroMediaUploads} where ${pomodoroMediaUploads.mediaId} = ${mediaId})`
@@ -663,7 +731,8 @@ export async function loadUploadTagSuggestions(
       .where(
         and(
           eq(pomodoroMediaUploads.userId, userId),
-          eq(pomodoroMediaUploads.purpose, purpose)
+          eq(pomodoroMediaUploads.purpose, purpose),
+          notInBin
         )
       ),
   ])
@@ -697,7 +766,8 @@ export async function resolveUploadUrl(userId: string, mediaId: string) {
     .where(
       and(
         eq(pomodoroMediaUploads.mediaId, mediaId),
-        eq(pomodoroMediaUploads.userId, userId)
+        eq(pomodoroMediaUploads.userId, userId),
+        notInBin
       )
     )
     .limit(1)
@@ -706,6 +776,42 @@ export async function resolveUploadUrl(userId: string, mediaId: string) {
   return {
     url: await getPublicMediaUrl(row.storagePath),
     kind: row.kind as PomodoroUploadKind,
+  }
+}
+
+/**
+ * The file a member's Download button sends: the finished file they play,
+ * named after the upload's name, for an upload that is theirs, not in the
+ * bin, and finished. Null otherwise, which the route answers as not found.
+ */
+export async function loadUploadDownload(userId: string, mediaId: string) {
+  const [row] = await db
+    .select({
+      storagePath: customShellMedia.storagePath,
+      mimeType: customShellMedia.mimeType,
+      name: sql<string>`coalesce(${pomodoroMediaUploads.name}, ${customShellMedia.originalName})`,
+      status: pomodoroMediaUploads.status,
+      sourceMediaId: pomodoroMediaUploads.sourceMediaId,
+    })
+    .from(pomodoroMediaUploads)
+    .innerJoin(
+      customShellMedia,
+      eq(customShellMedia.id, pomodoroMediaUploads.mediaId)
+    )
+    .where(
+      and(
+        eq(pomodoroMediaUploads.mediaId, mediaId),
+        eq(pomodoroMediaUploads.userId, userId),
+        notInBin
+      )
+    )
+    .limit(1)
+  if (!row || !uploadIsShowable(row)) return null
+  const extension = row.storagePath.split(".").pop() ?? "bin"
+  return {
+    storagePath: row.storagePath,
+    mimeType: row.mimeType,
+    filename: `${row.name}.${extension}`,
   }
 }
 
@@ -733,7 +839,8 @@ export async function assertUploadUsable(
       and(
         eq(pomodoroMediaUploads.mediaId, mediaId),
         eq(pomodoroMediaUploads.userId, userId),
-        eq(pomodoroMediaUploads.purpose, purpose)
+        eq(pomodoroMediaUploads.purpose, purpose),
+        notInBin
       )
     )
     .limit(1)
@@ -743,6 +850,33 @@ export async function assertUploadUsable(
   return row.kind as PomodoroUploadKind
 }
 
+type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0]
+
+/**
+ * Wherever these files are chosen, puts back what an empty choice gives: a
+ * personal room's background to the default scene, its sound to silence, the
+ * profile banner to none, so nobody comes back to a picture or a sound that
+ * 404s. Moving a file to the bin, the member's final delete and the admin's
+ * delete all use it.
+ */
+export async function clearUploadChoices(tx: Transaction, mediaIds: string[]) {
+  if (!mediaIds.length) return
+  const references = mediaIds.map((id) => `media:${id}`)
+  const changedAt = new Date()
+  await tx
+    .update(pomodoroPersonalRooms)
+    .set({ background: null, updatedAt: changedAt })
+    .where(inArray(pomodoroPersonalRooms.background, references))
+  await tx
+    .update(pomodoroPersonalRooms)
+    .set({ sound: null, updatedAt: changedAt })
+    .where(inArray(pomodoroPersonalRooms.sound, references))
+  await tx
+    .update(pomodoroProfiles)
+    .set({ bannerRef: null, updatedAt: changedAt })
+    .where(inArray(pomodoroProfiles.bannerRef, references))
+}
+
 /**
  * Remove an upload: the file, both rows, and any preference pointing at it.
  *
@@ -750,8 +884,15 @@ export async function assertUploadUsable(
  * member whose chosen background has just been deleted should come back to the
  * default rather than to a blank screen waiting on a 404.
  */
-export async function deletePomodoroUpload(userId: string, mediaId: string) {
-  const reference = `media:${mediaId}`
+export async function deletePomodoroUpload(
+  userId: string,
+  mediaId: string,
+  /**
+   * Only while it is still in the bin. Emptying the bin and the 30-day
+   * clear-out pass this, so a file brought back while they run is kept.
+   */
+  { fromBin = false }: { fromBin?: boolean } = {}
+) {
   const paths = await db.transaction(async (tx) => {
     // Read under the upload row's lock, so a first prepare or a re-trim
     // finishing at the same moment has either added the kept original
@@ -760,6 +901,7 @@ export async function deletePomodoroUpload(userId: string, mediaId: string) {
       .select({
         storagePath: customShellMedia.storagePath,
         sourcePath: sourceMedia.storagePath,
+        stillPath: pomodoroMediaUploads.stillPath,
       })
       .from(pomodoroMediaUploads)
       .innerJoin(
@@ -773,7 +915,8 @@ export async function deletePomodoroUpload(userId: string, mediaId: string) {
       .where(
         and(
           eq(pomodoroMediaUploads.mediaId, mediaId),
-          eq(pomodoroMediaUploads.userId, userId)
+          eq(pomodoroMediaUploads.userId, userId),
+          fromBin ? isNotNull(pomodoroMediaUploads.deletedAt) : undefined
         )
       )
       .limit(1)
@@ -781,30 +924,13 @@ export async function deletePomodoroUpload(userId: string, mediaId: string) {
 
     if (!row) throw new Error("UPLOAD_NOT_FOUND")
 
-    // A personal room holding the file goes back to the default scene or to
-    // silence. A hosted room never holds an upload, so only this one row can.
-    await tx
-      .update(pomodoroPersonalRooms)
-      .set({ background: null, updatedAt: new Date() })
-      .where(
-        and(
-          eq(pomodoroPersonalRooms.userId, userId),
-          eq(pomodoroPersonalRooms.background, reference)
-        )
-      )
-    await tx
-      .update(pomodoroPersonalRooms)
-      .set({ sound: null, updatedAt: new Date() })
-      .where(
-        and(
-          eq(pomodoroPersonalRooms.userId, userId),
-          eq(pomodoroPersonalRooms.sound, reference)
-        )
-      )
+    // Anywhere still holding it falls back. Moving it to the bin already did
+    // this; a file deleted another way may still be chosen somewhere.
+    await clearUploadChoices(tx, [mediaId])
     // The library row goes and the job row follows it through the cascade;
     // the kept original's row goes with the job row (migration 0135).
     await tx.delete(customShellMedia).where(eq(customShellMedia.id, mediaId))
-    return [row.storagePath, row.sourcePath]
+    return [row.storagePath, row.sourcePath, row.stillPath]
   })
 
   // After the rows, so a bucket that refuses the delete leaves an orphan the
@@ -839,11 +965,16 @@ export async function claimNextUploadJob(
         pomodoroMediaUploads.mediaId,
         sql`(
           select ${pomodoroMediaUploads.mediaId} from ${pomodoroMediaUploads}
-          where ${or(
-            eq(pomodoroMediaUploads.status, "queued"),
-            and(
-              eq(pomodoroMediaUploads.status, "processing"),
-              lt(pomodoroMediaUploads.claimedAt, staleBefore)
+          where ${and(
+            // A file in the bin waits there unprepared; brought back, it
+            // joins the queue where it left it.
+            notInBin,
+            or(
+              eq(pomodoroMediaUploads.status, "queued"),
+              and(
+                eq(pomodoroMediaUploads.status, "processing"),
+                lt(pomodoroMediaUploads.claimedAt, staleBefore)
+              )
             )
           )}
           order by ${pomodoroMediaUploads.queuedAt}
@@ -876,6 +1007,7 @@ export async function finishUploadJob({
   mimeType,
   fileSize,
   previousStoragePath,
+  stillPath = null,
 }: {
   mediaId: string
   /** When this pass claimed the job, from the claimed row. */
@@ -884,6 +1016,8 @@ export async function finishUploadJob({
   mimeType: string
   fileSize: number
   previousStoragePath: string
+  /** A video's new middle frame, already in the bucket; null for a sound. */
+  stillPath?: string | null
 }) {
   // Only a job this pass still holds is finished. If a claim was stolen from
   // a slow-but-alive pass, the loser's update matches nothing and it must not
@@ -913,6 +1047,17 @@ export async function finishUploadJob({
 
     if (!rows.length) return null
 
+    // A new cut brings a new middle frame; the old one goes after.
+    const [before] = await tx
+      .select({ stillPath: pomodoroMediaUploads.stillPath })
+      .from(pomodoroMediaUploads)
+      .where(eq(pomodoroMediaUploads.mediaId, mediaId))
+    if (stillPath) {
+      await tx
+        .update(pomodoroMediaUploads)
+        .set({ stillPath })
+        .where(eq(pomodoroMediaUploads.mediaId, mediaId))
+    }
     const [raw] = await tx
       .select()
       .from(customShellMedia)
@@ -944,12 +1089,16 @@ export async function finishUploadJob({
     await writeNotices(tx, [
       uploadNotice(rows[0], true, rows[0].name ?? media?.originalName ?? null),
     ])
-    return { sourcePath }
+    return {
+      sourcePath,
+      oldStill: stillPath ? (before?.stillPath ?? null) : null,
+    }
   })
 
   if (!closed) {
     // Another pass got there first, so this copy is the spare one to remove.
     await deleteFromR2(storagePath).catch(() => undefined)
+    if (stillPath) await deleteFromR2(stillPath).catch(() => undefined)
     return { settled: false }
   }
 
@@ -960,7 +1109,66 @@ export async function finishUploadJob({
   ) {
     await deleteFromR2(previousStoragePath).catch(() => undefined)
   }
+  if (closed.oldStill && closed.oldStill !== stillPath) {
+    await deleteFromR2(closed.oldStill).catch(() => undefined)
+  }
   return { settled: true }
+}
+
+/**
+ * Where a video's middle frame goes: a folder of its own, outside the
+ * per-member folders the storage page's orphan sweep reads, because a still
+ * has no library row. The upload's delete removes it.
+ */
+export function stillStoragePath(userId: string, mediaId: string) {
+  return `pomodoro-stills/${userId}/${mediaId}-${uuid()}.jpg`
+}
+
+/**
+ * A finished video, not in the bin, that has no still yet: the worker takes
+ * one per quiet pass, so videos from before stills existed catch up.
+ */
+export async function findVideoWithoutStill() {
+  const [row] = await db
+    .select({
+      mediaId: pomodoroMediaUploads.mediaId,
+      userId: pomodoroMediaUploads.userId,
+      storagePath: customShellMedia.storagePath,
+    })
+    .from(pomodoroMediaUploads)
+    .innerJoin(
+      customShellMedia,
+      eq(customShellMedia.id, pomodoroMediaUploads.mediaId)
+    )
+    .where(
+      and(
+        eq(pomodoroMediaUploads.kind, "video"),
+        eq(pomodoroMediaUploads.status, "ready"),
+        isNull(pomodoroMediaUploads.stillPath),
+        notInBin
+      )
+    )
+    .orderBy(asc(pomodoroMediaUploads.createdAt))
+    .limit(1)
+  return row ?? null
+}
+
+/**
+ * Saves a still taken on a quiet pass. False when another pass or a new cut
+ * saved one first, and the caller removes its spare.
+ */
+export async function saveUploadStill(mediaId: string, stillPath: string) {
+  const rows = await db
+    .update(pomodoroMediaUploads)
+    .set({ stillPath })
+    .where(
+      and(
+        eq(pomodoroMediaUploads.mediaId, mediaId),
+        isNull(pomodoroMediaUploads.stillPath)
+      )
+    )
+    .returning({ mediaId: pomodoroMediaUploads.mediaId })
+  return rows.length > 0
 }
 
 /**

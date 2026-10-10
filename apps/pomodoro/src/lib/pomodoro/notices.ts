@@ -27,6 +27,7 @@ export const POMODORO_NOTICE_KINDS = [
   "media_ready",
   "media_failed",
   "credits_low",
+  "storage_low",
   "report_new",
   "report_reviewed",
   "profile_hidden",
@@ -79,6 +80,7 @@ export const NOTICE_KIND_CATEGORY: Record<
   media_ready: "account",
   media_failed: "account",
   credits_low: "account",
+  storage_low: "account",
   // Moderation is about your own account either way: the queue you work as
   // an admin, a report you filed, or your own page being hidden.
   report_new: "account",
@@ -105,6 +107,17 @@ export const KINDS_LINKING_TO_THE_ACTOR: readonly PomodoroNoticeKind[] = [
   "cheer",
   "followed_streak",
 ]
+
+/**
+ * Space at 90% of the plan's limit (task 02, part 3). Said once until the
+ * member drops back under; the detail carries the figures.
+ */
+export const STORAGE_LOW_MESSAGE = "Your space is nearly full."
+export const MY_UPLOADS_PAGE = "/uploads"
+
+export function storageLowDetail(usedLabel: string, limitLabel: string) {
+  return `${usedLabel} of ${limitLabel} used. Delete what you no longer use, and empty the bin on My uploads.`
+}
 
 /** The page a finished file or a credit notice leads to, by what it is for. */
 export const MEDIA_PAGE = {
@@ -425,6 +438,7 @@ export function noticeKindFromWords(notice: {
   if (message.includes(GROUP_JOIN_INFIX)) return "group_join"
   if (STREAK_PATTERN.test(message)) return "followed_streak"
   if (CREDITS_PATTERN.test(message)) return "credits_low"
+  if (message === STORAGE_LOW_MESSAGE) return "storage_low"
   if (message.startsWith(REPORT_NEW_PREFIX) || REPORTS_NEW_FOLDED.test(message))
     return "report_new"
   if (message === REPORT_REVIEWED_MESSAGE) return "report_reviewed"

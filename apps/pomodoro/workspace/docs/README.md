@@ -123,6 +123,9 @@ cover this one.
 - [Made-up members](made-up-members.md) — the accounts that focus every day
   so the site never looks empty: the Settings tab, their working day, the
   worker, their history, and the mark only the admin sees.
+- [My uploads](my-uploads.md) — the page that manages every own file: marks,
+  tick boxes, the 30-day bin, stills for clips, the space warning, Download,
+  and AI files named after their prompt.
 - [Your own backgrounds and sounds](own-media-uploads.md) — what a Pro member
   may upload, the upload window (name, tags, Share, trim, several files), the
   FFmpeg re-encode, and where the files live.

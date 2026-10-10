@@ -1,4 +1,5 @@
 import * as React from "react"
+import { toast } from "sonner"
 import {
   ImageIcon,
   Loader2Icon,
@@ -16,7 +17,7 @@ import {
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { Checkbox } from "@/components/ui/checkbox"
 import { cn } from "@/lib/utils"
 import { PRO_PERKS } from "@/lib/pomodoro/pro"
 import { useProductAuth } from "@/lib/pomodoro/auth-state"
@@ -28,10 +29,13 @@ import {
 import {
   getPomodoroUploadErrorMessage,
   loadUploadLibrary,
-  removePomodoroUpload,
+  binPomodoroUploads,
+  restorePomodoroUploads,
   type StoredUpload,
   type UploadLibrary,
 } from "@/lib/api/pomodoro/media-uploads"
+import { describeBulkResult } from "@/lib/format/bulk-result"
+import { showErrorToast } from "@/lib/toast/error-toast"
 import { SignInButton } from "@/components/pomodoro/sign-in-button"
 import { UploadWindow } from "@/components/pomodoro/upload-window"
 import { UploadEditDialog } from "@/components/pomodoro/upload-edit-dialog"
@@ -114,10 +118,18 @@ export function MediaUploadsSection({
   const [editing, setEditing] = React.useState<StoredUpload | null>(null)
   // Bumped on every open, so each edit starts from the saved values.
   const [editKey, setEditKey] = React.useState(0)
-  const [pendingDelete, setPendingDelete] = React.useState<StoredUpload | null>(
-    null
+  // Ticked cards, for moving several to the bin in one go.
+  const [chosen, setChosen] = React.useState<string[]>([])
+  const [binning, setBinning] = React.useState(false)
+  // The "moved to the bin" toast goes when this tab does: its Bring back
+  // reloads this tab, and the Bin tab open beside it would go stale.
+  const binToast = React.useRef<string | number | null>(null)
+  React.useEffect(
+    () => () => {
+      if (binToast.current !== null) toast.dismiss(binToast.current)
+    },
+    []
   )
-  const [deleting, setDeleting] = React.useState(false)
 
   // Guests never own uploads, and asking the server anyway answers 401 — which
   // this strip then showed as a red "Please sign in again." on a page that was
@@ -163,6 +175,64 @@ export function MediaUploadsSection({
   const known = library !== null || (auth.known && !auth.authenticated)
   const locked = !library || !library.canUploadMedia
   const full = library !== null && library.usedBytes >= library.limitBytes
+
+  /**
+   * Moves files to the bin in one request, then offers to bring them back.
+   * Nothing is lost by a slip, so this never asks first; the toast's Bring
+   * back undoes it.
+   */
+  async function moveToBin(ids: string[]) {
+    setBinning(true)
+    try {
+      const result = await binPomodoroUploads(ids)
+      setChosen((current) => current.filter((id) => !result.done.includes(id)))
+      await refresh()
+      const line = describeBulkResult({
+        done: result.done.length,
+        kept: result.skipped.length,
+        one: "file",
+        many: "files",
+        verb: "moved to the bin",
+      })
+      if (!result.done.length) {
+        showErrorToast(line)
+        return
+      }
+      binToast.current = toast.success(line, {
+        description: `${result.done.length === 1 ? "It stays" : "They stay"} in the Bin tab for 30 days.`,
+        action: {
+          label: "Bring back",
+          onClick: () =>
+            void restorePomodoroUploads(result.done)
+              .then(async (restored) => {
+                await refresh()
+                const back = describeBulkResult({
+                  done: restored.done.length,
+                  kept: restored.skipped.length,
+                  one: "file",
+                  many: "files",
+                  verb: "brought back",
+                })
+                if (restored.skipped.length) showErrorToast(back)
+                else toast.success(back)
+              })
+              .catch((restoreError: unknown) =>
+                showErrorToast(getPomodoroUploadErrorMessage(restoreError))
+              ),
+        },
+      })
+    } catch (binError) {
+      showErrorToast(getPomodoroUploadErrorMessage(binError))
+    } finally {
+      setBinning(false)
+    }
+  }
+
+  const uploads = library?.uploads ?? []
+  // A ticked card that has since gone is not still ticked.
+  const ticked = chosen.filter((id) =>
+    uploads.some((upload) => upload.mediaId === id)
+  )
 
   const headingId = `your-own-${purpose}`
 
@@ -215,12 +285,65 @@ export function MediaUploadsSection({
         </p>
       ) : null}
 
-      {(library?.uploads.length ?? 0) > 0 ? (
+      {ticked.length ? (
+        <div
+          role="toolbar"
+          aria-label="Ticked files"
+          className="flex flex-wrap items-center gap-2"
+        >
+          <span className="text-sm font-medium">
+            {ticked.length} {ticked.length === 1 ? "file" : "files"} ticked
+          </span>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={binning}
+            onClick={() => void moveToBin(ticked)}
+          >
+            {binning ? (
+              <Loader2Icon className="animate-spin" aria-hidden="true" />
+            ) : (
+              <Trash2Icon aria-hidden="true" />
+            )}
+            Move to bin
+          </Button>
+          {ticked.length < uploads.length ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setChosen(uploads.map((upload) => upload.mediaId))}
+            >
+              Tick all
+            </Button>
+          ) : null}
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setChosen([])}
+          >
+            Clear
+          </Button>
+        </div>
+      ) : null}
+
+      {uploads.length > 0 ? (
         <div className="grid grid-cols-2 gap-4 sm:gap-6 lg:grid-cols-4">
-          {(library?.uploads ?? []).map((upload) => (
+          {uploads.map((upload) => (
             <UploadCard
               key={upload.mediaId}
               upload={upload}
+              chosen={ticked.includes(upload.mediaId)}
+              anyChosen={ticked.length > 0}
+              onChoose={(on) =>
+                setChosen((current) =>
+                  on
+                    ? [...current, upload.mediaId]
+                    : current.filter((id) => id !== upload.mediaId)
+                )
+              }
               selected={isSelected(upload)}
               addMenu={renderAddMenu?.(upload) ?? null}
               onPick={() => onPick?.(upload)}
@@ -230,7 +353,8 @@ export function MediaUploadsSection({
                 setEditKey((key) => key + 1)
                 setEditing(upload)
               }}
-              onDelete={() => setPendingDelete(upload)}
+              onDelete={() => void moveToBin([upload.mediaId])}
+              binning={binning}
               renderThumbnail={(playing) => renderThumbnail(upload, playing)}
             />
           ))}
@@ -252,34 +376,6 @@ export function MediaUploadsSection({
         onSaved={refresh}
       />
 
-      <ConfirmDialog
-        open={Boolean(pendingDelete)}
-        onOpenChange={(open) => {
-          if (!open && !deleting) setPendingDelete(null)
-        }}
-        title="Delete this upload?"
-        description={
-          pendingDelete
-            ? `${pendingDelete.name} is removed for good and the space it takes comes back. If it is the one you are using, you go back to the default.`
-            : null
-        }
-        confirmLabel="Delete upload"
-        loading={deleting}
-        onConfirm={async () => {
-          const target = pendingDelete
-          if (!target) return
-          setDeleting(true)
-          try {
-            await removePomodoroUpload(target.mediaId)
-            await refresh()
-            setPendingDelete(null)
-          } catch (deleteError) {
-            setError(getPomodoroUploadErrorMessage(deleteError))
-          } finally {
-            setDeleting(false)
-          }
-        }}
-      />
     </section>
   )
 }
@@ -389,15 +485,24 @@ const KIND_ICONS = {
  */
 function UploadCard({
   upload,
+  chosen,
+  anyChosen,
+  onChoose,
   selected,
   addMenu,
   onPick,
   playing,
   onEdit,
   onDelete,
+  binning,
   renderThumbnail,
 }: {
   upload: StoredUpload
+  /** Ticked for moving to the bin with others. */
+  chosen: boolean
+  /** Some card is ticked, so every tick box shows. */
+  anyChosen: boolean
+  onChoose: (chosen: boolean) => void
   /** In use in the room you are in. */
   selected: boolean
   /** The "+" that opens the Add choices. */
@@ -407,6 +512,8 @@ function UploadCard({
   playing: boolean
   onEdit: () => void
   onDelete: () => void
+  /** A move to the bin is on its way, so a second press waits. */
+  binning: boolean
   renderThumbnail: (playing: boolean) => React.ReactNode
 }) {
   // A finished file plays, including the old cut while a new trim is made.
@@ -427,6 +534,11 @@ function UploadCard({
         ? "The new cut could not be made. The old one still plays."
         : (upload.failureReason ?? "It could not be prepared.")
       : null
+  const marks = [
+    upload.generated ? "AI" : null,
+    upload.shared ? "Shared" : null,
+    upload.inUse ? "In use" : null,
+  ].filter((mark): mark is string => mark !== null)
   const [hovered, setHovered] = React.useState(false)
   const [tapped, setTapped] = React.useState(false)
 
@@ -505,8 +617,24 @@ function UploadCard({
         >
           {upload.name}
         </strong>
-        {/* A finished file shows its name alone, as the catalogue's cards
-            do; a line under it only says what is still happening. */}
+        {/* The line under the name says what is still happening, or else
+            carries the marks in the catalogue's NEW style: made by AI,
+            shared, in your room or on your profile. Under the name, not
+            beside it, so a phone's narrow card still shows the name. */}
+        {!status && marks.length ? (
+          <span className="flex gap-2 font-mono uppercase tracking-[0.15em] text-[var(--p-accent-2)]">
+            {marks.map((mark) => (
+              // The same height as the status line it stands in for, so a
+              // card with marks is as tall as one saying "Getting it ready…".
+              <small
+                key={mark}
+                className={cn("text-[10px]", sound ? "leading-5" : "leading-4")}
+              >
+                {mark}
+              </small>
+            ))}
+          </span>
+        ) : null}
         {status ? (
           <small
             className={cn(
@@ -524,7 +652,8 @@ function UploadCard({
   return (
     <Card
       className={cn(
-        "relative gap-0 overflow-hidden p-0",
+        // A size container, so the "+" can be placed from the picture.
+        "@container relative gap-0 overflow-hidden p-0",
         sound && "rounded-[18px]",
         selected && "ring-2 ring-[var(--p-accent)]"
       )}
@@ -548,25 +677,36 @@ function UploadCard({
           the room it has there. */}
       {ready ? (
         <div
-          // Centred on the name's line. The text under the picture has a
-          // fixed height (padding, a name line, and a status line only while
-          // something is happening), so the distance from the card's foot to
-          // the middle of the name is known: padding, the status line and its
-          // gap if shown, half the name's line, less half the 32px button.
+          // Level with the name's first line, placed from the top: the
+          // picture is a fixed share of the card's width (16:9 is 56.25cqw,
+          // a sound's 8:5 is 62.5cqw), then the padding and half the name's
+          // line, less half the 32px button. From the foot it went wrong
+          // whenever the grid stretched a card to match a taller neighbour.
           className={cn(
             "absolute right-3",
-            sound
-              ? status
-                ? "bottom-9"
-                : "bottom-3"
-              : status
-                ? "bottom-6"
-                : "bottom-1.5"
+            sound ? "top-[calc(62.5cqw+12px)]" : "top-[calc(56.25cqw+6px)]"
           )}
         >
           {addMenu}
         </div>
       ) : null}
+      {/* The tick box for moving several to the bin. It shows on hover, once
+          any card is ticked, and always on a phone, which has no hover. */}
+      <span
+        className={cn(
+          "absolute top-2 left-2 z-[2] grid size-8 place-items-center rounded-full bg-black/45 backdrop-blur-sm transition-opacity",
+          chosen || anyChosen
+            ? "opacity-100"
+            : "opacity-0 group-hover/card:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100"
+        )}
+      >
+        <Checkbox
+          checked={chosen}
+          onCheckedChange={(checked) => onChoose(checked === true)}
+          aria-label={`Tick ${upload.name}`}
+          className="border-white/80"
+        />
+      </span>
       <div className="absolute top-2 right-2 flex gap-1">
         <Button
           type="button"
@@ -585,8 +725,9 @@ function UploadCard({
           size="icon"
           className={cornerButton}
           onClick={onDelete}
-          title={`Delete ${upload.name}`}
-          aria-label={`Delete ${upload.name}`}
+          disabled={binning}
+          title={`Move ${upload.name} to the bin`}
+          aria-label={`Move ${upload.name} to the bin`}
         >
           <Trash2Icon className="size-4" />
         </Button>
