@@ -538,6 +538,14 @@ writes a `crm_follow_up` notice into the bell for the person the site belongs to
 with the note as its words, and clicking it opens the newest conversation with
 that person.
 
+**The bell shows it as "Follow up with <name>"**, with the note on the line
+under it and a calendar icon instead of someone's initial. The admin
+Notifications table shows and searches the same words. Notices that carry their
+own words share one list, `SELF_WORDED_NOTIFICATION_TYPES` in
+`src/lib/notification-types.ts`, and a new kind of that sort is added there and
+nowhere else. A kind missing from the list falls through to the feedback
+wording and reads "Somebody commented on your feedback".
+
 **It fires once.** The stamp that says so is written in the same statement that
 finds the row, so two overlapping passes cannot both send it. Moving the date
 clears that stamp, which is what lets a date moved forward be chased again. A

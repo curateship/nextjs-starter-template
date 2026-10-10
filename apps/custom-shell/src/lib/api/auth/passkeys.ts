@@ -25,7 +25,7 @@ import {
   requireOwnAccount,
   setSessionCookie,
 } from "@/server/auth/security"
-import { readBranding } from "@/server/shell-settings"
+import { readBranding, readShellGlobals } from "@/server/shell-settings"
 
 /** One passkey as the Security tab shows it. */
 export type PasskeyListItem = {
@@ -78,6 +78,17 @@ async function requestRelyingParty(): Promise<RelyingParty> {
   }
 }
 
+/**
+ * The server half of Settings → General → Passkeys. Hiding the button is not
+ * enough on its own: a sign-in page left open from before the switch was
+ * flipped still has it, and these endpoints answer anyone who calls them.
+ */
+async function requirePasskeysOn() {
+  if (!(await readShellGlobals()).passkeySignIn) {
+    throw new Error("PASSKEYS_OFF")
+  }
+}
+
 const loadPasskeysFn = createServerFn({ method: "GET" }).handler(
   async (): Promise<PasskeyListItem[]> => {
     const user = await requireOwnAccount()
@@ -95,6 +106,7 @@ const loadPasskeysFn = createServerFn({ method: "GET" }).handler(
 const beginPasskeyRegistrationFn = createServerFn({ method: "POST" }).handler(
   async () => {
     const rp = await requestRelyingParty()
+    await requirePasskeysOn()
     const user = await requireOwnAccount()
 
     // Every call writes a challenge row, so a runaway loop is capped. Keyed on
@@ -118,6 +130,7 @@ const finishPasskeyRegistrationFn = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }): Promise<PasskeyListItem> => {
     const rp = await requestRelyingParty()
+    await requirePasskeysOn()
     const user = await requireOwnAccount()
 
     const saved = await verifyAndSavePasskey(
@@ -139,6 +152,7 @@ const finishPasskeyRegistrationFn = createServerFn({ method: "POST" })
 const beginPasskeySignInFn = createServerFn({ method: "POST" }).handler(
   async () => {
     const rp = await requestRelyingParty()
+    await requirePasskeysOn()
 
     // Signed-out and cheap to call, so it gets the same kind of per-address
     // budget as the login form. Each call writes one challenge row.
@@ -160,6 +174,7 @@ const finishPasskeySignInFn = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     const rp = await requestRelyingParty()
+    await requirePasskeysOn()
 
     // Counted like password attempts, and cleared on success for the same
     // reason: the limit exists for the hammering, not the household.

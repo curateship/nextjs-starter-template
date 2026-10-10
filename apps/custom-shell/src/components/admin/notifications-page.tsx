@@ -44,6 +44,7 @@ import {
 import {
   aiLimitNotificationText,
   automationApprovalNotificationText,
+  carriesItsOwnWords,
   isAiLimitNotification,
   notificationTypeLabels,
   type NotificationType,
@@ -85,11 +86,7 @@ const NOTIFICATION_COLUMNS: SortableColumn<NotificationSortColumn>[] = [
  * order — see `subjectExpression` in `src/server/notifications/inbox.ts`.
  */
 function notificationSubject(item: NotificationItem) {
-  if (
-    item.type === "account_update" ||
-    item.type === "system_email_failed" ||
-    item.type === "app_activity"
-  ) {
+  if (carriesItsOwnWords(item.type)) {
     return item.message ?? "The app needs attention"
   }
   // An AI-allowance notice carries its own words — there is no thing it is
@@ -119,11 +116,7 @@ function notificationSubject(item: NotificationItem) {
  */
 function notificationSubjectDetail(item: NotificationItem) {
   const subject = notificationSubject(item)
-  if (
-    item.type === "account_update" ||
-    item.type === "system_email_failed" ||
-    item.type === "app_activity"
-  ) {
+  if (carriesItsOwnWords(item.type)) {
     return item.detail ? `${subject}\n\n${item.detail}` : subject
   }
   if (isAiLimitNotification(item.type)) {
@@ -152,11 +145,7 @@ function notificationSubjectDetail(item: NotificationItem) {
  */
 function notificationActor(item: NotificationItem) {
   if (item.actor_name) return item.actor_name
-  if (
-    item.type === "account_update" ||
-    item.type === "system_email_failed" ||
-    item.type === "app_activity"
-  ) {
+  if (carriesItsOwnWords(item.type)) {
     return item.detail ?? "—"
   }
   if (item.type === "announcement") return item.announcement_body || "—"
