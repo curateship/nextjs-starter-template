@@ -13,6 +13,8 @@ import {
 import { listedProfilePaths } from "@/server/pomodoro/public-profile"
 import { runStreakReminderPass } from "@/server/pomodoro/streak-reminder"
 import { runSimulatedPass } from "@/server/pomodoro/simulated-accounts"
+import { runSimulatedRoomsPass } from "@/server/pomodoro/simulated-rooms"
+import { runSimulatedChatPass } from "@/server/pomodoro/simulated-chat"
 
 /**
  * What this app changes about the shell, on the server side.
@@ -100,6 +102,29 @@ export const appServerOptions: AppServerOptions = {
         name: "pomodoro-simulated-days",
         tick: async () => {
           await runSimulatedPass()
+        },
+      },
+      {
+        // The rooms the made-up members host and sit in (live activity task
+        // 02). Every tick, a waiting room that is due presses Start; once a
+        // minute the rest: hosts open and close rooms, made-up members arrive
+        // and leave, hosts follow the Live themes, and the fullest made-up
+        // room takes the featured slot when no real room has it. A room with a real person
+        // in it is never closed. Rooms are claimed with SKIP LOCKED.
+        name: "pomodoro-simulated-rooms",
+        tick: async () => {
+          await runSimulatedRoomsPass()
+        },
+      },
+      {
+        // What the made-up members say in their rooms (live activity task
+        // 03): the greeting, a reply to a real line, break lines, reactions.
+        // Every tick, because a line due in the last half-minute of a break
+        // cannot wait a minute. Silent until the voice card's Preview has been
+        // read once, and while Pause everything is on.
+        name: "pomodoro-simulated-chat",
+        tick: async () => {
+          await runSimulatedChatPass()
         },
       },
       {

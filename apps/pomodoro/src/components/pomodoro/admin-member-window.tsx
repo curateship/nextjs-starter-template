@@ -42,6 +42,12 @@ import { Input } from "@/components/ui/input"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { Textarea } from "@/components/ui/textarea"
 import { MadeUpMark, useIsMadeUp, useMemberWindowLink } from "@/components/pomodoro/admin-member-name"
+import {
+  getSimulatedErrorMessage,
+  loadSimulatedPersonality,
+  saveSimulatedPersonality,
+} from "@/lib/api/pomodoro/admin-simulated"
+import { PERSONALITY_MAX } from "@/lib/pomodoro/simulated-voice"
 import { useSafetyActions } from "@/components/pomodoro/admin-safety-dialogs"
 import {
   addPomodoroMemberNote,
@@ -502,8 +508,96 @@ function MemberSections({
         ) : null}
       </Card>
 
+      <VoiceCard userId={person.id} />
       <NotesCard userId={person.id} notes={data.notes} state={notes} />
     </div>
+  )
+}
+
+/**
+ * A made-up member's personality line (live activity task 03), added to the
+ * style brief on Settings → App settings → Made-up members for every line it
+ * says. Drawn only for a made-up account.
+ */
+function VoiceCard({ userId }: { userId: string }) {
+  const madeUp = useIsMadeUp(userId)
+  const [saved, setSaved] = React.useState<string | null>(null)
+  const [draft, setDraft] = React.useState("")
+  const [error, setError] = React.useState<string | null>(null)
+  const [attempt, setAttempt] = React.useState(0)
+  const [busy, setBusy] = React.useState(false)
+  const voiceId = React.useId()
+
+  React.useEffect(() => {
+    if (!madeUp) return
+    let live = true
+    loadSimulatedPersonality(userId).then(
+      (personality) => {
+        if (!live) return
+        setSaved(personality)
+        setDraft(personality)
+        setError(null)
+      },
+      (failure) => {
+        if (live) setError(getSimulatedErrorMessage(failure))
+      }
+    )
+    return () => {
+      live = false
+    }
+  }, [madeUp, userId, attempt])
+
+  if (!madeUp) return null
+  return (
+    <Card size="sm">
+      <CardHeader>
+        <CardTitle>Voice</CardTitle>
+        <CardDescription>How this made-up member comes across in room chat, on top of the style brief.</CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-2">
+        {error ? (
+          <ErrorRow
+            message={error}
+            onRetry={() => {
+              setError(null)
+              setAttempt((count) => count + 1)
+            }}
+          />
+        ) : saved === null ? (
+          <LoadingRow label="Loading…" />
+        ) : (
+          <form
+            className="grid gap-2"
+            onSubmit={(event) => {
+              event.preventDefault()
+              setBusy(true)
+              saveSimulatedPersonality(userId, draft.trim())
+                .then((personality) => {
+                  setSaved(personality)
+                  setDraft(personality)
+                  toast.success("Voice saved.")
+                })
+                .catch((failure) => showErrorToast(getSimulatedErrorMessage(failure)))
+                .finally(() => setBusy(false))
+            }}
+          >
+            <FieldLabel htmlFor={voiceId}>Personality</FieldLabel>
+            <Textarea
+              id={voiceId}
+              rows={1}
+              maxLength={PERSONALITY_MAX}
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+            />
+            <div>
+              <Button type="submit" variant="outline" disabled={busy}>
+                Save voice
+              </Button>
+            </div>
+          </form>
+        )}
+      </CardContent>
+    </Card>
   )
 }
 

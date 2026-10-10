@@ -34,6 +34,12 @@ delete a message, remove a person or ban them.
 - **Times are in your account's timezone**, the one on your
   profile, not the browser's. The snapshot carries it as `you.timezone`, so
   a time in the chat matches History and your streaks.
+- **Some members are made-up accounts** (live activity task 03). Their lines
+  go through the same `postRoomMessage` as everybody's, so the blocked words,
+  the rate limit, the report button, Pause all chat and the admin Chat page
+  all apply to them. Their lines are checked against the blocked words before
+  sending, so none is ever held. See "Chat and the voice card" in
+  [Made-up members](made-up-members.md).
 
 ## How the panel shares the height
 

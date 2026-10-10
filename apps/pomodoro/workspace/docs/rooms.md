@@ -49,14 +49,27 @@ is not logged in, that should link to the login page."
   out the room you host and the room you are sitting in (`listPublicRooms` in
   `src/server/pomodoro/rooms.ts` takes the viewer). Both already have their
   own column on `/rooms`. Leave a room and it comes back to your list.
+- **Some hosts are made-up accounts** (live activity task 02). Their rooms are
+  ordinary rooms a real member joins and is treated in like any other, and the
+  worker that runs them never closes a room with a real person in it. See
+  "Rooms" in [Made-up members](made-up-members.md).
 
 ## How it behaves
 
 - **Browse** shows "Open to join" (waiting or on break) under the three
   columns, three cards across on a wide screen. A room mid-focus is not
   listed, because nobody can join it until its break. Tyler removed the "In
-  session" list and the "My rooms" list on 7 Oct 2026. Public cards show
-  member counts, never names — the old privacy rule after a real leak.
+  session" list and the "My rooms" list on 7 Oct 2026. Cards show the faces
+  of the people inside (see below).
+- **Starting soon comes first, then Open to join, six at a time.** Tyler,
+  9 Oct 2026: "Show the 'Starting in ***' first and then 'Open to join'
+  follows it" and "Show 6 with a load more". A room whose host started a
+  countdown of a minute or more is listed under Starting soon. It shows
+  three at most, the soonest ("Only 3 starting in.. shows"); any other room
+  counting down stays under Open to join, its card saying "starting in".
+  Open to join shows six cards and a Load more button that adds six each
+  press. Both on `/rooms` and on the front page (`OpenRoomsSection` in
+  `src/components/pomodoro/open-rooms.tsx`).
 - **The lists stay current on their own.** While the Rooms tab is on screen,
   the open rooms and the booked ones are read again every minute, and once
   more the moment you come back to the tab, so a room that has closed leaves
@@ -66,20 +79,35 @@ is not logged in, that should link to the login page."
   (`assets/pasted-image-1791404158696439000.png`, `OpenRoomCard` in
   `src/components/pomodoro/room-card.tsx`), has a tall picture with the LIVE
   VIBE pill, then the host's initials overlapping the picture's foot beside the
-  room's name in large type. Under the name: "waiting to start" in green, or
-  "on break · 3:12" in amber counting down each second; then a row of small
-  circles and "3 focusing"; then "Next: 25 min focus" beside a black Join
-  pill. The dot on the host's initials is green or amber to match.
-- **The small circles carry no initials.** The design draws the members'
-  initials, but the browse list sends a count and never names, and that rule
-  stays. Only the host, who is already named on every public room, gets
-  letters.
+  room's name in large type. Under the name: "waiting to start" in green,
+  "starting in 1:23" while a countdown runs, or "on break · 3:12" in amber,
+  each counting down every second; then the faces of up to three people
+  inside and "3 focusing"; then "Next: 25 min focus" beside a black Join
+  pill. The dot on the host's picture is green or amber to match.
+- **The faces are real.** Tyler, 9 Oct 2026: "this need to show real
+  avatars" and "The cards show the avatar". The host and the first three
+  people in show their own uploaded photo, or their coloured initials when
+  they have none (`PersonAvatar` in `initials-avatar.tsx`). Until that day the
+  list sent a count and never names, a rule kept since a real leak; Tyler
+  chose to show faces, so `listPublicRooms` now sends the names and photos of
+  the people in each public room. The photo follows the profile: somebody who
+  switched their profile off, or whose profile an admin hid, shows initials,
+  the same rule that keeps their handle from linking. A photo that will not
+  load shows initials too.
+- **When every room is counting down**, Starting soon holds them and Open to
+  join is left out rather than saying "No rooms here yet". A room leaves
+  Starting soon the moment its countdown ends.
 - **The picture is the room's own scene**, with its sound named in the top
   right corner, so people can pick a room by its mood. A room from before
   rooms carried a pair keeps one of four gradients, picked from the room's own
   id so a card keeps its colour when the list shuffles. The section heading is
   "Open to join" in large type, and an empty list shows a dashed box saying
-  so. Upcoming still uses the shorter card. The gradients live in
+  so. Upcoming still uses the shorter card.
+- **Pointing at a card plays its scene's film.** Tyler, 9 Oct 2026: "hovering
+  over the card should play the clip", the same as the theme cards on
+  Backgrounds. Only while the mouse is on the card, so a page of cards loads
+  no films until one is pointed at; never on a phone, and never with reduced
+  motion. A room without a scene keeps its still gradient. The gradients live in
   `src/lib/pomodoro/room-vibe.ts` and the two animations in
   `src/components/pomodoro/theme.css`.
 - **Hosting is Pro** (`requirePomodoroPerk("hostRooms")`): name, public or
@@ -285,3 +313,33 @@ it. Opening your room from the Rooms page marks that room's notices read. The
 live connection that keeps a room on screen is also what tells the server you
 are looking at it, and it is held only while the tab is visible. See
 [Notifications](notifications.md).
+
+## Starting in
+
+Tyler, 9 Oct 2026: "there should be a default timer of 5 seconds for hosted
+room for everyone until they change it", and joining a waiting room "should
+not start right away. It should obey the starting in... timer". Also: "We also
+need some sort of indicators that shows the user the starting in... countdown
+while they're in the room".
+
+- **Start begins a countdown.** In a waiting room the host's button reads
+  "Start in 5 seconds"; beside it, Countdown picks 5 seconds or 1, 2, 3, 4
+  or 5 minutes, kept on the room (`rooms.start_delay_seconds`, migration 0132).
+  Pressing it sets `starting_at`; the room stays waiting, so people can still
+  join, and the ring shows "STARTING IN" with the time counting down for
+  everybody in the room.
+- **The host can start at once or stop it.** While it counts, the buttons are
+  Start now and Cancel.
+- **The room starts itself when it runs out.** The request that began it sets
+  a timer for that moment, and the room clock's 15-second loop
+  (`startCountedRooms` in `src/server/pomodoro/rooms.ts`) covers a restart.
+- **Joining never cuts it short**, and joining a waiting room with no countdown
+  starts nothing: a real room waits for its host as it always has.
+- **Starting from a break** is unchanged: Start focus starts at once, and a
+  room with auto-start goes from its break straight into the next focus.
+- **Under Starting soon** go rooms counting down a minute or more, the three
+  soonest. A 5-second countdown is over before anybody could see it, so it
+  stays under Open to join.
+- **Made-up hosts keep three there.** Their countdowns run 8 to 15 minutes,
+  longer than a real host can pick; why is under "Rooms" in
+  [Made-up members](made-up-members.md).

@@ -32,6 +32,7 @@ import {
 } from "@/server/pomodoro/schema"
 import { customShellUsers as users } from "@/server/schema"
 import { isRoomReactionEmoji, roomReactionOrder } from "@/lib/pomodoro/room-reactions"
+import { isStartDelay } from "@/lib/pomodoro/room-countdown"
 import {
   followedRoomMessage,
   linePreview,
@@ -47,7 +48,7 @@ type PomoderDb = CustomShellDb
 export type PomoderTransaction = Parameters<Parameters<PomoderDb["transaction"]>[0]>[0]
 
 export type RoomPhase = "scheduled" | "waiting" | "focus" | "short" | "long" | "closed"
-export type RoomHostAction = "start_focus" | "start_break" | "next_phase" | "close"
+export type RoomHostAction = "start_focus" | "start_break" | "next_phase" | "close" | "cancel_start"
 
 const FOCUS_PERIODS_PER_CYCLE = 4
 const TIMED_PHASES: readonly RoomPhase[] = ["focus", "short", "long"]
@@ -103,6 +104,9 @@ export function phaseUpdate(room: Room, nextPhase: RoomPhase, timestamp: Date) {
       cycleFocusCount,
       phaseStartedAt: phaseEndsAt ? timestamp : null,
       phaseEndsAt,
+      // Any phase change ends a "Starting in" countdown.
+      startingAt: null,
+      countdownSeconds: null,
       closedAt: nextPhase === "closed" ? timestamp : room.closedAt,
       updatedAt: timestamp,
     },
@@ -112,7 +116,15 @@ export function phaseUpdate(room: Room, nextPhase: RoomPhase, timestamp: Date) {
 
 export type RoomTransitionResult = { room: Room; transitionAt: Date | null }
 
-export async function applyHostRoomAction(slug: string, userId: string, action: RoomHostAction, database: PomoderDb = db, timestamp = new Date()): Promise<RoomTransitionResult> {
+export async function applyHostRoomAction(
+  slug: string,
+  userId: string,
+  action: RoomHostAction,
+  database: PomoderDb = db,
+  timestamp = new Date(),
+  /** A made-up host's countdown for this one Start, in place of the room's choice. */
+  countdownSeconds?: number
+): Promise<RoomTransitionResult> {
   return database.transaction(async (tx) => {
     const [room] = await tx.select().from(rooms).where(eq(rooms.slug, slug)).for("update").limit(1)
     if (!room) throw new Error("ROOM_NOT_FOUND")
@@ -122,6 +134,22 @@ export async function applyHostRoomAction(slug: string, userId: string, action: 
     // Cancelling it is a different act with different consequences, and lives
     // in cancelScheduledRoom.
     if (isScheduledRoom(room.phase)) throw new Error("ROOM_NOT_OPEN_YET")
+    // "Starting in" (9 Oct 2026): Start in a waiting room begins the host's
+    // countdown instead, and the room clock starts the focus when it ends.
+    // Start pressed again while it runs starts at once; Cancel stops it.
+    if (action === "cancel_start") {
+      if (!room.startingAt) return { room, transitionAt: null }
+      const [updated] = await tx.update(rooms).set({ startingAt: null, countdownSeconds: null, sequence: room.sequence + 1, updatedAt: timestamp }).where(eq(rooms.id, room.id)).returning()
+      return { room: updated, transitionAt: null }
+    }
+    if (action === "start_focus" && room.phase === "waiting" && !room.startingAt) {
+      if (countdownSeconds !== undefined && !(Number.isInteger(countdownSeconds) && countdownSeconds > 0))
+        throw new Error("ROOM_START_DELAY_INVALID")
+      const seconds = countdownSeconds ?? room.startDelaySeconds
+      const startingAt = new Date(timestamp.getTime() + seconds * 1_000)
+      const [updated] = await tx.update(rooms).set({ startingAt, countdownSeconds: seconds, sequence: room.sequence + 1, updatedAt: timestamp }).where(eq(rooms.id, room.id)).returning()
+      return { room: updated, transitionAt: startingAt }
+    }
     const nextPhase = resolveHostAction(room, action)
     const { set, transitionAt } = phaseUpdate(room, nextPhase, timestamp)
     const [updated] = await tx.update(rooms).set(set).where(eq(rooms.id, room.id)).returning()
@@ -338,6 +366,13 @@ const isStaff = sql<boolean>`(${users.role} = 'admin' and ${users.status} = 'act
 const readableHandle = sql<string | null>`case
   when ${pomodoroProfiles.profilePublic} and ${pomodoroProfiles.hiddenAt} is null
   then ${pomodoroProfiles.handle} end`
+/**
+ * The uploaded photo on a room card, by the same rule: somebody who switched
+ * their profile off, or whose profile an admin hid, shows initials instead.
+ */
+const readableAvatar = sql<string | null>`case
+  when ${pomodoroProfiles.profilePublic} and ${pomodoroProfiles.hiddenAt} is null
+  then ${users.avatarUrl} end`
 
 /**
  * The public rooms someone can join. The rooms that viewer hosts or is
@@ -351,13 +386,15 @@ const featuredRoom = sql<boolean>`(${rooms.featuredAt} is not null or exists (
 ))`
 
 export async function listPublicRooms(viewerId: string, database: PomoderDb = db) {
-  return database
+  const rows = await database
     .select({
-      room: { id: rooms.id, slug: rooms.slug, name: rooms.name, phase: rooms.phase, phaseEndsAt: rooms.phaseEndsAt, focusMinutes: rooms.focusMinutes, cycleFocusCount: rooms.cycleFocusCount, sound: rooms.sound, background: rooms.background },
+      room: { id: rooms.id, slug: rooms.slug, name: rooms.name, phase: rooms.phase, phaseEndsAt: rooms.phaseEndsAt, focusMinutes: rooms.focusMinutes, cycleFocusCount: rooms.cycleFocusCount, sound: rooms.sound, background: rooms.background, startingAt: rooms.startingAt, countdownSeconds: rooms.countdownSeconds },
       // An admin featured the room, or the weekly rule that booked it (admin
       // task 04). Featured rooms sit first, with a label.
       featured: featuredRoom,
       hostName: displayName,
+      hostId: rooms.hostUserId,
+      hostAvatarUrl: readableAvatar,
       memberCount: sql<number>`count(${roomMemberships.id})::int`,
     })
     .from(rooms)
@@ -373,9 +410,29 @@ export async function listPublicRooms(viewerId: string, database: PomoderDb = db
       ne(rooms.hostUserId, viewerId),
       sql`not exists (select 1 from ${roomMemberships} mine where mine.room_id = ${rooms.id} and mine.user_id = ${viewerId} and mine.left_at is null)`,
     ))
-    .groupBy(rooms.id, users.id, pomodoroProfiles.publicDisplayName)
+    .groupBy(rooms.id, users.id, pomodoroProfiles.publicDisplayName, pomodoroProfiles.profilePublic, pomodoroProfiles.hiddenAt)
     .orderBy(desc(featuredRoom), desc(rooms.createdAt))
     .limit(50)
+  // The faces on each card besides the host's: the first three people in,
+  // a photo when they uploaded one and their initials otherwise. Tyler, 9 Oct
+  // 2026: "The cards show the avatar". One read for the whole list.
+  const ids = rows.map((row) => row.room.id)
+  const people = ids.length
+    ? await database
+        .select({ roomId: roomMemberships.roomId, userId: roomMemberships.userId, name: displayName, avatarUrl: readableAvatar })
+        .from(roomMemberships)
+        .innerJoin(users, eq(users.id, roomMemberships.userId))
+        .leftJoin(pomodoroProfiles, eq(pomodoroProfiles.userId, users.id))
+        .where(and(inArray(roomMemberships.roomId, ids), sql`${roomMemberships.leftAt} is null`))
+        .orderBy(roomMemberships.joinedAt)
+    : []
+  return rows.map(({ hostId, ...row }) => ({
+    ...row,
+    people: people
+      .filter((person) => person.roomId === row.room.id && person.userId !== hostId)
+      .slice(0, 3)
+      .map(({ name, avatarUrl }) => ({ name, avatarUrl })),
+  }))
 }
 
 export type RoomSnapshot = {
@@ -396,6 +453,9 @@ export type RoomSnapshot = {
     background: string | null
     cycleFocusCount: number
     closedAt: Date | null
+    /** "Starting in": the host's countdown choice, and when a running one ends. */
+    startDelaySeconds: number
+    startingAt: Date | null
   }
   you: { role: "host" | "member"; timezone: string }
   // `handle` is the public address of that person's profile, and null when
@@ -449,6 +509,8 @@ export async function roomSnapshot(roomId: string, userId: string, database: Pom
     background: room.background,
     cycleFocusCount: room.cycleFocusCount,
     closedAt: room.closedAt,
+    startDelaySeconds: room.startDelaySeconds,
+    startingAt: room.startingAt,
   }
   const role: "host" | "member" = room.hostUserId === userId ? "host" : "member"
   if (room.closedAt || room.phase === "closed") {
@@ -1030,7 +1092,66 @@ export async function advanceDueRooms(timestamp = new Date()) {
     const result = await advanceExpiredRoom(room.id, room.sequence)
     if (result.kind === "advanced") await notifyRoom(room.id, "phase")
   }
-  return due.length
+  return due.length + (await startCountedRooms(timestamp))
+}
+
+/**
+ * Starts every waiting room whose "Starting in" countdown has run out. The
+ * clock loop calls it every 15 seconds, and the request that began the
+ * countdown sets a timer for its end, so a 5-second countdown is not left
+ * waiting for the loop.
+ */
+export async function startCountedRooms(timestamp = new Date(), database: PomoderDb = db) {
+  const due = await database
+    .select({ id: rooms.id })
+    .from(rooms)
+    .where(and(eq(rooms.phase, "waiting"), sql`${rooms.closedAt} is null`, lte(rooms.startingAt, timestamp)))
+    .limit(50)
+  let started = 0
+  for (const row of due) {
+    if (await startCountedRoom(row.id, timestamp, database)) {
+      started += 1
+      await notifyRoom(row.id, "phase")
+    }
+  }
+  return started
+}
+
+/** One room's countdown ending: the focus starts, if it is still due. */
+export async function startCountedRoom(roomId: string, timestamp = new Date(), database: PomoderDb = db) {
+  return database.transaction(async (tx) => {
+    const [room] = await tx.select().from(rooms).where(eq(rooms.id, roomId)).for("update").limit(1)
+    if (!room || room.closedAt || room.phase !== "waiting" || !room.startingAt || room.startingAt > timestamp) return false
+    const { set } = phaseUpdate(room, "focus", timestamp)
+    await tx.update(rooms).set(set).where(eq(rooms.id, room.id))
+    return true
+  })
+}
+
+/**
+ * Starts the room the moment its countdown runs out, if it is still due then.
+ * The request or pass that began the countdown calls it; the clock's
+ * 15-second loop covers a server restart.
+ */
+export function scheduleCountdownEnd(roomId: string, startingAt: Date) {
+  const timer = setTimeout(() => {
+    startCountedRoom(roomId)
+      .then((started) => (started ? notifyRoom(roomId, "phase") : undefined))
+      .catch((error) => console.error("a room's countdown could not start it", error))
+  }, Math.max(0, startingAt.getTime() - Date.now()) + 250)
+  // A pending countdown never keeps the server from shutting down.
+  timer.unref?.()
+}
+
+/** The host's "Starting in" choice, used by every Start from now on. */
+export async function setRoomStartDelay(slug: string, userId: string, seconds: number, database: PomoderDb = db) {
+  if (!isStartDelay(seconds)) throw new Error("ROOM_START_DELAY_INVALID")
+  const [room] = await database.select({ id: rooms.id, hostUserId: rooms.hostUserId, closedAt: rooms.closedAt }).from(rooms).where(eq(rooms.slug, slug)).limit(1)
+  if (!room) throw new Error("ROOM_NOT_FOUND")
+  if (room.hostUserId !== userId) throw new Error("ROOM_HOST_REQUIRED")
+  if (room.closedAt) throw new Error("ROOM_CLOSED")
+  await database.update(rooms).set({ startDelaySeconds: seconds, updatedAt: new Date() }).where(eq(rooms.id, room.id))
+  return room.id
 }
 
 /** How far back "focused with" looks. A year, so the read stays one bounded range. */

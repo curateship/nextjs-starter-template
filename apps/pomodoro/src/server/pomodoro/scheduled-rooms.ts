@@ -15,6 +15,7 @@ import { findWorkspaceIdForRequest } from "@/server/workspaces/for-request"
 import {
   pomodoroProfiles,
   pomodoroRoomRepeats,
+  pomodoroSimulatedAccounts,
   roomInvites,
   rooms,
   type PomodoroRoomRepeat,
@@ -753,7 +754,19 @@ function occurrenceAt(rule: PomodoroRoomRepeat, startsAt: Date) {
   return day && day.startsAt.getTime() === startsAt.getTime() ? day : null
 }
 
+/**
+ * Whether this account may still host its weekly rule: Pro, or one of the
+ * made-up members (live activity task 02). A made-up host has no plan, because
+ * the shell's way of granting one emails the account and counts it as a
+ * paying member; see "Rooms" in `workspace/docs/made-up-members.md`.
+ */
 async function mayHost(userId: string, database: CustomShellDb) {
+  const [madeUp] = await database
+    .select({ userId: pomodoroSimulatedAccounts.userId })
+    .from(pomodoroSimulatedAccounts)
+    .where(and(eq(pomodoroSimulatedAccounts.userId, userId), isNull(pomodoroSimulatedAccounts.removeRequestedAt)))
+    .limit(1)
+  if (madeUp) return true
   try {
     await requirePomodoroPerk(userId, "hostRooms", database)
     return true

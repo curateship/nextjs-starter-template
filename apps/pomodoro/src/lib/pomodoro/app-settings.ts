@@ -20,6 +20,8 @@ export const BREAK_MESSAGE_MAX = 600
 /** The most made-up members the card allows, and the highest hours-a-day cap. */
 export const SIMULATED_TARGET_MAX = 200
 export const SIMULATED_HOURS_MAX = 6
+/** The longest style brief the voice card takes. */
+export const VOICE_BRIEF_MAX = 1000
 
 export const appSettingSchemas = {
   /**
@@ -101,6 +103,21 @@ export const appSettingSchemas = {
     hoursCap: z.number().int().min(1).max(SIMULATED_HOURS_MAX),
     paused: z.boolean(),
   }),
+  /**
+   * How the made-up members sound in rooms (live activity task 03). Tyler,
+   * 9 Oct 2026: "There should be options to adjust how the ai sounds too so it
+   * doesnt sound like ai." A never-say entry of "!" means no line may end in
+   * an exclamation mark.
+   */
+  "simulated.voice": z.object({
+    brief: z.string().max(VOICE_BRIEF_MAX),
+    chattiness: z.enum(["quiet", "normal", "talkative"]),
+    length: z.enum(["few", "one", "two"]),
+    lowercase: z.boolean(),
+    emoji: z.boolean(),
+    typo: z.enum(["off", "1in20", "1in10"]),
+    neverSay: z.array(z.string().trim().min(1).max(80)).max(100),
+  }),
 } as const
 
 export type AppSettingKey = keyof typeof appSettingSchemas
@@ -123,10 +140,27 @@ export const APP_SETTING_DEFAULTS: {
   // Today's CHAT_LIMIT in rooms.ts, so nothing changes until an admin says so.
   "chat.speed": { messagesPerMinute: 20 },
   "safety.pause": { newRooms: false, chat: false },
-  // Tyler, 9 Oct 2026: forty to start, the busiest never over three hours a
-  // day so a real member can reach the top. Nothing is made until an admin
-  // presses Make them now.
-  "simulated.accounts": { target: 40, hoursCap: 3, paused: false },
+  // Tyler, 9 Oct 2026: the busiest never over three hours a day so a real
+  // member can reach the top. A hundred, not the forty first asked for,
+  // because "at least 10 rooms open at all times" needed it: measured over a
+  // simulated day, 40 fell under ten rooms a third of the time, 80 never did
+  // but now and then left a room with only its host for over ten minutes, and
+  // 100 did neither. The floor is six rooms now, plus three under Starting
+  // soon (see `longCountdownFor`), and the day test still runs a hundred.
+  // Nothing is made until an admin presses Make them now.
+  "simulated.accounts": { target: 100, hoursCap: 3, paused: false },
+  // The task's own defaults, 9 Oct 2026, so the first Preview already sounds
+  // like somebody half-distracted by their own work.
+  "simulated.voice": {
+    brief:
+      "casual, lowercase, short, no exclamation marks, no emoji, never cheerleads, talks like someone half-distracted by their own work",
+    chattiness: "normal",
+    length: "one",
+    lowercase: true,
+    emoji: false,
+    typo: "off",
+    neverSay: ["great job", "let's go", "you've got this", "stay focused", "keep it up", "!"],
+  },
   "timer.newAccount": {
     focusMinutes: 25,
     shortBreakMinutes: 5,

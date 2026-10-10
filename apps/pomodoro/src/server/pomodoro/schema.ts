@@ -7,8 +7,10 @@ import {
   index,
   integer,
   jsonb,
+  numeric,
   pgTable,
   primaryKey,
+  text,
   timestamp,
   unique,
   uniqueIndex,
@@ -884,6 +886,15 @@ export const rooms = pgTable(
     closedAt: timestamp("closed_at", { withTimezone: true }),
     /** Set by an admin to put the room first on Browse rooms (admin task 04). */
     featuredAt: timestamp("featured_at", { withTimezone: true }),
+    /**
+     * "Starting in": the countdown the host's Start begins, 5 seconds until
+     * the host picks 1 to 5 minutes. Tyler, 9 Oct 2026.
+     */
+    startDelaySeconds: integer("start_delay_seconds").notNull().default(5),
+    /** When a countdown running from waiting ends and the focus starts. */
+    startingAt: timestamp("starting_at", { withTimezone: true }),
+    /** The length of that countdown, so a minute or more lists under "Starting soon". */
+    countdownSeconds: integer("countdown_seconds"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -892,6 +903,10 @@ export const rooms = pgTable(
       .defaultNow(),
   },
   (table) => [
+    check(
+      "rooms_start_delay_check",
+      sql`${table.startDelaySeconds} in (5, 60, 120, 180, 240, 300)`
+    ),
     check(
       "rooms_visibility_check",
       sql`${table.visibility} in ('public', 'unlisted')`
@@ -916,6 +931,10 @@ export const rooms = pgTable(
       table.createdAt
     ),
     index("rooms_scheduled_idx").on(table.phase, table.startsAt),
+    // The room clock's read for countdowns that have run out (migration 0132).
+    index("rooms_starting_idx")
+      .on(table.startingAt)
+      .where(sql`${table.startingAt} is not null`),
     // One room per rule per day. The worker inserts on conflict do nothing,
     // so two passes racing for the same Tuesday make one room between them.
     uniqueIndex("rooms_repeat_occurrence_unique")
@@ -1773,6 +1792,12 @@ export const pomodoroSimulatedAccounts = pgTable(
     /** A line about how this person comes across, for the chat in task 03. */
     personality: varchar("personality", { length: 200 }).notNull(),
     pausedAt: timestamp("paused_at", { withTimezone: true }),
+    /**
+     * Remove all was pressed while this account hosted a room with a real
+     * member in it (task 02). The worker deletes it once that room is empty
+     * of real people; until then it starts nothing new.
+     */
+    removeRequestedAt: timestamp("remove_requested_at", { withTimezone: true }),
     /** Set while a worker pass is looking after this account. */
     claimedAt: timestamp("claimed_at", { withTimezone: true }),
     /** No foreign key: deleting an admin must not delete what they made. */
@@ -1783,6 +1808,79 @@ export const pomodoroSimulatedAccounts = pgTable(
   },
   (table) => [
     index("pomodoro_simulated_accounts_created_idx").on(table.createdAt),
+  ]
+)
+
+/**
+ * An open room a made-up member hosts (live activity task 02), written the
+ * first time the worker sees it. See "Rooms" in
+ * `workspace/docs/made-up-members.md`.
+ */
+export const pomodoroSimulatedRooms = pgTable(
+  "pomodoro_simulated_rooms",
+  {
+    roomId: uuid("room_id")
+      .primaryKey()
+      .references(() => rooms.id, { onDelete: "cascade" }),
+    hostUserId: varchar("host_user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    /** Focuses the host has started. Made-up rooms wait between rounds, so the room's own steps cannot count them. */
+    focusesRun: integer("focuses_run").notNull().default(0),
+    /** How many focuses the host means to run before closing. */
+    focusTarget: integer("focus_target").notNull(),
+    /** How many other made-up members should sit in it. */
+    memberTarget: integer("member_target").notNull(),
+    /** The worker set `rooms.featured_at`, so only the worker clears it. */
+    featured: boolean("featured").notNull().default(false),
+    /** An admin took the worker's feature off, so it is never put back. */
+    featureDeclined: boolean("feature_declined").notNull().default(false),
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [index("pomodoro_simulated_rooms_host_idx").on(table.hostUserId)]
+)
+
+/**
+ * One attempt at a line a made-up member says in a room (live activity task
+ * 03): sent, rewritten or thrown away. See "Chat and the voice card" in
+ * `workspace/docs/made-up-members.md`. Kept 30 days.
+ */
+export const pomodoroSimulatedLines = pgTable(
+  "pomodoro_simulated_lines",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    roomId: uuid("room_id")
+      .notNull()
+      .references(() => rooms.id, { onDelete: "cascade" }),
+    /** The message a sent line became; empty for a line thrown away. */
+    messageId: uuid("message_id").references(() => roomMessages.id, {
+      onDelete: "set null",
+    }),
+    /** The moment that asked for the line, so a moment is answered once. */
+    triggerKey: varchar("trigger_key", { length: 120 }).notNull(),
+    kind: varchar("kind", { length: 20 }).notNull(),
+    source: varchar("source", { length: 10 }).$type<"ai" | "fixed">().notNull(),
+    model: varchar("model", { length: 60 }),
+    costCents: numeric("cost_cents", { precision: 10, scale: 4, mode: "number" })
+      .notNull()
+      .default(0),
+    /** The text sent to the model, for an AI line. */
+    brief: text("brief"),
+    body: varchar("body", { length: 500 }),
+    rejectedReason: varchar("rejected_reason", { length: 200 }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("pomodoro_simulated_lines_room_trigger_idx").on(table.roomId, table.triggerKey),
+    index("pomodoro_simulated_lines_created_idx").on(table.createdAt),
   ]
 )
 

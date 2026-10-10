@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto"
 
-import { and, asc, count, desc, eq, inArray, sql } from "drizzle-orm"
+import { and, asc, count, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm"
 
 import {
   earnedAchievementIds,
@@ -52,6 +52,8 @@ import {
   pomodoroProjects,
   pomodoroSettings,
   pomodoroSimulatedAccounts,
+  roomMemberships,
+  rooms,
   tasks,
 } from "@/server/pomodoro/schema"
 import { forgetUsersPages } from "@/server/pomodoro/public-profile"
@@ -119,12 +121,17 @@ export type SimulatedStatus = {
   making: boolean
   /** Made-up members with a focus running right now. */
   focusingNow: number
+  /** Hosts Remove all left until the real people in their rooms go. */
+  leaving: number
 }
 
 export async function loadSimulatedStatus(now = new Date()): Promise<SimulatedStatus> {
   const settings = (await loadAppSettings())["simulated.accounts"]
-  const [[made], [rush], [focusing]] = await Promise.all([
-    db.select({ total: count() }).from(pomodoroSimulatedAccounts),
+  const [[made], [rush], [focusing], [leaving]] = await Promise.all([
+    db
+      .select({ total: count() })
+      .from(pomodoroSimulatedAccounts)
+      .where(isNull(pomodoroSimulatedAccounts.removeRequestedAt)),
     db
       .select({ key: pomodoroSettings.key })
       .from(pomodoroSettings)
@@ -142,6 +149,10 @@ export async function loadSimulatedStatus(now = new Date()): Promise<SimulatedSt
           sql`${focusSessions.targetEndsAt} > ${now.toISOString()}::timestamptz`
         )
       ),
+    db
+      .select({ total: count() })
+      .from(pomodoroSimulatedAccounts)
+      .where(isNotNull(pomodoroSimulatedAccounts.removeRequestedAt)),
   ])
   const total = made?.total ?? 0
   return {
@@ -149,6 +160,7 @@ export async function loadSimulatedStatus(now = new Date()): Promise<SimulatedSt
     target: settings.target,
     making: Boolean(rush) && total < settings.target,
     focusingNow: focusing?.total ?? 0,
+    leaving: leaving?.total ?? 0,
   }
 }
 
@@ -202,27 +214,57 @@ export async function requestMakeNow(actorUserId: string) {
  * Remove all: every account named in the simulated table, and everything
  * they did with them, in one transaction. A real account is never touched,
  * because nothing outside that table is read to pick who goes.
+ *
+ * One kind stays for now: a host whose open room has a real person in it
+ * (task 02). Deleting it would take the room out from under that person, so
+ * it is marked instead, starts nothing new, and the rooms worker deletes it
+ * once the last real person has left.
  */
 export async function removeAllSimulated(actorUserId: string) {
   const removed = await db.transaction(async (tx) => {
     await lockMaking(tx)
     // Stops a Make them now still going, so it cannot start again after this.
     await forgetMakeNow(tx)
-    const ids = (
+    const all = (
       await tx
         .select({ userId: pomodoroSimulatedAccounts.userId })
         .from(pomodoroSimulatedAccounts)
     ).map((row) => row.userId)
+    const staying = new Set(
+      (
+        await tx
+          .select({ userId: rooms.hostUserId })
+          .from(rooms)
+          .innerJoin(pomodoroSimulatedAccounts, eq(pomodoroSimulatedAccounts.userId, rooms.hostUserId))
+          .where(
+            and(
+              isNull(rooms.closedAt),
+              sql`${rooms.phase} not in ('scheduled', 'closed')`,
+              sql`exists (
+                select 1 from room_memberships m
+                where m.room_id = ${rooms.id} and m.left_at is null
+                  and not exists (select 1 from pomodoro_simulated_accounts s where s.user_id = m.user_id)
+              )`
+            )
+          )
+      ).map((row) => row.userId)
+    )
+    const ids = all.filter((userId) => !staying.has(userId))
     // The same delete the shell's purge runs: every table that belongs to an
     // account goes with it through its foreign key.
     if (ids.length) await tx.delete(users).where(inArray(users.id, ids))
+    if (staying.size)
+      await tx
+        .update(pomodoroSimulatedAccounts)
+        .set({ removeRequestedAt: new Date() })
+        .where(inArray(pomodoroSimulatedAccounts.userId, [...staying]))
     await tx.insert(pomodoroAuditLogs).values({
       actorUserId,
       action: "simulated_remove",
       resource: "simulated",
       recordIds: ids,
     })
-    return { removed: ids.length }
+    return { removed: ids.length, leaving: staying.size }
   })
   // /users holds its pages for five minutes; in this process they go now.
   forgetUsersPages()
@@ -278,7 +320,10 @@ type MakeDecision = {
 async function decideNext(database: Transaction | typeof db, now: Date): Promise<MakeDecision> {
   const { target, paused } = (await loadAppSettings())["simulated.accounts"]
   const [[made], [rush], [newest]] = await Promise.all([
-    database.select({ total: count() }).from(pomodoroSimulatedAccounts),
+    database
+      .select({ total: count() })
+      .from(pomodoroSimulatedAccounts)
+      .where(isNull(pomodoroSimulatedAccounts.removeRequestedAt)),
     database
       .select({ key: pomodoroSettings.key })
       .from(pomodoroSettings)
@@ -363,6 +408,7 @@ export async function runSimulatedDays(now = new Date()) {
       userId: pomodoroSimulatedAccounts.userId,
       habits: pomodoroSimulatedAccounts.habits,
       pausedAt: pomodoroSimulatedAccounts.pausedAt,
+      removeRequestedAt: pomodoroSimulatedAccounts.removeRequestedAt,
     })
   if (!claimed.length) return { finished: 0, started: 0 }
 
@@ -386,6 +432,16 @@ export async function runSimulatedDays(now = new Date()) {
           sql`${focusSessions.status} in ('running', 'paused')`
         )
       )
+    // Somebody sitting in a room focuses with the room (task 02), not on
+    // their own day's plan.
+    const inRooms = new Set(
+      (
+        await db
+          .select({ userId: roomMemberships.userId })
+          .from(roomMemberships)
+          .where(and(inArray(roomMemberships.userId, ids), isNull(roomMemberships.leftAt)))
+      ).map((row) => row.userId)
+    )
     for (const account of claimed) {
       // One account failing, such as one Remove all took a moment ago, never
       // stops the others' day.
@@ -396,7 +452,7 @@ export async function runSimulatedDays(now = new Date()) {
             if (await finishSession(account, session, hoursCap)) finished += 1
           } else busy = true
         }
-        if (busy || paused || account.pausedAt) continue
+        if (busy || paused || account.pausedAt || account.removeRequestedAt || inRooms.has(account.userId)) continue
         if (await startDueSession(account, hoursCap, now)) started += 1
       } catch (error) {
         console.error("a made-up member's day could not move on", error)
@@ -490,7 +546,7 @@ async function startDueSession(account: Account, hoursCap: number, now: Date) {
  * The day's tasks, written the first time the day needs them. A day that
  * already has tasks keeps them as they are.
  */
-async function ensureDayTasks(userId: string, plan: DayPlan) {
+export async function ensureDayTasks(userId: string, plan: DayPlan) {
   const existing = () =>
     db
       .select({ id: tasks.id, status: tasks.status })

@@ -1,3 +1,5 @@
+import type { SimulatedHost } from "@/lib/pomodoro/simulated-rooms"
+
 /**
  * The working day of a made-up member (live activity task 01, Parts 3, 4 and
  * 6). See `workspace/docs/made-up-members.md`.
@@ -29,6 +31,8 @@ export type SimulatedHabits = {
   historyDays: number
   /** The titles this person's tasks are picked from. */
   taskTitles: string[]
+  /** Set for the accounts that host rooms (task 02); see `simulated-rooms.ts`. */
+  host?: SimulatedHost
 }
 
 type PlannedSession = {
@@ -202,7 +206,7 @@ export function shiftDate(localDate: string, days: number) {
 const offsetFormats = new Map<string, Intl.DateTimeFormat>()
 
 /** How far ahead of UTC a timezone is at one moment, in minutes. */
-function offsetMinutes(timeZone: string, at: number) {
+export function offsetMinutes(timeZone: string, at: number) {
   let format = offsetFormats.get(timeZone)
   if (!format) {
     format = new Intl.DateTimeFormat("en-US", {

@@ -347,7 +347,7 @@ describe("Remove all", () => {
     await makeOne(HISTORY_MAX_DAYS)
     await makeOne(0)
 
-    expect(await removeAllSimulated(adminId)).toEqual({ removed: 2 })
+    expect(await removeAllSimulated(adminId)).toEqual({ removed: 2, leaving: 0 })
     expect(await simulatedIds()).toEqual([])
     const left = await db.select({ id: customShellUsers.id }).from(customShellUsers)
     expect(left.map((row) => row.id).sort()).toEqual([adminId, real.id].sort())

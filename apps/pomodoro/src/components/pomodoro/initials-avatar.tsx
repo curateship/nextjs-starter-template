@@ -1,3 +1,5 @@
+import * as React from "react"
+
 import { cn } from "@/lib/utils"
 
 /**
@@ -31,5 +33,34 @@ export function InitialsAvatar({
     >
       {initials || "?"}
     </span>
+  )
+}
+
+/**
+ * A person's own photo when they uploaded one, their coloured initials when
+ * not. The photo is always one the account uploaded itself (`users.avatar_url`),
+ * so it can be drawn as it stands.
+ */
+export function PersonAvatar({
+  name,
+  avatarUrl,
+  className,
+}: {
+  name: string
+  avatarUrl: string | null
+  className?: string
+}) {
+  // A photo that will not load falls back to the initials, never a broken
+  // image.
+  const [failed, setFailed] = React.useState<string | null>(null)
+  if (!avatarUrl || failed === avatarUrl) return <InitialsAvatar name={name} className={className} />
+  return (
+    <img
+      src={avatarUrl}
+      alt=""
+      aria-hidden="true"
+      onError={() => setFailed(avatarUrl)}
+      className={cn("size-8 shrink-0 rounded-full object-cover", className)}
+    />
   )
 }

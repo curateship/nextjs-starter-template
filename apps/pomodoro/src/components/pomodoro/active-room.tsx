@@ -10,6 +10,13 @@ import {
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Card } from "@/components/ui/card"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { ErrorRow } from "@/components/ui/error-row"
@@ -21,6 +28,7 @@ import {
   getCurrentRoom,
   leaveActiveRoom,
   removeMember,
+  setRoomStartCountdown,
   toggleReaction,
 } from "@/lib/api/pomodoro/rooms"
 import {
@@ -40,6 +48,11 @@ import {
   useMediaCatalog,
 } from "@/lib/pomodoro/room-media-store"
 import { followRoomRunning } from "@/lib/pomodoro/sound-engine"
+import {
+  START_DELAYS,
+  START_DELAY_LABELS,
+  type StartDelay,
+} from "@/lib/pomodoro/room-countdown"
 import { usePageVisible } from "@/lib/pomodoro/use-page-visible"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
@@ -60,7 +73,7 @@ import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 export type RoomSnapshotClient = NonNullable<
   Awaited<ReturnType<typeof getCurrentRoom>>
 >
-type RoomHostActionClient = "start_focus" | "start_break" | "next_phase" | "close"
+type RoomHostActionClient = "start_focus" | "start_break" | "next_phase" | "close" | "cancel_start"
 export type ConfirmRequest = {
   title: string
   description: string
@@ -69,8 +82,9 @@ export type ConfirmRequest = {
 }
 
 /**
- * Seconds left in the room's phase, counted from the server's end time, or
- * null for a phase with no clock (waiting).
+ * Seconds left until a time the server set: the end of the room's phase, or
+ * the end of a "Starting in" countdown. Null when there is none (a waiting
+ * room with no countdown).
  */
 export function useRoomSecondsLeft(phaseEndsAt: Date | string | null) {
   const endsAtTime = phaseEndsAt ? new Date(phaseEndsAt).getTime() : null
@@ -320,6 +334,18 @@ export function ActiveRoomPanel({
     }
   }
 
+  const setDelay = async (seconds: StartDelay) => {
+    dismissErrorToast()
+    setPending("delay")
+    try {
+      onSnapshot(await setRoomStartCountdown(room.slug, seconds), "You closed the room.", true)
+    } catch {
+      showErrorToast("The countdown could not be changed.")
+    } finally {
+      setPending("")
+    }
+  }
+
   const leave = async () => {
     dismissErrorToast()
     setPending("leave")
@@ -465,6 +491,7 @@ export function ActiveRoomPanel({
         hostName={hostName}
         pending={pending}
         onAction={(action) => void runAction(action)}
+        onDelay={(seconds) => void setDelay(seconds)}
       />
 
       {/* The same break card as the timer, while the room is on a break. */}
@@ -504,7 +531,9 @@ export function ActiveRoomPanel({
             </h2>
             <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
               <span className="text-[var(--p-success)]">
-                {phaseLabels[room.phase] ?? room.phase}
+                {room.phase === "waiting" && room.startingAt
+                  ? "Starting soon"
+                  : (phaseLabels[room.phase] ?? room.phase)}
               </span>
               <span aria-hidden="true">·</span>
               <span>{sessionLabel}</span>
@@ -673,16 +702,23 @@ function RoomRing({
   hostName,
   pending,
   onAction,
+  onDelay,
 }: {
   snapshot: RoomSnapshotClient
   hostName: string
   pending: string
   onAction: (action: RoomHostActionClient) => void
+  onDelay: (seconds: StartDelay) => void
 }) {
   const { room, you } = snapshot
   const isHost = you.role === "host"
   const ringRef = React.useRef<HTMLDivElement>(null)
   const secondsLeft = useRoomSecondsLeft(room.phaseEndsAt)
+  // "Starting in": a countdown the host began from waiting, shown to
+  // everybody in the ring until the focus starts (9 Oct 2026).
+  const countdownLeft = useRoomSecondsLeft(room.phase === "waiting" ? room.startingAt : null)
+  const counting = countdownLeft !== null
+  const delayId = React.useId()
   const waiting = secondsLeft === null
   const phaseSeconds =
     room.phaseStartedAt && room.phaseEndsAt
@@ -693,7 +729,7 @@ function RoomRing({
   // A room with no clock running shows a whole ring and the focus length.
   const fraction =
     waiting || phaseSeconds <= 0 ? 1 : Math.min(1, secondsLeft / phaseSeconds)
-  const shownSeconds = secondsLeft ?? room.focusMinutes * 60
+  const shownSeconds = countdownLeft ?? secondsLeft ?? room.focusMinutes * 60
   const sessionIndex = Math.min(room.cycleFocusCount, 3)
 
   return (
@@ -742,7 +778,7 @@ function RoomRing({
               room.phase === "waiting" && "text-[var(--p-success)]"
             )}
           >
-            {phaseLabels[room.phase] ?? room.phase}
+            {counting ? "Starting in" : (phaseLabels[room.phase] ?? room.phase)}
           </span>
           <time className="mt-3 font-mono text-[64px] font-semibold leading-none tracking-tight tabular-nums">
             {clockText(shownSeconds)}
@@ -758,6 +794,26 @@ function RoomRing({
                 >
                   Start break
                 </Button>
+              ) : counting ? (
+                <>
+                  <Button
+                    size="lg"
+                    className="rounded-full px-5"
+                    disabled={pending !== ""}
+                    onClick={() => onAction("start_focus")}
+                  >
+                    Start now
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    className={cn("rounded-full", ringIconButtonClass)}
+                    disabled={pending !== ""}
+                    onClick={() => onAction("cancel_start")}
+                  >
+                    Cancel
+                  </Button>
+                </>
               ) : (
                 <Button
                   size="lg"
@@ -765,7 +821,9 @@ function RoomRing({
                   disabled={pending !== ""}
                   onClick={() => onAction("start_focus")}
                 >
-                  Start focus
+                  {room.phase === "waiting"
+                    ? `Start in ${START_DELAY_LABELS[room.startDelaySeconds as StartDelay] ?? "5 seconds"}`
+                    : "Start focus"}
                 </Button>
               )}
               {room.phase !== "waiting" ? (
@@ -780,10 +838,32 @@ function RoomRing({
                 </Button>
               ) : null}
             </div>
-          ) : room.phase === "waiting" ? (
+          ) : room.phase === "waiting" && !counting ? (
             <span className="mt-5 text-sm text-muted-foreground">
               Waiting for {hostName} to start
             </span>
+          ) : null}
+          {isHost && room.phase === "waiting" && !counting ? (
+            <div className="mt-3 flex items-center gap-2">
+              <label htmlFor={delayId} className="text-sm text-muted-foreground">
+                Countdown
+              </label>
+              <Select
+                value={String(room.startDelaySeconds)}
+                onValueChange={(value) => onDelay(Number(value) as StartDelay)}
+              >
+                <SelectTrigger id={delayId} className="w-fit">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {START_DELAYS.map((seconds) => (
+                    <SelectItem key={seconds} value={String(seconds)}>
+                      {START_DELAY_LABELS[seconds]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           ) : null}
           <Button
             variant="outline"

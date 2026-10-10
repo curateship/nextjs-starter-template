@@ -2,10 +2,11 @@ import * as React from "react"
 
 import { MusicIcon } from "lucide-react"
 
-import { InitialsAvatar } from "@/components/pomodoro/initials-avatar"
+import { PersonAvatar } from "@/components/pomodoro/initials-avatar"
 import { cn } from "@/lib/utils"
 import { sceneFor, soundLabelFor } from "@/lib/pomodoro/media-pair"
 import { useMediaCatalog } from "@/lib/pomodoro/room-media-store"
+import { usePrefersReducedMotion } from "@/lib/pomodoro/use-reduced-motion"
 import { vibeFor } from "@/lib/pomodoro/room-vibe"
 
 /**
@@ -59,12 +60,17 @@ export function RoomCard({
 function RoomVibeBanner({
   gradient,
   scene,
+  video = null,
+  playing = false,
   soundName,
   tall = false,
 }: {
   gradient: string
   /** The scene's still, when the room has a theme. */
   scene: string | null
+  /** The scene's film, played over the still while `playing`. */
+  video?: string | null
+  playing?: boolean
   soundName: string | null
   /** The Open to join card: a taller picture, the sound named top right. */
   tall?: boolean
@@ -90,6 +96,20 @@ function RoomVibeBanner({
         <img
           src={scene}
           alt=""
+          className="absolute inset-0 size-full object-cover"
+        />
+      ) : null}
+      {/* Only while hovered, so a page of cards loads no films until one is
+          pointed at. */}
+      {playing && video ? (
+        <video
+          src={video}
+          poster={scene ?? undefined}
+          autoPlay
+          muted
+          loop
+          playsInline
+          aria-hidden="true"
           className="absolute inset-0 size-full object-cover"
         />
       ) : null}
@@ -257,9 +277,13 @@ export function RoomGroupHeading({
  * beside the room's name, the room's state in colour, the people in it, and
  * the next focus beside a black Join pill.
  *
- * The small circles for the people in it carry no initials. The browse list
- * sends a count and never names, the privacy rule kept since a real leak, so
- * only the host, who is named on every public room already, gets letters.
+ * The small circles are the people in it: their photo, or their initials
+ * when they have none. Tyler, 9 Oct 2026: "this need to show real avatars"
+ * and "The cards show the avatar". Until then the list carried a count and
+ * no names, a rule kept since a real leak; Tyler chose faces on the cards.
+ *
+ * A room counting down shows "starting in 1:23" where a waiting room says
+ * "waiting to start".
  */
 export function OpenRoomCard({
   roomId,
@@ -267,8 +291,11 @@ export function OpenRoomCard({
   sound,
   name,
   hostName,
+  hostAvatarUrl,
+  people,
   phase,
   phaseEndsAt,
+  startingAt,
   memberCount,
   nextFocusMinutes,
   joinButton,
@@ -280,8 +307,13 @@ export function OpenRoomCard({
   sound: string | null
   name: string
   hostName: string
+  hostAvatarUrl: string | null
+  /** Up to three people besides the host, first in first. */
+  people: readonly { name: string; avatarUrl: string | null }[]
   phase: string
   phaseEndsAt: Date | string | null
+  /** When a "Starting in" countdown ends, or null. */
+  startingAt: Date | string | null
   memberCount: number
   nextFocusMinutes: number
   joinButton: React.ReactNode
@@ -291,18 +323,33 @@ export function OpenRoomCard({
 }) {
   const onBreak = phase === "short" || phase === "long"
   const catalog = useMediaCatalog()
+  const theme = sceneFor(catalog, background)
+  // Tyler, 9 Oct 2026: "hovering over the card should play the clip", the
+  // way the theme cards on Backgrounds do. Only a mouse hovers, and never
+  // with reduced motion, so no film is even loaded then.
+  const [hovered, setHovered] = React.useState(false)
+  const reducedMotion = usePrefersReducedMotion()
   return (
-    <article className="flex flex-col overflow-hidden rounded-[24px] border bg-[var(--p-surface)] pb-6">
+    <article
+      className="flex flex-col overflow-hidden rounded-[24px] border bg-[var(--p-surface)] pb-6"
+      onPointerEnter={(event) => {
+        if (event.pointerType === "mouse") setHovered(true)
+      }}
+      onPointerLeave={() => setHovered(false)}
+    >
       <RoomVibeBanner
         gradient={vibeFor(roomId)}
-        scene={sceneFor(catalog, background)?.stillUrl ?? null}
+        scene={theme?.stillUrl ?? null}
+        video={theme?.videoUrl ?? null}
+        playing={hovered && !reducedMotion}
         soundName={soundLabelFor(catalog, sound)}
         tall
       />
       <div className="relative z-[1] -mt-7 flex items-end gap-3 px-6">
         <span className="relative shrink-0">
-          <InitialsAvatar
+          <PersonAvatar
             name={hostName}
+            avatarUrl={hostAvatarUrl}
             className="size-12 text-base ring-4 ring-[var(--p-surface)]"
           />
           <i
@@ -333,19 +380,27 @@ export function OpenRoomCard({
             <>
               on break · <BreakClock endsAt={phaseEndsAt} />
             </>
+          ) : startingAt ? (
+            <>
+              starting in <BreakClock endsAt={startingAt} />
+            </>
           ) : (
             "waiting to start"
           )}
         </p>
         <p className="flex items-center gap-3 font-mono text-sm text-[var(--p-text-subtle)]">
-          <span aria-hidden="true" className="flex">
-            {Array.from({ length: Math.min(memberCount, 3) }, (_, index) => (
-              <i
-                key={index}
-                className="-ml-1.5 size-6 rounded-full border-2 border-[var(--p-surface)] bg-[rgba(var(--p-fg-rgb),0.18)] first:ml-0"
-              />
-            ))}
-          </span>
+          {people.length ? (
+            <span aria-hidden="true" className="flex">
+              {people.map((person, index) => (
+                <PersonAvatar
+                  key={`${person.name}-${index}`}
+                  name={person.name}
+                  avatarUrl={person.avatarUrl}
+                  className="-ml-1.5 size-6 border-2 border-[var(--p-surface)] text-[9px] first:ml-0"
+                />
+              ))}
+            </span>
+          ) : null}
           {memberCount} focusing
         </p>
         <div className="mt-2 flex items-center justify-between gap-3">

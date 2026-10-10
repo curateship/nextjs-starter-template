@@ -19,6 +19,8 @@ import { loadMediaCatalog } from "@/server/pomodoro/catalog"
 import { markRoomNoticesRead } from "@/server/pomodoro/notices"
 import {
   applyHostRoomAction,
+  scheduleCountdownEnd,
+  setRoomStartDelay,
   banRoomMember,
   createRoomWithHost,
   deleteRoomMessage,
@@ -36,6 +38,8 @@ import {
   toggleRoomReaction,
   type RoomHostAction,
 } from "@/server/pomodoro/rooms"
+import { REAL_START_DELAY_MS, startDueRoom } from "@/server/pomodoro/simulated-rooms"
+import { isStartDelay } from "@/lib/pomodoro/room-countdown"
 import { ROOM_REACTION_EMOJIS } from "@/lib/pomodoro/room-reactions"
 import {
   pairUsesPro,
@@ -114,7 +118,10 @@ const repeatRoomSchema = createRoomSchema.extend({
 const repeatIdSchema = z.object({ repeatId: z.string().uuid() })
 const slugSchema = z.object({ slug: z.string().min(12).max(80) })
 const actionSchema = slugSchema.extend({
-  action: z.enum(["start_focus", "start_break", "next_phase", "close"]),
+  action: z.enum(["start_focus", "start_break", "next_phase", "close", "cancel_start"]),
+})
+const startDelaySchema = slugSchema.extend({
+  seconds: z.number().int().refine(isStartDelay),
 })
 const messageSchema = slugSchema.extend({
   body: z.string().trim().min(1).max(500),
@@ -384,6 +391,14 @@ const joinRoomFn = createServerFn({ method: "POST" })
       await notifyRoom(closedRoomId, "phase")
     await notifyRoom(room.id, "membership")
     await clearRoomNotices(context.user.id, room.id)
+    // A made-up host presses Start about 10 seconds after somebody comes in,
+    // unless its countdown is already running. The timer is the fast path;
+    // the worker's 15-second pass covers a restart.
+    if (room.phase === "waiting") {
+      setTimeout(() => {
+        startDueRoom(room.id).catch((error) => console.error("a made-up room could not start for a join", error))
+      }, REAL_START_DELAY_MS + 500).unref?.()
+    }
     return roomSnapshot(room.id, context.user.id)
   })
 
@@ -409,7 +424,20 @@ const roomActionFn = createServerFn({ method: "POST" })
       data.action
     )
     await notifyRoom(room.id, "phase")
+    // A "Starting in" countdown began: start the focus the moment it ends.
+    // The room clock's 15-second loop covers a server restart.
+    if (room.phase === "waiting" && room.startingAt) scheduleCountdownEnd(room.id, room.startingAt)
     return roomSnapshot(room.id, context.user.id)
+  })
+
+/** The host picks the room's "Starting in" countdown: 5 seconds, or 1 to 5 minutes. */
+const setStartDelayFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(startDelaySchema)
+  .handler(async ({ data, context }) => {
+    const roomId = await setRoomStartDelay(data.slug, context.user.id, data.seconds)
+    await notifyRoom(roomId, "phase")
+    return roomSnapshot(roomId, context.user.id)
   })
 
 /**
@@ -533,6 +561,8 @@ export const saveHostedRoomMedia = (
 ) => saveRoomMediaFn({ data: { slug, ...pair } })
 export const applyRoomAction = (slug: string, action: RoomHostAction) =>
   roomActionFn({ data: { slug, action } })
+export const setRoomStartCountdown = (slug: string, seconds: number) =>
+  setStartDelayFn({ data: { slug, seconds } })
 export const sendRoomMessage = (slug: string, body: string) =>
   sendMessageFn({ data: { slug, body } })
 // Callers pass a raw string (from the palette, or from a message's own

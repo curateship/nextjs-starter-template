@@ -38,6 +38,7 @@ import {
   getSimulatedErrorMessage,
   loadSimulatedMembers,
   makeSimulatedMembersNow,
+  previewSimulatedVoice,
   removeAllSimulatedMembers,
   type SimulatedStatus,
 } from "@/lib/api/pomodoro/admin-simulated"
@@ -45,6 +46,7 @@ import {
   BREAK_MESSAGE_MAX,
   SIMULATED_HOURS_MAX,
   SIMULATED_TARGET_MAX,
+  VOICE_BRIEF_MAX,
   seasonsProblem,
   type AppSettingKey,
   type AppSettingValue,
@@ -179,7 +181,12 @@ export function PixabaySettingsTab() {
 export function MadeUpMembersSettingsTab() {
   return (
     <SettingsTab>
-      {({ settings }) => <MadeUpMembersCard initial={settings["simulated.accounts"]} />}
+      {({ settings }) => (
+        <>
+          <MadeUpMembersCard initial={settings["simulated.accounts"]} />
+          <HowTheySoundCard initial={settings["simulated.voice"]} />
+        </>
+      )}
     </SettingsTab>
   )
 }
@@ -1255,10 +1262,15 @@ function MadeUpMembersCard({ initial }: { initial: AppSettingValue<"simulated.ac
   const removeAll = async () => {
     setRemoveBusy(true)
     try {
-      const { removed } = await removeAllSimulatedMembers()
+      const { removed, leaving } = await removeAllSimulatedMembers()
       forgetMadeUpIds()
       setRemoving(false)
-      toast.success(`Removed ${removed} made-up member${removed === 1 ? "" : "s"}.`)
+      toast.success(
+        `Removed ${removed} made-up member${removed === 1 ? "" : "s"}.` +
+          (leaving
+            ? ` ${leaving} host${leaving === 1 ? " stays" : "s stay"} until the real people in ${leaving === 1 ? "its room" : "their rooms"} leave.`
+            : "")
+      )
       setReloads((count) => count + 1)
     } catch (error) {
       showErrorToast(getSimulatedErrorMessage(error))
@@ -1284,6 +1296,9 @@ function MadeUpMembersCard({ initial }: { initial: AppSettingValue<"simulated.ac
           {making
             ? `${status.made} of ${status.target} made`
             : `${status.made} made${status.focusingNow ? `, ${status.focusingNow} focusing now` : ""}`}
+          {status.leaving
+            ? `. ${status.leaving} removed host${status.leaving === 1 ? " is" : "s are"} waiting for real people to leave ${status.leaving === 1 ? "its room" : "their rooms"}`
+            : ""}
         </p>
       )}
       <div className="flex flex-wrap gap-4">
@@ -1341,11 +1356,210 @@ function MadeUpMembersCard({ initial }: { initial: AppSettingValue<"simulated.ac
           if (!open) setRemoving(false)
         }}
         title="Remove all made-up members?"
-        description={`Removes ${status?.made ?? "the"} made-up accounts and everything they did. Real members are untouched.`}
+        description={`Removes ${status?.made ?? "the"} made-up accounts and everything they did. Real members are untouched. A host with a real person in its room stays until they leave.`}
         confirmLabel="Remove all"
         loading={removeBusy}
         onConfirm={() => void removeAll()}
       />
+    </CollapsibleSettingsCard>
+  )
+}
+
+type Voice = AppSettingValue<"simulated.voice">
+type VoicePreview = Awaited<ReturnType<typeof previewSimulatedVoice>>
+
+const CHATTINESS_LABELS: Record<Voice["chattiness"], string> = {
+  quiet: "Quiet: greetings and the odd reply",
+  normal: "Normal",
+  talkative: "Talkative: most breaks, every reply",
+}
+const LENGTH_LABELS: Record<Voice["length"], string> = {
+  few: "A few words",
+  one: "One line",
+  two: "Two lines",
+}
+const TYPO_LABELS: Record<Voice["typo"], string> = {
+  off: "Never",
+  "1in20": "One line in 20",
+  "1in10": "One line in 10",
+}
+
+/**
+ * How the made-up members sound in rooms (live activity task 03). Tyler, 9 Oct
+ * 2026: "There should be options to adjust how the ai sounds too so it doesnt
+ * sound like ai." Every field saves itself; Preview writes five lines with the
+ * values on the card and sends them nowhere, and the rooms stay silent until
+ * it has been pressed once.
+ */
+function HowTheySoundCard({ initial }: { initial: Voice }) {
+  const [voice, setVoice] = React.useState(initial)
+  const [neverSayText, setNeverSayText] = React.useState(initial.neverSay.join("\n"))
+  const [preview, setPreview] = React.useState<VoicePreview | null>(null)
+  const [previewBusy, setPreviewBusy] = React.useState(false)
+  const save = useSettingSave()
+  const briefId = React.useId()
+  const chattyId = React.useId()
+  const lengthId = React.useId()
+  const typoId = React.useId()
+  const lowerId = React.useId()
+  const emojiId = React.useId()
+  const neverId = React.useId()
+  const briefTooLong = voice.brief.length > VOICE_BRIEF_MAX
+
+  const change = (patch: Partial<Voice>, typing: boolean) => {
+    const next = { ...voice, ...patch }
+    setVoice(next)
+    if (next.brief.length > VOICE_BRIEF_MAX) {
+      save.refuse("simulated.voice", `The style brief is ${next.brief.length - VOICE_BRIEF_MAX} characters too long.`)
+      return
+    }
+    if (typing) save.soon("simulated.voice", next)
+    else void save.now("simulated.voice", next)
+  }
+
+  const runPreview = async () => {
+    setPreviewBusy(true)
+    try {
+      setPreview(await previewSimulatedVoice(voice))
+    } catch (error) {
+      showErrorToast(getSimulatedErrorMessage(error))
+    } finally {
+      setPreviewBusy(false)
+    }
+  }
+
+  return (
+    <CollapsibleSettingsCard
+      storageId="pomodoro-made-up-voice"
+      title="How they sound"
+      description="The style every line in a room is written in, by Claude Haiku 4.5 when an Anthropic key is saved on Settings → AI, or from fixed lines when not. Rooms stay quiet until Preview has been pressed once."
+      contentClassName="grid gap-4"
+    >
+      <div className="grid gap-2">
+        <FieldLabel htmlFor={briefId} hint="In your own words. Each account's own personality line, set in its member window, is added to this.">
+          Style brief
+        </FieldLabel>
+        <Textarea
+          id={briefId}
+          className="sm:max-w-xl"
+          value={voice.brief}
+          aria-invalid={briefTooLong || undefined}
+          onChange={(event) => change({ brief: event.target.value }, true)}
+          onBlur={() => save.flush("simulated.voice")}
+        />
+      </div>
+      <div className="flex flex-wrap gap-4">
+        <div className="grid gap-2">
+          <FieldLabel htmlFor={chattyId}>How often they talk</FieldLabel>
+          <Select value={voice.chattiness} onValueChange={(chattiness) => change({ chattiness: chattiness as Voice["chattiness"] }, false)}>
+            <SelectTrigger id={chattyId} className="w-fit">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(Object.keys(CHATTINESS_LABELS) as Voice["chattiness"][]).map((key) => (
+                <SelectItem key={key} value={key}>
+                  {CHATTINESS_LABELS[key]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="grid gap-2">
+          <FieldLabel htmlFor={lengthId}>How long a line is</FieldLabel>
+          <Select value={voice.length} onValueChange={(length) => change({ length: length as Voice["length"] }, false)}>
+            <SelectTrigger id={lengthId} className="w-fit">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(Object.keys(LENGTH_LABELS) as Voice["length"][]).map((key) => (
+                <SelectItem key={key} value={key}>
+                  {LENGTH_LABELS[key]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="grid gap-2">
+          <FieldLabel htmlFor={typoId} hint="Two letters swapped in one word, never in a name.">
+            Typos
+          </FieldLabel>
+          <Select value={voice.typo} onValueChange={(typo) => change({ typo: typo as Voice["typo"] }, false)}>
+            <SelectTrigger id={typoId} className="w-fit">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(Object.keys(TYPO_LABELS) as Voice["typo"][]).map((key) => (
+                <SelectItem key={key} value={key}>
+                  {TYPO_LABELS[key]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      <SettingsSwitchRow
+        id={lowerId}
+        checked={voice.lowercase}
+        onCheckedChange={(lowercase) => change({ lowercase }, false)}
+        label="Write every line in lowercase"
+      />
+      <SettingsSwitchRow
+        id={emojiId}
+        checked={voice.emoji}
+        onCheckedChange={(emoji) => change({ emoji }, false)}
+        label="Allow an emoji now and then"
+      />
+      <div className="grid gap-2">
+        <FieldLabel
+          htmlFor={neverId}
+          hint={'One phrase per line, matched anywhere in a line, ignoring case. A line holding just "!" means no line may end with an exclamation mark. A line that says one of these is written again, then replaced by a fixed line.'}
+        >
+          Never say
+        </FieldLabel>
+        <Textarea
+          id={neverId}
+          className="sm:max-w-xl"
+          value={neverSayText}
+          onChange={(event) => {
+            setNeverSayText(event.target.value)
+            const neverSay = event.target.value
+              .split("\n")
+              .map((phrase) => phrase.trim())
+              .filter(Boolean)
+              .slice(0, 100)
+              .map((phrase) => phrase.slice(0, 80))
+            change({ neverSay }, true)
+          }}
+          onBlur={() => save.flush("simulated.voice")}
+        />
+      </div>
+      <div>
+        <Button type="button" variant="outline" disabled={previewBusy} onClick={() => void runPreview()}>
+          {previewBusy ? <Loader2Icon className="size-4 animate-spin" aria-hidden /> : null}
+          Preview
+        </Button>
+      </div>
+      {preview ? (
+        <div className="grid gap-2" aria-live="polite">
+          {!preview.hasKey ? (
+            <p className="text-sm text-muted-foreground">
+              Add the Anthropic key on Settings → AI first. These are the fixed lines the rooms use without one.
+            </p>
+          ) : null}
+          <p className="text-sm text-muted-foreground">As {preview.speaker}, sent to no room:</p>
+          <ul className="grid gap-2">
+            {preview.lines.map((row) => (
+              <li key={row.kind} className="grid gap-0.5 border-b pb-2 last:border-b-0 last:pb-0">
+                <span className="text-xs text-muted-foreground">
+                  {row.label}
+                  {row.source === "fixed" && preview.hasKey ? " · fixed line, the written one failed the checks" : ""}
+                </span>
+                <span className="text-sm">{row.line ?? "Nothing passed the checks."}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </CollapsibleSettingsCard>
   )
 }

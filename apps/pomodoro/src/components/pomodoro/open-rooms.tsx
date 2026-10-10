@@ -8,6 +8,7 @@ import { enterRoomFromSnapshot } from "@/components/pomodoro/active-room"
 import { OpenRoomCard, RoomGroupEmpty } from "@/components/pomodoro/room-card"
 import { joinRoom, listRooms } from "@/lib/api/pomodoro/rooms"
 import { useProductAuth } from "@/lib/pomodoro/auth-state"
+import { STARTING_SOON_SHOWN, isStartingSoon } from "@/lib/pomodoro/room-countdown"
 import { usePageVisible } from "@/lib/pomodoro/use-page-visible"
 import { joinRefusalMessage } from "@/lib/pomodoro/room-join"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
@@ -15,10 +16,18 @@ import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 export type OpenRoomRow = Awaited<ReturnType<typeof listRooms>>[number]
 export type JoinProblem = { slug: string; message: string } | null
 
+/** Cards Open to join shows at first, and how many more each Load more adds. */
+const OPEN_PAGE = 6
+
 /**
- * "Open to join": the heading and a card per room that is waiting or on a
+ * "Starting soon" and "Open to join": a card per room that is waiting or on a
  * break. Drawn the same on `/rooms` and on the front page, which each bring
  * their own list and their own join.
+ *
+ * Tyler, 9 Oct 2026: "Show the 'Starting in ***' first and then 'Open to
+ * join' follows it", and "Show 6 with a load more". The three soonest rooms
+ * counting down a minute or more go under Starting soon; a 5-second
+ * countdown is over before anybody could see it, so it stays where it was.
  */
 export function OpenRoomsSection({
   sectionRef,
@@ -38,59 +47,105 @@ export function OpenRoomsSection({
   onJoin: (slug: string) => void
   className?: string
 }) {
+  const [shown, setShown] = React.useState(OPEN_PAGE)
+  // The clock is read after the first paint, never during render, so the
+  // server and the browser draw the same; nothing is drawn until then, so no
+  // card jumps between the groups. It is read again the moment the soonest
+  // countdown ends, so a finished one leaves Starting soon on time.
+  const [now, setNow] = React.useState<number | null>(null)
+  React.useEffect(() => {
+    const ends =
+      now === null
+        ? []
+        : rooms.flatMap(({ room }) =>
+            isStartingSoon(room, now) && room.startingAt ? [new Date(room.startingAt).getTime()] : []
+          )
+    const wait = now === null ? 0 : ends.length ? Math.max(0, Math.min(...ends) - Date.now()) + 100 : null
+    if (wait === null) return
+    const timer = window.setTimeout(() => setNow(Date.now()), wait)
+    return () => window.clearTimeout(timer)
+  }, [rooms, now])
+  // The three soonest only. Tyler, 9 Oct 2026: "Only 3 starting in.. shows".
+  // Any other room counting down stays under Open to join, its card saying
+  // "starting in".
+  const soon = rooms
+    .filter(({ room }) => now !== null && isStartingSoon(room, now))
+    .sort((a, b) => new Date(a.room.startingAt ?? 0).getTime() - new Date(b.room.startingAt ?? 0).getTime())
+    .slice(0, STARTING_SOON_SHOWN)
+  const open = rooms.filter((row) => !soon.includes(row))
+  const card = (row: OpenRoomRow) => (
+    <OpenRoomCard
+      key={row.room.id}
+      roomId={row.room.id}
+      background={row.room.background}
+      sound={row.room.sound}
+      name={row.room.name}
+      hostName={row.hostName}
+      hostAvatarUrl={row.hostAvatarUrl}
+      people={row.people}
+      phase={row.room.phase}
+      phaseEndsAt={row.room.phaseEndsAt}
+      startingAt={row.room.startingAt}
+      memberCount={row.memberCount}
+      nextFocusMinutes={row.room.focusMinutes}
+      featured={row.featured}
+      joinButton={
+        <Button
+          className="h-11 rounded-full bg-black px-6 text-base text-white hover:bg-black/80 dark:hover:bg-black/80"
+          disabled={joiningSlug !== ""}
+          onClick={() => onJoin(row.room.slug)}
+        >
+          {joiningSlug === row.room.slug ? (
+            <>
+              <Loader2Icon className="animate-spin" aria-hidden="true" />
+              Joining…
+            </>
+          ) : (
+            "Join"
+          )}
+        </Button>
+      }
+      problem={
+        joinProblem?.slug === row.room.slug ? (
+          <InlineError className="text-xs">{joinProblem.message}</InlineError>
+        ) : null
+      }
+    />
+  )
+
   return (
     <section
       ref={sectionRef}
-      aria-labelledby="open-to-join-heading"
-      className={`flex scroll-mt-6 flex-col gap-5 ${className ?? ""}`}
+      aria-label="Rooms to join"
+      className={`flex scroll-mt-6 flex-col gap-10 ${className ?? ""}`}
     >
-      <h3
-        id="open-to-join-heading"
-        className="text-3xl font-bold tracking-tight"
-      >
-        Open to join
-      </h3>
-      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        {rooms.map(({ room, hostName, memberCount, featured }) => (
-          <OpenRoomCard
-            key={room.id}
-            roomId={room.id}
-            background={room.background}
-            sound={room.sound}
-            name={room.name}
-            hostName={hostName}
-            phase={room.phase}
-            phaseEndsAt={room.phaseEndsAt}
-            memberCount={memberCount}
-            nextFocusMinutes={room.focusMinutes}
-            featured={featured}
-            joinButton={
+      {now === null ? null : soon.length ? (
+        <div className="flex flex-col gap-5">
+          <h3 className="text-3xl font-bold tracking-tight">Starting soon</h3>
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{soon.map(card)}</div>
+        </div>
+      ) : null}
+      {/* Every room under Starting soon leaves nothing to say here. */}
+      {now === null || (!open.length && soon.length) ? null : (
+        <div className="flex flex-col gap-5">
+          <h3 className="text-3xl font-bold tracking-tight">Open to join</h3>
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {open.slice(0, shown).map(card)}
+            {!rooms.length ? <RoomGroupEmpty>No rooms here yet.</RoomGroupEmpty> : null}
+          </div>
+          {open.length > shown ? (
+            <div className="flex justify-center">
               <Button
-                className="h-11 rounded-full bg-black px-6 text-base text-white hover:bg-black/80 dark:hover:bg-black/80"
-                disabled={joiningSlug !== ""}
-                onClick={() => onJoin(room.slug)}
+                variant="outline"
+                className="rounded-full px-6"
+                onClick={() => setShown((count) => count + OPEN_PAGE)}
               >
-                {joiningSlug === room.slug ? (
-                  <>
-                    <Loader2Icon className="animate-spin" aria-hidden="true" />
-                    Joining…
-                  </>
-                ) : (
-                  "Join"
-                )}
+                Load more
               </Button>
-            }
-            problem={
-              joinProblem?.slug === room.slug ? (
-                <InlineError className="text-xs">{joinProblem.message}</InlineError>
-              ) : null
-            }
-          />
-        ))}
-        {!rooms.length ? (
-          <RoomGroupEmpty>No rooms here yet.</RoomGroupEmpty>
-        ) : null}
-      </div>
+            </div>
+          ) : null}
+        </div>
+      )}
     </section>
   )
 }
