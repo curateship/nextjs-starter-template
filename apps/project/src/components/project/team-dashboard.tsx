@@ -1,681 +1,479 @@
 import * as React from "react"
-import { getRouteApi, useRouter } from "@tanstack/react-router"
+import { Link, useNavigate } from "@tanstack/react-router"
 import {
-  LogOutIcon,
-  MailPlusIcon,
-  RefreshCwIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  ClockIcon,
   SettingsIcon,
-  Trash2Icon,
+  UserPlusIcon,
   UsersIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
-import { InviteDialog, SentInviteCard } from "@/components/project/invite-dialog"
-import { MemberDialog } from "@/components/project/member-dialog"
+import { InviteDialog } from "@/components/project/invite-dialog"
 import { PersonAvatar } from "@/components/project/task-bits"
+import { TaskDialog } from "@/components/project/task-dialog"
+import { TeamSettingsDialog } from "@/components/project/team-settings-dialog"
 import { TeamStart } from "@/components/project/team-start"
-import { CardTop, FeedCard } from "@/components/shared/feed-card"
-import { DashboardTable } from "@/components/shared/dashboard-table"
+import { ThreePanels } from "@/components/project/three-panels"
 import {
-  DashboardToolbarButton,
-  DashboardToolbarSearch,
-} from "@/components/shared/dashboard-toolbar"
-import {
-  SelectAllTableHead,
-  SortableTableHeader,
-  type SortableColumn,
-} from "@/components/shared/sortable-table-header"
-import { useShellRuntime } from "@/components/shell/shell-layout"
+  DashboardCardHeader,
+  DashboardCardTitleHeader,
+  dashboardCardHeadingClassName,
+} from "@/components/shared/dashboard-card-header"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
-import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import {
-  Dialog,
-  DialogBody,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { TableCell, TableHead, TableRow } from "@/components/ui/table"
-import {
-  cancelTeamInvites,
-  leaveProjectTeam,
-  removeManyFromTeam,
-  resendTeamInvite,
-  updateProjectTeam,
-  type BulkResult,
-  type InviteForMe,
-  type SentInvite,
-  type TeamDashboard as TeamDashboardData,
-  type TeamInviteRow,
-  type TeamMemberRow,
-} from "@/lib/api/project/teams"
-import { describeBulkResult } from "@/lib/format/bulk-result"
-import { formatDate } from "@/lib/format/format-time"
-import { useAsyncAction } from "@/lib/hooks/use-async-action"
-import { useClientPage } from "@/lib/hooks/use-client-page"
-import { useSelection } from "@/lib/hooks/use-selection"
-import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
-import { useTableSort } from "@/lib/hooks/use-table-sort"
-import { pageGutter } from "@/lib/layout/shell-gutter"
-import { getProjectErrorMessage } from "@/lib/project/errors"
-import {
-  LIMITS,
-  TEAM_ROLE_LABEL,
-  WEEK_DAYS,
-  runsTheTeam,
-  type TeamRole,
-} from "@/lib/project/rules"
-import { showErrorToast } from "@/lib/toast/error-toast"
+import { Meter } from "@/components/ui/meter"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Separator } from "@/components/ui/separator"
+import type {
+  TeamDay,
+  TeamDayPerson,
+  TeamDayTask,
+  TeamMonth,
+} from "@/lib/api/project/checkins"
+import type { InviteForMe, TeamDashboard as TeamDashboardData } from "@/lib/api/project/teams"
+import { formatDate, formatMonthAndYear } from "@/lib/format/format-time"
+import { addDays, clockIn, clockLabel, longDayLabel, shortDayLabel, weekdayOf } from "@/lib/project/days"
+import { TEAM_PANEL_LAYOUT_KEY } from "@/lib/project/panel-keys"
+import { TEAM_ROLE_LABEL, WEEK_DAYS, runsTheTeam } from "@/lib/project/rules"
+import { cn } from "@/lib/utils"
+
+export type TeamSearch = {
+  /** "YYYY-MM" shown in the calendar. Left out, the current month. */
+  month?: string
+  /** "YYYY-MM-DD" whose check-ins show on the right. Left out, today. */
+  day?: string
+  /** The task whose window is open. */
+  task?: string
+}
 
 /**
- * The Team dashboard: the team's settings, its people and its pending
- * invites. The owner and admins change things here; everyone else sees the
- * same page to read.
+ * The Team dashboard: the team and its people on the left, a calendar of the
+ * team's check-ins in the middle, and one day's check-ins on the right.
+ * Clicking a day in the calendar shows that day on the right.
  */
-export function TeamDashboard({
+export function TeamDashboardScreen({
   data,
+  checkins,
   invites,
+  search,
 }: {
   data: TeamDashboardData | null
+  checkins: { month: TeamMonth; day: TeamDay } | null
   invites: InviteForMe[]
+  search: TeamSearch
 }) {
-  if (!data) return <TeamStart invites={invites} />
-  const canRun = runsTheTeam(data.myRole)
+  if (!data || !checkins) return <TeamStart invites={invites} />
+  return <Dashboard data={data} month={checkins.month} day={checkins.day} search={search} />
+}
+
+function Dashboard({
+  data,
+  month,
+  day,
+  search,
+}: {
+  data: TeamDashboardData
+  month: TeamMonth
+  day: TeamDay
+  search: TeamSearch
+}) {
+  const navigate = useNavigate()
+  const go = React.useCallback(
+    (patch: Partial<TeamSearch>) =>
+      void navigate({
+        to: ".",
+        search: (previous: Record<string, unknown>) => {
+          const next: Record<string, unknown> = { ...previous, ...patch }
+          for (const key of Object.keys(next)) if (next[key] === undefined) delete next[key]
+          return next
+        },
+      }),
+    [navigate]
+  )
+
   return (
-    <div className="flex min-w-0 flex-col" style={{ gap: pageGutter }}>
-      <TeamSettingsCard data={data} canEdit={canRun} />
-      <MembersTable data={data} canRun={canRun} />
-      {canRun ? <InvitesTable invites={data.invites} /> : null}
-      {data.myRole === "owner" ? null : <LeaveTeamCard teamName={data.team.name} />}
-    </div>
+    <ThreePanels
+      layoutKey={TEAM_PANEL_LAYOUT_KEY}
+      left={{
+        label: "Team",
+        showLabel: "Show the team",
+        content: <TeamPanel data={data} />,
+      }}
+      middle={{
+        label: "Calendar",
+        content: (
+          <CalendarPanel
+            month={month}
+            selected={day.day}
+            onMonth={(next) => go({ month: next })}
+            onToday={() => go({ month: undefined, day: undefined })}
+            onSelect={(next) => go({ day: next })}
+          />
+        ),
+      }}
+      right={{
+        label: "Check-ins",
+        showLabel: "Show the check-ins",
+        content: (
+          <CheckinsPanel
+            day={day}
+            myUserId={data.myUserId}
+            onDay={(next) => go({ day: next, month: next.slice(0, 7) })}
+          />
+        ),
+      }}
+    >
+      <TaskDialog taskId={search.task ?? null} onClose={() => go({ task: undefined })} />
+    </ThreePanels>
   )
 }
 
-function useBulkReport(one: string, many: string, verb: string) {
-  return React.useCallback(
-    (result: BulkResult) => {
-      const line = describeBulkResult({
-        done: result.done.length,
-        kept: result.kept.length,
-        one,
-        many,
-        verb,
-      })
-      if (result.kept.length) showErrorToast(line)
-      else toast.success(line)
-    },
-    [many, one, verb]
-  )
-}
-
-/** Each field saves when it is left or picked. There is no Save button. */
-function TeamSettingsCard({ data, canEdit }: { data: TeamDashboardData; canEdit: boolean }) {
-  const router = useRouter()
+function TeamPanel({ data }: { data: TeamDashboardData }) {
   const { team } = data
-  const [name, setName] = useSyncedDraft(team.name)
-  const [checkinTime, setCheckinTime] = useSyncedDraft(team.checkinTime)
-  const [nameInvalid, setNameInvalid] = React.useState(false)
-  const [run, busy] = useAsyncAction(getProjectErrorMessage)
-  const zones = React.useMemo(() => {
-    const all =
-      typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : []
-    return all.includes(team.timeZone) ? all : [team.timeZone, ...all]
-  }, [team.timeZone])
-
-  async function save(patch: Parameters<typeof updateProjectTeam>[0]) {
-    const ok = await run(() => updateProjectTeam(patch))
-    if (ok) await router.invalidate()
-  }
-
-  function commitName() {
-    const next = name.trim()
-    if (next === team.name) return
-    if (!next) {
-      setNameInvalid(true)
-      showErrorToast("The team name can't be empty.")
-      return
-    }
-    void save({ name: next })
-  }
-
-  function commitTime() {
-    if (checkinTime === team.checkinTime) return
-    if (!/^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(checkinTime)) {
-      setCheckinTime(team.checkinTime)
-      showErrorToast("Pick a time like 09:00.")
-      return
-    }
-    void save({ checkinTime })
-  }
-
-  function toggleDay(day: number, on: boolean) {
-    const next = on ? [...team.workDays, day] : team.workDays.filter((d) => d !== day)
-    if (next.length === 0) {
-      showErrorToast("Pick at least one work day.")
-      return
-    }
-    void save({ workDays: next })
-  }
-
-  const readOnly = !canEdit || busy
+  const canRun = runsTheTeam(data.myRole)
+  const [settingsOpen, setSettingsOpen] = React.useState(false)
+  const [inviting, setInviting] = React.useState(false)
+  const days = WEEK_DAYS.map(({ day, short }) => ({ day, short, on: team.workDays.includes(day) }))
+  const workDayNames = days.filter((d) => d.on).map((d) => d.short).join(", ")
 
   return (
-    <FeedCard>
-      <CardTop icon={SettingsIcon} title="Team settings" />
-      <div className="grid gap-4 p-4 sm:p-5">
-        {canEdit ? null : (
-          <p className="text-sm text-muted-foreground">
-            Only the team's owner and admins can change these.
-          </p>
-        )}
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="grid gap-2">
-            <Label htmlFor="team-settings-name">Team name</Label>
-            <Input
-              id="team-settings-name"
-              value={name}
-              maxLength={LIMITS.teamName}
-              disabled={!canEdit}
-              aria-invalid={nameInvalid || undefined}
-              onChange={(event) => {
-                setName(event.target.value)
-                setNameInvalid(false)
-              }}
-              onBlur={commitName}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") event.currentTarget.blur()
-              }}
-            />
+    <>
+      <DashboardCardTitleHeader
+        icon={<UsersIcon className="size-4" />}
+        title="Team"
+        action={
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label="Team settings"
+            onClick={() => setSettingsOpen(true)}
+          >
+            <SettingsIcon className="size-4" />
+          </Button>
+        }
+      />
+      <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
+        <div className="grid gap-5 p-4">
+          <div className="grid gap-1">
+            <h3 className="text-xl font-semibold break-words">{team.name}</h3>
+            <p className="text-sm text-muted-foreground">
+              Created {formatDate(team.createdAt)} · {team.timeZone.replaceAll("_", " ")}
+            </p>
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor="team-settings-checkin">Daily check-in time</Label>
-            <Input
-              id="team-settings-checkin"
-              type="time"
-              className="w-full sm:w-36"
-              value={checkinTime}
-              disabled={!canEdit}
-              onChange={(event) => setCheckinTime(event.target.value)}
-              onBlur={commitTime}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") event.currentTarget.blur()
-              }}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="team-settings-zone">Time zone</Label>
-            <Select
-              value={team.timeZone}
-              onValueChange={(timeZone) => void save({ timeZone })}
-              disabled={readOnly}
-            >
-              <SelectTrigger id="team-settings-zone" className="w-full sm:w-fit">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {zones.map((zone) => (
-                  <SelectItem key={zone} value={zone}>
-                    {zone.replaceAll("_", " ")}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <Separator />
+          <section className="grid gap-3" aria-labelledby="team-schedule-heading">
+            <h3 id="team-schedule-heading" className="text-sm font-medium">
+              Check-in schedule
+            </h3>
+            <p className="flex items-center gap-2 text-sm">
+              <ClockIcon className="size-4 text-muted-foreground" aria-hidden />
+              Daily at {clockLabel(team.checkinTime)}
+            </p>
+            <ul className="grid grid-cols-7 gap-1.5" aria-label={`Work days: ${workDayNames}`}>
+              {days.map(({ day, short, on }) => (
+                <li
+                  key={day}
+                  aria-hidden
+                  className={cn(
+                    "flex h-8 items-center justify-center rounded-md text-xs font-medium",
+                    on ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                  )}
+                >
+                  {short.charAt(0)}
+                </li>
+              ))}
+            </ul>
+          </section>
+          <Separator />
+          <section className="grid gap-3" aria-labelledby="team-members-heading">
+            <div className="flex items-center justify-between gap-2">
+              <h3 id="team-members-heading" className="text-sm font-medium">
+                Members
+              </h3>
+              <Link
+                to="/team/members"
+                className="text-sm text-muted-foreground hover:text-foreground hover:underline"
+              >
+                Manage
+              </Link>
+            </div>
+            {canRun ? (
+              <Button type="button" className="w-full" onClick={() => setInviting(true)}>
+                <UserPlusIcon className="size-4" />
+                Invite member
+              </Button>
+            ) : null}
+            <ul className="grid gap-2">
+              {data.members.map((member) => (
+                <li key={member.userId} className="flex items-center gap-3 text-sm">
+                  <PersonAvatar name={member.name} avatarUrl={member.avatarUrl} size="default" />
+                  <span className="min-w-0 flex-1 truncate">
+                    {member.name}
+                    {member.userId === data.myUserId ? " (you)" : ""}
+                  </span>
+                  <span className="shrink-0 text-muted-foreground">{TEAM_ROLE_LABEL[member.role]}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
         </div>
-        <fieldset className="grid gap-2">
-          <legend className="mb-2 text-sm font-medium">Work days</legend>
-          {WEEK_DAYS.map(({ day, short }) => {
-            const id = `team-day-${day}`
+      </ScrollArea>
+      <TeamSettingsDialog
+        team={team}
+        canEdit={canRun}
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+      />
+      <InviteDialog open={inviting} onClose={() => setInviting(false)} />
+    </>
+  )
+}
+
+function CalendarPanel({
+  month,
+  selected,
+  onMonth,
+  onToday,
+  onSelect,
+}: {
+  month: TeamMonth
+  selected: string
+  onMonth: (month: string) => void
+  onToday: () => void
+  onSelect: (day: string) => void
+}) {
+  const [year, monthNumber] = month.month.split("-").map(Number)
+  const first = `${month.month}-01`
+  // Weeks start on Monday, the way the team's work days are listed.
+  const lead = (weekdayOf(first) + 6) % 7
+  const gridStart = addDays(first, -lead)
+  const daysInMonth = Number(addDays(`${addDays(first, 32).slice(0, 7)}-01`, -1).slice(8))
+  const cells = Math.ceil((lead + daysInMonth) / 7) * 7
+  const byDay = new Map(month.days.map((d) => [d.day, d]))
+
+  return (
+    <>
+      <DashboardCardHeader className="gap-2">
+        <h2 className={cn("min-w-0 truncate", dashboardCardHeadingClassName)}>
+          {formatMonthAndYear(year, monthNumber)}
+        </h2>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          aria-label="Previous month"
+          onClick={() => onMonth(addDays(first, -1).slice(0, 7))}
+        >
+          <ChevronLeftIcon className="size-4" />
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          aria-label="Next month"
+          onClick={() => onMonth(addDays(first, 32).slice(0, 7))}
+        >
+          <ChevronRightIcon className="size-4" />
+        </Button>
+        <Button type="button" variant="outline" onClick={onToday}>
+          Today
+        </Button>
+      </DashboardCardHeader>
+      <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
+        <div className="grid grid-cols-7 gap-1.5 p-3">
+          {WEEK_DAYS.map(({ day, short }) => (
+            <div key={day} aria-hidden className="pb-1 text-center text-xs text-muted-foreground">
+              {short}
+            </div>
+          ))}
+          {Array.from({ length: cells }, (_, index) => {
+            const date = addDays(gridStart, index)
+            const inMonth = date.startsWith(month.month)
+            const counts = inMonth ? byDay.get(date) : undefined
+            const future = date > month.today
+            const words = counts
+              ? `${counts.checkedIn} of ${counts.expected} checked in${counts.blocked ? `, ${counts.blocked} blocked` : ""}`
+              : null
             return (
-              <div key={day} className="flex items-center gap-2">
-                <Checkbox
-                  id={id}
-                  checked={team.workDays.includes(day)}
-                  disabled={readOnly}
-                  onCheckedChange={(checked) => toggleDay(day, checked === true)}
-                />
-                <Label htmlFor={id} className="font-normal">
-                  {short}
-                </Label>
-              </div>
+              <button
+                key={date}
+                type="button"
+                disabled={!inMonth || future}
+                aria-pressed={date === selected}
+                aria-current={date === month.today ? "date" : undefined}
+                aria-label={`${longDayLabel(date)}${words ? `: ${words}` : ""}`}
+                onClick={() => onSelect(date)}
+                className={cn(
+                  "flex min-h-20 min-w-0 flex-col items-start gap-1 rounded-md border p-2 text-left text-xs hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:pointer-events-none",
+                  !inMonth && "border-transparent bg-muted/60 text-muted-foreground",
+                  date === selected && "ring-2 ring-ring"
+                )}
+              >
+                <span
+                  className={cn(
+                    "flex size-6 items-center justify-center rounded-full text-sm",
+                    date === month.today && "bg-primary font-semibold text-primary-foreground"
+                  )}
+                >
+                  {Number(date.slice(8))}
+                </span>
+                {counts && counts.expected ? (
+                  <span className="max-w-full rounded bg-muted px-1.5 py-0.5">
+                    {counts.checkedIn} of {counts.expected} in
+                  </span>
+                ) : null}
+                {counts?.blocked ? (
+                  <span className="max-w-full rounded bg-destructive/10 px-1.5 py-0.5 text-destructive">
+                    {counts.blocked} blocked
+                  </span>
+                ) : null}
+              </button>
             )
           })}
-        </fieldset>
-      </div>
-    </FeedCard>
-  )
-}
-
-type MemberColumn = "name" | "role" | "joined"
-const ROLE_ORDER: Record<TeamRole, number> = { owner: 0, admin: 1, member: 2 }
-
-function MembersTable({ data, canRun }: { data: TeamDashboardData; canRun: boolean }) {
-  const router = useRouter()
-  const { config } = useShellRuntime()
-  const [query, setQuery] = React.useState("")
-  const [inviting, setInviting] = React.useState(false)
-  const [editing, setEditing] = React.useState<TeamMemberRow | null>(null)
-  const [removing, setRemoving] = React.useState<TeamMemberRow[] | null>(null)
-  const { sort, direction, toggleSort } = useTableSort<MemberColumn>("role")
-  const selection = useSelection()
-  const [run, busy] = useAsyncAction(getProjectErrorMessage)
-  const report = useBulkReport("person", "people", "removed from the team")
-
-  // The owner and you can't be picked: neither can be removed from here.
-  const removable = (member: TeamMemberRow) =>
-    canRun && member.role !== "owner" && member.userId !== data.myUserId
-
-  const rows = React.useMemo(() => {
-    const sign = direction === "asc" ? 1 : -1
-    const needle = query.trim().toLowerCase()
-    return data.members
-      .filter(
-        (m) =>
-          !needle || m.name.toLowerCase().includes(needle) || m.email.toLowerCase().includes(needle)
-      )
-      .sort((a, b) => {
-        const gap =
-          sort === "role"
-            ? ROLE_ORDER[a.role] - ROLE_ORDER[b.role]
-            : sort === "joined"
-              ? a.joinedAt.localeCompare(b.joinedAt)
-              : 0
-        return gap * sign || a.name.localeCompare(b.name)
-      })
-  }, [data.members, direction, query, sort])
-
-  const { visible, footer } = useClientPage(rows, config.dashboardRowsPerPage, `${query}|${sort}|${direction}`)
-  const selectableIds = visible.filter(removable).map((m) => m.userId)
-  const selectedIds = [...selection.selected].filter((id) =>
-    data.members.some((m) => m.userId === id && removable(m))
-  )
-
-  const columns: SortableColumn<MemberColumn>[] = [
-    { key: "name", label: "Name", column: "main", className: "min-w-0 md:min-w-64" },
-    { key: "role", label: "Role", column: "preview" },
-    { key: "joined", label: "Joined", column: "preview" },
-  ]
-
-  async function remove(people: TeamMemberRow[]) {
-    let result: BulkResult = { done: [], kept: [] }
-    const ok = await run(async () => {
-      result = await removeManyFromTeam(people.map((p) => p.userId))
-    })
-    if (!ok) return
-    report(result)
-    setRemoving(null)
-    selection.clear()
-    await router.invalidate()
-  }
-
-  return (
-    <>
-      <DashboardTable
-        title="Members"
-        icon={<UsersIcon className="text-muted-foreground" />}
-        count={rows.length}
-        selectedCount={selectedIds.length}
-        onClearSelection={selection.clear}
-        controls={
-          <>
-            {selectedIds.length ? (
-              <DashboardToolbarButton
-                type="button"
-                variant="destructive"
-                disabled={busy}
-                onClick={() =>
-                  setRemoving(data.members.filter((m) => selectedIds.includes(m.userId)))
-                }
-              >
-                <Trash2Icon className="size-4" />
-                Remove ({selectedIds.length})
-              </DashboardToolbarButton>
-            ) : null}
-            <DashboardToolbarSearch
-              name="member-search"
-              aria-label="Search members by name or email"
-              placeholder="Search members…"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-            />
-            {canRun ? (
-              <DashboardToolbarButton type="button" onClick={() => setInviting(true)}>
-                <MailPlusIcon className="size-4" />
-                Invite
-              </DashboardToolbarButton>
-            ) : null}
-          </>
-        }
-        header={
-          <SortableTableHeader
-            columns={columns}
-            sort={sort}
-            direction={direction}
-            onSort={toggleSort}
-            leading={
-              <SelectAllTableHead
-                noun="members"
-                disabled={selectableIds.length === 0}
-                checked={selection.selectAllState(selectableIds)}
-                onCheckedChange={() => selection.toggleVisible(selectableIds)}
-              />
-            }
-            trailing={<TableHead column="meta">Actions</TableHead>}
-          />
-        }
-        isEmpty={rows.length === 0}
-        emptyText="Nobody matches that search."
-        emptyColSpan={5}
-        footer={footer}
-      >
-        {visible.map((member) => {
-          const isMe = member.userId === data.myUserId
-          const canEdit = canRun && member.role !== "owner" && !isMe
-          return (
-            <TableRow
-              key={member.userId}
-              className="group"
-              rowAction={canEdit || (data.myRole === "owner" && !isMe) ? () => setEditing(member) : undefined}
-            >
-              <TableCell column="select">
-                <Checkbox
-                  checked={selection.selected.has(member.userId)}
-                  disabled={!removable(member)}
-                  onCheckedChange={() => selection.toggle(member.userId)}
-                  aria-label={`Select ${member.name}`}
-                />
-              </TableCell>
-              <TableCell column="main">
-                <span className="flex min-w-0 items-center gap-3">
-                  <PersonAvatar name={member.name} avatarUrl={member.avatarUrl} size="default" />
-                  <span className="min-w-0">
-                    <span className="block truncate font-medium">
-                      {member.name}
-                      {isMe ? " (you)" : ""}
-                    </span>
-                    <span className="block truncate text-xs text-muted-foreground">{member.email}</span>
-                  </span>
-                </span>
-              </TableCell>
-              <TableCell column="preview">{TEAM_ROLE_LABEL[member.role]}</TableCell>
-              <TableCell column="preview">{formatDate(member.joinedAt)}</TableCell>
-              <TableCell column="actions">
-                {canEdit || (data.myRole === "owner" && !isMe) ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label={`Change ${member.name}'s role`}
-                    onClick={() => setEditing(member)}
-                  >
-                    <SettingsIcon className="size-4" />
-                  </Button>
-                ) : null}
-                {removable(member) ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label={`Remove ${member.name} from the team`}
-                    onClick={() => setRemoving([member])}
-                  >
-                    <Trash2Icon className="size-4" />
-                  </Button>
-                ) : null}
-              </TableCell>
-            </TableRow>
-          )
-        })}
-      </DashboardTable>
-      <InviteDialog open={inviting} onClose={() => setInviting(false)} />
-      <MemberDialog member={editing} myRole={data.myRole} onClose={() => setEditing(null)} />
-      <ConfirmDialog
-        open={Boolean(removing)}
-        onOpenChange={(open) => {
-          if (!open) setRemoving(null)
-        }}
-        title={
-          removing?.length === 1
-            ? `Remove ${removing[0].name} from the team?`
-            : `Remove ${removing?.length ?? 0} people from the team?`
-        }
-        description="They lose access at once. Their tasks stay, with nobody assigned and a note saying whose they were."
-        confirmLabel="Remove"
-        loading={busy}
-        onConfirm={async () => {
-          if (removing) await remove(removing)
-        }}
-      />
-    </>
-  )
-}
-
-type InviteColumn = "email" | "role" | "expires"
-
-function InvitesTable({ invites }: { invites: TeamInviteRow[] }) {
-  const router = useRouter()
-  const { config } = useShellRuntime()
-  const { sort, direction, toggleSort } = useTableSort<InviteColumn>("email")
-  const selection = useSelection()
-  const [run, busy] = useAsyncAction(getProjectErrorMessage)
-  const [cancelling, setCancelling] = React.useState<string[] | null>(null)
-  const [resent, setResent] = React.useState<{ sent: SentInvite; email: string } | null>(null)
-  const report = useBulkReport("invite", "invites", "cancelled")
-
-  const rows = React.useMemo(() => {
-    const sign = direction === "asc" ? 1 : -1
-    return [...invites].sort((a, b) => {
-      const gap =
-        sort === "role"
-          ? a.role.localeCompare(b.role)
-          : sort === "expires"
-            ? a.expiresAt.localeCompare(b.expiresAt)
-            : a.email.localeCompare(b.email)
-      return gap * sign || a.email.localeCompare(b.email)
-    })
-  }, [direction, invites, sort])
-  const { visible, footer } = useClientPage(rows, config.dashboardRowsPerPage, `${sort}|${direction}`)
-  const visibleIds = visible.map((invite) => invite.id)
-  const selectedIds = [...selection.selected].filter((id) => invites.some((i) => i.id === id))
-
-  const columns: SortableColumn<InviteColumn>[] = [
-    { key: "email", label: "Email", column: "main", className: "min-w-0 md:min-w-64" },
-    { key: "role", label: "Role", column: "preview" },
-    { key: "expires", label: "Expires", column: "preview" },
-  ]
-
-  async function resend(invite: TeamInviteRow) {
-    let sent: SentInvite | null = null
-    const ok = await run(async () => {
-      sent = await resendTeamInvite(invite.id)
-    })
-    if (!ok || !sent) return
-    setResent({ sent, email: invite.email })
-    await router.invalidate()
-  }
-
-  async function cancel(ids: string[]) {
-    let result: BulkResult = { done: [], kept: [] }
-    const ok = await run(async () => {
-      result = await cancelTeamInvites(ids)
-    })
-    if (!ok) return
-    report(result)
-    setCancelling(null)
-    selection.clear()
-    await router.invalidate()
-  }
-
-  return (
-    <>
-      <DashboardTable
-        title="Pending invites"
-        icon={<MailPlusIcon className="text-muted-foreground" />}
-        count={rows.length}
-        selectedCount={selectedIds.length}
-        onClearSelection={selection.clear}
-        controls={
-          selectedIds.length ? (
-            <DashboardToolbarButton
-              type="button"
-              variant="destructive"
-              disabled={busy}
-              onClick={() => setCancelling(selectedIds)}
-            >
-              <Trash2Icon className="size-4" />
-              Cancel ({selectedIds.length})
-            </DashboardToolbarButton>
-          ) : null
-        }
-        header={
-          <SortableTableHeader
-            columns={columns}
-            sort={sort}
-            direction={direction}
-            onSort={toggleSort}
-            leading={
-              <SelectAllTableHead
-                noun="invites"
-                disabled={visibleIds.length === 0}
-                checked={selection.selectAllState(visibleIds)}
-                onCheckedChange={() => selection.toggleVisible(visibleIds)}
-              />
-            }
-            trailing={<TableHead column="meta">Actions</TableHead>}
-          />
-        }
-        isEmpty={rows.length === 0}
-        emptyText="No invites waiting. Invite someone from the Members table."
-        emptyColSpan={5}
-        footer={footer}
-      >
-        {visible.map((invite) => (
-          <TableRow key={invite.id} className="group">
-            <TableCell column="select">
-              <Checkbox
-                checked={selection.selected.has(invite.id)}
-                onCheckedChange={() => selection.toggle(invite.id)}
-                aria-label={`Select the invite to ${invite.email}`}
-              />
-            </TableCell>
-            <TableCell column="main">
-              <span className="block truncate font-medium">{invite.email}</span>
-              <span className="block truncate text-xs text-muted-foreground">
-                {invite.invitedByName ? `Invited by ${invite.invitedByName}` : "Invited"} on{" "}
-                {formatDate(invite.sentAt)}
-              </span>
-            </TableCell>
-            <TableCell column="preview">{TEAM_ROLE_LABEL[invite.role]}</TableCell>
-            <TableCell column="preview">
-              {invite.expired ? (
-                <span className="text-destructive">Expired</span>
-              ) : (
-                formatDate(invite.expiresAt)
-              )}
-            </TableCell>
-            <TableCell column="actions">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label={`Resend the invite to ${invite.email}`}
-                disabled={busy}
-                onClick={() => void resend(invite)}
-              >
-                <RefreshCwIcon className="size-4" />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label={`Cancel the invite to ${invite.email}`}
-                onClick={() => setCancelling([invite.id])}
-              >
-                <Trash2Icon className="size-4" />
-              </Button>
-            </TableCell>
-          </TableRow>
-        ))}
-      </DashboardTable>
-      <ConfirmDialog
-        open={Boolean(cancelling)}
-        onOpenChange={(open) => {
-          if (!open) setCancelling(null)
-        }}
-        title={cancelling?.length === 1 ? "Cancel this invite?" : `Cancel ${cancelling?.length ?? 0} invites?`}
-        description="The invite link stops working. You can invite the same address again later."
-        confirmLabel="Cancel invite"
-        cancelLabel="Keep it"
-        loading={busy}
-        onConfirm={async () => {
-          if (cancelling) await cancel(cancelling)
-        }}
-      />
-      <Dialog open={Boolean(resent)} onOpenChange={(open) => (open ? null : setResent(null))}>
-        <DialogContent variant="admin" className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Invite sent again</DialogTitle>
-            <DialogDescription>The old link no longer works. This one lasts seven days.</DialogDescription>
-          </DialogHeader>
-          <DialogBody>{resent ? <SentInviteCard sent={resent.sent} email={resent.email} /> : null}</DialogBody>
-          <DialogFooter>
-            <Button type="button" onClick={() => setResent(null)}>
-              Done
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
-  )
-}
-
-function LeaveTeamCard({ teamName }: { teamName: string }) {
-  const router = useRouter()
-  const me = getRouteApi("/_authenticated").useLoaderData().user
-  const [confirming, setConfirming] = React.useState(false)
-  const [run, busy] = useAsyncAction(getProjectErrorMessage)
-
-  return (
-    <FeedCard>
-      <CardTop icon={LogOutIcon} title="Leave team" />
-      <div className="grid gap-4 p-4 sm:p-5">
-        <p className="text-sm text-muted-foreground">
-          You'll lose access to {teamName}'s projects at once. Your tasks stay, with nobody assigned.
-        </p>
-        <div>
-          <Button type="button" variant="outline" onClick={() => setConfirming(true)}>
-            <LogOutIcon className="size-4" />
-            Leave {teamName}
-          </Button>
         </div>
+      </ScrollArea>
+    </>
+  )
+}
+
+function CheckinsPanel({
+  day,
+  myUserId,
+  onDay,
+}: {
+  day: TeamDay
+  myUserId: string
+  onDay: (day: string) => void
+}) {
+  return (
+    <>
+      <DashboardCardHeader className="gap-2">
+        <h2 className={cn("min-w-0 flex-1 truncate", dashboardCardHeadingClassName)}>Check-ins</h2>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          aria-label="The day before"
+          onClick={() => onDay(addDays(day.day, -1))}
+        >
+          <ChevronLeftIcon className="size-4" />
+        </Button>
+        <span className="shrink-0 text-sm font-medium">{shortDayLabel(day.day)}</span>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          aria-label="The day after"
+          disabled={day.day >= day.today}
+          onClick={() => onDay(addDays(day.day, 1))}
+        >
+          <ChevronRightIcon className="size-4" />
+        </Button>
+      </DashboardCardHeader>
+      <div className="grid gap-2 border-b px-4 py-3">
+        <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
+          <span>
+            {day.checkedIn} of {day.expected} checked in
+          </span>
+          {day.blocked ? <span>{day.blocked} blocked</span> : null}
+        </div>
+        <Meter
+          value={day.checkedIn}
+          max={day.expected}
+          label="People checked in"
+          valueText={`${day.checkedIn} of ${day.expected}`}
+          size="sm"
+        />
       </div>
-      <ConfirmDialog
-        open={confirming}
-        onOpenChange={setConfirming}
-        title={`Leave ${teamName}?`}
-        description={`${me.name}, you'd need a new invite to come back.`}
-        confirmLabel="Leave team"
-        loading={busy}
-        onConfirm={async () => {
-          const ok = await run(() => leaveProjectTeam(), `You left ${teamName}.`)
-          if (ok) {
-            setConfirming(false)
-            await router.invalidate()
-          }
-        }}
-      />
-    </FeedCard>
+      <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
+        <ul className="divide-y">
+          {day.people.map((row) => (
+            <PersonCheckin key={row.person.id} row={row} isMe={row.person.id === myUserId} />
+          ))}
+        </ul>
+      </ScrollArea>
+    </>
+  )
+}
+
+function stateLine(row: TeamDayPerson) {
+  switch (row.state) {
+    case "checked_in":
+      return `Checked in ${row.checkedInAt ? clockIn(row.checkedInAt, row.timeZone) : ""}${row.late ? " · late" : ""}`
+    case "not_yet":
+      return "No check-in yet"
+    case "missed":
+      return "Didn't check in"
+    case "day_off":
+      return "Day off"
+    case "no_record":
+      return "Nothing saved for this day"
+  }
+}
+
+function PersonCheckin({ row, isMe }: { row: TeamDayPerson; isMe: boolean }) {
+  return (
+    <li className="flex gap-3 px-4 py-4">
+      <PersonAvatar name={row.person.name} avatarUrl={row.person.avatarUrl} size="default" />
+      <div className="grid min-w-0 flex-1 gap-2">
+        <div className="flex items-start justify-between gap-2">
+          <div className="grid min-w-0">
+            <span className="truncate text-sm font-medium">
+              {row.person.name}
+              {isMe ? " (you)" : ""}
+            </span>
+            <span className="text-xs text-muted-foreground">{stateLine(row)}</span>
+          </div>
+          {row.blockers.length ? <Badge variant="destructive">Blocked</Badge> : null}
+        </div>
+        {row.before.length ? (
+          <TaskLine label="Yesterday" tasks={row.before} />
+        ) : null}
+        {row.picked.length ? (
+          <TaskLine label="Today" tasks={row.picked} />
+        ) : null}
+        {row.blockers.map((blocker, index) => (
+          <p key={blocker.taskId ?? index} className="text-sm break-words text-destructive">
+            Blocker · {blocker.title ?? "a task in another project"}
+            {blocker.reason ? `: ${blocker.reason}` : ""}
+          </p>
+        ))}
+      </div>
+    </li>
+  )
+}
+
+/** "Today · Brief, Logo, 1 task in another project". */
+function TaskLine({ label, tasks }: { label: string; tasks: TeamDayTask[] }) {
+  const seen = tasks.filter((task) => task.title !== null)
+  const hidden = tasks.length - seen.length
+  return (
+    <p className="text-sm break-words">
+      <span className="text-muted-foreground">{label} · </span>
+      {seen.map((task, index) => (
+        <React.Fragment key={task.taskId ?? `${task.title}-${index}`}>
+          {index ? ", " : null}
+          {task.taskId ? (
+            <Link
+              to="/team"
+              search={(previous: TeamSearch) => ({ ...previous, task: task.taskId ?? undefined })}
+              className="hover:underline focus-visible:underline focus-visible:outline-none"
+            >
+              {task.title}
+            </Link>
+          ) : (
+            <span>{task.title} (deleted)</span>
+          )}
+        </React.Fragment>
+      ))}
+      {hidden ? (
+        <span className="text-muted-foreground">
+          {seen.length ? ", " : ""}
+          {hidden === 1 ? "1 task in another project" : `${hidden} tasks in other projects`}
+        </span>
+      ) : null}
+    </p>
   )
 }

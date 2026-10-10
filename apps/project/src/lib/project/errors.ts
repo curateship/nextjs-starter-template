@@ -29,6 +29,15 @@ export const PROJECT_ERRORS = {
   cantDeleteTask: "Only the person who made the task, the owner or an admin can delete it.",
   tooManySteps: "A task can have at most 50 steps.",
   stepNotFound: "That step no longer exists.",
+  alreadyCheckedIn: "You've already checked in today. Change today's picks below.",
+  notCheckedIn: "Check in first, then change today's picks.",
+  answerEveryLeftover:
+    "Answer each task from your last check-in: carry it over or drop it with a reason.",
+  pickedAndDropped: "A task can't be picked and dropped on the same check-in.",
+  taskAlreadyDone: "That task is already Done, so there's nothing to pick.",
+  tooManyPicks: "One check-in can pick at most 100 tasks.",
+  unknownTimeZone:
+    "The server doesn't know that time zone. Pick a nearby city in the same zone.",
 } as const
 
 /** The shell's rate limiter refuses with this code rather than a sentence. */

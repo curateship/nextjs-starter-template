@@ -6,6 +6,7 @@ import { toast } from "sonner"
 import {
   DueDate,
   PersonAvatar,
+  PickedDaysBadge,
   StatusBadge,
   WaitingBadge,
 } from "@/components/project/task-bits"
@@ -51,7 +52,7 @@ function compare(a: TaskCard, b: TaskCard, column: TaskColumn) {
 }
 
 /**
- * Tasks as rows: the project page's List tab, and My work. Rows sort by any
+ * Tasks as rows: the project page's List tab, and My dashboard. Rows sort by any
  * column, and ticked rows can be marked Done together.
  */
 export function TaskList({
@@ -163,6 +164,7 @@ export function TaskList({
                     <span className="flex min-w-0 items-center gap-2">
                       <span className="truncate font-medium">{task.title}</span>
                       {task.waiting ? <WaitingBadge /> : null}
+                      <PickedDaysBadge pickedDays={task.pickedDays} status={task.status} />
                     </span>
                   </TableCell>
                   {showProject ? <TableCell column="preview">{task.projectName}</TableCell> : null}

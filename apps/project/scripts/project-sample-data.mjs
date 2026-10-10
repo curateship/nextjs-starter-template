@@ -1,13 +1,16 @@
 /**
  * Puts a sample team on the LOCAL database so Project's screens have something
  * on them: one team owned by the account you name, three made-up teammates,
- * two projects and twenty tasks across every status.
+ * two projects, twenty tasks across every status, and three weeks of morning
+ * check-ins, so the check-in's carry-over step, the Team dashboard's calendar
+ * and check-ins, and task history all have something to show.
  *
  *     node scripts/project-sample-data.mjs you@example.com
  *
  * - It refuses any database that isn't on this machine.
  * - It refuses if the account you name is already on a team.
  * - The made-up teammates have no password, so nobody can sign in as them.
+ * - The team uses this machine's time zone, so "today" is your today.
  * - It makes no workspaces and touches no menus.
  */
 import { randomUUID } from "node:crypto"
@@ -53,14 +56,17 @@ try {
   const dateKey = (offsetDays) => new Date(now.getTime() + offsetDays * day).toISOString().slice(0, 10)
 
   const teamId = randomUUID()
+  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
+  // Everyone joined four weeks ago, before the first sample check-in.
+  const joinedAt = new Date(now.getTime() - 28 * day)
   await client.query(
     `INSERT INTO project_teams (id, name, checkin_time, time_zone, work_days, created_at, updated_at)
-     VALUES ($1, 'Sample team', '09:00', 'UTC', '{1,2,3,4,5}', $2, $2)`,
-    [teamId, now]
+     VALUES ($1, 'Sample team', '09:00', $3, '{1,2,3,4,5}', $2, $2)`,
+    [teamId, now, zone]
   )
   await client.query(
     "INSERT INTO project_team_members (team_id, user_id, role, joined_at) VALUES ($1, $2, 'owner', $3)",
-    [teamId, owner.id, now]
+    [teamId, owner.id, joinedAt]
   )
 
   // Made-up teammates: no password, so nobody can sign in as them.
@@ -79,7 +85,7 @@ try {
     )
     await client.query(
       "INSERT INTO project_team_members (team_id, user_id, role, joined_at) VALUES ($1, $2, $3, $4)",
-      [teamId, id, role, now]
+      [teamId, id, role, joinedAt]
     )
     people.push({ id, name })
   }
@@ -117,6 +123,7 @@ try {
     ],
   ]
 
+  const tasks = new Map()
   for (const [index, project] of projects.entries()) {
     const projectId = randomUUID()
     await client.query(
@@ -150,6 +157,23 @@ try {
           now,
         ]
       )
+      tasks.set(title, { id: taskId, projectId, title })
+      // The hand-over the task's history starts with.
+      if (assignee && giver && assignee.id !== giver.id) {
+        const handedAt = new Date(now.getTime() - 22 * day)
+        await client.query(
+          `INSERT INTO project_task_events (id, task_id, kind, actor_user_id, target_user_id, created_at)
+           VALUES ($1, $2, 'handed_over', $3, $4, $5)`,
+          [randomUUID(), taskId, giver.id, assignee.id, handedAt]
+        )
+        if (!waiting) {
+          await client.query(
+            `INSERT INTO project_task_events (id, task_id, kind, actor_user_id, created_at)
+             VALUES ($1, $2, 'accepted', $3, $4)`,
+            [randomUUID(), taskId, assignee.id, new Date(handedAt.getTime() + 3600 * 1000)]
+          )
+        }
+      }
       for (let step = 0; step < total; step++) {
         await client.query(
           `INSERT INTO project_task_steps (id, task_id, text, done, position, created_at)
@@ -167,14 +191,177 @@ try {
     }
   }
 
+  const checkins = await addCheckins({ teamId, zone, people: { me, maya, leo, priya }, tasks })
+
   await client.query("COMMIT")
-  console.log(`Made "Sample team" for ${ownerEmail}: 3 made-up teammates, 2 projects, 20 tasks.`)
+  console.log(
+    `Made "Sample team" for ${ownerEmail}: 3 made-up teammates, 2 projects, 20 tasks, ${checkins} days of check-ins.`
+  )
 } catch (error) {
   await client.query("ROLLBACK")
   console.error(error instanceof Error ? error.message : error)
   process.exitCode = 1
 } finally {
   await client.end()
+}
+
+/**
+ * Three weeks of check-ins. Work days count back from today: 1 is the last
+ * work day before today, 15 the first. Each entry is a task, the work days it
+ * was picked on, and its status at the end of each of those days. "Set up
+ * redirects" is picked on the last five work days, so it shows "Picked on 5
+ * days". Your own last check-in leaves two tasks unfinished, so the check-in
+ * page opens with them. On a work day, Maya and Leo have already checked in
+ * today (Leo late) and Priya hasn't.
+ */
+async function addCheckins({ teamId, zone, people, tasks }) {
+  const { me, maya, leo, priya } = people
+  const plan = new Map([
+    [me.id, {
+      picks: [
+        ["Footer links", [6, 5], ["doing", "done"]],
+        ["Contact form", [2, 1], ["doing", "doing"]],
+        ["Partner announcement", [1], ["todo"]],
+      ],
+      drops: [],
+      minutes: () => -4,
+      today: null,
+    }],
+    [maya.id, {
+      picks: [
+        ["Cookie banner", [15, 14], ["doing", "done"]],
+        ["Order the stickers", [12, 11], ["doing", "done"]],
+        ["Thank-you notes", [9], ["todo"]],
+        ["Set up redirects from the old site", [5, 4, 3, 2, 1], ["doing", "doing", "doing", "stuck", "stuck"]],
+      ],
+      drops: [["Thank-you notes", 8, "Waiting until after the launch"]],
+      minutes: () => -8,
+      today: { minutes: -8, carried: [], fresh: ["Thank-you notes"] },
+    }],
+    [leo.id, {
+      picks: [
+        ["Choose the fonts", [13, 12], ["doing", "done"]],
+        ["Support rota", [8], ["done"]],
+        ["Write the homepage copy", [5, 4], ["doing", "doing"]],
+        ["Load speed check", [3], ["todo"]],
+        ["Book the photographer", [2, 1], ["doing", "stuck"]],
+      ],
+      drops: [
+        ["Write the homepage copy", 3, "Maya wants the photos first"],
+        ["Load speed check", 2, "Maya is taking this one"],
+      ],
+      minutes: (index) => (index % 3 === 0 ? 25 : 2),
+      today: { minutes: 35, carried: ["Book the photographer"], fresh: ["Write the homepage copy"] },
+    }],
+    [priya.id, {
+      picks: [
+        ["Launch email", [10, 9], ["doing", "doing"]],
+        ["Social posts for the week", [7, 6, 5], ["doing", "doing", "doing"]],
+      ],
+      drops: [],
+      minutes: () => 3,
+      missed: [4],
+      today: null,
+    }],
+  ])
+
+  const today = localDay(new Date(), zone)
+  const workDays = []
+  const daysOff = []
+  for (let back = 1; workDays.length < 15; back++) {
+    const date = shiftDay(today, -back)
+    if (isWorkDay(date)) workDays.push(date)
+    else daysOff.push(date)
+  }
+  let written = 0
+
+  for (const [userId, person] of plan) {
+    for (const date of daysOff) {
+      await insertDay({ teamId, userId, date, zone, workDay: false, minutes: null, closed: true })
+      written++
+    }
+    for (const [position, date] of workDays.entries()) {
+      const index = position + 1
+      if (person.missed?.includes(index)) {
+        await insertDay({ teamId, userId, date, zone, workDay: true, minutes: null, closed: true })
+        written++
+        continue
+      }
+      const checkinId = await insertDay({
+        teamId, userId, date, zone, workDay: true, minutes: person.minutes(index), closed: true,
+      })
+      written++
+      for (const [title, days, statuses] of person.picks) {
+        const at = days.indexOf(index)
+        if (at === -1) continue
+        await insertItem(checkinId, tasks.get(title), {
+          kind: "pick",
+          carriedOver: days.includes(index + 1),
+          endStatus: statuses[at],
+        })
+      }
+      for (const [title, onDay, reason] of person.drops) {
+        if (onDay === index) await insertItem(checkinId, tasks.get(title), { kind: "drop", reason })
+      }
+    }
+    if (person.today && isWorkDay(today)) {
+      const checkinId = await insertDay({
+        teamId, userId, date: today, zone, workDay: true, minutes: person.today.minutes, closed: false,
+      })
+      written++
+      for (const title of person.today.carried) {
+        await insertItem(checkinId, tasks.get(title), { kind: "pick", carriedOver: true })
+      }
+      for (const title of person.today.fresh) {
+        await insertItem(checkinId, tasks.get(title), { kind: "pick", carriedOver: false })
+      }
+    }
+  }
+  return written
+}
+
+async function insertDay({ teamId, userId, date, zone, workDay, minutes, closed }) {
+  const id = randomUUID()
+  // Today's check-in is never later than now.
+  await client.query(
+    `INSERT INTO project_checkins
+       (id, team_id, user_id, day, time_zone, work_day, due_at, checked_in_at, closed_at, created_at)
+     SELECT $1::text, $2::text, $3::text, $4::date, $5::text, $6::boolean, due, checked,
+       $7::timestamptz, coalesce(checked, now())
+     FROM (SELECT ($4::date + time '09:00') AT TIME ZONE $5::text AS due) d
+     CROSS JOIN LATERAL (
+       SELECT CASE WHEN $8::int IS NULL THEN NULL
+         ELSE least(d.due + make_interval(mins => $8::int), now()) END AS checked
+     ) c`,
+    [id, teamId, userId, date, zone, workDay, closed ? new Date() : null, minutes]
+  )
+  return id
+}
+
+async function insertItem(checkinId, task, { kind, carriedOver = false, endStatus = null, reason = null }) {
+  await client.query(
+    `INSERT INTO project_checkin_items
+       (id, checkin_id, task_id, project_id, task_title, kind, carried_over, reason, end_status, created_at)
+     SELECT $1::text, $2::text, $3::text, $4::text, $5::text, $6::text, $7::boolean, $8::text, $9::text,
+       checked_in_at
+     FROM project_checkins WHERE id = $2::text`,
+    [randomUUID(), checkinId, task.id, task.projectId, task.title, kind, carriedOver, reason, endStatus]
+  )
+}
+
+function localDay(at, zone) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).format(at)
+}
+
+function shiftDay(date, count) {
+  const [year, month, dayOfMonth] = date.split("-").map(Number)
+  return new Date(Date.UTC(year, month - 1, dayOfMonth + count)).toISOString().slice(0, 10)
+}
+
+function isWorkDay(date) {
+  const [year, month, dayOfMonth] = date.split("-").map(Number)
+  const weekday = new Date(Date.UTC(year, month - 1, dayOfMonth)).getUTCDay()
+  return weekday >= 1 && weekday <= 5
 }
 
 async function loadEnv(file) {

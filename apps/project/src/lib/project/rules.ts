@@ -101,6 +101,18 @@ export const WEEK_DAYS = [
 /** How long an invite link works. */
 export const INVITE_LIFETIME_DAYS = 7
 
+/** What a check-in holds: a task worked on that day, or one let go from the last check-in. */
+export type CheckinItemKind = "pick" | "drop"
+
+/** The moments of a task's life its history shows beside the days it was picked. */
+export type TaskEventKind = "handed_over" | "accepted" | "handed_back"
+
+/**
+ * A task picked on this many days and still not Done gets a mark saying so,
+ * because a task that drags should show up without anyone writing a report.
+ */
+export const PICKED_MANY_DAYS = 3
+
 export const LIMITS = {
   teamName: 80,
   projectName: 80,
@@ -111,6 +123,8 @@ export const LIMITS = {
   stepsPerTask: 50,
   comment: 4000,
   reason: 200,
+  /** Tasks one check-in can pick. A small team's day is never near this. */
+  picksPerDay: 100,
 } as const
 
 const id = z.string().min(1).max(36)
@@ -150,6 +164,12 @@ function isKnownTimeZone(zone: string) {
 export const createTeamSchema = z.object({
   name: teamNameSchema,
   timeZone: timeZoneSchema,
+})
+
+/** A person's own check-in time and zone. Null goes back to the team's. */
+export const myCheckinTimeSchema = z.object({
+  checkinTime: checkinTimeSchema.nullable().optional(),
+  timeZone: timeZoneSchema.nullable().optional(),
 })
 
 export const updateTeamSchema = z.object({
@@ -224,4 +244,20 @@ export const assignTaskSchema = z.object({
 export const commentSchema = z.object({
   taskId: id,
   body: trimmed(LIMITS.comment, "The comment"),
+})
+
+/**
+ * A check-in: an answer for each task left over from the last check-in, and
+ * the tasks picked for today.
+ */
+export const submitCheckinSchema = z.object({
+  answers: z
+    .array(
+      z.discriminatedUnion("action", [
+        z.object({ taskId: id, action: z.literal("carry") }),
+        z.object({ taskId: id, action: z.literal("drop"), reason: reasonSchema }),
+      ])
+    )
+    .max(LIMITS.picksPerDay),
+  picks: z.array(id).max(LIMITS.picksPerDay),
 })
