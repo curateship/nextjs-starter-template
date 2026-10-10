@@ -212,11 +212,16 @@ is not logged in, that should link to the login page."
     in orange and YOU in grey. The snapshot marks your own row (`mine` on each
     member). On a phone the people go under the chat.
   - **A round arrow button after Leave room folds the chat away**, people
-    and message box included, and opens it again. Tyler, 8 Oct 2026: "when a
-    session start, the chat box automatically collapsed." So the chat folds
-    by itself whenever the room enters a focus, and a page opened mid-focus
-    starts folded. It only opens again when someone presses the arrow. Folded,
-    the chat is hidden, not removed, so a half-typed message survives.
+    and message box included, and opens it again. Folded, the chat is
+    hidden, not removed, so a half-typed message survives.
+  - **During a focus the chat sits under a blur** that reads "Chatting is
+    not allowed while focusing". Tyler, 10 Oct 2026: "instead of collapsing
+    the chatbox. Put a gaussian blur over it". The blur covers the messages,
+    the people list and the message box, and nothing under it can be pressed
+    or typed into. It clears by itself when the break starts. A page opened
+    mid-focus shows the blur straight away. Before 10 Oct the chat folded
+    itself away at the start of every focus instead. The rule lives in the
+    browser only; the server still accepts a message sent during a focus.
   - **The chat has no day lines.** Tyler, 8 Oct 2026: "remove the date".
     Each message keeps only its time.
   - **The message box runs the card's full width** under another line, with no

@@ -473,16 +473,12 @@ export function ActiveRoomPanel({
     members.find((member) => member.role === "host")?.name.split(/\s+/)[0] ??
     "the host"
   const pillButton = "rounded-full"
-  // The chat folds away by itself the moment a focus starts, so the room is
-  // quiet while people work, and opens again only when somebody opens it.
-  // Tyler, 8 Oct 2026. A page opened mid-focus starts folded too.
-  const [chatOpen, setChatOpen] = React.useState(room.phase !== "focus")
-  const lastPhase = React.useRef(room.phase)
-  React.useEffect(() => {
-    if (room.phase === "focus" && lastPhase.current !== "focus")
-      setChatOpen(false)
-    lastPhase.current = room.phase
-  }, [room.phase])
+  // While the room is in a focus, the chat sits under a blur that says
+  // chatting is not allowed, and clears by itself when the break starts.
+  // Tyler, 10 Oct 2026, in place of folding the chat away. The arrow still
+  // folds it by hand.
+  const [chatOpen, setChatOpen] = React.useState(true)
+  const focusing = room.phase === "focus"
   const chatId = React.useId()
 
   return (
@@ -644,8 +640,10 @@ export function ActiveRoomPanel({
         </header>
 
         {/* Folded, the chat stays mounted so a half-typed message and the
-            scroll position survive; it is only hidden. */}
-        <div id={chatId} hidden={!chatOpen}>
+            scroll position survive; it is only hidden. Under the focus blur
+            it is inert, so nothing in it can be pressed or typed into. */}
+        <div id={chatId} hidden={!chatOpen} className="relative">
+        <div inert={focusing}>
         <RoomChatPanel
           slug={room.slug}
           messages={messages}
@@ -671,6 +669,14 @@ export function ActiveRoomPanel({
             />
           }
         />
+        </div>
+        {focusing ? (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-[var(--p-surface)]/40 p-6 text-center backdrop-blur-md">
+            <p className="text-base font-semibold">
+              Chatting is not allowed while focusing
+            </p>
+          </div>
+        ) : null}
         </div>
       </section>
       {confirm ? (
