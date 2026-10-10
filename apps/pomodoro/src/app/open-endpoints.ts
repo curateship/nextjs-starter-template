@@ -29,6 +29,8 @@
  * behind the door is safe for anyone to read.
  */
 export const appOpenEndpoints: Record<string, string> = {
+  "pomodoro/rooms.ts:listGuestRoomsFn":
+    "The Rooms page shows open rooms to visitors who are not signed in, so the list must answer before sign-in. A host or member is named only by the public name and picture they switched on for their own profile and \"Member\" otherwise, no user id or email is sent, and one copy is shared by every visitor for 15 seconds, so asking often costs nothing.",
   "pomodoro/rooms.ts:lookupRoomFn":
     "An invite link must say what it points at before sign-in: the lookup answers a status, the room's name and a member count, never member names, emails or ids.",
   "pomodoro/public-profile.ts:readPublicProfileFn":
