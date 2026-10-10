@@ -16,6 +16,7 @@ import {
   transcodeUpload,
 } from "@/server/pomodoro/media-transcode"
 import { purgeExpiredBin } from "@/server/pomodoro/upload-bin"
+import { drainBucketDeletions } from "@/server/pomodoro/bucket-cleanup"
 import { checkStorageWarning } from "@/server/pomodoro/storage-warning"
 import { storedFilename } from "@/server/media/library"
 
@@ -31,12 +32,18 @@ import { storedFilename } from "@/server/media/library"
  * the loop, but a job left in `processing` would sit there until its claim went
  * stale, so the job is put right here instead.
  *
- * Each pass also removes files that have sat in the bin for 30 days, and a
- * pass with no job takes the still of one older video that has none (task 02).
+ * Each pass also removes files that have sat in the bin for 30 days and the
+ * stills of uploads that have gone, and a pass with no job takes the still of
+ * one older video that has none (task 02).
  */
 export async function processNextMediaUpload() {
   await purgeExpiredBin().catch((error: unknown) =>
     console.error("the bin could not be cleared", error)
+  )
+  // Stills of uploads that are gone, by any route including an account
+  // being deleted, leave the bucket here (migration 0137).
+  await drainBucketDeletions().catch((error: unknown) =>
+    console.error("noted bucket files could not be removed", error)
   )
   const job = await claimNextUploadJob()
   if (!job) {

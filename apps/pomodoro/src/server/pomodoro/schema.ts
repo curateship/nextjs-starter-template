@@ -1469,6 +1469,19 @@ export const pomodoroStorageWarnings = pgTable("pomodoro_storage_warnings", {
     .defaultNow(),
 })
 
+/**
+ * Bucket files to remove on the media worker's next pass (migration 0137).
+ * A trigger notes a clip's still here whenever its upload row is deleted, by
+ * any route including an account purge, or its still is replaced, because a
+ * still has no library row for the shell's own clean-up to find.
+ */
+export const pomodoroBucketDeletions = pgTable("pomodoro_bucket_deletions", {
+  path: varchar("path", { length: 300 }).primaryKey(),
+  queuedAt: timestamp("queued_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+})
+
 export const pomodoroGenerationUsage = pgTable(
   "pomodoro_generation_usage",
   {

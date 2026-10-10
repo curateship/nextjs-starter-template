@@ -2,7 +2,7 @@ import { and, asc, count, desc, eq, ilike, inArray, or, sql, type SQL } from "dr
 
 import { db } from "@/server/db"
 import { deleteMediaAsAdmin } from "@/server/media/library"
-import { deleteFromR2, getPublicMediaUrl } from "@/server/media/storage"
+import { getPublicMediaUrl } from "@/server/media/storage"
 import {
   clearUploadChoices,
   uploadIsShowable,
@@ -172,20 +172,18 @@ export async function deleteAdminUploads({
   /** What the log row calls them; the AI generations page passes its own. */
   resource?: string
 }) {
-  const { stills, ...result } = await db.transaction(async (tx) => {
+  return db.transaction(async (tx) => {
     const found = await tx
       .select({
         id: customShellMedia.id,
         emailProtectedAt: customShellMedia.emailProtectedAt,
         sourceMediaId: pomodoroMediaUploads.sourceMediaId,
-        stillPath: pomodoroMediaUploads.stillPath,
       })
       .from(pomodoroMediaUploads)
       .innerJoin(customShellMedia, eq(customShellMedia.id, pomodoroMediaUploads.mediaId))
       .where(inArray(pomodoroMediaUploads.mediaId, mediaIds))
     const deletable = found.filter((row) => !row.emailProtectedAt).map((row) => row.id)
-    if (!deletable.length)
-      return { deleted: [] as string[], skipped: mediaIds, stills: [] as string[] }
+    if (!deletable.length) return { deleted: [], skipped: mediaIds }
 
     await clearUploadChoices(tx, deletable)
     // The kept originals a re-trim cuts from go with their uploads.
@@ -199,16 +197,6 @@ export async function deleteAdminUploads({
       .insert(pomodoroAuditLogs)
       .values({ actorUserId, action: "delete", resource, recordIds: deletable })
     const gone = new Set(deletable)
-    return {
-      deleted: deletable,
-      skipped: mediaIds.filter((id) => !gone.has(id)),
-      // A clip's still has no library row, so the shell's delete does not
-      // know of it; it goes once the rows have.
-      stills: found
-        .filter((row) => !row.emailProtectedAt && row.stillPath)
-        .map((row) => row.stillPath as string),
-    }
+    return { deleted: deletable, skipped: mediaIds.filter((id) => !gone.has(id)) }
   })
-  for (const still of stills) await deleteFromR2(still).catch(() => undefined)
-  return result
 }

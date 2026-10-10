@@ -375,8 +375,9 @@ A member's delete moves the file to the 30-day bin (see
 falls back at once. Emptying the bin, or 30 days passing, is the final delete
 below.
 
-The final delete removes the bucket object, both rows, the kept original, a
-clip's still and any preference pointing at it, in one go. An admin's delete takes the original too.
+The final delete removes the bucket object, both rows, the kept original and
+any preference pointing at it, in one go. A clip's still follows on the media
+worker's next pass (see [My uploads](my-uploads.md)). An admin's delete takes the original too.
 So does the shell's own Media page, which knows nothing about originals: a
 database trigger removes an upload's kept original whenever the upload's row
 goes (migration 0135), and the bucket file left behind is what the storage

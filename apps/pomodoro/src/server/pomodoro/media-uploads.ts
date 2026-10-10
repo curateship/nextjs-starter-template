@@ -901,7 +901,6 @@ export async function deletePomodoroUpload(
       .select({
         storagePath: customShellMedia.storagePath,
         sourcePath: sourceMedia.storagePath,
-        stillPath: pomodoroMediaUploads.stillPath,
       })
       .from(pomodoroMediaUploads)
       .innerJoin(
@@ -930,7 +929,9 @@ export async function deletePomodoroUpload(
     // The library row goes and the job row follows it through the cascade;
     // the kept original's row goes with the job row (migration 0135).
     await tx.delete(customShellMedia).where(eq(customShellMedia.id, mediaId))
-    return [row.storagePath, row.sourcePath, row.stillPath]
+    // A clip's still is noted by the database as the row goes (migration
+    // 0137) and leaves the bucket on the media worker's next pass.
+    return [row.storagePath, row.sourcePath]
   })
 
   // After the rows, so a bucket that refuses the delete leaves an orphan the
@@ -1047,11 +1048,8 @@ export async function finishUploadJob({
 
     if (!rows.length) return null
 
-    // A new cut brings a new middle frame; the old one goes after.
-    const [before] = await tx
-      .select({ stillPath: pomodoroMediaUploads.stillPath })
-      .from(pomodoroMediaUploads)
-      .where(eq(pomodoroMediaUploads.mediaId, mediaId))
+    // A new cut brings a new middle frame. The old one is noted by the
+    // database as it is replaced (migration 0137) and goes on the next pass.
     if (stillPath) {
       await tx
         .update(pomodoroMediaUploads)
@@ -1089,10 +1087,7 @@ export async function finishUploadJob({
     await writeNotices(tx, [
       uploadNotice(rows[0], true, rows[0].name ?? media?.originalName ?? null),
     ])
-    return {
-      sourcePath,
-      oldStill: stillPath ? (before?.stillPath ?? null) : null,
-    }
+    return { sourcePath }
   })
 
   if (!closed) {
@@ -1108,9 +1103,6 @@ export async function finishUploadJob({
     previousStoragePath !== closed.sourcePath
   ) {
     await deleteFromR2(previousStoragePath).catch(() => undefined)
-  }
-  if (closed.oldStill && closed.oldStill !== stillPath) {
-    await deleteFromR2(closed.oldStill).catch(() => undefined)
   }
   return { settled: true }
 }

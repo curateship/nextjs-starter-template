@@ -48,11 +48,18 @@ film's first frame as before.
 
 Stills live in the bucket under `pomodoro-stills/<owner>/`, outside the
 per-member folders the storage page's orphan sweep reads, because a still has
-no library row of its own. They do not count toward the member's space; they
-are a few tens of kilobytes. The member's final delete and the admin's delete
-both remove a clip's still. The shell's own Media page and a deleted account
-do not know about stills, so theirs stay in the bucket; at a few tens of
-kilobytes each that is left as it is.
+no library row of its own. They do not count toward the member's space; a
+4K clip's still is about 170 KB.
+
+**A still leaves the bucket however its clip goes.** Tyler, 10 Oct 2026:
+"Clear the stills when an account is deleted." A database trigger notes the
+still's path in `pomodoro_bucket_deletions` whenever an upload row is deleted,
+or its still is replaced by a new cut's (migration 0137), and the media worker
+removes every noted file on its next pass (`drainBucketDeletions` in
+`src/server/pomodoro/bucket-cleanup.ts`). That covers the member's delete, the
+admin's, the shell's Media page, and an account purge, whose upload rows go
+with the account row: none of them has to know stills exist. A file the bucket
+refuses stays noted and is tried again on the next pass.
 
 A frame that cannot be taken from the film marks the clip, so the catch-up
 pass moves on. A machine with no FFmpeg, or a bucket that did not answer,
@@ -151,4 +158,5 @@ same way, leaving alone any a member had already renamed.
 - `src/server/pomodoro/media-worker.ts` — stills, the catch-up pass and the
   bin clear-out, beside the re-encode.
 - Migration 0136 — `deleted_at`, `still_path`, `pomodoro_storage_warnings`
-  and the AI file names.
+  and the AI file names. Migration 0137 — `pomodoro_bucket_deletions` and the
+  trigger that notes stills to remove.

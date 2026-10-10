@@ -46,13 +46,19 @@ import {
   restoreUploads,
 } from "@/server/pomodoro/upload-bin"
 import { checkStorageWarning } from "@/server/pomodoro/storage-warning"
+import { drainBucketDeletions } from "@/server/pomodoro/bucket-cleanup"
 import {
+  pomodoroBucketDeletions,
   pomodoroGenerations,
   pomodoroMediaUploads,
   pomodoroPersonalRooms,
   pomodoroStorageWarnings,
 } from "@/server/pomodoro/schema"
-import { customShellMedia, customShellNotifications } from "@/server/schema"
+import {
+  customShellMedia,
+  customShellNotifications,
+  customShellUsers,
+} from "@/server/schema"
 import { createTestDatabase, insertUser, insertWorkspace } from "@/server/test-support"
 
 /**
@@ -248,7 +254,10 @@ describe("what a card shows", () => {
     }
     const [listed] = await listPomodoroUploads(userId, "background")
     expect(listed.stillUrl).toBe(`https://files.test/pomodoro-stills/${userId}/still-2.jpg`)
-    expect(vi.mocked(deleteFromR2).mock.calls.flat()).toContain(`pomodoro-stills/${userId}/still-1.jpg`)
+    // The replaced still is noted, and leaves the bucket on the worker's pass.
+    vi.mocked(deleteFromR2).mockClear()
+    expect(await drainBucketDeletions()).toBe(1)
+    expect(vi.mocked(deleteFromR2).mock.calls).toEqual([[`pomodoro-stills/${userId}/still-1.jpg`]])
   })
 })
 
@@ -290,6 +299,35 @@ describe("audit fixes", () => {
       .where(eq(pomodoroMediaUploads.mediaId, clip.mediaId))
     const result = await deleteAdminUploads({ mediaIds: [clip.mediaId], actorUserId: admin })
     expect(result.deleted).toEqual([clip.mediaId])
+    vi.mocked(deleteFromR2).mockClear()
+    await drainBucketDeletions()
     expect(vi.mocked(deleteFromR2).mock.calls.flat()).toContain(`pomodoro-stills/${userId}/frame.jpg`)
+  })
+
+  it("clears a deleted account's stills from the bucket", async () => {
+    const userId = (await insertUser(db)).id
+    const clip = await store(userId, "video")
+    await db
+      .update(pomodoroMediaUploads)
+      .set({ stillPath: `pomodoro-stills/${userId}/frame.jpg` })
+      .where(eq(pomodoroMediaUploads.mediaId, clip.mediaId))
+    // The shell's purge deletes the account row; the upload goes with it.
+    await db.delete(customShellUsers).where(eq(customShellUsers.id, userId))
+    expect(await db.select({ path: pomodoroBucketDeletions.path }).from(pomodoroBucketDeletions)).toEqual([
+      { path: `pomodoro-stills/${userId}/frame.jpg` },
+    ])
+    vi.mocked(deleteFromR2).mockClear()
+    expect(await drainBucketDeletions()).toBe(1)
+    expect(vi.mocked(deleteFromR2).mock.calls).toEqual([[`pomodoro-stills/${userId}/frame.jpg`]])
+    expect(await db.select().from(pomodoroBucketDeletions)).toEqual([])
+  })
+
+  it("keeps a noted file to try again when the bucket refuses", async () => {
+    await db.insert(pomodoroBucketDeletions).values({ path: "pomodoro-stills/x/frame.jpg" })
+    vi.mocked(deleteFromR2).mockRejectedValueOnce(new Error("bucket down"))
+    expect(await drainBucketDeletions()).toBe(0)
+    expect(await db.select({ path: pomodoroBucketDeletions.path }).from(pomodoroBucketDeletions)).toEqual([
+      { path: "pomodoro-stills/x/frame.jpg" },
+    ])
   })
 })
