@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  groupCandles,
+  groupLiveBar,
   intervalMs,
   MOST_BARS_A_CHART_ASKS_FOR,
   stitchCandles,
@@ -90,5 +92,79 @@ describe("how long a bar lasts", () => {
     expect(intervalMs("1m")).toBe(60_000)
     expect(intervalMs("4h")).toBe(4 * 3_600_000)
     expect(intervalMs("1d")).toBe(24 * 3_600_000)
+  })
+})
+
+describe("week and month bars", () => {
+  const day = (iso: string, open: number, close: number, volume = 1) => ({
+    openTime: Date.parse(iso),
+    open,
+    high: Math.max(open, close) + 1,
+    low: Math.min(open, close) - 1,
+    close,
+    volume,
+  })
+
+  it("starts each week on Monday at midnight UTC", () => {
+    // Sunday 4 Oct 2026, then Monday 5 Oct and Tuesday 6 Oct.
+    const weeks = groupCandles(
+      [
+        day("2026-10-04T00:00:00Z", 10, 11),
+        day("2026-10-05T00:00:00Z", 11, 15),
+        day("2026-10-06T00:00:00Z", 15, 12),
+      ],
+      "1w"
+    )
+    expect(weeks.map((bar) => new Date(bar.openTime).toISOString())).toEqual([
+      "2026-09-28T00:00:00.000Z",
+      "2026-10-05T00:00:00.000Z",
+    ])
+    expect(weeks[1]).toMatchObject({
+      open: 11,
+      high: 16,
+      low: 10,
+      close: 12,
+      volume: 2,
+    })
+  })
+
+  it("starts each month on the 1st, whatever its length", () => {
+    const months = groupCandles(
+      [
+        day("2026-02-28T00:00:00Z", 5, 6),
+        day("2026-03-01T00:00:00Z", 6, 7),
+        day("2026-03-31T00:00:00Z", 7, 9),
+        day("2026-04-01T00:00:00Z", 9, 8),
+      ],
+      "1M"
+    )
+    expect(months.map((bar) => new Date(bar.openTime).toISOString())).toEqual([
+      "2026-02-01T00:00:00.000Z",
+      "2026-03-01T00:00:00.000Z",
+      "2026-04-01T00:00:00.000Z",
+    ])
+    expect(months[1]).toMatchObject({ open: 6, close: 9, high: 10, low: 5 })
+  })
+
+  it("moves the forming week with today's bar and keeps the earlier days", () => {
+    const days = [
+      day("2026-10-05T00:00:00Z", 11, 15),
+      day("2026-10-06T00:00:00Z", 15, 12),
+    ]
+    const today = day("2026-10-07T00:00:00Z", 12, 20, 3)
+    expect(groupLiveBar(days, today, "1w")).toEqual({
+      openTime: Date.parse("2026-10-05T00:00:00Z"),
+      open: 11,
+      high: 21,
+      low: 10,
+      close: 20,
+      volume: 5,
+    })
+  })
+
+  it("does not count today twice when today is already loaded", () => {
+    const today = day("2026-10-07T00:00:00Z", 12, 20, 3)
+    const days = [day("2026-10-06T00:00:00Z", 15, 12), today]
+    expect(groupLiveBar(days, { ...today, close: 22 }, "1w").volume).toBe(4)
   })
 })

@@ -176,6 +176,8 @@ screen: anything not written there has not been agreed yet.
   stored as a place rather than as an offset.
 - `loading.md` — which candles arrive with a dashboard, when a chart asks on
   its own, and why later market choices wait briefly.
+- `week-and-month-timeframes.md` — the 1w and 1M chart timeframes, how they
+  are added up from day candles, and what stays on day candles.
 - `candle-store.md` — the one shelf of finished candles every chart and
   backtest reads: the two sources, the 30-day rule, the seam, first use, the
   refresh job and its 30-second limit, stock hours and the volume label.
