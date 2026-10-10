@@ -1,8 +1,9 @@
 # Sounds
 
 The Live sounds from the catalogue on `/sounds`, free and Pro, in the order an
-admin set, with the player itself in the header, where it survives page
-changes. An admin adds and edits them on the Sounds admin page; see
+admin set. The player sits under the clock, the sound survives page
+changes, and the header's timer pill shows music bars that mute it from any
+page. An admin adds and edits them on the Sounds admin page; see
 [Themes and sounds in the admin](catalog-admin.md). Eight shipped with the app:
 Lofi beats, Rain, Café ambience and Brown noise free; Forest birds, Ocean
 waves, Fireplace and Soft piano for Pro.
@@ -91,8 +92,33 @@ One rule between the two:
   back with the next start. Checked in a real browser on 9 Oct 2026: eleven
   presses of the two buttons in turn, and the timer only ever moved for its own
   button.
-- **Away from the timer**, on Sounds or Backgrounds, there is no player: the
-  sound carries on, and its controls are under the clock.
+- **Away from the timer**, on Tasks, Sounds or Backgrounds, there is no
+  player: the sound carries on, and the music bars in the header mute it and
+  set its volume (next section).
+
+## The music bars in the header
+
+Tyler, 10 Oct 2026: "Add an animated music icon playing here when a sound is
+playing so user can mute the sound." Asked whether it should be a pill of its
+own: "The timer and music bar is one button."
+
+- **They live inside the timer pill**, at its right end, as a second button in
+  the same glass shape (`SoundBarsButton` in `quick-controls-header.tsx`).
+  Pressing the timer half still opens Timer settings.
+- **They show only while a sound plays**, or is loading. A paused sound, a
+  break, or no sound at all puts the pill back to the timer on its own.
+- **A press mutes, a second press unmutes.** It is the same mute as the
+  speaker under the clock, so muting on Tasks shows muted on the timer page,
+  and the other way round. Muted, the bars turn into a crossed-out speaker.
+- **The volume opens on its own**, as a small glass dropdown under the bars:
+  on hover with a mouse, after holding a finger on the bars for half a second
+  on a phone, or with the arrow keys, which step it by 5 out of 100. It is the
+  same slider as the one under the clock (`VolumeSlider`), moving the same
+  value. A held finger that opened the volume does not also mute.
+- **The bars stand still** for anyone whose device asks for less movement.
+- **The pill stays 36px tall**, and the header is no taller with the bars than
+  without them: 120px at 320px wide, 136px at 768px, and 86px at 1280px and
+  1440px, measured on 10 Oct 2026.
 
 ## Adding one never starts it
 
@@ -179,6 +205,9 @@ silence it, and it only plays during a focus. A personal room saved as silence
 (`none`) before that still shows "No sound · Pick one" under the clock.
 
 ## Dragging near the top of the page in Arc
+
+The volume that opens from the header's music bars sits in the same strip, so
+this applies to it too.
 
 Tyler, 9 Oct 2026, on localhost in Arc: dragging the header's volume knob
 worked "but it also drags my browser", and "its the whole navigation area".

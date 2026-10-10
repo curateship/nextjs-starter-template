@@ -127,9 +127,10 @@ ARG APP
 ENV NODE_ENV=production
 
 # Alpine packages a worker's own jobs shell out to, space-separated. Empty means
-# none, and every app builds exactly as before. Pomodoro sets it to `ffmpeg`
-# because its upload and AI-generation workers re-encode media. Only the worker
-# takes it: no website calls these programs, so the web image stays small.
+# none, and every app builds exactly as before. Pomodoro sets it to
+# `ffmpeg yt-dlp`: its upload and AI-generation workers re-encode media, and
+# its YouTube clip worker fetches 5 seconds of a video. Only the worker takes
+# it: no website calls these programs, so the web image stays small.
 ARG WORKER_PACKAGES=""
 RUN if [ -n "$WORKER_PACKAGES" ]; then apk add --no-cache $WORKER_PACKAGES; fi
 

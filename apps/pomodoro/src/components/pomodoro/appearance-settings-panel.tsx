@@ -8,6 +8,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useTheme } from "@/components/shell/sticky-header/light-dark-switcher"
+import { useProductAuth } from "@/lib/pomodoro/auth-state"
 import {
   DARK_SHADES,
   darkShade,
@@ -31,7 +32,9 @@ function isThemeChoice(value: string): value is ThemeChoice {
 /**
  * The Appearance card on the Settings screen: light, dark or the device's
  * own setting, then how dark the dark mode is. The theme uses the same setter
- * as the header's switch, so the two always agree. The four shade steps go
+ * as the photo menu's Dark mode row, so the two always agree. A guest is
+ * always dark (`guest-theme.ts`), so a guest gets a line saying so in place
+ * of the theme choice, and still picks the shade. The four shade steps go
  * from the old app's near black up to a soft grey, and the swatch beside each
  * name is that step's canvas colour. Both choices save in this browser.
  */
@@ -39,6 +42,7 @@ export default function AppearanceSettingsPanel() {
   const { shade, chooseDarkShade } = useDarkShade()
   const { theme, setTheme } = useTheme()
   const dark = useAppliedDark()
+  const { authenticated } = useProductAuth()
   const current = darkShade(shade)
   return (
     <Card size="sm">
@@ -46,26 +50,32 @@ export default function AppearanceSettingsPanel() {
         <CardTitle>Appearance</CardTitle>
       </CardHeader>
       <CardContent className="grid gap-4">
-        <div className="grid gap-2">
-          <Label htmlFor="theme-choice">Theme</Label>
-          <Select
-            value={theme}
-            onValueChange={(value) => {
-              if (isThemeChoice(value)) setTheme(value)
-            }}
-          >
-            <SelectTrigger id="theme-choice">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {THEME_CHOICES.map((choice) => (
-                <SelectItem key={choice.value} value={choice.value}>
-                  {choice.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {authenticated ? (
+          <div className="grid gap-2">
+            <Label htmlFor="theme-choice">Theme</Label>
+            <Select
+              value={theme}
+              onValueChange={(value) => {
+                if (isThemeChoice(value)) setTheme(value)
+              }}
+            >
+              <SelectTrigger id="theme-choice">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {THEME_CHOICES.map((choice) => (
+                  <SelectItem key={choice.value} value={choice.value}>
+                    {choice.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Pomoder is dark for visitors. Sign in to choose light mode.
+          </p>
+        )}
         <div className="grid gap-2">
           <Label htmlFor="dark-shade">Dark mode shade</Label>
           <Select

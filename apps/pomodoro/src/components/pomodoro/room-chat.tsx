@@ -302,7 +302,9 @@ export function RoomChatPanel({
     // under both across the card's full width, as Tyler's design of
     // 8 Oct 2026 draws it.
     <div className="flex flex-col">
-    <div className="grid gap-6 px-6 py-5 md:grid-cols-[minmax(0,1fr)_260px] md:gap-10">
+    {/* A shade darker than the card around it. Tyler, 10 Oct 2026: "Change
+        the inside the chatbox a bit darker shade". */}
+    <div className="grid gap-6 bg-[rgba(var(--p-canvas-rgb),0.45)] px-6 py-5 md:grid-cols-[minmax(0,1fr)_260px] md:gap-10">
     <section className="flex min-w-0 flex-col gap-3" aria-label="Room chat">
       <h3 className={EYEBROW}>Chat</h3>
       {pinned.map((line) => (

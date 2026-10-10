@@ -200,6 +200,47 @@ What the laptop could not prove:
 
 ## Release record
 
+### YouTube clips and the worker fix, 10 Oct 2026
+
+- **Commit:** `a5dff7b88`, 4 commits after `b157fdafa`: the worker crash fix
+  (`6fb938086`), the YouTube clip themes (`de59d983c`), and a merge of
+  `develop` carrying the new `apps/project` app, which Pomoder's build does not
+  install. No migrations, so the website and worker built together.
+- **Deployments:** web `heutibv6as1tum35g9b8uv7g` (725s), worker
+  `jzfpr49za0ux0d4tgeix1qfy` (649s). Health 200. The admin left menu was copied
+  to live; the AI keys were already there.
+- **Worker packages:** `WORKER_PACKAGES` on Pomoder Worker became
+  `ffmpeg yt-dlp`, in the production and preview copies. It must stay
+  "literal", so Coolify quotes it: an update through the API turned that off,
+  and an unquoted value with a space could split in the build command.
+- **Right after the deploy, every page's JavaScript answered 404 for a few
+  minutes**, the old and new website containers overlapping. Sign-in did
+  nothing. Ten minutes later three fresh visits all worked. A 404 under
+  `/assets/` carries `max-age=14400` from Cloudflare, so a browser that
+  visited in those minutes can keep the dead page for up to 4 hours; a hard
+  refresh clears it.
+- **YouTube refuses the live server.** A clip of Big Buck Bunny from 1:35,
+  made as Tyler on pomoder.com, failed in about 20 seconds with "YouTube
+  refused the server", YouTube's bot check. The same clip works from Tyler's
+  Mac and from the worker's image on the Mac, so it is the server's address,
+  not the code. The failed Draft "YouTube clip"
+  (`a96122bf-73bd-4f60-b810-e9cf97f97bd9`) is still in the live Themes list.
+- **Owed:** Tyler's choice of a way round YouTube's bot check.
+- **Content copied from the Mac the same day.** Tyler saw live as "still the
+  old version": the code was new, but themes, sounds and rooms are data, and
+  a deploy never copies data. On his word ("2"):
+  - **Catalogue:** 167 files (682 MB) copied from the development bucket into
+    the `pomoder` bucket under the same paths, then 151 rows inserted and
+    "Lofi girl" updated in one transaction. Live now has 17 Live themes and 35
+    Live sounds (plus 100 Draft sounds), as on the Mac. The 15 built-in items
+    deleted on the Mac were set to Draft on live, not deleted.
+  - **Made-up members:** `simulated.accounts` (130, 3 hours) and
+    `simulated.voice` copied from the Mac, then Make them now pressed as Tyler
+    on Settings → Made-up members. 130 made in about 3½ minutes; Starting soon
+    and /users filled.
+  - Both were one-off scripts run from this Mac, not part of the deploy. A
+    later catalogue change on the Mac needs the same copy again.
+
 ### Payments on, 9 Oct 2026
 
 - **Commit:** `fecc266a0`, 18 commits since the first deploy, five migrations

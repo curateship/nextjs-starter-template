@@ -22,10 +22,11 @@ Rainy window, Night forest, Ocean waves and Fireplace for Pro.
 
 ## Under the scenes
 
-A line under the cards counts them, "1–8 of 8 backgrounds", the same line the
+A line under the cards counts them, "1–16 of 17 backgrounds", the same line the
 Sounds page has. Tyler asked for it on 7 Oct 2026 ("the theme page is missing
-this"). It is the shared `CatalogPager` (`catalog-pager.tsx`): eight cards a
-page, and Prev, page numbers and Next appear beside the count once there is a
+this"). It is the shared `CatalogPager` (`catalog-pager.tsx`): sixteen cards a
+page since 10 Oct 2026 ("the background and sound page should list 16 items"),
+eight before, and Prev, page numbers and Next appear beside the count once there is a
 second page.
 
 ## Changing the theme from the dashboard

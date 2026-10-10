@@ -512,6 +512,7 @@ const shellConfigSchema = z.object({
   sections: z.array(shellSectionSchema),
   memberSections: z.array(shellSectionSchema),
   liveNotifications: z.boolean(),
+  passkeySignIn: z.boolean(),
   notificationTypes: z.object(
     Object.fromEntries(
       NOTIFICATION_TYPES.map((type) => [type, z.boolean()])

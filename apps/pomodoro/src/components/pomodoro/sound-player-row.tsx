@@ -208,7 +208,8 @@ function MuteButton({ player }: { player: Player }) {
   )
 }
 
-function VolumeSlider({
+/** The volume, also drawn from the header's music bars, so both move one value. */
+export function VolumeSlider({
   player,
   className,
 }: {

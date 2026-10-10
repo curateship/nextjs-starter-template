@@ -1,26 +1,24 @@
 import * as React from "react"
 
+import type { ProtocolId } from "@/lib/protocols/contracts"
 import {
-  CANDLE_INTERVALS,
-  type CandleInterval,
-  type ProtocolId,
-} from "@/lib/protocols/contracts"
-import {
+  CHART_INTERVALS,
   chartIntervalStorageKey,
   DEFAULT_CHART_INTERVAL,
+  type ChartInterval,
 } from "@/lib/trade/chart-interval"
 import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
 
-function isCandleInterval(value: string | null): value is CandleInterval {
+function isChartInterval(value: string | null): value is ChartInterval {
   return (
-    value !== null && (CANDLE_INTERVALS as readonly string[]).includes(value)
+    value !== null && (CHART_INTERVALS as readonly string[]).includes(value)
   )
 }
 
-function readChartInterval(protocol: ProtocolId): CandleInterval {
+function readChartInterval(protocol: ProtocolId): ChartInterval {
   try {
     const saved = window.localStorage.getItem(chartIntervalStorageKey(protocol))
-    if (isCandleInterval(saved)) return saved
+    if (isChartInterval(saved)) return saved
   } catch {
     // A browser that refuses localStorage still charts, on the default.
   }
@@ -42,8 +40,8 @@ function readChartInterval(protocol: ProtocolId): CandleInterval {
  */
 export function useChartInterval(
   protocol: ProtocolId
-): [CandleInterval, (next: CandleInterval) => void] {
-  const [value, setValue] = React.useState<CandleInterval>(
+): [ChartInterval, (next: ChartInterval) => void] {
+  const [value, setValue] = React.useState<ChartInterval>(
     DEFAULT_CHART_INTERVAL
   )
 
@@ -52,7 +50,7 @@ export function useChartInterval(
   }, [protocol])
 
   const choose = React.useCallback(
-    (next: CandleInterval) => {
+    (next: ChartInterval) => {
       setValue(next)
       try {
         window.localStorage.setItem(chartIntervalStorageKey(protocol), next)

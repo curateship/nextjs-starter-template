@@ -2,6 +2,7 @@ import { Link, useNavigate } from "@tanstack/react-router"
 import {
   LayoutDashboardIcon,
   LogOutIcon,
+  MoonIcon,
   SettingsIcon,
   ShieldCheckIcon,
   SparklesIcon,
@@ -11,14 +12,17 @@ import {
 import { ProfilePhoto } from "@/components/pomodoro/profile-photo"
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { useTheme } from "@/components/shell/sticky-header/light-dark-switcher"
 import { logout } from "@/lib/api/auth/auth"
 import type { AccountMenuFacts } from "@/lib/api/pomodoro/profile"
+import { useAppliedDark } from "@/lib/pomodoro/use-applied-dark"
 
 export type AccountMenuUser = {
   name: string
@@ -38,16 +42,27 @@ export type AccountMenuUser = {
  *
  * `facts` is null when the layout could not read them. Then the plan line and
  * the two rows that depend on it are left off, never guessed.
+ *
+ * Dark mode is a row here rather than a switch in the header. Tyler, 10 Oct
+ * 2026: "Move the theme switcher into the user dropdown. Hide it on anon
+ * users." It is left off when an admin fixed the site to light or dark,
+ * because it would then do nothing.
  */
 export function AccountMenu({
   user,
   facts,
+  canChooseMode,
 }: {
   user: AccountMenuUser
   facts: AccountMenuFacts | null
+  canChooseMode: boolean
 }) {
   const navigate = useNavigate()
   const name = user.name.trim()
+  const { setTheme } = useTheme()
+  // What is on screen, not what is stored: "system" on a dark-mode computer
+  // is dark, and the tick has to say so.
+  const dark = useAppliedDark()
 
   return (
     <DropdownMenu modal={false}>
@@ -113,6 +128,17 @@ export function AccountMenu({
               Admin
             </Link>
           </DropdownMenuItem>
+        ) : null}
+        {canChooseMode ? (
+          <DropdownMenuCheckboxItem
+            checked={dark}
+            onCheckedChange={(checked) => setTheme(checked ? "dark" : "light")}
+            // Stays open, so the page can be seen changing under it.
+            onSelect={(event) => event.preventDefault()}
+          >
+            <MoonIcon />
+            Dark mode
+          </DropdownMenuCheckboxItem>
         ) : null}
         <DropdownMenuSeparator />
         <DropdownMenuItem

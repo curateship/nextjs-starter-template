@@ -4,14 +4,11 @@ import {
   BarChart3Icon,
   CheckSquareIcon,
   ChevronLeftIcon,
-  FileTextIcon,
   HistoryIcon,
   ImageIcon,
   LayoutDashboardIcon,
   MenuIcon,
-  MoonIcon,
   Music2Icon,
-  SunIcon,
   TagIcon,
   SettingsIcon,
   UserIcon,
@@ -23,24 +20,21 @@ import {
   AccountMenu,
   type AccountMenuUser,
 } from "@/components/pomodoro/account-menu"
-import QuickControlsHeader from "@/components/pomodoro/quick-controls-header"
+import QuickControlsHeader, {
+  quickPillHoverClass,
+  quickPillSurfaceClass,
+} from "@/components/pomodoro/quick-controls-header"
 import { SceneBackdrop } from "@/components/pomodoro/scene-backdrop"
 import { ThemeArrows } from "@/components/pomodoro/theme-arrows"
 import { useShownBackground } from "@/lib/pomodoro/break-look"
-import { SavedLink } from "@/components/shell/public-navigation"
 import { NotificationCenter } from "@/components/shell/sticky-header/notification-center"
-import { useTheme } from "@/components/shell/sticky-header/light-dark-switcher"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import type { AccountMenuFacts } from "@/lib/api/pomodoro/profile"
-import { usePublicNavigation, usePublicTheme } from "@/lib/branding"
+import { usePublicTheme } from "@/lib/branding"
 import type { MediaBootstrap } from "@/lib/pomodoro/media-pair"
 import { setGuestStartingTimer } from "@/lib/pomodoro/use-pomodoro"
 import { MediaBootstrapContext } from "@/lib/pomodoro/room-media-store"
-import {
-  publicDeviceSidebarClassName,
-  savedMenuLinks,
-} from "@/lib/pomodoro/saved-menu"
 import { useTabCountdown } from "@/lib/pomodoro/use-tab-countdown"
 
 // The whole Pomoder look rides in with the product shell: the tokens
@@ -55,7 +49,7 @@ import "@/components/pomodoro/fonts"
 // Puts the chosen dark shade (Settings → Appearance) on <html>, where
 // theme.css reads it next to the .dark class.
 import "@/lib/pomodoro/dark-shade"
-import { useAppliedDark } from "@/lib/pomodoro/use-applied-dark"
+import { useGuestsStayDark } from "@/lib/pomodoro/guest-theme"
 
 /**
  * The product's own shell, matched to the old app's geometry side by side:
@@ -66,8 +60,8 @@ import { useAppliedDark } from "@/lib/pomodoro/use-applied-dark"
  *
  * The `data-pomodoro-screen` marker on the root switches the Pomoder design
  * tokens on (theme.css); admin routes never render this shell. The old
- * app's default look is dark, so a first visit with no saved choice starts
- * dark; the toggle still offers light.
+ * app's default look is dark: a guest is always dark, and a member with no
+ * saved choice starts dark and can switch to light from the photo menu.
  */
 
 /**
@@ -134,103 +128,6 @@ function TomatoMark({ className }: { className?: string }) {
   )
 }
 
-const KNOB_TRAVEL = 24
-
-/**
- * The old app's dark-mode pill: a moon-or-sun knob, dark by default. The
- * knob slides the 24px between the two ends while the moon and the sun turn
- * past each other, so the switch reads as one movement rather than a jump.
- * Both icons are always on the page; a swap on arrival would have nothing to
- * fade from.
- *
- * The movement runs through `element.animate()` rather than a CSS
- * transition. The shell's theme provider drops
- * `*{transition:none!important}` over the whole page for two frames while it
- * flips the class, so that the page does not cross-fade, and a CSS
- * transition on this knob is caught by that rule and never plays. The rule
- * says nothing about animations, so a keyframe animation still runs.
- * Someone who has asked their machine for less movement gets no animation at
- * all: the styles below are the resting state either way.
- */
-function ThemeTogglePill() {
-  const { setTheme } = useTheme()
-  // What is on screen, not what is stored: "system" on a light-mode computer
-  // is light, and the switch used to show the moon for it.
-  const dark = useAppliedDark()
-  const knob = React.useRef<HTMLSpanElement>(null)
-  const wasDark = React.useRef(dark)
-
-  React.useLayoutEffect(() => {
-    if (wasDark.current === dark) return
-    wasDark.current = dark
-    const element = knob.current
-    if (!element) return
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return
-    const from = dark ? KNOB_TRAVEL : 0
-    const to = dark ? 0 : KNOB_TRAVEL
-    const timing = { duration: 300, easing: "ease-out" } as const
-    element.animate(
-      [
-        { transform: `translateX(${from}px)` },
-        { transform: `translateX(${to}px)` },
-      ],
-      timing
-    )
-    const icons = element.querySelectorAll("svg")
-    for (const [index, icon] of icons.entries()) {
-      // The moon comes first, so it is the one showing in dark mode.
-      const showing = index === 0 ? dark : !dark
-      const turn = index === 0 ? -90 : 90
-      icon.animate(
-        [
-          {
-            opacity: showing ? 0 : 1,
-            transform: `rotate(${showing ? turn : 0}deg)`,
-          },
-          {
-            opacity: showing ? 1 : 0,
-            transform: `rotate(${showing ? 0 : turn}deg)`,
-          },
-        ],
-        timing
-      )
-    }
-  }, [dark])
-
-  return (
-    <button
-      className="relative flex h-8 w-14 items-center rounded-full border bg-[rgba(var(--p-fg-rgb),0.07)] px-1"
-      role="switch"
-      aria-checked={dark}
-      aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
-      onClick={() => setTheme(dark ? "light" : "dark")}
-    >
-      <span
-        ref={knob}
-        className="grid size-6 place-items-center rounded-full bg-[var(--p-surface)]"
-        style={{ transform: `translateX(${dark ? 0 : KNOB_TRAVEL}px)` }}
-      >
-        <MoonIcon
-          className="col-start-1 row-start-1 size-3.5"
-          style={{
-            opacity: dark ? 1 : 0,
-            transform: dark ? "rotate(0deg)" : "rotate(-90deg)",
-          }}
-          aria-hidden="true"
-        />
-        <SunIcon
-          className="col-start-1 row-start-1 size-3.5"
-          style={{
-            opacity: dark ? 0 : 1,
-            transform: dark ? "rotate(90deg)" : "rotate(0deg)",
-          }}
-          aria-hidden="true"
-        />
-      </span>
-    </button>
-  )
-}
-
 /**
  * The page's left and right edge, used by the header and by the content under
  * it. One constant because the two were `px-10` and `px-6 sm:px-12` before, so
@@ -267,6 +164,10 @@ function returnsHere(pathname: string) {
   return pathname !== "/" && !SIGN_IN_PAGES.some((page) => pathname.startsWith(page))
 }
 
+/** The header's orange button: the shared Button with Pomoder's accent. */
+const accentButtonClass =
+  "bg-[var(--p-accent)] px-5 text-[14.5px] text-[var(--p-on-accent)] hover:bg-[var(--p-accent-2)]"
+
 /**
  * What the header's bell starts from, read by the layout with the rest of the
  * shell's page data: how many notices arrived since the bell was last opened,
@@ -289,7 +190,8 @@ export function PomodoroShell({
   bell,
   children,
 }: {
-  user: AccountMenuUser | null
+  /** Undefined while a page with no loader is still asking who is signed in. */
+  user: AccountMenuUser | null | undefined
   accountMenu: AccountMenuFacts | null
   /** The pair of the room you are in, from the loader, so the first frame draws it. */
   media: MediaBootstrap | null
@@ -304,21 +206,14 @@ export function PomodoroShell({
   // before the timer store first reads a guest's saved state.
   if (typeof window !== "undefined" && media?.guestTimer)
     setGuestStartingTimer(media.guestTimer)
-  const { setTheme } = useTheme()
   // Settings → Public → Styling can fix the mode to always light or always
-  // dark; the switch then has nothing to do, so it goes, as the setting's own
-  // hint says ("A fixed mode hides their switch"). Tyler, 9 Oct 2026: "the
-  // theme switcher doesnt work" was this.
+  // dark; the photo menu's Dark mode row then has nothing to do, so it goes,
+  // as the setting's own hint says ("A fixed mode hides their switch"). A
+  // fixed mode also wins over the guests' dark mode below.
   const visitorChoosesMode = usePublicTheme().colorScheme === "system"
-  const savedMenu = usePublicNavigation()
-  const savedLinks = React.useMemo(
-    () =>
-      savedMenuLinks(savedMenu, [
-        ...NAV_LINKS.map((item) => item.to),
-        "/settings",
-        "/",
-      ]),
-    [savedMenu]
+  const loginSearch = returnsHere(pathname) ? { redirect: pathname } : {}
+  useGuestsStayDark(
+    visitorChoosesMode && user !== undefined ? user !== null : undefined
   )
 
   // The tab's title and favicon count down with the timer. It lives here
@@ -326,16 +221,6 @@ export function PomodoroShell({
   // you are on Tasks or Rooms, and it never re-renders this shell: it writes
   // to the document directly, once a second.
   useTabCountdown()
-
-  // The product's identity is dark; a first visit with no saved choice
-  // starts there instead of following the OS.
-  React.useEffect(() => {
-    try {
-      if (localStorage.getItem("theme") === null) setTheme("dark")
-    } catch {
-      // Blocked storage keeps whatever the provider resolved.
-    }
-  }, [setTheme])
 
   const navLink = (
     to: string,
@@ -401,30 +286,9 @@ export function PomodoroShell({
           className="flex min-h-0 flex-1 flex-col gap-1.5"
         >
           {NAV_LINKS.map((item) => navLink(item.to, item.label, item.icon))}
-          {/* Pages an admin wrote and put in the public menu. Below the
-              product's own screens, never instead of them: a menu edit must
-              not be able to take the timer away from a member. */}
-          {savedLinks.length ? (
-            <div className="mt-1.5 flex flex-col gap-1.5 border-t pt-1.5">
-              {savedLinks.map((link) => (
-                <SavedLink
-                  key={link.href}
-                  href={link.href}
-                  title={link.label}
-                  onClick={() => setMenuOpen(false)}
-                  className={cn(
-                    sidebarRowClass,
-                    publicDeviceSidebarClassName(link.device)
-                  )}
-                >
-                  <FileTextIcon className="size-[19px] shrink-0" aria-hidden />
-                  <span className={cn(collapsed && "lg:hidden")}>
-                    {link.label}
-                  </span>
-                </SavedLink>
-              ))}
-            </div>
-          ) : null}
+          {/* Only the product's own screens. Pages an admin puts in the public
+              menu stay out of it. Tyler, 10 Oct 2026: "adding a page in public
+              menu should not add them to the sidebar". */}
           {navLink("/settings", "Settings", SettingsIcon, true)}
           {/* Narrows the sidebar to its icons. Desktop only: on a phone the
               sidebar is a drawer that is either open or gone, so there is
@@ -499,15 +363,21 @@ export function PomodoroShell({
               of the first line, so there they sit in the middle of the room
               left over instead (`mx-auto`), as before. */}
           <div className="flex items-center gap-2 md:gap-6 min-[1440px]:flex-1 min-[1440px]:basis-0">
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="lg:hidden"
+            {/* The header's glass circle, the same as the bell and the timer
+                pill beside it. Tyler, 10 Oct 2026: "add a background to the
+                hamburger icon so that it matches with the other buttons". */}
+            <button
+              type="button"
+              className={cn(
+                "grid size-9 shrink-0 place-items-center text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none lg:hidden",
+                quickPillSurfaceClass,
+                quickPillHoverClass
+              )}
               onClick={() => setMenuOpen(true)}
               aria-label="Open menu"
             >
-              <MenuIcon aria-hidden="true" />
-            </Button>
+              <MenuIcon className="size-[18px]" aria-hidden="true" />
+            </button>
             <Link
               to="/timer"
               className="whitespace-nowrap text-[21px] font-bold tracking-tight max-sm:hidden"
@@ -519,9 +389,8 @@ export function PomodoroShell({
             <QuickControlsHeader />
           </div>
           {/* Nothing in this group shrinks: squeezed, "Log in" broke over two
-              lines and the colour switch lost its width. */}
+              lines. */}
           <div className="flex items-center justify-end gap-3 *:shrink-0 min-[1440px]:flex-1 min-[1440px]:basis-0">
-            {visitorChoosesMode ? <ThemeTogglePill /> : null}
             {user ? (
               <>
                 {/* The shell's own bell and tray, just left of the photo, where
@@ -537,7 +406,11 @@ export function PomodoroShell({
                     canOpenSettings={user.role === "admin"}
                   />
                 </span>
-                <AccountMenu user={user} facts={accountMenu} />
+                <AccountMenu
+                  user={user}
+                  facts={accountMenu}
+                  canChooseMode={visitorChoosesMode}
+                />
               </>
             ) : (
               <>
@@ -548,19 +421,25 @@ export function PomodoroShell({
                     of those the member home route decides instead. */}
                 <Link
                   to="/login"
-                  search={returnsHere(pathname) ? { redirect: pathname } : {}}
-                  className="px-2 text-[14.5px] font-medium hover:text-[var(--p-accent-2)]"
+                  search={loginSearch}
+                  className="px-2 text-[14.5px] font-medium hover:text-[var(--p-accent-2)] max-md:hidden"
                 >
                   Log in
                 </Link>
-                {/* 41px before (px-[22px] py-[11px]), beside a 32px theme
-                    toggle. The shared Button's default size is the 32px the
-                    rulebook asks for; only the colours are the app's. */}
-                <Button
-                  asChild
-                  className="bg-[var(--p-accent)] px-5 text-[14.5px] text-[var(--p-on-accent)] hover:bg-[var(--p-accent-2)]"
-                >
+                {/* 41px before (px-[22px] py-[11px]). The shared Button's
+                    default size is the 32px the rulebook asks for; only the
+                    colours are the app's. */}
+                <Button asChild className={cn(accentButtonClass, "max-md:hidden")}>
                   <Link to="/register">Register</Link>
+                </Button>
+                {/* On a phone, Log in alone as the orange button. Tyler,
+                    10 Oct 2026: "in mobile. dont show login and register.
+                    just show only login in primary button". Register is
+                    one link away on the sign-in page. */}
+                <Button asChild className={cn(accentButtonClass, "md:hidden")}>
+                  <Link to="/login" search={loginSearch}>
+                    Log in
+                  </Link>
                 </Button>
               </>
             )}

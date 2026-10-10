@@ -8,16 +8,19 @@ want to make it more grayish."
 ## Light, dark or the device's own
 
 Settings → Appearance starts with a Theme choice: Light, Dark, or "System, the
-same as this device". It calls the same theme setter as the header's switch,
-so changing either one moves the other at once, and the choice is kept in this
-browser across reloads. The header switch stays as it is.
+same as this device". It calls the same theme setter as the Dark mode row in
+[the account menu](account-menu.md), so changing either one moves the other at
+once, and the choice is kept in this browser across reloads.
+
+A guest is always dark (see "Light and dark" in
+[the product shell](product-shell.md)), so a guest gets the line "Pomoder is
+dark for visitors. Sign in to choose light mode." in place of the Theme
+choice. A guest still picks the shade.
 
 Both read the theme actually on screen, from the `dark` class on `<html>`
 (`src/lib/pomodoro/use-applied-dark.ts`), not the stored word. On a light-mode
-computer "System" draws light, and the header switch used to show the moon for
-it, because it treated anything that was not "Light" as dark. The shade's help
-used to say to switch the header's moon on. It now says the shade shows once
-the theme is dark.
+computer "System" draws light, and the Dark mode row is unticked for it. The
+shade's help says the shade shows once the theme is dark.
 
 ## The four steps
 

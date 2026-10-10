@@ -113,6 +113,7 @@ import type { ChartView } from "@/lib/trade/chart-view"
 import type { IndicatorSettings } from "@/lib/trade/indicators/registry"
 import type { LiveTrade } from "@/lib/trade/live-trades"
 import { useChartInterval } from "@/lib/trade/use-chart-interval"
+import { chartSourceInterval } from "@/lib/trade/chart-interval"
 import { startLiveMarketData } from "@/lib/trade/live-market"
 import {
   useBlankSpaceDoubleClick,
@@ -847,7 +848,9 @@ export function TradeWorkspace({
    */
   const [olderBars, setOlderBars] = React.useState<OlderBarsStatus | null>(null)
   const olderBarsAbout =
-    olderBars && selectedKey && olderBars.key === `${selectedKey}@${interval}`
+    olderBars &&
+    selectedKey &&
+    olderBars.key === `${selectedKey}@${chartSourceInterval(interval)}`
       ? olderBars
       : null
   // Whose history the chart is drawing, on a venue that has none of its own.
@@ -860,7 +863,7 @@ export function TradeWorkspace({
   const olderBarsNote =
     olderBars &&
     selectedKey &&
-    olderBars.key === `${selectedKey}@${interval}` ? (
+    olderBars.key === `${selectedKey}@${chartSourceInterval(interval)}` ? (
       olderBars.failed ? (
         <span className="hidden items-center gap-1 text-xs text-muted-foreground md:inline-flex">
           Older bars could not all be loaded.
