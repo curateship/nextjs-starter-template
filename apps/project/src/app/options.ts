@@ -1,4 +1,10 @@
 import type { AppOptions } from "@/lib/app-options"
+import {
+  PROJECT_NOTICE_CATEGORIES,
+  isProjectNoticeKind,
+  noticeKindFromWords,
+  noticeLook,
+} from "@/lib/project/notices"
 
 /**
  * What this app changes about the shell.
@@ -15,4 +21,29 @@ import type { AppOptions } from "@/lib/app-options"
  * The type is written as an annotation rather than `satisfies` so that an empty
  * object still reads as the full shape. Both catch a misspelled option.
  */
-export const appOptions: AppOptions = {}
+export const appOptions: AppOptions = {
+  notifications: {
+    categories: PROJECT_NOTICE_CATEGORIES,
+    /** A task notice's look, read from its own heading so the first paint is right. */
+    describe: (notice) => {
+      const kind = noticeKindFromWords(notice)
+      return kind ? noticeLook(kind) : null
+    },
+    /** Where each task notice opens, which only the server knows. */
+    detailsFor: async (notices) => {
+      const mine = notices.filter((notice) => notice.type === "app_activity")
+      if (mine.length === 0) return {}
+      const { loadProjectNoticeDetails } = await import("@/lib/api/project/tasks")
+      const found = await loadProjectNoticeDetails(mine.map((notice) => notice.id))
+      return Object.fromEntries(
+        Object.entries(found).map(([id, detail]) => [
+          id,
+          {
+            ...(isProjectNoticeKind(detail.kind) ? noticeLook(detail.kind) : {}),
+            href: detail.href,
+          },
+        ])
+      )
+    },
+  },
+}

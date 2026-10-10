@@ -1,4 +1,5 @@
 import type { AppServerOptions } from "@/server/app-options"
+import { addProjectNavigation } from "@/server/project/navigation"
 
 /**
  * What this app changes about the shell, on the server side.
@@ -20,4 +21,11 @@ import type { AppServerOptions } from "@/server/app-options"
  * only walks that folder, so an endpoint declared here would be an unguarded
  * door nobody is told about.
  */
-export const appServerOptions: AppServerOptions = {}
+export const appServerOptions: AppServerOptions = {
+  background: {
+    workers: [
+      // Adds Projects, My work and Team to each left menu once.
+      { name: "project-navigation", tick: () => addProjectNavigation() },
+    ],
+  },
+}
