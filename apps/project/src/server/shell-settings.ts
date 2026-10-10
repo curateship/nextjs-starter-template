@@ -1,0 +1,639 @@
+import { eq } from "drizzle-orm"
+
+import { appPublicTheme, appUsesSiteBranding } from "@/lib/app-options"
+import {
+  createDefaultMemberSections,
+  createDefaultShellConfig,
+  createDefaultTopRightNavigation,
+  DASHBOARD_ROWS_PER_PAGE_OPTIONS,
+  normalizeAutomationPause,
+  normalizeMaintenance,
+  normalizeSessionPolicy,
+  normalizeTopLeftNavLimit,
+  type ShellConfig,
+} from "@/lib/custom-shell"
+import { normalizeNotificationTypeVisibility } from "@/lib/notification-types"
+import {
+  normalizePublicSeo,
+  normalizePublicSystemCopy,
+  normalizeShareImage,
+  normalizeSocialCardType,
+  normalizeSocialHandle,
+  versionedShareImage,
+  type PublicSeo,
+  type PublicSystemCopy,
+  type SocialCardType,
+} from "@/lib/pages/public-metadata"
+import { pageForPath } from "@/lib/pages/page-registry"
+import { pageVisibility } from "@/lib/pages/page-visibility"
+import {
+  cleanPublicFooterCopyright,
+  cleanPublicNavigationItems,
+  cleanPublicNavigationLinks,
+} from "@/lib/pages/public-navigation"
+import {
+  normalizePublicHeader,
+  type PublicHeader,
+} from "@/lib/pages/public-header"
+import {
+  normalizePublicBreadcrumbs,
+  type PublicBreadcrumbs,
+} from "@/lib/pages/public-breadcrumbs"
+import {
+  normalizePublicUserPanel,
+  type PublicUserPanel,
+} from "@/lib/pages/public-user-panel"
+import {
+  normalizeFaviconMode,
+  normalizePublicFaviconSet,
+  type FaviconMode,
+  type PublicFaviconSet,
+} from "@/lib/favicon"
+import {
+  hasCustomPublicTheme,
+  normalizePublicTheme,
+  publicThemeForSite,
+  publicThemeOverrides,
+  type PublicTheme,
+} from "@/lib/public-theme"
+import { normalizePublicThemePresets } from "@/lib/public-theme-presets"
+import {
+  normalizePublicFontAsset,
+  type PublicFontAsset,
+} from "@/lib/public-font"
+import {
+  normalizePublicSocialLinks,
+  type PublicSocialLink,
+} from "@/lib/pages/public-social"
+import {
+  normalizePublicHeaderActions,
+  type PublicHeaderAction,
+} from "@/lib/pages/public-header-actions"
+import {
+} from "@/lib/pages/front-page"
+import { clampToastSeconds } from "@/lib/toast/toast-seconds"
+import { db, type CustomShellDb } from "@/server/db"
+import {
+  customShellSettings,
+  customShellUsers,
+  customShellWorkspaces,
+  DEFAULT_SETTINGS_KEY,
+  type CustomShellUser,
+} from "@/server/schema"
+import { isAdmin } from "@/server/auth/security"
+import {
+  clampSidebarWidth,
+  DEFAULT_SIDEBAR_WIDTH,
+} from "@/lib/layout/sidebar-width"
+import {
+  currentWorkspace,
+  parseWorkspaceSettings,
+} from "@/server/people/workspaces"
+import {
+  answerForRequest,
+  currentPublicOrigin,
+  workspaceBaseDomain,
+} from "@/server/workspaces/host"
+import {
+  visitorWorkspaceId,
+  workspaceRowForRequest,
+} from "@/server/workspaces/for-request"
+
+/** The app-wide globals row, already parsed and defaulted. */
+export async function readShellGlobals(database: CustomShellDb = db) {
+  const [row] = await database
+    .select()
+    .from(customShellSettings)
+    .where(eq(customShellSettings.key, DEFAULT_SETTINGS_KEY))
+    .limit(1)
+
+  return parseShellGlobals(row?.settings)
+}
+
+/**
+ * Just the configured rows-per-page. A route loader needs this to fetch the
+ * first page at the size the table will show, and it is an app-wide global, so
+ * it reads the settings row alone rather than paying for the workspace lookup
+ * that `readShellSettings` does.
+ */
+export async function readDashboardRowsPerPage(
+  database: CustomShellDb = db
+): Promise<number> {
+  return (await readShellGlobals(database)).dashboardRowsPerPage
+}
+
+/**
+ * Everything a signed-out visitor's page needs before there is a session: the
+ * app name, the logo, and the look every public page wears. Like rows-per-page
+ * this used to read the settings row on its own, because a visitor signed in to
+ * nothing has no workspace to read.
+ *
+ * They can have one now: the domain they typed. A visitor on a workspace's own
+ * address sees that workspace's name, not the deployment's — which is the whole
+ * point of one deployment serving many. A one-site app has no base domain, so
+ * its public menu and footer stay app-wide. Its page choices still come from
+ * the same workspace as the rest of its public content.
+ *
+ * The root route loads this on the server, which is what puts the theme in the
+ * first paint instead of applying it after the page has already been drawn.
+ */
+export async function readBranding(
+  database: CustomShellDb = db
+): Promise<{
+  appName: string
+  favicon: string
+  faviconDark: string
+  faviconSet: PublicFaviconSet | null
+  faviconMode: FaviconMode
+  logo: string
+  logoDark: string
+  shareImage: string
+  socialCardType: SocialCardType
+  socialHandle: string
+  publicOrigin: string
+  publicSeo: PublicSeo
+  publicSystemCopy: PublicSystemCopy
+  publicHeader: PublicHeader
+  publicBreadcrumbs: PublicBreadcrumbs
+  publicUserPanel: PublicUserPanel
+  publicNavigation: ReturnType<
+    typeof parseWorkspaceSettings
+  >["publicNavigation"]
+  publicFooter: ReturnType<typeof parseWorkspaceSettings>["publicFooter"]
+  publicFooterSocial: PublicSocialLink[]
+  publicHeaderActions: PublicHeaderAction[]
+  publicFooterCopyright: string
+  publicSearchEnabled: boolean
+  publicFont: PublicFontAsset | null
+  publicTheme?: PublicTheme
+  /**
+   * True when the domain belongs to no workspace at all — a subdomain nobody
+   * has taken, or one whose workspace is switched off. The root route turns
+   * that into a dead end, because serving the deployment's own pages under a
+   * stranger's address is worse than answering nothing.
+   */
+  hostIsUnknown: boolean
+  /**
+   * True when the address belongs to one of this deployment's sites.
+   *
+   * The front page reads it to decide what "no rows" means. On a site it means
+   * the site has not built a front page yet, and the honest answer is the
+   * site's header and footer with nothing between them — never the
+   * deployment's own sign-up block, which on somebody's restaurant directory
+   * is an advert for software they did not come for. On the deployment's own
+   * address, and in a one-site app, that block is exactly right and still
+   * draws.
+   */
+  hostIsSite: boolean
+}> {
+  const globals = await readShellGlobals(database)
+  const answer = await answerForRequest(database)
+  const appWidePublicTheme = globals.publicTheme
+
+  if (answer.kind !== "workspace") {
+    const workspaceDomainsEnabled = Boolean(workspaceBaseDomain())
+    const workspaceSettings =
+      answer.kind === "platform" && !workspaceDomainsEnabled
+        ? await readSingleSitePageSettings(database)
+        : parseWorkspaceSettings(undefined)
+    const searchPage = pageForPath("/search")
+
+    return {
+      appName: globals.appName,
+      favicon: globals.favicon,
+      faviconDark: globals.faviconDark,
+      faviconSet: globals.faviconSet,
+      faviconMode: globals.faviconMode,
+      logo: globals.logo,
+      logoDark: globals.logoDark,
+      shareImage: versionedShareImage(
+        globals.shareImage,
+        globals.shareImageVersion
+      ),
+      socialCardType: globals.socialCardType,
+      socialHandle: globals.socialHandle,
+      publicOrigin: currentPublicOrigin(),
+      publicSeo: globals.publicSeo,
+      publicSystemCopy: globals.publicSystemCopy,
+      publicHeader: globals.publicHeader,
+      publicBreadcrumbs: globals.publicBreadcrumbs,
+      publicUserPanel: globals.publicUserPanel,
+      publicNavigation: workspaceDomainsEnabled
+        ? []
+        : globals.publicNavigation,
+      publicFooter: workspaceDomainsEnabled ? [] : globals.publicFooter,
+      publicFooterSocial: globals.publicFooterSocial,
+      publicHeaderActions: globals.publicHeaderActions,
+      publicFooterCopyright: workspaceDomainsEnabled
+        ? ""
+        : globals.publicFooterCopyright,
+      publicSearchEnabled:
+        searchPage !== null &&
+        pageVisibility(workspaceSettings.pages, searchPage) !== "off",
+      publicFont: globals.publicFont,
+      ...(hasCustomPublicTheme(appWidePublicTheme)
+        ? { publicTheme: appWidePublicTheme }
+        : {}),
+      hostIsUnknown: answer.kind === "unknown",
+      hostIsSite: false,
+    }
+  }
+
+  const workspaceSettings = parseWorkspaceSettings(answer.workspace.settings)
+  // Whether a site keeps its own menu, footer, copyright line and front page
+  // rows, or reads the deployment's. The same switch the Settings screen and
+  // the save read, so all three agree about whose menu is whose.
+  const siteOwnsPublicPages = Boolean(workspaceBaseDomain())
+  const siteBranding = appUsesSiteBranding()
+  const publicTheme = publicThemeForSite(
+    appWidePublicTheme,
+    workspaceSettings.publicTheme
+  )
+  const searchPage = pageForPath("/search")
+
+  // On an app that brands each site, the site's own picture is the only one it
+  // is ever drawn with — its menu and its footer work the same way. A site that
+  // has uploaded none shows its name, rather than borrowing the deployment's
+  // logo off the sign-in pages, which is a brand nobody on that website asked
+  // for. Tyler's call on 27 Sep 2026, after the second logo box read as a
+  // duplicate of the first.
+  //
+  // Its whole chain travels together: the dark version and the browser-tab
+  // icons are cut from that logo when it is saved, exactly as the app-wide ones
+  // are, so a site never wears one brand in the tab and another on the page.
+  const siteBrand = siteBranding
+
+  return {
+    appName: answer.workspace.name || globals.appName,
+    // The site's own logo is the tab picture, not a second upload beside it.
+    // Read from the logo rather than from the saved `favicon` so a site branded
+    // before the two were joined still shows its picture in the tab.
+    favicon: siteBrand ? workspaceSettings.logo : globals.favicon,
+    faviconDark: siteBrand ? workspaceSettings.faviconDark : globals.faviconDark,
+    faviconSet: siteBrand ? workspaceSettings.faviconSet : globals.faviconSet,
+    faviconMode: globals.faviconMode,
+    logo: siteBrand ? workspaceSettings.logo : globals.logo,
+    logoDark: siteBrand ? workspaceSettings.logoDark : globals.logoDark,
+    shareImage: (siteBranding && workspaceSettings.shareImage) || versionedShareImage(
+      globals.shareImage,
+      globals.shareImageVersion
+    ),
+    socialCardType: globals.socialCardType,
+    socialHandle: globals.socialHandle,
+    publicOrigin: currentPublicOrigin(),
+    publicSeo: globals.publicSeo,
+    publicSystemCopy: globals.publicSystemCopy,
+    publicHeader: globals.publicHeader,
+    publicBreadcrumbs: globals.publicBreadcrumbs,
+    publicUserPanel: globals.publicUserPanel,
+    publicNavigation: siteOwnsPublicPages
+      ? workspaceSettings.publicNavigation
+      : globals.publicNavigation,
+    publicFooter: siteOwnsPublicPages
+      ? workspaceSettings.publicFooter
+      : globals.publicFooter,
+    publicFooterSocial: globals.publicFooterSocial,
+    publicHeaderActions: globals.publicHeaderActions,
+    publicFooterCopyright: siteOwnsPublicPages
+      ? workspaceSettings.publicFooterCopyright
+      : globals.publicFooterCopyright,
+    publicSearchEnabled:
+      searchPage !== null &&
+      pageVisibility(workspaceSettings.pages, searchPage) !== "off",
+    publicFont: globals.publicFont,
+    ...(hasCustomPublicTheme(publicTheme) ? { publicTheme } : {}),
+    hostIsUnknown: false,
+    // Only where a site answers for its own public pages. A one-site app whose
+    // site has its own domain reaches this branch, and there "no rows" has to
+    // mean the same thing it means on the deployment's own address: draw the
+    // deployment's front page, because there is only the one website and those
+    // are its rows.
+    hostIsSite: siteOwnsPublicPages,
+  }
+}
+
+/** Page visibility for the only site in an app without workspace domains. */
+async function readSingleSitePageSettings(database: CustomShellDb) {
+  const workspaceId = await visitorWorkspaceId(database)
+  if (!workspaceId) return parseWorkspaceSettings(undefined)
+
+  const [workspace] = await database
+    .select({ settings: customShellWorkspaces.settings })
+    .from(customShellWorkspaces)
+    .where(eq(customShellWorkspaces.id, workspaceId))
+    .limit(1)
+
+  return parseWorkspaceSettings(workspace?.settings)
+}
+
+/**
+ * The shell config for one person: app-wide globals from the settings row,
+ * merged with their current workspace's own styling.
+ *
+ * Which sidebar they get depends on who they are. An admin edits and sees their
+ * own, saved on their workspace. Everybody else gets the one an admin built for
+ * them, saved app-wide — one list in one place, rather than the private frozen
+ * copy every member used to be handed on their first sign-in.
+ */
+/**
+ * How wide this person likes the sidebar.
+ *
+ * Saved on them, not on the site. It used to live in the workspace's settings,
+ * which meant one width for everybody in it — so on an app that is one site, a
+ * member dragging their rail resized the admin's. Null means they have never
+ * dragged it, and they get the default.
+ */
+async function sidebarWidthFor(userId: string, database: CustomShellDb) {
+  const [person] = await database
+    .select({ sidebarWidth: customShellUsers.sidebarWidth })
+    .from(customShellUsers)
+    .where(eq(customShellUsers.id, userId))
+    .limit(1)
+
+  return person?.sidebarWidth == null
+    ? DEFAULT_SIDEBAR_WIDTH
+    : clampSidebarWidth(person.sidebarWidth)
+}
+
+export async function readShellSettings(
+  user: Pick<CustomShellUser, "id" | "role">,
+  database: CustomShellDb = db
+): Promise<ShellConfig> {
+  const globals = await readShellGlobals(database)
+  // Reads never make a workspace. This runs on every signed-in page load,
+  // including a member's, and the old read created one when it missed — which
+  // is how members ended up owning workspaces they never saw.
+  //
+  // **Whose workspace, then?** The one this person is IN, when they are in
+  // one: an admin who picked Beta in the switcher while sitting on Alpha's
+  // domain means Beta, and that has to keep winning. A member is in none, and
+  // used to fall through to the built-in defaults — so the site's saved
+  // gutter, card borders, logo and sidebar width reached every admin and no
+  // member, and the same page was spaced two different ways depending on who
+  // opened it. The site they are ON is the honest answer for them, and it is
+  // the same row the admin is editing.
+  const workspace =
+    (await currentWorkspace(user.id, database)) ??
+    (await workspaceRowForRequest(user.id, database))
+  const workspaceSettings = parseWorkspaceSettings(workspace?.settings)
+  const workspaceDomainsEnabled = Boolean(workspaceBaseDomain())
+  const publicTheme = workspaceDomainsEnabled
+    ? publicThemeForSite(globals.publicTheme, workspaceSettings.publicTheme)
+    : globals.publicTheme
+
+  return {
+    ...globals,
+    // The site's own name, not the app-wide value — that is only the fallback
+    // for somebody who is in no site at all.
+    workspaceName: workspace?.name ?? globals.workspaceName,
+    // One picture per site, like the app-wide logo above it. The favicon and
+    // the dark version are made from it when it is saved, so neither is a field
+    // an admin fills in.
+    workspaceLogo: workspaceSettings.logo,
+    workspaceShareImage: workspaceSettings.shareImage,
+    sidebarWidth: await sidebarWidthFor(user.id, database),
+    publicNavigation: workspaceDomainsEnabled
+      ? workspaceSettings.publicNavigation
+      : globals.publicNavigation,
+    publicFooter: workspaceDomainsEnabled
+      ? workspaceSettings.publicFooter
+      : globals.publicFooter,
+    publicFooterCopyright: workspaceDomainsEnabled
+      ? workspaceSettings.publicFooterCopyright
+      : globals.publicFooterCopyright,
+    publicTheme,
+    // Same rule as the sidebar below: an admin sees and edits their own row,
+    // everybody else gets the one an admin built for them.
+    topRightNavigation: isAdmin(user)
+      ? workspaceSettings.topRightNavigation
+      : globals.memberTopRightNavigation,
+    sections: isAdmin(user) ? workspaceSettings.sections : globals.memberSections,
+    styling: workspaceSettings.styling,
+    dashboardWidgets: workspaceSettings.dashboardWidgets,
+    // Which pages are hidden is a per-site decision — Alpha closing its
+    // pricing page must not close Beta's.
+    pages: workspaceSettings.pages,
+  }
+}
+
+export function parseShellGlobals(value: unknown) {
+  const fallback = {
+    ...createDefaultShellConfig(),
+    publicTheme: appPublicTheme(),
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return pickShellGlobals(fallback)
+  }
+
+  const settings = value as Partial<ShellConfig>
+  return {
+    // Guarded rather than defaulted, because the app name is the one global a
+    // signed-out visitor renders — a junk value in the row must not reach the
+    // sign-in page.
+    appName:
+      typeof settings.appName === "string"
+        ? settings.appName
+        : fallback.appName,
+    workspaceName: settings.workspaceName ?? fallback.workspaceName,
+    favicon:
+      typeof settings.favicon === "string"
+        ? settings.favicon
+        : fallback.favicon,
+    faviconDark:
+      typeof settings.faviconDark === "string"
+        ? settings.faviconDark
+        : fallback.faviconDark,
+    faviconSet: normalizePublicFaviconSet(settings.faviconSet),
+    faviconMode: normalizeFaviconMode(settings.faviconMode),
+    // Guarded for the same reason as the app name: the logo is drawn on the
+    // signed-out pages, so a junk value in the row must not reach an <img>.
+    logo: typeof settings.logo === "string" ? settings.logo : fallback.logo,
+    // Same guard, same reason. A row saved before this setting existed has no
+    // value at all, which reads as "no dark logo" — so the one logo keeps being
+    // shown on both backgrounds, exactly as before.
+    logoDark:
+      typeof settings.logoDark === "string"
+        ? settings.logoDark
+        : fallback.logoDark,
+    shareImage: normalizeShareImage(settings.shareImage),
+    shareImageVersion:
+      typeof settings.shareImageVersion === "string"
+        ? settings.shareImageVersion.slice(0, 64)
+        : fallback.shareImageVersion,
+    socialCardType: normalizeSocialCardType(settings.socialCardType),
+    socialHandle: normalizeSocialHandle(settings.socialHandle),
+    publicSeo: normalizePublicSeo(settings.publicSeo),
+    publicSystemCopy: normalizePublicSystemCopy(settings.publicSystemCopy),
+    publicNavigation:
+      settings.publicNavigation === undefined
+        ? fallback.publicNavigation
+        : cleanPublicNavigationItems(settings.publicNavigation),
+    publicFooter: cleanPublicNavigationLinks(settings.publicFooter),
+    publicFooterSocial: normalizePublicSocialLinks(settings.publicFooterSocial),
+    publicHeaderActions: normalizePublicHeaderActions(
+      settings.publicHeaderActions
+    ),
+    publicFooterCopyright: cleanPublicFooterCopyright(
+      settings.publicFooterCopyright
+    ),
+    publicHeader: normalizePublicHeader(settings.publicHeader),
+    publicBreadcrumbs: normalizePublicBreadcrumbs(settings.publicBreadcrumbs),
+    publicUserPanel: normalizePublicUserPanel(settings.publicUserPanel),
+    publicFont: normalizePublicFontAsset(settings.publicFont),
+    publicTheme: normalizePublicTheme(
+      settings.publicTheme,
+      fallback.publicTheme
+    ),
+    publicThemePresets: normalizePublicThemePresets(
+      settings.publicThemePresets
+    ),
+    dashboardRowsPerPage:
+      typeof settings.dashboardRowsPerPage === "number" &&
+      DASHBOARD_ROWS_PER_PAGE_OPTIONS.includes(
+        settings.dashboardRowsPerPage as (typeof DASHBOARD_ROWS_PER_PAGE_OPTIONS)[number]
+      )
+        ? settings.dashboardRowsPerPage
+        : fallback.dashboardRowsPerPage,
+    // Rows saved before this setting existed have no value; clampToastSeconds
+    // falls back to the default rather than writing NaN into the Toaster.
+    toastSeconds: clampToastSeconds(settings.toastSeconds),
+    // Rows saved before this setting existed have no value, and the fallback is
+    // no limit — so an existing install's top bar looks exactly as it did.
+    topLeftNavLimit: normalizeTopLeftNavLimit(settings.topLeftNavLimit),
+    adminRoute:
+      typeof settings.adminRoute === "string"
+        ? settings.adminRoute
+        : fallback.adminRoute,
+    memberHomeRoute:
+      typeof settings.memberHomeRoute === "string"
+        ? settings.memberHomeRoute
+        : fallback.memberHomeRoute,
+    // Saved is saved, empty included: an admin who deletes every member link
+    // means it, and handing the starter set back on read would undo that. The
+    // starter only fills in a row that has never had a member sidebar at all.
+    memberSections: Array.isArray(settings.memberSections)
+      ? settings.memberSections
+      : createDefaultMemberSections(),
+    // Same rule as memberSections: saved is saved, empty included. The starter
+    // set only fills a row that has never held a member top-right menu at all.
+    memberTopRightNavigation: Array.isArray(settings.memberTopRightNavigation)
+      ? settings.memberTopRightNavigation
+      : createDefaultTopRightNavigation(),
+    // Rows saved before this setting existed have no value, and the feature is
+    // meant to be on — so only an explicit `false` turns it off.
+    liveNotifications: settings.liveNotifications !== false,
+    notificationTypes: normalizeNotificationTypeVisibility(
+      settings.notificationTypes
+    ),
+    maintenance: normalizeMaintenance(settings.maintenance),
+    // Rows saved before this switch existed have no value, and the default is
+    // running — so an existing install's automations keep going exactly as
+    // they did.
+    automationPause: normalizeAutomationPause(settings.automationPause),
+    sessionPolicy: normalizeSessionPolicy(settings.sessionPolicy),
+  }
+}
+
+/** Resolves globals for a write without turning app theme defaults into saves. */
+export function shellGlobalsForWrite(value: unknown) {
+  const settings = parseShellGlobals(value)
+  return {
+    ...settings,
+    publicTheme: publicThemeOverrides(settings.publicTheme, appPublicTheme()),
+  }
+}
+
+/**
+ * Takes the fields it reads rather than a whole `ShellConfig`: the settings save
+ * hands it a validated request, and the parts of that request which are not
+ * app-wide — the widget arrangement — are checked on their own way into the
+ * workspace row, in their own shape.
+ */
+export function pickShellGlobals(
+  settings: Pick<
+    ShellConfig,
+    | "appName"
+    | "workspaceName"
+    | "favicon"
+    | "faviconDark"
+    | "faviconSet"
+    | "faviconMode"
+    | "logo"
+    | "logoDark"
+    | "shareImage"
+    | "shareImageVersion"
+    | "socialCardType"
+    | "socialHandle"
+    | "publicSeo"
+    | "publicSystemCopy"
+    | "publicNavigation"
+    | "publicFooter"
+    | "publicFooterSocial"
+    | "publicHeaderActions"
+    | "publicFooterCopyright"
+    | "publicHeader"
+    | "publicBreadcrumbs"
+    | "publicUserPanel"
+    | "publicFont"
+    | "publicTheme"
+    | "publicThemePresets"
+    | "dashboardRowsPerPage"
+    | "toastSeconds"
+    | "topLeftNavLimit"
+    | "adminRoute"
+    | "memberHomeRoute"
+    | "memberSections"
+    | "memberTopRightNavigation"
+    | "liveNotifications"
+    | "notificationTypes"
+    | "maintenance"
+    | "automationPause"
+    | "sessionPolicy"
+  >
+) {
+  return {
+    appName: settings.appName,
+    workspaceName: settings.workspaceName,
+    favicon: settings.favicon,
+    faviconDark: settings.faviconDark,
+    faviconSet: normalizePublicFaviconSet(settings.faviconSet),
+    faviconMode: normalizeFaviconMode(settings.faviconMode),
+    logo: settings.logo,
+    logoDark: settings.logoDark,
+    shareImage: normalizeShareImage(settings.shareImage),
+    shareImageVersion: settings.shareImageVersion,
+    socialCardType: normalizeSocialCardType(settings.socialCardType),
+    socialHandle: normalizeSocialHandle(settings.socialHandle),
+    publicSeo: normalizePublicSeo(settings.publicSeo),
+    publicSystemCopy: normalizePublicSystemCopy(settings.publicSystemCopy),
+    publicNavigation: cleanPublicNavigationItems(settings.publicNavigation),
+    publicFooter: cleanPublicNavigationLinks(settings.publicFooter),
+    publicFooterSocial: normalizePublicSocialLinks(settings.publicFooterSocial),
+    publicHeaderActions: normalizePublicHeaderActions(
+      settings.publicHeaderActions
+    ),
+    publicFooterCopyright: cleanPublicFooterCopyright(
+      settings.publicFooterCopyright
+    ),
+    publicHeader: normalizePublicHeader(settings.publicHeader),
+    publicBreadcrumbs: normalizePublicBreadcrumbs(settings.publicBreadcrumbs),
+    publicUserPanel: normalizePublicUserPanel(settings.publicUserPanel),
+    publicFont: normalizePublicFontAsset(settings.publicFont),
+    publicTheme: normalizePublicTheme(settings.publicTheme),
+    publicThemePresets: normalizePublicThemePresets(
+      settings.publicThemePresets
+    ),
+    dashboardRowsPerPage: settings.dashboardRowsPerPage,
+    toastSeconds: settings.toastSeconds,
+    topLeftNavLimit: settings.topLeftNavLimit,
+    adminRoute: settings.adminRoute,
+    memberHomeRoute: settings.memberHomeRoute,
+    memberSections: settings.memberSections,
+    memberTopRightNavigation: settings.memberTopRightNavigation,
+    liveNotifications: settings.liveNotifications,
+    notificationTypes: settings.notificationTypes,
+    maintenance: settings.maintenance,
+    automationPause: settings.automationPause,
+    sessionPolicy: settings.sessionPolicy,
+  }
+}
