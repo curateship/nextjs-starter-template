@@ -373,6 +373,15 @@ const readableHandle = sql<string | null>`case
 const readableAvatar = sql<string | null>`case
   when ${pomodoroProfiles.profilePublic} and ${pomodoroProfiles.hiddenAt} is null
   then ${users.avatarUrl} end`
+/**
+ * The name a logged-out visitor sees on a room card: the public display name
+ * when the profile is readable, "Member" otherwise. An account name is never
+ * sent to somebody who has not signed in.
+ */
+const guestName = sql<string>`case
+  when ${pomodoroProfiles.profilePublic} and ${pomodoroProfiles.hiddenAt} is null
+    and ${pomodoroProfiles.publicDisplayName} is not null
+  then ${pomodoroProfiles.publicDisplayName} else 'Member' end`
 
 /**
  * The public rooms someone can join. The rooms that viewer hosts or is
@@ -385,14 +394,20 @@ const featuredRoom = sql<boolean>`(${rooms.featuredAt} is not null or exists (
   where ${pomodoroRoomRepeats.id} = ${rooms.repeatId} and ${pomodoroRoomRepeats.featured}
 ))`
 
-export async function listPublicRooms(viewerId: string, database: PomoderDb = db) {
+/**
+ * `viewerId` null is a logged-out visitor (Tyler, 9 Oct 2026: "Logged out
+ * users should be able to see the open to join or starting soon rows"): the
+ * same rooms, with names by `guestName`.
+ */
+export async function listPublicRooms(viewerId: string | null, database: PomoderDb = db) {
+  const name = viewerId ? displayName : guestName
   const rows = await database
     .select({
       room: { id: rooms.id, slug: rooms.slug, name: rooms.name, phase: rooms.phase, phaseEndsAt: rooms.phaseEndsAt, focusMinutes: rooms.focusMinutes, cycleFocusCount: rooms.cycleFocusCount, sound: rooms.sound, background: rooms.background, startingAt: rooms.startingAt, countdownSeconds: rooms.countdownSeconds },
       // An admin featured the room, or the weekly rule that booked it (admin
       // task 04). Featured rooms sit first, with a label.
       featured: featuredRoom,
-      hostName: displayName,
+      hostName: name,
       hostId: rooms.hostUserId,
       hostAvatarUrl: readableAvatar,
       memberCount: sql<number>`count(${roomMemberships.id})::int`,
@@ -407,8 +422,10 @@ export async function listPublicRooms(viewerId: string, database: PomoderDb = db
       eq(rooms.visibility, "public"),
       sql`${rooms.closedAt} is null`,
       sql`${rooms.phase} <> 'scheduled'`,
-      ne(rooms.hostUserId, viewerId),
-      sql`not exists (select 1 from ${roomMemberships} mine where mine.room_id = ${rooms.id} and mine.user_id = ${viewerId} and mine.left_at is null)`,
+      viewerId ? ne(rooms.hostUserId, viewerId) : undefined,
+      viewerId
+        ? sql`not exists (select 1 from ${roomMemberships} mine where mine.room_id = ${rooms.id} and mine.user_id = ${viewerId} and mine.left_at is null)`
+        : undefined,
     ))
     .groupBy(rooms.id, users.id, pomodoroProfiles.publicDisplayName, pomodoroProfiles.profilePublic, pomodoroProfiles.hiddenAt)
     .orderBy(desc(featuredRoom), desc(rooms.createdAt))
@@ -419,7 +436,7 @@ export async function listPublicRooms(viewerId: string, database: PomoderDb = db
   const ids = rows.map((row) => row.room.id)
   const people = ids.length
     ? await database
-        .select({ roomId: roomMemberships.roomId, userId: roomMemberships.userId, name: displayName, avatarUrl: readableAvatar })
+        .select({ roomId: roomMemberships.roomId, userId: roomMemberships.userId, name, avatarUrl: readableAvatar })
         .from(roomMemberships)
         .innerJoin(users, eq(users.id, roomMemberships.userId))
         .leftJoin(pomodoroProfiles, eq(pomodoroProfiles.userId, users.id))

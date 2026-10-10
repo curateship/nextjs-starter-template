@@ -176,6 +176,24 @@ const listRoomsFn = createServerFn({ method: "GET" })
   .handler(async ({ context }) => listPublicRooms(context.user.id))
 
 /**
+ * The same list for somebody not signed in: no account names (see
+ * `listPublicRooms`). Needs no sign-in, so one copy is kept for 15 seconds
+ * and shared by every visitor, however often the page asks.
+ */
+let guestRooms: { at: number; rows: Promise<Awaited<ReturnType<typeof listPublicRooms>>> } | null = null
+const listGuestRoomsFn = createServerFn({ method: "GET" }).handler(() => {
+  if (!guestRooms || Date.now() - guestRooms.at > 15_000) {
+    const rows = listPublicRooms(null)
+    guestRooms = { at: Date.now(), rows }
+    // A failed read is not kept, so the next visitor tries again.
+    rows.catch(() => {
+      if (guestRooms?.rows === rows) guestRooms = null
+    })
+  }
+  return guestRooms.rows
+})
+
+/**
  * Marks a room's bell notices read, and never stands between somebody and the
  * room. The marking is bookkeeping: a failure is logged and the room opens
  * anyway, with the notices still unread in the bell.
@@ -536,6 +554,7 @@ const banMemberFn = createServerFn({ method: "POST" })
   })
 
 export const listRooms = () => listRoomsFn()
+export const listRoomsForGuest = () => listGuestRoomsFn()
 export const getCurrentRoom = () => currentRoomFn()
 export const lookupRoom = (slug: string) => lookupRoomFn({ data: { slug } })
 export const createRoom = (data: z.infer<typeof createRoomSchema>) =>

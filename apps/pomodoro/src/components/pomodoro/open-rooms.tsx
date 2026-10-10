@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { InlineError } from "@/components/ui/inline-error"
 import { enterRoomFromSnapshot } from "@/components/pomodoro/active-room"
 import { OpenRoomCard, RoomGroupEmpty } from "@/components/pomodoro/room-card"
-import { joinRoom, listRooms } from "@/lib/api/pomodoro/rooms"
+import { joinRoom, listRooms, listRoomsForGuest } from "@/lib/api/pomodoro/rooms"
 import { useProductAuth } from "@/lib/pomodoro/auth-state"
 import { STARTING_SOON_SHOWN, isStartingSoon } from "@/lib/pomodoro/room-countdown"
 import { usePageVisible } from "@/lib/pomodoro/use-page-visible"
@@ -36,7 +36,15 @@ export function OpenRoomsSection({
   joinProblem,
   onJoin,
   className,
+  loginRedirect,
 }: {
+  /**
+   * Set for a logged-out visitor: every card is a link to the login page,
+   * which brings them back here. Tyler, 9 Oct 2026: "Logged out users should
+   * be able to see the open to join or starting soon rows but clicking on the
+   * card will take them to the login page".
+   */
+  loginRedirect?: string
   /** Browse open rooms on `/rooms` scrolls here. */
   sectionRef?: React.Ref<HTMLElement>
   rooms: readonly OpenRoomRow[]
@@ -89,21 +97,40 @@ export function OpenRoomsSection({
       memberCount={row.memberCount}
       nextFocusMinutes={row.room.focusMinutes}
       featured={row.featured}
+      cardLink={
+        loginRedirect ? (
+          <Link
+            to="/login"
+            search={{ redirect: loginRedirect }}
+            aria-label={`Log in to join ${row.room.name}`}
+            className="absolute inset-0 z-[2] rounded-[24px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+        ) : null
+      }
       joinButton={
-        <Button
-          className="h-11 rounded-full bg-black px-6 text-base text-white hover:bg-black/80 dark:hover:bg-black/80"
-          disabled={joiningSlug !== ""}
-          onClick={() => onJoin(row.room.slug)}
-        >
-          {joiningSlug === row.room.slug ? (
-            <>
-              <Loader2Icon className="animate-spin" aria-hidden="true" />
-              Joining…
-            </>
-          ) : (
-            "Join"
-          )}
-        </Button>
+        loginRedirect ? (
+          <span
+            aria-hidden="true"
+            className="inline-flex h-11 items-center rounded-full bg-black px-6 text-base font-medium text-white"
+          >
+            Join
+          </span>
+        ) : (
+          <Button
+            className="h-11 rounded-full bg-black px-6 text-base text-white hover:bg-black/80 dark:hover:bg-black/80"
+            disabled={joiningSlug !== ""}
+            onClick={() => onJoin(row.room.slug)}
+          >
+            {joiningSlug === row.room.slug ? (
+              <>
+                <Loader2Icon className="animate-spin" aria-hidden="true" />
+                Joining…
+              </>
+            ) : (
+              "Join"
+            )}
+          </Button>
+        )
       }
       problem={
         joinProblem?.slug === row.room.slug ? (
@@ -158,9 +185,9 @@ export function OpenRoomsSection({
  * The front page is your personal room, so a join here simply moves you into
  * the room: the room store learns the room, and the front page draws it.
  *
- * A guest gets the heading and a card that leads to the login page instead of
- * the list. Listing rooms needs an account, because a host who has not picked
- * a public display name is listed by their account name.
+ * A logged-out visitor sees the same rooms (Tyler, 9 Oct 2026), and every
+ * card leads to the login page and back here. Their list comes from
+ * `listRoomsForGuest`, which never carries an account name.
  */
 export function HomeOpenRooms({ className }: { className?: string }) {
   const { known, authenticated } = useProductAuth()
@@ -171,18 +198,19 @@ export function HomeOpenRooms({ className }: { className?: string }) {
   const pageVisible = usePageVisible()
 
   // Read on arrival and every minute while the tab is on screen, quietly: a
-  // failed read keeps the cards already showing.
+  // failed read keeps the cards already showing. A logged-out visitor gets
+  // the guest list, with no account names in it.
   React.useEffect(() => {
-    if (!authenticated || !pageVisible) return
+    if (!known || !pageVisible) return
     const read = () =>
-      void listRooms().then(
+      void (authenticated ? listRooms() : listRoomsForGuest()).then(
         (rows) => setRooms(rows.filter(({ room }) => room.phase !== "focus")),
         () => setRooms((current) => current ?? [])
       )
     read()
     const interval = window.setInterval(read, 60_000)
     return () => window.clearInterval(interval)
-  }, [authenticated, pageVisible])
+  }, [known, authenticated, pageVisible])
 
   const join = async (slug: string) => {
     if (joiningRef.current) return
@@ -202,32 +230,7 @@ export function HomeOpenRooms({ className }: { className?: string }) {
     }
   }
 
-  if (!known) return null
-  if (!authenticated)
-    return (
-      <section
-        aria-labelledby="open-to-join-heading"
-        className={`flex flex-col gap-5 ${className ?? ""}`}
-      >
-        <h3
-          id="open-to-join-heading"
-          className="text-3xl font-bold tracking-tight"
-        >
-          Open to join
-        </h3>
-        <Link
-          to="/login"
-          search={{ redirect: "/" }}
-          className="flex flex-col items-center gap-3 rounded-[24px] border-2 border-dashed border-[rgba(var(--p-fg-rgb),0.16)] p-10 text-center text-muted-foreground transition-colors hover:bg-[rgba(var(--p-fg-rgb),0.03)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <span>Log in to see the rooms open right now and focus with others.</span>
-          <span className="rounded-full bg-[var(--p-accent)] px-5 py-2 font-semibold text-[var(--p-on-accent)]">
-            Log in
-          </span>
-        </Link>
-      </section>
-    )
-  if (rooms === null) return null
+  if (!known || rooms === null) return null
   return (
     <OpenRoomsSection
       className={className}
@@ -235,6 +238,7 @@ export function HomeOpenRooms({ className }: { className?: string }) {
       joiningSlug={joiningSlug}
       joinProblem={joinProblem}
       onJoin={(slug) => void join(slug)}
+      loginRedirect={authenticated ? undefined : "/"}
     />
   )
 }

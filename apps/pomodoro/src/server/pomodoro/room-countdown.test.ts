@@ -140,4 +140,17 @@ describe("the room card's faces", () => {
     const [hidden] = await listPublicRooms(viewerId, db)
     expect(hidden.people).toEqual([{ name: "Alex Member", avatarUrl: null }])
   })
+
+  it("reach a logged-out visitor with public names only, never an account name", async () => {
+    // Sam has a display name but a profile switched off; Alex a public one.
+    await db.insert(pomodoroProfiles).values({ userId: memberId, profilePublic: true, publicDisplayName: "Alex" })
+    const room = await openRoom()
+    await joinRoomBySlug(room.slug, memberId, db, NOW)
+    const [row] = await listPublicRooms(null, db)
+    expect(row.room.id).toBe(room.id)
+    expect(row.hostName).toBe("Member")
+    expect(row.people).toEqual([{ name: "Alex", avatarUrl: "https://example.test/alex.png" }])
+    expect(JSON.stringify(row)).not.toContain("Sam Host")
+    expect(JSON.stringify(row)).not.toContain("Alex Member")
+  })
 })

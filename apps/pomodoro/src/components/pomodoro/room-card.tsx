@@ -301,6 +301,7 @@ export function OpenRoomCard({
   joinButton,
   problem,
   featured = false,
+  cardLink,
 }: {
   roomId: string
   background: string | null
@@ -320,6 +321,11 @@ export function OpenRoomCard({
   problem?: React.ReactNode
   /** An admin featured it, so it sits first with a label (admin task 04). */
   featured?: boolean
+  /**
+   * A link laid over the whole card, so a press anywhere on it follows it:
+   * the login page for a logged-out visitor. `joinButton` is then only drawn.
+   */
+  cardLink?: React.ReactNode
 }) {
   const onBreak = phase === "short" || phase === "long"
   const catalog = useMediaCatalog()
@@ -331,7 +337,7 @@ export function OpenRoomCard({
   const reducedMotion = usePrefersReducedMotion()
   return (
     <article
-      className="flex flex-col overflow-hidden rounded-[24px] border bg-[var(--p-surface)] pb-6"
+      className="relative flex flex-col overflow-hidden rounded-[24px] border bg-[var(--p-surface)] pb-6"
       onPointerEnter={(event) => {
         if (event.pointerType === "mouse") setHovered(true)
       }}
@@ -411,6 +417,7 @@ export function OpenRoomCard({
         </div>
         {problem}
       </div>
+      {cardLink}
     </article>
   )
 }

@@ -42,6 +42,7 @@ import {
   leaveActiveRoom,
   listMyRepeats,
   listRooms,
+  listRoomsForGuest,
   listUpcoming,
   repeatRoom,
   scheduleRoom,
@@ -111,11 +112,12 @@ import {
  * The rooms page: your three rooms side by side (personal, joined, hosted,
  * with the one you are in lit), then "Open to join" (waiting or on break) and
  * the rooms you booked. A room mid-focus is not listed, since nobody can join
- * it until its break. Public cards show member counts, never names — the old
- * privacy rule after a real leak.
+ * it until its break. A logged-out visitor sees Starting soon and Open to
+ * join too, every card a link to the login page (Tyler, 9 Oct 2026), and
+ * nothing else.
  */
 export function RoomsPage() {
-  const { authenticated } = useProductAuth()
+  const { known, authenticated } = useProductAuth()
   const { user } = getRouteApi("/_pomodoro").useLoaderData()
   const openRoomsRef = React.useRef<HTMLElement>(null)
   const [leavingRoom, setLeavingRoom] = React.useState(false)
@@ -138,7 +140,13 @@ export function RoomsPage() {
   const [cancellingKey, setCancellingKey] = React.useState("")
 
   const refreshRooms = React.useCallback(() => {
-    if (!authenticated) return
+    if (!known) return
+    if (!authenticated) {
+      void listRoomsForGuest()
+        .then(setRoomRows)
+        .catch(() => showErrorToast("Rooms could not be loaded."))
+      return
+    }
     void listRooms()
       .then(setRoomRows)
       .catch(() => showErrorToast("Rooms could not be loaded."))
@@ -148,7 +156,7 @@ export function RoomsPage() {
     void listMyRepeats()
       .then(setSeries)
       .catch(() => showErrorToast("Your weekly rooms could not be loaded."))
-  }, [authenticated])
+  }, [known, authenticated])
   React.useEffect(refreshRooms, [refreshRooms])
 
   // Which room you are in, kept live by the same hook the front page uses.
@@ -172,10 +180,14 @@ export function RoomsPage() {
   // These reads are quiet: a failure keeps the rows already showing instead
   // of putting up a toast every minute.
   const refreshListsQuietly = React.useCallback(() => {
-    if (!authenticated) return
+    if (!known) return
+    if (!authenticated) {
+      void listRoomsForGuest().then(setRoomRows, () => {})
+      return
+    }
     void listRooms().then(setRoomRows, () => {})
     void listUpcoming().then(setUpcoming, () => {})
-  }, [authenticated])
+  }, [known, authenticated])
   const wasVisibleRef = React.useRef(pageVisible)
   React.useEffect(() => {
     const cameBack = pageVisible && !wasVisibleRef.current
@@ -446,19 +458,28 @@ export function RoomsPage() {
         />
       ) : null}
       {!authenticated ? (
-        <Card>
-          <CardContent className="flex flex-col items-start gap-2 py-6">
-            <p className="text-sm text-muted-foreground">
-              Rooms are where people focus together on one clock. Sign in to
-              browse the open rooms and join one.
-            </p>
-            <Button asChild size="sm">
-              <Link to="/login" search={{ redirect: "/rooms" }}>
-                Sign in
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
+        <>
+          <Card>
+            <CardContent className="flex flex-col items-start gap-2 py-6">
+              <p className="text-sm text-muted-foreground">
+                Rooms are where people focus together on one clock. Sign in to
+                join one.
+              </p>
+              <Button asChild size="sm">
+                <Link to="/login" search={{ redirect: "/rooms" }}>
+                  Sign in
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+          <OpenRoomsSection
+            rooms={openRooms}
+            joiningSlug=""
+            joinProblem={null}
+            onJoin={() => undefined}
+            loginRedirect="/rooms"
+          />
+        </>
       ) : roomCheckFailed && !activeRoom ? (
         <Card>
           <ErrorRow

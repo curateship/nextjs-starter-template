@@ -48,9 +48,19 @@ is not logged in, that should link to the login page."
 - **Join moves you straight into the room.** The front page is your personal
   room, so it then draws the joined room in its place. Leaving puts the timer
   and this list back.
-- **A guest sees the heading and one dashed card** that opens the login page
-  and comes back to `/` afterwards. The list itself needs an account, because
-  a host with no public display name is listed by their account name.
+- **A logged-out visitor sees the same Starting soon and Open to join rows**,
+  on `/` and on `/rooms`. Tyler, 9 Oct 2026: "Logged out users should be able
+  to see the open to join or starting soon rows but clicking on the card will
+  take them to the login page". A press anywhere on a card opens the login
+  page and comes back to the page it was on. Pointing at a card still plays
+  its film. On `/rooms` they see only these rows under a short Sign in card,
+  not the room columns or Upcoming.
+- **A logged-out visitor's list never carries an account name**
+  (`listRoomsForGuest` in `src/lib/api/pomodoro/rooms.ts`, `listPublicRooms`
+  with no viewer). A host or member shows their public display name only when
+  their profile is public; anybody else is "Member", drawn as initials. Photos
+  follow the same rule as for members. It needs no sign-in, so one copy is
+  kept for 15 seconds and shared by every visitor.
 - **It only shows on the timer.** While you are in a room the front page is
   that room, so there is nothing to join from there.
 - **Your own rooms are never in it**, on `/` or on `/rooms`. Tyler, 8 Oct
