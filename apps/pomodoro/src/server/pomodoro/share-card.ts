@@ -3,6 +3,7 @@ import sharp from "sharp"
 
 import {
   renderShareCardSvg,
+  renderSoundCardSvg,
   SHARE_CARD_MAX_AGE_SECONDS,
 } from "@/lib/pomodoro/share-card"
 import { isHandleAvailableShape } from "@/lib/pomodoro/public-profile"
@@ -10,8 +11,11 @@ import { db } from "@/server/db"
 import { isBlockedBetween } from "@/server/pomodoro/blocks"
 import {
   dailyFocusStats,
+  pomodoroMediaUploads,
   pomodoroProfiles,
 } from "@/server/pomodoro/schema"
+import { sharedWithOthers } from "@/server/pomodoro/shared-media"
+import { customShellMedia } from "@/server/schema"
 import { localDateFor, loadFocusStreaks } from "@/server/pomodoro/productivity"
 
 /**
@@ -137,4 +141,38 @@ export async function renderShareCard(
   const png = await sharp(Buffer.from(svg)).png().toBuffer()
   writeCachedShareCard(handle, png, now)
   return png
+}
+
+/**
+ * The link picture for a shared sound, or null: the file is shared with
+ * others, its owner's page answers, and nobody is blocked either way. A
+ * picture or clip has none here, because its own picture is the preview.
+ */
+export async function renderSharedSoundCard(
+  mediaId: string,
+  viewerUserId: string | null
+): Promise<Buffer | null> {
+  const [row] = await db
+    .select({
+      ownerUserId: pomodoroMediaUploads.userId,
+      name: sql<string>`coalesce(${pomodoroMediaUploads.name}, ${customShellMedia.originalName})`,
+      handle: pomodoroProfiles.handle,
+    })
+    .from(pomodoroMediaUploads)
+    .innerJoin(customShellMedia, eq(customShellMedia.id, pomodoroMediaUploads.mediaId))
+    .innerJoin(pomodoroProfiles, eq(pomodoroProfiles.userId, pomodoroMediaUploads.userId))
+    .where(
+      and(
+        sharedWithOthers,
+        eq(pomodoroMediaUploads.mediaId, mediaId),
+        eq(pomodoroMediaUploads.purpose, "sound"),
+        eq(pomodoroProfiles.profilePublic, true),
+        isNull(pomodoroProfiles.hiddenAt)
+      )
+    )
+    .limit(1)
+  if (!row?.handle) return null
+  if (await isBlockedBetween(viewerUserId, row.ownerUserId)) return null
+  const svg = renderSoundCardSvg({ name: row.name, handle: row.handle, seed: mediaId })
+  return sharp(Buffer.from(svg)).png().toBuffer()
 }

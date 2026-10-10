@@ -38,7 +38,7 @@ vi.mock("@/server/pomodoro/media-uploads", async (original) => ({
 }))
 
 import { ProviderKeyMissingError } from "@/server/pomodoro/generation-providers"
-import { queueGeneration, reserveGenerationCredit } from "@/server/pomodoro/generation"
+import { requestGenerations } from "@/server/pomodoro/generation"
 import { processNextGeneration } from "@/server/pomodoro/generation-worker"
 
 /**
@@ -87,8 +87,12 @@ async function insertMedia() {
 }
 
 async function queue(kind: "background" | "soundscape") {
-  const { month } = await reserveGenerationCredit(userId, kind, 20)
-  return queueGeneration({ userId, kind, prompt: "rain on a window", month })
+  const { rows } = await requestGenerations(
+    userId,
+    [{ kind, prompt: "rain on a window" }],
+    { background: 20, soundscape: 20 }
+  )
+  return rows[0]
 }
 
 const rows = () =>

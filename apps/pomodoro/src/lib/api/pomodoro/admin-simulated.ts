@@ -14,6 +14,7 @@ import {
   type SimulatedStatus,
 } from "@/server/pomodoro/simulated-accounts"
 import { loadPersonality, previewVoice, savePersonality } from "@/server/pomodoro/simulated-voice"
+import { giveMadeUpMembersFiles } from "@/server/pomodoro/simulated-shares"
 
 /**
  * The Made-up members tab under Settings → App settings, and the mark on the
@@ -26,6 +27,8 @@ export type { SimulatedStatus }
 export const getSimulatedErrorMessage = createErrorMessage(
   {
     NOT_MADE_UP: "That account is not one of the made-up members.",
+    PIXABAY_IMPORTS_OFF: "Add a Pixabay key on the Pixabay tab first.",
+    NO_MADE_UP_MEMBERS: "There are no made-up members yet. Make them first.",
     RATE_LIMITED: "That is a lot of Previews in a few minutes. Wait a little and try again.",
   },
   "That did not work. Please try again."
@@ -51,6 +54,17 @@ export const loadSimulatedMembers = () => statusFn()
 export const makeSimulatedMembersNow = () => makeNowFn()
 export const removeAllSimulatedMembers = () => removeAllFn()
 export const loadSimulatedMemberIds = () => idsFn()
+
+/** "Give them files to share": Pixabay links, one per line (task 05, part 9). */
+const giveFilesFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ links: z.array(z.string().max(500)).min(1).max(50) }))
+  .handler(({ data, context }) =>
+    giveMadeUpMembersFiles({ links: data.links, actorUserId: context.user.id })
+  )
+
+export const giveMadeUpMembersSharedFiles = (links: string[]) =>
+  giveFilesFn({ data: { links } })
 
 /**
  * Preview spends real AI money, so it is held to twenty in ten minutes per

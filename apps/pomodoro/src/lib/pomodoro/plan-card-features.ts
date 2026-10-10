@@ -6,6 +6,8 @@ import { formatBytes } from "@/lib/pomodoro/media-limits"
 import {
   PAID_DEFAULTS,
   PRO_PERKS,
+  SHARED_MEDIA_FEATURE,
+  planAllowsSharedMedia,
   planNumber,
   planPerkAllowed,
 } from "@/lib/pomodoro/pro"
@@ -30,7 +32,7 @@ import type { MediaCatalog } from "@/lib/pomodoro/catalog"
  * Every account, signed in or not. The counts come from the Live catalogue,
  * so a sound an admin adds or prices is counted on the next page load.
  */
-function freeLines(catalog: MediaCatalog) {
+function freeLines(catalog: MediaCatalog, features: PlanFeatures) {
   const freeSounds = catalog.sounds.filter((sound) => !sound.locked).length
   const freeScenes = catalog.themes.filter((scene) => !scene.locked).length
   return [
@@ -39,6 +41,10 @@ function freeLines(catalog: MediaCatalog) {
     "A personal room with your own sound and theme",
     "Join any open focus room",
     "Leaderboard, private groups and a public profile",
+    // Every plan, unless a plan switches it off (task 03, part 10).
+    ...(planAllowsSharedMedia(features)
+      ? ["Play and save the sounds and backgrounds members share"]
+      : []),
     "7 and 30 days of focus history, with CSV export",
   ]
 }
@@ -47,6 +53,7 @@ function freeLines(catalog: MediaCatalog) {
 const COVERED_KEYS = new Set<string>([
   ...Object.values(PRO_PERKS).map((perk) => perk.key),
   ...Object.keys(PAID_DEFAULTS),
+  SHARED_MEDIA_FEATURE,
 ])
 
 export function planCardFeatures(
@@ -59,7 +66,7 @@ export function planCardFeatures(
       Object.entries(features).filter(([key]) => !COVERED_KEYS.has(key))
     )
   )
-  if (free) return [...freeLines(catalog), ...extra]
+  if (free) return [...freeLines(catalog, features), ...extra]
 
   const isPaid = true
   const allowed = (perk: keyof typeof PRO_PERKS) =>

@@ -39,8 +39,10 @@ import {
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
 type Item =
-  | { kind: "sound"; reference: SoundReference; label: string }
-  | { kind: "background"; reference: BackgroundReference; label: string }
+  // `allowRoom` marks a shared file a host may put in their room: their own
+  // shared file or one they saved (rooms task 04). The server checks again.
+  | { kind: "sound"; reference: SoundReference; label: string; allowRoom?: boolean }
+  | { kind: "background"; reference: BackgroundReference; label: string; allowRoom?: boolean }
   /** A group: shuffle, or some tags, for a whole room's sound or theme. */
   | { kind: "sound" | "background"; pool: MediaPool; label: string }
 
@@ -79,6 +81,7 @@ function useMediaAdd(item: Item) {
     : false
   const catalogue =
     "pool" in item ||
+    item.allowRoom === true ||
     (item.kind === "sound"
       ? item.reference.type === "curated"
       : item.reference.type === "scene")
@@ -91,7 +94,11 @@ function useMediaAdd(item: Item) {
         ? "Only the host can change this room."
         : text.includes("ROOM_CLOSED")
           ? "That room has ended."
-          : `${item.label} could not be added. Try again.`
+          : text.includes("ROOM_PAIR_REJECTED: ")
+            ? text.slice(text.indexOf("ROOM_PAIR_REJECTED: ") + 20)
+            : text.includes("SHARED_MEDIA_LOCKED")
+              ? "Shared sounds and backgrounds are not part of your plan."
+              : `${item.label} could not be added. Try again.`
   }
 
   const addToPersonal = async () => {
@@ -144,6 +151,7 @@ function useMediaAdd(item: Item) {
         role: snapshot.you.role,
         sound: snapshot.room.sound,
         background: snapshot.room.background,
+        files: snapshot.room.files,
       })
       toast.success(`${item.label} is on in ${room.name} for everyone in it.`)
     } catch (cause) {

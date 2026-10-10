@@ -29,6 +29,12 @@ import {
 import { loadPomodoroEntitlements } from "@/server/pomodoro/entitlements"
 import { writeNotices } from "@/server/pomodoro/notices"
 import {
+  findPickableSharedMedia,
+  resolveSharedMedia,
+  shareChangeFor,
+  shareStateOf,
+} from "@/server/pomodoro/shared-media"
+import {
   MEDIA_PAGE,
   mediaFailedMessage,
   mediaReadyMessage,
@@ -55,6 +61,7 @@ import {
   isValidTrim,
   type UploadTrim,
 } from "@/lib/pomodoro/upload-labels"
+import type { MediaCredit, ShareState } from "@/lib/pomodoro/shared-media"
 
 /**
  * A Pro member's own backgrounds and sound loops.
@@ -200,6 +207,8 @@ export type UploadLabels = {
   name: string
   tags: string[]
   shared: boolean
+  /** The "I have the right to share this" tick under Share. */
+  confirmRights?: boolean
   trim: UploadTrim | null
 }
 
@@ -223,6 +232,7 @@ export function validateUploadLabels(
     name: checked.name,
     tags: checked.tags,
     shared: input.shared,
+    confirmRights: input.confirmRights === true,
     trim: input.trim,
   }
 }
@@ -248,7 +258,12 @@ export type StoredUpload = {
   /** What the member called it, or the file name for an older upload. */
   name: string
   tags: string[]
+  /** The owner's Share tick. Whether others see it is `shareState`. */
   shared: boolean
+  /** Not shared, waiting for an admin's first check, shared, or taken off. */
+  shareState: ShareState
+  /** Why an admin took it off sharing, for the owner's own card. */
+  takenDownReason: string | null
   /**
    * Where the kept part starts and ends in the original, for the cog's trim
    * handles. Null when nothing was cut or the original is not kept.
@@ -278,6 +293,8 @@ export type StoredUpload = {
   stillUrl: string
   /** In the bin since then; null for a file in use. */
   deletedAt: Date | null
+  /** The Pixabay author of a file imported from a Pixabay link, else null. */
+  sourceAuthor: string | null
 }
 
 /** What My uploads lists: one kind's files, or the bin with both kinds. */
@@ -322,8 +339,18 @@ export async function storePomodoroUpload({
   const originalName = cleanOriginalName(file.name)
   const name = labels?.name ?? originalName.slice(0, UPLOAD_NAME_MAX)
   const tags = labels?.tags ?? []
-  const shared = labels?.shared ?? false
-  const filename = storedFilename(originalName, detected.mimeType)
+  // The share rules are checked before a byte goes to the bucket, so a file
+  // over the daily limit is refused whole rather than stored half-shared.
+  const share = labels?.shared
+    ? await shareChangeFor(db, {
+        userId,
+        mediaId: null,
+        current: { shared: false, adminUnsharedAt: null },
+        wanted: true,
+        confirmRights: labels.confirmRights === true,
+      })
+    : {}
+  const filename = bucketFilename(originalName, detected.mimeType)
   const storagePath = `${userId}/${filename}`
   const workspaceId = await workspaceIdForRequest(userId)
 
@@ -364,7 +391,8 @@ export async function storePomodoroUpload({
         originalBytes: bytes.byteLength,
         name,
         tags,
-        shared,
+        shared: false,
+        ...share,
         trimStartMs: labels?.trim?.startMs ?? null,
         trimEndMs: labels?.trim?.endMs ?? null,
       })
@@ -381,19 +409,38 @@ export async function storePomodoroUpload({
     status,
     name,
     tags,
-    shared,
+    shared: share.shared === true,
+    shareState: shareStateOf({
+      shared: share.shared === true,
+      shareWaitingSince: share.shareWaitingSince ?? null,
+      adminUnsharedAt: null,
+    }),
+    takenDownReason: null,
     trim: labels?.trim ?? null,
     sourceUrl: "",
     generated: false,
     inUse: false,
     stillUrl: "",
     deletedAt: null,
+    sourceAuthor: null,
     fileSize: bytes.byteLength,
     mimeType: detected.mimeType,
     failureReason: null,
     createdAt: new Date(timestamp),
     url: status === "ready" ? await getPublicMediaUrl(storagePath) : "",
   }
+}
+
+/**
+ * The name a member's file is stored under in the bucket: a random id and its
+ * extension, never the member's own file name. A shared file's address is
+ * public, so "Sarah_Jones_vlog.mp4" must not ride along in it after its owner
+ * renamed it (audit, 10 Oct 2026). The library row still keeps the original
+ * name for the member's own lists and downloads.
+ */
+export function bucketFilename(originalName: string, mimeType: string) {
+  const extension = /\.([a-z0-9]{1,8})$/i.exec(originalName)?.[1]
+  return storedFilename(extension ? `file.${extension}` : "file", mimeType)
 }
 
 /** The kept original's library row, joined beside the upload's own. */
@@ -428,6 +475,9 @@ export async function listPomodoroUploads(
       name: sql<string>`coalesce(${pomodoroMediaUploads.name}, ${customShellMedia.originalName})`,
       tags: pomodoroMediaUploads.tags,
       shared: pomodoroMediaUploads.shared,
+      shareWaitingSince: pomodoroMediaUploads.shareWaitingSince,
+      adminUnsharedAt: pomodoroMediaUploads.adminUnsharedAt,
+      takenDownReason: pomodoroMediaUploads.adminUnshareReason,
       trimStartMs: pomodoroMediaUploads.trimStartMs,
       trimEndMs: pomodoroMediaUploads.trimEndMs,
       sourceMediaId: pomodoroMediaUploads.sourceMediaId,
@@ -437,6 +487,7 @@ export async function listPomodoroUploads(
       storagePath: customShellMedia.storagePath,
       stillPath: pomodoroMediaUploads.stillPath,
       deletedAt: pomodoroMediaUploads.deletedAt,
+      sourceAuthor: pomodoroMediaUploads.sourceAuthor,
       generated: sql<boolean>`exists (
         select 1 from ${pomodoroGenerations}
         where ${pomodoroGenerations.mediaId} = ${pomodoroMediaUploads.mediaId})`,
@@ -485,6 +536,8 @@ export async function listPomodoroUploads(
         stillPath,
         trimStartMs,
         trimEndMs,
+        shareWaitingSince,
+        adminUnsharedAt,
         ...row
       }) => {
         // Only a finished file gets an address: a first re-encode replaces
@@ -495,6 +548,11 @@ export async function listPomodoroUploads(
           : ""
         return {
           ...row,
+          shareState: shareStateOf({
+            shared: row.shared,
+            shareWaitingSince,
+            adminUnsharedAt,
+          }),
           purpose: row.purpose as PomodoroUploadPurpose,
           kind: row.kind as PomodoroUploadKind,
           url,
@@ -528,6 +586,8 @@ export async function editPomodoroUpload(
     name: string
     tags: string[]
     shared: boolean
+    /** The "I have the right to share this" tick, needed to switch Share on. */
+    confirmRights?: boolean
     /** Left out to keep the trim; null to keep the whole original. */
     trim?: UploadTrim | null
   }
@@ -560,7 +620,7 @@ export async function editPomodoroUpload(
     // Named for what it holds, the finished cut, not the file first sent.
     const extension = current.media.storagePath.split(".").pop() ?? "bin"
     const bare = current.media.originalName.replace(/\.[^.]+$/, "")
-    copyPath = `${userId}/${storedFilename(`${bare}.${extension}`, current.media.mimeType)}`
+    copyPath = `${userId}/${bucketFilename(`${bare}.${extension}`, current.media.mimeType)}`
     await uploadToR2(
       copyPath,
       await body.transformToByteArray(),
@@ -578,12 +638,19 @@ export async function editPomodoroUpload(
         if (!sourceMediaId && copyPath)
           sourceMediaId = await keepAsSource(tx, row.media, copyPath)
       }
+      const share = await shareChangeFor(tx, {
+        userId,
+        mediaId,
+        current: row,
+        wanted: input.shared,
+        confirmRights: input.confirmRights === true,
+      })
       await tx
         .update(pomodoroMediaUploads)
         .set({
           name: checked.name,
           tags: checked.tags,
-          shared: input.shared,
+          ...share,
           ...(retrim
             ? {
                 trimStartMs: input.trim?.startMs ?? null,
@@ -602,7 +669,22 @@ export async function editPomodoroUpload(
       // A copy another save beat this one to is not needed.
       if (copyPath && sourceMediaId !== null && row.sourceMediaId !== null)
         await deleteFromR2(copyPath).catch(() => undefined)
-      return { name: checked.name, tags: checked.tags, shared: input.shared }
+      const shared = share.shared ?? row.shared
+      return {
+        name: checked.name,
+        tags: checked.tags,
+        shared,
+        /** This save put the file in the admins' waiting list. */
+        startedWaiting: share.shareWaitingSince instanceof Date,
+        shareState: shareStateOf({
+          shared,
+          shareWaitingSince:
+            share.shareWaitingSince !== undefined
+              ? share.shareWaitingSince
+              : row.shareWaitingSince,
+          adminUnsharedAt: row.adminUnsharedAt,
+        }),
+      }
     })
   } catch (error) {
     if (copyPath) await deleteFromR2(copyPath).catch(() => undefined)
@@ -624,6 +706,11 @@ async function loadOwnUpload(
       kind: pomodoroMediaUploads.kind,
       status: pomodoroMediaUploads.status,
       sourceMediaId: pomodoroMediaUploads.sourceMediaId,
+      shared: pomodoroMediaUploads.shared,
+      shareWaitingSince: pomodoroMediaUploads.shareWaitingSince,
+      adminUnsharedAt: pomodoroMediaUploads.adminUnsharedAt,
+      sharedAt: pomodoroMediaUploads.sharedAt,
+      shareAnnouncedAt: pomodoroMediaUploads.shareAnnouncedAt,
       media: customShellMedia,
     })
     .from(pomodoroMediaUploads)
@@ -745,16 +832,27 @@ export async function loadUploadTagSuggestions(
 }
 
 /**
- * The address for one upload the caller already owns, for the two preference
- * loaders. Returns null when the id is not theirs or is not finished, which is
- * what makes a stale preference fall back to the default instead of drawing a
- * broken picture.
+ * The address for one upload the caller owns, or one somebody shared with
+ * them, for the two preference loaders. Someone else's file carries its
+ * credit. Returns null when it is not theirs and not shared with them, or
+ * not finished, which is what makes a stale preference fall back to the
+ * default instead of drawing a broken picture.
  */
-export async function resolveUploadUrl(userId: string, mediaId: string) {
+export async function resolveUploadUrl(
+  userId: string,
+  mediaId: string,
+  { shared = true }: { shared?: boolean } = {}
+): Promise<{
+  url: string
+  kind: PomodoroUploadKind
+  name: string
+  credit: MediaCredit | null
+} | null> {
   const [row] = await db
     .select({
       storagePath: customShellMedia.storagePath,
       kind: pomodoroMediaUploads.kind,
+      name: sql<string>`coalesce(${pomodoroMediaUploads.name}, ${customShellMedia.originalName})`,
       status: pomodoroMediaUploads.status,
       sourceMediaId: pomodoroMediaUploads.sourceMediaId,
     })
@@ -772,10 +870,19 @@ export async function resolveUploadUrl(userId: string, mediaId: string) {
     )
     .limit(1)
 
-  if (!row || !uploadIsShowable(row)) return null
+  if (!row) {
+    if (!shared) return null
+    const other = await resolveSharedMedia(userId, mediaId)
+    return other
+      ? { url: other.url, kind: other.kind, name: other.name, credit: other.credit }
+      : null
+  }
+  if (!uploadIsShowable(row)) return null
   return {
     url: await getPublicMediaUrl(row.storagePath),
     kind: row.kind as PomodoroUploadKind,
+    name: row.name,
+    credit: null,
   }
 }
 
@@ -816,10 +923,12 @@ export async function loadUploadDownload(userId: string, mediaId: string) {
 }
 
 /**
- * The check every "use this one" needs: the upload is this person's, it is
- * finished, and it is the right kind for where they are putting it.
+ * The check every "use this one" needs: the upload is this person's, or
+ * someone shared it with them, it is finished, and it is the right kind for
+ * where they are putting it. Returns who owns it, so a pick of someone
+ * else's file can be counted for its owner.
  *
- * Without this a member could save somebody else's media id as their
+ * Without this a member could save somebody else's private media id as their
  * background. The file itself would still refuse to load, but the preference
  * would have taken a value that is not theirs.
  */
@@ -845,9 +954,13 @@ export async function assertUploadUsable(
     )
     .limit(1)
 
-  if (!row) throw new Error("UPLOAD_NOT_FOUND")
+  if (!row) {
+    const other = await findPickableSharedMedia(userId, mediaId, purpose)
+    if (!other) throw new Error("UPLOAD_NOT_FOUND")
+    return { kind: other.kind, ownerUserId: other.ownerUserId }
+  }
   if (!uploadIsShowable(row)) throw new Error("UPLOAD_NOT_READY")
-  return row.kind as PomodoroUploadKind
+  return { kind: row.kind as PomodoroUploadKind, ownerUserId: userId }
 }
 
 type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0]

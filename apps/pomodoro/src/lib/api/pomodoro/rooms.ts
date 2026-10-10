@@ -66,6 +66,13 @@ import {
   roomRepeatProblem,
   roomRepeatProblemMessage,
 } from "@/lib/pomodoro/room-repeats"
+import {
+  assertRoomFileUsable,
+  listRoomFileChoices,
+  type RoomFileChoices,
+} from "@/server/pomodoro/shared-media"
+import { parseBackgroundReference } from "@/lib/pomodoro/background-catalog"
+import { parseSoundReference } from "@/lib/pomodoro/sound-catalog"
 
 /**
  * The rooms endpoints, ported from the old app. No delayed-job queue here:
@@ -140,8 +147,8 @@ const roomMediaSchema = slugSchema.extend({
 })
 
 /**
- * Every room, booking and weekly rule needs a catalogue sound and a catalogue
- * theme. A host who cannot use Pro media cannot hand it to a room either,
+ * Every room, booking and weekly rule needs a sound and a theme: from the
+ * catalogue, a group, or a shared file the host may use. A host who cannot use Pro media cannot hand it to a room either,
  * although hosting is already Pro, so in practice this only ever fires on a
  * hand-made request.
  */
@@ -152,6 +159,13 @@ async function assertRoomPair(
   const catalog = await loadMediaCatalog()
   const problem = roomPairProblem(catalog, pair.sound, pair.background)
   if (problem) throw new Error(`ROOM_PAIR_REJECTED: ${roomPairProblemMessage(problem)}`)
+  // A shared file: the host's own, or one they saved (rooms task 04).
+  const soundRef = parseSoundReference(pair.sound)
+  const sceneRef = parseBackgroundReference(pair.background)
+  if (soundRef?.type === "media")
+    await assertRoomFileUsable(userId, soundRef.mediaId, "sound")
+  if (sceneRef?.type === "media")
+    await assertRoomFileUsable(userId, sceneRef.mediaId, "background")
   if (pairUsesPro(catalog, pair.sound, pair.background)) {
     const entitlements = await loadPomodoroEntitlements(userId)
     if (!entitlements.canUsePremiumMedia)
@@ -611,3 +625,14 @@ export const removeMember = (slug: string, membershipId: string) =>
 export const banMember = (slug: string, membershipId: string) =>
   banMemberFn({ data: { slug, membershipId } })
 export const loadHostingOptions = () => hostingOptionsFn()
+
+/**
+ * What Host a room offers under the catalogue: the host's own shared files
+ * and shared files they saved (rooms task 04).
+ */
+const roomFileChoicesFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .handler(({ context }): Promise<RoomFileChoices> => listRoomFileChoices(context.user.id))
+
+export const loadRoomFileChoices = () => roomFileChoicesFn()
+export type { RoomFileChoices }

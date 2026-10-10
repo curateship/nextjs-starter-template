@@ -11,6 +11,7 @@
  */
 
 import type { PublicSocialLink } from "@/lib/pages/public-social"
+import type { SharedMediaItem } from "@/lib/pomodoro/shared-media"
 
 export const HANDLE_MAX_LENGTH = 30
 export const BIO_MAX_LENGTH = 280
@@ -153,6 +154,11 @@ export const PROFILE_SECTIONS = [
     label: "The room you are hosting",
     hint: "A public room you host, with a Join button. An unlisted room never appears.",
   },
+  {
+    key: "showSharedMedia",
+    label: "My shared sounds and backgrounds",
+    hint: "Two cards listing the files you ticked Share, newest first. Files you have not shared never appear.",
+  },
 ] as const
 
 export type ProfileSectionKey = (typeof PROFILE_SECTIONS)[number]["key"]
@@ -213,6 +219,15 @@ export type PublicProfileView = {
   /** How many people follow them, and how many they follow. */
   followers: number
   following: number
+  /**
+   * The newest shared sounds and backgrounds, with how many there are, while
+   * "My shared sounds and backgrounds" is on (task 03, part 1). Null when it
+   * is off, and then no file data is read or sent at all.
+   */
+  shared: {
+    sounds: { items: SharedMediaItem[]; total: number }
+    backgrounds: { items: SharedMediaItem[]; total: number }
+  } | null
   /**
    * True when the reader is looking at their own page. Nobody follows,
    * cheers, reports or blocks themselves, so the actions row is not drawn.

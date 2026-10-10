@@ -7,7 +7,9 @@ import { enforceRateLimit } from "@/server/auth/rate-limit"
 import { userGet, userPost } from "@/server/guards"
 import { loadAccountStorage } from "@/server/media/library"
 import { R2StorageNotConfiguredError } from "@/server/media/storage"
+import { billingEnabled } from "@/server/billing/stripe"
 import { loadAppSettings } from "@/server/pomodoro/app-settings"
+import { loadBoughtSpace } from "@/server/pomodoro/bought-space"
 import { loadPomodoroEntitlements } from "@/server/pomodoro/entitlements"
 import {
   assertCanUpload,
@@ -29,6 +31,8 @@ import {
   type BinResult,
 } from "@/server/pomodoro/upload-bin"
 import { checkStorageWarning } from "@/server/pomodoro/storage-warning"
+import { noteShareWaiting } from "@/server/pomodoro/admin-shared-media"
+import { nudgeRoomsPlaying } from "@/server/pomodoro/rooms"
 import {
   suggestUploadLabels,
   type SuggestedLabels,
@@ -38,6 +42,7 @@ import {
   type PomodoroUploadPurpose,
 } from "@/lib/pomodoro/media-limits"
 import { formatBytes } from "@/lib/pomodoro/media-limits"
+import { SHARE_MESSAGES, shareRefusal } from "@/lib/pomodoro/shared-media"
 import {
   UPLOAD_LABEL_MESSAGES,
   type UploadTrim,
@@ -55,12 +60,18 @@ export type UploadLibrary = {
   knownTags: string[]
   /** Whether the window asks AI for a name and tags (Settings → App settings). */
   suggestLabels: boolean
+  /**
+   * Space bought for a year (task 07): whether 10 GB more can be bought now,
+   * when the bought space ends, and when the last bought year ended if none
+   * is left, as ISO dates.
+   */
+  space: { canBuy: boolean; endsAt: string | null; lapsedAt: string | null }
 }
 
 /** A finished upload, and how many sounds and clips the worker takes first. */
 export type UploadResult = StoredUpload & { ahead: number }
 
-export const getPomodoroUploadErrorMessage = createErrorMessage(
+const uploadErrorMessage = createErrorMessage(
   {
     PRO_REQUIRED:
       "Uploading your own backgrounds and sounds is a Pro perk. Upgrade to add yours.",
@@ -84,9 +95,15 @@ export const getPomodoroUploadErrorMessage = createErrorMessage(
       "This page is out of date. Reload it and upload the file again.",
     INVALID_TRIM:
       "That trim cannot be used. Keep at least one second, inside the file.",
+    ...SHARE_MESSAGES,
   },
   "That upload did not work. Please try again."
 )
+
+/** A refusal in words; the daily share limit carries its own number. */
+export function getPomodoroUploadErrorMessage(error: unknown) {
+  return shareRefusal(error) ?? uploadErrorMessage(error)
+}
 
 const purposeSchema = z.enum(["background", "sound"])
 
@@ -96,7 +113,7 @@ const libraryFn = createServerFn({ method: "GET" })
     z.object({ view: z.enum(["background", "sound", "bin"]) })
   )
   .handler(async ({ data, context }): Promise<UploadLibrary> => {
-    const [uploads, entitlements, storage, knownTags, settings] =
+    const [uploads, entitlements, storage, knownTags, settings, bought] =
       await Promise.all([
         listPomodoroUploads(context.user.id, data.view),
         loadPomodoroEntitlements(context.user.id),
@@ -106,6 +123,7 @@ const libraryFn = createServerFn({ method: "GET" })
           ? Promise.resolve([])
           : loadUploadTagSuggestions(context.user.id, data.view),
         loadAppSettings(),
+        loadBoughtSpace(context.user.id),
       ])
     return {
       uploads,
@@ -114,6 +132,11 @@ const libraryFn = createServerFn({ method: "GET" })
       limitBytes: entitlements.storageLimitBytes,
       knownTags,
       suggestLabels: settings["uploads.aiLabels"],
+      space: {
+        canBuy: billingEnabled() && entitlements.canUploadMedia,
+        endsAt: bought.endsAt?.toISOString() ?? null,
+        lapsedAt: bought.lapsedAt?.toISOString() ?? null,
+      },
     }
   })
 
@@ -122,6 +145,7 @@ const labelsSchema = z.object({
   name: z.string().max(400),
   tags: z.array(z.string().max(100)).max(50),
   shared: z.boolean(),
+  confirmRights: z.boolean().optional(),
   trim: z
     .object({ startMs: z.number().int(), endMs: z.number().int() })
     .nullable(),
@@ -180,6 +204,7 @@ const uploadFn = createServerFn({ method: "POST" })
         labels,
       })
       await checkStorageWarning(context.user.id)
+      if (stored.shareState === "waiting") await noteShareWaiting()
       return {
         ...stored,
         ahead:
@@ -202,7 +227,11 @@ const binFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(idsSchema)
   .handler(async ({ data, context }) =>
-    moveUploadsToBin(context.user.id, data.mediaIds)
+    moveUploadsToBin(context.user.id, data.mediaIds).then(async (result) => {
+      // A binned file a room was playing falls back there at once.
+      await nudgeRoomsPlaying(result.done)
+      return result
+    })
   )
 
 const restoreFn = createServerFn({ method: "POST" })
@@ -224,6 +253,7 @@ const editFn = createServerFn({ method: "POST" })
       name: z.string().max(400),
       tags: z.array(z.string().max(100)).max(50),
       shared: z.boolean(),
+      confirmRights: z.boolean().optional(),
       // Left out keeps the trim; null keeps the whole original.
       trim: z
         .object({ startMs: z.number().int(), endMs: z.number().int() })
@@ -239,7 +269,12 @@ const editFn = createServerFn({ method: "POST" })
         maxAttempts: 10,
         windowSeconds: 10 * 60,
       })
-    return saveUploadEdit(context.user.id, data.mediaId, data)
+    const saved = await saveUploadEdit(context.user.id, data.mediaId, data)
+    if (saved.startedWaiting) await noteShareWaiting()
+    // Shared or unshared: a room playing it reads it again at once, so an
+    // unshared file falls back for everyone and a re-shared one comes back.
+    await nudgeRoomsPlaying([data.mediaId])
+    return saved
   })
 
 /** The cog's Save changes. Passing `trim` asks the worker for a new cut. */
@@ -248,6 +283,7 @@ export const editPomodoroUpload = (data: {
   name: string
   tags: string[]
   shared: boolean
+  confirmRights?: boolean
   trim?: UploadTrim | null
 }) => editFn({ data })
 
@@ -366,6 +402,7 @@ export const uploadPomodoroMedia = ({
     name: string
     tags: string[]
     shared: boolean
+    confirmRights: boolean
     trim: UploadTrim | null
   }
   onProgress: (progress: UploadProgress) => void

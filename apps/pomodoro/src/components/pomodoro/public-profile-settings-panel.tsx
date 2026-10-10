@@ -84,6 +84,7 @@ type Draft = {
   showProjects: boolean
   showFocusingNow: boolean
   showRoom: boolean
+  showSharedMedia: boolean
   listed: boolean
   cheersEnabled: boolean
 }
@@ -194,6 +195,7 @@ export default function PublicProfileSettingsPanel() {
           showProjects: profile.showProjects,
           showFocusingNow: profile.showFocusingNow,
           showRoom: profile.showRoom,
+          showSharedMedia: profile.showSharedMedia,
           listed: profile.listed,
           cheersEnabled: profile.cheersEnabled,
         })
@@ -259,6 +261,7 @@ export default function PublicProfileSettingsPanel() {
         showProjects: draft.showProjects,
         showFocusingNow: draft.showFocusingNow,
         showRoom: draft.showRoom,
+        showSharedMedia: draft.showSharedMedia,
         listed: draft.listed,
         cheersEnabled: draft.cheersEnabled,
       })

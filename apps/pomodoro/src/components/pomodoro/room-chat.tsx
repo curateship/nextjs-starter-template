@@ -32,7 +32,10 @@ import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 import { usePrefersReducedMotion } from "@/lib/pomodoro/use-reduced-motion"
 import { formatClockIn } from "@/lib/format/calendar-day"
-import { InitialsAvatar } from "@/components/pomodoro/initials-avatar"
+import {
+  InitialsAvatar,
+  PersonAvatar,
+} from "@/components/pomodoro/initials-avatar"
 import { reportMessage, sendRoomMessage } from "@/lib/api/pomodoro/rooms"
 import { CHAT_PAUSED, roomRefusalSentence } from "@/lib/pomodoro/room-join"
 import {
@@ -101,7 +104,12 @@ export function RoomMemberList({
               {/* The green dot says the person is in the room now: a member
                   who leaves drops off the list. */}
               <span className="relative shrink-0">
-                <InitialsAvatar name={member.name} className="size-9" />
+                {/* Their photo, by the room cards' rule; initials otherwise. */}
+                <PersonAvatar
+                  name={member.name}
+                  avatarUrl={member.avatarUrl}
+                  className="size-9"
+                />
                 <span
                   aria-hidden="true"
                   className="absolute -bottom-0.5 -right-0.5 size-3 rounded-full border-2 border-[var(--p-surface)] bg-[var(--p-success)]"

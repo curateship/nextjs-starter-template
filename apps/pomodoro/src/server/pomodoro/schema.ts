@@ -82,6 +82,13 @@ export const userPreferences = pgTable(
      * day is looked at once and nobody is nudged twice in it.
      */
     streakReminderOn: date("streak_reminder_on", { mode: "string" }),
+    /**
+     * How dark the layer between the scene and the page is, 0 to 70 out of
+     * 100 (`src/lib/pomodoro/backdrop-look.ts`). 0 draws no layer.
+     */
+    backdropDim: integer("backdrop_dim").notNull().default(0),
+    /** A slow zoom on a picture background the member uploaded. */
+    backdropDrift: boolean("backdrop_drift").notNull().default(true),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -110,6 +117,10 @@ export const userPreferences = pgTable(
     check(
       "preferences_long_break_cycle_check",
       sql`${table.sessionsBeforeLongBreak} between 2 and 8`
+    ),
+    check(
+      "preferences_backdrop_dim_check",
+      sql`${table.backdropDim} between 0 and 70`
     ),
   ]
 )
@@ -662,6 +673,13 @@ export const pomodoroProfiles = pgTable(
     showProjects: boolean("show_projects").notNull().default(false),
     showFocusingNow: boolean("show_focusing_now").notNull().default(false),
     showRoom: boolean("show_room").notNull().default(false),
+    /** The "My shared sounds and backgrounds" cards (migration 0138). */
+    showSharedMedia: boolean("show_shared_media").notNull().default(false),
+    /**
+     * When an admin approved this member's first shared file. After that,
+     * their shares go straight out.
+     */
+    sharingApprovedAt: timestamp("sharing_approved_at", { withTimezone: true }),
     /**
      * Whether this profile appears on `/people`. A second switch on top of
      * `profilePublic`, because "I want a page" and "I want to be in a
@@ -1216,6 +1234,16 @@ export const roomReports = pgTable(
      * tells nobody twice.
      */
     reporterToldAt: timestamp("reporter_told_at", { withTimezone: true }),
+    /**
+     * The shared file a `shared_file` or `copyright` report is about. No
+     * foreign key, so the report keeps naming the file after it is gone.
+     */
+    mediaId: varchar("media_id", { length: 36 }),
+    /** A copyright report from somebody with no account: who and how to reply. */
+    contactName: varchar("contact_name", { length: 100 }),
+    contactEmail: varchar("contact_email", { length: 254 }),
+    /** What the file copies, in the sender's words. */
+    details: varchar("details", { length: 2000 }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -1360,8 +1388,25 @@ export const pomodoroMediaUploads = pgTable(
     name: varchar("name", { length: 80 }),
     /** Short lower-case words, the same rules as the catalogue's tags. */
     tags: jsonb("tags").$type<string[]>().notNull().default([]),
-    /** The "Share this" tick. Only stored for now; task 03 decides what it shows. */
+    /**
+     * The "Share this" tick. Other members see the file only while it is on,
+     * confirmed, out of the bin, not waiting for an admin's first check and
+     * ready (`sharedWithOthers` in `src/server/pomodoro/shared-media.ts`).
+     */
     shared: boolean("shared").notNull().default(false),
+    /** When the tick last went on: newest first, and the daily limit. */
+    sharedAt: timestamp("shared_at", { withTimezone: true }),
+    /** When the member confirmed the file is theirs or free to share. */
+    shareConfirmedAt: timestamp("share_confirmed_at", { withTimezone: true }),
+    /** Waiting for an admin to approve this member's first share. */
+    shareWaitingSince: timestamp("share_waiting_since", { withTimezone: true }),
+    /** An admin took it off sharing; the owner cannot share it again. */
+    adminUnsharedAt: timestamp("admin_unshared_at", { withTimezone: true }),
+    adminUnshareReason: varchar("admin_unshare_reason", { length: 300 }),
+    /** Followers were told about it, so the next pass does not tell them twice. */
+    shareAnnouncedAt: timestamp("share_announced_at", { withTimezone: true }),
+    /** The one file an admin features on the front page. */
+    featuredAt: timestamp("featured_at", { withTimezone: true }),
     /**
      * Where a trimmed sound or clip starts and ends. The whole file is stored
      * and the worker cuts it while re-encoding. Both null when not trimmed.
@@ -1397,6 +1442,12 @@ export const pomodoroMediaUploads = pgTable(
      * picture, or a video the worker has not reached yet.
      */
     stillPath: varchar("still_path", { length: 300 }),
+    /**
+     * Who made a file imported from Pixabay ("Ruben on Pixabay") and their
+     * page, so the credit follows the file (task 06, part 8). Null otherwise.
+     */
+    sourceAuthor: varchar("source_author", { length: 160 }),
+    sourcePageUrl: varchar("source_page_url", { length: 500 }),
     attempts: integer("attempts").notNull().default(0),
     /**
      * Set while a worker pass holds the job. A pass that dies leaves this
@@ -1447,14 +1498,64 @@ export const pomodoroMediaUploads = pgTable(
   ]
 )
 
+/** A shared file somebody kept for later with the heart (migration 0138). */
+export const pomodoroSavedMedia = pgTable(
+  "pomodoro_saved_media",
+  {
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    mediaId: varchar("media_id", { length: 36 })
+      .notNull()
+      .references(() => customShellMedia.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.mediaId] }),
+    index("pomodoro_saved_media_media_idx").on(table.mediaId),
+  ]
+)
+
 /**
- * What each person has spent on AI generation this month.
- *
- * `reserved - refunded` is what has actually been spent, so a failed job hands
- * the credit back without losing the record that the attempt happened. The
- * credit is taken when the request is accepted rather than when the file
- * arrives, so nobody can queue twenty videos while the first is still running.
+ * The first time each person added someone else's shared file to a room or
+ * saved it, for the owner's weekly note. One row per person per file.
  */
+export const pomodoroMediaAdds = pgTable(
+  "pomodoro_media_adds",
+  {
+    mediaId: varchar("media_id", { length: 36 })
+      .notNull()
+      .references(() => customShellMedia.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.mediaId, table.userId] }),
+    index("pomodoro_media_adds_created_idx").on(table.createdAt),
+  ]
+)
+
+/** The Monday each owner was last sent the weekly sharing note. */
+export const pomodoroShareWeeklyNotes = pgTable(
+  "pomodoro_share_weekly_notes",
+  {
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    weekStart: date("week_start", { mode: "string" }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.weekStart] })]
+)
+
 /**
  * A member the bell has told their space is nearly full (90% of the plan's
  * limit). The row goes when they drop back under, so the next climb warns
@@ -1482,6 +1583,14 @@ export const pomodoroBucketDeletions = pgTable("pomodoro_bucket_deletions", {
     .defaultNow(),
 })
 
+/**
+ * What each person has spent on AI generation this month.
+ *
+ * `reserved - refunded` is what has actually been spent, so a failed job hands
+ * the credit back without losing the record that the attempt happened. The
+ * credit is taken when the request is accepted rather than when the file
+ * arrives, so nobody can queue twenty videos while the first is still running.
+ */
 export const pomodoroGenerationUsage = pgTable(
   "pomodoro_generation_usage",
   {
@@ -1557,6 +1666,25 @@ export const pomodoroGenerations = pgTable(
     failureReason: varchar("failure_reason", { length: 200 }),
     attempts: integer("attempts").notNull().default(0),
     claimedAt: timestamp("claimed_at", { withTimezone: true }),
+    /** A style pill's key (task 06, part 6), added inside the prompt frame. */
+    style: varchar("style", { length: 20 }),
+    /**
+     * Asked to start from one of the member's pictures (task 06, part 3).
+     * Stays true when the picture goes, so the worker refuses rather than
+     * making a film from the words alone.
+     */
+    fromPicture: boolean("from_picture").notNull().default(false),
+    pictureMediaId: varchar("picture_media_id", { length: 36 }).references(
+      () => customShellMedia.id,
+      { onDelete: "set null" }
+    ),
+    /** The two halves of a whole look made from one prompt (part 7). */
+    lookId: uuid("look_id"),
+    /**
+     * Which pot the credit came from, `month` or a bought `pack` (task 07,
+     * migration 0146), so a failure refunds the pot it was taken from.
+     */
+    pot: varchar("pot", { length: 10 }).notNull().default("month"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -1582,6 +1710,139 @@ export const pomodoroGenerations = pgTable(
       table.status,
       table.createdAt
     ),
+  ]
+)
+
+/**
+ * One-off purchases (uploads-and-sharing task 07, migration 0146): an AI
+ * credit pack or 10 GB more space for a year. Written when Buy is pressed,
+ * paid once Stripe says so, refunded when Stripe says the charge was.
+ */
+export const pomodoroPurchases = pgTable(
+  "pomodoro_purchases",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    product: varchar("product", { length: 30 }).notNull(),
+    amountCents: integer("amount_cents").notNull(),
+    currency: varchar("currency", { length: 3 }).notNull().default("usd"),
+    stripeSessionId: varchar("stripe_session_id", { length: 255 }).unique(),
+    stripePaymentIntentId: varchar("stripe_payment_intent_id", { length: 255 }),
+    status: varchar("status", { length: 20 }).notNull().default("pending"),
+    paidAt: timestamp("paid_at", { withTimezone: true }),
+    /** Space only: when the extra 10 GB stops counting. */
+    endsAt: timestamp("ends_at", { withTimezone: true }),
+    refundedAt: timestamp("refunded_at", { withTimezone: true }),
+    /**
+     * Paid with Stripe's live keys rather than its sandbox keys (migration
+     * 0149). Only purchases in the site's current mode count.
+     */
+    livemode: boolean("livemode").notNull().default(false),
+    /** When the worker last asked Stripe about it. */
+    checkedAt: timestamp("checked_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      "pomodoro_purchases_product_check",
+      sql`${table.product} in ('backgrounds_5', 'soundscapes_20', 'space_10gb')`
+    ),
+    check(
+      "pomodoro_purchases_status_check",
+      sql`${table.status} in ('pending', 'paid', 'refunded', 'expired')`
+    ),
+    check("pomodoro_purchases_amount_check", sql`${table.amountCents} > 0`),
+    index("pomodoro_purchases_user_idx").on(table.userId, table.status),
+    index("pomodoro_purchases_check_idx").on(table.status, table.checkedAt),
+  ]
+)
+
+/**
+ * What has been spent from bought credits, per member and kind. They never
+ * reset: what is left is every paid pack's credits less `reserved -
+ * refunded`, the monthly ledger's own rule.
+ */
+export const pomodoroPackUsage = pgTable(
+  "pomodoro_pack_usage",
+  {
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    kind: varchar("kind", { length: 20 }).notNull(),
+    reserved: integer("reserved").notNull().default(0),
+    completed: integer("completed").notNull().default(0),
+    refunded: integer("refunded").notNull().default(0),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.kind] }),
+    check(
+      "pomodoro_pack_usage_kind_check",
+      sql`${table.kind} in ('background', 'soundscape')`
+    ),
+    check(
+      "pomodoro_pack_usage_counts_check",
+      sql`${table.reserved} >= 0 and ${table.completed} >= 0 and ${table.refunded} >= 0`
+    ),
+  ]
+)
+
+/**
+ * A member's pasted Pixabay link, waiting for the Pixabay worker (task 06,
+ * part 8, migration 0145). The finished file is an ordinary upload; this row
+ * is the queue and what the daily limit counts.
+ */
+export const pomodoroMemberImports = pgTable(
+  "pomodoro_member_imports",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    url: varchar("url", { length: 500 }).notNull(),
+    family: varchar("family", { length: 10 }).notNull(),
+    pixabayId: varchar("pixabay_id", { length: 20 }).notNull(),
+    name: varchar("name", { length: 80 }).notNull(),
+    /**
+     * An admin's "Give them files to share" for a made-up account (task 05,
+     * part 9, migration 0147): the finished file is shared at once.
+     */
+    madeUpShare: boolean("made_up_share").notNull().default(false),
+    status: varchar("status", { length: 20 }).notNull().default("queued"),
+    failureReason: varchar("failure_reason", { length: 200 }),
+    mediaId: varchar("media_id", { length: 36 }).references(
+      () => customShellMedia.id,
+      { onDelete: "set null" }
+    ),
+    attempts: integer("attempts").notNull().default(0),
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      "pomodoro_member_imports_family_check",
+      sql`${table.family} in ('image', 'video')`
+    ),
+    check(
+      "pomodoro_member_imports_status_check",
+      sql`${table.status} in ('queued', 'running', 'ready', 'failed')`
+    ),
+    index("pomodoro_member_imports_user_idx").on(table.userId, table.createdAt),
+    index("pomodoro_member_imports_queue_idx").on(table.status, table.createdAt),
   ]
 )
 
@@ -1969,4 +2230,6 @@ export type PomodoroRoomRepeat = typeof pomodoroRoomRepeats.$inferSelect
 export type RoomInvite = typeof roomInvites.$inferSelect
 export type PomodoroMediaUpload = typeof pomodoroMediaUploads.$inferSelect
 export type PomodoroGeneration = typeof pomodoroGenerations.$inferSelect
+export type PomodoroMemberImport = typeof pomodoroMemberImports.$inferSelect
+export type PomodoroPurchase = typeof pomodoroPurchases.$inferSelect
 export type PomodoroCatalogItem = typeof pomodoroCatalogItems.$inferSelect

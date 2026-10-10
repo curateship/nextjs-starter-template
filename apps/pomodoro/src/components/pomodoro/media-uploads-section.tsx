@@ -38,9 +38,13 @@ import { describeBulkResult } from "@/lib/format/bulk-result"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { SignInButton } from "@/components/pomodoro/sign-in-button"
 import { UploadWindow } from "@/components/pomodoro/upload-window"
+import { BuyButton } from "@/components/pomodoro/buy-button"
+import { buySpaceLabel, SPACE_PRODUCT } from "@/lib/pomodoro/purchases"
+import { STORAGE_WARNING_SHARE } from "@/lib/pomodoro/upload-labels"
 import { UploadEditDialog } from "@/components/pomodoro/upload-edit-dialog"
 import { CurrentlySelectedLabel } from "@/components/pomodoro/media-add-actions"
 import { useOpenPlans } from "@/lib/pomodoro/use-open-plans"
+import { SHARE_WAITING_LABEL } from "@/lib/pomodoro/shared-media"
 
 /**
  * A member's own backgrounds or sound loops, under the curated ones: one card
@@ -175,6 +179,27 @@ export function MediaUploadsSection({
   const known = library !== null || (auth.known && !auth.authenticated)
   const locked = !library || !library.canUploadMedia
   const full = library !== null && library.usedBytes >= library.limitBytes
+  // 10 GB more for a year (task 07), offered from 90% full, the point where
+  // the bell warns.
+  const nearlyFull =
+    library !== null &&
+    library.limitBytes > 0 &&
+    library.usedBytes >= library.limitBytes * STORAGE_WARNING_SHARE
+  const buySpace =
+    library?.space.canBuy && nearlyFull ? (
+      <BuyButton
+        product={SPACE_PRODUCT}
+        page={purpose}
+        label={buySpaceLabel()}
+        variant="ghost"
+      />
+    ) : null
+  // A bought year that ended leaves the member over the plan's own space.
+  // Nothing is deleted; the line says why uploads stopped.
+  const lapsedReason =
+    library?.space.lapsedAt && full
+      ? `Your extra 10 GB ended on ${formatDay(library.space.lapsedAt)}. Nothing was deleted, but uploads are off until you are back under ${formatBytes(library.limitBytes)}.`
+      : null
 
   /**
    * Moves files to the bin in one request, then offers to bring them back.
@@ -249,6 +274,9 @@ export function MediaUploadsSection({
           <span className="font-mono text-xs text-muted-foreground">
             {formatBytes(library.usedBytes)} of{" "}
             {formatBytes(library.limitBytes)}
+            {library.space.endsAt
+              ? `, 10 GB bought until ${formatDay(library.space.endsAt)}`
+              : null}
           </span>
         ) : null}
       </header>
@@ -260,6 +288,8 @@ export function MediaUploadsSection({
         signedIn={signedIn}
         locked={locked}
         full={full}
+        fullReason={lapsedReason}
+        buySpace={buySpace}
         onUpload={() => {
           onWindowOpen?.()
           setError(null)
@@ -399,6 +429,8 @@ function UploadActions({
   signedIn,
   locked,
   full,
+  fullReason,
+  buySpace,
   onUpload,
   onGenerate,
 }: {
@@ -409,6 +441,10 @@ function UploadActions({
   signedIn: boolean
   locked: boolean
   full: boolean
+  /** Why a full account is full, said at once rather than after a press. */
+  fullReason: string | null
+  /** "Get 10 GB more", once the space is nearly full (task 07). */
+  buySpace: React.ReactNode
   onUpload: () => void
   onGenerate: () => void
 }) {
@@ -422,9 +458,13 @@ function UploadActions({
       ? "Sign in on a Pro plan to put your own backgrounds and sounds here."
       : locked
         ? PRO_PERKS.uploadMedia.lockedReason
-        : full && fullNotice
-          ? "Your storage is full. Delete something you no longer use first."
-          : null
+        : fullReason
+          ? fullReason
+          : full && fullNotice
+            ? buySpace
+              ? "Your storage is full. Delete something you no longer use, or get 10 GB more."
+              : "Your storage is full. Delete something you no longer use first."
+            : null
 
   return (
     <div className="flex flex-col gap-3">
@@ -463,6 +503,7 @@ function UploadActions({
           <SparklesIcon aria-hidden="true" />
           Generate with AI
         </Button>
+        {buySpace}
       </div>
       <p className="text-sm text-muted-foreground">{reason ?? hint}</p>
     </div>
@@ -536,7 +577,15 @@ function UploadCard({
       : null
   const marks = [
     upload.generated ? "AI" : null,
-    upload.shared ? "Shared" : null,
+    // What sharing means for others now: out, waiting for an admin's first
+    // check, or taken off by an admin (task 05).
+    upload.shareState === "on"
+      ? "Shared"
+      : upload.shareState === "waiting"
+        ? SHARE_WAITING_LABEL
+        : upload.shareState === "taken_down"
+          ? "Taken off"
+          : null,
     upload.inUse ? "In use" : null,
   ].filter((mark): mark is string => mark !== null)
   const [hovered, setHovered] = React.useState(false)
@@ -734,4 +783,13 @@ function UploadCard({
       </div>
     </Card>
   )
+}
+
+/** "3 October 2027", for when bought space ends or ended. */
+function formatDay(iso: string) {
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(new Date(iso))
 }

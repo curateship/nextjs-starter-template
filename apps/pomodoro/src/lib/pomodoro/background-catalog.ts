@@ -1,4 +1,5 @@
 import { CATALOG_KEY_PATTERN, findTheme, type MediaCatalog } from "@/lib/pomodoro/catalog"
+import type { MediaCredit } from "@/lib/pomodoro/shared-media"
 
 // A theme choice: one of the catalogue's scenes, or the member's own upload or
 // AI background. A selection serializes to `scene:<key>` or `media:<uuid>`,
@@ -19,6 +20,8 @@ export type BackgroundReference =
       mediaId: string
       mediaKind?: "image" | "video"
       mediaUrl?: string
+      /** The owner of someone else's shared file (task 03, part 4). */
+      credit?: MediaCredit | null
     }
 
 /**

@@ -116,6 +116,10 @@ off.
   projects ticked public. See [Projects](projects.md).
 - **Focusing right now** — a line while the person is mid-session.
 - **The room you are hosting** — a public room, with a Join button.
+- **My shared sounds and backgrounds** — two cards, Sounds and Backgrounds,
+  with the newest 8 files the person shared and "Show all". The files are read
+  on every visit rather than held with the page, so an unshared file is gone
+  on the next load. See [Shared sounds and backgrounds](shared-media.md).
 
 Separate switches rather than one, for the same reason
 [focus groups](focus-groups.md) are a separate opt-in from the global

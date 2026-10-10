@@ -36,6 +36,7 @@ import {
 } from "@/lib/api/pomodoro/admin-pixabay"
 import {
   getSimulatedErrorMessage,
+  giveMadeUpMembersSharedFiles,
   loadSimulatedMembers,
   makeSimulatedMembersNow,
   previewSimulatedVoice,
@@ -44,7 +45,9 @@ import {
 } from "@/lib/api/pomodoro/admin-simulated"
 import {
   BREAK_MESSAGE_MAX,
+  PIXABAY_DAILY_LIMIT_MAX,
   SIMULATED_HOURS_MAX,
+  SHARE_DAILY_LIMIT_MAX,
   SIMULATED_TARGET_MAX,
   VOICE_BRIEF_MAX,
   seasonsProblem,
@@ -105,7 +108,12 @@ function hold<K extends AppSettingKey>(key: K, value: Settings[K]): Settings[K] 
 export function SafetySettingsTab() {
   return (
     <SettingsTab>
-      {({ settings }) => <SafetyGroup initial={settings["safety.pause"]} />}
+      {({ settings }) => (
+        <>
+          <SafetyGroup initial={settings["safety.pause"]} />
+          <SharingCard initial={settings["sharing.rules"]} />
+        </>
+      )}
     </SettingsTab>
   )
 }
@@ -116,7 +124,10 @@ export function MediaSettingsTab() {
       {({ settings, catalog }) => (
         <>
           <MediaDefaultsCard initial={settings} {...freeOptions(catalog)} />
-          <MemberUploadsCard initial={settings["uploads.aiLabels"]} />
+          <MemberUploadsCard
+            initial={settings["uploads.aiLabels"]}
+            initialPixabayLimit={settings["uploads.pixabayDailyLimit"]}
+          />
         </>
       )}
     </SettingsTab>
@@ -190,6 +201,7 @@ export function MadeUpMembersSettingsTab() {
         <>
           <MadeUpMembersCard initial={settings["simulated.accounts"]} />
           <HowTheySoundCard initial={settings["simulated.voice"]} />
+          <MadeUpSharesCard />
         </>
       )}
     </SettingsTab>
@@ -500,8 +512,15 @@ function MediaDefaultsCard({
  * One small call per file, booked on the AI usage page, so it can be switched
  * off here.
  */
-function MemberUploadsCard({ initial }: { initial: boolean }) {
+function MemberUploadsCard({
+  initial,
+  initialPixabayLimit,
+}: {
+  initial: boolean
+  initialPixabayLimit: number
+}) {
   const [on, setOn] = React.useState(initial)
+  const [pixabayLimit, setPixabayLimit] = React.useState(initialPixabayLimit)
   const save = useSettingSave()
   const switchId = React.useId()
   return (
@@ -520,6 +539,19 @@ function MemberUploadsCard({ initial }: { initial: boolean }) {
         }}
         label="Suggest a name and tags with AI"
         hint="One small call per file from its file name, a fraction of a cent each, shown on the AI usage page as pomodoro upload labels. Needs the Anthropic key in Settings → AI."
+      />
+      <NumberField
+        id="pixabay-daily-limit"
+        label="Pixabay links one member may import a day"
+        hint="Members paste Pixabay picture and film links in the upload window. Every import uses the site's one Pixabay key, from Settings → Pixabay."
+        value={pixabayLimit}
+        min={1}
+        max={PIXABAY_DAILY_LIMIT_MAX}
+        onChange={(value) => {
+          setPixabayLimit(value)
+          save.soon("uploads.pixabayDailyLimit", value)
+        }}
+        onCommit={() => save.flush("uploads.pixabayDailyLimit")}
       />
     </CollapsibleSettingsCard>
   )
@@ -942,6 +974,52 @@ function SafetyGroup({ initial }: { initial: AppSettingValue<"safety.pause"> }) 
   )
 }
 
+/**
+ * Shared files (uploads-and-sharing task 05, parts 3 and 5): how many files
+ * one account may share a day, and whether a member's first share waits for
+ * an admin. Both save by themselves.
+ */
+function SharingCard({ initial }: { initial: AppSettingValue<"sharing.rules"> }) {
+  const [rules, setRules] = React.useState(initial)
+  const save = useSettingSave()
+  const approveId = React.useId()
+  return (
+    <CollapsibleSettingsCard
+      storageId="pomodoro-sharing"
+      title="Sharing"
+      description="What stops a shared sound or background reaching strangers before anybody has looked at it."
+      contentClassName="grid gap-4"
+    >
+      <SettingsSwitchRow
+        id={approveId}
+        checked={rules.approveFirst}
+        onCheckedChange={(checked) => {
+          const next = { ...rules, approveFirst: checked }
+          setRules(next)
+          void save.now("sharing.rules", next).then((saved) => {
+            if (!saved) setRules(rules)
+          })
+        }}
+        label="Check each member's first shared file"
+        hint={'A first share waits in Member uploads under "Waiting to be shared" until an admin approves it. After one approval, that member\'s shares go straight out. Off, every share goes out at once.'}
+      />
+      <NumberField
+        id="share-daily-limit"
+        label="Files one account may share a day"
+        value={rules.dailyLimit}
+        min={1}
+        max={SHARE_DAILY_LIMIT_MAX}
+        onChange={(value) => {
+          const next = { ...rules, dailyLimit: value }
+          setRules(next)
+          save.soon("sharing.rules", next)
+        }}
+        onCommit={() => save.flush("sharing.rules")}
+      />
+    </CollapsibleSettingsCard>
+  )
+}
+
 /** The words as stored: one per line, lower case, no repeats. */
 function blockedWords(text: string) {
   return [
@@ -1208,6 +1286,84 @@ function PixabayCard() {
         loading={removeBusy}
         onConfirm={() => void remove()}
       />
+    </CollapsibleSettingsCard>
+  )
+}
+
+/**
+ * "Give them files to share" (uploads-and-sharing task 05, part 9): Pixabay
+ * links, one per line, each handed to one made-up member and shared at once,
+ * so "Shared by members" never looks empty. An action, not a setting: nothing
+ * is made until it is pressed. Only Pixabay links are taken.
+ */
+function MadeUpSharesCard() {
+  const [text, setText] = React.useState("")
+  const [busy, setBusy] = React.useState(false)
+  const [refused, setRefused] = React.useState<{ line: number; reason: string }[]>([])
+  const fieldId = React.useId()
+
+  const give = async () => {
+    const links = text
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+    if (!links.length) {
+      showErrorToast("Paste at least one Pixabay link, one per line.")
+      return
+    }
+    setBusy(true)
+    try {
+      const result = await giveMadeUpMembersSharedFiles(links)
+      setRefused(result.refused)
+      if (result.added) {
+        toast.success(
+          `${result.added} ${result.added === 1 ? "file is" : "files are"} on the way. Each joins a made-up member's shared files once Pixabay sends it.`
+        )
+        setText("")
+      } else showErrorToast("None of those links could be used.")
+    } catch (cause) {
+      showErrorToast(getSimulatedErrorMessage(cause))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <CollapsibleSettingsCard
+      storageId="pomodoro-made-up-shares"
+      title="Give them files to share"
+      description="Pixabay pictures and films, free to use, each given to a made-up member and shared under their name. Up to 10 links at a time."
+      contentClassName="grid gap-4"
+    >
+      <div className="grid gap-2">
+        <FieldLabel htmlFor={fieldId}>Pixabay links, one per line</FieldLabel>
+        <Textarea
+          id={fieldId}
+          value={text}
+          disabled={busy}
+          aria-invalid={refused.length ? true : undefined}
+          placeholder="https://pixabay.com/videos/rain-window-…"
+          onChange={(event) => {
+            setText(event.target.value)
+            setRefused([])
+          }}
+        />
+        {refused.length ? (
+          <ul className="grid gap-1 text-sm text-destructive">
+            {refused.map((line) => (
+              <li key={line.line}>
+                Line {line.line} {line.reason}.
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
+      <div>
+        <Button disabled={busy} onClick={() => void give()}>
+          {busy ? <Loader2Icon className="animate-spin" aria-hidden="true" /> : null}
+          Give them files
+        </Button>
+      </div>
     </CollapsibleSettingsCard>
   )
 }

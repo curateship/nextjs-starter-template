@@ -42,6 +42,96 @@ the only cost of trying again was retyping it. Lines that worked or are still
 running have no button, and neither does a failed line while the box is shut
 (a free plan or no provider), because the words would have nowhere to go.
 
+## More on each line (task 06, 10 Oct 2026)
+
+Each line under the box says what was asked for, what happened to it, and
+what can be done next.
+
+- **Make another** on a finished line puts its prompt back in the box and
+  the cursor in it, the same as Try again on a failed one. Nothing is sent
+  until Generate. It is hidden while the box is shut (a free plan or no
+  provider).
+- **Make a matching sound** on a finished background, and **Make a matching
+  background** on a finished soundscape, open the other tab of My uploads
+  with the same prompt in that generator's box. The words travel in the
+  address (`/uploads?kind=sound&prompt=…`), and the page takes them out again
+  once the box has them, so a reload does not fill it twice.
+- **A waiting line says where it stands**: "2 ahead of you, about 4
+  minutes", or "Next in line" (`describeQueuePlace` in
+  `src/lib/pomodoro/generation.ts`). The worker takes the oldest request of
+  either kind first, one at a time, so everything older than it, waiting or
+  being made, is ahead of it. Each one ahead adds its kind's typical time: 2
+  minutes for a background, 30 seconds for a soundscape. A Veo render can take
+  longer, so it is "about". The line updates on the panel's 5-second re-read.
+- **The line shows what was chosen** before the prompt: the style, "From my
+  picture", or "Background and sound".
+
+## Style pills
+
+Anime, Watercolour, Real film and Pixel art sit under the background's
+suggestions, one at a time; pressing the lit one again turns it off. The
+style's words go inside the prompt frame, after "locked camera … no text",
+so a style adds a look and never lifts a rule (`backgroundPrompt` in
+`src/server/pomodoro/generation-providers.ts`). The list is
+`GENERATION_STYLES` in `src/lib/pomodoro/generation.ts`. Soundscapes have no
+styles.
+
+## Starting from your own picture
+
+"Start from" under the styles lists the member's own ready pictures, with
+"Words only" first. Picked, the picture is sent to Veo with the prompt as the
+film's first frame (`instances[].image.inlineData`, the shape Google's Veo
+page gives for Veo 3.1 Lite, checked 10 Oct 2026). It costs one background
+credit, the same $0.40.
+
+- **Only the member's own picture.** The server checks it is theirs, a
+  picture, finished and not in the bin when the request is accepted, and the
+  worker checks again before sending it, because it can be deleted while the
+  request waits (`src/server/pomodoro/generation-pictures.ts`).
+- **A picture gone by then** fails the request with "The picture was deleted
+  before it could be used." and the credit comes back. Nothing reaches Google
+  and nothing is booked on the AI usage page.
+- **The picture is shrunk to 1280 pixels on its long side** and sent as a
+  JPEG, because the film is 720p anyway and a 10 MB photo would be most of
+  the request.
+- The menu only appears once the member has a picture to offer.
+
+## A whole look from one prompt
+
+The tick "Background and sound, from one prompt. Uses one credit of each."
+sits on both generators while the other kind's provider is set up and the
+member has a credit of it left. Ticked, Generate makes a background and a
+soundscape from the same words.
+
+- **Both credits are taken in one transaction**, backgrounds first, and both
+  are refused together when either kind is used up. Nothing is queued unless
+  both are (`requestGenerations` in `src/server/pomodoro/generation.ts`).
+- **Each half is refunded on its own.** A failed soundscape gives back the
+  soundscape credit; the background still finishes and is charged.
+- **The bell waits for both.** The first half to finish says nothing. When
+  the second finishes, one notice says "Your AI look is ready." with "Press
+  Use both on My uploads." If one half gives up, the other is announced on its
+  own as any file is. Both halves are locked in a fixed order before either is
+  settled, so a pass finishing one half and a pass giving up on the other
+  cannot both stay quiet.
+- **Use both** on the look's line puts the background and the sound into the
+  member's personal room in one press. It is offered only while both halves
+  are ready and neither is in the bin.
+- **It is ready when the slower half is**, which is nearly always the Veo
+  film.
+
+## Soundscapes run two minutes
+
+ElevenLabs is still asked for 30 seconds, so a soundscape still costs $0.06.
+The worker then crossfades the clip into itself until it runs two minutes:
+five 24-second copies, each joined over 6 seconds, exactly 120 seconds
+(`seamlessLoopPlan` and `transcodeUpload` with `loop` in
+`src/server/pomodoro/media-transcode.ts`). The file's end also runs into its
+own start, so a player looping it hears no join either. Measured on a test
+tone cut mid-wave: the biggest sample-to-sample step in the finished file was
+under twice an ordinary one, where simply repeating the tone four times
+jumped 8.6 times at each join. Before this, shuffle moved on every 30 seconds.
+
 ## The credit rule
 
 **A member is never charged for a file they did not get.** That is the whole
@@ -65,6 +155,28 @@ The monthly numbers come from the plan (`monthlyBackgrounds` and
 `monthlySoundscapes` in the Pro perks), so a plan can move them without a code
 change. A free plan has zero of each, which is what makes the panel say it is a
 Pro perk.
+
+## Bought credits
+
+A Pro member who has used the month's can buy a pack: 5 backgrounds for $5 or
+20 soundscapes for $3 (task 07, Tyler's prices of 10 Oct 2026; how buying
+works is "Buying more" in [Pro perks](pro-perks.md)).
+
+- **Bought credits never reset** and are spent only after the month's free
+  ones are gone. The counter shows them apart: "3 of 5 left this month, 5
+  bought left", or "None left this month, 5 bought left".
+- **They live in their own ledger**, `pomodoro_pack_usage`, with the monthly
+  ledger's rule: what is left is every paid pack's credits less `reserved -
+  refunded`. Each request records which pot paid for it (`pot`, migration
+  0146), so a failed generation refunds the pot it came from.
+- **A refund in Stripe takes back what is still unspent.** A refunded pack
+  stops counting, so 5 bought with 1 used leaves 0, never minus 1.
+- **They need Pro to spend**, like the monthly ones. A member whose Pro lapses
+  keeps the bought credits for when they come back.
+- **Buy more** appears beside "You have used this month's AI generations"
+  once both the month's and any bought ones are gone, while payments are
+  switched on. The bell's "No AI backgrounds left this month." notice adds
+  "Or buy 5 more on My uploads." and links to the generator.
 
 ## What happens after Generate
 
@@ -183,12 +295,18 @@ not to be trusted.
 - `src/lib/pomodoro/generation.ts` — the kinds, the suggested prompts and the
   wording, browser-safe.
 - `src/server/pomodoro/generation.ts` — the ledger and the queue.
-- `src/server/pomodoro/generation-providers.ts` — Veo and ElevenLabs.
+- `src/server/pomodoro/generation-providers.ts` — Veo and ElevenLabs, and
+  the prompt frame with its style.
+- `src/server/pomodoro/generation-pictures.ts` — the pictures a background
+  may start from.
 - `src/server/pomodoro/generation-worker.ts` — one job per tick, registered in
   `src/app/server-options.ts`.
 - `src/server/pomodoro/generation-spend.ts` — the rows on the AI usage page.
 - `src/lib/api/pomodoro/generation.ts` — two server functions, both guarded.
+- `src/components/pomodoro/buy-button.tsx` — Buy more, shared with the space
+  purchase.
 - `src/components/pomodoro/media-generator-section.tsx` — the panel.
 
 Tables `pomodoro_generation_usage` and `pomodoro_generations` are migration
-0092.
+0092. Migration 0145 adds a request's style, starting picture and look, and
+0146 its pot and the bought-credit ledger.

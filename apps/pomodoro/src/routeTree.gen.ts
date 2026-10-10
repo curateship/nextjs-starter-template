@@ -34,6 +34,7 @@ import { Route as AuthenticatedChangelogRouteImport } from './routes/_authentica
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
 import { Route as PomodoroBackgroundsRouteImport } from './routes/_pomodoro/backgrounds'
+import { Route as PomodoroCopyrightRouteImport } from './routes/_pomodoro/copyright'
 import { Route as PomodoroHistoryRouteImport } from './routes/_pomodoro/history'
 import { Route as PomodoroLeaderboardRouteImport } from './routes/_pomodoro/leaderboard'
 import { Route as PomodoroPlansRouteImport } from './routes/_pomodoro/plans'
@@ -98,6 +99,7 @@ import { Route as PomodoroUHandleRouteImport } from './routes/_pomodoro/u.$handl
 import { Route as ApiAuthGoogleRouteImport } from './routes/api/auth/google'
 import { Route as ApiWebhooksResendRouteImport } from './routes/api/webhooks/resend'
 import { Route as ApiWebhooksStripeRouteImport } from './routes/api/webhooks/stripe'
+import { Route as BadgeFileMediaIdRouteImport } from './routes/badge.file.$mediaId'
 import { Route as BadgeProfileHandleRouteImport } from './routes/badge.profile.$handle'
 import { Route as BadgeStreakTokenRouteImport } from './routes/badge.streak.$token'
 import { Route as AuthenticatedAccountBillingSuccessRouteImport } from './routes/_authenticated/account/billing_.success'
@@ -114,6 +116,7 @@ import { Route as ApiV1MediaResizedRouteImport } from './routes/api/v1/media/res
 import { Route as ApiV1NotificationsStreamRouteImport } from './routes/api/v1/notifications/stream'
 import { Route as ApiV1TrafficViewRouteImport } from './routes/api/v1/traffic/view'
 import { Route as AuthenticatedAdminAutomationsTemplatesTemplateKeyRouteImport } from './routes/_authenticated/admin/automations_.templates_.$templateKey'
+import { Route as PomodoroUHandleFilesMediaIdRouteImport } from './routes/_pomodoro/u.$handle_.files.$mediaId'
 import { Route as ApiPomodoroRoomsSlugEventsRouteImport } from './routes/api/pomodoro/rooms.$slug.events'
 import { Route as ApiPomodoroUploadsMediaIdDownloadRouteImport } from './routes/api/pomodoro/uploads.$mediaId.download'
 import { Route as ApiV1MediaMediaIdFileRouteImport } from './routes/api/v1/media/$mediaId/file'
@@ -239,6 +242,11 @@ const AuthenticatedWorkspacesRoute = AuthenticatedWorkspacesRouteImport.update({
 const PomodoroBackgroundsRoute = PomodoroBackgroundsRouteImport.update({
   id: '/backgrounds',
   path: '/backgrounds',
+  getParentRoute: () => PomodoroRoute,
+} as any)
+const PomodoroCopyrightRoute = PomodoroCopyrightRouteImport.update({
+  id: '/copyright',
+  path: '/copyright',
   getParentRoute: () => PomodoroRoute,
 } as any)
 const PomodoroHistoryRoute = PomodoroHistoryRouteImport.update({
@@ -602,6 +610,11 @@ const ApiWebhooksStripeRoute = ApiWebhooksStripeRouteImport.update({
   path: '/api/webhooks/stripe',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BadgeFileMediaIdRoute = BadgeFileMediaIdRouteImport.update({
+  id: '/badge/file/$mediaId',
+  path: '/badge/file/$mediaId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const BadgeProfileHandleRoute = BadgeProfileHandleRouteImport.update({
   id: '/badge/profile/$handle',
   path: '/badge/profile/$handle',
@@ -691,6 +704,12 @@ const AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute =
     path: '/automations/templates/$templateKey',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const PomodoroUHandleFilesMediaIdRoute =
+  PomodoroUHandleFilesMediaIdRouteImport.update({
+    id: '/u/$handle_/files/$mediaId',
+    path: '/u/$handle/files/$mediaId',
+    getParentRoute: () => PomodoroRoute,
+  } as any)
 const ApiPomodoroRoomsSlugEventsRoute =
   ApiPomodoroRoomsSlugEventsRouteImport.update({
     id: '/api/pomodoro/rooms/$slug/events',
@@ -733,6 +752,7 @@ export interface FileRoutesByFullPath {
   '/home': typeof AuthenticatedHomeRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/backgrounds': typeof PomodoroBackgroundsRoute
+  '/copyright': typeof PomodoroCopyrightRoute
   '/history': typeof PomodoroHistoryRoute
   '/leaderboard': typeof PomodoroLeaderboardRoute
   '/plans': typeof PomodoroPlansRoute
@@ -795,6 +815,7 @@ export interface FileRoutesByFullPath {
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
+  '/badge/file/$mediaId': typeof BadgeFileMediaIdRoute
   '/badge/profile/$handle': typeof BadgeProfileHandleRoute
   '/badge/streak/$token': typeof BadgeStreakTokenRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
@@ -813,6 +834,7 @@ export interface FileRoutesByFullPath {
   '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
   '/admin/automations/templates/$templateKey': typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
+  '/u/$handle/files/$mediaId': typeof PomodoroUHandleFilesMediaIdRoute
   '/api/pomodoro/rooms/$slug/events': typeof ApiPomodoroRoomsSlugEventsRoute
   '/api/pomodoro/uploads/$mediaId/download': typeof ApiPomodoroUploadsMediaIdDownloadRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
@@ -839,6 +861,7 @@ export interface FileRoutesByTo {
   '/home': typeof AuthenticatedHomeRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/backgrounds': typeof PomodoroBackgroundsRoute
+  '/copyright': typeof PomodoroCopyrightRoute
   '/history': typeof PomodoroHistoryRoute
   '/leaderboard': typeof PomodoroLeaderboardRoute
   '/plans': typeof PomodoroPlansRoute
@@ -901,6 +924,7 @@ export interface FileRoutesByTo {
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
+  '/badge/file/$mediaId': typeof BadgeFileMediaIdRoute
   '/badge/profile/$handle': typeof BadgeProfileHandleRoute
   '/badge/streak/$token': typeof BadgeStreakTokenRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
@@ -919,6 +943,7 @@ export interface FileRoutesByTo {
   '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
   '/admin/automations/templates/$templateKey': typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
+  '/u/$handle/files/$mediaId': typeof PomodoroUHandleFilesMediaIdRoute
   '/api/pomodoro/rooms/$slug/events': typeof ApiPomodoroRoomsSlugEventsRoute
   '/api/pomodoro/uploads/$mediaId/download': typeof ApiPomodoroUploadsMediaIdDownloadRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
@@ -950,6 +975,7 @@ export interface FileRoutesById {
   '/_authenticated/home': typeof AuthenticatedHomeRoute
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
   '/_pomodoro/backgrounds': typeof PomodoroBackgroundsRoute
+  '/_pomodoro/copyright': typeof PomodoroCopyrightRoute
   '/_pomodoro/history': typeof PomodoroHistoryRoute
   '/_pomodoro/leaderboard': typeof PomodoroLeaderboardRoute
   '/_pomodoro/plans': typeof PomodoroPlansRoute
@@ -1012,6 +1038,7 @@ export interface FileRoutesById {
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
+  '/badge/file/$mediaId': typeof BadgeFileMediaIdRoute
   '/badge/profile/$handle': typeof BadgeProfileHandleRoute
   '/badge/streak/$token': typeof BadgeStreakTokenRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
@@ -1030,6 +1057,7 @@ export interface FileRoutesById {
   '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
   '/_authenticated/admin/automations_/templates_/$templateKey': typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
+  '/_pomodoro/u/$handle_/files/$mediaId': typeof PomodoroUHandleFilesMediaIdRoute
   '/api/pomodoro/rooms/$slug/events': typeof ApiPomodoroRoomsSlugEventsRoute
   '/api/pomodoro/uploads/$mediaId/download': typeof ApiPomodoroUploadsMediaIdDownloadRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
@@ -1060,6 +1088,7 @@ export interface FileRouteTypes {
     | '/home'
     | '/workspaces'
     | '/backgrounds'
+    | '/copyright'
     | '/history'
     | '/leaderboard'
     | '/plans'
@@ -1122,6 +1151,7 @@ export interface FileRouteTypes {
     | '/api/auth/google'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
+    | '/badge/file/$mediaId'
     | '/badge/profile/$handle'
     | '/badge/streak/$token'
     | '/admin/'
@@ -1140,6 +1170,7 @@ export interface FileRouteTypes {
     | '/api/v1/notifications/stream'
     | '/api/v1/traffic/view'
     | '/admin/automations/templates/$templateKey'
+    | '/u/$handle/files/$mediaId'
     | '/api/pomodoro/rooms/$slug/events'
     | '/api/pomodoro/uploads/$mediaId/download'
     | '/api/v1/media/$mediaId/file'
@@ -1166,6 +1197,7 @@ export interface FileRouteTypes {
     | '/home'
     | '/workspaces'
     | '/backgrounds'
+    | '/copyright'
     | '/history'
     | '/leaderboard'
     | '/plans'
@@ -1228,6 +1260,7 @@ export interface FileRouteTypes {
     | '/api/auth/google'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
+    | '/badge/file/$mediaId'
     | '/badge/profile/$handle'
     | '/badge/streak/$token'
     | '/admin'
@@ -1246,6 +1279,7 @@ export interface FileRouteTypes {
     | '/api/v1/notifications/stream'
     | '/api/v1/traffic/view'
     | '/admin/automations/templates/$templateKey'
+    | '/u/$handle/files/$mediaId'
     | '/api/pomodoro/rooms/$slug/events'
     | '/api/pomodoro/uploads/$mediaId/download'
     | '/api/v1/media/$mediaId/file'
@@ -1276,6 +1310,7 @@ export interface FileRouteTypes {
     | '/_authenticated/home'
     | '/_authenticated/workspaces'
     | '/_pomodoro/backgrounds'
+    | '/_pomodoro/copyright'
     | '/_pomodoro/history'
     | '/_pomodoro/leaderboard'
     | '/_pomodoro/plans'
@@ -1338,6 +1373,7 @@ export interface FileRouteTypes {
     | '/api/auth/google'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
+    | '/badge/file/$mediaId'
     | '/badge/profile/$handle'
     | '/badge/streak/$token'
     | '/_authenticated/admin/'
@@ -1356,6 +1392,7 @@ export interface FileRouteTypes {
     | '/api/v1/notifications/stream'
     | '/api/v1/traffic/view'
     | '/_authenticated/admin/automations_/templates_/$templateKey'
+    | '/_pomodoro/u/$handle_/files/$mediaId'
     | '/api/pomodoro/rooms/$slug/events'
     | '/api/pomodoro/uploads/$mediaId/download'
     | '/api/v1/media/$mediaId/file'
@@ -1385,6 +1422,7 @@ export interface RootRouteChildren {
   ApiAuthGoogleRoute: typeof ApiAuthGoogleRoute
   ApiWebhooksResendRoute: typeof ApiWebhooksResendRoute
   ApiWebhooksStripeRoute: typeof ApiWebhooksStripeRoute
+  BadgeFileMediaIdRoute: typeof BadgeFileMediaIdRoute
   BadgeProfileHandleRoute: typeof BadgeProfileHandleRoute
   BadgeStreakTokenRoute: typeof BadgeStreakTokenRoute
   ApiAuthGoogleCallbackRoute: typeof ApiAuthGoogleCallbackRoute
@@ -1571,6 +1609,13 @@ declare module '@tanstack/react-router' {
       path: '/backgrounds'
       fullPath: '/backgrounds'
       preLoaderRoute: typeof PomodoroBackgroundsRouteImport
+      parentRoute: typeof PomodoroRoute
+    }
+    '/_pomodoro/copyright': {
+      id: '/_pomodoro/copyright'
+      path: '/copyright'
+      fullPath: '/copyright'
+      preLoaderRoute: typeof PomodoroCopyrightRouteImport
       parentRoute: typeof PomodoroRoute
     }
     '/_pomodoro/history': {
@@ -2021,6 +2066,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiWebhooksStripeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/badge/file/$mediaId': {
+      id: '/badge/file/$mediaId'
+      path: '/badge/file/$mediaId'
+      fullPath: '/badge/file/$mediaId'
+      preLoaderRoute: typeof BadgeFileMediaIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/badge/profile/$handle': {
       id: '/badge/profile/$handle'
       path: '/badge/profile/$handle'
@@ -2132,6 +2184,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/automations/templates/$templateKey'
       preLoaderRoute: typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_pomodoro/u/$handle_/files/$mediaId': {
+      id: '/_pomodoro/u/$handle_/files/$mediaId'
+      path: '/u/$handle/files/$mediaId'
+      fullPath: '/u/$handle/files/$mediaId'
+      preLoaderRoute: typeof PomodoroUHandleFilesMediaIdRouteImport
+      parentRoute: typeof PomodoroRoute
     }
     '/api/pomodoro/rooms/$slug/events': {
       id: '/api/pomodoro/rooms/$slug/events'
@@ -2352,6 +2411,7 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
 
 interface PomodoroRouteChildren {
   PomodoroBackgroundsRoute: typeof PomodoroBackgroundsRoute
+  PomodoroCopyrightRoute: typeof PomodoroCopyrightRoute
   PomodoroHistoryRoute: typeof PomodoroHistoryRoute
   PomodoroLeaderboardRoute: typeof PomodoroLeaderboardRoute
   PomodoroPlansRoute: typeof PomodoroPlansRoute
@@ -2366,10 +2426,12 @@ interface PomodoroRouteChildren {
   PomodoroUHandleRoute: typeof PomodoroUHandleRoute
   PomodoroGroupsJoinTokenRoute: typeof PomodoroGroupsJoinTokenRoute
   PomodoroUHandleYearRoute: typeof PomodoroUHandleYearRoute
+  PomodoroUHandleFilesMediaIdRoute: typeof PomodoroUHandleFilesMediaIdRoute
 }
 
 const PomodoroRouteChildren: PomodoroRouteChildren = {
   PomodoroBackgroundsRoute: PomodoroBackgroundsRoute,
+  PomodoroCopyrightRoute: PomodoroCopyrightRoute,
   PomodoroHistoryRoute: PomodoroHistoryRoute,
   PomodoroLeaderboardRoute: PomodoroLeaderboardRoute,
   PomodoroPlansRoute: PomodoroPlansRoute,
@@ -2384,6 +2446,7 @@ const PomodoroRouteChildren: PomodoroRouteChildren = {
   PomodoroUHandleRoute: PomodoroUHandleRoute,
   PomodoroGroupsJoinTokenRoute: PomodoroGroupsJoinTokenRoute,
   PomodoroUHandleYearRoute: PomodoroUHandleYearRoute,
+  PomodoroUHandleFilesMediaIdRoute: PomodoroUHandleFilesMediaIdRoute,
 }
 
 const PomodoroRouteWithChildren = PomodoroRoute._addFileChildren(
@@ -2414,6 +2477,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthGoogleRoute: ApiAuthGoogleRoute,
   ApiWebhooksResendRoute: ApiWebhooksResendRoute,
   ApiWebhooksStripeRoute: ApiWebhooksStripeRoute,
+  BadgeFileMediaIdRoute: BadgeFileMediaIdRoute,
   BadgeProfileHandleRoute: BadgeProfileHandleRoute,
   BadgeStreakTokenRoute: BadgeStreakTokenRoute,
   ApiAuthGoogleCallbackRoute: ApiAuthGoogleCallbackRoute,

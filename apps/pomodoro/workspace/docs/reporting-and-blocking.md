@@ -54,6 +54,24 @@ decision.
 - Hiding leaves the report's own standing alone. An operator still resolves or
   dismisses it afterwards, exactly as they would a message.
 
+## Reporting a shared file
+
+Shared sounds and backgrounds have a Report too (uploads-and-sharing task 05,
+10 Oct 2026): on the file's own page, which every shared card links to, and
+beside the credit in a room. It works the way the profile's does: anybody can
+send one, the reasons are a fixed list (copyright, not suitable, broken,
+something else), the answer is the same thanks whatever happened, and the
+budget is by address. One member files one report per file. It lands in the
+same queue as "Shared file: <name>", with a preview of the file, who shared it,
+and a sharing menu to Unshare it with a reason or delete it.
+
+Someone with no account who owns a work a file copies uses `/copyright`
+instead: name, email, the file's address, what it copies, and a statement they
+tick. It lands as "Copyright: <name>", or "Copyright, outside" when the address
+is not a shared file, with the sender's name and email on the row so the admin
+can answer by email. Five an hour per address. See
+[Shared sounds and backgrounds](shared-media.md).
+
 ## Notices
 
 Who hears what when a report moves. Every one of these is in the bell

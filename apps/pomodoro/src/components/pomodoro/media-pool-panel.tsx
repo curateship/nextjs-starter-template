@@ -1,5 +1,5 @@
 import * as React from "react"
-import { ChevronDownIcon, ListFilterIcon } from "lucide-react"
+import { CheckIcon, ChevronDownIcon, ListFilterIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Checkbox } from "@/components/ui/checkbox"
@@ -14,6 +14,8 @@ import { pillTabsList, pillTabsTrigger } from "@/lib/pomodoro/pill-tabs"
 import {
   catalogTags,
   describeTags,
+  ownOnlyTags,
+  ownTagCount,
   tagsFit,
   type MediaPool,
 } from "@/lib/pomodoro/media-pool"
@@ -41,6 +43,12 @@ import { cn } from "@/lib/utils"
  *
  * `ticked` is null for every tag, else the tags ticked. The page holds it,
  * because the grid and both controls read it.
+ *
+ * The member's own tagged files join too (uploads-and-sharing task 08,
+ * Part 1). A tag only their files carry sits in a "Your files" group under the
+ * catalogue's tags, and starts unticked, so "All tags" still means the
+ * catalogue alone and nothing changes for anybody who never ticks one. A tag
+ * the catalogue also has is one tag, and ticking it brings in both.
  */
 
 type Kind = "sound" | "background"
@@ -87,19 +95,27 @@ export function MediaTagFilter({
   const pool = usePersonalPool(kind)
   const [busy, setBusy] = React.useState(false)
   const items = kind === "sound" ? media.catalog.sounds : media.catalog.themes
+  const own = kind === "sound" ? media.own.sounds : media.own.backgrounds
   const tags = catalogTags(items)
-
-  if (!tags.length) return null
-
   const all = tags.map(({ tag }) => tag)
-  const isTicked = (tag: string) => ticked === null || ticked.includes(tag)
+  const ownTags = ownOnlyTags(own, all)
+
+  if (!tags.length && !ownTags.length) return null
+
+  // "All tags" (null) is every catalogue tag; a tag of your own files is
+  // ticked only when you ticked it.
+  const isTicked = (tag: string) =>
+    all.includes(tag) ? ticked === null || ticked.includes(tag) : (ticked ?? []).includes(tag)
 
   const toggle = async (tag: string) => {
     const current = ticked ?? all
     const next = current.includes(tag)
       ? current.filter((value) => value !== tag)
       : [...current, tag]
-    const nextTicked = all.every((value) => next.includes(value)) ? null : next
+    const nextTicked =
+      all.every((value) => next.includes(value)) && next.every((value) => all.includes(value))
+        ? null
+        : next
     onChange(nextTicked)
     // Shuffle off: the boxes only choose what the grid shows.
     if (pool === null) return
@@ -124,6 +140,49 @@ export function MediaTagFilter({
 
   const label =
     ticked === null ? "All tags" : ticked.length === 1 ? ticked[0] : `${ticked.length} tags`
+  // The grid shows catalogue cards only, so the last catalogue tag stays
+  // ticked whatever else is.
+  const tickedCatalogue = ticked === null ? all.length : ticked.filter((tag) => all.includes(tag)).length
+
+  const row = ({
+    tag,
+    count,
+    proOnly,
+    last,
+  }: {
+    tag: string
+    count: number
+    proOnly: boolean
+    last: boolean
+  }) => {
+    const on = isTicked(tag)
+    const blocked = proOnly || last
+    return (
+      <DisabledReason
+        key={tag}
+        disabled={blocked}
+        reason={proOnly ? PRO_PERKS.premiumMedia.lockedReason : "Keep at least one tag ticked."}
+      >
+        <label
+          className={cn(
+            "flex cursor-pointer items-center gap-3 rounded-lg px-1.5 py-2 text-[15px] hover:bg-[rgba(var(--p-fg-rgb),0.07)]",
+            blocked && "cursor-not-allowed opacity-60"
+          )}
+        >
+          <Checkbox
+            checked={on && !proOnly}
+            disabled={blocked || busy}
+            onCheckedChange={() => void toggle(tag)}
+            className="size-[18px] rounded-[5px] border-[rgba(var(--p-fg-rgb),0.3)] data-checked:border-[var(--p-accent)] data-checked:bg-[var(--p-accent)] data-checked:text-white dark:data-checked:bg-[var(--p-accent)]"
+          />
+          <span className="min-w-0 flex-1 truncate">{tag}</span>
+          <span className="font-mono text-xs text-muted-foreground">
+            {proOnly ? "Pro" : count}
+          </span>
+        </label>
+      </DisabledReason>
+    )
+  }
 
   return (
     <Popover>
@@ -153,41 +212,25 @@ export function MediaTagFilter({
         <ScrollArea viewportClassName="max-h-72">
           <div className="flex flex-col pr-2">
             {tags.map(({ tag, count, free }) => {
-              const proOnly = !media.canUsePremiumMedia && free === 0
-              const on = isTicked(tag)
-              // The grid can never be emptied by a box.
-              const last = on && ticked !== null && ticked.length === 1
-              const blocked = proOnly || last
-              return (
-                <DisabledReason
-                  key={tag}
-                  disabled={blocked}
-                  reason={
-                    proOnly
-                      ? PRO_PERKS.premiumMedia.lockedReason
-                      : "Keep at least one tag ticked."
-                  }
-                >
-                  <label
-                    className={cn(
-                      "flex cursor-pointer items-center gap-3 rounded-lg px-1.5 py-2 text-[15px] hover:bg-[rgba(var(--p-fg-rgb),0.07)]",
-                      blocked && "cursor-not-allowed opacity-60"
-                    )}
-                  >
-                    <Checkbox
-                      checked={on && !proOnly}
-                      disabled={blocked || busy}
-                      onCheckedChange={() => void toggle(tag)}
-                      className="size-[18px] rounded-[5px] border-[rgba(var(--p-fg-rgb),0.3)] data-checked:border-[var(--p-accent)] data-checked:bg-[var(--p-accent)] data-checked:text-white dark:data-checked:bg-[var(--p-accent)]"
-                    />
-                    <span className="min-w-0 flex-1 truncate">{tag}</span>
-                    <span className="font-mono text-xs text-muted-foreground">
-                      {proOnly ? "Pro" : media.canUsePremiumMedia ? count : free}
-                    </span>
-                  </label>
-                </DisabledReason>
-              )
+              const mine = ownTagCount(own, tag)
+              return row({
+                tag,
+                count: (media.canUsePremiumMedia ? count : free) + mine,
+                proOnly: !media.canUsePremiumMedia && free === 0 && mine === 0,
+                // The grid can never be emptied by a box.
+                last: isTicked(tag) && ticked !== null && tickedCatalogue === 1,
+              })
             })}
+            {ownTags.length ? (
+              <>
+                <p className="px-1.5 pt-3 pb-1.5 font-mono text-[11px] uppercase tracking-[0.2em] text-foreground/75">
+                  Your files
+                </p>
+                {ownTags.map(({ tag, count }) =>
+                  row({ tag, count, proOnly: false, last: false })
+                )}
+              </>
+            ) : null}
           </div>
         </ScrollArea>
       </PopoverContent>
@@ -257,5 +300,86 @@ export function MediaShuffleSwitch({
         onCheckedChange={(next) => void change(next)}
       />
     </div>
+  )
+}
+
+/**
+ * The tag filter for "Shared by members" and Saved, in the same place and
+ * the same round tray as the catalogue's, so switching tabs moves nothing
+ * beside it (Tyler, 10 Oct 2026). One tag at a time, or all of them; it only
+ * narrows the grid and never changes what shuffle plays.
+ */
+export function SharedTagFilter({
+  kind,
+  tags,
+  value,
+  onChange,
+}: {
+  kind: Kind
+  /** The tags on the shared files of this kind. */
+  tags: string[]
+  value: string | null
+  onChange: (tag: string | null) => void
+}) {
+  const [open, setOpen] = React.useState(false)
+  const choices = value && !tags.includes(value) ? [value, ...tags] : tags
+  const pick = (tag: string | null) => {
+    onChange(tag)
+    setOpen(false)
+  }
+  const option = (tag: string | null) => {
+    const on = value === tag
+    return (
+      <button
+        key={tag ?? "__all"}
+        type="button"
+        role="menuitemradio"
+        aria-checked={on}
+        onClick={() => pick(tag)}
+        className={cn(
+          "flex items-center gap-3 rounded-lg px-1.5 py-2 text-left text-[15px] hover:bg-[rgba(var(--p-fg-rgb),0.07)]",
+          focusRing
+        )}
+      >
+        <CheckIcon
+          className={cn("size-4 shrink-0 text-[var(--p-accent)]", !on && "invisible")}
+          aria-hidden="true"
+        />
+        <span className="min-w-0 flex-1 truncate">{tag ?? "All tags"}</span>
+      </button>
+    )
+  }
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <div className={trayClass}>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            aria-label={`Show shared ${NOUN[kind].many} by tag: ${value ?? "All tags"}`}
+            className={cn(innerClass, "cursor-pointer text-foreground hover:bg-background/60", focusRing)}
+          >
+            <ListFilterIcon className="size-[18px] shrink-0" aria-hidden="true" />
+            <span className="max-w-40 truncate">{value ?? "All tags"}</span>
+            <ChevronDownIcon className="size-4 shrink-0" aria-hidden="true" />
+          </button>
+        </PopoverTrigger>
+      </div>
+      <PopoverContent align="end" sideOffset={8} className="w-60 gap-1 rounded-2xl p-3">
+        <p className="px-1.5 pt-1 pb-1.5 font-mono text-[11px] uppercase tracking-[0.2em] text-foreground/75">
+          Shared tags
+        </p>
+        <ScrollArea viewportClassName="max-h-72">
+          <div role="menu" className="flex flex-col pr-2">
+            {option(null)}
+            {choices.map((tag) => option(tag))}
+            {choices.length ? null : (
+              <p className="px-1.5 py-2 text-sm text-muted-foreground">
+                No shared {NOUN[kind].one} has a tag yet.
+              </p>
+            )}
+          </div>
+        </ScrollArea>
+      </PopoverContent>
+    </Popover>
   )
 }

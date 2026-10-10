@@ -9,7 +9,10 @@ import {
 import { findActiveRoomMedia } from "@/server/pomodoro/rooms"
 import { loadAppSettings } from "@/server/pomodoro/app-settings"
 import { loadMediaCatalog } from "@/server/pomodoro/catalog"
+import { loadOwnPoolMedia } from "@/server/pomodoro/own-pool"
+import { loadOrCreatePreferences } from "@/server/pomodoro/productivity"
 import { pomodoroPersonalRooms } from "@/server/pomodoro/schema"
+import { recordMediaAdd } from "@/server/pomodoro/shared-media"
 import { parseBackgroundReference } from "@/lib/pomodoro/background-catalog"
 import { findSound, findTheme } from "@/lib/pomodoro/catalog"
 import { parseSoundReference } from "@/lib/pomodoro/sound-catalog"
@@ -81,13 +84,23 @@ export async function loadOrCreatePersonalRoom(
  * the hosted room this account is in, if any.
  */
 export async function loadMediaBootstrap(userId: string): Promise<MediaBootstrap> {
-  const [personal, room, entitlements, catalog, unset] = await Promise.all([
+  const [personal, room, entitlements, catalog, unset, pool, preferences] = await Promise.all([
     loadOrCreatePersonalRoom(userId),
     findActiveRoomMedia(userId),
     loadPomodoroEntitlements(userId),
     loadMediaCatalog(),
     loadUnsetPair(),
+    loadOwnPoolMedia(userId),
+    loadOrCreatePreferences(userId),
   ])
+  // Saved shared files carry a credit; a plan without shared files keeps
+  // only the member's own (audit, 10 Oct 2026).
+  const own = entitlements.canUseSharedMedia
+    ? pool
+    : {
+        sounds: pool.sounds.filter((file) => !file.credit),
+        backgrounds: pool.backgrounds.filter((file) => !file.credit),
+      }
   // Somebody who never picked gets the admin's pair. A member who chose
   // silence saved `none`, which is not "never picked". A default an admin
   // has since made Pro or Draft is left out for anybody who cannot play it.
@@ -107,26 +120,36 @@ export async function loadMediaBootstrap(userId: string): Promise<MediaBootstrap
   // the page falls back to the default scene or to silence.
   const soundRef = parseSoundReference(personal.sound)
   const sceneRef = parseBackgroundReference(personal.background)
+  // Someone else's shared file resolves only while it is still shared, nobody
+  // is blocked either way, and the plan allows shared files.
+  const shared = { shared: entitlements.canUseSharedMedia }
   const [soundUpload, sceneUpload] = await Promise.all([
-    soundRef?.type === "media" ? resolveUploadUrl(userId, soundRef.mediaId) : null,
-    sceneRef?.type === "media" ? resolveUploadUrl(userId, sceneRef.mediaId) : null,
+    soundRef?.type === "media" ? resolveUploadUrl(userId, soundRef.mediaId, shared) : null,
+    sceneRef?.type === "media" ? resolveUploadUrl(userId, sceneRef.mediaId, shared) : null,
   ])
   return {
     catalog,
     fallbackBackground: unset.defaults.background,
+    // The member's own files join their personal room's groups only; a
+    // hosted room's group is the catalogue's.
     picks: firstPicks(
       catalog,
       shown.sound,
       shown.background,
-      entitlements.canUsePremiumMedia
+      entitlements.canUsePremiumMedia,
+      Math.random,
+      room ? undefined : own
     ),
     guestTimer: null,
     breakLook: freeBreakLook(catalog, unset.breakLook, entitlements.canUsePremiumMedia),
     personal: {
       sound,
       soundUrl: soundUpload?.url ?? null,
+      soundName: soundUpload?.name ?? null,
+      soundCredit: soundUpload?.credit ?? null,
       background,
       backgroundUrl: sceneUpload?.url ?? null,
+      backgroundCredit: sceneUpload?.credit ?? null,
       backgroundKind: sceneUpload
         ? sceneUpload.kind === "video"
           ? "video"
@@ -135,6 +158,8 @@ export async function loadMediaBootstrap(userId: string): Promise<MediaBootstrap
     },
     room,
     canUsePremiumMedia: entitlements.canUsePremiumMedia,
+    own,
+    look: { dim: preferences.backdropDim, drift: preferences.backdropDrift },
   }
 }
 
@@ -161,7 +186,7 @@ export async function savePersonalSound(userId: string, sound: string | null) {
     if (entry.locked) await assertPremiumMedia(userId)
   }
   if (reference?.type === "media")
-    await assertUploadUsable(userId, reference.mediaId, "sound")
+    await noteSharedPick(userId, await assertUploadUsable(userId, reference.mediaId, "sound"), reference.mediaId)
   return writePersonalRoom(userId, { sound })
 }
 
@@ -186,8 +211,17 @@ export async function savePersonalBackground(
     if (entry.locked) await assertPremiumMedia(userId)
   }
   if (reference?.type === "media")
-    await assertUploadUsable(userId, reference.mediaId, "background")
+    await noteSharedPick(userId, await assertUploadUsable(userId, reference.mediaId, "background"), reference.mediaId)
   return writePersonalRoom(userId, { background })
+}
+
+/** Someone else's shared file picked into a room counts for its owner's weekly note. */
+async function noteSharedPick(
+  userId: string,
+  usable: { ownerUserId: string },
+  mediaId: string
+) {
+  if (usable.ownerUserId !== userId) await recordMediaAdd(db, userId, mediaId)
 }
 
 async function assertPremiumMedia(userId: string) {

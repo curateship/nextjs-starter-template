@@ -42,12 +42,7 @@ import { useProductAuth } from "@/lib/pomodoro/auth-state"
 import { usePomodoro } from "@/lib/pomodoro/use-pomodoro"
 import { cn } from "@/lib/utils"
 import { contentColumn } from "@/lib/pomodoro/content-column"
-import { soundLabelFor, themeLabelFor } from "@/lib/pomodoro/media-pair"
-import {
-  enterHostedRoom,
-  leaveHostedRoom,
-  useMediaCatalog,
-} from "@/lib/pomodoro/room-media-store"
+import { enterHostedRoom, leaveHostedRoom } from "@/lib/pomodoro/room-media-store"
 import { followRoomRunning } from "@/lib/pomodoro/sound-engine"
 import {
   START_DELAYS,
@@ -56,6 +51,7 @@ import {
 } from "@/lib/pomodoro/room-countdown"
 import { usePageVisible } from "@/lib/pomodoro/use-page-visible"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+import { PersonAvatar } from "@/components/pomodoro/initials-avatar"
 
 /**
  * The room you are in: its live snapshot, the connection that keeps it
@@ -140,6 +136,7 @@ export function enterRoomFromSnapshot(snapshot: RoomSnapshotClient) {
     role: snapshot.you.role,
     sound: snapshot.room.sound,
     background: snapshot.room.background,
+    files: snapshot.room.files,
   })
 }
 
@@ -469,9 +466,8 @@ export function ActiveRoomPanel({
         ),
     })
 
-  const hostName =
-    members.find((member) => member.role === "host")?.name.split(/\s+/)[0] ??
-    "the host"
+  const host = members.find((member) => member.role === "host")
+  const hostName = host?.name.split(/\s+/)[0] ?? "the host"
   const pillButton = "rounded-full"
   // While the room is in a focus, the chat sits under a blur that says
   // chatting is not allowed, and clears by itself when the break starts.
@@ -480,6 +476,7 @@ export function ActiveRoomPanel({
   const [chatOpen, setChatOpen] = React.useState(true)
   const focusing = room.phase === "focus"
   const chatId = React.useId()
+  const delayId = React.useId()
 
   return (
     <div className="flex flex-col gap-7">
@@ -488,7 +485,6 @@ export function ActiveRoomPanel({
         hostName={hostName}
         pending={pending}
         onAction={(action) => void runAction(action)}
-        onDelay={(seconds) => void setDelay(seconds)}
       />
 
       {/* The same break card as the timer, while the room is on a break. */}
@@ -518,7 +514,17 @@ export function ActiveRoomPanel({
         >
           {/* The whole width on a phone, so the buttons wrap under it
               instead of squeezing the name. */}
-          <div className="flex min-w-0 basis-full flex-col gap-1.5 md:basis-0 md:flex-1">
+          <div className="flex min-w-0 basis-full items-center gap-4 md:basis-0 md:flex-1">
+          {/* The host's picture beside the room's name (Tyler, 10 Oct 2026:
+              "put user avatar here", "I meant host avatar"). */}
+          {host ? (
+            <PersonAvatar
+              name={host.name}
+              avatarUrl={host.avatarUrl}
+              className="size-12 text-base"
+            />
+          ) : null}
+          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
             <h2 className="flex items-center gap-3 text-2xl font-bold tracking-tight">
               <span
                 className="size-2.5 shrink-0 rounded-full bg-[var(--p-success)]"
@@ -534,12 +540,6 @@ export function ActiveRoomPanel({
               </span>
               <span aria-hidden="true">·</span>
               <span>{sessionLabel}</span>
-              <span aria-hidden="true">·</span>
-              <RoomPairText
-                sound={room.sound}
-                background={room.background}
-                isHost={isHost}
-              />
               {reconnecting ? (
                 <span role="status" className="flex items-center gap-1">
                   <WifiOffIcon className="size-3" aria-hidden="true" />
@@ -548,7 +548,33 @@ export function ActiveRoomPanel({
               ) : null}
             </p>
           </div>
+          </div>
           <div className="flex flex-wrap items-center gap-2">
+            {/* The countdown before a focus starts, beside the room's other
+                buttons rather than inside the clock (Tyler, 10 Oct 2026). */}
+            {isHost && room.phase === "waiting" && !room.startingAt ? (
+              <div className="flex items-center gap-2">
+                <label htmlFor={delayId} className="text-sm text-muted-foreground">
+                  Countdown
+                </label>
+                <Select
+                  value={String(room.startDelaySeconds)}
+                  disabled={pending !== ""}
+                  onValueChange={(value) => void setDelay(Number(value) as StartDelay)}
+                >
+                  <SelectTrigger id={delayId} className="w-fit rounded-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {START_DELAYS.map((seconds) => (
+                      <SelectItem key={seconds} value={String(seconds)}>
+                        {START_DELAY_LABELS[seconds]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
             <Button
               variant="outline"
               size="lg"
@@ -572,30 +598,15 @@ export function ActiveRoomPanel({
                   onClick={() =>
                     setConfirm({
                       title: "Close this room?",
-                      description:
-                        "This ends the session for everyone in the room and cannot be undone.",
+                      // One button for a host, Tyler's choice on 10 Oct 2026
+                      // over a second "Leave & close" that did the same.
+                      description: closeConsequence(members.length - 1),
                       confirmLabel: "Close room",
                       onConfirm: () => void runAction("close"),
                     })
                   }
                 >
                   Close room
-                </Button>
-                <Button
-                  variant="outline"
-                  size="lg"
-                  className={pillButton}
-                  disabled={pending !== ""}
-                  onClick={() =>
-                    setConfirm({
-                      title: "Leave and close this room?",
-                      description: leaveAndCloseConsequence(members.length - 1),
-                      confirmLabel: "Leave & close",
-                      onConfirm: () => void leave(),
-                    })
-                  }
-                >
-                  Leave &amp; close
                 </Button>
               </>
             ) : (
@@ -709,13 +720,11 @@ function RoomRing({
   hostName,
   pending,
   onAction,
-  onDelay,
 }: {
   snapshot: RoomSnapshotClient
   hostName: string
   pending: string
   onAction: (action: RoomHostActionClient) => void
-  onDelay: (seconds: StartDelay) => void
 }) {
   const { room, you } = snapshot
   const isHost = you.role === "host"
@@ -725,7 +734,6 @@ function RoomRing({
   // everybody in the ring until the focus starts (9 Oct 2026).
   const countdownLeft = useRoomSecondsLeft(room.phase === "waiting" ? room.startingAt : null)
   const counting = countdownLeft !== null
-  const delayId = React.useId()
   const waiting = secondsLeft === null
   const phaseSeconds =
     room.phaseStartedAt && room.phaseEndsAt
@@ -779,14 +787,14 @@ function RoomRing({
           />
         </svg>
         <div className="relative flex flex-col items-center">
-          <span
-            className={cn(
-              eyebrowClass,
-              room.phase === "waiting" && "text-[var(--p-success)]"
-            )}
-          >
-            {counting ? "Starting in" : (phaseLabels[room.phase] ?? room.phase)}
-          </span>
+          {/* Nothing over the clock while the room waits: the room card
+              already says so (Tyler, 10 Oct 2026: "remove the 'Waiting to
+              start' from the timer"). */}
+          {counting || room.phase !== "waiting" ? (
+            <span className={eyebrowClass}>
+              {counting ? "Starting in" : (phaseLabels[room.phase] ?? room.phase)}
+            </span>
+          ) : null}
           <time className="mt-3 font-mono text-[64px] font-semibold leading-none tracking-tight tabular-nums">
             {clockText(shownSeconds)}
           </time>
@@ -850,28 +858,6 @@ function RoomRing({
               Waiting for {hostName} to start
             </span>
           ) : null}
-          {isHost && room.phase === "waiting" && !counting ? (
-            <div className="mt-3 flex items-center gap-2">
-              <label htmlFor={delayId} className="text-sm text-muted-foreground">
-                Countdown
-              </label>
-              <Select
-                value={String(room.startDelaySeconds)}
-                onValueChange={(value) => onDelay(Number(value) as StartDelay)}
-              >
-                <SelectTrigger id={delayId} className="w-fit">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {START_DELAYS.map((seconds) => (
-                    <SelectItem key={seconds} value={String(seconds)}>
-                      {START_DELAY_LABELS[seconds]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          ) : null}
           <Button
             variant="outline"
             size="icon-lg"
@@ -931,52 +917,13 @@ function RoomRing({
 }
 
 /**
- * What the host is told before "Leave & close": a host leaving ends the room,
- * so the sentence says for whom. `others` is everybody in the room but the
- * host.
+ * What the host is told before Close room: it ends the room for everyone in
+ * it, and says how many that is.
  */
-function leaveAndCloseConsequence(others: number) {
+function closeConsequence(others: number) {
   if (others <= 0)
-    return "Nobody else is in the room, so nobody else is affected, but the room ends when you leave and cannot be reopened."
-  return `When the host leaves, the room ends. The session stops for the ${others} ${others === 1 ? "other person" : "other people"} in it, and it cannot be undone.`
-}
-
-/**
- * The room's sound and theme, in the line under its name. A member is told
- * the host picked them; the host is pointed at the two pages where the pair
- * is changed for everybody.
- */
-function RoomPairText({
-  sound,
-  background,
-  isHost,
-}: {
-  sound: string | null
-  background: string | null
-  isHost: boolean
-}) {
-  const catalog = useMediaCatalog()
-  const soundName = soundLabelFor(catalog, sound) ?? "No sound"
-  const sceneName = themeLabelFor(catalog, background) ?? "Lofi girl"
-  if (!isHost)
-    return (
-      <span>
-        {soundName}, {sceneName}, picked by the host
-      </span>
-    )
-  return (
-    <span>
-      {soundName}, {sceneName}. Change them on{" "}
-      <Link to="/sounds" className="underline underline-offset-2">
-        Sounds
-      </Link>{" "}
-      and{" "}
-      <Link to="/backgrounds" className="underline underline-offset-2">
-        Backgrounds
-      </Link>
-      .
-    </span>
-  )
+    return "Nobody else is in the room. It ends now and cannot be reopened."
+  return `The session stops for the ${others} ${others === 1 ? "other person" : "other people"} in it, and it cannot be undone.`
 }
 
 /**

@@ -35,8 +35,11 @@ import {
   roomReports,
   rooms,
   tasks,
+  pomodoroMediaUploads,
 } from "@/server/pomodoro/schema"
-import { customShellUsers as users } from "@/server/schema"
+import { customShellMedia, customShellUsers as users } from "@/server/schema"
+import { getPublicMediaUrl } from "@/server/media/storage"
+import { shareStateOf } from "@/server/pomodoro/shared-media"
 import type {
   FocusSortColumn,
   ReportSortColumn,
@@ -381,6 +384,8 @@ export async function listAdminReports(
   const reviewer = alias(users, "report_reviewer")
   // A profile report names whose profile it is, which is a fourth person.
   const reported = alias(users, "report_profile_owner")
+  // A shared-file or copyright report names the file (task 05).
+  const reportedFile = alias(customShellMedia, "report_file")
 
   const filters: SQL[] = []
   const search = query.search.trim()
@@ -393,7 +398,10 @@ export async function listAdminReports(
       ilike(reporter.email, pattern),
       // So an operator can find every report about one person by name.
       ilike(reported.name, pattern),
-      ilike(pomodoroProfiles.handle, pattern)
+      ilike(pomodoroProfiles.handle, pattern),
+      ilike(pomodoroMediaUploads.name, pattern),
+      ilike(roomReports.contactEmail, pattern),
+      ilike(roomReports.contactName, pattern)
     )
     if (match) filters.push(match)
   }
@@ -463,6 +471,18 @@ export async function listAdminReports(
         subjectPriorReports,
         reporterPastReports: reporterPast(false),
         reporterPastDismissed: reporterPast(true),
+        mediaId: roomReports.mediaId,
+        contactName: roomReports.contactName,
+        contactEmail: roomReports.contactEmail,
+        details: roomReports.details,
+        fileName: sql<string | null>`coalesce(${pomodoroMediaUploads.name}, ${reportedFile.originalName})`,
+        filePurpose: pomodoroMediaUploads.purpose,
+        fileKind: pomodoroMediaUploads.kind,
+        filePath: reportedFile.storagePath,
+        fileShared: pomodoroMediaUploads.shared,
+        fileWaitingSince: pomodoroMediaUploads.shareWaitingSince,
+        fileUnsharedAt: pomodoroMediaUploads.adminUnsharedAt,
+        fileFeaturedAt: pomodoroMediaUploads.featuredAt,
       })
       .from(roomReports)
       // Left joins throughout: a profile report has no room, and a report
@@ -478,6 +498,8 @@ export async function listAdminReports(
       .leftJoin(roomMessages, eq(roomMessages.id, roomReports.messageId))
       .leftJoin(author, eq(author.id, roomMessages.userId))
       .leftJoin(reviewer, eq(reviewer.id, roomReports.reviewedByUserId))
+      .leftJoin(pomodoroMediaUploads, eq(pomodoroMediaUploads.mediaId, roomReports.mediaId))
+      .leftJoin(reportedFile, eq(reportedFile.id, roomReports.mediaId))
       .where(where)
       .orderBy(direction(sortColumn), asc(roomReports.id))
       .limit(limit)
@@ -494,10 +516,29 @@ export async function listAdminReports(
       )
       .leftJoin(roomMessages, eq(roomMessages.id, roomReports.messageId))
       .leftJoin(author, eq(author.id, roomMessages.userId))
+      .leftJoin(pomodoroMediaUploads, eq(pomodoroMediaUploads.mediaId, roomReports.mediaId))
       .where(where),
   ])
 
-  return { rows, total: totalRow?.total ?? 0 }
+  return {
+    rows: await Promise.all(
+      rows.map(async ({ filePath, fileShared, fileWaitingSince, fileUnsharedAt, fileFeaturedAt, ...row }) => ({
+        ...row,
+        // The reported file as the queue previews it, while it still exists.
+        fileUrl: filePath ? await getPublicMediaUrl(filePath) : "",
+        fileShare:
+          fileShared === null
+            ? null
+            : shareStateOf({
+                shared: fileShared,
+                shareWaitingSince: fileWaitingSince,
+                adminUnsharedAt: fileUnsharedAt,
+              }),
+        fileFeatured: fileFeaturedAt !== null,
+      }))
+    ),
+    total: totalRow?.total ?? 0,
+  }
 }
 
 /**

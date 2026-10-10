@@ -41,6 +41,10 @@ export const POMODORO_NOTICE_KINDS = [
   "group_deleted",
   "project_changed",
   "project_deleted",
+  "followed_share",
+  "share_weekly",
+  "share_removed",
+  "share_waiting",
 ] as const
 
 export type PomodoroNoticeKind = (typeof POMODORO_NOTICE_KINDS)[number]
@@ -96,6 +100,10 @@ export const NOTICE_KIND_CATEGORY: Record<
   group_deleted: "social",
   project_changed: "account",
   project_deleted: "account",
+  followed_share: "social",
+  share_weekly: "account",
+  share_removed: "account",
+  share_waiting: "account",
 }
 
 /**
@@ -106,6 +114,7 @@ export const NOTICE_KIND_CATEGORY: Record<
 export const KINDS_LINKING_TO_THE_ACTOR: readonly PomodoroNoticeKind[] = [
   "cheer",
   "followed_streak",
+  "followed_share",
 ]
 
 /**
@@ -115,8 +124,14 @@ export const KINDS_LINKING_TO_THE_ACTOR: readonly PomodoroNoticeKind[] = [
 export const STORAGE_LOW_MESSAGE = "Your space is nearly full."
 export const MY_UPLOADS_PAGE = "/uploads"
 
-export function storageLowDetail(usedLabel: string, limitLabel: string) {
-  return `${usedLabel} of ${limitLabel} used. Delete what you no longer use, and empty the bin on My uploads.`
+export function storageLowDetail(
+  usedLabel: string,
+  limitLabel: string,
+  canBuy = false
+) {
+  return canBuy
+    ? `${usedLabel} of ${limitLabel} used. Delete what you no longer use and empty the bin, or get 10 GB more, on My uploads.`
+    : `${usedLabel} of ${limitLabel} used. Delete what you no longer use, and empty the bin on My uploads.`
 }
 
 /** The page a finished file or a credit notice leads to, by what it is for. */
@@ -162,6 +177,10 @@ const FAILED_PATTERN = / couldn't be (made|prepared)\.$/
 const CREDITS_PATTERN = /^(1|No) AI (background|soundscape)s? left this month\.$/
 const STREAK_REMINDER_PATTERN = /^One session today keeps your \d+-day streak\.$/
 const REPORT_NEW_PREFIX = "New report: "
+const FOLLOWED_SHARE_PATTERN = / shared (a new (sound|background)|\d+ new files)\.$/
+const SHARE_WEEKLY_PATTERN = /^Your .+ was added by \d+ (people|person) this week\.$/
+const SHARE_REMOVED_PREFIX = "An admin stopped sharing "
+const SHARE_WAITING_PATTERN = /^(A shared file is|\d+ shared files are) waiting for a check\.$/
 const REPORTS_NEW_FOLDED = /^\d+ new reports\.$/
 
 /** "Sam" or "Sam and 2 others", the head of every folded sentence. */
@@ -282,7 +301,7 @@ export function badgeMessage(badgeNames: readonly string[]) {
 }
 
 /** What a finished file is called in a notice. */
-export type ReadyFile = "AI background" | "AI soundscape" | "upload"
+export type ReadyFile = "AI background" | "AI soundscape" | "AI look" | "upload"
 
 export function mediaReadyMessage(file: ReadyFile) {
   return `Your ${file}${READY_SUFFIX}`
@@ -316,8 +335,61 @@ export function streakReminderMessage(days: number) {
   return `One session today keeps your ${days}-day streak.`
 }
 
+/**
+ * Somebody you follow shared files today (task 03, part 6). One notice per
+ * person per day; more files the same day fold into it while it is unread.
+ */
+export function followedShareMessage(
+  name: string,
+  files: number,
+  purpose: "sound" | "background"
+) {
+  return files === 1
+    ? `${name} shared a new ${purpose}.`
+    : `${name} shared ${files} new files.`
+}
+
+/**
+ * The owner's Monday note (task 03, part 12): the file most people added
+ * this week, by how many. The detail carries the week's total.
+ */
+export function shareWeeklyMessage(fileName: string, people: number) {
+  return `Your ${fileName} was added by ${people} ${people === 1 ? "person" : "people"} this week.`
+}
+
+export function shareWeeklyDetail(total: number) {
+  return `${total} ${total === 1 ? "add" : "adds"} across your shared files in the last seven days.`
+}
+
+/**
+ * An admin took one of your files off sharing (task 05, part 4). The
+ * detail is the reason the admin gave; the file itself stays yours.
+ */
+export function shareRemovedMessage(fileName: string) {
+  return `${SHARE_REMOVED_PREFIX}${fileName}.`
+}
+
+/**
+ * For admins: members' first shared files wait for a check (task 05, part
+ * 5). More while the notice is unread fold into a count.
+ */
+export function shareWaitingMessage(files: number) {
+  return files === 1
+    ? "A shared file is waiting for a check."
+    : `${files} shared files are waiting for a check.`
+}
+
+export const SHARE_WAITING_PAGE = "/admin/pomodoro-uploads?sharing=waiting"
+
 /** What a report in the queue is about, as the admins' notice names it. */
-export type ReportedThing = "profile" | "message"
+export type ReportedThing = "profile" | "message" | "shared_file" | "copyright"
+
+const REPORTED_THING_WORDS: Record<ReportedThing, string> = {
+  profile: "a profile",
+  message: "a room message",
+  shared_file: "a shared file",
+  copyright: "a copyright claim",
+}
 
 /**
  * A report landed in the queue. Never names the reporter or quotes what was
@@ -326,7 +398,7 @@ export type ReportedThing = "profile" | "message"
  */
 export function reportNewMessage(thing: ReportedThing, reports: number) {
   if (reports > 1) return `${reports} new reports.`
-  return `${REPORT_NEW_PREFIX}${thing === "profile" ? "a profile" : "a room message"}.`
+  return `${REPORT_NEW_PREFIX}${REPORTED_THING_WORDS[thing]}.`
 }
 
 /**
@@ -437,6 +509,10 @@ export function noticeKindFromWords(notice: {
   if (message.startsWith(GROUP_REMOVED_PREFIX)) return "group_removed"
   if (message.includes(GROUP_JOIN_INFIX)) return "group_join"
   if (STREAK_PATTERN.test(message)) return "followed_streak"
+  if (FOLLOWED_SHARE_PATTERN.test(message)) return "followed_share"
+  if (SHARE_WEEKLY_PATTERN.test(message)) return "share_weekly"
+  if (message.startsWith(SHARE_REMOVED_PREFIX)) return "share_removed"
+  if (SHARE_WAITING_PATTERN.test(message)) return "share_waiting"
   if (CREDITS_PATTERN.test(message)) return "credits_low"
   if (message === STORAGE_LOW_MESSAGE) return "storage_low"
   if (message.startsWith(REPORT_NEW_PREFIX) || REPORTS_NEW_FOLDED.test(message))

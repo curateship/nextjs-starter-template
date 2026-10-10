@@ -1,4 +1,17 @@
-import { and, asc, count, desc, eq, ilike, inArray, or, sql, type SQL } from "drizzle-orm"
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  isNotNull,
+  isNull,
+  or,
+  sql,
+  type SQL,
+} from "drizzle-orm"
 
 import { db } from "@/server/db"
 import { deleteMediaAsAdmin } from "@/server/media/library"
@@ -17,6 +30,9 @@ import {
 import { customShellMedia, customShellUsers as users } from "@/server/schema"
 import type { UploadSortColumn, UPLOAD_PURPOSE_FILTERS } from "@/lib/pomodoro/admin-lists"
 import type { PomodoroUploadKind, PomodoroUploadPurpose } from "@/lib/pomodoro/media-limits"
+import type { ShareState } from "@/lib/pomodoro/shared-media"
+import type { UploadSharingFilter } from "@/lib/pomodoro/shared-media-reports"
+import { creditHandle, shareStateOf } from "@/server/pomodoro/shared-media"
 
 /**
  * Member uploads in the admin (admin task 06, part 3): every background and
@@ -47,6 +63,27 @@ export type AdminUploadRow = {
   /** Only a finished file has an address, the rule the member's picker follows. */
   url: string
   createdAt: Date
+  /** Not shared, waiting for a first check, shared, or taken off by an admin. */
+  share: ShareState
+  /** Why an admin took it off sharing. */
+  takenDownReason: string | null
+  /** The one file on the front page. */
+  featured: boolean
+  /** The owner's handle while their page answers, for the file's own page. */
+  handle: string | null
+}
+
+/** Each sharing filter as the rule it applies. */
+const SHARING_FILTER: Record<Exclude<UploadSharingFilter, "all">, SQL> = {
+  shared: and(
+    eq(pomodoroMediaUploads.shared, true),
+    isNull(pomodoroMediaUploads.shareWaitingSince)
+  )!,
+  waiting: and(
+    eq(pomodoroMediaUploads.shared, true),
+    isNotNull(pomodoroMediaUploads.shareWaitingSince)
+  )!,
+  taken_down: isNotNull(pomodoroMediaUploads.adminUnsharedAt),
 }
 
 /** The `media:<id>` a choice stores, compared in SQL against this row's file. */
@@ -56,6 +93,7 @@ export async function listAdminUploads(query: {
   search: string
   purpose: (typeof UPLOAD_PURPOSE_FILTERS)[number]
   user?: string
+  sharing?: UploadSharingFilter
   sort: UploadSortColumn
   direction: "asc" | "desc"
   page: number
@@ -64,6 +102,7 @@ export async function listAdminUploads(query: {
   const filters: SQL[] = []
   if (query.purpose !== "all") filters.push(eq(pomodoroMediaUploads.purpose, query.purpose))
   if (query.user) filters.push(eq(pomodoroMediaUploads.userId, query.user))
+  if (query.sharing && query.sharing !== "all") filters.push(SHARING_FILTER[query.sharing])
   const search = query.search.trim()
   if (search) {
     const pattern = `%${search}%`
@@ -100,6 +139,12 @@ export async function listAdminUploads(query: {
         fileSize: customShellMedia.fileSize,
         storagePath: customShellMedia.storagePath,
         createdAt: pomodoroMediaUploads.createdAt,
+        shared: pomodoroMediaUploads.shared,
+        shareWaitingSince: pomodoroMediaUploads.shareWaitingSince,
+        adminUnsharedAt: pomodoroMediaUploads.adminUnsharedAt,
+        takenDownReason: pomodoroMediaUploads.adminUnshareReason,
+        featuredAt: pomodoroMediaUploads.featuredAt,
+        handle: creditHandle,
         generated: sql<boolean>`exists (
           select 1 from ${pomodoroGenerations}
           where ${pomodoroGenerations.mediaId} = ${pomodoroMediaUploads.mediaId})`,
@@ -119,6 +164,7 @@ export async function listAdminUploads(query: {
       .from(pomodoroMediaUploads)
       .innerJoin(customShellMedia, eq(customShellMedia.id, pomodoroMediaUploads.mediaId))
       .innerJoin(users, eq(users.id, pomodoroMediaUploads.userId))
+      .leftJoin(pomodoroProfiles, eq(pomodoroProfiles.userId, pomodoroMediaUploads.userId))
       .where(where)
       // The file's id breaks ties, so equal sizes keep one order between pages.
       .orderBy(order(sortColumn), asc(pomodoroMediaUploads.mediaId))
@@ -134,8 +180,10 @@ export async function listAdminUploads(query: {
 
   return {
     rows: await Promise.all(
-      rows.map(async ({ storagePath, sourceMediaId, roomBackground, roomSound, profileBanner, ...row }) => ({
+      rows.map(async ({ storagePath, sourceMediaId, roomBackground, roomSound, profileBanner, shared, shareWaitingSince, adminUnsharedAt, featuredAt, ...row }) => ({
         ...row,
+        share: shareStateOf({ shared, shareWaitingSince, adminUnsharedAt }),
+        featured: featuredAt !== null,
         purpose: row.purpose as PomodoroUploadPurpose,
         kind: row.kind as PomodoroUploadKind,
         usedAs: [

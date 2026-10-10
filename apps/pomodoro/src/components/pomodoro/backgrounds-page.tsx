@@ -28,7 +28,13 @@ import { CatalogPager } from "@/components/pomodoro/catalog-pager"
 import {
   MediaShuffleSwitch,
   MediaTagFilter,
+  SharedTagFilter,
 } from "@/components/pomodoro/media-pool-panel"
+import {
+  MediaViewTabs,
+  SharedMediaBrowser,
+} from "@/components/pomodoro/shared-media-browser"
+import type { MediaPageView } from "@/lib/pomodoro/shared-media"
 import { useCatalogPage } from "@/lib/pomodoro/use-catalog-page"
 import { filterByTags, tickedFromPool } from "@/lib/pomodoro/media-pool"
 
@@ -53,6 +59,12 @@ export function BackgroundsPage() {
   )
   const filtered = filterByTags(themes, ticked)
   const { page, pages, first, shown, setPage } = useCatalogPage(filtered)
+  // The catalogue, or the files members share (task 03, part 3).
+  const [view, setView] = React.useState<MediaPageView>("catalogue")
+  // The shared view's tag and the tags it offers, drawn where the
+  // catalogue's filter is so the controls beside it never move.
+  const [sharedTag, setSharedTag] = React.useState<string | null>(null)
+  const [sharedTags, setSharedTags] = React.useState<string[]>([])
   // Read once per render rather than per card, so every card agrees.
   const now = new Date()
   const inUse = media.room?.background ?? media.personalBackground
@@ -62,24 +74,49 @@ export function BackgroundsPage() {
       <div className={`${contentColumn} flex flex-col gap-6 py-8`}>
         {/* Tyler's design, 9 Oct 2026: the tag filter and Shuffle sit beside
             the title, and there are no tabs. */}
-        <header className="flex flex-wrap items-center justify-between gap-4">
+        <header className="flex flex-col gap-4">
           <div className="title-halo flex flex-col gap-2">
             <h2 className="text-4xl font-bold tracking-tight">Backgrounds</h2>
             <MediaRoomNote thing="theme" />
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <MediaTagFilter
-              kind="background"
-              ticked={ticked}
-              onChange={(next) => {
-                setTicked(next)
-                setPage(0)
-              }}
-            />
+          {/* One row under the title: the tabs on the left, the filter,
+              Shuffle and Add on the right (Tyler, 10 Oct 2026: "all these
+              align right", "dont move the tabs with it too"). On a phone
+              they wrap under the tabs and line up on the left ("its still
+              not aligned left on mobile"). */}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+          <MediaViewTabs value={view} onChange={setView} />
+          <div className="flex flex-wrap items-center gap-3 sm:ml-auto sm:justify-end">
+            {view === "catalogue" ? (
+              <MediaTagFilter
+                kind="background"
+                ticked={ticked}
+                onChange={(next) => {
+                  setTicked(next)
+                  setPage(0)
+                }}
+              />
+            ) : (
+              <SharedTagFilter
+                kind="background"
+                tags={sharedTags}
+                value={sharedTag}
+                onChange={setSharedTag}
+              />
+            )}
             <MediaShuffleSwitch kind="background" ticked={ticked} />
             <AddUploadsLink kind="background" />
           </div>
+          </div>
         </header>
+        {view !== "catalogue" ? (
+          <SharedMediaBrowser
+            purpose="background"
+            scope={view}
+            tag={sharedTag}
+            onTags={setSharedTags}
+          />
+        ) : (
         <div className="flex flex-col gap-6">
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 sm:gap-6">
             {shown.map((scene) => {
@@ -133,6 +170,7 @@ export function BackgroundsPage() {
             onPage={setPage}
           />
         </div>
+        )}
       </div>
     </>
   )

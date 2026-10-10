@@ -6,7 +6,7 @@ import {
   sameBackgroundReference,
   type BackgroundReference,
 } from "@/lib/pomodoro/background-catalog"
-import { poolThemes } from "@/lib/pomodoro/media-pool"
+import { poolOwnFiles, poolThemes } from "@/lib/pomodoro/media-pool"
 import { stepPersonalBackground, useRoomMedia } from "@/lib/pomodoro/room-media-store"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
@@ -25,7 +25,8 @@ export function ThemeArrows({ shown }: { shown: BackgroundReference }) {
   const media = useRoomMedia()
   const [busy, setBusy] = React.useState(false)
   const reachable = media.personalBackgroundPool
-    ? poolThemes(media.catalog, media.personalBackgroundPool, media.canUsePremiumMedia).length
+    ? poolThemes(media.catalog, media.personalBackgroundPool, media.canUsePremiumMedia).length +
+      poolOwnFiles(media.own.backgrounds, media.personalBackgroundPool).length
     : media.catalog.themes.filter((theme) => media.canUsePremiumMedia || !theme.locked).length
 
   if (media.room || reachable < 2 || !sameBackgroundReference(shown, media.background))

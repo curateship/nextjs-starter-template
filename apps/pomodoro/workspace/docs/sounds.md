@@ -56,6 +56,12 @@ Tyler sent a design on 7 Oct 2026 with "revamp the sound page", and
   [Your own backgrounds and sounds](own-media-uploads.md) and
   [AI backgrounds and soundscapes](ai-generation.md). The Theme page shares
   both.
+- **A member's own sounds loop without a seam.** An AI soundscape comes back
+  two minutes long, crossfaded into itself, and every sound a member uploads
+  has its last 2 seconds faded over its first, so neither clicks when it
+  repeats. See "Soundscapes run two minutes" in
+  [AI backgrounds and soundscapes](ai-generation.md) and "What happens to the
+  file" in [Your own backgrounds and sounds](own-media-uploads.md).
 
 ## Clicking a card plays it
 
@@ -97,6 +103,10 @@ choice) and the speaker in grey, a 72px grey volume slider with a 14px knob,
 and the sleep timer's moon. On a phone the name is cut shorter so the bar stays
 on one line. With no sound chosen it reads "No sound · Pick one", with Pick one
 opening Sounds.
+
+The name is the catalogue sound's, or a file's own name when shuffle picked
+one of the member's files ("Desk rain"). How those files join shuffle is in
+[Shuffle and tags](shuffle-and-tags.md).
 
 One rule between the two:
 

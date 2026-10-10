@@ -104,13 +104,16 @@ Then it is the pair the host picked, until you leave.
 - **The header's Theme pill no longer picks anything.** It says whose room the
   pair belongs to and links to Sounds and Backgrounds.
 
-## A hosted room takes catalogue items only
+## A hosted room takes catalogue items and shared files
 
 Host a room asks for a sound and a theme, and both are required. They come
-from the Live sounds and scenes in the catalogue. A host's own uploads are left out,
-because an upload is served from a public address and anyone who joins would
-see or hear it (`roomPairProblem` in `src/lib/pomodoro/media-pair.ts`). Whether
-an unlisted room may use one is still Tyler's to decide.
+from the Live sounds and scenes in the catalogue, a shuffle or tags group, or
+a shared file: the host's own shared file, or a shared file the host saved
+(uploads-and-sharing task 04, 10 Oct 2026). A file nobody chose to share is
+still never shown to whoever joins, which is why private uploads stay out. A
+shared file that stops being shared falls back to the default scene or to
+silence for everybody in the room. See "Rooms" in
+[Shared sounds and backgrounds](shared-media.md).
 
 ## How the page knows
 

@@ -1,5 +1,8 @@
 import * as React from "react"
+import { useNavigate } from "@tanstack/react-router"
 import {
+  CopyPlusIcon,
+  Layers2Icon,
   Loader2Icon,
   RotateCcwIcon,
   SparklesIcon,
@@ -7,8 +10,16 @@ import {
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   Tooltip,
   TooltipContent,
@@ -19,17 +30,27 @@ import { useProductAuth } from "@/lib/pomodoro/auth-state"
 import {
   describeCreditsLeft,
   GENERATION_COPY,
+  GENERATION_PURPOSE,
+  GENERATION_STYLES,
   PROMPT_MAX_LENGTH,
   PROMPT_MIN_LENGTH,
   type GenerationKind,
+  type GenerationStyleKey,
 } from "@/lib/pomodoro/generation"
+import {
+  addBackgroundToPersonalRoom,
+  addSoundToPersonalRoom,
+} from "@/lib/pomodoro/room-media-store"
+import { showErrorToast } from "@/lib/toast/error-toast"
 import {
   getGenerationErrorMessage,
   loadGenerationPanel,
   requestGeneration,
   type GenerationPanel,
 } from "@/lib/api/pomodoro/generation"
+import { BuyButton } from "@/components/pomodoro/buy-button"
 import { SignInButton } from "@/components/pomodoro/sign-in-button"
+import { buyPackLabel, PACK_FOR_KIND } from "@/lib/pomodoro/purchases"
 
 /**
  * "Generate your own" — one card under the uploads on each picker page: a
@@ -47,20 +68,33 @@ import { SignInButton } from "@/components/pomodoro/sign-in-button"
 /** How often the panel re-reads while something is still being made. */
 const POLL_MS = 5000
 
+/** "Use the picture as a start" is off: the film comes from words alone. */
+const FROM_WORDS = "words"
+
 export function MediaGeneratorSection({
   kind,
   onFinished,
+  seedPrompt = "",
 }: {
   kind: GenerationKind
   /** A new file exists, so the picker above should fetch its list again. */
   onFinished: () => void
+  /**
+   * Words to start the box with: "Make a matching sound" on a finished
+   * background lands here with the background's prompt (task 06, part 4).
+   */
+  seedPrompt?: string
 }) {
   const copy = GENERATION_COPY[kind]
   const auth = useProductAuth()
   const signedIn = auth.known && auth.authenticated
+  const navigate = useNavigate()
 
   const [panel, setPanel] = React.useState<GenerationPanel | null>(null)
-  const [prompt, setPrompt] = React.useState("")
+  const [prompt, setPrompt] = React.useState(seedPrompt)
+  const [style, setStyle] = React.useState<GenerationStyleKey | null>(null)
+  const [picture, setPicture] = React.useState<string>(FROM_WORDS)
+  const [look, setLook] = React.useState(false)
   const [notice, setNotice] = React.useState<string | null>(null)
   const [error, setError] = React.useState<string | null>(null)
   const [busy, setBusy] = React.useState(false)
@@ -117,10 +151,27 @@ export function MediaGeneratorSection({
     setBusy(true)
     setError(null)
     setNotice(null)
+    // A picture that has left the list since it was chosen is not sent.
+    const pictureMediaId =
+      kind === "background" &&
+      panel?.pictures.some((option) => option.mediaId === picture)
+        ? picture
+        : null
+    const asLook = look && Boolean(panel?.lookReady)
     try {
-      await requestGeneration(kind, text)
+      await requestGeneration({
+        kind,
+        prompt: text,
+        style: kind === "background" ? style : null,
+        pictureMediaId,
+        look: asLook,
+      })
       setPrompt("")
-      setNotice("Queued. It appears in the grid above when it is made.")
+      setNotice(
+        asLook
+          ? "Queued. The background and the sound appear on their tabs as each is made, and the bell says when both are ready."
+          : "Queued. It appears in the grid above when it is made."
+      )
       await refresh()
     } catch (requestError) {
       setError(getGenerationErrorMessage(requestError))
@@ -135,7 +186,7 @@ export function MediaGeneratorSection({
   const known = panel !== null || (auth.known && !auth.authenticated)
   const allowed = Boolean(panel && panel.limit > 0)
   const ready = Boolean(panel?.providerReady)
-  const hasCredit = Boolean(panel && panel.left > 0)
+  const hasCredit = Boolean(panel && panel.left + panel.packLeft > 0)
   // A prompt that is too short does not shut the button: pressing it says what
   // is missing, which a grey button never did.
   const canSubmit = allowed && ready && hasCredit && !busy
@@ -150,7 +201,9 @@ export function MediaGeneratorSection({
         : !ready
           ? copy.notSwitchedOn
           : !hasCredit
-            ? "You have used this month's AI generations. You get a fresh batch on the first."
+            ? panel?.canBuy
+              ? "You have used this month's AI generations. You get a fresh batch on the first, or buy more now."
+              : "You have used this month's AI generations. You get a fresh batch on the first."
             : null
 
   const promptId = `generate-${kind}`
@@ -161,6 +214,39 @@ export function MediaGeneratorSection({
     setTooShort(false)
     setNotice(null)
     promptInput.current?.focus()
+  }
+
+  // The other kind's generator, with this prompt in its box (part 4). It is
+  // on the other tab of the same page; nothing is sent until Generate.
+  const matchLabel =
+    kind === "background" ? "Make a matching sound" : "Make a matching background"
+  function match(text: string) {
+    void navigate({
+      to: "/uploads",
+      search: {
+        kind: GENERATION_PURPOSE[kind === "background" ? "soundscape" : "background"],
+        prompt: text,
+      },
+    })
+  }
+
+  async function playBoth(pair: NonNullable<GenerationPanel["generations"][number]["look"]>) {
+    try {
+      await addBackgroundToPersonalRoom({
+        type: "media",
+        mediaId: pair.background.mediaId,
+        mediaKind: "video",
+        mediaUrl: pair.background.url,
+      })
+      await addSoundToPersonalRoom({
+        type: "media",
+        mediaId: pair.sound.mediaId,
+        mediaUrl: pair.sound.url,
+      })
+      setNotice("Both are in your personal room now.")
+    } catch (useError) {
+      showErrorToast(getGenerationErrorMessage(useError))
+    }
   }
 
   const headingId = `${promptId}-heading`
@@ -184,7 +270,7 @@ export function MediaGeneratorSection({
               like the page is nagging. */}
           {panel && panel.limit > 0 ? (
             <span className="font-mono text-xs text-muted-foreground">
-              {describeCreditsLeft(panel.left, panel.limit)}
+              {describeCreditsLeft(panel.left, panel.limit, panel.packLeft)}
             </span>
           ) : null}
         </header>
@@ -215,10 +301,80 @@ export function MediaGeneratorSection({
           </div>
         </div>
 
+        {kind === "background" ? (
+          <div className="flex flex-col gap-2">
+            <span id={`${promptId}-styles`} className="text-sm font-medium">
+              Style
+            </span>
+            <div
+              role="group"
+              aria-labelledby={`${promptId}-styles`}
+              className="flex flex-wrap gap-2"
+            >
+              {GENERATION_STYLES.map((option) => (
+                <Button
+                  key={option.key}
+                  type="button"
+                  variant={style === option.key ? "default" : "outline"}
+                  aria-pressed={style === option.key}
+                  disabled={!editable}
+                  onClick={() =>
+                    setStyle((current) =>
+                      current === option.key ? null : option.key
+                    )
+                  }
+                >
+                  {option.label}
+                </Button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {kind === "background" && panel?.pictures.length ? (
+          <div className="flex flex-col gap-2">
+            <Label htmlFor={`${promptId}-picture`}>Start from</Label>
+            <Select value={picture} onValueChange={setPicture} disabled={!editable}>
+              <SelectTrigger id={`${promptId}-picture`} className="w-fit max-w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={FROM_WORDS}>Words only</SelectItem>
+                {panel.pictures.map((option) => (
+                  <SelectItem key={option.mediaId} value={option.mediaId}>
+                    My picture: {option.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : null}
+
+        {panel?.lookReady ? (
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id={`${promptId}-look`}
+              checked={look}
+              disabled={!editable}
+              onCheckedChange={(checked) => setLook(checked === true)}
+            />
+            <Label htmlFor={`${promptId}-look`}>
+              Background and sound, from one prompt. Uses one credit of each.
+            </Label>
+          </div>
+        ) : null}
+
         {blockedReason && !error ? (
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-sm text-muted-foreground">{blockedReason}</p>
             {known && !signedIn ? <SignInButton /> : null}
+            {panel && allowed && !hasCredit && panel.canBuy ? (
+              <BuyButton
+                product={PACK_FOR_KIND[kind]}
+                page={GENERATION_PURPOSE[kind]}
+                label={buyPackLabel(kind)}
+              />
+            ) : null}
           </div>
         ) : null}
         {notice ? (
@@ -246,6 +402,9 @@ export function MediaGeneratorSection({
                 // Only while the box can take the words back; a box that is
                 // shut would be filled with nowhere to send them.
                 onRetry={editable ? () => retry(row.prompt) : undefined}
+                matchLabel={matchLabel}
+                onMatch={editable ? () => match(row.prompt) : undefined}
+                onUseBoth={row.look ? () => void playBoth(row.look!) : undefined}
               />
             ))}
           </ul>
@@ -332,34 +491,56 @@ const STATUS_WORDS: Record<string, string> = {
 function GenerationRowLine({
   row,
   onRetry,
+  matchLabel,
+  onMatch,
+  onUseBoth,
 }: {
   row: GenerationPanel["generations"][number]
-  /** Puts this row's prompt back in the box. Only a failed row offers it. */
+  /**
+   * Puts this row's prompt back in the box: Try again on a failed row, Make
+   * another on a finished one (task 06, part 1).
+   */
   onRetry?: () => void
+  matchLabel: string
+  /** The other kind's generator with this prompt, on a finished row (part 4). */
+  onMatch?: () => void
+  /** Both halves of a finished look into the personal room (part 7). */
+  onUseBoth?: () => void
 }) {
   const failed = row.status === "failed"
+  const ready = row.status === "ready"
   const working = row.status === "queued" || row.status === "running"
+  const detail = [row.styleLabel, row.fromPicture ? "From my picture" : null, row.inLook ? "Background and sound" : null]
+    .filter(Boolean)
+    .join(" · ")
 
   return (
-    <li className="flex items-center gap-2 text-xs">
-      {working ? (
-        <Loader2Icon
-          className="size-3 shrink-0 animate-spin text-muted-foreground"
-          aria-hidden="true"
-        />
-      ) : failed ? (
-        <TriangleAlertIcon
-          className="size-3 shrink-0 text-destructive"
-          aria-hidden="true"
-        />
-      ) : (
-        <SparklesIcon
-          className="size-3 shrink-0 text-[var(--p-accent)]"
-          aria-hidden="true"
-        />
-      )}
-      <span className="min-w-0 flex-1 truncate" title={row.prompt}>
-        {row.prompt}
+    <li className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+      {/* The prompt takes a line of its own on a phone, and the state and
+          buttons wrap under it. */}
+      <span className="flex min-w-0 flex-1 basis-full items-center gap-2 sm:basis-0">
+        {working ? (
+          <Loader2Icon
+            className="size-3 shrink-0 animate-spin text-muted-foreground"
+            aria-hidden="true"
+          />
+        ) : failed ? (
+          <TriangleAlertIcon
+            className="size-3 shrink-0 text-destructive"
+            aria-hidden="true"
+          />
+        ) : (
+          <SparklesIcon
+            className="size-3 shrink-0 text-[var(--p-accent)]"
+            aria-hidden="true"
+          />
+        )}
+        <span className="min-w-0 truncate" title={row.prompt}>
+          {detail ? (
+            <span className="text-muted-foreground">{detail} · </span>
+          ) : null}
+          {row.prompt}
+        </span>
       </span>
       <span
         className={cn(
@@ -369,10 +550,51 @@ function GenerationRowLine({
       >
         {failed
           ? (row.failureReason ?? STATUS_WORDS.failed)
-          : row.status === "ready"
+          : ready
             ? "In the grid above"
-            : (STATUS_WORDS[row.status] ?? row.status)}
+            : row.status === "queued" && row.queuePlace
+              ? row.queuePlace
+              : (STATUS_WORDS[row.status] ?? row.status)}
       </span>
+      {ready && onUseBoth ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="xs"
+          className="shrink-0"
+          onClick={onUseBoth}
+          aria-label={`Use both: ${row.prompt}`}
+        >
+          <Layers2Icon aria-hidden="true" />
+          Use both
+        </Button>
+      ) : null}
+      {ready && onMatch ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="xs"
+          className="shrink-0"
+          onClick={onMatch}
+          aria-label={`${matchLabel}: ${row.prompt}`}
+        >
+          <SparklesIcon aria-hidden="true" />
+          {matchLabel}
+        </Button>
+      ) : null}
+      {ready && onRetry ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="xs"
+          className="shrink-0"
+          onClick={onRetry}
+          aria-label={`Make another: ${row.prompt}`}
+        >
+          <CopyPlusIcon aria-hidden="true" />
+          Make another
+        </Button>
+      ) : null}
       {failed && onRetry ? (
         <Button
           type="button"

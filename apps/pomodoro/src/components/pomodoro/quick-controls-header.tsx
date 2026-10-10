@@ -54,6 +54,7 @@ import { VolumeSlider } from "@/components/pomodoro/sound-player-row"
 import { TextLink } from "@/components/pomodoro/text-link"
 import { SignInButton } from "@/components/pomodoro/sign-in-button"
 import { plural } from "@/lib/format/plural"
+import { BackdropDimRow } from "@/components/pomodoro/backdrop-look-controls"
 
 type SoundPlayer = ReturnType<typeof useSoundPlayer>
 
@@ -767,6 +768,7 @@ function ThemeQuickControl() {
             <strong className="text-[13.5px]">Choose a theme</strong>
           </Link>
         </div>
+        <BackdropDimRow />
       </PopoverContent>
     </Popover>
   )

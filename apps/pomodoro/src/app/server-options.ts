@@ -5,8 +5,10 @@ import { openDueRooms } from "@/server/pomodoro/scheduled-rooms"
 import { processNextMediaUpload } from "@/server/pomodoro/media-worker"
 import { processNextCatalogFile } from "@/server/pomodoro/catalog-worker"
 import { processPixabayImports } from "@/server/pomodoro/pixabay-worker"
+import { settlePurchases } from "@/server/pomodoro/purchases"
 import { processYoutubeImports } from "@/server/pomodoro/youtube-worker"
 import { processNextGeneration } from "@/server/pomodoro/generation-worker"
+import { runSharedMediaNoticesPass } from "@/server/pomodoro/shared-media-notices"
 import {
   readFocusHoursRow,
   readOpenRoomsRow,
@@ -162,6 +164,13 @@ export const appServerOptions: AppServerOptions = {
         tick: processPixabayImports,
       },
       {
+        // One-off purchases (task 07): a checkout nobody came back from is
+        // settled by asking Stripe, and a refund made in Stripe takes back
+        // what it bought. At most five Stripe calls a pass.
+        name: "pomodoro-purchases",
+        tick: () => settlePurchases(),
+      },
+      {
         // Themes an admin made from 5 seconds of a YouTube video, one clip per
         // pass, cut at up to 4K. The clip then goes to pomodoro-catalog-files,
         // which keeps it at that size and takes its still.
@@ -175,6 +184,17 @@ export const appServerOptions: AppServerOptions = {
         // behind somebody else's video being dreamt up.
         name: "pomodoro-generations",
         tick: processNextGeneration,
+      },
+      {
+        // The bell for shared files (uploads-and-sharing task 03): followers
+        // hear about files shared since the last pass, folded to one notice
+        // per person per day, and every ten minutes owners whose Monday it
+        // is get their weekly note. Each file and each week is claimed
+        // before anything is sent, so overlapping passes tell nobody twice.
+        name: "pomodoro-shared-media",
+        tick: async () => {
+          await runSharedMediaNoticesPass()
+        },
       },
       {
         // The evening streak reminder. At most one pass a minute; each person

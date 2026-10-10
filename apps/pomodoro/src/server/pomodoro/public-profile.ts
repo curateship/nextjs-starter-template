@@ -36,6 +36,8 @@ import {
   localDateFor,
 } from "@/server/pomodoro/productivity"
 import { blockedUserIdsFor, isBlockedBetween } from "@/server/pomodoro/blocks"
+import { listSharedMedia } from "@/server/pomodoro/shared-media"
+import { PROFILE_SHARED_COUNT } from "@/lib/pomodoro/shared-media"
 import {
   dailyFocusStats,
   focusSessions,
@@ -108,7 +110,16 @@ type Held<T> = { value: T; expiresAt: number }
  * page means a signed-in visitor costs no extra query to find out. It stays
  * in this process; nothing puts it in an answer.
  */
-type HeldProfile = { view: PublicProfileView | null; ownerUserId: string | null }
+type HeldProfile = {
+  view: PublicProfileView | null
+  ownerUserId: string | null
+  /**
+   * "My shared sounds and backgrounds" is on. The files themselves are read
+   * per visit rather than held, because a file unshared a second ago must
+   * be gone on the next load, and the heart is the reader's own.
+   */
+  showSharedMedia: boolean
+}
 
 const profileCache = new Map<string, Held<HeldProfile>>()
 const recapCache = new Map<string, Held<YearInReviewView | null>>()
@@ -174,6 +185,7 @@ async function readProfileRow(handle: string) {
       showProjects: pomodoroProfiles.showProjects,
       showFocusingNow: pomodoroProfiles.showFocusingNow,
       showRoom: pomodoroProfiles.showRoom,
+      showSharedMedia: pomodoroProfiles.showSharedMedia,
       avatarUrl: customShellUsers.avatarUrl,
     })
     .from(pomodoroProfiles)
@@ -465,7 +477,34 @@ export async function readPublicProfile(
   if (await isBlockedBetween(viewerUserId, held.ownerUserId)) return null
   // Worked out per reader rather than held, because the held page is the same
   // one for everybody.
-  return { ...held.view, isOwner: viewerUserId === held.ownerUserId }
+  return {
+    ...held.view,
+    shared: held.showSharedMedia
+      ? await readSharedForProfile(held.ownerUserId, viewerUserId)
+      : null,
+    isOwner: viewerUserId === held.ownerUserId,
+  }
+}
+
+/** The newest shared sounds and backgrounds for the profile's two cards. */
+async function readSharedForProfile(
+  ownerUserId: string,
+  viewerUserId: string | null
+) {
+  const [sounds, backgrounds] = await Promise.all(
+    (["sound", "background"] as const).map((purpose) =>
+      listSharedMedia({
+        viewerUserId,
+        purpose,
+        ownerUserId,
+        pageSize: PROFILE_SHARED_COUNT,
+      })
+    )
+  )
+  return {
+    sounds: { items: sounds.items, total: sounds.total },
+    backgrounds: { items: backgrounds.items, total: backgrounds.total },
+  }
 }
 
 async function buildPublicProfile(
@@ -473,7 +512,7 @@ async function buildPublicProfile(
   now: Date
 ): Promise<HeldProfile> {
   const profile = await readProfileRow(handle)
-  if (!profile) return { view: null, ownerUserId: null }
+  if (!profile) return { view: null, ownerUserId: null, showSharedMedia: false }
 
   const todayLocalDate = localDateFor(profile.timezone, now)
   const userId = profile.userId
@@ -526,6 +565,7 @@ async function buildPublicProfile(
 
   return {
     ownerUserId: userId,
+    showSharedMedia: profile.showSharedMedia,
     view: {
     handle,
     name: profile.displayName?.trim() || handle,
@@ -545,7 +585,9 @@ async function buildPublicProfile(
     recapYears,
     followers,
     following,
-    // Replaced per reader in `readPublicProfile`; the held copy is nobody's.
+    // Both replaced per reader in `readPublicProfile`; the held copy is
+    // nobody's.
+    shared: null,
     isOwner: false,
     },
   }
@@ -770,6 +812,7 @@ async function readMyPublicProfile(userId: string) {
         showProjects: pomodoroProfiles.showProjects,
         showFocusingNow: pomodoroProfiles.showFocusingNow,
         showRoom: pomodoroProfiles.showRoom,
+        showSharedMedia: pomodoroProfiles.showSharedMedia,
         listed: pomodoroProfiles.listed,
         cheersEnabled: pomodoroProfiles.cheersEnabled,
         hiddenAt: pomodoroProfiles.hiddenAt,
@@ -796,6 +839,7 @@ async function readMyPublicProfile(userId: string) {
     showProjects: row?.showProjects ?? false,
     showFocusingNow: row?.showFocusingNow ?? false,
     showRoom: row?.showRoom ?? false,
+    showSharedMedia: row?.showSharedMedia ?? false,
     listed: row?.listed ?? false,
     cheersEnabled: row?.cheersEnabled ?? true,
     /** Set when an operator hid the page. The card says so plainly. */
@@ -820,6 +864,7 @@ export type PublicProfileChanges = {
   showProjects: boolean
   showFocusingNow: boolean
   showRoom: boolean
+  showSharedMedia: boolean
   listed: boolean
   cheersEnabled: boolean
 }
@@ -889,6 +934,7 @@ export async function saveMyPublicProfile(
     showProjects: changes.showProjects,
     showFocusingNow: changes.showFocusingNow,
     showRoom: changes.showRoom,
+    showSharedMedia: changes.showSharedMedia,
     listed: changes.listed,
     cheersEnabled: changes.cheersEnabled,
   }

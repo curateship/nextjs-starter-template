@@ -58,6 +58,15 @@ import {
   useSearchBoxText,
 } from "@/lib/nav/list-search"
 import type { ReportSortColumn } from "@/lib/pomodoro/admin-lists"
+import {
+  ShareRowMenu,
+  UnshareDialog,
+  shareLabel,
+  useShareActions,
+} from "@/components/pomodoro/admin-share-actions"
+import { UploadThumbnail } from "@/components/pomodoro/admin-uploads-dashboard"
+import { deletePomodoroUploads } from "@/lib/api/pomodoro/admin-uploads-tags"
+import { sharedFileReportReasonLabel } from "@/lib/pomodoro/shared-media-reports"
 
 const route = getRouteApi("/_authenticated/admin/pomodoro-reports")
 
@@ -293,6 +302,17 @@ export function AdminReportsDashboard({
     [clearSelection, refresh]
   )
 
+  // A shared file's report can take the file off sharing, or delete it
+  // (task 05, part 2), with the same window and delete Member uploads uses.
+  const shareActions = useShareActions({ onDone: refresh })
+  const fileDel = useAdminDelete({
+    one: "file",
+    many: "files",
+    run: deletePomodoroUploads,
+    keptReason: "already gone, or kept by the site",
+    selection,
+    onDone: refresh,
+  })
   const del = useAdminDelete({
     one: "report",
     many: "reports",
@@ -441,7 +461,7 @@ export function AdminReportsDashboard({
             <TableCell column="main">
               <div className="min-w-0">
                 <span className="block max-w-80 truncate" title={row.reason}>
-                  {row.reason}
+                  {reportReason(row)}
                 </span>
                 <ReportedMessage row={row} />
                 <ReportPeople
@@ -522,6 +542,19 @@ export function AdminReportsDashboard({
                   onClick={() => void decide([row.id], "pending", "row")}
                 />
               )}
+              {row.mediaId && row.fileName ? (
+                <ShareRowMenu
+                  row={{
+                    mediaId: row.mediaId,
+                    name: row.fileName,
+                    share: row.fileShare ?? "off",
+                    featured: row.fileFeatured,
+                    handle: row.reportedHandle,
+                  }}
+                  actions={shareActions}
+                  onDeleteFile={() => fileDel.ask([row.mediaId!])}
+                />
+              ) : null}
               <AdminRowDeleteButton
                 del={del}
                 id={row.id}
@@ -537,6 +570,13 @@ export function AdminReportsDashboard({
         description="The reports are removed from the queue for good. Nobody is told, unlike Resolve and Dismiss, which thank the person who reported. The message or profile they were about is not touched. This cannot be undone."
         confirmLabel={plural(del.ids.length, "Delete report", "Delete reports")}
       />
+      <AdminDeleteConfirm
+        del={fileDel}
+        title="Delete this file?"
+        description="The file is removed from storage and leaves its owner's uploads. Anybody using it falls back to the default scene or to silence. The owner is not told. This cannot be undone."
+        confirmLabel="Delete file"
+      />
+      <UnshareDialog actions={shareActions} />
       {safety.dialogs}
     </>
   )
@@ -556,6 +596,12 @@ export function AdminReportsDashboard({
  * by their handle so it matches the address an operator would open to look.
  */
 function reportSubject(row: AdminReportRow) {
+  if (row.kind === "shared_file")
+    return row.fileName ? `Shared file: ${row.fileName}` : "A shared file"
+  if (row.kind === "copyright")
+    return row.fileName
+      ? `Copyright: ${row.fileName}`
+      : "Copyright, outside"
   if (row.kind === "profile") {
     return row.reportedHandle
       ? `/u/${row.reportedHandle}`
@@ -564,7 +610,16 @@ function reportSubject(row: AdminReportRow) {
   return row.roomName ?? "A room"
 }
 
+/** A shared file's reason in words, and a copyright claim by what it is. */
+function reportReason(row: AdminReportRow) {
+  if (row.kind === "shared_file") return sharedFileReportReasonLabel(row.reason)
+  if (row.kind === "copyright") return "Copyright claim from outside, answered by email"
+  return row.reason
+}
+
 function ReportedMessage({ row }: { row: AdminReportRow }) {
+  if (row.kind === "shared_file" || row.kind === "copyright")
+    return <ReportedFile row={row} />
   if (!row.messageBody) {
     return (
       <span className="block text-xs text-muted-foreground">
@@ -589,6 +644,63 @@ function ReportedMessage({ row }: { row: AdminReportRow }) {
           ? ", removed by an admin"
           : ", deleted by the host"
         : ""}
+    </span>
+  )
+}
+
+/**
+ * The shared file a report is about, with a small preview, and for a
+ * copyright claim from outside who sent it, how to reply, and what they say
+ * it copies (task 05, parts 2 and 6).
+ */
+function ReportedFile({ row }: { row: AdminReportRow }) {
+  return (
+    <span className="mt-1 flex min-w-0 flex-col gap-1 text-xs text-muted-foreground">
+      {row.mediaId && row.fileName ? (
+        <span className="flex min-w-0 items-center gap-2">
+          <UploadThumbnail kind={row.fileKind} url={row.fileUrl} />
+          <span className="min-w-0">
+            <span className="block max-w-64 truncate" title={row.fileName}>
+              {row.fileName}
+            </span>
+            <span className="block">
+              {shareLabel(row.fileShare ?? "off", row.fileFeatured) ?? "Not shared"}
+              {row.subjectName ? (
+                <>
+                  {" · by "}
+                  <MemberName
+                    id={row.subjectUserId}
+                    name={row.subjectName}
+                    className="inline font-normal"
+                  />
+                </>
+              ) : null}
+            </span>
+          </span>
+        </span>
+      ) : (
+        <span className="block">
+          {row.kind === "copyright"
+            ? "The address does not point at a shared file."
+            : "The reported file is no longer on record."}
+        </span>
+      )}
+      {row.kind === "copyright" ? (
+        <>
+          <span className="block max-w-80 truncate">
+            From {row.contactName} ·{" "}
+            <a
+              href={`mailto:${row.contactEmail ?? ""}`}
+              className="underline-offset-4 hover:underline"
+            >
+              {row.contactEmail}
+            </a>
+          </span>
+          <span className="block max-w-80 truncate" title={row.details ?? undefined}>
+            {row.details}
+          </span>
+        </>
+      ) : null}
     </span>
   )
 }

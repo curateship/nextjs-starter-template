@@ -10,11 +10,17 @@ import {
   readMemberSearch,
   readUserFilter,
 } from "@/lib/pomodoro/admin-lists"
+import {
+  UPLOAD_SHARING_FILTERS,
+  type UploadSharingFilter,
+} from "@/lib/pomodoro/shared-media-reports"
 
 type UploadsSearch = {
   q?: string
   purpose?: (typeof UPLOAD_PURPOSE_FILTERS)[number]
   user?: string
+  /** All, shared, waiting for a first check, or taken off (task 05). */
+  sharing?: UploadSharingFilter
   member?: string
   sort?: (typeof UPLOAD_SORT_COLUMNS)[number]
   direction?: "asc" | "desc"
@@ -28,6 +34,7 @@ function readUploadsSearch(search: Record<string, unknown>): UploadsSearch {
     q: readSearchText(search.q),
     purpose: readOneOf(search.purpose, UPLOAD_PURPOSE_FILTERS),
     user: readUserFilter(search.user),
+    sharing: readOneOf(search.sharing, UPLOAD_SHARING_FILTERS),
     sort: readOneOf(search.sort, UPLOAD_SORT_COLUMNS),
     direction: readDirection(search.direction),
     page: readPage(search.page),
@@ -43,6 +50,7 @@ export const Route = createFileRoute("/_authenticated/admin/pomodoro-uploads")({
       search: search.q ?? "",
       purpose: search.purpose ?? "all",
       user: search.user,
+      sharing: search.sharing ?? "all",
       sort: search.sort ?? "created",
       direction: search.direction ?? "desc",
       page: search.page ?? 1,

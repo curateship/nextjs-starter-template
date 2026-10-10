@@ -107,6 +107,11 @@ import {
   roomPresetSummary,
   type CustomTimerPreset,
 } from "@/lib/pomodoro/timer-presets"
+import { creditLabel } from "@/lib/pomodoro/shared-media"
+import {
+  loadRoomFileChoices,
+  type RoomFileChoices,
+} from "@/lib/api/pomodoro/rooms"
 
 /**
  * The rooms page: your three rooms side by side (personal, joined, hosted,
@@ -363,7 +368,7 @@ export function RoomsPage() {
               others > 0
                 ? `You host ${activeRoom.room.name}, so leaving ends it. The session stops for the ${others} ${others === 1 ? "other person" : "other people"} in it.`
                 : `You host ${activeRoom.room.name}, so leaving ends it. Nobody else is in it.`,
-            confirmLabel: "Leave & close",
+            confirmLabel: "Close room",
             onConfirm: () => void backToPersonal(),
           }
         : {
@@ -394,7 +399,7 @@ export function RoomsPage() {
   const hostingNow = activeRoom?.you.role === "host"
   const hostFromHere = authenticated ? () => setShowHostForm(true) : undefined
   const hostNote = hostingNow
-    ? `You already host ${activeRoom.room.name}. Leave & close it first.`
+    ? `You already host ${activeRoom.room.name}. Close it first.`
     : activeRoom
       ? `Hosting a room makes you leave ${activeRoom.room.name}.`
       : "Hosting a room moves you out of your personal room."
@@ -583,6 +588,9 @@ export function HostRoomDialog({
   // The house presets an admin keeps (admin task 04), offered above the
   // host's own, and the admin's invite limit, read with them.
   const [housePresets, setHousePresets] = React.useState<HousePreset[]>([])
+  // The host's own shared files and shared files they saved (rooms task 04),
+  // offered under the catalogue. Without them the window still works.
+  const [fileChoices, setFileChoices] = React.useState<RoomFileChoices | null>(null)
   const [maxInvites, setMaxInvites] = React.useState(MAX_ROOM_INVITES)
   React.useEffect(() => {
     if (!open) return
@@ -611,6 +619,12 @@ export function HostRoomDialog({
       },
       // Without them the window still works with the host's own presets and
       // the usual invite limit; the server checks the real one.
+      () => undefined
+    )
+    loadRoomFileChoices().then(
+      (choices) => {
+        if (!cancelled) setFileChoices(choices)
+      },
       () => undefined
     )
     return () => {
@@ -907,6 +921,11 @@ export function HostRoomDialog({
                       {sound.locked ? " · Pro" : ""}
                     </SelectItem>
                   ))}
+                  {(fileChoices?.sounds ?? []).map((file) => (
+                    <SelectItem key={file.value} value={file.value}>
+                      {roomFileLabel(file)}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -950,6 +969,11 @@ export function HostRoomDialog({
                       />
                       {scene.label}
                       {scene.locked ? " · Pro" : ""}
+                    </SelectItem>
+                  ))}
+                  {(fileChoices?.backgrounds ?? []).map((file) => (
+                    <SelectItem key={file.value} value={file.value}>
+                      {roomFileLabel(file)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -1118,4 +1142,11 @@ export function HostRoomDialog({
       </DialogContent>
     </Dialog>
   )
+}
+
+/** "Yours: Rain on glass", or "Saved: Snow, by @sarah", in the Host a room pickers. */
+function roomFileLabel(file: RoomFileChoices["sounds"][number]) {
+  return file.own
+    ? `Yours: ${file.label}`
+    : `Saved: ${file.label}, ${creditLabel(file.credit ?? { handle: null })}`
 }

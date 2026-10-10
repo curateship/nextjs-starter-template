@@ -22,7 +22,7 @@ The top of `/rooms` is three columns, drawn to Tyler's design of 7 Oct 2026
   the room, and for how many other people.
 - **The room you are in has a Leave button beside Open room.** Tyler, 9 Oct
   2026: "add a leave room button here". It reads Leave room on Room I joined
-  and Leave & close on My hosted room, and asks the same question Go back to
+  and Close room on My hosted room, and asks the same question Go back to
   it does, because it does the same thing.
 - **A room you are not in is a dashed box** with the way to get one. Room I
   joined has Browse open rooms, which scrolls down to Open to join. My hosted
@@ -34,7 +34,7 @@ The top of `/rooms` is three columns, drawn to Tyler's design of 7 Oct 2026
   mornings.", or "Hosting a room moves you out of your personal room." Making
   the room leaves the one you were in, on the server. Only a room you already
   host stops it: the header button is then disabled and says "You already
-  host <room>. Leave & close it first."
+  host <room>. Close it first."
 
 ## Open to join on the front page
 
@@ -202,11 +202,10 @@ is not logged in, that should link to the login page."
     length ("25m"; done ones orange, the next one
     outlined, the rest grey), then "5m breaks · 15m long break after session
     4 · set by the host". The host reads "set by you".
-  - **One card for the room.** The name with a green dot, and under it the
-    phase, "Session 2 of 4" and the sound and theme ("No sound, Lofi girl,
-    picked by the host"; the host gets the links to Sounds and Backgrounds
-    instead). Copy invite link and Leave room sit on the right as round
-    outline buttons; the host has Close room and Leave & close there.
+  - **One card for the room.** The host's picture, the name with a green
+    dot, and under it the phase and "Session 2 of 4". Copy invite link and
+    Leave room sit on the right as round outline buttons; the host has
+    Countdown and Close room there. See "The room card" below.
   - **Chat on the left, In the room on the right**, under a line across the
     card. In the room carries the head count, a green dot on each picture, HOST
     in orange and YOU in grey. The snapshot marks your own row (`mine` on each
@@ -251,8 +250,9 @@ is not logged in, that should link to the login page."
   membership ends gets `room_gone`.
 - **A host leaving closes the room for everyone**; a member leaving only
   ends their own membership.
-- **"Leave & close" asks first**, the same way Close room does, because the
-  two end the room for everyone in exactly the same way. The question says how
+- **A host has one button, Close room**, which asks first. It and the old
+  "Leave & close" ended the room for everyone in exactly the same way, so
+  Tyler kept one on 10 Oct 2026. The question says how
   many other people are in the room: "The session stops for the 3 other
   people in it, and it cannot be undone." A host alone in the room is still
   asked, since the room still ends, but is told nobody else is affected.
@@ -343,6 +343,18 @@ live connection that keeps a room on screen is also what tells the server you
 are looking at it, and it is held only while the tab is visible. See
 [Notifications](notifications.md).
 
+## The room card
+
+Under the clock, the card for the room you are in (Tyler, 10 Oct 2026):
+
+- **The host's picture sits left of the room's name**: their photo while
+  their public page is on, their initials otherwise, the room cards' rule.
+  The room snapshot carries each member's photo by that same rule.
+- **The line under the name** says the phase and the session, and no longer
+  names the room's sound and theme or points at Sounds and Backgrounds.
+- **The host's Countdown sits with the card's buttons**, before Copy invite
+  link, while the room waits. See "Starting in" below.
+
 ## Starting in
 
 Tyler, 9 Oct 2026: "there should be a default timer of 5 seconds for hosted
@@ -352,8 +364,11 @@ need some sort of indicators that shows the user the starting in... countdown
 while they're in the room".
 
 - **Start begins a countdown.** In a waiting room the host's button reads
-  "Start in 5 seconds"; beside it, Countdown picks 5 seconds or 1, 2, 3, 4
-  or 5 minutes, kept on the room (`rooms.start_delay_seconds`, migration 0132).
+  "Start in 5 seconds". Countdown picks 5 seconds or 1, 2, 3, 4 or 5
+  minutes, kept on the room (`rooms.start_delay_seconds`, migration 0132). It
+  sits in the room card beside Copy invite link, not inside the clock, and
+  the clock shows no "Waiting to start" over the time; the card's own line
+  already says it (Tyler, 10 Oct 2026).
   Pressing it sets `starting_at`; the room stays waiting, so people can still
   join, and the ring shows "STARTING IN" with the time counting down for
   everybody in the room.
@@ -372,3 +387,13 @@ while they're in the room".
 - **Made-up hosts keep three there.** Their countdowns run 8 to 15 minutes,
   longer than a real host can pick; why is under "Rooms" in
   [Made-up members](made-up-members.md).
+
+## Shared files in a room
+
+A host can play their own shared file, or a shared file they saved, as the
+room's sound or theme (uploads-and-sharing task 04, 10 Oct 2026). Host a room
+lists them after the catalogue, and each snapshot resolves the file for its
+viewer with the owner's credit under the player and "Add this to mine" beside
+it. Once the file stops being shared, the room plays silence or the default
+scene for everybody within a second or two. See "Rooms" in
+[Shared sounds and backgrounds](shared-media.md).

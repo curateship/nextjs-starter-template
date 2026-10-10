@@ -5,10 +5,12 @@ import {
   type Entitlements,
 } from "@/server/billing/entitlements"
 import { db, type CustomShellDb } from "@/server/db"
+import { loadBoughtSpace } from "@/server/pomodoro/bought-space"
 import { customShellUsers } from "@/server/schema"
 import {
   PAID_DEFAULTS,
   planNumber,
+  planAllowsSharedMedia,
   planPerkAllowed,
   type PomodoroEntitlements,
   type ProPerk,
@@ -63,6 +65,7 @@ export function resolvePomodoroEntitlements(
     canUsePremiumMedia: perkAllowed(paidEntitlements, "premiumMedia"),
     canUploadMedia: perkAllowed(paidEntitlements, "uploadMedia"),
     canUseLongRangeReports: perkAllowed(paidEntitlements, "longRangeReports"),
+    canUseSharedMedia: planAllowsSharedMedia(entitlements.features),
     storageLimitBytes: numericFeature(paidEntitlements, "storageLimitBytes"),
     monthlyBackgrounds: numericFeature(paidEntitlements, "monthlyBackgrounds"),
     monthlySoundscapes: numericFeature(paidEntitlements, "monthlySoundscapes"),
@@ -73,11 +76,19 @@ export async function loadPomodoroEntitlements(
   userId: string,
   database: CustomShellDb = db
 ): Promise<PomodoroEntitlements> {
-  const [{ entitlements }, admin] = await Promise.all([
+  const [{ entitlements }, admin, space] = await Promise.all([
     loadEntitlements(userId, database),
     userIsAdmin(userId, database),
+    loadBoughtSpace(userId, database),
   ])
-  return resolvePomodoroEntitlements(entitlements, { admin })
+  const resolved = resolvePomodoroEntitlements(entitlements, { admin })
+  // 10 GB bought for a year adds to the plan's space while the year lasts
+  // (task 07). Once it ends nothing is deleted; uploads are refused until the
+  // member is back under the plan's own limit.
+  return {
+    ...resolved,
+    storageLimitBytes: resolved.storageLimitBytes + space.extraBytes,
+  }
 }
 
 async function userIsAdmin(userId: string, database: CustomShellDb) {

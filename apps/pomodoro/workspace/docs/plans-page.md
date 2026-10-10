@@ -105,6 +105,13 @@ The yearly card's figures are worked out from the real prices:
   off" card. The shell's own `/pricing` and the account's billing page still
   show that card, because both are shell files.
 
+## What is not on this page
+
+The one-off purchases, AI credit packs and 10 GB more space, are not drawn
+here. They are sold where they run out: Buy more on the AI generator once the
+month's are spent, and Get 10 GB more beside the space used once it is 90%
+full. See "Buying more" in [Pro perks](pro-perks.md).
+
 ## Why there are two pricing pages
 
 The shell's `/pricing` is a shell file, `src/routes/pricing.tsx`. An app that

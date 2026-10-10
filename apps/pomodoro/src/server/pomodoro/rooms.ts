@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, inArray, lte, ne, sql } from "drizzle-orm"
+import { and, desc, eq, gt, inArray, lte, ne, or, sql } from "drizzle-orm"
 
 import { db, type CustomShellDb } from "@/server/db"
 import { loadAppSettings } from "@/server/pomodoro/app-settings"
@@ -43,6 +43,8 @@ import {
   roomReactionMessage,
   roomRemovedMessage,
 } from "@/lib/pomodoro/notices"
+import { resolveRoomFiles } from "@/server/pomodoro/shared-media"
+import type { RoomFiles } from "@/lib/pomodoro/media-pair"
 
 type PomoderDb = CustomShellDb
 export type PomoderTransaction = Parameters<Parameters<PomoderDb["transaction"]>[0]>[0]
@@ -333,13 +335,19 @@ export async function findActiveRoomId(userId: string, database: PomoderDb = db)
  */
 export async function findActiveRoomMedia(userId: string, database: PomoderDb = db) {
   const [row] = await database
-    .select({ slug: rooms.slug, name: rooms.name, role: roomMemberships.role, sound: rooms.sound, background: rooms.background })
+    .select({ slug: rooms.slug, name: rooms.name, role: roomMemberships.role, sound: rooms.sound, background: rooms.background, hostUserId: rooms.hostUserId })
     .from(roomMemberships)
     .innerJoin(rooms, eq(rooms.id, roomMemberships.roomId))
     .where(and(eq(roomMemberships.userId, userId), sql`${roomMemberships.leftAt} is null`, sql`${rooms.closedAt} is null`, sql`${rooms.phase} <> 'closed'`))
     .limit(1)
   if (!row) return null
-  return { ...row, role: row.role === "host" ? ("host" as const) : ("member" as const) }
+  const { hostUserId, ...room } = row
+  return {
+    ...room,
+    role: row.role === "host" ? ("host" as const) : ("member" as const),
+    // A shared file the room plays, resolved for this person (rooms task 04).
+    files: await resolveRoomFiles(userId, hostUserId, row),
+  }
 }
 
 /**
@@ -468,6 +476,8 @@ export type RoomSnapshot = {
     /** The pair everyone in the room gets. Null on rooms made before 7 Oct 2026. */
     sound: string | null
     background: string | null
+    /** A shared file in the pair, resolved for this viewer (rooms task 04). */
+    files: RoomFiles
     cycleFocusCount: number
     closedAt: Date | null
     /** "Starting in": the host's countdown choice, and when a running one ends. */
@@ -484,7 +494,9 @@ export type RoomSnapshot = {
   // `mine` marks the viewer's own row, which the room labels YOU.
   // `staff` marks an active admin, worked out from their role on every read,
   // so nobody can give it to themselves. The room labels it STAFF.
-  members: { id: string; name: string; handle: string | null; role: string; avatarIndex: number; joinedAt: Date; task: string | null; mine: boolean; staff: boolean }[]
+  // `avatarUrl` is the person's photo by the room cards' rule: only while
+  // their public page is on, initials otherwise.
+  members: { id: string; name: string; handle: string | null; avatarUrl: string | null; role: string; avatarIndex: number; joinedAt: Date; task: string | null; mine: boolean; staff: boolean }[]
   // `removedBy` says who removed a removed message. `held` is the writer's own
   // line waiting for an admin, which nobody else receives.
   messages: { id: string; body: string; authorName: string; handle: string | null; mine: boolean; deleted: boolean; removedBy: "host" | "admin" | null; held: boolean; staff: boolean; createdAt: Date; reactions: RoomReactionSummary[] }[]
@@ -524,6 +536,9 @@ export async function roomSnapshot(roomId: string, userId: string, database: Pom
     autoStart: room.autoStart,
     sound: room.sound,
     background: room.background,
+    // Read per viewer, because a block between this viewer and a file's
+    // owner silences that file for them alone.
+    files: await resolveRoomFiles(userId, room.hostUserId, room),
     cycleFocusCount: room.cycleFocusCount,
     closedAt: room.closedAt,
     startDelaySeconds: room.startDelaySeconds,
@@ -537,7 +552,7 @@ export async function roomSnapshot(roomId: string, userId: string, database: Pom
   if (!membership) throw new Error("ROOM_MEMBERSHIP_REQUIRED")
   const [memberRows, messageRows, pinned] = await Promise.all([
     database
-      .select({ id: roomMemberships.id, userId: roomMemberships.userId, role: roomMemberships.role, joinedAt: roomMemberships.joinedAt, name: displayName, handle: readableHandle, sharesTask: pomodoroProfiles.shareTaskInRooms, staff: isStaff })
+      .select({ id: roomMemberships.id, userId: roomMemberships.userId, role: roomMemberships.role, joinedAt: roomMemberships.joinedAt, name: displayName, handle: readableHandle, avatarUrl: readableAvatar, sharesTask: pomodoroProfiles.shareTaskInRooms, staff: isStaff })
       .from(roomMemberships)
       .innerJoin(users, eq(roomMemberships.userId, users.id))
       .leftJoin(pomodoroProfiles, eq(pomodoroProfiles.userId, users.id))
@@ -698,6 +713,26 @@ export async function lookupRoomBySlug(slug: string, userId: string | null, data
 export async function notifyRoom(roomId: string, event: string) {
   const channel = roomChannel(roomId)
   await db.execute(sql`select pg_notify(${channel}, ${event})`)
+}
+
+/**
+ * Tells every open room playing one of these files to read itself again, so
+ * a file unshared, moved to the bin or taken off falls back on everyone's
+ * screen at once rather than at the room's next phase (rooms task 04).
+ */
+export async function nudgeRoomsPlaying(mediaIds: readonly string[]) {
+  if (!mediaIds.length) return
+  const references = mediaIds.map((id) => `media:${id}`)
+  const playing = await db
+    .select({ id: rooms.id })
+    .from(rooms)
+    .where(
+      and(
+        sql`${rooms.closedAt} is null`,
+        or(inArray(rooms.sound, references), inArray(rooms.background, references))
+      )
+    )
+  await nudgeRooms(playing.map((room) => room.id), "phase")
 }
 
 /**

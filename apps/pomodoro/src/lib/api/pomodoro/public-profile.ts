@@ -61,6 +61,7 @@ const publicProfileSchema = z.object({
   showProjects: z.boolean(),
   showFocusingNow: z.boolean(),
   showRoom: z.boolean(),
+  showSharedMedia: z.boolean(),
   listed: z.boolean(),
   cheersEnabled: z.boolean(),
 })

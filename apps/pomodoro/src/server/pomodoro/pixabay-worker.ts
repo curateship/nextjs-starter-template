@@ -25,6 +25,7 @@ import {
   putBackLinkImport,
   type LinkImportJob,
 } from "@/server/pomodoro/link-imports"
+import { processNextMemberImport } from "@/server/pomodoro/member-imports"
 import { PIXABAY_LICENCE_NOTE } from "@/server/pomodoro/pixabay-import"
 import { readPixabayKey } from "@/server/pomodoro/pixabay-key"
 import { pomodoroCatalogItems, type PomodoroCatalogItem } from "@/server/pomodoro/schema"
@@ -58,6 +59,9 @@ const GAVE_UP = "Pixabay's file could not be fetched"
 const PIXABAY_PREFIX = "https://pixabay.com/"
 
 export async function processPixabayImports() {
+  // One member's link first (task 06, part 8), so a long admin import never
+  // keeps a member waiting a whole batch.
+  await processNextMemberImport()
   for (let done = 0; done < STILLS_PER_PASS; done += 1) {
     const job = await claimNextLinkImport({
       prefix: PIXABAY_PREFIX,
