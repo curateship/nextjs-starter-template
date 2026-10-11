@@ -50,6 +50,19 @@ type WatchPage = {
   pageSize: number
 }
 
+const noSubscription = () => () => {}
+
+/**
+ * True once the page is running in the browser. Every time on this page is
+ * worked out from the reader's own clock and time zone, which the server does
+ * not have, so a time drawn on the server differed from the browser's and
+ * React threw away the page (error 418 on pomoder.com, 11 Oct 2026). Until
+ * then a time is a dash.
+ */
+function useInBrowser() {
+  return React.useSyncExternalStore(noSubscription, () => true, () => false)
+}
+
 /** The summary and the schedule are read again this often while the page is open. */
 const OVERVIEW_REFRESH_MS = 60_000
 
@@ -85,6 +98,7 @@ function formatCents(cents: number) {
 }
 
 function SummaryLine({ summary }: { summary: SimulatedSummary }) {
+  const inBrowser = useInBrowser()
   const off = (
     [
       ["sessions", "Sessions"],
@@ -96,7 +110,7 @@ function SummaryLine({ summary }: { summary: SimulatedSummary }) {
   )
     .filter(([key]) => !summary.switches[key])
     .map(([, label]) => label)
-  const lastReal = summary.lastRealSeenAt ? formatDateTime(summary.lastRealSeenAt) : "never"
+  const lastReal = !summary.lastRealSeenAt ? "never" : inBrowser ? formatDateTime(summary.lastRealSeenAt) : "-"
   return (
     <div className="grid gap-1 text-sm" aria-live="polite">
       <p>
@@ -116,6 +130,7 @@ function SummaryLine({ summary }: { summary: SimulatedSummary }) {
 }
 
 function ScheduleTable({ summary, schedule }: { summary: SimulatedSummary; schedule: ScheduleHour[] }) {
+  const inBrowser = useInBrowser()
   const starts = schedule.reduce((sum, hour) => sum + hour.focusing.length, 0)
   return (
     <DashboardTable
@@ -141,12 +156,12 @@ function ScheduleTable({ summary, schedule }: { summary: SimulatedSummary; sched
       footer={{
         type: "summary",
         count: starts,
-        label: `${plural(starts, "focus start", "focus starts")} in the next 24 hours, in your own time. Rooms opened to keep Open to join full are not foreseen.`,
+        label: `${plural(starts, "focus start", "focus starts")} in the next 24 hours, counting each person once an hour, in your own time. Rooms opened to keep Open to join full are not foreseen.`,
       }}
     >
       {schedule.map((hour) => (
         <TableRow key={hour.startsAt}>
-          <TableCell column="meta">{formatClockTime(hour.startsAt)}</TableCell>
+          <TableCell column="meta">{inBrowser ? formatClockTime(hour.startsAt) : "-"}</TableCell>
           <TableCell column="main">
             <span
               className="block max-w-xl truncate"
@@ -229,6 +244,7 @@ function AccountsTable({
   const rowIds = React.useMemo(() => list.rows.map((row) => row.userId), [list.rows])
   const selectedIds = rowIds.filter((id) => selection.selected.has(id))
   const openMember = useMemberWindowLink()
+  const inBrowser = useInBrowser()
   const [busy, setBusy] = React.useState(false)
 
   const setPaused = async (ids: string[], paused: boolean) => {
@@ -331,7 +347,7 @@ function AccountsTable({
             </div>
           </TableCell>
           <TableCell column="meta" className="hidden md:table-cell">
-            <span className="block">{localTime(row.timezone)}</span>
+            <span className="block">{inBrowser ? localTime(row.timezone) : "-"}</span>
             <span className="block max-w-40 truncate text-xs text-muted-foreground" title={row.timezone}>
               {row.timezone}
             </span>
@@ -410,6 +426,7 @@ function LinesTable({
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [open, setOpen] = React.useState<string | null>(null)
+  const inBrowser = useInBrowser()
   const shown = React.useRef({ page, pageSize })
 
   const refresh = React.useCallback(async () => {
@@ -475,7 +492,7 @@ function LinesTable({
       {rows.map((row) => (
         <React.Fragment key={row.id}>
           <TableRow rowAction={() => setOpen(open === row.id ? null : row.id)}>
-            <TableCell column="meta">{formatDateTime(row.createdAt)}</TableCell>
+            <TableCell column="meta">{inBrowser ? formatDateTime(row.createdAt) : "-"}</TableCell>
             <TableCell column="meta">
               <MemberName id={row.userId} name={row.name} className="max-w-40" />
               <span className="block max-w-40 truncate text-xs text-muted-foreground" title={row.roomName ?? undefined}>

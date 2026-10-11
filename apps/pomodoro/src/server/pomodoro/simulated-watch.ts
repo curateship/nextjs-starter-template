@@ -193,7 +193,7 @@ export type SimulatedLineRow = Awaited<ReturnType<typeof listSimulatedLines>>["r
 export type ScheduleHour = {
   /** The hour's start, as an instant; the browser shows it in the admin's own time. */
   startsAt: string
-  /** Made-up members due to start a focus in this hour. */
+  /** Made-up members due to start a focus in this hour, each once. */
   focusing: { userId: string; name: string }[]
   /** Rooms due to open in this hour: a host's day-start room, or a weekly booking. */
   rooms: { name: string; host: string; weekly: boolean }[]
@@ -251,7 +251,9 @@ export async function readTodaySchedule(now = new Date()): Promise<ScheduleHour[
       const plan = planSimulatedDay(account.userId, account.habits, localDate, hoursCap)
       for (const session of plan.sessions) {
         const hour = slot(session.startsAt.getTime())
-        if (hour && session.startsAt >= now) hour.focusing.push({ userId: account.userId, name: account.name })
+        // Once per hour, though two short sessions can both start in it.
+        if (hour && session.startsAt >= now && !hour.focusing.some((person) => person.userId === account.userId))
+          hour.focusing.push({ userId: account.userId, name: account.name })
       }
       const opening = account.habits.host && plan.sessions[0]
       const hour = opening ? slot(opening.startsAt.getTime()) : null
