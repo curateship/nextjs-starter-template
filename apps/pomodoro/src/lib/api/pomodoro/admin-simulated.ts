@@ -15,6 +15,19 @@ import {
 } from "@/server/pomodoro/simulated-accounts"
 import { loadPersonality, previewVoice, savePersonality } from "@/server/pomodoro/simulated-voice"
 import { giveMadeUpMembersFiles } from "@/server/pomodoro/simulated-shares"
+import {
+  listSimulatedLines,
+  listSimulatedWatch,
+  readSimulatedSummary,
+  readTodaySchedule,
+  setSimulatedPaused,
+  type ScheduleHour,
+  type SimulatedLineRow,
+  type SimulatedSummary,
+  type SimulatedWatchRow,
+} from "@/server/pomodoro/simulated-watch"
+import { readDashboardRowsPerPage } from "@/server/shell-settings"
+import { ADMIN_PAGE_SIZE_MAX, SIMULATED_SORT_COLUMNS, SIMULATED_TABS } from "@/lib/pomodoro/admin-lists"
 
 /**
  * The Made-up members tab under Settings → App settings, and the mark on the
@@ -95,3 +108,71 @@ export const previewSimulatedVoice = (voice: z.input<(typeof appSettingSchemas)[
 export const loadSimulatedPersonality = (userId: string) => loadVoiceFn({ data: { userId } })
 export const saveSimulatedPersonality = (userId: string, personality: string) =>
   saveVoiceFn({ data: { userId, personality } })
+
+// ---------------------------------------------------------------------------
+// The watch page, /admin/pomodoro-simulated (live activity task 05)
+// ---------------------------------------------------------------------------
+
+export type { ScheduleHour, SimulatedLineRow, SimulatedSummary, SimulatedWatchRow }
+
+const watchQuerySchema = z.object({
+  tab: z.enum(SIMULATED_TABS).default("today"),
+  search: z.string().trim().max(120).default(""),
+  sort: z.enum(SIMULATED_SORT_COLUMNS).default("hours"),
+  direction: z.enum(["asc", "desc"]).default("desc"),
+  page: z.number().int().min(1).max(10_000).default(1),
+  pageSize: z.number().int().min(5).max(ADMIN_PAGE_SIZE_MAX).default(25),
+})
+export type SimulatedWatchQuery = z.input<typeof watchQuerySchema>
+
+const linesQuerySchema = z.object({
+  page: z.number().int().min(1).max(10_000).default(1),
+  pageSize: z.number().int().min(5).max(ADMIN_PAGE_SIZE_MAX).default(25),
+})
+
+const watchFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .inputValidator(watchQuerySchema)
+  .handler(({ data }) => listSimulatedWatch(data))
+
+const linesFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .inputValidator(linesQuerySchema)
+  .handler(({ data }) => listSimulatedLines(data))
+
+/** The summary line and the schedule, read together and again every minute. */
+const overviewFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .handler(async () => {
+    const [summary, schedule] = await Promise.all([readSimulatedSummary(), readTodaySchedule()])
+    return { summary, schedule }
+  })
+
+/** Everything the page draws first, so it opens with no loading row. */
+const watchPageFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .inputValidator(watchQuerySchema.omit({ pageSize: true }).extend({ linesPage: z.number().int().min(1).max(10_000).default(1) }))
+  .handler(async ({ data }) => {
+    const pageSize = await readDashboardRowsPerPage()
+    const { linesPage, ...watch } = data
+    const [list, lines, summary, schedule] = await Promise.all([
+      listSimulatedWatch({ ...watch, pageSize }),
+      listSimulatedLines({ page: linesPage, pageSize }),
+      readSimulatedSummary(),
+      readTodaySchedule(),
+    ])
+    return { list, lines, summary, schedule, pageSize }
+  })
+
+const setPausedFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ userIds: z.array(z.string().trim().min(1).max(36)).min(1).max(200), paused: z.boolean() }))
+  .handler(({ data, context }) => setSimulatedPaused({ ...data, actorUserId: context.user.id }))
+
+export const listSimulatedWatchRows = (data: SimulatedWatchQuery) => watchFn({ data })
+export const listSimulatedLineRows = (data: z.input<typeof linesQuerySchema>) => linesFn({ data })
+export const loadSimulatedOverview = () => overviewFn()
+export const loadSimulatedWatchPage = (data: Omit<SimulatedWatchQuery, "pageSize"> & { linesPage?: number }) =>
+  watchPageFn({ data })
+export const setSimulatedMembersPaused = (userIds: string[], paused: boolean) =>
+  setPausedFn({ data: { userIds, paused } })

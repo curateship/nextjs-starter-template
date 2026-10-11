@@ -57,6 +57,7 @@ import {
   tasks,
   userPreferences,
 } from "@/server/pomodoro/schema"
+import { noteRealVisit } from "@/server/pomodoro/simulated-controls"
 import {
   pauseLiveSession,
   readLiveSession,
@@ -419,6 +420,10 @@ const loadLiveSessionFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .inputValidator(z.object({ knownSessionId: z.string().uuid().nullable() }))
   .handler(async ({ data, context }) => {
+    // A real member's timer is polling: the made-up members' workers read
+    // this to tell whether anybody real is on the site (live activity task
+    // 05, Part 7). Not awaited, so the poll never waits on it.
+    void noteRealVisit()
     const session = await readLiveSession(context.user.id)
     const ending =
       data.knownSessionId && session?.id !== data.knownSessionId

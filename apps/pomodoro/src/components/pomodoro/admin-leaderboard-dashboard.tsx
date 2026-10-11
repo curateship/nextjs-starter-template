@@ -19,6 +19,7 @@ import {
   useAdminDelete,
 } from "@/components/pomodoro/admin-delete"
 import { MemberName } from "@/components/pomodoro/admin-member-name"
+import { RealOnlySwitch, useRealOnly } from "@/components/pomodoro/admin-real-only"
 import {
   listPomodoroLeaderboard,
   setPomodoroBoardHidden,
@@ -129,12 +130,15 @@ function LeaderboardTable({
   const [searchText, setSearchText] = useSearchBoxText(query, (text) =>
     setListSearch({ q: text.trim() ? text : undefined, page: undefined })
   )
+  // "Real members only" (live activity task 05, Part 6): the places are then
+  // the places among real members.
+  const { realOnly, setRealOnly } = useRealOnly()
   const load = React.useCallback(
     async (pageSize: number) => {
-      const result = await listPomodoroLeaderboard({ tab, window: boardWindow, search: query, page, pageSize })
+      const result = await listPomodoroLeaderboard({ tab, window: boardWindow, search: query, page, pageSize, realOnly })
       return { rows: result.rows as Row[], total: result.total }
     },
-    [boardWindow, page, query, tab]
+    [boardWindow, page, query, tab, realOnly]
   )
   const list = useAdminList<Row>({ initial, initialPageSize, page, onPageChange: setPage, load })
   const selection = useSelection()
@@ -203,6 +207,7 @@ function LeaderboardTable({
                 onChange={(event) => setSearchText(event.target.value)}
               />
             )}
+            {hiding ? <RealOnlySwitch checked={realOnly} onCheckedChange={setRealOnly} /> : null}
           </>
         }
       >

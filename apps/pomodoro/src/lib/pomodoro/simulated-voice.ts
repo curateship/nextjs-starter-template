@@ -20,6 +20,7 @@ export type LineKind =
   | "mention"
   | "exchange"
   | "leave"
+  | "arrive"
 
 /** No line is longer than this. */
 const LINE_MAX = 140
@@ -31,6 +32,15 @@ export const CHATTINESS: Record<Voice["chattiness"], { phase: number; reply: num
   quiet: { phase: 0.2, reply: 0.5, exchange: 0.1 },
   normal: { phase: 0.5, reply: 0.8, exchange: 0.3 },
   talkative: { phase: 0.85, reply: 1, exchange: 0.6 },
+}
+
+/**
+ * One notch chattier while somebody real is on the site (task 05, Part 7):
+ * quiet talks like normal, normal like talkative.
+ */
+export function chattinessWhileLooking(chattiness: Voice["chattiness"], looking: boolean): Voice["chattiness"] {
+  if (!looking) return chattiness
+  return chattiness === "quiet" ? "normal" : "talkative"
 }
 
 /** What the card's length means, in words the model is told. */

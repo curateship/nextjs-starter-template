@@ -1,5 +1,5 @@
 import * as React from "react"
-import { getRouteApi } from "@tanstack/react-router"
+import { getRouteApi, Link } from "@tanstack/react-router"
 import {
   CheckIcon,
   EyeIcon,
@@ -32,7 +32,7 @@ import {
   useAdminList,
 } from "@/components/pomodoro/admin-list"
 import { AdminPersonFilter } from "@/components/pomodoro/admin-person-filter"
-import { MemberName } from "@/components/pomodoro/admin-member-name"
+import { MemberName, useIsMadeUp } from "@/components/pomodoro/admin-member-name"
 import {
   AdminBulkDeleteButton,
   AdminDeleteConfirm,
@@ -636,6 +636,9 @@ function reportReason(row: AdminReportRow) {
 }
 
 function ReportedMessage({ row }: { row: AdminReportRow }) {
+  // A report on a made-up member's line paused that account the moment it was
+  // made (live activity task 05, Part 5). Reviewing does not unpause it.
+  const madeUp = useIsMadeUp(row.subjectUserId)
   if (row.kind === "shared_file" || row.kind === "copyright")
     return <ReportedFile row={row} />
   if (!row.messageBody) {
@@ -646,7 +649,7 @@ function ReportedMessage({ row }: { row: AdminReportRow }) {
     )
   }
 
-  return (
+  const quoted = (
     <span
       className="block max-w-80 truncate text-xs text-muted-foreground"
       title={row.messageBody}
@@ -663,6 +666,19 @@ function ReportedMessage({ row }: { row: AdminReportRow }) {
           : ", deleted by the host"
         : ""}
     </span>
+  )
+  if (!madeUp) return quoted
+  return (
+    <>
+      {quoted}
+      <span className="block text-xs text-muted-foreground">
+        Made-up account. The report paused it; unpause it on{" "}
+        <Link to="/admin/pomodoro-simulated" search={{ tab: "paused" }} className="underline underline-offset-4">
+          the watch page
+        </Link>
+        .
+      </span>
+    </>
   )
 }
 

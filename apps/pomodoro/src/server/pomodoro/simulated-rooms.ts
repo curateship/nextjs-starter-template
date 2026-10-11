@@ -49,6 +49,11 @@ import {
 } from "@/server/pomodoro/rooms"
 import { createRoomRepeat } from "@/server/pomodoro/scheduled-rooms"
 import {
+  readRealPresence,
+  realWeekCeiling,
+  secondsUnderCeiling,
+} from "@/server/pomodoro/simulated-controls"
+import {
   dailyFocusStats,
   pomodoroRoomRepeats,
   pomodoroSettings,
@@ -92,6 +97,8 @@ const COVER_FROM_HOUR = 7
 const COVER_UNTIL_HOUR = 22
 /** How long after leaving a made-up member may come back into the same room. */
 const RETURN_AFTER_MS = 60 * 60_000
+/** While somebody real is on the site, a host opens its day's room this much sooner (task 05, Part 7). */
+const LOOKING_OPEN_EARLY_MS = 30 * 60_000
 
 type HostAccount = {
   userId: string
@@ -152,9 +159,12 @@ export async function runSimulatedRoomsPass(now = new Date()) {
 export async function runSimulatedRooms(now = new Date()) {
   const settings = await loadAppSettings()
   const { hoursCap } = settings["simulated.accounts"]
-  // Pause everything, or the admin's "Pause new rooms": nothing new opens or
-  // is booked, and nothing new joins. Rooms already open run on.
-  const paused = settings["simulated.accounts"].paused || settings["safety.pause"].newRooms
+  const switches = settings["simulated.switches"]
+  // Pause everything, the admin's "Pause new rooms", or the Rooms switch (task
+  // 05, Part 8): nothing new opens or is booked, and nothing new joins. Rooms
+  // already open run on.
+  const paused = settings["simulated.accounts"].paused || settings["safety.pause"].newRooms || !switches.rooms
+  const sessionsOff = settings["simulated.accounts"].paused || !switches.sessions
   // Each step on its own, so one that fails (a room closed between a read and
   // a write, say) is logged and the rest of the minute's work still runs.
   const step = async (name: string, run: () => Promise<unknown>) => {
@@ -170,7 +180,7 @@ export async function runSimulatedRooms(now = new Date()) {
   await step("record open rooms", recordOpenRooms)
   await step("tend rooms", () => tendRooms(now, paused))
   await step("start due rooms", () => startDueRooms(now))
-  await step("room sessions", () => runRoomSessions(now, hoursCap))
+  if (!sessionsOff) await step("room sessions", () => runRoomSessions(now, hoursCap))
   await step("featured", keepFeatured)
   if (!paused) await step("open rooms", () => openHostRooms(now, hoursCap))
   await step("remove left hosts", removeLeftHosts)
@@ -238,12 +248,8 @@ export async function assignHosts() {
       ...pairs[0],
       weekly: taken.filter((other) => other.weekly).length < WEEKLY_HOSTS,
     }
-    const habits = { ...chosen.habits, host }
-    await db
-      .update(pomodoroSimulatedAccounts)
-      .set({ habits })
-      .where(eq(pomodoroSimulatedAccounts.userId, chosen.userId))
-    chosen.habits = habits
+    await setHost(chosen.userId, host)
+    chosen.habits = { ...chosen.habits, host }
     hosts.push(chosen)
     made += 1
   }
@@ -306,8 +312,7 @@ async function keepScenesLive() {
     uses.set(least, uses.get(least)! + 1)
     changed.add(mover)
   }
-  for (const host of changed)
-    await db.update(pomodoroSimulatedAccounts).set({ habits: host.habits }).where(eq(pomodoroSimulatedAccounts.userId, host.userId))
+  for (const host of changed) await setHost(host.userId, host.habits.host!)
 
   const pairs = new Map(hosts.map((host) => [host.userId, host.habits.host!]))
   for (const { room } of await openHostedRooms()) {
@@ -332,6 +337,17 @@ async function keepScenesLive() {
       and (r.sound is distinct from a.habits -> 'host' ->> 'sound'
         or r.background is distinct from a.habits -> 'host' ->> 'background')
   `)
+}
+
+/**
+ * Writes only the habit's `host`, so a pass that read the habit a moment ago
+ * never wipes what another wrote since, such as a removal (task 04).
+ */
+async function setHost(userId: string, host: SimulatedHost) {
+  await db
+    .update(pomodoroSimulatedAccounts)
+    .set({ habits: sql`jsonb_set(${pomodoroSimulatedAccounts.habits}, '{host}', ${JSON.stringify(host)}::jsonb)` })
+    .where(eq(pomodoroSimulatedAccounts.userId, userId))
 }
 
 async function loadHosts(): Promise<HostAccount[]> {
@@ -360,12 +376,7 @@ async function hostRoomSettings(host: HostAccount) {
   if (!catalog.themes.length || !catalog.sounds.length) return null
   const background = sceneLive ? settings.background : `scene:${drawFrom(Math.random, catalog.themes).key}`
   const sound = soundLive ? settings.sound : `curated:${drawFrom(Math.random, catalog.sounds).key}`
-  if (!sceneLive || !soundLive) {
-    await db
-      .update(pomodoroSimulatedAccounts)
-      .set({ habits: { ...host.habits, host: { ...settings, sound, background } } })
-      .where(eq(pomodoroSimulatedAccounts.userId, host.userId))
-  }
+  if (!sceneLive || !soundLive) await setHost(host.userId, { ...settings, sound, background })
   return {
     name: settings.roomName,
     visibility: "public" as const,
@@ -522,16 +533,23 @@ async function tendRoom(tended: TendedRoom, now: Date, paused: boolean) {
   const [room] = await db.select().from(rooms).where(eq(rooms.id, tended.roomId)).limit(1)
   if (!room || room.closedAt || room.phase === "closed") return
   const [host] = await db
-    .select({ removeRequestedAt: pomodoroSimulatedAccounts.removeRequestedAt })
+    .select({ removeRequestedAt: pomodoroSimulatedAccounts.removeRequestedAt, pausedAt: pomodoroSimulatedAccounts.pausedAt })
     .from(pomodoroSimulatedAccounts)
     .where(eq(pomodoroSimulatedAccounts.userId, room.hostUserId))
   const members = await activeMembers(room.id)
   const realInside = members.some((member) => !member.madeUp)
+  const between = room.phase === "waiting" || room.phase === "short" || room.phase === "long"
 
   // Remove all left this host for the real person in its room. With them
   // gone, the host goes too, without finishing its planned focuses.
   if (host?.removeRequestedAt && !realInside) {
     if (await closeRoom(room, now)) await deleteLeftHost(room.hostUserId)
+    return
+  }
+  // A host paused on the watch page (task 05, Part 2) closes at the next
+  // break, unless somebody real is in: that rule outranks the pause.
+  if (host?.pausedAt && !realInside && between) {
+    await closeRoom(room, now)
     return
   }
 
@@ -543,9 +561,11 @@ async function tendRoom(tended: TendedRoom, now: Date, paused: boolean) {
   }
 
   if (room.phase === "short" || room.phase === "long") {
+    const paused = await pausedAmong(members)
     for (const member of members) {
       if (!member.madeUp || member.userId === room.hostUserId) continue
-      if (now.getTime() - member.joinedAt.getTime() < stayMs(member.id, room.focusMinutes, room.shortBreakMinutes)) continue
+      // A paused member leaves at the first break, whatever its stay.
+      if (!paused.has(member.userId) && now.getTime() - member.joinedAt.getTime() < stayMs(member.id, room.focusMinutes, room.shortBreakMinutes)) continue
       // "gotta run" first (task 03).
       try {
         await sayLeaving(room, member.userId, now)
@@ -558,6 +578,17 @@ async function tendRoom(tended: TendedRoom, now: Date, paused: boolean) {
   }
 
   if (canJoinRoom(room.phase) && !paused && !host?.removeRequestedAt) await maybeJoin(room, tended, now)
+}
+
+/** The made-up members among these who are paused. */
+async function pausedAmong(members: Member[]) {
+  const ids = members.filter((member) => member.madeUp).map((member) => member.userId)
+  if (!ids.length) return new Set<string>()
+  const rows = await db
+    .select({ userId: pomodoroSimulatedAccounts.userId })
+    .from(pomodoroSimulatedAccounts)
+    .where(and(inArray(pomodoroSimulatedAccounts.userId, ids), isNotNull(pomodoroSimulatedAccounts.pausedAt)))
+  return new Set(rows.map((row) => row.userId))
 }
 
 // ---------------------------------------------------------------------------
@@ -658,9 +689,14 @@ async function tendWaiting(room: Room, tended: TendedRoom, now: Date) {
   }
 
   const [host] = await db
-    .select({ habits: pomodoroSimulatedAccounts.habits })
+    .select({ habits: pomodoroSimulatedAccounts.habits, pausedAt: pomodoroSimulatedAccounts.pausedAt })
     .from(pomodoroSimulatedAccounts)
     .where(eq(pomodoroSimulatedAccounts.userId, room.hostUserId))
+  // Paused with nobody real waiting: the host starts nothing new and goes.
+  if (host?.pausedAt) {
+    await closeRoom(room, now)
+    return false
+  }
   const hour = host ? localHour(host.habits.timezone, now) : 12
   const night = hour >= 23 || hour < 6
   // From 1am to 6am the host goes to bed whatever the list says; hosts in
@@ -897,6 +933,8 @@ function localHour(timezone: string, at: Date) {
  * counting.
  */
 async function runRoomSessions(now: Date, hoursCap: number) {
+  // Real members stay on top (task 05, Part 1): a room timer is cut too.
+  const ceiling = await realWeekCeiling(now)
   const due = await db
     .select({
       userId: roomMemberships.userId,
@@ -914,6 +952,7 @@ async function runRoomSessions(now: Date, hoursCap: number) {
         eq(rooms.phase, "focus"),
         isNull(rooms.closedAt),
         isNull(pomodoroSimulatedAccounts.removeRequestedAt),
+        isNull(pomodoroSimulatedAccounts.pausedAt),
         sql`not exists (select 1 from focus_sessions f where f.user_id = ${roomMemberships.userId} and f.status in ('running', 'paused'))`
       )
     )
@@ -927,7 +966,12 @@ async function runRoomSessions(now: Date, hoursCap: number) {
         .from(dailyFocusStats)
         .where(and(eq(dailyFocusStats.userId, member.userId), eq(dailyFocusStats.localDate, localDate)))
       const left = hoursCap * 3_600 - (today?.seconds ?? 0)
-      const plannedSeconds = Math.min(Math.floor((member.phaseEndsAt.getTime() - now.getTime()) / 1_000), left)
+      const plannedSeconds = await secondsUnderCeiling(
+        member.userId,
+        Math.min(Math.floor((member.phaseEndsAt.getTime() - now.getTime()) / 1_000), left),
+        ceiling,
+        now
+      )
       if (plannedSeconds < 60) continue
       const plan = planSimulatedDay(member.userId, member.habits, localDate, hoursCap)
       const task = (await ensureDayTasks(member.userId, plan)).find((row) => row.status === "active")
@@ -1034,8 +1078,15 @@ export async function keepFeatured() {
  * or fewer than sixteen made-up rooms are open, hosts who are awake open
  * more, as many as it takes in one pass, so six stay listed while the rest
  * focus.
+ *
+ * Task 05, Part 7: with nobody real on the site for an hour, no room opens at
+ * all; while somebody real is here, a host opens its day's room up to half an
+ * hour before its first session.
  */
 async function openHostRooms(now: Date, hoursCap: number) {
+  const presence = await readRealPresence(now)
+  if (presence.quiet) return 0
+  const early = presence.looking ? LOOKING_OPEN_EARLY_MS : 0
   const hosts = (await loadHosts()).filter((host) => !host.pausedAt && !host.removeRequestedAt)
   if (!hosts.length) return 0
   const busy = new Set(
@@ -1059,7 +1110,7 @@ async function openHostRooms(now: Date, hoursCap: number) {
   for (const host of free) {
     const localDate = localDateFor(host.habits.timezone, now)
     const first = planSimulatedDay(host.userId, host.habits, localDate, hoursCap).sessions[0]
-    if (!first || now < first.startsAt || now.getTime() >= first.startsAt.getTime() + OPEN_WINDOW_MS) continue
+    if (!first || now.getTime() < first.startsAt.getTime() - early || now.getTime() >= first.startsAt.getTime() + OPEN_WINDOW_MS) continue
     if (await hadRoomSince(host.userId, zonedInstant(localDate, 0, host.habits.timezone))) continue
     if (await openRoom(host, now)) {
       busy.add(host.userId)

@@ -205,3 +205,12 @@ export const PROJECT_VISIBILITY_FILTERS = ["all", "public", "private"] as const
 export const PROJECT_TARGET_FILTERS = ["all", "target", "none"] as const
 export const PROJECT_SORT_COLUMNS = ["name", "owner", "tasks", "hours", "created"] as const
 export type ProjectSortColumn = (typeof PROJECT_SORT_COLUMNS)[number]
+
+// ---------------------------------------------------------------------------
+// Made-up members, the watch page (live activity task 05)
+// ---------------------------------------------------------------------------
+
+export const SIMULATED_TABS = ["today", "paused", "all"] as const
+export type SimulatedTab = (typeof SIMULATED_TABS)[number]
+export const SIMULATED_SORT_COLUMNS = ["name", "hours", "lines"] as const
+export type SimulatedSort = (typeof SIMULATED_SORT_COLUMNS)[number]

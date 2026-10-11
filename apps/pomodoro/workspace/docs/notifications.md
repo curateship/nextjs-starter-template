@@ -60,7 +60,8 @@ saved with it.
 
 | Kind | Who gets it | Tab | Clicking it opens |
 | --- | --- | --- | --- |
-| room_join | the room's host, while away | Rooms | the room |
+| room_join | the room's host, always | Rooms | the room |
+| room_leave | the room's host, always | Rooms | the room |
 | room_chat | each member, while away | Rooms | the room |
 | room_mention | the member named with @ | Rooms | the room |
 | room_reaction | the line's author, while away | Rooms | the room |
@@ -98,9 +99,11 @@ address, which answers for every state the room can be in, closed included.
 
 ## Away, and why it matters
 
-**Joins, chat and reactions are only sent to somebody who is away from the
-room.** Somebody with the room on screen sees them happen, and a notice about
-it afterwards is noise.
+**Chat and reactions are only sent to somebody who is away from the room.**
+Somebody with the room on screen sees them happen, and a notice about it
+afterwards is noise. **Joins and leaves always reach the host's bell**, room on
+screen or not. Tyler, 11 Oct 2026: "I need it in the notification tray too". A made-up member hosting a room gets neither, because nobody reads its tray
+and its rooms see people come and go all day.
 
 - **Away is decided by the room's live connection.** While the Rooms page is
   open on your room, its connection sets `room_memberships.watching_until`
@@ -121,6 +124,20 @@ How each kind behaves:
 - **Joins fold per room** into "Sam and 2 others joined your room Deep Work."
   while the host's notice is unread. Somebody already in the room pressing
   Join again is not a join.
+- **Leaves fold the same way**, "Sam and 2 others left your room Deep Work."
+  Tyler, 11 Oct 2026: "Add notifications when someone join and leave my
+  room". Leaving counts whether somebody pressed Leave or joined another room.
+  A removal or a ban by the host, the room closing, and a leave across a block
+  tell nobody.
+- **The host also gets a pop-up** while the tab is showing: "Sam joined your
+  room." or "Sam left your room." The room's live connection stays open on
+  every page while the tab is showing, because the header follows your room,
+  so the pop-up shows on any page. The room store compares each live update's
+  people with the last (`tellComingsAndGoings` in
+  `src/lib/pomodoro/room-clock-store.ts`). When the connection opens again
+  after the tab was hidden, the first update only sets the starting point, so
+  coming back is not a burst of pop-ups for what the bell already holds.
+  Members who are not the host get neither.
 - **Chat folds per room.** One line names who wrote it, with the words
   underneath; more become "3 new messages in Deep Work." with the latest line
   and its writer underneath.

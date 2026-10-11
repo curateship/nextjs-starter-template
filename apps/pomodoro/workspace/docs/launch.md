@@ -200,6 +200,40 @@ What the laptop could not prove:
 
 ## Release record
 
+### Made-up members touching real ones, Tyler's controls, 11 Oct 2026
+
+- **Commit:** `b8968f834`, 20 commits after `a9ae0ea53`, six of them
+  Pomodoro's: live activity tasks 04 and 05 with the visit delay setting, join
+  and leave notices, whole-card joins and the switch-room question
+  (`5ba9667d6`), Polish 3 (`adfcb2f65`, `0a52a665d`), the phone background band
+  and red bell count (`56fbabbe3`), the Veo fixes (`46fadc5e5`) and the last
+  release record (`9b6919cc8`). The rest were Promo and Project commits merged
+  from `develop`, which Pomoder's build does not install.
+- **Migration:** 0154 (`pomodoro_simulated_reach`), applied by the website on
+  its way in, so the website went first.
+- **Website:** deployment `jt5scbhjt2yxh9o7l5qj0xp0`, 550 seconds, healthy.
+- **Worker:** deployment `b10vhm7v9njtyfzuql3h0x5l`, 488 seconds, healthy. It
+  now runs `pomodoro-simulated-social`.
+- **Health:** `https://pomoder.com/api/health` answered `{"status":"ok"}`.
+- **Left menu:** the admin menu differed (Themes had become Backgrounds, and
+  Made-up members is new under Profiles) and was copied; the members' menu was
+  already the same.
+- **AI keys:** all four already there.
+- **Browser check, signed in as Tyler, nothing pressed that changes data:** the
+  watch page drew its three tables (130 made-up members, 86 focused today, 23
+  made-up rooms open), Made-up members is in the menu, the card reads 10 to 60
+  seconds, 8 hours, 100 hours and 50 cents, the Focus page's totals line and
+  Real members only show, `/plans` reads Free, Pro yearly, Pro monthly, the
+  room cards press as a whole with a black Join pill, and a made-up profile
+  carries `noindex` and is not in `/sitemap.xml`.
+- **Found:** the watch page threw React error 418, because its times were
+  drawn on the server in the server's time zone. Fixed after this release by
+  drawing them only in the browser, proved locally in a Tokyo browser; not
+  live until the next deploy.
+- **Still owed:** the 418 fix deployed, a walk-through as a real member (a
+  follow arriving, a visitor in a hosted room, a report in a room), and the
+  room name as a chip in the tray, which waits on Tyler's call.
+
 ### Uploads, sharing, rooms and the shell merge, 10 Oct 2026 (evening)
 
 - **What shipped:** 22 commits, from a5dff7b88 up to a9ae0ea53: the upload

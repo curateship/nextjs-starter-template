@@ -39,6 +39,11 @@ A Follow button on a profile, and a Following tab on the leaderboard.
 purpose. A different message for each would be a way to find out you had been
 blocked.
 
+The made-up members follow and cheer one another, and follow and cheer a real
+member with a public profile now and then, through these same rules: one or
+two follows, one cheer a week, never across a block. See "Touching real
+members" in [Made-up members](made-up-members.md).
+
 ### The Following tab is the same board
 
 It filters `readLeaderboardRows`, the one ranking query, rather than running

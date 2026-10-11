@@ -20,6 +20,17 @@ export const BREAK_MESSAGE_MAX = 600
 /** The most made-up members the card allows, and the highest hours-a-day cap. */
 export const SIMULATED_TARGET_MAX = 200
 export const SIMULATED_HOURS_MAX = 6
+/**
+ * The hours-a-day dial moves in quarter hours, because the fade (live activity
+ * task 05, Part 1) lowers it by a quarter of an hour a week.
+ */
+export const SIMULATED_HOURS_STEP = 0.25
+/** The lowest the fade takes the dial. */
+export const SIMULATED_HOURS_FLOOR = 1
+/** The longest wait the card allows before a made-up member visits a real room, in seconds. */
+export const REAL_ROOM_VISIT_MAX_SECONDS = 1_800
+/** The highest daily chat cap the voice card takes, in cents. */
+export const SIMULATED_CHAT_CAP_MAX = 10_000
 /** The longest style brief the voice card takes. */
 export const VOICE_BRIEF_MAX = 1000
 /** The most an admin may set a member's daily Pixabay imports to. */
@@ -125,8 +136,47 @@ export const appSettingSchemas = {
    */
   "simulated.accounts": z.object({
     target: z.number().int().min(0).max(SIMULATED_TARGET_MAX),
-    hoursCap: z.number().int().min(1).max(SIMULATED_HOURS_MAX),
+    hoursCap: z.number().min(SIMULATED_HOURS_FLOOR).max(SIMULATED_HOURS_MAX).multipleOf(SIMULATED_HOURS_STEP),
     paused: z.boolean(),
+  }),
+  /**
+   * One switch per behaviour of the made-up members (live activity task 05,
+   * Part 8). Off stops that behaviour on the next pass and leaves the others
+   * alone; Pause everything outranks all five.
+   */
+  "simulated.switches": z.object({
+    sessions: z.boolean(),
+    rooms: z.boolean(),
+    chat: z.boolean(),
+    follows: z.boolean(),
+    joinReal: z.boolean(),
+  }),
+  /**
+   * Real members stay on top (task 05, Part 1). Once a real member's week
+   * passes `aboveHours`, no made-up account's week is let past theirs; once
+   * real members together focus more than `fadeAfterHours` in a week, the
+   * hours-a-day dial drops a quarter of an hour the week after.
+   */
+  "simulated.realFirst": z.object({
+    aboveHours: z.number().int().min(1).max(80),
+    fadeAfterHours: z.number().int().min(1).max(100_000),
+  }),
+  /**
+   * How long after a real member's public room opens a made-up member walks
+   * in, and after the first how long until a second, drawn between the two
+   * (live activity task 04, Part 3). Tyler, 11 Oct 2026: "The join is a bit
+   * slow. I think it should be around 10sec to 1 min and something I can edit
+   * in settings".
+   */
+  "simulated.realRoomVisit": z
+    .object({
+      minSeconds: z.number().int().min(0).max(REAL_ROOM_VISIT_MAX_SECONDS),
+      maxSeconds: z.number().int().min(0).max(REAL_ROOM_VISIT_MAX_SECONDS),
+    })
+    .refine((value) => value.minSeconds <= value.maxSeconds, "The soonest cannot be later than the latest."),
+  /** The most the room chat may spend on AI lines in one UTC day (task 05, Part 4). */
+  "simulated.chatCap": z.object({
+    centsPerDay: z.number().int().min(0).max(SIMULATED_CHAT_CAP_MAX),
   }),
   /**
    * How the made-up members sound in rooms (live activity task 03). Tyler,
@@ -181,6 +231,11 @@ export const APP_SETTING_DEFAULTS: {
   // rooms", so 130, which the day test runs. Nothing is made until an admin
   // presses Make them now.
   "simulated.accounts": { target: 130, hoursCap: 3, paused: false },
+  "simulated.switches": { sessions: true, rooms: true, chat: true, follows: true, joinReal: true },
+  // The task file's numbers (9 Oct 2026). Both are open questions for Tyler.
+  "simulated.realFirst": { aboveHours: 8, fadeAfterHours: 100 },
+  "simulated.chatCap": { centsPerDay: 50 },
+  "simulated.realRoomVisit": { minSeconds: 10, maxSeconds: 60 },
   // The task's own defaults, 9 Oct 2026, so the first Preview already sounds
   // like somebody half-distracted by their own work.
   "simulated.voice": {

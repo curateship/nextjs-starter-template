@@ -119,4 +119,20 @@ export const FIXED_LINES: Record<LineKind, readonly string[]> = {
     "running out, see you",
     "done for now",
   ],
+  // Said on walking into a real member's room (task 04, Part 3), so the
+  // host sees somebody arrive rather than a silent face.
+  arrive: [
+    "hey",
+    "hi all",
+    "mind if i join",
+    "hey, joining for a bit",
+    "hi. working on some stuff",
+    "hello",
+    "hey there",
+    "joining in",
+    "hi, needed a room",
+    "hey, ok if i sit in",
+    "hey, quiet in here",
+    "hiya",
+  ],
 }

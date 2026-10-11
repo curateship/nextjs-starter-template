@@ -1,12 +1,14 @@
-import { and, desc, eq, isNull, lt, sql } from "drizzle-orm"
+import { and, desc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm"
 
 import { mentionedHandles } from "@/lib/pomodoro/notices"
 import { drawFrom, drawInt, seededRandom } from "@/lib/pomodoro/simulated-days"
-import { CHATTINESS, type LineKind, type Voice } from "@/lib/pomodoro/simulated-voice"
+import { CHATTINESS, chattinessWhileLooking, type LineKind, type Voice } from "@/lib/pomodoro/simulated-voice"
 import { db } from "@/server/db"
 import { loadAppSettings } from "@/server/pomodoro/app-settings"
 import { notifyRoom, postRoomMessage, toggleRoomReaction } from "@/server/pomodoro/rooms"
+import { chatUnderCap, readRealPresence } from "@/server/pomodoro/simulated-controls"
 import {
+  pomodoroBlocks,
   pomodoroProfiles,
   pomodoroSettings,
   pomodoroSimulatedAccounts,
@@ -39,7 +41,12 @@ import { customShellUsers as users } from "@/server/schema"
  *   reads the chat. Tyler, 9 Oct 2026: "why would host starts slientely if
  *   nobody real is in there?" Only one person never speaks twice running.
  * - Nothing at all until a Preview has been read on the voice card, and
- *   nothing while Pause everything is on.
+ *   nothing while Pause everything or the Chat switch (task 05) is off.
+ * - Nobody speaks to, answers or reacts to a real person who has a block
+ *   with them, in either direction (task 04).
+ * - Over the day's chat cap every line is a fixed one; with nobody real on
+ *   the site for an hour only a room's opening line is said; while somebody
+ *   real is here they talk one notch more (task 05).
  *
  * Every line goes through `postRoomMessage`, the same path a member's line
  * takes, so the blocked words, the rate limit, the report button and the
@@ -91,10 +98,15 @@ async function voicePreviewed() {
   return Boolean(row)
 }
 
+/** Pause everything and the Chat switch both silence every room. */
+function chatOff(settings: Awaited<ReturnType<typeof loadAppSettings>>) {
+  return settings["simulated.accounts"].paused || !settings["simulated.switches"].chat
+}
+
 /** One pass over every open made-up room. */
 export async function runSimulatedChat(now = new Date()) {
   const settings = await loadAppSettings()
-  if (settings["simulated.accounts"].paused) return
+  if (chatOff(settings)) return
   if (!(await voicePreviewed())) return
   if (now.getTime() - lastPruneAt > PRUNE_EVERY_MS) {
     lastPruneAt = now.getTime()
@@ -107,11 +119,13 @@ export async function runSimulatedChat(now = new Date()) {
     .from(rooms)
     .innerJoin(pomodoroSimulatedRooms, eq(pomodoroSimulatedRooms.roomId, rooms.id))
     .where(and(isNull(rooms.closedAt), sql`${rooms.phase} not in ('scheduled', 'closed')`))
-  const voice = settings["simulated.voice"]
+  const presence = await readRealPresence(now)
+  const card = settings["simulated.voice"]
+  const voice = { ...card, chattiness: chattinessWhileLooking(card.chattiness, presence.looking) }
   const blockedWords = settings["chat.blockedWords"].words
   for (const { room, openedAt } of open) {
     try {
-      await tendChat(room, openedAt, now, voice, blockedWords)
+      await tendChat(room, openedAt, now, voice, blockedWords, presence.quiet)
     } catch (error) {
       console.error("a made-up room's chat could not move on", error)
     }
@@ -182,6 +196,22 @@ async function readRoom(roomId: string) {
   return { people: people as Person[], lines: lines as Line[], done }
 }
 
+/**
+ * Whether two people in a room may speak to each other: false across a
+ * block in either direction. One read for the whole room.
+ */
+async function readBlocks(people: Person[]) {
+  const ids = people.map((person) => person.userId)
+  const rows = ids.length
+    ? await db
+        .select({ a: pomodoroBlocks.blockerUserId, b: pomodoroBlocks.blockedUserId })
+        .from(pomodoroBlocks)
+        .where(or(inArray(pomodoroBlocks.blockerUserId, ids), inArray(pomodoroBlocks.blockedUserId, ids)))
+    : []
+  const pairs = new Set(rows.flatMap((row) => [`${row.a}|${row.b}`, `${row.b}|${row.a}`]))
+  return (one: string, other: string) => !pairs.has(`${one}|${other}`)
+}
+
 /** A delay drawn once for this moment, so every pass agrees when it is due. */
 function delayMs(trigger: string, low: number, high: number) {
   return drawInt(seededRandom("chat-delay", trigger), low, high) * 1_000
@@ -204,7 +234,7 @@ function speakerOf(person: Person): Speaker {
 // The moments
 // ---------------------------------------------------------------------------
 
-async function tendChat(room: Room, openedAt: Date, now: Date, voice: Voice, blockedWords: string[]) {
+async function tendChat(room: Room, openedAt: Date, now: Date, voice: Voice, blockedWords: string[], quiet: boolean) {
   const { people, lines, done } = await readRoom(room.id)
   const handled = new Set(done.map((row) => row.triggerKey))
   const madeUp = people.filter((person) => person.madeUp)
@@ -221,14 +251,26 @@ async function tendChat(room: Room, openedAt: Date, now: Date, voice: Voice, blo
   const say = (speaker: Person, kind: LineKind, trigger: string, extra: Partial<SayContext> = {}) =>
     sayLine(room, speaker, kind, trigger, { lines, handles, voice, blockedWords, now, ...extra })
 
-  await reactToReal(room, lines, madeUp, handled, now)
+  // The room has just opened and nobody has said anything. Only in its
+  // first ten minutes: a room long under way does not say it is opening.
+  const openTrigger = `open:${room.id}`
+  const fresh = now.getTime() - openedAt.getTime() < 10 * 60_000
+  const opening = host && !inFocus && fresh && !lines.length && !handled.has(openTrigger) && due(openedAt.getTime() + delayMs(openTrigger, 30, 90))
+  // Nobody real on the site for an hour: the opening line and nothing else.
+  if (quiet) {
+    if (host && opening) await say(host, "open", openTrigger)
+    return
+  }
+
+  const mayAddress = await readBlocks(people)
+  await reactToReal(room, lines, madeUp, handled, now, mayAddress)
 
   // Somebody real @named a made-up member: that member answers, even mid-focus.
   for (const line of lines) {
     if (line.madeUp || now.getTime() - line.createdAt.getTime() > REPLY_WINDOW_MS) continue
     for (const handle of mentionedHandles(line.body)) {
       const named = madeUp.find((person) => person.handle === handle)
-      if (!named) continue
+      if (!named || !mayAddress(named.userId, line.userId)) continue
       const trigger = `mention:${line.id}:${named.userId}`
       if (handled.has(trigger) || !due(line.createdAt.getTime() + delayMs(trigger, 20, 90))) continue
       await say(named, "mention", trigger, { replyTo: line })
@@ -240,7 +282,7 @@ async function tendChat(room: Room, openedAt: Date, now: Date, voice: Voice, blo
   // A real person just came in: the host says hello.
   for (const person of real) {
     const trigger = `greet:${person.membershipId}`
-    if (!host || handled.has(trigger) || now.getTime() - person.joinedAt.getTime() > 10 * 60_000) continue
+    if (!host || !mayAddress(host.userId, person.userId) || handled.has(trigger) || now.getTime() - person.joinedAt.getTime() > 10 * 60_000) continue
     if (!due(person.joinedAt.getTime() + delayMs(trigger, 20, 60))) continue
     await say(host, "greet", trigger, { realName: firstName(person.name) })
     return
@@ -251,20 +293,17 @@ async function tendChat(room: Room, openedAt: Date, now: Date, voice: Voice, blo
   if (lastReal && !lastIsMadeUp && now.getTime() - lastReal.createdAt.getTime() < REPLY_WINDOW_MS) {
     const trigger = `reply:${lastReal.id}`
     const namesSomeone = mentionedHandles(lastReal.body).some((handle) => madeUp.some((person) => person.handle === handle))
-    if (!handled.has(trigger) && !namesSomeone && happens(trigger, chance.reply)) {
+    const speakers = madeUp.filter((person) => mayAddress(person.userId, lastReal.userId))
+    if (!handled.has(trigger) && !namesSomeone && speakers.length && happens(trigger, chance.reply)) {
       // The reply takes the slot: no break line goes out ahead of it.
       if (!due(lastReal.createdAt.getTime() + delayMs(trigger, 20, 90))) return
-      const speaker = drawFrom(seededRandom("chat-who", trigger), madeUp)
+      const speaker = drawFrom(seededRandom("chat-who", trigger), speakers)
       await say(speaker, "reply", trigger, { replyTo: lastReal, realName: firstName(lastReal.name) })
       return
     }
   }
 
-  // The room has just opened and nobody has said anything. Only in its
-  // first ten minutes: a room long under way does not say it is opening.
-  const openTrigger = `open:${room.id}`
-  const fresh = now.getTime() - openedAt.getTime() < 10 * 60_000
-  if (host && fresh && !lines.length && !handled.has(openTrigger) && due(openedAt.getTime() + delayMs(openTrigger, 30, 90))) {
+  if (host && opening) {
     await say(host, "open", openTrigger)
     return
   }
@@ -317,10 +356,13 @@ async function tendChat(room: Room, openedAt: Date, now: Date, voice: Voice, blo
  */
 export async function sayBeforeStart(room: Room, round: number, now = new Date(), countdown: "short" | "long" = "short") {
   const settings = await loadAppSettings()
-  if (settings["simulated.accounts"].paused || !(await voicePreviewed())) return
+  if (chatOff(settings) || !(await voicePreviewed())) return
+  // With nobody real on the site for an hour, only an opening line is said.
+  if (countdown === "short" && (await readRealPresence(now)).quiet) return
   const { people, lines, done } = await readRoom(room.id)
   const host = people.find((person) => person.userId === room.hostUserId && person.madeUp)
   if (!host) return
+  const mayAddress = await readBlocks(people)
   const handled = new Set(done.map((row) => row.triggerKey))
   const context = {
     lines,
@@ -330,7 +372,11 @@ export async function sayBeforeStart(room: Room, round: number, now = new Date()
     now,
   }
   const newcomer = people.find(
-    (person) => !person.madeUp && now.getTime() - person.joinedAt.getTime() < 90_000 && !handled.has(`greet:${person.membershipId}`)
+    (person) =>
+      !person.madeUp &&
+      mayAddress(host.userId, person.userId) &&
+      now.getTime() - person.joinedAt.getTime() < 90_000 &&
+      !handled.has(`greet:${person.membershipId}`)
   )
   if (newcomer) {
     await sayLine(room, host, "greet", `greet:${newcomer.membershipId}`, { ...context, realName: firstName(newcomer.name) })
@@ -358,9 +404,13 @@ const HAPPENED: Record<LineKind, string> = {
   mention: "Somebody named you in the room.",
   exchange: "It is a break. Say something to the others about your work or how it is going.",
   leave: "You are leaving the room now, before the next focus.",
+  arrive: "You just walked into somebody else's room to work alongside them. Say hello.",
 }
 
-/** Writes, checks and sends one line, and logs every try. */
+/**
+ * Writes, checks and sends one line, and logs every try. Over the day's chat
+ * cap the line is a fixed one, checked per line so the cap holds to the cent.
+ */
 async function sayLine(room: Room, speaker: Person, kind: LineKind, trigger: string, context: SayContext) {
   const recent = context.lines.slice(-6).map((line) => ({ name: line.name, body: line.body }))
   const happened =
@@ -382,7 +432,9 @@ async function sayLine(room: Room, speaker: Person, kind: LineKind, trigger: str
     },
     context.voice,
     context.blockedWords,
-    context.now
+    context.now,
+    Math.random,
+    { ai: await chatUnderCap(context.now) }
   )
   let messageId: string | null = null
   let notSent: string | null = null
@@ -453,7 +505,14 @@ async function logAttempts(
  * The real lines are taken four at a time and one of each four, drawn at
  * random, gets it, so twenty lines always get five and never a clump.
  */
-async function reactToReal(room: Room, lines: Line[], madeUp: Person[], handled: Set<string>, now: Date) {
+async function reactToReal(
+  room: Room,
+  lines: Line[],
+  madeUp: Person[],
+  handled: Set<string>,
+  now: Date,
+  mayAddress: (one: string, other: string) => boolean
+) {
   for (const line of lines) {
     if (line.madeUp || now.getTime() - line.createdAt.getTime() > REACT_WINDOW_MS) continue
     const trigger = `react:${line.id}`
@@ -471,8 +530,11 @@ async function reactToReal(room: Room, lines: Line[], madeUp: Person[], handled:
         )
       )
     if (before % 4 !== drawInt(seededRandom("chat-react-block", room.id, Math.floor(before / 4)), 0, 3)) continue
+    // Never across a block: with nobody else to react, the line goes without.
+    const reactors = madeUp.filter((person) => mayAddress(person.userId, line.userId))
+    if (!reactors.length) continue
     const random = seededRandom("chat-react", trigger)
-    const reactor = drawFrom(random, madeUp)
+    const reactor = drawFrom(random, reactors)
     const roll = random()
     const emoji = roll < 0.45 ? "👍" : roll < 0.8 ? "🔥" : roll < 0.9 ? "💪" : "😄"
     let notSent: string | null = null
@@ -502,7 +564,8 @@ async function reactToReal(room: Room, lines: Line[], madeUp: Person[], handled:
  */
 export async function sayLeaving(room: Room, userId: string, now = new Date()) {
   const settings = await loadAppSettings()
-  if (settings["simulated.accounts"].paused || !(await voicePreviewed())) return
+  if (chatOff(settings) || !(await voicePreviewed())) return
+  if ((await readRealPresence(now)).quiet) return
   const { people, lines } = await readRoom(room.id)
   const speaker = people.find((person) => person.userId === userId)
   // Nobody says two lines running with only made-up people to hear them.
@@ -516,6 +579,28 @@ export async function sayLeaving(room: Room, userId: string, now = new Date()) {
     .limit(1)
   if (already) return
   await sayLine(room, speaker, "leave", trigger, {
+    lines,
+    handles: people.flatMap((person) => person.handle ?? []),
+    voice: settings["simulated.voice"],
+    blockedWords: settings["chat.blockedWords"].words,
+    now,
+  })
+}
+
+/**
+ * The hello a made-up member says on walking into a real member's room (task
+ * 04, Part 3), called by the social worker straight after the join. Said
+ * once per visit, whatever the chattiness.
+ */
+export async function sayArriving(room: Room, userId: string, now = new Date()) {
+  const settings = await loadAppSettings()
+  if (chatOff(settings) || !(await voicePreviewed())) return
+  const { people, lines, done } = await readRoom(room.id)
+  const speaker = people.find((person) => person.userId === userId && person.madeUp)
+  if (!speaker) return
+  const trigger = `arrive:${speaker.membershipId}`
+  if (done.some((row) => row.triggerKey === trigger)) return
+  await sayLine(room, speaker, "arrive", trigger, {
     lines,
     handles: people.flatMap((person) => person.handle ?? []),
     voice: settings["simulated.voice"],

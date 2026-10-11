@@ -80,6 +80,7 @@ import { Route as AuthenticatedAdminPomodoroRoomPresetsRouteImport } from './rou
 import { Route as AuthenticatedAdminPomodoroRoomRepeatsRouteImport } from './routes/_authenticated/admin/pomodoro-room-repeats'
 import { Route as AuthenticatedAdminPomodoroRoomsRouteImport } from './routes/_authenticated/admin/pomodoro-rooms'
 import { Route as AuthenticatedAdminPomodoroSessionsRouteImport } from './routes/_authenticated/admin/pomodoro-sessions'
+import { Route as AuthenticatedAdminPomodoroSimulatedRouteImport } from './routes/_authenticated/admin/pomodoro-simulated'
 import { Route as AuthenticatedAdminPomodoroSoundsRouteImport } from './routes/_authenticated/admin/pomodoro-sounds'
 import { Route as AuthenticatedAdminPomodoroTagsRouteImport } from './routes/_authenticated/admin/pomodoro-tags'
 import { Route as AuthenticatedAdminPomodoroTaskRepeatsRouteImport } from './routes/_authenticated/admin/pomodoro-task-repeats'
@@ -502,6 +503,12 @@ const AuthenticatedAdminPomodoroSessionsRoute =
     path: '/pomodoro-sessions',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminPomodoroSimulatedRoute =
+  AuthenticatedAdminPomodoroSimulatedRouteImport.update({
+    id: '/pomodoro-simulated',
+    path: '/pomodoro-simulated',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminPomodoroSoundsRoute =
   AuthenticatedAdminPomodoroSoundsRouteImport.update({
     id: '/pomodoro-sounds',
@@ -797,6 +804,7 @@ export interface FileRoutesByFullPath {
   '/admin/pomodoro-room-repeats': typeof AuthenticatedAdminPomodoroRoomRepeatsRoute
   '/admin/pomodoro-rooms': typeof AuthenticatedAdminPomodoroRoomsRoute
   '/admin/pomodoro-sessions': typeof AuthenticatedAdminPomodoroSessionsRoute
+  '/admin/pomodoro-simulated': typeof AuthenticatedAdminPomodoroSimulatedRoute
   '/admin/pomodoro-sounds': typeof AuthenticatedAdminPomodoroSoundsRoute
   '/admin/pomodoro-tags': typeof AuthenticatedAdminPomodoroTagsRoute
   '/admin/pomodoro-task-repeats': typeof AuthenticatedAdminPomodoroTaskRepeatsRoute
@@ -906,6 +914,7 @@ export interface FileRoutesByTo {
   '/admin/pomodoro-room-repeats': typeof AuthenticatedAdminPomodoroRoomRepeatsRoute
   '/admin/pomodoro-rooms': typeof AuthenticatedAdminPomodoroRoomsRoute
   '/admin/pomodoro-sessions': typeof AuthenticatedAdminPomodoroSessionsRoute
+  '/admin/pomodoro-simulated': typeof AuthenticatedAdminPomodoroSimulatedRoute
   '/admin/pomodoro-sounds': typeof AuthenticatedAdminPomodoroSoundsRoute
   '/admin/pomodoro-tags': typeof AuthenticatedAdminPomodoroTagsRoute
   '/admin/pomodoro-task-repeats': typeof AuthenticatedAdminPomodoroTaskRepeatsRoute
@@ -1020,6 +1029,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/pomodoro-room-repeats': typeof AuthenticatedAdminPomodoroRoomRepeatsRoute
   '/_authenticated/admin/pomodoro-rooms': typeof AuthenticatedAdminPomodoroRoomsRoute
   '/_authenticated/admin/pomodoro-sessions': typeof AuthenticatedAdminPomodoroSessionsRoute
+  '/_authenticated/admin/pomodoro-simulated': typeof AuthenticatedAdminPomodoroSimulatedRoute
   '/_authenticated/admin/pomodoro-sounds': typeof AuthenticatedAdminPomodoroSoundsRoute
   '/_authenticated/admin/pomodoro-tags': typeof AuthenticatedAdminPomodoroTagsRoute
   '/_authenticated/admin/pomodoro-task-repeats': typeof AuthenticatedAdminPomodoroTaskRepeatsRoute
@@ -1133,6 +1143,7 @@ export interface FileRouteTypes {
     | '/admin/pomodoro-room-repeats'
     | '/admin/pomodoro-rooms'
     | '/admin/pomodoro-sessions'
+    | '/admin/pomodoro-simulated'
     | '/admin/pomodoro-sounds'
     | '/admin/pomodoro-tags'
     | '/admin/pomodoro-task-repeats'
@@ -1242,6 +1253,7 @@ export interface FileRouteTypes {
     | '/admin/pomodoro-room-repeats'
     | '/admin/pomodoro-rooms'
     | '/admin/pomodoro-sessions'
+    | '/admin/pomodoro-simulated'
     | '/admin/pomodoro-sounds'
     | '/admin/pomodoro-tags'
     | '/admin/pomodoro-task-repeats'
@@ -1355,6 +1367,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/pomodoro-room-repeats'
     | '/_authenticated/admin/pomodoro-rooms'
     | '/_authenticated/admin/pomodoro-sessions'
+    | '/_authenticated/admin/pomodoro-simulated'
     | '/_authenticated/admin/pomodoro-sounds'
     | '/_authenticated/admin/pomodoro-tags'
     | '/_authenticated/admin/pomodoro-task-repeats'
@@ -1933,6 +1946,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminPomodoroSessionsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/pomodoro-simulated': {
+      id: '/_authenticated/admin/pomodoro-simulated'
+      path: '/pomodoro-simulated'
+      fullPath: '/admin/pomodoro-simulated'
+      preLoaderRoute: typeof AuthenticatedAdminPomodoroSimulatedRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/pomodoro-sounds': {
       id: '/_authenticated/admin/pomodoro-sounds'
       path: '/pomodoro-sounds'
@@ -2276,6 +2296,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminPomodoroRoomRepeatsRoute: typeof AuthenticatedAdminPomodoroRoomRepeatsRoute
   AuthenticatedAdminPomodoroRoomsRoute: typeof AuthenticatedAdminPomodoroRoomsRoute
   AuthenticatedAdminPomodoroSessionsRoute: typeof AuthenticatedAdminPomodoroSessionsRoute
+  AuthenticatedAdminPomodoroSimulatedRoute: typeof AuthenticatedAdminPomodoroSimulatedRoute
   AuthenticatedAdminPomodoroSoundsRoute: typeof AuthenticatedAdminPomodoroSoundsRoute
   AuthenticatedAdminPomodoroTagsRoute: typeof AuthenticatedAdminPomodoroTagsRoute
   AuthenticatedAdminPomodoroTaskRepeatsRoute: typeof AuthenticatedAdminPomodoroTaskRepeatsRoute
@@ -2342,6 +2363,8 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminPomodoroRoomsRoute: AuthenticatedAdminPomodoroRoomsRoute,
   AuthenticatedAdminPomodoroSessionsRoute:
     AuthenticatedAdminPomodoroSessionsRoute,
+  AuthenticatedAdminPomodoroSimulatedRoute:
+    AuthenticatedAdminPomodoroSimulatedRoute,
   AuthenticatedAdminPomodoroSoundsRoute: AuthenticatedAdminPomodoroSoundsRoute,
   AuthenticatedAdminPomodoroTagsRoute: AuthenticatedAdminPomodoroTagsRoute,
   AuthenticatedAdminPomodoroTaskRepeatsRoute:

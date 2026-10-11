@@ -35,7 +35,8 @@ export const VOICE_PREVIEWED_KEY = "simulated.voicePreviewed"
  *
  * The call goes through the shell's `runAiCall`, so every line is metered on
  * the AI usage page. `userId: null` is "a call nobody owns", which has no
- * allowance; task 05 adds the daily cap.
+ * allowance; the daily cap on the voice card (task 05, Part 4) is kept by
+ * the chat worker, which asks for a fixed line once the day's spend is over it.
  */
 
 /** Tyler's pick in the task, 9 Oct 2026: Haiku 4.5, the model the shell prices. */
@@ -166,14 +167,16 @@ function fillNames(template: string, names: LineContext["names"]) {
  * One line for this moment, or null when nothing passes. The AI writes it when
  * a key is saved; a line failing the checks is written once more with the
  * reason named; a second failure, a failed call or no key uses a fixed line.
- * Every try is returned so it can be logged.
+ * `ai: false` goes straight to a fixed line, which is what the daily chat cap
+ * does (task 05, Part 4). Every try is returned so it can be logged.
  */
 export async function writeLine(
   context: LineContext,
   voice: Voice,
   blockedWords: string[],
   now = new Date(),
-  random: Random = Math.random
+  random: Random = Math.random,
+  { ai = true }: { ai?: boolean } = {}
 ): Promise<WrittenLine> {
   const attempts: LineAttempt[] = []
   const check = (text: string) =>
@@ -184,7 +187,7 @@ export async function writeLine(
 
   let key: string | null = null
   try {
-    key = await getAiKey("anthropic")
+    if (ai) key = await getAiKey("anthropic")
   } catch (error) {
     console.error("the Anthropic key could not be read for a made-up line", error)
   }

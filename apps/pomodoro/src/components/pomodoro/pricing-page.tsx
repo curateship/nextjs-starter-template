@@ -21,8 +21,8 @@ import { useMediaCatalog } from "@/lib/pomodoro/room-media-store"
 /**
  * The plans screen, inside the product shell, drawn to Tyler's design of
  * 7 Oct 2026: a large headline, then three cards side by side. Free, then Pro
- * twice, once billed monthly and once billed yearly, the yearly one outlined
- * in orange with a Best value pill.
+ * twice, billed yearly in the middle and monthly on the right (Tyler, 11 Oct
+ * 2026), the yearly one outlined in orange with a Best value pill.
  *
  * Tyler chose on 7 Oct 2026 to show Free and Pro only. Pro is the paid plan
  * marked with a highlight badge in Settings → Plans, or the cheapest paid one
@@ -180,14 +180,8 @@ export function PricingPage({
             {freePlan ? (
               <PriceCard {...shared} plan={freePlan} interval={null} busy={false} />
             ) : null}
-            {proPlan && sellsMonthly ? (
-              <PriceCard
-                {...shared}
-                plan={proPlan}
-                interval="monthly"
-                busy={busyKey === `${proPlan.slug}:monthly`}
-              />
-            ) : null}
+            {/* Pro yearly in the middle, where the eye lands first. Tyler,
+                11 Oct 2026: "move the pro yearly to middle". */}
             {proPlan && sellsYearly ? (
               <PriceCard
                 {...shared}
@@ -195,6 +189,14 @@ export function PricingPage({
                 interval="yearly"
                 featured
                 busy={busyKey === `${proPlan.slug}:yearly`}
+              />
+            ) : null}
+            {proPlan && sellsMonthly ? (
+              <PriceCard
+                {...shared}
+                plan={proPlan}
+                interval="monthly"
+                busy={busyKey === `${proPlan.slug}:monthly`}
               />
             ) : null}
           </div>

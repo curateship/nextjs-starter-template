@@ -8,6 +8,7 @@ import { InlineError } from "@/components/ui/inline-error"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { applyRoomSnapshot } from "@/lib/pomodoro/room-clock-store"
 import { OpenRoomCard, RoomGroupEmpty } from "@/components/pomodoro/room-card"
+import { previewOf, useSwitchRoomConfirm } from "@/components/pomodoro/switch-room-confirm"
 import { joinRoom, listRooms, listRoomsForGuest } from "@/lib/api/pomodoro/rooms"
 import { useProductAuth } from "@/lib/pomodoro/auth-state"
 import { STARTING_SOON_SHOWN, isStartingSoon } from "@/lib/pomodoro/room-countdown"
@@ -16,6 +17,10 @@ import { joinRefusalMessage } from "@/lib/pomodoro/room-join"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
 export type OpenRoomRow = Awaited<ReturnType<typeof listRooms>>[number]
+
+/** Laid over a whole card, so a press anywhere on it is the card's action. */
+const cardCover =
+  "absolute inset-0 z-[2] rounded-[24px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 export type JoinProblem = { slug: string; message: string } | null
 
 /** Cards Open to join shows at first, and how many more each Load more adds. */
@@ -64,7 +69,8 @@ export function OpenRoomsSection({
   joiningSlug: string
   /** Why the last join was refused, drawn on that room's own card. */
   joinProblem: JoinProblem
-  onJoin: (slug: string) => void
+  /** The whole card joins: the row is passed so a confirmation can show the room. */
+  onJoin: (row: OpenRoomRow) => void
   className?: string
 }) {
   const [shown, setShown] = React.useState(OPEN_PAGE)
@@ -125,31 +131,41 @@ export function OpenRoomsSection({
       memberCount={row.memberCount}
       nextFocusMinutes={row.room.focusMinutes}
       featured={row.featured}
+      // A press anywhere on the card joins (Tyler, 11 Oct 2026: "Link the
+      // whole card to the room instead of just the join button"), or for a
+      // logged-out visitor goes to the login page. The Join pill is then only
+      // drawn, so the card holds one control, not two.
       cardLink={
         loginRedirect ? (
           <Link
             to="/login"
             search={{ redirect: loginRedirect }}
             aria-label={`Log in to join ${row.room.name}`}
-            className="absolute inset-0 z-[2] rounded-[24px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className={cardCover}
           />
-        ) : null
-      }
-      joinButton={
-        loginRedirect ? (
-          <span
-            aria-hidden="true"
-            className="inline-flex h-11 items-center rounded-full bg-foreground px-6 text-base font-medium text-background"
-          >
-            Join
-          </span>
         ) : (
-          <Button
-            // The page's own ink: dark on a light card, light on a dark one.
-            className="h-11 rounded-full bg-foreground px-6 text-base text-background hover:bg-foreground/80 dark:hover:bg-foreground/80"
+          <button
+            type="button"
+            aria-label={`Join ${row.room.name}`}
             disabled={joiningSlug !== ""}
-            onClick={() => onJoin(row.room.slug)}
-          >
+            onClick={() => onJoin(row)}
+            className={`${cardCover} cursor-pointer disabled:cursor-wait`}
+          />
+        )
+      }
+      // Drawn with the same Button and classes as before the whole card
+      // pressed, so it looks exactly as it did; the card's cover is the
+      // control, so this one is only drawn.
+      joinButton={
+        <Button
+          asChild
+          // Black with white text in every theme, Tyler, 11 Oct 2026: "it
+          // supposed to be black with white text". It used the page's ink,
+          // which is light in dark mode. It dims while the pointer is
+          // anywhere on the card.
+          className="pointer-events-none h-11 rounded-full bg-black px-6 text-base text-white group-hover/room-card:bg-black/80"
+        >
+          <span aria-hidden="true">
             {joiningSlug === row.room.slug ? (
               <>
                 <Loader2Icon className="animate-spin" aria-hidden="true" />
@@ -158,8 +174,8 @@ export function OpenRoomsSection({
             ) : (
               "Join"
             )}
-          </Button>
-        )
+          </span>
+        </Button>
       }
       problem={
         joinProblem?.slug === row.room.slug ? (
@@ -228,6 +244,7 @@ export function HomeOpenRooms({ className }: { className?: string }) {
   const [joinProblem, setJoinProblem] = React.useState<JoinProblem>(null)
   const joiningRef = React.useRef("")
   const pageVisible = usePageVisible()
+  const switchRoom = useSwitchRoomConfirm()
 
   // Read on arrival and every minute while the tab is on screen, quietly: a
   // failed read keeps the cards already showing, and only a failure before
@@ -268,6 +285,7 @@ export function HomeOpenRooms({ className }: { className?: string }) {
 
   if (!known) return null
   return (
+    <>
     <OpenRoomsSection
       className={className}
       rooms={rooms}
@@ -279,8 +297,10 @@ export function HomeOpenRooms({ className }: { className?: string }) {
       }}
       joiningSlug={joiningSlug}
       joinProblem={joinProblem}
-      onJoin={(slug) => void join(slug)}
+      onJoin={(row) => switchRoom.confirmJoin(previewOf(row), () => void join(row.room.slug))}
       loginRedirect={authenticated ? undefined : "/"}
     />
+    {switchRoom.dialog}
+    </>
   )
 }
