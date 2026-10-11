@@ -21,17 +21,36 @@ export type LineKind =
   | "exchange"
   | "leave"
   | "arrive"
+  | "welcome"
+  | "ask"
 
 /** No line is longer than this. */
 const LINE_MAX = 140
 /** The longest personality line the member window takes. */
 export const PERSONALITY_MAX = 160
 
-/** How likely each optional moment is, by the card's chattiness. */
-export const CHATTINESS: Record<Voice["chattiness"], { phase: number; reply: number; exchange: number }> = {
-  quiet: { phase: 0.2, reply: 0.5, exchange: 0.1 },
-  normal: { phase: 0.5, reply: 0.8, exchange: 0.3 },
-  talkative: { phase: 0.85, reply: 1, exchange: 0.6 },
+/**
+ * How likely each optional moment is, by the card's chattiness. `ask` is the
+ * question after somebody real says hello.
+ */
+export const CHATTINESS: Record<Voice["chattiness"], { phase: number; reply: number; exchange: number; ask: number }> = {
+  quiet: { phase: 0.2, reply: 0.5, exchange: 0.1, ask: 0.3 },
+  normal: { phase: 0.5, reply: 0.8, exchange: 0.3, ask: 0.5 },
+  talkative: { phase: 0.85, reply: 1, exchange: 0.6, ask: 0.8 },
+}
+
+/** The words a hello starts with, followed by nothing, a space or punctuation. */
+const GREETING =
+  /^(?:hi+|he+y+|heyo|hello+|helo|yo+|hiya|howdy|sup|wass?up|what'?s up|good (?:morning|afternoon|evening)|morning|afternoon|evening|greetings|o\/|\u{1F44B})(?=$|[\s,.!?:;)~-])/iu
+
+/**
+ * Whether a real line is a hello to the room, such as "hey all" or "morning
+ * everyone": it starts with a greeting and is short. A long line that starts
+ * with "hey" is a question to the room and gets an ordinary reply.
+ */
+export function isGreeting(body: string) {
+  const text = body.trim()
+  return text.length > 0 && text.length <= 60 && GREETING.test(text)
 }
 
 /**

@@ -2,7 +2,7 @@ import { PGlite } from "@electric-sql/pglite"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { APP_SETTING_DEFAULTS } from "@/lib/pomodoro/app-settings"
-import { lineProblem, styleLine } from "@/lib/pomodoro/simulated-voice"
+import { isGreeting, lineProblem, styleLine } from "@/lib/pomodoro/simulated-voice"
 import { seededRandom } from "@/lib/pomodoro/simulated-days"
 import { FIXED_LINES } from "@/lib/pomodoro/simulated-lines"
 import { type CustomShellDb } from "@/server/db"
@@ -156,5 +156,14 @@ describe("writing a line", () => {
     const written = await writeLine(CONTEXT, VOICE, [])
     expect(written.attempts[0].rejectedReason).toBe("call failed: the model declined")
     expect(written.attempts[1].source).toBe("fixed")
+  })
+})
+
+describe("a hello", () => {
+  it("is a short line that starts with a greeting, and nothing else", () => {
+    for (const line of ["hey all", "Hiii", "hello everyone!", "morning", "good evening folks", "o/", "\u{1F44B} hi", "yo", "hi, anyone here?"])
+      expect(isGreeting(line)).toBe(true)
+    for (const line of ["history homework", "yoga later", "they said", "this chapter will not end", "hey can someone explain how the timer works and why it stops when i switch tabs"])
+      expect(isGreeting(line)).toBe(false)
   })
 })

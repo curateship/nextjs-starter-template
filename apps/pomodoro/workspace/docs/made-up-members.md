@@ -358,6 +358,19 @@ writes a `simulated.voicePreviewed` row, and the worker checks for it.
 - **A reply to a real line** comes 20 to 90 seconds after it, or at the next
   break when it was written in a focus, from one of the made-up members in the
   room. While a reply is due, no other made-up line goes ahead of it.
+- **A hello gets hellos back.** Tyler, 11 Oct 2026: "when user greet, one or
+  2 made up members and host greet back and spring in some random
+  questions". When somebody real says hello (a short line starting "hi",
+  "hey", "morning", "o/" and the like, `isGreeting`), one or two made-up
+  members in the room say hello back, the host first when the host is one of
+  them, 6 to 25 seconds after it and the second 10 to 30 seconds later. Then
+  one of them asks a casual question ("what are you working on today?",
+  "first session of the day?") by the chattiness: 3 in 10 quiet, 5 in 10
+  normal, 8 in 10 talkative. A hello said during a focus is answered as the
+  break starts; one said outside a focus is let go after five minutes. A host
+  that already said hello when they came in leaves it to the others. A hello
+  never gets an ordinary reply as well, and never across a block. In a real
+  host's room the made-up visitors answer a hello and say nothing else.
 - **The host's lines**: one when the room opens (in its first ten minutes
   only), a hello 20 to 60 seconds after somebody real joins during a break,
   one as a break starts, and **one just before every focus it starts**, always,

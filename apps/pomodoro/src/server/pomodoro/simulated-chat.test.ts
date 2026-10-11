@@ -90,6 +90,10 @@ async function advanceRooms(at: Date) {
   await startCountedRooms(at, db)
 }
 
+async function theRoomHost() {
+  return (await theRoom())?.hostUserId ?? null
+}
+
 async function theRoom() {
   const [row] = await db
     .select({ room: rooms })
@@ -338,4 +342,60 @@ describe("the made-up members' chat", () => {
     const [reactions] = await db.select({ count: sql<number>`count(*)::int` }).from(roomMessageReactions)
     expect(reactions.count).toBe(5)
   }, 600_000)
+
+  it("says hello back to a real hello, the host first, once or twice, and asks at most one question", async () => {
+    await preview()
+    let greeted = false
+    const said = await run(NOON, 40, async (at, room) => {
+      if (!greeted && room.phase === "waiting" && at.getTime() >= NOON.getTime() + 2 * MINUTE) {
+        await joinRoomBySlug(room.slug, realId, db, at)
+        await postRoomMessage(room.slug, realId, "hey everyone")
+        greeted = true
+      }
+    })
+    expect(greeted).toBe(true)
+    const hello = said.find((line) => !line.madeUp)!
+    const host = (await theRoomHost())!
+    // The hellos back: the host's (said as it starts, or as a hello back) and
+    // perhaps one more, never an ordinary reply to the same line.
+    const back = said.filter((line) => line.madeUp && (line.kind === "welcome" || line.kind === "greet") && line.at >= hello.at)
+    expect(back.length).toBeGreaterThanOrEqual(1)
+    expect(back.length).toBeLessThanOrEqual(2)
+    expect(back[0].userId).toBe(host)
+    const triggers = (await db.select({ key: pomodoroSimulatedLines.triggerKey }).from(pomodoroSimulatedLines)).map((row) => row.key)
+    expect(triggers).not.toContain(`reply:${hello.id}`)
+    expect(said.filter((line) => line.kind === "ask").length).toBeLessThanOrEqual(1)
+    // Never in a focus.
+    for (const line of said.filter((row) => row.kind === "welcome" || row.kind === "ask")) expect(line.phase).not.toBe("focus")
+  }, 600_000)
+
+  it("has a made-up visitor in a real host's room say hello back", async () => {
+    await preview()
+    const owner = await insertUser(db, { name: "Real Host" })
+    const { room } = await createRoomWithHost(owner.id, "real-room-hello-pad", {
+      name: "Real room",
+      visibility: "public",
+      focusMinutes: 25,
+      shortBreakMinutes: 5,
+      longBreakMinutes: 15,
+      autoStart: false,
+      sound: "curated:rain",
+      background: "scene:plain",
+    }, db, NOON)
+    const [visitor] = await db.select().from(pomodoroSimulatedAccounts).where(sql`${pomodoroSimulatedAccounts.habits} -> 'host' is null`).limit(1)
+    await joinRoomBySlug(room.slug, visitor.userId, db, NOON)
+    await joinRoomBySlug(room.slug, realId, db, NOON)
+    await postRoomMessage(room.slug, realId, "hi all")
+    await onTestClock(NOON)
+    for (let at = NOON.getTime(); at <= NOON.getTime() + 2 * MINUTE; at += 10_000) {
+      await runSimulatedChat(new Date(at))
+      await onTestClock(new Date(at))
+    }
+    const lines = await db.select().from(pomodoroSimulatedLines).where(eq(pomodoroSimulatedLines.roomId, room.id))
+    const welcomes = lines.filter((line) => line.kind === "welcome" && line.messageId)
+    expect(welcomes).toHaveLength(1)
+    expect(welcomes[0].userId).toBe(visitor.userId)
+    // Only the hello: no other chat in a real host's room.
+    expect(lines.every((line) => line.kind === "welcome" || line.kind === "ask")).toBe(true)
+  }, 120_000)
 })

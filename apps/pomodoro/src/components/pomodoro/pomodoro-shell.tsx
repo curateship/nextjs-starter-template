@@ -458,11 +458,13 @@ export function PomodoroShell({
               which is 140px more than the 720px hero had, so the page starts
               where it did and the scene fades out further down behind it.
               Tyler, 8 Oct 2026: "Let the gradient flow lower", then "a bit
-              higher". On a phone both are less, 660px and 231px, so the scene
-              is not a tall empty band above the timer and it still fades out
-              behind it. Tyler, 10 Oct 2026: "on mobile this background is too
-              tall. We need to reduce the height by about 30%", then "10%
-              higher on mobile". */}
+              higher". On a phone the band is 660px, so the scene is not a tall
+              empty band above the timer and it still fades out behind it.
+              Tyler, 10 Oct 2026: "on mobile this background is too tall. We
+              need to reduce the height by about 30%", then "10% higher on
+              mobile". The content overlaps it by 274px there, so it starts
+              386px down, 10% higher than the 429px it was. Tyler, 11 Oct
+              2026: "in mobile, move the content area up 10%". */}
           <div className="group/hero relative -mt-[86px] h-[860px] overflow-hidden max-md:h-[660px]">
             <SceneBackdrop
               background={background}
@@ -474,7 +476,7 @@ export function PomodoroShell({
               <ThemeArrows shown={background} />
             ) : null}
           </div>
-          <div className={cn("relative z-[4] -mt-[300px] pb-20 max-md:-mt-[231px]", pageGutterClass)}>
+          <div className={cn("relative z-[4] -mt-[300px] pb-20 max-md:-mt-[274px]", pageGutterClass)}>
             {children}
           </div>
         </main>
