@@ -128,6 +128,11 @@ export function longDayLabel(day: string) {
   return LONG_DAY.format(utcNoonOf(day))
 }
 
+/** "Toronto" from "America/Toronto", "UTC" from "UTC". */
+export function zoneCity(timeZone: string) {
+  return (timeZone.split("/").pop() ?? timeZone).replaceAll("_", " ")
+}
+
 /** "9:05 AM", read in the zone. */
 export function clockIn(at: Date | string, timeZone: string) {
   return clockLabel(localNow(new Date(at), timeZone).time)

@@ -26,6 +26,7 @@ import {
   loadFind,
   loadFinds,
   loadKeywords,
+  readSubredditRules,
   readThread,
   removeKeyword,
   runKeyword,
@@ -193,6 +194,7 @@ export function RedditWorkspace({
               body: found.body,
               thread: found.thread,
               threadReadAt: found.threadReadAt,
+              rules: found.rules,
             },
             drafts: found.drafts,
           })
@@ -369,7 +371,7 @@ export function RedditWorkspace({
 
   const findsPanel = (
     <FindsPanel
-      keywordTerm={chosenKeyword?.term ?? null}
+      keyword={chosenKeyword ?? null}
       tab={tab}
       onTabChange={(next) => {
         setTab(next)
@@ -421,6 +423,16 @@ export function RedditWorkspace({
         try {
           await readThread(findId)
           await afterQueueing()
+        } catch (error) {
+          showErrorToast(getRedditErrorMessage(error))
+        }
+      }}
+      onReadRules={async (findId: string) => {
+        try {
+          await readSubredditRules(findId)
+          await afterQueueing()
+          // The read is queued, so the line says it is coming.
+          await refreshDetail(findId)
         } catch (error) {
           showErrorToast(getRedditErrorMessage(error))
         }

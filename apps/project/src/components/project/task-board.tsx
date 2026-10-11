@@ -34,6 +34,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import type { TaskCard } from "@/lib/api/project/tasks"
+import { plural } from "@/lib/format/plural"
 import { TASK_STATUSES, TASK_STATUS_LABEL, isTaskStatus, type TaskStatus } from "@/lib/project/rules"
 import { todayKey } from "@/lib/project/dates"
 import { splitRecentDone } from "@/lib/project/task-filters"
@@ -337,6 +338,7 @@ function CardContent({ task }: { task: TaskCard }) {
           <span className="flex items-center gap-1 text-muted-foreground">
             <MessageSquareIcon className="size-3" aria-hidden />
             {task.commentCount}
+            <span className="sr-only">{plural(task.commentCount, "comment")}</span>
           </span>
         ) : null}
       </span>

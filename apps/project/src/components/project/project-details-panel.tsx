@@ -66,8 +66,8 @@ export function ProjectDetailsPanel({ page }: { page: ProjectPage }) {
         <div className="grid gap-5 p-4">
           {project.archived ? (
             <p className="text-sm text-muted-foreground">
-              This project is archived, so nothing in it can change. Bring it back from the
-              cog to work on it.
+              This project is archived, so nothing in it can change. Bring it back from
+              Project settings to work on it.
             </p>
           ) : null}
           <div className="grid gap-1">

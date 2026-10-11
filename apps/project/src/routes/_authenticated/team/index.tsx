@@ -3,8 +3,9 @@ import { createFileRoute } from "@tanstack/react-router"
 import { TeamDashboardScreen, type TeamSearch } from "@/components/project/team-dashboard"
 import { routeErrorComponent } from "@/components/shell/route-error"
 import { loadTeamCheckins } from "@/lib/api/project/checkins"
+import { loadMeetings } from "@/lib/api/project/meetings"
 import { isRealDay } from "@/lib/project/days"
-import { loadMyTeamInvites, loadTeamDashboardPage } from "@/lib/api/project/teams"
+import { loadFigures, loadMyTeamInvites, loadTeamDashboardPage } from "@/lib/api/project/teams"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 
 const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/
@@ -18,7 +19,7 @@ function readSearch(search: Record<string, unknown>): TeamSearch {
   return result
 }
 
-/** The Team dashboard: the team, a calendar of its check-ins, and one day's check-ins. */
+/** The Team dashboard: the team, a calendar of its check-ins and meetings, and one day's check-ins. */
 export const Route = createFileRoute("/_authenticated/team/")({
   validateSearch: readSearch,
   // Opening a task doesn't reload the page; a new month or day does. The
@@ -29,19 +30,28 @@ export const Route = createFileRoute("/_authenticated/team/")({
     return { month, day }
   },
   loader: async ({ deps }) => {
-    const [data, checkins] = await Promise.all([
+    const [data, checkins, meetings, figures] = await Promise.all([
       loadTeamDashboardPage(),
       loadTeamCheckins({ month: deps.month, day: deps.day }),
+      loadMeetings({ month: deps.month, day: deps.day }),
+      loadFigures(),
     ])
-    return { data, checkins, invites: data ? [] : await loadMyTeamInvites() }
+    return { data, checkins, meetings, figures, invites: data ? [] : await loadMyTeamInvites() }
   },
   component: TeamRoute,
   errorComponent: routeErrorComponent(getProjectErrorMessage),
 })
 
 function TeamRoute() {
-  const { data, checkins, invites } = Route.useLoaderData()
+  const { data, checkins, meetings, figures, invites } = Route.useLoaderData()
   return (
-    <TeamDashboardScreen data={data} checkins={checkins} invites={invites} search={Route.useSearch()} />
+    <TeamDashboardScreen
+      data={data}
+      checkins={checkins}
+      meetings={meetings}
+      figures={figures}
+      invites={invites}
+      search={Route.useSearch()}
+    />
   )
 }

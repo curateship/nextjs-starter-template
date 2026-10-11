@@ -3,6 +3,7 @@ import { Loader2Icon, PlusIcon, SearchIcon, XIcon } from "lucide-react"
 
 import { CardTop } from "@/components/shared/feed-card"
 import { Button } from "@/components/ui/button"
+import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
@@ -18,7 +19,7 @@ import {
   type RedditSort,
   type RedditWindow,
 } from "@/lib/social/reddit/options"
-import { keywordScopeText } from "@/lib/social/wording"
+import { keywordScopeText, keywordTitle } from "@/lib/social/wording"
 import { cn } from "@/lib/utils"
 import type { KeywordRow } from "@/server/social/keywords"
 
@@ -105,19 +106,24 @@ export function KeywordsPanel({
     setOpen(false)
   }
 
+  /** The subreddits as typed, split on commas. */
+  const listed = subreddits
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean)
+  /** No words and one subreddit is a watch, which lists that subreddit's new posts. */
+  const watch = !term.trim() && listed.length === 1
+
   async function add(event: React.FormEvent) {
     event.preventDefault()
-    if (!term.trim() || adding) return
+    if ((!term.trim() && !listed.length) || adding) return
     setAdding(true)
     try {
       await onAdd({
         term: term.trim(),
         sort,
         timeWindow,
-        subreddits: subreddits
-          .split(",")
-          .map((part) => part.trim())
-          .filter(Boolean),
+        subreddits: listed,
       })
       clear()
       // Shut on the way out. The keyword is now a card in the list above, which
@@ -167,9 +173,12 @@ export function KeywordsPanel({
       {open ? (
         <form onSubmit={add} className="grid gap-3 border-t p-3">
         <div className="grid gap-2">
-          <label className="text-sm font-medium" htmlFor="promo-keyword-term">
+          <FieldLabel
+            htmlFor="promo-keyword-term"
+            hint="Leave it empty and name one subreddit to watch that subreddit's new posts instead."
+          >
             What to search Reddit for
-          </label>
+          </FieldLabel>
           <Input
             id="promo-keyword-term"
             value={term}
@@ -191,6 +200,15 @@ export function KeywordsPanel({
           />
         </div>
 
+        {/* A watch reads the subreddit's newest posts, so Reddit's order
+            and how far back mean nothing to it and are not offered. */}
+        {watch ? (
+          <p className="text-xs text-muted-foreground">
+            No words, one subreddit: this watches{" "}
+            r/{listed[0].replace(/^(https?:\/\/(www\.)?reddit\.com)?\/?r\//i, "")}&apos;s new posts,
+            newest first.
+          </p>
+        ) : (
         <div className="grid grid-cols-2 gap-2">
           <div className="grid min-w-0 gap-2">
             <label className="text-sm font-medium" htmlFor="promo-keyword-sort">
@@ -234,11 +252,16 @@ export function KeywordsPanel({
             </Select>
           </div>
         </div>
+        )}
 
         <div className="flex items-center gap-2">
-          <Button type="submit" className="flex-1" disabled={!term.trim() || adding}>
+          <Button
+            type="submit"
+            className="flex-1"
+            disabled={(!term.trim() && !listed.length) || adding}
+          >
             {adding ? <Loader2Icon className="animate-spin" /> : null}
-            Add and search
+            {watch ? "Watch it" : "Add and search"}
           </Button>
           {/*
             Never disabled. It used to switch off while the fields were empty,
@@ -300,10 +323,14 @@ function KeywordCard({
         onClick={() => onSelect(keyword.id)}
         className="min-w-0 flex-1 text-left"
       >
-        <span className="block truncate text-sm font-medium">{keyword.term}</span>
-        <span className="block truncate text-xs text-muted-foreground">
+        <span className="block truncate text-sm font-medium" title={keywordTitle(keyword)}>
+          {keywordTitle(keyword)}
+        </span>
+        <span className="block truncate text-xs text-muted-foreground" title={keywordScopeText(keyword)}>
           {running
-            ? "Searching Reddit"
+            ? keyword.term
+              ? "Searching Reddit"
+              : "Reading the newest posts"
             : keyword.lastRun?.status === "failed"
               ? keyword.lastRun.error || "The last search failed"
               : keywordScopeText(keyword)}
@@ -314,7 +341,7 @@ function KeywordCard({
         type="button"
         size="icon"
         variant="ghost"
-        title="Search Reddit for this again"
+        title={keyword.term ? "Search Reddit for this again" : "Read the newest posts again"}
         disabled={busy || running}
         onClick={async () => {
           setBusy(true)

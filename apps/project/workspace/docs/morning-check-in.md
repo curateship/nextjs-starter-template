@@ -43,7 +43,12 @@ check in with its own dashboard".
 ### The team's morning
 
 - **One notice per work day** to the owner and each admin: "5 of 6 checked
-  in, 1 blocked". Clicking it opens the Team dashboard on that day.
+  in, 1 blocked", or "5 of 6 checked in" when nobody is blocked. Clicking it
+  opens the Team dashboard on that day.
+- **Its second line names who isn't in yet**: "Not yet: Ben Tester, Carla
+  Tester." Past three names it ends "and 2 more". With everyone in it says
+  "Everyone's in." People on time off aren't named, because they aren't
+  expected.
 - **It waits for the last person.** It goes 30 minutes after the latest
   check-in time anyone in the team has, so every number is in. Tyler chose
   this over the owner's own time plus an hour on 10 Oct 2026. A team spread
@@ -55,7 +60,12 @@ check in with its own dashboard".
 - **Nothing on a day the team doesn't work.**
 - **Sent once.** The job writes a row in `project_team_morning_notices` for
   the team and the day, in the same transaction as the notices.
-- **Numbers, not names.** Who is blocked is on the Team dashboard.
+- **Who is blocked, and why, is on the Team dashboard.** The notice only
+  counts them.
+- **Older notices still open.** Notices sent before 11 Oct 2026 read
+  "5 of 6 checked in, 0 blocked" over "The team's check-ins today." The bell
+  recognises both wordings (`TEAM_MORNING_WORDS` in
+  `src/lib/project/notices.ts`).
 
 ## The window
 
@@ -75,9 +85,29 @@ check in with its own dashboard".
    handed the task out and its followers, the same as on the task itself.
 4. **Add a task for yourself.** A title and a project make a task assigned to
    you, ticked straight away.
-5. **Check in.** Saves the answers and the ticks as today's check-in, and
-   closes the window. Closing it before then with answers or ticks in it asks
-   first, because they would be lost.
+5. **Notes for the team.** Three short boxes, Yesterday, Today and Blocker,
+   each up to 280 characters. See below.
+6. **Check in.** Saves the answers, the ticks and the notes as today's
+   check-in, and closes the window. Closing it before then with answers,
+   ticks or notes in it asks first, because they would be lost. So does a
+   task title or a Stuck reason typed but not yet added, before and after
+   checking in. Escape, the X, Cancel and Done all ask the same way.
+
+### Notes for the team
+
+- **Optional** (Tyler's choice, 11 Oct 2026). Checking in still needs nothing
+  but the answers to the last check-in's tasks.
+- **In the person's own words**, for what a list of task titles can't say,
+  such as why someone is blocked. Everyone on the team reads them beside the
+  check-in on the Team dashboard, including people outside the person's
+  projects.
+- **A Blocker note marks the person Blocked** on the Team dashboard, alongside
+  any picked task that is Stuck (Tyler chose both, 11 Oct 2026).
+- **Changeable during the day.** After checking in, the boxes stay in the
+  window and save themselves 700ms after the last key, and at once when a box
+  is left or the window shuts. The card's header says Saving…, Saved or Not
+  saved. An empty box saves as no note.
+- **Only today's.** Once the day is over, its notes stay as they were.
 
 ### Snoozed and Just me tasks
 
@@ -98,6 +128,7 @@ check in with its own dashboard".
   A task dropped this morning and ticked again later counts as carried over.
 - **The morning's answers stay on show** in the window, with each drop's
   reason.
+- **The notes can change all day**, as above.
 
 ## Days off
 
@@ -123,6 +154,10 @@ A person's own days off, such as a holiday, so they don't count as missed.
   before the time off was added stays that way.
 - **Checking in while away is allowed**, and is saved as a day off, so it is
   never late.
+- **The card says what it's doing.** A loading line while it reads, Try
+  again when the read fails, and a spinner on Save time off while it saves.
+- **Taking time off away asks first**: "Remove time off for Oct 14, 2026 to
+  Oct 16, 2026?", on My dashboard and in a teammate's window alike.
 - **Where it lives:** `project_time_off` in
   `drizzle/0103_project_time_off.sql`, rules in
   `src/server/project/time-off.ts`, the screen in
@@ -135,8 +170,9 @@ today says nothing about what it was last Tuesday, so nothing is worked out
 again from today's tasks.
 
 - **`project_checkins`**: one row per person per day of their own calendar,
-  with the time zone used, whether it was a work day, when they were due and
-  when they checked in.
+  with the time zone used, whether it was a work day, when they were due,
+  when they checked in, and the three notes (`note_yesterday`, `note_today`,
+  `note_blocker`, from `drizzle/0105_project_team_dashboard.sql`).
 - **`project_checkin_items`**: each task picked that day (and whether it was
   carried over), and each task dropped from the last check-in with the reason.
   The task's title and project are copied onto the row, so a deleted task
@@ -166,4 +202,5 @@ again from today's tasks.
 - **Screen:** `src/components/project/checkin-dialog.tsx` and
   `src/components/project/my-checkin-time.tsx`.
 - **Tests:** `src/server/project/checkins.test.ts`, including the reminder
-  across two time zones and two overlapping passes sending one notice.
+  across two time zones and two overlapping passes sending one notice, and
+  the notes in `src/server/project/team-dashboard.test.ts`.

@@ -10,6 +10,7 @@ import {
 } from "@/lib/project/rules"
 import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
+import { isOwnedImageUrl } from "@/server/media/library"
 import { requireKnownZone } from "@/server/project/checkins"
 import { listTeamLabels, type Label } from "@/server/project/labels"
 import { joinLinkState, type JoinLinkState } from "@/server/project/team-running"
@@ -38,6 +39,8 @@ export type TeamSummary = {
   timeZone: string
   workDays: number[]
   createdAt: string
+  /** The team photo's address, or null. */
+  photoUrl: string | null
 }
 
 export type TeamMemberRow = {
@@ -218,6 +221,28 @@ export async function updateTeam(
   return toTeamSummary(team)
 }
 
+/**
+ * The team photo, which the owner and admins change (Tyler's choice, 11 Oct
+ * 2026). A new photo must be one the person uploaded to the media library
+ * themselves, so nobody can point the team at someone else's file or at an
+ * address outside the library. "" takes the photo away.
+ */
+export async function setTeamPhoto(userId: string, photoUrl: string, database = db) {
+  const membership = await requireTeamRunner(userId, database)
+  const [team] = await database
+    .select({ photoUrl: projectTeams.photoUrl })
+    .from(projectTeams)
+    .where(eq(projectTeams.id, membership.teamId))
+  const unchanged = photoUrl === (team?.photoUrl ?? "")
+  if (photoUrl && !unchanged && !(await isOwnedImageUrl(userId, photoUrl, database))) {
+    throw new Error(PROJECT_ERRORS.photoNotYours)
+  }
+  await database
+    .update(projectTeams)
+    .set({ photoUrl: photoUrl || null, updatedAt: now() })
+    .where(eq(projectTeams.id, membership.teamId))
+}
+
 /** Owner and admins move people between admin and member. */
 export async function changeMemberRole(
   actorId: string,
@@ -383,7 +408,7 @@ function toTeamSummary(
   team: Pick<
     typeof projectTeams.$inferSelect,
     "id" | "name" | "checkinTime" | "timeZone" | "workDays" | "createdAt"
-  >
+  > & { photoUrl?: string | null }
 ): TeamSummary {
   return {
     id: team.id,
@@ -392,6 +417,7 @@ function toTeamSummary(
     timeZone: team.timeZone,
     workDays: [...team.workDays],
     createdAt: team.createdAt.toISOString(),
+    photoUrl: team.photoUrl ?? null,
   }
 }
 

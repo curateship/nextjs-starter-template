@@ -159,8 +159,17 @@ export function fitBand(rank: number): FitBand {
   return "low"
 }
 
-/** Plain words for why a post is near the top, for the row's tooltip. */
-export function rankReason(input: RankInput, now: Date = new Date()): string {
+/**
+ * Plain words for why a post is near the top, for the row's tooltip.
+ *
+ * A watch's posts come in the subreddit's newest-first order, not a search's
+ * best-match order, so their place is said that way.
+ */
+export function rankReason(
+  input: RankInput,
+  now: Date = new Date(),
+  options: { watch?: boolean } = {}
+): string {
   const weight = freshnessWeight(input.postedAt, now)
   const age = !input.postedAt
     ? "no posting time"
@@ -179,8 +188,11 @@ export function rankReason(input: RankInput, now: Date = new Date()): string {
         ? `only ${input.commentCount} replies`
         : `${input.commentCount} replies already`
 
-  const place =
-    input.position === 0
+  const place = options.watch
+    ? input.position === 0
+      ? "The subreddit's newest post"
+      : `The subreddit's post ${input.position + 1} by newest`
+    : input.position === 0
       ? "Reddit's best match"
       : `Reddit's match ${input.position + 1}`
 

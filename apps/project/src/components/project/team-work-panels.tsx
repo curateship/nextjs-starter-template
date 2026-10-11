@@ -19,8 +19,12 @@ import { cn } from "@/lib/utils"
 
 type Loaded<T> = { state: "loading" } | { state: "error"; message: string } | { state: "ready"; value: T }
 
-/** Loads once when the tab opens, with a retry on failure. */
-function useLoaded<T>(load: () => Promise<T>) {
+/**
+ * Loads when the tab opens, with a retry on failure, and again whenever
+ * `reload` changes, such as a task window closing. The old rows stay on
+ * screen until the new ones arrive.
+ */
+function useLoaded<T>(load: () => Promise<T>, reload: unknown) {
   const [loaded, setLoaded] = React.useState<Loaded<T>>({ state: "loading" })
   const [tries, setTries] = React.useState(0)
   React.useEffect(() => {
@@ -32,7 +36,7 @@ function useLoaded<T>(load: () => Promise<T>) {
     return () => {
       live = false
     }
-  }, [load, tries])
+  }, [load, tries, reload])
   return { loaded, retry: () => setTries((n) => n + 1) }
 }
 
@@ -48,8 +52,14 @@ const ATTENTION_GROUPS: { kind: AttentionKind; label: string }[] = [
  * not accepted after a work day, picked on 3+ days and not Done, and overdue.
  * The numbers for the morning are in the bell; this gives the names.
  */
-export function AttentionPanel({ onOpenTask }: { onOpenTask: (taskId: string) => void }) {
-  const { loaded, retry } = useLoaded(loadAttention)
+export function AttentionPanel({
+  reload,
+  onOpenTask,
+}: {
+  reload: unknown
+  onOpenTask: (taskId: string) => void
+}) {
+  const { loaded, retry } = useLoaded(loadAttention, reload)
   if (loaded.state === "loading") return <LoadingRow label="Loading what needs attention…" />
   if (loaded.state === "error") return <ErrorRow message={loaded.message} onRetry={retry} />
   const rows = loaded.value
@@ -118,8 +128,14 @@ const BUCKETS: { bucket: WorkloadBucket; label: string }[] = [
  * Each person's open work across every project I can see, to see who has
  * room before handing out more. Clicking a number lists those tasks.
  */
-export function WorkloadPanel({ onOpenTask }: { onOpenTask: (taskId: string) => void }) {
-  const { loaded, retry } = useLoaded(loadTeamWorkload)
+export function WorkloadPanel({
+  reload,
+  onOpenTask,
+}: {
+  reload: unknown
+  onOpenTask: (taskId: string) => void
+}) {
+  const { loaded, retry } = useLoaded(loadTeamWorkload, reload)
   const [open, setOpen] = React.useState<{ person: string; bucket: WorkloadBucket } | null>(null)
   if (loaded.state === "loading") return <LoadingRow label="Loading the workload…" />
   if (loaded.state === "error") return <ErrorRow message={loaded.message} onRetry={retry} />

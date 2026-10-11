@@ -10,7 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { emptyFindsWords, postedDateText } from "@/lib/social/wording"
+import { emptyFindsWords, findsHeading, postedDateText } from "@/lib/social/wording"
 import { cn } from "@/lib/utils"
 import type { FindRow } from "@/server/social/keywords"
 import { FIT_BAND_LABELS, FIT_BANDS, type FitBand } from "@/server/social/reddit/rank"
@@ -39,7 +39,7 @@ const TABS = [
 export type FindsTab = (typeof TABS)[number]["id"]
 
 export function FindsPanel({
-  keywordTerm,
+  keyword,
   finds,
   loading,
   error,
@@ -51,8 +51,11 @@ export function FindsPanel({
   onBlock,
   onRetry,
 }: {
-  /** The keyword these posts came from, or null when none is chosen. */
-  keywordTerm: string | null
+  /**
+   * The saved search these posts came from, or null when none is chosen. A
+   * watch has no words, so the heading names its subreddit instead.
+   */
+  keyword: { term: string; subreddits: string[] } | null
   /** Every post for the keyword, whatever its status. This panel splits them. */
   finds: FindRow[]
   loading: boolean
@@ -138,7 +141,7 @@ export function FindsPanel({
       // other table shares.
       className="min-h-0 border-0 bg-transparent shadow-none [&>div:first-child]:py-3 [&>div:first-child]:pr-3"
       fillHeight
-      title={keywordTerm ? `"${keywordTerm}"` : "Posts worth answering"}
+      title={findsHeading(keyword)}
       count={shown.length}
       countsPending={loading && !finds.length}
       busy={loading && finds.length > 0}
@@ -171,7 +174,7 @@ export function FindsPanel({
       }
       footer={{ type: "summary", count: shown.length, label: "posts" }}
       isEmpty={!shown.length}
-      emptyText={emptyFindsWords(loading, Boolean(keywordTerm), tab)}
+      emptyText={emptyFindsWords(loading, Boolean(keyword), tab)}
       emptyColSpan={7}
       header={
         <TableHeader>

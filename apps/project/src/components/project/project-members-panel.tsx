@@ -1,6 +1,6 @@
 import * as React from "react"
-import { useRouter } from "@tanstack/react-router"
-import { Trash2Icon, UsersIcon } from "lucide-react"
+import { useNavigate, useRouter } from "@tanstack/react-router"
+import { LogOutIcon, Trash2Icon, UsersIcon } from "lucide-react"
 
 import { PersonAvatar } from "@/components/project/task-bits"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   addMemberToProject,
   removeMemberFromProject,
@@ -22,7 +23,7 @@ import {
 } from "@/lib/api/project/projects"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { getProjectErrorMessage } from "@/lib/project/errors"
-import { TEAM_ROLE_LABEL } from "@/lib/project/rules"
+import { TEAM_ROLE_LABEL, runsTheTeam } from "@/lib/project/rules"
 import { cn } from "@/lib/utils"
 
 /**
@@ -40,10 +41,13 @@ export function ProjectMembersPanel({
   onSelect: (userId: string) => void
 }) {
   const router = useRouter()
+  const navigate = useNavigate()
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
   const [removing, setRemoving] = React.useState<ProjectMemberRow | null>(null)
   // A "Just me" list is one person's, so nobody can be added to it.
   const readOnly = page.project.archived || page.project.personal
+  const canAdd = !readOnly && page.addable.length > 0
+  const leaving = removing?.userId === page.myUserId
 
   async function add(userId: string) {
     const person = page.addable.find((p) => p.userId === userId)
@@ -55,14 +59,16 @@ export function ProjectMembersPanel({
   }
 
   async function remove(member: ProjectMemberRow) {
+    const self = member.userId === page.myUserId
     const ok = await run(
       () => removeMemberFromProject(page.project.id, member.userId),
-      `${member.name} removed from the project.`
+      self ? `You left ${page.project.name}.` : `${member.name} removed from the project.`
     )
-    if (ok) {
-      setRemoving(null)
-      await router.invalidate()
-    }
+    if (!ok) return
+    setRemoving(null)
+    // Someone who left may no longer see the page, so they go to Projects.
+    if (self) await navigate({ to: "/projects" })
+    else await router.invalidate()
   }
 
   return (
@@ -72,7 +78,7 @@ export function ProjectMembersPanel({
         title="Members"
         meta={String(page.members.length)}
       />
-      {readOnly || page.addable.length === 0 ? null : (
+      {canAdd ? (
         <div className="border-b p-3">
           {/* A pick adds the person at once, so the control always reads
               "Add member" rather than holding the last choice. */}
@@ -90,11 +96,13 @@ export function ProjectMembersPanel({
             </SelectContent>
           </Select>
         </div>
-      )}
+      ) : null}
       <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
         {page.members.length === 0 ? (
           <p className="p-4 text-sm text-muted-foreground">
-            Nobody is on this project. Add a teammate so tasks can be handed to them.
+            {canAdd
+              ? "Nobody is on this project. Add a teammate so tasks can be handed to them."
+              : "Nobody is on this project."}
           </p>
         ) : (
           <ul className="divide-y">
@@ -125,7 +133,23 @@ export function ProjectMembersPanel({
                       </span>
                     </span>
                   </button>
-                  {readOnly ? null : (
+                  {readOnly ? null : member.userId === page.myUserId ? (
+                    // An icon, so the row keeps room for the name; the tooltip says what it does.
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          aria-label="Leave project"
+                          onClick={() => setRemoving(member)}
+                        >
+                          <LogOutIcon className="size-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Leave project</TooltipContent>
+                    </Tooltip>
+                  ) : (
                     <Button
                       type="button"
                       variant="ghost"
@@ -147,13 +171,23 @@ export function ProjectMembersPanel({
         onOpenChange={(open) => {
           if (!open) setRemoving(null)
         }}
-        title={removing ? `Remove ${removing.name} from the project?` : "Remove member?"}
-        description={
-          removing
-            ? `${removing.name} will no longer see this project. Their tasks here stay, with nobody assigned and a note saying they were ${removing.name}'s.`
-            : null
+        title={
+          leaving
+            ? "Leave this project?"
+            : removing
+              ? `Remove ${removing.name} from the project?`
+              : "Remove member?"
         }
-        confirmLabel="Remove"
+        description={
+          leaving
+            ? runsTheTeam(page.myRole)
+              ? "You'll still see it, because owners and admins see every project, but you won't be on it. Your tasks here stay, with nobody assigned and a note saying they were yours."
+              : "You'll no longer see it. Your tasks here stay, with nobody assigned and a note saying they were yours."
+            : removing
+              ? `${removing.name} will no longer see this project. Their tasks here stay, with nobody assigned and a note saying they were ${removing.name}'s.`
+              : null
+        }
+        confirmLabel={leaving ? "Leave project" : "Remove"}
         loading={busy}
         onConfirm={async () => {
           if (removing) await remove(removing)

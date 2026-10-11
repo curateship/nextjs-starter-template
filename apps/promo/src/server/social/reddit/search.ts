@@ -11,6 +11,7 @@ import {
 
 import { blockedNames } from "./blocked"
 import { rankFind } from "./rank"
+import { queueRulesFor } from "./rules"
 import type { FindThread } from "@/lib/social/options"
 
 import { promoFinds, promoKeywords, promoSearches } from "../schema"
@@ -79,7 +80,8 @@ export async function runKeywordSearch(
     // request each, because Reddit has no "search these three" address. A
     // listed subreddit that is now blocked is not searched at all, and a list
     // that is all blocked searches nothing rather than falling back to all of
-    // Reddit.
+    // Reddit. A watch has no words and one subreddit, and the browser reads
+    // that subreddit's new posts instead of searching.
     const targets = keyword.subreddits.length
       ? keyword.subreddits.filter((name) => !blocked.has(name.toLowerCase()))
       : [""]
@@ -117,6 +119,20 @@ export async function runKeywordSearch(
       .update(promoKeywords)
       .set({ lastRunAt: new Date() })
       .where(eq(promoKeywords.id, keyword.id))
+
+    // The rules of any subreddit these posts came from that has not been
+    // read, queued behind this search in the same browser. A failure here is
+    // logged rather than failing a search that worked; the next search asks
+    // again.
+    try {
+      await queueRulesFor(
+        keyword.userId,
+        posts.map((post) => post.subreddit),
+        db
+      )
+    } catch (error) {
+      console.error(`Could not queue subreddit rules after search ${searchId}`, error)
+    }
 
     return { searchId, seen: stored.seen, new: stored.new, source }
   } catch (error) {

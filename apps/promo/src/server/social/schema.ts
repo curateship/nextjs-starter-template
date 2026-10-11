@@ -20,6 +20,8 @@ import {
   type JobKind,
   type JobStatus,
   type SearchStatus,
+  type SubredditRule,
+  type SubredditRulesStatus,
 } from "@/lib/social/options"
 import {
   type RedditSort,
@@ -162,6 +164,7 @@ export const promoKeywords = pgTable(
     userId: varchar("user_id", { length: 36 })
       .notNull()
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    /** The words. Empty for a watch, which names one subreddit instead. */
     term: varchar("term", { length: 200 }).notNull(),
     /** Subreddits to search inside, or an empty list for all of Reddit. */
     subreddits: jsonb("subreddits").$type<string[]>().notNull().default([]),
@@ -191,10 +194,17 @@ export const promoKeywords = pgTable(
       .defaultNow(),
   },
   (table) => [
-    uniqueIndex("ux_promo_keywords_user_term").on(
-      table.userId,
-      sql`lower(${table.term})`
-    ),
+    /** One saved search per set of words, compared without case. */
+    uniqueIndex("ux_promo_keywords_user_term")
+      .on(table.userId, sql`lower(${table.term})`)
+      .where(sql`${table.term} <> ''`),
+    /**
+     * A watch: no words and exactly one subreddit, listing its new posts. One
+     * per subreddit. Added by `drizzle/0102_promo_subreddit_watches.sql`.
+     */
+    uniqueIndex("ux_promo_keywords_user_watch")
+      .on(table.userId, sql`lower(${table.subreddits}->>0)`)
+      .where(sql`${table.term} = ''`),
   ]
 )
 
@@ -224,6 +234,50 @@ export const promoBlockedSubreddits = pgTable(
     ),
   ]
 )
+
+/**
+ * The rules a subreddit has posted, read once and kept, so they are shown
+ * before a comment is written and handed to the AI. Rules barely change, so a
+ * reading stands for weeks. The SQL is `drizzle/0103_promo_subreddit_rules.sql`.
+ */
+export const promoSubredditRules = pgTable(
+  "promo_subreddit_rules",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    /** Without the r/ prefix. Compared without case, as Reddit does. */
+    subreddit: varchar("subreddit", { length: 120 }).notNull(),
+    status: varchar("status", { length: 20 }).$type<SubredditRulesStatus>().notNull(),
+    rules: jsonb("rules").$type<SubredditRule[]>().notNull().default([]),
+    /** Why Reddit would not answer. Empty unless the status is 'failed'. */
+    lastError: text("last_error").notNull().default(""),
+    readAt: timestamp("read_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("ux_promo_subreddit_rules_user_name").on(
+      table.userId,
+      sql`lower(${table.subreddit})`
+    ),
+  ]
+)
+
+/**
+ * The Reddit settings that belong to the person rather than to one account.
+ * No row means the defaults. The SQL is `drizzle/0104_promo_tidy_old_posts.sql`.
+ */
+export const promoRedditSettings = pgTable("promo_reddit_settings", {
+  userId: varchar("user_id", { length: 36 })
+    .primaryKey()
+    .references(() => customShellUsers.id, { onDelete: "cascade" }),
+  /**
+   * Days a post can go unseen by any search before the tidy-up deletes it if
+   * skipped, or clears its stored replies if still open. 0 switches it off.
+   */
+  tidyAfterDays: integer("tidy_after_days").notNull().default(30),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+})
 
 /**
  * One run of one keyword. Kept so that "nothing found" and "the search
@@ -324,6 +378,8 @@ export const promoFinds = pgTable(
     ),
     index("ix_promo_finds_keyword_rank").on(table.keywordId, table.rank.desc()),
     index("ix_promo_finds_user_status").on(table.userId, table.status),
+    /** What the tidy-up walks, oldest first. */
+    index("ix_promo_finds_status_seen").on(table.status, table.lastSeenAt),
   ]
 )
 
@@ -398,6 +454,20 @@ export const promoComments = pgTable(
      * `drizzle/0101_promo_comment_examples.sql`.
      */
     notExample: boolean("not_example").notNull().default(false),
+    /**
+     * The last reading of the comment on Reddit, all null until one is taken.
+     * Null is "not read yet", never 0 or "gone": a comment nobody has checked
+     * must not read as one with no replies. Upvotes stay null after a reading
+     * while Reddit hides the score. `checkedAs` is whose view decided whether
+     * it is still there: "stranger", which shows a moderator's removal, or
+     * "you" when Reddit refused the stranger. Added by
+     * `drizzle/0105_promo_comment_checks.sql`.
+     */
+    upvotes: integer("upvotes"),
+    replyCount: integer("reply_count"),
+    stillVisible: boolean("still_visible"),
+    checkedAs: varchar("checked_as", { length: 10 }).$type<"stranger" | "you">(),
+    checkedAt: timestamp("checked_at", { withTimezone: true }),
     postedAt: timestamp("posted_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

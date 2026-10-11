@@ -12,12 +12,22 @@
   project's or task's id from another team gets "doesn't exist or you can't
   see it", never the record.
 - **Archived projects are read-only.** Archive from Project settings (the cog
-  on the project page) or from the Projects table. Bring back undoes it.
+  on the project page) or from the Projects table. Bring back undoes it. The
+  details panel says "Bring it back from Project settings to work on it."
+- **Leaving a project.** Your own row in the Members panel has a leave button
+  instead of a bin. It asks "Leave this project? You'll no longer see it.",
+  and an owner or admin is told they'll still see it, because they see every
+  project. After leaving, the page goes to Projects.
+- **The empty Members panel** says "Nobody is on this project." and adds
+  "Add a teammate so tasks can be handed to them." only when Add member is
+  there to do it.
 
 ## Copying, due dates and progress
 
 - **Copy project**, from the details panel or the copy button on a Projects
-  row, asks for a new name and makes a project from the old one: its
+  row, asks for a new name, starting as "Copy of Website launch", selected,
+  so typing replaces it and Copy project works at once. It makes a project
+  from the old one: its
   description, colour, sections and every task not in the bin, in the same
   order, with their labels and steps (unticked). Every task starts To do with
   nobody assigned and no due date (Tyler's choice, 10 Oct 2026). People,
@@ -69,8 +79,11 @@ marked Build the contact form Done", newest first, 50 at a time with "Show
 older".
 
 - **What it lists:** a task made, its status changed, handed over, accepted,
-  handed back, commented on, deleted and brought back, a step made its own
-  task, and a task moved here. Each line opens its task, unless the task is
+  handed back, commented on, put in the bin and brought back, a step made its
+  own task, and a task moved here. Each is a full sentence, worded the same
+  as on the task's History card ("put Logo in the bin", "put it in the bin").
+  A status the app doesn't know reads "changed the status of Logo".
+- **"Show older" says when it fails**, with Try again in its place. Each line opens its task, unless the task is
   in the bin.
 - **Written as it happens.** It reads `project_task_events`, the same rows as
   each task's History card, with three kinds added on 11 Oct 2026 (made,
@@ -149,8 +162,9 @@ without leaving the page and without a window over it.
 ### Making tasks quickly
 
 - **New task in the header**, on every page. It opens the project page's
-  window with a Project picker, the last project used chosen first
-  (remembered in this browser). The page under it stays as it is. On a phone
+  window with a Project picker. On a project's page it starts on that
+  project; anywhere else, or on an archived project, on the last project used
+  (remembered in this browser, also by the project page's own New task). The page under it stays as it is. On a phone
   it folds into the header's three-dot menu.
 - **Paste a list.** Pasting more than one line into a new task's title asks
   "Make 8 tasks, one per line?". Yes makes them all in the chosen project,
@@ -167,9 +181,18 @@ without leaving the page and without a window over it.
 
 - **Many at once.** Ticking rows on a project's List tab offers Status, Hand
   to, Due date and Move to project beside Mark Done. Stuck asks for one reason
-  for all of them. Each task is changed on its own, as if alone, so each still
-  writes its history and sends its notices, and one that can't be changed is
-  refused alone. The result says "5 changed, 1 refused" with the reason.
+  for all of them ("Why is it stuck?" for one task, "Why are they stuck?" for
+  more). Each task is changed on its own, as if alone, so each still writes
+  its history and sends its notices, and one that can't be changed is refused
+  alone. The result says "5 tasks changed, 1 refused." with the reason, and
+  "2 tasks unassigned." when handed to Nobody.
+- **Pick a date…** in the bulk Due date opens the calendar at once. Escape or
+  a click outside brings the menu back.
+- **Stuck says so, wherever it's set.** "Marked Stuck." from the task and from
+  a Board drag. To do, Doing and Done stay quiet, since a toast on every drag
+  would be noise.
+- **The List waits for the last save.** While a reorder or status change is
+  saving, rows can't be dragged, so two quick drags save in the order made.
 - **Move to project**, from the "More" menu, lists my other open projects. If
   the person assigned isn't on the new one, the window says so and the task
   moves with nobody assigned (and their name kept). Steps, chat, files,

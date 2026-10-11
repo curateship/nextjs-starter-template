@@ -7,6 +7,7 @@ import { ProjectsDashboard } from "@/components/project/projects-dashboard"
 import { TaskBoard } from "@/components/project/task-board"
 import { TaskList } from "@/components/project/task-list"
 import { TeamStart } from "@/components/project/team-start"
+import { TooltipProvider } from "@/components/ui/tooltip"
 import type { ProjectPage } from "@/lib/api/project/projects"
 import type { TaskCard } from "@/lib/api/project/tasks"
 import type { InviteForMe } from "@/lib/api/project/teams"
@@ -54,8 +55,8 @@ function card(overrides: Partial<TaskCard>): TaskCard {
 }
 
 const tasks = [
-  card({ id: "a", title: "Pick the photos", waiting: true }),
-  card({ id: "b", title: "Redirects", status: "stuck", stuckReason: "Waiting on the page list" }),
+  card({ id: "a", title: "Pick the photos", waiting: true, commentCount: 3 }),
+  card({ id: "b", title: "Redirects", status: "stuck", stuckReason: "Waiting on the page list", commentCount: 1 }),
   card({ id: "c", title: "Old copy", status: "doing", assignee: null, formerAssigneeName: "Leo" }),
   card({ id: "d", title: "Fonts", status: "done", steps: { done: 3, total: 3 } }),
   card({ id: "e", title: "Late thing", status: "doing", dueDate: "2020-01-02", steps: { done: 1, total: 4 } }),
@@ -94,6 +95,11 @@ describe("the board", () => {
     expect(html).toContain("Design")
     expect(html).toContain("Show 1 older")
     expect(html).not.toContain("Ancient")
+  })
+
+  it("says what a comment count is to a screen reader", () => {
+    expect(html).toContain(`3<span class="sr-only">comments</span>`)
+    expect(html).toContain(`1<span class="sr-only">comment</span>`)
   })
 })
 
@@ -228,7 +234,9 @@ describe("the project page", () => {
 
   it("draws details, tasks and members", () => {
     const html = renderToStaticMarkup(
-      <ProjectWorkspace page={page} openTaskId={undefined} filters={{}} />
+      <TooltipProvider>
+        <ProjectWorkspace page={page} openTaskId={undefined} filters={{}} />
+      </TooltipProvider>
     )
     expect(html).toContain(`aria-label="Project settings"`)
     expect(html).toContain(`aria-label="Unstar Website"`)
@@ -239,24 +247,33 @@ describe("the project page", () => {
     expect(html).toContain("Members")
     expect(html).toContain("Tyler (you)")
     expect(html).toContain("3 open tasks")
+    // My own row leaves; everyone else's row removes.
+    expect(html).toContain(`aria-label="Leave project"`)
+    expect(html).toContain(`aria-label="Remove Ben Ortiz from the project"`)
+    expect(html).not.toContain(`aria-label="Remove Tyler from the project"`)
   })
 
   it("locks an archived project", () => {
     const html = renderToStaticMarkup(
       <ProjectWorkspace
-        page={{ ...page, project: { ...page.project, archived: true } }}
+        page={{ ...page, project: { ...page.project, archived: true }, members: [] }}
         openTaskId={undefined}
         filters={{}}
       />
     )
     expect(html).toContain("This project is archived")
-    expect(html).toContain("Bring it back from the cog")
+    expect(html).toContain("Bring it back from Project settings to work on it.")
     expect(html).not.toContain("New task")
+    // Nobody can be added to an archived project, so the empty panel doesn't ask.
+    expect(html).toContain("Nobody is on this project.")
+    expect(html).not.toContain("Add a teammate so tasks can be handed to them.")
   })
 
   it("says so when a search matches nothing", () => {
     const html = renderToStaticMarkup(
-      <ProjectWorkspace page={page} openTaskId={undefined} filters={{ q: "zebra" }} />
+      <TooltipProvider>
+        <ProjectWorkspace page={page} openTaskId={undefined} filters={{ q: "zebra" }} />
+      </TooltipProvider>
     )
     expect(html).toContain("No tasks match")
     expect(html).toContain("zebra")

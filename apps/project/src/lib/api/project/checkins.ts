@@ -2,10 +2,21 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import { isRealDay } from "@/lib/project/days"
-import { myCheckinTimeSchema, submitCheckinSchema, timeOffSchema } from "@/lib/project/rules"
+import {
+  checkinNotesSchema,
+  myCheckinTimeSchema,
+  submitCheckinSchema,
+  timeOffSchema,
+} from "@/lib/project/rules"
 import { userGet, userPost } from "@/server/guards"
 import { findMembership } from "@/server/project/access"
-import { addPick, removePick, setMyCheckinTime, submitCheckin } from "@/server/project/checkins"
+import {
+  addPick,
+  removePick,
+  saveCheckinNotes,
+  setMyCheckinTime,
+  submitCheckin,
+} from "@/server/project/checkins"
 import { listInvitesForMe } from "@/server/project/invites"
 import { loadMyDashboard } from "@/server/project/my-dashboard"
 import { loadTeamDay, loadTeamMonth } from "@/server/project/team-days"
@@ -51,6 +62,11 @@ const removePickFn = createServerFn({ method: "POST" })
   .inputValidator(z.object({ taskId: id }))
   .handler(async ({ data, context }) => removePick(context.user.id, data.taskId))
 
+const saveCheckinNotesFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(checkinNotesSchema)
+  .handler(async ({ data, context }) => saveCheckinNotes(context.user.id, data))
+
 const setMyCheckinTimeFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(myCheckinTimeSchema)
@@ -79,6 +95,9 @@ export function pickTask(taskId: string) {
 }
 export function unpickTask(taskId: string) {
   return removePickFn({ data: { taskId } })
+}
+export function saveNotes(data: z.input<typeof checkinNotesSchema>) {
+  return saveCheckinNotesFn({ data })
 }
 export function saveMyCheckinTime(data: z.input<typeof myCheckinTimeSchema>) {
   return setMyCheckinTimeFn({ data })

@@ -12,6 +12,7 @@ import {
   type KeywordRow,
 } from "@/server/social/keywords"
 import { queueJob } from "@/server/social/jobs"
+import { queueRulesRead } from "@/server/social/reddit/rules"
 import { setFindStatus } from "@/server/social/reddit/search"
 import {
   FIND_STATUSES,
@@ -38,14 +39,17 @@ import { createErrorMessage } from "../../error-message"
 export const getRedditErrorMessage = createErrorMessage(
   {
     "already saved": "That keyword is already saved.",
-    "Type a keyword": "Type a keyword first.",
+    "already watched": "You already watch that subreddit.",
+    "A watch takes one subreddit": "A watch takes one subreddit. Type a keyword to search several.",
+    "Type a keyword": "Type a keyword first, or name one subreddit to watch.",
     "no longer saved": "That keyword has been removed. Reload the page.",
   },
   "That did not work. Please try again."
 )
 
+/** Words, or none with one subreddit for a watch. `addKeyword` holds that rule. */
 const keywordInput = z.object({
-  term: z.string().trim().min(1, "Type a keyword first.").max(200),
+  term: z.string().trim().max(200),
   subreddits: z.array(z.string().max(200)).max(20).default([]),
   sort: z.enum(REDDIT_SORTS),
   timeWindow: z.enum(REDDIT_WINDOWS),
@@ -140,6 +144,24 @@ const readThreadFn = createServerFn({ method: "POST" })
 
 export function readThread(findId: string) {
   return readThreadFn({ data: { findId } })
+}
+
+/**
+ * Reads the rules of the subreddit a post is in, through the browser, so it
+ * goes on the queue. Named by the post rather than by a typed name, so only a
+ * subreddit the app already found is ever asked about.
+ */
+const readRulesFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ findId: z.string().min(1) }))
+  .handler(async ({ context, data }): Promise<void> => {
+    const find = await loadFindDetail(context.user.id, data.findId)
+    if (!find) throw new Error("That post is no longer saved.")
+    await queueRulesRead(context.user.id, find.subreddit)
+  })
+
+export function readSubredditRules(findId: string) {
+  return readRulesFn({ data: { findId } })
 }
 
 /**

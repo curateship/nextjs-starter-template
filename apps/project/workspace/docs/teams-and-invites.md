@@ -82,6 +82,7 @@ One link to paste in a message, instead of inviting people one by one.
   project's members, the Workload tab and the hand-to picker in a task.
 - **Each person sets their own** on My dashboard's left panel. **The owner and
   admins can change anyone's** from that person's window on the Members page.
+  Both say Saving…, then Saved or Not saved, beside the field.
 
 ## Removing people
 
@@ -115,29 +116,86 @@ For when someone leaves or goes away, so their work isn't left with nobody.
 (`assets/pasted-image-1791659665679304000.png`). The panels resize and
 collapse like the project page's, and below 1280px wide one shows at a time.
 
-- **Left: the team.** Its name, the day it was created and its time zone, the
-  check-in schedule ("Daily at 9:00 AM" and the work days, M T W T F S S, the
-  work days filled in), and the members with their roles. The owner and admins
-  also get an Invite member button. Manage opens the Members page.
-- **Middle: the calendar.** A month of the team's check-ins. See
+- **Left: the team.** The team photo, its name, the day it was created and its
+  time zone, the four figures, the check-in schedule ("Daily at 9:00 AM,
+  Toronto time" and the work days, M T W T F S S, the work days filled in),
+  and the members with
+  their roles. The owner and admins also get an Invite member button. Manage
+  opens the Members page.
+- **Middle: the calendar.** A month of the team's check-ins and meetings, with
+  New meeting in its header and the chosen day's meetings under it. See
+  [Meetings](meetings.md) and
   [History](history.md#past-days-on-the-team-dashboard).
 - **Right: three tabs.** Check-ins: one day's check-ins, today to start with,
   with arrows to step through the days, and "Away" for anyone on time off (see
-  [History](history.md#past-days-on-the-team-dashboard)). Workload, for
+  [History](history.md#past-days-on-the-team-dashboard)).
+  - **Times read in your own clock.** "Checked in 4:02 AM" for a London
+    teammate's 9:02 check-in, read in Toronto, the way meetings already read.
+    Only the time moves: late is still judged on the teammate's own clock and
+    check-in time, and they stay on their own day.
+  - **A day nobody is expected** reads "A day off for the team." with no bar,
+    instead of "0 of 0 checked in".
+  - **A day still to come** shows today, and says so: "Wed, Oct 14 hasn't
+    happened yet. Showing today." Workload, for
   everyone, and Needs attention, for the owner and admins (see
   [Needs attention and workload](needs-attention.md)). The tab last used is
   remembered in this browser.
-- **Not built yet:** the team photo, the four figures (members, open tasks,
-  completed this week, check-in rate), meetings in the calendar, and typed
-  check-in notes. Each has a task file in `workspace/tasks/Team dashboard/`.
+
+### The team photo
+
+- **The owner and admins add it** by clicking the box at the top of the left
+  panel, which opens the shared media library to upload or pick a picture
+  (Tyler's choice, 11 Oct 2026). The red X on its corner takes it away.
+- **Everyone else sees the photo**, or nothing when there isn't one.
+- **The server only takes a picture the person uploaded themselves**, so
+  nobody can point the team at another person's file or at an address outside
+  the library. A file the library refuses (too big, or not a picture) says why
+  in the upload window.
+- **If the picture is later deleted from the library**, the panel shows
+  nothing rather than a broken picture.
+
+### The four figures
+
+A 2 by 2 grid under the team's name (`src/server/project/team-figures.ts`).
+Tyler chose what each counts on 11 Oct 2026.
+
+- **Members**, with how many invites are still waiting and not expired, such
+  as "1 pending invite".
+- **Open tasks**: tasks not Done in projects the viewer can see, leaving out
+  "Just me" lists, the bin and archived projects. So two people can read
+  different numbers. Under it, how many of those are due this week, Monday to
+  Sunday.
+- **Completed this week**: tasks marked Done since Monday in the viewer's own
+  time zone, in the same projects. It reads the time a task became Done
+  (`completed_at`), which is cleared when it leaves Done, so marking a task
+  Done and back takes it off again.
+- **Check-in rate** over the 7 days before today, such as "93%" and "26 of 28 ·
+  last 7 days". It counts the saved check-ins the way the calendar's squares
+  do: work days only, time off left out, and a late check-in still counts.
+  Today is left out because people still have time to check in.
+
+### Check-in notes on the Check-ins tab
+
+- **Each person's three notes** from their check-in show under their name:
+  "Yesterday · Still blocked on email provider", "Today · Work on members
+  table", and in red "Blocker · SendGrid key still pending".
+- **The picked tasks sit under each note** in a small grey line (Tyler's
+  choice, 11 Oct 2026). With no note, the picked tasks are the line, as before.
+- **A Blocker note marks the person Blocked**, the same as a picked task
+  that is Stuck, which still shows its own red line. Both count in "1 blocked".
+- **Notes show to everyone on the team.** They are the person's own words.
+  A picked task's title still shows only to people on its project.
+- See [The morning check-in](morning-check-in.md#notes-for-the-team).
 
 ### Team settings
 
 The cog in the left panel's header opens the Team settings window: name,
 daily check-in time, time zone and work days, the join link (owner and admins
 only), and the team's labels (see [Labels and sections](labels-and-sections.md)). Each field saves when it is
-left or picked, so the window ends with Done. Closing it with Escape or a
-click outside saves the field being typed in too. The owner and admins edit;
+left or picked, so the window ends with Done, and the top of the window says
+Saving…, then Saved or Not saved (see
+[Fields that save themselves](fields-that-save-themselves.md)). Closing it with
+Escape or a click outside saves the field being typed in too. The owner and admins edit;
 everyone else sees the same window to read. Tyler first asked for these in
 Settings → App settings, then chose the window, because Settings only opens
 for app admins and a customer who owns a team is not one.
@@ -160,10 +218,14 @@ for app admins and a customer who owns a team is not one.
   with handing over, the join link, job titles, Needs attention and workload
   in `src/server/project/team-running.ts`.
 - **Tables:** the join link and job titles in
-  `drizzle/0104_project_running_the_team.sql`.
+  `drizzle/0104_project_running_the_team.sql`, the team photo in
+  `drizzle/0105_project_team_dashboard.sql`.
+- **The four figures:** `src/server/project/team-figures.ts`, drawn by
+  `src/components/project/team-figures.tsx` with the team photo.
 - **Who may do what:** `src/server/project/access.ts`.
 - **Screens:** `src/components/project/team-dashboard.tsx`,
   `src/components/project/team-settings-dialog.tsx`,
   `src/components/project/team-members.tsx` and
   `src/components/project/team-start.tsx`.
-- **Tests:** `src/server/project/project.test.ts`.
+- **Tests:** `src/server/project/project.test.ts`, and the figures and photo
+  in `src/server/project/team-dashboard.test.ts`.

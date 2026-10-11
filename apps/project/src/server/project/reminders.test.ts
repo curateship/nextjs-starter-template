@@ -282,7 +282,7 @@ describe("the team's morning", () => {
     const expected = [
       {
         message: "2 of 3 checked in, 1 blocked",
-        detail: "The team's check-ins today.",
+        detail: "Not yet: Ben.",
         kind: "team_morning",
         href: `/team?day=${MONDAY}`,
       },

@@ -1,10 +1,13 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
-import { PlaneIcon, PlusIcon, Trash2Icon } from "lucide-react"
+import { Loader2Icon, PlaneIcon, PlusIcon, Trash2Icon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { DatePicker } from "@/components/ui/date-picker"
+import { ErrorRow } from "@/components/ui/error-row"
 import { Label } from "@/components/ui/label"
+import { LoadingRow } from "@/components/ui/loading-row"
 import { addDaysOff, loadDaysOff, removeDaysOff, type TimeOff } from "@/lib/api/project/checkins"
 import { formatUtcDate } from "@/lib/format/format-time"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
@@ -13,6 +16,12 @@ import { getProjectErrorMessage } from "@/lib/project/errors"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 const dayLabel = (day: string) => formatUtcDate(`${day}T00:00:00Z`)
+
+/** "Oct 14, 2026", or "Oct 14, 2026 to Oct 16, 2026". */
+const spanLabel = (entry: TimeOff) =>
+  entry.firstDay === entry.lastDay
+    ? dayLabel(entry.firstDay)
+    : `${dayLabel(entry.firstDay)} to ${dayLabel(entry.lastDay)}`
 
 /**
  * Days off for one person: my own on My dashboard, or a teammate's in their
@@ -29,7 +38,9 @@ export function TimeOffSection({
 }) {
   const router = useRouter()
   const [entries, setEntries] = React.useState<TimeOff[] | null>(null)
+  const [loadError, setLoadError] = React.useState<string | null>(null)
   const [reloads, setReloads] = React.useState(0)
+  const [removing, setRemoving] = React.useState<TimeOff | null>(null)
   const [adding, setAdding] = React.useState(false)
   const [first, setFirst] = React.useState<Date | undefined>()
   const [last, setLast] = React.useState<Date | undefined>()
@@ -38,8 +49,12 @@ export function TimeOffSection({
   React.useEffect(() => {
     let live = true
     loadDaysOff(userId).then(
-      (found) => live && setEntries(found),
-      (error: unknown) => live && showErrorToast(getProjectErrorMessage(error))
+      (found) => {
+        if (!live) return
+        setEntries(found)
+        setLoadError(null)
+      },
+      (error: unknown) => live && setLoadError(getProjectErrorMessage(error))
     )
     return () => {
       live = false
@@ -64,6 +79,7 @@ export function TimeOffSection({
 
   async function remove(entry: TimeOff) {
     if (await run(() => removeDaysOff(entry.id), "Time off removed.")) {
+      setRemoving(null)
       setReloads((n) => n + 1)
       await router.invalidate()
     }
@@ -71,25 +87,32 @@ export function TimeOffSection({
 
   return (
     <div className="grid gap-3">
-      {entries === null ? null : entries.length === 0 ? (
+      {entries === null && loadError ? (
+        <ErrorRow
+          message={loadError}
+          className="py-4"
+          onRetry={() => {
+            setLoadError(null)
+            setReloads((n) => n + 1)
+          }}
+        />
+      ) : entries === null ? (
+        <LoadingRow label="Loading time off…" />
+      ) : entries.length === 0 ? (
         <p className="text-sm text-muted-foreground">No time off coming up.</p>
       ) : (
         <ul className="grid gap-2">
           {entries.map((entry) => (
             <li key={entry.id} className="flex items-center gap-2 text-sm">
               <PlaneIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-              <span className="min-w-0 flex-1">
-                {entry.firstDay === entry.lastDay
-                  ? dayLabel(entry.firstDay)
-                  : `${dayLabel(entry.firstDay)} to ${dayLabel(entry.lastDay)}`}
-              </span>
+              <span className="min-w-0 flex-1">{spanLabel(entry)}</span>
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
                 aria-label={`Remove time off from ${dayLabel(entry.firstDay)}`}
                 disabled={busy}
-                onClick={() => void remove(entry)}
+                onClick={() => setRemoving(entry)}
               >
                 <Trash2Icon className="size-4" />
               </Button>
@@ -117,6 +140,7 @@ export function TimeOffSection({
               Cancel
             </Button>
             <Button type="button" disabled={busy} onClick={() => void add()}>
+              {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
               Save time off
             </Button>
           </div>
@@ -129,6 +153,17 @@ export function TimeOffSection({
           </Button>
         </div>
       )}
+      <ConfirmDialog
+        open={removing !== null}
+        onOpenChange={(open) => {
+          if (!open && !busy) setRemoving(null)
+        }}
+        title={removing ? `Remove time off for ${spanLabel(removing)}?` : "Remove time off?"}
+        description="The check-in reminder and the Team dashboard treat those days as normal again."
+        confirmLabel="Remove time off"
+        loading={busy}
+        onConfirm={() => removing && void remove(removing)}
+      />
     </div>
   )
 }

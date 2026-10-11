@@ -1,6 +1,6 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
-import { PlusIcon, XIcon } from "lucide-react"
+import { PlusIcon } from "lucide-react"
 
 import { NewTaskDialog } from "@/components/project/new-task-dialog"
 import { ProjectActivity } from "@/components/project/project-activity"
@@ -18,6 +18,7 @@ import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
 import { useRememberedChoice } from "@/lib/remembered-choice"
 import { getProjectErrorMessage } from "@/lib/project/errors"
+import { rememberProject } from "@/lib/project/new-task-project"
 import { PROJECT_TASK_VIEW_KEY } from "@/lib/project/panel-keys"
 import type { TaskStatus } from "@/lib/project/rules"
 import { filterTasks, hasTaskFilters, type TaskFilters } from "@/lib/project/task-filters"
@@ -55,7 +56,6 @@ export function ProjectTasksPanel({
   const readOnly = page.project.archived
 
   const filtered = filterTasks(tasks, filters)
-  const filterName = page.members.find((m) => m.userId === filters.person)?.name
   const people = page.members.map((m) => ({ id: m.userId, name: m.name }))
   const sectionGroups = React.useMemo(
     () => [
@@ -93,10 +93,14 @@ export function ProjectTasksPanel({
         ...(places.has(t.id) ? { position: places.get(t.id)! } : null),
       }))
     )
-    const ok = await run(async () => {
-      await setStatus({ taskId: task.id, status, stuckReason })
-      if (order) await saveTaskOrder(page.project.id, order)
-    })
+    // Only Stuck says so, as it does from the task: a toast on every drag would be noise.
+    const ok = await run(
+      async () => {
+        await setStatus({ taskId: task.id, status, stuckReason })
+        if (order) await saveTaskOrder(page.project.id, order)
+      },
+      status === "stuck" ? "Marked Stuck." : undefined
+    )
     if (!ok) setTasks(before)
     await router.invalidate()
     return ok
@@ -129,15 +133,6 @@ export function ProjectTasksPanel({
       {view === "activity" ? null : (
         <TaskFiltersBar filters={filters} onChange={onFilters} people={people} labels={page.labels} />
       )}
-      {filterName && view !== "activity" ? (
-        <div className="flex items-center gap-2 border-b px-3 py-2 text-sm">
-          <span className="text-muted-foreground">Showing {filterName}'s tasks</span>
-          <Button type="button" variant="ghost" size="sm" onClick={() => onFilters({ person: undefined })}>
-            <XIcon className="size-4" />
-            Show everyone's
-          </Button>
-        </div>
-      ) : null}
       {view === "activity" ? (
         <ProjectActivity projectId={page.project.id} onOpenTask={onOpenTask} />
       ) : hasTaskFilters(filters) && filtered.length === 0 ? (
@@ -156,7 +151,7 @@ export function ProjectTasksPanel({
       ) : (
         <TaskList
           tasks={filtered}
-          readOnly={readOnly}
+          readOnly={readOnly || busy}
           onOpenTask={(task) => onOpenTask(task.id)}
           groups={page.sections.length ? sectionGroups : undefined}
           groupOf={(task) => task.section?.id ?? NO_SECTION}
@@ -177,6 +172,7 @@ export function ProjectTasksPanel({
         initialProjectId={page.project.id}
         open={creating}
         onClose={() => setCreating(false)}
+        onCreated={rememberProject}
       />
       <ReasonDialog
         open={Boolean(stuck)}

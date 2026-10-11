@@ -9,7 +9,7 @@ import {
 } from "@/server/test-support"
 
 import { buildDraftPrompt } from "./drafts"
-import { exampleComments, listSentComments, setNotExample } from "./examples"
+import { exampleComments, nextExampleIds, setNotExample } from "./examples"
 import { promoAccounts, promoComments, promoDrafts, promoFinds, promoKeywords } from "./schema"
 
 /**
@@ -115,19 +115,18 @@ describe("sent comments as examples", () => {
     await expect(setNotExample(other, uuid(), true, db)).rejects.toThrow("no longer saved")
   })
 
-  it("lists the sent comments and says which three the next draft uses", async () => {
-    await sent("a", 40)
+  it("says which three comments the next draft uses, account by account", async () => {
+    const a = await sent("a", 40)
     const b = await sent("b", 30)
-    await sent("c", 20)
-    await sent("d", 10)
+    const c = await sent("c", 20)
+    const d = await sent("d", 10)
     await setNotExample(userId, b, true, db)
+    await sent("never landed", 5, { status: "failed" })
 
-    const listed = await listSentComments(userId, accountId, db)
-    expect(listed.map((row) => [row.text, row.inNextDraft, row.notExample])).toEqual([
-      ["d", true, false],
-      ["c", true, false],
-      ["b", false, true],
-      ["a", true, false],
-    ])
+    const otherAccount = uuid()
+    await db.insert(promoAccounts).values({ id: otherAccount, userId, handle: "second" })
+    const e = await sent("e", 60, { accountId: otherAccount })
+
+    expect(await nextExampleIds(userId, db)).toEqual(new Set([d, c, a, e]))
   })
 })

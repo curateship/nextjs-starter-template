@@ -47,9 +47,10 @@ the code. If the code disagrees with a line here, the code is wrong.
 - **The Team dashboard.** Tyler gave a mockup on 10 Oct 2026
   (`assets/pasted-image-1791659665679304000.png`): the team and its members on
   the left, a month calendar in the middle, and one day's check-ins on the
-  right. Until meetings are built, the calendar shows each day's check-ins
-  (Tyler's choice). Each person's check-in shows "Yesterday" and "Today" as the
-  tasks they picked, and a "Blocker" line for a picked task that is Stuck.
+  right. The calendar shows each day's check-ins and the team's meetings.
+  Each person's check-in shows their own "Yesterday", "Today" and "Blocker"
+  notes, with the tasks they picked under each, and a "Blocker" line for a
+  picked task that is Stuck.
 - **Team settings live in a window on the Team dashboard.** Tyler first said
   "The team settings goes into app settings in settings", then chose the
   window when told that Settings only opens for app admins, so a customer who
@@ -99,6 +100,24 @@ were built.
   project. Tasks in projects they aren't on are left with nobody assigned.
 - **The team join link** lets people in straight away, with no approval.
   Owners and admins hear about each join in the bell.
+
+## Choices for the Team dashboard
+
+Tyler answered these on 11 Oct 2026, before the Team dashboard tasks 01 and 02
+were built. Each was the recommended option.
+
+- **Meetings.** Anyone on the team makes one; only its maker, the owner and
+  admins change or delete it. A meeting belongs to the team and everyone sees
+  it. It repeats never, weekly or every 2 weeks. A person gets a bell notice
+  when added to one, and no reminder before it starts. The video link is any
+  https address, named when it is a known service.
+- **Check-in notes** are optional. On the Team dashboard the note comes first
+  with the picked tasks in a small grey line under it. A typed Blocker note
+  and a Stuck picked task both mark someone blocked.
+- **The check-in rate** counts work days only, and a late check-in counts.
+- **The team photo** is changed by the owner and admins.
+- **Open tasks** counts only projects the viewer can see, leaving out "Just
+  me" lists and the bin.
 
 ## The first version
 

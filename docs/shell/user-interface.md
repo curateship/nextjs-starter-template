@@ -194,6 +194,7 @@ window sits open, and the animation's own frames run at about 16ms throughout.
 
 - Use shadcn form controls for inputs and interactions.
 - Avoid native `<select>` and similar browser-default controls when a shadcn control should be used instead.
+- **Dates use `DatePicker`** (`src/components/ui/date-picker.tsx`), a button that opens a calendar. A wrong date is marked with `aria-invalid` on the picker, which reaches its button, so a screen reader hears it and the border turns red with no class of its own. `defaultOpen` opens the calendar as soon as the picker appears, and `onOpenChange` reports every open and close, so a caller can tell a close without a pick from a pick.
 - **Errors have one home each, and it is never a hand-rolled paragraph or box:**
   - **Anything that fails when the user clicks** (submit, save, delete, vote, upload, validation on submit) reports through `showErrorToast` (`src/lib/error-toast.ts`) — a red toast in the same fixed spot as the success toasts. It stays until dismissed, a repeat failure replaces it instead of stacking, and `dismissErrorToast()` runs when a new attempt starts so a stale failure never outlives its retry. Never `toast.error` directly; the shared helper owns the one-slot behavior.
   - **Data-surface load failures** (a list or page section that could not fetch) use `ErrorBanner`, with `onRetry` wherever a reload exists.

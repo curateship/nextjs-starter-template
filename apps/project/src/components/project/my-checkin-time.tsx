@@ -2,6 +2,7 @@ import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
 import { ClockIcon } from "lucide-react"
 
+import { SaveLine } from "@/components/project/save-line"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -13,10 +14,9 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { saveMyCheckinTime, type CheckinClock } from "@/lib/api/project/checkins"
-import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
 import { clockLabel } from "@/lib/project/days"
-import { getProjectErrorMessage } from "@/lib/project/errors"
+import { useSaveLine } from "@/lib/project/use-save-line"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 const TEAM_ZONE = "team"
@@ -28,7 +28,8 @@ const TEAM_ZONE = "team"
  */
 export function MyCheckinTime({ clock }: { clock: CheckinClock }) {
   const router = useRouter()
-  const [run, busy] = useAsyncAction(getProjectErrorMessage)
+  const [saveState, track] = useSaveLine()
+  const busy = saveState === "saving"
   const [time, setTime] = useSyncedDraft(clock.time)
   const [timeInvalid, setTimeInvalid] = React.useState(false)
   const zones = React.useMemo(() => {
@@ -38,7 +39,7 @@ export function MyCheckinTime({ clock }: { clock: CheckinClock }) {
   }, [clock.ownZone])
 
   async function save(patch: Parameters<typeof saveMyCheckinTime>[0]) {
-    const ok = await run(() => saveMyCheckinTime(patch))
+    const ok = await track(() => saveMyCheckinTime(patch))
     if (ok) await router.invalidate()
   }
 
@@ -57,10 +58,13 @@ export function MyCheckinTime({ clock }: { clock: CheckinClock }) {
 
   return (
     <section className="grid gap-4" aria-labelledby="my-checkin-time-heading">
-      <h3 id="my-checkin-time-heading" className="flex items-center gap-2 text-sm font-medium">
-        <ClockIcon className="size-4 text-muted-foreground" aria-hidden />
-        My check-in time
-      </h3>
+      <div className="flex items-center justify-between gap-2">
+        <h3 id="my-checkin-time-heading" className="flex items-center gap-2 text-sm font-medium">
+          <ClockIcon className="size-4 text-muted-foreground" aria-hidden />
+          My check-in time
+        </h3>
+        <SaveLine state={saveState} />
+      </div>
       <div className="grid gap-4">
         <p className="text-sm text-muted-foreground">
           The team checks in at {clockLabel(clock.teamTime)}, {clock.teamZone.replaceAll("_", " ")}{" "}

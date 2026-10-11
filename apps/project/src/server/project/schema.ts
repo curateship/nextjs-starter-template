@@ -14,6 +14,7 @@ import {
 import type {
   CheckinItemKind,
   DueReminderKind,
+  MeetingRepeat,
   ProjectColor,
   RepeatEvery,
   TaskEventKind,
@@ -48,6 +49,8 @@ export const projectTeams = pgTable("project_teams", {
   /** A fingerprint of the join link's secret, never the link itself. */
   joinTokenHash: varchar("join_token_hash", { length: 64 }),
   joinExpiresAt: timestamp("join_expires_at", { withTimezone: true }),
+  /** The team's photo, a media library address (`drizzle/0105_project_team_dashboard.sql`). */
+  photoUrl: text("photo_url"),
 })
 
 /** Each join through a team's link, for the daily cap. */
@@ -373,6 +376,10 @@ export const projectCheckins = pgTable("project_checkins", {
   checkedInAt: timestamp("checked_in_at", { withTimezone: true }),
   closedAt: timestamp("closed_at", { withTimezone: true }),
   createdAt: createdAt(),
+  /** The person's own short notes (`drizzle/0105_project_team_dashboard.sql`). */
+  noteYesterday: text("note_yesterday"),
+  noteToday: text("note_today"),
+  noteBlocker: text("note_blocker"),
 })
 
 /** Each task picked on a check-in, and each one dropped from the last one. */
@@ -478,3 +485,41 @@ export const projectTimeOff = pgTable("project_time_off", {
   }),
   createdAt: createdAt(),
 })
+
+/**
+ * A meeting on the Team dashboard's calendar (`drizzle/0105_project_team_dashboard.sql`).
+ * `day`, `startTime` and `endTime` are wall-clock in `timeZone`.
+ */
+export const projectMeetings = pgTable("project_meetings", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  teamId: varchar("team_id", { length: 36 })
+    .notNull()
+    .references(() => projectTeams.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  color: varchar("color", { length: 16 }).$type<ProjectColor>().notNull(),
+  day: date("day", { mode: "string" }).notNull(),
+  startTime: varchar("start_time", { length: 5 }).notNull(),
+  endTime: varchar("end_time", { length: 5 }).notNull(),
+  timeZone: text("time_zone").notNull(),
+  repeatEvery: varchar("repeat_every", { length: 16 }).$type<MeetingRepeat>(),
+  videoUrl: text("video_url"),
+  createdByUserId: varchar("created_by_user_id", { length: 36 }).references(userRef, {
+    onDelete: "set null",
+  }),
+  createdAt: createdAt(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+})
+
+/** Who is invited to each meeting. */
+export const projectMeetingPeople = pgTable(
+  "project_meeting_people",
+  {
+    meetingId: varchar("meeting_id", { length: 36 })
+      .notNull()
+      .references(() => projectMeetings.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(userRef, { onDelete: "cascade" }),
+  },
+  (table) => [primaryKey({ columns: [table.meetingId, table.userId] })]
+)

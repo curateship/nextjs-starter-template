@@ -119,11 +119,13 @@ function EntryText({ entry }: { entry: Entry }) {
     case "created":
       return <span>{entry.actorName} made it</span>
     case "status_changed":
-      return (
+      return isTaskStatus(entry.reason) ? (
         <>
           <span>{entry.actorName} marked it</span>
-          {isTaskStatus(entry.reason) ? <StatusBadge status={entry.reason} /> : null}
+          <StatusBadge status={entry.reason} />
         </>
+      ) : (
+        <span>{entry.actorName} changed its status</span>
       )
     case "deleted":
       return <span>{entry.actorName} put it in the bin</span>

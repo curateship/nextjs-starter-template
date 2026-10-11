@@ -12,6 +12,7 @@ import {
   UndoIcon,
   UserPlusIcon,
   UsersIcon,
+  VideoIcon,
 } from "lucide-react"
 
 import type { AppNoticeDetail, NoticeToLink } from "@/lib/app-options"
@@ -44,6 +45,7 @@ const APP_NOTICE_KINDS = [
   "overdue",
   "team_morning",
   "team_joined",
+  "meeting_invite",
 ] as const
 
 const PROJECT_NOTICE_KINDS = [...TASK_NOTICE_KINDS, ...APP_NOTICE_KINDS] as const
@@ -79,6 +81,12 @@ export function teamJoinedHeading(name: string) {
 }
 
 const TEAM_JOINED_ENDING = " joined the team through the link"
+const MEETING_INVITE_ENDING = " invited you to a meeting"
+
+/** "Anna invited you to a meeting". */
+export function meetingInviteHeading(name: string) {
+  return `${name}${MEETING_INVITE_ENDING}`
+}
 const TASKS_HANDED_WORDS = / gave you \d+ tasks$/
 
 const WEEKDAY_NAMES = [
@@ -104,14 +112,25 @@ export function overdueHeading(count = 1) {
   return count > 1 ? `${count} tasks overdue` : "Overdue"
 }
 
-/** "5 of 6 checked in, 1 blocked". */
+/** "5 of 6 checked in, 1 blocked", or "5 of 6 checked in" with nobody blocked. */
 export function teamMorningHeading(checkedIn: number, expected: number, blocked: number) {
-  return `${checkedIn} of ${expected} checked in, ${blocked} blocked`
+  return `${checkedIn} of ${expected} checked in${blocked ? `, ${blocked} blocked` : ""}`
+}
+
+const NAMES_SHOWN = 3
+
+/** "Not yet: Ben Tester, Carla Tester.", or "Everyone's in." */
+export function teamMorningDetail(notYet: string[]) {
+  if (notYet.length === 0) return "Everyone's in."
+  const rest = notYet.length - NAMES_SHOWN
+  const shown = notYet.slice(0, NAMES_SHOWN).join(", ")
+  return `Not yet: ${rest > 0 ? `${shown} and ${rest} more` : shown}.`
 }
 
 const DUE_SOON_WORDS = new RegExp(`^(\\d+ tasks due|Due) (tomorrow|${WEEKDAY_NAMES.join("|")})$`)
 const OVERDUE_WORDS = /^(Overdue|\d+ tasks overdue)$/
-const TEAM_MORNING_WORDS = /^\d+ of \d+ checked in, \d+ blocked$/
+// Notices sent before 11 Oct 2026 always said ", 0 blocked"; both still match.
+const TEAM_MORNING_WORDS = /^\d+ of \d+ checked in(, \d+ blocked)?$/
 
 export function noticeKindFromWords(
   notice: Pick<NoticeToLink, "type" | "message">
@@ -122,6 +141,7 @@ export function noticeKindFromWords(
   if (OVERDUE_WORDS.test(notice.message)) return "overdue"
   if (TEAM_MORNING_WORDS.test(notice.message)) return "team_morning"
   if (notice.message.endsWith(TEAM_JOINED_ENDING)) return "team_joined"
+  if (notice.message.endsWith(MEETING_INVITE_ENDING)) return "meeting_invite"
   if (TASKS_HANDED_WORDS.test(notice.message)) return "tasks_handed"
   return (
     (Object.keys(HEADING_ENDING) as (keyof typeof HEADING_ENDING)[]).find((kind) =>
@@ -213,6 +233,11 @@ const LOOK: Record<ProjectNoticeKind, AppNoticeDetail> = {
   },
   team_morning: {
     icon: UsersIcon,
+    toneClassName: "bg-primary/10 text-primary",
+    categoryId: "tasks",
+  },
+  meeting_invite: {
+    icon: VideoIcon,
     toneClassName: "bg-primary/10 text-primary",
     categoryId: "tasks",
   },

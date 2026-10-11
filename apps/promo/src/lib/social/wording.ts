@@ -1,6 +1,11 @@
 import { daysBetween } from "@/lib/format/format-time"
 import type { BrowserStatus } from "@/lib/api/social/account"
-import { NO_PROFILE_MESSAGE, type FindThread, type ProfileCheck } from "@/lib/social/options"
+import {
+  NO_PROFILE_MESSAGE,
+  type FindThread,
+  type ProfileCheck,
+  type SubredditRule,
+} from "@/lib/social/options"
 
 /**
  * The sentences the Reddit screens put in front of a person.
@@ -72,16 +77,38 @@ export function postedDateText(postedAt: Date | null, now: Date = new Date()): s
 }
 
 /**
+ * A saved search's name on its card: the words, or for a watch, which has
+ * none, the subreddit it watches. The subreddit leads, because the keywords
+ * panel opens at its narrowest: at a 1440px window a card has about 50px for
+ * its name, and "Watching r/SaaS" was cut to "Watc…" on 11 Oct 2026.
+ */
+export function keywordTitle(input: { term: string; subreddits: string[] }): string {
+  return input.term || `r/${input.subreddits[0] ?? ""}`
+}
+
+/** The heading over a saved search's posts, in the same terms as its card. */
+export function findsHeading(input: { term: string; subreddits: string[] } | null): string {
+  if (!input) return "Posts worth answering"
+  return input.term ? `"${input.term}"` : `New posts in r/${input.subreddits[0] ?? ""}`
+}
+
+/**
  * What a saved keyword searches, as one line under its name.
  *
  * Says all three things a search is made of, because a keyword that quietly
  * searches one subreddit looks the same as one that searches Reddit otherwise.
+ * A watch has no words, no window and no choice of order, so it says it reads
+ * the newest first.
  */
 export function keywordScopeText(input: {
+  term: string
   postCount: number
   subreddits: string[]
   timeWindow: string
 }): string {
+  const posts = `${input.postCount} ${input.postCount === 1 ? "post" : "posts"}`
+  if (!input.term) return `Watching · ${posts} · Newest first`
+
   const windows: Record<string, string> = {
     hour: "Past hour",
     day: "Past day",
@@ -94,11 +121,7 @@ export function keywordScopeText(input: {
     ? input.subreddits.map((name) => `r/${name}`).join(", ")
     : "All of Reddit"
 
-  return [
-    `${input.postCount} ${input.postCount === 1 ? "post" : "posts"}`,
-    windows[input.timeWindow] ?? input.timeWindow,
-    where,
-  ].join(" · ")
+  return [posts, windows[input.timeWindow] ?? input.timeWindow, where].join(" · ")
 }
 
 
@@ -253,4 +276,72 @@ export function profileCheckWords(check: ProfileCheck): { text: string; concern:
       : "The signed-out request got no answer, so this reading says nothing either way.",
     concern: false,
   }
+}
+
+/**
+ * Words that mark a rule about promotion, strongest first: a rule that says
+ * promotion or advertising outright beats one about spam, selling or links.
+ */
+const PROMOTION_RULES = [/promot|advertis/i, /spam|affiliate|solicit|selling|\blinks?\b|plug/i]
+
+/**
+ * The one line a subreddit's rules fold up to: how many there are, and the
+ * one about promotion when there is one, since that is the rule a comment
+ * from this app is most likely to break. Picking which rule to name is not a
+ * judgement of any draft; every rule is one press away.
+ */
+export function rulesSummaryText(subreddit: string, rules: SubredditRule[]): string {
+  const count = `r/${subreddit} has ${rules.length} ${rules.length === 1 ? "rule" : "rules"}`
+  const promotion = PROMOTION_RULES.flatMap((pattern) => [
+    rules.find((rule) => pattern.test(rule.title)),
+    rules.find((rule) => pattern.test(rule.description)),
+  ]).find(Boolean)
+  return promotion?.title ? `${count}, including "${promotion.title}"` : count
+}
+
+/** Just enough of a sent comment's reading for the words below. */
+type CommentReading = {
+  stillVisible: boolean | null
+  checkedAs: "stranger" | "you" | null
+  checkedAt: Date | null
+  checking: boolean
+  checkError: string | null
+}
+
+/**
+ * Whether a sent comment is still there, in words, with the longer
+ * explanation for its tooltip.
+ *
+ * Three answers and never two: not read yet, read and still there, read and
+ * gone. A comment nobody has checked is never shown as there or as gone, the
+ * same rule the posts list follows for replies that were never read. When
+ * Reddit refused a signed-out visitor, "there" is only what the account
+ * itself sees, and the words say so, because a moderator's removal does not
+ * show to the person who wrote the comment.
+ */
+export function commentStateWords(row: CommentReading): { label: string; detail: string } {
+  if (row.checking) {
+    return { label: "Reading", detail: "The browser is reading this comment on Reddit." }
+  }
+  if (row.checkedAt === null || row.stillVisible === null) {
+    return row.checkError
+      ? { label: "Could not read", detail: row.checkError }
+      : { label: "Not read yet", detail: "Nobody has checked this comment since it went out." }
+  }
+  if (!row.stillVisible) {
+    return {
+      label: "Gone",
+      detail:
+        row.checkedAs === "stranger"
+          ? "A signed-out visitor sees it as removed or deleted."
+          : "Reddit shows it as removed or deleted.",
+    }
+  }
+  return row.checkedAs === "stranger"
+    ? { label: "There", detail: "A signed-out visitor can read it." }
+    : {
+        label: "There for you",
+        detail:
+          "Reddit would not answer a signed-out visitor, so this is what your own account sees. A moderator's removal does not show this way.",
+      }
 }

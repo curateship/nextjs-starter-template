@@ -72,6 +72,12 @@ export const PROJECT_ERRORS = {
   joinLinkBusy: "Too many people have joined through this link today. Ask the team to let you in tomorrow, or for an invite.",
   tooManyLines: "Paste at most 50 lines at once, one task per line.",
   notInThisProject: "Those tasks aren't all in this project. Reload the page and try again.",
+  meetingNotFound: "That meeting doesn't exist any more.",
+  cantChangeMeeting:
+    "Only the person who made the meeting, the owner or an admin can change or delete it.",
+  tooManyMeetings: "A team can have at most 200 meetings. Delete old ones to make another.",
+  photoNotYours: "Pick a photo you uploaded yourself.",
+  tooManyMeetingSaves: "That's a lot of meeting changes in an hour. Wait a while, then try again.",
 } as const
 
 /** The shell's rate limiter refuses with this code rather than a sentence. */

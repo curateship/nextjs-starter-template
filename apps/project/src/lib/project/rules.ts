@@ -1,5 +1,6 @@
 import { z } from "zod"
 
+import { isRealDay } from "@/lib/project/days"
 import { storedTaskNotes } from "@/lib/project/notes"
 
 /**
@@ -167,6 +168,13 @@ export const LIMITS = {
   /** Tasks one pasted list can make. */
   tasksPerPaste: 50,
   memberTitle: 40,
+  meetingTitle: 80,
+  /** Everyone on a small team, with room to spare. */
+  meetingPeople: 50,
+  meetingsPerTeam: 200,
+  videoUrl: 2048,
+  /** One check-in note: a line, not a report. */
+  checkinNote: 280,
 } as const
 
 /** People who can join through one team link in a day, so a leaked link can't fill the team. */
@@ -175,6 +183,10 @@ export const JOINS_PER_LINK_PER_DAY = 20
 /** How a task repeats: every team work day, on chosen week days, or on a date each month. */
 export const REPEAT_EVERY = ["workday", "week", "month"] as const
 export type RepeatEvery = (typeof REPEAT_EVERY)[number]
+
+/** How a meeting repeats, on the same weekday as its first day. Null is a one-off. */
+export const MEETING_REPEATS = ["week", "two_weeks"] as const
+export type MeetingRepeat = (typeof MEETING_REPEATS)[number]
 
 /** A deleted task waits in its project's bin this long before it is gone for good. */
 export const BIN_DAYS = 30
@@ -418,6 +430,20 @@ export const editCommentSchema = z.object({
   body: messageSchema,
 })
 
+/** A check-in's three notes. An empty box saves as no note. */
+const noteSchema = z
+  .string()
+  .trim()
+  .max(LIMITS.checkinNote, `A note can be at most ${LIMITS.checkinNote} characters.`)
+  .transform((value) => value || null)
+
+export const checkinNotesSchema = z.object({
+  yesterday: noteSchema,
+  today: noteSchema,
+  blocker: noteSchema,
+})
+export type CheckinNotes = { yesterday: string | null; today: string | null; blocker: string | null }
+
 /**
  * A check-in: an answer for each task left over from the last check-in, and
  * the tasks picked for today.
@@ -432,4 +458,48 @@ export const submitCheckinSchema = z.object({
     )
     .max(LIMITS.picksPerDay),
   picks: z.array(id).max(LIMITS.picksPerDay),
+  notes: checkinNotesSchema.optional(),
 })
+
+/** "HH:MM" on a meeting, 24-hour, as the time field gives it. */
+const meetingTimeSchema = z.string().regex(/^([01][0-9]|2[0-3]):[0-5][0-9]$/, "Pick a time like 10:00.")
+
+/** Any https address. The row names the service when it knows it. */
+const videoUrlSchema = z
+  .string()
+  .trim()
+  .max(LIMITS.videoUrl, "That link is too long.")
+  .refine((value) => value === "" || isHttpsUrl(value), "The video link must start with https://.")
+  .transform((value) => value || null)
+
+function isHttpsUrl(value: string) {
+  try {
+    return new URL(value).protocol === "https:"
+  } catch {
+    return false
+  }
+}
+
+export const meetingSchema = z
+  .object({
+    title: trimmed(LIMITS.meetingTitle, "The meeting name"),
+    color: z.enum(PROJECT_COLORS),
+    day: z.string().refine(isRealDay, "Pick the meeting's day."),
+    startTime: meetingTimeSchema,
+    endTime: meetingTimeSchema,
+    repeatEvery: z.enum(MEETING_REPEATS).nullable(),
+    videoUrl: videoUrlSchema,
+    peopleIds: z
+      .array(id)
+      .max(LIMITS.meetingPeople, `A meeting can have at most ${LIMITS.meetingPeople} people.`)
+      .transform((ids) => [...new Set(ids)]),
+  })
+  .refine((meeting) => meeting.endTime > meeting.startTime, {
+    message: "The meeting has to end after it starts.",
+    path: ["endTime"],
+  })
+
+export const updateMeetingSchema = z.object({ meetingId: id, meeting: meetingSchema })
+
+/** The team photo's address from the media library, or "" to take it away. */
+export const teamPhotoSchema = z.object({ photoUrl: z.string().trim().max(2048) })
